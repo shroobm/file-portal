@@ -1,0 +1,29 @@
+[defaults]
+unmatched_destination = "sorted/misc"
+on_collision = "rename"          # "rename" | "overwrite" | "skip"
+max_file_size_mb = 2048
+
+[[rule]]
+category = "documents"
+match = ["*.pdf", "*.docx", "*.txt", "*.md"]
+destination = "sorted/documents"
+
+[[rule]]
+category = "photos"
+match = ["*.jpg", "*.jpeg", "*.png", "*.heic"]
+destination = "sorted/photos/{yyyy}/{mm}"
+
+[[rule]]
+category = "code"
+match = ["*.zip", "*.tar.gz"]
+destination = "sorted/code/archives"
+
+[[rule]]
+category = "code"
+match = ["*"]
+destination = "sorted/code/inbox"
+
+[[rule]]
+category = "archive"
+match = ["*"]
+destination = "sorted/archive"

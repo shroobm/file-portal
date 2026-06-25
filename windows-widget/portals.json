@@ -1,0 +1,9 @@
+{
+  "_comment": "Reference copy of the default portal set baked into config.rs's AppConfig::default(). Edit %APPDATA%\\file-portal\\config.toml on a running install instead of this file -- see windows-widget/README.md.",
+  "portals": [
+    { "category": "documents", "label": "Documents", "icon": "📄" },
+    { "category": "photos", "label": "Photos", "icon": "🖼" },
+    { "category": "code", "label": "Code", "icon": "💻" },
+    { "category": "archive", "label": "Archive", "icon": "📦" }
+  ]
+}

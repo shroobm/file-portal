@@ -1,0 +1,13 @@
+[Unit]
+Description=File Portal allocator (sorts incoming files from the Windows widget)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/file-portal-src/linux-receiver
+ExecStart=%h/file-portal-src/linux-receiver/.venv/bin/python -m allocator.main
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

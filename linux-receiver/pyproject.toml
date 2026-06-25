@@ -1,0 +1,12 @@
+[project]
+name = "file-portal-allocator"
+version = "0.1.0"
+description = "Watches inbox/ and sorts incoming files according to rules.toml"
+requires-python = ">=3.11"
+dependencies = [
+    "watchdog>=4.0,<5",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"

@@ -1,0 +1,53 @@
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: "Segoe UI", sans-serif;
+  background: transparent;
+  user-select: none;
+}
+
+#portals {
+  display: flex;
+  gap: 10px;
+  padding: 12px;
+}
+
+.portal {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  height: 90px;
+  border-radius: 12px;
+  background: rgba(30, 30, 30, 0.75);
+  border: 2px dashed rgba(255, 255, 255, 0.25);
+  color: #eee;
+  font-size: 12px;
+  transition: background 0.15s, border-color 0.15s;
+}
+
+.portal .icon {
+  font-size: 28px;
+}
+
+.portal.drag-over {
+  background: rgba(60, 120, 220, 0.85);
+  border-color: #fff;
+}
+
+.portal.sending {
+  opacity: 0.6;
+}
+
+#status {
+  padding: 0 12px 10px;
+  font-size: 11px;
+  color: #ccc;
+  min-height: 14px;
+}

@@ -1,0 +1,23 @@
+# --- Windows widget (Tauri / Node / Rust) ---
+windows-widget/node_modules/
+windows-widget/dist/
+windows-widget/src-tauri/target/
+windows-widget/src-tauri/Cargo.lock
+
+# --- Linux receiver (Python) ---
+linux-receiver/.venv/
+linux-receiver/__pycache__/
+linux-receiver/**/__pycache__/
+linux-receiver/*.egg-info/
+linux-receiver/.pytest_cache/
+
+# --- OS / editor noise ---
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/
+*.log
+
+# --- Secrets / local config overrides ---
+*.local.toml
+.env
