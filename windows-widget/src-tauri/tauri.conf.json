@@ -4,10 +4,10 @@
   "version": "0.1.0",
   "identifier": "dev.fileportal.widget",
   "build": {
-    "frontendDist": "../src",
-    "devUrl": "../src"
+    "frontendDist": "../src"
   },
   "app": {
+    "withGlobalTauri": true,
     "windows": [
       {
         "title": "File Portal",
