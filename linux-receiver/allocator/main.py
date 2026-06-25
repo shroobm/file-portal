@@ -84,6 +84,14 @@ def run(root: Path, rules_path: Path):
     paths = Paths.from_root(root)
     paths.ensure_exist()
 
+    # Pre-create inbox/<category>/ for every category in rules.toml. rsync/scp can't create a
+    # missing remote directory themselves, so without this the first transfer to a fresh
+    # category would fail.
+    rules = RuleSet.load(rules_path)
+    categories = {rule.category for rule in rules.rules}
+    for category in categories:
+        (paths.inbox / category).mkdir(parents=True, exist_ok=True)
+
     logging.basicConfig(
         filename=paths.logs / "allocator.log",
         level=logging.INFO,
