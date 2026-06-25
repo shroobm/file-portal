@@ -1,6 +1,6 @@
 # 08 — Roadmap
 
-## ~~v0 — Scaffold (this commit)~~
+## ~~v0 — Scaffold (this commit)~~ COMPLETED
 
 - [x] Repository structure and documentation set.
 - [x] Tauri project skeleton with a working `send_to_portal` command shape.
@@ -21,7 +21,7 @@
       status file the widget polls over the same SSH channel, avoiding any new listening port.
 - [ ] Toast/notification on the Windows side when a transfer completes or fails.
 
-## ~~v1.5 — Linux dashboard~~
+## ~~v1.5 — Linux dashboard~~ COMPLETED
 
 - [x] Scaffold `linux-dashboard/`: GTK4 + libadwaita app, scanner, live-update watcher.
 - [x] Photo thumbnail grid and flat-list view for non-photo categories.
