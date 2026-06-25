@@ -1,6 +1,6 @@
 # 08 — Roadmap
 
-## v0 — Scaffold (this commit)
+## ~~v0 — Scaffold (this commit)~~
 
 - [x] Repository structure and documentation set.
 - [x] Tauri project skeleton with a working `send_to_portal` command shape.
