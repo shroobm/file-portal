@@ -6,7 +6,7 @@
 - [x] Tauri project skeleton with a working `send_to_portal` command shape.
 - [x] Allocator service skeleton (watcher, rules engine, config loader).
 - [x] `systemd --user` unit + install script.
-- [ ] End-to-end manual test on real hardware (needs your two machines + Tailscale set up).
+- [x] End-to-end manual test on real hardware (needs your two machines + Tailscale set up).
 
 ## v1 — Working fire-and-forget transfer
 
