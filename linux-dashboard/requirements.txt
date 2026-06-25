@@ -1,0 +1,2 @@
+watchdog>=4.0,<5
+tomli-w>=1.0,<2

@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=File Portal Dashboard
+Comment=Browse ~/file-portal/sorted/ as it fills up
+Exec=__EXEC_PATH__
+Path=__WORKDIR__
+Icon=folder-pictures
+Terminal=false
+StartupWMClass=com.shroobm.fileportal.Dashboard
+Categories=Utility;

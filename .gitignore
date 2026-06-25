@@ -11,6 +11,13 @@ linux-receiver/**/__pycache__/
 linux-receiver/*.egg-info/
 linux-receiver/.pytest_cache/
 
+# --- Linux dashboard (Python) ---
+linux-dashboard/.venv/
+linux-dashboard/__pycache__/
+linux-dashboard/**/__pycache__/
+linux-dashboard/*.egg-info/
+linux-dashboard/DEVNOTES.md
+
 # --- OS / editor noise ---
 .DS_Store
 Thumbs.db

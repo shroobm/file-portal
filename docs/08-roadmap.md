@@ -21,6 +21,15 @@
       status file the widget polls over the same SSH channel, avoiding any new listening port.
 - [ ] Toast/notification on the Windows side when a transfer completes or fails.
 
+## v1.5 — Linux dashboard
+
+- [x] Scaffold `linux-dashboard/`: GTK4 + libadwaita app, scanner, live-update watcher.
+- [x] Photo thumbnail grid and flat-list view for non-photo categories.
+- [x] Settings popover (window size, refresh interval, category filter, photo date range),
+      persisted to `~/.config/file-portal/dashboard.toml`.
+- [x] Single-instance toggle behavior and `.desktop` launcher for app-menu integration.
+- [ ] End-to-end manual test on real hardware with the allocator actively sorting files.
+
 ## v3 — Polish / open-source readiness
 
 - [ ] Unit tests for `allocator/rules.py` (glob matching, date tokens, collision policy).

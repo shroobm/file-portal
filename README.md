@@ -34,6 +34,7 @@ or trusting a third-party cloud relay. This project avoids all three:
 | `docs/`             | The knowledge base — read `docs/00-overview.md` first.                  |
 | `windows-widget/`   | The Tauri desktop app that renders the portal widgets.                  |
 | `linux-receiver/`   | The user-level allocator service that sorts incoming files.             |
+| `linux-dashboard/`  | Optional GTK4 desktop app that visualizes `sorted/` (gallery + lists).  |
 | `scripts/`          | One-off setup helpers (Tailscale SSH config, dev environment bootstrap).|
 
 ## Quickstart
@@ -42,6 +43,7 @@ or trusting a third-party cloud relay. This project avoids all three:
 2. Set up Tailscale SSH between the two machines: [`docs/02-tailscale-setup.md`](docs/02-tailscale-setup.md).
 3. Install the Linux allocator service: [`linux-receiver/README.md`](linux-receiver/README.md).
 4. Run the Windows widget in dev mode: [`windows-widget/README.md`](windows-widget/README.md).
+5. (Optional) Install the Linux dashboard to browse `sorted/`: [`linux-dashboard/README.md`](linux-dashboard/README.md).
 
 ## Status
 

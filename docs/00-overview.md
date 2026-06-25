@@ -29,6 +29,10 @@ Three pieces, each with one job:
      moves files into their final destination according to rules in
      [`linux-receiver/config/rules.toml`](../linux-receiver/config/rules.toml) — e.g. by file
      extension, by which portal/category it arrived through, or by simple glob patterns.
+   - **`linux-dashboard/`** (optional, read-only): a standalone GTK4 desktop app that visualizes
+     what's actually in `sorted/` — a thumbnail gallery for photos, a browsable list for
+     everything else — and updates live as the allocator sorts new files in. Not part of the
+     transfer path; see [`09-linux-dashboard.md`](09-linux-dashboard.md).
 
 ## Why "allocate" instead of just "send"
 
