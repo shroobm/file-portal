@@ -16,9 +16,9 @@ A small panel of "portal" tiles, each one a labeled drop zone:
 ```
 
 Dragging a file from Explorer onto a tile sends it through that portal's category. Tiles and their
-categories are defined in [`windows-widget/src-tauri/tauri.conf.json`](../windows-widget/src-tauri/tauri.conf.json)
-adjacent config (see `portals.json` once added) — adding a new portal is a config change, not a
-code change.
+categories are defined in `config.rs`'s `AppConfig::default()` and loaded at runtime from
+`%APPDATA%\file-portal\config.toml` (see [`portals.json`](../windows-widget/portals.json) for the
+reference copy of the default set) — adding a new portal is a config change, not a code change.
 
 ## Responsibilities (and non-responsibilities)
 
@@ -40,14 +40,17 @@ The widget explicitly **does not**:
 | File | Purpose |
 |------|---------|
 | `src/index.html` / `main.js` / `styles.css` | Portal UI, drag-and-drop handling, transfer status. |
-| `src-tauri/src/main.rs` | Tauri commands, including `send_to_portal`, which builds and runs the `tailscale ssh` + `rsync` child process. |
+| `src-tauri/src/main.rs` | Tauri commands (`list_portals`, `send_to_portal`), app state, entry point. |
+| `src-tauri/src/config.rs` | Loads `%APPDATA%\file-portal\config.toml` (host, user, portals); creates defaults on first run. |
+| `src-tauri/src/transfer.rs` | Shells out to `rsync -e "tailscale ssh"` (with `scp` fallback) to move files. |
 | `src-tauri/tauri.conf.json` | Window config (borderless, always-on-top, size) and app metadata. |
+| `portals.json` | Reference copy of the default portal set; not read at runtime (see `config.rs`). |
 
 ## Configuration
 
 The Linux host alias and per-category inbox subpaths are read from
 `%APPDATA%\file-portal\config.toml` at runtime (created with sane defaults on first launch — see
-the `config::load_or_init` function in `main.rs`). This keeps host-specific details out of the
+the `load_or_init` function in `config.rs`). This keeps host-specific details out of the
 repo/binary.
 
 ## Next

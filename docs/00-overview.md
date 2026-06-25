@@ -41,7 +41,7 @@ right place, and did anything need follow-up?" The allocator owns:
 
 - routing rules (category → destination directory),
 - collision handling (what happens if a file with the same name already exists),
-- basic validation (reject empty files, oversized files, disallowed extensions),
+- basic validation (reject oversized files beyond `max_file_size_mb`),
 - and an event log so you can see what moved where and when.
 
 ## Read next

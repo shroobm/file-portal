@@ -15,8 +15,8 @@
    │  Rust command: transfer::send(category, file_paths)       │
    │        │                                                  │
    │        ▼                                                  │
-   │  spawns: tailscale ssh <linux-host> -- \                  │
-   │           rsync --from-stdin / scp <file> :inbox/<cat>/   │
+   │  spawns: rsync -e "tailscale ssh" <file> <user>@<host>:inbox/<cat>/  │
+   │          (falls back to scp with ProxyCommand if rsync unavailable)  │
    └────────┼───────────────────────────────────────────────────┘
             │  Tailscale tunnel (WireGuard, tailnet-only)
             ▼
@@ -40,10 +40,11 @@
 1. User drags one or more files onto a portal widget in the Windows app.
 2. The frontend (HTML/JS) calls a Tauri command (`send_to_portal`) with the category name and the
    absolute file paths (Tauri's drag-and-drop API gives native paths, not blobs).
-3. The Rust backend shells out to the `tailscale` CLI (`tailscale ssh <host> -- <command>`) to
-   either:
-   - run `rsync` over the SSH transport for resumable, integrity-checked transfer (preferred), or
-   - fall back to `scp` if `rsync` isn't installed on the Linux box.
+3. The Rust backend shells out to `rsync` using `tailscale ssh` as the transport
+   (`rsync -av --progress -e "tailscale ssh" <files> <user>@<host>:<inbox>/<category>/`), so
+   rsync drives the transfer (resumable, integrity-checked) while `tailscale ssh` supplies the
+   authenticated tunnel. If `rsync` isn't available, it falls back to `scp` with
+   `ProxyCommand=tailscale ssh -W %h:%p`.
 4. Files land in `~/file-portal/inbox/<category>/` on the Linux box — a plain directory the
    receiving user already owns, so no elevated permissions are ever needed.
 5. The allocator service, watching `inbox/` via `inotify` (Linux kernel filesystem events, exposed

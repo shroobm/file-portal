@@ -48,7 +48,7 @@ service via `scripts/install.sh`.
 ## Code style
 
 - Rust: `cargo fmt` + `cargo clippy` before committing.
-- Python: `ruff` for linting/formatting (config in `linux-receiver/pyproject.toml` once added).
+- Python: `ruff` for linting/formatting (config in `linux-receiver/pyproject.toml`).
 - Frontend JS: kept deliberately framework-free (no React/Vue) — it's a handful of drop zones, a
   build step would be more overhead than the UI warrants.
 
