@@ -26,10 +26,15 @@ Output lands under `src-tauri/target/release/bundle/`.
 
 ## Desktop & taskbar shortcut
 
-To launch the widget without a terminal, double-click
+First build a **release** binary — `npm run tauri build` (the `--no-bundle` flag skips the
+MSI/NSIS installers if you just want the `.exe`). This is required: the debug binary from
+`tauri dev` loads the UI from the dev server, so double-clicking it shows *"Hmm, can't reach this
+page"* unless the dev server is running. A release build embeds the frontend and runs standalone.
+
+Then, to launch without a terminal, double-click
 [`../scripts/windows/install-shortcuts.cmd`](../scripts/windows/install-shortcuts.cmd). It creates a
-**File Portal** icon on your Desktop and in the Start Menu, pointing at whatever you've built
-(release if present, otherwise the debug binary) and using `src-tauri/icons/icon.ico`.
+**File Portal** icon on your Desktop and in the Start Menu, pointing at the release binary (it falls
+back to the debug build with a warning) and using `src-tauri/icons/icon.ico`.
 
 Windows blocks scripts from pinning to the taskbar, so do that last step by hand: right-click the
 new Desktop icon → **Pin to taskbar** (on Windows 11, → *Show more options* → *Pin to taskbar*).
