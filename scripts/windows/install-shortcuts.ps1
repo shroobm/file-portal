@@ -32,6 +32,17 @@ if (-not $exe) {
     exit 1
 }
 
+if ($exe -match '\\target\\debug\\') {
+    Write-Host ""
+    Write-Host "WARNING: only a DEBUG build was found." -ForegroundColor Yellow
+    Write-Host "The debug binary loads the UI from the dev server, so double-clicking it shows" -ForegroundColor Yellow
+    Write-Host "'Hmm, can't reach this page' unless 'npm run tauri dev' is running." -ForegroundColor Yellow
+    Write-Host "For a standalone app, build a release binary first:" -ForegroundColor Yellow
+    Write-Host "  cd windows-widget; npm run tauri build" -ForegroundColor Yellow
+    Write-Host "then re-run this script. Linking the debug build for now..." -ForegroundColor Yellow
+    Write-Host ""
+}
+
 Write-Host "Linking shortcuts to:"
 Write-Host "  $exe"
 
