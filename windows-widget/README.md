@@ -24,6 +24,18 @@ npm run tauri build
 
 Output lands under `src-tauri/target/release/bundle/`.
 
+## Desktop & taskbar shortcut
+
+To launch the widget without a terminal, double-click
+[`../scripts/windows/install-shortcuts.cmd`](../scripts/windows/install-shortcuts.cmd). It creates a
+**File Portal** icon on your Desktop and in the Start Menu, pointing at whatever you've built
+(release if present, otherwise the debug binary) and using `src-tauri/icons/icon.ico`.
+
+Windows blocks scripts from pinning to the taskbar, so do that last step by hand: right-click the
+new Desktop icon → **Pin to taskbar** (on Windows 11, → *Show more options* → *Pin to taskbar*).
+
+Re-run the script after a fresh `npm run tauri build` to repoint the shortcuts at the new binary.
+
 ## First-run configuration
 
 On first launch the app writes `%APPDATA%\file-portal\config.toml` with placeholder values.
