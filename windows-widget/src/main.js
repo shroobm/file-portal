@@ -1,8 +1,11 @@
 // Renders one drop-target tile per configured portal and sends dropped files to the Rust
 // backend's `send_to_portal` command. Kept framework-free on purpose — see docs/07-development-guide.md.
 
-import { invoke } from "@tauri-apps/api/core";
-import { getCurrentWebview } from "@tauri-apps/api/webview";
+// No bundler in this project (see docs/07-development-guide.md), so we can't resolve bare
+// module specifiers like "@tauri-apps/api/core" -- use the global API Tauri injects instead
+// (enabled via app.withGlobalTauri in tauri.conf.json).
+const { invoke } = window.__TAURI__.core;
+const { getCurrentWebview } = window.__TAURI__.webview;
 
 const portalsEl = document.getElementById("portals");
 const statusEl = document.getElementById("status");
@@ -22,7 +25,11 @@ function renderPortals(portals) {
   }
 }
 
-function tileForPosition(x, y) {
+function tileForPosition(physicalX, physicalY) {
+  // event.payload.position is in PHYSICAL pixels; getBoundingClientRect() is in CSS/logical
+  // pixels. On any display scaling other than 100% these don't match, so convert first.
+  const x = physicalX / window.devicePixelRatio;
+  const y = physicalY / window.devicePixelRatio;
   return [...document.querySelectorAll(".portal")].find((el) => {
     const r = el.getBoundingClientRect();
     return x >= r.left && x <= r.right && y >= r.top && y <= r.bottom;
@@ -39,20 +46,23 @@ async function init() {
 
   await webview.onDragDropEvent(async (event) => {
     const { type, position, paths } = event.payload;
+    console.log("dragDropEvent", type, position, paths);
 
-    if (type === "over") {
+    if (type === "enter" || type === "over") {
       const tile = tileForPosition(position.x, position.y);
       if (tile !== activeTile) {
         activeTile?.classList.remove("drag-over");
         activeTile = tile ?? null;
         activeTile?.classList.add("drag-over");
       }
+      setStatus(activeTile ? `Hovering over ${activeTile.dataset.category}` : "");
       return;
     }
 
     if (type === "leave") {
       activeTile?.classList.remove("drag-over");
       activeTile = null;
+      setStatus("");
       return;
     }
 
@@ -60,7 +70,11 @@ async function init() {
       activeTile?.classList.remove("drag-over");
       const tile = activeTile ?? tileForPosition(position.x, position.y);
       activeTile = null;
-      if (!tile) return;
+
+      if (!tile) {
+        setStatus("Dropped outside any portal — try again over a tile.");
+        return;
+      }
 
       const category = tile.dataset.category;
       tile.classList.add("sending");
@@ -69,12 +83,15 @@ async function init() {
       try {
         const report = await invoke("send_to_portal", { category, paths });
         const failedCount = report.failed.length;
-        setStatus(
-          failedCount === 0
-            ? `Sent ${report.sent.length} file(s) to ${category}.`
-            : `Sent ${report.sent.length}, failed ${failedCount}. See logs.`
-        );
+        if (failedCount === 0) {
+          setStatus(`Sent ${report.sent.length} file(s) to ${category}.`);
+        } else {
+          console.error("transfer failures", report.failed);
+          const firstError = report.failed[0]?.error ?? "unknown error";
+          setStatus(`Sent ${report.sent.length}, failed ${failedCount}: ${firstError}`);
+        }
       } catch (err) {
+        console.error("send_to_portal failed", err);
         setStatus(`Error: ${err}`);
       } finally {
         tile.classList.remove("sending");
@@ -83,4 +100,7 @@ async function init() {
   });
 }
 
-init();
+init().catch((err) => {
+  console.error("init failed", err);
+  setStatus(`Init error: ${err}`);
+});
