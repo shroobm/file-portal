@@ -20,7 +20,7 @@ class Paths:
             inbox=root / "inbox",
             sorted=root / "sorted",
             logs=root / "logs",
-            quarantine=root / "inbox" / "quarantine",
+            quarantine=root / "quarantine",
         )
 
     def ensure_exist(self) -> None:

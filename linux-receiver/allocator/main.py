@@ -34,6 +34,10 @@ class InboxHandler(FileSystemEventHandler):
             self._handle(Path(event.src_path))
 
     def _handle(self, file_path: Path):
+        # Ignore temp/dotfiles. The atomic transfer streams into a ".part-<name>" file and then
+        # renames it into place, so only the final renamed file should be allocated.
+        if file_path.name.startswith("."):
+            return
         if not file_path.exists():
             return
 
