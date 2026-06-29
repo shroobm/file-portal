@@ -15,8 +15,8 @@
    │  Rust command: transfer::send(category, file_paths)       │
    │        │                                                  │
    │        ▼                                                  │
-   │  spawns: rsync -e "tailscale ssh" <file> <user>@<host>:inbox/<cat>/  │
-   │          (falls back to scp with ProxyCommand if rsync unavailable)  │
+   │  spawns: tailscale ssh <user>@<host> -- "mkdir -p inbox/<cat>/ && cat > inbox/<cat>/<file>"  │
+   │          (the file's bytes are streamed into the remote cat over stdin; no rsync/scp)  │
    └────────┼───────────────────────────────────────────────────┘
             │  Tailscale tunnel (WireGuard, tailnet-only)
             ▼
@@ -40,11 +40,13 @@
 1. User drags one or more files onto a portal widget in the Windows app.
 2. The frontend (HTML/JS) calls a Tauri command (`send_to_portal`) with the category name and the
    absolute file paths (Tauri's drag-and-drop API gives native paths, not blobs).
-3. The Rust backend shells out to `rsync` using `tailscale ssh` as the transport
-   (`rsync -av --progress -e "tailscale ssh" <files> <user>@<host>:<inbox>/<category>/`), so
-   rsync drives the transfer (resumable, integrity-checked) while `tailscale ssh` supplies the
-   authenticated tunnel. If `rsync` isn't available, it falls back to `scp` with
-   `ProxyCommand=tailscale ssh -W %h:%p`.
+3. The Rust backend shells out to `tailscale ssh <user>@<host> -- "mkdir -p <inbox>/<category> &&
+   cat > <inbox>/<category>/<filename>"` and streams each file's bytes into that remote `cat` over
+   the process's stdin — one file per invocation. `tailscale ssh` supplies the authenticated tunnel
+   and is the only command that verifies Tailscale SSH's managed host keys (plain `ssh`/`scp` reject
+   them, and `rsync` isn't installed on stock Windows), so it is used as the transport directly
+   rather than wrapping `rsync`/`scp`. Remote paths are shell-quoted so filenames with spaces or
+   quotes are handled safely.
 4. Files land in `~/file-portal/inbox/<category>/` on the Linux box — a plain directory the
    receiving user already owns, so no elevated permissions are ever needed.
 5. The allocator service, watching `inbox/` via `inotify` (Linux kernel filesystem events, exposed
@@ -57,21 +59,24 @@
    current state of this feedback loop (v1 is fire-and-forget; status feedback is a planned
    iteration).
 
-## Why SSH/rsync instead of a custom HTTP server
+## Why Tailscale SSH instead of a custom HTTP server
 
 A custom server would need to listen on a port, parse multipart uploads, and handle its own auth —
-all attack surface we'd be building and maintaining ourselves. `rsync`/`scp` over Tailscale SSH
+all attack surface we'd be building and maintaining ourselves. Streaming over Tailscale SSH
 gets us, for free:
 
 - transport encryption and authentication (Tailscale's WireGuard + tailnet identity),
-- resumable, checksum-verified transfer (`rsync`),
 - zero custom listening port — the only thing listening is `tailscaled` and `sshd`, both of which
-  are maintained by people who do this for a living.
+  are maintained by people who do this for a living,
+- no extra client dependency on Windows — `tailscale` is already installed for the tunnel, and the
+  remote side only needs `cat`.
 
-The tradeoff: less control over progress reporting and no built-in "allocate on arrival" hook from
-the transport itself — which is exactly why the allocator is a separate watcher process rather than
-something bolted onto the transfer step. See [`docs/00-overview.md`](00-overview.md) for that
-rationale.
+The tradeoffs: a raw `cat` stream isn't resumable or checksum-verified the way `rsync` would be (an
+interrupted transfer of a very large file is re-sent from scratch), and there's no built-in progress
+reporting or "allocate on arrival" hook from the transport itself — which is exactly why the
+allocator is a separate watcher process rather than something bolted onto the transfer step.
+Revisiting the transport is tracked in [`08-roadmap.md`](08-roadmap.md); see
+[`docs/00-overview.md`](00-overview.md) for the separate-allocator rationale.
 
 ## Why a separate allocator instead of routing during transfer
 
