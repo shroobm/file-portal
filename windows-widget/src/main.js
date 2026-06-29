@@ -6,9 +6,18 @@
 // (enabled via app.withGlobalTauri in tauri.conf.json).
 const { invoke } = window.__TAURI__.core;
 const { getCurrentWebview } = window.__TAURI__.webview;
+const { getCurrentWindow } = window.__TAURI__.window;
 
 const portalsEl = document.getElementById("portals");
 const statusEl = document.getElementById("status");
+
+// Wire the titlebar minimize button. Dragging is handled by Tauri via the data-tauri-drag-region
+// attributes on #titlebar (needs core:window:allow-start-dragging); minimize needs this JS call
+// (needs core:window:allow-minimize). Wired at top level so it works even if list_portals stalls.
+const minBtn = document.getElementById("min-btn");
+minBtn?.addEventListener("click", () => {
+  getCurrentWindow().minimize();
+});
 
 function setStatus(message) {
   statusEl.textContent = message;

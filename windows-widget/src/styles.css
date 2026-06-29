@@ -10,6 +10,41 @@ body {
   user-select: none;
 }
 
+#titlebar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 26px;
+  padding: 0 4px 0 10px;
+  cursor: grab;
+}
+
+#titlebar:active {
+  cursor: grabbing;
+}
+
+#titlebar .title {
+  font-size: 11px;
+  color: #ccc;
+  letter-spacing: 0.3px;
+}
+
+#min-btn {
+  width: 28px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #eee;
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+#min-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
 #portals {
   display: flex;
   gap: 10px;

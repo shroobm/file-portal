@@ -12,7 +12,7 @@
       {
         "title": "File Portal",
         "width": 480,
-        "height": 160,
+        "height": 186,
         "resizable": true,
         "decorations": false,
         "alwaysOnTop": true,
