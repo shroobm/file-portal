@@ -15,8 +15,8 @@
    │  Rust command: transfer::send(category, file_paths)       │
    │        │                                                  │
    │        ▼                                                  │
-   │  spawns: tailscale ssh <user>@<host> -- "mkdir -p inbox/<cat>/ && cat > inbox/<cat>/<file>"  │
-   │          (the file's bytes are streamed into the remote cat over stdin; no rsync/scp)  │
+   │  spawns: tailscale ssh <user>@<host> -- "... cat > inbox/<cat>/.part-<file> && mv -f .part-<file> <file>"  │
+   │          (bytes streamed into a temp .part- file over stdin, then atomic mv; no rsync/scp)  │
    └────────┼───────────────────────────────────────────────────┘
             │  Tailscale tunnel (WireGuard, tailnet-only)
             ▼
@@ -41,8 +41,11 @@
 2. The frontend (HTML/JS) calls a Tauri command (`send_to_portal`) with the category name and the
    absolute file paths (Tauri's drag-and-drop API gives native paths, not blobs).
 3. The Rust backend shells out to `tailscale ssh <user>@<host> -- "mkdir -p <inbox>/<category> &&
-   cat > <inbox>/<category>/<filename>"` and streams each file's bytes into that remote `cat` over
-   the process's stdin — one file per invocation. `tailscale ssh` supplies the authenticated tunnel
+   cat > <inbox>/<category>/.part-<filename> && mv -f <…>/.part-<filename> <…>/<filename>"` and
+   streams each file's bytes into that remote `cat` over the process's stdin — one file per
+   invocation. Writing to a temporary `.part-<filename>` and then `mv`-ing it into place makes the
+   arrival a single atomic rename, so the allocator's watcher sees one complete file (its safe
+   `on_moved` path) rather than a half-written one. `tailscale ssh` supplies the authenticated tunnel
    and is the only command that verifies Tailscale SSH's managed host keys (plain `ssh`/`scp` reject
    them, and `rsync` isn't installed on stock Windows), so it is used as the transport directly
    rather than wrapping `rsync`/`scp`. Remote paths are shell-quoted so filenames with spaces or
