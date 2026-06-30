@@ -1,0 +1,13 @@
+[Unit]
+Description=File Portal converter (converts documents dropped into pipeline/convert-inbox)
+After=network-online.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/file-portal-src/linux-converter
+ExecStart=%h/file-portal-src/linux-converter/.venv/bin/python -m converter.main
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target
