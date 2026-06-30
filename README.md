@@ -8,7 +8,7 @@ machine over a [Tailscale](https://tailscale.com) tailnet, where a small user-le
 ┌─────────────────────────┐        Tailscale SSH         ┌──────────────────────────┐
 │   Windows 10 Desktop     │  (encrypted, no open ports)  │   Linux Box (any distro)  │
 │                          │ ───────────────────────────► │                          │
-│  [Docs] [Photos] [Code]  │   rsync over `tailscale ssh` │  ~/file-portal/inbox/     │
+│  [Docs] [Photos] [Code]  │  stream over `tailscale ssh` │  ~/file-portal/inbox/     │
 │   portal widgets         │                               │  → allocator sorts into  │
 │   (Tauri app)            │                               │    ~/file-portal/sorted/ │
 └─────────────────────────┘                               └──────────────────────────┘

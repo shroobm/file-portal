@@ -11,7 +11,7 @@
 ## v1 — Working fire-and-forget transfer
 
 - [x] Finalize `portals.json` schema and wire it into the widget UI.
-- [x] Harden `send_to_portal`: handle multi-file drops, surface `rsync`/`scp` errors in the UI.
+- [x] Harden `send_to_portal`: handle multi-file drops, surface transfer errors in the UI.
 - [x] Allocator: finish collision handling and the quarantine path for oversized/rejected files.
 - [ ] Package the widget (`cargo tauri build`) and document install steps for a second machine.
 

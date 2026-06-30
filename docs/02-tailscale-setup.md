@@ -73,14 +73,12 @@ tailscale ssh you@mybox
 You should land in a shell with no password/key prompt. If this works, the hard part is done —
 everything the widget does is built on top of this exact command.
 
-## 6. Confirm `rsync` is available on the Linux box
+## 6. Nothing else to install
 
-```bash
-which rsync || sudo apt install rsync   # or dnf/pacman/etc.
-```
-
-(This is the one other place a one-time `sudo` may show up — installing a package. After install,
-running `rsync` itself never needs elevated privileges.)
+The transport streams bytes into a remote `cat >` and then `mv`s the file into place, so the Linux
+box only needs the standard `cat`, `mkdir`, and `mv` — present on every distro. There's nothing to
+install here (and no `rsync`/`scp` involved); if step 5 dropped you into a shell, you already have
+everything the widget needs.
 
 ## Next
 

@@ -28,12 +28,24 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 - **File transfer transport could not work as written.** `src-tauri/src/transfer.rs` shelled out to
   `rsync`/`scp` over `tailscale ssh`. `rsync` is not present on stock Windows, and `scp`/plain `ssh`
   fail host-key verification against Tailscale SSH's managed keys. Rewrote `send_one_file()` to
-  stream each file's bytes through `tailscale ssh <user>@<host> "mkdir -p … && cat > …"`, removing
-  the rsync/scp dependency. Remote paths are shell-quoted (with `~/` preserved for expansion) to
-  handle filenames containing spaces or quotes.
+  stream each file's bytes through `tailscale ssh <user>@<host> "mkdir -p … && cat > .part-<name> &&
+  mv -f .part-<name> <name>"`, removing the rsync/scp dependency. Writing to a `.part-` temp and
+  renaming into place makes arrival a single atomic `on_moved` event (the allocator never picks up a
+  half-written file), and the bytes are streamed with `std::io::copy` instead of being buffered in
+  RAM. Remote paths are shell-quoted (with `~/` preserved for expansion) to handle filenames
+  containing spaces or quotes.
+- **A malformed `config.toml` silently reverted to `CHANGE_ME` defaults.** `src-tauri/src/config.rs`
+  now surfaces the TOML parse error (naming the file) and exits, and only seeds defaults when the
+  config is genuinely absent — a present-but-unparseable config no longer masquerades as a working
+  install pointed at the placeholder host/user.
 
 ### Added
 
+- **Widget titlebar with drag and minimize.** The frameless window gains a `data-tauri-drag-region`
+  titlebar (grab cursor) with a minimize button wired to `getCurrentWindow().minimize()`;
+  `src-tauri/capabilities/default.json` grants `core:window:allow-start-dragging` and
+  `core:window:allow-minimize`, and the window height goes 160→186 so the bar doesn't crowd the
+  tiles.
 - Surfaced transfer errors to the UI and the console (`send_to_portal failed`, per-file failure
   details) and a clearer "dropped outside any portal" status message.
 - Enabled the Tauri `devtools` feature in `src-tauri/Cargo.toml` for in-app debugging of the

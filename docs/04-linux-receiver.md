@@ -18,14 +18,17 @@ restarts on failure, and never needs root.
 
 ## Why "fully written" matters
 
-`inotify` fires on file creation, not on completion — a large `rsync` transfer triggers a CREATE
-event before the bytes finish arriving. The allocator waits for an explicit completion signal
-instead of racing the transfer:
+`inotify` fires on file creation, not on completion — a CREATE event arrives before the bytes
+finish streaming. The allocator avoids racing the transfer by relying on an atomic rename rather
+than the raw CREATE:
 
-- `rsync` is invoked with `--temp-dir`-style atomic semantics out of the box: it writes to a
-  hidden temp file and renames it into place only once the transfer is verified, so the watcher
-  only ever sees a MOVED_TO event for a complete file (this is the main reason the project prefers
-  `rsync` over plain `scp`).
+- The Windows widget streams each file into a temporary `inbox/<category>/.part-<name>` dotfile and
+  then `mv`s it onto its final name once all the bytes are there. That rename is atomic on the same
+  filesystem, so the watcher sees a single MOVED_TO event (the handler's `on_moved` path) for a
+  complete file.
+- The handler also skips dotfiles, so the in-progress `.part-` file is never allocated mid-write.
+  Both halves live in [`transfer.rs`](../windows-widget/src-tauri/src/transfer.rs) (write side) and
+  [`allocator/main.py`](../linux-receiver/allocator/main.py) (watch side).
 
 ## Key files
 
