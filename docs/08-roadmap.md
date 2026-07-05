@@ -17,8 +17,11 @@
 
 ## v2 — Feedback loop
 
-- [ ] Status reporting back to the widget (delivered → sorted → failed), likely via a small JSON
-      status file the widget polls over the same SSH channel, avoiding any new listening port.
+- [x] Linux half: the allocator writes every outcome (allocated/skipped/rejected) to a bounded,
+      atomically-updated `~/file-portal/logs/status.json` the widget can poll over the same SSH
+      channel (`tailscale ssh <user>@<host> "cat ~/file-portal/logs/status.json"`) — no new
+      listening port.
+- [ ] Windows half: widget polls `status.json` and shows delivered → sorted → failed per transfer.
 - [ ] Toast/notification on the Windows side when a transfer completes or fails.
 
 ## v1.5 — Linux dashboard
@@ -32,8 +35,10 @@
 
 ## v3 — Polish / open-source readiness
 
-- [ ] Unit tests for `allocator/rules.py` (glob matching, date tokens, collision policy).
-- [ ] CI (GitHub Actions): `cargo fmt --check`, `cargo clippy`, `ruff check`, Python tests.
+- [x] Unit tests for `allocator/rules.py` (glob matching, date tokens, collision policy) plus the
+      inbox handler (quarantine, guards, status feed) — `linux-receiver/tests/`.
+- [x] CI (GitHub Actions): `cargo fmt --check`, `cargo clippy`, `ruff check` + `ruff format
+      --check`, Python tests — `.github/workflows/ci.yml`.
 - [ ] Screenshot/demo GIF for the README.
 - [ ] Decide on public vs. private GitHub repo and finalize `CONTRIBUTING.md` if public.
 

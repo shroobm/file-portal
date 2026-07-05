@@ -23,8 +23,8 @@ Three pieces, each with one job:
 3. **The Windows widget + Linux allocator** — the part this repo actually builds:
    - **`windows-widget/`**: a small always-on-top Tauri app. Each "portal" on screen represents one
      destination category (e.g. *Documents*, *Photos*, *Code*). Drop a file on a portal and the app
-     shells out to `tailscale ssh` + `rsync`/`scp` to push it into a per-category inbox folder on
-     the Linux box.
+     streams the file's bytes over `tailscale ssh` into a per-category inbox folder on the
+     Linux box.
    - **`linux-receiver/`**: a `systemd --user` Python service that watches the inbox folder(s) and
      moves files into their final destination according to rules in
      [`linux-receiver/config/rules.toml`](../linux-receiver/config/rules.toml) — e.g. by file

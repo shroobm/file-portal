@@ -8,6 +8,51 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Allocator could move files while they were still being written.** The watcher reacted to
+  `on_created`, but the streaming transport (`tailscale ssh … "cat > file"`) creates the file
+  before the bytes arrive, so a transfer could be sorted (and size-checked) half-written. The
+  allocator now treats inotify `CLOSE_WRITE` (`on_closed`) as the completion signal for in-place
+  writers and keeps `on_moved` for atomic-rename tools like rsync; on non-inotify platforms it
+  falls back to `on_created` plus a wait-until-size-stable check.
+- **In-flight rsync temp files could be sorted mid-transfer.** Dot-prefixed files (rsync's
+  `.name.XXXXXX` pattern) are now ignored; the completing rename is handled instead.
+- **Quarantined files could be re-processed.** `inbox/quarantine/` lives inside the watched inbox
+  tree; events under it are now explicitly ignored, preventing re-handling/log loops for rejected
+  files.
+- **Quarantine overwrote earlier rejects of the same name.** Quarantine now applies the `rename`
+  collision policy (`big.txt`, `big (1).txt`, …).
+- **One bad file could kill the watcher.** Any exception while allocating a single file (invalid
+  rules.toml, bad destination template, permissions) is now logged instead of propagating into —
+  and stopping — the observer thread.
+
+### Added (allocator / repo)
+
+- **v2 feedback loop, Linux half:** every outcome (`allocated`/`skipped`/`rejected`) is appended
+  to `~/file-portal/logs/status.json` (`allocator/status.py`) — bounded to the newest 200 events
+  and rewritten atomically so the widget can poll it over the existing
+  `tailscale ssh … "cat …"` channel without ever reading partial JSON.
+- **Test suite:** `linux-receiver/tests/` covering rules resolution (globs, date tokens,
+  defaults), collision policies, quarantine behavior, the new event guards, and the status feed;
+  dev deps in `linux-receiver/requirements-dev.txt`.
+- **CI:** `.github/workflows/ci.yml` — ruff lint + format check for both Python subprojects,
+  pytest for the allocator, and `cargo fmt --check` + `cargo clippy -D warnings` for the Tauri
+  widget on a Windows runner.
+
+### Docs
+
+- Corrected every remaining description of the retired rsync/scp transport (README diagram,
+  00-overview, 01-architecture diagram + data flow + tradeoffs, 02-tailscale-setup step 6,
+  03-windows-widget) to describe the `tailscale ssh … cat` streaming transport — the follow-up
+  flagged in the documentation audit.
+- 04-linux-receiver: documented the new completion-signal model (CLOSE_WRITE / MOVED_TO /
+  stability-wait fallback), quarantine guard, `status.py`, and the test suite.
+
+---
+
+Earlier unreleased work (widget render + transport fixes):
+
+### Fixed
+
 - **Widget showed nothing on launch (blank/invisible window).** `windows-widget/src/main.js`
   imported the Tauri JS API with bare ES-module specifiers
   (`import { invoke } from "@tauri-apps/api/core"`). The project intentionally ships no

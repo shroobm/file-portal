@@ -73,14 +73,13 @@ tailscale ssh you@mybox
 You should land in a shell with no password/key prompt. If this works, the hard part is done —
 everything the widget does is built on top of this exact command.
 
-## 6. Confirm `rsync` is available on the Linux box
+## 6. No extra tools needed on either end
 
-```bash
-which rsync || sudo apt install rsync   # or dnf/pacman/etc.
-```
-
-(This is the one other place a one-time `sudo` may show up — installing a package. After install,
-running `rsync` itself never needs elevated privileges.)
+The widget streams each file straight through
+`tailscale ssh <user>@<host> "mkdir -p … && cat > …"`, so the Linux box only needs coreutils
+(`mkdir`, `cat`) — present on any distro — and the Windows side only needs the `tailscale` CLI it
+already has. (Earlier revisions required `rsync` on the Linux box; that dependency is gone — see
+`windows-widget/src-tauri/src/transfer.rs` for the rationale.)
 
 ## Next
 
