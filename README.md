@@ -36,6 +36,7 @@ or trusting a third-party cloud relay. This project avoids all three:
 | `linux-receiver/`   | The user-level allocator service that sorts incoming files.             |
 | `linux-dashboard/`  | Optional GTK4 desktop app that visualizes `sorted/` (gallery + lists).  |
 | `scripts/`          | One-off setup helpers (Tailscale SSH config, dev environment bootstrap).|
+| `coordination/`     | Agent-to-agent message bus (Claude on each machine); not user docs.     |
 
 ## Quickstart
 
