@@ -1,6 +1,6 @@
 # CLAUDE_README — File Portal / Library Pipeline Mission Brief
 
-*Last updated: 2026-07-05 by Desktop agent (Cowork/Dispatch)*
+*Last updated: 2026-07-05 by Desktop agent (Cowork/Dispatch) — Session 2*
 *Read this file first when activating on any machine in this project.*
 
 ---
@@ -68,9 +68,13 @@ git pull  # always first
 - ✅ `coordination/messages/` folder created in repo
 - ✅ Desktop build report written and committed to `feat/library-pipeline`
 - ✅ Branch `feat/library-pipeline` pushed to origin
-- ✅ `CLAUDE_README.md` created and pushed (this file)
+- ✅ `CLAUDE_README.md` created with session protocol and pushed (this file)
+- ✅ W1 atomic transfer — verified in committed code (transfer.rs: `.part-` tmp + `mv -f`)
+- ✅ W2 streaming copy — verified in committed code (`std::io::copy`, not `read_to_end`)
+- ✅ W3 widget controls — verified in committed code (titlebar in index.html, capabilities/default.json, height=186)
+- ⏸ W4 rebuild — pending; needs `npm run tauri build` from a terminal session
 - ⏸ E2E test — widget running, needs user at desktop to approve File Portal access dialog
-- ⏸ All Library Pipeline Parts — not yet started; Part 1 Linux gates everything
+- ⏸ All Library Pipeline Parts — Part 1 Linux (L1-L4) gates everything
 
 ---
 
@@ -90,36 +94,24 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 1 — Windows Tasks (do these first)
 
-- [ ] **W1 — Make transfer atomic** (fixes file-corruption race)
+- [x] **W1 — Make transfer atomic** (fixes file-corruption race)
   File: `src-tauri/src/transfer.rs`
   - Build `remote_tmp = "{remote_dir}/.part-{filename}"`
   - Set `remote_cmd = "mkdir -p {dir} && cat > {tmp} && mv -f {tmp} {final}"` (quote tmp and final via `remote_path_expr`)
   - Why: receiver currently sees `on_created` on a half-written file; atomic rename hits the safe `on_moved` path
 
-- [ ] **W2 — Stream, don't buffer** (prevents OOM on large files)
+- [x] **W2 — Stream, don't buffer** (prevents OOM on large files)
   Same file: `src-tauri/src/transfer.rs`
   - Replace `read_to_end` into a `Vec` with `std::io::copy(&mut local_file, &mut stdin)`
 
-- [ ] **W3 — Widget window controls** (independent quick win — no separate rebuild)
+- [x] **W3 — Widget window controls** (independent quick win — no separate rebuild)
   - `src/index.html`: add `<div id="titlebar" data-tauri-drag-region>` containing a title span and `#min-btn` button (button has NO drag attribute)
-  - `src/styles.css`: style `#titlebar` (height ~26px, `cursor: grab`) and `#min-btn` hover state
-  - `src/main.js`: `const { getCurrentWindow } = window.__TAURI__.window;` + wire `#min-btn` → `getCurrentWindow().minimize()`
-  - NEW FILE `src-tauri/capabilities/default.json`:
-    ```json
-    {
-      "identifier": "default",
-      "description": "Default capability",
-      "windows": ["main"],
-      "permissions": [
-        "core:default",
-        "core:window:allow-start-dragging",
-        "core:window:allow-minimize"
-      ]
-    }
-    ```
-  - `tauri.conf.json`: bump window `height` from 160 → 186
+  - `src/styles.css`: style `#titlebar` and `#min-btn` hover state
+  - `src/main.js`: wire `#min-btn` to `getCurrentWindow().minimize()`
+  - `src-tauri/capabilities/default.json`: `core:window:allow-start-dragging` + `core:window:allow-minimize`
+  - `tauri.conf.json`: window `height` bumped to 186
 
-- [ ] **W4 — Rebuild** after W1–W3:
+- [ ] **W4 — Rebuild** after W1-W3:
   ```
   npm run tauri build
   ```
@@ -299,7 +291,7 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 
 ## Session Log
 
-### 2026-07-05 — Desktop agent (Cowork/Dispatch)
+### 2026-07-05 — Desktop agent Session 1 (Cowork/Dispatch)
 **Machine:** DESKTOP-OBTQIRD (Windows)
 **What was done:**
 - Verified Tauri v2 build: 45s compile, 2 bundles (MSI + NSIS), no errors
@@ -309,5 +301,17 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 - Created this CLAUDE_README.md with full mission brief and session protocol
 - Pushed all to `feat/library-pipeline`
 **E2E test:** pending — needs user at desktop to approve File Portal access dialog
-**Next for Desktop (W1):** open `windows-widget/src-tauri/src/transfer.rs`, implement atomic temp-then-rename pattern
-**Next for ThinkPad (L1):** open `linux-receiver/allocator/config.py`, move quarantine out of inbox tree
+
+### 2026-07-05 — Desktop agent Session 2 (Cowork/Dispatch)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** Audit W1-W3 code in repo; update task list; close session cleanly.
+**What was done:**
+- Opened transfer.rs — W1 (atomic `.part-` + `mv -f`) and W2 (`std::io::copy`) ALREADY implemented and committed
+- Opened capabilities/default.json — W3 permissions (`allow-start-dragging`, `allow-minimize`) ALREADY present
+- Opened index.html — W3 titlebar + min-btn ALREADY in place
+- Opened tauri.conf.json — height ALREADY 186
+- Updated CLAUDE_README.md: marked W1/W2/W3 [x], updated Status Summary with verified findings
+- Committed and pushed session protocol update + audit results
+**Verification:** Opened each file directly in Notepad and confirmed code presence — not inferred from comments.
+**Next for Desktop (W4):** Run `npm run tauri build` from a terminal — ensure compiled exe includes W1-W3 (last known build was 11:10 AM, uncertain if W1-W3 were present then)
+**Next for ThinkPad (L1):** open `linux-receiver/allocator/config.py`, move quarantine out of inbox tree — GATE for all other work
