@@ -5,12 +5,70 @@
 
 ---
 
+## Session Protocol — How Every Claude Uses This File
+
+This file is the shared brain across sessions and machines. Follow this every time.
+
+### 1. On Activation
+```bash
+git pull  # always first
+```
+- Read this file top to bottom
+- Read the most recent entry in **Session Log** to understand where the last session ended
+
+### 2. Before Starting Work
+- Write your plan in **Current Session Plan** (replace whatever was there)
+- Include: what you're planning to do, in what order, and how you'll verify each step
+- Commit and push:
+  ```bash
+  git add CLAUDE_README.md
+  git commit -m "session: open plan — [machine] [date]"
+  git push
+  ```
+
+### 3. During Work
+- Verify each step before moving on (test, lint, check output, confirm expected behavior)
+- If the solution to a step changes from the plan, note the change and why inline
+
+### 4. Before Closing the Session
+- Move the current session plan to **Session Log** with a timestamp and outcome
+- Update the machine's task list above (check off done items, add new ones)
+- Write the concrete next steps so the next Claude can start immediately
+- Commit and push:
+  ```bash
+  git add CLAUDE_README.md
+  git commit -m "session: close — [machine] [date]"
+  git push
+  ```
+
+---
+
+## Current Session Plan
+
+*Replace this section at the start of each session. Commit it before starting work.*
+
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
+
+### What I'm planning to do (in order):
+1.
+
+### How I'll verify each step:
+1.
+
+### Dependencies / blockers:
+-
+
+---
+
 ## Status Summary (as of 2026-07-05)
 
 - ✅ File Portal v2 status feedback loop — Tauri v2 built (45s, 2 bundles), all 4 files committed
 - ✅ `coordination/messages/` folder created in repo
 - ✅ Desktop build report written and committed to `feat/library-pipeline`
 - ✅ Branch `feat/library-pipeline` pushed to origin
+- ✅ `CLAUDE_README.md` created and pushed (this file)
 - ⏸ E2E test — widget running, needs user at desktop to approve File Portal access dialog
 - ⏸ All Library Pipeline Parts — not yet started; Part 1 Linux gates everything
 
@@ -32,62 +90,62 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 1 — Windows Tasks (do these first)
 
-**Task W1 — Make transfer atomic** (fixes file-corruption race)
-File: `src-tauri/src/transfer.rs`
-- Build `remote_tmp = "{remote_dir}/.part-{filename}"`
-- Set `remote_cmd = "mkdir -p {dir} && cat > {tmp} && mv -f {tmp} {final}"` (quote tmp and final via `remote_path_expr`)
-- Why: receiver currently sees `on_created` on a half-written file; atomic rename hits the safe `on_moved` path
+- [ ] **W1 — Make transfer atomic** (fixes file-corruption race)
+  File: `src-tauri/src/transfer.rs`
+  - Build `remote_tmp = "{remote_dir}/.part-{filename}"`
+  - Set `remote_cmd = "mkdir -p {dir} && cat > {tmp} && mv -f {tmp} {final}"` (quote tmp and final via `remote_path_expr`)
+  - Why: receiver currently sees `on_created` on a half-written file; atomic rename hits the safe `on_moved` path
 
-**Task W2 — Stream, don't buffer** (prevents OOM on large files)
-Same file: `src-tauri/src/transfer.rs`
-- Replace `read_to_end` into a `Vec` with `std::io::copy(&mut local_file, &mut stdin)`
+- [ ] **W2 — Stream, don't buffer** (prevents OOM on large files)
+  Same file: `src-tauri/src/transfer.rs`
+  - Replace `read_to_end` into a `Vec` with `std::io::copy(&mut local_file, &mut stdin)`
 
-**Task W3 — Widget window controls** (independent quick win — no separate rebuild)
-- `src/index.html`: add `<div id="titlebar" data-tauri-drag-region>` containing a title span and `#min-btn` button (button has NO drag attribute)
-- `src/styles.css`: style `#titlebar` (height ~26px, `cursor: grab`) and `#min-btn` hover state
-- `src/main.js`: add `const { getCurrentWindow } = window.__TAURI__.window;` and wire `document.getElementById("min-btn").addEventListener("click", () => getCurrentWindow().minimize())`
-- NEW FILE `src-tauri/capabilities/default.json`:
-  ```json
-  {
-    "identifier": "default",
-    "description": "Default capability",
-    "windows": ["main"],
-    "permissions": [
-      "core:default",
-      "core:window:allow-start-dragging",
-      "core:window:allow-minimize"
-    ]
-  }
+- [ ] **W3 — Widget window controls** (independent quick win — no separate rebuild)
+  - `src/index.html`: add `<div id="titlebar" data-tauri-drag-region>` containing a title span and `#min-btn` button (button has NO drag attribute)
+  - `src/styles.css`: style `#titlebar` (height ~26px, `cursor: grab`) and `#min-btn` hover state
+  - `src/main.js`: `const { getCurrentWindow } = window.__TAURI__.window;` + wire `#min-btn` → `getCurrentWindow().minimize()`
+  - NEW FILE `src-tauri/capabilities/default.json`:
+    ```json
+    {
+      "identifier": "default",
+      "description": "Default capability",
+      "windows": ["main"],
+      "permissions": [
+        "core:default",
+        "core:window:allow-start-dragging",
+        "core:window:allow-minimize"
+      ]
+    }
+    ```
+  - `tauri.conf.json`: bump window `height` from 160 → 186
+
+- [ ] **W4 — Rebuild** after W1–W3:
   ```
-- `tauri.conf.json`: bump window `height` from 160 → 186
+  npm run tauri build
+  ```
 
-**Task W4 — Rebuild** after W1–W3:
-```
-npm run tauri build
-```
-
-**Task W5 — E2E test** (needs user present at desktop)
-- Approve File Portal computer-use access dialog
-- Drop a .pdf onto a portal tile → expect green "✓ allocated"
-- Drop a .xyz onto a portal tile → expect red "✗ rejected"
-- Verify UI tile color feedback updates within ~30s
+- [ ] **W5 — E2E test** (needs user present at desktop)
+  - Approve File Portal computer-use access dialog
+  - Drop a .pdf onto a portal tile → expect green "✓ allocated"
+  - Drop a .xyz onto a portal tile → expect red "✗ rejected"
+  - Verify UI tile color feedback updates within ~30s
 
 ### Part 2 — Windows Tasks (after Part 1 Linux is done)
 
-**Task W6 — Add Convert tile**
-File: `%APPDATA%\file-portal\config.toml`
-```toml
-[[portals]]
-category = "convert"
-label = "To Vault"
-icon = "🔁"
-```
-Also mirror into `src-tauri/src/config.rs` `AppConfig::default()` and `windows-widget/portals.json`
+- [ ] **W6 — Add Convert tile**
+  File: `%APPDATA%\file-portal\config.toml`
+  ```toml
+  [[portals]]
+  category = "convert"
+  label = "To Vault"
+  icon = "🔁"
+  ```
+  Also mirror into `src-tauri/src/config.rs` `AppConfig::default()` and `windows-widget/portals.json`
 
 ### Part 3 — Windows Tasks (after Part 3 Linux is done)
 
-**Task W7 — Add Convert-Scan tile**
-Same as W6 but: `category = "convert-scan"`, `label = "Scan → Vault"`, `icon = "🔍"`
+- [ ] **W7 — Add Convert-Scan tile**
+  Same as W6 but: `category = "convert-scan"`, `label = "Scan → Vault"`, `icon = "🔍"`
 
 ---
 
@@ -97,150 +155,117 @@ Same as W6 but: `category = "convert-scan"`, `label = "Scan → Vault"`, `icon =
 
 ### Part 1 — Linux Tasks ⚠️ GATE — must complete before anything else ⚠️
 
-**Task L1 — Kill quarantine loop** (critical bug — stuck files keep re-processing)
-File: `linux-receiver/allocator/config.py`
-Change:
-```python
-# OLD
-quarantine = root / "inbox" / "quarantine"
-# NEW
-quarantine = root / "quarantine"
-```
-Update `Paths.from_root` and `ensure_exist` accordingly.
-Why: quarantining a file fires `on_moved` inside the watched tree, which re-handles it and un-quarantines it into `sorted/misc`.
+- [ ] **L1 — Kill quarantine loop** (critical bug — stuck files keep re-processing)
+  File: `linux-receiver/allocator/config.py`
+  Change:
+  ```python
+  # OLD
+  quarantine = root / "inbox" / "quarantine"
+  # NEW
+  quarantine = root / "quarantine"
+  ```
+  Update `Paths.from_root` and `ensure_exist` accordingly.
+  Why: quarantining a file fires `on_moved` inside the watched tree, which re-handles it and un-quarantines it.
 
-**Task L2 — Ignore temp/dotfiles in watcher**
-File: `linux-receiver/allocator/main.py`, inside `_handle` method
-Add at the very top of the method:
-```python
-if file_path.name.startswith("."):
-    return
-```
-Why: protects against .part-* temp files from the atomic transfer (Task W1)
+- [ ] **L2 — Ignore temp/dotfiles in watcher**
+  File: `linux-receiver/allocator/main.py`, inside `_handle` method
+  Add at the very top:
+  ```python
+  if file_path.name.startswith("."):
+      return
+  ```
 
-**Task L3 — Enable persistence**
-Run on the ThinkPad:
-```bash
-sudo systemctl enable --now tailscaled
-sudo loginctl enable-linger "$USER"
-```
-Verify all three pass:
-```bash
-systemctl is-enabled tailscaled                         # → enabled
-loginctl show-user "$USER" --property=Linger            # → Linger=yes
-systemctl --user is-enabled file-portal-allocator       # → enabled
-```
+- [ ] **L3 — Enable persistence**
+  ```bash
+  sudo systemctl enable --now tailscaled
+  sudo loginctl enable-linger "$USER"
+  ```
+  Verify:
+  ```bash
+  systemctl is-enabled tailscaled                         # → enabled
+  loginctl show-user "$USER" --property=Linger            # → Linger=yes
+  systemctl --user is-enabled file-portal-allocator       # → enabled
+  ```
 
-**Task L4 — Put linger in installer**
-File: `scripts/linux/bootstrap-arch.sh`
-Add: `sudo loginctl enable-linger "$USER"`
-(Do NOT add to `install.sh` — that script refuses sudo by design)
+- [ ] **L4 — Put linger in installer**
+  File: `scripts/linux/bootstrap-arch.sh`
+  Add: `sudo loginctl enable-linger "$USER"`
+  (NOT `install.sh` — that script refuses sudo)
 
-**Done when Part 1:** a 200MB+ file transfers without truncation; an oversized file lands in `quarantine/` and STAYS there; allocator + tailscaled survive a reboot with no login.
+**Done when Part 1:** 200MB+ file transfers without truncation; oversized file lands in `quarantine/` and stays; allocator + tailscaled survive a reboot with no login.
 
 ### Part 2 — Linux Tasks
 
-**Task L5 — Route the convert category**
-File: `linux-receiver/config/rules.toml`
-Add:
-```toml
-[[rule]]
-category = "convert"
-match = ["*.pdf", "*.epub", "*.docx"]
-destination = "pipeline/convert-inbox"
-```
-(Allocator auto-creates `inbox/convert/` at startup)
+- [ ] **L5 — Route the convert category**
+  File: `linux-receiver/config/rules.toml`
+  ```toml
+  [[rule]]
+  category = "convert"
+  match = ["*.pdf", "*.epub", "*.docx"]
+  destination = "pipeline/convert-inbox"
+  ```
 
-**Task L6 — Scaffold converter service**
-New directory: `linux-converter/` mirroring `linux-receiver/` structure
-Files needed: pyproject, requirements, `systemd/file-portal-converter.service` (as `--user` service), `scripts/install.sh`
-Watches: `~/file-portal/pipeline/convert-inbox`
-At this stage: only LOG "would convert <path>" — no conversion engine yet
-Enable: `systemctl --user enable --now file-portal-converter`
-
-**Done when Part 2:** dropping a PDF on the Convert tile lands it in `pipeline/convert-inbox` and the converter service logs the arrival.
+- [ ] **L6 — Scaffold converter service**
+  New: `linux-converter/` mirroring `linux-receiver/` structure
+  Watches: `~/file-portal/pipeline/convert-inbox`
+  At this stage: only LOG "would convert <path>" — no engine
+  Enable: `systemctl --user enable --now file-portal-converter`
 
 ### Part 3 — Linux Tasks (HEAVY — dedicate a full session after reset)
 
-**Task L7 — Install engines**
-```bash
-pip install pymupdf4llm --break-system-packages
-sudo pacman -S tesseract tesseract-data-eng pandoc
-```
-CRITICAL: `import pymupdf.layout` BEFORE `import pymupdf4llm` or auto-OCR silently fails on image-only pages.
+- [ ] **L7 — Install engines**
+  ```bash
+  pip install pymupdf4llm --break-system-packages
+  sudo pacman -S tesseract tesseract-data-eng pandoc
+  ```
+  CRITICAL: `import pymupdf.layout` BEFORE `import pymupdf4llm`
 
-**Task L8 — Dispatch by extension**
-- `.pdf`/`.epub` → PyMuPDF4LLM handler
-- `.docx` → Pandoc handler (`pandoc -f docx -t markdown --extract-media=<assets>`)
-
-**Task L9 — Two conversion lanes**
-- Clean lane (category `convert`): `force_ocr=False`, run membership test for real text layer, reroute to scan if fails
-- Scan lane (category `convert-scan`): `use_ocr=True`/`force_ocr=True`, `ocr_language=<code>`, `ocr_dpi=300`
-
-**Task L10 — Bundle output**
-```python
-to_markdown(..., write_images=True, image_path="<bundle>/assets", dpi=150)
-```
-- Rewrite `![](assets/..)` → Obsidian `![[..]]`
-- Output a bundle folder (markdown + assets), never a bare file
-- Write to: (a) anchor/master + `manifest.json` (source SHA-256, converter version, timestamp); (b) staging/exports queue
+- [ ] **L8** — Dispatch by extension (`.pdf`/`.epub` → PyMuPDF4LLM; `.docx` → Pandoc)
+- [ ] **L9** — Two lanes: Clean (`force_ocr=False`) and Scan (`force_ocr=True`, `ocr_dpi=300`)
+- [ ] **L10** — Bundle output: markdown + assets folder, write to anchor/master + staging
 
 ### Part 4 — Linux Tasks
 
-**Task L11 — Return transport** (recommended: git/Forgejo)
-Converter commits the bundle into the vault repo; desktop pulls via Obsidian Git or scheduled pull.
-Alternatives: Taildrop (`tailscale file cp`) or Windows OpenSSH + rsync `--remove-source-files`.
-
-**Task L12 — Place by tags**
-Map frontmatter tags → vault subfolder. Staging copy deleted on successful transport. Anchor retains permanent snapshot.
+- [ ] **L11** — Return transport (recommended: git/Forgejo)
+- [ ] **L12** — Place by frontmatter tags; delete staging after send
 
 ---
 
 ## Cross-Machine Communication Protocol
 
-### Method 1 — Git-based messages (current, async) ✅
-Write a markdown file to `coordination/messages/` with this filename format:
+### Method 1 — Git-based messages (current) ✅
+Write a markdown file to `coordination/messages/`:
 ```
 YYYY-MM-DDTHH-MM--{from}-to-{to}--{subject}.md
 ```
-Commit and push. The other agent pulls and reads.
-**Already in place.** Use this for status updates between sessions.
+Commit and push. The other agent pulls and reads. Already in use.
 
-### Method 2 — Tailscale SSH shared file (lightweight sync)
-Both agents can read/write a JSON state file on the ThinkPad via:
+### Method 2 — Tailscale SSH shared file
 ```bash
-# Desktop → write to ThinkPad
+# write to ThinkPad from Desktop
 tailscale ssh user@thinkpad "cat > ~/file-portal/coordination/state.json" < state.json
-# Desktop → read from ThinkPad
+# read from ThinkPad
 tailscale ssh user@thinkpad "cat ~/file-portal/coordination/state.json"
 ```
-Desktop `status.rs` already uses this pattern. Extend it for bidirectional state.
 
 ### Method 3 — MCP server over Tailscale (real-time, optional)
-If file-based is too slow, run a lightweight MCP HTTP server on the ThinkPad:
-
 **Setup (ThinkPad):**
 ```bash
 pip install mcp --break-system-packages
-# Or use a simple Flask/FastAPI MCP endpoint
-# Bind to 0.0.0.0 so Tailscale can reach it
-# Suggested port: 8765
+# Run a lightweight HTTP MCP endpoint on port 8765, bind 0.0.0.0
 ```
-
-**Desktop agent config** (`~/.claude/settings.json` or similar):
+**Desktop agent config:**
 ```json
 {
   "mcpServers": {
     "thinkpad-coordination": {
-      "url": "http://100.XX.XX.XX:8765/mcp",
+      "url": "http://<thinkpad-tailscale-ip>:8765/mcp",
       "transport": "http"
     }
   }
 }
 ```
-Replace `100.XX.XX.XX` with ThinkPad's Tailscale IP (check with `tailscale ip -4`).
-
-The MCP server can expose tools like `post_status`, `get_status`, `list_messages` for real-time coordination.
+Check ThinkPad Tailscale IP: `tailscale ip -4`
 
 ---
 
@@ -248,11 +273,11 @@ The MCP server can expose tools like `post_status`, `get_status`, `list_messages
 
 | # | Decision | Recommended |
 |---|---|---|
-| 1 | Disable Tailscale key expiry on always-on nodes | Yes — unattended reliability |
+| 1 | Disable Tailscale key expiry on always-on nodes | Yes |
 | 2 | Convert tile only vs push-from-library-on-demand | Tile only |
-| 3 | Clean-lane failure mode: bounce whole file vs convert-and-flag | Your call |
+| 3 | Clean-lane failure: bounce whole file vs convert-and-flag | Your call |
 | 4 | Return transport method | git/Forgejo |
-| 5 | Graph links: dense/dirty (instant graph, junk nodes) vs sparse/earned | Your call |
+| 5 | Graph links: dense/dirty vs sparse/earned | Your call |
 
 ---
 
@@ -269,3 +294,20 @@ The MCP server can expose tools like `post_status`, `get_status`, `list_messages
 | Desktop Tailscale IP | `100.79.42.106` |
 | Linux status.json | `~/file-portal/logs/status.json` |
 | Library pipeline plan | `docs/10-library-pipeline-plan.md` (drop the plan doc here) |
+
+---
+
+## Session Log
+
+### 2026-07-05 — Desktop agent (Cowork/Dispatch)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**What was done:**
+- Verified Tauri v2 build: 45s compile, 2 bundles (MSI + NSIS), no errors
+- Widget launched (file-portal-widget.exe, 8.77 MB)
+- Created `coordination/messages/` folder in repo
+- Wrote and committed desktop build report to coordination/messages/
+- Created this CLAUDE_README.md with full mission brief and session protocol
+- Pushed all to `feat/library-pipeline`
+**E2E test:** pending — needs user at desktop to approve File Portal access dialog
+**Next for Desktop (W1):** open `windows-widget/src-tauri/src/transfer.rs`, implement atomic temp-then-rename pattern
+**Next for ThinkPad (L1):** open `linux-receiver/allocator/config.py`, move quarantine out of inbox tree
