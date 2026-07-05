@@ -94,6 +94,7 @@ async function init() {
         const failedCount = report.failed.length;
         if (failedCount === 0) {
           setStatus(`Sent ${report.sent.length} file(s) to ${category}.`);
+          if (report.sent.length > 0) pollStatuses(report.sent, category);
         } else {
           console.error("transfer failures", report.failed);
           const firstError = report.failed[0]?.error ?? "unknown error";
@@ -108,6 +109,37 @@ async function init() {
     }
   });
 }
+
+
+async function pollStatuses(sentPaths, category) {
+  const pending = new Set(sentPaths.map((p) => p.replace(/\\/g, "/").split("/").pop()));
+  for (let i = 0; i < 10 && pending.size > 0; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    for (const filename of [...pending]) {
+      try {
+        const ev = await invoke("fetch_file_status", { category, filename });
+        if (ev) { pending.delete(filename); applyStatusEvent(category, ev); }
+      } catch (err) { console.warn("poll error", err); }
+    }
+  }
+  if (pending.size > 0) setStatus("Sent -- allocator pending for " + pending.size + " file(s).");
+}
+
+function applyStatusEvent(category, ev) {
+  const tile = document.querySelector(".portal[data-category=\"" + category + "\"]");
+  if (ev.action === "allocated") {
+    setStatus("✓ " + ev.file + " → " + (ev.dest ?? category));
+    tile?.classList.add("success");
+    setTimeout(() => tile?.classList.remove("success"), 3000);
+  } else if (ev.action === "rejected") {
+    setStatus("✗ " + ev.file + " rejected: " + (ev.reason ?? "unknown"));
+    tile?.classList.add("error");
+    setTimeout(() => tile?.classList.remove("error"), 5000);
+  } else if (ev.action === "skipped") {
+    setStatus("⚠ " + ev.file + " skipped: " + (ev.reason ?? "collision"));
+  }
+}
+
 
 init().catch((err) => {
   console.error("init failed", err);
