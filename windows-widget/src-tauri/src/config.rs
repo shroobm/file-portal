@@ -31,10 +31,26 @@ impl Default for AppConfig {
             remote_user: "CHANGE_ME".into(),
             remote_inbox_root: "~/file-portal/inbox".into(),
             portals: vec![
-                Portal { category: "documents".into(), label: "Documents".into(), icon: "📄".into() },
-                Portal { category: "photos".into(), label: "Photos".into(), icon: "🖼".into() },
-                Portal { category: "code".into(), label: "Code".into(), icon: "💻".into() },
-                Portal { category: "archive".into(), label: "Archive".into(), icon: "📦".into() },
+                Portal {
+                    category: "documents".into(),
+                    label: "Documents".into(),
+                    icon: "📄".into(),
+                },
+                Portal {
+                    category: "photos".into(),
+                    label: "Photos".into(),
+                    icon: "🖼".into(),
+                },
+                Portal {
+                    category: "code".into(),
+                    label: "Code".into(),
+                    icon: "💻".into(),
+                },
+                Portal {
+                    category: "archive".into(),
+                    label: "Archive".into(),
+                    icon: "📦".into(),
+                },
             ],
         }
     }
@@ -51,8 +67,7 @@ pub fn load_or_init() -> Result<AppConfig, std::io::Error> {
     let path = config_path();
 
     if let Ok(contents) = fs::read_to_string(&path) {
-        let cfg: AppConfig = toml::from_str(&contents)
-            .unwrap_or_else(|_| AppConfig::default());
+        let cfg: AppConfig = toml::from_str(&contents).unwrap_or_else(|_| AppConfig::default());
         return Ok(cfg);
     }
 

@@ -25,7 +25,9 @@ class DashboardWindow(Adw.ApplicationWindow):
         self._paths = paths
         self._settings = settings
         self._refresh_timeout_id: int | None = None
-        self._current_category = settings.enabled_categories[0] if settings.enabled_categories else "photos"
+        self._current_category = (
+            settings.enabled_categories[0] if settings.enabled_categories else "photos"
+        )
 
         self.set_title("File Portal Dashboard")
         self.set_default_size(settings.window_width, settings.window_height)
@@ -48,8 +50,12 @@ class DashboardWindow(Adw.ApplicationWindow):
         refresh_button.connect("clicked", lambda _b: self._refresh())
         header.pack_start(refresh_button)
 
-        settings_button = Gtk.MenuButton(icon_name="emblem-system-symbolic", tooltip_text="Settings")
-        self._settings_popover = SettingsPopover(self._settings, on_change=self._on_settings_changed)
+        settings_button = Gtk.MenuButton(
+            icon_name="emblem-system-symbolic", tooltip_text="Settings"
+        )
+        self._settings_popover = SettingsPopover(
+            self._settings, on_change=self._on_settings_changed
+        )
         settings_button.set_popover(self._settings_popover)
         header.pack_end(settings_button)
 
@@ -63,8 +69,16 @@ class DashboardWindow(Adw.ApplicationWindow):
         for category in ALL_CATEGORIES:
             row = Gtk.ListBoxRow()
             row.category = category
-            row.set_child(Gtk.Label(label=CATEGORY_LABELS[category], xalign=0, margin_top=8,
-                                     margin_bottom=8, margin_start=10, margin_end=10))
+            row.set_child(
+                Gtk.Label(
+                    label=CATEGORY_LABELS[category],
+                    xalign=0,
+                    margin_top=8,
+                    margin_bottom=8,
+                    margin_start=10,
+                    margin_end=10,
+                )
+            )
             self._sidebar.append(row)
 
         split_view.append(self._sidebar)

@@ -44,13 +44,17 @@ def _scan_flat(category_root: Path, category: str) -> list[Entry]:
     entries = []
     for file_path in category_root.rglob("*"):
         if file_path.is_file():
-            entries.append(Entry(path=file_path, category=category, mtime=file_path.stat().st_mtime))
+            entries.append(
+                Entry(path=file_path, category=category, mtime=file_path.stat().st_mtime)
+            )
     entries.sort(key=lambda e: e.mtime, reverse=True)
     return entries
 
 
 def _scan_photos(category_root: Path, settings: Settings) -> list[Entry]:
-    date_from = settings.photo_date_from if _YEAR_MONTH_RE.match(settings.photo_date_from or "") else None
+    date_from = (
+        settings.photo_date_from if _YEAR_MONTH_RE.match(settings.photo_date_from or "") else None
+    )
     date_to = settings.photo_date_to if _YEAR_MONTH_RE.match(settings.photo_date_to or "") else None
 
     entries = []

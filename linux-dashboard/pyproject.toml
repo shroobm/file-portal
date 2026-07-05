@@ -11,3 +11,10 @@ dependencies = [
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+
+[tool.ruff.lint.per-file-ignores]
+# GTK requires gi.require_version(...) to run before `from gi.repository import ...`,
+# so imports in these modules legitimately cannot all sit at the top of the file.
+"dashboard/main.py" = ["E402"]
+"dashboard/window.py" = ["E402"]
+"dashboard/widgets/*.py" = ["E402"]

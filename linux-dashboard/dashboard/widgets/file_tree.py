@@ -47,7 +47,9 @@ class FileTree(Gtk.ScrolledWindow):
         self._selection = Gtk.SingleSelection(model=self._store)
 
         self._column_view = Gtk.ColumnView(model=self._selection)
-        self._column_view.append_column(self._make_column("Name", lambda item: item.name, expand=True))
+        self._column_view.append_column(
+            self._make_column("Name", lambda item: item.name, expand=True)
+        )
         self._column_view.append_column(self._make_column("Folder", lambda item: item.relative_dir))
         self._column_view.append_column(self._make_column("Modified", lambda item: item.modified))
         self._column_view.connect("activate", self._on_activate)

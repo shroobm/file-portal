@@ -27,8 +27,14 @@ class SettingsPopover(Gtk.Popover):
         self._settings = settings
         self._on_change = on_change
 
-        grid = Gtk.Grid(row_spacing=8, column_spacing=12, margin_top=12, margin_bottom=12,
-                         margin_start=12, margin_end=12)
+        grid = Gtk.Grid(
+            row_spacing=8,
+            column_spacing=12,
+            margin_top=12,
+            margin_bottom=12,
+            margin_start=12,
+            margin_end=12,
+        )
         row = 0
 
         grid.attach(Gtk.Label(label="Window size", xalign=0), 0, row, 1, 1)
