@@ -72,7 +72,7 @@ git pull  # always first
 - ✅ W1 atomic transfer — verified in committed code (transfer.rs: `.part-` tmp + `mv -f`)
 - ✅ W2 streaming copy — verified in committed code (`std::io::copy`, not `read_to_end`)
 - ✅ W3 widget controls — verified in committed code (titlebar in index.html, capabilities/default.json, height=186)
-- ⏸ W4 rebuild — pending; needs `npm run tauri build` from a terminal session
+- ✅ W4 rebuild — complete; `npm run tauri build` succeeded (1m 04s, 2 bundles: MSI + NSIS)
 - ⏸ E2E test — widget running, needs user at desktop to approve File Portal access dialog
 - ⏸ All Library Pipeline Parts — Part 1 Linux (L1-L4) gates everything
 
@@ -111,7 +111,7 @@ No file conflicts if each machine stays in its lane.
   - `src-tauri/capabilities/default.json`: `core:window:allow-start-dragging` + `core:window:allow-minimize`
   - `tauri.conf.json`: window `height` bumped to 186
 
-- [ ] **W4 — Rebuild** after W1-W3:
+- [x] **W4 — Rebuild** after W1-W3:
   ```
   npm run tauri build
   ```
@@ -314,4 +314,17 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 - Committed and pushed session protocol update + audit results
 **Verification:** Opened each file directly in Notepad and confirmed code presence — not inferred from comments.
 **Next for Desktop (W4):** Run `npm run tauri build` from a terminal — ensure compiled exe includes W1-W3 (last known build was 11:10 AM, uncertain if W1-W3 were present then)
+**Next for ThinkPad (L1):** open `linux-receiver/allocator/config.py`, move quarantine out of inbox tree — GATE for all other work
+
+### 2026-07-05 — Desktop agent Session 3 (Cowork/Dispatch)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** Execute W4 — run `npm run tauri build` from windows-widget/ directory.
+**What was done:**
+- User ran `npm run tauri build` from `C:\Users\Rabbiallah\Projects\file-portal\windows-widget`
+- Rust compiled successfully in 1m 04s (release profile, optimized)
+- Built: `src-tauri\target\release\file-portal-widget.exe`
+- Bundled: `File Portal_0.1.0_x64_en-US.msi` and `File Portal_0.1.0_x64-setup.exe`
+- Zero errors
+- Marked W4 [x] in this file
+**Next for Desktop (W5):** E2E test — run the widget, drop .pdf (expect green/allocated) and .xyz (expect red/rejected) on portal tiles
 **Next for ThinkPad (L1):** open `linux-receiver/allocator/config.py`, move quarantine out of inbox tree — GATE for all other work
