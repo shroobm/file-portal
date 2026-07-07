@@ -47,18 +47,26 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** ThinkPad C14
+**Date:** 2026-07-07
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. L5 — verify the `convert` rule already in `rules.toml` (drafted from desktop, never run here)
+2. L6 — verify the `linux-converter/` scaffold segment-by-segment (config.py, main.py, service unit, install.sh), lint it, then install + enable `file-portal-converter`
+3. End-to-end: drop a .pdf on the `convert` category → allocator routes to `pipeline/convert-inbox` → converter logs "would convert"
+4. Docs consistency pass: make docs/10 (and any doc touching routing/services) match the code that actually ships
+5. Close session: update task list + log, push
 
 ### How I'll verify each step:
-1.
+1. Live drop test: `x.pdf` → `pipeline/convert-inbox/`; unmatched `x.xyz` on convert → `sorted/misc` (rules are re-read per event, no restart)
+2. `ruff check` + `ruff format --check` clean; install.sh runs without sudo; `systemctl --user is-active/is-enabled file-portal-converter` both positive; "watching" line in `logs/converter.log`
+3. "would convert <path>" line appears in `logs/converter.log` within seconds of the drop; `.part-*` dotfile in convert-inbox produces NO log line
+4. Grep docs for paths/service names/log filenames and diff against code reality
+5. git push succeeds
 
 ### Dependencies / blockers:
--
+- None — Part 1 gate closed 2026-07-07; allocator live on feat/library-pipeline
 
 ---
 
