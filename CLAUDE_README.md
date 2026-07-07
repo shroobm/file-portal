@@ -62,7 +62,7 @@ git pull  # always first
 
 ---
 
-## Status Summary (as of 2026-07-05)
+## Status Summary (as of 2026-07-07)
 
 - ✅ File Portal v2 status feedback loop — Tauri v2 built (45s, 2 bundles), all 4 files committed
 - ✅ `coordination/messages/` folder created in repo
@@ -74,7 +74,10 @@ git pull  # always first
 - ✅ W3 widget controls — verified in committed code (titlebar in index.html, capabilities/default.json, height=186)
 - ✅ W4 rebuild — complete; `npm run tauri build` succeeded (1m 04s, 2 bundles: MSI + NSIS)
 - ⏸ E2E test — widget running, needs user at desktop to approve File Portal access dialog
-- ⏸ All Library Pipeline Parts — Part 1 Linux (L1-L4) gates everything
+- ✅ Part 1 Linux (L1-L4) COMPLETE — gate is open; code was in e314607, ThinkPad verified live 2026-07-07
+- ✅ L1/L2 live-tested on ThinkPad: 3GB sparse file → quarantined and STAYED (no loop); dotfile ignored; normal file allocated
+- ✅ L3 verified: tailscaled enabled, Linger=yes, file-portal-allocator enabled+active; service restarted onto feat/library-pipeline code
+- ▶ Next up: Part 2 — L5 (route convert category) + L6 (scaffold linux-converter) on ThinkPad; W6 (Convert tile) on Desktop after
 
 ---
 
@@ -147,7 +150,7 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 1 — Linux Tasks ⚠️ GATE — must complete before anything else ⚠️
 
-- [ ] **L1 — Kill quarantine loop** (critical bug — stuck files keep re-processing)
+- [x] **L1 — Kill quarantine loop** (critical bug — stuck files keep re-processing)
   File: `linux-receiver/allocator/config.py`
   Change:
   ```python
@@ -159,7 +162,7 @@ No file conflicts if each machine stays in its lane.
   Update `Paths.from_root` and `ensure_exist` accordingly.
   Why: quarantining a file fires `on_moved` inside the watched tree, which re-handles it and un-quarantines it.
 
-- [ ] **L2 — Ignore temp/dotfiles in watcher**
+- [x] **L2 — Ignore temp/dotfiles in watcher**
   File: `linux-receiver/allocator/main.py`, inside `_handle` method
   Add at the very top:
   ```python
@@ -167,7 +170,7 @@ No file conflicts if each machine stays in its lane.
       return
   ```
 
-- [ ] **L3 — Enable persistence**
+- [x] **L3 — Enable persistence**
   ```bash
   sudo systemctl enable --now tailscaled
   sudo loginctl enable-linger "$USER"
@@ -179,7 +182,7 @@ No file conflicts if each machine stays in its lane.
   systemctl --user is-enabled file-portal-allocator       # → enabled
   ```
 
-- [ ] **L4 — Put linger in installer**
+- [x] **L4 — Put linger in installer**
   File: `scripts/linux/bootstrap-arch.sh`
   Add: `sudo loginctl enable-linger "$USER"`
   (NOT `install.sh` — that script refuses sudo)
@@ -328,3 +331,19 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 - Marked W4 [x] in this file
 **Next for Desktop (W5):** E2E test — run the widget, drop .pdf (expect green/allocated) and .xyz (expect red/rejected) on portal tiles
 **Next for ThinkPad (L1):** open `linux-receiver/allocator/config.py`, move quarantine out of inbox tree — GATE for all other work
+
+### 2026-07-07 — ThinkPad agent Session 1 (Claude Code / Fable)
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** Start L1 per task list; discovered L1/L2/L4 code already committed (e314607, drafted from desktop, never verified on Linux). Pivoted to: deploy the branch to the live service, verify L1-L3 on real hardware, close the Part 1 gate.
+**What was done:**
+- Checked out `feat/library-pipeline` locally (clone was on master — the running service had the OLD buggy code in memory)
+- Audited e314607: L1 (quarantine = root/"quarantine"), L2 (dotfile early-return in `_handle`), L4 (linger in bootstrap-arch.sh) all present in code
+- Verified L3 system state: `tailscaled` enabled, `Linger=yes`, `file-portal-allocator` enabled + active — persistence was already configured
+- Restarted `file-portal-allocator` so the running process picked up the branch code; it created `~/file-portal/quarantine/` at root
+- **Live gate test (all passed):** 3GB sparse file → REJECTED to `~/file-portal/quarantine/` with a single log line and STAYED (no re-processing loop); `.part-dotfile-test` → silently ignored, no log entry; `normal-test.txt` → ALLOCATED to `sorted/documents/`
+- Cleaned up test artifacts and removed stale empty `~/file-portal/inbox/quarantine/` dir
+- Marked L1-L4 [x]; updated Status Summary
+**Verification:** Functional, on live service — not code inspection. Log lines in `~/file-portal/logs/allocator.log` at 2026-07-07 02:39 UTC.
+**Not yet done from "Done when":** 200MB+ real transfer from Windows (needs W5/user at desktop) and reboot-survival check (needs a reboot — config is correct: enabled + linger).
+**Next for ThinkPad (L5/L6):** add `convert` rule to `rules.toml`; scaffold `linux-converter/` log-only watcher service
+**Next for Desktop (W5):** unchanged — E2E test needs user present
