@@ -33,10 +33,10 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
 **Depends on:** nothing. **Machines:** Linux + Windows (independent files).
 
 ### Linux (Claude Code)
-- [ ] **Kill the quarantine loop.** `linux-receiver/allocator/config.py`: move quarantine **out of** the watched inbox tree. Change `quarantine = root / "inbox" / "quarantine"` → `quarantine = root / "quarantine"`. Update `Paths.from_root` and `ensure_exist`. *(Currently quarantining a file fires `on_moved` inside the watched tree, which re-handles it and un-quarantines it into `sorted/misc`.)*
-- [ ] **Ignore temp/dotfiles in the watcher.** `allocator/main.py` `_handle`: add at the top `if file_path.name.startswith("."): return`. Protects against seeing the `.part-*` temp files from the new transfer pattern below.
-- [ ] **Persistence.** Run `sudo systemctl enable --now tailscaled`; `sudo loginctl enable-linger "$USER"`. Verify: `systemctl is-enabled tailscaled` → `enabled`, `loginctl show-user "$USER" --property=Linger` → `Linger=yes`, `systemctl --user is-enabled file-portal-allocator` → `enabled`.
-- [ ] **Put linger in the installer.** Add `sudo loginctl enable-linger "$USER"` to `scripts/linux/bootstrap-arch.sh` (which already uses sudo) — **not** `install.sh`, which refuses sudo by design.
+- [x] **Kill the quarantine loop.** `linux-receiver/allocator/config.py`: move quarantine **out of** the watched inbox tree. Change `quarantine = root / "inbox" / "quarantine"` → `quarantine = root / "quarantine"`. Update `Paths.from_root` and `ensure_exist`. *(Currently quarantining a file fires `on_moved` inside the watched tree, which re-handles it and un-quarantines it into `sorted/misc`.)*
+- [x] **Ignore temp/dotfiles in the watcher.** `allocator/main.py` `_handle`: add at the top `if file_path.name.startswith("."): return`. Protects against seeing the `.part-*` temp files from the new transfer pattern below.
+- [x] **Persistence.** Run `sudo systemctl enable --now tailscaled`; `sudo loginctl enable-linger "$USER"`. Verify: `systemctl is-enabled tailscaled` → `enabled`, `loginctl show-user "$USER" --property=Linger` → `Linger=yes`, `systemctl --user is-enabled file-portal-allocator` → `enabled`.
+- [x] **Put linger in the installer.** Add `sudo loginctl enable-linger "$USER"` to `scripts/linux/bootstrap-arch.sh` (which already uses sudo) — **not** `install.sh`, which refuses sudo by design.
 
 ### Windows (Claude Code)
 - [x] **Make transfer atomic.** `windows-widget/src-tauri/src/transfer.rs`: change the remote command from writing straight to the final name to a temp-then-rename. Build `remote_tmp = "{remote_dir}/.part-{filename}"`; set `remote_cmd = "mkdir -p {dir} && cat > {tmp} && mv -f {tmp} {final}"` (quote `tmp` and `final` via `remote_path_expr`). *(This makes the receiver see an atomic rename → allocator's safe `on_moved` path, instead of `on_created` on a half-written file. This is the race we diagnosed — and the same pattern the converter watcher reuses in Part 2.)*
@@ -63,7 +63,7 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
 - [ ] **Add the Convert tile.** Edit `%APPDATA%\file-portal\config.toml` `[[portals]]`: `category = "convert"`, `label = "To Vault"`, `icon = "🔁"`. Relaunch — tile appears (no rebuild). Mirror into `src-tauri/src/config.rs` `AppConfig::default()` and `windows-widget/portals.json` so fresh installs ship it.
 
 ### Linux (Claude Code)
-- [ ] **Route the category.** `linux-receiver/config/rules.toml`: add
+- [x] **Route the category.** *(Verified live on ThinkPad 2026-07-07: `.pdf` → `pipeline/convert-inbox/`, unmatched ext → `sorted/misc/`.)* `linux-receiver/config/rules.toml`: add
   ```toml
   [[rule]]
   category = "convert"
@@ -71,7 +71,7 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
   destination = "pipeline/convert-inbox"   # a process mouth, NOT under sorted/
   ```
   *(Allocator auto-creates `inbox/convert/` at startup from this rule.)*
-- [ ] **Scaffold the converter service.** New `linux-converter/` mirroring `linux-receiver/` structure (pyproject, requirements, `systemd/file-portal-converter.service` as `systemd --user`, `scripts/install.sh`). It watches `~/file-portal/pipeline/convert-inbox` using the **same** event model as Part 1 (prefer `on_moved`, skip dotfiles). At this stage it only **logs** `would convert <path>` — no engine. Enable it (linger already on).
+- [x] **Scaffold the converter service.** *(Installed + enabled on ThinkPad 2026-07-07; e2e verified: allocator hop → `would convert` logged, dotfiles ignored.)* New `linux-converter/` mirroring `linux-receiver/` structure (pyproject, requirements, `systemd/file-portal-converter.service` as `systemd --user`, `scripts/install.sh`). It watches `~/file-portal/pipeline/convert-inbox` using the **same** event model as Part 1 (prefer `on_moved`, skip dotfiles). At this stage it only **logs** `would convert <path>` — no engine. Enable it (linger already on).
 
 **Done when:** dropping a PDF on the Convert tile lands it in `pipeline/convert-inbox` and the converter service logs the arrival.
 **Decision:** Convert tile as the **only** entry, or also add a rule to push existing `sorted/documents` PDFs into conversion on demand? Recommended tile-only for now — simplest, and intent stays human-declared at the drop.

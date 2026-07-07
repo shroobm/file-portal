@@ -34,6 +34,7 @@ or trusting a third-party cloud relay. This project avoids all three:
 | `docs/`             | The knowledge base — read `docs/00-overview.md` first.                  |
 | `windows-widget/`   | The Tauri desktop app that renders the portal widgets.                  |
 | `linux-receiver/`   | The user-level allocator service that sorts incoming files.             |
+| `linux-converter/`  | The user-level converter service watching `pipeline/convert-inbox` (log-only skeleton; engine lands in Part 3 of `docs/10-library-pipeline-plan.md`). |
 | `linux-dashboard/`  | Optional GTK4 desktop app that visualizes `sorted/` (gallery + lists).  |
 | `scripts/`          | One-off setup helpers (Tailscale SSH config, dev environment bootstrap).|
 

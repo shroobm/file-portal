@@ -55,7 +55,10 @@
 5. The allocator service, watching `inbox/` via `inotify` (Linux kernel filesystem events, exposed
    to Python via the `watchdog` library), picks up the new file.
 6. It matches the file against `rules.toml` (by category, then by extension/glob) and moves it to
-   the resolved destination under `~/file-portal/sorted/...`.
+   the resolved destination — usually under `~/file-portal/sorted/...`, but a destination can also
+   be a "process mouth" outside `sorted/`: the `convert` category routes to
+   `~/file-portal/pipeline/convert-inbox/`, where the `linux-converter` service picks the file up
+   (same watcher pattern, second hop).
 7. Every action (received, matched rule, moved, or rejected) is appended to `allocator.log`.
 8. The widget polls (or, later, subscribes over the same SSH channel to) a small status file so the
    user gets a "delivered ✓ / sorted ✓" indicator — see [`08-roadmap.md`](08-roadmap.md) for the

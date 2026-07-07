@@ -51,8 +51,10 @@ Useful for photo/log dumping grounds that would otherwise become unsorted piles.
 
 ## Validation
 
-`max_file_size_mb` rejects (logs `REJECTED`, leaves file in `inbox/quarantine/`) anything over the
-limit — a cheap guard against a bad drag-and-drop of an entire folder.
+`max_file_size_mb` rejects (logs `REJECTED`, moves the file to `~/file-portal/quarantine/`) anything
+over the limit — a cheap guard against a bad drag-and-drop of an entire folder. Quarantine lives
+*outside* the watched `inbox/` tree on purpose: quarantining into a watched path would fire another
+filesystem event and re-process the file forever.
 
 ## Adding a new portal/category
 

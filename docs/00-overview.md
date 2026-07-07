@@ -29,6 +29,10 @@ Three pieces, each with one job:
      moves files into their final destination according to rules in
      [`linux-receiver/config/rules.toml`](../linux-receiver/config/rules.toml) — e.g. by file
      extension, by which portal/category it arrived through, or by simple glob patterns.
+   - **`linux-converter/`**: a second `systemd --user` service that watches
+     `~/file-portal/pipeline/convert-inbox` — where the allocator routes the `convert` category —
+     and turns dropped documents into markdown bundles. Currently a log-only skeleton; the
+     conversion engine is Part 3 of [`10-library-pipeline-plan.md`](10-library-pipeline-plan.md).
    - **`linux-dashboard/`** (optional, read-only): a standalone GTK4 desktop app that visualizes
      what's actually in `sorted/` — a thumbnail gallery for photos, a browsable list for
      everything else — and updates live as the allocator sorts new files in. Not part of the

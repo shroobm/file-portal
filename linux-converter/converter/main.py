@@ -70,7 +70,9 @@ def run(root: Path):
 
 def main():
     parser = argparse.ArgumentParser(description="File Portal converter service")
-    parser.add_argument("--root", type=Path, default=DEFAULT_ROOT, help="file-portal root directory")
+    parser.add_argument(
+        "--root", type=Path, default=DEFAULT_ROOT, help="file-portal root directory"
+    )
     args = parser.parse_args()
     run(args.root)
 

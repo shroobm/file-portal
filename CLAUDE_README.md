@@ -47,26 +47,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** ThinkPad C14
-**Date:** 2026-07-07
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. L5 — verify the `convert` rule already in `rules.toml` (drafted from desktop, never run here)
-2. L6 — verify the `linux-converter/` scaffold segment-by-segment (config.py, main.py, service unit, install.sh), lint it, then install + enable `file-portal-converter`
-3. End-to-end: drop a .pdf on the `convert` category → allocator routes to `pipeline/convert-inbox` → converter logs "would convert"
-4. Docs consistency pass: make docs/10 (and any doc touching routing/services) match the code that actually ships
-5. Close session: update task list + log, push
+1.
 
 ### How I'll verify each step:
-1. Live drop test: `x.pdf` → `pipeline/convert-inbox/`; unmatched `x.xyz` on convert → `sorted/misc` (rules are re-read per event, no restart)
-2. `ruff check` + `ruff format --check` clean; install.sh runs without sudo; `systemctl --user is-active/is-enabled file-portal-converter` both positive; "watching" line in `logs/converter.log`
-3. "would convert <path>" line appears in `logs/converter.log` within seconds of the drop; `.part-*` dotfile in convert-inbox produces NO log line
-4. Grep docs for paths/service names/log filenames and diff against code reality
-5. git push succeeds
+1.
 
 ### Dependencies / blockers:
-- None — Part 1 gate closed 2026-07-07; allocator live on feat/library-pipeline
+-
 
 ---
 
@@ -85,7 +77,9 @@ git pull  # always first
 - ✅ Part 1 Linux (L1-L4) COMPLETE — gate is open; code was in e314607, ThinkPad verified live 2026-07-07
 - ✅ L1/L2 live-tested on ThinkPad: 3GB sparse file → quarantined and STAYED (no loop); dotfile ignored; normal file allocated
 - ✅ L3 verified: tailscaled enabled, Linger=yes, file-portal-allocator enabled+active; service restarted onto feat/library-pipeline code
-- ▶ Next up: Part 2 — L5 (route convert category) + L6 (scaffold linux-converter) on ThinkPad; W6 (Convert tile) on Desktop after
+- ✅ Part 2 Linux (L5-L6) COMPLETE — convert rule live-tested; `file-portal-converter` installed, enabled, e2e verified (allocator hop → "would convert" logged, dotfiles ignored)
+- ✅ Docs consistency pass 2026-07-07: stale `inbox/quarantine` refs fixed (docs/05, receiver README), `linux-converter` added to root README/docs/00/docs/01, docs/10 checkboxes synced to reality, CHANGELOG updated
+- ▶ Next up: W6 (Convert tile) on Desktop closes the Part 2 "Done when"; then Part 3 (L7-L10, converter engine — dedicate a full session)
 
 ---
 
@@ -199,7 +193,7 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 2 — Linux Tasks
 
-- [ ] **L5 — Route the convert category**
+- [x] **L5 — Route the convert category**
   File: `linux-receiver/config/rules.toml`
   ```toml
   [[rule]]
@@ -208,7 +202,7 @@ No file conflicts if each machine stays in its lane.
   destination = "pipeline/convert-inbox"
   ```
 
-- [ ] **L6 — Scaffold converter service**
+- [x] **L6 — Scaffold converter service**
   New: `linux-converter/` mirroring `linux-receiver/` structure
   Watches: `~/file-portal/pipeline/convert-inbox`
   At this stage: only LOG "would convert <path>" — no engine
@@ -355,3 +349,18 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Not yet done from "Done when":** 200MB+ real transfer from Windows (needs W5/user at desktop) and reboot-survival check (needs a reboot — config is correct: enabled + linger).
 **Next for ThinkPad (L5/L6):** add `convert` rule to `rules.toml`; scaffold `linux-converter/` log-only watcher service
 **Next for Desktop (W5):** unchanged — E2E test needs user present
+
+### 2026-07-07 — ThinkPad agent Session 2 (Claude Code / Fable)
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** L5 → L6, segment-wise verification, docs consistency pass.
+**What was done (each segment verified before moving on):**
+- *Segment L5 (convert rule):* already in `rules.toml` from desktop draft. Live-verified: `.pdf` on convert → `pipeline/convert-inbox/`; unmatched `.xyz` → `sorted/misc/`; no allocator restart needed (rules re-read per event). Log lines 02:48 UTC.
+- *Segment L6 code:* `linux-converter/` scaffold already on branch. Read every file. `ruff check` passed; `ruff format` fixed one over-long line in `main.py`; **found + fixed: `scripts/install.sh` was mode 100644** (README says `./scripts/install.sh` — would have failed). chmod +x, committed as mode change.
+- *Segment L6 deploy:* ran `./scripts/install.sh` (no sudo) — venv created, watchdog 4.0.2, unit installed. `is-active` + `is-enabled` both positive; "watching /home/rab/file-portal/pipeline/convert-inbox" logged 03:00 UTC.
+- *Segment L6 e2e:* `.pdf` dropped on convert → allocator ALLOCATED and converter "would convert" logged in the same millisecond (03:00:47.782). `.part-*` dotfile in convert-inbox → correctly silent.
+- *Docs consistency pass:* fixed stale `inbox/quarantine/` claims in `docs/05-allocation-rules.md` + `linux-receiver/README.md` (contradicted the L1 fix); added `linux-converter/` to root README table, `docs/00-overview.md` components, `docs/01-architecture.md` data flow (step 6: process-mouth destinations); synced `docs/10` Part 1+2 Linux checkboxes to reality; CHANGELOG: 2 Added + 2 Fixed entries. Left historical `inbox/quarantine` mentions in CHANGELOG/DOCS-AUDIT (they describe the past, correctly).
+- Cleaned all test artifacts (convert-inbox, sorted/misc).
+**Verification:** every claim above has a log line, systemctl output, or grep behind it — nothing inferred from code comments.
+**Part 2 "Done when" status:** Linux half fully green. Remaining: W6 Convert tile on Desktop, then a real tile-drop confirms the full path.
+**Next for Desktop (W5 + W6):** E2E test (user present) + add Convert tile (`config.toml`, `config.rs` default, `portals.json`)
+**Next for ThinkPad (Part 3, L7-L10):** converter engine — heavy; dedicate a full session; remember `import pymupdf.layout` BEFORE `import pymupdf4llm`

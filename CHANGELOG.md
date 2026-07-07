@@ -41,6 +41,26 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **`convert` category routing (library pipeline, Part 2).** `linux-receiver/config/rules.toml`
+  routes `convert` drops (`*.pdf`, `*.epub`, `*.docx`) to `pipeline/convert-inbox/` — a process
+  mouth for the converter, deliberately outside `sorted/`. Unmatched extensions still fall through
+  to `sorted/misc`. Verified live on the ThinkPad allocator.
+- **`linux-converter/` service skeleton (library pipeline, Part 2).** A second `systemd --user`
+  watcher (`file-portal-converter`) mirroring the allocator's structure and event model (prefer
+  `on_moved`, fall back to `on_created`, skip `.part-*` dotfiles). Watches
+  `~/file-portal/pipeline/convert-inbox` and, for now, only logs `would convert <path>` to
+  `logs/converter.log` — the conversion engine (PyMuPDF4LLM/Pandoc, Clean/Scan lanes) is Part 3.
+  Installed, enabled, and verified end-to-end (allocator hop → converter log) on the ThinkPad.
+
+### Fixed (linux)
+
+- **Quarantine loop.** `allocator/config.py` moved quarantine from `inbox/quarantine/` (inside the
+  watched tree — quarantining fired another event and re-processed the file forever) to
+  `~/file-portal/quarantine/` at the root. Verified live: an oversized file is rejected once and
+  stays quarantined. Docs (`docs/05`, `linux-receiver/README.md`) updated to match.
+- **`linux-converter/scripts/install.sh` was not executable** (mode 100644 vs the receiver's
+  100755), so the documented `./scripts/install.sh` invocation failed.
+
 - **Widget titlebar with drag and minimize.** The frameless window gains a `data-tauri-drag-region`
   titlebar (grab cursor) with a minimize button wired to `getCurrentWindow().minimize()`;
   `src-tauri/capabilities/default.json` grants `core:window:allow-start-dragging` and
