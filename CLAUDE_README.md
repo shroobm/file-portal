@@ -47,18 +47,24 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Date:** 2026-07-08
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. W6: add the Convert portal (`category = "convert"`, label "To Vault", icon 🔁) to `%APPDATA%\file-portal\config.toml`, `src-tauri/src/config.rs` `AppConfig::default()`, and `windows-widget/portals.json`
+2. `cargo check` + `cargo clippy` in `src-tauri`, then `npm run tauri build`
+3. Relaunch the widget; confirm the 5th tile renders
+4. E2E: drop a `.pdf` on the Convert tile → expect green ✓ within 30s (this doubles as the W5 visual re-check now that L6.5 is live) and "would convert" in the ThinkPad converter log
 
 ### How I'll verify each step:
-1.
+1. Diffs of the three files; TOML/JSON parse sanity
+2. Clean cargo output; build produces bundles
+3. Screenshot of the widget
+4. Widget status line + tile state screenshot; `tailscale ssh` tail of converter/allocator logs and status.json
 
 ### Dependencies / blockers:
--
+- None — L6.5 landed 2026-07-08 (status feed live), computer-use access already granted this session
 
 ---
 
