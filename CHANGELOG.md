@@ -8,6 +8,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Status feed regression on `feat/library-pipeline` (widget ✓/✗ feedback dead).** The
+  `logs/status.json` writer was implemented on `master` (`0c3a074`) but never merged into the
+  branch, so the widget's v2 feedback loop stalled at "allocator pending" the moment the ThinkPad
+  service restarted onto branch code (found by W5 E2E, 2026-07-08). Ported `allocator/status.py`,
+  the CLOSE_WRITE/`on_closed` completion handling with the non-inotify size-stability fallback,
+  the per-file exception guard, quarantine collision-renames, and the 24-test suite
+  (`tests/`, `requirements-dev.txt`) into the branch, reconciled with the L1 quarantine location
+  (`root/quarantine` kept; master's `inbox/quarantine` discarded). Rejection semantics decided
+  per the W5 coordination message: `rejected` = quarantine only; unmatched extensions are
+  `allocated` to `sorted/misc` (the widget shows `dest`).
+
 - **Widget showed nothing on launch (blank/invisible window).** `windows-widget/src/main.js`
   imported the Tauri JS API with bare ES-module specifiers
   (`import { invoke } from "@tauri-apps/api/core"`). The project intentionally ships no

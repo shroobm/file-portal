@@ -65,4 +65,6 @@ class RuleSet:
     @staticmethod
     def _expand(template: str) -> str:
         now = datetime.now()
-        return template.format(yyyy=now.strftime("%Y"), mm=now.strftime("%m"), dd=now.strftime("%d"))
+        return template.format(
+            yyyy=now.strftime("%Y"), mm=now.strftime("%m"), dd=now.strftime("%d")
+        )
