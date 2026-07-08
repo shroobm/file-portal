@@ -47,18 +47,26 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Date:** 2026-07-08
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. Confirm the post-W4 widget build is running (launch `src-tauri/target/release/file-portal-widget.exe` if not)
+2. Create two test files: a small valid `.pdf` and a `.xyz`
+3. W5a: drop the `.pdf` onto a portal tile — expect green "✓ allocated"
+4. W5b: drop the `.xyz` onto a portal tile — expect red "✗ rejected"
+5. Confirm tile color feedback updates within ~30s
+6. Cross-check the ThinkPad allocator log over Tailscale SSH for the corresponding ALLOCATED/quarantine entries
 
 ### How I'll verify each step:
-1.
+1. Process list / visible widget window (screenshot)
+2. Files exist on disk with expected sizes
+3-5. Screenshot of tile state after each drop; timing observed live
+6. `tailscale ssh` grep of `~/file-portal/logs/allocator.log` for the test filenames
 
 ### Dependencies / blockers:
--
+- Needs user at desktop to approve the File Portal computer-use access dialog (user is present this session)
 
 ---
 
