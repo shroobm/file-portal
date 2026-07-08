@@ -45,27 +45,20 @@ git pull  # always first
 
 ## Current Session Plan
 
-**Machine:** ThinkPad C14 (Arch Linux)
-**Date:** 2026-07-08
-**Claude:** Claude Code / Fable
+*Replace this section at the start of each session. Commit it before starting work.*
+
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **L6.5 — port the status feed from master `0c3a074` into this branch.** Audit done: master's `main.py` is a behavioral superset of the branch's (on_moved + on_closed CLOSE_WRITE + on_created stability fallback, dotfile ignore, quarantine guard, per-file exception guard, quarantine collision-rename, StatusWriter calls). The only real conflict is `config.py`: branch's L1 quarantine location (`root/quarantine`) is correct, master's (`inbox/quarantine`) is the old bug — keep the branch's `config.py` untouched.
-   - Copy `allocator/status.py`, `tests/test_allocator.py`, `tests/test_rules.py`, `requirements-dev.txt` from `0c3a074`
-   - Replace `allocator/main.py` with the `0c3a074` version, rewording only the quarantine-guard comment (it claims quarantine lives inside the inbox tree — false since L1; the guard stays as defense-in-depth and for direct-call paths)
-   - `rules.py` diff vs master is formatting-only — skip
-2. **Adopt the recommended rejection semantics** (per coordination msg): `rejected` = quarantine only; unmatched extensions = `allocated` with `dest: sorted/misc`. Master's code already implements exactly this, so no extra code — record the decision here and in the coordination reply.
-3. Lint + tests: `ruff check`, `ruff format --check`, `pytest tests/` (install requirements-dev.txt into the repo venv).
-4. Deploy: restart `file-portal-allocator` (service runs from this checkout), then live-verify.
-5. Close: coordination reply message, CHANGELOG entry, session log, commit + push.
+1.
 
 ### How I'll verify each step:
-1. Segment-wise, per house style: after the port, all 24+ tests pass locally.
-2. Live: drop a small file into `inbox/documents/` → `status.json` gains an `allocated` event with fresh `ts`; drop an oversized file → `rejected` event + file stays in `quarantine/`; confirm `updated` field advances and JSON stays valid (`python -m json.tool`).
-3. `systemctl --user is-active file-portal-allocator` + journal shows "watching" line after restart.
+1.
 
 ### Dependencies / blockers:
-- None. Desktop re-runs the W5 visual check after this lands.
+-
 
 ---
 
@@ -81,14 +74,14 @@ git pull  # always first
 - ✅ W3 widget controls — verified in committed code (titlebar in index.html, capabilities/default.json, height=186)
 - ✅ W4 rebuild — complete; `npm run tauri build` succeeded (1m 04s, 2 bundles: MSI + NSIS)
 - ✅ W5 E2E test RUN 2026-07-08 — transport verified byte-exact both directions of the matrix (.pdf→documents, .xyz→misc); W1/W2 confirmed in production
-- ❌ W5 visual feedback BLOCKED — status.json writer (master `0c3a074`) never merged into branch; allocator on branch code writes no events → new task L6.5 (ThinkPad)
-- ⚠️ Rejection semantics gap — branch allocates unmatched extensions to `sorted/misc/`, never emits "rejected"; red-✗ path is currently unreachable (decision needed, see coordination msg)
+- ✅ L6.5 COMPLETE 2026-07-08 — status feed ported from `0c3a074` into the branch, reconciled with L1 (branch `config.py` kept), 24/24 tests pass, service restarted, `allocated` + `rejected` events live-verified in status.json → **W5 visual re-check is unblocked**
+- ✅ Rejection semantics DECIDED — `rejected` = quarantine only; unmatched extensions = `allocated` with `dest: sorted/misc`. Red ✗ now means "quarantined" (today: oversized). W5's `.xyz → red ✗` expectation is re-scoped: `.xyz` → green ✓ with misc dest (see 04-50 coordination msg)
 - ✅ Part 1 Linux (L1-L4) COMPLETE — gate is open; code was in e314607, ThinkPad verified live 2026-07-07
 - ✅ L1/L2 live-tested on ThinkPad: 3GB sparse file → quarantined and STAYED (no loop); dotfile ignored; normal file allocated
 - ✅ L3 verified: tailscaled enabled, Linger=yes, file-portal-allocator enabled+active; service restarted onto feat/library-pipeline code
 - ✅ Part 2 Linux (L5-L6) COMPLETE — convert rule live-tested; `file-portal-converter` installed, enabled, e2e verified (allocator hop → "would convert" logged, dotfiles ignored)
 - ✅ Docs consistency pass 2026-07-07: stale `inbox/quarantine` refs fixed (docs/05, receiver README), `linux-converter` added to root README/docs/00/docs/01, docs/10 checkboxes synced to reality, CHANGELOG updated
-- ▶ Next up: **L6.5 (ThinkPad — port status feed)** unblocks W5 visual re-check; W6 (Convert tile) on Desktop closes the Part 2 "Done when"; then Part 3 (L7-L10, converter engine — dedicate a full session)
+- ▶ Next up: **Desktop — W5 visual re-check (30s ✓ test) + W6 (Convert tile)** closes Part 2 "Done when"; **ThinkPad — Part 3 (L7-L10, converter engine — dedicate a full session)**
 
 ---
 
@@ -211,11 +204,9 @@ No file conflicts if each machine stays in its lane.
   destination = "pipeline/convert-inbox"
   ```
 
-- [ ] **L6.5 — Port status feed from master `0c3a074` into the branch** (REGRESSION — blocks W5 visual feedback)
-  File: `linux-receiver/allocator/` — after each processed file, append an event to `~/file-portal/logs/status.json`
-  matching `status.rs` schema: `{ts, action: "allocated"|"rejected", file, category, dest?, reason?}`.
-  Reconcile with the branch's L1/L2 re-implementation; bring 0c3a074's tests over. Restart service after.
-  Full details: `coordination/messages/2026-07-08T00-30--desktop-to-linux--w5-results-status-feed-regression.md`
+- [x] **L6.5 — Port status feed from master `0c3a074` into the branch** — DONE 2026-07-08, live-verified
+  (`allocated` + `rejected` events in status.json, 24/24 tests, service restarted).
+  Results: `coordination/messages/2026-07-08T04-50--linux-to-desktop--l65-done-status-feed-live.md`
 
 - [x] **L6 — Scaffold converter service**
   New: `linux-converter/` mirroring `linux-receiver/` structure
@@ -397,3 +388,18 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **W5 verdict:** transport + allocation E2E = PASS (W1/W2 proven in production); visual feedback = BLOCKED on L6.5. Re-run the 30s visual check after L6.5 lands.
 **Next for ThinkPad (L6.5):** port status feed from `0c3a074` into `linux-receiver/allocator/`, reconcile with branch L1/L2, restart service
 **Next for Desktop:** W6 Convert tile; re-check W5 visuals once L6.5 is live
+
+### 2026-07-08 — ThinkPad agent Session 3 (Claude Code / Fable)
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** L6.5 — port status feed from master `0c3a074`; adopt recommended rejection semantics; deploy + live-verify.
+**What was done (segment-wise, each verified before moving on):**
+- *Audit:* diffed `0c3a074` against the branch. Master's `main.py` is a behavioral superset of the branch's L1/L2 re-implementation; the only genuine conflict is `config.py` quarantine location, where the branch's L1 fix (`root/quarantine`) wins.
+- *Port:* copied `status.py`, both test files, and `requirements-dev.txt` verbatim from `0c3a074`; replaced `main.py` with the master version (single change: quarantine-guard comment reworded for the L1 layout — the guard itself stays as defense-in-depth); `rules.py` picked up master's formatting via `ruff format`. Branch `config.py` untouched.
+- *Tests/lint:* installed requirements-dev.txt into the repo venv; **24/24 pytest pass**, `ruff check` + `ruff format` clean.
+- *Deploy:* restarted `file-portal-allocator` (04:34 UTC, "watching" logged, active).
+- *Live verify:* `l65-test.txt` → ALLOCATED 04:44:30 + fresh `allocated` event in status.json (first since the 07-07 02:37:28 stall). 3GB sparse file → REJECTED 04:44:43 + `rejected` event with reason; stayed in `quarantine/`, exactly one log line (no loop). `python -m json.tool` parses status.json cleanly. Artifacts removed.
+- *Rejection semantics DECIDED* per Desktop's recommendation: `rejected` = quarantine only; unmatched → `allocated` with `dest: sorted/misc`. W5's `.xyz → red ✗` expectation is re-scoped (now green ✓ with misc dest).
+- Wrote coordination reply `2026-07-08T04-50--linux-to-desktop--l65-done-status-feed-live.md`; CHANGELOG entry added; marked L6.5 [x].
+**Verification:** every claim has a log line, systemctl output, pytest run, or json.tool parse behind it.
+**Next for Desktop:** W5 visual re-check (expect green ✓ on .pdf within 30s; .xyz now legitimately ✓ with misc dest; red ✗ requires >2048MB) then W6 Convert tile.
+**Next for ThinkPad:** Part 3 (L7-L10 converter engine) — dedicate a full session; `import pymupdf.layout` BEFORE `import pymupdf4llm`.
