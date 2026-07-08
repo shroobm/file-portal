@@ -47,30 +47,22 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Windows)
-**Date:** 2026-07-08
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. Confirm the post-W4 widget build is running (launch `src-tauri/target/release/file-portal-widget.exe` if not)
-2. Create two test files: a small valid `.pdf` and a `.xyz`
-3. W5a: drop the `.pdf` onto a portal tile — expect green "✓ allocated"
-4. W5b: drop the `.xyz` onto a portal tile — expect red "✗ rejected"
-5. Confirm tile color feedback updates within ~30s
-6. Cross-check the ThinkPad allocator log over Tailscale SSH for the corresponding ALLOCATED/quarantine entries
+1.
 
 ### How I'll verify each step:
-1. Process list / visible widget window (screenshot)
-2. Files exist on disk with expected sizes
-3-5. Screenshot of tile state after each drop; timing observed live
-6. `tailscale ssh` grep of `~/file-portal/logs/allocator.log` for the test filenames
+1.
 
 ### Dependencies / blockers:
-- Needs user at desktop to approve the File Portal computer-use access dialog (user is present this session)
+-
 
 ---
 
-## Status Summary (as of 2026-07-07)
+## Status Summary (as of 2026-07-08)
 
 - ✅ File Portal v2 status feedback loop — Tauri v2 built (45s, 2 bundles), all 4 files committed
 - ✅ `coordination/messages/` folder created in repo
@@ -81,13 +73,15 @@ git pull  # always first
 - ✅ W2 streaming copy — verified in committed code (`std::io::copy`, not `read_to_end`)
 - ✅ W3 widget controls — verified in committed code (titlebar in index.html, capabilities/default.json, height=186)
 - ✅ W4 rebuild — complete; `npm run tauri build` succeeded (1m 04s, 2 bundles: MSI + NSIS)
-- ⏸ E2E test — widget running, needs user at desktop to approve File Portal access dialog
+- ✅ W5 E2E test RUN 2026-07-08 — transport verified byte-exact both directions of the matrix (.pdf→documents, .xyz→misc); W1/W2 confirmed in production
+- ❌ W5 visual feedback BLOCKED — status.json writer (master `0c3a074`) never merged into branch; allocator on branch code writes no events → new task L6.5 (ThinkPad)
+- ⚠️ Rejection semantics gap — branch allocates unmatched extensions to `sorted/misc/`, never emits "rejected"; red-✗ path is currently unreachable (decision needed, see coordination msg)
 - ✅ Part 1 Linux (L1-L4) COMPLETE — gate is open; code was in e314607, ThinkPad verified live 2026-07-07
 - ✅ L1/L2 live-tested on ThinkPad: 3GB sparse file → quarantined and STAYED (no loop); dotfile ignored; normal file allocated
 - ✅ L3 verified: tailscaled enabled, Linger=yes, file-portal-allocator enabled+active; service restarted onto feat/library-pipeline code
 - ✅ Part 2 Linux (L5-L6) COMPLETE — convert rule live-tested; `file-portal-converter` installed, enabled, e2e verified (allocator hop → "would convert" logged, dotfiles ignored)
 - ✅ Docs consistency pass 2026-07-07: stale `inbox/quarantine` refs fixed (docs/05, receiver README), `linux-converter` added to root README/docs/00/docs/01, docs/10 checkboxes synced to reality, CHANGELOG updated
-- ▶ Next up: W6 (Convert tile) on Desktop closes the Part 2 "Done when"; then Part 3 (L7-L10, converter engine — dedicate a full session)
+- ▶ Next up: **L6.5 (ThinkPad — port status feed)** unblocks W5 visual re-check; W6 (Convert tile) on Desktop closes the Part 2 "Done when"; then Part 3 (L7-L10, converter engine — dedicate a full session)
 
 ---
 
@@ -129,11 +123,11 @@ No file conflicts if each machine stays in its lane.
   npm run tauri build
   ```
 
-- [ ] **W5 — E2E test** (needs user present at desktop)
-  - Approve File Portal computer-use access dialog
-  - Drop a .pdf onto a portal tile → expect green "✓ allocated"
-  - Drop a .xyz onto a portal tile → expect red "✗ rejected"
-  - Verify UI tile color feedback updates within ~30s
+- [x] **W5 — E2E test** — RUN 2026-07-08 (user present, access approved). Result: **transport PASS, UI feedback BLOCKED**
+  - .pdf → transferred byte-exact, ALLOCATED to `sorted/documents/` on ThinkPad (log 04:22:16 UTC) ✅
+  - .xyz → transferred byte-exact, allocated to `sorted/misc/` (NOT rejected — branch code never emits "rejected" for unmatched extensions) ⚠️
+  - Green ✓ / red ✗ never appeared: the status.json writer lives only on `master` (commit `0c3a074`), never merged into this branch → status.json stale since the 7/7 service restart. See `coordination/messages/2026-07-08T00-30--desktop-to-linux--w5-results-status-feed-regression.md`
+  - **Re-run the visual check after Linux L6.5 lands**
 
 ### Part 2 — Windows Tasks (after Part 1 Linux is done)
 
@@ -209,6 +203,12 @@ No file conflicts if each machine stays in its lane.
   match = ["*.pdf", "*.epub", "*.docx"]
   destination = "pipeline/convert-inbox"
   ```
+
+- [ ] **L6.5 — Port status feed from master `0c3a074` into the branch** (REGRESSION — blocks W5 visual feedback)
+  File: `linux-receiver/allocator/` — after each processed file, append an event to `~/file-portal/logs/status.json`
+  matching `status.rs` schema: `{ts, action: "allocated"|"rejected", file, category, dest?, reason?}`.
+  Reconcile with the branch's L1/L2 re-implementation; bring 0c3a074's tests over. Restart service after.
+  Full details: `coordination/messages/2026-07-08T00-30--desktop-to-linux--w5-results-status-feed-regression.md`
 
 - [x] **L6 — Scaffold converter service**
   New: `linux-converter/` mirroring `linux-receiver/` structure
@@ -372,3 +372,21 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Part 2 "Done when" status:** Linux half fully green. Remaining: W6 Convert tile on Desktop, then a real tile-drop confirms the full path.
 **Next for Desktop (W5 + W6):** E2E test (user present) + add Convert tile (`config.toml`, `config.rs` default, `portals.json`)
 **Next for ThinkPad (Part 3, L7-L10):** converter engine — heavy; dedicate a full session; remember `import pymupdf.layout` BEFORE `import pymupdf4llm`
+
+### 2026-07-08 — Desktop agent Session 4 (Claude Code / Fable)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** Execute W5 E2E test (user present to approve access dialog).
+**What was done:**
+- Pulled `6ffd910` (cleared a stale 3-day-old `.git/HEAD.lock` first — zero bytes, no git process running)
+- Launched post-W4 widget build (exe dated 2026-07-05 23:19); computer-use access approved by user — W5's standing blocker cleared
+- **W5a (.pdf → Documents tile):** drag-drop registered ("Sent 1 file(s) to documents."), file arrived byte-exact (246 B, `%PDF-1.4` header intact), ThinkPad allocator ALLOCATED to `sorted/documents/` at 04:22:16 UTC
+- **W5b (.xyz → Documents tile):** transferred byte-exact (16 B), allocator allocated to `sorted/misc/` — NOT rejected
+- **Green ✓ / red ✗ never appeared (waited >30s).** Widget status advanced to "Sent — allocator pending for 1 file(s)." and stalled there.
+- **Root cause found (regression):** widget's `status.rs` polls `~/file-portal/logs/status.json`; the writer was implemented only on `master` (`0c3a074`, "add status feed and tests") and is NOT an ancestor of `feat/library-pipeline`. status.json's last event is 2026-07-07T02:37:28 — the moment the ThinkPad restarted the service onto branch code, events stopped.
+- **Second gap:** branch allocator routes unmatched extensions to `sorted/misc/` and never emits "rejected" — the red-✗ path in `main.js` is unreachable regardless of the status feed.
+- Filed both in `coordination/messages/2026-07-08T00-30--desktop-to-linux--w5-results-status-feed-regression.md`; added task **L6.5** (port status feed) to the ThinkPad list
+- Cleaned all test artifacts (ThinkPad `sorted/`, local Desktop test folder)
+**Verification:** allocator log lines, remote `stat` byte counts, `git merge-base --is-ancestor` check, widget screenshots at each stage.
+**W5 verdict:** transport + allocation E2E = PASS (W1/W2 proven in production); visual feedback = BLOCKED on L6.5. Re-run the 30s visual check after L6.5 lands.
+**Next for ThinkPad (L6.5):** port status feed from `0c3a074` into `linux-receiver/allocator/`, reconcile with branch L1/L2, restart service
+**Next for Desktop:** W6 Convert tile; re-check W5 visuals once L6.5 is live
