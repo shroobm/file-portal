@@ -47,24 +47,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Windows)
-**Date:** 2026-07-08
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. W6: add the Convert portal (`category = "convert"`, label "To Vault", icon 🔁) to `%APPDATA%\file-portal\config.toml`, `src-tauri/src/config.rs` `AppConfig::default()`, and `windows-widget/portals.json`
-2. `cargo check` + `cargo clippy` in `src-tauri`, then `npm run tauri build`
-3. Relaunch the widget; confirm the 5th tile renders
-4. E2E: drop a `.pdf` on the Convert tile → expect green ✓ within 30s (this doubles as the W5 visual re-check now that L6.5 is live) and "would convert" in the ThinkPad converter log
+1.
 
 ### How I'll verify each step:
-1. Diffs of the three files; TOML/JSON parse sanity
-2. Clean cargo output; build produces bundles
-3. Screenshot of the widget
-4. Widget status line + tile state screenshot; `tailscale ssh` tail of converter/allocator logs and status.json
+1.
 
 ### Dependencies / blockers:
-- None — L6.5 landed 2026-07-08 (status feed live), computer-use access already granted this session
+-
 
 ---
 
@@ -87,7 +81,8 @@ git pull  # always first
 - ✅ L3 verified: tailscaled enabled, Linger=yes, file-portal-allocator enabled+active; service restarted onto feat/library-pipeline code
 - ✅ Part 2 Linux (L5-L6) COMPLETE — convert rule live-tested; `file-portal-converter` installed, enabled, e2e verified (allocator hop → "would convert" logged, dotfiles ignored)
 - ✅ Docs consistency pass 2026-07-07: stale `inbox/quarantine` refs fixed (docs/05, receiver README), `linux-converter` added to root README/docs/00/docs/01, docs/10 checkboxes synced to reality, CHANGELOG updated
-- ▶ Next up: **Desktop — W5 visual re-check (30s ✓ test) + W6 (Convert tile)** closes Part 2 "Done when"; **ThinkPad — Part 3 (L7-L10, converter engine — dedicate a full session)**
+- ✅ W6 Convert tile DONE + E2E verified 2026-07-08 (`af904a2`) — green ✓ in ~4s, full Windows→allocator→converter chain confirmed. **W5 visual re-check PASSED** with it. Part 2 "Done when" = CLOSED both lanes.
+- ▶ Next up: **ThinkPad — Part 3 (L7-L10, converter engine — dedicate a full session)**; Desktop — W7 (Convert-Scan tile) waits until Part 3 Linux is done
 
 ---
 
@@ -137,15 +132,11 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 2 — Windows Tasks (after Part 1 Linux is done)
 
-- [ ] **W6 — Add Convert tile**
-  File: `%APPDATA%\file-portal\config.toml`
-  ```toml
-  [[portals]]
-  category = "convert"
-  label = "To Vault"
-  icon = "🔁"
-  ```
-  Also mirror into `src-tauri/src/config.rs` `AppConfig::default()` and `windows-widget/portals.json`
+- [x] **W6 — Add Convert tile** — DONE 2026-07-08 (commit `af904a2`), E2E verified
+  - Added to live `%APPDATA%\file-portal\config.toml`, `config.rs` `AppConfig::default()`, and `portals.json`
+  - Rebuilt (clippy clean, 2 bundles); 5th tile "To Vault" 🔁 renders (tiles are `flex: 1` — no window resize needed)
+  - Drop test: .pdf → tile went GREEN "✓ w6-convert-test.pdf → pipeline/convert-inbox/..." in ~4s; allocator hop + converter "would convert" both logged on ThinkPad at 04:56:45 UTC
+  - **This also closes the W5 visual re-check** — L6.5's status feed drove the green ✓ live. Part 2 "Done when" = fully closed.
 
 ### Part 3 — Windows Tasks (after Part 3 Linux is done)
 
@@ -409,3 +400,18 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** every claim has a log line, systemctl output, pytest run, or json.tool parse behind it.
 **Next for Desktop:** W5 visual re-check (expect green ✓ on .pdf within 30s; .xyz now legitimately ✓ with misc dest; red ✗ requires >2048MB) then W6 Convert tile.
 **Next for ThinkPad:** Part 3 (L7-L10 converter engine) — dedicate a full session; `import pymupdf.layout` BEFORE `import pymupdf4llm`.
+
+### 2026-07-08 — Desktop agent Session 5 (Claude Code / Fable)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** W6 Convert tile → rebuild → E2E verify (doubling as the W5 visual re-check).
+**What was done (each step verified):**
+- Added `convert` / "To Vault" / 🔁 portal to live `%APPDATA%\file-portal\config.toml`, `config.rs` `AppConfig::default()`, and `portals.json` (commit `af904a2`)
+- Checked layout first: tiles are `flex: 1` in a 480px window — 5 tiles fit, no resize needed
+- `cargo clippy --release` clean; `npm run tauri build` → 2 bundles (stopped the running widget first so the linker could replace the exe)
+- Relaunched widget: 5th tile renders (screenshot-verified)
+- **E2E drop:** .pdf on To Vault → tile went GREEN with "✓ w6-convert-test.pdf → pipeline/convert-inbox/w6-convert-test.pdf" in ~4 seconds. ThinkPad logs confirm the full chain at 04:56:45 UTC: allocator ALLOCATED → converter "would convert" → `allocated` event in status.json (which is what drove the green tile)
+- **W5 visual re-check: PASSED** — L6.5's status feed works end-to-end through the widget UI. Part 2 "Done when" closed on both lanes.
+- Test artifacts cleaned (ThinkPad convert-inbox + local test folder); widget left running with the new build
+**Verification:** widget screenshots (green tile + status line), allocator/converter log lines, status.json event, clippy/build output.
+**Next for ThinkPad:** Part 3 (L7-L10 converter engine) — dedicate a full session; `import pymupdf.layout` BEFORE `import pymupdf4llm`.
+**Next for Desktop:** W7 (Convert-Scan tile) — blocked until Part 3 Linux lands.
