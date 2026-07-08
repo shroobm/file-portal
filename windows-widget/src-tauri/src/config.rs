@@ -35,6 +35,7 @@ impl Default for AppConfig {
                 Portal { category: "photos".into(), label: "Photos".into(), icon: "🖼".into() },
                 Portal { category: "code".into(), label: "Code".into(), icon: "💻".into() },
                 Portal { category: "archive".into(), label: "Archive".into(), icon: "📦".into() },
+                Portal { category: "convert".into(), label: "To Vault".into(), icon: "🔁".into() },
             ],
         }
     }
