@@ -45,20 +45,27 @@ git pull  # always first
 
 ## Current Session Plan
 
-*Replace this section at the start of each session. Commit it before starting work.*
-
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** ThinkPad C14 (Arch Linux)
+**Date:** 2026-07-08
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. **L6.5 — port the status feed from master `0c3a074` into this branch.** Audit done: master's `main.py` is a behavioral superset of the branch's (on_moved + on_closed CLOSE_WRITE + on_created stability fallback, dotfile ignore, quarantine guard, per-file exception guard, quarantine collision-rename, StatusWriter calls). The only real conflict is `config.py`: branch's L1 quarantine location (`root/quarantine`) is correct, master's (`inbox/quarantine`) is the old bug — keep the branch's `config.py` untouched.
+   - Copy `allocator/status.py`, `tests/test_allocator.py`, `tests/test_rules.py`, `requirements-dev.txt` from `0c3a074`
+   - Replace `allocator/main.py` with the `0c3a074` version, rewording only the quarantine-guard comment (it claims quarantine lives inside the inbox tree — false since L1; the guard stays as defense-in-depth and for direct-call paths)
+   - `rules.py` diff vs master is formatting-only — skip
+2. **Adopt the recommended rejection semantics** (per coordination msg): `rejected` = quarantine only; unmatched extensions = `allocated` with `dest: sorted/misc`. Master's code already implements exactly this, so no extra code — record the decision here and in the coordination reply.
+3. Lint + tests: `ruff check`, `ruff format --check`, `pytest tests/` (install requirements-dev.txt into the repo venv).
+4. Deploy: restart `file-portal-allocator` (service runs from this checkout), then live-verify.
+5. Close: coordination reply message, CHANGELOG entry, session log, commit + push.
 
 ### How I'll verify each step:
-1.
+1. Segment-wise, per house style: after the port, all 24+ tests pass locally.
+2. Live: drop a small file into `inbox/documents/` → `status.json` gains an `allocated` event with fresh `ts`; drop an oversized file → `rejected` event + file stays in `quarantine/`; confirm `updated` field advances and JSON stays valid (`python -m json.tool`).
+3. `systemctl --user is-active file-portal-allocator` + journal shows "watching" line after restart.
 
 ### Dependencies / blockers:
--
+- None. Desktop re-runs the W5 visual check after this lands.
 
 ---
 
