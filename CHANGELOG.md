@@ -6,7 +6,38 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **Conversion engine (library pipeline, Part 3 — L7-L10).** `linux-converter` now converts
+  instead of logging "would convert". Dispatch is first-match by extension, mirroring the
+  allocator's rules idiom: `.pdf`/`.epub` → PyMuPDF4LLM (layout mode; `import pymupdf.layout`
+  is ordered before `import pymupdf4llm` in `converter/engines.py` because pymupdf4llm decides
+  OCR availability at import time), `.docx` → Pandoc (`-t gfm`, media extracted and flattened
+  into the bundle's assets). Clean-lane `.pdf`/`.epub` files are pre-probed for a real text
+  layer (`chars_per_page`, logged on every conversion); sub-threshold files reroute to
+  `pipeline/convert-scan-inbox/` as a normal `allocated` status event. The Scan lane
+  (`force_ocr=True` at `ocr_dpi`) is terminal: sub-threshold OCR yield quarantines the source
+  with a `rejected` event — no retry cycle is possible by construction (Open Decision #3,
+  resolved 2026-07-09). Output is a bundle folder (`<name>.md` + `assets/` + `manifest.json`
+  with source SHA-256), assembled in a dot-prefixed temp dir and published by atomic rename to
+  both `library/anchor/` (immutable snapshot) and `library/staging/` (transient export queue);
+  image links are rewritten to Obsidian embeds (`![[assets/…]]`) and every markdown output is
+  frontmatter-stamped with engine/lane/`lane_reason`/OCR provenance. Tuning lives in
+  `linux-converter/config/converter.toml` (`min_chars_per_page` seed 100 — provisional),
+  re-read per event like `rules.toml`. 26 unit tests added.
+- **`convert-scan` category routing.** `rules.toml` routes `convert-scan` drops (`*.pdf`,
+  `*.epub` — no `.docx`, Pandoc has no OCR) to `pipeline/convert-scan-inbox/`. This is the
+  destination for the Desktop's W7 tile, whose meaning is now *force-OCR override* rather than
+  "the lane for scans" (the probe detects scans itself) — see
+  `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md`.
+
 ### Fixed
+
+- **Hardcoded service paths (Defect A, flagged 2026-06-25, since duplicated).** Both
+  `file-portal-allocator.service` and `file-portal-converter.service` hardcoded
+  `%h/file-portal-src/...` while their `install.sh` copied the unit verbatim, breaking any
+  other clone path. Both installers now `sed`-substitute `__WORKDIR__`/`__EXEC_PATH__`
+  placeholders, matching `linux-dashboard/scripts/install.sh`.
 
 - **Status feed regression on `feat/library-pipeline` (widget ✓/✗ feedback dead).** The
   `logs/status.json` writer was implemented on `master` (`0c3a074`) but never merged into the
