@@ -15,9 +15,12 @@ python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
 
 mkdir -p "$HOME/.config/systemd/user"
+# Substitute the real clone path into the unit (the unit ships with __WORKDIR__/__EXEC_PATH__
+# placeholders) -- same approach as linux-dashboard/scripts/install.sh.
 SERVICE_SRC="systemd/file-portal-converter.service"
 SERVICE_DST="$HOME/.config/systemd/user/file-portal-converter.service"
-cp "$SERVICE_SRC" "$SERVICE_DST"
+sed "s|__WORKDIR__|$(pwd)|; s|__EXEC_PATH__|$(pwd)/.venv/bin/python|" \
+  "$SERVICE_SRC" > "$SERVICE_DST"
 
 systemctl --user daemon-reload
 systemctl --user enable --now file-portal-converter

@@ -34,3 +34,4 @@ Thumbs.db
 # --- Secrets / local config overrides ---
 *.local.toml
 .env
+.claude/settings.local.json

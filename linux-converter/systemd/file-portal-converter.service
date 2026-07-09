@@ -4,8 +4,11 @@ After=network-online.target
 
 [Service]
 Type=simple
-WorkingDirectory=%h/file-portal-src/linux-converter
-ExecStart=%h/file-portal-src/linux-converter/.venv/bin/python -m converter.main
+# __WORKDIR__ and __EXEC_PATH__ are substituted with the real clone path by scripts/install.sh
+# (same templating as linux-dashboard) -- a hardcoded path breaks any clone not at
+# ~/file-portal-src.
+WorkingDirectory=__WORKDIR__
+ExecStart=__EXEC_PATH__ -m converter.main
 Restart=on-failure
 RestartSec=5
 
