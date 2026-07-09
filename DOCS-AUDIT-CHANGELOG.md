@@ -1,5 +1,10 @@
 # Documentation Audit Changelog
 
+> **Snapshot as of 2026-06-25.** Entries below describe the tree at that commit. Superseded by
+> W1 (transport: streamed `tailscale ssh … cat` with `.part-` + `mv -f`, not rsync) and L1
+> (quarantine location: `~/file-portal/quarantine/`, not `inbox/quarantine`). Treat as history
+> only — do not act on its guidance.
+
 Audited all 16 documentation files against the full source tree. Five files required corrections; eleven were accurate as-is.
 
 ---

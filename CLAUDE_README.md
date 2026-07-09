@@ -1,7 +1,7 @@
 # CLAUDE_README — File Portal / Library Pipeline Mission Brief
 
-*Last updated: 2026-07-05 by Desktop agent (Cowork/Dispatch) — Session 2*
-*Read this file first when activating on any machine in this project.*
+*Read this file first when activating on any machine in this project. The Change Ledger below
+the Status Summary owns "last updated" — there is deliberately no hand-typed date here.*
 
 ---
 
@@ -34,6 +34,15 @@ git pull  # always first
 - Move the current session plan to **Session Log** with a timestamp and outcome
 - Update the machine's task list above (check off done items, add new ones)
 - Write the concrete next steps so the next Claude can start immediately
+- Run `git diff --name-only <last ledger SHA>..HEAD`. Every changed file must be accounted
+  for: either it appears in a `CHANGELOG.md` entry, or it is a doc/protocol file listed in
+  your new Change Ledger row. If a source file changed and no CHANGELOG entry describes it,
+  write one before closing.
+- Append your Change Ledger row **after** the closing commit is made, then amend it in
+  (`git commit --amend`) or push a one-line follow-up. Never write a SHA you have not seen.
+  (A ledger SHA that is not an ancestor of `HEAD` is a mechanically detectable lie — one
+  `git merge-base --is-ancestor` call. That check is what caught the L6.5 status-feed
+  regression, where `0c3a074` was never merged into the branch.)
 - Commit and push:
   ```bash
   git add CLAUDE_README.md
@@ -103,6 +112,22 @@ git pull  # always first
 
 ---
 
+## Change Ledger
+
+*Append one row at session close, after the closing commit exists. The SHA is the closing
+commit; "Docs touched" covers the whole session (open plan → close). Verify a row with
+`git merge-base --is-ancestor <SHA> HEAD`.*
+
+| Date (UTC) | Machine | Milestones closed | Docs touched | Closing SHA |
+|---|---|---|---|---|
+| 2026-07-07 | ThinkPad | L1–L4 | CLAUDE_README | d4841e0 |
+| 2026-07-07 | ThinkPad | L5, L6 | CLAUDE_README, CHANGELOG, README, docs/00, docs/01, docs/05, docs/10, linux-receiver/README | 6ffd910 |
+| 2026-07-08 | Desktop | W5 (transport) | CLAUDE_README, coordination | f9ad76a |
+| 2026-07-08 | ThinkPad | L6.5 | CLAUDE_README, CHANGELOG, coordination | 28057f8 |
+| 2026-07-08 | Desktop | W6 | CLAUDE_README | e302785 |
+
+---
+
 ## Active Branch: `feat/library-pipeline`
 
 Both machines work this branch. **Pull before every push.**
@@ -157,8 +182,13 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 3 — Windows Tasks (after Part 3 Linux is done)
 
-- [ ] **W7 — Add Convert-Scan tile**
-  Same as W6 but: `category = "convert-scan"`, `label = "Scan → Vault"`, `icon = "🔍"`
+- [ ] **W7 — Add Convert-Scan tile** — ⚠️ semantics changed 2026-07-09, read
+  `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md` first.
+  Same mechanics as W6 but: `category = "convert-scan"`, `label = "Force OCR → Vault"` (NOT
+  "Scan → Vault" — the Clean lane detects scans itself and reroutes them; this tile is a user
+  override for garbled/wrong text layers), `icon = "🔍"`. Destination
+  `pipeline/convert-scan-inbox` exists as of L9. No new status event type was added, so
+  `main.js` needs no change.
 
 ---
 

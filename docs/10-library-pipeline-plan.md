@@ -84,7 +84,7 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
 **Depends on:** Part 2 (entry + watcher skeleton). **Machines:** Linux (heavy) + Windows (light).
 
 ### Linux (Claude Code)
-- [ ] **Install engines.** `pip install pymupdf4llm`; `sudo pacman -S tesseract tesseract-data-eng pandoc`. **Critical:** `import pymupdf.layout` **before** `import pymupdf4llm` or auto-OCR silently never fires on image-only pages.
+- [ ] **Install engines.** `pymupdf4llm` goes in `linux-converter/.venv` (it's in `requirements.txt` — the service runs from that venv, so a system-wide `--break-system-packages` install would be invisible to it); `sudo pacman -S tesseract tesseract-data-eng pandoc-cli` (Arch packages pandoc as `pandoc-cli`). **Critical:** `import pymupdf.layout` **before** `import pymupdf4llm` or auto-OCR silently never fires on image-only pages — encoded as real import order in `converter/engines.py`.
 - [ ] **Dispatch by extension (format-as-set).** `.pdf`/`.epub` → PyMuPDF4LLM; `.docx` → Pandoc (`pandoc -f docx -t markdown --extract-media=<assets>`). Each handler owns its membership by extension. **Do not** give docx its own tile — the extension is a free, certain test.
 - [ ] **Two lanes.**
   - **Clean** (`convert` category): `force_ocr=False`, trust the text layer. Run a **membership test** — pre-analyze whether a real text layer exists. On a page that fails, reroute (see decision).
@@ -93,10 +93,10 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
 - [ ] **Write to two places.** (a) **anchor/master** folder: the immutable as-converted snapshot + a `manifest.json` (source PDF SHA-256, converter version, timestamp). (b) **staging/exports** queue (transient).
 
 ### Windows (Claude Code)
-- [ ] **Add the Convert-Scan tile.** `config.toml` + `config.rs` default + `portals.json`: `category = "convert-scan"`, `label = "Scan → Vault"`, `icon = "🔍"`. Linux `rules.toml`: add a `convert-scan` rule → `pipeline/scan-inbox`. Converter watches both inboxes and applies the matching lane.
+- [ ] **Add the Convert-Scan tile.** `config.toml` + `config.rs` default + `portals.json`: `category = "convert-scan"`, `label = "Force OCR → Vault"`, `icon = "🔍"`. Linux `rules.toml`: `convert-scan` rule → `pipeline/convert-scan-inbox` *(landed 2026-07-09 with L9; the tile is a **force-OCR override**, not "the lane for scans" — the Clean lane detects scans itself via the text-layer probe. See `coordination/messages/2026-07-09*w7-semantics*`)*. Converter watches both inboxes and applies the matching lane.
 
 **Done when:** a born-digital PDF on Convert → clean bundle (images resolve); a scanned PDF on Convert-Scan → OCR'd markdown in the right language; a docx → Pandoc markdown with media; a mixed PDF on Convert triggers the reroute/flag behavior.
-**Decisions:** (a) Clean-lane failure = **bounce whole file** to scan-inbox (cleaner) vs **convert-what-you-can-and-flag** (more forgiving)? (b) which `tesseract-data-*` language packs to install.
+**Decisions:** (a) **RESOLVED 2026-07-09 — neither.** A missing text layer is a detectable precondition, not a failure: Clean pre-probes `chars_per_page`; sub-threshold files reroute to the Scan inbox as a normal `allocated` hop; the Scan lane is terminal (sub-threshold OCR yield → quarantine + `rejected`). Threshold `min_chars_per_page` lives in `linux-converter/config/converter.toml` (seed 100, provisional). All output frontmatter-stamped with lane/ocr provenance. (b) `tesseract-data-eng` for now.
 
 ---
 
@@ -120,7 +120,7 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
 |---|---|---|---|
 | 1 | Disable Tailscale key expiry on always-on nodes | Part 1 | Yes (unattended reliability) |
 | 2 | Convert tile only vs also push-from-library | Part 2 | Tile only |
-| 3 | Clean-lane failure: bounce whole file vs convert-and-flag | Part 3 | *your call — usage-driven* |
+| 3 | Clean-lane failure: bounce whole file vs convert-and-flag | Part 3 | **RESOLVED 2026-07-09: neither — pre-flight probe, auto-route to Scan, Scan terminal → quarantine** |
 | 4 | Return transport: git/Forgejo vs Taildrop vs Windows OpenSSH | Part 4 | git/Forgejo |
 | 5 | Graph links: dense/dirty vs sparse/earned | Part 4 | *your call — affects every future note* |
 
