@@ -56,35 +56,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** ThinkPad C14 (Arch Linux)
-**Date:** 2026-07-09
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **Decision #3** — resolved by user amendment before work began: neither bounce nor flag. Pre-flight text-layer probe (`chars_per_page` vs configurable `min_chars_per_page`, seed 100, provisional); sub-threshold PDFs auto-reroute to the Scan inbox as a normal `allocated` hop; Scan lane is terminal (sub-threshold OCR → quarantine + `rejected`, one log line, no cycle by construction); every output carries `conversion:` frontmatter. Recorded in Open Decisions table in this commit.
-2. **Session guardrail** — deny rules for `windows-widget/**` edits in `.claude/settings.local.json` (per amendment; Desktop lane is off-limits).
-3. **L7 — engines**: `pymupdf4llm` into `linux-converter/.venv` + `requirements.txt`. *Divergence from docs/10's `pip install --break-system-packages`: the service runs from its own venv (see systemd unit ExecStart), so the venv is where the import must succeed.* `sudo pacman -S tesseract tesseract-data-eng pandoc`.
-4. **L8 — dispatch**: new `converter/engines.py`, first-match dispatch mirroring `allocator/rules.py`; `import pymupdf.layout` before `import pymupdf4llm` encoded as real import order with an explanatory comment.
-5. **L9 — lanes + probe**: add `convert-scan` rule → `pipeline/convert-scan-inbox` to `rules.toml` (*brief overrides docs/10's `scan-inbox` name; docs/10 synced in same commit*); converter watches both inboxes, lane by inbox; `.docx` → Pandoc always Clean; `.pdf`/`.epub` probed. Probe result (`chars_per_page`) logged on every conversion, success included. Files arriving in convert-scan-inbox skip the probe (user override).
-6. **L10 — bundle**: convert into a temp dir, publish by atomic rename (the `.part-` invariant, one hop further) to anchor (immutable snapshot + `manifest.json` with source SHA-256, converter version, timestamp) and staging (transient); assets folder; image links rewritten to Obsidian embeds; YAML `conversion:` frontmatter (engine, lane, lane_reason, chars_per_page_detected, ocr, ocr_dpi, converted_at, source_sha256).
-7. **Tests** in `linux-converter/tests/`: probe thresholding, dispatch, frontmatter, terminal-lane behavior. `ruff check` + `ruff format` clean on `linux-converter/`.
-8. **Defect A**: sed-template `__WORKDIR__`/`__EXEC_PATH__` in both `install.sh` files + service units (receiver + converter), matching `linux-dashboard/scripts/install.sh`.
-9. **Defect B**: dated snapshot banner on `DOCS-AUDIT-CHANGELOG.md`.
-10. **Timestamp accounting**: delete header `Last updated` line, add Change Ledger below Status Summary (backfilled from SHAs verified via `git merge-base --is-ancestor`), amend Session Protocol §4.
-11. **Coordination**: write `w7-semantics-force-scan` message (W7 is now a force-OCR override, suggested label "Force OCR → Vault", no new status event → `main.js` unchanged); update the W7 task line here.
-12. **Close**: CHANGELOG `[Unreleased]`, test artifacts removed, plan → Session Log with artifacts quoted, closing commit pushed, ledger row appended after the closing commit exists.
+1.
 
 ### How I'll verify each step:
-- L7: one-liner in the converter venv importing `pymupdf.layout` then `pymupdf4llm`, printing the version; `tesseract --version`; `pandoc --version` — real stdout quoted in the session log.
-- L8: one `.pdf`, one `.epub`, one `.docx` through the live service → three `converter.log` lines naming the engine chosen.
-- L9: born-digital PDF → high `chars_per_page`, Clean lane; scanned PDF → near-zero `chars_per_page`, reroute logged + `allocated` event with `dest: pipeline/convert-scan-inbox/…` in status.json; same scanned PDF through both lanes manually → differing `wc -c`; blank/corrupt PDF into the scan lane → exactly one `rejected` event, file in `quarantine/`, scan-inbox empty after 60s of log tailing.
-- L10: `tree` of one image-bearing bundle in anchor + staging; `ls` on every link target extracted from the markdown; `head -12` frontmatter on one Clean and one Scan output.
-- Tests/lint: pytest + ruff real output.
-- Defect A: fresh converter install run; `systemctl --user show file-portal-converter -p WorkingDirectory` shows the sed-substituted path.
+1.
 
 ### Dependencies / blockers:
-- `pacman` needs sudo — user approval at L7.
-- W7 (Desktop) unblocks only after L9's `convert-scan-inbox` lands **and** the coordination message is pushed.
+-
 
 ---
 
@@ -108,7 +91,8 @@ git pull  # always first
 - ✅ Part 2 Linux (L5-L6) COMPLETE — convert rule live-tested; `file-portal-converter` installed, enabled, e2e verified (allocator hop → "would convert" logged, dotfiles ignored)
 - ✅ Docs consistency pass 2026-07-07: stale `inbox/quarantine` refs fixed (docs/05, receiver README), `linux-converter` added to root README/docs/00/docs/01, docs/10 checkboxes synced to reality, CHANGELOG updated
 - ✅ W6 Convert tile DONE + E2E verified 2026-07-08 (`af904a2`) — green ✓ in ~4s, full Windows→allocator→converter chain confirmed. **W5 visual re-check PASSED** with it. Part 2 "Done when" = CLOSED both lanes.
-- ▶ Next up: **ThinkPad — Part 3 (L7-L10, converter engine — dedicate a full session)**; Desktop — W7 (Convert-Scan tile) waits until Part 3 Linux is done
+- ✅ Part 3 Linux (L7-L10) COMPLETE 2026-07-10 — conversion engine live: probe → Clean/Scan lanes → atomic bundles to anchor+staging, all gates verified on the live service (see Session Log 2026-07-09/10). Open Decision #3 RESOLVED (probe/reroute/terminal-scan). Defect A (hardcoded WorkingDirectory) fixed both services; Defect B banner added.
+- ▶ Next up: **Desktop — W7 (Convert-Scan tile) is UNBLOCKED** — read `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md` FIRST (tile semantics changed: force-OCR override, label "Force OCR → Vault"). ThinkPad — Part 4 (L11/L12, return transport) after W7.
 
 ---
 
@@ -125,6 +109,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-08 | Desktop | W5 (transport) | CLAUDE_README, coordination | f9ad76a |
 | 2026-07-08 | ThinkPad | L6.5 | CLAUDE_README, CHANGELOG, coordination | 28057f8 |
 | 2026-07-08 | Desktop | W6 | CLAUDE_README | e302785 |
+| 2026-07-10 | ThinkPad | L7–L10, Defect A, Defect B, Decision #3, Change Ledger + §4 | CLAUDE_README, CHANGELOG, DOCS-AUDIT-CHANGELOG, docs/10, coordination, .gitignore | 5cc669b |
 
 ---
 
@@ -260,16 +245,24 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 3 — Linux Tasks (HEAVY — dedicate a full session after reset)
 
-- [ ] **L7 — Install engines**
-  ```bash
-  pip install pymupdf4llm --break-system-packages
-  sudo pacman -S tesseract tesseract-data-eng pandoc
-  ```
-  CRITICAL: `import pymupdf.layout` BEFORE `import pymupdf4llm`
-
-- [ ] **L8** — Dispatch by extension (`.pdf`/`.epub` → PyMuPDF4LLM; `.docx` → Pandoc)
-- [ ] **L9** — Two lanes: Clean (`force_ocr=False`) and Scan (`force_ocr=True`, `ocr_dpi=300`)
-- [ ] **L10** — Bundle output: markdown + assets folder, write to anchor/master + staging
+- [x] **L7 — Install engines** — DONE 2026-07-09/10. `pymupdf4llm 1.28.0` into
+  `linux-converter/.venv` (+`requirements.txt`) — NOT `--break-system-packages`; the service
+  runs from its venv. `tesseract 5.5.2` + `tesseract-data-eng`; `pandoc 3.6` (Arch package is
+  `pandoc-cli`). Import order `pymupdf.layout` → `pymupdf4llm` encoded in
+  `converter/engines.py` (1.28 auto-satisfies it, kept as insurance).
+- [x] **L8 — Dispatch by extension** — DONE 2026-07-10, live-verified: three `converter.log`
+  lines at 00:41/01:02 UTC naming `engine=pymupdf4llm` (.pdf, .epub) and `engine=pandoc`
+  (.docx). First-match dispatch mirrors `allocator/rules.py`.
+- [x] **L9 — Two lanes + probe** — DONE 2026-07-10, live-verified: probe logged 1388.0
+  chars/page (digital) vs 0.0 (scan); scan on Clean REROUTED to `convert-scan-inbox` with an
+  `allocated` status event carrying `dest`; Scan lane OCR'd it (yield 929.0); terminal test:
+  blank scan → exactly one REJECTED → `quarantine/`, scan-inbox empty after 75s, no loop.
+  NOTE: in pymupdf4llm 1.28 the lanes are `SELECT_KEEP_OLD` vs `FORCE_DROP_OLD` — not
+  `force_ocr=True`, which would KEEP a bad prior OCR layer (see CHANGELOG + coordination msg).
+- [x] **L10 — Bundle output** — DONE 2026-07-10, live-verified: `tree` shows
+  `<name>.md + assets/ + manifest.json` in both `library/anchor/` and `library/staging/`;
+  the image link target resolved by `ls` (62,445-byte PNG); frontmatter stamped on both
+  lanes' outputs; manifest carries source SHA-256 + engine/converter versions.
 
 ### Part 4 — Linux Tasks
 
@@ -462,3 +455,21 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** widget screenshots (green tile + status line), allocator/converter log lines, status.json event, clippy/build output.
 **Next for ThinkPad:** Part 3 (L7-L10 converter engine) — dedicate a full session; `import pymupdf.layout` BEFORE `import pymupdf4llm`.
 **Next for Desktop:** W7 (Convert-Scan tile) — blocked until Part 3 Linux lands.
+
+### 2026-07-09/10 — ThinkPad agent Session 4 (Claude Code / Fable)
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** Part 3 (L7-L10 converter engine) + Defects A/B + Change Ledger protocol change, per the session brief. Open Decision #3 resolved by user amendment before work began: **neither** bounce nor flag — pre-flight text-layer probe, sub-threshold reroute to Scan as a normal `allocated` hop, terminal Scan lane → quarantine, frontmatter on every output.
+**What was done (each gate verified on the live service before the next):**
+- *L7:* `pymupdf4llm 1.28.0` into `linux-converter/.venv` (divergence: docs/10 said `--break-system-packages`, but the service runs from its venv); `tesseract 5.5.2` + `eng` listed by `tesseract --list-langs`; `pandoc 3.6` (divergence: Arch has no `pandoc` package — it's `pandoc-cli`). Venv one-liner printed `pymupdf4llm 1.28.0` with `pymupdf.layout` imported first. Divergence: 1.28 hard-depends on `pymupdf_layout` and sets `_use_layout=True` regardless of import order — ordering kept in `engines.py` as insurance.
+- *Engine (L8-L10 code, `29ff68f` + fix `4f15c33`):* first-match dispatch mirroring `allocator/rules.py`; probe; reroute; terminal Scan; atomic bundle publish to `library/anchor` + `library/staging`; Obsidian embed rewrite; frontmatter + manifest with source SHA-256; `converter.toml` (`min_chars_per_page=100`, provisional) re-read per event; `convert-scan` rule in `rules.toml`. 26 unit tests; ruff clean. Unit tests caught one bug pre-deploy (staging temp path collided with the assembly temp dir).
+- **Live-gate bug #1 (the reason the gates exist):** first L8 run produced allocator ALLOCATED lines but zero converter reaction. Event probe proved: a rename whose source is outside the watch (the allocator hop, inbox/→pipeline/) is an unpaired `IN_MOVED_TO` = watchdog `created` event — never `moved`, never `close_write`. The allocator's event model does not transfer to this topology (the old L6 scaffold only worked because it reacted to `created` unconditionally). Fixed: handler reacts to `created` + size-stability wait, `moved` (reroute), `closed` (in-place writes), deduped by source consumption + watchdog's single dispatch thread.
+- *L8 gate:* `00:41:20 CONVERTING l10-digital-with-image.pdf engine=pymupdf4llm lane=clean`, `00:41:32 … l8-book.epub engine=pymupdf4llm`, `00:41:40 … l8-paper.docx engine=pandoc` — three extensions, correct engines, live service.
+- **Live-gate finding #2:** the brief's L9 wc-c gate premise ("Scan yields text where Clean yields little or none") is obsolete in 1.28 — layout mode auto-OCRs need-based in EVERY lane (both lanes produced byte-identical 929-byte output on the scan fixture). Engine source (`make_ocr_decision`) shows the OCR modes only govern *prior OCR spans*, and `force_ocr=True` maps to `FORCE_KEEP_OLD` — it would KEEP a bad prior OCR layer. Scan lane now passes `use_ocr=OCRMode.FORCE_DROP_OLD` + `ocr_dpi=300` (discard prior OCR, redo, hard-fail without an engine); Clean is `SELECT_KEEP_OLD`. Coordination message updated: W7's honest meaning is "redo any embedded OCR properly".
+- *L9 gates (final code, 01:02-01:03 UTC):* PROBE 1388.0 (digital, Clean) vs 0.0 (scan) both logged; scan on Clean → `REROUTED … -> pipeline/convert-scan-inbox/l9-scan.pdf (chars_per_page 0.0 < 100)` + `allocated` event with that `dest` in status.json; Scan lane OCR-YIELD 929.0 → CONVERTED. **Terminal test:** blank scan through `inbox/convert-scan` (also proves the new rule live through the allocator) → exactly one `REJECTED (ocr yield 0.0 …) -> quarantine/`, one `rejected` status event (`category: convert-scan`), scan-inbox empty after 75s — no re-entry, no loop.
+- *L10 gate:* `tree` showed `<name>.md + assets/ + manifest.json` in anchor AND staging; the markdown's one image embed `![[assets/l10-digital-with-image.pdf-0001-02.png]]` resolved by `ls` (62,445 bytes); `head -12` on Clean output (`lane: clean`, `ocr: false`, `chars_per_page_detected: 1388.0`) and Scan output (`lane: scan`, `lane_reason: no_text_layer`, `ocr: true`, `ocr_dpi: 300`); manifest carries sha256 + `pymupdf4llm_version: 1.28.0`.
+- *Defect A:* both units templated (`__WORKDIR__`/`__EXEC_PATH__`), both installers `sed` like the dashboard's; verified by fresh install run + `systemctl --user show -p WorkingDirectory` showing the substituted path, both services active (`da9063e`). *Defect B:* snapshot banner added.
+- *Protocol:* header `Last updated` deleted; Change Ledger added below Status Summary, backfilled from five SHAs each verified `--is-ancestor` (corrected the brief's 6ffd910 row: session also touched CLAUDE_README, docs/00, docs/01); §4 gained the diff-accounting + append-after-close steps (`935304c`).
+- *Cleanup:* all test bundles, quarantined blank, and inbox files removed; inboxes/library verified empty. §4 accounting run over `e302785..HEAD`: every source file has a CHANGELOG entry; docs/protocol files are in this session's ledger row.
+**Verification:** every claim above has a log line with timestamp, systemctl/pytest/ruff stdout, a status.json event, or an event-probe transcript behind it — quoted in this entry or in the commit messages.
+**Next for Desktop (W7 — UNBLOCKED):** `git pull`, read `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md`, then W6-style tile: `category = "convert-scan"`, `label = "Force OCR → Vault"`, `icon = "🔍"` in `config.toml` + `config.rs` default + `portals.json`; rebuild; drop a PDF on it → expect green ✓ with `dest: pipeline/convert-scan-inbox/…` then a converted bundle on the ThinkPad. No `main.js` change needed.
+**Next for ThinkPad (Part 4, L11-L12):** return transport (recommended git/Forgejo — Open Decision #4) + place-by-tags + delete staging after send. Also carry forward: `min_chars_per_page=100` is provisional — revisit after ~30 real conversions (chars_per_page is logged on every one).
