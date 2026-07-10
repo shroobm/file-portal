@@ -15,11 +15,16 @@
    yield is still below threshold, the file goes to `~/file-portal/quarantine/` with a
    `rejected` event and exactly one log line. No retry cycle is possible by construction.
 
-3. **W7's tile is therefore an override, not a category.** Its meaning is now *"OCR this even
-   though a text layer exists"* — the correct handling for a PDF whose embedded text layer is
-   garbled or in the wrong language. Files dropped there skip the probe's lane decision and go
-   straight to OCR (the output frontmatter records `lane_reason: user_forced_scan` when a real
-   text layer was present).
+3. **W7's tile is therefore an override, not a category.** Files dropped there skip the
+   probe's lane decision and get the Scan lane's OCR settings (the output frontmatter records
+   `lane_reason: user_forced_scan` when a real text layer was present).
+   *Precision note (pymupdf4llm 1.28, verified against engine source 2026-07-10):* in layout
+   mode OCR is need-based and automatic in every lane, and no flag overrides a genuine
+   non-OCR text layer. What the Scan lane concretely forces is: **prior OCR text spans are
+   discarded and re-OCR'd at `ocr_dpi=300`** (`use_ocr=OCRMode.FORCE_DROP_OLD`), and the
+   conversion hard-fails if no OCR engine is present. So the tile's honest meaning is *"redo
+   any embedded OCR properly"* — the scanner-bundled-bad-OCR case — rather than "OCR over any
+   text layer".
 
 4. **Suggested label: `Force OCR → Vault`**, not `Scan → Vault`. "Scan → Vault" would teach the
    user to sort their own documents, which the pipeline now does better than they can.

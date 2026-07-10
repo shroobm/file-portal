@@ -16,9 +16,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   into the bundle's assets). Clean-lane `.pdf`/`.epub` files are pre-probed for a real text
   layer (`chars_per_page`, logged on every conversion); sub-threshold files reroute to
   `pipeline/convert-scan-inbox/` as a normal `allocated` status event. The Scan lane
-  (`force_ocr=True` at `ocr_dpi`) is terminal: sub-threshold OCR yield quarantines the source
+  (`use_ocr=OCRMode.FORCE_DROP_OLD` at `ocr_dpi` — NOT the plan doc's `force_ocr=True`, which
+  in pymupdf4llm 1.28 maps to `FORCE_KEEP_OLD` and would *keep* a bad prior OCR layer; in 1.28
+  layout mode OCR is need-based and automatic in every lane, and the modes only control prior
+  OCR spans) is terminal: sub-threshold OCR yield quarantines the source
   with a `rejected` event — no retry cycle is possible by construction (Open Decision #3,
-  resolved 2026-07-09). Output is a bundle folder (`<name>.md` + `assets/` + `manifest.json`
+  resolved 2026-07-09). Event model, verified empirically: the allocator hop is a rename whose
+  source is outside the converter's watch, which inotify reports as an unpaired `IN_MOVED_TO`
+  = a plain `created` event (never `moved`, never `close_write`) — so the handler reacts to
+  `created` with a size-stability wait, plus `moved` (the reroute) and `closed` (in-place
+  writes), deduped by consuming the source on success.
+  Output is a bundle folder (`<name>.md` + `assets/` + `manifest.json`
   with source SHA-256), assembled in a dot-prefixed temp dir and published by atomic rename to
   both `library/anchor/` (immutable snapshot) and `library/staging/` (transient export queue);
   image links are rewritten to Obsidian embeds (`![[assets/…]]`) and every markdown output is

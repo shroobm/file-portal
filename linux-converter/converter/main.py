@@ -7,10 +7,16 @@ layer reroutes the file into convert-scan-inbox as a normal `allocated` hop. The
 terminal: sub-threshold OCR output quarantines the file with a `rejected` event. Clean may
 route to Scan; Scan may route to nothing -- no cycle is possible by construction.
 
-Event model is the allocator's (linux-receiver/allocator/main.py): prefer on_moved (atomic
-rename -- the allocator hop and the probe reroute both arrive this way) and inotify's
-on_closed; fall back to on_created plus a size-stability wait only on non-inotify platforms.
-Runs as a systemd --user service -- see systemd/file-portal-converter.service.
+Event model: the allocator hop is a rename whose SOURCE is outside this service's watch
+(inbox/ -> pipeline/), and inotify reports an unpaired IN_MOVED_TO as a plain `created` event
+-- not `moved`, and never `close_write` (verified empirically 2026-07-10; the allocator's
+own on_moved/on_closed-only model does not transfer to this topology). So all three event
+types are handled: on_moved (the probe reroute, a rename within the watch), on_closed (a cp
+or scp written in place), and on_created with a size-stability wait (the allocator hop; also
+the first event of an in-progress cp). A cp fires created AND closed, but events dispatch on
+a single watchdog thread and success consumes the source file, so the second event sees a
+missing file and returns. Runs as a systemd --user service -- see
+systemd/file-portal-converter.service.
 """
 
 import argparse
@@ -35,37 +41,28 @@ CATEGORY_BY_LANE = {"clean": "convert", "scan": "convert-scan"}
 
 
 class ConvertHandler(FileSystemEventHandler):
-    def __init__(
-        self,
-        paths: Paths,
-        settings_path: Path,
-        status: StatusWriter,
-        react_to_created: bool = False,
-    ):
+    def __init__(self, paths: Paths, settings_path: Path, status: StatusWriter):
         self.paths = paths
         self.settings_path = settings_path
         self.status = status
-        # Only observers without close-event support (i.e. anything that isn't inotify) need
-        # the on_created + stability-wait fallback -- see run().
-        self.react_to_created = react_to_created
 
     def on_moved(self, event):
-        # The allocator moves a completed file into convert-inbox via an atomic rename, and the
-        # probe reroute into convert-scan-inbox arrives the same way -- this is the event that
-        # actually means "a full file has arrived."
+        # A rename within the watched tree: the probe reroute into convert-scan-inbox.
         if not event.is_directory:
             self._handle(Path(event.dest_path))
 
     def on_closed(self, event):
         # inotify IN_CLOSE_WRITE: completion signal for transports that write in place (a
-        # manual cp, scp). Reacting to on_created instead would race the write.
+        # manual cp, scp). Usually a no-op after on_created already consumed the file.
         if not event.is_directory:
             self._handle(Path(event.src_path))
 
     def on_created(self, event):
-        # Fallback for platforms whose observer never emits close events: wait until the file
-        # size stops changing before treating it as complete. Not used on Linux/inotify.
-        if event.is_directory or not self.react_to_created:
+        # The allocator hop arrives HERE: a rename from outside the watch is an unpaired
+        # IN_MOVED_TO, which inotify/watchdog surface as `created` (see module docstring).
+        # The stability wait costs one 0.5s poll for an already-complete rename and protects
+        # against converting a cp that is still writing.
+        if event.is_directory:
             return
         file_path = Path(event.src_path)
         self._wait_until_stable(file_path)
@@ -234,8 +231,8 @@ class ConvertHandler(FileSystemEventHandler):
     def _wait_until_stable(file_path: Path, interval: float = 0.5, timeout: float = 60.0):
         """Block until file_path's size is unchanged across one polling interval.
 
-        Only used on non-inotify platforms (react_to_created). Returns early if the file
-        disappears; gives up after `timeout` seconds and lets _convert see whatever is there.
+        Returns early if the file disappears; gives up after `timeout` seconds and lets
+        _convert see whatever is there.
         """
         deadline = time.monotonic() + timeout
         last_size = -1
@@ -248,15 +245,6 @@ class ConvertHandler(FileSystemEventHandler):
                 return
             last_size = size
             time.sleep(interval)
-
-
-def _observer_emits_close_events(observer) -> bool:
-    """True when the platform observer delivers on_closed (inotify's IN_CLOSE_WRITE)."""
-    try:
-        from watchdog.observers.inotify import InotifyObserver
-    except ImportError:
-        return False
-    return isinstance(observer, InotifyObserver)
 
 
 def run(root: Path, settings_path: Path):
@@ -272,12 +260,7 @@ def run(root: Path, settings_path: Path):
 
     status = StatusWriter(paths.logs / "status.json")
     observer = Observer()
-    handler = ConvertHandler(
-        paths,
-        settings_path,
-        status,
-        react_to_created=not _observer_emits_close_events(observer),
-    )
+    handler = ConvertHandler(paths, settings_path, status)
     # One watch on pipeline/ covers both inboxes; _convert derives the lane from the parent
     # directory, the same way the allocator derives the category.
     observer.schedule(handler, str(paths.pipeline), recursive=True)

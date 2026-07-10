@@ -11,6 +11,7 @@ rules.py -- one routing idiom in the repo, not two.
 # ordering is kept as insurance against older or partially-installed environments.)
 import pymupdf.layout  # noqa: F401  (import order is load-bearing -- see comment above)
 import pymupdf4llm
+from pymupdf4llm.helpers.document_layout import OCRMode
 
 import fnmatch
 import subprocess
@@ -67,9 +68,20 @@ def page_count(path: Path) -> int:
 def run_pymupdf(src: Path, assets_dir: Path, lane: str, settings: Settings) -> str:
     """Convert a .pdf/.epub to markdown, writing images into assets_dir.
 
-    Clean lane trusts the text layer (force_ocr=False); Scan lane rasterizes and OCRs every
-    page (force_ocr=True at ocr_dpi). Image links in the returned markdown carry whatever
-    path pymupdf4llm was given -- bundle.rewrite_image_links normalizes them afterwards.
+    Lane flags, mapped onto pymupdf4llm 1.28 layout-mode reality (verified against
+    document_layout.make_ocr_decision, 2026-07-10): OCR is need-based and automatic in every
+    mode -- image-only pages get OCR'd even on the Clean lane, and no flag forces OCR over a
+    genuine non-OCR text layer. What the modes actually control is prior OCR spans:
+
+    - Clean = SELECT_KEEP_OLD: trust existing text (including previous OCR), auto-OCR only
+      pages that need it.
+    - Scan = FORCE_DROP_OLD + ocr_dpi: discard prior OCR text and redo it at our resolution,
+      and raise if no OCR engine is available. This -- not the plan doc's force_ocr=True,
+      which maps to FORCE_KEEP_OLD and would KEEP a bad prior OCR layer -- is the honest
+      1.28 spelling of "force OCR".
+
+    Image links in the returned markdown carry whatever path pymupdf4llm was given --
+    bundle.rewrite_image_links normalizes them afterwards.
     """
     assets_dir.mkdir(parents=True, exist_ok=True)
     kwargs = {
@@ -79,12 +91,12 @@ def run_pymupdf(src: Path, assets_dir: Path, lane: str, settings: Settings) -> s
     }
     if lane == "scan":
         kwargs.update(
-            force_ocr=True,
+            use_ocr=OCRMode.FORCE_DROP_OLD,
             ocr_dpi=settings.ocr_dpi,
             ocr_language=settings.ocr_language,
         )
     else:
-        kwargs["force_ocr"] = False
+        kwargs["use_ocr"] = OCRMode.SELECT_KEEP_OLD
     return pymupdf4llm.to_markdown(str(src), **kwargs)
 
 
