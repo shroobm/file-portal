@@ -58,18 +58,35 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** ThinkPad C14 (Arch Linux)
+**Date:** 2026-07-10
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. Documentation-only session per user instruction: the Part 4 vault wiring was completed
+   manually outside any session (bare repo + Tailscale SSH, both directions proven). Record
+   it; write no code; touch nothing under `linux-converter/` or `windows-widget/`.
+2. Verify the ThinkPad-side claims read-only before recording (bare repo, HEAD ref, clone
+   state, seed commit contents, no `.obsidian` on this machine).
+3. Open Decisions: row 4 → verified bare-repo+Tailscale-SSH text (user-supplied); row 5 →
+   resolved-as-sparse with rationale; new row 6 → vault placement spec
+   (`Library/Inbox/<slug>--<sha8>/`, no tag/folder mapping, staged-deletion gate).
+4. Status Summary: drop the "(as of …)" date from the heading (ledger owns it); add the
+   Part 4 groundwork line.
+5. L11/L12 task entries: fold in the now-binding constraints so the next session starts
+   from the full spec.
+6. Close: session log entry, closing commit, ledger row as a FOLLOW-UP commit (never amend).
 
 ### How I'll verify each step:
-1.
+- Step 2: git rev-parse --is-bare-repository / symbolic-ref HEAD / log --oneline / remote -v
+  on `~/file-portal/vault.git` + `~/file-portal/vault-work`; `find ~ -maxdepth 3 -name
+  .obsidian`. Real output quoted in the session log.
+- Steps 3-5: the diff of this file is the deliverable; §4 accounting covers it via the
+  ledger row (no source files change).
+- Step 6: `git merge-base --is-ancestor <closing SHA> HEAD` after the follow-up.
 
 ### Dependencies / blockers:
--
+- None. L11 (exporter) and L12 (staging deletion) stay open for a future ThinkPad session.
 
 ---
 
