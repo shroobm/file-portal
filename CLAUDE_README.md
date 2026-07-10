@@ -58,26 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Windows)
-**Date:** 2026-07-09
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. W7 — Convert-Scan tile, per the 2026-07-09T23-05 coordination message (force-OCR override semantics):
-   add `convert-scan` / "Force OCR → Vault" / 🔍 portal to live `%APPDATA%\file-portal\config.toml`,
-   `config.rs` `AppConfig::default()`, and `portals.json`. No `main.js` change (no new event type).
-2. Rebuild: `cargo clippy --release` then `npm run tauri build` (stop the running widget first so the
-   linker can replace the exe), relaunch.
-3. E2E: drop a `.pdf` on the new tile → expect green ✓ with `dest: pipeline/convert-scan-inbox/…`,
-   then confirm the converted bundle + Scan-lane frontmatter on the ThinkPad; clean up artifacts.
+1.
 
 ### How I'll verify each step:
-1. Diff the three configs against W6's `convert` entries (same mechanics); 6 tiles fit because tiles are `flex: 1`.
-2. clippy clean, 2 bundles produced, widget relaunches showing the 6th tile (screenshot).
-3. Widget green ✓ text, ThinkPad `converter.log` lines (probe/OCR), bundle in `library/`, status.json event.
+1.
 
 ### Dependencies / blockers:
-- ThinkPad `pipeline/convert-scan-inbox/` live as of L9 ✅ — no blockers. E2E needs the ThinkPad reachable over Tailscale.
+-
 
 ---
 
@@ -102,7 +94,8 @@ git pull  # always first
 - ✅ Docs consistency pass 2026-07-07: stale `inbox/quarantine` refs fixed (docs/05, receiver README), `linux-converter` added to root README/docs/00/docs/01, docs/10 checkboxes synced to reality, CHANGELOG updated
 - ✅ W6 Convert tile DONE + E2E verified 2026-07-08 (`af904a2`) — green ✓ in ~4s, full Windows→allocator→converter chain confirmed. **W5 visual re-check PASSED** with it. Part 2 "Done when" = CLOSED both lanes.
 - ✅ Part 3 Linux (L7-L10) COMPLETE 2026-07-10 — conversion engine live: probe → Clean/Scan lanes → atomic bundles to anchor+staging, all gates verified on the live service (see Session Log 2026-07-09/10). Open Decision #3 RESOLVED (probe/reroute/terminal-scan). Defect A (hardcoded WorkingDirectory) fixed both services; Defect B banner added.
-- ▶ Next up: **Desktop — W7 (Convert-Scan tile) is UNBLOCKED** — read `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md` FIRST (tile semantics changed: force-OCR override, label "Force OCR → Vault"). ThinkPad — Part 4 (L11/L12, return transport) after W7.
+- ✅ W7 "Force OCR → Vault" tile DONE + E2E verified 2026-07-10 (`1d15b16`) — 6th tile renders; drop → green ✓ with `dest: pipeline/convert-scan-inbox/…` in ~1s; ThinkPad converter forced the Scan lane on a digital PDF (probe 277 chars/page, `lane_reason: user_forced_scan`, re-OCR at 300 dpi, yield 279) and published the bundle to anchor+staging; source SHA-256 matched the local file byte-exact. Part 3 "Done when" = CLOSED both lanes.
+- ▶ Next up: **ThinkPad — Part 4 (L11/L12, return transport — git/Forgejo per Open Decision #4)**. Desktop has no open tasks.
 
 ---
 
@@ -177,13 +170,13 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 3 — Windows Tasks (after Part 3 Linux is done)
 
-- [ ] **W7 — Add Convert-Scan tile** — ⚠️ semantics changed 2026-07-09, read
-  `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md` first.
-  Same mechanics as W6 but: `category = "convert-scan"`, `label = "Force OCR → Vault"` (NOT
-  "Scan → Vault" — the Clean lane detects scans itself and reroutes them; this tile is a user
-  override for garbled/wrong text layers), `icon = "🔍"`. Destination
-  `pipeline/convert-scan-inbox` exists as of L9. No new status event type was added, so
-  `main.js` needs no change.
+- [x] **W7 — Add Convert-Scan tile** — DONE 2026-07-10 (commit `1d15b16`), E2E verified with
+  force-OCR semantics per the 2026-07-09T23-05 coordination message: `category = "convert-scan"`,
+  `label = "Force OCR → Vault"`, `icon = "🔍"` added to live `%APPDATA%\file-portal\config.toml`,
+  `config.rs` `AppConfig::default()`, and `portals.json`; no `main.js` change. Drop test: digital
+  .pdf → green ✓ "→ pipeline/convert-scan-inbox/…"; converter probe 277 chars/page but lane
+  forced scan (`lane_reason: user_forced_scan`, `ocr_dpi: 300`, yield 279), bundle in
+  anchor+staging, manifest SHA-256 = local file's hash.
 
 ---
 
@@ -483,3 +476,19 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** every claim above has a log line with timestamp, systemctl/pytest/ruff stdout, a status.json event, or an event-probe transcript behind it — quoted in this entry or in the commit messages.
 **Next for Desktop (W7 — UNBLOCKED):** `git pull`, read `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md`, then W6-style tile: `category = "convert-scan"`, `label = "Force OCR → Vault"`, `icon = "🔍"` in `config.toml` + `config.rs` default + `portals.json`; rebuild; drop a PDF on it → expect green ✓ with `dest: pipeline/convert-scan-inbox/…` then a converted bundle on the ThinkPad. No `main.js` change needed.
 **Next for ThinkPad (Part 4, L11-L12):** return transport (recommended git/Forgejo — Open Decision #4) + place-by-tags + delete staging after send. Also carry forward: `min_chars_per_page=100` is provisional — revisit after ~30 real conversions (chars_per_page is logged on every one).
+
+### 2026-07-10 — Desktop agent Session 6 (Claude Code / Fable)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** W7 Force OCR tile per the 2026-07-09T23-05 coordination message → rebuild → E2E through the ThinkPad's Scan lane.
+**What was done (each step verified):**
+- Pulled `ce56ca7` (fast-forward); read the W7 semantics message before touching anything — tile is a force-OCR *override* (`FORCE_DROP_OLD` re-OCR at 300 dpi), not a "scans go here" category
+- Added `convert-scan` / "Force OCR → Vault" / 🔍 portal to live `%APPDATA%\file-portal\config.toml`, `config.rs` `AppConfig::default()`, and `portals.json`; no `main.js` change (reroute/reject reuse existing `allocated`/`rejected` events). Commit `1d15b16` (+ CHANGELOG entry — also noted W6 never got one; W7's covers the tile pattern)
+- `cargo clippy --release` clean; `npm run tauri build` → 2 bundles in 42s (widget was not running — no linker conflict); relaunched: 6 tiles render, zoom-verified label (tiles are `flex: 1`, no resize)
+- **E2E drop (computer-use, user-granted):** digital-text .pdf (901 B, generated) onto Force OCR tile → "Sent 1 file(s) to convert-scan." → green ✓ "w7-force-ocr-test.pdf → pipeline/convert-scan-inbox/w7-force-ocr-test.pdf" within ~8s
+- **ThinkPad chain (01:25:42-43 UTC):** allocator ALLOCATED `inbox/convert-scan/` → `pipeline/convert-scan-inbox/`; converter PROBE 277.0 chars/page (above threshold — a real text layer) yet lane stayed `scan` (the override working as designed), CONVERTING engine=pymupdf4llm, OCR-YIELD 279.0, CONVERTED → bundle in `library/anchor/` + `library/staging/` with `manifest.json`; frontmatter reads `lane: scan`, `lane_reason: user_forced_scan`, `ocr: true`, `ocr_dpi: 300`; OCR'd body text matches the source page
+- **Byte-exactness:** manifest `source_sha256` `7b060b…` == local `Get-FileHash` output — W1/W2 transport re-proven on this path
+- Cleaned: ThinkPad anchor+staging test bundles removed (inboxes already empty — consumed, no loop), local test folder deleted
+- §4 accounting over `c718ed2..HEAD`: `config.rs`/`portals.json`/`CHANGELOG.md` covered by the CHANGELOG entry; `CLAUDE_README.md` is protocol, in this session's ledger row
+**Verification:** widget screenshots (6 tiles, green ✓ status line), allocator/converter log lines with timestamps, status.json `allocated` event, frontmatter head, SHA-256 comparison.
+**Part 3 "Done when": CLOSED both lanes.** Desktop has no open tasks.
+**Next for ThinkPad (Part 4, L11-L12):** return transport (git/Forgejo per Open Decision #4) + place-by-tags + delete staging after send. Carry forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
