@@ -58,18 +58,26 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Date:** 2026-07-09
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. W7 — Convert-Scan tile, per the 2026-07-09T23-05 coordination message (force-OCR override semantics):
+   add `convert-scan` / "Force OCR → Vault" / 🔍 portal to live `%APPDATA%\file-portal\config.toml`,
+   `config.rs` `AppConfig::default()`, and `portals.json`. No `main.js` change (no new event type).
+2. Rebuild: `cargo clippy --release` then `npm run tauri build` (stop the running widget first so the
+   linker can replace the exe), relaunch.
+3. E2E: drop a `.pdf` on the new tile → expect green ✓ with `dest: pipeline/convert-scan-inbox/…`,
+   then confirm the converted bundle + Scan-lane frontmatter on the ThinkPad; clean up artifacts.
 
 ### How I'll verify each step:
-1.
+1. Diff the three configs against W6's `convert` entries (same mechanics); 6 tiles fit because tiles are `flex: 1`.
+2. clippy clean, 2 bundles produced, widget relaunches showing the 6th tile (screenshot).
+3. Widget green ✓ text, ThinkPad `converter.log` lines (probe/OCR), bundle in `library/`, status.json event.
 
 ### Dependencies / blockers:
--
+- ThinkPad `pipeline/convert-scan-inbox/` live as of L9 ✅ — no blockers. E2E needs the ThinkPad reachable over Tailscale.
 
 ---
 
