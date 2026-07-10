@@ -38,6 +38,12 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   destination for the Desktop's W7 tile, whose meaning is now *force-OCR override* rather than
   "the lane for scans" (the probe detects scans itself) — see
   `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md`.
+- **"Force OCR → Vault" widget tile (W7).** Sixth portal (`category = "convert-scan"`, 🔍)
+  added to `config.rs` `AppConfig::default()` and the `portals.json` reference copy (and the
+  live `%APPDATA%\file-portal\config.toml`). Per the 2026-07-09T23-05 coordination message the
+  label is deliberately NOT "Scan → Vault": the Clean lane detects scans itself, so the tile is
+  the user override that discards a garbled embedded OCR layer and re-OCRs at 300 dpi. No
+  `main.js` change — the reroute/reject paths reuse the existing `allocated`/`rejected` events.
 
 ### Fixed
 

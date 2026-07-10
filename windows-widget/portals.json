@@ -5,6 +5,7 @@
     { "category": "photos", "label": "Photos", "icon": "🖼" },
     { "category": "code", "label": "Code", "icon": "💻" },
     { "category": "archive", "label": "Archive", "icon": "📦" },
-    { "category": "convert", "label": "To Vault", "icon": "🔁" }
+    { "category": "convert", "label": "To Vault", "icon": "🔁" },
+    { "category": "convert-scan", "label": "Force OCR → Vault", "icon": "🔍" }
   ]
 }

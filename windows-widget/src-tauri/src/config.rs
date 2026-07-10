@@ -36,6 +36,7 @@ impl Default for AppConfig {
                 Portal { category: "code".into(), label: "Code".into(), icon: "💻".into() },
                 Portal { category: "archive".into(), label: "Archive".into(), icon: "📦".into() },
                 Portal { category: "convert".into(), label: "To Vault".into(), icon: "🔁".into() },
+                Portal { category: "convert-scan".into(), label: "Force OCR → Vault".into(), icon: "🔍".into() },
             ],
         }
     }
