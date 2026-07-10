@@ -38,8 +38,10 @@ git pull  # always first
   for: either it appears in a `CHANGELOG.md` entry, or it is a doc/protocol file listed in
   your new Change Ledger row. If a source file changed and no CHANGELOG entry describes it,
   write one before closing.
-- Append your Change Ledger row **after** the closing commit is made, then amend it in
-  (`git commit --amend`) or push a one-line follow-up. Never write a SHA you have not seen.
+- Append your Change Ledger row **after** the closing commit is made, in a **one-line
+  follow-up commit** — do NOT `git commit --amend` it into the closing commit: amending
+  changes that commit's SHA and orphans the row you just wrote (discovered by doing exactly
+  that, 2026-07-10). Never write a SHA you have not seen.
   (A ledger SHA that is not an ancestor of `HEAD` is a mechanically detectable lie — one
   `git merge-base --is-ancestor` call. That check is what caught the L6.5 status-feed
   regression, where `0c3a074` was never merged into the branch.)
@@ -109,7 +111,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-08 | Desktop | W5 (transport) | CLAUDE_README, coordination | f9ad76a |
 | 2026-07-08 | ThinkPad | L6.5 | CLAUDE_README, CHANGELOG, coordination | 28057f8 |
 | 2026-07-08 | Desktop | W6 | CLAUDE_README | e302785 |
-| 2026-07-10 | ThinkPad | L7–L10, Defect A, Defect B, Decision #3, Change Ledger + §4 | CLAUDE_README, CHANGELOG, DOCS-AUDIT-CHANGELOG, docs/10, coordination, .gitignore | 5cc669b |
+| 2026-07-10 | ThinkPad | L7–L10, Defect A, Defect B, Decision #3, Change Ledger + §4 | CLAUDE_README, CHANGELOG, DOCS-AUDIT-CHANGELOG, docs/10, coordination, .gitignore | c718ed2 |
 
 ---
 
