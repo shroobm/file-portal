@@ -97,7 +97,8 @@ git pull  # always first
 - ✅ W7 "Force OCR → Vault" tile DONE + E2E verified 2026-07-10 (`1d15b16`) — 6th tile renders; drop → green ✓ with `dest: pipeline/convert-scan-inbox/…` in ~1s; ThinkPad converter forced the Scan lane on a digital PDF (probe 277 chars/page, `lane_reason: user_forced_scan`, re-OCR at 300 dpi, yield 279) and published the bundle to anchor+staging; source SHA-256 matched the local file byte-exact. Part 3 "Done when" = CLOSED both lanes.
 - ✅ Part 4 groundwork 2026-07-10 — vault repo wired both ends, transport verified. L11 (exporter) and L12 (staging deletion) remain.
 - ✅ Part 4 Linux (L11+L12) COMPLETE 2026-07-11 — exporter live in the converter service: staging bundle → vault commit → push → `cat-file -e` blob verification in the bare repo → staging deleted. Dedup no-op verified live; a 2×60s event-stall defect found at the live gate and fixed same session (export latency now ~25ms). **All Linux milestones (L1–L12) closed; the pipeline loop is code-complete.**
-- ▶ Next up: **user/Desktop — consume the vault**: `git pull` inside `<Vault>\Library` (or wire Obsidian Git) to see ingested bundles; do NOT open `Library/` as its own vault (Decision #4 gotcha). No open agent tasks on either machine. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
+- ✅ Desktop vault consumption VERIFIED 2026-07-11 — `git pull` inside `<Vault>\Library` fast-forwarded `0272f89..ec1eaf6` over Tailscale SSH; history shows both L11 test ingests (`a49d49c`, `cfca152`) + the honest removal (`ec1eaf6`), tree back to seed files; no stray `.obsidian/` in Library and no Library entry in Obsidian's vault registry (Decision #4 gotcha clear). **The full pipeline loop is closed end to end: widget → allocator → converter → vault → Desktop.**
+- ▶ Next up: **real usage.** No open agent tasks on either machine. Drop real documents; each subsequent `git pull` in `<Vault>\Library` (or Obsidian Git, if wired later) consumes new bundles. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions (chars_per_page is logged on every one).
 
 ---
 
@@ -534,3 +535,17 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** every claim above has a converter.log line with timestamp, a `git log`/`ls-tree`/`cat-file` output, or pytest/ruff stdout behind it. §4 accounting over `7b4c286..HEAD`: source files (`exporter.py`, `config.py`, `main.py`, `test_exporter.py`) covered by the CHANGELOG entry; CLAUDE_README/CHANGELOG/docs/10/linux-converter README are in this session's ledger row.
 **Part 4 "Done when": Linux side CLOSED.** All Linux milestones L1–L12 complete; the pipeline loop is code-complete end to end.
 **Next for user/Desktop:** `git pull` inside `<Vault>\Library` (or wire Obsidian Git) to consume ingested bundles — do NOT open Library/ as its own vault (Decision #4 gotcha). No open agent tasks on either machine. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
+
+### 2026-07-11 — Desktop agent Session 7 (Claude Code / Fable)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** Consume the vault — the single Desktop step left after ThinkPad Session 6 closed L11/L12. (Small consumer step; work was done before this plan section was committed — recorded at close instead of as a separate open-plan commit.)
+**What was done (each step verified):**
+- Pulled `feat/library-pipeline` (`b615b0c..2ac2441`, fast-forward) and read Session 6's close before touching anything
+- Located the vault clone: `C:\Users\Rabbiallah\Documents\Obsidian\Obsidian Vault\Library` — `core.sshCommand = tailscale ssh` persisted in its config, origin `rab@archlinux:file-portal/vault.git`, exactly as Decision #4 records
+- **Decision #4 gotcha check (both halves):** no `.obsidian/` inside `Library/` (`Test-Path` → False) and no Library path among the five vaults in `%APPDATA%\obsidian\obsidian.json` — the vault switcher does not list Library
+- Pre-pull state: clone at seed `0272f89`, working tree clean except a stat-only `.gitignore` phantom (`git diff` empty — the `eol=lf` normalization artifact this machine's clones are known for; no real delta)
+- **Pull:** fast-forward `0272f89..ec1eaf6` over Tailscale SSH. History received: `a49d49c` + `cfca152` (the two L11 live-test ingests, SHAs matching Session 6's log exactly) + `ec1eaf6` (their honest removal). `git ls-tree -r HEAD` → `.gitattributes` + `.gitignore` only; on-disk dir matches (plus `.git`)
+- No cleanup needed — the ThinkPad already removed all test artifacts; this session created none
+**Verification:** git command outputs quoted above (pull transcript, ls-tree, config reads, registry read). §4 accounting over `2ac2441..HEAD`: only `CLAUDE_README.md` changed — protocol file, listed in this session's ledger row.
+**The pipeline loop is now closed end to end and verified from both machines:** widget → allocator → converter → vault commit/push → Desktop pull.
+**Next for both machines:** none open. Real usage begins; revisit `min_chars_per_page=100` after ~30 real conversions.
