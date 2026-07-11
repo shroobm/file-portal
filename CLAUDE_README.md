@@ -58,18 +58,39 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** ThinkPad C14 (Arch Linux)
+**Date:** 2026-07-11
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+0. Housekeeping (done before this plan): Session 5's close was left uncommitted — committed
+   it as `7b4c286` + ledger row `dde44f8`, both pushed.
+1. **L11 exporter** as a second handler inside the existing converter service (no third
+   systemd unit): new `converter/exporter.py` watching `library/staging/` plus a startup
+   sweep for bundles that landed while the service was down. Per Decisions #4/#5/#6:
+   copy bundle → `vault-work/Library/Inbox/<slug>--<sha256[:8]>/`, `git add` (pathspec-scoped),
+   commit, push to the local bare repo. Dedup on full `source_sha256` via `git grep` at HEAD
+   over committed `manifest.json` files — a duplicate is a no-op log line and the staging
+   copy is removed. Creates new notes only; never edits or overwrites committed paths.
+2. **L12 staging deletion**: delete the staging bundle only after the push succeeded AND
+   every bundle file's blob is confirmed with `git cat-file -e <commit>:<path>` **in the bare
+   repo** (proves the push landed, not just write-success). Any git failure → EXPORT-FAIL log,
+   staging copy stays, retried on next service start.
+3. Unit tests (`tests/test_exporter.py`) against real temp git repos; ruff clean; full suite.
+4. Deploy: restart `file-portal-converter`; live-verify the full chain with a real PDF
+   (convert-inbox → bundle → vault commit in `vault.git` → staging empty → re-ingest no-op).
+5. Docs (CHANGELOG, linux-converter README, docs/10), close + ledger row.
 
 ### How I'll verify each step:
-1.
+1-2. Unit tests assert on the bare repo's committed tree (`git cat-file`), not on log text;
+   push-failure test asserts the staging bundle survives.
+3. pytest + ruff output quoted in the session log.
+4. Live log lines (EXPORTED / EXPORT-SKIP), `git -C ~/file-portal/vault.git log`,
+   `cat-file -e` on the pushed commit, `ls library/staging/` empty, second drop of the same
+   file → no new commit.
 
 ### Dependencies / blockers:
--
+- None. Vault repos wired + verified 2026-07-10 (Decision #4).
 
 ---
 
