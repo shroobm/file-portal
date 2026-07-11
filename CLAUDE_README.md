@@ -115,6 +115,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-08 | Desktop | W6 | CLAUDE_README | e302785 |
 | 2026-07-10 | ThinkPad | L7–L10, Defect A, Defect B, Decision #3, Change Ledger + §4 | CLAUDE_README, CHANGELOG, DOCS-AUDIT-CHANGELOG, docs/10, coordination, .gitignore | c718ed2 |
 | 2026-07-10 | Desktop | W7 | CLAUDE_README, CHANGELOG | 2a921ae |
+| 2026-07-10 | ThinkPad | Decisions #4/#5/#6, Part 4 groundwork recorded (docs only; close commit recovered 2026-07-11) | CLAUDE_README | 7b4c286 |
 
 ---
 
