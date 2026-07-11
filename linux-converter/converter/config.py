@@ -17,6 +17,8 @@ class Paths:
     anchor: Path
     staging: Path
     logs: Path
+    vault_work: Path
+    vault_bare: Path
 
     @classmethod
     def from_root(cls, root: Path) -> "Paths":
@@ -32,6 +34,10 @@ class Paths:
             anchor=root / "library" / "anchor",
             staging=root / "library" / "staging",
             logs=root / "logs",
+            # The Part 4 vault pair (Decision #4). Deliberately NOT in ensure_exist: the
+            # exporter never initializes a repo -- exactly one side does, and that was manual.
+            vault_work=root / "vault-work",
+            vault_bare=root / "vault.git",
         )
 
     def ensure_exist(self) -> None:

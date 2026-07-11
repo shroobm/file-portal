@@ -8,6 +8,32 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **Vault exporter (library pipeline, Part 4 — L11/L12).** `linux-converter/converter/exporter.py`,
+  a second watch inside the existing converter service (no new unit): `library/staging/` bundle
+  arrivals — plus a startup sweep for bundles that landed while the service was down — are
+  committed into the working clone `~/file-portal/vault-work` at
+  `Library/Inbox/<slug>--<sha256[:8]>/` and pushed to the local bare repo `~/file-portal/vault.git`
+  (the transport resolved + wired in Open Decision #4). Per Decisions #5/#6: no tag/folder
+  placement, no minted `[[links]]`, assets stay inside the bundle folder. Invariants enforced in
+  code: creates new notes only (pathspec-scoped commits, committed paths never overwritten);
+  re-ingest of an identical `source_sha256` is a no-op log line, deduped by `git grep` over
+  committed `manifest.json` files in the **bare** repo so notes the Desktop has filed out of
+  `Inbox/` still count; the staging copy is deleted only after the push succeeded AND
+  `git cat-file -e` confirms the commit and every bundle file's blob in the bare repo — never on
+  write-success alone (L12). Any git failure logs `EXPORT-FAIL` and keeps staging for the next
+  sweep; a commit that pushed but crashed pre-verify resumes at push, not re-commit. Ingest
+  commits are self-identifying (`user.name=file-portal-converter`). 8 unit tests against real
+  temp git repos. Live-verified 2026-07-11 including the dedup no-op and blob-verified deletion.
+
+### Fixed
+
+- **Exporter event stall (found live 2026-07-11, fixed same session).** The converter assembles
+  two dot-prefixed temp dirs inside `library/staging/` per bundle; their `created` events each
+  held the watchdog dispatch thread for the full 60s stability timeout (the dir is renamed away,
+  so its `manifest.json` never appears and `rglob` on the missing dir spins yielding `[]`),
+  delaying every export by 2×60s. Dot-dirs are now skipped before the stability wait, and the
+  wait bails when the directory vanishes. Export latency measured after the fix: ~25ms.
+
 - **Conversion engine (library pipeline, Part 3 — L7-L10).** `linux-converter` now converts
   instead of logging "would convert". Dispatch is first-match by extension, mirroring the
   allocator's rules idiom: `.pdf`/`.epub` → PyMuPDF4LLM (layout mode; `import pymupdf.layout`

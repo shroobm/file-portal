@@ -58,39 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** ThinkPad C14 (Arch Linux)
-**Date:** 2026-07-11
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-0. Housekeeping (done before this plan): Session 5's close was left uncommitted — committed
-   it as `7b4c286` + ledger row `dde44f8`, both pushed.
-1. **L11 exporter** as a second handler inside the existing converter service (no third
-   systemd unit): new `converter/exporter.py` watching `library/staging/` plus a startup
-   sweep for bundles that landed while the service was down. Per Decisions #4/#5/#6:
-   copy bundle → `vault-work/Library/Inbox/<slug>--<sha256[:8]>/`, `git add` (pathspec-scoped),
-   commit, push to the local bare repo. Dedup on full `source_sha256` via `git grep` at HEAD
-   over committed `manifest.json` files — a duplicate is a no-op log line and the staging
-   copy is removed. Creates new notes only; never edits or overwrites committed paths.
-2. **L12 staging deletion**: delete the staging bundle only after the push succeeded AND
-   every bundle file's blob is confirmed with `git cat-file -e <commit>:<path>` **in the bare
-   repo** (proves the push landed, not just write-success). Any git failure → EXPORT-FAIL log,
-   staging copy stays, retried on next service start.
-3. Unit tests (`tests/test_exporter.py`) against real temp git repos; ruff clean; full suite.
-4. Deploy: restart `file-portal-converter`; live-verify the full chain with a real PDF
-   (convert-inbox → bundle → vault commit in `vault.git` → staging empty → re-ingest no-op).
-5. Docs (CHANGELOG, linux-converter README, docs/10), close + ledger row.
+1.
 
 ### How I'll verify each step:
-1-2. Unit tests assert on the bare repo's committed tree (`git cat-file`), not on log text;
-   push-failure test asserts the staging bundle survives.
-3. pytest + ruff output quoted in the session log.
-4. Live log lines (EXPORTED / EXPORT-SKIP), `git -C ~/file-portal/vault.git log`,
-   `cat-file -e` on the pushed commit, `ls library/staging/` empty, second drop of the same
-   file → no new commit.
+1.
 
 ### Dependencies / blockers:
-- None. Vault repos wired + verified 2026-07-10 (Decision #4).
+-
 
 ---
 
@@ -117,7 +96,8 @@ git pull  # always first
 - ✅ Part 3 Linux (L7-L10) COMPLETE 2026-07-10 — conversion engine live: probe → Clean/Scan lanes → atomic bundles to anchor+staging, all gates verified on the live service (see Session Log 2026-07-09/10). Open Decision #3 RESOLVED (probe/reroute/terminal-scan). Defect A (hardcoded WorkingDirectory) fixed both services; Defect B banner added.
 - ✅ W7 "Force OCR → Vault" tile DONE + E2E verified 2026-07-10 (`1d15b16`) — 6th tile renders; drop → green ✓ with `dest: pipeline/convert-scan-inbox/…` in ~1s; ThinkPad converter forced the Scan lane on a digital PDF (probe 277 chars/page, `lane_reason: user_forced_scan`, re-OCR at 300 dpi, yield 279) and published the bundle to anchor+staging; source SHA-256 matched the local file byte-exact. Part 3 "Done when" = CLOSED both lanes.
 - ✅ Part 4 groundwork 2026-07-10 — vault repo wired both ends, transport verified. L11 (exporter) and L12 (staging deletion) remain.
-- ▶ Next up: **ThinkPad — L11 (exporter) + L12 (staging deletion)** per the now-resolved Decisions #4/#5/#6. Desktop has no open tasks.
+- ✅ Part 4 Linux (L11+L12) COMPLETE 2026-07-11 — exporter live in the converter service: staging bundle → vault commit → push → `cat-file -e` blob verification in the bare repo → staging deleted. Dedup no-op verified live; a 2×60s event-stall defect found at the live gate and fixed same session (export latency now ~25ms). **All Linux milestones (L1–L12) closed; the pipeline loop is code-complete.**
+- ▶ Next up: **user/Desktop — consume the vault**: `git pull` inside `<Vault>\Library` (or wire Obsidian Git) to see ingested bundles; do NOT open `Library/` as its own vault (Decision #4 gotcha). No open agent tasks on either machine. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
 
 ---
 
@@ -293,14 +273,18 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 4 — Linux Tasks
 
-- [ ] **L11 — Exporter** (transport already wired + verified 2026-07-10, see Decision #4):
-  watch `library/staging/`, copy each bundle into `~/file-portal/vault-work` at
-  `Library/Inbox/<slug>--<sha256[:8]>/`, commit, push to the local bare repo. Constraints:
-  creates new notes only, never edits existing ones; re-ingest of an identical
-  `source_sha256` is a no-op with a log line; assets stay inside the bundle folder.
-- [ ] **L12 — Staging deletion**: delete the staging bundle only after the commit exists
-  AND `git cat-file -e` confirms the blob — never on write-success alone. No tag/folder
-  placement (Decision #6); no `[[link]]` minting (Decision #5).
+- [x] **L11 — Exporter** — DONE 2026-07-11, live-verified. `converter/exporter.py`, a second
+  watch inside the existing converter service (no third unit) + startup sweep. All Decision
+  #4/#5/#6 constraints implemented: `Library/Inbox/<slug>--<sha256[:8]>/`, new-notes-only
+  (pathspec-scoped, self-identifying `file-portal-converter` commits), identical-sha
+  re-ingest = `EXPORT-SKIP` no-op (deduped via `git grep` over committed manifests in the
+  **bare** repo, so Desktop-filed notes still count), assets nested. 8 unit tests on real
+  temp git repos. Live: `EXPORTED … commit a49d49c4 pushed + blob-verified` at 21:22 UTC.
+- [x] **L12 — Staging deletion** — DONE 2026-07-11, live-verified with L11: deletion fires
+  only after the push succeeded AND `git cat-file -e` confirms the commit + every bundle
+  file's blob in the bare repo. Git failure → `EXPORT-FAIL`, staging kept, sweep retries;
+  committed-but-unpushed resumes at push (unit-tested). No tag/folder placement; no
+  `[[link]]` minting.
 
 ---
 
@@ -534,3 +518,18 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** the git-command outputs quoted above; the diff of this file is the deliverable. §4 accounting: only `CLAUDE_README.md` changed — listed in this session's ledger row.
 **Next for ThinkPad (L11 + L12, the last Linux milestones):** build the exporter per the now-binding specs in Open Decisions #4/#5/#6 — converter (or a separate export step) commits each staging bundle into `~/file-portal/vault-work` at `Library/Inbox/<slug>--<sha256[:8]>/`, pushes to the local bare repo, verifies the blob with `git cat-file -e`, THEN deletes the staging copy; creates new notes only, never edits existing ones; no tags, no minted links. Invariants to test live: identical-sha re-ingest no-op, no partial bundle ever visible in the vault repo.
 **Next for Desktop:** none. When L11 lands, `git pull` inside `<Vault>\Library` (or wire Obsidian Git) is the only consumer step — do NOT open Library/ as its own vault (see row 4 gotcha).
+
+### 2026-07-11 — ThinkPad agent Session 6 (Claude Code / Fable)
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** L11 (exporter) + L12 (staging deletion) per the binding specs in Open Decisions #4/#5/#6.
+**Housekeeping first:** Session 5's completed doc changes were found sitting UNCOMMITTED in the working tree (its close was never made — HEAD was still the open-plan commit). Committed them verbatim as that session's close (`7b4c286`, message notes the recovery) + its ledger row (`dde44f8`) before opening this session's plan (`80cc6ed`).
+**What was done (each gate verified before the next):**
+- *L11/L12 code:* `converter/exporter.py` — a second, non-recursive watch on `library/staging/` inside the existing converter service (no third systemd unit) plus a startup sweep for bundles that landed while the service was down; all git work serialized behind one lock. Flow per bundle: read `manifest.json` → `fetch` + `merge --ff-only origin/main` (commit on top of Desktop filing moves, never behind them) → dedup by `git grep -F <full source_sha256> main -- '*manifest.json'` **in the bare repo** (so a note the Desktop filed out of Inbox/ still counts, and a committed-but-unpushed clone can't fake a dedup hit) → copy via dot-prefixed temp + rename into `Library/Inbox/<slug>--<sha8>/` → pathspec-scoped `git add`/`commit` (self-identifying author `file-portal-converter`) → `push` → **L12 gate:** `git cat-file -e` on the commit AND every bundle file's blob, in the bare repo → only then `rmtree` the staging copy. Failure at any git step logs `EXPORT-FAIL` and keeps staging; committed-but-unpushed resumes at push (never re-commits); an uncommitted stray target from a crashed run is cleaned, a committed path is never overwritten. The exporter never initializes either repo (Decision #4: exactly one side does).
+- *Tests:* `tests/test_exporter.py` — 8 tests against REAL temp git repos asserting on the bare repo's committed tree, covering: happy path, identical-sha no-op, dedup-after-Desktop-filed-it (`git mv` out of Inbox + push, then re-ingest → no new commit), git failure keeps staging, push-failure-then-resume (exactly one ingest commit total), incomplete bundle kept, sweep ignores dot-dirs. 34/34 suite-wide, ruff check+format clean.
+- **Live-gate defect (the reason the gates exist, again):** first live drop converted instantly but exported 120s late (`CONVERTED` 21:20:45 → `EXPORTED` 21:22:45). Cause: the converter assembles TWO dot-prefixed temp dirs inside staging per bundle (`.part-<name>`, `.part-<name>.staging-copy`); each fired a `created` event whose stability wait held the single watchdog dispatch thread for the full 60s timeout — the dir gets renamed away, `rglob` on a missing dir yields `[]` forever, and the dot-check sat AFTER the wait. Fixed: dot-check before any waiting + the wait bails when the dir vanishes. Re-verified: `CONVERTED` 21:24:16.160 → `EXPORTED` 21:24:16.184 (~25ms).
+- *Live gates (all on the running service):* fresh PDF → `EXPORTED l11-live-test-2 -> Library/Inbox/l11-live-test-2--141c0d4c (commit cfca1521 pushed + blob-verified, staging copy removed)`; byte-identical re-drop of the first PDF → converter re-converted (anchor got `l11-live-test (1)`) but exporter logged `EXPORT-SKIP … source_sha256 1dbf1aa1 already in vault — no-op, staging copy removed`, bare repo commit count unchanged; committed note's frontmatter `source_sha256` == `sha256sum` of the local source file; `vault-work` clean and in sync with origin; staging empty after every gate.
+- *Cleanup:* anchor test bundles removed; vault test ingests removed via `git rm` + commit `chore: remove exporter live-test bundles` + push (history retains them honestly — the tree is back to seed files). Inboxes empty.
+- *Docs:* CHANGELOG (Added: exporter; Fixed: event stall), linux-converter README rewritten (was still claiming "Part 2 skeleton (log-only)" — stale since Part 3), docs/10 Part 4 checkboxes + decisions table synced to reality (incl. the stale W7 checkbox), this file.
+**Verification:** every claim above has a converter.log line with timestamp, a `git log`/`ls-tree`/`cat-file` output, or pytest/ruff stdout behind it. §4 accounting over `7b4c286..HEAD`: source files (`exporter.py`, `config.py`, `main.py`, `test_exporter.py`) covered by the CHANGELOG entry; CLAUDE_README/CHANGELOG/docs/10/linux-converter README are in this session's ledger row.
+**Part 4 "Done when": Linux side CLOSED.** All Linux milestones L1–L12 complete; the pipeline loop is code-complete end to end.
+**Next for user/Desktop:** `git pull` inside `<Vault>\Library` (or wire Obsidian Git) to consume ingested bundles — do NOT open Library/ as its own vault (Decision #4 gotcha). No open agent tasks on either machine. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.

@@ -28,7 +28,7 @@ from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from converter import bundle, engines
+from converter import bundle, engines, exporter
 from converter.config import DEFAULT_ROOT, Paths, Settings
 from converter.status import StatusWriter
 
@@ -264,8 +264,16 @@ def run(root: Path, settings_path: Path):
     # One watch on pipeline/ covers both inboxes; _convert derives the lane from the parent
     # directory, the same way the allocator derives the category.
     observer.schedule(handler, str(paths.pipeline), recursive=True)
+    # L11: same process, second watch. Staging only ever receives whole bundles (atomic
+    # rename), so non-recursive top-level directory events are the complete signal.
+    vault_exporter = exporter.Exporter(paths)
+    observer.schedule(exporter.ExportHandler(vault_exporter), str(paths.staging), recursive=False)
     observer.start()
     logger.info("watching %s (lanes: %s)", paths.pipeline, ", ".join(LANE_BY_INBOX))
+    logger.info("watching %s (exporting to %s)", paths.staging, paths.vault_bare)
+    # Sweep AFTER the watch starts so nothing lands unseen in the gap; export() is
+    # idempotent and lock-serialized, so a bundle caught by both is a harmless no-op.
+    vault_exporter.sweep()
 
     try:
         while True:

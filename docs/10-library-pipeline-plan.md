@@ -93,7 +93,7 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
 - [x] *(verified live 2026-07-10: tree of anchor + staging bundles; anchor=`~/file-portal/library/anchor`, staging=`~/file-portal/library/staging`)* **Write to two places.** (a) **anchor/master** folder: the immutable as-converted snapshot + a `manifest.json` (source PDF SHA-256, converter version, timestamp). (b) **staging/exports** queue (transient).
 
 ### Windows (Claude Code)
-- [ ] **Add the Convert-Scan tile.** `config.toml` + `config.rs` default + `portals.json`: `category = "convert-scan"`, `label = "Force OCR → Vault"`, `icon = "🔍"`. Linux `rules.toml`: `convert-scan` rule → `pipeline/convert-scan-inbox` *(landed 2026-07-09 with L9; the tile is a **force-OCR override**, not "the lane for scans" — the Clean lane detects scans itself via the text-layer probe. See `coordination/messages/2026-07-09*w7-semantics*`)*. Converter watches both inboxes and applies the matching lane.
+- [x] **Add the Convert-Scan tile.** *(DONE 2026-07-10, commit `1d15b16`, E2E verified — see CLAUDE_README Session Log.)* `config.toml` + `config.rs` default + `portals.json`: `category = "convert-scan"`, `label = "Force OCR → Vault"`, `icon = "🔍"`. Linux `rules.toml`: `convert-scan` rule → `pipeline/convert-scan-inbox` *(landed 2026-07-09 with L9; the tile is a **force-OCR override**, not "the lane for scans" — the Clean lane detects scans itself via the text-layer probe. See `coordination/messages/2026-07-09*w7-semantics*`)*. Converter watches both inboxes and applies the matching lane.
 
 **Done when:** a born-digital PDF on Convert → clean bundle (images resolve); a scanned PDF on Convert-Scan → OCR'd markdown in the right language; a docx → Pandoc markdown with media; a mixed PDF on Convert triggers the reroute/flag behavior.
 **Decisions:** (a) **RESOLVED 2026-07-09 — neither.** A missing text layer is a detectable precondition, not a failure: Clean pre-probes `chars_per_page`; sub-threshold files reroute to the Scan inbox as a normal `allocated` hop; the Scan lane is terminal (sub-threshold OCR yield → quarantine + `rejected`). Threshold `min_chars_per_page` lives in `linux-converter/config/converter.toml` (seed 100, provisional). All output frontmatter-stamped with lane/ocr provenance. (b) `tesseract-data-eng` for now.
@@ -105,12 +105,12 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
 
 **Depends on:** Part 3 (needs finished bundles). **Machines:** Linux + Windows (vault-side).
 
-- [ ] **Build the return transport.** *Windows can't host a Tailscale SSH server*, so this is a new wire, not a reuse. **Recommended:** git/Forgejo sync — the converter commits the bundle into the vault repo; the desktop pulls (Obsidian Git or scheduled). This makes the anchor's "content certainty" = commit history, for free. *Alternatives:* Taildrop (`tailscale file cp` → Windows watcher files it in) or Windows OpenSSH (rsync `--remove-source-files`).
-- [ ] **Place by tags.** Map frontmatter tags → vault subfolder (your vault architecture) so the bundle lands in the right place.
-- [ ] **Delete-after-send.** rsync `--remove-source-files`, or `rm` on transport exit 0. Safe because the **anchor** keeps the permanent copy; the staging queue is disposable.
-- [ ] **Link behavior (the graph gate).** Decide before writing link logic: does the converter **mint/stub `[[concept]]` notes** (dense & dirty — instant graph, junk nodes) or **emit links and let you create targets** (sparse & earned)? The graph only lights if links resolve.
+- [x] **Build the return transport.** *(DONE — wiring 2026-07-10 manual, exporter L11 2026-07-11, live-verified.)* Resolved as **bare repo + Tailscale SSH** (CLAUDE_README Open Decision #4), the git variant without Forgejo in the write path: bare repo `~/file-portal/vault.git` on the ThinkPad; the exporter (`linux-converter/converter/exporter.py`, same service process as the converter) commits each staging bundle in the working clone `~/file-portal/vault-work` and pushes locally; the Desktop's `<Vault>\Library` clone pulls over `tailscale ssh`. Anchor's "content certainty" = commit history, as recommended.
+- [x] **Place by tags.** *(SUPERSEDED 2026-07-10 by Open Decision #6 — deliberately NOT built.)* No tag→folder mapping: every bundle lands at `Library/Inbox/<slug>--<sha256[:8]>/`; lane facts stay in frontmatter, filing is a human act. Re-ingest of an identical `source_sha256` is a no-op with a log line.
+- [x] **Delete-after-send.** *(DONE — L12, 2026-07-11, live-verified.)* Stricter than the rsync idea: the staging copy is deleted only after the push succeeded AND `git cat-file -e` confirms the commit and every bundle file's blob in the **bare** repo — never on write-success alone. Any git failure keeps staging; a startup sweep retries on the next service start.
+- [x] **Link behavior (the graph gate).** *(RESOLVED 2026-07-10 — sparse/earned, Open Decision #5.)* No minted `[[concept]]` links (only `![[asset]]` embeds, which encode facts the converter knows). No extraction heuristic will be added.
 
-**Done when:** a finished bundle lands at the tag-resolved vault path on the desktop, images resolve in Obsidian, the staging copy is deleted on success, the anchor retains the immutable snapshot, and (if dense) the new note shows connected in the graph.
+**Done when:** a finished bundle lands at the tag-resolved vault path on the desktop, images resolve in Obsidian, the staging copy is deleted on success, the anchor retains the immutable snapshot, and (if dense) the new note shows connected in the graph. *(Amended per Decisions #5/#6: the path is `Library/Inbox/<slug>--<sha8>/`, not tag-resolved, and the graph gate resolved sparse. Linux side met 2026-07-11; the Desktop-side pull is the one remaining consumer step — see CLAUDE_README "Next for Desktop".)*
 
 ---
 
@@ -121,8 +121,8 @@ Commit per logical change. Optionally tag each milestone: `git tag part-1-done &
 | 1 | Disable Tailscale key expiry on always-on nodes | Part 1 | Yes (unattended reliability) |
 | 2 | Convert tile only vs also push-from-library | Part 2 | Tile only |
 | 3 | Clean-lane failure: bounce whole file vs convert-and-flag | Part 3 | **RESOLVED 2026-07-09: neither — pre-flight probe, auto-route to Scan, Scan terminal → quarantine** |
-| 4 | Return transport: git/Forgejo vs Taildrop vs Windows OpenSSH | Part 4 | git/Forgejo |
-| 5 | Graph links: dense/dirty vs sparse/earned | Part 4 | *your call — affects every future note* |
+| 4 | Return transport: git/Forgejo vs Taildrop vs Windows OpenSSH | Part 4 | **RESOLVED + VERIFIED 2026-07-10: bare repo + Tailscale SSH** (git without Forgejo in the write path — full wiring facts in CLAUDE_README Open Decision #4) |
+| 5 | Graph links: dense/dirty vs sparse/earned | Part 4 | **RESOLVED 2026-07-10: sparse** (rationale in CLAUDE_README Open Decision #5; placement spec is #6) |
 
 ## Pacing (24h, conserve)
 Parts 1–2 are light (likely one usage window). Part 3 is the heavy one (give it its own window after a reset). Part 4 is medium. Sequence over clock — never start a Part until the previous one's "Done when" passes.
