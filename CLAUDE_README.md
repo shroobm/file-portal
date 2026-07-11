@@ -58,39 +58,22 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** ThinkPad C14 (Arch Linux)
-**Date:** 2026-07-10
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. Documentation-only session per user instruction: the Part 4 vault wiring was completed
-   manually outside any session (bare repo + Tailscale SSH, both directions proven). Record
-   it; write no code; touch nothing under `linux-converter/` or `windows-widget/`.
-2. Verify the ThinkPad-side claims read-only before recording (bare repo, HEAD ref, clone
-   state, seed commit contents, no `.obsidian` on this machine).
-3. Open Decisions: row 4 → verified bare-repo+Tailscale-SSH text (user-supplied); row 5 →
-   resolved-as-sparse with rationale; new row 6 → vault placement spec
-   (`Library/Inbox/<slug>--<sha8>/`, no tag/folder mapping, staged-deletion gate).
-4. Status Summary: drop the "(as of …)" date from the heading (ledger owns it); add the
-   Part 4 groundwork line.
-5. L11/L12 task entries: fold in the now-binding constraints so the next session starts
-   from the full spec.
-6. Close: session log entry, closing commit, ledger row as a FOLLOW-UP commit (never amend).
+1.
 
 ### How I'll verify each step:
-- Step 2: git rev-parse --is-bare-repository / symbolic-ref HEAD / log --oneline / remote -v
-  on `~/file-portal/vault.git` + `~/file-portal/vault-work`; `find ~ -maxdepth 3 -name
-  .obsidian`. Real output quoted in the session log.
-- Steps 3-5: the diff of this file is the deliverable; §4 accounting covers it via the
-  ledger row (no source files change).
-- Step 6: `git merge-base --is-ancestor <closing SHA> HEAD` after the follow-up.
+1.
 
 ### Dependencies / blockers:
-- None. L11 (exporter) and L12 (staging deletion) stay open for a future ThinkPad session.
+-
 
 ---
 
-## Status Summary (as of 2026-07-08)
+## Status Summary
 
 - ✅ File Portal v2 status feedback loop — Tauri v2 built (45s, 2 bundles), all 4 files committed
 - ✅ `coordination/messages/` folder created in repo
@@ -112,7 +95,8 @@ git pull  # always first
 - ✅ W6 Convert tile DONE + E2E verified 2026-07-08 (`af904a2`) — green ✓ in ~4s, full Windows→allocator→converter chain confirmed. **W5 visual re-check PASSED** with it. Part 2 "Done when" = CLOSED both lanes.
 - ✅ Part 3 Linux (L7-L10) COMPLETE 2026-07-10 — conversion engine live: probe → Clean/Scan lanes → atomic bundles to anchor+staging, all gates verified on the live service (see Session Log 2026-07-09/10). Open Decision #3 RESOLVED (probe/reroute/terminal-scan). Defect A (hardcoded WorkingDirectory) fixed both services; Defect B banner added.
 - ✅ W7 "Force OCR → Vault" tile DONE + E2E verified 2026-07-10 (`1d15b16`) — 6th tile renders; drop → green ✓ with `dest: pipeline/convert-scan-inbox/…` in ~1s; ThinkPad converter forced the Scan lane on a digital PDF (probe 277 chars/page, `lane_reason: user_forced_scan`, re-OCR at 300 dpi, yield 279) and published the bundle to anchor+staging; source SHA-256 matched the local file byte-exact. Part 3 "Done when" = CLOSED both lanes.
-- ▶ Next up: **ThinkPad — Part 4 (L11/L12, return transport — git/Forgejo per Open Decision #4)**. Desktop has no open tasks.
+- ✅ Part 4 groundwork 2026-07-10 — vault repo wired both ends, transport verified. L11 (exporter) and L12 (staging deletion) remain.
+- ▶ Next up: **ThinkPad — L11 (exporter) + L12 (staging deletion)** per the now-resolved Decisions #4/#5/#6. Desktop has no open tasks.
 
 ---
 
@@ -287,8 +271,14 @@ No file conflicts if each machine stays in its lane.
 
 ### Part 4 — Linux Tasks
 
-- [ ] **L11** — Return transport (recommended: git/Forgejo)
-- [ ] **L12** — Place by frontmatter tags; delete staging after send
+- [ ] **L11 — Exporter** (transport already wired + verified 2026-07-10, see Decision #4):
+  watch `library/staging/`, copy each bundle into `~/file-portal/vault-work` at
+  `Library/Inbox/<slug>--<sha256[:8]>/`, commit, push to the local bare repo. Constraints:
+  creates new notes only, never edits existing ones; re-ingest of an identical
+  `source_sha256` is a no-op with a log line; assets stay inside the bundle folder.
+- [ ] **L12 — Staging deletion**: delete the staging bundle only after the commit exists
+  AND `git cat-file -e` confirms the blob — never on write-success alone. No tag/folder
+  placement (Decision #6); no `[[link]]` minting (Decision #5).
 
 ---
 
@@ -337,8 +327,9 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 | 1 | Disable Tailscale key expiry on always-on nodes | Yes |
 | 2 | Convert tile only vs push-from-library-on-demand | Tile only |
 | 3 | Clean-lane failure: bounce whole file vs convert-and-flag | **RESOLVED 2026-07-09: neither.** Pre-flight text-layer probe; auto-route to Scan on empty (normal `allocated` hop). Scan lane is terminal — OCR failure quarantines (`rejected`). All output frontmatter-stamped. Threshold (`min_chars_per_page`, seed 100) configurable. |
-| 4 | Return transport method | git/Forgejo |
-| 5 | Graph links: dense/dirty vs sparse/earned | Your call |
+| 4 | Return transport method | **RESOLVED + VERIFIED 2026-07-10: bare repo + Tailscale SSH.** Bare repo `~/file-portal/vault.git` on the ThinkPad, HEAD pinned to `refs/heads/main` (deliberate; git default was master). Seed `71cc4c5` (`.gitattributes`: `* text=auto eol=lf`, png/pdf binary) landed **before any content**; `0272f89` adds `.gitignore` for `.obsidian/`. Converter commits in the non-bare working clone `~/file-portal/vault-work`, pushes over the local filesystem. Desktop clone at `<Vault>\Library` with `core.sshCommand="tailscale ssh"` persisted in its config; host `rab@archlinux`, the same pair the widget has used since W5. **Fetch and push both confirmed.** Vault root stays a plain folder — only `Library/` is a repo, so wiki-links resolve vault-wide while git scope stays confined to machine-produced bundles. Exactly one side initializes. Invariant: the converter creates new notes only, never edits existing ones. Assets-in-repo is deliberate and irreversible. Forgejo may later serve the same bare repo as a read-only browse surface, never the write path. **GOTCHA:** opening `Library/` in Obsidian creates a stray `.obsidian/` and registers it as a separate vault, breaking wiki-link resolution from the parent. `.gitignore` guards the artifact; the vault switcher must not list Library. |
+| 5 | Graph links: dense/dirty vs sparse/earned | **RESOLVED 2026-07-10: sparse.** The converter transcodes, it does not read. Mint a link only where it encodes a fact the converter knows (`![[asset]]` embeds do; `[[concept]]` links do not). Two structural reasons: (a) minted and hand-earned links are indistinguishable in the graph after the fact, so minting destroys the graph's value as a record of what was noticed — not recoverable later; (b) wiki-links mutate the note body while frontmatter does not — frontmatter is losslessly strippable, prose is not. No extraction heuristic will be added. |
+| 6 | Vault placement of converted bundles | **RESOLVED 2026-07-10: single inbox, no automatic tag/folder placement.** Bundles land at `Library/Inbox/<slug>--<sha256[:8]>/`. Lane facts stay in frontmatter, not in the path — the path is the irreversible axis and lane is an ingestion detail. Assets live inside the bundle folder (`assets/`), never a shared attachments dir, so relative links survive later filing. Re-ingesting an identical `source_sha256` is a no-op with a log line, not a duplicate bundle. "Delete staging after send" fires only after the commit exists AND `git cat-file -e` confirms the blob — never on write-success alone. Content tagging is a future, separate stage that reads the markdown (Ollama batch) — never the converter's job. |
 
 ---
 
@@ -510,3 +501,14 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** widget screenshots (6 tiles, green ✓ status line), allocator/converter log lines with timestamps, status.json `allocated` event, frontmatter head, SHA-256 comparison.
 **Part 3 "Done when": CLOSED both lanes.** Desktop has no open tasks.
 **Next for ThinkPad (Part 4, L11-L12):** return transport (git/Forgejo per Open Decision #4) + place-by-tags + delete staging after send. Carry forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
+
+### 2026-07-10 — ThinkPad agent Session 5 (Claude Code / Fable)
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** Documentation-only, per user instruction: record the Part 4 vault wiring (done manually outside any session) and the resolutions of Open Decisions #4/#5/#6. No code; nothing under `linux-converter/` or `windows-widget/` touched.
+**What was done:**
+- *Read-only verification of the ThinkPad-side claims before recording them:* `~/file-portal/vault.git` is bare (`rev-parse --is-bare-repository` → true), HEAD pinned to `refs/heads/main` (`symbolic-ref`); `~/file-portal/vault-work` at `0272f89` on `main...origin/main` with origin = the local bare repo; seed `71cc4c5` ships `.gitattributes` (`* text=auto eol=lf`, `*.png`/`*.pdf` binary) before any content; `find ~ -maxdepth 3 -name .obsidian` → nothing, so the vault lives only on the Desktop and L11 remains a real task. Desktop-side facts (clone at `<Vault>\Library`, `core.sshCommand="tailscale ssh"` persisted, fetch+push proven) recorded as reported by the user, who wired and verified them manually.
+- *Open Decisions:* row 4 → RESOLVED + VERIFIED (bare repo + Tailscale SSH, full wiring facts + the Obsidian stray-`.obsidian` gotcha); row 5 → RESOLVED sparse (converter transcodes, does not read; mint only links that encode facts the converter knows); new row 6 → vault placement (`Library/Inbox/<slug>--<sha256[:8]>/`, no tag/folder mapping, assets nested, identical-sha re-ingest is a no-op, staging deletion gated on `git cat-file -e`).
+- *Status Summary:* "(as of …)" date removed from the heading (the Change Ledger owns that fact); Part 4 groundwork line added.
+**Verification:** the git-command outputs quoted above; the diff of this file is the deliverable. §4 accounting: only `CLAUDE_README.md` changed — listed in this session's ledger row.
+**Next for ThinkPad (L11 + L12, the last Linux milestones):** build the exporter per the now-binding specs in Open Decisions #4/#5/#6 — converter (or a separate export step) commits each staging bundle into `~/file-portal/vault-work` at `Library/Inbox/<slug>--<sha256[:8]>/`, pushes to the local bare repo, verifies the blob with `git cat-file -e`, THEN deletes the staging copy; creates new notes only, never edits existing ones; no tags, no minted links. Invariants to test live: identical-sha re-ingest no-op, no partial bundle ever visible in the vault repo.
+**Next for Desktop:** none. When L11 lands, `git pull` inside `<Vault>\Library` (or wire Obsidian Git) is the only consumer step — do NOT open Library/ as its own vault (see row 4 gotcha).
