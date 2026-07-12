@@ -139,6 +139,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-12 | Desktop | L13/L14 re-verified with worst-case name; EXPORT-SKIP dedup confirmed | CLAUDE_README | 25e8688 |
 | 2026-07-12 | Desktop | W8 (Add-to-Library button); L15 found + Desktop-mitigated + filed | CLAUDE_README, CHANGELOG, coordination | 1e33b11 |
 | 2026-07-12 | Desktop | W8 console-flash regression fixed (CREATE_NO_WINDOW, all spawn sites) | CLAUDE_README, CHANGELOG | 99a5271 |
+| 2026-07-12 | ThinkPad | L15 (fixed + live-verified; interiors Windows-clean at source) | CLAUDE_README, CHANGELOG, coordination | d53c152 |
 
 ---
 
