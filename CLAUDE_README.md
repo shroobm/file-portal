@@ -58,25 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** ThinkPad C14
-**Date:** 2026-07-12
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **L14 (small first):** `exporter.py` `INBOX_REL = Path("Inbox")` + fix the same misreading in `test_exporter.py` expectations (incl. the Desktop-filing test's `git mv` destination).
-2. **L13:** make the assembly dir the engine writes into space-free — key `tmp_dir` on the source sha (`.part-<sha256[:16]>`) instead of the verbatim stem, since pymupdf4llm sanitizes the whole image path, and sha also removes temp-dir length risk. Published bundle keeps the original stem. Clamp `bundle_name` to a byte budget (`bundle.clamp_name`, 200 utf-8 bytes) per the Desktop's near-miss note.
-3. Tests: spaced-filename+image PDF through `_convert` (the exact L13 shape that was never covered); clamp unit tests; run full pytest + ruff.
-4. Restart `file-portal-converter`; live drop a spaced-name PDF with an image through `inbox/convert` → expect CONVERTED + EXPORTED to `Inbox/<slug>--<sha8>` (repo-root, proving L14) in the bare repo.
-5. Clean up test artifacts (anchor, vault via `git rm` + push, inboxes/staging empty); CHANGELOG; coordination reply; close session.
+1.
 
 ### How I'll verify each step:
-1. pytest on the L14 tests asserting `Inbox/...` paths in the bare repo tree.
-2. /3. 36+ tests green, ruff check+format clean; the new test fails on pre-fix code (red first).
-4. converter.log lines + `git ls-tree` in `~/file-portal/vault.git` showing `Inbox/` (no `Library/` prefix).
-5. `ls` of anchor/staging/inboxes; bare-repo tree back to seed + prior real ingest.
+1.
 
 ### Dependencies / blockers:
-- None. Both defects have proven root causes in the 2026-07-12 coordination messages.
+-
 
 ---
 
@@ -108,7 +101,8 @@ git pull  # always first
 - ✅ First REAL document ingested 2026-07-12 ("Designing Freedom", Stafford Beer, 116 pp, 4.4 MB): converted (70s, Clean lane, 25 images), exported (`c624e00`), pulled + byte-verified on Desktop, filed to `Inbox/` (`0fa976c`). It took 4 attempts and surfaced **two defects** (see 2026-07-12 coordination messages):
   - **L13 (high): spaced filenames + images fail** — pymupdf4llm space-sanitizes the whole image path incl. directory components, but `main.py` builds the staging temp dir from the stem verbatim → first image write ENOENTs → quarantine. All milestone test files were space-free, so L1–L12 never caught it. Workaround until fixed: no spaces in dropped filenames.
   - **L14 (low): `INBOX_REL` off by one** — exporter commits to `Library/Inbox/` inside a repo whose root IS the vault's Library folder → vault shows `Library/Library/Inbox/`. Fix: `INBOX_REL = Path("Inbox")` + test expectations; no migration (Desktop filed the one bundle).
-- ▶ Next up: **ThinkPad — L13 + L14** per the two 2026-07-12 coordination messages. Then real usage continues. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions (chars_per_page is logged on every one; first real doc probed 1484.7).
+- ✅ L13 + L14 FIXED + live-verified 2026-07-12 (ThinkPad) — assembly dir now sha-keyed (`.part-<sha256[:16]>`, sanitizer- and length-proof; published bundles keep the original stem) + `bundle.clamp_name` 200-byte cap; `INBOX_REL = Path("Inbox")`. Regression test reproduces the exact field failure; 40/40 tests; one live drop (`L13 Live Gate - Spaced Name.pdf`) proved both fixes: CONVERTED (no quarantine) + EXPORTED to repo-root `Inbox/…` (commit `139f74d0`). **The spaces workaround is retired.** See `coordination/messages/2026-07-12T00-38--…l13-l14-fixed-live-verified.md`.
+- ▶ Next up: real usage — drop documents with their natural names. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions (chars_per_page is logged on every one; first real doc probed 1484.7, the L13 live gate's dense single page probed 118.0).
 
 ---
 
@@ -577,3 +571,17 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Defect tally for the first real document: 2 (one high, one cosmetic) — both found by real input within minutes of "code-complete", both with proven root causes.**
 **Next for ThinkPad (L13 + L14):** fix per the two coordination messages; add a spaced-filename+image test; consider clamping `bundle_name` length.
 **Next for Desktop/user:** drop real documents (space-free names until L13 lands); pull `<Vault>\Library` to consume.
+
+### 2026-07-12 — ThinkPad agent Session 7 (Claude Code / Fable)
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** L13 (spaced filenames + images) + L14 (`INBOX_REL` doubled level), per the Desktop's two 2026-07-12 coordination messages.
+**What was done (each gate verified before the next):**
+- *L14 (`be3a7fd`):* `INBOX_REL = Path("Inbox")` — Decision #6's `Library/Inbox/…` is vault-relative; the repo root IS the vault's Library folder (Decision #4), so repo-relative it is plain `Inbox/`. Module docstring corrected; `test_exporter.py` expectations fixed (they encoded the same misreading), incl. the Desktop-filing test which now moves to `Filed/` so it stays a genuine out-of-Inbox move. 8/8 exporter tests green. No migration, per the Desktop's analysis.
+- *L13 (`1e1ea6d`):* the assembly temp dir the engine writes into is now keyed on the source sha — `.part-<sha256[:16]>` — instead of the verbatim stem (`sha256_of` moved above dir creation). Sanitizer-proof by construction (pymupdf4llm rewrites spaces→underscores across the whole image path, directory components included) and immune to filename-length pressure. The published bundle keeps the original stem: anchor/staging dirs and the `.md` note name are unchanged — only the engine-visible path changed. Added `bundle.clamp_name` (200 utf-8 bytes, codepoint-safe, trailing dot/space strip) applied to `bundle_name`, covering the Desktop's ~225-byte Anna's Archive near-miss: 200 + `.part-…staging-copy` (+19) + ` (n)` stays under ext4's 255-byte component limit.
+- *Tests:* `test_spaced_filename_with_image_converts` — **run red first against pre-fix `main.py` (git stash), failing with the byte-for-byte field error** (`cannot open file '….part-Designing_Freedom_-_Stafford_Beer/assets/….png'`), green after; every `![[assets/…]]` embed in the output asserted to resolve on disk. Plus a 250-byte spaced-stem clamp test and 4 `clamp_name` unit tests. **40/40 suite-wide, ruff check+format clean.**
+- *Deploy + live gate (one drop proved both fixes):* service restarted (both watches logged); `L13 Live Gate - Spaced Name.pdf` (spaced name, embedded image, sha `498ceb81…`) through `inbox/convert/` → 00:18:00 ALLOCATED → PROBE 118.0 → CONVERTED (anchor bundle under the original spaced name; embed `![[assets/L13_Live_Gate_-_Spaced_Name.pdf-0001-00.png]]` resolved by `ls`) → 00:18:01 `EXPORTED … -> Inbox/l13-live-gate-spaced-name--498ceb81 (commit 139f74d0 pushed + blob-verified, staging copy removed)` — repo-root `Inbox/`, no `Library/` prefix, confirmed by `ls-tree` on the bare repo (which also shows the Desktop's `0fa976c` filing at the same root).
+- *Cleanup:* test bundle removed from anchor and `git rm`'d from the vault (`chore: remove L13/L14 live-gate test bundle`, pushed — history honest, tree back to seed + designing-freedom); staging/inboxes/quarantine verified empty.
+- *Docs:* CHANGELOG (2 Fixed entries), coordination reply `2026-07-12T00-38--linux-to-desktop--l13-l14-fixed-live-verified.md`, this file.
+**Verification:** every claim above has a pytest/ruff run, a converter/allocator log line with timestamp, or a `git ls-tree`/`log` output behind it. §4 accounting over `ef5a8e8..HEAD`: source files (`main.py`, `bundle.py`, `exporter.py`, 3 test files) covered by the two CHANGELOG entries; CLAUDE_README + coordination message are in this session's ledger row.
+**The spaces workaround is retired — drop files with their natural names.**
+**Next for Desktop/user:** `git pull` in `<Vault>\Library` when convenient (brings the test bundle's add+remove pair); then just real usage. No open agent tasks on either machine. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions (the L13 live gate's dense single page probed 118.0 — real one-pagers can sit near the threshold).
