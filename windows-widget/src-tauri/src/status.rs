@@ -1,7 +1,10 @@
 //! v2 feedback loop: reads status.json from the Linux host over tailscale ssh.
 
 use serde::{Deserialize, Serialize};
+use std::os::windows::process::CommandExt;
 use std::process::Command;
+
+use crate::vault::CREATE_NO_WINDOW;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct StatusEvent {
@@ -22,6 +25,7 @@ pub fn fetch_events(linux_host: &str, remote_user: &str) -> Result<Vec<StatusEve
     let host_arg = format!("{}@{}", remote_user, linux_host);
     let output = Command::new("tailscale")
         .args(["ssh", &host_arg, "cat ~/file-portal/logs/status.json 2>/dev/null || echo '{}'"])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| format!("tailscale ssh failed: {}", e))?;
     if !output.status.success() {

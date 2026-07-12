@@ -6,8 +6,13 @@
 
 use serde::Serialize;
 use std::collections::BTreeSet;
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::Command;
+
+/// CREATE_NO_WINDOW: without it, every process a windows-subsystem app spawns opens a
+/// console window — the 45s vault poll flashed a black box on the user's screen each cycle.
+pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 #[derive(Debug, Serialize)]
 pub struct VaultStatus {
@@ -42,6 +47,7 @@ fn git(dir: &str, args: &[&str]) -> Result<String, String> {
         .arg("-C")
         .arg(dir)
         .args(args)
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| format!("failed to spawn git: {e}"))?;
     if output.status.success() {

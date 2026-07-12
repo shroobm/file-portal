@@ -49,6 +49,14 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Black console window flashing every 45 seconds (W8 follow-up, 2026-07-12, user-reported).**
+  W8's `windows_subsystem = "windows"` removed the widget's own console — which the child
+  processes (`git` vault polls, `tailscale ssh` status/transfer calls) had been silently
+  attaching to. Orphaned, each spawn opened its own console window for the duration of the
+  command, most visibly the 45s vault poll. All three spawn sites (`vault.rs`, `status.rs`,
+  `transfer.rs`) now pass `CREATE_NO_WINDOW` (0x08000000). Verified across a live poll
+  cycle: no window, bar still reports fresh state.
+
 - **Spaced filenames with images quarantined every time (L13, found by the first real
   document 2026-07-12).** pymupdf4llm sanitizes the entire image output path it is given —
   spaces become underscores in *directory components* too — while the converter built its

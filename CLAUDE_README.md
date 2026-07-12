@@ -615,3 +615,13 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **The user's consume loop is now: drop → tile turns green → button glows within ~10s of export → one click → note in Obsidian.**
 **Next for ThinkPad (L15, medium):** shorten bundle-interior filenames per the coordination message; regression test with a >200-byte stem asserting total path budget.
 **Next for Desktop/user:** real usage. Widget left running with the final build.
+
+### 2026-07-12 — Desktop agent Session 11 (Claude Code / Fable)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** User-reported W8 regression: a black console window flashes and vanishes at random. (Small fix session; recorded at close.)
+**What was done:**
+- *Diagnosis:* W8's `windows_subsystem = "windows"` removed the exe's console — which every child process had been invisibly attaching to. Orphaned, each spawn (`git` in the 45s vault poll, `tailscale ssh` in status polls and transfers) opened its own console for the command's duration. The "random" timing = the 45s poll cadence plus event-driven status calls.
+- *Fix (`vault.rs`, `status.rs`, `transfer.rs`):* `CREATE_NO_WINDOW` (0x08000000) via `CommandExt::creation_flags` on all three spawn sites (const lives in `vault.rs`, shared). clippy clean.
+- *Verify:* rebuilt, relaunched, screenshots at +8s and +53s bracketing a full poll cycle — no console anywhere, bar still reads "✳ Library · up to date" (proof the hidden fetch ran). Bundles regenerated so the MSI/NSIS installers carry the fix; widget left running on the final build.
+**Verification:** clippy/build output, two timed screenshots, bar state. §4 accounting over `e360106..HEAD`: 3 source files covered by the CHANGELOG entry; CHANGELOG + this file in this session's ledger row.
+**Next for both machines:** ThinkPad L15 (unchanged); Desktop real usage.

@@ -12,8 +12,10 @@
 // docs/01-architecture.md for the rationale and docs/08-roadmap.md for revisiting this later.
 
 use crate::config::AppConfig;
+use crate::vault::CREATE_NO_WINDOW;
 use serde::Serialize;
 use std::fs::File;
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -111,6 +113,7 @@ fn send_one_file(cfg: &AppConfig, category: &str, local_path: &str) -> Result<()
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| format!("failed to spawn tailscale ssh: {e}"))?;
 
