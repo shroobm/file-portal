@@ -49,6 +49,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Bundle-interior filenames blew past Windows' 260-char MAX_PATH on the consuming end
+  (L15, found by W8's first live click, 2026-07-12).** The bundle directory was already
+  slug-clamped in the vault, but the names *inside* it re-derived from the raw source stem:
+  a 200-byte-clamped `.md` plus engine-named asset PNGs (`<full-source-name>-<page>-<idx>.png`,
+  ~230 bytes for real Anna's Archive names) pushed full vault paths past 330 chars — the
+  Desktop needed `core.longpaths=true` to check the Textor bundle out at all. Fixed at the
+  source, both halves: (1) the converter now hands the engine a short, sanitizer-proof
+  hardlink (`<slugify(stem)[:40]><ext>`, hardlink with copy fallback) inside the sha-keyed
+  assembly dir — pymupdf4llm derives image names from the document path it opens (its
+  `filename=` kwarg is ignored for path-opened docs), so asset basenames drop to ≤ ~61 bytes;
+  the link is removed before publish and is never part of the bundle. This also closes a
+  latent Linux-side overflow: a >243-byte source name + `-0001-00.png` would have exceeded
+  ext4's 255-byte component limit and quarantined, L13-style. (2) `bundle.clamp_name`'s
+  budget drops 200 → 80 bytes, so the worst-case vault-relative note path
+  `Inbox/<slug60>--<sha8>/<stem80>.md` is exactly 160 bytes — inside MAX_PATH with margin
+  for real vault prefixes. Regression test (red-first on both halves): a 230-byte spaced
+  stem with an embedded image converts, every emitted vault-relative path ≤ 160 bytes, the
+  bundle root holds exactly note + manifest + assets/, and every embed resolves on disk.
+
 - **Black console window flashing every 45 seconds (W8 follow-up, 2026-07-12, user-reported).**
   W8's `windows_subsystem = "windows"` removed the widget's own console — which the child
   processes (`git` vault polls, `tailscale ssh` status/transfer calls) had been silently

@@ -21,6 +21,7 @@ systemd/file-portal-converter.service.
 
 import argparse
 import logging
+import os
 import shutil
 import time
 from pathlib import Path
@@ -139,16 +140,30 @@ class ConvertHandler(FileSystemEventHandler):
             shutil.rmtree(tmp_dir)
         tmp_dir.mkdir(parents=True)
         assets_dir = tmp_dir / "assets"
+        # The engine also derives ASSET names from the source path it is handed
+        # (`<source-name>-<page>-<idx>.png`; the `filename=` kwarg is ignored when opened
+        # from a path), so a raw ~230-byte stem yields asset names that blow Windows'
+        # 260-char MAX_PATH on the consuming end (L15) — and past ~243 bytes would exceed
+        # ext4's 255-byte component limit right here. Convert from a short, sanitizer-proof
+        # hardlink instead; it is removed before publish, never part of the bundle. (The
+        # link's extension keeps it from ever colliding with the assets/ dir.)
+        engine_stem = exporter.slugify(file_path.stem)[:40]
+        engine_src = tmp_dir / f"{engine_stem}{file_path.suffix.lower()}"
+        try:
+            os.link(file_path, engine_src)
+        except OSError:
+            shutil.copy2(file_path, engine_src)
         logger.info("CONVERTING %s engine=%s lane=%s", file_path.name, engine.name, lane)
         try:
             if engine.name == "pymupdf4llm":
-                markdown = engines.run_pymupdf(file_path, assets_dir, lane, settings)
+                markdown = engines.run_pymupdf(engine_src, assets_dir, lane, settings)
             else:
-                markdown = engines.run_pandoc(file_path, assets_dir)
+                markdown = engines.run_pandoc(engine_src, assets_dir)
         except Exception as exc:
             shutil.rmtree(tmp_dir, ignore_errors=True)
             self._quarantine(file_path, category, f"conversion failed: {exc}")
             return
+        engine_src.unlink()
 
         if lane == "scan":
             # The Scan lane is terminal: below-threshold OCR yield goes to quarantine, never

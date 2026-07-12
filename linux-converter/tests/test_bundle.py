@@ -67,17 +67,18 @@ class TestClampName:
         )
 
     def test_long_name_is_clamped_to_byte_budget(self):
+        # 80 bytes: Inbox/<slug60>--<sha8>/<stem80>.md = 160 bytes vault-relative (L15).
         clamped = bundle.clamp_name("x" * 300)
-        assert len(clamped.encode("utf-8")) <= 200
+        assert len(clamped.encode("utf-8")) <= 80
 
     def test_clamp_never_splits_a_codepoint(self):
-        # 199 ASCII bytes + a 3-byte codepoint straddling the 200-byte boundary.
-        clamped = bundle.clamp_name("x" * 199 + "€" * 5)
-        assert len(clamped.encode("utf-8")) <= 200
+        # 79 ASCII bytes + a 3-byte codepoint straddling the 80-byte boundary.
+        clamped = bundle.clamp_name("x" * 79 + "€" * 5)
+        assert len(clamped.encode("utf-8")) <= 80
         clamped.encode("utf-8").decode("utf-8")  # round-trips: no broken tail byte
 
     def test_clamp_strips_trailing_dots_and_spaces(self):
-        assert not bundle.clamp_name("y" * 199 + ". more").endswith((" ", "."))
+        assert not bundle.clamp_name("y" * 79 + ". more").endswith((" ", "."))
 
 
 class TestUniquePath:

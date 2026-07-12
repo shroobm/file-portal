@@ -69,12 +69,14 @@ def render_frontmatter(
     return "\n".join(lines)
 
 
-def clamp_name(name: str, max_bytes: int = 200) -> str:
-    """Clamp a bundle name to a filename byte budget (ext4 caps components at 255 BYTES).
+def clamp_name(name: str, max_bytes: int = 80) -> str:
+    """Clamp a bundle name to a filename byte budget.
 
-    200 leaves room for the longest derived component, staging's ".part-<name>.staging-copy"
-    (+19), plus a unique_path " (n)" suffix. Anna's Archive filenames run ~225 bytes, so real
-    inputs do hit this (L13 near-miss). Clamps on utf-8 bytes without splitting a codepoint.
+    The binding constraint is Windows MAX_PATH on the consuming end (L15): the note travels
+    to the vault as Inbox/<slug60>--<sha8>/<name>.md, and at 80 bytes that worst case is
+    exactly 160 bytes vault-relative — inside the 260-char full-path limit with margin for
+    the vault prefix. ext4's 255-byte component limit (the original 200-byte rationale, L13)
+    holds a fortiori. Clamps on utf-8 bytes without splitting a codepoint.
     """
     if len(name.encode("utf-8")) <= max_bytes:
         return name

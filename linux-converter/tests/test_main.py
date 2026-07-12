@@ -9,6 +9,7 @@ import re
 import pymupdf
 import pytest
 
+from converter import exporter
 from converter.config import Paths
 from converter.main import ConvertHandler
 from converter.status import StatusWriter
@@ -115,7 +116,8 @@ class TestCleanLane:
 
     def test_long_filename_is_clamped(self, handler, paths):
         # ~225-byte Anna's Archive stems + derived .part-*.staging-copy names brush the
-        # 255-byte component limit -- the published bundle name is clamped (L13 follow-on).
+        # 255-byte component limit -- the published bundle name is clamped (L13 follow-on;
+        # budget tightened to 80 bytes for Windows MAX_PATH, L15).
         stem = "long " * 50  # 250 bytes, spaced
         src = paths.convert_inbox / f"{stem}.pdf"
         _write_text_pdf(src)
@@ -124,7 +126,43 @@ class TestCleanLane:
 
         assert not src.exists()
         (bundle_dir,) = [p for p in paths.anchor.iterdir()]
-        assert len(bundle_dir.name.encode("utf-8")) <= 200
+        assert len(bundle_dir.name.encode("utf-8")) <= 80
+
+    def test_interior_paths_fit_windows_budget(self, handler, paths):
+        # L15: the vault is consumed on Windows, where the 260-char MAX_PATH covers the FULL
+        # path. The bundle dir was already slug-clamped, but interior names re-derived from
+        # the raw stem: a 200-byte .md and ~230-byte engine-named asset PNGs pushed real
+        # vault paths past 330 chars (Textor ingest, fd0e50a). Budget: every emitted path,
+        # vault-relative under Inbox/<slug>--<sha8>/, stays <= 160 bytes.
+        # ~230 bytes, the real Textor-ingest shape (must stay <= 251 so <stem>.pdf can
+        # exist on ext4 at all).
+        stem = ("Judgement and Truth in Early Modern Political Philosophy - Anna " * 4)[:230]
+        assert 200 < len(stem.encode("utf-8")) <= 251 - len(".pdf")
+        src = paths.convert_inbox / f"{stem}.pdf"
+        _write_text_pdf_with_image(src)
+
+        handler._convert(src)
+
+        assert not src.exists(), "source must be consumed, not quarantined"
+        assert not list(paths.quarantine.iterdir())
+        (bundle_dir,) = [p for p in paths.anchor.iterdir()]
+        vault_dir = exporter.INBOX_REL / f"{exporter.slugify(bundle_dir.name)}--{'0' * 8}"
+        for f in bundle_dir.rglob("*"):
+            if f.is_file():
+                rel = vault_dir / f.relative_to(bundle_dir)
+                assert len(str(rel).encode("utf-8")) <= 160, rel
+        # The engine-visible source link is a conversion detail, never published: the
+        # bundle root holds exactly the note, the manifest, and assets/.
+        assert {p.name for p in bundle_dir.iterdir()} == {
+            f"{bundle_dir.name}.md",
+            "manifest.json",
+            "assets",
+        }
+        md = (bundle_dir / f"{bundle_dir.name}.md").read_text()
+        images = list((bundle_dir / "assets").glob("*.png"))
+        assert images, "the embedded figure must be extracted into assets/"
+        for name in re.findall(r"!\[\[assets/([^\]]+)\]\]", md):
+            assert (bundle_dir / "assets" / name).is_file(), name
 
     def test_no_part_residue_after_success(self, handler, paths):
         src = paths.convert_inbox / "digital.pdf"
