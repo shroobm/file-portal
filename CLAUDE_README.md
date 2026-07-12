@@ -125,6 +125,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-11 | ThinkPad | L11, L12 (Part 4 Linux CLOSED — L1–L12 all done), exporter event-stall fix | CLAUDE_README, CHANGELOG, docs/10, linux-converter/README | 10f6bc6 |
 | 2026-07-11 | Desktop | Vault consumption verified (pipeline loop CLOSED end to end) | CLAUDE_README | fb2570d |
 | 2026-07-12 | Desktop | First real ingest; defects L13 (spaces) + L14 (INBOX_REL) found, proven, filed | CLAUDE_README, coordination ×2 | ef5a8e8 |
+| 2026-07-12 | ThinkPad | L13, L14 (fixed + live-verified; spaces workaround retired) | CLAUDE_README, CHANGELOG, coordination | 94db496 |
 
 ---
 
