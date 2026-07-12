@@ -7,7 +7,8 @@ or repairs either repository -- exactly one side initializes, and that already h
 If the repos are missing the export fails loudly and the staging copy stays put.
 
 Placement is Open Decision #6: every bundle lands at Library/Inbox/<slug>--<sha256[:8]>/
-with its assets/ nested inside the bundle folder. No tag or folder mapping, and no
+in VAULT terms — repo-relative that is Inbox/<slug>--<sha256[:8]>/, because the repo root is
+the vault's Library folder — with its assets/ nested inside the bundle folder. No tag or folder mapping, and no
 [[link]] minting (Decision #5) -- the exporter copies bundle bytes, it does not read them.
 
 Invariants, in the order the code enforces them:
@@ -39,7 +40,10 @@ from converter.config import Paths
 logger = logging.getLogger("file-portal-converter")
 
 VAULT_BRANCH = "main"  # HEAD of the bare repo is pinned to refs/heads/main (Decision #4)
-INBOX_REL = Path("Library") / "Inbox"
+# Decision #6's "Library/Inbox/<slug>--<sha8>" is VAULT-relative; the repo root already IS
+# the vault's Library folder (Decision #4: only Library/ is a repo), so repo-relative it is
+# plain Inbox/ (L14 — the doubled path shipped as Library/Library/Inbox/ in the vault).
+INBOX_REL = Path("Inbox")
 
 # Machine-produced commits identify themselves; hand commits keep the user's identity.
 GIT_IDENTITY = [

@@ -86,7 +86,8 @@ def test_export_happy_path(paths):
     bundle = make_bundle(paths, "My Paper (1)", SHA_A)
     Exporter(paths).export(bundle)
 
-    dest = f"Library/Inbox/my-paper-1--{SHA_A[:8]}"
+    # Repo-relative Inbox/ — the repo root IS the vault's Library folder (L14).
+    dest = f"Inbox/my-paper-1--{SHA_A[:8]}"
     assert not bundle.exists(), "staging copy must be deleted after blob verification"
     assert bare_commits(paths) == 2
     for rel in ("My Paper (1).md", "manifest.json", "assets/page-1.png"):
@@ -104,14 +105,15 @@ def test_duplicate_sha_is_noop(paths):
 
     assert bare_commits(paths) == 2, "re-ingest must not create a duplicate bundle"
     assert not dup.exists(), "duplicate's staging copy must still be cleared"
-    assert not bare_has(paths, f"Library/Inbox/paper-re-drop--{SHA_A[:8]}/manifest.json")
+    assert not bare_has(paths, f"Inbox/paper-re-drop--{SHA_A[:8]}/manifest.json")
 
 
 def test_duplicate_detected_after_desktop_filed_it(paths):
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))
     # Desktop files the note out of Inbox/ and pushes -- manifest travels with it.
-    src, dst = f"Library/Inbox/paper--{SHA_A[:8]}", f"Library/paper--{SHA_A[:8]}"
+    src, dst = f"Inbox/paper--{SHA_A[:8]}", f"Filed/paper--{SHA_A[:8]}"
+    (paths.vault_work / "Filed").mkdir()
     git(paths.vault_work, "mv", src, dst)
     git(paths.vault_work, *IDENT, "commit", "-m", "file it")
     git(paths.vault_work, "push")
@@ -143,7 +145,7 @@ def test_push_failure_then_resume(paths):
     assert not bundle.exists()
     assert bare_commits(paths) == 2
     assert int(git(paths.vault_work, "rev-list", "--count", "main")) == 2, "resume, not re-commit"
-    assert bare_has(paths, f"Library/Inbox/paper--{SHA_A[:8]}/manifest.json")
+    assert bare_has(paths, f"Inbox/paper--{SHA_A[:8]}/manifest.json")
 
 
 def test_incomplete_bundle_kept(paths):
