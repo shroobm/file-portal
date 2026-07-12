@@ -60,6 +60,26 @@ class TestFrontmatter:
         assert "ocr_dpi" not in fm
 
 
+class TestClampName:
+    def test_short_names_pass_through_unchanged(self):
+        assert bundle.clamp_name("Designing Freedom - Stafford Beer") == (
+            "Designing Freedom - Stafford Beer"
+        )
+
+    def test_long_name_is_clamped_to_byte_budget(self):
+        clamped = bundle.clamp_name("x" * 300)
+        assert len(clamped.encode("utf-8")) <= 200
+
+    def test_clamp_never_splits_a_codepoint(self):
+        # 199 ASCII bytes + a 3-byte codepoint straddling the 200-byte boundary.
+        clamped = bundle.clamp_name("x" * 199 + "€" * 5)
+        assert len(clamped.encode("utf-8")) <= 200
+        clamped.encode("utf-8").decode("utf-8")  # round-trips: no broken tail byte
+
+    def test_clamp_strips_trailing_dots_and_spaces(self):
+        assert not bundle.clamp_name("y" * 199 + ". more").endswith((" ", "."))
+
+
 class TestUniquePath:
     def test_free_path_is_returned_as_is(self, tmp_path):
         assert bundle.unique_path(tmp_path / "book") == tmp_path / "book"

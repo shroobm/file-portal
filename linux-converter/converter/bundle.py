@@ -69,6 +69,19 @@ def render_frontmatter(
     return "\n".join(lines)
 
 
+def clamp_name(name: str, max_bytes: int = 200) -> str:
+    """Clamp a bundle name to a filename byte budget (ext4 caps components at 255 BYTES).
+
+    200 leaves room for the longest derived component, staging's ".part-<name>.staging-copy"
+    (+19), plus a unique_path " (n)" suffix. Anna's Archive filenames run ~225 bytes, so real
+    inputs do hit this (L13 near-miss). Clamps on utf-8 bytes without splitting a codepoint.
+    """
+    if len(name.encode("utf-8")) <= max_bytes:
+        return name
+    clamped = name.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
+    return clamped.rstrip(" .") or "untitled"
+
+
 def sha256_of(path: Path) -> str:
     digest = hashlib.sha256()
     with open(path, "rb") as f:

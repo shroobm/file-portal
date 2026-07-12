@@ -4,6 +4,7 @@ The OCR conversion itself (Scan lane end-to-end) needs tesseract language data, 
 verified live on the service rather than here; these tests pin the routing decisions."""
 
 import json
+import re
 
 import pymupdf
 import pytest
@@ -46,6 +47,18 @@ def _write_text_pdf(path, chars=2000):
     doc.close()
 
 
+def _write_text_pdf_with_image(path, chars=2000):
+    # A digital page with an embedded figure -- the shape that trips L13: the Clean lane
+    # keeps it (probe passes) AND the engine must write an image into assets/.
+    doc = pymupdf.open()
+    page = doc.new_page()
+    page.insert_text((72, 72), ("lorem ipsum dolor sit amet " * 100)[:chars], fontsize=10)
+    pix = page.get_pixmap(dpi=48, clip=pymupdf.Rect(72, 60, 272, 120))
+    page.insert_image(pymupdf.Rect(72, 500, 272, 560), pixmap=pix)
+    doc.save(path)
+    doc.close()
+
+
 def _write_image_pdf(path):
     src = pymupdf.open()
     page = src.new_page()
@@ -77,6 +90,41 @@ class TestCleanLane:
         assert manifest["source_sha256"]
         # Success emits no status event -- the allocator hop already showed green.
         assert not (paths.logs / "status.json").exists()
+
+    def test_spaced_filename_with_image_converts(self, handler, paths):
+        # L13: pymupdf4llm sanitizes spaces to underscores across its whole image output
+        # path, directory components included. With the assembly dir keyed on the verbatim
+        # stem, the first image write ENOENTs and the file quarantines. Every milestone
+        # fixture before this one was space-free, which is how L1-L12 never caught it.
+        src = paths.convert_inbox / "Designing Freedom - Stafford Beer.pdf"
+        _write_text_pdf_with_image(src)
+
+        handler._convert(src)
+
+        assert not src.exists(), "source must be consumed, not quarantined"
+        assert not list(paths.quarantine.iterdir())
+        bundle_dir = paths.anchor / "Designing Freedom - Stafford Beer"
+        md = (bundle_dir / "Designing Freedom - Stafford Beer.md").read_text()
+        assert "  lane: clean" in md
+        images = list((bundle_dir / "assets").glob("*.png"))
+        assert images, "the embedded figure must be extracted into assets/"
+        # Every embed in the markdown resolves to a file that actually exists on disk.
+        for name in re.findall(r"!\[\[assets/([^\]]+)\]\]", md):
+            assert (bundle_dir / "assets" / name).is_file(), name
+        assert not list(paths.staging.glob(".part-*"))
+
+    def test_long_filename_is_clamped(self, handler, paths):
+        # ~225-byte Anna's Archive stems + derived .part-*.staging-copy names brush the
+        # 255-byte component limit -- the published bundle name is clamped (L13 follow-on).
+        stem = "long " * 50  # 250 bytes, spaced
+        src = paths.convert_inbox / f"{stem}.pdf"
+        _write_text_pdf(src)
+
+        handler._convert(src)
+
+        assert not src.exists()
+        (bundle_dir,) = [p for p in paths.anchor.iterdir()]
+        assert len(bundle_dir.name.encode("utf-8")) <= 200
 
     def test_no_part_residue_after_success(self, handler, paths):
         src = paths.convert_inbox / "digital.pdf"

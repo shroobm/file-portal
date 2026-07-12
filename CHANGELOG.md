@@ -27,6 +27,24 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Spaced filenames with images quarantined every time (L13, found by the first real
+  document 2026-07-12).** pymupdf4llm sanitizes the entire image output path it is given —
+  spaces become underscores in *directory components* too — while the converter built its
+  assembly temp dir from the source stem verbatim, so the engine wrote images into a
+  sibling directory that never existed and the first image write failed the whole
+  conversion. The assembly dir is now keyed on the source SHA-256
+  (`.part-<sha256[:16]>`), which is sanitizer-proof by construction and immune to
+  filename-length pressure; the published bundle keeps the original stem, spaces and all.
+  While in there, bundle names are clamped to a 200-byte budget (`bundle.clamp_name`) —
+  ~225-byte Anna's Archive stems plus the derived `.part-<name>.staging-copy` suffix
+  brushed ext4's 255-byte component limit. Regression-tested with a spaced-name+image
+  fixture that reproduces the exact field failure, and live-verified end to end.
+- **Exporter placed bundles at `Library/Library/Inbox/` in the vault (L14, cosmetic).**
+  Decision #6's `Library/Inbox/<slug>--<sha8>` is a *vault-relative* path, but the repo
+  root already IS the vault's Library folder (Decision #4), so `exporter.py`'s
+  `INBOX_REL` doubled the level; the L11 tests asserted the same misreading and stayed
+  green. Now `Inbox/<slug>--<sha8>` repo-relative. No migration: the Desktop had already
+  filed the one affected bundle to repo-root `Inbox/` as a normal Decision #6 filing move.
 - **Exporter event stall (found live 2026-07-11, fixed same session).** The converter assembles
   two dot-prefixed temp dirs inside `library/staging/` per bundle; their `created` events each
   held the watchdog dispatch thread for the full 60s stability timeout (the dir is renamed away,

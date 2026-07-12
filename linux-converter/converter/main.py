@@ -126,15 +126,19 @@ class ConvertHandler(FileSystemEventHandler):
             # .docx is born-digital by definition -- no probe, always Clean, never OCR.
             lane_reason = "text_layer_present"
 
-        bundle_name = file_path.stem
+        bundle_name = bundle.clamp_name(file_path.stem)
+        source_sha = bundle.sha256_of(file_path)
         # Assemble in a dot-prefixed temp dir under staging (unwatched), publish by rename.
-        tmp_dir = self.paths.staging / f".part-{bundle_name}"
+        # The temp dir is keyed on the source sha, NOT the stem: pymupdf4llm sanitizes the
+        # whole image output path it is given — spaces become underscores in DIRECTORY
+        # components too — so the engine writes into a sibling dir that doesn't exist and
+        # every spaced filename with an image quarantines (L13). Only the engine-visible
+        # path must be sanitizer-proof; the published bundle keeps the original stem.
+        tmp_dir = self.paths.staging / f".part-{source_sha[:16]}"
         if tmp_dir.exists():
             shutil.rmtree(tmp_dir)
         tmp_dir.mkdir(parents=True)
         assets_dir = tmp_dir / "assets"
-
-        source_sha = bundle.sha256_of(file_path)
         logger.info("CONVERTING %s engine=%s lane=%s", file_path.name, engine.name, lane)
         try:
             if engine.name == "pymupdf4llm":
