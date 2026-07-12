@@ -58,18 +58,25 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** ThinkPad C14
+**Date:** 2026-07-12
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. **L14 (small first):** `exporter.py` `INBOX_REL = Path("Inbox")` + fix the same misreading in `test_exporter.py` expectations (incl. the Desktop-filing test's `git mv` destination).
+2. **L13:** make the assembly dir the engine writes into space-free — key `tmp_dir` on the source sha (`.part-<sha256[:16]>`) instead of the verbatim stem, since pymupdf4llm sanitizes the whole image path, and sha also removes temp-dir length risk. Published bundle keeps the original stem. Clamp `bundle_name` to a byte budget (`bundle.clamp_name`, 200 utf-8 bytes) per the Desktop's near-miss note.
+3. Tests: spaced-filename+image PDF through `_convert` (the exact L13 shape that was never covered); clamp unit tests; run full pytest + ruff.
+4. Restart `file-portal-converter`; live drop a spaced-name PDF with an image through `inbox/convert` → expect CONVERTED + EXPORTED to `Inbox/<slug>--<sha8>` (repo-root, proving L14) in the bare repo.
+5. Clean up test artifacts (anchor, vault via `git rm` + push, inboxes/staging empty); CHANGELOG; coordination reply; close session.
 
 ### How I'll verify each step:
-1.
+1. pytest on the L14 tests asserting `Inbox/...` paths in the bare repo tree.
+2. /3. 36+ tests green, ruff check+format clean; the new test fails on pre-fix code (red first).
+4. converter.log lines + `git ls-tree` in `~/file-portal/vault.git` showing `Inbox/` (no `Library/` prefix).
+5. `ls` of anchor/staging/inboxes; bare-repo tree back to seed + prior real ingest.
 
 ### Dependencies / blockers:
--
+- None. Both defects have proven root causes in the 2026-07-12 coordination messages.
 
 ---
 
