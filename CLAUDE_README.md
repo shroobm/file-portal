@@ -58,21 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Windows)
-**Date:** 2026-07-12
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
-### What I'm planning to do (in order) — W8 "Add to Library" button (user-requested):
-1. `config.rs`: new `vault_library_dir: String` field, `#[serde(default)]` (empty = feature hidden) so existing configs keep parsing; add the real path to the live `%APPDATA%\file-portal\config.toml`.
-2. New `src-tauri/src/vault.rs`: `vault_check` (git fetch → rev-list count + changed `Inbox/<slug>/manifest.json` slugs behind origin/main) and `vault_pull` (`git pull --ff-only`, then diff old..new HEAD for what arrived). All through the Library clone's persisted `core.sshCommand=tailscale ssh`. States: disabled / up-to-date / updates(n, slugs) / offline / error.
-3. `main.rs`: register both commands.
-4. Frontend: `#vault-bar` between portals and status — Claude-Code-styled button (dark, terracotta `#D97757` accent, monospace, ✳ glyph): dim when up to date, glow-pulse "N new note(s) — Add to Library" when behind, spinner while pulling, "✓ Added: <slugs>" on success. Poll every 45s; fast-poll (10s, ~3 min) after any drop whose dest is `pipeline/convert*`. Window height 186 → 224 in `tauri.conf.json`.
+### What I'm planning to do (in order):
+1.
 
 ### How I'll verify each step:
-1. `cargo clippy --release` clean; widget relaunch shows the bar; states exercised live: the user's just-dropped Textor book should light the button; click → pull → note lands in `<Vault>\Library\Inbox\` and message names it. Cross-check with `git log` in the clone.
+1.
 
 ### Dependencies / blockers:
-- Widget must be stopped before `npm run tauri build` (linker lock). ThinkPad not required beyond being on (it is).
+-
 
 ---
 
@@ -106,6 +103,7 @@ git pull  # always first
   - **L14 (low): `INBOX_REL` off by one** — exporter commits to `Library/Inbox/` inside a repo whose root IS the vault's Library folder → vault shows `Library/Library/Inbox/`. Fix: `INBOX_REL = Path("Inbox")` + test expectations; no migration (Desktop filed the one bundle).
 - ✅ L13 + L14 FIXED + live-verified 2026-07-12 (ThinkPad) — assembly dir now sha-keyed (`.part-<sha256[:16]>`, sanitizer- and length-proof; published bundles keep the original stem) + `bundle.clamp_name` 200-byte cap; `INBOX_REL = Path("Inbox")`. Regression test reproduces the exact field failure; 40/40 tests; one live drop (`L13 Live Gate - Spaced Name.pdf`) proved both fixes: CONVERTED (no quarantine) + EXPORTED to repo-root `Inbox/…` (commit `139f74d0`). **The spaces workaround is retired.** See `coordination/messages/2026-07-12T00-38--…l13-l14-fixed-live-verified.md`.
 - ✅ L13 Desktop re-verification 2026-07-12 00:55 UTC with the **worst-case real name**: the original ~225-byte Anna's Archive filename (spaces + U+2019) CONVERTED in 70s, published name visibly clamped at 200 bytes (`…be8508ec`), and 12ms later `EXPORT-SKIP … dbcce92c already in vault` — the dedup no-op kept the vault clean. Retest anchor duplicate removed; all queues empty.
+- ✅ **W8 "Add to Library" button DONE + E2E verified 2026-07-12 (`854d89f`)** — new `#vault-bar` in the widget (Claude Code-styled, ✳/terracotta) backed by `vault.rs`: glows "Add N new note(s) to Library" when the bare repo is ahead of the Desktop clone, one click pulls and names what arrived; 45s poll, 10s fast-poll for 3 min after any `pipeline/convert*` drop; new `vault_library_dir` config key (live config + `serde(default)`); window height 224; console window killed (`windows_subsystem`). Live gate: the Textor ingest (`fd0e50a`, 2nd real book, dropped by the user with its natural spaced name — L13 fix holding in the wild) lit the button in one poll; click pulled note+4 assets+manifest into `<Vault>\Library\Inbox\`. **Defect L15 found by that first click:** bundle-interior filenames (200-byte stems, ~230-byte asset names) exceed Windows' 260-char MAX_PATH — checkout failed until `core.longpaths=true` (now set in the clone AND passed `-c` by the widget). Filed to Linux lane: shorten interior names at the source (see 01-15 coordination msg).
 - ▶ Next up: real usage — drop documents with their natural names. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions (chars_per_page is logged on every one; first real doc probed 1484.7, the L13 live gate's dense single page probed 118.0).
 
 ---
@@ -601,3 +599,18 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 - *Cleanup:* retest's long-name anchor duplicate removed (anchor keeps the real `Designing-Freedom--Stafford-Beer` copy); staging/inboxes/quarantine verified empty; vault clone pulled `0fa976c..c8fbe28` (the live-gate add+remove pair) — tree = seed + designing-freedom at `Inbox/`, exactly as the ThinkPad predicted.
 **Verification:** converter.log lines quoted above; remote `ls` of anchor/staging/inboxes/quarantine; `git log` + `Get-ChildItem` on the vault clone. §4 accounting over `f490592..HEAD`: only CLAUDE_README — this session's ledger row.
 **Next for both machines:** none open. Real usage with natural filenames; carry-forward unchanged.
+
+### 2026-07-12 — Desktop agent Session 10 (Claude Code / Fable)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** W8 — user-requested "Add to Library" button in the widget: visual, Claude Code-styled, one click pulls new vault bundles into Obsidian. Plan committed `6e9f9c6` before work.
+**What was done (each step verified):**
+- *Backend:* new `src-tauri/src/vault.rs` — `vault_check` (fetch → `rev-list --count HEAD..origin/main` + new-bundle slugs from `--diff-filter=A` on `Inbox/*/manifest.json`) and `vault_pull` (fetch + `merge --ff-only`, then old..new diff for what arrived). Transport rides the clone's persisted `core.sshCommand="tailscale ssh"`; never initializes a repo (Decision #4). New `vault_library_dir` config key (`serde(default)` — pre-W8 configs parse; empty hides the feature); real path added to live `%APPDATA%` config.
+- *Frontend:* `#vault-bar` between tiles and status — near-black panel, terracotta `#D97757`, monospace, ✳ glyph; states idle/ready(glow-pulse + slug preview)/working(spinning ✳)/success/offline. 45s poll; `applyStatusEvent` triggers a 10s fast-poll window for 3 min after any drop allocated to `pipeline/convert*`. Height 186 → 224. `cargo clippy --release` clean.
+- *Live gate 1 (the reason the gates exist, third time running):* the user's own drop — the Textor book, natural ~230-byte spaced Anna's Archive name (L13 fix holding in the wild, `lane=scan`, exported `fd0e50a9` at 01:06) — lit the button "✳ Add 1 new note to Library" with slug preview on the first poll (screenshot-verified, computer-use granted). **Click FAILED usefully: defect L15.** `git merge` couldn't check out the bundle — interior filenames (200-byte clamped `.md`, ~230-byte asset PNGs) push full vault paths past Windows' 260-char MAX_PATH ("Filename too long"); my error mapping showed it as "vault host unreachable" (pull was one opaque step).
+- *Fixes, same session:* every `vault.rs` git call now passes `-c core.longpaths=true` (+ set persistently in the clone); `vault_pull` split into fetch (fail ⇒ "offline") vs `merge --ff-only` (fail ⇒ "error" with git's real message); partial-checkout debris cleaned before retry. Also: `#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]` added — the exe was console-subsystem and spawned a console window behind the widget.
+- *Live gate 2 (post-fix):* button ready → click → pulled `c8fbe28..fd0e50a`, note (764 KB) + 4 assets + manifest on disk, `git status` clean, bar returned to "✳ Library · up to date" (screenshot + filesystem + `git log` verified). Final `npm run tauri build` (2 bundles) + relaunch: no console window, idle bar correct.
+- *Filed L15* (`2026-07-12T01-15` coordination msg): bundle-interior names should be Windows-clean at the source (budget ≤ ~100 bytes; asset names re-derivable from the path handed to pymupdf4llm or renamed post-conversion with embeds rewritten). Desktop mitigation is live, so severity medium, no migration urgency.
+**Verification:** clippy/build output, three widget screenshots (ready-glow with slug, post-fix pull, final idle), git log/status/ls in the clone, the failing merge transcript. §4 accounting over `6e9f9c6..HEAD`: widget source + tauri.conf covered by the CHANGELOG W8 entry; CHANGELOG/coordination/CLAUDE_README in this session's ledger row.
+**The user's consume loop is now: drop → tile turns green → button glows within ~10s of export → one click → note in Obsidian.**
+**Next for ThinkPad (L15, medium):** shorten bundle-interior filenames per the coordination message; regression test with a >200-byte stem asserting total path budget.
+**Next for Desktop/user:** real usage. Widget left running with the final build.
