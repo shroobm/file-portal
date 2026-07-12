@@ -58,18 +58,21 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Date:** 2026-07-12
+**Claude:** Claude Code / Fable
 
-### What I'm planning to do (in order):
-1.
+### What I'm planning to do (in order) — W8 "Add to Library" button (user-requested):
+1. `config.rs`: new `vault_library_dir: String` field, `#[serde(default)]` (empty = feature hidden) so existing configs keep parsing; add the real path to the live `%APPDATA%\file-portal\config.toml`.
+2. New `src-tauri/src/vault.rs`: `vault_check` (git fetch → rev-list count + changed `Inbox/<slug>/manifest.json` slugs behind origin/main) and `vault_pull` (`git pull --ff-only`, then diff old..new HEAD for what arrived). All through the Library clone's persisted `core.sshCommand=tailscale ssh`. States: disabled / up-to-date / updates(n, slugs) / offline / error.
+3. `main.rs`: register both commands.
+4. Frontend: `#vault-bar` between portals and status — Claude-Code-styled button (dark, terracotta `#D97757` accent, monospace, ✳ glyph): dim when up to date, glow-pulse "N new note(s) — Add to Library" when behind, spinner while pulling, "✓ Added: <slugs>" on success. Poll every 45s; fast-poll (10s, ~3 min) after any drop whose dest is `pipeline/convert*`. Window height 186 → 224 in `tauri.conf.json`.
 
 ### How I'll verify each step:
-1.
+1. `cargo clippy --release` clean; widget relaunch shows the bar; states exercised live: the user's just-dropped Textor book should light the button; click → pull → note lands in `<Vault>\Library\Inbox\` and message names it. Cross-check with `git log` in the clone.
 
 ### Dependencies / blockers:
--
+- Widget must be stopped before `npm run tauri build` (linker lock). ThinkPad not required beyond being on (it is).
 
 ---
 
