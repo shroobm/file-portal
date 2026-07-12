@@ -58,43 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** ThinkPad C14
-**Date:** 2026-07-12
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **L15 fix, asset half:** hand the engine a short, sanitizer-proof source name. pymupdf4llm
-   (1.28, layout mode) names images from `mydoc.name` — the full source path; the `filename`
-   kwarg is ignored when opened from a path (`document_layout.py:1128`). So: hardlink (fallback
-   copy) the source into the sha-keyed assembly dir as `src-<slugify(stem)[:40]><suffix.lower()>`,
-   convert from the link, unlink it before assemble so it is never published. Asset basenames
-   become `src-<slug40>.pdf-<pppp>-<ii>.png` ≤ ~61 bytes. Bonus: this also closes a latent
-   ext4 overflow — a 250-byte source name + `-0001-00.png` exceeds the 255-byte component
-   limit and would quarantine on Linux today, L13-style.
-2. **L15 fix, note half:** `bundle.clamp_name` default 200 → 80 bytes. Worst-case
-   vault-relative path `Inbox/<slug60>--<sha8>/<stem80>.md` = exactly 160 bytes, the budget
-   the coordination message asks a test to lock in. (200's ext4 rationale holds a fortiori.)
-3. **Tests:** update the two 200-byte expectations (test_bundle clamp boundaries,
-   test_main long-filename clamp); add the L15 regression — >200-byte spaced stem + embedded
-   image → converts, and EVERY emitted file's vault-relative path ≤ 160 bytes; assert no
-   `src-*` link is published and all `![[assets/…]]` embeds resolve.
-4. **Deploy + live gate:** restart `file-portal-converter`; drop a >200-byte spaced-name PDF
-   with an embedded image through `inbox/convert/`; verify CONVERTED with short interior
-   names (log + `ls`), EXPORTED with every committed path ≤ 160 bytes (`git ls-tree -r` on
-   the bare repo), then remove the test bundle from anchor + vault (honest history, same as
-   the L13 gate).
-5. Close: CHANGELOG, Status Summary, task list (add L15 row, check it), coordination reply,
-   session log, ledger row in the follow-up commit.
+1.
 
 ### How I'll verify each step:
-1. Unit tests red-first where feasible (the ≤160 assertion fails against current code), then
-   40+ green + ruff clean.
-2. Live gate: converter.log lines, `ls` of the anchor bundle, `git ls-tree -r` byte counts on
-   the bare repo.
+1.
 
 ### Dependencies / blockers:
-- None. Desktop mitigation (`core.longpaths`) is live, so no migration urgency; this is
-  fix-at-source per the 2026-07-12T01-15 coordination message.
+-
 
 ---
 
@@ -129,6 +104,14 @@ git pull  # always first
 - ✅ L13 + L14 FIXED + live-verified 2026-07-12 (ThinkPad) — assembly dir now sha-keyed (`.part-<sha256[:16]>`, sanitizer- and length-proof; published bundles keep the original stem) + `bundle.clamp_name` 200-byte cap; `INBOX_REL = Path("Inbox")`. Regression test reproduces the exact field failure; 40/40 tests; one live drop (`L13 Live Gate - Spaced Name.pdf`) proved both fixes: CONVERTED (no quarantine) + EXPORTED to repo-root `Inbox/…` (commit `139f74d0`). **The spaces workaround is retired.** See `coordination/messages/2026-07-12T00-38--…l13-l14-fixed-live-verified.md`.
 - ✅ L13 Desktop re-verification 2026-07-12 00:55 UTC with the **worst-case real name**: the original ~225-byte Anna's Archive filename (spaces + U+2019) CONVERTED in 70s, published name visibly clamped at 200 bytes (`…be8508ec`), and 12ms later `EXPORT-SKIP … dbcce92c already in vault` — the dedup no-op kept the vault clean. Retest anchor duplicate removed; all queues empty.
 - ✅ **W8 "Add to Library" button DONE + E2E verified 2026-07-12 (`854d89f`)** — new `#vault-bar` in the widget (Claude Code-styled, ✳/terracotta) backed by `vault.rs`: glows "Add N new note(s) to Library" when the bare repo is ahead of the Desktop clone, one click pulls and names what arrived; 45s poll, 10s fast-poll for 3 min after any `pipeline/convert*` drop; new `vault_library_dir` config key (live config + `serde(default)`); window height 224; console window killed (`windows_subsystem`). Live gate: the Textor ingest (`fd0e50a`, 2nd real book, dropped by the user with its natural spaced name — L13 fix holding in the wild) lit the button in one poll; click pulled note+4 assets+manifest into `<Vault>\Library\Inbox\`. **Defect L15 found by that first click:** bundle-interior filenames (200-byte stems, ~230-byte asset names) exceed Windows' 260-char MAX_PATH — checkout failed until `core.longpaths=true` (now set in the clone AND passed `-c` by the widget). Filed to Linux lane: shorten interior names at the source (see 01-15 coordination msg).
+- ✅ L15 FIXED + live-verified 2026-07-12 (ThinkPad, `d1112d2`) — bundle interiors are
+  Windows-clean at the source: the engine converts from a short sanitizer-proof hardlink
+  (`<slugify(stem)[:40]><ext>`, removed before publish) so asset names drop ~230 → ≤ ~61
+  bytes, and `clamp_name` 200 → 80 bytes puts the worst-case note at exactly 160 bytes
+  vault-relative. Also closes a latent ext4 overflow (>243-byte stems would quarantine at
+  the asset write). Red-first regression test; 41/41; live gate: 230-byte spaced name →
+  CONVERTED → EXPORTED `b914af1b`, committed paths measured 158/139/89 bytes by `ls-tree`.
+  Desktop's `core.longpaths` mitigation may stay but is no longer needed for new bundles.
 - ▶ Next up: real usage — drop documents with their natural names. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions (chars_per_page is logged on every one; first real doc probed 1484.7, the L13 live gate's dense single page probed 118.0).
 
 ---
@@ -651,3 +634,17 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 - *Verify:* rebuilt, relaunched, screenshots at +8s and +53s bracketing a full poll cycle — no console anywhere, bar still reads "✳ Library · up to date" (proof the hidden fetch ran). Bundles regenerated so the MSI/NSIS installers carry the fix; widget left running on the final build.
 **Verification:** clippy/build output, two timed screenshots, bar state. §4 accounting over `e360106..HEAD`: 3 source files covered by the CHANGELOG entry; CHANGELOG + this file in this session's ledger row.
 **Next for both machines:** ThinkPad L15 (unchanged); Desktop real usage.
+
+### 2026-07-12 — ThinkPad agent Session 8 (Claude Code / Fable)
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** L15 (bundle-interior filenames vs Windows MAX_PATH), per the Desktop's 2026-07-12T01-15 coordination message. Plan committed `c73c130` before work.
+**What was done (each gate verified before the next):**
+- *L15, asset half (`d1112d2`):* the engine now converts from a short, sanitizer-proof hardlink (copy fallback) inside the sha-keyed assembly dir, named `<slugify(stem)[:40]><ext>`, deleted before publish. Chosen over the coordination message's rename-post-conversion shape because pymupdf4llm 1.28 (layout mode) derives asset names from `mydoc.name` — the full path it opened; the `filename=` kwarg is IGNORED for path-opened docs (`document_layout.py:1128`), so only the path handed to the engine controls the names. Asset basenames drop ~230 → ≤ ~61 bytes, and the link's extension means it can never collide with `assets/`. Bonus finding encoded in the code comment: a >243-byte source stem would have overflowed ext4's 255-byte limit at the asset write and quarantined L13-style on Linux — same fix closes it.
+- *L15, note half (same commit):* `bundle.clamp_name` 200 → 80 bytes; worst case `Inbox/<slug60>--<sha8>/<stem80>.md` = exactly 160 bytes vault-relative, the lock-in number the coordination message proposed.
+- *Tests:* new `test_interior_paths_fit_windows_budget` — 230-byte spaced stem + embedded image → converts, EVERY emitted file's vault-relative path ≤ 160 bytes, bundle root exactly `{note, manifest, assets/}`, every embed resolves — **run red-first against pre-fix code (git stash), both halves failing**; 200-byte expectations in test_bundle/test_main tightened to 80. 41/41, ruff check+format clean. (First test draft used a 260-byte stem — which cannot exist on ext4 at all; capped to 230, the real Anna's Archive shape.)
+- *Deploy + live gate:* service restarted (both watches logged 05:47:11); 230-byte spaced-name PDF with embedded image through `inbox/convert/` → 05:47:30 ALLOCATED → PROBE 119.0 → CONVERTED (stem clamped to 80; asset `l15-live-gate-judgement-and-truth-in-ear.pdf-0001-00.png` = 56 bytes, embed resolved) → 05:47:31 EXPORTED (`b914af1b` pushed + blob-verified). `git ls-tree -r` on the bare repo measured the three committed paths at **158/139/89 bytes**. Test bundle removed from anchor and `git rm`'d from the vault (`0e079a8`, honest history); staging/inboxes verified empty.
+- *Noticed while gating (user-facing, no code action):* (a) the 05:17 Textor re-drop hit the pre-L15 code, converted, correctly EXPORT-SKIPped, and left identical-sha `(1)`/`(2)` anchor duplicates — left in place, anchor copies of user drops are the user's call; (b) the 01:25 "Designing Brand Identity" quarantine is a genuinely bad file — an 80-byte "Link expired or invalid" error page saved as .pdf (failed download), so `unreadable by pymupdf → quarantine` is correct behavior; user should re-download.
+- *Docs:* CHANGELOG (1 Fixed entry), coordination reply `2026-07-12T05-55--linux-to-desktop--l15-fixed-live-verified.md`, this file.
+**Verification:** every claim has a pytest/ruff run, a timestamped allocator/converter log line, an `ls`/`xxd` inspection, or `git ls-tree` byte counts behind it. §4 accounting over `94db496..HEAD`: source files (`bundle.py`, `main.py`, 2 test files) covered by the CHANGELOG L15 entry; CLAUDE_README, CHANGELOG, coordination message in this session's ledger row.
+**Interior names are Windows-clean at the source; the Desktop's `core.longpaths` mitigation is now belt-and-braces only.**
+**Next for Desktop/user:** real usage; re-download the Brand Identity book (the quarantined copy is an expired-link error page); optionally tidy the two duplicate Textor anchor copies. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
