@@ -58,18 +58,43 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** ThinkPad C14
+**Date:** 2026-07-12
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. **L15 fix, asset half:** hand the engine a short, sanitizer-proof source name. pymupdf4llm
+   (1.28, layout mode) names images from `mydoc.name` — the full source path; the `filename`
+   kwarg is ignored when opened from a path (`document_layout.py:1128`). So: hardlink (fallback
+   copy) the source into the sha-keyed assembly dir as `src-<slugify(stem)[:40]><suffix.lower()>`,
+   convert from the link, unlink it before assemble so it is never published. Asset basenames
+   become `src-<slug40>.pdf-<pppp>-<ii>.png` ≤ ~61 bytes. Bonus: this also closes a latent
+   ext4 overflow — a 250-byte source name + `-0001-00.png` exceeds the 255-byte component
+   limit and would quarantine on Linux today, L13-style.
+2. **L15 fix, note half:** `bundle.clamp_name` default 200 → 80 bytes. Worst-case
+   vault-relative path `Inbox/<slug60>--<sha8>/<stem80>.md` = exactly 160 bytes, the budget
+   the coordination message asks a test to lock in. (200's ext4 rationale holds a fortiori.)
+3. **Tests:** update the two 200-byte expectations (test_bundle clamp boundaries,
+   test_main long-filename clamp); add the L15 regression — >200-byte spaced stem + embedded
+   image → converts, and EVERY emitted file's vault-relative path ≤ 160 bytes; assert no
+   `src-*` link is published and all `![[assets/…]]` embeds resolve.
+4. **Deploy + live gate:** restart `file-portal-converter`; drop a >200-byte spaced-name PDF
+   with an embedded image through `inbox/convert/`; verify CONVERTED with short interior
+   names (log + `ls`), EXPORTED with every committed path ≤ 160 bytes (`git ls-tree -r` on
+   the bare repo), then remove the test bundle from anchor + vault (honest history, same as
+   the L13 gate).
+5. Close: CHANGELOG, Status Summary, task list (add L15 row, check it), coordination reply,
+   session log, ledger row in the follow-up commit.
 
 ### How I'll verify each step:
-1.
+1. Unit tests red-first where feasible (the ≤160 assertion fails against current code), then
+   40+ green + ruff clean.
+2. Live gate: converter.log lines, `ls` of the anchor bundle, `git ls-tree -r` byte counts on
+   the bare repo.
 
 ### Dependencies / blockers:
--
+- None. Desktop mitigation (`core.longpaths`) is live, so no migration urgency; this is
+  fix-at-source per the 2026-07-12T01-15 coordination message.
 
 ---
 
