@@ -8,6 +8,28 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **W8 — "Add to Library" button in the widget (2026-07-12).** New `#vault-bar` under the
+  tiles (Claude Code-styled: near-black panel, terracotta `#D97757` accent, monospace, ✳
+  glyph) backed by a new `src-tauri/src/vault.rs`: `vault_check` (git fetch + behind-count +
+  new `Inbox/<slug>/manifest.json` slugs vs `origin/main`) and `vault_pull` (fetch +
+  `merge --ff-only`, then reports exactly which bundles arrived). The clone's persisted
+  `core.sshCommand="tailscale ssh"` carries all transport; the widget never talks to the
+  host itself and never initializes a repo (Decision #4). Button states: hidden when
+  `vault_library_dir` (new config key, `serde(default)` so old configs parse) is unset; dim
+  "Library · up to date"; glow-pulse "Add N new note(s) to Library" when the ThinkPad has
+  pushed bundles this machine hasn't pulled; spinner while pulling; green "✓ Added: <slugs>".
+  Polls every 45s, tightens to 10s for 3 minutes after any drop allocated to
+  `pipeline/convert*` (a conversion is ~1–2 min away from landing). Window height 186 → 224.
+  All git calls pass `-c core.longpaths=true` — the first live pull failed checkout on
+  bundle-interior filenames longer than Windows' 260-char MAX_PATH (see L15 coordination
+  message; that message also asks the converter to shorten interior names at the source).
+  Also fixed while in there: pull errors are now classified fetch-vs-merge so a local
+  checkout failure no longer reads as "vault host unreachable", and the exe is built
+  `windows_subsystem = "windows"` so no console window spawns behind the widget.
+  Live-verified end to end: the Textor ingest (`fd0e50a`) lit the button with its slug
+  within one poll, one click pulled + checked out the bundle (note + 4 assets + manifest),
+  and the bar settled back to "up to date".
+
 - **Vault exporter (library pipeline, Part 4 — L11/L12).** `linux-converter/converter/exporter.py`,
   a second watch inside the existing converter service (no new unit): `library/staging/` bundle
   arrivals — plus a startup sweep for bundles that landed while the service was down — are

@@ -80,6 +80,88 @@ body {
   opacity: 0.6;
 }
 
+/* W8 — Add-to-Library bar. Styled after the Claude Code terminal aesthetic: near-black
+   panel, terracotta #D97757 accent, monospace label, ✳ spark glyph. */
+#vault-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 12px 6px;
+  padding: 4px;
+  border-radius: 10px;
+  background: rgba(20, 18, 17, 0.85);
+  border: 1px solid rgba(217, 119, 87, 0.25);
+}
+
+#vault-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 10px;
+  border: 1px solid rgba(217, 119, 87, 0.45);
+  border-radius: 7px;
+  background: rgba(217, 119, 87, 0.12);
+  color: #e8e2dd;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 11px;
+  line-height: 1.4;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+  white-space: nowrap;
+}
+
+#vault-btn .spark {
+  color: #d97757;
+  font-size: 12px;
+}
+
+#vault-btn:hover:not(:disabled) {
+  background: rgba(217, 119, 87, 0.25);
+  border-color: #d97757;
+}
+
+#vault-btn:disabled {
+  opacity: 0.45;
+  cursor: default;
+}
+
+/* New notes waiting: filled terracotta + breathing glow, the "click me" state. */
+#vault-bar.ready #vault-btn {
+  background: #d97757;
+  border-color: #d97757;
+  color: #16130f;
+  font-weight: 600;
+  animation: vault-glow 1.8s ease-in-out infinite;
+}
+#vault-bar.ready #vault-btn .spark { color: #16130f; }
+
+@keyframes vault-glow {
+  0%, 100% { box-shadow: 0 0 3px rgba(217, 119, 87, 0.5); }
+  50% { box-shadow: 0 0 14px rgba(217, 119, 87, 0.95); }
+}
+
+/* Pull in flight: the spark spins. */
+#vault-bar.working #vault-btn .spark {
+  display: inline-block;
+  animation: vault-spin 1s linear infinite;
+}
+@keyframes vault-spin { to { transform: rotate(360deg); } }
+
+#vault-bar.success #vault-btn { border-color: #4caf50; background: rgba(76, 175, 80, 0.15); }
+#vault-bar.success #vault-btn .spark { color: #4caf50; }
+#vault-bar.offline #vault-btn .spark { color: #777; }
+
+#vault-note {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 10px;
+  color: #9a938d;
+}
+
 #status {
   padding: 0 12px 10px;
   font-size: 11px;

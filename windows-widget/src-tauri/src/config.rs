@@ -21,6 +21,10 @@ pub struct AppConfig {
     pub remote_user: String,
     /// Remote base directory that inbox/<category> subfolders live under.
     pub remote_inbox_root: String,
+    /// Local path of the Obsidian vault's Library git clone (Decision #4). Empty = the
+    /// Add-to-Library button is hidden. `serde(default)` keeps pre-W8 config files parsing.
+    #[serde(default)]
+    pub vault_library_dir: String,
     pub portals: Vec<Portal>,
 }
 
@@ -30,6 +34,7 @@ impl Default for AppConfig {
             linux_host: "CHANGE_ME.tailnet.ts.net".into(),
             remote_user: "CHANGE_ME".into(),
             remote_inbox_root: "~/file-portal/inbox".into(),
+            vault_library_dir: String::new(),
             portals: vec![
                 Portal { category: "documents".into(), label: "Documents".into(), icon: "📄".into() },
                 Portal { category: "photos".into(), label: "Photos".into(), icon: "🖼".into() },
