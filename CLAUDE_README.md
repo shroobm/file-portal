@@ -58,34 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD
-**Date:** 2026-07-13
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. Fix `CI / python` on PR #1: pytest collection dies with `No module named 'allocator'` because
-   the runner never installs the package and bare `pytest` doesn't put the package root on
-   `sys.path`. Fix: add `[tool.pytest.ini_options] pythonpath = ["."]` to
-   `linux-receiver/pyproject.toml` and `linux-converter/pyproject.toml` (same latent bug; its
-   tests aren't in CI yet but pytest should be self-sufficient everywhere).
-2. Fix `CI / rust`: `cargo fmt --check` diffs in `status.rs:45`, `vault.rs:86`, `vault.rs:118`
-   (post-July-5 code never formatted). Fix: `cargo fmt`, then pre-clear the next CI step with
-   `cargo clippy --all-targets -- -D warnings`. Zero behavior change.
-3. Push to feat, watch the PR #1 CI run to green.
-4. Merge PR #1 into master with a **merge commit** (never squash/rebase); keep the feat branch.
-5. Delete stale `fix/widget-blank-window` on origin.
-6. Close: CHANGELOG entry, session log, ledger row.
+1.
 
 ### How I'll verify each step:
-1. Fresh venv with ONLY `requirements-dev.txt` (CI's exact install), `pytest tests/` from
-   `linux-receiver/` — must fail before the edit, pass after.
-2. `cargo fmt --check` exits 0; clippy clean with `-D warnings`.
-3. `gh pr checks 1 --watch` / statusCheckRollup all SUCCESS.
-4. `gh pr view 1` → MERGED; `git log origin/master -1` is a merge commit with two parents.
-5. `git ls-remote origin fix/widget-blank-window` returns nothing.
+1.
 
 ### Dependencies / blockers:
-- Branch protection on master already relaxed (review requirement removed) earlier tonight.
+-
 
 ---
 
@@ -128,6 +112,7 @@ git pull  # always first
   the asset write). Red-first regression test; 41/41; live gate: 230-byte spaced name →
   CONVERTED → EXPORTED `b914af1b`, committed paths measured 158/139/89 bytes by `ls-tree`.
   Desktop's `core.longpaths` mitigation may stay but is no longer needed for new bundles.
+- ✅ **PR #1 (feat/library-pipeline → master) MERGED 2026-07-13 (`7c006f2`, merge commit, branch kept)** after repairing both first-contact CI failures same session: `CI / python` (pytest couldn't import the packages in the bare runner venv — `pythonpath = ["."]` added to both Python pyproject.tomls) and `CI / rust` (`cargo fmt` on post-July-5 widget code; clippy pre-cleared). All 6 checks green (python 14s, rust 3m14s, CodeQL ×3 + summary). Stale `fix/widget-blank-window` deleted on origin (all 5 commits patch-equivalent in feat, verified with `git cherry`). Known-red follow-ups: CI runs no `linux-converter`/`linux-dashboard` tests; checkout/setup-python actions emit Node 20 deprecation warnings.
 - ▶ Next up: real usage — drop documents with their natural names. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions (chars_per_page is logged on every one; first real doc probed 1484.7, the L13 live gate's dense single page probed 118.0).
 
 ---
@@ -665,3 +650,17 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** every claim has a pytest/ruff run, a timestamped allocator/converter log line, an `ls`/`xxd` inspection, or `git ls-tree` byte counts behind it. §4 accounting over `94db496..HEAD`: source files (`bundle.py`, `main.py`, 2 test files) covered by the CHANGELOG L15 entry; CLAUDE_README, CHANGELOG, coordination message in this session's ledger row.
 **Interior names are Windows-clean at the source; the Desktop's `core.longpaths` mitigation is now belt-and-braces only.**
 **Next for Desktop/user:** real usage; re-download the Brand Identity book (the quarantined copy is an expired-link error page); optionally tidy the two duplicate Textor anchor copies. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
+
+### 2026-07-13 — Desktop agent Session 12 (Claude Code / Fable)
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** Repair both CI failures blocking PR #1 (feat → master), merge it with a merge commit, delete the stale fix branch. Plan committed `b3c3baa` before work. Context: master had been merged into feat earlier tonight (`2a1778f`, ThinkPad-side, 9 conflicts ours-side, 65/65 tests — no ledger row of its own; its master-carried files are accounted here), which put the July-5 workflow in contact with the branch's code for the first time.
+**What was done (each step verified):**
+- *CI / python (`665097b`):* reproduced CI's exact failure locally — fresh venv with ONLY `requirements-dev.txt` (CI's install), `pytest tests/` from `linux-receiver/` → the identical `ModuleNotFoundError: No module named 'allocator'` collection death. Root cause: the runner never installs the package and bare `pytest` doesn't put the package root on `sys.path` (local venvs/`python -m pytest` mask it). Fix: `[tool.pytest.ini_options] pythonpath = ["."]` in `linux-receiver/pyproject.toml` AND `linux-converter/pyproject.toml` (same latent bug; converter tests aren't in CI yet). Re-run in the same bare venv: 24 collected, 23 pass — the 1 failure is Windows-only (`sorted\documents` vs `sorted/documents` path-separator assertion), and CI's Ubuntu run confirmed: **python job green in 14s**.
+- *CI / rust (`6aaa042`):* `gh run view --log-failed` showed pure `cargo fmt --check` diffs (no clippy/logic reached). `cargo fmt` reformatted `config.rs`/`main.rs`/`status.rs`/`vault.rs` — all code written after the July-5 formatting pass; zero behavior change. `cargo fmt --check` exit 0; `cargo clippy --all-targets -- -D warnings` run locally to pre-clear the never-reached next CI step: clean.
+- *CI green:* `gh pr checks 1 --watch` → all 6 checks pass (python 14s, rust 3m14s, CodeQL javascript/python/rust + summary).
+- *Merge:* `gh pr merge 1 --merge` (no squash/rebase, no branch delete) → **MERGED 23:20:02 UTC, merge commit `7c006f2`** — verified two parents (`6630792` old master + `6aaa042` feat tip) and `feat/library-pipeline` still on origin.
+- *Branch cleanup:* before deleting, checked `fix/widget-blank-window` (`b949b2a`) was NOT an ancestor of feat/master — but `git cherry` showed all 5 of its commits patch-equivalent to commits already in feat, so nothing orphaned. `git push origin --delete fix/widget-blank-window`; `ls-remote` confirms gone. Local copy left untouched.
+- *Docs:* CHANGELOG (1 Fixed entry covering both CI fixes + known-red follow-ups), this file.
+**Verification:** the before/after pytest transcripts in the CI-sim venv, fmt/clippy exit codes, `gh pr checks` final table, `git log origin/master -1 --format="%h %p %s"`, `git cherry` output, `ls-remote` empty result. §4 accounting over `d53c152..HEAD`: `2a1778f` merge-carried files (ci.yml, coordination README + 07-05 brief, docs/08, linux-dashboard/*, linux-converter test/bundle changes) belong to master's history and the merge commit's message; this session's source changes (2 pyproject.tomls, 4 widget .rs files) are covered by the CHANGELOG entry; CLAUDE_README + CHANGELOG in this session's ledger row.
+**master now contains the full library pipeline; CI is green on contact.**
+**Next for ThinkPad:** none open. **Next for Desktop/user:** real usage (unchanged carry-forwards: re-download Brand Identity, tidy Textor anchor dupes, `min_chars_per_page` review). CI follow-ups when convenient: add converter/dashboard tests to the python job; bump `actions/checkout` and `setup-python` majors to silence Node 20 deprecation warnings.

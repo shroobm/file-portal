@@ -49,6 +49,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **CI first-contact failures on PR #1 (2026-07-13).** The workflow (written 2026-07-05 on
+  master) had never run against the branch's code. Two independent breaks: (1) `CI / python` —
+  pytest collection died with `No module named 'allocator'` because the runner pip-installs
+  only requirements and bare `pytest` doesn't put the package root on `sys.path` (local venvs
+  never hit this). Fixed with `[tool.pytest.ini_options] pythonpath = ["."]` in
+  `linux-receiver/pyproject.toml` and `linux-converter/pyproject.toml` (converter tests aren't
+  in CI yet — same latent bug fixed while there); reproduced and verified in a fresh
+  requirements-only venv (collection error → 24 tests collected). (2) `CI / rust` —
+  `cargo fmt --check` diffs in `config.rs`/`main.rs`/`status.rs`/`vault.rs`, all code written
+  after the July 5 formatting pass. Fixed with `cargo fmt` (style-only, zero behavior change);
+  `cargo clippy --all-targets -- -D warnings` verified clean locally so the never-reached
+  clippy step doesn't become the next surprise. Known-red follow-ups, not fixed tonight:
+  CI doesn't run `linux-converter`/`linux-dashboard` tests, and `actions/checkout@v4` +
+  `setup-python@v5` emit Node 20 deprecation warnings (bump to current majors later).
+
 - **Bundle-interior filenames blew past Windows' 260-char MAX_PATH on the consuming end
   (L15, found by W8's first live click, 2026-07-12).** The bundle directory was already
   slug-clamped in the vault, but the names *inside* it re-derived from the raw source stem:
