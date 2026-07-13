@@ -1,0 +1,55 @@
+# CI for File Portal — see docs/08-roadmap.md (v3).
+#
+# python: ruff lint + format check for both subprojects, pytest for the allocator.
+# rust:   cargo fmt + clippy for the Tauri widget, run on windows-latest because that is the
+#         widget's actual target and Tauri compiles there without extra system libraries
+#         (Linux runners would need the whole webkit2gtk stack just to type-check).
+
+name: CI
+
+on:
+  push:
+    branches: [master]
+  pull_request:
+
+jobs:
+  python:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: Install dependencies
+        run: pip install -r linux-receiver/requirements-dev.txt
+      - name: Lint (linux-receiver)
+        working-directory: linux-receiver
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Lint (linux-dashboard)
+        working-directory: linux-dashboard
+        run: |
+          ruff check .
+          ruff format --check .
+      - name: Test (linux-receiver)
+        working-directory: linux-receiver
+        run: pytest tests/ -v
+
+  rust:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: windows-widget/src-tauri
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: windows-widget/src-tauri
+      - name: Format check
+        run: cargo fmt --check
+      - name: Clippy
+        run: cargo clippy --all-targets -- -D warnings
