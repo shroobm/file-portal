@@ -24,7 +24,11 @@ struct StatusDoc {
 pub fn fetch_events(linux_host: &str, remote_user: &str) -> Result<Vec<StatusEvent>, String> {
     let host_arg = format!("{}@{}", remote_user, linux_host);
     let output = Command::new("tailscale")
-        .args(["ssh", &host_arg, "cat ~/file-portal/logs/status.json 2>/dev/null || echo '{}'"])
+        .args([
+            "ssh",
+            &host_arg,
+            "cat ~/file-portal/logs/status.json 2>/dev/null || echo '{}'",
+        ])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| format!("tailscale ssh failed: {}", e))?;
@@ -37,11 +41,15 @@ pub fn fetch_events(linux_host: &str, remote_user: &str) -> Result<Vec<StatusEve
     if trimmed.is_empty() || trimmed == "{}" {
         return Ok(vec![]);
     }
-    let doc: StatusDoc = serde_json::from_str(trimmed)
-        .map_err(|e| format!("parse error: {}", e))?;
+    let doc: StatusDoc =
+        serde_json::from_str(trimmed).map_err(|e| format!("parse error: {}", e))?;
     Ok(doc.events)
 }
 
 pub fn find_event(events: &[StatusEvent], filename: &str, category: &str) -> Option<StatusEvent> {
-    events.iter().rev().find(|e| e.file == filename && e.category == category).cloned()
+    events
+        .iter()
+        .rev()
+        .find(|e| e.file == filename && e.category == category)
+        .cloned()
 }

@@ -86,10 +86,13 @@ pub fn check(vault_library_dir: &str) -> VaultStatus {
     if let Err(e) = git(vault_library_dir, &["fetch", "--quiet", "origin"]) {
         return VaultStatus::simple("offline", &e);
     }
-    let behind = git(vault_library_dir, &["rev-list", "--count", "HEAD..origin/main"])
-        .ok()
-        .and_then(|s| s.parse::<u32>().ok())
-        .unwrap_or(0);
+    let behind = git(
+        vault_library_dir,
+        &["rev-list", "--count", "HEAD..origin/main"],
+    )
+    .ok()
+    .and_then(|s| s.parse::<u32>().ok())
+    .unwrap_or(0);
     if behind == 0 {
         return VaultStatus::simple("up-to-date", "");
     }
@@ -118,7 +121,10 @@ pub fn pull(vault_library_dir: &str) -> VaultStatus {
     }
     // --ff-only: the converter only ever appends on top of what this clone pushes/pulls, so a
     // non-fast-forward means something is genuinely wrong — surface it, never auto-merge.
-    if let Err(e) = git(vault_library_dir, &["merge", "--ff-only", "--quiet", "origin/main"]) {
+    if let Err(e) = git(
+        vault_library_dir,
+        &["merge", "--ff-only", "--quiet", "origin/main"],
+    ) {
         return VaultStatus::simple("error", &e);
     }
     let after = git(vault_library_dir, &["rev-parse", "HEAD"]).unwrap_or_else(|_| before.clone());
