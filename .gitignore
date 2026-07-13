@@ -18,6 +18,12 @@ linux-dashboard/**/__pycache__/
 linux-dashboard/*.egg-info/
 linux-dashboard/DEVNOTES.md
 
+# --- Linux converter (Python) ---
+linux-converter/.venv/
+linux-converter/__pycache__/
+linux-converter/**/__pycache__/
+linux-converter/*.egg-info/
+
 # --- OS / editor noise ---
 .DS_Store
 Thumbs.db
@@ -28,3 +34,4 @@ Thumbs.db
 # --- Secrets / local config overrides ---
 *.local.toml
 .env
+.claude/settings.local.json

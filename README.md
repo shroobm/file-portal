@@ -8,7 +8,7 @@ machine over a [Tailscale](https://tailscale.com) tailnet, where a small user-le
 ┌─────────────────────────┐        Tailscale SSH         ┌──────────────────────────┐
 │   Windows 10 Desktop     │  (encrypted, no open ports)  │   Linux Box (any distro)  │
 │                          │ ───────────────────────────► │                          │
-│  [Docs] [Photos] [Code]  │ streamed over `tailscale ssh`│  ~/file-portal/inbox/     │
+│  [Docs] [Photos] [Code]  │  stream over `tailscale ssh` │  ~/file-portal/inbox/     │
 │   portal widgets         │                               │  → allocator sorts into  │
 │   (Tauri app)            │                               │    ~/file-portal/sorted/ │
 └─────────────────────────┘                               └──────────────────────────┘
@@ -34,9 +34,9 @@ or trusting a third-party cloud relay. This project avoids all three:
 | `docs/`             | The knowledge base — read `docs/00-overview.md` first.                  |
 | `windows-widget/`   | The Tauri desktop app that renders the portal widgets.                  |
 | `linux-receiver/`   | The user-level allocator service that sorts incoming files.             |
+| `linux-converter/`  | The user-level converter service watching `pipeline/convert-inbox` (log-only skeleton; engine lands in Part 3 of `docs/10-library-pipeline-plan.md`). |
 | `linux-dashboard/`  | Optional GTK4 desktop app that visualizes `sorted/` (gallery + lists).  |
 | `scripts/`          | One-off setup helpers (Tailscale SSH config, dev environment bootstrap).|
-| `coordination/`     | Agent-to-agent message bus (Claude on each machine); not user docs.     |
 
 ## Quickstart
 

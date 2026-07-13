@@ -6,9 +6,18 @@
 // (enabled via app.withGlobalTauri in tauri.conf.json).
 const { invoke } = window.__TAURI__.core;
 const { getCurrentWebview } = window.__TAURI__.webview;
+const { getCurrentWindow } = window.__TAURI__.window;
 
 const portalsEl = document.getElementById("portals");
 const statusEl = document.getElementById("status");
+
+// Wire the titlebar minimize button. Dragging is handled by Tauri via the data-tauri-drag-region
+// attributes on #titlebar (needs core:window:allow-start-dragging); minimize needs this JS call
+// (needs core:window:allow-minimize). Wired at top level so it works even if list_portals stalls.
+const minBtn = document.getElementById("min-btn");
+minBtn?.addEventListener("click", () => {
+  getCurrentWindow().minimize();
+});
 
 function setStatus(message) {
   statusEl.textContent = message;
@@ -85,6 +94,7 @@ async function init() {
         const failedCount = report.failed.length;
         if (failedCount === 0) {
           setStatus(`Sent ${report.sent.length} file(s) to ${category}.`);
+          if (report.sent.length > 0) pollStatuses(report.sent, category);
         } else {
           console.error("transfer failures", report.failed);
           const firstError = report.failed[0]?.error ?? "unknown error";
@@ -100,7 +110,138 @@ async function init() {
   });
 }
 
+
+async function pollStatuses(sentPaths, category) {
+  const pending = new Set(sentPaths.map((p) => p.replace(/\\/g, "/").split("/").pop()));
+  for (let i = 0; i < 10 && pending.size > 0; i++) {
+    await new Promise((r) => setTimeout(r, 3000));
+    for (const filename of [...pending]) {
+      try {
+        const ev = await invoke("fetch_file_status", { category, filename });
+        if (ev) { pending.delete(filename); applyStatusEvent(category, ev); }
+      } catch (err) { console.warn("poll error", err); }
+    }
+  }
+  if (pending.size > 0) setStatus("Sent -- allocator pending for " + pending.size + " file(s).");
+}
+
+function applyStatusEvent(category, ev) {
+  const tile = document.querySelector(".portal[data-category=\"" + category + "\"]");
+  if (ev.action === "allocated") {
+    setStatus("✓ " + ev.file + " → " + (ev.dest ?? category));
+    tile?.classList.add("success");
+    setTimeout(() => tile?.classList.remove("success"), 3000);
+    // A vault-bound file just left: the converter takes ~a minute, so watch the vault
+    // closely for a while instead of waiting for the slow poll to notice.
+    if ((ev.dest ?? "").startsWith("pipeline/convert")) vaultFastPoll();
+  } else if (ev.action === "rejected") {
+    setStatus("✗ " + ev.file + " rejected: " + (ev.reason ?? "unknown"));
+    tile?.classList.add("error");
+    setTimeout(() => tile?.classList.remove("error"), 5000);
+  } else if (ev.action === "skipped") {
+    setStatus("⚠ " + ev.file + " skipped: " + (ev.reason ?? "collision"));
+  }
+}
+
+
+// ---- W8: Add-to-Library button -------------------------------------------------------
+// The vault clone lives on this machine; new bundles only appear locally after a git pull.
+// This bar polls `vault_check` (git fetch + behind-count in Rust), glows when the ThinkPad
+// has pushed notes we don't have yet, and `vault_pull`s on click.
+
+const vaultBar = document.getElementById("vault-bar");
+const vaultBtn = document.getElementById("vault-btn");
+const vaultBtnLabel = document.getElementById("vault-btn-label");
+const vaultNote = document.getElementById("vault-note");
+
+const VAULT_POLL_MS = 45000;
+const VAULT_FAST_POLL_MS = 10000;
+let vaultFastUntil = 0;
+let vaultBusy = false;
+let vaultDisabled = false;
+
+function vaultRender(state, { label, note = "", enabled = true } = {}) {
+  vaultBar.className = state;
+  vaultBtnLabel.textContent = label;
+  vaultNote.textContent = note;
+  vaultNote.title = note;
+  vaultBtn.disabled = !enabled;
+}
+
+function describeBundles(st) {
+  const names = (st.bundles ?? []).map((s) => s.replace(/--[0-9a-f]{8}$/, ""));
+  if (names.length === 0) return st.behind + " update(s)";
+  const shown = names.slice(0, 2).join(", ");
+  return names.length > 2 ? `${shown} +${names.length - 2} more` : shown;
+}
+
+function vaultApply(st) {
+  if (st.state === "disabled") {
+    vaultDisabled = true;
+    vaultBar.hidden = true;
+    return;
+  }
+  vaultBar.hidden = false;
+  if (st.state === "updates") {
+    const n = (st.bundles ?? []).length || st.behind;
+    vaultRender("ready", {
+      label: `Add ${n} new note${n === 1 ? "" : "s"} to Library`,
+      note: describeBundles(st),
+    });
+  } else if (st.state === "pulled") {
+    vaultRender("success", { label: "Added to Library", note: "✓ " + describeBundles(st) });
+    setTimeout(() => vaultCheck(), 4000);
+  } else if (st.state === "up-to-date") {
+    vaultRender("idle", { label: "Library", note: "up to date" });
+  } else if (st.state === "offline") {
+    vaultRender("offline", { label: "Library", note: "vault host unreachable — will retry" });
+  } else {
+    vaultRender("offline", { label: "Library", note: st.detail || "error" });
+    console.error("vault error", st.detail);
+  }
+}
+
+async function vaultCheck() {
+  if (vaultBusy || vaultDisabled) return;
+  vaultBusy = true;
+  try {
+    vaultApply(await invoke("vault_check"));
+  } catch (err) {
+    console.error("vault_check failed", err);
+    vaultApply({ state: "error", detail: String(err) });
+  } finally {
+    vaultBusy = false;
+  }
+}
+
+function vaultFastPoll() {
+  vaultFastUntil = Date.now() + 3 * 60 * 1000;
+}
+
+vaultBtn.addEventListener("click", async () => {
+  if (vaultBusy || vaultBtn.disabled) return;
+  // Idle-state click = manual "check now"; ready-state click = pull.
+  const pulling = vaultBar.classList.contains("ready");
+  vaultBusy = true;
+  vaultRender("working", { label: pulling ? "Pulling…" : "Checking…", enabled: false });
+  try {
+    vaultApply(await invoke(pulling ? "vault_pull" : "vault_check"));
+  } catch (err) {
+    console.error("vault action failed", err);
+    vaultApply({ state: "error", detail: String(err) });
+  } finally {
+    vaultBusy = false;
+  }
+});
+
+async function vaultLoop() {
+  await vaultCheck();
+  const wait = Date.now() < vaultFastUntil ? VAULT_FAST_POLL_MS : VAULT_POLL_MS;
+  setTimeout(vaultLoop, wait);
+}
+
 init().catch((err) => {
   console.error("init failed", err);
   setStatus(`Init error: ${err}`);
 });
+vaultLoop();

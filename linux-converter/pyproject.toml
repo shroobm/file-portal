@@ -1,0 +1,17 @@
+[project]
+name = "file-portal-converter"
+version = "0.1.0"
+description = "Watches pipeline/convert-inbox and converts documents into Obsidian markdown bundles"
+requires-python = ">=3.11"
+dependencies = [
+    "watchdog>=4.0,<5",
+    "pymupdf4llm>=1.28,<2",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+# Make `pytest tests/` work without installing the package (CI runs it from a bare venv).
+pythonpath = ["."]

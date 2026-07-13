@@ -6,52 +6,156 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
-### Fixed
+### Added
 
-- **Allocator could move files while they were still being written.** The watcher reacted to
-  `on_created`, but the streaming transport (`tailscale ssh … "cat > file"`) creates the file
-  before the bytes arrive, so a transfer could be sorted (and size-checked) half-written. The
-  allocator now treats inotify `CLOSE_WRITE` (`on_closed`) as the completion signal for in-place
-  writers and keeps `on_moved` for atomic-rename tools like rsync; on non-inotify platforms it
-  falls back to `on_created` plus a wait-until-size-stable check.
-- **In-flight rsync temp files could be sorted mid-transfer.** Dot-prefixed files (rsync's
-  `.name.XXXXXX` pattern) are now ignored; the completing rename is handled instead.
-- **Quarantined files could be re-processed.** `inbox/quarantine/` lives inside the watched inbox
-  tree; events under it are now explicitly ignored, preventing re-handling/log loops for rejected
-  files.
-- **Quarantine overwrote earlier rejects of the same name.** Quarantine now applies the `rename`
-  collision policy (`big.txt`, `big (1).txt`, …).
-- **One bad file could kill the watcher.** Any exception while allocating a single file (invalid
-  rules.toml, bad destination template, permissions) is now logged instead of propagating into —
-  and stopping — the observer thread.
+- **W8 — "Add to Library" button in the widget (2026-07-12).** New `#vault-bar` under the
+  tiles (Claude Code-styled: near-black panel, terracotta `#D97757` accent, monospace, ✳
+  glyph) backed by a new `src-tauri/src/vault.rs`: `vault_check` (git fetch + behind-count +
+  new `Inbox/<slug>/manifest.json` slugs vs `origin/main`) and `vault_pull` (fetch +
+  `merge --ff-only`, then reports exactly which bundles arrived). The clone's persisted
+  `core.sshCommand="tailscale ssh"` carries all transport; the widget never talks to the
+  host itself and never initializes a repo (Decision #4). Button states: hidden when
+  `vault_library_dir` (new config key, `serde(default)` so old configs parse) is unset; dim
+  "Library · up to date"; glow-pulse "Add N new note(s) to Library" when the ThinkPad has
+  pushed bundles this machine hasn't pulled; spinner while pulling; green "✓ Added: <slugs>".
+  Polls every 45s, tightens to 10s for 3 minutes after any drop allocated to
+  `pipeline/convert*` (a conversion is ~1–2 min away from landing). Window height 186 → 224.
+  All git calls pass `-c core.longpaths=true` — the first live pull failed checkout on
+  bundle-interior filenames longer than Windows' 260-char MAX_PATH (see L15 coordination
+  message; that message also asks the converter to shorten interior names at the source).
+  Also fixed while in there: pull errors are now classified fetch-vs-merge so a local
+  checkout failure no longer reads as "vault host unreachable", and the exe is built
+  `windows_subsystem = "windows"` so no console window spawns behind the widget.
+  Live-verified end to end: the Textor ingest (`fd0e50a`) lit the button with its slug
+  within one poll, one click pulled + checked out the bundle (note + 4 assets + manifest),
+  and the bar settled back to "up to date".
 
-### Added (allocator / repo)
-
-- **v2 feedback loop, Linux half:** every outcome (`allocated`/`skipped`/`rejected`) is appended
-  to `~/file-portal/logs/status.json` (`allocator/status.py`) — bounded to the newest 200 events
-  and rewritten atomically so the widget can poll it over the existing
-  `tailscale ssh … "cat …"` channel without ever reading partial JSON.
-- **Test suite:** `linux-receiver/tests/` covering rules resolution (globs, date tokens,
-  defaults), collision policies, quarantine behavior, the new event guards, and the status feed;
-  dev deps in `linux-receiver/requirements-dev.txt`.
-- **CI:** `.github/workflows/ci.yml` — ruff lint + format check for both Python subprojects,
-  pytest for the allocator, and `cargo fmt --check` + `cargo clippy -D warnings` for the Tauri
-  widget on a Windows runner.
-
-### Docs
-
-- Corrected every remaining description of the retired rsync/scp transport (README diagram,
-  00-overview, 01-architecture diagram + data flow + tradeoffs, 02-tailscale-setup step 6,
-  03-windows-widget) to describe the `tailscale ssh … cat` streaming transport — the follow-up
-  flagged in the documentation audit.
-- 04-linux-receiver: documented the new completion-signal model (CLOSE_WRITE / MOVED_TO /
-  stability-wait fallback), quarantine guard, `status.py`, and the test suite.
-
----
-
-Earlier unreleased work (widget render + transport fixes):
+- **Vault exporter (library pipeline, Part 4 — L11/L12).** `linux-converter/converter/exporter.py`,
+  a second watch inside the existing converter service (no new unit): `library/staging/` bundle
+  arrivals — plus a startup sweep for bundles that landed while the service was down — are
+  committed into the working clone `~/file-portal/vault-work` at
+  `Library/Inbox/<slug>--<sha256[:8]>/` and pushed to the local bare repo `~/file-portal/vault.git`
+  (the transport resolved + wired in Open Decision #4). Per Decisions #5/#6: no tag/folder
+  placement, no minted `[[links]]`, assets stay inside the bundle folder. Invariants enforced in
+  code: creates new notes only (pathspec-scoped commits, committed paths never overwritten);
+  re-ingest of an identical `source_sha256` is a no-op log line, deduped by `git grep` over
+  committed `manifest.json` files in the **bare** repo so notes the Desktop has filed out of
+  `Inbox/` still count; the staging copy is deleted only after the push succeeded AND
+  `git cat-file -e` confirms the commit and every bundle file's blob in the bare repo — never on
+  write-success alone (L12). Any git failure logs `EXPORT-FAIL` and keeps staging for the next
+  sweep; a commit that pushed but crashed pre-verify resumes at push, not re-commit. Ingest
+  commits are self-identifying (`user.name=file-portal-converter`). 8 unit tests against real
+  temp git repos. Live-verified 2026-07-11 including the dedup no-op and blob-verified deletion.
 
 ### Fixed
+
+- **Bundle-interior filenames blew past Windows' 260-char MAX_PATH on the consuming end
+  (L15, found by W8's first live click, 2026-07-12).** The bundle directory was already
+  slug-clamped in the vault, but the names *inside* it re-derived from the raw source stem:
+  a 200-byte-clamped `.md` plus engine-named asset PNGs (`<full-source-name>-<page>-<idx>.png`,
+  ~230 bytes for real Anna's Archive names) pushed full vault paths past 330 chars — the
+  Desktop needed `core.longpaths=true` to check the Textor bundle out at all. Fixed at the
+  source, both halves: (1) the converter now hands the engine a short, sanitizer-proof
+  hardlink (`<slugify(stem)[:40]><ext>`, hardlink with copy fallback) inside the sha-keyed
+  assembly dir — pymupdf4llm derives image names from the document path it opens (its
+  `filename=` kwarg is ignored for path-opened docs), so asset basenames drop to ≤ ~61 bytes;
+  the link is removed before publish and is never part of the bundle. This also closes a
+  latent Linux-side overflow: a >243-byte source name + `-0001-00.png` would have exceeded
+  ext4's 255-byte component limit and quarantined, L13-style. (2) `bundle.clamp_name`'s
+  budget drops 200 → 80 bytes, so the worst-case vault-relative note path
+  `Inbox/<slug60>--<sha8>/<stem80>.md` is exactly 160 bytes — inside MAX_PATH with margin
+  for real vault prefixes. Regression test (red-first on both halves): a 230-byte spaced
+  stem with an embedded image converts, every emitted vault-relative path ≤ 160 bytes, the
+  bundle root holds exactly note + manifest + assets/, and every embed resolves on disk.
+
+- **Black console window flashing every 45 seconds (W8 follow-up, 2026-07-12, user-reported).**
+  W8's `windows_subsystem = "windows"` removed the widget's own console — which the child
+  processes (`git` vault polls, `tailscale ssh` status/transfer calls) had been silently
+  attaching to. Orphaned, each spawn opened its own console window for the duration of the
+  command, most visibly the 45s vault poll. All three spawn sites (`vault.rs`, `status.rs`,
+  `transfer.rs`) now pass `CREATE_NO_WINDOW` (0x08000000). Verified across a live poll
+  cycle: no window, bar still reports fresh state.
+
+- **Spaced filenames with images quarantined every time (L13, found by the first real
+  document 2026-07-12).** pymupdf4llm sanitizes the entire image output path it is given —
+  spaces become underscores in *directory components* too — while the converter built its
+  assembly temp dir from the source stem verbatim, so the engine wrote images into a
+  sibling directory that never existed and the first image write failed the whole
+  conversion. The assembly dir is now keyed on the source SHA-256
+  (`.part-<sha256[:16]>`), which is sanitizer-proof by construction and immune to
+  filename-length pressure; the published bundle keeps the original stem, spaces and all.
+  While in there, bundle names are clamped to a 200-byte budget (`bundle.clamp_name`) —
+  ~225-byte Anna's Archive stems plus the derived `.part-<name>.staging-copy` suffix
+  brushed ext4's 255-byte component limit. Regression-tested with a spaced-name+image
+  fixture that reproduces the exact field failure, and live-verified end to end.
+- **Exporter placed bundles at `Library/Library/Inbox/` in the vault (L14, cosmetic).**
+  Decision #6's `Library/Inbox/<slug>--<sha8>` is a *vault-relative* path, but the repo
+  root already IS the vault's Library folder (Decision #4), so `exporter.py`'s
+  `INBOX_REL` doubled the level; the L11 tests asserted the same misreading and stayed
+  green. Now `Inbox/<slug>--<sha8>` repo-relative. No migration: the Desktop had already
+  filed the one affected bundle to repo-root `Inbox/` as a normal Decision #6 filing move.
+- **Exporter event stall (found live 2026-07-11, fixed same session).** The converter assembles
+  two dot-prefixed temp dirs inside `library/staging/` per bundle; their `created` events each
+  held the watchdog dispatch thread for the full 60s stability timeout (the dir is renamed away,
+  so its `manifest.json` never appears and `rglob` on the missing dir spins yielding `[]`),
+  delaying every export by 2×60s. Dot-dirs are now skipped before the stability wait, and the
+  wait bails when the directory vanishes. Export latency measured after the fix: ~25ms.
+
+- **Conversion engine (library pipeline, Part 3 — L7-L10).** `linux-converter` now converts
+  instead of logging "would convert". Dispatch is first-match by extension, mirroring the
+  allocator's rules idiom: `.pdf`/`.epub` → PyMuPDF4LLM (layout mode; `import pymupdf.layout`
+  is ordered before `import pymupdf4llm` in `converter/engines.py` because pymupdf4llm decides
+  OCR availability at import time), `.docx` → Pandoc (`-t gfm`, media extracted and flattened
+  into the bundle's assets). Clean-lane `.pdf`/`.epub` files are pre-probed for a real text
+  layer (`chars_per_page`, logged on every conversion); sub-threshold files reroute to
+  `pipeline/convert-scan-inbox/` as a normal `allocated` status event. The Scan lane
+  (`use_ocr=OCRMode.FORCE_DROP_OLD` at `ocr_dpi` — NOT the plan doc's `force_ocr=True`, which
+  in pymupdf4llm 1.28 maps to `FORCE_KEEP_OLD` and would *keep* a bad prior OCR layer; in 1.28
+  layout mode OCR is need-based and automatic in every lane, and the modes only control prior
+  OCR spans) is terminal: sub-threshold OCR yield quarantines the source
+  with a `rejected` event — no retry cycle is possible by construction (Open Decision #3,
+  resolved 2026-07-09). Event model, verified empirically: the allocator hop is a rename whose
+  source is outside the converter's watch, which inotify reports as an unpaired `IN_MOVED_TO`
+  = a plain `created` event (never `moved`, never `close_write`) — so the handler reacts to
+  `created` with a size-stability wait, plus `moved` (the reroute) and `closed` (in-place
+  writes), deduped by consuming the source on success.
+  Output is a bundle folder (`<name>.md` + `assets/` + `manifest.json`
+  with source SHA-256), assembled in a dot-prefixed temp dir and published by atomic rename to
+  both `library/anchor/` (immutable snapshot) and `library/staging/` (transient export queue);
+  image links are rewritten to Obsidian embeds (`![[assets/…]]`) and every markdown output is
+  frontmatter-stamped with engine/lane/`lane_reason`/OCR provenance. Tuning lives in
+  `linux-converter/config/converter.toml` (`min_chars_per_page` seed 100 — provisional),
+  re-read per event like `rules.toml`. 26 unit tests added.
+- **`convert-scan` category routing.** `rules.toml` routes `convert-scan` drops (`*.pdf`,
+  `*.epub` — no `.docx`, Pandoc has no OCR) to `pipeline/convert-scan-inbox/`. This is the
+  destination for the Desktop's W7 tile, whose meaning is now *force-OCR override* rather than
+  "the lane for scans" (the probe detects scans itself) — see
+  `coordination/messages/2026-07-09T23-05--linux-to-desktop--w7-semantics-force-scan.md`.
+- **"Force OCR → Vault" widget tile (W7).** Sixth portal (`category = "convert-scan"`, 🔍)
+  added to `config.rs` `AppConfig::default()` and the `portals.json` reference copy (and the
+  live `%APPDATA%\file-portal\config.toml`). Per the 2026-07-09T23-05 coordination message the
+  label is deliberately NOT "Scan → Vault": the Clean lane detects scans itself, so the tile is
+  the user override that discards a garbled embedded OCR layer and re-OCRs at 300 dpi. No
+  `main.js` change — the reroute/reject paths reuse the existing `allocated`/`rejected` events.
+
+### Fixed
+
+- **Hardcoded service paths (Defect A, flagged 2026-06-25, since duplicated).** Both
+  `file-portal-allocator.service` and `file-portal-converter.service` hardcoded
+  `%h/file-portal-src/...` while their `install.sh` copied the unit verbatim, breaking any
+  other clone path. Both installers now `sed`-substitute `__WORKDIR__`/`__EXEC_PATH__`
+  placeholders, matching `linux-dashboard/scripts/install.sh`.
+
+- **Status feed regression on `feat/library-pipeline` (widget ✓/✗ feedback dead).** The
+  `logs/status.json` writer was implemented on `master` (`0c3a074`) but never merged into the
+  branch, so the widget's v2 feedback loop stalled at "allocator pending" the moment the ThinkPad
+  service restarted onto branch code (found by W5 E2E, 2026-07-08). Ported `allocator/status.py`,
+  the CLOSE_WRITE/`on_closed` completion handling with the non-inotify size-stability fallback,
+  the per-file exception guard, quarantine collision-renames, and the 24-test suite
+  (`tests/`, `requirements-dev.txt`) into the branch, reconciled with the L1 quarantine location
+  (`root/quarantine` kept; master's `inbox/quarantine` discarded). Rejection semantics decided
+  per the W5 coordination message: `rejected` = quarantine only; unmatched extensions are
+  `allocated` to `sorted/misc` (the widget shows `dest`).
 
 - **Widget showed nothing on launch (blank/invisible window).** `windows-widget/src/main.js`
   imported the Tauri JS API with bare ES-module specifiers
@@ -73,12 +177,44 @@ Earlier unreleased work (widget render + transport fixes):
 - **File transfer transport could not work as written.** `src-tauri/src/transfer.rs` shelled out to
   `rsync`/`scp` over `tailscale ssh`. `rsync` is not present on stock Windows, and `scp`/plain `ssh`
   fail host-key verification against Tailscale SSH's managed keys. Rewrote `send_one_file()` to
-  stream each file's bytes through `tailscale ssh <user>@<host> "mkdir -p … && cat > …"`, removing
-  the rsync/scp dependency. Remote paths are shell-quoted (with `~/` preserved for expansion) to
-  handle filenames containing spaces or quotes.
+  stream each file's bytes through `tailscale ssh <user>@<host> "mkdir -p … && cat > .part-<name> &&
+  mv -f .part-<name> <name>"`, removing the rsync/scp dependency. Writing to a `.part-` temp and
+  renaming into place makes arrival a single atomic `on_moved` event (the allocator never picks up a
+  half-written file), and the bytes are streamed with `std::io::copy` instead of being buffered in
+  RAM. Remote paths are shell-quoted (with `~/` preserved for expansion) to handle filenames
+  containing spaces or quotes.
+- **A malformed `config.toml` silently reverted to `CHANGE_ME` defaults.** `src-tauri/src/config.rs`
+  now surfaces the TOML parse error (naming the file) and exits, and only seeds defaults when the
+  config is genuinely absent — a present-but-unparseable config no longer masquerades as a working
+  install pointed at the placeholder host/user.
 
 ### Added
 
+- **`convert` category routing (library pipeline, Part 2).** `linux-receiver/config/rules.toml`
+  routes `convert` drops (`*.pdf`, `*.epub`, `*.docx`) to `pipeline/convert-inbox/` — a process
+  mouth for the converter, deliberately outside `sorted/`. Unmatched extensions still fall through
+  to `sorted/misc`. Verified live on the ThinkPad allocator.
+- **`linux-converter/` service skeleton (library pipeline, Part 2).** A second `systemd --user`
+  watcher (`file-portal-converter`) mirroring the allocator's structure and event model (prefer
+  `on_moved`, fall back to `on_created`, skip `.part-*` dotfiles). Watches
+  `~/file-portal/pipeline/convert-inbox` and, for now, only logs `would convert <path>` to
+  `logs/converter.log` — the conversion engine (PyMuPDF4LLM/Pandoc, Clean/Scan lanes) is Part 3.
+  Installed, enabled, and verified end-to-end (allocator hop → converter log) on the ThinkPad.
+
+### Fixed (linux)
+
+- **Quarantine loop.** `allocator/config.py` moved quarantine from `inbox/quarantine/` (inside the
+  watched tree — quarantining fired another event and re-processed the file forever) to
+  `~/file-portal/quarantine/` at the root. Verified live: an oversized file is rejected once and
+  stays quarantined. Docs (`docs/05`, `linux-receiver/README.md`) updated to match.
+- **`linux-converter/scripts/install.sh` was not executable** (mode 100644 vs the receiver's
+  100755), so the documented `./scripts/install.sh` invocation failed.
+
+- **Widget titlebar with drag and minimize.** The frameless window gains a `data-tauri-drag-region`
+  titlebar (grab cursor) with a minimize button wired to `getCurrentWindow().minimize()`;
+  `src-tauri/capabilities/default.json` grants `core:window:allow-start-dragging` and
+  `core:window:allow-minimize`, and the window height goes 160→186 so the bar doesn't crowd the
+  tiles.
 - Surfaced transfer errors to the UI and the console (`send_to_portal failed`, per-file failure
   details) and a clearer "dropped outside any portal" status message.
 - Enabled the Tauri `devtools` feature in `src-tauri/Cargo.toml` for in-app debugging of the

@@ -1,0 +1,16 @@
+[Unit]
+Description=File Portal converter (converts documents dropped into pipeline/convert-inbox)
+After=network-online.target
+
+[Service]
+Type=simple
+# __WORKDIR__ and __EXEC_PATH__ are substituted with the real clone path by scripts/install.sh
+# (same templating as linux-dashboard) -- a hardcoded path breaks any clone not at
+# ~/file-portal-src.
+WorkingDirectory=__WORKDIR__
+ExecStart=__EXEC_PATH__ -m converter.main
+Restart=on-failure
+RestartSec=5
+
+[Install]
+WantedBy=default.target

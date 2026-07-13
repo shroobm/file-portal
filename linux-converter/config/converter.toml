@@ -1,0 +1,17 @@
+# Converter tuning. Re-read on every event (same contract as the allocator's rules.toml), so
+# edits here take effect without a service restart.
+
+[conversion]
+# Minimum extracted characters per page for a text layer to count as real. On the Clean lane,
+# files probing below this are rerouted to the Scan lane; on the Scan lane, OCR output below
+# this quarantines the file (the Scan lane is terminal -- see docs/10, Part 3).
+# PROVISIONAL: 100 is a common heuristic, not a measured fact about this corpus. Every
+# conversion logs its chars_per_page -- revisit after ~30 real documents have been through.
+min_chars_per_page = 100
+
+# OCR render resolution for the Scan lane (force_ocr=True).
+ocr_dpi = 300
+ocr_language = "eng"
+
+# Render resolution for images extracted into the bundle's assets folder.
+image_dpi = 150

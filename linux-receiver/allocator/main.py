@@ -68,8 +68,9 @@ class InboxHandler(FileSystemEventHandler):
     def _allocate(self, file_path: Path):
         if not file_path.exists():
             return
-        # The quarantine directory lives inside the watched inbox tree; without this guard the
-        # allocator would re-process (and endlessly re-log) files it just quarantined.
+        # Quarantine lives outside the watched inbox tree (root/quarantine), so the observer
+        # never fires for quarantined files -- but keep the guard for direct calls and as
+        # defense-in-depth against the old re-processing loop.
         if self.paths.quarantine in file_path.parents:
             return
         # Dot-prefixed files are in-progress temp files (rsync writes `.name.XXXXXX` then

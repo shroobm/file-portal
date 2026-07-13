@@ -12,9 +12,10 @@
 // docs/01-architecture.md for the rationale and docs/08-roadmap.md for revisiting this later.
 
 use crate::config::AppConfig;
+use crate::vault::CREATE_NO_WINDOW;
 use serde::Serialize;
 use std::fs::File;
-use std::io::{Read, Write};
+use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
@@ -83,9 +84,16 @@ fn send_one_file(cfg: &AppConfig, category: &str, local_path: &str) -> Result<()
 
     let remote_dir = format!("{}/{}", cfg.remote_inbox_root, category);
     let remote_path = format!("{remote_dir}/{filename}");
+    // Stream into a dotfile temp first, then atomically rename into place. The receiver's watcher
+    // skips dotfiles and sees the rename as a single `on_moved` event, so it never picks up a
+    // half-written file (the on_created-on-a-partial-file race we diagnosed). The `.part-` name
+    // must stay a dotfile to match the allocator's skip rule.
+    let remote_tmp = format!("{remote_dir}/.part-{filename}");
     let remote_cmd = format!(
-        "mkdir -p {} && cat > {}",
+        "mkdir -p {} && cat > {} && mv -f {} {}",
         remote_path_expr(&remote_dir),
+        remote_path_expr(&remote_tmp),
+        remote_path_expr(&remote_tmp),
         remote_path_expr(&remote_path)
     );
 
@@ -105,18 +113,16 @@ fn send_one_file(cfg: &AppConfig, category: &str, local_path: &str) -> Result<()
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| format!("failed to spawn tailscale ssh: {e}"))?;
 
     {
         let mut stdin = child.stdin.take().expect("stdin was piped");
-        let mut buf = Vec::new();
-        local_file
-            .read_to_end(&mut buf)
-            .map_err(|e| format!("failed to read {local_path}: {e}"))?;
-        stdin
-            .write_all(&buf)
-            .map_err(|e| format!("failed to stream file to remote: {e}"))?;
+        // Stream straight from disk into the remote stdin rather than buffering the whole file in
+        // a Vec first — a large Archive drop would otherwise load fully into RAM on the 16GB box.
+        std::io::copy(&mut local_file, &mut stdin)
+            .map_err(|e| format!("failed to stream {local_path} to remote: {e}"))?;
         // `stdin` drops here, closing the pipe so the remote `cat` sees EOF.
     }
 

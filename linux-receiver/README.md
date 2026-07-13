@@ -30,7 +30,8 @@ python -m allocator.main
 ```
 
 Default root is `~/file-portal` (override with `--root`). This creates `inbox/`, `sorted/`,
-`logs/`, and `inbox/quarantine/` on first run.
+`logs/`, and `quarantine/` on first run. (`quarantine/` sits at the root, *not* inside `inbox/` —
+the watcher would otherwise re-process quarantined files.)
 
 ## Install as a systemd --user service
 

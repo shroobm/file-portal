@@ -9,6 +9,16 @@ match = ["*.pdf", "*.docx", "*.txt", "*.md"]
 destination = "sorted/documents"
 
 [[rule]]
+category = "convert"
+match = ["*.pdf", "*.epub", "*.docx"]
+destination = "pipeline/convert-inbox"   # a process mouth for the converter, NOT under sorted/
+
+[[rule]]
+category = "convert-scan"
+match = ["*.pdf", "*.epub"]              # force-OCR override lane; no .docx (Pandoc has no OCR)
+destination = "pipeline/convert-scan-inbox"
+
+[[rule]]
 category = "photos"
 match = ["*.jpg", "*.jpeg", "*.png", "*.heic"]
 destination = "sorted/photos/{yyyy}/{mm}"

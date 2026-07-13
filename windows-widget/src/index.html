@@ -6,7 +6,17 @@
   <link rel="stylesheet" href="styles.css" />
 </head>
 <body>
+  <div id="titlebar" data-tauri-drag-region>
+    <span class="title" data-tauri-drag-region>File Portal</span>
+    <button id="min-btn" type="button" title="Minimize" aria-label="Minimize">&#8211;</button>
+  </div>
   <div id="portals"></div>
+  <div id="vault-bar" hidden>
+    <button id="vault-btn" type="button">
+      <span class="spark">✳</span><span id="vault-btn-label">Library</span>
+    </button>
+    <span id="vault-note"></span>
+  </div>
   <div id="status"></div>
   <script type="module" src="main.js"></script>
 </body>

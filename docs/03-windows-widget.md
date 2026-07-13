@@ -26,14 +26,14 @@ The widget **does**:
 - present drop targets and basic transfer feedback (queued / sending / done / failed),
 - resolve native file paths from the OS drag-and-drop event,
 - invoke the Rust `send_to_portal(category, paths)` command,
-- stream each file's bytes through `tailscale ssh <user>@<host> "mkdir -p … && cat > …"` to move
-  them (no `rsync`/`scp` dependency — see `src-tauri/src/transfer.rs` for why).
+- shell out to `tailscale ssh <host>` and stream each file's bytes into a remote `cat >` — a `.part-` temp file, then an atomic `mv` into place (no `rsync`/`scp`).
 
 The widget explicitly **does not**:
 - decide the final destination folder on Linux — that's the allocator's job (see
   [`04-linux-receiver.md`](04-linux-receiver.md)),
 - manage SSH keys or credentials — Tailscale SSH handles auth,
-- run anything elevated — it only ever calls the `tailscale` CLI, as the logged-in Windows user.
+- run anything elevated — it only ever calls the `tailscale` CLI as the logged-in Windows user
+  (the remote side needs only `cat`/`mkdir`/`mv`).
 
 ## Key files
 
@@ -42,7 +42,7 @@ The widget explicitly **does not**:
 | `src/index.html` / `main.js` / `styles.css` | Portal UI, drag-and-drop handling, transfer status. |
 | `src-tauri/src/main.rs` | Tauri commands (`list_portals`, `send_to_portal`), app state, entry point. |
 | `src-tauri/src/config.rs` | Loads `%APPDATA%\file-portal\config.toml` (host, user, portals); creates defaults on first run. |
-| `src-tauri/src/transfer.rs` | Streams file bytes through `tailscale ssh … "cat > …"` to move files. |
+| `src-tauri/src/transfer.rs` | Streams files over `tailscale ssh` into a remote `cat >` (`.part-` temp + atomic `mv`); no `rsync`/`scp`. |
 | `src-tauri/tauri.conf.json` | Window config (borderless, always-on-top, size) and app metadata. |
 | `portals.json` | Reference copy of the default portal set; not read at runtime (see `config.rs`). |
 

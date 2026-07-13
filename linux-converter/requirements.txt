@@ -1,0 +1,2 @@
+watchdog>=4.0,<5
+pymupdf4llm>=1.28,<2

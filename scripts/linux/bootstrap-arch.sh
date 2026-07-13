@@ -17,6 +17,9 @@ fi
 echo "==> Installing system dependencies (git, python, rsync) via pacman..."
 sudo pacman -S --needed --noconfirm git python rsync
 
+echo "==> Enabling user lingering so the --user allocator runs without an active login..."
+sudo loginctl enable-linger "$USER"
+
 if [ -d "$CLONE_DIR/.git" ]; then
   echo "==> $CLONE_DIR already exists, pulling latest..."
   git -C "$CLONE_DIR" pull --ff-only

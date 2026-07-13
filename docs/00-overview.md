@@ -23,12 +23,16 @@ Three pieces, each with one job:
 3. **The Windows widget + Linux allocator** — the part this repo actually builds:
    - **`windows-widget/`**: a small always-on-top Tauri app. Each "portal" on screen represents one
      destination category (e.g. *Documents*, *Photos*, *Code*). Drop a file on a portal and the app
-     streams the file's bytes over `tailscale ssh` into a per-category inbox folder on the
-     Linux box.
+     streams it over `tailscale ssh` into a per-category inbox folder on the Linux box — a remote
+     `cat >` into a `.part-` temp file, then an atomic rename (no `rsync`/`scp`).
    - **`linux-receiver/`**: a `systemd --user` Python service that watches the inbox folder(s) and
      moves files into their final destination according to rules in
      [`linux-receiver/config/rules.toml`](../linux-receiver/config/rules.toml) — e.g. by file
      extension, by which portal/category it arrived through, or by simple glob patterns.
+   - **`linux-converter/`**: a second `systemd --user` service that watches
+     `~/file-portal/pipeline/convert-inbox` — where the allocator routes the `convert` category —
+     and turns dropped documents into markdown bundles. Currently a log-only skeleton; the
+     conversion engine is Part 3 of [`10-library-pipeline-plan.md`](10-library-pipeline-plan.md).
    - **`linux-dashboard/`** (optional, read-only): a standalone GTK4 desktop app that visualizes
      what's actually in `sorted/` — a thumbnail gallery for photos, a browsable list for
      everything else — and updates live as the allocator sorts new files in. Not part of the
