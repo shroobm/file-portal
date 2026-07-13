@@ -58,18 +58,34 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD
+**Date:** 2026-07-13
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. Fix `CI / python` on PR #1: pytest collection dies with `No module named 'allocator'` because
+   the runner never installs the package and bare `pytest` doesn't put the package root on
+   `sys.path`. Fix: add `[tool.pytest.ini_options] pythonpath = ["."]` to
+   `linux-receiver/pyproject.toml` and `linux-converter/pyproject.toml` (same latent bug; its
+   tests aren't in CI yet but pytest should be self-sufficient everywhere).
+2. Fix `CI / rust`: `cargo fmt --check` diffs in `status.rs:45`, `vault.rs:86`, `vault.rs:118`
+   (post-July-5 code never formatted). Fix: `cargo fmt`, then pre-clear the next CI step with
+   `cargo clippy --all-targets -- -D warnings`. Zero behavior change.
+3. Push to feat, watch the PR #1 CI run to green.
+4. Merge PR #1 into master with a **merge commit** (never squash/rebase); keep the feat branch.
+5. Delete stale `fix/widget-blank-window` on origin.
+6. Close: CHANGELOG entry, session log, ledger row.
 
 ### How I'll verify each step:
-1.
+1. Fresh venv with ONLY `requirements-dev.txt` (CI's exact install), `pytest tests/` from
+   `linux-receiver/` — must fail before the edit, pass after.
+2. `cargo fmt --check` exits 0; clippy clean with `-D warnings`.
+3. `gh pr checks 1 --watch` / statusCheckRollup all SUCCESS.
+4. `gh pr view 1` → MERGED; `git log origin/master -1` is a merge commit with two parents.
+5. `git ls-remote origin fix/widget-blank-window` returns nothing.
 
 ### Dependencies / blockers:
--
+- Branch protection on master already relaxed (review requirement removed) earlier tonight.
 
 ---
 
