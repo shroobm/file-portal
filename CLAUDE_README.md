@@ -58,18 +58,26 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Desktop, post-reset)
+**Date:** 2026-07-18
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. Commit the GPU pipeline revamp scope (from the 2026-07-18 planning session) as `docs/11-gpu-pipeline-revamp.md`.
+2. **Phase 0 — Desktop ML baseline:** install `uv`, a real Python (machine only has the Store stub), torch cu12x.
+3. **Phase 1 — Marker vertical slice:** install `marker-pdf`, convert the Stafford Beer PDF (the first-ever real ingest, so it's known ground truth), measure wall time + peak VRAM.
+4. Quality comparison: fresh `pymupdf4llm` conversion of the same PDF on this machine (the vault copy isn't on disk post-reset), side-by-side against Marker's output.
+5. Record the Phase 1 gate verdict in docs/11 and close the session.
 
 ### How I'll verify each step:
-1.
+1. Doc committed + pushed.
+2. `python -c "import torch; print(torch.cuda.is_available())"` → `True`, device name = RTX 3080.
+3. `marker_single` produces markdown; `nvidia-smi` polled during the run for peak VRAM; gate = VRAM ≤ ~6 GB.
+4. Side-by-side read of both outputs: headings, reading order, image handling, hyphenation/artifacts.
 
 ### Dependencies / blockers:
--
+- ML env lives OUTSIDE this repo (`C:\Users\Bndit\ml\`) — nothing but docs changes land here.
+- `gh` not yet re-authenticated post-reset; plain `git push` over the existing remote should still work — will surface if not.
 
 ---
 
