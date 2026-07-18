@@ -143,6 +143,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-12 | Desktop | W8 console-flash regression fixed (CREATE_NO_WINDOW, all spawn sites) | CLAUDE_README, CHANGELOG | 99a5271 |
 | 2026-07-12 | ThinkPad | L15 (fixed + live-verified; interiors Windows-clean at source) | CLAUDE_README, CHANGELOG, coordination | d53c152 |
 | 2026-07-13 | Desktop | CI python+rust repaired (first contact); **PR #1 MERGED to master (`7c006f2`)**; fix/widget-blank-window deleted on origin; 2a1778f merge accounted | CLAUDE_README, CHANGELOG | b340684 |
+| 2026-07-18 | Desktop | GPU revamp scoped (docs/11); Phase 0 PASSED (torch cu128 on 3080); Phase 1 Marker A/B = mixed pass, force_ocr ruled out at defaults | CLAUDE_README, docs/11 | 071a918 |
 
 ---
 
