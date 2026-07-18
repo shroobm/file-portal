@@ -58,26 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Desktop, post-reset)
-**Date:** 2026-07-18
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. Commit the GPU pipeline revamp scope (from the 2026-07-18 planning session) as `docs/11-gpu-pipeline-revamp.md`.
-2. **Phase 0 — Desktop ML baseline:** install `uv`, a real Python (machine only has the Store stub), torch cu12x.
-3. **Phase 1 — Marker vertical slice:** install `marker-pdf`, convert the Stafford Beer PDF (the first-ever real ingest, so it's known ground truth), measure wall time + peak VRAM.
-4. Quality comparison: fresh `pymupdf4llm` conversion of the same PDF on this machine (the vault copy isn't on disk post-reset), side-by-side against Marker's output.
-5. Record the Phase 1 gate verdict in docs/11 and close the session.
+1.
 
 ### How I'll verify each step:
-1. Doc committed + pushed.
-2. `python -c "import torch; print(torch.cuda.is_available())"` → `True`, device name = RTX 3080.
-3. `marker_single` produces markdown; `nvidia-smi` polled during the run for peak VRAM; gate = VRAM ≤ ~6 GB.
-4. Side-by-side read of both outputs: headings, reading order, image handling, hyphenation/artifacts.
+1.
 
 ### Dependencies / blockers:
-- ML env lives OUTSIDE this repo (`C:\Users\Bndit\ml\`) — nothing but docs changes land here.
-- `gh` not yet re-authenticated post-reset; plain `git push` over the existing remote should still work — will surface if not.
+-
 
 ---
 
@@ -121,7 +113,8 @@ git pull  # always first
   CONVERTED → EXPORTED `b914af1b`, committed paths measured 158/139/89 bytes by `ls-tree`.
   Desktop's `core.longpaths` mitigation may stay but is no longer needed for new bundles.
 - ✅ **PR #1 (feat/library-pipeline → master) MERGED 2026-07-13 (`7c006f2`, merge commit, branch kept)** after repairing both first-contact CI failures same session: `CI / python` (pytest couldn't import the packages in the bare runner venv — `pythonpath = ["."]` added to both Python pyproject.tomls) and `CI / rust` (`cargo fmt` on post-July-5 widget code; clippy pre-cleared). All 6 checks green (python 14s, rust 3m14s, CodeQL ×3 + summary). Stale `fix/widget-blank-window` deleted on origin (all 5 commits patch-equivalent in feat, verified with `git cherry`). Known-red follow-ups: CI runs no `linux-converter`/`linux-dashboard` tests; checkout/setup-python actions emit Node 20 deprecation warnings.
-- ▶ Next up: real usage — drop documents with their natural names. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions (chars_per_page is logged on every one; first real doc probed 1484.7, the L13 live gate's dense single page probed 118.0).
+- ✅ **GPU pipeline revamp scoped + Phase 0+1 executed 2026-07-18 (Desktop)** — scope committed as `docs/11-gpu-pipeline-revamp.md`; Phase 0 gate PASSED (uv + Python 3.12.13 + torch 2.11.0+cu128, 3080 visible); Phase 1 Marker-vs-pymupdf4llm A/B on the Beer book = **mixed pass** (Marker structurally better — paragraphs, sketches, 36 images, `_meta.json` TOC — but inherits `<sup>`/word-merge noise from the PDF's embedded 2013 OCR layer; `--force_ocr` at defaults thrashes the 10 GB card, killed at 27 min). Full numbers + fix candidates in docs/11.
+- ▶ Next up (Desktop, revamp lane): **Phase 1.5 retests before any rewiring** — `--strip_existing_ocr` with capped `--recognition_batch_size` on a `--page_range` subset, then one born-digital PDF A/B. Phase 2 (Ollama handoff) and all ThinkPad work NOT started — deliberately waiting on the user. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
 
 ---
 
@@ -673,3 +666,17 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** the before/after pytest transcripts in the CI-sim venv, fmt/clippy exit codes, `gh pr checks` final table, `git log origin/master -1 --format="%h %p %s"`, `git cherry` output, `ls-remote` empty result. §4 accounting over `d53c152..HEAD`: `2a1778f` merge-carried files (ci.yml, coordination README + 07-05 brief, docs/08, linux-dashboard/*, linux-converter test/bundle changes) belong to master's history and the merge commit's message; this session's source changes (2 pyproject.tomls, 4 widget .rs files) are covered by the CHANGELOG entry; CLAUDE_README + CHANGELOG in this session's ledger row.
 **master now contains the full library pipeline; CI is green on contact.**
 **Next for ThinkPad:** none open. **Next for Desktop/user:** real usage (unchanged carry-forwards: re-download Brand Identity, tidy Textor anchor dupes, `min_chars_per_page` review). CI follow-ups when convenient: add converter/dashboard tests to the python job; bump `actions/checkout` and `setup-python` majors to silence Node 20 deprecation warnings.
+
+### 2026-07-18 — Desktop agent Session 13 (Claude Code / Fable) — GPU revamp scope + Phase 0+1
+**Machine:** DESKTOP-OBTQIRD (Windows, post-reset)
+**Plan:** Commit the GPU pipeline revamp scope (from the same-day planning session) as docs/11, then run Phase 0 (Desktop ML baseline) + Phase 1 (Marker vertical slice vs pymupdf4llm ground truth) in one sitting. Plan committed `f531451` before work.
+**What was done (each step verified):**
+- *Scope doc (`5e8b945`):* `docs/11-gpu-pipeline-revamp.md` — verified hardware table, VRAM math, both red flags (Forgejo not-on-Windows; ThinkPad unbenchmarked), the intake-flow inversion and its bundle-format-compatibility constraint, pre-answered decisions, Phases 0–5 with gates.
+- *Phase 0 (no repo changes):* `uv` 0.11.29 via winget; CPython 3.12.13; torch **2.11.0+cu128** in `C:\Users\Bndit\ml\marker-env`. Gate verified: `torch.cuda.is_available() → True`, device `NVIDIA GeForce RTX 3080`. (One benign uv quirk: "Missing expected target directory for Python minor version link" — the interpreter installs and works anyway.)
+- *Baseline:* `C:\Users\Bndit\ml\pymu-env` with pymupdf4llm **1.28.0 — the exact ThinkPad pin** — driven by a script replicating `engines.run_pymupdf` Clean-lane flags verbatim (incl. the load-bearing `pymupdf.layout` import order). Probe reproduced the recorded first-ingest value **to the decimal** (1484.7 chars/page) → faithful ground truth. 74.8 s, 24 images.
+- *Phase 1 Marker run:* marker-pdf **1.10.2** (surya 0.17.1), default mode, warm conversion **97.3 s**, peak VRAM **8 675 MiB** (desktop baseline 1 156). Structurally better across the board (real paragraphs; 1 vs 30 bogus blockquotes; 36 vs 24 images; relative image paths; clean sketch captions where pymu emitted OCR-gibberish "picture text"; `_meta.json` structural TOC). Defect class inherited from the PDF's embedded 2013 Archive.org OCR layer: **319** `<sup>` artifacts, scrambled TOC table, word merges.
+- *`--force_ocr` probe:* saturated the GPU 27+ min with no output at **9 939 MiB** peak (batch auto-scaling thrashes the 10 GB ceiling on a full-book 1 281-region re-OCR) — killed deliberately. Ruled out at defaults; not a hardware fault.
+- *Verdict recorded in docs/11:* **Phase 1 = mixed pass.** Fix candidates ranked (all flags verified against `marker_single --help`): `--strip_existing_ocr` + capped `--recognition_batch_size` on a `--page_range` subset first; general batch caps to hit the ≤6 GB coexistence budget; deterministic `<sup>`/hyphenation post-pass in the bundle normalizer; born-digital PDF A/B as the missing evidence half.
+**Verification:** torch gate output; probe-value match vs the 2026-07-12 ingest record; artifact counts measured on both outputs (`<sup>`, blockquote lines, image counts); nvidia-smi 2 s-interval VRAM logs (peaks extracted, logs deleted after); side-by-side reads of front matter + the Ashby's Law sketch pages. §4 accounting over `ab69064..HEAD`: CLAUDE_README + docs/11 only — doc/protocol files, in this row; no source changes, no CHANGELOG entry needed. Test artifacts kept at `C:\Users\Bndit\ml\phase1\` for the user's own inspection.
+**Boundaries honored (user-set):** no Phase 2 (Ollama), nothing ThinkPad-side.
+**Next for Desktop:** Phase 1.5 retests (strip-existing-ocr timed subset; born-digital book), then Phase 2 with the user present. **Next for ThinkPad:** nothing new — waits on the user's go.
