@@ -144,6 +144,114 @@ function applyStatusEvent(category, ev) {
 }
 
 
+// ---- S18: pre-flight analyst cards ---------------------------------------------------
+// The Desktop converter parks bundles in pending/ when analyst-mode is "ask"; each gets a
+// card here: measured ETAs, privacy labels, the estimator's recommendation, and three
+// routes. A click spawns the detached resume (Rust preflight_decide) and the card lives
+// until the resume ships the bundle (json deleted) or fails (state: "failed").
+
+const cardsEl = document.getElementById("preflight-cards");
+const PF_POLL_MS = 15000;
+const PF_FAST_POLL_MS = 4000;
+let pfFastUntil = 0;
+let pfWorking = new Set(); // ids clicked this session, until their card disappears
+
+const BASE_HEIGHT = 224;
+const CARD_HEIGHT = 76;
+
+function pfEta(s) {
+  if (s == null) return "?";
+  return s < 90 ? `~${s}s` : `~${Math.round(s / 60)}m`;
+}
+
+function pfResize(count) {
+  const { LogicalSize } = window.__TAURI__.dpi;
+  getCurrentWindow()
+    .setSize(new LogicalSize(480, BASE_HEIGHT + count * CARD_HEIGHT))
+    .catch((e) => console.warn("resize failed", e));
+}
+
+function pfRender(cards) {
+  cardsEl.innerHTML = "";
+  for (const card of cards) {
+    const pf = card.preflight ?? {};
+    const local = pf.backends?.local ?? {};
+    const gemini = pf.backends?.gemini ?? {};
+    const rec = pf.recommendation;
+    const working = card.state === "running" || pfWorking.has(card.id);
+    const failed = card.state === "failed";
+
+    const el = document.createElement("div");
+    el.className = "pf-card" + (working ? " working" : "");
+    el.dataset.id = card.id;
+
+    const meta = [
+      `${pf.est_chunks ?? "?"} chunks`,
+      `~${((pf.est_tokens ?? 0) / 1000).toFixed(1)}k tok`,
+      pf.gpu_busy ? "⚠ GPU busy" : "GPU free",
+    ].join(" · ");
+
+    const warn = failed
+      ? `<div class="pf-warn pf-error">✗ ${card.error ?? "failed"} — pick a route to retry</div>`
+      : gemini.warning
+        ? `<div class="pf-warn">⚠ ${gemini.warning}</div>`
+        : "";
+
+    el.innerHTML =
+      `<div class="pf-title"><span class="spark">✳</span>` +
+      `<span class="name">${card.bundle_name}</span></div>` +
+      `<div class="pf-meta">${working ? "analyst working…" : meta}</div>` +
+      warn +
+      `<div class="pf-actions">` +
+      `<button class="pf-btn${rec === "local" ? " recommended" : ""}" data-backend="local" ${working ? "disabled" : ""}>🔒 Local ${pfEta(local.eta_s)}</button>` +
+      `<button class="pf-btn${rec === "gemini" ? " recommended" : ""}" data-backend="gemini" ${working ? "disabled" : ""}>☁ Flash ${pfEta(gemini.eta_s)}</button>` +
+      `<button class="pf-btn" data-backend="none" ${working ? "disabled" : ""}>Ship as-is</button>` +
+      `</div>`;
+
+    el.querySelectorAll(".pf-btn").forEach((btn) =>
+      btn.addEventListener("click", () => pfDecide(card.id, btn.dataset.backend))
+    );
+    cardsEl.appendChild(el);
+  }
+  pfResize(cards.length);
+}
+
+async function pfDecide(id, backend) {
+  try {
+    pfWorking.add(id);
+    setStatus(backend === "none" ? "Shipping as-is…" : `Analyst (${backend}) started…`);
+    await invoke("preflight_decide", { id, backend });
+    pfFastUntil = Date.now() + 20 * 60 * 1000; // watch the queue closely until it clears
+    await pfCheck();
+  } catch (err) {
+    pfWorking.delete(id);
+    console.error("preflight_decide failed", err);
+    setStatus(`Route failed: ${err}`);
+  }
+}
+
+async function pfCheck() {
+  try {
+    const cards = await invoke("preflight_list");
+    for (const id of [...pfWorking]) {
+      if (!cards.some((c) => c.id === id)) {
+        pfWorking.delete(id); // shipped and cleared — the vault will glow shortly
+        setStatus("✓ analyst done — bundle shipped");
+        vaultFastPoll();
+      }
+    }
+    pfRender(cards);
+  } catch (err) {
+    console.warn("preflight_list failed", err);
+  }
+}
+
+async function pfLoop() {
+  await pfCheck();
+  const wait = Date.now() < pfFastUntil ? PF_FAST_POLL_MS : PF_POLL_MS;
+  setTimeout(pfLoop, wait);
+}
+
 // ---- W8: Add-to-Library button -------------------------------------------------------
 // The vault clone lives on this machine; new bundles only appear locally after a git pull.
 // This bar polls `vault_check` (git fetch + behind-count in Rust), glows when the ThinkPad
@@ -245,3 +353,4 @@ init().catch((err) => {
   setStatus(`Init error: ${err}`);
 });
 vaultLoop();
+pfLoop();

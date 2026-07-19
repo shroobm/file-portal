@@ -162,6 +162,86 @@ body {
   color: #9a938d;
 }
 
+/* S18 — pre-flight analyst cards. Same Claude Code language as the vault bar: near-black
+   panel, terracotta accent, monospace. One card per converted bundle awaiting routing. */
+#preflight-cards {
+  margin: 0 12px;
+}
+
+.pf-card {
+  margin-bottom: 6px;
+  padding: 6px 8px;
+  border-radius: 10px;
+  background: rgba(20, 18, 17, 0.9);
+  border: 1px solid rgba(217, 119, 87, 0.35);
+  font-family: Consolas, "Cascadia Mono", monospace;
+}
+
+.pf-title {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  font-size: 11px;
+  color: #e8e2dd;
+  white-space: nowrap;
+  overflow: hidden;
+}
+.pf-title .spark { color: #d97757; flex: none; }
+.pf-title .name { overflow: hidden; text-overflow: ellipsis; }
+
+.pf-meta {
+  font-size: 10px;
+  color: #9a938d;
+  margin: 2px 0 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pf-warn {
+  font-size: 10px;
+  color: #e0b34c;
+  margin: 0 0 5px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.pf-error { color: #f44336; }
+
+.pf-actions { display: flex; gap: 6px; }
+
+.pf-btn {
+  flex: 1;
+  padding: 4px 6px;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8e2dd;
+  font-family: inherit;
+  font-size: 10px;
+  line-height: 1.5;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: background 0.15s, border-color 0.15s;
+}
+.pf-btn:hover:not(:disabled) { background: rgba(255, 255, 255, 0.14); }
+.pf-btn:disabled { opacity: 0.4; cursor: default; }
+
+/* The estimator's recommendation gets the terracotta treatment. */
+.pf-btn.recommended {
+  border-color: #d97757;
+  background: rgba(217, 119, 87, 0.16);
+}
+.pf-btn.recommended:hover:not(:disabled) { background: rgba(217, 119, 87, 0.3); }
+
+/* Decision made, resume in flight: spark spins, buttons lock. */
+.pf-card.working { border-color: rgba(217, 119, 87, 0.7); }
+.pf-card.working .spark {
+  display: inline-block;
+  animation: vault-spin 1s linear infinite;
+}
+
 #status {
   padding: 0 12px 10px;
   font-size: 11px;

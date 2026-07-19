@@ -25,6 +25,16 @@ pub struct AppConfig {
     /// Add-to-Library button is hidden. `serde(default)` keeps pre-W8 config files parsing.
     #[serde(default)]
     pub vault_library_dir: String,
+    /// S18 GPU pipeline root (holds pending\, drop\, anchor\ — see windows-converter/).
+    /// Empty = the pre-flight card is hidden; the same per-segment-toggle pattern as above.
+    #[serde(default)]
+    pub gpu_pipeline_dir: String,
+    /// Interpreter + script dir for the Desktop converter (marker-env python; the repo's
+    /// windows-converter folder). Both required for the card's route buttons to act.
+    #[serde(default)]
+    pub gpu_python_exe: String,
+    #[serde(default)]
+    pub gpu_converter_dir: String,
     pub portals: Vec<Portal>,
 }
 
@@ -35,6 +45,9 @@ impl Default for AppConfig {
             remote_user: "CHANGE_ME".into(),
             remote_inbox_root: "~/file-portal/inbox".into(),
             vault_library_dir: String::new(),
+            gpu_pipeline_dir: String::new(),
+            gpu_python_exe: String::new(),
+            gpu_converter_dir: String::new(),
             portals: vec![
                 Portal {
                     category: "documents".into(),

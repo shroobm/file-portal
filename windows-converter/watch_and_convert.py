@@ -38,9 +38,10 @@ logger = logging.getLogger("fp-desktop-watcher")
 
 
 def analyst_mode() -> str:
+    # "ask" parks conversions in pending/ for the widget's pre-flight card (S18).
     try:
         mode = MODE_FILE.read_text(encoding="utf-8").strip().lower()
-        return mode if mode in ("off", "local", "gemini") else "off"
+        return mode if mode in ("off", "local", "gemini", "ask") else "off"
     except OSError:
         return "off"
 
@@ -64,7 +65,9 @@ def stable_size(path: Path, interval: float = 1.0, timeout: float = 120.0) -> bo
 def convert_one(pdf: Path) -> None:
     mode = analyst_mode()
     args = [PYTHON, str(CONVERT), str(pdf)]
-    if mode != "off":
+    if mode == "ask":
+        args += ["--defer-analyst"]
+    elif mode != "off":
         args += ["--analyst", "--backend", mode]
     logger.info("CONVERTING %s (analyst=%s)", pdf.name, mode)
     LOCK_FILE.write_text(pdf.name, encoding="utf-8")

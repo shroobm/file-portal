@@ -8,6 +8,30 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S18 — pre-flight analyst card in the widget + `windows-converter/` GPU lane (2026-07-19).**
+  The Phase 4 intake inversion's Desktop half (docs/11+12): a new top-level
+  `windows-converter/` (Python, runs in the `marker-env` outside the repo) converts
+  documents on the Desktop GPU with Marker — policy-routed via a text-render-mode-3 OCR-layer
+  probe (default vs `--strip_existing_ocr` + capped batches) — assembles bundles
+  format-identical to `linux-converter`'s, and ships them to ThinkPad staging over
+  tar-through-`tailscale ssh` (dot-dir + atomic `mv`); the unchanged exporter commits them
+  (cross-machine dedup live-proven: EXPORTED `6008eb66`, re-ship + Beer both EXPORT-SKIP).
+  Optional link-fenced analyst pass (`analyst.py`): every embed becomes an opaque
+  `⟦IMG-n⟧` token before the LLM sees text and must survive verbatim, or that chunk ships
+  un-analyzed — two backends behind one flag, local `qwen3:8b` (air-gapped, 138 chars/s
+  measured) and `gemini-flash-latest` (cloud, 186.7 chars/s, 13 s pacing + backoff under
+  the measured free-tier 20-request window), both book-proven (44/47 with 3 fence-saves;
+  7/7). `watch_and_convert.py` watches `drop/` (dotfile skip, stability wait, sequential
+  single-flight, done/failed archiving; live E2E drop→convert→ship→EXPORT-SKIP in 52 s).
+  **Widget:** new `#preflight-cards` panel (vault-bar's Claude Code styling) rendering
+  `analyst.preflight()` JSON per parked bundle — measured ETAs, chunk/token counts,
+  GPU-busy flag, free-tier warning, privacy labels, terracotta-highlighted recommendation —
+  with three routes (🔒 Local / ☁ Flash / Ship as-is); a click spawns the converter's
+  `--resume` detached (`preflight.rs`, `CREATE_NO_WINDOW`) and the card tracks
+  running/failed states until the queue clears and the vault bar takes over. New config
+  keys (all `serde(default)`, feature hidden when unset): `gpu_pipeline_dir`,
+  `gpu_python_exe`, `gpu_converter_dir`. Window grows per visible card
+  (`core:window:allow-set-size`). Watcher analyst-mode gains `ask` = park for the card.
 - **W8 — "Add to Library" button in the widget (2026-07-12).** New `#vault-bar` under the
   tiles (Claude Code-styled: near-black panel, terracotta `#D97757` accent, monospace, ✳
   glyph) backed by a new `src-tauri/src/vault.rs`: `vault_check` (git fetch + behind-count +

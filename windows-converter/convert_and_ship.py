@@ -30,6 +30,7 @@ import pymupdf
 
 MARKER = Path(r"C:\Users\Bndit\ml\marker-env\Scripts\marker_single.exe")
 ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
+PENDING = Path(r"C:\Users\Bndit\ml\library\pending")  # deferred-analyst queue (widget card)
 REMOTE = "rab@archlinux"
 REMOTE_STAGING = "~/file-portal/library/staging"
 MIN_CHARS_PER_PAGE = 100  # provisional, same value + revisit-note as the ThinkPad's
@@ -256,15 +257,99 @@ def shell_quote(s: str) -> str:
     return "'" + s.replace("'", "'\\''") + "'"
 
 
+def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
+    """Run the link-fenced analyst over an already-assembled bundle's markdown, updating
+    the note's frontmatter and manifest in place. Used by the --resume (widget card) path."""
+    import analyst
+
+    md_path = bundle_dir / f"{bundle_name}.md"
+    raw = md_path.read_text(encoding="utf-8")
+    head, body = raw.split("---\n", 2)[1], raw.split("---\n", 2)[2]
+    new_body, meta = analyst.process(body, backend=backend)
+    frontmatter = (
+        f"---\nanalyst:\n  model: {meta['model']}\n  backend: {meta['backend']}\n"
+        f"  chunks_passed: {meta['chunks_passed']}\n"
+        f"  chunks_rejected: {meta['chunks_rejected']}\n"
+        f"  chunks_failed: {meta['chunks_failed']}\n"
+        f"  duration_s: {meta['duration_s']}\n" + head + "---\n"
+    )
+    md_path.write_text(frontmatter + new_body, encoding="utf-8")
+    manifest_path = bundle_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest["analyst"] = meta
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+    return meta
+
+
+def defer(tmp_dir: Path, bundle_name: str, manifest: dict, markdown_chars: int) -> None:
+    """Park the bundle in the pending queue for the widget's pre-flight card."""
+    import analyst
+
+    pend_id = manifest["source_sha256"][:16]
+    PENDING.mkdir(parents=True, exist_ok=True)
+    dest = PENDING / pend_id
+    if dest.exists():
+        shutil.rmtree(dest)
+    shutil.copytree(tmp_dir, dest)
+    card = {
+        "id": pend_id,
+        "bundle_name": bundle_name,
+        "source": manifest["source"],
+        "source_sha256": manifest["source_sha256"],
+        "state": "pending",
+        "created_at": manifest["converted_at"],
+        "preflight": analyst.preflight(markdown_chars),
+    }
+    (PENDING / f"{pend_id}.json").write_text(
+        json.dumps(card, indent=2) + "\n", encoding="utf-8"
+    )
+    print(f"PENDING {pend_id} — awaiting analyst decision (widget card)", flush=True)
+
+
+def resume(pend_id: str, backend: str) -> None:
+    """Widget card decision: analyst (or not) + ship a parked bundle, then clear it."""
+    json_path = PENDING / f"{pend_id}.json"
+    card = json.loads(json_path.read_text(encoding="utf-8"))
+    bundle_dir = PENDING / pend_id
+    card["state"] = "running"
+    json_path.write_text(json.dumps(card, indent=2) + "\n", encoding="utf-8")
+    try:
+        if backend in ("local", "gemini"):
+            meta = apply_analyst(bundle_dir, card["bundle_name"], backend)
+            print(f"ANALYST done: {meta}", flush=True)
+            # Refresh the anchor copy so it matches what ships.
+            anchor_dest = unique_anchor(ANCHOR / f"{card['bundle_name']} [analyst-{backend}]")
+            shutil.copytree(bundle_dir, anchor_dest)
+        ship(bundle_dir, card["bundle_name"], card["source_sha256"])
+        shutil.rmtree(bundle_dir)
+        json_path.unlink()
+        print(f"RESUMED+SHIPPED {pend_id}", flush=True)
+    except Exception as exc:
+        card["state"] = "failed"
+        card["error"] = str(exc)[:300]
+        json_path.write_text(json.dumps(card, indent=2) + "\n", encoding="utf-8")
+        raise
+
+
 def main():
     ap = argparse.ArgumentParser()
-    ap.add_argument("pdf", type=Path)
+    ap.add_argument("pdf", type=Path, nargs="?")
     ap.add_argument("--dry-run", action="store_true", help="convert + bundle, do not ship")
     ap.add_argument("--analyst", action="store_true",
                     help="run the link-fenced LLM readability pass (docs/12 slice 2)")
-    ap.add_argument("--backend", choices=["local", "gemini"], default="local",
+    ap.add_argument("--backend", choices=["local", "gemini", "none"], default="local",
                     help="analyst backend: local qwen3 (air-gapped) or Gemini Flash (cloud)")
+    ap.add_argument("--defer-analyst", action="store_true",
+                    help="convert + park in pending/ for the widget pre-flight card; no ship")
+    ap.add_argument("--resume", metavar="ID",
+                    help="ship a pending bundle (widget decision), analyst per --backend")
     args = ap.parse_args()
+
+    if args.resume:
+        resume(args.resume, args.backend)
+        return
+    if args.pdf is None:
+        sys.exit("a PDF path is required unless --resume is given")
     src = args.pdf.resolve()
     if not src.is_file():
         sys.exit(f"not a file: {src}")
@@ -277,7 +362,10 @@ def main():
         anchor_dest = unique_anchor(ANCHOR / bundle_name)
         shutil.copytree(tmp_dir, anchor_dest)
         print(f"ANCHORED {anchor_dest}", flush=True)
-        if args.dry_run:
+        if args.defer_analyst:
+            md = (tmp_dir / f"{bundle_name}.md").read_text(encoding="utf-8")
+            defer(tmp_dir, bundle_name, manifest, len(md))
+        elif args.dry_run:
             print("DRY-RUN: not shipping", flush=True)
         else:
             ship(tmp_dir, bundle_name, manifest["source_sha256"])

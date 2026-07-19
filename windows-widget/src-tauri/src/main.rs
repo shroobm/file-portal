@@ -2,6 +2,7 @@
 // behind the widget on every launch (visible in the W8 live test).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod config;
+mod preflight;
 mod status;
 mod transfer;
 mod vault;
@@ -41,6 +42,31 @@ fn fetch_file_status(
     Ok(status::find_event(&events, &filename, &category))
 }
 #[tauri::command]
+fn preflight_list(state: State<AppState>) -> Result<Vec<serde_json::Value>, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    preflight::list(&dir)
+}
+#[tauri::command]
+fn preflight_decide(state: State<AppState>, id: String, backend: String) -> Result<(), String> {
+    let (dir, py, conv) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (
+            cfg.gpu_pipeline_dir.clone(),
+            cfg.gpu_python_exe.clone(),
+            cfg.gpu_converter_dir.clone(),
+        )
+    };
+    preflight::decide(&dir, &py, &conv, &id, &backend)
+}
+#[tauri::command]
 fn vault_check(state: State<AppState>) -> Result<vault::VaultStatus, String> {
     // Clone the path out so the git fetch (seconds over tailscale ssh) runs lock-free.
     let dir = state
@@ -71,6 +97,8 @@ fn main() {
             list_portals,
             send_to_portal,
             fetch_file_status,
+            preflight_list,
+            preflight_decide,
             vault_check,
             vault_pull
         ])
