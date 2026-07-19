@@ -792,3 +792,9 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 - `cargo fmt` + `clippy -D warnings` clean; release build; widget restarted on it.
 **§4 accounting `66d5f19..HEAD`:** windows-converter/* + windows-widget/* in the feat commit (CHANGELOG: S20 rides under the S18 Unreleased entry's feature family; formal entry folds in at the next release cut); CLAUDE_README this row.
 **Next for Desktop:** S21 — the line view (chips through stations, Convert-station visibility, station toggles, reader launcher icons). **Next for ThinkPad:** unchanged.
+
+### 2026-07-19 — Desktop agent Session 21 (Claude Code / Fable) — the line is visible
+**Machine:** DESKTOP-OBTQIRD. **Plan `39d6a75`.**
+**Done (each verified):** `line.rs` — one `line_state` read (drop-waiting count, converting name from `.gpu-lock`, failed count, last-shipped from the events tail) + `analyst_mode_get/set` (projects `analyst-mode.txt`; ask/local/gemini/off) + `open_reader` (config-allowlisted exe/URI) + `open_failed_tray`. UI: the docs/13 station strip `▚ drop ▸ ⚙ convert ▸ ✳ gate ▸ ⇈ ship ▸ ▤ library` above the cards — Convert shows the piece in the press (green when active), the gate shows its mode and flips terracotta only when cards wait (the color law holds), Drop shows a clickable amber `+N✗` when the failed tray has pieces; gate click cycles the 4 modes; Obsidian ◆ / ZenNotes ◈ titlebar launchers (config keys `reader_obsidian`/`reader_zennotes`, live config set: obsidian:// URI + ZenNotes.exe). Window reflow accounts for the strip. `clippy -D warnings` clean; release build; widget restarted (watcher auto-spawned again).
+**§4 `39d6a75..HEAD`:** windows-widget/* in the feat commit; CLAUDE_README this row.
+**Next:** S22 (same sitting): receipts, auto-route rule, ETA ranges from rolling event rates.
