@@ -42,8 +42,8 @@ Today's intake converts **on the ThinkPad**. This revamp reverses the flow: PDF 
   **Gate:** `torch.cuda.is_available()` → `True` on the 3080. ✅
 - [x] **Phase 1 — Marker vertical slice:** convert one clean-text PDF (Beer "Designing Freedom" — the first-ever real ingest, so known ground truth) and later one scanned PDF; measure wall time and peak VRAM; compare output quality against pymupdf4llm on the same input.
   **Gate:** visibly better markdown; VRAM ≤ ~6 GB. **MIXED PASS 2026-07-18 — see results below.**
-- [ ] **Phase 2 — VRAM handoff:** install Ollama, scripted sequence Marker → unload → generate → Marker again.
-  **Gate:** no OOM; VRAM returns to baseline between stages.
+- [x] **Phase 2 — VRAM handoff:** install Ollama, scripted sequence Marker → unload → generate → Marker again.
+  **Gate:** no OOM; VRAM returns to baseline between stages. **PASSED 2026-07-18 — see results below.**
 - [ ] **Phase 3 — ThinkPad sidecars** (needs it online): spec check, phi4-mini tok/s benchmark, ChromaDB + MiniLM over the existing vault.
 - [ ] **Phase 4 — Pipeline rewiring:** the inversion above, bundle-format compatible.
 - [ ] **Phase 5 — Forgejo:** ThinkPad-hosted, or consciously dropped.
@@ -95,3 +95,78 @@ The baseline replicated the ThinkPad Clean lane **exactly** (same version, same 
 ### Verdict
 
 Marker default mode is **already structurally better** than the current engine for the vault use-case (paragraphs, sketches, images, metadata) and its one real defect class is inherited from bad embedded OCR layers — fixable by `--strip_existing_ocr` (needs the timed retest above) and/or a deterministic post-pass. Wall time is fine (97 s warm). VRAM needs explicit batch caps before Phase 2's Ollama coexistence. **Phase 1 gate: mixed pass — proceed, but run the strip-existing-ocr + born-digital retests before any pipeline rewiring (Phase 4).**
+
+---
+
+## Phase 1.5 results (Desktop, 2026-07-18, same day)
+
+### 1.5a — `--strip_existing_ocr` + `--recognition_batch_size 32`, Beer pages 0–15: **the fix works**
+
+63.3 s conversion for 16 pages (**~4 s/page → ~8 min for the full 116-page book**, vs the 27-min-and-killed force-OCR stall), peak VRAM **7 887 MiB** (down from the default run's 8 675 despite doing full re-OCR — the batch cap is what mattered). Quality is near-publication grade:
+
+- `<sup>` artifacts: **0** (was 319 default / 37 pymu). Fake blockquotes: **0**. Word merges: **gone** ("how to learn", "someone").
+- The TOC table renders **perfectly** — the exact structure that was `<br>`-scrambled in default mode and space-mangled in pymu.
+- Italics recovered (*why*, *instability*) — neither earlier output had them.
+- It even out-read both prior engines on ground truth: the copyright-page ISBNs come out complete ("ISBN 0 471 06220 0") where pymu dropped digits.
+- Residue: a couple of mid-word splits inherited from the print's own line breaks ("unexpect edly") — deterministic post-pass territory; one Cyrillic homoglyph ("Ву" for "By") on a decorative title page.
+
+**Conclusion: `--strip_existing_ocr` + capped `--recognition_batch_size` is the correct Scan-lane configuration** for PDFs with existing (untrusted) OCR layers, at a fully acceptable cost.
+
+### 1.5b — born-digital A/B (webpage-printed PDF, 19 pp, mixed CJK/English, Chromium/Skia producer): **Marker wins outright**
+
+Marker default: **27.3 s**, zero artifact noise, working **hyperlinks preserved** (pymu emits none), clean tables (the GitHub file listing), correct heading hierarchy, CJK + emoji intact, and **4 meaningful images vs pymu's 27** (it skipped the UI-icon spam pymu extracted as assets). pymu's version mashes the page nav into the first line and interleaves sidebar content mid-document. No contest — on born-digital input Marker's trusted-text-layer mode is both fast and clean.
+
+### Engine policy that falls out of Phase 1 + 1.5
+
+| Input class | Marker mode | Cost (3080) |
+|---|---|---|
+| Born-digital (good text layer) | default | ~1.5 s/page |
+| Scan with existing OCR layer | `--strip_existing_ocr --recognition_batch_size 32` | ~4 s/page |
+| Raw scan (no layer) | default (Marker OCRs what needs it) | ~4 s/page expected |
+
+The existing converter probe (`probe_chars_per_page`) plus a check for **OCR-font spans** (pymupdf exposes whether text comes from an OCR layer) can pick the row automatically — same probe-and-route idiom the Clean/Scan lanes already use.
+
+---
+
+## Phase 2 results (Desktop, 2026-07-18, same day) — VRAM handoff: PASSED
+
+Ollama **0.32.1** (winget) + **qwen3:8b** q4 (5.2 GB pull). Scripted sequence `ml\phase1\phase2_handoff.ps1`: Marker (Beer pages 0–5, warm) → Ollama generate with `keep_alive: 0` → Marker again, VRAM sampled at every boundary:
+
+| Checkpoint | VRAM |
+|---|---|
+| Baseline | 623 MiB |
+| After Marker stage 1 (17 s, exit 0) | 623 MiB |
+| After generate (85 s wall, 1 228 tokens, **52.6 tok/s**) | 621 MiB — `ollama ps` empty (immediate unload) |
+| After Marker stage 2 (18 s, exit 0) | 620 MiB |
+
+Overall sequence peak **6 187 MiB** — each occupant fits with headroom **because they are serialized**; the scope's mutex requirement stands but the mechanism (`keep_alive: 0` + never-concurrent) is now *measured*, not assumed. No OOM anywhere. 52.6 tok/s means a full-book reformat pass is minutes, not hours.
+
+**⚠️ Finding for the "product analyst" stage:** given a raw "reformat this markdown" prompt, qwen3:8b **rewrote image links** — `![](_page_0_Picture_2.jpeg)` came back as `![](https://example.com/_page_0_Picture_2.jpeg)` (invented URL — would break every bundle). The prose reformatting itself was good (clean headings, fixed hyphenation). Design consequence: the LLM pass must be **fenced** — either strip/re-inject asset links around the LLM call, or post-validate that every link in equals every link out and reject the pass otherwise. Never let the analyst touch the packaging.
+
+Two Windows-side engineering notes learned the hard way (both matter for any future service wrapper): PS 5.1 turns Marker's stderr INFO logs into fake failures if you redirect (`2>$null`) inside PowerShell — spawn via `cmd /c` with native redirection; and PS 5.1 `Invoke-RestMethod` mangles non-ASCII JSON bodies — write UTF-8 to a file and POST with `curl.exe --data-binary`.
+
+---
+
+## Design note — the widget as factory control center (user vision, 2026-07-18; NOT yet implemented)
+
+The user's framing for where this revamp ultimately lands, recorded here so every later phase builds toward it:
+
+> Treat the entire project as factory process and production. The widget is the OS / command-and-control center — where files go, what happens to them, data-logistics measuring, ETA estimation. Allocator = **conveyor belt**. Marker = **processing plant**. Ollama = **product analyst** — the hand-away that smart-reformats the markdown for intelligibility and readability, with intent on the user experience. Final product ships to the **vault**, where it can be opened and seen. Modern, seamless look and feel, integrated slowly.
+
+**Two load-bearing design principles from that brief:**
+
+1. **Each segment can be turned off and evaluated independently.** Every station (allocate → convert → analyze/reformat → export) gets an on/off switch and an inspectable output. This is cheap to honor because the pipeline is already staged with file-drop handoffs; the missing piece is surfacing per-stage toggles + status to the widget instead of burying them in config files and journalctl.
+2. **The widget reports logistics, not just success/failure.** Queue depth per station, per-document stage + progress, measured throughput (the s/page numbers in this doc make ETAs computable: ~1.5 s/page born-digital, ~4 s/page re-OCR, + LLM pass), and ETA per item. The converter already logs `chars_per_page` and wall times — the raw material for this exists; it needs a status feed the widget can poll, in the same spirit as the existing allocator `status.json` feed the tiles already consume.
+
+**Sketch of the factory mapped to real components** (target state, phased):
+
+| Factory station | Component | Runs on | Exists today? |
+|---|---|---|---|
+| Intake / conveyor | widget tiles → Tailscale transport → allocator | Desktop → ThinkPad | ✅ (production) |
+| Processing plant | Marker (engine policy table above) | **Desktop GPU** | ✅ engine proven; not wired in |
+| Product analyst | Ollama `qwen3:8b`, `keep_alive:0`, mutex with Marker | Desktop GPU | ✅ Phase 2 passed (link-fencing required) |
+| Packaging | bundle format (manifest, SHA dedup, Windows-clean names) | unchanged | ✅ — **must not break** |
+| Shipping / warehouse | vault git push → Add-to-Library button | ThinkPad → Desktop | ✅ (production) |
+| Control room | the widget: toggles, gauges, ETAs, modern look-and-feel | Desktop | ❌ future work, integrate slowly |
+
+**Explicitly deferred** (user said think, don't build yet): widget UI changes, per-segment toggle plumbing, ETA feed, any rewiring. Sequencing intent: Marker + Ollama functional in the current ecosystem first (done as of Phase 2), then the control-room features arrive incrementally — each one small, switchable, and evaluated before the next.

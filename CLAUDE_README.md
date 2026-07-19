@@ -58,25 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Desktop)
-**Date:** 2026-07-18 (Session 14, same day as 13)
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **Phase 1.5a:** Marker `--strip_existing_ocr` + `--recognition_batch_size 32` on Beer PDF `--page_range 0-15`; if per-page cost is sane, full-book run.
-2. **Phase 1.5b:** find a born-digital PDF on this machine, A/B Marker default vs pymupdf4llm baseline.
-3. **Phase 2:** install Ollama, pull an 8B q4 model, `keep_alive:0`; scripted Marker → generate → Marker sequence watching VRAM.
-4. Record all results in docs/11; capture the user's widget-as-control-center / factory-process vision as a **design section only** (no implementation this session).
-5. Close per protocol.
+1.
 
 ### How I'll verify each step:
-1. Wall time + peak VRAM logged; `<sup>` count / TOC integrity compared against both prior outputs.
-2. Same artifact-count profile on both outputs of the same file.
-3. `nvidia-smi` before/during/after each stage; gate = no OOM and VRAM returns to baseline between stages.
+1.
 
 ### Dependencies / blockers:
-- User go received for Phases 1.5 + 2. **Still out of scope: ThinkPad anything, Phase 4 rewiring, widget implementation.**
-- Ollama + model = several-GB downloads on this machine.
+-
 
 ---
 
@@ -121,7 +114,8 @@ git pull  # always first
   Desktop's `core.longpaths` mitigation may stay but is no longer needed for new bundles.
 - ✅ **PR #1 (feat/library-pipeline → master) MERGED 2026-07-13 (`7c006f2`, merge commit, branch kept)** after repairing both first-contact CI failures same session: `CI / python` (pytest couldn't import the packages in the bare runner venv — `pythonpath = ["."]` added to both Python pyproject.tomls) and `CI / rust` (`cargo fmt` on post-July-5 widget code; clippy pre-cleared). All 6 checks green (python 14s, rust 3m14s, CodeQL ×3 + summary). Stale `fix/widget-blank-window` deleted on origin (all 5 commits patch-equivalent in feat, verified with `git cherry`). Known-red follow-ups: CI runs no `linux-converter`/`linux-dashboard` tests; checkout/setup-python actions emit Node 20 deprecation warnings.
 - ✅ **GPU pipeline revamp scoped + Phase 0+1 executed 2026-07-18 (Desktop)** — scope committed as `docs/11-gpu-pipeline-revamp.md`; Phase 0 gate PASSED (uv + Python 3.12.13 + torch 2.11.0+cu128, 3080 visible); Phase 1 Marker-vs-pymupdf4llm A/B on the Beer book = **mixed pass** (Marker structurally better — paragraphs, sketches, 36 images, `_meta.json` TOC — but inherits `<sup>`/word-merge noise from the PDF's embedded 2013 OCR layer; `--force_ocr` at defaults thrashes the 10 GB card, killed at 27 min). Full numbers + fix candidates in docs/11.
-- ▶ Next up (Desktop, revamp lane): **Phase 1.5 retests before any rewiring** — `--strip_existing_ocr` with capped `--recognition_batch_size` on a `--page_range` subset, then one born-digital PDF A/B. Phase 2 (Ollama handoff) and all ThinkPad work NOT started — deliberately waiting on the user. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
+- ✅ **Phases 1.5 + 2 CLOSED 2026-07-18 evening (Desktop, Session 14)** — Phase 1.5a: `--strip_existing_ocr --recognition_batch_size 32` **fixes the whole Phase-1 noise class** (0 `<sup>`, perfect TOC table, ~4 s/page, peak 7.9 GB); 1.5b: born-digital A/B (webpage-PDF, CJK) = Marker wins outright (27 s/19 pp, working hyperlinks, no icon spam); Phase 2 VRAM handoff **PASSED** (Ollama 0.32.1 + qwen3:8b, `keep_alive:0`: baseline 623 → 623 → 621 → 620 MiB across Marker→generate→Marker, 52.6 tok/s, no OOM). **Engine policy table + ⚠️ LLM link-rewriting hazard + factory/control-center design note recorded in docs/11.**
+- ▶ Next up (user-gated): the control-room build-out — wire Marker as the conversion engine (Phase 4 rewiring, bundle-format compatible), widget factory-view (per-segment toggles, queue/ETA gauges, modern look), Phase 3 ThinkPad sidecars when it's online. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
 
 ---
 
@@ -688,3 +682,18 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** torch gate output; probe-value match vs the 2026-07-12 ingest record; artifact counts measured on both outputs (`<sup>`, blockquote lines, image counts); nvidia-smi 2 s-interval VRAM logs (peaks extracted, logs deleted after); side-by-side reads of front matter + the Ashby's Law sketch pages. §4 accounting over `ab69064..HEAD`: CLAUDE_README + docs/11 only — doc/protocol files, in this row; no source changes, no CHANGELOG entry needed. Test artifacts kept at `C:\Users\Bndit\ml\phase1\` for the user's own inspection.
 **Boundaries honored (user-set):** no Phase 2 (Ollama), nothing ThinkPad-side.
 **Next for Desktop:** Phase 1.5 retests (strip-existing-ocr timed subset; born-digital book), then Phase 2 with the user present. **Next for ThinkPad:** nothing new — waits on the user's go.
+
+### 2026-07-18 — Desktop agent Session 14 (Claude Code / Fable) — Phases 1.5 + 2 CLOSED
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** User green-lit the Phase 1.5 retests then Phase 2, and delivered the factory/control-center vision (widget = command center, allocator = conveyor, Marker = processing plant, Ollama = product analyst, vault = shipping) with instruction to capture it as design only. Plan committed `c2ac5a9` before work.
+**What was done (each step verified):**
+- *Phase 1.5a (`--strip_existing_ocr --recognition_batch_size 32`, Beer pp 0–15):* 63.3 s conversion (~4 s/page → ~8 min/116 pp), peak 7 887 MiB. Quality: **0** `<sup>` (was 319), **0** fake blockquotes, TOC table renders perfectly, word merges gone, italics recovered, complete ISBNs both prior engines mangled. **The Phase-1 noise class is fully fixed** — this is the Scan-lane config for PDFs with untrusted OCR layers. Output: `ml\phase1\marker-strip16`.
+- *Phase 1.5b (born-digital A/B):* found a real candidate in Downloads — Chromium/Skia webpage-print PDF (AI Agent book GitHub page, 19 pp, mixed CJK/English, probe 1407.7). Marker default: 27.3 s, zero artifacts, working hyperlinks (pymu emits none), clean tables, CJK+emoji intact, 4 meaningful images vs pymu's 27 icon-spam assets, correct reading order (pymu interleaves the page sidebar). **Marker wins outright on born-digital.** Outputs: `ml\phase1\marker-agentbook` vs `pymu-agentbook`.
+- *Engine policy recorded in docs/11:* born-digital → default (~1.5 s/pp); scan-with-OCR-layer → strip+batch-cap (~4 s/pp); raw scan → default. Router idea: existing `probe_chars_per_page` + pymupdf OCR-font-span check.
+- *Phase 2 (Ollama VRAM handoff):* Ollama 0.32.1 (winget) + qwen3:8b (5.2 GB). Scripted Marker → `keep_alive:0` generate → Marker (`ml\phase1\phase2_handoff.ps1`): VRAM 623 → 623 → 621 → 620 MiB across all checkpoints, `ollama ps` empty immediately post-generate, sequence peak 6 187 MiB serialized, **52.6 tok/s**, no OOM. **Gate PASSED.**
+- *⚠️ Product-analyst hazard found:* raw reformat prompt → qwen3:8b **invented image URLs** (`_page_0_Picture_2.jpeg` → `https://example.com/…`). Recorded in docs/11: the LLM pass must be link-fenced (strip/re-inject or in==out link validation). Never let the analyst touch packaging.
+- *Design note (no implementation):* factory/control-center vision captured in docs/11 — station↔component map, two load-bearing principles (per-segment on/off + eval; logistics/ETA reporting from measured s/page + a converter status feed in the spirit of the allocator's `status.json`).
+- *Two PS 5.1 gotchas recorded* (matter for any future Windows service wrapper): native stderr under redirection becomes fake failures (use `cmd /c`); `Invoke-RestMethod` mangles non-ASCII JSON (use UTF-8 file + `curl.exe --data-binary`). Both hit live, both fixed in the handoff script.
+**Verification:** wall/VRAM from 2 s-interval pollers (logs deleted after extraction); artifact counts measured on every output; `ollama ps` checked at the unload boundary; all marker exits 0. §4 accounting over `c2ac5a9..HEAD`: CLAUDE_README + docs/11 only — doc/protocol files in this row; no source changes, no CHANGELOG entry needed.
+**Boundaries honored (user-set):** no widget implementation, no Phase 4 rewiring, nothing ThinkPad-side.
+**Next for Desktop:** control-room build-out is now unblocked design-wise — Phase 4 wiring (engine policy + link-fenced analyst stage, bundle-format compatible) and the widget factory-view, both user-gated. **Next for ThinkPad:** Phase 3 sidecars when online + user go.
