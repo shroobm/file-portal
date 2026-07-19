@@ -58,18 +58,25 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Desktop)
+**Date:** 2026-07-18 (Session 14, same day as 13)
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. **Phase 1.5a:** Marker `--strip_existing_ocr` + `--recognition_batch_size 32` on Beer PDF `--page_range 0-15`; if per-page cost is sane, full-book run.
+2. **Phase 1.5b:** find a born-digital PDF on this machine, A/B Marker default vs pymupdf4llm baseline.
+3. **Phase 2:** install Ollama, pull an 8B q4 model, `keep_alive:0`; scripted Marker → generate → Marker sequence watching VRAM.
+4. Record all results in docs/11; capture the user's widget-as-control-center / factory-process vision as a **design section only** (no implementation this session).
+5. Close per protocol.
 
 ### How I'll verify each step:
-1.
+1. Wall time + peak VRAM logged; `<sup>` count / TOC integrity compared against both prior outputs.
+2. Same artifact-count profile on both outputs of the same file.
+3. `nvidia-smi` before/during/after each stage; gate = no OOM and VRAM returns to baseline between stages.
 
 ### Dependencies / blockers:
--
+- User go received for Phases 1.5 + 2. **Still out of scope: ThinkPad anything, Phase 4 rewiring, widget implementation.**
+- Ollama + model = several-GB downloads on this machine.
 
 ---
 
