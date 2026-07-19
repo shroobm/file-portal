@@ -328,6 +328,29 @@ function stSet(el, value, cls = "") {
   el.className = "st " + cls;
 }
 
+// S26: the stage ticker — the pipeline's newest event as a human sentence, shown in
+// the shift line while work is fresh (the user's READY→CONVERTING→…→COMPLETE narration).
+function tickerPhrase(ev) {
+  if (!ev) return null;
+  const s = (v) => String(v ?? "").slice(0, 40);
+  const key = `${ev.stage}/${ev.event}`;
+  const map = {
+    "intake/detected": `📥 ${s(ev.source)} — on the belt`,
+    "convert/probe": `⚙ probing ${s(ev.source)} — ${ev.pages}pp, ${ev.lane} lane`,
+    "convert/converted": `⚙ converted ${s(ev.source)} in ${Math.round(ev.wall_s)}s — bundling`,
+    "gate/pending": `✳ ${s(ev.bundle)} — awaiting YOUR routing decision`,
+    "gate/auto_routed": `✳ ${s(ev.bundle)} — rule auto-routed 🔒 local`,
+    "analyst/start": `🧠 analyzing ${s(ev.bundle)} (${ev.backend})…`,
+    "analyst/done": `🧠 analysis done: ${ev.chunks_passed}✓ ${ev.chunks_rejected || 0}🛡 in ${Math.round(ev.duration_s)}s`,
+    "ship/shipped": `⇈ ${s(ev.bundle)} — shipped to vault ✓`,
+    "gate/resolved": `✓ task complete — check the Library button`,
+    "intake/failed": `✗ ${s(ev.source)} failed — see the drop tray`,
+    "gate/failed": `✗ routing failed: ${s(ev.error)} — pick a route to retry`,
+    "ship/failed": `✗ ship failed: ${s(ev.error)}`,
+  };
+  return map[key] ?? null;
+}
+
 async function lineLoop() {
   try {
     const ls = await invoke("line_state");
@@ -337,17 +360,30 @@ async function lineLoop() {
       stSet(stDrop, failed ? `${ls.drop_waiting} (+${failed}✗)` : String(ls.drop_waiting),
         failed ? "has-failed" : "");
       stDrop.classList.toggle("has-failed", failed > 0);
-      stSet(stConvert, ls.converting ?? "idle", ls.converting ? "active" : "");
+      if (ls.converting) {
+        const eta = ls.converting_eta_s != null ? ` ~${pfEtaOne(ls.converting_eta_s)} left` : "";
+        stSet(stConvert, `${ls.converting}${eta}`, "active");
+      } else {
+        stSet(stConvert, "idle", "");
+      }
       stSet(stGate, gateCount > 0 ? `${gateCount} waiting` : MODE_LABELS[gateMode],
         gateCount > 0 ? "attn" : "");
       if (ls.last_shipped?.bundle) {
         stSet(stShip, ls.last_shipped.bundle, "");
       }
+      // Ticker owns the shift line while the machine is mid-story.
+      const phrase = tickerPhrase(ls.latest);
+      const busy = ls.converting || gateCount > 0 ||
+        (ls.latest && ["analyst", "ship"].includes(ls.latest.stage));
+      if (phrase && busy) shiftEl.textContent = phrase;
     }
   } catch (err) {
     console.warn("line_state failed", err);
   }
-  setTimeout(lineLoop, 10000);
+  setTimeout(lineLoop, ls_fast() ? 5000 : 10000);
+}
+function ls_fast() {
+  return document.getElementById("st-convert").classList.contains("active");
 }
 
 stGate.addEventListener("click", async () => {

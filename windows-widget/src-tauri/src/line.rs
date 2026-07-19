@@ -30,29 +30,60 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             })
             .unwrap_or(0)
     };
-    let converting = fs::read_to_string(base.join(".gpu-lock"))
+    let lock_path = base.join(".gpu-lock");
+    let converting = fs::read_to_string(&lock_path)
         .ok()
         .map(|s| s.trim().to_string())
         .filter(|s| !s.is_empty());
-    // Last shipped: scan the events tail backwards for the newest ship/shipped.
-    let last_shipped = fs::read_to_string(base.join("events.jsonl"))
+    // Convert start = the lock file's mtime (no timestamp parsing needed).
+    let convert_elapsed_s = fs::metadata(&lock_path)
+        .and_then(|m| m.modified())
         .ok()
-        .and_then(|text| {
-            text.lines().rev().find_map(|line| {
-                let ev = serde_json::from_str::<Value>(line).ok()?;
-                if ev["stage"] == "ship" && ev["event"] == "shipped" {
-                    Some(json!({"bundle": ev["bundle"], "ts": ev["ts"]}))
-                } else {
-                    None
-                }
-            })
-        });
+        .and_then(|t| t.elapsed().ok())
+        .map(|d| d.as_secs());
+    let events_text = fs::read_to_string(base.join("events.jsonl")).unwrap_or_default();
+    let events: Vec<Value> = events_text
+        .lines()
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+    let last_shipped = events
+        .iter()
+        .rev()
+        .find(|ev| ev["stage"] == "ship" && ev["event"] == "shipped")
+        .map(|ev| json!({"bundle": ev["bundle"], "ts": ev["ts"]}));
+    // S26: honest countdown for the piece in the press — pages from its probe event ×
+    // the measured median s/page of past conversions, minus elapsed.
+    let converting_eta_s = converting.as_ref().and_then(|name| {
+        let pages = events.iter().rev().find_map(|ev| {
+            (ev["stage"] == "convert"
+                && ev["event"] == "probe"
+                && ev["source"].as_str() == Some(name.as_str()))
+            .then(|| ev["pages"].as_u64())
+            .flatten()
+        })?;
+        let mut rates: Vec<f64> = events
+            .iter()
+            .filter(|ev| ev["stage"] == "convert" && ev["event"] == "converted")
+            .filter_map(|ev| ev["s_per_page"].as_f64())
+            .collect();
+        if rates.is_empty() {
+            return None;
+        }
+        rates.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        let median = rates[rates.len() / 2];
+        let total = (pages as f64 * median) as i64;
+        Some((total - convert_elapsed_s.unwrap_or(0) as i64).max(0))
+    });
+    // S26: the newest event, verbatim — the UI's stage ticker turns it into a sentence.
+    let latest = events.last().cloned();
     Ok(json!({
         "available": true,
         "drop_waiting": count_pdfs(&base.join("drop")),
         "converting": converting,
+        "converting_eta_s": converting_eta_s,
         "failed_count": count_pdfs(&base.join("drop").join("failed")),
         "last_shipped": last_shipped,
+        "latest": latest,
     }))
 }
 
