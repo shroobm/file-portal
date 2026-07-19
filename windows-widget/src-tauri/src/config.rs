@@ -35,6 +35,12 @@ pub struct AppConfig {
     pub gpu_python_exe: String,
     #[serde(default)]
     pub gpu_converter_dir: String,
+    /// S21 reader launchers (docs/13 "the dock has doors"): exe path or URI per reader;
+    /// empty = that icon is hidden. The config file is the allowlist — never page input.
+    #[serde(default)]
+    pub reader_obsidian: String,
+    #[serde(default)]
+    pub reader_zennotes: String,
     pub portals: Vec<Portal>,
 }
 
@@ -48,6 +54,8 @@ impl Default for AppConfig {
             gpu_pipeline_dir: String::new(),
             gpu_python_exe: String::new(),
             gpu_converter_dir: String::new(),
+            reader_obsidian: String::new(),
+            reader_zennotes: String::new(),
             portals: vec![
                 Portal {
                     category: "documents".into(),

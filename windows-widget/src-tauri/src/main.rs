@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod config;
 mod events;
+mod line;
 mod preflight;
 mod status;
 mod transfer;
@@ -67,6 +68,71 @@ fn preflight_decide(state: State<AppState>, id: String, backend: String) -> Resu
         )
     };
     preflight::decide(&dir, &py, &conv, &id, &backend)
+}
+#[tauri::command]
+fn line_state(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    line::state(&dir)
+}
+#[tauri::command]
+fn analyst_mode_get(state: State<AppState>) -> Result<String, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    Ok(line::get_analyst_mode(&dir))
+}
+#[tauri::command]
+fn analyst_mode_set(state: State<AppState>, mode: String) -> Result<String, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    line::set_analyst_mode(&dir, &mode)
+}
+#[tauri::command]
+fn open_reader(state: State<AppState>, reader: String) -> Result<(), String> {
+    let cfg = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?;
+    let target = match reader.as_str() {
+        "obsidian" => cfg.reader_obsidian.clone(),
+        "zennotes" => cfg.reader_zennotes.clone(),
+        _ => return Err("unknown reader".into()),
+    };
+    drop(cfg);
+    line::open_reader(&target)
+}
+#[tauri::command]
+fn open_failed_tray(state: State<AppState>) -> Result<(), String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    line::open_folder(&format!("{dir}\\drop\\failed"))
+}
+#[tauri::command]
+fn reader_config(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let cfg = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?;
+    Ok(serde_json::json!({
+        "obsidian": !cfg.reader_obsidian.is_empty(),
+        "zennotes": !cfg.reader_zennotes.is_empty(),
+    }))
 }
 #[tauri::command]
 fn shift_summary(state: State<AppState>) -> Result<serde_json::Value, String> {
@@ -144,6 +210,12 @@ fn main() {
             fetch_file_status,
             preflight_list,
             preflight_decide,
+            line_state,
+            analyst_mode_get,
+            analyst_mode_set,
+            open_reader,
+            open_failed_tray,
+            reader_config,
             shift_summary,
             watcher_status,
             watcher_start,

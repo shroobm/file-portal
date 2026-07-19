@@ -158,17 +158,25 @@ let pfWorking = new Set(); // ids clicked this session, until their card disappe
 
 const BASE_HEIGHT = 224;
 const CARD_HEIGHT = 76;
+const LINE_HEIGHT = 30;
+let lineVisible = false;
 
 function pfEta(s) {
   if (s == null) return "?";
   return s < 90 ? `~${s}s` : `~${Math.round(s / 60)}m`;
 }
 
-function pfResize(count) {
+let pfCardCount = 0;
+function reflow() {
   const { LogicalSize } = window.__TAURI__.dpi;
+  const h = BASE_HEIGHT + pfCardCount * CARD_HEIGHT + (lineVisible ? LINE_HEIGHT : 0);
   getCurrentWindow()
-    .setSize(new LogicalSize(480, BASE_HEIGHT + count * CARD_HEIGHT))
+    .setSize(new LogicalSize(480, h))
     .catch((e) => console.warn("resize failed", e));
+}
+function pfResize(count) {
+  pfCardCount = count;
+  reflow();
 }
 
 function pfRender(cards) {
@@ -233,6 +241,7 @@ async function pfDecide(id, backend) {
 async function pfCheck() {
   try {
     const cards = await invoke("preflight_list");
+    gateCount = cards.length;
     for (const id of [...pfWorking]) {
       if (!cards.some((c) => c.id === id)) {
         pfWorking.delete(id); // shipped and cleared — the vault will glow shortly
@@ -250,6 +259,80 @@ async function pfLoop() {
   await pfCheck();
   const wait = Date.now() < pfFastUntil ? PF_FAST_POLL_MS : PF_POLL_MS;
   setTimeout(pfLoop, wait);
+}
+
+// ---- S21: the line (docs/13 grammar) + gate selector + reader launchers --------------
+
+const lineEl = document.getElementById("line");
+const stDrop = document.getElementById("st-drop");
+const stConvert = document.getElementById("st-convert");
+const stGate = document.getElementById("st-gate");
+const stShip = document.getElementById("st-ship");
+const stLib = document.getElementById("st-lib");
+const MODE_LABELS = { ask: "ask", local: "auto-🔒", gemini: "auto-☁", off: "off" };
+const MODE_ORDER = ["ask", "local", "gemini", "off"];
+let gateMode = "ask";
+let gateCount = 0;
+
+function stSet(el, value, cls = "") {
+  el.querySelector(".st-v").textContent = value;
+  el.className = "st " + cls;
+}
+
+async function lineLoop() {
+  try {
+    const ls = await invoke("line_state");
+    if (ls.available) {
+      if (!lineVisible) { lineVisible = true; lineEl.hidden = false; reflow(); }
+      const failed = ls.failed_count ?? 0;
+      stSet(stDrop, failed ? `${ls.drop_waiting} (+${failed}✗)` : String(ls.drop_waiting),
+        failed ? "has-failed" : "");
+      stDrop.classList.toggle("has-failed", failed > 0);
+      stSet(stConvert, ls.converting ?? "idle", ls.converting ? "active" : "");
+      stSet(stGate, gateCount > 0 ? `${gateCount} waiting` : MODE_LABELS[gateMode],
+        gateCount > 0 ? "attn" : "");
+      if (ls.last_shipped?.bundle) {
+        stSet(stShip, ls.last_shipped.bundle, "");
+      }
+    }
+  } catch (err) {
+    console.warn("line_state failed", err);
+  }
+  setTimeout(lineLoop, 10000);
+}
+
+stGate.addEventListener("click", async () => {
+  if (gateCount > 0) return; // cards waiting — the gate isn't a toggle right now
+  try {
+    const next = MODE_ORDER[(MODE_ORDER.indexOf(gateMode) + 1) % MODE_ORDER.length];
+    gateMode = await invoke("analyst_mode_set", { mode: next });
+    stSet(stGate, MODE_LABELS[gateMode], "");
+    setStatus(`Analyst gate: ${gateMode}`);
+  } catch (err) {
+    setStatus(`Gate: ${err}`);
+  }
+});
+
+stDrop.addEventListener("click", () => {
+  if (stDrop.classList.contains("has-failed")) invoke("open_failed_tray").catch(() => {});
+});
+
+async function lineInit() {
+  try {
+    gateMode = await invoke("analyst_mode_get");
+  } catch { /* stays default */ }
+  try {
+    const rc = await invoke("reader_config");
+    for (const [name, id] of [["obsidian", "reader-obsidian"], ["zennotes", "reader-zennotes"]]) {
+      const btn = document.getElementById(id);
+      if (rc[name]) {
+        btn.hidden = false;
+        btn.addEventListener("click", () =>
+          invoke("open_reader", { reader: name }).catch((e) => setStatus(`Reader: ${e}`)));
+      }
+    }
+  } catch { /* icons stay hidden */ }
+  lineLoop();
 }
 
 // ---- S20: watcher lifecycle + shift report -------------------------------------------
@@ -418,3 +501,4 @@ vaultLoop();
 pfLoop();
 watcherAutostart();
 shiftLoop();
+lineInit();

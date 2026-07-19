@@ -162,6 +162,47 @@ body {
   color: #9a938d;
 }
 
+/* S21 — the line (docs/13 grammar): five stations, one glance. Quiet by design; only
+   the gate ever earns terracotta (a pending decision), via .attn. */
+#line {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 12px 6px;
+  padding: 4px 10px;
+  border-radius: 10px;
+  background: rgba(20, 18, 17, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  font-family: Consolas, "Cascadia Mono", monospace;
+  font-size: 10px;
+  color: #9a938d;
+  white-space: nowrap;
+  overflow: hidden;
+}
+#line .st { display: inline-flex; gap: 4px; align-items: baseline; }
+#line .st .st-v { color: #cfc9c3; max-width: 110px; overflow: hidden; text-overflow: ellipsis; }
+#line .st-sep { color: #55504b; }
+#line .st.active .st-v { color: #6fbf73; }
+#line .st.attn .st-v { color: #d97757; }
+#line #st-gate { cursor: pointer; }
+#line #st-drop.has-failed { cursor: pointer; }
+#line #st-drop.has-failed .st-v { color: #e0b34c; }
+
+/* Reader launcher icons share the titlebar button look. */
+#reader-obsidian, #reader-zennotes {
+  width: 28px;
+  height: 20px;
+  border: none;
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: #a99bd1;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+#reader-zennotes { color: #8fbf9f; }
+#reader-obsidian:hover, #reader-zennotes:hover { background: rgba(255, 255, 255, 0.22); }
+
 /* S18 — pre-flight analyst cards. Same Claude Code language as the vault bar: near-black
    panel, terracotta accent, monospace. One card per converted bundle awaiting routing. */
 #preflight-cards {

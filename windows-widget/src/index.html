@@ -9,11 +9,24 @@
   <div id="titlebar" data-tauri-drag-region>
     <span class="title" data-tauri-drag-region>File Portal</span>
     <span id="titlebar-controls">
+      <button id="reader-obsidian" type="button" hidden title="Open Obsidian">◆</button>
+      <button id="reader-zennotes" type="button" hidden title="Open ZenNotes">◈</button>
       <button id="watcher-btn" type="button" hidden title="Conveyor watcher">⏻</button>
       <button id="min-btn" type="button" title="Minimize" aria-label="Minimize">&#8211;</button>
     </span>
   </div>
   <div id="portals"></div>
+  <div id="line" hidden>
+    <span class="st" id="st-drop" title="Drop queue">▚ <span class="st-v">0</span></span>
+    <span class="st-sep">▸</span>
+    <span class="st" id="st-convert" title="Convert (Marker)">⚙ <span class="st-v">idle</span></span>
+    <span class="st-sep">▸</span>
+    <span class="st" id="st-gate" title="Analyst gate — click to change mode">✳ <span class="st-v">ask</span></span>
+    <span class="st-sep">▸</span>
+    <span class="st" id="st-ship" title="Last shipped">⇈ <span class="st-v">—</span></span>
+    <span class="st-sep">▸</span>
+    <span class="st" id="st-lib" title="Library">▤ <span class="st-v">—</span></span>
+  </div>
   <div id="preflight-cards"></div>
   <div id="vault-bar" hidden>
     <button id="vault-btn" type="button">
