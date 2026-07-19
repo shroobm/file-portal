@@ -2,13 +2,15 @@
 // behind the widget on every launch (visible in the W8 live test).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod config;
+mod events;
 mod preflight;
 mod status;
 mod transfer;
 mod vault;
+mod watcher;
 use config::AppConfig;
 use std::sync::Mutex;
-use tauri::State;
+use tauri::{Manager, State};
 struct AppState {
     config: Mutex<AppConfig>,
 }
@@ -67,6 +69,48 @@ fn preflight_decide(state: State<AppState>, id: String, backend: String) -> Resu
     preflight::decide(&dir, &py, &conv, &id, &backend)
 }
 #[tauri::command]
+fn shift_summary(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    events::shift_summary(&dir)
+}
+#[tauri::command]
+fn watcher_status(
+    state: State<AppState>,
+    watcher_state: State<watcher::WatcherState>,
+) -> Result<watcher::WatcherStatus, String> {
+    let configured = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        !cfg.gpu_python_exe.is_empty() && !cfg.gpu_converter_dir.is_empty()
+    };
+    Ok(watcher::status(&watcher_state, configured))
+}
+#[tauri::command]
+fn watcher_start(
+    state: State<AppState>,
+    watcher_state: State<watcher::WatcherState>,
+) -> Result<watcher::WatcherStatus, String> {
+    let (py, conv) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (cfg.gpu_python_exe.clone(), cfg.gpu_converter_dir.clone())
+    };
+    watcher::start(&watcher_state, &py, &conv)
+}
+#[tauri::command]
+fn watcher_stop(watcher_state: State<watcher::WatcherState>) -> watcher::WatcherStatus {
+    watcher::stop(&watcher_state)
+}
+#[tauri::command]
 fn vault_check(state: State<AppState>) -> Result<vault::VaultStatus, String> {
     // Clone the path out so the git fetch (seconds over tailscale ssh) runs lock-free.
     let dir = state
@@ -93,15 +137,28 @@ fn main() {
         .manage(AppState {
             config: Mutex::new(app_config),
         })
+        .manage(watcher::WatcherState(Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             list_portals,
             send_to_portal,
             fetch_file_status,
             preflight_list,
             preflight_decide,
+            shift_summary,
+            watcher_status,
+            watcher_start,
+            watcher_stop,
             vault_check,
             vault_pull
         ])
+        .on_window_event(|window, event| {
+            // The conveyor dies with its control room — no orphaned watch loops. An
+            // in-flight conversion still runs to completion (see watcher.rs header).
+            if let tauri::WindowEvent::Destroyed = event {
+                let state: State<watcher::WatcherState> = window.app_handle().state();
+                watcher::stop(&state);
+            }
+        })
         .run(tauri::generate_context!())
         .expect("error while running File Portal widget");
 }

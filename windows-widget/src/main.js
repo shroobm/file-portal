@@ -252,6 +252,68 @@ async function pfLoop() {
   setTimeout(pfLoop, wait);
 }
 
+// ---- S20: watcher lifecycle + shift report -------------------------------------------
+// The widget owns the conveyor watcher (docs/13): autostarts it when configured, the
+// titlebar dot shows/toggles it, and it dies with the window (Rust on_window_event).
+// The shift line is today's factory totals, derived from events.jsonl — pure projection.
+
+const watcherBtn = document.getElementById("watcher-btn");
+const shiftEl = document.getElementById("shift");
+
+function watcherRender(st) {
+  if (st.state === "unconfigured") {
+    watcherBtn.hidden = true;
+    return;
+  }
+  watcherBtn.hidden = false;
+  watcherBtn.className = st.state === "running" ? "running" : "";
+  watcherBtn.title = st.state === "running"
+    ? `Conveyor running (pid ${st.pid}) — click to pause intake`
+    : "Conveyor stopped — click to start";
+}
+
+watcherBtn.addEventListener("click", async () => {
+  try {
+    const st = await invoke("watcher_status");
+    watcherRender(await invoke(st.state === "running" ? "watcher_stop" : "watcher_start"));
+  } catch (err) {
+    console.error("watcher toggle failed", err);
+    setStatus(`Watcher: ${err}`);
+  }
+});
+
+async function watcherAutostart() {
+  try {
+    const st = await invoke("watcher_status");
+    if (st.state === "stopped") {
+      watcherRender(await invoke("watcher_start"));
+    } else {
+      watcherRender(st);
+    }
+  } catch (err) {
+    console.warn("watcher autostart failed", err);
+  }
+}
+
+async function shiftLoop() {
+  try {
+    const s = await invoke("shift_summary");
+    if (s.available) {
+      const t = s.today;
+      const parts = [];
+      if (t.converted) parts.push(`${t.converted} converted`);
+      if (t.analyzed) parts.push(`${t.analyzed} analyzed` +
+        (t.chunks_protected ? ` (${t.chunks_protected} protected)` : ""));
+      if (t.shipped) parts.push(`${t.shipped} shipped`);
+      if (t.failed) parts.push(`${t.failed} failed`);
+      shiftEl.textContent = parts.length ? "shift: " + parts.join(" · ") : "line idle";
+    }
+  } catch (err) {
+    console.warn("shift_summary failed", err);
+  }
+  setTimeout(shiftLoop, 30000);
+}
+
 // ---- W8: Add-to-Library button -------------------------------------------------------
 // The vault clone lives on this machine; new bundles only appear locally after a git pull.
 // This bar polls `vault_check` (git fetch + behind-count in Rust), glows when the ThinkPad
@@ -354,3 +416,5 @@ init().catch((err) => {
 });
 vaultLoop();
 pfLoop();
+watcherAutostart();
+shiftLoop();

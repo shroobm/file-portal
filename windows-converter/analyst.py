@@ -15,6 +15,7 @@ import os
 import re
 import subprocess
 import time
+from pathlib import Path
 
 MODEL = "qwen3:8b"
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -32,13 +33,16 @@ THROUGHPUT_CHARS_PER_S = {"local": 138.0, "gemini": 186.7}
 _EMBED = re.compile(r"!\[\[[^\]]+\]\]|!\[[^\]]*\]\([^)]*\)")
 _TOKEN = re.compile(r"⟦IMG-(\d+)⟧")  # ⟦IMG-n⟧
 
-PROMPT = (
-    "You are a formatting editor. Improve this converted-book markdown chunk for "
-    "readability in Obsidian: fix mid-word hyphenation splits (e.g. 'unexpect edly' -> "
-    "'unexpectedly'), normalize heading levels, keep paragraphs intact. Do NOT summarize, "
-    "reword, add, or remove content. Placeholders like ⟦IMG-3⟧ mark images: keep every "
-    "one exactly as-is, in place. Return ONLY the corrected markdown, no preamble.\n\n"
-)
+# Programs (docs/13 "program slot"): the analyst's behavior IS its prompt text, one file
+# per job in prompts/. Editing or adding a file re-tasks the same fenced model — tuning
+# without training, versioned in git. Every program runs inside the same link-fence.
+PROMPTS_DIR = Path(__file__).parent / "prompts"
+DEFAULT_PROGRAM = "readability"
+
+
+def load_program(program: str) -> str:
+    path = PROMPTS_DIR / f"{program}.txt"
+    return path.read_text(encoding="utf-8").strip() + "\n\n"
 
 
 def fence(markdown: str) -> tuple[str, list[str]]:
@@ -148,13 +152,16 @@ def _tokens_of(text: str) -> list[str]:
     return sorted(_TOKEN.findall(text))
 
 
-def process(markdown: str, backend: str = "local") -> tuple[str, dict]:
+def process(markdown: str, backend: str = "local",
+            program: str = DEFAULT_PROGRAM) -> tuple[str, dict]:
     """Returns (markdown_out, analyst_meta). On any per-chunk fence violation or error the
     original chunk is kept; meta records pass/reject counts for the frontmatter.
 
     backend: "local" (qwen3:8b via Ollama, air-gapped) or "gemini" (Gemini Flash via
     API, cloud routing — chunk text leaves the machine; the user chooses per document).
+    program: prompt file name (sans .txt) in prompts/ — the analyst's job description.
     """
+    prompt = load_program(program)
     generate = {"local": _generate, "gemini": _generate_gemini}[backend]
     fenced, embeds = fence(markdown)
     chunks = _chunks(fenced)
@@ -162,7 +169,7 @@ def process(markdown: str, backend: str = "local") -> tuple[str, dict]:
     t0 = time.perf_counter()
     for chunk in chunks:
         try:
-            candidate = generate(PROMPT + chunk)
+            candidate = generate(prompt + chunk)
         except Exception:
             out.append(chunk)  # API/backend error -> ship the un-analyzed original
             failed += 1
@@ -176,6 +183,7 @@ def process(markdown: str, backend: str = "local") -> tuple[str, dict]:
     meta = {
         "model": GEMINI_MODEL if backend == "gemini" else MODEL,
         "backend": backend,
+        "program": program,
         "chunks_passed": passed,
         "chunks_rejected": rejected,  # fence violations only
         "chunks_failed": failed,  # backend/API errors after retries

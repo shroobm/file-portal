@@ -28,6 +28,8 @@ from pathlib import Path
 
 import pymupdf
 
+from events import emit
+
 MARKER = Path(r"C:\Users\Bndit\ml\marker-env\Scripts\marker_single.exe")
 ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
 PENDING = Path(r"C:\Users\Bndit\ml\library\pending")  # deferred-analyst queue (widget card)
@@ -143,6 +145,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     extra, lane, lane_reason = route(chars, ocr_fonts)
     print(f"PROBE {src.name}: {chars:.1f} chars/page, {pages} pages, ocr_fonts={ocr_fonts}"
           f" -> lane={lane} ({lane_reason})", flush=True)
+    emit("convert", "probe", source=src.name, chars_per_page=round(chars, 1),
+         pages=pages, lane=lane, lane_reason=lane_reason)
 
     # Convert from a short sanitizer-proof copy (the ThinkPad's L15 idiom): Marker derives
     # its output dir and asset names from the input stem.
@@ -165,6 +169,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         raise RuntimeError(f"expected exactly one .md in {out_dir}, found {len(md_files)}")
     markdown = md_files[0].read_text(encoding="utf-8")
     print(f"CONVERTED in {wall:.1f}s ({wall / pages:.1f} s/page)", flush=True)
+    emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
+         s_per_page=round(wall / pages, 2), pages=pages)
 
     # Assemble the bundle in a dot-prefixed temp dir keyed on the source sha (L13 idiom).
     source_sha = sha256_of(src)
@@ -248,9 +254,11 @@ def ship(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
     )
     tar.wait(timeout=60)
     if tar.returncode != 0 or ssh.returncode != 0:
+        emit("ship", "failed", bundle=bundle_name, error=ssh.stderr.strip()[:150])
         raise RuntimeError(f"ship failed: tar={tar.returncode} ssh={ssh.returncode} "
                            f"{ssh.stderr.strip()[:300]}")
     print(f"SHIPPED {bundle_name} -> {REMOTE}:{REMOTE_STAGING}/", flush=True)
+    emit("ship", "shipped", bundle=bundle_name, sha=source_sha[:16])
 
 
 def shell_quote(s: str) -> str:
@@ -265,7 +273,11 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     md_path = bundle_dir / f"{bundle_name}.md"
     raw = md_path.read_text(encoding="utf-8")
     head, body = raw.split("---\n", 2)[1], raw.split("---\n", 2)[2]
+    emit("analyst", "start", bundle=bundle_name, backend=backend, chars=len(body))
     new_body, meta = analyst.process(body, backend=backend)
+    emit("analyst", "done", bundle=bundle_name, **{k: meta[k] for k in
+         ("backend", "program", "chunks_passed", "chunks_rejected",
+          "chunks_failed", "duration_s")})
     frontmatter = (
         f"---\nanalyst:\n  model: {meta['model']}\n  backend: {meta['backend']}\n"
         f"  chunks_passed: {meta['chunks_passed']}\n"
@@ -304,6 +316,8 @@ def defer(tmp_dir: Path, bundle_name: str, manifest: dict, markdown_chars: int) 
         json.dumps(card, indent=2) + "\n", encoding="utf-8"
     )
     print(f"PENDING {pend_id} — awaiting analyst decision (widget card)", flush=True)
+    emit("gate", "pending", bundle=bundle_name, id=pend_id,
+         est_chunks=card["preflight"]["est_chunks"])
 
 
 def resume(pend_id: str, backend: str) -> None:
@@ -324,10 +338,12 @@ def resume(pend_id: str, backend: str) -> None:
         shutil.rmtree(bundle_dir)
         json_path.unlink()
         print(f"RESUMED+SHIPPED {pend_id}", flush=True)
+        emit("gate", "resolved", id=pend_id, backend=backend)
     except Exception as exc:
         card["state"] = "failed"
         card["error"] = str(exc)[:300]
         json_path.write_text(json.dumps(card, indent=2) + "\n", encoding="utf-8")
+        emit("gate", "failed", id=pend_id, error=str(exc)[:150])
         raise
 
 

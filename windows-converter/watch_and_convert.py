@@ -22,6 +22,8 @@ import sys
 import time
 from pathlib import Path
 
+from events import emit
+
 BASE = Path(r"C:\Users\Bndit\ml\library")
 DROP_DIR = BASE / "drop"
 DONE_DIR = DROP_DIR / "done"
@@ -70,6 +72,7 @@ def convert_one(pdf: Path) -> None:
     elif mode != "off":
         args += ["--analyst", "--backend", mode]
     logger.info("CONVERTING %s (analyst=%s)", pdf.name, mode)
+    emit("intake", "detected", source=pdf.name, analyst_mode=mode)
     LOCK_FILE.write_text(pdf.name, encoding="utf-8")
     try:
         proc = subprocess.run(args, capture_output=True, text=True,
@@ -86,6 +89,7 @@ def convert_one(pdf: Path) -> None:
         shutil.move(str(pdf), str(dest))
         logger.error("FAILED %s -> drop/failed/ (exit %s): %s", pdf.name,
                      proc.returncode, (proc.stderr or "").strip()[-400:])
+        emit("intake", "failed", source=pdf.name, exit_code=proc.returncode)
 
 
 def main() -> None:
