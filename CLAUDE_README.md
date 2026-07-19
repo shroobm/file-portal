@@ -58,18 +58,40 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** ThinkPad C14 (Arch Linux)
+**Date:** 2026-07-19
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. **Phase 3 spec check** — record exact RAM, CPU model/cores, free disk, swap/zram state
+   (the docs/11 plan was written blind on this hardware).
+2. **Ollama on CPU** — install the native Arch `ollama` package, pull `phi4-mini` (q4;
+   substitute the closest small instruct model if that tag is absent and note it), then
+   benchmark a realistic tagging prompt (~1500 chars of real book markdown in → frontmatter
+   tags/summary out). Record tok/s (prompt + generation), model load time, peak RAM.
+   Gate: fast enough for ASYNC per-document tagging (minutes per doc OK, hours not).
+3. **ChromaDB + all-MiniLM-L6-v2 (384d)** in a uv venv OUTSIDE the repo (`~/ml`). Index the
+   existing vault markdown (clone/worktree of `~/file-portal/vault.git` — 2 real books),
+   run 3–4 semantic queries, eyeball relevance. Record index time and RAM.
+4. **Write "Phase 3 results" into docs/11** (same style as Phase 1.5/2): numbers, gate
+   verdicts, and a recommendation for where the "product analyst" LLM stage lives —
+   Desktop GPU (fast, mutex required) vs ThinkPad CPU (slow, zero GPU contention) —
+   grounded in measured tok/s.
+5. **Close per protocol:** Session Log entry, ledger row in a follow-up commit, push.
 
 ### How I'll verify each step:
-1.
+1. Raw command output quoted (`free`, `lscpu`, `df`, `swapon`/`zramctl`).
+2. Ollama API timings (`total_duration`/`load_duration`/`eval_count`/`eval_duration`) from
+   the actual response JSON; peak RAM sampled while generating.
+3. Query results printed and judged against known book content; index wall time measured.
+4. Numbers in the doc match the raw outputs captured during 1–3.
+5. `git merge-base --is-ancestor` on the ledger SHA.
 
 ### Dependencies / blockers:
--
+- Boundaries (user-set): do NOT touch live converter/allocator services or the vault
+  exporter; no Phase 4 rewiring; no Forgejo. Benchmark envs stay outside the repo;
+  only docs + CLAUDE_README get committed.
+- `ollama` install needs sudo (pacman) — user-level services stay untouched.
 
 ---
 
