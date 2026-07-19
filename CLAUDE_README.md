@@ -152,6 +152,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-19 | Desktop | Phase 4 slices 1+2 (windows-converter: E2E EXPORTED 6008eb66 + EXPORT-SKIP + cross-machine dedup vs dbcce92c; link-fenced analyst 7/7) | CLAUDE_README, docs/11, docs/12, .gitignore | 74ec982 |
 | 2026-07-19 | Desktop | S16: Gemini analyst backend (fence 7/7, 186.7 chars/s) + pre-flight estimator; entitlement verified (AI Plus ≠ API); rclone remote + first anchor-mirror | CLAUDE_README | 4221f82 |
 | 2026-07-19 | Desktop | S17: drop-folder watcher LIVE (E2E: drop→convert→ship→EXPORT-SKIP); Beer local analyst 44/47 (3 fence-saves); estimator free-tier-window aware | CLAUDE_README | b47bc87 |
+| 2026-07-19 | Desktop | S18: pre-flight analyst card LIVE (pending queue + routing UI + detached resume; E2E via CLI-simulated buttons); CHANGELOG landed | CLAUDE_README, CHANGELOG | 147a250 |
 
 ---
 
