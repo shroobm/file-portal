@@ -248,11 +248,18 @@ def ship(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
     tar = subprocess.Popen(
         ["tar", "-cf", "-", "-C", str(tmp_dir), "."], stdout=subprocess.PIPE
     )
-    ssh = subprocess.run(
-        ["tailscale", "ssh", REMOTE, remote_cmd],
-        stdin=tar.stdout, capture_output=True, text=True, timeout=600,
-    )
-    tar.wait(timeout=60)
+    try:
+        ssh = subprocess.run(
+            ["tailscale", "ssh", REMOTE, remote_cmd],
+            stdin=tar.stdout, capture_output=True, text=True, timeout=600,
+        )
+    finally:
+        # If ssh died or timed out, tar is wedged writing into a dead pipe — kill it so
+        # ITS timeout never masks the real (network) error. Learned live: an offline
+        # ThinkPad surfaced as "tar timed out", burying the dial failure.
+        if tar.poll() is None and (locals().get("ssh") is None or ssh.returncode != 0):
+            tar.kill()
+        tar.wait(timeout=600)
     if tar.returncode != 0 or ssh.returncode != 0:
         emit("ship", "failed", bundle=bundle_name, error=ssh.stderr.strip()[:150])
         raise RuntimeError(f"ship failed: tar={tar.returncode} ssh={ssh.returncode} "
