@@ -136,7 +136,7 @@ def route(chars: float, ocr_fonts: bool) -> tuple[list[str], str, str]:
 
 # ---------- the slice ----------
 
-def convert(src: Path, work: Path) -> tuple[Path, dict]:
+def convert(src: Path, work: Path, use_analyst: bool = False) -> tuple[Path, str, dict]:
     chars, pages, ocr_fonts = probe(src)
     extra, lane, lane_reason = route(chars, ocr_fonts)
     print(f"PROBE {src.name}: {chars:.1f} chars/page, {pages} pages, ocr_fonts={ocr_fonts}"
@@ -192,9 +192,24 @@ def convert(src: Path, work: Path) -> tuple[Path, dict]:
         "marker_version": getattr(marker, "__version__", "unknown"),
         "converted_at": converted_at.isoformat(timespec="seconds"),
     }
-    (tmp_dir / f"{bundle_name}.md").write_text(
-        frontmatter + rewrite_image_links(markdown), encoding="utf-8"
-    )
+    body = rewrite_image_links(markdown)
+    if use_analyst:
+        # Marker has exited: the GPU is free for the analyst (Phase 2 serialization).
+        import analyst
+
+        print("ANALYST pass starting (link-fenced)...", flush=True)
+        body, analyst_meta = analyst.process(body)
+        manifest["analyst"] = analyst_meta
+        frontmatter = frontmatter.replace(
+            "---\n",
+            f"---\nanalyst:\n  model: {analyst_meta['model']}\n"
+            f"  chunks_passed: {analyst_meta['chunks_passed']}\n"
+            f"  chunks_rejected: {analyst_meta['chunks_rejected']}\n"
+            f"  duration_s: {analyst_meta['duration_s']}\n",
+            1,
+        )
+        print(f"ANALYST done: {analyst_meta}", flush=True)
+    (tmp_dir / f"{bundle_name}.md").write_text(frontmatter + body, encoding="utf-8")
     (tmp_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     # The bundle STAYS in the ASCII .part-<sha16> dir locally: Windows bsdtar mangles
     # non-ASCII argv (CJK dir names arrive empty — hit live), so tar must only ever see
@@ -242,6 +257,8 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pdf", type=Path)
     ap.add_argument("--dry-run", action="store_true", help="convert + bundle, do not ship")
+    ap.add_argument("--analyst", action="store_true",
+                    help="run the link-fenced LLM readability pass (docs/12 slice 2)")
     args = ap.parse_args()
     src = args.pdf.resolve()
     if not src.is_file():
@@ -249,7 +266,7 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix="fp-convert-") as work_str:
         work = Path(work_str)
-        tmp_dir, bundle_name, manifest = convert(src, work)
+        tmp_dir, bundle_name, manifest = convert(src, work, use_analyst=args.analyst)
         ANCHOR.mkdir(parents=True, exist_ok=True)
         anchor_dest = unique_anchor(ANCHOR / bundle_name)
         shutil.copytree(tmp_dir, anchor_dest)
