@@ -58,40 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** ThinkPad C14 (Arch Linux)
-**Date:** 2026-07-19
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **Phase 3 spec check** — record exact RAM, CPU model/cores, free disk, swap/zram state
-   (the docs/11 plan was written blind on this hardware).
-2. **Ollama on CPU** — install the native Arch `ollama` package, pull `phi4-mini` (q4;
-   substitute the closest small instruct model if that tag is absent and note it), then
-   benchmark a realistic tagging prompt (~1500 chars of real book markdown in → frontmatter
-   tags/summary out). Record tok/s (prompt + generation), model load time, peak RAM.
-   Gate: fast enough for ASYNC per-document tagging (minutes per doc OK, hours not).
-3. **ChromaDB + all-MiniLM-L6-v2 (384d)** in a uv venv OUTSIDE the repo (`~/ml`). Index the
-   existing vault markdown (clone/worktree of `~/file-portal/vault.git` — 2 real books),
-   run 3–4 semantic queries, eyeball relevance. Record index time and RAM.
-4. **Write "Phase 3 results" into docs/11** (same style as Phase 1.5/2): numbers, gate
-   verdicts, and a recommendation for where the "product analyst" LLM stage lives —
-   Desktop GPU (fast, mutex required) vs ThinkPad CPU (slow, zero GPU contention) —
-   grounded in measured tok/s.
-5. **Close per protocol:** Session Log entry, ledger row in a follow-up commit, push.
+1.
 
 ### How I'll verify each step:
-1. Raw command output quoted (`free`, `lscpu`, `df`, `swapon`/`zramctl`).
-2. Ollama API timings (`total_duration`/`load_duration`/`eval_count`/`eval_duration`) from
-   the actual response JSON; peak RAM sampled while generating.
-3. Query results printed and judged against known book content; index wall time measured.
-4. Numbers in the doc match the raw outputs captured during 1–3.
-5. `git merge-base --is-ancestor` on the ledger SHA.
+1.
 
 ### Dependencies / blockers:
-- Boundaries (user-set): do NOT touch live converter/allocator services or the vault
-  exporter; no Phase 4 rewiring; no Forgejo. Benchmark envs stay outside the repo;
-  only docs + CLAUDE_README get committed.
-- `ollama` install needs sudo (pacman) — user-level services stay untouched.
+-
 
 ---
 
@@ -137,7 +115,8 @@ git pull  # always first
 - ✅ **PR #1 (feat/library-pipeline → master) MERGED 2026-07-13 (`7c006f2`, merge commit, branch kept)** after repairing both first-contact CI failures same session: `CI / python` (pytest couldn't import the packages in the bare runner venv — `pythonpath = ["."]` added to both Python pyproject.tomls) and `CI / rust` (`cargo fmt` on post-July-5 widget code; clippy pre-cleared). All 6 checks green (python 14s, rust 3m14s, CodeQL ×3 + summary). Stale `fix/widget-blank-window` deleted on origin (all 5 commits patch-equivalent in feat, verified with `git cherry`). Known-red follow-ups: CI runs no `linux-converter`/`linux-dashboard` tests; checkout/setup-python actions emit Node 20 deprecation warnings.
 - ✅ **GPU pipeline revamp scoped + Phase 0+1 executed 2026-07-18 (Desktop)** — scope committed as `docs/11-gpu-pipeline-revamp.md`; Phase 0 gate PASSED (uv + Python 3.12.13 + torch 2.11.0+cu128, 3080 visible); Phase 1 Marker-vs-pymupdf4llm A/B on the Beer book = **mixed pass** (Marker structurally better — paragraphs, sketches, 36 images, `_meta.json` TOC — but inherits `<sup>`/word-merge noise from the PDF's embedded 2013 OCR layer; `--force_ocr` at defaults thrashes the 10 GB card, killed at 27 min). Full numbers + fix candidates in docs/11.
 - ✅ **Phases 1.5 + 2 CLOSED 2026-07-18 evening (Desktop, Session 14)** — Phase 1.5a: `--strip_existing_ocr --recognition_batch_size 32` **fixes the whole Phase-1 noise class** (0 `<sup>`, perfect TOC table, ~4 s/page, peak 7.9 GB); 1.5b: born-digital A/B (webpage-PDF, CJK) = Marker wins outright (27 s/19 pp, working hyperlinks, no icon spam); Phase 2 VRAM handoff **PASSED** (Ollama 0.32.1 + qwen3:8b, `keep_alive:0`: baseline 623 → 623 → 621 → 620 MiB across Marker→generate→Marker, 52.6 tok/s, no OOM). **Engine policy table + ⚠️ LLM link-rewriting hazard + factory/control-center design note recorded in docs/11.**
-- ▶ Next up (user-gated): the control-room build-out — wire Marker as the conversion engine (Phase 4 rewiring, bundle-format compatible), widget factory-view (per-segment toggles, queue/ETA gauges, modern look), Phase 3 ThinkPad sidecars when it's online. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
+- ✅ **Phase 3 CLOSED 2026-07-19 (ThinkPad)** — sidecars measured and PASSED: specs recorded (i7-1265U 2P+8E/12t, 15.3 GiB RAM, 199 GB free, 4 GiB zram); Ollama 0.32.1 (user-level tarball, `~/ml/ollama` — no sudo in session; pacman package if role goes permanent) + phi4-mini q4: **~30 tok/s prompt eval, 4.1–5.8 tok/s generation, 3.06 GiB peak RSS** → async tagging gate PASS (10–60 s/doc), full-document analyst ruled out (~3 h/book); ChromaDB + MiniLM over the real vault (1218 chunks, 2 books): embed 34.2 s, queries 3–6 ms, all 4 relevance probes hit the right book → PASS. **Recommendation recorded in docs/11: product analyst stays on Desktop GPU (52.6 vs ~5 tok/s); ThinkPad carries tag/embed/structure.** Red flag #2 resolved.
+- ▶ Next up (user-gated): the control-room build-out — wire Marker as the conversion engine (Phase 4 rewiring, bundle-format compatible), widget factory-view (per-segment toggles, queue/ETA gauges, modern look). Phase 5 Forgejo: still deferred, maybe never. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
 
 ---
 
@@ -720,3 +699,17 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** wall/VRAM from 2 s-interval pollers (logs deleted after extraction); artifact counts measured on every output; `ollama ps` checked at the unload boundary; all marker exits 0. §4 accounting over `c2ac5a9..HEAD`: CLAUDE_README + docs/11 only — doc/protocol files in this row; no source changes, no CHANGELOG entry needed.
 **Boundaries honored (user-set):** no widget implementation, no Phase 4 rewiring, nothing ThinkPad-side.
 **Next for Desktop:** control-room build-out is now unblocked design-wise — Phase 4 wiring (engine policy + link-fenced analyst stage, bundle-format compatible) and the widget factory-view, both user-gated. **Next for ThinkPad:** Phase 3 sidecars when online + user go.
+
+### 2026-07-19 — ThinkPad agent Session 9 (Claude Code / Fable) — Phase 3 sidecars CLOSED
+**Machine:** ThinkPad C14 (Arch Linux), repo at `~/file-portal-src`
+**Plan:** Phase 3 per the user brief: spec check → Ollama + phi4-mini CPU tagging benchmark → ChromaDB + MiniLM over the real vault → Phase 3 results section in docs/11. Plan committed `8e755b3` before work. Boundaries: no live-service/exporter changes, no Phase 4, no Forgejo; benchmark envs outside the repo.
+**What was done (each step verified from raw output):**
+- *Spec check (the plan was blind on this):* i7-1265U (12th gen, 2 P + 8 E cores, 12 threads, 4.8 GHz max), 15.3 GiB RAM (~13.5 available at idle), 233 GB NVMe with 199 GB free, 4 GiB zstd zram swap active (0B used throughout all benchmarks). All from `lscpu`/`free`/`df`/`zramctl` directly.
+- *Divergence noted per protocol:* the brief said native Arch `ollama` package, but no sudo credential was available in the session (`sudo -n` refused; autonomous run, nobody to type a password). Installed the official **v0.32.1 release tarball user-level** instead — same version as the Desktop's Phase 2 — extracted to `~/ml/ollama`, run as `OLLAMA_MODELS=~/ml/ollama/models ./bin/ollama serve` (no systemd unit, nothing system-level, fully removable; process stopped at session close). `sudo pacman -S ollama` supersedes it if the role goes permanent. (First download 404'd — release assets are now `.tar.zst`, not `.tgz`; second pull attempt needed after a registry HEAD timeout.)
+- *phi4-mini benchmark (q4, 2.5 GB — the registry tag exists, no substitution needed):* real Beer-book body text → YAML frontmatter (tags/summary/reading_level) prompt; timings from the API's own `*_duration` fields, RAM from the runner's `VmHWM`. **Load 3.5 s cold / 0.3 s warm; prompt eval ~29–31 tok/s (consistent across 422- and 1330-token inputs); generation 4.1–5.8 tok/s; peak runner RSS 3.06 GiB.** Wall per tagging call: 9–56 s depending on excerpt size. **Async-tagging gate: PASS** (10–60 s/doc; generous multi-chunk stays under ~5 min). Same numbers rule the full-document product-analyst role OUT here: ~45 K-token book ≈ 3 h vs minutes on the 3080. Quality note recorded: on a bare 1500-char excerpt phi4-mini tagged Beer's wave *metaphor* as `physics`/`oceanography`; the 6000-char run recovered the real topics — tagging prompts need document context (title/TOC/multiple chunks).
+- *ChromaDB + all-MiniLM-L6-v2 (384d):* `uv` 0.11.29 (user-level install — machine had none) venv at `~/ml/chroma-env` (CPU torch); vault cloned read-only to `~/ml/vault` (2 real books; exporter's `vault-work` untouched). 1218 × ~800-char chunks: **model load 4.6 s, embed 34.2 s (35.6 chunks/s), Chroma add 0.8 s, queries 3–6 ms, peak RSS 1.16 GiB.** All 4 relevance probes hit the correct book with on-point passages (best: "Frege's account of judgement and assertion" → the Textor Frege chapter at distance 0.209). **Embedding gate: PASS with margin.**
+- *docs/11:* Phase 3 results section written (Phase 1.5/2 style — spec table, both benchmarks, gate verdicts), Phase 3 checkbox ticked, red flag #2 marked RESOLVED, **recommendation recorded: product analyst on Desktop GPU (52.6 vs ~5 tok/s, mutex per Phase 2); ThinkPad carries tag/embed/structure sidecars.**
+- *Hygiene:* `ollama serve` stopped; live allocator/converter services never touched (verified nothing under `systemctl --user` changed — no installs, no restarts); everything installed lives under `~/ml/` + `~/.local/bin/uv`, outside the repo.
+**Verification:** every number above is from captured command output (lscpu/free/df/zramctl transcripts, Ollama API response JSON, `/proc/<pid>/status` VmHWM, timed index run with printed query results). §4 accounting over `a561cb7..HEAD`: only CLAUDE_README.md + docs/11 changed — doc/protocol files, listed in this session's ledger row; no source changes, no CHANGELOG entry needed.
+**Boundaries honored (user-set):** no live-service/exporter changes, no Phase 4 rewiring, no Forgejo; benchmark envs outside the repo.
+**Next for Desktop:** Phase 4 rewiring is now fully unblocked evidence-wise — engine policy (docs/11 table) + link-fenced analyst on the Desktop GPU, enrichment handoff to the ThinkPad sidecars proven here; all user-gated. **Next for ThinkPad:** none open — sidecar implementation arrives with Phase 4 wiring. If the enrichment role goes permanent: replace the tarball Ollama with the pacman package + a user-level service unit.

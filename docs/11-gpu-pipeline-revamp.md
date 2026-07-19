@@ -22,7 +22,7 @@ Marker peaks ~5 GB/worker (~3.5 GB average). An 8B model at q4 in Ollama takes ~
 ## 🚩 Red flags
 
 1. **Forgejo does not run on Windows.** [Officially unsupported since 2024](https://codeberg.org/forgejo/forgejo/issues/6103) — no binaries, no upstream interest. Options: host on the ThinkPad (Arch is first-class, and it already hosts the bare vault repo — the natural git host), WSL2/Docker on the Desktop (adds a VM layer to the most RAM-tight machine), or defer entirely (bare git over Tailscale SSH is the proven transport; Forgejo adds UI, not capability). **Recommendation: ThinkPad-hosted, and last in the build order.**
-2. **The ThinkPad is unverified for the enrichment role.** phi4-mini (3.8B, ~2.5 GB q4) on CPU is plausible for async tagging; MiniLM embeddings + ChromaDB are light — but RAM and tokens/sec are unbenchmarked until it's online. Hard gate for Phase 3 only; Phases 0–2 are all Desktop-side.
+2. **The ThinkPad is unverified for the enrichment role.** phi4-mini (3.8B, ~2.5 GB q4) on CPU is plausible for async tagging; MiniLM embeddings + ChromaDB are light — but RAM and tokens/sec are unbenchmarked until it's online. Hard gate for Phase 3 only; Phases 0–2 are all Desktop-side. **RESOLVED 2026-07-19: Phase 3 measured and PASSED — enrichment sidecars yes, product-analyst stage no (see Phase 3 results).**
 
 ## The design inversion
 
@@ -44,7 +44,8 @@ Today's intake converts **on the ThinkPad**. This revamp reverses the flow: PDF 
   **Gate:** visibly better markdown; VRAM ≤ ~6 GB. **MIXED PASS 2026-07-18 — see results below.**
 - [x] **Phase 2 — VRAM handoff:** install Ollama, scripted sequence Marker → unload → generate → Marker again.
   **Gate:** no OOM; VRAM returns to baseline between stages. **PASSED 2026-07-18 — see results below.**
-- [ ] **Phase 3 — ThinkPad sidecars** (needs it online): spec check, phi4-mini tok/s benchmark, ChromaDB + MiniLM over the existing vault.
+- [x] **Phase 3 — ThinkPad sidecars** (needs it online): spec check, phi4-mini tok/s benchmark, ChromaDB + MiniLM over the existing vault.
+  **Gate:** tagging fast enough for async per-document use; embeddings + search over the real vault work. **PASSED 2026-07-19 — see results below** (with one role boundary: the product-analyst stage stays on the Desktop GPU).
 - [ ] **Phase 4 — Pipeline rewiring:** the inversion above, bundle-format compatible.
 - [ ] **Phase 5 — Forgejo:** ThinkPad-hosted, or consciously dropped.
 
@@ -144,6 +145,59 @@ Overall sequence peak **6 187 MiB** — each occupant fits with headroom **becau
 **⚠️ Finding for the "product analyst" stage:** given a raw "reformat this markdown" prompt, qwen3:8b **rewrote image links** — `![](_page_0_Picture_2.jpeg)` came back as `![](https://example.com/_page_0_Picture_2.jpeg)` (invented URL — would break every bundle). The prose reformatting itself was good (clean headings, fixed hyphenation). Design consequence: the LLM pass must be **fenced** — either strip/re-inject asset links around the LLM call, or post-validate that every link in equals every link out and reject the pass otherwise. Never let the analyst touch the packaging.
 
 Two Windows-side engineering notes learned the hard way (both matter for any future service wrapper): PS 5.1 turns Marker's stderr INFO logs into fake failures if you redirect (`2>$null`) inside PowerShell — spawn via `cmd /c` with native redirection; and PS 5.1 `Invoke-RestMethod` mangles non-ASCII JSON bodies — write UTF-8 to a file and POST with `curl.exe --data-binary`.
+
+---
+
+## Phase 3 results (ThinkPad, 2026-07-19) — sidecars: PASSED
+
+The scope's red flag #2 ("the ThinkPad is unverified for the enrichment role") is now measured. Verdict up front: **the ThinkPad carries the enrichment sidecars (tag, embed, structure) comfortably — but the "product analyst" full-document LLM stage does NOT live here.** Numbers below.
+
+### Spec check (the plan was written blind on this)
+
+| Component | Value | Implication |
+|---|---|---|
+| CPU | i7-1265U (12th gen): 2 P-cores + 8 E-cores, 12 threads, 4.8 GHz max | Laptop U-class — fine for async work, not a throughput engine |
+| RAM | 15.3 GiB total, ~13.5 GiB available at idle | phi4-mini (~3 GiB resident) + MiniLM (~1.2 GiB) fit together with room to spare |
+| Disk | 233 GB NVMe, **199 GB free** | Models + vector store are noise (~4 GB total installed this phase) |
+| Swap | 4 GiB zram (zstd), no disk swap | Already configured; untouched at 0B used throughout the benchmarks |
+
+### Ollama on CPU — phi4-mini tagging benchmark
+
+Ollama **0.32.1** (same version as the Desktop's Phase 2) + **phi4-mini** 3.8B q4 (2.5 GB pull). *Install divergence, noted per protocol:* no sudo credential was available in the session, so instead of the native Arch package this is the official release tarball run user-level from `~/ml/ollama` (`OLLAMA_MODELS=~/ml/ollama/models ./bin/ollama serve` — no systemd unit, nothing system-level, fully removable). If the ThinkPad takes the role permanently, `sudo pacman -S ollama` supersedes it.
+
+Benchmark: real vault prose (Beer book body text) → "produce YAML frontmatter: tags, summary, reading_level". Timings from the API's own `*_duration` fields; RAM from the runner's `VmHWM`:
+
+| Metric | Value |
+|---|---|
+| Model load | 3.5 s cold, 0.3 s warm |
+| Prompt eval | **~29–31 tok/s** (422-tok and 1330-tok inputs, consistent) |
+| Generation | **4.1–5.8 tok/s** |
+| Wall per tagging call | 28 s cold / 9 s warm (1500-char excerpt); 56 s (6000-char excerpt) |
+| Peak RAM (runner) | **3.06 GiB** RSS; system never approached swap |
+
+**Tagging gate (async per-document, minutes OK): PASS.** A realistic excerpt-based tagging call is 10–60 s per document; even a generous multi-chunk pass stays under ~5 min. **But the same numbers rule out the full-document product-analyst role here:** a 116-page book (~45 K tokens) at ~30 tok/s prompt eval + ~5 tok/s generation is **~3 hours per book** vs minutes on the Desktop GPU (52.6 tok/s generation measured in Phase 2 — ~10× this CPU, with prompt eval faster still).
+
+*Quality note for the tagging prompt design:* on a bare 1500-char excerpt phi4-mini took Beer's wave metaphor literally (tagged it `physics`, `oceanography`); the 6000-char run recovered the real topics (`dynamic systems`, `social institutions`). Tagging prompts should carry document context (title, TOC, several chunks) — excerpt-only tagging mislabels metaphor-heavy prose.
+
+### ChromaDB + all-MiniLM-L6-v2 (384d) over the real vault
+
+`uv` venv at `~/ml/chroma-env` (CPU torch), vault cloned read-only to `~/ml/vault` (the 2 real books: Beer "Designing Freedom", Textor "Judgement and Truth"), chunked at ~800 chars/paragraph boundary → **1218 chunks**:
+
+| Metric | Value |
+|---|---|
+| MiniLM model load | 4.6 s |
+| Embed 1218 chunks | **34.2 s (35.6 chunks/s)** — a full book indexes in ~20 s |
+| Chroma add (persistent store, cosine) | 0.8 s |
+| Query latency | **3–6 ms** |
+| Peak RSS (whole process) | 1.16 GiB |
+
+Relevance eyeball — 4 queries, all 4 hit the correct book with on-point passages: "bureaucracy threatening freedom" → Beer's institutions-survive-for-themselves passages; "Frege's account of judgement and assertion" → the Textor Frege chapter (top distance 0.209, clearly strongest match of the set); "computers regulating society in real time" → Beer's teleprocessing/economy passages; "theories of truth" → Textor's coherence/dependence-of-truth passages. **Embedding gate: PASS**, with margin — at vault scale this workload is trivial for the machine.
+
+### Recommendation: where the product analyst lives
+
+**Desktop GPU, with the Phase-2 mutex (`keep_alive: 0`, never concurrent with Marker).** The measured gap is decisive: 52.6 tok/s (qwen3:8b on the 3080) vs ~5 tok/s here means a full-book reformat pass is minutes vs hours — and the analyst stage is per-book full-document work by definition. GPU contention is real but already solved by serialization; hours-per-book is not solvable on this CPU. The ThinkPad's role in the inversion is exactly the sidecars proven here: **async tagging (phi4-mini, excerpt+context prompts), embeddings + semantic index (MiniLM + ChromaDB), and structure extraction** — all light on RAM, all zero-contention, all off the Desktop's critical path.
+
+**Environment note:** everything this phase installed lives outside the repo — `~/ml/ollama` (server + models), `~/ml/chroma-env`, `~/ml/chroma-store`, `~/ml/vault` (read-only clone), bench scripts in `~/ml/`. The live converter/allocator/exporter services were not touched.
 
 ---
 
