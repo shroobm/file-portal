@@ -59,21 +59,22 @@ git pull  # always first
 *Replace this section at the start of each session. Commit it before starting work.*
 
 **Machine:** DESKTOP-OBTQIRD (Desktop)
-**Date:** 2026-07-19 (Session 20)
+**Date:** 2026-07-19 (Session 21)
 **Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1. **Analyst programs:** extract the prompt to `windows-converter/prompts/readability.txt`; `analyst.process(..., program=)`; meta + frontmatter record the program (docs/13 "program slot").
-2. **Event stream:** `events.py` appends JSON lines to `<gpu_pipeline_dir>\events.jsonl`; emitters in the watcher + convert_and_ship at every stage (detected, converted, anchored, pending, analyst start/done, shipped, failed).
-3. **Widget foundation:** `events.rs` (tail + today-summary command), `watcher.rs` (start/stop/status of watch_and_convert.py, autostart config key, kill-on-exit), shift-report line in the UI, watcher power dot in the titlebar.
-4. Verify: clippy clean; CLI cycle (defer→resume none) leaves a complete event trail; widget restart autostarts the watcher; shift line renders. Close per protocol.
+1. **Line strip:** `line_state` Rust command (drop-waiting count, converting name from `.gpu-lock`, gate count, last-shipped from events, failed count) rendered as the docs/13 station line above the cards.
+2. **Analyst gate selector:** 4-position (ask/auto-local/auto-cloud/off) on the line, projecting `analyst-mode.txt` via get/set commands.
+3. **Reader launchers:** Obsidian + ZenNotes titlebar icons (exes located; config-driven, hidden when unset).
+4. Verify (clippy, build, restart, CLI-driven state changes reflected), close per protocol; S22 follows in the same sitting.
 
 ### How I'll verify each step:
-- Python: run a defer/resume cycle, inspect events.jsonl lines.
-- Rust: `clippy -D warnings`; release build; watcher process observed after widget start; summary JSON eyeballed.
+- line_state JSON against manufactured states (file in drop, lock file present, pending card).
+- Mode selector round-trip: click-cycle writes the file the watcher reads.
+- Launcher spawn: process appears.
 
 ### Dependencies / blockers:
-- GPU free (no long runs queued). ThinkPad untouched.
+- None; ThinkPad untouched.
 
 ---
 
