@@ -47,6 +47,10 @@ fn git(dir: &str, args: &[&str]) -> Result<String, String> {
         .arg("-C")
         .arg(dir)
         .args(args)
+        // Never let git or the ssh under it sit waiting on an interactive prompt a
+        // windowless app can't show — fail fast instead (the S22 "Checking…" hang).
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .stdin(std::process::Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map_err(|e| format!("failed to spawn git: {e}"))?;

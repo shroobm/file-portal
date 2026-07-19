@@ -8,6 +8,22 @@ const { invoke } = window.__TAURI__.core;
 const { getCurrentWebview } = window.__TAURI__.webview;
 const { getCurrentWindow } = window.__TAURI__.window;
 
+// Boot diagnostics (S22 debug): any uncaught error or rejection lands in the status
+// line instead of a console nobody can open in release builds.
+function dbg(msg) {
+  try { invoke("debug_log", { msg: String(msg) }); } catch { /* pre-IPC */ }
+}
+window.addEventListener("error", (e) => {
+  const m = `JS error: ${e.message} @ ${(e.filename || "").split("/").pop()}:${e.lineno}`;
+  document.getElementById("status").textContent = m;
+  dbg(m);
+});
+window.addEventListener("unhandledrejection", (e) => {
+  document.getElementById("status").textContent = `Unhandled: ${e.reason}`;
+  dbg(`unhandled rejection: ${e.reason}`);
+});
+dbg("boot: module evaluating");
+
 const portalsEl = document.getElementById("portals");
 const statusEl = document.getElementById("status");
 
@@ -176,11 +192,16 @@ function pfEta(backendInfo) {
 
 let pfCardCount = 0;
 function reflow() {
-  const { LogicalSize } = window.__TAURI__.dpi;
-  const h = BASE_HEIGHT + pfCardCount * CARD_HEIGHT + (lineVisible ? LINE_HEIGHT : 0);
-  getCurrentWindow()
-    .setSize(new LogicalSize(480, h))
-    .catch((e) => console.warn("resize failed", e));
+  // Autosize to real content (S22 fix): the arithmetic model undercounted new rows and
+  // produced a scrollbar that clipped the titlebar icons. The DOM knows its height —
+  // ask it, after layout settles.
+  requestAnimationFrame(() => {
+    const { LogicalSize } = window.__TAURI__.dpi;
+    const h = Math.ceil(document.body.scrollHeight) + 2;
+    getCurrentWindow()
+      .setSize(new LogicalSize(480, h))
+      .catch((e) => console.warn("resize failed", e));
+  });
 }
 function pfResize(count) {
   pfCardCount = count;
@@ -362,6 +383,7 @@ async function lineInit() {
   } catch { /* stays default */ }
   try {
     const rc = await invoke("reader_config");
+    dbg(`reader_config: ${JSON.stringify(rc)}`);
     for (const [name, id] of [["obsidian", "reader-obsidian"], ["zennotes", "reader-zennotes"]]) {
       const btn = document.getElementById(id);
       if (rc[name]) {
@@ -370,7 +392,9 @@ async function lineInit() {
           invoke("open_reader", { reader: name }).catch((e) => setStatus(`Reader: ${e}`)));
       }
     }
-  } catch { /* icons stay hidden */ }
+  } catch (err) {
+    setStatus(`readers: ${err}`);
+  }
   lineLoop();
 }
 
@@ -407,13 +431,18 @@ watcherBtn.addEventListener("click", async () => {
 async function watcherAutostart() {
   try {
     const st = await invoke("watcher_status");
+    dbg(`watcher_status: ${JSON.stringify(st)}`);
     if (st.state === "stopped") {
-      watcherRender(await invoke("watcher_start"));
+      const started = await invoke("watcher_start");
+      dbg(`watcher_start: ${JSON.stringify(started)}`);
+      watcherRender(started);
     } else {
       watcherRender(st);
     }
   } catch (err) {
     console.warn("watcher autostart failed", err);
+    setStatus(`watcher autostart: ${err}`);
+    dbg(`watcher autostart FAILED: ${err}`);
   }
 }
 
@@ -541,3 +570,5 @@ pfLoop();
 watcherAutostart();
 shiftLoop();
 lineInit();
+dbg("boot: all loops launched");
+reflow();

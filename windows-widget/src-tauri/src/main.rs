@@ -168,6 +168,29 @@ fn reader_config(state: State<AppState>) -> Result<serde_json::Value, String> {
     }))
 }
 #[tauri::command]
+fn debug_log(state: State<AppState>, msg: String) {
+    // S22 debug channel: boot beacons from the webview, appended where no crop or
+    // transparency can hide them. Best-effort; never fails the caller.
+    if let Ok(cfg) = state.config.lock() {
+        if !cfg.gpu_pipeline_dir.is_empty() {
+            let path = std::path::Path::new(&cfg.gpu_pipeline_dir).join("widget-boot.log");
+            let line = format!(
+                "{} {}\n",
+                std::time::SystemTime::now()
+                    .duration_since(std::time::UNIX_EPOCH)
+                    .map(|d| d.as_secs())
+                    .unwrap_or(0),
+                msg
+            );
+            let _ = std::fs::OpenOptions::new()
+                .create(true)
+                .append(true)
+                .open(path)
+                .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
+        }
+    }
+}
+#[tauri::command]
 fn shift_summary(state: State<AppState>) -> Result<serde_json::Value, String> {
     let dir = state
         .config
@@ -230,7 +253,67 @@ fn vault_pull(state: State<AppState>) -> Result<vault::VaultStatus, String> {
         .clone();
     Ok(vault::pull(&dir))
 }
+/// Explorer hands shortcut-launched apps the environment captured at LOGIN — every
+/// PATH entry (and env var) added since is invisible until re-login. That made
+/// user-launched widgets diverge from shell-launched ones all night (S22 debugging
+/// saga): git→tailscale ssh hung, spawns misfired. Fix: hydrate PATH (+ the keys the
+/// pipeline needs) from the registry at boot, so every launch context is identical.
+fn hydrate_env_from_registry() {
+    use std::os::windows::process::CommandExt;
+    let read_reg = |hive_key: &str, value: &str| -> Option<String> {
+        let out = std::process::Command::new("reg")
+            .args(["query", hive_key, "/v", value])
+            .creation_flags(vault::CREATE_NO_WINDOW)
+            .output()
+            .ok()?;
+        let text = String::from_utf8_lossy(&out.stdout).to_string();
+        text.lines().find_map(|l| {
+            let idx = l.find("REG_")?;
+            let (_, after_type) = l[idx..].split_once(char::is_whitespace)?;
+            let v = after_type.trim();
+            (!v.is_empty()).then(|| v.to_string())
+        })
+    };
+    // Expand %VAR% references (REG_EXPAND_SZ values keep them literal).
+    let expand = |s: &str| -> String {
+        let mut out = String::new();
+        let mut rest = s;
+        while let Some(start) = rest.find('%') {
+            out.push_str(&rest[..start]);
+            if let Some(end_rel) = rest[start + 1..].find('%') {
+                let name = &rest[start + 1..start + 1 + end_rel];
+                out.push_str(&std::env::var(name).unwrap_or_else(|_| format!("%{name}%")));
+                rest = &rest[start + 1 + end_rel + 1..];
+            } else {
+                out.push_str(&rest[start..]);
+                rest = "";
+            }
+        }
+        out.push_str(rest);
+        out
+    };
+    let machine = read_reg(
+        r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
+        "Path",
+    )
+    .map(|v| expand(&v))
+    .unwrap_or_default();
+    let user = read_reg(r"HKCU\Environment", "Path")
+        .map(|v| expand(&v))
+        .unwrap_or_default();
+    if !machine.is_empty() || !user.is_empty() {
+        std::env::set_var("PATH", format!("{machine};{user}"));
+    }
+    // The Gemini analyst backend reads this from its environment (never from disk).
+    if std::env::var("GEMINI_API_KEY").is_err() {
+        if let Some(key) = read_reg(r"HKCU\Environment", "GEMINI_API_KEY") {
+            std::env::set_var("GEMINI_API_KEY", key);
+        }
+    }
+}
+
 fn main() {
+    hydrate_env_from_registry();
     let app_config = config::load_or_init().expect("failed to load config");
     tauri::Builder::default()
         .manage(AppState {
@@ -244,6 +327,7 @@ fn main() {
             preflight_list,
             preflight_decide,
             line_state,
+            debug_log,
             analyst_mode_get,
             analyst_mode_set,
             open_reader,
