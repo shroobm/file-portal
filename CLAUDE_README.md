@@ -149,6 +149,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-18 | Desktop | GPU revamp scoped (docs/11); Phase 0 PASSED (torch cu128 on 3080); Phase 1 Marker A/B = mixed pass, force_ocr ruled out at defaults | CLAUDE_README, docs/11 | 071a918 |
 | 2026-07-18 | Desktop | Phases 1.5a/1.5b/2 CLOSED (strip-OCR fix proven; born-digital outright win; Ollama handoff PASSED 52.6 tok/s; LLM link hazard + factory design note) | CLAUDE_README, docs/11 | e26255c |
 | 2026-07-19 | ThinkPad | Phase 3 CLOSED (specs; phi4-mini CPU bench — tagging gate PASS, analyst ruled out; ChromaDB+MiniLM PASS; red flag #2 resolved; analyst→Desktop GPU recommendation) | CLAUDE_README, docs/11 | e20115e |
+| 2026-07-19 | Desktop | Phase 4 slices 1+2 (windows-converter: E2E EXPORTED 6008eb66 + EXPORT-SKIP + cross-machine dedup vs dbcce92c; link-fenced analyst 7/7) | CLAUDE_README, docs/11, docs/12, .gitignore | 74ec982 |
 
 ---
 
