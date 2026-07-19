@@ -204,8 +204,10 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         frontmatter = frontmatter.replace(
             "---\n",
             f"---\nanalyst:\n  model: {analyst_meta['model']}\n"
+            f"  backend: {analyst_meta.get('backend', 'local')}\n"
             f"  chunks_passed: {analyst_meta['chunks_passed']}\n"
             f"  chunks_rejected: {analyst_meta['chunks_rejected']}\n"
+            f"  chunks_failed: {analyst_meta.get('chunks_failed', 0)}\n"
             f"  duration_s: {analyst_meta['duration_s']}\n",
             1,
         )

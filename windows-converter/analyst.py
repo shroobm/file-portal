@@ -69,10 +69,19 @@ def _chunks(text: str) -> list[str]:
     return out
 
 
+# Free-tier Flash is 5 requests/min (verified on the user's quota dashboard,
+# 2026-07-19): a 47-chunk book fired unpaced got 41 rate-limit failures in 57 s.
+# 13 s spacing ≈ 4.6 RPM keeps a safety margin; 429s additionally retry with backoff.
+_GEMINI_MIN_INTERVAL_S = 13.0
+_gemini_last_call = 0.0
+
+
 def _generate_gemini(prompt: str) -> str:
-    """One fenced chunk through Gemini Flash. The API key is read from the user
-    environment and passed via header inside the child process's argv — it is never
-    logged, printed, or embedded in code. Cloud routing: chunk text leaves the machine."""
+    """One fenced chunk through Gemini Flash, paced under the free-tier RPM cap.
+    The API key is read from the user environment and passed via header inside the
+    child process's argv — it is never logged, printed, or embedded in code.
+    Cloud routing: chunk text leaves the machine."""
+    global _gemini_last_call
     key = os.environ.get("GEMINI_API_KEY") or ""
     if not key:
         raise RuntimeError("GEMINI_API_KEY not set in environment")
@@ -80,24 +89,38 @@ def _generate_gemini(prompt: str) -> str:
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2},
     })
-    proc = subprocess.run(
-        ["curl", "-s", "-X", "POST", GEMINI_URL,
-         "-H", "Content-Type: application/json",
-         "-H", f"x-goog-api-key: {key}",
-         "--data-binary", "@-"],
-        input=body.encode("utf-8"), capture_output=True, timeout=300,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"curl exited {proc.returncode}")
-    reply = json.loads(proc.stdout.decode("utf-8"))
-    if "error" in reply:
-        raise RuntimeError(f"gemini: {reply['error'].get('message', 'unknown')[:200]}")
-    parts = reply["candidates"][0]["content"]["parts"]
-    text = "".join(p.get("text", "") for p in parts).strip()
-    # Flash sometimes wraps output in a markdown code fence despite instructions.
-    if text.startswith("```"):
-        text = re.sub(r"^```[a-z]*\n|\n```$", "", text)
-    return text
+    last_err = "unknown"
+    for attempt in range(3):
+        wait = _GEMINI_MIN_INTERVAL_S - (time.monotonic() - _gemini_last_call)
+        if wait > 0:
+            time.sleep(wait)
+        _gemini_last_call = time.monotonic()
+        proc = subprocess.run(
+            ["curl", "-s", "-X", "POST", GEMINI_URL,
+             "-H", "Content-Type: application/json",
+             "-H", f"x-goog-api-key: {key}",
+             "--data-binary", "@-"],
+            input=body.encode("utf-8"), capture_output=True, timeout=300,
+        )
+        if proc.returncode != 0:
+            last_err = f"curl exited {proc.returncode}"
+            time.sleep(15 * (attempt + 1))
+            continue
+        reply = json.loads(proc.stdout.decode("utf-8"))
+        if "error" in reply:
+            err = reply["error"]
+            last_err = f"gemini {err.get('code', '?')}: {err.get('message', 'unknown')[:150]}"
+            if err.get("code") in (429, 500, 503):
+                time.sleep(20 * (attempt + 1))  # backoff and retry rate/server errors
+                continue
+            raise RuntimeError(last_err)
+        parts = reply["candidates"][0]["content"]["parts"]
+        text = "".join(p.get("text", "") for p in parts).strip()
+        # Flash sometimes wraps output in a markdown code fence despite instructions.
+        if text.startswith("```"):
+            text = re.sub(r"^```[a-z]*\n|\n```$", "", text)
+        return text
+    raise RuntimeError(f"gemini failed after 3 attempts: {last_err}")
 
 
 def _generate(prompt: str) -> str:
@@ -135,14 +158,14 @@ def process(markdown: str, backend: str = "local") -> tuple[str, dict]:
     generate = {"local": _generate, "gemini": _generate_gemini}[backend]
     fenced, embeds = fence(markdown)
     chunks = _chunks(fenced)
-    out, passed, rejected = [], 0, 0
+    out, passed, rejected, failed = [], 0, 0, 0
     t0 = time.perf_counter()
     for chunk in chunks:
         try:
             candidate = generate(PROMPT + chunk)
         except Exception:
-            out.append(chunk)
-            rejected += 1
+            out.append(chunk)  # API/backend error -> ship the un-analyzed original
+            failed += 1
             continue
         if _tokens_of(candidate) == _tokens_of(chunk):
             out.append(candidate)
@@ -154,7 +177,8 @@ def process(markdown: str, backend: str = "local") -> tuple[str, dict]:
         "model": GEMINI_MODEL if backend == "gemini" else MODEL,
         "backend": backend,
         "chunks_passed": passed,
-        "chunks_rejected": rejected,
+        "chunks_rejected": rejected,  # fence violations only
+        "chunks_failed": failed,  # backend/API errors after retries
         "duration_s": round(time.perf_counter() - t0, 1),
     }
     return unfence("\n\n".join(out), embeds), meta
