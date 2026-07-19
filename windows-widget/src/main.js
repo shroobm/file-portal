@@ -109,8 +109,14 @@ async function init() {
         const report = await invoke("send_to_portal", { category, paths });
         const failedCount = report.failed.length;
         if (failedCount === 0) {
-          setStatus(`Sent ${report.sent.length} file(s) to ${category}.`);
-          if (report.sent.length > 0) pollStatuses(report.sent, category);
+          if (category === "convert-gpu") {
+            // Local conveyor: the line strip is this category's status — no ThinkPad
+            // allocator events to poll for.
+            setStatus(`Queued ${report.sent.length} file(s) for GPU convert — watch the line.`);
+          } else {
+            setStatus(`Sent ${report.sent.length} file(s) to ${category}.`);
+            if (report.sent.length > 0) pollStatuses(report.sent, category);
+          }
         } else {
           console.error("transfer failures", report.failed);
           const firstError = report.failed[0]?.error ?? "unknown error";

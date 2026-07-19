@@ -82,6 +82,36 @@ fn send_one_file(cfg: &AppConfig, category: &str, local_path: &str) -> Result<()
         .to_string_lossy()
         .into_owned();
 
+    // S25: the "convert-gpu" category never leaves this machine — it feeds the Desktop
+    // conveyor (docs/12) by copying into the watcher's drop folder. Dotfile-then-rename
+    // so the watcher's dotfile skip + stability wait see one settled file, same invariant
+    // as every other hop in the pipeline.
+    if category == "convert-gpu" {
+        if cfg.gpu_pipeline_dir.is_empty() {
+            return Err("gpu_pipeline_dir not configured".into());
+        }
+        let drop_dir = Path::new(&cfg.gpu_pipeline_dir).join("drop");
+        std::fs::create_dir_all(&drop_dir)
+            .map_err(|e| format!("failed to create drop dir: {e}"))?;
+        let mut dest = drop_dir.join(&filename);
+        let (stem, ext) = match (dest.file_stem(), dest.extension()) {
+            (Some(s), Some(e)) => (
+                s.to_string_lossy().into_owned(),
+                e.to_string_lossy().into_owned(),
+            ),
+            _ => (filename.clone(), String::new()),
+        };
+        let mut n = 1;
+        while dest.exists() {
+            dest = drop_dir.join(format!("{stem} ({n}).{ext}"));
+            n += 1;
+        }
+        let tmp = drop_dir.join(format!(".part-{filename}"));
+        std::fs::copy(local_path, &tmp).map_err(|e| format!("failed to copy: {e}"))?;
+        std::fs::rename(&tmp, &dest).map_err(|e| format!("failed to publish: {e}"))?;
+        return Ok(());
+    }
+
     let remote_dir = format!("{}/{}", cfg.remote_inbox_root, category);
     let remote_path = format!("{remote_dir}/{filename}");
     // Stream into a dotfile temp first, then atomically rename into place. The receiver's watcher
