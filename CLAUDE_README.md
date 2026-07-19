@@ -160,6 +160,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-19 | Desktop | S18: pre-flight analyst card LIVE (pending queue + routing UI + detached resume; E2E via CLI-simulated buttons); CHANGELOG landed | CLAUDE_README, CHANGELOG | 147a250 |
 | 2026-07-19 | Desktop | S19: docs/13 control-room design (projection principle, line grammar, analyst programs, metrics doctrine, launchers, events keystone) | CLAUDE_README, docs/13 | 8e8d2de |
 | 2026-07-19 | Desktop | S20: foundation — events.jsonl stream + emitters, analyst programs (prompt files), widget-owned watcher (autostart verified live), shift line | CLAUDE_README | 671ee9a |
+| 2026-07-19 | Desktop | S21: line strip (5 stations, filesystem projection), gate mode selector, failed-tray click, Obsidian/ZenNotes launchers | CLAUDE_README | 7635e1a |
 
 ---
 
