@@ -197,29 +197,51 @@ def gpu_busy(threshold_mib: int = 2000) -> tuple[bool, int]:
         return False, -1
 
 
+# The free tier enforces a rolling ~20-request window on flash (429 body, verified
+# live 2026-07-19: metric generate_content_free_tier_requests, limit 20). Documents
+# above this chunk count will throttle even with pacing — recommend local.
+FREE_TIER_WINDOW_CHUNKS = 18
+
+
 def preflight(markdown_chars: int) -> dict:
     """The JSON the Tauri pre-flight card renders before the user picks a route.
-    ETAs come from measured all-in throughput, not theoretical tok/s."""
+    ETAs come from measured all-in throughput, not theoretical tok/s; the gemini ETA
+    includes the RPM pacing floor, which dominates on large documents."""
     busy, vram_mib = gpu_busy()
+    n_chunks = max(1, -(-markdown_chars // CHUNK_TARGET))  # ceil
     local_rate = THROUGHPUT_CHARS_PER_S["local"]
     gemini_rate = THROUGHPUT_CHARS_PER_S["gemini"]
+    over_window = n_chunks > FREE_TIER_WINDOW_CHUNKS
+    eta_gemini = round(n_chunks * _GEMINI_MIN_INTERVAL_S + markdown_chars / gemini_rate)
+    if over_window:
+        recommendation = "local"
+    elif busy:
+        recommendation = "gemini"
+    else:
+        recommendation = None  # genuinely the user's choice
     return {
         "chars": markdown_chars,
         "est_tokens": markdown_chars // 4,
+        "est_chunks": n_chunks,
         "gpu_busy": busy,
         "gpu_vram_mib": vram_mib,
+        "recommendation": recommendation,
         "backends": {
             "local": {
                 "model": MODEL,
                 "privacy": "100% air-gapped",
-                "eta_s": round(markdown_chars / local_rate) if not busy else None,
-                "note": "GPU busy — queue for later or route to cloud" if busy else None,
+                "eta_s": round(markdown_chars / local_rate),
+                "note": "GPU busy — will contend with whatever is using it" if busy else None,
             },
             "gemini": {
                 "model": GEMINI_MODEL,
                 "privacy": "cloud routing — text leaves this machine",
-                "eta_s": round(markdown_chars / gemini_rate) if gemini_rate else None,
+                "eta_s": eta_gemini,
                 "cost": "API free tier (NOT covered by AI Plus — verified 2026-07-19)",
+                "warning": (
+                    f"{n_chunks} chunks exceeds the ~{FREE_TIER_WINDOW_CHUNKS}-request "
+                    "free-tier window — throttling likely, local recommended"
+                ) if over_window else None,
             },
         },
     }
