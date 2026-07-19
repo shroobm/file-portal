@@ -58,19 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Desktop)
-**Date:** 2026-07-19 (Session 19)
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. Write `docs/13-control-room-design.md`: the projection principle, the line grammar, stations/levers, metrics placement doctrine, receipts, analyst programs (prompt files), reader launchers (Obsidian/ZenNotes), event-stream keystone, build order.
-2. Close. (Design only — no code this session; the user is co-designing live.)
+1.
 
 ### How I'll verify each step:
-1. Doc committed + pushed; contents match the chat design discussion.
+1.
 
 ### Dependencies / blockers:
-- None. Build sessions (S20+) implement it incrementally, each switchable.
+-
 
 ---
 
@@ -769,3 +768,9 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Usage-awareness (user asked):** one batched read of all six widget sources, zero browser screenshots (native window; CLI-simulated the button path instead), design decided once, edits batched — the session's context cost stayed in code-and-logs, not pixels.
 **Boundaries honored:** no ThinkPad changes; bundle format untouched; every new piece toggleable (config keys empty → invisible).
 **Next for Desktop:** user's morning: click the waiting card (any route — "Ship as-is" is free) and watch the conveyor run tile-to-Library; then S19 candidates: Convert (GPU) tile in `transfer.rs` (local drop-dir move), widget-managed watcher lifecycle, ETA ranges. **Next for ThinkPad:** enrichment consumer (user-gated; schema-constrained outputs per the injection note).
+
+### 2026-07-19 — Desktop agent Session 19 (Claude Code / Fable) — control-room design committed
+**Machine:** DESKTOP-OBTQIRD. **Plan `f75f867`.** Live co-design with the user (their first card click ran the full loop: local analyst → ship → EXPORT-SKIP → queue clear).
+**Done:** `docs/13-control-room-design.md` — the projection principle (user doctrine: the widget is a second source of truth, a projection of the pipeline/git, "conventional and pragmatic, but with taste"; all state on disk, Python owns schemas, widget renders); the line grammar (chips through Drop▸Convert▸Analyst▸Ship▸Library; card = chip at a decision gate; terracotta = exclusively "your hand required"); stations/levers incl. the 4-position analyst gate + remember-my-choice rules; two-engines rationale (Marker = switches-only stamping press; analyst = program slot, prompt-file personas in `windows-converter/prompts/`, fence as station infrastructure); Marker-visibility fix (Convert station, density toggle); metrics doctrine (numbers on levers — free-tier bar on the ☁ button; rolling rates; shift report; fence saves shown as protections); receipts/lineage from existing frontmatter; Obsidian+ZenNotes launcher icons; the events.jsonl keystone + widget-owned watcher lifecycle; build order S20/S21/S22.
+**Verification:** doc matches the chat design conversation point-for-point. §4: docs/13 + CLAUDE_README only — this row.
+**Next for Desktop:** S20 foundation (events stream, watcher lifecycle, shift line, prompt-file programs). **Next for ThinkPad:** unchanged (enrichment consumer, user-gated).
