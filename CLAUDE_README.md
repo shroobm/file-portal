@@ -58,18 +58,23 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Desktop)
+**Date:** 2026-07-19 (Session 17)
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. **Estimator hardening** (fallout from the live free-tier findings): `preflight` gains chunk count, the free-tier ~20-request window warning ("throttling likely — local recommended" for >18-chunk docs), and an est-cost stub for the future paid tier.
+2. **`watch_and_convert.py`** — the Desktop conveyor front door: watches a local drop folder (`C:\Users\Bndit\ml\library\drop`), runs `convert_and_ship.py` per arrival (policy-routed, ship enabled, analyst per a small config file), with a single-flight lock so Marker/Ollama never overlap and dotfile/stability guards mirroring the allocator's.
+3. **E2E test** (after the running Beer local-analyst job frees the GPU): drop the agent-book PDF into the folder → auto-convert → ship → ThinkPad EXPORT-SKIP (already vaulted — proves the loop with zero vault side effects).
+4. Close per protocol. (Widget tile + pre-flight card UI = S18; user has ZenNotes + Obsidian wired and is consuming the vault.)
 
 ### How I'll verify each step:
-1.
+1. preflight JSON inspected for a small doc and a 47-chunk doc (warning appears only on the latter).
+2/3. Watcher log shows detect → convert → ship; ThinkPad converter.log shows EXPORT-SKIP; drop folder empties; no concurrent GPU use (lock file observed).
 
 ### Dependencies / blockers:
--
+- Beer local-analyst run occupies the GPU first (~25 min) — watcher E2E waits for it.
+- Free-tier Gemini stays the small-doc lane; big docs route local (user declined the $20 credit minimum — routing policy handles it).
 
 ---
 
