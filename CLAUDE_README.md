@@ -58,18 +58,19 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Desktop)
+**Date:** 2026-07-19 (Session 19)
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. Write `docs/13-control-room-design.md`: the projection principle, the line grammar, stations/levers, metrics placement doctrine, receipts, analyst programs (prompt files), reader launchers (Obsidian/ZenNotes), event-stream keystone, build order.
+2. Close. (Design only — no code this session; the user is co-designing live.)
 
 ### How I'll verify each step:
-1.
+1. Doc committed + pushed; contents match the chat design discussion.
 
 ### Dependencies / blockers:
--
+- None. Build sessions (S20+) implement it incrementally, each switchable.
 
 ---
 
