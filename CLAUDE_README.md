@@ -58,25 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Desktop)
-**Date:** 2026-07-19 (Session 16)
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **Gemini entitlement check:** Gemini CLI installed (npm); authenticate (user OAuth) and verify what the user's Google AI Plus plan covers for CLI/API use — the pre-flight card must not claim "covered" untruthfully.
-2. **Analyst backend flag:** `--backend {local|gemini}` in `windows-converter/analyst.py` — same chunking, same `⟦IMG-n⟧` fence, same per-chunk reject; only `_generate` differs.
-3. **Pre-flight estimator:** function returning JSON for the future Tauri card — `{chars, est_tokens, eta_local_s, eta_gemini_s, gpu_busy, backends:{...}}` — local ETA from measured ~140 chars/s all-in throughput, `gpu_busy` via nvidia-smi.
-4. **Live fence test** of the Gemini route on the agent-book markdown (dry-run, links-in == links-out).
-5. Close per protocol. (Tauri pre-flight card = next session; rclone anchor-mirror landed pre-session, noted in log.)
+1.
 
 ### How I'll verify each step:
-1. A real `gemini -p` round-trip + quota/plan surface from the CLI itself.
-2/4. Fence counts + stray-token scan on Gemini output, same checks the local route passed (7/7).
-3. Estimator JSON eyeballed against the measured Phase-2/4 numbers.
+1.
 
 ### Dependencies / blockers:
-- Gemini CLI auth needs the user present for one OAuth approve (same night as the rclone approve).
-- Privacy rule recorded: Gemini route sends chunk text to Google — the card labels this; user decides per document.
+-
 
 ---
 
@@ -736,3 +729,15 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** all gate evidence is captured command output (converter.log lines, bare-repo `git log`/`git show`, `Get-FileHash`, staging `ls | wc -l`, nvidia-smi checkpoints). §4 accounting over `6547f52..HEAD`: `windows-converter/*` covered by the two feat commits + this row; CLAUDE_README/docs/11/docs/12/.gitignore are doc/protocol files in this row. CHANGELOG entry: pending next session alongside widget work (new component is additive, not yet wired to the widget).
 **Boundaries honored:** zero `linux-receiver`/`linux-converter` edits (the whole point — the exporter consumed foreign bundles as-is); no widget changes; no Forgejo; ML envs + anchor outside the repo.
 **Next for Desktop:** widget "Convert (GPU)" tile → watched folder → `convert_and_ship.py` (the conveyor rewire proper), control-room gauges per docs/11 design note. **Next for ThinkPad:** enrichment consumer (tagging/embeddings) fed from staging arrivals — needs a coordination message when Desktop wiring lands.
+
+### 2026-07-19 — Desktop agent Session 16 (Claude Code / Fable) — Gemini analyst backend + pre-flight estimator
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** Gemini entitlement check → `--backend` flag → estimator → live fence test. Plan committed `ee1baeb`. Pre-session: rclone Drive remote established (user OAuth) and the **first headless anchor-mirror ran** — both Desktop-converted bundles to `gdrive:Claude Code Memory Backup/anchor-mirror/` (44 files); vault zip verified on Drive (4th copy).
+**What was done (each step verified):**
+- *Entitlement check — answer is NO, the hard way:* Gemini CLI 0.51.0 installed but its individual Google-login is **sunset** ("migrate to Antigravity"); the user's AI Plus subscription does NOT cover programmatic access. Programmatic door = Gemini API key (AI Studio, free tier). Key lives in the user's env (`GEMINI_API_KEY`, user scope) — set by the user's own hands, never in chat/code/logs (one accidental chat exposure happened mid-setup; that key was **revoked and rotated** immediately). API verified live: HTTP 200, 50 models listed.
+- *Backend (`040e713`):* `analyst.py` `_generate_gemini` → `gemini-flash-latest:generateContent` via curl header auth; `process(markdown, backend=)`; identical chunking/fence/reject; code-fence unwrap for Flash's markdown habit; `--backend {local,gemini}` wired through `convert_and_ship.py`.
+- *Live fence test (agent book, 26 498 chars):* **7/7 chunks passed, 4/4 embeds, 0 stray tokens, 141.9 s = 186.7 chars/s — ~35% faster than local (138)**. Meta records backend + model in frontmatter.
+- *Pre-flight estimator:* `analyst.preflight(chars)` returns the Tauri card JSON — est_tokens (chars/4), per-backend ETAs from measured all-in throughput, `gpu_busy` (nvidia-smi, >2 GiB threshold), privacy labels ("100% air-gapped" vs "cloud routing"), honest cost line ("API free tier — NOT covered by AI Plus, verified 2026-07-19"). Estimator's Gemini ETA for the test doc: 142 s vs 141.9 s actual.
+**Verification:** fence counts/stray-token scans on live output; measured wall times; preflight JSON inspected against measurements. §4 accounting over `ee1baeb..HEAD`: `windows-converter/*` in the feat commit; CLAUDE_README in this row. CHANGELOG still deferred to the widget-integration session (component remains pre-widget).
+**Boundaries honored:** no Tauri card yet (next session); no ThinkPad work; key never touched repo, logs, or memory.
+**Next for Desktop:** the Tauri pre-flight card (poll a pending-analyst queue dir, render preflight JSON, route on click) — first control-room panel; then the Convert (GPU) tile. **Next for ThinkPad:** unchanged (enrichment consumer, user-gated).
