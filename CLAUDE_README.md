@@ -59,22 +59,18 @@ git pull  # always first
 *Replace this section at the start of each session. Commit it before starting work.*
 
 **Machine:** DESKTOP-OBTQIRD (Desktop)
-**Date:** 2026-07-19 (Session 21)
+**Date:** 2026-07-19 (Session 25)
 **Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1. **Line strip:** `line_state` Rust command (drop-waiting count, converting name from `.gpu-lock`, gate count, last-shipped from events, failed count) rendered as the docs/13 station line above the cards.
-2. **Analyst gate selector:** 4-position (ask/auto-local/auto-cloud/off) on the line, projecting `analyst-mode.txt` via get/set commands.
-3. **Reader launchers:** Obsidian + ZenNotes titlebar icons (exes located; config-driven, hidden when unset).
-4. Verify (clippy, build, restart, CLI-driven state changes reflected), close per protocol; S22 follows in the same sitting.
+1. The "GPU → Vault" tile: local-move branch in `transfer.rs` (category `convert-gpu` → copy into `<gpu_pipeline_dir>\drop` with collision-safe naming), tile added to live config, JS skips the ThinkPad status poll for this category (the line strip is its status).
+2. Rebuild, restart, drop-test, close.
 
 ### How I'll verify each step:
-- line_state JSON against manufactured states (file in drop, lock file present, pending card).
-- Mode selector round-trip: click-cycle writes the file the watcher reads.
-- Launcher spawn: process appears.
+- Drop a PDF on the tile → file appears in drop\, watcher converts, line shows it; no allocator-poll noise.
 
 ### Dependencies / blockers:
-- None; ThinkPad untouched.
+- None.
 
 ---
 
