@@ -58,23 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Desktop)
-**Date:** 2026-07-19 (Session 17)
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **Estimator hardening** (fallout from the live free-tier findings): `preflight` gains chunk count, the free-tier ~20-request window warning ("throttling likely — local recommended" for >18-chunk docs), and an est-cost stub for the future paid tier.
-2. **`watch_and_convert.py`** — the Desktop conveyor front door: watches a local drop folder (`C:\Users\Bndit\ml\library\drop`), runs `convert_and_ship.py` per arrival (policy-routed, ship enabled, analyst per a small config file), with a single-flight lock so Marker/Ollama never overlap and dotfile/stability guards mirroring the allocator's.
-3. **E2E test** (after the running Beer local-analyst job frees the GPU): drop the agent-book PDF into the folder → auto-convert → ship → ThinkPad EXPORT-SKIP (already vaulted — proves the loop with zero vault side effects).
-4. Close per protocol. (Widget tile + pre-flight card UI = S18; user has ZenNotes + Obsidian wired and is consuming the vault.)
+1.
 
 ### How I'll verify each step:
-1. preflight JSON inspected for a small doc and a 47-chunk doc (warning appears only on the latter).
-2/3. Watcher log shows detect → convert → ship; ThinkPad converter.log shows EXPORT-SKIP; drop folder empties; no concurrent GPU use (lock file observed).
+1.
 
 ### Dependencies / blockers:
-- Beer local-analyst run occupies the GPU first (~25 min) — watcher E2E waits for it.
-- Free-tier Gemini stays the small-doc lane; big docs route local (user declined the $20 credit minimum — routing policy handles it).
+-
 
 ---
 
@@ -747,3 +742,15 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** fence counts/stray-token scans on live output; measured wall times; preflight JSON inspected against measurements. §4 accounting over `ee1baeb..HEAD`: `windows-converter/*` in the feat commit; CLAUDE_README in this row. CHANGELOG still deferred to the widget-integration session (component remains pre-widget).
 **Boundaries honored:** no Tauri card yet (next session); no ThinkPad work; key never touched repo, logs, or memory.
 **Next for Desktop:** the Tauri pre-flight card (poll a pending-analyst queue dir, render preflight JSON, route on click) — first control-room panel; then the Convert (GPU) tile. **Next for ThinkPad:** unchanged (enrichment consumer, user-gated).
+
+### 2026-07-19 — Desktop agent Session 17 (Claude Code / Fable) — drop-folder watcher live; both analyst backends book-proven
+**Machine:** DESKTOP-OBTQIRD (Windows). **Plan committed `aaef944`.** User asleep for the close; results also left in the Desktop messages folder.
+**What was done (each step verified):**
+- *Estimator hardening (`b72cbe8`):* `preflight` now returns `est_chunks`, a **free-tier window warning** (>18 chunks → "throttling likely, local recommended"; threshold from the live 429 body: metric `generate_content_free_tier_requests`, limit 20 on gemini-3.5-flash), a `recommendation` field (over-window→local; gpu_busy→gemini; else user's choice), and a gemini ETA that includes the RPM pacing floor. Verified: 7-chunk doc → rec=gemini (GPU was busy), no warning; 43-chunk doc → rec=local + warning, gemini ETA (1470 s) honestly loses to local (1232 s).
+- *Gemini rate-limit hardening (`2976469`, earlier tonight):* unpaced 47-chunk run melted into 41 fast API failures (57 s) — diagnosis via live 429 probe; fix = 13 s pacing + backoff retry on 429/5xx + meta split `chunks_failed` (API) vs `chunks_rejected` (fence). Graceful degradation held: every failed chunk shipped as its original.
+- *User decision recorded:* declined the $20 API credit minimum — **routing policy: small docs (≤18 chunks) may go Gemini free tier; books route local.** The card should present, not pressure.
+- *Beer book, local analyst (full run):* 47 chunks → **44 passed, 3 fence-rejected (qwen3 touched embeds; originals shipped), 0 failed**, 621 s analyst leg. Output: 36/36 embeds, 0 stray tokens, "unexpect edly"→"unexpectedly" healed; the one surviving "atmos phere" sits inside a rejected chunk — the audit trail works. Bundle: anchor `…West Sussex IS (1)`, frontmatter `backend: local`. Gemini twin of the agent book also exists (anchor `…工程实践 (1)`, 7/7). Both backends now have real-book artifacts.
+- *`watch_and_convert.py` (`b72cbe8`) + E2E:* poll watcher on `C:\Users\Bndit\ml\library\drop` (dotfile skip, size-stability wait, sequential single-flight = Marker/Ollama never overlap, `.gpu-lock` busy signal, done/failed archiving, `analyst-mode.txt` toggle file re-read per conversion — off|local|gemini). Live E2E: dropped the agent-book PDF → detected ~20 s → converted+shipped 52 s → ThinkPad `EXPORT-SKIP 21bfdffc` → staging 0 → source archived to done/. **The Desktop conveyor front door is real: drop a PDF, it ends up in the vault (or dedup-skips), no human in the loop.**
+**Verification:** watcher.log + converter.log line pairs; fence counts on both book artifacts; estimator JSON on small/big inputs. §4 accounting over `aaef944..HEAD`: windows-converter/* in the two feat commits; CLAUDE_README this row. CHANGELOG: still rides with the widget session (S18) as agreed.
+**Boundaries honored:** no widget UI (user must be present for look-and-feel decisions — their factory, their aesthetics); no ThinkPad-side changes (its exporter consumed foreign bundles untouched, again).
+**Next for Desktop (S18, kickstart prompt in the Desktop messages folder):** the Tauri pre-flight card + Convert (GPU) tile — render `analyst.preflight()` JSON, per-segment toggles, route on click; wire the tile to the drop folder; CHANGELOG entry for windows-converter. **Next for ThinkPad:** enrichment consumer (needs coordination message; user-gated).
