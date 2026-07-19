@@ -11,14 +11,22 @@ keep_alive=0 on every request so VRAM returns to baseline the moment we finish.
 """
 
 import json
+import os
 import re
 import subprocess
 import time
 
 MODEL = "qwen3:8b"
 OLLAMA_URL = "http://localhost:11434/api/generate"
+GEMINI_MODEL = "gemini-flash-latest"  # stable alias, resolves to current Flash
+GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 CHUNK_TARGET = 4000  # chars; well inside an 8k context with prompt + thinking room
 NUM_CTX = 8192
+
+# Measured end-to-end throughput (chars of input markdown per second, all-in:
+# chunking + model load/reload + generation + fence checks). Sources: local =
+# agent book 28 441 chars / 206.5 s (S15); gemini = measured in the S16 live test.
+THROUGHPUT_CHARS_PER_S = {"local": 138.0, "gemini": 186.7}
 
 # Both the assembled form (![[assets/x]]) and any residual inline form.
 _EMBED = re.compile(r"!\[\[[^\]]+\]\]|!\[[^\]]*\]\([^)]*\)")
@@ -61,6 +69,37 @@ def _chunks(text: str) -> list[str]:
     return out
 
 
+def _generate_gemini(prompt: str) -> str:
+    """One fenced chunk through Gemini Flash. The API key is read from the user
+    environment and passed via header inside the child process's argv — it is never
+    logged, printed, or embedded in code. Cloud routing: chunk text leaves the machine."""
+    key = os.environ.get("GEMINI_API_KEY") or ""
+    if not key:
+        raise RuntimeError("GEMINI_API_KEY not set in environment")
+    body = json.dumps({
+        "contents": [{"parts": [{"text": prompt}]}],
+        "generationConfig": {"temperature": 0.2},
+    })
+    proc = subprocess.run(
+        ["curl", "-s", "-X", "POST", GEMINI_URL,
+         "-H", "Content-Type: application/json",
+         "-H", f"x-goog-api-key: {key}",
+         "--data-binary", "@-"],
+        input=body.encode("utf-8"), capture_output=True, timeout=300,
+    )
+    if proc.returncode != 0:
+        raise RuntimeError(f"curl exited {proc.returncode}")
+    reply = json.loads(proc.stdout.decode("utf-8"))
+    if "error" in reply:
+        raise RuntimeError(f"gemini: {reply['error'].get('message', 'unknown')[:200]}")
+    parts = reply["candidates"][0]["content"]["parts"]
+    text = "".join(p.get("text", "") for p in parts).strip()
+    # Flash sometimes wraps output in a markdown code fence despite instructions.
+    if text.startswith("```"):
+        text = re.sub(r"^```[a-z]*\n|\n```$", "", text)
+    return text
+
+
 def _generate(prompt: str) -> str:
     body = json.dumps({
         "model": MODEL, "stream": False, "keep_alive": 0, "prompt": prompt,
@@ -86,16 +125,21 @@ def _tokens_of(text: str) -> list[str]:
     return sorted(_TOKEN.findall(text))
 
 
-def process(markdown: str) -> tuple[str, dict]:
+def process(markdown: str, backend: str = "local") -> tuple[str, dict]:
     """Returns (markdown_out, analyst_meta). On any per-chunk fence violation or error the
-    original chunk is kept; meta records pass/reject counts for the frontmatter."""
+    original chunk is kept; meta records pass/reject counts for the frontmatter.
+
+    backend: "local" (qwen3:8b via Ollama, air-gapped) or "gemini" (Gemini Flash via
+    API, cloud routing — chunk text leaves the machine; the user chooses per document).
+    """
+    generate = {"local": _generate, "gemini": _generate_gemini}[backend]
     fenced, embeds = fence(markdown)
     chunks = _chunks(fenced)
     out, passed, rejected = [], 0, 0
     t0 = time.perf_counter()
     for chunk in chunks:
         try:
-            candidate = _generate(PROMPT + chunk)
+            candidate = generate(PROMPT + chunk)
         except Exception:
             out.append(chunk)
             rejected += 1
@@ -107,9 +151,51 @@ def process(markdown: str) -> tuple[str, dict]:
             out.append(chunk)  # fence violated -> ship the un-analyzed original
             rejected += 1
     meta = {
-        "model": MODEL,
+        "model": GEMINI_MODEL if backend == "gemini" else MODEL,
+        "backend": backend,
         "chunks_passed": passed,
         "chunks_rejected": rejected,
         "duration_s": round(time.perf_counter() - t0, 1),
     }
     return unfence("\n\n".join(out), embeds), meta
+
+
+def gpu_busy(threshold_mib: int = 2000) -> tuple[bool, int]:
+    """Is the GPU meaningfully occupied (e.g. a game)? Used by the pre-flight card."""
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=memory.used", "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10,
+        ).stdout.strip()
+        used = int(out.splitlines()[0])
+        return used > threshold_mib, used
+    except Exception:
+        return False, -1
+
+
+def preflight(markdown_chars: int) -> dict:
+    """The JSON the Tauri pre-flight card renders before the user picks a route.
+    ETAs come from measured all-in throughput, not theoretical tok/s."""
+    busy, vram_mib = gpu_busy()
+    local_rate = THROUGHPUT_CHARS_PER_S["local"]
+    gemini_rate = THROUGHPUT_CHARS_PER_S["gemini"]
+    return {
+        "chars": markdown_chars,
+        "est_tokens": markdown_chars // 4,
+        "gpu_busy": busy,
+        "gpu_vram_mib": vram_mib,
+        "backends": {
+            "local": {
+                "model": MODEL,
+                "privacy": "100% air-gapped",
+                "eta_s": round(markdown_chars / local_rate) if not busy else None,
+                "note": "GPU busy — queue for later or route to cloud" if busy else None,
+            },
+            "gemini": {
+                "model": GEMINI_MODEL,
+                "privacy": "cloud routing — text leaves this machine",
+                "eta_s": round(markdown_chars / gemini_rate) if gemini_rate else None,
+                "cost": "API free tier (NOT covered by AI Plus — verified 2026-07-19)",
+            },
+        },
+    }

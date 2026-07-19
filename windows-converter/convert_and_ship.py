@@ -136,7 +136,8 @@ def route(chars: float, ocr_fonts: bool) -> tuple[list[str], str, str]:
 
 # ---------- the slice ----------
 
-def convert(src: Path, work: Path, use_analyst: bool = False) -> tuple[Path, str, dict]:
+def convert(src: Path, work: Path, use_analyst: bool = False,
+            analyst_backend: str = "local") -> tuple[Path, str, dict]:
     chars, pages, ocr_fonts = probe(src)
     extra, lane, lane_reason = route(chars, ocr_fonts)
     print(f"PROBE {src.name}: {chars:.1f} chars/page, {pages} pages, ocr_fonts={ocr_fonts}"
@@ -197,8 +198,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False) -> tuple[Path, str
         # Marker has exited: the GPU is free for the analyst (Phase 2 serialization).
         import analyst
 
-        print("ANALYST pass starting (link-fenced)...", flush=True)
-        body, analyst_meta = analyst.process(body)
+        print(f"ANALYST pass starting (link-fenced, backend={analyst_backend})...", flush=True)
+        body, analyst_meta = analyst.process(body, backend=analyst_backend)
         manifest["analyst"] = analyst_meta
         frontmatter = frontmatter.replace(
             "---\n",
@@ -259,6 +260,8 @@ def main():
     ap.add_argument("--dry-run", action="store_true", help="convert + bundle, do not ship")
     ap.add_argument("--analyst", action="store_true",
                     help="run the link-fenced LLM readability pass (docs/12 slice 2)")
+    ap.add_argument("--backend", choices=["local", "gemini"], default="local",
+                    help="analyst backend: local qwen3 (air-gapped) or Gemini Flash (cloud)")
     args = ap.parse_args()
     src = args.pdf.resolve()
     if not src.is_file():
@@ -266,7 +269,8 @@ def main():
 
     with tempfile.TemporaryDirectory(prefix="fp-convert-") as work_str:
         work = Path(work_str)
-        tmp_dir, bundle_name, manifest = convert(src, work, use_analyst=args.analyst)
+        tmp_dir, bundle_name, manifest = convert(src, work, use_analyst=args.analyst,
+                                                 analyst_backend=args.backend)
         ANCHOR.mkdir(parents=True, exist_ok=True)
         anchor_dest = unique_anchor(ANCHOR / bundle_name)
         shutil.copytree(tmp_dir, anchor_dest)
