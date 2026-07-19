@@ -58,18 +58,26 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Desktop)
+**Date:** 2026-07-19 (Session 15)
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. **Design before code:** study the bundle/exporter/transport contract in the actual code (`linux-converter/converter/bundle.py` + `main.py`, `windows-widget/src-tauri/src/transfer.rs`, `vault.rs`), then write the Phase 4 architecture as `docs/12-phase4-rewiring.md`: intake path to Marker on this machine, bundle assembly honoring the L13/L14/L15 invariants (manifest, SHA dedup, atomic `.part-` transport, Windows-clean interior names), handoff to the ThinkPad, link-fenced analyst slot (Desktop GPU per Phase 3), engine routing per the docs/11 policy table, Marker/Ollama serialization via `keep_alive:0` + lock file.
+2. **Vertical slice 1:** one real PDF → policy-routed Marker → format-identical bundle → atomic transport to the ThinkPad → existing exporter → vault → Add-to-Library. Script-driven (no widget changes yet).
+3. **Slice 2 (analyst)** only if slice 1 closes cleanly; otherwise design-only.
+4. Close per protocol.
 
 ### How I'll verify each step:
-1.
+1. Design doc cross-checked against the real code paths, not memory; invariants cited by file:line.
+2. Gate: bundle lands in the vault with manifest sha == local file hash (byte-verified), all vault-relative paths within the 160-byte budget, and re-sending the same file produces `EXPORT-SKIP` — dedup must not know or care which machine converted.
+3. Analyst output passes the link-fence check (links-in == links-out).
 
 ### Dependencies / blockers:
--
+- ThinkPad must be online for the slice-1 E2E leg (exporter + vault push live there).
+- Lane discipline: Desktop edits `windows-widget/`, new Desktop-side converter code, and docs ONLY; any `linux-receiver`/`linux-converter` change needed for the handoff is filed as a coordination message, not edited here.
+- Widget-drop E2E tests need the user present — batched to the end; the slice itself is script-driven.
+- ML envs stay at `C:\Users\Bndit\ml\` (NOT `C:\Users\Rabbiallah\…` — that profile is pre-reset and dead).
 
 ---
 
