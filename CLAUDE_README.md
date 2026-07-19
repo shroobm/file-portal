@@ -58,18 +58,25 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
-**Date:** YYYY-MM-DD
-**Claude:** [Cowork / Claude Code / Fable]
+**Machine:** DESKTOP-OBTQIRD (Desktop)
+**Date:** 2026-07-19 (Session 16)
+**Claude:** Claude Code / Fable
 
 ### What I'm planning to do (in order):
-1.
+1. **Gemini entitlement check:** Gemini CLI installed (npm); authenticate (user OAuth) and verify what the user's Google AI Plus plan covers for CLI/API use — the pre-flight card must not claim "covered" untruthfully.
+2. **Analyst backend flag:** `--backend {local|gemini}` in `windows-converter/analyst.py` — same chunking, same `⟦IMG-n⟧` fence, same per-chunk reject; only `_generate` differs.
+3. **Pre-flight estimator:** function returning JSON for the future Tauri card — `{chars, est_tokens, eta_local_s, eta_gemini_s, gpu_busy, backends:{...}}` — local ETA from measured ~140 chars/s all-in throughput, `gpu_busy` via nvidia-smi.
+4. **Live fence test** of the Gemini route on the agent-book markdown (dry-run, links-in == links-out).
+5. Close per protocol. (Tauri pre-flight card = next session; rclone anchor-mirror landed pre-session, noted in log.)
 
 ### How I'll verify each step:
-1.
+1. A real `gemini -p` round-trip + quota/plan surface from the CLI itself.
+2/4. Fence counts + stray-token scan on Gemini output, same checks the local route passed (7/7).
+3. Estimator JSON eyeballed against the measured Phase-2/4 numbers.
 
 ### Dependencies / blockers:
--
+- Gemini CLI auth needs the user present for one OAuth approve (same night as the rclone approve).
+- Privacy rule recorded: Gemini route sends chunk text to Google — the card labels this; user decides per document.
 
 ---
 
