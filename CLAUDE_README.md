@@ -58,26 +58,18 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**Machine:** DESKTOP-OBTQIRD (Desktop)
-**Date:** 2026-07-19 (Session 15)
-**Claude:** Claude Code / Fable
+**Machine:** [DESKTOP-OBTQIRD / ThinkPad C14]
+**Date:** YYYY-MM-DD
+**Claude:** [Cowork / Claude Code / Fable]
 
 ### What I'm planning to do (in order):
-1. **Design before code:** study the bundle/exporter/transport contract in the actual code (`linux-converter/converter/bundle.py` + `main.py`, `windows-widget/src-tauri/src/transfer.rs`, `vault.rs`), then write the Phase 4 architecture as `docs/12-phase4-rewiring.md`: intake path to Marker on this machine, bundle assembly honoring the L13/L14/L15 invariants (manifest, SHA dedup, atomic `.part-` transport, Windows-clean interior names), handoff to the ThinkPad, link-fenced analyst slot (Desktop GPU per Phase 3), engine routing per the docs/11 policy table, Marker/Ollama serialization via `keep_alive:0` + lock file.
-2. **Vertical slice 1:** one real PDF → policy-routed Marker → format-identical bundle → atomic transport to the ThinkPad → existing exporter → vault → Add-to-Library. Script-driven (no widget changes yet).
-3. **Slice 2 (analyst)** only if slice 1 closes cleanly; otherwise design-only.
-4. Close per protocol.
+1.
 
 ### How I'll verify each step:
-1. Design doc cross-checked against the real code paths, not memory; invariants cited by file:line.
-2. Gate: bundle lands in the vault with manifest sha == local file hash (byte-verified), all vault-relative paths within the 160-byte budget, and re-sending the same file produces `EXPORT-SKIP` — dedup must not know or care which machine converted.
-3. Analyst output passes the link-fence check (links-in == links-out).
+1.
 
 ### Dependencies / blockers:
-- ThinkPad must be online for the slice-1 E2E leg (exporter + vault push live there).
-- Lane discipline: Desktop edits `windows-widget/`, new Desktop-side converter code, and docs ONLY; any `linux-receiver`/`linux-converter` change needed for the handoff is filed as a coordination message, not edited here.
-- Widget-drop E2E tests need the user present — batched to the end; the slice itself is script-driven.
-- ML envs stay at `C:\Users\Bndit\ml\` (NOT `C:\Users\Rabbiallah\…` — that profile is pre-reset and dead).
+-
 
 ---
 
@@ -124,7 +116,8 @@ git pull  # always first
 - ✅ **GPU pipeline revamp scoped + Phase 0+1 executed 2026-07-18 (Desktop)** — scope committed as `docs/11-gpu-pipeline-revamp.md`; Phase 0 gate PASSED (uv + Python 3.12.13 + torch 2.11.0+cu128, 3080 visible); Phase 1 Marker-vs-pymupdf4llm A/B on the Beer book = **mixed pass** (Marker structurally better — paragraphs, sketches, 36 images, `_meta.json` TOC — but inherits `<sup>`/word-merge noise from the PDF's embedded 2013 OCR layer; `--force_ocr` at defaults thrashes the 10 GB card, killed at 27 min). Full numbers + fix candidates in docs/11.
 - ✅ **Phases 1.5 + 2 CLOSED 2026-07-18 evening (Desktop, Session 14)** — Phase 1.5a: `--strip_existing_ocr --recognition_batch_size 32` **fixes the whole Phase-1 noise class** (0 `<sup>`, perfect TOC table, ~4 s/page, peak 7.9 GB); 1.5b: born-digital A/B (webpage-PDF, CJK) = Marker wins outright (27 s/19 pp, working hyperlinks, no icon spam); Phase 2 VRAM handoff **PASSED** (Ollama 0.32.1 + qwen3:8b, `keep_alive:0`: baseline 623 → 623 → 621 → 620 MiB across Marker→generate→Marker, 52.6 tok/s, no OOM). **Engine policy table + ⚠️ LLM link-rewriting hazard + factory/control-center design note recorded in docs/11.**
 - ✅ **Phase 3 CLOSED 2026-07-19 (ThinkPad)** — sidecars measured and PASSED: specs recorded (i7-1265U 2P+8E/12t, 15.3 GiB RAM, 199 GB free, 4 GiB zram); Ollama 0.32.1 (user-level tarball, `~/ml/ollama` — no sudo in session; pacman package if role goes permanent) + phi4-mini q4: **~30 tok/s prompt eval, 4.1–5.8 tok/s generation, 3.06 GiB peak RSS** → async tagging gate PASS (10–60 s/doc), full-document analyst ruled out (~3 h/book); ChromaDB + MiniLM over the real vault (1218 chunks, 2 books): embed 34.2 s, queries 3–6 ms, all 4 relevance probes hit the right book → PASS. **Recommendation recorded in docs/11: product analyst stays on Desktop GPU (52.6 vs ~5 tok/s); ThinkPad carries tag/embed/structure.** Red flag #2 resolved.
-- ▶ Next up (user-gated): the control-room build-out — wire Marker as the conversion engine (Phase 4 rewiring, bundle-format compatible), widget factory-view (per-segment toggles, queue/ETA gauges, modern look). Phase 5 Forgejo: still deferred, maybe never. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions.
+- ✅ **Phase 4 slices 1+2 LANDED 2026-07-19 (Desktop, Session 15)** — `windows-converter/convert_and_ship.py` + `analyst.py`, design in `docs/12`. Slice 1 E2E with the **unchanged** ThinkPad exporter: agent-book bundle EXPORTED (`6008eb66`, blob-verified, byte-identical sha), re-ship → EXPORT-SKIP, and the **cross-machine dedup proof** — Beer converted fresh on the Desktop GPU (489 s full strip-OCR) skipped against the ThinkPad's 2026-07-12 ingest (`dbcce92c`). Slice 2: link-fenced qwen3:8b readability pass, 7/7 chunks fence-clean, 0 stray tokens, VRAM back to baseline. OCR-layer detection = text render mode 3 (font-name heuristic failed on the Beer layer — hit live). Windows gotcha: bsdtar mangles non-ASCII argv → tar sees only ASCII paths, remote `mv` applies the CJK name.
+- ▶ Next up (user-gated): widget "Convert (GPU)" trigger + the control-room build-out (per-segment toggles, queue/ETA gauges, modern look); ThinkPad enrichment wiring (tagging/embeddings as a staging consumer). Phase 5 Forgejo: still deferred, maybe never. Carry-forward: `min_chars_per_page=100` provisional — revisit after ~30 real conversions; analyst E2E-to-vault leg awaits the next genuinely-new document (dedup skips analyzed re-ships of already-vaulted sources by design).
 
 ---
 
@@ -722,3 +715,16 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verification:** every number above is from captured command output (lscpu/free/df/zramctl transcripts, Ollama API response JSON, `/proc/<pid>/status` VmHWM, timed index run with printed query results). §4 accounting over `a561cb7..HEAD`: only CLAUDE_README.md + docs/11 changed — doc/protocol files, listed in this session's ledger row; no source changes, no CHANGELOG entry needed.
 **Boundaries honored (user-set):** no live-service/exporter changes, no Phase 4 rewiring, no Forgejo; benchmark envs outside the repo.
 **Next for Desktop:** Phase 4 rewiring is now fully unblocked evidence-wise — engine policy (docs/11 table) + link-fenced analyst on the Desktop GPU, enrichment handoff to the ThinkPad sidecars proven here; all user-gated. **Next for ThinkPad:** none open — sidecar implementation arrives with Phase 4 wiring. If the enrichment role goes permanent: replace the tarball Ollama with the pacman package + a user-level service unit.
+
+### 2026-07-19 — Desktop agent Session 15 (Claude Code / Fable) — Phase 4 slices 1+2 LANDED
+**Machine:** DESKTOP-OBTQIRD (Windows)
+**Plan:** User green-lit Phase 4 (the intake inversion). Design before code, then the vertical slice, analyst only if slice 1 closes cleanly. Plan committed `0a6e99b`. (User-supplied kickstart referenced the dead pre-reset `C:\Users\Rabbiallah\…` path — corrected to `C:\Users\Bndit\…` and verified the ThinkPad S9 Phase 3 claims against the pushed branch before building on them.)
+**What was done (each step verified):**
+- *Design (`27813dd`):* `docs/12-phase4-rewiring.md` — the bundle/exporter contract extracted from the real code (bundle.py/exporter.py/transfer.rs, cited by behavior), tar-over-`tailscale ssh` transport with dot-dir + atomic `mv` (scp/rsync unusable — managed host keys), mechanical engine routing, link-fenced analyst design, slice gates.
+- *Slice 1 (`72b2532`, hygiene `88b10da`):* `windows-converter/convert_and_ship.py` — probe (pymupdf) → route → `marker_single` → format-identical bundle (80-byte clamp, `conversion:` frontmatter, `![[assets/…]]` embeds, manifest with full source sha) → local anchor (`C:\Users\Bndit\ml\library\anchor`) → ship. **Two live defects found and fixed during bring-up:** (1) OCR-layer detection by font name fails on the Beer layer — plain "Courier" — the robust signal is **text render mode 3** (`get_texttrace`), majority-of-spans rule, verified against both test PDFs; (2) **Windows bsdtar mangles non-ASCII argv** (CJK dir name arrived empty) — tar now only ever sees ASCII paths (bundle stays in `.part-<sha16>` locally; the remote `mv` applies the visible name — tailscale ssh carries Unicode argv correctly).
+- *Slice 1 gates, all three PASSED with the **unchanged** ThinkPad exporter:* (1) agent-book PDF (born-digital, CJK name, 19 pp, 2.0 s/page) → **EXPORTED** `Inbox/bojieli-ai-agent-book-ai-agent--21bfdffc` (commit `6008eb66` pushed + blob-verified); independent `Get-FileHash` of the source == the vault-committed manifest sha, byte-identical. (2) Re-ship → **EXPORT-SKIP**, staging empty, no duplicate. (3) **Cross-machine dedup:** Beer converted fresh on the Desktop (full 116-pp strip-OCR run, 489 s = 4.2 s/page, exactly the docs/11 prediction) → **EXPORT-SKIP against `dbcce92c`**, the ThinkPad's 2026-07-12 ingest — the pipeline provably does not know or care which machine converted.
+- *Slice 2 (`45e5995`):* `windows-converter/analyst.py` — the link-fenced qwen3:8b readability pass (docs/12 design): every embed → opaque `⟦IMG-n⟧` token pre-prompt, re-injected post; per-chunk token-multiset validation, violation ⇒ that chunk ships un-analyzed. Live test on the agent book: **7/7 chunks passed, 0 rejected, 206.5 s**, 4 embeds in == 4 out, 0 stray tokens, `analyst:` frontmatter stamped, VRAM back to baseline (659 MiB) after 7 `keep_alive:0` round-trips. Analyst-to-vault E2E leg deliberately deferred to the next genuinely-new document (dedup skips re-ships of already-vaulted sources — correct behavior, not a gap).
+- *Interruption note:* a **power outage** killed the first Beer conversion mid-run (~22:40 local). Recovery was clean: all durable state (vault commits, pushed repo work) survived; one temp dir swept; the uncommitted slice code was intact on disk and committed before the rerun. Lesson applied: commit code before long verification runs.
+**Verification:** all gate evidence is captured command output (converter.log lines, bare-repo `git log`/`git show`, `Get-FileHash`, staging `ls | wc -l`, nvidia-smi checkpoints). §4 accounting over `6547f52..HEAD`: `windows-converter/*` covered by the two feat commits + this row; CLAUDE_README/docs/11/docs/12/.gitignore are doc/protocol files in this row. CHANGELOG entry: pending next session alongside widget work (new component is additive, not yet wired to the widget).
+**Boundaries honored:** zero `linux-receiver`/`linux-converter` edits (the whole point — the exporter consumed foreign bundles as-is); no widget changes; no Forgejo; ML envs + anchor outside the repo.
+**Next for Desktop:** widget "Convert (GPU)" tile → watched folder → `convert_and_ship.py` (the conveyor rewire proper), control-room gauges per docs/11 design note. **Next for ThinkPad:** enrichment consumer (tagging/embeddings) fed from staging arrivals — needs a coordination message when Desktop wiring lands.

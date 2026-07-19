@@ -46,7 +46,7 @@ Today's intake converts **on the ThinkPad**. This revamp reverses the flow: PDF 
   **Gate:** no OOM; VRAM returns to baseline between stages. **PASSED 2026-07-18 — see results below.**
 - [x] **Phase 3 — ThinkPad sidecars** (needs it online): spec check, phi4-mini tok/s benchmark, ChromaDB + MiniLM over the existing vault.
   **Gate:** tagging fast enough for async per-document use; embeddings + search over the real vault work. **PASSED 2026-07-19 — see results below** (with one role boundary: the product-analyst stage stays on the Desktop GPU).
-- [ ] **Phase 4 — Pipeline rewiring:** the inversion above, bundle-format compatible.
+- [ ] **Phase 4 — Pipeline rewiring:** the inversion above, bundle-format compatible. **Slices 1+2 LANDED 2026-07-19** (`windows-converter/`, design in docs/12; E2E: EXPORTED + EXPORT-SKIP + cross-machine dedup proven; analyst 7/7 chunks fence-clean). Remaining: widget trigger + control-room integration.
 - [ ] **Phase 5 — Forgejo:** ThinkPad-hosted, or consciously dropped.
 
 **Environment note:** the Desktop ML environment lives at `C:\Users\Bndit\ml\` — outside this repo. Only docs and (later, Phase 4) pipeline code land here.
