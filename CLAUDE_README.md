@@ -162,6 +162,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-19 | Desktop | S20: foundation — events.jsonl stream + emitters, analyst programs (prompt files), widget-owned watcher (autostart verified live), shift line | CLAUDE_README | 671ee9a |
 | 2026-07-19 | Desktop | S21: line strip (5 stations, filesystem projection), gate mode selector, failed-tray click, Obsidian/ZenNotes launchers | CLAUDE_README | 7635e1a |
 | 2026-07-19 | Desktop | S22: ETA ranges from measured rates, auto-route rule (rules.json), ship receipts, failed tray; orphan-watcher sharp edge filed | CLAUDE_README | a589528 |
+| 2026-07-19 | Desktop | S23: docs/14 remote projection design (phone window over tailnet; ThinkPad-hosted; corrections to relayed plan; think-only) | CLAUDE_README, docs/14 | 65fe7ff |
 
 ---
 
