@@ -161,6 +161,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-19 | Desktop | S23: docs/14 remote projection design (phone window over tailnet; ThinkPad-hosted; corrections to relayed plan; think-only) | CLAUDE_README, docs/14 | 65fe7ff |
 | 2026-07-19 | Desktop | S24: launch-context bug fixed — stale Explorer env (login-time PATH) broke shortcut launches; registry hydration at boot + no-prompt git + boot-log instrumentation; preview-pane mirage identified | CLAUDE_README | 8b65af1 |
 | 2026-07-19 | Desktop | S25: ⚡ GPU → Vault tile (convert-gpu → local drop, line as status) — Marker is on the widget | CLAUDE_README | 2c7de12 |
+| 2026-07-19 | Desktop | S26: stage ticker + ⚙ convert countdown (the line narrates READY→CONVERTING→…→COMPLETE); first real ⚡ drop (439pp) at the gate | CLAUDE_README | 2b965ca |
 
 ---
 
