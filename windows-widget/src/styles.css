@@ -276,6 +276,16 @@ body {
 }
 .pf-btn.recommended:hover:not(:disabled) { background: rgba(217, 119, 87, 0.3); }
 
+/* S22 — remember-my-choice rule row on big-doc cards. */
+.pf-rule {
+  display: block;
+  margin-top: 5px;
+  font-size: 9px;
+  color: #9a938d;
+  cursor: pointer;
+}
+.pf-rule input { vertical-align: middle; margin-right: 4px; }
+
 /* Decision made, resume in flight: spark spins, buttons lock. */
 .pf-card.working { border-color: rgba(217, 119, 87, 0.7); }
 .pf-card.working .spark {

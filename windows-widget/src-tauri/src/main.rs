@@ -114,6 +114,39 @@ fn open_reader(state: State<AppState>, reader: String) -> Result<(), String> {
     line::open_reader(&target)
 }
 #[tauri::command]
+fn rules_set(
+    state: State<AppState>,
+    auto_local_over_chunks: Option<u32>,
+) -> Result<serde_json::Value, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    line::rules_set(&dir, auto_local_over_chunks)
+}
+#[tauri::command]
+fn rules_get(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    Ok(line::rules_get(&dir))
+}
+#[tauri::command]
+fn last_receipt(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    line::last_receipt(&dir)
+}
+#[tauri::command]
 fn open_failed_tray(state: State<AppState>) -> Result<(), String> {
     let dir = state
         .config
@@ -216,6 +249,9 @@ fn main() {
             open_reader,
             open_failed_tray,
             reader_config,
+            rules_set,
+            rules_get,
+            last_receipt,
             shift_summary,
             watcher_status,
             watcher_start,

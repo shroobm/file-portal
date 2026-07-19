@@ -275,7 +275,7 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     head, body = raw.split("---\n", 2)[1], raw.split("---\n", 2)[2]
     emit("analyst", "start", bundle=bundle_name, backend=backend, chars=len(body))
     new_body, meta = analyst.process(body, backend=backend)
-    emit("analyst", "done", bundle=bundle_name, **{k: meta[k] for k in
+    emit("analyst", "done", bundle=bundle_name, chars=len(body), **{k: meta[k] for k in
          ("backend", "program", "chunks_passed", "chunks_rejected",
           "chunks_failed", "duration_s")})
     frontmatter = (
@@ -293,9 +293,23 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     return meta
 
 
-def defer(tmp_dir: Path, bundle_name: str, manifest: dict, markdown_chars: int) -> None:
-    """Park the bundle in the pending queue for the widget's pre-flight card."""
+def defer(tmp_dir: Path, bundle_name: str, manifest: dict, markdown_chars: int) -> str:
+    """Park the bundle for the widget's pre-flight card — unless a standing rule
+    (rules.json, written by the card's remember-my-choice control) already decides it.
+    Returns what happened: "pending" | "auto-local"."""
     import analyst
+
+    rules = analyst.load_rules()
+    threshold = rules.get("auto_local_over_chunks")
+    est_chunks = max(1, -(-markdown_chars // analyst.CHUNK_TARGET))
+    if threshold is not None and est_chunks > int(threshold):
+        emit("gate", "auto_routed", bundle=bundle_name, backend="local",
+             est_chunks=est_chunks, rule=f"auto_local_over_chunks={threshold}")
+        print(f"AUTO-ROUTE local (rule: >{threshold} chunks)", flush=True)
+        meta = apply_analyst(tmp_dir, bundle_name, "local")
+        print(f"ANALYST done: {meta}", flush=True)
+        ship(tmp_dir, bundle_name, manifest["source_sha256"])
+        return "auto-local"
 
     pend_id = manifest["source_sha256"][:16]
     PENDING.mkdir(parents=True, exist_ok=True)
@@ -318,6 +332,7 @@ def defer(tmp_dir: Path, bundle_name: str, manifest: dict, markdown_chars: int) 
     print(f"PENDING {pend_id} — awaiting analyst decision (widget card)", flush=True)
     emit("gate", "pending", bundle=bundle_name, id=pend_id,
          est_chunks=card["preflight"]["est_chunks"])
+    return "pending"
 
 
 def resume(pend_id: str, backend: str) -> None:

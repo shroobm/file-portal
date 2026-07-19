@@ -210,6 +210,49 @@ def gpu_busy(threshold_mib: int = 2000) -> tuple[bool, int]:
 # above this chunk count will throttle even with pacing — recommend local.
 FREE_TIER_WINDOW_CHUNKS = 18
 
+EVENTS_FILE = Path(r"C:\Users\Bndit\ml\library\events.jsonl")
+RULES_FILE = Path(r"C:\Users\Bndit\ml\library\rules.json")
+
+
+def measured_rates(backend: str, max_samples: int = 12) -> list[float]:
+    """chars/s of recent completed analyst runs for this backend, newest last —
+    the event stream turning into self-calibrating ETAs (docs/13)."""
+    rates: list[float] = []
+    try:
+        for line in EVENTS_FILE.read_text(encoding="utf-8").splitlines():
+            try:
+                ev = json.loads(line)
+            except ValueError:
+                continue
+            if (ev.get("stage"), ev.get("event")) != ("analyst", "done"):
+                continue
+            if ev.get("backend") != backend:
+                continue
+            chars, dur = ev.get("chars"), ev.get("duration_s")
+            if chars and dur:
+                rates.append(chars / dur)
+    except OSError:
+        pass
+    return rates[-max_samples:]
+
+
+def eta_range(chars: int, backend: str) -> tuple[int, int]:
+    """(typical, slow) seconds from measured history; static fallback under 3 samples."""
+    rates = sorted(measured_rates(backend))
+    if len(rates) < 3:
+        rate = THROUGHPUT_CHARS_PER_S[backend]
+        return round(chars / rate), round(chars / (rate * 0.6))
+    median = rates[len(rates) // 2]
+    slow = rates[max(0, len(rates) // 10)]  # ~p10 slowest observed
+    return round(chars / median), round(chars / slow)
+
+
+def load_rules() -> dict:
+    try:
+        return json.loads(RULES_FILE.read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return {}
+
 
 def preflight(markdown_chars: int) -> dict:
     """The JSON the Tauri pre-flight card renders before the user picks a route.
@@ -217,10 +260,12 @@ def preflight(markdown_chars: int) -> dict:
     includes the RPM pacing floor, which dominates on large documents."""
     busy, vram_mib = gpu_busy()
     n_chunks = max(1, -(-markdown_chars // CHUNK_TARGET))  # ceil
-    local_rate = THROUGHPUT_CHARS_PER_S["local"]
-    gemini_rate = THROUGHPUT_CHARS_PER_S["gemini"]
     over_window = n_chunks > FREE_TIER_WINDOW_CHUNKS
-    eta_gemini = round(n_chunks * _GEMINI_MIN_INTERVAL_S + markdown_chars / gemini_rate)
+    local_lo, local_hi = eta_range(markdown_chars, "local")
+    gem_lo, gem_hi = eta_range(markdown_chars, "gemini")
+    pacing_floor = round(n_chunks * _GEMINI_MIN_INTERVAL_S)
+    gem_lo, gem_hi = max(gem_lo, pacing_floor), max(gem_hi, pacing_floor)
+    eta_gemini = gem_lo
     if over_window:
         recommendation = "local"
     elif busy:
@@ -238,13 +283,15 @@ def preflight(markdown_chars: int) -> dict:
             "local": {
                 "model": MODEL,
                 "privacy": "100% air-gapped",
-                "eta_s": round(markdown_chars / local_rate),
+                "eta_s": local_lo,
+                "eta_range_s": [local_lo, local_hi],
                 "note": "GPU busy — will contend with whatever is using it" if busy else None,
             },
             "gemini": {
                 "model": GEMINI_MODEL,
                 "privacy": "cloud routing — text leaves this machine",
                 "eta_s": eta_gemini,
+                "eta_range_s": [gem_lo, gem_hi],
                 "cost": "API free tier (NOT covered by AI Plus — verified 2026-07-19)",
                 "warning": (
                     f"{n_chunks} chunks exceeds the ~{FREE_TIER_WINDOW_CHUNKS}-request "

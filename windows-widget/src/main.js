@@ -151,6 +151,9 @@ function applyStatusEvent(category, ev) {
 // until the resume ships the bundle (json deleted) or fails (state: "failed").
 
 const cardsEl = document.getElementById("preflight-cards");
+let rulesAutoLocal = false;
+invoke("rules_get").then((r) => { rulesAutoLocal = r.auto_local_over_chunks != null; })
+  .catch(() => {});
 const PF_POLL_MS = 15000;
 const PF_FAST_POLL_MS = 4000;
 let pfFastUntil = 0;
@@ -161,9 +164,14 @@ const CARD_HEIGHT = 76;
 const LINE_HEIGHT = 30;
 let lineVisible = false;
 
-function pfEta(s) {
-  if (s == null) return "?";
-  return s < 90 ? `~${s}s` : `~${Math.round(s / 60)}m`;
+function pfEtaOne(s) {
+  return s < 90 ? `${s}s` : `${Math.round(s / 60)}m`;
+}
+function pfEta(backendInfo) {
+  const r = backendInfo?.eta_range_s;
+  if (r && r.length === 2 && r[0] !== r[1]) return `~${pfEtaOne(r[0])}–${pfEtaOne(r[1])}`;
+  const s = backendInfo?.eta_s;
+  return s == null ? "?" : `~${pfEtaOne(s)}`;
 }
 
 let pfCardCount = 0;
@@ -211,14 +219,28 @@ function pfRender(cards) {
       `<div class="pf-meta">${working ? "analyst working…" : meta}</div>` +
       warn +
       `<div class="pf-actions">` +
-      `<button class="pf-btn${rec === "local" ? " recommended" : ""}" data-backend="local" ${working ? "disabled" : ""}>🔒 Local ${pfEta(local.eta_s)}</button>` +
-      `<button class="pf-btn${rec === "gemini" ? " recommended" : ""}" data-backend="gemini" ${working ? "disabled" : ""}>☁ Flash ${pfEta(gemini.eta_s)}</button>` +
+      `<button class="pf-btn${rec === "local" ? " recommended" : ""}" data-backend="local" ${working ? "disabled" : ""}>🔒 Local ${pfEta(local)}</button>` +
+      `<button class="pf-btn${rec === "gemini" ? " recommended" : ""}" data-backend="gemini" ${working ? "disabled" : ""}>☁ Flash ${pfEta(gemini)}</button>` +
       `<button class="pf-btn" data-backend="none" ${working ? "disabled" : ""}>Ship as-is</button>` +
-      `</div>`;
+      `</div>` +
+      // S22 remember-my-choice: only offered where it applies (big docs), per docs/13.
+      ((pf.est_chunks ?? 0) > 18 && !working
+        ? `<label class="pf-rule"><input type="checkbox" id="rule-${card.id}"${rulesAutoLocal ? " checked" : ""}> always route big docs 🔒 local</label>`
+        : "");
 
     el.querySelectorAll(".pf-btn").forEach((btn) =>
       btn.addEventListener("click", () => pfDecide(card.id, btn.dataset.backend))
     );
+    el.querySelector(`#rule-${CSS.escape(card.id)}`)?.addEventListener("change", async (e) => {
+      try {
+        const rules = await invoke("rules_set",
+          { autoLocalOverChunks: e.target.checked ? 18 : null });
+        rulesAutoLocal = rules.auto_local_over_chunks != null;
+        setStatus(rulesAutoLocal ? "Rule set: big docs auto-route local" : "Rule cleared");
+      } catch (err) {
+        setStatus(`Rule: ${err}`);
+      }
+    });
     cardsEl.appendChild(el);
   }
   pfResize(cards.length);
@@ -316,6 +338,23 @@ stGate.addEventListener("click", async () => {
 stDrop.addEventListener("click", () => {
   if (stDrop.classList.contains("has-failed")) invoke("open_failed_tray").catch(() => {});
 });
+
+// S22: the ship station's receipt — last bundle's chain, shown in the status line.
+stShip.addEventListener("click", async () => {
+  try {
+    const r = await invoke("last_receipt");
+    const bits = [r.bundle];
+    if (r.convert) bits.push(`${r.convert.pages}pp @ ${r.convert.s_per_page}s/p`);
+    if (r.analyst) bits.push(
+      `${r.analyst.backend}: ${r.analyst.passed}✓` +
+      (r.analyst.protected ? ` ${r.analyst.protected}🛡` : "") +
+      ` in ${Math.round(r.analyst.duration_s)}s`);
+    setStatus("receipt: " + bits.join(" · "));
+  } catch (err) {
+    setStatus(`Receipt: ${err}`);
+  }
+});
+stShip.style.cursor = "pointer";
 
 async function lineInit() {
   try {

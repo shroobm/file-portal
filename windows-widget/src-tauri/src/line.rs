@@ -103,6 +103,72 @@ pub fn open_reader(target: &str) -> Result<(), String> {
     Ok(())
 }
 
+/// S22: persist the card's remember-my-choice rule. The widget writes user *intent*;
+/// the pipeline (convert_and_ship.defer) is the one that reads and applies it.
+pub fn rules_set(
+    gpu_pipeline_dir: &str,
+    auto_local_over_chunks: Option<u32>,
+) -> Result<Value, String> {
+    let rules = json!({ "auto_local_over_chunks": auto_local_over_chunks });
+    fs::write(
+        Path::new(gpu_pipeline_dir).join("rules.json"),
+        serde_json::to_string_pretty(&rules).unwrap() + "\n",
+    )
+    .map_err(|e| format!("failed to write rules: {e}"))?;
+    Ok(rules)
+}
+
+pub fn rules_get(gpu_pipeline_dir: &str) -> Value {
+    fs::read_to_string(Path::new(gpu_pipeline_dir).join("rules.json"))
+        .ok()
+        .and_then(|t| serde_json::from_str(&t).ok())
+        .unwrap_or_else(|| json!({}))
+}
+
+/// S22: the last shipped bundle's receipt — its whole chain gathered from the event
+/// stream (probe/converted/analyst/shipped). Pure projection of existing truth.
+pub fn last_receipt(gpu_pipeline_dir: &str) -> Result<Value, String> {
+    let text = fs::read_to_string(Path::new(gpu_pipeline_dir).join("events.jsonl"))
+        .map_err(|_| "no events yet".to_string())?;
+    let events: Vec<Value> = text
+        .lines()
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+    let shipped = events
+        .iter()
+        .rev()
+        .find(|e| e["stage"] == "ship" && e["event"] == "shipped")
+        .ok_or("nothing shipped yet")?;
+    let bundle = shipped["bundle"].as_str().unwrap_or_default().to_string();
+    let mut receipt = json!({ "bundle": bundle, "shipped_ts": shipped["ts"] });
+    // Walk backwards for this bundle's convert + analyst events (newest occurrence).
+    for ev in events.iter().rev() {
+        if ev["bundle"] != json!(bundle.clone())
+            && !ev["source"]
+                .as_str()
+                .is_some_and(|s| s.starts_with(&bundle))
+        {
+            continue;
+        }
+        match (ev["stage"].as_str(), ev["event"].as_str()) {
+            (Some("analyst"), Some("done")) if receipt["analyst"].is_null() => {
+                receipt["analyst"] = json!({
+                    "backend": ev["backend"], "program": ev["program"],
+                    "passed": ev["chunks_passed"], "protected": ev["chunks_rejected"],
+                    "failed": ev["chunks_failed"], "duration_s": ev["duration_s"],
+                });
+            }
+            (Some("convert"), Some("converted")) if receipt["convert"].is_null() => {
+                receipt["convert"] = json!({
+                    "wall_s": ev["wall_s"], "s_per_page": ev["s_per_page"], "pages": ev["pages"],
+                });
+            }
+            _ => {}
+        }
+    }
+    Ok(receipt)
+}
+
 /// Open the failed tray (or any pipeline folder) in Explorer for hands-on triage.
 pub fn open_folder(path: &str) -> Result<(), String> {
     Command::new("explorer.exe")
