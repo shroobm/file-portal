@@ -829,3 +829,9 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Verify remaining:** one real drag onto the ⚡ tile (user, morning) — the underlying drop→convert→card→ship chain is already E2E-proven.
 **§4 `aead3a4..HEAD`:** windows-widget/* in the feat commit; CLAUDE_README this row.
 **Next:** user's morning shortcut-launch check (S24) + first ⚡ drag. ThinkPad items unchanged (enrichment, supersede flow, docs/14 Phase A).
+
+### 2026-07-19 — Desktop agent Session 26 (Claude Code / Fable) — the line speaks
+**Machine:** DESKTOP-OBTQIRD. *(Compact; user asked "how do I know it is converting?" mid-drop of a 439-page book — the answer was "you barely can," so this session fixed that.)*
+**Done:** `line_state` now returns `converting_eta_s` (pages from the piece's probe event × measured median s/page from history, minus lock-file-mtime elapsed) and `latest` (the newest event verbatim); JS renders a countdown on the ⚙ station and a **stage ticker** in the shift line — the user's requested narration (📥 on the belt → ⚙ probing/converting ~Nm left → ✳ awaiting YOUR routing decision → 🧠 analyzing → ⇈ shipped ✓ → ✓ task complete), failures included; 5s line poll while converting. Swap deliberately delayed until the in-flight conversion finished (restart mid-convert would orphan the job AND re-queue the source — recorded hazard). clippy clean.
+**Live validation in progress:** first real ⚡-tile drop (BRAIN OF THE FIRM, 439 pp, scan lane, 59 min convert — dense 2 375 chars/page book; the s/page history now spans 3.4–8 s/page so ETAs will show honest ranges) is parked at the gate (est_chunks 263) awaiting the user's routing click.
+**§4 `3978d7a..HEAD`:** windows-widget/* in the feat commit; CLAUDE_README this row.
