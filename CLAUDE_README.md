@@ -799,3 +799,15 @@ Check ThinkPad Tailscale IP: `tailscale ip -4`
 **Done (each verified):** `line.rs` — one `line_state` read (drop-waiting count, converting name from `.gpu-lock`, failed count, last-shipped from the events tail) + `analyst_mode_get/set` (projects `analyst-mode.txt`; ask/local/gemini/off) + `open_reader` (config-allowlisted exe/URI) + `open_failed_tray`. UI: the docs/13 station strip `▚ drop ▸ ⚙ convert ▸ ✳ gate ▸ ⇈ ship ▸ ▤ library` above the cards — Convert shows the piece in the press (green when active), the gate shows its mode and flips terracotta only when cards wait (the color law holds), Drop shows a clickable amber `+N✗` when the failed tray has pieces; gate click cycles the 4 modes; Obsidian ◆ / ZenNotes ◈ titlebar launchers (config keys `reader_obsidian`/`reader_zennotes`, live config set: obsidian:// URI + ZenNotes.exe). Window reflow accounts for the strip. `clippy -D warnings` clean; release build; widget restarted (watcher auto-spawned again).
 **§4 `39d6a75..HEAD`:** windows-widget/* in the feat commit; CLAUDE_README this row.
 **Next:** S22 (same sitting): receipts, auto-route rule, ETA ranges from rolling event rates.
+
+### 2026-07-19 — Desktop agent Session 22 (Claude Code / Fable) — the judgment layer
+**Machine:** DESKTOP-OBTQIRD. *(Plan folded into the S21 open — same sitting, user directive "continue until done done".)*
+**Done (each verified):**
+- *ETA ranges:* `analyst.eta_range()` computes typical/slow (median + ~p10) from the event stream's measured analyst rates per backend (fallback to constants under 3 samples); the pacing floor still clamps Gemini. preflight now emits `eta_range_s`; the card renders "~2m–4m". Live check on a 170k-char doc: gemini [911, 1518]s from real history — the estimates now *learn*.
+- *Remember-my-choice:* `rules.json` (`auto_local_over_chunks`) — written by a checkbox that appears only on big-doc cards (docs/13: variety on first encounter, automation after); `defer()` applies the rule and auto-routes local with a `gate/auto_routed` event instead of parking. Widget writes intent; the pipeline decides — projection preserved.
+- *Receipts:* ⇈ ship-station click → `last_receipt` gathers the last shipped bundle's chain (pages @ s/page · backend passed✓/protected🛡 · duration) from events into the status line.
+- *Failed tray:* S21's `+N✗` amber count + click-through (Explorer) — closed as part of this pair of sessions.
+- `clippy -D warnings` clean (one `map_or`→`is_some_and` fix); release build.
+- **Sharp edge found:** `Stop-Process` on the widget skips the Destroyed handler → orphaned watcher (observed two pythons; swept). Normal window close is safe. Future: watcher PID file + startup sweep.
+**§4 `7635e1a..HEAD`:** windows-widget/* + windows-converter/* in the feat commit; CLAUDE_README this row.
+**Next:** docs/14 (mobile projection design, think-only) then wrap. **ThinkPad:** unchanged.
