@@ -58,7 +58,22 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-*(No session open — S27 closed 2026-07-20. Next: S28, the Survival Audit build per docs/15.)*
+**Machine:** DESKTOP-OBTQIRD (Desktop)
+**Date:** 2026-07-20 UTC (Session 28)
+**Claude:** Claude Code / Opus 4.8 (build session; Fable 5 authored docs/15 + S27 findings)
+
+### What I'm planning to do (in order):
+1. Build `windows-converter/fidelity_audit.py` exactly per docs/15 — ephemeral pymupdf witness, 7-step normalization, 12-word window-survival with rapidfuzz fuzzy fallback, the §5 tripwires, `audit_convert` + `audit_analyst` + verdict + manifest-block builder, CLI calibration mode. CPU-only, long-path-safe (`\\?\`), CJK char-n-grams. (rapidfuzz already in marker-env; wordfreq absent → scan-lane reference-free signal = zero-dep garbage-token rate, dict_hit left null. Noted as an implementation choice within §5's "wordfreq OR bundled" latitude, not a redesign.)
+2. Calibrate over the vaulted books REPORT-ONLY. Coverage reality: sources for Beer (scan) + bojieli (CJK clean) are in `drop/done/`, Designing Freedom's source is in `~/Downloads` (verify sha), Textor's source is absent (Rab's queue item #3 — re-download pending) → degeneration-only for it. Confirm the audit flags Beer's two zones and none of the other three; collect distributions, every run verbatim, runtimes. Start thresholds from §9.1 priors (zlib<0.20 OR trigram≥40), not §6 guesses.
+3. Wire the report-only hook into `convert_and_ship.py` (crash-safe: an audit failure must never fail a conversion; verdict never gates; widget untouched). Activates on the next watcher restart (widget-owned — I will not restart it).
+4. Close with §4 accounting + CHANGELOG + Session Log + ledger row (separate follow-up commit, never amend). Present the calibration report + a threshold recommendation for Rab's sign-off. Widget Rust projection (terracotta-on-fail) is deferred to a post-sign-off slice.
+
+### How I'll verify each step:
+- Module: run it standalone over the 3 books with sources; assert Beer's degeneration flags at the two known zones (~md lines 1594–1668, 2758–2814) and the other books don't; sanity-check a hand-built analyst pass (marker md vs a lightly-reworded copy) for the near-exact stage.
+- Hook: exercised by the same functions calibration runs; not activated live this session (no watcher restart, GPU untouched).
+
+### Dependencies / blockers:
+- None. GPU idle (no `.gpu-lock`, drop empty) at open. Note: two `file-portal-widget.exe` processes seen at health check (7552, 11980) — possible duplicate/orphan; not touched (holding all widget work until sign-off).
 
 ---
 
