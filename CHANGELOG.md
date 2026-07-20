@@ -8,6 +8,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S28 — the Survival Audit: a conversion-fidelity gate (`windows-converter/fidelity_audit.py`, 2026-07-20).**
+  Implements docs/15. Measures how much of a source PDF survives into the Marker markdown
+  (convert stage) and how much of the Marker markdown survives the qwen pass (analyst stage),
+  by window-survival containment against an **ephemeral pymupdf witness** (extracted, scored,
+  discarded — nothing doubled or vaulted). Deterministic, CPU-only, long-path-safe (`\\?\`),
+  CJK-aware (space-free char-window matching). Recall-first: it asks "is every window of the
+  source findable in the output?", localizes misses into per-page **runs** with excerpts, and
+  runs §5 tripwires (degeneration via per-paragraph zlib + repeated-trigram; page-coverage;
+  informational asset-delta; reverse-containment anti-hallucination sample; scan-lane
+  garbage-token rate). Per-stage asymmetry per docs/15 §6: clean lane = `fidelity`, scan lane
+  = `agreement` (imperfect witness, never hard-fails), analyst stage = near-exact (the Marker
+  doc is the reference). Writes a `fidelity` block into `manifest.json` (schema §7) that rides
+  the unchanged exporter, and emits `stage:"audit"` events. **Wired report-only into
+  `convert_and_ship.py`** (convert stage after Marker; analyst stage inline + in `apply_analyst`)
+  — every hook is crash-wrapped so an audit failure can never fail a conversion; the verdict is
+  recorded but **gates nothing** until thresholds are signed off (docs/15 §9). Activates on the
+  next watcher restart. Widget projection (terracotta-on-fail) deferred to a post-sign-off slice.
+  Calibrated over the vaulted books: the degeneration tripwire cleanly flags Brain of the Firm's
+  two loop zones and none of the other three at the §9.1 priors (zlib<0.20 OR trigram≥40);
+  survival/runs validated as a localizer (findings in the S28 Session Log).
+
 - **S18 — pre-flight analyst card in the widget + `windows-converter/` GPU lane (2026-07-19).**
   The Phase 4 intake inversion's Desktop half (docs/11+12): a new top-level
   `windows-converter/` (Python, runs in the `marker-env` outside the repo) converts

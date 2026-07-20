@@ -30,6 +30,53 @@ import pymupdf
 
 from events import emit
 
+# ---------- Survival Audit hooks (docs/15) — report-only, never raise ----------
+
+def _audit_convert_safe(src, body: str, lane: str, tmp_dir: Path, manifest: dict) -> None:
+    """Score the convert stage (PDF witness vs Marker markdown) into manifest['fidelity'].
+    Report-only: the verdict is recorded but gates nothing. An audit failure must never
+    fail the conversion (docs/15 §8)."""
+    try:
+        import fidelity_audit as fa
+        assets_dir = tmp_dir / "assets"
+        asset_count = sum(1 for _ in assets_dir.iterdir()) if assets_dir.exists() else None
+        conv = fa.audit_convert(src, body, lane, asset_count=asset_count)
+        manifest["fidelity"] = fa.build_fidelity_block(conv, None)
+        tw = conv["tripwires"]
+        name = getattr(src, "name", str(src))
+        emit("audit", "scored", source=name, phase="convert", kind=conv["kind"],
+             doc_survival=conv["doc_survival"], runs=len(conv["runs"]),
+             degeneration=tw["degeneration"], verdict=manifest["fidelity"]["verdict"])
+        if manifest["fidelity"]["verdict"] != "pass":
+            emit("audit", "flagged", source=name, phase="convert",
+                 verdict=manifest["fidelity"]["verdict"])
+    except Exception as exc:  # noqa: BLE001 — telemetry must never break the line
+        emit("audit", "error", phase="convert", error=str(exc)[:150])
+
+
+def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, name: str = "") -> None:
+    """Score the analyst stage (Marker doc vs analyst output) into manifest['fidelity'].
+    Report-only; never raises (docs/15 §8)."""
+    try:
+        import fidelity_audit as fa
+        an = fa.audit_analyst(marker_body, analyst_body)
+        fid = manifest.get("fidelity")
+        if fid and "convert" in fid:
+            fid["analyst"] = an
+            fid["verdict"] = fa.compute_verdict(fid["convert"], an)
+        else:
+            verdict = "fail" if (an["doc_survival"] < fa.ANALYST_DOC_FAIL
+                                 or any(r["words"] >= fa.ANALYST_RUN_WORDS for r in an["runs"])) else "pass"
+            manifest["fidelity"] = {"version": fa.SCHEMA_VERSION, "analyst": an, "verdict": verdict}
+        emit("audit", "scored", source=name, phase="analyst",
+             doc_survival=an["doc_survival"], runs=len(an["runs"]),
+             verdict=manifest["fidelity"]["verdict"])
+        if manifest["fidelity"]["verdict"] == "fail":
+            emit("audit", "flagged", source=name, phase="analyst", verdict="fail")
+    except Exception as exc:  # noqa: BLE001
+        emit("audit", "error", phase="analyst", error=str(exc)[:150])
+
+
 MARKER = Path(r"C:\Users\Bndit\ml\marker-env\Scripts\marker_single.exe")
 ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
 PENDING = Path(r"C:\Users\Bndit\ml\library\pending")  # deferred-analyst queue (widget card)
@@ -201,13 +248,18 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         "converted_at": converted_at.isoformat(timespec="seconds"),
     }
     body = rewrite_image_links(markdown)
+    # Survival Audit of the convert stage (docs/15) — before any analyst pass, so the
+    # witness is scored against the raw Marker output. Report-only; never fails the line.
+    _audit_convert_safe(src, body, lane, tmp_dir, manifest)
     if use_analyst:
         # Marker has exited: the GPU is free for the analyst (Phase 2 serialization).
         import analyst
 
         print(f"ANALYST pass starting (link-fenced, backend={analyst_backend})...", flush=True)
+        marker_body = body
         body, analyst_meta = analyst.process(body, backend=analyst_backend)
         manifest["analyst"] = analyst_meta
+        _audit_analyst_safe(marker_body, body, manifest, name=src.name)
         frontmatter = frontmatter.replace(
             "---\n",
             f"---\nanalyst:\n  model: {analyst_meta['model']}\n"
@@ -296,6 +348,9 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     manifest_path = bundle_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     manifest["analyst"] = meta
+    # Survival Audit of the analyst stage (docs/15) — augments the convert-stage block
+    # written at conversion time. Report-only; never raises.
+    _audit_analyst_safe(body, new_body, manifest, name=bundle_name)
     manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     return meta
 
