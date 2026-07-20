@@ -58,7 +58,22 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-*(No session open — S28 closed 2026-07-20. Next: Rab signs off Survival Audit thresholds → widget projection slice + the Beer remedy loop. Textor re-download still open.)*
+**Machine:** DESKTOP-OBTQIRD (Desktop)
+**Date:** 2026-07-20 UTC (Session 29)
+**Claude:** Claude Code / Opus 4.8
+
+### Problem (diagnosed this session, read-only forensics):
+Rab's running widget shows old feature sets (missing the ⚡ GPU→Vault tile, S25). Root cause is NOT two rival installs and NOT config: `config.toml` correctly defines all 7 tiles incl. `convert-gpu` with all `gpu_*` keys, and `src/` is at HEAD. The bug is **stale frontend embedding** — `tauri build` (frontendDist `../src`, no beforeBuildCommand) recompiled Rust fresh but froze an old `src/` snapshot into the exe. Grep of `target\release\file-portal-widget.exe` proves it: `data-tauri-drag-region` (S17) FOUND, but `preflight-cards` (S18) / `st-gate` (S21) / `convert-gpu` (S25) / `stage ticker` (S26) all MISSING — though all exist in current source. Different builds froze different-era frontends → the "different versions" Rab saw. Same "stale snapshot" class as the S24 env-ghost, located in the build pipeline.
+
+### What I'm doing (in order):
+1. Sweep the orphaned watcher (marker-env python 8796 + child 3160; parent widget 11980 long dead; gpu-lock clear) so the rebuilt widget starts exactly one clean watcher.
+2. Force frontend re-embed: `cargo clean -p file-portal-widget` → `cargo clippy --release -- -D warnings` → `tauri build --no-bundle` (or `cargo build --release`). No widget running (exe unlocked).
+3. **Verify** the new exe: grep for `convert-gpu` + `st-gate` + `stage ticker` — must now be FOUND (else the theory's wrong, stop and reassess).
+4. Launch ONE widget; confirm ⚡ tile renders + one fresh watcher. Delete the stale `bundle\nsis\File Portal_0.1.0_x64-setup.exe` (pre-⚡, the one artifact that could install an old build).
+5. Close: CHANGELOG (Fixed), Session Log, §4, ledger row. Follow-ups noted: `tauri-plugin-single-instance` (kill the ghost-duplicate class) + a rerun-if-changed/embed-cache fix so the frontend can't silently go stale again.
+
+### Verify: grep the rebuilt exe (the fix is falsifiable — convert-gpu must appear). Visual ⚡-tile confirm on launch.
+### Blockers: none. No widget running, gpu-lock clear, cargo present.
 
 ---
 
