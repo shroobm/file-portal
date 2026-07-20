@@ -73,6 +73,17 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **Ship stage: an offline ThinkPad was masked as a tar timeout (2026-07-19, `e7ea85a`).**
+  During the first ⚡ production run (Brain of the Firm), the ThinkPad going dark mid-ship
+  surfaced as `tar … timed out after 60 seconds` (the 17:57 UTC `gate/failed` event): ssh
+  died on the dead tailnet dial, leaving the local tar wedged writing into a dead pipe, and
+  tar's own 60 s timeout fired first — burying the real network error. `ship()` now wraps
+  the ssh run in try/finally, kills the wedged tar whenever ssh fails or times out so the
+  actual error propagates, and the tar wait is 60 → 600 s for large bundles. The book
+  recovered and vaulted the same night (20:49 UTC, `f310f759`). *Entry written
+  retroactively in S27 — the fix was committed after S26's close and §4 accounting caught
+  it with no CHANGELOG entry.*
+
 - **CI first-contact failures on PR #1 (2026-07-13).** The workflow (written 2026-07-05 on
   master) had never run against the branch's code. Two independent breaks: (1) `CI / python` —
   pytest collection died with `No module named 'allocator'` because the runner pip-installs
