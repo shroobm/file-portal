@@ -155,6 +155,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-19 | Desktop | S26: stage ticker + ⚙ convert countdown (the line narrates READY→CONVERTING→…→COMPLETE); first real ⚡ drop (439pp) at the gate | CLAUDE_README | 2b965ca |
 | 2026-07-20 | Desktop | S27: degeneration findings F1–F5 filed (vaulted Beer 12.3% two-zone OCR loops, user-found; other 3 books clean; thresholds separate at zlib<0.20 OR tri≥40) + docs/15 Survival Audit spec committed; retroactive CHANGELOG entry for post-S26 `e7ea85a` ship fix caught by §4 | CLAUDE_README, docs/15, coordination, CHANGELOG | 0c1138c |
 | 2026-07-20 | Desktop | S28: Survival Audit BUILT (fidelity_audit.py per docs/15) + report-only crash-safe hooks in convert_and_ship.py (fidelity manifest block + audit events, verdict gates nothing); calibrated — degeneration tripwire production-ready (flags Beer only), survival is report-only localizer; awaiting Rab threshold sign-off | CLAUDE_README, CHANGELOG, fidelity_audit.py, convert_and_ship.py | 35a6d7c |
+| 2026-07-20 | Desktop | S29: widget "old version" ghost SOLVED = MSIX AppData redirection (Claude's tools sandboxed → AppData writes hit the package container, not Rab's real config; scope=AppData only). Fixed by Rab copying good config to real AppData unpackaged; ⚡ tile back+persistent. Honest correction of a wrong stale-frontend-embed theory (brotli-compressed-asset grep). No source changed; permanent code fix declined (procedural rule in memory). | CLAUDE_README | c2c11d3 |
 
 ---
 
