@@ -151,6 +151,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-19 | Desktop | S24: launch-context bug fixed — stale Explorer env (login-time PATH) broke shortcut launches; registry hydration at boot + no-prompt git + boot-log instrumentation; preview-pane mirage identified | CLAUDE_README | 8b65af1 |
 | 2026-07-19 | Desktop | S25: ⚡ GPU → Vault tile (convert-gpu → local drop, line as status) — Marker is on the widget | CLAUDE_README | 2c7de12 |
 | 2026-07-19 | Desktop | S26: stage ticker + ⚙ convert countdown (the line narrates READY→CONVERTING→…→COMPLETE); first real ⚡ drop (439pp) at the gate | CLAUDE_README | 2b965ca |
+| 2026-07-20 | Desktop | S27: degeneration findings F1–F5 filed (vaulted Beer 12.3% two-zone OCR loops, user-found; other 3 books clean; thresholds separate at zlib<0.20 OR tri≥40) + docs/15 Survival Audit spec committed; retroactive CHANGELOG entry for post-S26 `e7ea85a` ship fix caught by §4 | CLAUDE_README, docs/15, coordination, CHANGELOG | 0c1138c |
 
 ---
 
