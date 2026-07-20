@@ -59,15 +59,16 @@ git pull  # always first
 *Replace this section at the start of each session. Commit it before starting work.*
 
 **Machine:** DESKTOP-OBTQIRD (Desktop)
-**Date:** 2026-07-19 (Session 25)
-**Claude:** Claude Code / Fable
+**Date:** 2026-07-20 UTC (Session 27)
+**Claude:** Claude Code / Fable 5
 
 ### What I'm planning to do (in order):
-1. The "GPU → Vault" tile: local-move branch in `transfer.rs` (category `convert-gpu` → copy into `<gpu_pipeline_dir>\drop` with collision-safe naming), tile added to live config, JS skips the ThinkPad status poll for this category (the line strip is its status).
-2. Rebuild, restart, drop-test, close.
+1. Commit `docs/15-survival-audit.md` — the Survival Audit spec (conversion fidelity gate), authored pre-open this evening from the fidelity think-tank, including §9.1 measured calibration priors.
+2. File a formal findings register at `coordination/messages/2026-07-20T03-30--desktop-degeneration-findings-brain-of-the-firm.md`: F1 degeneration loops in the vaulted Brain of the Firm (user-discovered, tripwire-quantified: 12.3% of chars, two zones), F2 duplication accompanying degeneration, F3 analyst chunker passes oversized paragraphs unexamined, F4 threshold separation measurements, F5 MAX_PATH hazard for audit tooling.
+3. Close with §4 accounting + ledger row. Report-only session: no source code changes; the audit build itself is next session (S28, kickstart prompt prepared for Opus 4.8).
 
 ### How I'll verify each step:
-- Drop a PDF on the tile → file appears in drop\, watcher converts, line shows it; no allocator-poll noise.
+- Every finding claim is backed by a live run quoted verbatim (prototype degeneration scan over all 4 vaulted books), a code read (`analyst.py` chunker), or a reproduced error (long-path ENOENT → `\\?\` success). No inferred claims.
 
 ### Dependencies / blockers:
 - None.
