@@ -58,6 +58,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S33 — the Opsroom, a quarantined control-panel dashboard prototype (2026-07-21).**
+  A professional, self-contained, zero-dependency dashboard representation of the pipeline,
+  under a new `prototypes/` **quarantine section** (category/name convention; no pipeline
+  coupling; CI untouched — see `prototypes/README.md`).
+  `prototypes/control-panel/opsroom/opsroom.html` renders the 6-station line, a live canvas
+  **transit viewer**, golden-signal KPI tiles, a convert-station progress panel with live
+  ETA, the **Survival Audit** (verdicts + damage map), and a live event stream — driven by a
+  self-contained simulation on realistic figures; theme-aware, `prefers-reduced-motion`-safe,
+  palette-cached for a light 60 fps loop. Design lineage (see `DESIGN.md`): Project Cybersyn's
+  Operations Room (Beer + Bonsiepe) × ISOTYPE × modern observability practice × Linear × the
+  Claude Design System. **Quarantined and disposable** — it reads no pipeline state and
+  triggers nothing; graduating it into the widget would be a separate, explicit decision.
+
 - **S31 — the Assay: the Survival Audit's widget projection (docs/15 §13, 2026-07-20).**
   The audit becomes a see-and-steer channel in the widget. A new `◎ assay` line station
   (between gate and ship) carries the last conversion's verdict as a dot — green pass, amber

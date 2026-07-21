@@ -1,0 +1,581 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>File Portal — The Opsroom</title>
+<!--
+  THE OPSROOM  ·  a control-panel prototype for the File Portal document factory
+  ─────────────────────────────────────────────────────────────────────────────
+  QUARANTINED: this is a standalone design exploration. It reads a self-contained
+  simulation, not the live pipeline. Nothing here is imported or run by production.
+  Open it by double-clicking — zero dependencies, no server, no network.
+
+  Design lineage (see DESIGN.md):
+    · Project Cybersyn's Operations Room (Stafford Beer + Gui Bonsiepe, 1972) — the
+      hexagonal cybernetic control room; orange accents → the project's clay/terracotta.
+    · ISOTYPE (Neurath/Arntz) via HfG Ulm — iconic, glanceable visual grammar.
+    · Modern observability practice (Grafana/SRE) — golden signals, "healthy in seconds".
+    · Linear's engineering aesthetic — restraint, dark, sans UI + mono data.
+    · The Claude Design System — flat surfaces, one reserved accent, semantic color.
+-->
+<style>
+  /* ============================================================ TOKENS ===== */
+  /* One accent (clay) reserved for "your attention / live action", per the widget's
+     law and CDS. Semantic green/amber are separate from the accent. A single cool
+     tone (flow) marks motion/in-transit — the only counterweight to the warm palette. */
+  :root {
+    color-scheme: dark;
+    --bg: #100e0c;
+    --surface-1: #17130f;
+    --surface-2: #1e1814;
+    --elev: #241d18;
+    --border: rgba(240, 228, 216, 0.08);
+    --border-strong: rgba(240, 228, 216, 0.16);
+    --text: #ece7e1;
+    --text-2: #a89f95;
+    --text-3: #6f665d;
+    --clay: #d97757;
+    --clay-hi: #e6926f;
+    --clay-bg: rgba(217, 119, 87, 0.13);
+    --ok: #6fbf73;
+    --ok-bg: rgba(111, 191, 115, 0.13);
+    --warn: #e0b34c;
+    --warn-bg: rgba(224, 179, 76, 0.13);
+    --flow: #79a6bd;
+    --flow-bg: rgba(121, 166, 189, 0.13);
+    --shadow: 0 1px 0 rgba(255,255,255,0.03) inset, 0 12px 30px -18px rgba(0,0,0,0.7);
+    --font-sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+    --font-mono: ui-monospace, "Cascadia Code", "Cascadia Mono", "Consolas", monospace;
+    --r: 12px;
+    --r-sm: 8px;
+  }
+  :root[data-theme="light"] {
+    color-scheme: light;
+    --bg: #eceae6;
+    --surface-1: #f6f4f1;
+    --surface-2: #fffefb;
+    --elev: #ffffff;
+    --border: rgba(40, 30, 22, 0.12);
+    --border-strong: rgba(40, 30, 22, 0.22);
+    --text: #221d18;
+    --text-2: #665d54;
+    --text-3: #968b80;
+    --clay: #c15f3c;
+    --clay-hi: #a94e2e;
+    --clay-bg: rgba(193, 95, 60, 0.10);
+    --ok: #3f8f46;
+    --ok-bg: rgba(63, 143, 70, 0.10);
+    --warn: #a97c17;
+    --warn-bg: rgba(169, 124, 23, 0.10);
+    --flow: #3f7690;
+    --flow-bg: rgba(63, 118, 144, 0.10);
+    --shadow: 0 1px 0 rgba(255,255,255,0.6) inset, 0 12px 28px -20px rgba(40,30,22,0.35);
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      color-scheme: light;
+      --bg:#eceae6; --surface-1:#f6f4f1; --surface-2:#fffefb; --elev:#fff;
+      --border:rgba(40,30,22,.12); --border-strong:rgba(40,30,22,.22);
+      --text:#221d18; --text-2:#665d54; --text-3:#968b80;
+      --clay:#c15f3c; --clay-hi:#a94e2e; --clay-bg:rgba(193,95,60,.10);
+      --ok:#3f8f46; --ok-bg:rgba(63,143,70,.10); --warn:#a97c17; --warn-bg:rgba(169,124,23,.10);
+      --flow:#3f7690; --flow-bg:rgba(63,118,144,.10);
+      --shadow:0 1px 0 rgba(255,255,255,.6) inset,0 12px 28px -20px rgba(40,30,22,.35);
+    }
+  }
+
+  /* ============================================================== BASE ===== */
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body { height: 100%; }
+  body {
+    background:
+      radial-gradient(1200px 600px at 78% -10%, var(--clay-bg), transparent 60%),
+      var(--bg);
+    color: var(--text);
+    font-family: var(--font-sans);
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+    letter-spacing: -0.006em;
+  }
+  .num { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+  .eyebrow {
+    font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 0.16em;
+    text-transform: uppercase; color: var(--text-3);
+  }
+  ::selection { background: var(--clay-bg); }
+
+  /* ============================================================ SHELL ====== */
+  .app { max-width: 1240px; margin: 0 auto; padding: 20px clamp(14px, 3vw, 30px) 40px; }
+
+  /* --- top bar --- */
+  .topbar { display: flex; align-items: center; gap: 16px; padding: 6px 2px 20px; flex-wrap: wrap; }
+  .brand { display: flex; align-items: center; gap: 11px; }
+  .mark { width: 30px; height: 30px; flex: none; color: var(--clay); }
+  .brand h1 { font-size: 15px; font-weight: 600; letter-spacing: -0.01em; }
+  .brand .sub { display: block; margin-top: 1px; }
+  .topbar .spacer { flex: 1; }
+  .stat-cluster { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+  .pill {
+    display: inline-flex; align-items: center; gap: 7px;
+    padding: 5px 11px; border-radius: 999px;
+    background: var(--surface-1); border: 1px solid var(--border);
+    font-family: var(--font-mono); font-size: 11px; color: var(--text-2);
+    white-space: nowrap;
+  }
+  .pill .dot { width: 7px; height: 7px; border-radius: 50%; background: var(--text-3); }
+  .pill.live .dot { background: var(--ok); box-shadow: 0 0 0 0 var(--ok); animation: ping 2.4s infinite; }
+  .pill b { color: var(--text); font-weight: 500; }
+  .pill .clock { color: var(--text); }
+  .icon-btn {
+    width: 34px; height: 30px; display: inline-grid; place-items: center;
+    background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-sm);
+    color: var(--text-2); cursor: pointer; font-size: 14px; transition: .15s;
+  }
+  .icon-btn:hover { border-color: var(--border-strong); color: var(--text); }
+  @keyframes ping { 0% { box-shadow: 0 0 0 0 rgba(111,191,115,.5);} 70%{box-shadow:0 0 0 6px rgba(111,191,115,0);} 100%{box-shadow:0 0 0 0 rgba(111,191,115,0);} }
+
+  /* --- grid --- */
+  .grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 14px; }
+  .col-3 { grid-column: span 3; }
+  .col-2 { grid-column: span 2; }
+  .col-1 { grid-column: span 1; }
+  @media (max-width: 880px) { .grid { grid-template-columns: 1fr; } .col-2, .col-1 { grid-column: span 3; } }
+
+  .card {
+    background: var(--surface-1); border: 1px solid var(--border);
+    border-radius: var(--r); box-shadow: var(--shadow);
+  }
+  .card-h { display: flex; align-items: center; gap: 10px; padding: 12px 15px; border-bottom: 1px solid var(--border); }
+  .card-h .title { font-size: 12.5px; font-weight: 500; color: var(--text); }
+  .card-h .spacer { flex: 1; }
+  .card-b { padding: 15px; }
+
+  /* ================================================= PIPELINE + TRANSIT ==== */
+  .flow-head { display: flex; align-items: baseline; gap: 12px; padding: 13px 16px 4px; }
+  .flow-head .title { font-size: 13px; font-weight: 500; }
+  .rail { display: grid; grid-template-columns: repeat(6, 1fr); gap: 0; padding: 6px 10px 2px; }
+  .station { position: relative; text-align: center; padding: 10px 4px 6px; }
+  .station:not(:last-child)::after {
+    content: ""; position: absolute; top: 26px; right: -1px; width: 2px; height: 0;
+  }
+  .station .glyph {
+    width: 40px; height: 40px; margin: 0 auto 8px; border-radius: 11px;
+    display: grid; place-items: center; font-size: 19px;
+    background: var(--surface-2); border: 1px solid var(--border); color: var(--text-2);
+    transition: .3s;
+  }
+  .station.active .glyph { color: var(--clay); border-color: var(--clay); background: var(--clay-bg); }
+  .station.done .glyph { color: var(--ok); border-color: rgba(111,191,115,.4); }
+  .station .name { font-family: var(--font-mono); font-size: 10px; letter-spacing: .04em; color: var(--text-3); text-transform: uppercase; }
+  .station .count { display: block; margin-top: 3px; font-family: var(--font-mono); font-size: 15px; font-weight: 500; color: var(--text); font-variant-numeric: tabular-nums; }
+  .station .count.pulse { color: var(--clay); }
+
+  .transit { position: relative; height: 92px; margin: 4px 6px 8px; }
+  .transit canvas { width: 100%; height: 100%; display: block; }
+
+  /* ================================================================ KPI ==== */
+  .kpis { display: grid; grid-template-columns: repeat(6, 1fr); gap: 12px; margin: 14px 0; }
+  @media (max-width: 880px) { .kpis { grid-template-columns: repeat(2, 1fr); } }
+  @media (max-width: 560px) { .kpis { grid-template-columns: 1fr 1fr; } }
+  .kpi { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r); padding: 13px 14px; position: relative; overflow: hidden; }
+  .kpi .label { font-family: var(--font-mono); font-size: 10px; letter-spacing: .08em; text-transform: uppercase; color: var(--text-3); }
+  .kpi .val { margin-top: 7px; font-family: var(--font-mono); font-size: 23px; font-weight: 500; font-variant-numeric: tabular-nums; letter-spacing: -.02em; line-height: 1; }
+  .kpi .unit { font-size: 12px; color: var(--text-3); font-weight: 400; margin-left: 3px; }
+  .kpi .delta { font-family: var(--font-mono); font-size: 10.5px; margin-top: 6px; color: var(--text-3); }
+  .kpi .delta.up { color: var(--ok); } .kpi .delta.dn { color: var(--clay); }
+  .spark { position: absolute; right: 10px; bottom: 10px; width: 66px; height: 26px; opacity: .9; }
+  .gauge { margin-top: 9px; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; }
+  .gauge > i { display: block; height: 100%; background: var(--flow); border-radius: 3px; transition: width .6s ease, background .3s; }
+  .gauge > i.hot { background: var(--clay); }
+
+  /* ============================================================== METER ==== */
+  .row { display: flex; align-items: center; gap: 10px; }
+  .meter { flex: 1; height: 7px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+  .meter > i { display: block; height: 100%; border-radius: 4px; transition: width .6s ease; }
+  .meter > i.ok { background: var(--ok); } .meter > i.warn { background: var(--warn); } .meter > i.clay { background: var(--clay); } .meter > i.flow { background: var(--flow); }
+
+  /* --- now converting --- */
+  .conv-title { display: flex; align-items: baseline; gap: 8px; }
+  .conv-title .name { font-size: 13px; font-weight: 500; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .conv-title .lane { font-family: var(--font-mono); font-size: 10px; padding: 2px 7px; border-radius: 5px; background: var(--flow-bg); color: var(--flow); flex: none; }
+  .conv-meta { display: flex; justify-content: space-between; margin: 12px 0 6px; font-family: var(--font-mono); font-size: 11px; color: var(--text-2); }
+  .conv-meta b { color: var(--text); font-weight: 500; }
+  .kv { display: grid; grid-template-columns: 1fr 1fr; gap: 8px 14px; margin-top: 14px; }
+  .kv div { display: flex; justify-content: space-between; font-family: var(--font-mono); font-size: 11.5px; color: var(--text-2); padding: 4px 0; border-top: 1px solid var(--border); }
+  .kv div b { color: var(--text); font-weight: 500; }
+
+  /* --- assay --- */
+  .assay-row { display: flex; align-items: center; gap: 10px; padding: 9px 0; border-top: 1px solid var(--border); font-size: 12px; }
+  .assay-row:first-child { border-top: 0; }
+  .assay-row .bk { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: var(--text); }
+  .assay-row .sv { font-family: var(--font-mono); font-size: 11px; color: var(--text-2); width: 44px; text-align: right; font-variant-numeric: tabular-nums; }
+  .badge { font-family: var(--font-mono); font-size: 9.5px; letter-spacing: .03em; text-transform: uppercase; padding: 3px 8px; border-radius: 5px; white-space: nowrap; }
+  .badge.pass { color: var(--ok); background: var(--ok-bg); }
+  .badge.flag { color: var(--warn); background: var(--warn-bg); }
+  .badge.fail { color: var(--clay); background: var(--clay-bg); }
+  .mini-meter { width: 74px; height: 6px; border-radius: 3px; background: var(--surface-2); overflow: hidden; flex: none; }
+  .mini-meter > i { display: block; height: 100%; }
+  .damage {
+    margin-top: 13px; padding: 11px 12px; border-radius: var(--r-sm);
+    background: var(--clay-bg); border: 1px solid rgba(217,119,87,.28);
+  }
+  .damage .cap { font-family: var(--font-mono); font-size: 10.5px; color: var(--clay); margin-bottom: 8px; }
+  .damage .cap b { color: var(--text); }
+  .map { position: relative; height: 13px; border-radius: 3px; background: var(--surface-2); border: 1px solid var(--border); }
+  .map > span { position: absolute; top: 0; bottom: 0; border-radius: 2px; }
+  .map > span.z { background: var(--clay); opacity: .9; }
+  .map > span.r { background: var(--warn); opacity: .7; }
+  .damage .runs { list-style: none; margin-top: 9px; font-family: var(--font-mono); font-size: 10px; color: var(--text-2); }
+  .damage .runs li { padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+  .damage .runs .k { color: var(--clay); }
+
+  /* --- event log --- */
+  .log { font-family: var(--font-mono); font-size: 11px; max-height: 250px; overflow: hidden; }
+  .log .line { display: flex; gap: 9px; padding: 3px 0; color: var(--text-2); animation: slidein .4s ease; }
+  .log .ts { color: var(--text-3); flex: none; }
+  .log .tag { flex: none; width: 62px; }
+  .log .tag.intake { color: var(--flow); } .log .tag.convert { color: var(--text); }
+  .log .tag.gate { color: var(--warn); } .log .tag.audit { color: var(--clay); }
+  .log .tag.ship { color: var(--ok); } .log .tag.vault { color: var(--ok); }
+  .log .msg { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  @keyframes slidein { from { opacity: 0; transform: translateY(-3px); } to { opacity: 1; transform: none; } }
+
+  /* --- footer --- */
+  .foot { display: flex; justify-content: space-between; flex-wrap: wrap; gap: 8px; margin-top: 26px; padding-top: 14px; border-top: 1px solid var(--border); font-family: var(--font-mono); font-size: 10.5px; color: var(--text-3); }
+  .foot a { color: var(--text-2); text-decoration: none; }
+
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</head>
+<body>
+<div class="app">
+
+  <!-- ═══════════════════════════════════════════════════════════ TOP BAR -->
+  <header class="topbar">
+    <div class="brand">
+      <svg class="mark" viewBox="0 0 40 40" aria-hidden="true" fill="none">
+        <path d="M20 3 34.6 11.5 34.6 28.5 20 37 5.4 28.5 5.4 11.5Z" stroke="currentColor" stroke-width="1.6" opacity=".55"/>
+        <path d="M20 11 27.8 15.5 27.8 24.5 20 29 12.2 24.5 12.2 15.5Z" fill="currentColor" opacity=".16"/>
+        <circle cx="20" cy="20" r="3.1" fill="currentColor"/>
+      </svg>
+      <div>
+        <h1>File&nbsp;Portal</h1>
+        <span class="eyebrow sub">Operations Room</span>
+      </div>
+    </div>
+    <div class="spacer"></div>
+    <div class="stat-cluster">
+      <span class="pill live"><span class="dot"></span>System <b>viable</b></span>
+      <span class="pill"><span class="dot" style="background:var(--ok)"></span>Watcher <b>up</b></span>
+      <span class="pill">GPU <b id="p-gpu">8.0</b>/10&nbsp;GB</span>
+      <span class="pill clock"><span class="num" id="clock">--:--:--</span> UTC</span>
+      <button class="icon-btn" id="theme" title="Toggle theme" aria-label="Toggle theme">◐</button>
+    </div>
+  </header>
+
+  <!-- ═══════════════════════════════════════════ PIPELINE + TRANSIT VIEWER -->
+  <section class="card col-3" style="margin-bottom:14px">
+    <div class="flow-head">
+      <span class="title">The line</span>
+      <span class="eyebrow">intake → convert → gate → assay → ship → vault</span>
+      <div class="spacer" style="flex:1"></div>
+      <span class="eyebrow" id="inflight">0 in transit</span>
+    </div>
+    <div class="rail" id="rail">
+      <div class="station" data-seg="intake"><div class="glyph">▚</div><div class="name">Intake</div><span class="count" data-c="intake">0</span></div>
+      <div class="station" data-seg="convert"><div class="glyph">⚙</div><div class="name">Convert</div><span class="count" data-c="convert">0</span></div>
+      <div class="station" data-seg="gate"><div class="glyph">✳</div><div class="name">Gate</div><span class="count" data-c="gate">0</span></div>
+      <div class="station" data-seg="assay"><div class="glyph">◎</div><div class="name">Assay</div><span class="count" data-c="assay">0</span></div>
+      <div class="station" data-seg="ship"><div class="glyph">⇈</div><div class="name">Ship</div><span class="count" data-c="ship">0</span></div>
+      <div class="station" data-seg="vault"><div class="glyph">▤</div><div class="name">Vault</div><span class="count" data-c="vault">4</span></div>
+    </div>
+    <div class="transit"><canvas id="belt"></canvas></div>
+  </section>
+
+  <!-- ═══════════════════════════════════════════════════════ KPI  (signals) -->
+  <section class="kpis">
+    <div class="kpi"><div class="label">Throughput</div><div class="val num"><span id="k-thru">6.4</span><span class="unit">pp/s</span></div><div class="delta up num" id="d-thru">▲ 4%</div><svg class="spark" id="sp-thru" viewBox="0 0 66 26" preserveAspectRatio="none"></svg></div>
+    <div class="kpi"><div class="label">Median s/page</div><div class="val num"><span id="k-spp">3.1</span></div><div class="delta num" id="d-spp">clean lane</div><svg class="spark" id="sp-spp" viewBox="0 0 66 26" preserveAspectRatio="none"></svg></div>
+    <div class="kpi"><div class="label">GPU VRAM</div><div class="val num"><span id="k-vram">8.0</span><span class="unit">/10 GB</span></div><div class="gauge"><i id="g-vram" style="width:80%"></i></div></div>
+    <div class="kpi"><div class="label">Queue depth</div><div class="val num"><span id="k-queue">1</span></div><div class="delta num" id="d-queue">1 converting</div></div>
+    <div class="kpi"><div class="label">Survival avg</div><div class="val num"><span id="k-surv">0.87</span></div><div class="gauge"><i id="g-surv" class="ok-fill" style="width:87%;background:var(--ok)"></i></div></div>
+    <div class="kpi"><div class="label">Uptime</div><div class="val num"><span id="k-up">99.2</span><span class="unit">%</span></div><div class="delta num">4-day shift</div></div>
+  </section>
+
+  <div class="grid">
+    <!-- ══════════════════════════════════════════════════ NOW CONVERTING -->
+    <section class="card col-1">
+      <div class="card-h"><span class="title">⚙ Convert station</span><span class="spacer"></span><span class="eyebrow" id="conv-state">running</span></div>
+      <div class="card-b">
+        <div class="conv-title"><span class="name" id="conv-name">Cybernetics: Book of Models</span><span class="lane" id="conv-lane">clean</span></div>
+        <div class="conv-meta"><span>page <b id="conv-page">42</b> / <span id="conv-pages">91</span></span><span><b id="conv-eta">~2m 10s</b> left</span></div>
+        <div class="row"><div class="meter"><i class="clay" id="conv-bar" style="width:46%"></i></div></div>
+        <div class="kv">
+          <div><span>engine</span><b>marker 1.10</b></div>
+          <div><span>batch cap</span><b>32</b></div>
+          <div><span>VRAM peak</span><b class="num" id="conv-vram">8.0 GB</b></div>
+          <div><span>s/page</span><b class="num" id="conv-spp">3.0</b></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══════════════════════════════════════════════ THE ASSAY (audit) -->
+    <section class="card col-1">
+      <div class="card-h"><span class="title">◎ Survival Audit</span><span class="spacer"></span><span class="eyebrow">system 3*</span></div>
+      <div class="card-b">
+        <div id="assay-list"></div>
+        <div class="damage">
+          <div class="cap"><b>Cybernetics: Book of Models</b> — flag · low survival, diagram-dense</div>
+          <div class="map" id="dmap"></div>
+          <ul class="runs">
+            <li><span class="k">p31</span> · 24 windows · "the goal of the model is to…"</li>
+            <li><span class="k">p58</span> · 18 windows · "participant a chooses lives or…"</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═════════════════════════════════════════════════ LIVE EVENT LOG -->
+    <section class="card col-1">
+      <div class="card-h"><span class="title">Event stream</span><span class="spacer"></span><span class="eyebrow">events.jsonl</span></div>
+      <div class="card-b"><div class="log" id="log"></div></div>
+    </section>
+  </div>
+
+  <footer class="foot">
+    <span>Prototype · quarantined · not wired to the pipeline · simulated data</span>
+    <span>Lineage: Cybersyn Opsroom × ISOTYPE × Claude Design System — see DESIGN.md</span>
+  </footer>
+</div>
+
+<script>
+/* ================================================================ DATA =====
+   The factory model. Realistic figures drawn from the real pipeline: the vaulted
+   books, measured s/page, VRAM, and the recalibrated Survival Audit verdicts. */
+const BOOKS = [
+  { name: "Designing Freedom — Stafford Beer",         pages: 116, lane: "clean", spp: 2.4, survival: 0.96, verdict: "pass" },
+  { name: "Brain of the Firm — Stafford Beer",         pages: 439, lane: "scan",  spp: 8.1, survival: 0.91, verdict: "flag" },
+  { name: "Cybernetics: Book of Models — Dubberly",    pages: 91,  lane: "clean", spp: 3.0, survival: 0.688, verdict: "flag" },
+  { name: "AI Agent 设计原理与工程实践 — bojieli",       pages: 210, lane: "clean", spp: 2.7, survival: 0.76, verdict: "pass" },
+  { name: "Judgement and Truth — Markus Textor",       pages: 240, lane: "clean", spp: 2.9, survival: 0.93, verdict: "pass" },
+];
+const SEGMENTS = ["intake", "convert", "gate", "assay", "ship", "vault"];
+
+const state = {
+  counts: { intake: 0, convert: 1, gate: 0, assay: 0, ship: 0, vault: 4 },
+  conv: { book: BOOKS[2], page: 42, done: false },
+  kpi: { thru: 6.4, spp: 3.0, vram: 8.0, queue: 1, surv: 0.87, up: 99.2 },
+  sparks: { thru: seed(6.4, 12), spp: seed(3.0, 12) },
+  audits: [
+    { name: "Designing Freedom", survival: 0.96, verdict: "pass" },
+    { name: "Brain of the Firm",  survival: 0.91, verdict: "flag" },
+    { name: "AI Agent (bojieli)", survival: 0.76, verdict: "pass" },
+  ],
+};
+function seed(base, n){ return Array.from({length:n}, () => base * (0.85 + Math.random()*0.3)); }
+function rnd(a, b){ return a + Math.random() * (b - a); }
+
+/* ============================================================== RENDER ===== */
+const $ = (s) => document.querySelector(s);
+const setC = (seg, v) => { const el = document.querySelector(`[data-c="${seg}"]`); if (el) el.textContent = v; };
+
+function render() {
+  SEGMENTS.forEach(s => setC(s, state.counts[s]));
+  $("#k-thru").textContent = state.kpi.thru.toFixed(1);
+  $("#k-spp").textContent = state.kpi.spp.toFixed(1);
+  $("#k-vram").textContent = state.kpi.vram.toFixed(1);
+  $("#p-gpu").textContent = state.kpi.vram.toFixed(1);
+  $("#k-queue").textContent = state.kpi.queue;
+  $("#k-surv").textContent = state.kpi.surv.toFixed(2);
+  $("#k-up").textContent = state.kpi.up.toFixed(1);
+  const vpct = Math.min(100, state.kpi.vram / 10 * 100);
+  const gv = $("#g-vram"); gv.style.width = vpct + "%"; gv.classList.toggle("hot", vpct > 92);
+  $("#g-surv").style.width = Math.round(state.kpi.surv * 100) + "%";
+  drawSpark("#sp-thru", state.sparks.thru, cssv("--ok"));
+  drawSpark("#sp-spp", state.sparks.spp, cssv("--flow"));
+  // convert station
+  const c = state.conv, b = c.book;
+  $("#conv-name").textContent = b.name.split(" — ")[0];
+  $("#conv-lane").textContent = b.lane;
+  $("#conv-page").textContent = c.page;
+  $("#conv-pages").textContent = b.pages;
+  $("#conv-spp").textContent = b.spp.toFixed(1);
+  $("#conv-vram").textContent = state.kpi.vram.toFixed(1) + " GB";
+  const pct = Math.min(100, c.page / b.pages * 100);
+  $("#conv-bar").style.width = pct + "%";
+  const left = Math.max(0, Math.round((b.pages - c.page) * b.spp));
+  $("#conv-eta").textContent = c.done ? "complete" : (left > 90 ? `~${Math.round(left/60)}m ${left%60}s` : `~${left}s`);
+  $("#conv-state").textContent = c.done ? "idle" : "running";
+  renderAssay();
+}
+function renderAssay() {
+  const box = $("#assay-list");
+  box.innerHTML = state.audits.slice(-4).reverse().map(a => {
+    const cls = a.verdict, col = cls === "pass" ? "var(--ok)" : cls === "flag" ? "var(--warn)" : "var(--clay)";
+    return `<div class="assay-row"><span class="bk">${esc(a.name)}</span>
+      <span class="mini-meter"><i style="width:${Math.round(a.survival*100)}%;background:${col}"></i></span>
+      <span class="sv num">${a.survival.toFixed(3)}</span>
+      <span class="badge ${cls}">${cls}</span></div>`;
+  }).join("");
+}
+function drawSpark(sel, data, color) {
+  const svg = $(sel); if (!svg) return;
+  const w = 66, h = 26, mn = Math.min(...data), mx = Math.max(...data), r = (mx - mn) || 1;
+  const pts = data.map((v, i) => `${(i/(data.length-1))*w},${h - 3 - ((v-mn)/r)*(h-6)}`).join(" ");
+  const last = pts.split(" ").pop().split(",");
+  svg.innerHTML = `<polyline points="${pts}" fill="none" stroke="${color}" stroke-width="1.5" opacity=".85" stroke-linejoin="round"/>
+    <circle cx="${last[0]}" cy="${last[1]}" r="1.8" fill="${color}"/>`;
+}
+function esc(s){ return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+/* ============================================================= EVENT LOG === */
+const logEl = $("#log");
+function logEvent(tag, msg) {
+  const t = new Date().toISOString().slice(11, 19);
+  const line = document.createElement("div");
+  line.className = "line";
+  line.innerHTML = `<span class="ts">${t}</span><span class="tag ${tag}">${tag}</span><span class="msg">${esc(msg)}</span>`;
+  logEl.prepend(line);
+  while (logEl.children.length > 12) logEl.lastChild.remove();
+}
+
+/* ================================================================ SIM ======
+   The tick engine. Advances the current conversion, jitters the golden signals,
+   and periodically walks a document one segment further down the line — appending
+   the same events the real pipeline emits. Pure client-side; no I/O. */
+function tick() {
+  const c = state.conv, b = c.book;
+  if (!c.done) {
+    c.page = Math.min(b.pages, c.page + Math.round(rnd(2, 6)));
+    state.counts.convert = 1;
+    document.querySelector('[data-seg="convert"]').classList.add("active");
+    if (Math.random() < 0.5) logEvent("convert", `${b.name.split(" — ")[0]} — page ${c.page}/${b.pages}`);
+    if (c.page >= b.pages) finishConversion();
+  }
+  // golden-signal drift
+  state.kpi.thru = clamp(state.kpi.thru + rnd(-0.5, 0.5), 3.5, 9);
+  state.kpi.vram = clamp(state.kpi.vram + rnd(-0.2, 0.2), c.done ? 0.5 : 7.4, c.done ? 1.2 : 8.4);
+  state.kpi.spp = b.spp + rnd(-0.2, 0.2);
+  push(state.sparks.thru, state.kpi.thru);
+  push(state.sparks.spp, state.kpi.spp);
+  render();
+}
+function finishConversion() {
+  const b = state.conv.book;
+  state.conv.done = true;
+  document.querySelector('[data-seg="convert"]').classList.remove("active");
+  logEvent("convert", `converted ${b.name.split(" — ")[0]} in ${Math.round(b.pages*b.spp)}s`);
+  // audit → gate/assay → ship → vault, staged
+  setTimeout(() => { logEvent("audit", `scored ${b.verdict} · survival ${b.survival.toFixed(3)}`); bump("assay"); pushAudit(b); }, 900);
+  setTimeout(() => { if (b.verdict !== "fail") { logEvent("ship", `shipped ${b.name.split(" — ")[0]} ✓`); bump("ship"); } }, 2100);
+  setTimeout(() => { if (b.verdict !== "fail") { state.counts.vault++; logEvent("vault", `+1 note in Library`); } startNext(); }, 3300);
+}
+function pushAudit(b){ state.audits.push({ name: b.name.split(" — ")[0], survival: b.survival, verdict: b.verdict });
+  const avg = state.audits.slice(-6).reduce((s,a)=>s+a.survival,0) / Math.min(6, state.audits.length); state.kpi.surv = avg; }
+function startNext() {
+  const next = BOOKS[Math.floor(Math.random() * BOOKS.length)];
+  state.conv = { book: next, page: 0, done: false };
+  state.kpi.queue = 1;
+  logEvent("intake", `${next.name.split(" — ")[0]} — on the belt (${next.pages}pp, ${next.lane})`);
+  bump("intake");
+}
+function bump(seg){ const el = document.querySelector(`[data-c="${seg}"]`); if(!el) return; el.classList.add("pulse"); setTimeout(()=>el.classList.remove("pulse"), 800); }
+function push(a, v){ a.push(v); if (a.length > 12) a.shift(); }
+function clamp(v, a, b){ return Math.max(a, Math.min(b, v)); }
+
+/* =========================================================== TRANSIT VIEW ===
+   A lightweight canvas conveyor. Documents glide left→right through the six
+   station lanes; each is tinted by its state (in-transit flow-blue, flagged amber,
+   held clay). This is the "what's moving right now" companion to the numbers. */
+const belt = $("#belt"), ctx = belt.getContext("2d");
+let W = 0, H = 0, DPR = Math.min(2, window.devicePixelRatio || 1);
+const reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+function sizeBelt() {
+  const r = belt.parentElement.getBoundingClientRect();
+  W = r.width; H = r.height;
+  belt.width = W * DPR; belt.height = H * DPR;
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
+}
+const docs = Array.from({ length: 7 }, (_, i) => ({
+  x: Math.random(), speed: rnd(0.018, 0.032) / 60, tint: pick(), y: rnd(0.28, 0.72),
+}));
+function pick(){ return ["flow","flow","flow","warn","clay","ok"][Math.floor(Math.random()*6)]; }
+function tintOf(t){ return { flow:"--flow", warn:"--warn", clay:"--clay", ok:"--ok" }[t]; }
+/* Palette cache: resolve the theme tokens ONCE (and on theme change), so the 60 fps canvas
+   loop never calls getComputedStyle — no per-frame layout thrash. Keeps it "super light". */
+let PAL = {};
+function refreshPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  ["--flow","--warn","--clay","--ok","--border","--border-strong","--surface-2","--text-3","--text-2"]
+    .forEach(k => PAL[k] = cs.getPropertyValue(k).trim());
+}
+function cssv(v){ return PAL[v] || getComputedStyle(document.documentElement).getPropertyValue(v).trim(); }
+function drawBelt() {
+  ctx.clearRect(0, 0, W, H);
+  const yMid = H * 0.5;
+  // the belt
+  const line = cssv("--border-strong");
+  ctx.strokeStyle = line; ctx.lineWidth = 1;
+  ctx.beginPath(); ctx.moveTo(0, yMid); ctx.lineTo(W, yMid); ctx.stroke();
+  // station ticks
+  for (let i = 0; i < 6; i++) {
+    const x = (i + 0.5) / 6 * W;
+    ctx.strokeStyle = cssv("--border"); ctx.beginPath(); ctx.moveTo(x, 12); ctx.lineTo(x, H-12); ctx.stroke();
+    ctx.fillStyle = cssv("--text-3"); ctx.beginPath(); ctx.arc(x, yMid, 2.4, 0, 7); ctx.fill();
+  }
+  // documents
+  const text2 = cssv("--text-2");
+  for (const d of docs) {
+    const x = d.x * W, y = H * d.y;
+    const col = cssv(tintOf(d.tint));
+    // glow
+    ctx.fillStyle = col; ctx.globalAlpha = 0.14;
+    roundRect(x - 12, y - 8, 24, 16, 5); ctx.fill();
+    ctx.globalAlpha = 1;
+    // chip
+    ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.fillStyle = cssv("--surface-2");
+    roundRect(x - 9, y - 6, 18, 12, 4); ctx.fill(); ctx.stroke();
+    // page glyph
+    ctx.fillStyle = col; ctx.fillRect(x - 4, y - 2.5, 8, 1); ctx.fillRect(x - 4, y + 0.5, 5, 1);
+    if (!reduce) {
+      d.x += d.speed;
+      if (d.x > 1.05) { d.x = -0.05; d.tint = pick(); d.y = rnd(0.28, 0.72); d.speed = rnd(0.018, 0.032) / 60; }
+    }
+  }
+  requestAnimationFrame(drawBelt);
+}
+function roundRect(x, y, w, h, r){ ctx.beginPath(); ctx.moveTo(x+r,y); ctx.arcTo(x+w,y,x+w,y+h,r); ctx.arcTo(x+w,y+h,x,y+h,r); ctx.arcTo(x,y+h,x,y,r); ctx.arcTo(x,y,x+w,y,r); ctx.closePath(); }
+
+/* ================================================================ UI ======= */
+$("#theme").addEventListener("click", () => {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur === "light" ? "dark" : cur === "dark" ? "light"
+    : (matchMedia("(prefers-color-scheme: dark)").matches ? "light" : "dark");
+  document.documentElement.setAttribute("data-theme", next);
+  refreshPalette();
+});
+function clock(){ $("#clock").textContent = new Date().toISOString().slice(11, 19); }
+
+/* ================================================================ INIT ===== */
+function drawDamageMap() {
+  const m = $("#dmap");
+  // two clay zones + a couple amber omission runs, positioned along the book
+  m.innerHTML = `<span class="z" style="left:34%;width:4%"></span><span class="z" style="left:63%;width:3%"></span>
+    <span class="r" style="left:12%;width:1.5%"></span><span class="r" style="left:80%;width:1.5%"></span>`;
+}
+function updateInflight(){ $("#inflight").textContent = `${docs.length} in transit`; }
+window.addEventListener("resize", sizeBelt);
+refreshPalette(); sizeBelt(); drawDamageMap(); updateInflight();
+["intake","convert","gate","assay","ship"].forEach((s,i)=> setTimeout(()=>logEvent(s==="convert"?"convert":s, {
+  intake:"Cybernetics: Book of Models — on the belt (91pp, clean)", convert:"probing — 91pp, clean lane",
+  gate:"analyst gate: off", assay:"scored flag · survival 0.688", ship:"held — enforce, awaiting remedy",
+}[s]), i*250));
+render();
+clock(); setInterval(clock, 1000);
+setInterval(tick, 1400);
+requestAnimationFrame(drawBelt);
+</script>
+</body>
+</html>
