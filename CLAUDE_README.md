@@ -58,7 +58,17 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-*(No session open — S30 closed 2026-07-20. Survival Audit enforcement SIGNED (degeneration + analyst near-exact gate to `fail`; survival/runs stay report-only localizers) — `compute_verdict` rewritten + verified over all 4 vaulted books (Beer→fail, other 3→pass, zero FP); docs/15 §12 sign-off + §13 "The Assay" widget-projection design record. Next: the dedicated Assay build session — Rust `assay_status`/`audit_mode_get|set`, the `◎` line station + evidence card + `report ⇄ enforce` toggle, wire `_enforce_hold`, then the Beer remedy loop. See the S30 Session Log entry + the "Assay" design artifact.)*
+**S31 — the Assay build session (Desktop, 2026-07-20).** Build the docs/15 §13 widget projection.
+
+Plan / order (verify each):
+1. **Python `fidelity_audit.py`**: `degeneration()` returns `md_lines` (damage-map denominator). Verify: re-run over Beer → block lines present.
+2. **Python `convert_and_ship.py`**: `audit_mode()` (`audit-mode.txt`, default `report`), `HELD` dir, `_enforce_hold()`; guard the 3 ship sites (main/defer-auto-local/resume). Default `report` = no behavior change. Verify: import + report-mode is a no-op.
+3. **Rust `assay.rs`** (new): `status()` (newest manifest `fidelity` block + `held/` list + mode), `get_mode`/`set_mode` (audit-mode.txt), `reconvert()` (re-drop `drop/done/<src>`→`drop/`, detached like preflight). Register `assay_status`/`audit_mode_get`/`audit_mode_set`/`assay_reconvert` in main.rs.
+4. **Frontend** `index.html` (`◎ assay` station + `#assay-card`), `main.js` (assayLoop, station dot, card w/ damage map + runs + `report ⇄ enforce` toggle + held + `⟳ re-convert`, receipt verdict), `styles.css` (card, damage map, verdict dots — terracotta=`fail` only).
+5. **Verify:** `cargo clippy -D warnings` (widget running → check-only, shouldn't touch the release exe). Then hand the `npm run tauri build` + relaunch (kill-widget ritual) + live Beer test to Rab.
+6. Close: CHANGELOG, this file (log + ledger), memory.
+
+Guardrails: projection only (Python owns the verdict); terracotta reserved for `fail`; enforce defaults off; remedy's vault swap is bounded by THE SUPERSEDE GAP (manual content-replace). AppData is Claude-sandboxed — do NOT touch config.toml here; the Assay reads `ml\library` (real, not redirected).
 
 ---
 
