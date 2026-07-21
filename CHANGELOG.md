@@ -6,6 +6,26 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Changed
+
+- **S30 — the Survival Audit's enforcement policy is SIGNED; `compute_verdict` gates on the two unambiguous signals (2026-07-20).**
+  Closes the S28 "awaiting threshold sign-off" gate (docs/15 §12). `windows-converter/fidelity_audit.py`
+  `compute_verdict` rewritten: **degeneration** (OCR/LLM repetition loops — witness-free, so it
+  gates on either lane) and **analyst near-exact loss** (`doc < 0.995 OR run ≥ 25`) are now the
+  only signals that reach `fail`; survival/agreement score, page flags, omission runs, and
+  garbage rate are report-only **localizers** (`flag` at most) — acceptable books measure
+  0.76–0.96 survival (legitimate reflow), so gating on them would false-fail good work and erode
+  the terracotta signal. A clean-lane survival gate was explicitly considered and rejected.
+  **Verified** over all four vaulted books: Brain of the Firm → `fail` (degeneration; worst block
+  zlib 0.003, trigram ×2,267), the other three → `pass` — zero false positives; the prototype's
+  loose-threshold Textor false alarm is cleared at the production thresholds. The verdict is
+  always computed and recorded honestly; **enforcement is a separate, default-off lever**
+  (`audit-mode.txt` `report`|`enforce`; a `fail` under `enforce` parks the bundle in `held/`
+  rather than shipping — contract in docs/15 §12, wired in the dedicated widget-build session).
+  Widget projection designed and specced as **§13 (The Assay)**: a `◎ assay` line station + an
+  evidence card (damage map + verbatim runs) + the `report ⇄ enforce` control, terracotta
+  reserved for `fail` only. No pipeline behavior changes yet (verdict-only; enforce defaults off).
+
 ### Added
 
 - **S28 — the Survival Audit: a conversion-fidelity gate (`windows-converter/fidelity_audit.py`, 2026-07-20).**

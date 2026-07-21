@@ -164,9 +164,10 @@ links to every sentence.
   `audit`/`error` event and continue the line.
 - **Events:** emit `{"stage": "audit", "event": "scored" | "flagged" | "failed" | "error", ...}`
   into `events.jsonl` with doc_survival and run count.
-- **Widget:** verdict projected onto the ship receipt and the Library bar; a number
-  lives on the lever it informs (per docs/13). **Terracotta ONLY on `fail`** — pass
-  and flag never pulse. Serde-default empty = feature hidden (config-key pattern).
+- **Widget:** the verdict becomes a channel you can see and steer — full design record
+  in **§13 (The Assay)**. Core law, restated: **terracotta ONLY on `fail`** — pass and
+  flag never pulse. A number lives on the lever it informs (docs/13); serde-default empty
+  = feature hidden (config-key pattern).
 - **Vault:** the `fidelity` block rides the existing manifest.json through the
   unchanged exporter. No exporter changes in this build.
 
@@ -227,3 +228,87 @@ not per-artifact). Reference-free QE literature (QuPipe, HTR-without-GT,
 confidence-proxy studies): scan-lane tripwires. Broder shingle containment:
 the asymmetric-recall primitive. Full links in the design session transcript
 (Fable 5, 2026-07-19).
+
+## 12. Enforcement decision — SIGNED 2026-07-20 (Rab)
+
+The §6 report-only priors are now calibrated (§9.1) and the enforcement policy is
+**signed**. This closes the "awaiting threshold sign-off" gate that had blocked S28.
+
+**What gates (→ `fail`):** exactly two signals, both structurally unambiguous.
+
+1. **Degeneration** — OCR/LLM repetition-loop corruption (§5). Witness-free, so it gates
+   on **either lane**. Thresholds `zlib < 0.20 OR max-word-trigram ≥ 40` per §9.1.
+2. **Analyst near-exact loss** — the Marker doc is a perfect reference, so `doc < 0.995
+   OR any run ≥ 25 words` is a rewrite, not reflow.
+
+**What stays report-only (→ at most `flag`):** survival/agreement score, page-coverage
+flags, omission runs, garbage rate, reverse sample. Acceptable books measured **0.76–0.96**
+survival (legitimate reflow) — gating on them would false-fail good work and erode the
+terracotta signal. They **localize**, they do not judge.
+
+**Explicitly NOT adopted:** a clean-lane survival gate (e.g. `doc < 0.97`). Considered and
+rejected for the reason above; revisit only if §9-style calibration on a clean-English
+book ever justifies it. The clean-English `fail` threshold remains uncalibrated (no
+clean-English book is vaulted).
+
+**Verified 2026-07-20:** `compute_verdict` rewritten to the above and run over all four
+vaulted books' markdown. Result — Brain of the Firm → `fail` (degeneration True; worst
+block zlib 0.003, trigram ×2,267); Designing Freedom, bojieli, Textor → `pass`
+(degeneration False). **Zero false positives**; the prototype's loose-threshold Textor
+false alarm (§9.1) is correctly cleared. The verdict is now recorded honestly in every
+manifest; the widget projects it (§13).
+
+**Enforcement is an action, separated from the verdict.** `compute_verdict` always runs
+and records the honest verdict. Whether a `fail` actually *parks* a bundle is a separate
+lever — `audit_mode()` reading `C:\Users\Bndit\ml\library\audit-mode.txt`
+(`report` | `enforce`, default **report**, mirroring `analyst-mode.txt`). In `enforce`, a
+`fail` verdict moves the bundle to `…\ml\library\held\<sha16>\` (with its `fidelity`
+block) and emits `audit/held` instead of shipping. The lever is flipped from the widget
+(§13); wiring the hold into the ship paths + live-testing it on the Beer re-audit is part
+of the dedicated build session (§13, "buildable now vs the build session").
+
+## 13. The Assay — widget projection (design record, docs/13 grammar)
+
+The audit becomes a channel the operator can **see** (observation) and **steer** (control).
+Framed in the vocabulary of the books this pipeline is ingesting (Beer's VSM): the audit is
+**System 3\*** — the sporadic channel that looks straight into operations, past a reporting
+line that once said "all green" while 12.3% of a book dissolved; its terracotta pulse is the
+**algedonic signal**, reaching the operator only when a hand is required; and it is a
+**variety attenuator** — a whole book collapses to one glyph, expanding into evidence only
+when it must. Design pitch (rendered in the widget's own language): the "Assay" artifact,
+2026-07-20.
+
+**Surfaces (all pure projection — Python owns the `fidelity` block, the widget renders it):**
+
+- **`◎ assay` — a sixth line station**, between `✳ gate` and `⇈ ship` (where the audit
+  runs). Carries a verdict dot: green `pass`, amber `flag`, **terracotta `fail` — the only
+  one that pulses** — plus the last book's survival number. Standing observation in one glyph.
+- **The assay card** (appears like a pre-flight card, on `flag`/`fail`; terracotta border on
+  `fail`, amber on `flag`):
+  - **the damage map** — the book as a track, the loop zones as terracotta bands; you *see
+    where* the rot is (aim #2: localize, don't faith-check) instead of reading 400 pages.
+  - **the runs, verbatim** — each suspect run's size, repeat count, and own first words
+    (the tool shows its evidence — and its false alarms — before it is allowed to pulse).
+  - **`report ⇄ enforce`** — the one control lever, writing `audit-mode.txt` (§12), exactly
+    as the `✳` gate selector writes `analyst-mode.txt`.
+  - **`⟳ re-convert`** — the remedy trigger (next slice, see below).
+- **Ship receipt** (`last_receipt`) gains the fidelity verdict alongside convert/analyst.
+
+**The remedy loop, honestly bounded.** `⟳ re-convert` re-runs the GPU lane and re-audits.
+The vault swap **cannot** go through the pipeline: dedup skips an already-vaulted source
+(THE SUPERSEDE GAP — exporter TODO, ThinkPad lane, phase-gated). So the remedy stages a
+**manual content-replace** (the Designing Freedom `9e40b2b` pattern) until the exporter
+supersede flow lands. Drawn as such in the design, not papered over.
+
+**Buildable now vs the dedicated build session.** Everything above is *designed and specced*
+here. The Tauri build itself is a dedicated session (the rebuild ritual — kill the widget
+first, `cargo clippy -D warnings`, build, live-verify — can't be faked from a doc pass):
+
+- *Now, verifiable Desktop-lane, done this session:* the verdict-policy change
+  (`compute_verdict`), the `audit-mode.txt`/`held/` lever contract (above), verified against
+  the corpus.
+- *The build session:* the Rust commands (`assay_status` reading manifests → station+card
+  state; `audit_mode_get/set`; receipt verdict), the frontend (station, card, damage map,
+  enforce toggle), the CSS, wiring `_enforce_hold` into the ship/defer/resume paths, and the
+  `⟳ re-convert` remedy + its manual-swap staging. Then live-test the Beer flag→re-convert→
+  re-audit→supersede loop on the retained calibration specimen.

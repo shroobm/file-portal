@@ -30,9 +30,11 @@ import pymupdf
 from rapidfuzz import fuzz
 
 # ---------------------------------------------------------------------------
-# Constants. Stage thresholds are REPORT-ONLY priors (docs/15 §6 + §9.1-measured
-# degeneration priors). compute_verdict() reports a verdict but nothing gates on it
-# until Rab signs the thresholds off (docs/15 §9).
+# Constants. Thresholds calibrated over the vaulted corpus (docs/15 §9.1). Per the
+# SIGNED enforcement policy (docs/15 §12, 2026-07-20): degeneration + analyst near-exact
+# are the only gates (compute_verdict → "fail"); survival/agreement, page flags, runs,
+# and garbage rate stay report-only LOCALIZERS (→ "flag"). Whether a "fail" parks a
+# bundle is the separate report<->enforce lever (convert_and_ship, default "report").
 # ---------------------------------------------------------------------------
 SCHEMA_VERSION = 1
 
@@ -386,7 +388,22 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
 
 
 def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
-    """Report-only verdict (docs/15 §6). Nothing gates on it until thresholds are signed."""
+    """Verdict per the SIGNED enforcement policy (docs/15 §12, signed 2026-07-20).
+
+    Two signals — and only two — reach "fail":
+      * degeneration — OCR/LLM repetition-loop corruption. Unambiguous and witness-free,
+        so it gates on EITHER lane (calibrated zero-FP on the vaulted corpus; the
+        Brain-of-the-Firm true positive is the labeled specimen it must catch).
+      * analyst near-exact loss — the Marker doc IS a perfect reference, so a drop below
+        ANALYST_DOC_FAIL or any run >= ANALYST_RUN_WORDS is a rewrite, not reflow.
+
+    Every OTHER signal (low survival/agreement, page flags, omission runs, garbage rate)
+    only LOCALIZES a suspect zone → at most "flag", never "fail" — acceptable books
+    measured 0.76-0.96 survival (legitimate reflow), so gating on them would false-fail
+    good work and erode the terracotta signal. The verdict is ALWAYS computed; whether a
+    "fail" actually parks a bundle is the separate report<->enforce lever
+    (convert_and_ship.audit_mode(), default "report")."""
+    # Analyst stage first: a perfect reference earns the ruthless near-exact gate.
     if analyst_block is not None:
         a_runs = analyst_block.get("runs", [])
         if (analyst_block.get("doc_survival", 1.0) < ANALYST_DOC_FAIL
@@ -394,16 +411,20 @@ def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
             return "fail"
 
     tw = convert_block.get("tripwires", {})
+    # Degeneration is corruption regardless of witness quality → fail on either lane.
+    if tw.get("degeneration"):
+        return "fail"
+
+    # Remaining signals are report-only LOCALIZERS → "flag" at most (docs/15 §12).
     doc = convert_block.get("doc_survival", 1.0)
     runs = convert_block.get("runs", [])
-    if convert_block.get("kind") == "agreement":       # scan lane: flags zones, never fails
+    if convert_block.get("kind") == "agreement":       # scan lane (agreement witness)
         gr = tw.get("garbage_rate")
-        if (tw.get("degeneration") or convert_block.get("pages_flagged")
+        if (convert_block.get("pages_flagged")
                 or (gr is not None and gr > SCAN_GARBAGE_FLAG)):
             return "flag"
     else:                                              # clean lane
-        if (tw.get("degeneration") or doc < CLEAN_DOC_FLAG
-                or convert_block.get("pages_flagged")
+        if (doc < CLEAN_DOC_FLAG or convert_block.get("pages_flagged")
                 or any(r["words"] >= CLEAN_RUN_WORDS for r in runs)):
             return "flag"
     return "pass"
