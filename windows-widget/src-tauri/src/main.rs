@@ -1,6 +1,7 @@
 // Without this the exe is a console-subsystem binary and Windows attaches a console window
 // behind the widget on every launch (visible in the W8 live test).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod assay;
 mod config;
 mod events;
 mod line;
@@ -98,6 +99,46 @@ fn analyst_mode_set(state: State<AppState>, mode: String) -> Result<String, Stri
         .gpu_pipeline_dir
         .clone();
     line::set_analyst_mode(&dir, &mode)
+}
+#[tauri::command]
+fn assay_status(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    assay::status(&dir)
+}
+#[tauri::command]
+fn audit_mode_get(state: State<AppState>) -> Result<String, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    Ok(assay::get_mode(&dir))
+}
+#[tauri::command]
+fn audit_mode_set(state: State<AppState>, mode: String) -> Result<String, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    assay::set_mode(&dir, &mode)
+}
+#[tauri::command]
+fn assay_reconvert(state: State<AppState>, source: String) -> Result<(), String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    assay::reconvert(&dir, &source)
 }
 #[tauri::command]
 fn open_reader(state: State<AppState>, reader: String) -> Result<(), String> {
@@ -330,6 +371,10 @@ fn main() {
             debug_log,
             analyst_mode_get,
             analyst_mode_set,
+            assay_status,
+            audit_mode_get,
+            audit_mode_set,
+            assay_reconvert,
             open_reader,
             open_failed_tray,
             reader_config,

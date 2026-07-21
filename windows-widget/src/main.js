@@ -412,6 +412,7 @@ stShip.addEventListener("click", async () => {
       `${r.analyst.backend}: ${r.analyst.passed}✓` +
       (r.analyst.protected ? ` ${r.analyst.protected}🛡` : "") +
       ` in ${Math.round(r.analyst.duration_s)}s`);
+    if (lastAssay?.verdict) bits.push(`audit ${lastAssay.verdict}`);
     setStatus("receipt: " + bits.join(" · "));
   } catch (err) {
     setStatus(`Receipt: ${err}`);
@@ -603,6 +604,157 @@ async function vaultLoop() {
   setTimeout(vaultLoop, wait);
 }
 
+// ---- S31: the Assay (docs/15 §13) --------------------------------------------------
+// The Survival Audit as a see-and-steer channel: the ◎ station carries the last verdict,
+// the card opens the evidence (damage map + verbatim runs) on flag/fail, and the
+// report ⇄ enforce lever writes audit-mode.txt. Pure projection — Python owns the verdict;
+// terracotta is spent only on `fail`, per docs/13.
+
+const stAssay = document.getElementById("st-assay");
+const assayCard = document.getElementById("assay-card");
+let assayMode = "report";
+let assayOpen = false; // user clicked the ◎ station to peek (pass state has no card by default)
+let lastAssay = null;
+
+const VERDICT = {
+  pass: { cls: "g", sym: "✓" },
+  flag: { cls: "a", sym: "⚠" },
+  fail: { cls: "f", sym: "✕" },
+};
+
+function escHtml(s) {
+  return String(s ?? "").replace(/[&<>"]/g, (c) =>
+    ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+function firstWords(s, n) {
+  return String(s ?? "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
+}
+
+function assayRender(st) {
+  if (!st || !st.available) { stAssay.hidden = true; return; }
+  stAssay.hidden = false;
+  lastAssay = st;
+  assayMode = st.mode || "report";
+  const verdict = st.verdict;
+  const v = VERDICT[verdict];
+
+  // Station: the verdict dot + a glanceable value (survival on pass, the word otherwise).
+  stAssay.className = "st" + (v ? " " + verdict : "");
+  const vEl = stAssay.querySelector(".st-v");
+  vEl.textContent = verdict === "pass"
+    ? (st.doc_survival != null ? Number(st.doc_survival).toFixed(2) : "ok")
+    : (verdict || "—");
+
+  const held = st.held || [];
+  const show = verdict === "flag" || verdict === "fail" || held.length > 0 || assayOpen;
+  if (!show) { assayCard.hidden = true; assayCard.innerHTML = ""; reflow(); return; }
+
+  assayCard.hidden = false;
+  assayCard.className = verdict === "fail" ? "fail" : "";
+  const cls = v ? v.cls : "g";
+  const pct = st.doc_survival != null ? Math.round(Number(st.doc_survival) * 100) : 100;
+
+  const toggle =
+    `<button id="audit-toggle" title="Enforce parks a failing bundle in held/ instead of shipping">` +
+    `gate: <span class="${assayMode === "report" ? "on" : "off"}">report</span> ⇄ ` +
+    `<span class="${assayMode === "enforce" ? "on" : "off"}">enforce</span></button>`;
+
+  // The damage map: the book as a track, the trouble as bands you can point at.
+  const mdLines = st.md_lines || 0;
+  const zones = st.zones || [];
+  const runs = st.runs || [];
+  let map = "";
+  if (st.degeneration && zones.length && mdLines) {
+    const bands = zones.map((z) => {
+      const left = Math.max(0, Math.min(98, (z.line / mdLines) * 100));
+      const w = Math.max(1.5, Math.min(12, ((z.chars || 0) / (mdLines * 45)) * 100));
+      return `<span class="z degen" style="left:${left.toFixed(1)}%;width:${w.toFixed(1)}%"></span>`;
+    }).join("");
+    map = `<div class="ac-caption"><b>degeneration</b> — ${zones.length} loop zone(s) · ${st.kind} lane</div>` +
+      `<div class="ac-map">${bands}</div>`;
+  } else if (runs.length && st.pages_scored) {
+    const bands = runs.slice(0, 40).map((r) => {
+      const left = Math.max(0, Math.min(98, ((r.page || 0) / st.pages_scored) * 100));
+      return `<span class="z run" style="left:${left.toFixed(1)}%;width:1.5%"></span>`;
+    }).join("");
+    map = `<div class="ac-caption">${runs.length} omission run(s) · ${st.kind} lane</div>` +
+      `<div class="ac-map">${bands}</div>`;
+  }
+
+  // The evidence, verbatim — the tool shows what it flagged before it pulses.
+  let list = "";
+  if (st.degeneration && zones.length) {
+    list = "<ul class=\"ac-runs\">" + zones.slice(0, 3).map((z) =>
+      `<li><span class="k">${Number(z.chars || 0).toLocaleString()} ch</span> · tri×${z.max_trigram} · ` +
+      `<q>"${escHtml(firstWords(z.excerpt, 6))}…"</q></li>`).join("") + "</ul>";
+  } else if (runs.length) {
+    list = "<ul class=\"ac-runs\">" + runs.slice(0, 3).map((r) =>
+      `<li><span class="k">p${r.page}</span> · ${r.words} words · ` +
+      `<q>"${escHtml(firstWords(r.excerpt, 6))}…"</q></li>`).join("") + "</ul>";
+  }
+
+  let foot = "";
+  if (verdict === "fail" || held.length) {
+    foot = `<div class="ac-foot"><button class="ac-remedy" data-src="${escHtml(st.bundle)}">⟳ re-convert</button>` +
+      `<span class="ac-swapnote">swap: <b>manual</b> — supersede flow pending</span></div>`;
+  }
+
+  let heldHtml = "";
+  if (held.length) {
+    const names = held.slice(0, 2).map((h) => escHtml(h.bundle)).join(", ");
+    heldHtml = `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy — ${names}</div>`;
+  }
+
+  const badge = v ? `<span class="badge ${cls}">${verdict} ${v.sym}</span>` : "";
+  assayCard.innerHTML =
+    `<div class="ac-head"><span class="spark">◎</span>` +
+    `<span class="ttl">${escHtml(st.bundle || "last convert")}</span><span class="grow"></span>${toggle}</div>` +
+    `<div class="ac-body"><div class="ac-verdict">` +
+    `<span class="nm">survival ${st.doc_survival != null ? Number(st.doc_survival).toFixed(3) : "—"}</span>` +
+    `<span class="meter"><i class="${cls}" style="width:${pct}%"></i></span>${badge}</div>` +
+    map + list + foot + `</div>` + heldHtml;
+
+  document.getElementById("audit-toggle")?.addEventListener("click", assayToggleMode);
+  assayCard.querySelectorAll(".ac-remedy").forEach((b) =>
+    b.addEventListener("click", () => assayReconvert(b)));
+  reflow();
+}
+
+async function assayToggleMode() {
+  const next = assayMode === "report" ? "enforce" : "report";
+  try {
+    assayMode = await invoke("audit_mode_set", { mode: next });
+    setStatus(assayMode === "enforce"
+      ? "Assay: enforce — a failing bundle is held, not shipped"
+      : "Assay: report only — the verdict is recorded, nothing is gated");
+    if (lastAssay) { lastAssay.mode = assayMode; assayRender(lastAssay); }
+  } catch (err) { setStatus(`Assay mode: ${err}`); }
+}
+
+async function assayReconvert(btn) {
+  const src = btn.dataset.src;
+  btn.disabled = true;
+  try {
+    await invoke("assay_reconvert", { source: src });
+    setStatus(`Re-queued ${src} for re-convert + re-audit — watch the line.`);
+  } catch (err) {
+    btn.disabled = false;
+    setStatus(`Re-convert: ${err}`);
+  }
+}
+
+stAssay.addEventListener("click", () => { assayOpen = !assayOpen; assayRender(lastAssay); });
+
+const ASSAY_POLL_MS = 20000;
+async function assayLoop() {
+  try {
+    assayRender(await invoke("assay_status"));
+  } catch (err) {
+    console.warn("assay_status failed", err);
+  }
+  setTimeout(assayLoop, ASSAY_POLL_MS);
+}
+
 init().catch((err) => {
   console.error("init failed", err);
   setStatus(`Init error: ${err}`);
@@ -611,6 +763,7 @@ vaultLoop();
 pfLoop();
 watcherAutostart();
 shiftLoop();
+assayLoop();
 lineInit();
 dbg("boot: all loops launched");
 reflow();

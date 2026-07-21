@@ -28,6 +28,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S31 — the Assay: the Survival Audit's widget projection (docs/15 §13, 2026-07-20).**
+  The audit becomes a see-and-steer channel in the widget. A new `◎ assay` line station
+  (between gate and ship) carries the last conversion's verdict as a dot — green pass, amber
+  flag, **terracotta fail, the only pulse** — with the survival number beside it. On flag/fail
+  it opens an evidence card: a book-length **damage map** (OCR-loop zones as terracotta bands
+  from the manifest's `degeneration_detail.worst` line positions ÷ a new `md_lines` field;
+  omission runs as amber bands by page), the worst runs **verbatim** (chars/trigram/excerpt),
+  a `report ⇄ enforce` control, and a `⟳ re-convert` remedy. Pure projection: new Rust
+  `assay.rs` (`status` reads the newest anchor/pending/held `manifest.json` fidelity block +
+  the held queue; `get_mode`/`set_mode` on `audit-mode.txt`; `reconvert` re-queues
+  `drop/done/<src>` → `drop/`), four commands in `main.rs`, and the station + card + poll in
+  `index.html`/`main.js`/`styles.css`. **Enforcement wired, default off:**
+  `convert_and_ship.audit_mode()` + `_enforce_hold()` park a `fail` verdict in `held/<sha16>/`
+  (with its manifest) instead of shipping, at all three ship sites (direct / defer-auto-local
+  / resume); `report` mode is a verified no-op. The remedy's vault swap is still a manual
+  content-replace (THE SUPERSEDE GAP). Verified: `cargo clippy -D warnings` clean, Python
+  `py_compile` + `audit_mode()` → `report`, `main.js` parses. Live Beer flag→re-convert→
+  re-audit test + `npm run tauri build` / relaunch pending (the rebuild ritual, Rab-driven).
+
 - **S28 — the Survival Audit: a conversion-fidelity gate (`windows-converter/fidelity_audit.py`, 2026-07-20).**
   Implements docs/15. Measures how much of a source PDF survives into the Marker markdown
   (convert stage) and how much of the Marker markdown survives the qwen pass (analyst stage),

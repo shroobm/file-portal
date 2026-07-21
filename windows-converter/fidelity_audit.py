@@ -289,7 +289,10 @@ def degeneration(markdown: str) -> dict:
     if repeated_lines:
         flagged = True
     worst.sort(key=lambda w: (w["zlib"], -w["max_trigram"]))
-    return {"flagged": flagged, "repeated_lines": repeated_lines, "worst": worst[:10]}
+    # md_lines: the widget's damage-map denominator — places each worst-block band at
+    # line/md_lines along a book-length track (docs/15 §13).
+    return {"flagged": flagged, "repeated_lines": repeated_lines,
+            "md_lines": markdown.count("\n") + 1, "worst": worst[:10]}
 
 
 def garbage_rate(output_final: str):

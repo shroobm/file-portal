@@ -80,11 +80,54 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
 MARKER = Path(r"C:\Users\Bndit\ml\marker-env\Scripts\marker_single.exe")
 ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
 PENDING = Path(r"C:\Users\Bndit\ml\library\pending")  # deferred-analyst queue (widget card)
+HELD = Path(r"C:\Users\Bndit\ml\library\held")  # audit-failed bundles (enforce mode; assay card)
+AUDIT_MODE_FILE = Path(r"C:\Users\Bndit\ml\library\audit-mode.txt")  # report | enforce (docs/15 §12)
 REMOTE = "rab@archlinux"
 REMOTE_STAGING = "~/file-portal/library/staging"
 MIN_CHARS_PER_PAGE = 100  # provisional, same value + revisit-note as the ThinkPad's
 RECOGNITION_BATCH = 32
 CONVERTER_VERSION = "0.1.0-desktop"
+
+
+# ---------- Survival Audit enforcement lever (docs/15 §12) — default off ----------
+
+def audit_mode() -> str:
+    """report (default) = the verdict is recorded but the bundle ships anyway; enforce =
+    a fidelity verdict of 'fail' parks the bundle instead of shipping. Mirrors
+    analyst-mode.txt; re-read per bundle so the widget's report<->enforce toggle is live."""
+    try:
+        m = AUDIT_MODE_FILE.read_text(encoding="utf-8").strip().lower()
+        return m if m in ("report", "enforce") else "report"
+    except OSError:
+        return "report"
+
+
+def _enforce_hold(bundle_dir: Path, bundle_name: str, source_sha: str) -> bool:
+    """If enforce mode AND the on-disk manifest's fidelity verdict is 'fail', park the
+    bundle in held/<sha16>/ (with its manifest + assets) instead of shipping, and emit
+    audit/held. Reads the manifest from disk so it sees the FINAL (post-analyst) verdict.
+    Returns True if held. Default report mode makes this a no-op. Fails OPEN: any error
+    ships the bundle (with its verdict-carrying manifest) rather than losing it, and emits
+    audit/error — enforcement must never cost a conversion."""
+    try:
+        if audit_mode() != "enforce":
+            return False
+        manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("fidelity", {}).get("verdict") != "fail":
+            return False
+        HELD.mkdir(parents=True, exist_ok=True)
+        dest = HELD / source_sha[:16]
+        if dest.exists():
+            shutil.rmtree(dest)
+        shutil.copytree(bundle_dir, dest)
+        emit("audit", "held", bundle=bundle_name,
+             source=manifest.get("source", bundle_name), verdict="fail")
+        print(f"HELD {bundle_name} — audit verdict=fail (enforce mode); not shipped", flush=True)
+        return True
+    except Exception as exc:  # noqa: BLE001 — enforcement must never lose a bundle
+        emit("audit", "error", phase="enforce", error=str(exc)[:150])
+        return False
+
 
 # ---------- bundle contract, mirrored from linux-converter/converter/bundle.py ----------
 
@@ -370,6 +413,8 @@ def defer(tmp_dir: Path, bundle_name: str, manifest: dict, markdown_chars: int) 
         print(f"AUTO-ROUTE local (rule: >{threshold} chunks)", flush=True)
         meta = apply_analyst(tmp_dir, bundle_name, "local")
         print(f"ANALYST done: {meta}", flush=True)
+        if _enforce_hold(tmp_dir, bundle_name, manifest["source_sha256"]):
+            return "held"
         ship(tmp_dir, bundle_name, manifest["source_sha256"])
         return "auto-local"
 
@@ -411,6 +456,12 @@ def resume(pend_id: str, backend: str) -> None:
             # Refresh the anchor copy so it matches what ships.
             anchor_dest = unique_anchor(ANCHOR / f"{card['bundle_name']} [analyst-{backend}]")
             shutil.copytree(bundle_dir, anchor_dest)
+        if _enforce_hold(bundle_dir, card["bundle_name"], card["source_sha256"]):
+            shutil.rmtree(bundle_dir)
+            json_path.unlink()
+            emit("gate", "resolved", id=pend_id, backend=backend, held=True)
+            print(f"RESUMED+HELD {pend_id}", flush=True)
+            return
         ship(bundle_dir, card["bundle_name"], card["source_sha256"])
         shutil.rmtree(bundle_dir)
         json_path.unlink()
@@ -460,7 +511,7 @@ def main():
             defer(tmp_dir, bundle_name, manifest, len(md))
         elif args.dry_run:
             print("DRY-RUN: not shipping", flush=True)
-        else:
+        elif not _enforce_hold(tmp_dir, bundle_name, manifest["source_sha256"]):
             ship(tmp_dir, bundle_name, manifest["source_sha256"])
     print(json.dumps({k: manifest[k] for k in
                       ("source", "source_sha256", "engine", "lane", "pages")}, indent=2))
