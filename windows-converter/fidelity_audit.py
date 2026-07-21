@@ -49,8 +49,11 @@ RUN_MIN_WINDOWS = 2        # a reportable omission run is >= this many adjacent 
 REVERSE_SAMPLE_N = 200
 REVERSE_SEED = 20260720    # fixed → deterministic
 
-# Degeneration (docs/15 §9.1 measured priors: true loops zlib<=0.17 OR trigram>=42;
-# clean repetition zlib>=0.31 AND trigram<=31 → flag at zlib<0.20 OR trigram>=40).
+# Degeneration (docs/15 §9.1 priors + §9.2 recalibration). A loop is BOTH crushed-
+# compressible AND has an extreme repeated word-trigram; require both (AND). Real loops:
+# zlib<=0.17 AND trigram>=1674 (Beer). Dense markdown tables fool zlib (Cybernetics models
+# book: zlib 0.11/0.15) but their words vary → low trigram (28/10), so the trigram gate
+# clears them. Wide margin either side (table max tri 28 vs loop min 1674).
 DEGEN_ZLIB_MAX = 0.20
 DEGEN_TRIGRAM_MAX = 40
 DEGEN_BLOCK_MIN_CHARS = 200
@@ -277,15 +280,30 @@ def degeneration(markdown: str) -> dict:
             toks = list(re.sub(r"\s", "", p))
         tri = Counter(" ".join(toks[i:i + 3]) for i in range(len(toks) - 2))
         mx = max(tri.values()) if tri else 0
-        if ratio < DEGEN_ZLIB_MAX or mx >= DEGEN_TRIGRAM_MAX:
+        # AND, not OR (docs/15 §9.2): a loop is BOTH crushed-compressible AND has an extreme
+        # repeated word-trigram. Dense tables are compressible too (structural |, ---, <br>)
+        # but their words vary → low trigram, so the trigram gate clears them. The old zlib-OR
+        # path false-fired on the Cybernetics table-dense book (zlib 0.11/0.15, trigram 28/10).
+        if ratio < DEGEN_ZLIB_MAX and mx >= DEGEN_TRIGRAM_MAX:
             flagged = True
             worst.append({
                 "line": line_no, "chars": len(p), "zlib": round(ratio, 3),
                 "max_trigram": mx, "excerpt": " ".join(p.split()[:8]),
             })
-    # repeated whole-line check on the raw markdown
-    line_counts = Counter(ln.strip() for ln in markdown.splitlines() if len(ln.strip()) > 20)
-    repeated_lines = sum(1 for c in line_counts.values() if c > DEGEN_LINE_REPEAT)
+    # Repeated-line check (docs/15 §9.2): a degeneration loop repeats a line CONTIGUOUSLY
+    # (the decoder gets stuck), so measure the longest RUN of consecutive identical non-blank
+    # lines — NOT the total count. Legitimate structure repeats but is DISTRIBUTED: section
+    # headings (Cybernetics: "#### a. goal of model" once per model) and table rows recur
+    # throughout the doc, giving a run of 1. Blanks and table rows never count toward a run.
+    max_run, run, prev = 0, 0, None
+    for ln in markdown.splitlines():
+        s = ln.strip()
+        if not s or s.startswith("|"):
+            continue
+        run = run + 1 if (s == prev and len(s) > 20) else 1
+        prev = s
+        max_run = max(max_run, run)
+    repeated_lines = max_run if max_run > DEGEN_LINE_REPEAT else 0
     if repeated_lines:
         flagged = True
     worst.sort(key=lambda w: (w["zlib"], -w["max_trigram"]))

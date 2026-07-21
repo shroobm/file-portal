@@ -223,8 +223,13 @@ def route(chars: float, ocr_fonts: bool) -> tuple[list[str], str, str]:
     if chars >= MIN_CHARS_PER_PAGE and ocr_fonts:
         return ["--strip_existing_ocr", *batch], "scan", "untrusted_ocr_layer"
     if chars >= MIN_CHARS_PER_PAGE:
-        return [], "clean", "text_layer_present"
-    return batch, "scan", "no_text_layer"
+        # Cap the batch on the clean lane too. Uncapped, Marker auto-scales its batch to
+        # fill the card, so a figure-dense born-digital PDF balloons to the ~10 GB ceiling
+        # and thrashes to a timeout (Cybernetics models book: 91 pp → 60-min DNF). The scan
+        # lane's cap is exactly why Beer finished at 439 figure-heavy pp / ~7.9 GB peak.
+        # Batch size governs only throughput/VRAM, never output.
+        return [*batch], "clean", "text_layer_present"
+    return [*batch], "scan", "no_text_layer"
 
 
 # ---------- the slice ----------

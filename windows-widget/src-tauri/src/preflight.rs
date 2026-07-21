@@ -10,7 +10,7 @@ use serde_json::Value;
 use std::fs;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
-use std::process::Command;
+use std::process::{Command, Stdio};
 
 /// All pending/failed cards, raw JSON straight through to the UI (the schema lives in
 /// Python, the single writer; the widget renders what it gets).
@@ -77,6 +77,12 @@ pub fn decide(
         .arg(&script)
         .args(["--resume", id, "--backend", backend])
         .env("PYTHONIOENCODING", "utf-8")
+        // Null I/O so the detached resume survives a windowless (Start-menu) launch — same
+        // dead-inherited-handle crash the watcher hit (S31). It's fire-and-forget; the card
+        // JSON state file, not stdout, is how the widget tracks it.
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| format!("failed to spawn resume: {e}"))?;

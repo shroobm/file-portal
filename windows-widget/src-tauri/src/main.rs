@@ -273,26 +273,35 @@ fn watcher_start(
 fn watcher_stop(watcher_state: State<watcher::WatcherState>) -> watcher::WatcherStatus {
     watcher::stop(&watcher_state)
 }
+// vault_check / vault_pull run `git fetch` to the ThinkPad over tailscale ssh, which BLOCKS
+// for the dial timeout when the box is offline. Tauri runs synchronous commands on the main
+// UI thread, so a blocking fetch there freezes the whole widget ("not responding") every
+// poll while the vault host is unreachable. These are `async` + `spawn_blocking` so the git
+// work runs on a worker thread — a sleeping vault host can never lock the UI. The config
+// lock is taken and the path cloned out BEFORE the await, so no !Send guard crosses it.
 #[tauri::command]
-fn vault_check(state: State<AppState>) -> Result<vault::VaultStatus, String> {
-    // Clone the path out so the git fetch (seconds over tailscale ssh) runs lock-free.
+async fn vault_check(state: State<'_, AppState>) -> Result<vault::VaultStatus, String> {
     let dir = state
         .config
         .lock()
         .map_err(|_| "lock poisoned".to_string())?
         .vault_library_dir
         .clone();
-    Ok(vault::check(&dir))
+    tauri::async_runtime::spawn_blocking(move || vault::check(&dir))
+        .await
+        .map_err(|e| format!("vault check task failed: {e}"))
 }
 #[tauri::command]
-fn vault_pull(state: State<AppState>) -> Result<vault::VaultStatus, String> {
+async fn vault_pull(state: State<'_, AppState>) -> Result<vault::VaultStatus, String> {
     let dir = state
         .config
         .lock()
         .map_err(|_| "lock poisoned".to_string())?
         .vault_library_dir
         .clone();
-    Ok(vault::pull(&dir))
+    tauri::async_runtime::spawn_blocking(move || vault::pull(&dir))
+        .await
+        .map_err(|e| format!("vault pull task failed: {e}"))
 }
 /// Explorer hands shortcut-launched apps the environment captured at LOGIN — every
 /// PATH entry (and env var) added since is invisible until re-login. That made

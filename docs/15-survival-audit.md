@@ -211,6 +211,40 @@ paragraphs ≥ 200 chars) was run over all 4 vaulted books. Results:
   (loops are typically nondeterministic; embedded OCR layer is fallback for the two
   zones) → audit passes → supersede-swap into the vault (Designing Freedom pattern).
 
+### 9.2 Recalibration after the Cybernetics false positive (measured 2026-07-21)
+
+The first NEW document dropped after the audit went live — a table-and-diagram-dense
+cybernetics *models* book (Dubberly & Pangaro, 91 pp, born-digital clean lane) — tripped the
+degeneration tripwire and, in `enforce` mode, was held. Reading the flagged content showed a
+**false positive**: no OCR loops, only legitimate structure.
+
+- **Two false-positive vectors, both confirmed by reading the held markdown:**
+  1. *Dense markdown tables* tripped the **zlib** half. The flagged blocks were table regions —
+     `| Result = EV Preserved<br>…` (zlib 0.111) and `| Participant A | Participant B | |---…`
+     (zlib 0.153). Tables compress hard (structural `|`, `---`, `<br>`) but their **words vary
+     → low trigram** (×28, ×10). Real loops (Beer) are trigram ×1,674–2,267.
+  2. *Repeated section headings* tripped the **repeated-line** check — `#### a. goal of model`
+     (×48), `b. description` (×30), `c. components and processes` (×35), one per model.
+     Legitimate template structure, distributed through the document.
+
+- **Recalibration (implemented in `fidelity_audit.degeneration()`):**
+  - Block rule `OR` → **`AND`**: flag only when a block is BOTH `zlib < 0.20` AND `trigram ≥ 40`.
+    Real loops satisfy both; tables (low trigram) and clean prose clear.
+  - Repeated-line check: count the **longest contiguous run** of an identical non-blank,
+    non-table line (`> DEGEN_LINE_REPEAT`), not total occurrences. A stuck loop repeats
+    contiguously; headings/table rows recur but are distributed (run of 1).
+
+- **Re-verified over all five documents** (Beer + Cybernetics + Designing Freedom + bojieli +
+  Textor): Brain of the Firm still flags (zlib 0.003, trigram ×2,267); Cybernetics and the other
+  three clear. **Zero false positives; the true positive preserved.** Separation is now enormous
+  (table max trigram ×28 vs. loop min ×1,674).
+
+- **Lesson for the register:** the trigram is the reliable loop discriminator (loops repeat
+  *words*); zlib and total-line-repeats are confounded by legitimate dense structure (tables,
+  templated headings). The §9.1 corpus had no table-dense document, so this class went
+  unrepresented until the first live drop — exactly the "show its false alarms before it is
+  allowed to pulse terracotta" safeguard (§9 step 3) doing its job.
+
 ## 10. Deferred (add only when evidence demands)
 
 Reading-order property checks (olmOCR-style before/after pairs) · TEDS for table

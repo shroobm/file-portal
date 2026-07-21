@@ -6,6 +6,36 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **S32 — four defects found while live-testing the Assay (2026-07-21).** All surfaced by
+  running the pipeline end to end (Rab installed the widget and dropped real documents);
+  all fixed and verified.
+  - **Widget auto-start crash on a Start-menu launch.** A GUI (windows-subsystem) process has
+    no console, so the spawned Python watcher inherited invalid std handles and died on
+    startup before it could log — the drop queue filled but nothing converted ("auto-start
+    runs, nothing happens"). `watcher.rs` and `preflight.rs` now spawn children with explicit
+    `Stdio::null()`. Masked previously because terminal/dev launches supplied a console to inherit.
+  - **Widget freeze while the vault host is offline.** `vault_check`/`vault_pull` run
+    `git fetch` over tailscale ssh with no timeout, and Tauri runs synchronous commands on the
+    main UI thread — so an unreachable ThinkPad hung the whole window ("not responding") every
+    45 s poll. `main.rs` now makes both `async` + `tauri::async_runtime::spawn_blocking`, moving
+    the blocking git off the UI thread.
+  - **Clean-lane VRAM thrash / timeout on figure-dense PDFs.** The clean lane ran Marker
+    uncapped; a diagram-heavy born-digital book (91 pp) auto-scaled its batch to fill the 10 GB
+    card, thrashed, and hit Marker's 1-hour timeout (DNF). Only the OCR lanes were capped.
+    `convert_and_ship.route()` now applies `--recognition_batch_size 32` to the clean lane too.
+    Live-verified: the same book re-converted at ~8.0 GB peak (was 9.9), no thrash.
+  - **Survival-Audit degeneration false positives.** The tripwire fired `fail` on a legitimate
+    table-and-template-heavy book: dense markdown tables tripped the zlib half, and repeated
+    section headings (`#### a. goal of model` ×48) tripped the repeated-line check.
+    `fidelity_audit.degeneration()` recalibrated (docs/15 §9.2): the block rule is now
+    `zlib < 0.20 AND trigram ≥ 40` (a real loop is both crushed-compressible and word-repetitive;
+    tables have low trigram), and the repeated-line check measures the longest CONTIGUOUS run,
+    not the total (loops repeat contiguously; headings/table rows are distributed). Re-verified
+    over all five books — Brain of the Firm still flags (zlib 0.003, trigram ×2,267); Cybernetics
+    and the other three clear. Zero false positives, true positive preserved.
+
 ### Changed
 
 - **S30 — the Survival Audit's enforcement policy is SIGNED; `compute_verdict` gates on the two unambiguous signals (2026-07-20).**

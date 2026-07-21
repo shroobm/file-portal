@@ -7,7 +7,7 @@ use crate::vault::CREATE_NO_WINDOW;
 use serde::Serialize;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
-use std::process::{Child, Command};
+use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 
 pub struct WatcherState(pub Mutex<Option<Child>>);
@@ -68,6 +68,14 @@ pub fn start(
     let child = Command::new(gpu_python_exe)
         .arg(&script)
         .env("PYTHONIOENCODING", "utf-8")
+        // A Start-menu (GUI) launch has NO console, so a spawned console child inherits
+        // invalid std handles and the Python watcher dies on startup before it can even log
+        // ("auto-start runs but nothing converts", S31). Give it explicit null I/O — a
+        // background daemon needs no streams; it logs to watcher.log. Only reproduced from a
+        // windowless launch; a terminal launch has a console to inherit and masked this.
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| format!("failed to spawn watcher: {e}"))?;
