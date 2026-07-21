@@ -58,7 +58,15 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-*(No session open — S32 closed 2026-07-21. Four live-test defects fixed + verified + committed (`eb4dd87`) and the widget rebuilt: autostart-crash (Stdio::null), vault-freeze (async+spawn_blocking), clean-lane VRAM thrash (batch cap, ~8 GB verified), audit false positives (docs/15 §9.2 recalibration — Beer still flags, 4 books clear). Fresh installer staged for Rab; NOT headless-reinstalled (MSIX sandbox). Next: S33 — the quarantined professional control-panel dashboard prototype Rab commissioned overnight. See the S32 Session Log entry.)*
+**S33 — the Opsroom: a control-panel dashboard prototype (Desktop, 2026-07-21, overnight).** Rab commissioned (heading to bed) a professional, lightweight, full-fledged control-panel representation of the pipeline — quarantined from production, in the Claude Design language, grounded in researched high-order references, fully documented, protocol-followed.
+
+Delivered:
+- **`prototypes/`** — a new quarantine section + convention (category/name, zero pipeline coupling; CI doesn't touch it) with `README.md`.
+- **`prototypes/control-panel/opsroom/opsroom.html`** — a self-contained, zero-dependency dashboard: the 6-station line (pipeline segmentation), a live **canvas transit viewer**, golden-signal KPI tiles (throughput / s-per-page / VRAM / queue / survival / uptime), a convert-station progress panel with live ETA, the **Survival Audit** panel (verdicts + damage map), and a live **event stream**. Theme-aware (committed-dark + a deliberate light), `prefers-reduced-motion`-safe, palette-cached so the 60 fps canvas never touches layout.
+- **`DESIGN.md`** — research + references (Project Cybersyn's Opsroom × ISOTYPE × modern observability × Linear × the Claude Design System), URLs, decisions, feature↔pipeline map, honest boundaries.
+- Published as a private **Artifact** (URL in the S33 log + morning note).
+
+Verified: JS `node --check` clean; two real bugs caught + fixed (SVG `var()`-in-attribute; `getComputedStyle`-per-frame → palette cache). **Disposable by design** — awaiting Rab's verdict. Plan: commit the prototype (CHANGELOG "Added", marked quarantined/non-pipeline) → close + ledger → memory → morning note.
 
 ---
 
