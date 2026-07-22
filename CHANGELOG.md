@@ -6,6 +6,35 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **S34 — the Control Room becomes the widget's face (2026-07-22).** Graduated the merged
+  Claude-Design *Control Room* artifact into the live widget as a second surface, wired to real
+  pipeline data. Design record + build audit: `docs/16-control-room-face.md`.
+  - **Surface switch (`Dock ⇄ Room`)** in the titlebar. Dock is the narrow floating widget
+    (unchanged); Room is a wider operations dashboard that the window resizes into — one
+    projection, two densities (docs/13 law #3).
+  - **The Room** (`windows-widget/src/room.js` + Room styles): the six-station rail, a
+    golden-signal KPI band (throughput, median s/page, GPU VRAM, queue depth, survival average,
+    shipped-today), the convert station, the full Survival-Audit evidence card (verdict, damage
+    map, verbatim degeneration zones, held tray, report⇄enforce, re-convert), and the live event
+    stream. Every value is a projection of an existing `invoke()` command — the Room owns no
+    state and writes only through the Dock's existing intent commands. Framework-free; no build
+    step or dependency added to the frontend (the lift, not the React bundle).
+  - **Token layer** in `styles.css` (lifted from the source object): `--clay/--ok/--warn/--flow`
+    + surfaces/text scale, dark **and** light themes, clay/indigo/teal accents. The Dock's
+    hardcoded hexes stay pixel-stable (no regression).
+  - **Two read-only backend projections** (`windows-widget/src-tauri/src/room.rs`):
+    `room_metrics` (throughput, median s/page, survival average, recent audits, vault count —
+    derived from `events.jsonl` + the anchor/pending/held manifests + the vault Library clone)
+    and `gpu_vram` (live `nvidia-smi`; null when there is no probe). Both pure projections; the
+    converter/formatter are never touched.
+  - Verified live in the real Tauri app: Room renders true state (VRAM from nvidia-smi, vault
+    count from the Library, survival average from the manifests, the real Cybernetics `fail` in
+    terracotta), clean boot (no JS errors), `clippy -D warnings` clean, `tauri build` green.
+    Deferred to the next installment (docs/16 §8): the Wall surface, the canvas transit belt,
+    the drill-down file explorer, and live convert page %.
+
 ### Fixed
 
 - **S32 — four defects found while live-testing the Assay (2026-07-21).** All surfaced by

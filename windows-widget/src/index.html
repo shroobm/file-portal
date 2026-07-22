@@ -9,6 +9,10 @@
   <div id="titlebar" data-tauri-drag-region>
     <span class="title" data-tauri-drag-region>File Portal</span>
     <span id="titlebar-controls">
+      <span id="surface-switch">
+        <button class="surf-btn active" data-surface="dock" type="button" title="Compact dock">Dock</button>
+        <button class="surf-btn" data-surface="room" type="button" title="Operations room">Room</button>
+      </span>
       <button id="reader-obsidian" type="button" hidden title="Open Obsidian">◆</button>
       <button id="reader-zennotes" type="button" hidden title="Open ZenNotes">◈</button>
       <button id="watcher-btn" type="button" hidden title="Conveyor watcher">⏻</button>
@@ -39,6 +43,7 @@
   </div>
   <div id="status"></div>
   <div id="shift"></div>
+  <div id="room" hidden></div>
   <script type="module" src="main.js"></script>
 </body>
 </html>

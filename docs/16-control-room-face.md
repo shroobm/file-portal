@@ -153,13 +153,59 @@ delivered safely blind:
 
 ---
 
-## 6. — reserved: build log (see §8) —
-## 7. — reserved —
+## 6. Build log — what shipped
 
-## 8. Phase log (measured)
+Frontend (the lift, vanilla, no build step / framework added):
+- `windows-widget/src/styles.css` — token layer (`:root` + dark/light + clay/indigo/teal),
+  the surface switch, the whole Room stylesheet; Dock hexes left pixel-stable.
+- `windows-widget/src/index.html` — the `Dock | Room` switch + `#room` container.
+- `windows-widget/src/main.js` — `import ./room.js`; the surface controller (window resize,
+  body class, poll start/stop). Every existing Dock loop untouched.
+- `windows-widget/src/room.js` — NEW: the Room render, `renderVals()`'s shape rebuilt from
+  live `invoke()` (line_state / assay_status / shift_summary / preflight_list / watcher_status
+  / vault_check / room_metrics / gpu_vram / analyst_mode_get). Reuses the Dock's `.ac-*` assay
+  classes (with token-scoped overrides for light-mode contrast).
 
-*(appended as the session runs)*
+Backend (two read-only projections, pipeline never touched):
+- `windows-widget/src-tauri/src/room.rs` — NEW: `room_metrics` (throughput, median s/page,
+  survival average, recent audits, vault count — from events.jsonl + anchor/pending/held
+  manifests + the vault Library clone) and `gpu_vram` (live nvidia-smi; null when no probe).
+- `windows-widget/src-tauri/src/main.rs` — `mod room;` + the two registered commands.
 
-## 9. Higher-order goals — next major installments
+## 7. Verification — measured results
 
-*(written at close)*
+| # | Phase | Exit criterion | Result |
+|---|---|---|---|
+| 1 | Design principles | 6 laws → enforcement | ✅ §1 |
+| 2 | Integration check | 0 unmapped panels | ✅ §3 — ~70% REAL/DERIVE, 5 filled by `room_metrics`/`gpu_vram`, 1 (live page %) deferred |
+| 3 | Integration / build | clippy `-D warnings` + `tauri build` 0 + harness 0 errors | ✅ clippy clean (fixed 1 lint) · build exit 0 (release exe + NSIS + MSI) · harness rendered the real snapshot, 0 console errors, dark+light; **fixed** a light-mode `.ac-*` contrast bug |
+| 4 | Testing (boot) | frontend boots clean vs live pipeline | ✅ `widget-boot.log`: `module evaluating` → `all loops launched`, **0 error lines** — `room.js` import resolved in the real webview |
+| 5 | Widget testing | launch, real state, controls | ✅ Room live in the real Tauri app: **VRAM 1.9/10** (nvidia-smi), **VAULT 4** (Library), **survival avg 0.69**, median 3.4, real event stream, **ASSAY fail** (Cybernetics) in terracotta; surface switch + resize work; Dock unchanged (7 portals + real assay card) |
+| 6 | Converter | lane intact + reflected | ✅ `windows-converter/` **untouched** (git) · `convert_and_ship.py` + `fidelity_audit.py` compile · marker imports · the new widget's **watcher is watching** (poll 5s); prior Cybernetics convert completed. No fresh GPU convert triggered unattended (would occupy the GPU + write the real vault) |
+| 7 | Formatter / analyst | mode wiring | ✅ analyst logic (in `convert_and_ship.py`) compiles · `analyst-mode.txt` readable (`off`) · gate cycle wired (harness-verified) · Ollama present (local) · Gemini key hydrated from registry |
+| 8 | Vault path | `vault_check` valid | ✅ clone healthy (branch `main`, remote `rab@archlinux:…vault.git`) · Library/Inbox = **4** (matches the Room tile) · widget `vault_check` live **"up to date"** |
+| 9 | Linux device sync | reachability | ✅ ThinkPad `archlinux` **ACTIVE** over Tailscale (direct 192.168.2.149, tx/rx flowing) · vault remote reachable · live fetch proven by the widget's "up to date" |
+| 10 | Documenting / auditing | files updated, clocks aligned | ✅ this doc + CHANGELOG + ledger row + memory; two clocks advanced together |
+| 11 | Higher-order goals | next MAJOR installments | ✅ §8 |
+
+## 8. Higher-order goals — the next MAJOR installments
+
+Not small fixes — the substantial builds this graduation sets up (each its own session):
+
+1. **The Wall surface + live canvas transit belt.** The glanceable across-room projection
+   (docs/14) plus the moving-package belt from the source object. Staged in the switch; needs
+   the belt-canvas port + a third window geometry. Pairs with the phone projection
+   ([[remote-dispatch-vision]], docs/14 Phase A).
+2. **The drill-down file explorer** (station → live tree). New read-only tree-walk commands
+   (vault Library, `held/`, `pending/`, `converting/`, `anchor/`) + Tauri **event push** so a
+   node updates the instant the pipeline writes. DESIGN.md §4's named "graduation step" — the
+   single biggest UI installment.
+3. **Live convert page %.** The converter emits per-page progress; `line_state`/`room_metrics`
+   read it → the convert station shows real page X/Y + a moving bar (today: ETA countdown).
+   Touches the pipeline, so a careful dedicated session.
+4. **GPU telemetry stream.** Promote `gpu_vram` from a per-poll shell-out to a lightweight
+   sampler (VRAM + utilization + temp) with a real rolling sparkline; back the throughput /
+   median sparklines with a rolling window instead of the events tail.
+5. **Close the Beer remedy loop.** Audit flags → re-convert → re-audit passes → **supersede
+   auto-swap** in the vault (THE SUPERSEDE GAP, ThinkPad exporter). The Room's ⟳ re-convert
+   already re-queues; closing the loop needs the exporter's auto-swap on the ThinkPad lane.

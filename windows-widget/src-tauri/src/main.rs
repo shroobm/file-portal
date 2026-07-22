@@ -6,6 +6,7 @@ mod config;
 mod events;
 mod line;
 mod preflight;
+mod room;
 mod status;
 mod transfer;
 mod vault;
@@ -241,6 +242,24 @@ fn shift_summary(state: State<AppState>) -> Result<serde_json::Value, String> {
         .clone();
     events::shift_summary(&dir)
 }
+// S34 — the Room's KPI band (read-only projection: throughput / median s-per-page / survival
+// average / vault count / recent audits, from the same events + manifests Python writes).
+#[tauri::command]
+fn room_metrics(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let (pipeline, vault) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (cfg.gpu_pipeline_dir.clone(), cfg.vault_library_dir.clone())
+    };
+    room::metrics(&pipeline, &vault)
+}
+// S34 — live GPU memory via nvidia-smi (null when there is no probe).
+#[tauri::command]
+fn gpu_vram() -> serde_json::Value {
+    room::gpu_vram()
+}
 #[tauri::command]
 fn watcher_status(
     state: State<AppState>,
@@ -391,6 +410,8 @@ fn main() {
             rules_get,
             last_receipt,
             shift_summary,
+            room_metrics,
+            gpu_vram,
             watcher_status,
             watcher_start,
             watcher_stop,

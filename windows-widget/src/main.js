@@ -8,6 +8,11 @@ const { invoke } = window.__TAURI__.core;
 const { getCurrentWebview } = window.__TAURI__.webview;
 const { getCurrentWindow } = window.__TAURI__.window;
 
+// S34 — the Room surface (docs/16). Kept in its own ES module so the proven Dock code below
+// is untouched. Relative import resolves natively in the webview (no bundler needed — only
+// BARE specifiers can't resolve here).
+import { initRoom, setRoomActive } from "./room.js";
+
 // Boot diagnostics (S22 debug): any uncaught error or rejection lands in the status
 // line instead of a console nobody can open in release builds.
 function dbg(msg) {
@@ -754,6 +759,37 @@ async function assayLoop() {
   }
   setTimeout(assayLoop, ASSAY_POLL_MS);
 }
+
+// ---- S34: surface switch (Dock ⇄ Room) ------------------------------------------------
+// The projection principle at work (docs/16): one state, two densities. Dock is the narrow
+// floating widget (autosized). Room is a wider ops window. Only the layout + window size
+// change; the data is the same live pipeline. Wall + belt + drill-down are the next
+// installment (docs/16 §9), staged but not wired.
+
+const ROOM_W = 760, ROOM_H = 600;
+let surface = "dock";
+
+initRoom({ setStatus, dbg });
+
+function enterSurface(name) {
+  if (name === surface) return;
+  surface = name;
+  document.querySelectorAll(".surf-btn").forEach((b) =>
+    b.classList.toggle("active", b.dataset.surface === name));
+  const { LogicalSize } = window.__TAURI__.dpi;
+  if (name === "room") {
+    document.body.classList.add("surface-room");
+    setRoomActive(true);
+    getCurrentWindow().setSize(new LogicalSize(ROOM_W, ROOM_H)).catch((e) => dbg(`room resize: ${e}`));
+  } else {
+    document.body.classList.remove("surface-room");
+    setRoomActive(false);
+    reflow(); // restore the Dock's content-fit height
+  }
+}
+
+document.querySelectorAll(".surf-btn").forEach((b) =>
+  b.addEventListener("click", () => enterSurface(b.dataset.surface)));
 
 init().catch((err) => {
   console.error("init failed", err);
