@@ -1,0 +1,893 @@
+<!DOCTYPE html>
+<html><head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="32cb761c-47bc-41de-9872-b567addcb852"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  a { color: var(--clay); text-decoration: none; }
+  a:hover { color: var(--clay-hi); }
+  :root { color-scheme: dark; --bg:#100e0c; --surface-1:#17130f; --surface-2:#1e1814; --elev:#241d18; --border:rgba(240,228,216,.08); --border-strong:rgba(240,228,216,.16); --text:#ece7e1; --text-2:#a89f95; --text-3:#6f665d; --clay:#d97757; --clay-hi:#e6926f; --clay-bg:rgba(217,119,87,.13); --ok:#6fbf73; --ok-bg:rgba(111,191,115,.13); --warn:#e0b34c; --warn-bg:rgba(224,179,76,.13); --flow:#79a6bd; --flow-bg:rgba(121,166,189,.13); --shadow:0 1px 0 rgba(255,255,255,.03) inset,0 12px 30px -18px rgba(0,0,0,.7); --font-sans:system-ui,-apple-system,"Segoe UI",Roboto,sans-serif; --font-mono:ui-monospace,"Cascadia Code","Cascadia Mono",Consolas,monospace; --r:12px; --r-sm:8px; }
+  [data-theme="dark"] { color-scheme: dark; }
+  [data-theme="light"] { color-scheme: light; --bg:#eceae6; --surface-1:#f6f4f1; --surface-2:#fffefb; --elev:#fff; --border:rgba(40,30,22,.12); --border-strong:rgba(40,30,22,.22); --text:#221d18; --text-2:#665d54; --text-3:#968b80; --clay:#c15f3c; --clay-hi:#a94e2e; --clay-bg:rgba(193,95,60,.1); --ok:#3f8f46; --ok-bg:rgba(63,143,70,.1); --warn:#a97c17; --warn-bg:rgba(169,124,23,.1); --flow:#3f7690; --flow-bg:rgba(63,118,144,.1); --shadow:0 1px 0 rgba(255,255,255,.6) inset,0 12px 28px -20px rgba(40,30,22,.35); }
+  [data-accent="indigo"] { --clay:oklch(.66 .13 274); --clay-hi:oklch(.73 .13 274); --clay-bg:oklch(.66 .13 274 / .15); }
+  [data-accent="teal"] { --clay:oklch(.7 .1 190); --clay-hi:oklch(.77 .1 190); --clay-bg:oklch(.7 .1 190 / .15); }
+  @keyframes ping { 0%{box-shadow:0 0 0 0 rgba(111,191,115,.5);} 70%{box-shadow:0 0 0 6px rgba(111,191,115,0);} 100%{box-shadow:0 0 0 0 rgba(111,191,115,0);} }
+  @keyframes assay-pulse { 0%,100%{box-shadow:0 0 0 0 rgba(217,119,87,.6);} 50%{box-shadow:0 0 0 4px rgba(217,119,87,0);} }
+  @keyframes vault-glow { 0%,100%{box-shadow:0 0 3px rgba(217,119,87,.5);} 50%{box-shadow:0 0 14px rgba(217,119,87,.95);} }
+  @keyframes vault-spin { to { transform: rotate(360deg); } }
+  @keyframes drill-fade { from { opacity: 0; } to { opacity: 1; } }
+  @keyframes drill-in { from { opacity: 0; transform: scale(.38); } to { opacity: 1; transform: scale(1); } }
+  @media (prefers-reduced-motion: reduce) { * { animation: none !important; transition: none !important; } }
+</style>
+</helmet>
+<div ref="{{ rootRef }}" data-theme="{{ theme }}" data-accent="{{ accent }}" style="min-height:100vh;font-family:var(--font-sans);font-size:14px;line-height:1.5;color:var(--text);letter-spacing:-.006em;-webkit-font-smoothing:antialiased;background:{{ wrapBg }}">
+
+  <!-- ══════════════════════════════════════ ROOM (operations dashboard) ══ -->
+  <sc-if value="{{ isRoom }}" hint-placeholder-val="{{ true }}">
+  <div style="max-width:1240px;margin:0 auto;padding:20px clamp(14px,3vw,30px) 40px">
+    <header style="display:flex;align-items:center;gap:14px;padding:6px 2px 20px;flex-wrap:wrap">
+      <div style="display:flex;align-items:center;gap:11px">
+        <svg sc-camel-view-box="0 0 40 40" style="width:30px;height:30px;flex:none;color:var(--clay)" fill="none">
+          <path d="M20 3 34.6 11.5 34.6 28.5 20 37 5.4 28.5 5.4 11.5Z" stroke="currentColor" stroke-width="1.6" opacity=".55"></path>
+          <path d="M20 11 27.8 15.5 27.8 24.5 20 29 12.2 24.5 12.2 15.5Z" fill="currentColor" opacity=".16"></path>
+          <circle cx="20" cy="20" r="3.1" fill="currentColor"></circle>
+        </svg>
+        <div>
+          <h1 style="font-size:15px;font-weight:600;letter-spacing:-.01em">File&nbsp;Portal</h1>
+          <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.16em;text-transform:uppercase;color:var(--text-3)">Operations Room</span>
+        </div>
+      </div>
+      <div style="flex:1"></div>
+      <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+        <span title="Quarantined prototype — self-contained simulation, not wired to the pipeline" style="display:inline-flex;align-items:center;gap:6px;padding:5px 10px;border-radius:999px;background:var(--warn-bg);border:1px solid rgba(224,179,76,.3);font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--warn)">⚠ quarantined</span>
+        <span style="display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;background:var(--surface-1);border:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--text-2)"><span style="width:7px;height:7px;border-radius:50%;background:var(--ok);animation:ping 2.4s infinite"></span>System <b style="color:var(--text);font-weight:500">{{ sysLabel }}</b></span>
+        <span sc-camel-on-click="{{ toggleWatcher }}" title="Conveyor watcher — click to pause intake" style="display:inline-flex;align-items:center;gap:7px;padding:5px 11px;border-radius:999px;background:var(--surface-1);border:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--text-2);cursor:pointer"><span style="width:7px;height:7px;border-radius:50%;background:{{ watcherColor }}"></span>Watcher <b style="color:var(--text);font-weight:500">{{ watcherLabel }}</b></span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:var(--surface-1);border:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--text-2)">GPU <b style="color:var(--text);font-weight:500">{{ gpu }}</b>/10&nbsp;GB</span>
+        <span style="display:inline-flex;align-items:center;gap:6px;padding:5px 11px;border-radius:999px;background:var(--surface-1);border:1px solid var(--border);font-family:var(--font-mono);font-size:11px;color:var(--text)"><span style="font-variant-numeric:tabular-nums">{{ clock }}</span> UTC</span>
+        <button sc-camel-on-click="{{ openObsidian }}" title="Open Obsidian on the vault" style="width:32px;height:30px;display:inline-grid;place-items:center;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-sm);color:#a99bd1;cursor:pointer;font-size:13px" style-hover="border-color:var(--border-strong)">◆</button>
+        <button sc-camel-on-click="{{ openZennotes }}" title="Open ZenNotes on the vault" style="width:32px;height:30px;display:inline-grid;place-items:center;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-sm);color:#8fbf9f;cursor:pointer;font-size:13px" style-hover="border-color:var(--border-strong)">◈</button>
+        <span style="display:inline-flex;gap:5px;padding:6px 8px;border-radius:var(--r-sm);background:var(--surface-1);border:1px solid var(--border)">
+          <sc-for list="{{ accents }}" as="ac" hint-placeholder-count="3"><button sc-camel-on-click="{{ ac.set }}" title="{{ ac.key }} accent" style="width:14px;height:14px;padding:0;border-radius:50%;cursor:pointer;background:{{ ac.color }};border:2px solid {{ ac.ring }}"></button></sc-for>
+        </span>
+        <button sc-camel-on-click="{{ toggleTheme }}" title="Toggle theme" style="width:32px;height:30px;display:inline-grid;place-items:center;background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r-sm);color:var(--text-2);cursor:pointer;font-size:14px" style-hover="border-color:var(--border-strong)">◐</button>
+        <span style="display:inline-flex;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:8px">
+          <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3"><button sc-camel-on-click="{{ m.set }}" style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.04em;text-transform:uppercase;padding:4px 9px;border:0;border-radius:6px;cursor:pointer;transition:.15s;color:{{ m.color }};background:{{ m.bg }}">{{ m.label }}</button></sc-for>
+        </span>
+      </div>
+    </header>
+
+    <section style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px">
+      <div style="display:flex;align-items:baseline;gap:12px;padding:13px 16px 4px;flex-wrap:wrap">
+        <span style="font-size:13px;font-weight:500">The line</span>
+        <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3)">intake → convert → gate → assay → ship → vault</span>
+        <span style="flex:1"></span>
+        <span style="display:inline-flex;gap:2px;padding:2px;background:var(--surface-2);border:1px solid var(--border);border-radius:7px">
+          <sc-for list="{{ densities }}" as="d" hint-placeholder-count="3"><button sc-camel-on-click="{{ d.set }}" style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.04em;text-transform:uppercase;padding:3px 7px;border:0;border-radius:5px;cursor:pointer;color:{{ d.color }};background:{{ d.bg }}">{{ d.label }}</button></sc-for>
+        </span>
+        <span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3)">{{ inTransit }} in transit</span>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);padding:6px 10px 2px">
+        <sc-for list="{{ stations }}" as="st" hint-placeholder-count="6">
+          <div sc-camel-on-click="{{ st.onClick }}" style="position:relative;text-align:center;padding:10px 4px 6px;cursor:{{ st.cursor }}">
+            <div style="width:40px;height:40px;margin:0 auto 8px;border-radius:11px;display:grid;place-items:center;font-size:19px;transition:.3s;color:{{ st.glyphColor }};background:{{ st.glyphBg }};border:1px solid {{ st.glyphBorder }};animation:{{ st.tileAnim }}">{{ st.glyph }}</div>
+            <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:.04em;color:var(--text-3);text-transform:uppercase">{{ st.name }}</div>
+            <span style="display:block;margin-top:3px;font-family:var(--font-mono);font-size:15px;font-weight:500;font-variant-numeric:tabular-nums;color:{{ st.countColor }}">{{ st.count }}</span>
+            <sc-if value="{{ st.sub }}"><span style="display:block;font-family:var(--font-mono);font-size:9px;color:{{ st.subColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis;padding:0 2px">{{ st.sub }}</span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <sc-if value="{{ showBelt }}"><div style="position:relative;height:92px;margin:4px 6px 8px"><canvas ref="{{ beltRef }}" style="width:100%;height:100%;display:block"></canvas></div></sc-if>
+    </section>
+
+    <sc-if value="{{ showKpis }}">
+    <section style="display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px;margin:14px 0">
+      <sc-for list="{{ kpis }}" as="kpi" hint-placeholder-count="6">
+        <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);padding:13px 14px;position:relative;overflow:hidden">
+          <div style="font-family:var(--font-mono);font-size:10px;letter-spacing:.08em;text-transform:uppercase;color:var(--text-3)">{{ kpi.label }}</div>
+          <div style="margin-top:7px;font-family:var(--font-mono);font-size:23px;font-weight:500;font-variant-numeric:tabular-nums;letter-spacing:-.02em;line-height:1">{{ kpi.val }}<span style="font-size:12px;color:var(--text-3);font-weight:400;margin-left:3px">{{ kpi.unit }}</span></div>
+          <sc-if value="{{ kpi.delta }}"><div style="font-family:var(--font-mono);font-size:10.5px;margin-top:6px;color:{{ kpi.deltaColor }}">{{ kpi.delta }}</div></sc-if>
+          <sc-if value="{{ kpi.gauge }}"><div style="margin-top:9px;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden"><i style="display:block;height:100%;border-radius:3px;width:{{ kpi.gaugePct }}%;background:{{ kpi.gaugeColor }};transition:width .6s ease"></i></div></sc-if>
+          <sc-if value="{{ kpi.spark }}"><svg sc-camel-view-box="0 0 66 26" sc-camel-preserve-aspect-ratio="none" style="position:absolute;right:10px;bottom:10px;width:66px;height:26px;opacity:.9"><polyline points="{{ kpi.sparkPts }}" style="fill:none;stroke-width:1.5;stroke-linejoin:round;stroke:{{ kpi.sparkCol }}"></polyline><circle cx="{{ kpi.dotX }}" cy="{{ kpi.dotY }}" r="1.8" style="fill:{{ kpi.sparkCol }}"></circle></svg></sc-if>
+        </div>
+      </sc-for>
+    </section>
+    </sc-if>
+
+    <sc-if value="{{ hasPending }}">
+    <section style="background:var(--surface-1);border:1px solid var(--clay);border-radius:var(--r);box-shadow:var(--shadow);margin-bottom:14px">
+      <div style="display:flex;align-items:center;gap:10px;padding:12px 15px;border-bottom:1px solid var(--border)"><span style="font-size:12.5px;font-weight:500;color:var(--text)"><span style="color:var(--clay)">✳</span> Gate — your routing decision</span><span style="flex:1"></span><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--clay)">your hand required</span></div>
+      <div style="padding:12px 15px">
+        <sc-for list="{{ pending }}" as="p" hint-placeholder-count="1">
+          <div style="margin-bottom:8px;padding:11px 12px;border-radius:var(--r-sm);background:var(--clay-bg);border:1px solid rgba(217,119,87,.28)">
+            <div style="display:flex;align-items:baseline;gap:6px;font-size:12.5px;color:var(--text)"><span style="color:var(--clay)">✳</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span></div>
+            <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--text-2);margin:5px 0 9px">{{ p.meta }}</div>
+            <sc-if value="{{ p.warn }}"><div style="font-family:var(--font-mono);font-size:10px;color:var(--warn);margin:0 0 9px">⚠ {{ p.warn }}</div></sc-if>
+            <div style="display:flex;gap:7px">
+              <button sc-camel-on-click="{{ p.routeLocal }}" style="flex:1;padding:7px 6px;border-radius:7px;font-family:var(--font-mono);font-size:10.5px;cursor:pointer;color:var(--text);border:1px solid {{ p.localBorder }};background:{{ p.localBg }}">🔒 Local {{ p.etaLocal }}</button>
+              <button sc-camel-on-click="{{ p.routeCloud }}" style="flex:1;padding:7px 6px;border-radius:7px;font-family:var(--font-mono);font-size:10.5px;cursor:pointer;color:var(--text);border:1px solid {{ p.cloudBorder }};background:{{ p.cloudBg }}">☁ Flash {{ p.etaCloud }}</button>
+              <button sc-camel-on-click="{{ p.shipAsIs }}" style="flex:1;padding:7px 6px;border-radius:7px;font-family:var(--font-mono);font-size:10.5px;cursor:pointer;color:var(--text-2);border:1px solid var(--border);background:var(--surface-2)">Ship as-is</button>
+            </div>
+            <sc-if value="{{ p.showRule }}"><label style="display:block;margin-top:7px;font-family:var(--font-mono);font-size:9.5px;color:var(--text-2);cursor:pointer"><input type="checkbox" sc-camel-on-change="{{ ruleChange }}" style="vertical-align:middle;margin-right:5px"> always route big docs 🔒 local</label></sc-if>
+          </div>
+        </sc-for>
+      </div>
+    </section>
+    </sc-if>
+
+    <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(300px,1fr));gap:14px">
+      <section style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow)">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 15px;border-bottom:1px solid var(--border)"><span style="font-size:12.5px;font-weight:500">⚙ Convert station</span><span style="flex:1"></span><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3)">{{ conv.state }}</span></div>
+        <div style="padding:15px">
+          <div style="display:flex;align-items:baseline;gap:8px"><span style="font-size:13px;font-weight:500;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ conv.name }}</span><span style="font-family:var(--font-mono);font-size:10px;padding:2px 7px;border-radius:5px;flex:none;background:{{ conv.laneBg }};color:{{ conv.laneCol }}">{{ conv.lane }}</span></div>
+          <div style="display:flex;justify-content:space-between;margin:12px 0 6px;font-family:var(--font-mono);font-size:11px;color:var(--text-2)"><span>page <b style="color:var(--text);font-weight:500">{{ conv.page }}</b> / {{ conv.pages }}</span><span><b style="color:var(--text);font-weight:500">{{ conv.eta }}</b></span></div>
+          <div style="height:7px;border-radius:4px;background:var(--surface-2);overflow:hidden"><i style="display:block;height:100%;border-radius:4px;background:var(--clay);width:{{ conv.pct }}%;transition:width .6s ease"></i></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px 14px;margin-top:14px">
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11.5px;color:var(--text-2);padding:4px 0;border-top:1px solid var(--border)"><span>engine</span><b style="color:var(--text);font-weight:500">{{ conv.engine }}</b></div>
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11.5px;color:var(--text-2);padding:4px 0;border-top:1px solid var(--border)"><span>batch cap</span><b style="color:var(--text);font-weight:500">{{ conv.batch }}</b></div>
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11.5px;color:var(--text-2);padding:4px 0;border-top:1px solid var(--border)"><span>VRAM peak</span><b style="color:var(--text);font-weight:500;font-variant-numeric:tabular-nums">{{ conv.vram }}</b></div>
+            <div style="display:flex;justify-content:space-between;font-family:var(--font-mono);font-size:11.5px;color:var(--text-2);padding:4px 0;border-top:1px solid var(--border)"><span>s/page</span><b style="color:var(--text);font-weight:500;font-variant-numeric:tabular-nums">{{ conv.spp }}</b></div>
+          </div>
+        </div>
+      </section>
+
+      <section style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow)">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 15px;border-bottom:1px solid var(--border)"><span style="font-size:12.5px;font-weight:500">◎ Survival Audit</span><span style="flex:1"></span><button sc-camel-on-click="{{ toggleAudit }}" title="Enforce parks a failing bundle in held/ instead of shipping" style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-2);cursor:pointer;border:1px solid var(--border);border-radius:6px;padding:2px 7px;background:var(--surface-2)">gate: <span style="color:{{ auditReportColor }}">report</span> ⇄ <span style="color:{{ auditEnforceColor }}">enforce</span></button></div>
+        <div style="padding:15px">
+          <sc-for list="{{ audits }}" as="a" hint-placeholder-count="3">
+            <div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-top:1px solid var(--border);font-size:12px">
+              <span style="flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:var(--text)">{{ a.name }}</span>
+              <span style="width:74px;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;flex:none"><i style="display:block;height:100%;width:{{ a.pct }}%;background:{{ a.color }}"></i></span>
+              <span style="font-family:var(--font-mono);font-size:11px;color:var(--text-2);width:44px;text-align:right;font-variant-numeric:tabular-nums">{{ a.survival }}</span>
+              <span style="font-family:var(--font-mono);font-size:9.5px;letter-spacing:.03em;text-transform:uppercase;padding:3px 8px;border-radius:5px;white-space:nowrap;color:{{ a.color }};background:{{ a.bg }}">{{ a.verdict }}</span>
+            </div>
+          </sc-for>
+          <sc-if value="{{ assay.show }}">
+          <div style="margin-top:13px;padding:11px 12px;border-radius:var(--r-sm);background:var(--clay-bg);border:1px solid rgba(217,119,87,.28)">
+            <div style="display:flex;align-items:center;gap:8px;font-family:var(--font-mono);font-size:10.5px;color:var(--text-2)"><span style="color:{{ assay.badgeColor }};text-transform:uppercase">{{ assay.verdict }} {{ assay.badgeSym }}</span><span style="flex:1"></span>survival <b style="color:var(--text);font-weight:500;font-variant-numeric:tabular-nums">{{ assay.survival }}</b><span style="width:84px;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden"><i style="display:block;height:100%;width:{{ assay.pct }}%;background:{{ assay.meterColor }}"></i></span></div>
+            <div style="font-family:var(--font-mono);font-size:10.5px;color:var(--clay);margin:9px 0 6px"><b style="color:var(--text);font-weight:500">{{ assay.bundle }}</b> — {{ assay.caption }}</div>
+            <div style="position:relative;height:13px;border-radius:3px;background:var(--surface-2);border:1px solid var(--border)"><sc-for list="{{ assay.bands }}" as="z" hint-placeholder-count="2"><span style="position:absolute;top:0;bottom:0;border-radius:2px;left:{{ z.left }}%;width:{{ z.w }}%;background:{{ z.color }};opacity:.9"></span></sc-for></div>
+            <ul style="list-style:none;margin-top:9px;font-family:var(--font-mono);font-size:10px;color:var(--text-2)"><sc-for list="{{ assay.runs }}" as="r" hint-placeholder-count="2"><li style="padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:var(--clay)">{{ r.k }}</span> · {{ r.meta }} · <q style="color:var(--text-3);font-style:italic">{{ r.quote }}</q></li></sc-for></ul>
+            <sc-if value="{{ assay.showRemedy }}"><div style="display:flex;align-items:center;gap:10px;margin-top:11px"><button sc-camel-on-click="{{ reconvert }}" style="font-family:var(--font-mono);font-size:10px;color:var(--text);cursor:pointer;border:1px solid rgba(217,119,87,.5);background:rgba(217,119,87,.14);border-radius:7px;padding:5px 10px" style-hover="background:rgba(217,119,87,.28)">⟳ re-convert</button><span style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-3)">swap: <b style="color:var(--warn);font-weight:400">manual</b> — supersede flow pending</span></div></sc-if>
+            <sc-if value="{{ assay.heldCount }}"><div style="font-family:var(--font-mono);font-size:9.5px;color:var(--text-2);margin-top:9px;padding-top:9px;border-top:1px solid var(--border)">held: <b style="color:var(--clay);font-weight:400">{{ assay.heldCount }}</b> awaiting remedy — {{ assay.heldNames }}</div></sc-if>
+          </div>
+          </sc-if>
+        </div>
+      </section>
+
+      <section style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);box-shadow:var(--shadow)">
+        <div style="display:flex;align-items:center;gap:10px;padding:12px 15px;border-bottom:1px solid var(--border)"><span style="font-size:12.5px;font-weight:500">Event stream</span><span style="flex:1"></span><span style="font-family:var(--font-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;color:var(--text-3)">events.jsonl</span></div>
+        <div style="padding:15px"><div style="font-family:var(--font-mono);font-size:11px;max-height:260px;overflow:hidden">
+          <sc-for list="{{ events }}" as="e" hint-placeholder-count="8">
+            <div style="display:flex;gap:9px;padding:3px 0;color:var(--text-2)"><span style="color:var(--text-3);flex:none">{{ e.ts }}</span><span style="flex:none;width:60px;color:{{ e.tagColor }}">{{ e.tag }}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ e.msg }}</span></div>
+          </sc-for>
+        </div></div>
+      </section>
+    </div>
+
+    <div style="display:flex;align-items:center;gap:8px;margin-top:14px;padding:4px;border-radius:10px;background:var(--surface-1);border:1px solid rgba(217,119,87,.22)">
+      <button sc-camel-on-click="{{ pullVault }}" style="display:flex;align-items:center;gap:6px;padding:5px 11px;border-radius:7px;font-family:var(--font-mono);font-size:11px;cursor:pointer;color:{{ vault.btnColor }};border:1px solid {{ vault.btnBorder }};background:{{ vault.btnBg }};animation:{{ vault.glow }}"><span style="color:{{ vault.sparkColor }};font-size:12px;display:inline-block;animation:{{ vault.spin }}">✳</span>{{ vault.label }}</button>
+      <span style="flex:1;font-family:var(--font-mono);font-size:10px;color:var(--text-2);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ vault.note }}</span>
+    </div>
+
+    <footer style="display:flex;justify-content:space-between;flex-wrap:wrap;gap:8px;margin-top:20px;padding-top:14px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:10.5px;color:var(--text-3)">
+      <span style="color:var(--text-2)">{{ footLeft }}</span>
+      <span>Prototype · quarantined · not wired to the pipeline · simulated data — Lineage: Cybersyn Opsroom × ISOTYPE × Claude Design System</span>
+    </footer>
+  </div>
+  </sc-if>
+
+  <!-- ══════════════════════════════════════════ DOCK (desktop widget) ══ -->
+  <sc-if value="{{ isDock }}">
+  <div style="min-height:100vh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:28px 16px;gap:14px">
+    <div style="display:flex;align-items:center;gap:12px">
+      <span style="font-family:var(--font-mono);font-size:10.5px;color:rgba(236,231,225,.5)">Floating desktop widget — the same truth, compact · quarantined prototype</span>
+      <span style="display:inline-flex;gap:2px;padding:2px;background:rgba(20,18,17,.85);border:1px solid rgba(255,255,255,.12);border-radius:8px">
+        <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3"><button sc-camel-on-click="{{ m.set }}" style="font-family:var(--font-mono);font-size:10px;text-transform:uppercase;padding:3px 8px;border:0;border-radius:6px;cursor:pointer;color:{{ m.dockColor }};background:{{ m.dockBg }}">{{ m.label }}</button></sc-for>
+      </span>
+    </div>
+    <div style="width:100%;max-width:520px;border-radius:14px;overflow:hidden;background:rgba(16,13,11,.72);backdrop-filter:blur(14px);-webkit-backdrop-filter:blur(14px);border:1px solid rgba(255,255,255,.1);box-shadow:0 30px 60px -20px rgba(0,0,0,.75)">
+      <div style="display:flex;align-items:center;justify-content:space-between;height:30px;padding:0 6px 0 12px">
+        <span style="font-size:11px;color:#cfc9c3;letter-spacing:.3px">File Portal</span>
+        <span style="display:flex;gap:4px">
+          <button sc-camel-on-click="{{ openObsidian }}" title="Obsidian" style="width:26px;height:20px;border:0;border-radius:6px;background:rgba(255,255,255,.08);color:#a99bd1;font-size:12px;cursor:pointer">◆</button>
+          <button sc-camel-on-click="{{ openZennotes }}" title="ZenNotes" style="width:26px;height:20px;border:0;border-radius:6px;background:rgba(255,255,255,.08);color:#8fbf9f;font-size:12px;cursor:pointer">◈</button>
+          <button sc-camel-on-click="{{ toggleWatcher }}" title="Conveyor watcher" style="width:26px;height:20px;border:0;border-radius:6px;background:rgba(255,255,255,.08);color:{{ watcherDotColor }};font-size:12px;cursor:pointer">⏻</button>
+          <button sc-camel-on-click="{{ minimize }}" title="Minimize" style="width:26px;height:20px;border:0;border-radius:6px;background:rgba(255,255,255,.08);color:#eee;font-size:14px;cursor:pointer;line-height:1">–</button>
+        </span>
+      </div>
+      <sc-if value="{{ showPortals }}">
+      <div style="display:grid;grid-template-columns:repeat(7,1fr);gap:8px;padding:12px">
+        <sc-for list="{{ portals }}" as="p" hint-placeholder-count="7">
+          <div sc-camel-on-click="{{ p.onClick }}" sc-camel-on-drag-over="{{ p.onDragOver }}" sc-camel-on-drop="{{ p.onDrop }}" style="display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;height:74px;border-radius:12px;background:rgba(30,30,30,.6);border:2px dashed rgba(255,255,255,.22);color:#eee;cursor:pointer;transition:.15s" style-hover="border-color:var(--clay);background:var(--clay-bg)">
+            <span style="font-size:22px">{{ p.icon }}</span>
+            <span style="font-size:9px;text-align:center;line-height:1.05;padding:0 2px">{{ p.label }}</span>
+          </div>
+        </sc-for>
+      </div>
+      </sc-if>
+      <div style="display:flex;align-items:center;gap:6px;margin:0 12px 8px;padding:5px 10px;border-radius:10px;background:rgba(20,18,17,.85);border:1px solid rgba(255,255,255,.08);font-family:var(--font-mono);font-size:10px;color:#9a938d;white-space:nowrap;overflow:hidden">
+        <sc-for list="{{ stations }}" as="st" hint-placeholder-count="6">
+          <sc-if value="{{ st.sep }}"><span style="color:#55504b">▸</span></sc-if>
+          <span sc-camel-on-click="{{ st.onClick }}" style="display:inline-flex;gap:4px;align-items:center;cursor:{{ st.cursor }}"><span style="color:{{ st.dotColor }}">{{ st.glyph }}</span><span style="color:{{ st.dockColor }};max-width:120px;overflow:hidden;text-overflow:ellipsis">{{ st.dockVal }}</span></span>
+        </sc-for>
+      </div>
+      <sc-if value="{{ assay.show }}">
+      <div style="margin:0 12px 8px;border-radius:10px;background:rgba(20,18,17,.92);border:1px solid {{ assay.cardBorder }};font-family:var(--font-mono);overflow:hidden">
+        <div style="display:flex;align-items:center;gap:8px;padding:6px 10px;border-bottom:1px solid rgba(255,255,255,.08)"><span style="color:var(--clay);font-size:12px">◎</span><span style="color:#e8e2dd;font-size:11px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ assay.bundle }}</span><span style="flex:1"></span><button sc-camel-on-click="{{ toggleAudit }}" style="font-family:inherit;font-size:9.5px;color:#9a938d;cursor:pointer;border:1px solid rgba(255,255,255,.14);border-radius:6px;padding:2px 7px;background:rgba(255,255,255,.04)">gate: <span style="color:{{ auditReportColor }}">report</span> ⇄ <span style="color:{{ auditEnforceColor }}">enforce</span></button></div>
+        <div style="padding:8px 10px">
+          <div style="display:flex;align-items:center;gap:8px;font-size:10px"><span style="color:#e8e2dd;flex:1">survival {{ assay.survival }}</span><span style="width:120px;height:6px;border-radius:3px;overflow:hidden;background:rgba(255,255,255,.06)"><i style="display:block;height:100%;width:{{ assay.pct }}%;background:{{ assay.meterColor }}"></i></span><span style="color:{{ assay.badgeColor }};font-size:9px;text-transform:uppercase">{{ assay.verdict }} {{ assay.badgeSym }}</span></div>
+          <div style="font-size:9px;color:#9a938d;margin:6px 0 4px"><b style="color:#e8e2dd;font-weight:400">degeneration</b> — {{ assay.caption }}</div>
+          <div style="position:relative;height:12px;border-radius:3px;background:rgba(255,255,255,.05);border:1px solid rgba(255,255,255,.08)"><sc-for list="{{ assay.bands }}" as="z" hint-placeholder-count="2"><span style="position:absolute;top:0;bottom:0;border-radius:2px;left:{{ z.left }}%;width:{{ z.w }}%;background:{{ z.color }};opacity:.9"></span></sc-for></div>
+          <ul style="list-style:none;font-size:9.5px;color:#9a938d;margin-top:4px"><sc-for list="{{ assay.runs }}" as="r" hint-placeholder-count="2"><li style="padding:2px 0;white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:var(--clay)">{{ r.k }}</span> · {{ r.meta }} · <q style="color:#6b6560;font-style:italic">{{ r.quote }}</q></li></sc-for></ul>
+          <sc-if value="{{ assay.showRemedy }}"><div style="display:flex;align-items:center;gap:10px;margin-top:8px"><button sc-camel-on-click="{{ reconvert }}" style="font-family:inherit;font-size:9.5px;color:#e8e2dd;cursor:pointer;border:1px solid rgba(217,119,87,.5);background:rgba(217,119,87,.14);border-radius:7px;padding:4px 9px">⟳ re-convert</button><span style="font-size:9px;color:#55504b">swap: <b style="color:#e0b34c;font-weight:400">manual</b> — supersede flow pending</span></div></sc-if>
+        </div>
+        <sc-if value="{{ assay.heldCount }}"><div style="font-size:9px;color:#9a938d;padding:4px 10px;border-top:1px solid rgba(255,255,255,.08)">held: <b style="color:var(--clay);font-weight:400">{{ assay.heldCount }}</b> awaiting remedy — {{ assay.heldNames }}</div></sc-if>
+      </div>
+      </sc-if>
+      <sc-for list="{{ pending }}" as="p" hint-placeholder-count="0">
+        <div style="margin:0 12px 8px;padding:6px 9px;border-radius:10px;background:rgba(20,18,17,.9);border:1px solid rgba(217,119,87,.35);font-family:var(--font-mono)">
+          <div style="display:flex;align-items:baseline;gap:6px;font-size:11px;color:#e8e2dd"><span style="color:var(--clay)">✳</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ p.name }}</span></div>
+          <div style="font-size:10px;color:#9a938d;margin:2px 0 6px">{{ p.meta }}</div>
+          <div style="display:flex;gap:6px">
+            <button sc-camel-on-click="{{ p.routeLocal }}" style="flex:1;padding:4px 6px;border-radius:7px;font-family:inherit;font-size:10px;cursor:pointer;color:#e8e2dd;border:1px solid {{ p.localBorder }};background:{{ p.localBg }}">🔒 Local {{ p.etaLocal }}</button>
+            <button sc-camel-on-click="{{ p.routeCloud }}" style="flex:1;padding:4px 6px;border-radius:7px;font-family:inherit;font-size:10px;cursor:pointer;color:#e8e2dd;border:1px solid {{ p.cloudBorder }};background:{{ p.cloudBg }}">☁ Flash {{ p.etaCloud }}</button>
+            <button sc-camel-on-click="{{ p.shipAsIs }}" style="flex:1;padding:4px 6px;border-radius:7px;font-family:inherit;font-size:10px;cursor:pointer;color:#9a938d;border:1px solid rgba(255,255,255,.18);background:rgba(255,255,255,.06)">Ship as-is</button>
+          </div>
+        </div>
+      </sc-for>
+      <div style="display:flex;align-items:center;gap:8px;margin:0 12px 6px;padding:4px;border-radius:10px;background:rgba(20,18,17,.85);border:1px solid rgba(217,119,87,.25)">
+        <button sc-camel-on-click="{{ vault.onClick }}" style="display:flex;align-items:center;gap:6px;padding:4px 10px;border-radius:7px;font-family:var(--font-mono);font-size:11px;cursor:pointer;color:{{ vault.btnColor }};border:1px solid {{ vault.btnBorder }};background:{{ vault.btnBg }};animation:{{ vault.glow }}"><span style="color:{{ vault.sparkColor }};font-size:12px;display:inline-block;animation:{{ vault.spin }}">✳</span>{{ vault.label }}</button>
+        <span style="flex:1;font-family:var(--font-mono);font-size:10px;color:#9a938d;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ vault.note }}</span>
+      </div>
+      <div style="padding:0 12px 3px;font-size:11px;color:#ccc;min-height:15px">{{ flash }}</div>
+      <div style="padding:0 12px 10px;font-family:var(--font-mono);font-size:10px;color:#9a938d;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ shiftText }}</div>
+    </div>
+  </div>
+  </sc-if>
+
+  <!-- ══════════════════════════════════════════ WALL (projection glance) ══ -->
+  <sc-if value="{{ isWall }}">
+  <div style="min-height:100vh;display:flex;flex-direction:column;padding:clamp(28px,5vw,64px)">
+    <div style="display:flex;align-items:center;gap:16px">
+      <span style="display:inline-flex;align-items:center;gap:12px;font-family:var(--font-mono);font-size:clamp(22px,3vw,40px);font-weight:500;letter-spacing:-.01em;color:var(--text)"><span style="width:16px;height:16px;border-radius:50%;background:var(--ok);animation:ping 2.4s infinite"></span>SYSTEM <b style="color:var(--ok);font-weight:600">{{ sysLabel }}</b></span>
+      <span style="flex:1"></span>
+      <span style="font-family:var(--font-mono);font-size:clamp(14px,1.5vw,20px);color:var(--text-3);font-variant-numeric:tabular-nums">{{ clock }} UTC</span>
+      <span style="display:inline-flex;gap:2px;padding:3px;background:var(--surface-2);border:1px solid var(--border);border-radius:9px;margin-left:14px">
+        <sc-for list="{{ modes }}" as="m" hint-placeholder-count="3"><button sc-camel-on-click="{{ m.set }}" style="font-family:var(--font-mono);font-size:12px;text-transform:uppercase;padding:5px 11px;border:0;border-radius:6px;cursor:pointer;color:{{ m.color }};background:{{ m.bg }}">{{ m.label }}</button></sc-for>
+      </span>
+    </div>
+    <div style="flex:1;display:flex;flex-direction:column;justify-content:center;gap:clamp(24px,4vw,52px)">
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:clamp(10px,2vw,24px)">
+        <sc-for list="{{ stations }}" as="st" hint-placeholder-count="6">
+          <div sc-camel-on-click="{{ st.drillClick }}" style="text-align:center;cursor:pointer">
+            <div style="width:clamp(70px,9vw,120px);height:clamp(70px,9vw,120px);margin:0 auto clamp(10px,1.4vw,18px);border-radius:24px;display:grid;place-items:center;font-size:clamp(30px,4vw,54px);transition:border-color .15s,transform .15s;color:{{ st.glyphColor }};background:{{ st.glyphBg }};border:2px solid {{ st.glyphBorder }};animation:{{ st.tileAnim }}" style-hover="border-color:var(--clay);transform:translateY(-3px)">{{ st.glyph }}</div>
+            <div style="font-family:var(--font-mono);font-size:clamp(11px,1.1vw,15px);letter-spacing:.08em;color:var(--text-3);text-transform:uppercase">{{ st.name }}</div>
+            <div style="font-family:var(--font-mono);font-size:clamp(24px,3.4vw,48px);font-weight:500;font-variant-numeric:tabular-nums;color:{{ st.countColor }};margin-top:4px">{{ st.count }}</div>
+            <div style="font-family:var(--font-mono);font-size:clamp(10px,1vw,14px);color:{{ st.subColor }};white-space:nowrap;overflow:hidden;text-overflow:ellipsis">{{ st.sub }}</div>
+          </div>
+        </sc-for>
+      </div>
+      <div style="text-align:center;font-family:var(--font-mono);font-size:clamp(10px,1vw,13px);color:var(--text-3);letter-spacing:.06em">▸ click any station to open its live file explorer</div>
+      <div style="display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:clamp(14px,2vw,24px)">
+        <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);padding:clamp(18px,2vw,28px)">
+          <div style="font-family:var(--font-mono);font-size:clamp(11px,1vw,14px);letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)">Survival avg</div>
+          <div style="font-family:var(--font-mono);font-size:clamp(40px,6vw,88px);font-weight:500;font-variant-numeric:tabular-nums;line-height:1;color:{{ wallSurvColor }}">{{ wallSurv }}</div>
+        </div>
+        <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);padding:clamp(18px,2vw,28px)">
+          <div style="font-family:var(--font-mono);font-size:clamp(11px,1vw,14px);letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)">Now converting</div>
+          <div style="font-size:clamp(16px,1.8vw,26px);font-weight:500;margin:clamp(8px,1vw,14px) 0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ wallConv }}</div>
+          <div style="height:10px;border-radius:5px;background:var(--surface-2);overflow:hidden"><i style="display:block;height:100%;border-radius:5px;background:var(--clay);width:{{ wallConvPct }}%;transition:width .6s ease"></i></div>
+        </div>
+        <div style="background:var(--surface-1);border:1px solid var(--border);border-radius:var(--r);padding:clamp(18px,2vw,28px)">
+          <div style="font-family:var(--font-mono);font-size:clamp(11px,1vw,14px);letter-spacing:.1em;text-transform:uppercase;color:var(--text-3)">Throughput</div>
+          <div style="font-family:var(--font-mono);font-size:clamp(40px,6vw,88px);font-weight:500;font-variant-numeric:tabular-nums;line-height:1;color:var(--text)">{{ wallThru }}<span style="font-size:clamp(16px,1.6vw,24px);color:var(--text-3);margin-left:6px">pp/s</span></div>
+        </div>
+      </div>
+    </div>
+    <div style="font-family:var(--font-mono);font-size:clamp(13px,1.4vw,18px);color:var(--text-2);border-top:1px solid var(--border);padding-top:clamp(14px,1.5vw,20px);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"><span style="color:var(--text-3)">quarantined · simulated data · </span>{{ wallEvent }}</div>
+  </div>
+  </sc-if>
+
+  <!-- ════════════════════════════════════ DRILL-DOWN: live file explorer ══ -->
+  <sc-if value="{{ drillOpen }}">
+  <div sc-camel-on-click="{{ closeDrill }}" style="position:fixed;inset:0;z-index:50;background:rgba(8,7,6,.55);backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px);display:grid;place-items:center;padding:clamp(18px,4vw,60px);animation:drill-fade .18s ease">
+    <div sc-camel-on-click="{{ stop }}" style="width:100%;max-width:920px;max-height:86vh;display:flex;flex-direction:column;background:var(--surface-1);border:1px solid var(--border-strong);border-radius:var(--r);box-shadow:0 40px 90px -30px rgba(0,0,0,.8);overflow:hidden;transform-origin:{{ drill.origin }};animation:drill-in .26s cubic-bezier(.16,.84,.44,1)">
+      <div style="display:flex;align-items:center;gap:10px;padding:13px 16px;border-bottom:1px solid var(--border)">
+        <span style="width:30px;height:30px;border-radius:9px;display:grid;place-items:center;font-size:16px;background:var(--clay-bg);color:var(--clay);border:1px solid var(--clay);flex:none">{{ drill.glyph }}</span>
+        <div style="min-width:0"><div style="font-size:13px;font-weight:600;text-transform:uppercase;letter-spacing:.04em">{{ drill.title }}</div><div style="font-family:var(--font-mono);font-size:10px;color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">{{ drill.root }}</div></div>
+        <span style="flex:1"></span>
+        <span style="display:inline-flex;align-items:center;gap:6px;font-family:var(--font-mono);font-size:10px;color:var(--text-3);white-space:nowrap"><span style="width:6px;height:6px;border-radius:50%;background:var(--ok);animation:ping 2.4s infinite"></span>live · events.jsonl</span>
+        <button sc-camel-on-click="{{ closeDrill }}" title="Close (Esc)" style="width:28px;height:26px;border:1px solid var(--border);border-radius:var(--r-sm);background:var(--surface-2);color:var(--text-2);cursor:pointer;font-size:13px;flex:none" style-hover="border-color:var(--border-strong);color:var(--text)">✕</button>
+      </div>
+      <div style="overflow:auto;padding:8px 6px">
+        <sc-for list="{{ drill.rows }}" as="r" hint-placeholder-count="6">
+          <div sc-camel-on-click="{{ r.onClick }}" style="display:flex;align-items:center;gap:9px;padding:5px 12px;padding-left:{{ r.indent }}px;font-family:var(--font-mono);font-size:11.5px;cursor:{{ r.cursor }};border-radius:6px" style-hover="background:var(--surface-2)">
+            <span style="width:11px;color:var(--text-3);flex:none">{{ r.caret }}</span>
+            <span style="flex:none">{{ r.glyph }}</span>
+            <span style="color:{{ r.nameColor }};overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:none;max-width:46%">{{ r.name }}</span>
+            <sc-if value="{{ r.meta }}"><span style="color:var(--text-3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1">{{ r.meta }}</span></sc-if>
+            <span style="flex:1"></span>
+            <sc-if value="{{ r.survival }}"><span style="width:70px;height:6px;border-radius:3px;background:var(--surface-2);overflow:hidden;flex:none"><i style="display:block;height:100%;width:{{ r.pct }}%;background:{{ r.color }}"></i></span><span style="color:var(--text-2);width:44px;text-align:right;font-variant-numeric:tabular-nums;flex:none">{{ r.survival }}</span></sc-if>
+            <sc-if value="{{ r.verdict }}"><span style="font-size:9px;text-transform:uppercase;padding:2px 7px;border-radius:5px;flex:none;color:{{ r.color }};background:{{ r.bg }}">{{ r.verdict }}</span></sc-if>
+            <sc-if value="{{ r.size }}"><span style="color:var(--text-3);flex:none">{{ r.size }}</span></sc-if>
+          </div>
+        </sc-for>
+      </div>
+      <div style="padding:9px 16px;border-top:1px solid var(--border);font-family:var(--font-mono);font-size:9.5px;color:var(--text-3)">Projection (docs/13, law #1) — the panel renders what the pipeline writes to disk; wiring to live Tauri events (watcher → events.jsonl → surgical DOM update) is the graduation step. Esc to close.</div>
+    </div>
+  </div>
+  </sc-if>
+
+  
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{
+  &quot;mode&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;dock&quot;, &quot;room&quot;, &quot;wall&quot;], &quot;default&quot;: &quot;room&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Surface&quot; },
+  &quot;theme&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;dark&quot;, &quot;light&quot;], &quot;default&quot;: &quot;dark&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Surface&quot; },
+  &quot;accent&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;clay&quot;, &quot;indigo&quot;, &quot;teal&quot;], &quot;default&quot;: &quot;clay&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Surface&quot; },
+  &quot;density&quot;: { &quot;editor&quot;: &quot;enum&quot;, &quot;options&quot;: [&quot;full&quot;, &quot;dots&quot;, &quot;minimal&quot;], &quot;default&quot;: &quot;full&quot;, &quot;tsType&quot;: &quot;string&quot;, &quot;section&quot;: &quot;Surface&quot; },
+  &quot;showBelt&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Panels&quot; },
+  &quot;showPortals&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: true, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Panels&quot; },
+  &quot;simSpeed&quot;: { &quot;editor&quot;: &quot;range&quot;, &quot;default&quot;: 1, &quot;min&quot;: 0.25, &quot;max&quot;: 4, &quot;step&quot;: 0.25, &quot;unit&quot;: &quot;×&quot;, &quot;tsType&quot;: &quot;number&quot;, &quot;section&quot;: &quot;Simulation&quot; },
+  &quot;paused&quot;: { &quot;editor&quot;: &quot;boolean&quot;, &quot;default&quot;: false, &quot;tsType&quot;: &quot;boolean&quot;, &quot;section&quot;: &quot;Simulation&quot; }
+}">
+class Component extends DCLogic {
+  BOOKS = [
+    { name: "Designing Freedom", author: "Stafford Beer", pages: 116, lane: "clean", spp: 2.4, survival: 0.96, verdict: "pass" },
+    { name: "Judgement and Truth", author: "Markus Textor", pages: 240, lane: "clean", spp: 2.9, survival: 0.93, verdict: "pass" },
+    { name: "AI Agent 设计原理与工程实践", author: "bojieli", pages: 210, lane: "clean", spp: 2.7, survival: 0.76, verdict: "pass" },
+    { name: "Brain of the Firm", author: "Stafford Beer", pages: 439, lane: "scan", spp: 8.1, survival: 0.72, verdict: "fail",
+      degeneration: true, mdLines: 3000, flaggedPct: 12.3,
+      zones: [ { line: 1600, chars: 32294, max_trigram: 2152, zlib: 0.003, excerpt: "the control of the control of the" },
+               { line: 2758, chars: 22019, max_trigram: 1674, zlib: 0.009, excerpt: "in april 1972 the selection of one" } ] },
+    { name: "Cybernetics: Book of Models", author: "Dubberly", pages: 210, lane: "clean", spp: 2.9, survival: 0.688, verdict: "fail",
+      degeneration: true, mdLines: 210, flaggedPct: 4.1,
+      zones: [ { line: 70, chars: 1895, max_trigram: 28, zlib: 0.142, excerpt: "the goal of the model is to" },
+               { line: 163, chars: 2249, max_trigram: 10, zlib: 0.161, excerpt: "participant a chooses lives or" } ] },
+  ];
+  SEGMENTS = ["intake", "convert", "gate", "assay", "ship", "vault"];
+  MODE_LABELS = { ask: "ask", local: "auto-🔒", cloud: "auto-☁", off: "off" };
+  MODE_ORDER = ["ask", "local", "cloud", "off"];
+
+  constructor(props) {
+    super(props);
+    this.state = {
+      mode: props.mode || "room",
+      theme: props.theme || "dark",
+      accent: props.accent || "clay",
+      density: props.density || "full",
+      paused: !!props.paused,
+      clock: this._clock(),
+    };
+    this.sim = this._initSim();
+    this.chips = Array.from({ length: 7 }, () => this._newChip());
+    this.PAL = {};
+    this._flashMsg = "";
+    this._assayOpen = false;
+    this._rule = false;
+    this._raf = 0;
+    this._lastProps = { mode: props.mode, theme: props.theme, accent: props.accent, density: props.density, paused: props.paused, simSpeed: props.simSpeed };
+    this._lastState = { theme: this.state.theme, accent: this.state.accent, mode: this.state.mode };
+    this._drill = null; this._drillOrigin = null; this._collapsed = new Set();
+    this._rootRef = (el) => { this._root = el; if (el) this._refreshPalette(); };
+    this._beltRef = (el) => { this._belt = el; if (el) requestAnimationFrame(() => this._sizeBelt()); };
+  }
+
+  _clock() { return new Date().toISOString().slice(11, 19); }
+  _rnd(a, b) { return a + Math.random() * (b - a); }
+  _clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  _seed(base, n) { return Array.from({ length: n }, () => base * (0.85 + Math.random() * 0.3)); }
+  _push(a, v) { a.push(v); if (a.length > 12) a.shift(); }
+  _short(s) { return String(s || ""); }
+  _speed() { const v = Number(this.props.simSpeed); return v > 0 ? this._clamp(v, 0.25, 4) : 1; }
+  _convLeft() { const c = this.sim.conv, b = c.book; return Math.max(0, Math.round((b.pages - c.page) * b.spp)); }
+  _etaText(s) { return s < 90 ? `${s}s` : `${Math.round(s / 60)}m ${s % 60}s`; }
+  _range(s) { const lo = Math.round(s * 0.85), hi = Math.round(s * 1.2); return `~${this._etaText(lo)}–${this._etaText(hi)}`; }
+  _verdColor(v) { return { pass: "var(--ok)", flag: "var(--warn)", fail: "var(--clay)" }[v] || "var(--text-3)"; }
+  _verdBg(v) { return { pass: "var(--ok-bg)", flag: "var(--warn-bg)", fail: "var(--clay-bg)" }[v] || "transparent"; }
+  _tagColor(t) { return { intake: "var(--flow)", convert: "var(--text)", gate: "var(--warn)", analyst: "var(--flow)", audit: "var(--clay)", ship: "var(--ok)", vault: "var(--ok)" }[t] || "var(--text-2)"; }
+  _newChip(tint) { return { x: Math.random(), y: this._rnd(0.28, 0.72), speed: this._rnd(0.018, 0.032) / 60, tint: tint || ["flow", "flow", "flow", "warn", "clay", "ok"][Math.floor(Math.random() * 6)] }; }
+
+  _assayFor(book, extra) {
+    extra = extra || {};
+    return {
+      bundle: book.name === "Cybernetics: Book of Models" ? "Cybernetics_Book_of_Models-v4.6b-complete.pdf" : book.name,
+      verdict: book.verdict, survival: book.survival, degeneration: !!book.degeneration,
+      zones: book.zones || [], mdLines: book.mdLines || book.pages || 100, lane: book.lane,
+      mode: extra.mode || "report", held: extra.held || [],
+    };
+  }
+
+  _initSim() {
+    const B = this.BOOKS;
+    return {
+      counts: { intake: 0, convert: 1, gate: 0, assay: 0, ship: 0, vault: 10 },
+      conv: { book: B[2], page: 103, done: false, probing: false },
+      kpi: { thru: 3.7, spp: 2.9, vram: 8.3, queue: 1, surv: 0.90, up: 99.2 },
+      sparks: { thru: this._seed(3.7, 12), spp: this._seed(2.9, 12) },
+      audits: [
+        { name: "Designing Freedom", survival: 0.96, verdict: "pass" },
+        { name: "Judgement and Truth", survival: 0.93, verdict: "pass" },
+        { name: "AI Agent (bojieli)", survival: 0.76, verdict: "pass" },
+      ],
+      assay: this._assayFor(B[4], { mode: "enforce", held: [{ bundle: "Cybernetics_Book_of_Models-v4.6b" }] }),
+      gateMode: "off", pending: [], lastShipped: "Brain of the Firm",
+      events: [], watcher: true, vault: { state: "idle" }, shift: { converted: 3, shipped: 2, failed: 1 }, _seq: 1,
+    };
+  }
+
+  componentDidMount() {
+    this._reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    this._refreshPalette();
+    this._clockT = setInterval(() => this.setState({ clock: this._clock() }), 1000);
+    this._simT = setInterval(() => this.advance(), 1400 / this._speed());
+    this._onResize = () => this._sizeBelt();
+    this._onKey = (e) => { if (e.key === "Escape" && this._drill) this.closeDrill(); };
+    addEventListener("resize", this._onResize);
+    addEventListener("keydown", this._onKey);
+    this._loop = () => { this._drawBelt(); this._raf = requestAnimationFrame(this._loop); };
+    this._raf = requestAnimationFrame(this._loop);
+    const seed = {
+      intake: "AI Agent 设计原理与工程实践 — on the belt (210pp, clean)",
+      convert: "AI Agent 设计原理与工程实践 — page 103/210",
+      gate: "analyst gate: off",
+      audit: "Cybernetics: Book of Models — scored fail · survival 0.688",
+      ship: "Brain of the Firm — shipped to vault ✓",
+    };
+    ["intake", "convert", "gate", "audit", "ship"].forEach((s, i) =>
+      setTimeout(() => { this._log(s, seed[s]); this.forceUpdate(); }, i * 110));
+  }
+
+  componentWillUnmount() {
+    clearInterval(this._clockT); clearInterval(this._simT);
+    cancelAnimationFrame(this._raf); removeEventListener("resize", this._onResize);
+    removeEventListener("keydown", this._onKey); clearTimeout(this._flashT);
+  }
+
+  componentDidUpdate() {
+    const p = this.props, prev = this._lastProps || {};
+    const keys = ["mode", "theme", "accent", "density", "paused"];
+    const patch = {};
+    keys.forEach((k) => { if (prev[k] !== p[k] && p[k] != null && p[k] !== this.state[k]) patch[k] = p[k]; });
+    if (Object.keys(patch).length) this.setState(patch);
+    if (prev.simSpeed !== p.simSpeed) { clearInterval(this._simT); this._simT = setInterval(() => this.advance(), 1400 / this._speed()); }
+    this._lastProps = { mode: p.mode, theme: p.theme, accent: p.accent, density: p.density, paused: p.paused, simSpeed: p.simSpeed };
+    const ls = this._lastState || {};
+    if (ls.theme !== this.state.theme || ls.accent !== this.state.accent) this._refreshPalette();
+    if (ls.mode !== this.state.mode && this.state.mode === "room") { this._refreshPalette(); requestAnimationFrame(() => this._sizeBelt()); }
+    this._lastState = { theme: this.state.theme, accent: this.state.accent, mode: this.state.mode };
+  }
+
+  // ---- simulation ----
+  advance() {
+    if (this.state.paused || !this.sim.watcher) return;
+    const s = this.sim, c = s.conv, b = c.book;
+    if (!c.done) {
+      c.page = Math.min(b.pages, c.page + Math.round(this._rnd(2, 6)));
+      s.counts.convert = 1;
+      if (Math.random() < 0.5) this._log("convert", `${b.name} — page ${c.page}/${b.pages}`);
+      if (c.page >= b.pages) this._finish();
+    }
+    s.kpi.thru = this._clamp(s.kpi.thru + this._rnd(-0.5, 0.5), 3.5, 9);
+    s.kpi.vram = this._clamp(s.kpi.vram + this._rnd(-0.2, 0.2), c.done ? 0.5 : 7.4, c.done ? 1.2 : 8.4);
+    s.kpi.spp = b.spp + this._rnd(-0.2, 0.2);
+    this._push(s.sparks.thru, s.kpi.thru); this._push(s.sparks.spp, s.kpi.spp);
+    this.forceUpdate();
+  }
+
+  _finish() {
+    const s = this.sim, b = s.conv.book;
+    s.conv.done = true; s.counts.convert = 0; s.shift.converted++;
+    this._log("convert", `converted ${b.name} in ${Math.round(b.pages * b.spp)}s — bundling`);
+    if (Math.random() < 0.45 && s.pending.length < 2) { this._spawnDecision(b); this._startNext(); }
+    else this._shipFlow(b, true);
+  }
+
+  _spawnDecision(b) {
+    const s = this.sim, id = "d" + (s._seq++), chunks = Math.max(6, Math.round(b.pages / 4));
+    s.pending.push({ id, book: b, chunks, tokens: b.pages * 450, rec: chunks > 18 ? "local" : "cloud", warn: chunks > 40 ? "large doc — cloud may truncate long chunks" : "", working: false });
+    s.counts.gate = s.pending.length;
+    this._log("gate", `${b.name} — awaiting YOUR routing decision`);
+    this._flash(`✳ ${b.name} — your routing decision`);
+  }
+
+  _shipFlow(b, startNext) {
+    const sp = 1 / this._speed(), s = this.sim;
+    setTimeout(() => {
+      this._log("audit", `${b.name} — scored ${b.verdict} · survival ${b.survival.toFixed(3)}`);
+      s.assay = this._assayFor(b, { mode: s.assay.mode, held: b.verdict === "fail" ? [{ bundle: b.name }] : s.assay.held });
+      this._pushAudit(b); this.forceUpdate();
+    }, 900 * sp);
+    setTimeout(() => {
+      if (b.verdict !== "fail") {
+        s.counts.ship = 1; s.lastShipped = b.name; s.shift.shipped++;
+        this._log("ship", `${b.name} — shipped to vault ✓`);
+        setTimeout(() => { s.counts.ship = 0; this.forceUpdate(); }, 1500 * sp);
+      } else { s.shift.failed++; this._log("audit", `${b.name} — held · enforce, awaiting remedy`); }
+      this.forceUpdate();
+    }, 2100 * sp);
+    setTimeout(() => {
+      if (b.verdict !== "fail") { s.counts.vault++; this._log("vault", "+1 note in Library"); this._maybeGlow(b); }
+      if (startNext) this._startNext();
+      this.forceUpdate();
+    }, 3300 * sp);
+  }
+
+  _startNext() {
+    const s = this.sim, next = this.BOOKS[Math.floor(Math.random() * this.BOOKS.length)];
+    s.conv = { book: next, page: 0, done: false, probing: true };
+    s.counts.convert = 1;
+    this._log("intake", `${next.name} — on the belt (${next.pages}pp, ${next.lane})`);
+    setTimeout(() => { s.conv.probing = false; this.forceUpdate(); }, 800 / this._speed());
+    this.forceUpdate();
+  }
+
+  _pushAudit(b) {
+    const s = this.sim, short = b.name.replace(" — ", " ").slice(0, 26);
+    s.audits.push({ name: short, survival: b.survival, verdict: b.verdict });
+    if (s.audits.length > 8) s.audits.shift();
+    const arr = s.audits.slice(-6);
+    s.kpi.surv = arr.reduce((t, a) => t + a.survival, 0) / arr.length;
+  }
+
+  _maybeGlow(b) { if (Math.random() < 0.5) this.sim.vault = { state: "ready", n: 1, names: b.name }; }
+
+  _log(tag, msg) {
+    this.sim.events.unshift({ ts: this._clock(), tag, msg });
+    if (this.sim.events.length > 14) this.sim.events.pop();
+  }
+
+  _flash(msg) {
+    this._flashMsg = msg; this.forceUpdate();
+    clearTimeout(this._flashT);
+    this._flashT = setTimeout(() => { this._flashMsg = ""; this.forceUpdate(); }, 6000);
+  }
+
+  // ---- handlers ----
+  setMode = (m) => this.setState({ mode: m });
+  toggleTheme = () => this.setState((s) => ({ theme: s.theme === "light" ? "dark" : "light" }), () => this._refreshPalette());
+  setAccent = (a) => this.setState({ accent: a }, () => this._refreshPalette());
+  setDensity = (d) => this.setState({ density: d });
+  cycleGate = () => { const o = this.MODE_ORDER, s = this.sim; if (s.pending.length) return; s.gateMode = o[(o.indexOf(s.gateMode) + 1) % o.length]; this._flash(`Analyst gate: ${s.gateMode}`); this._log("gate", `gate → ${s.gateMode}`); this.forceUpdate(); };
+  toggleAudit = () => { const s = this.sim; s.assay.mode = s.assay.mode === "report" ? "enforce" : "report"; this._flash(s.assay.mode === "enforce" ? "Assay: enforce — a failing bundle is held, not shipped" : "Assay: report only — the verdict is recorded, nothing is gated"); this.forceUpdate(); };
+  reconvert = () => { const n = this.sim.assay.bundle; this._flash(`⟳ re-queued ${n} for re-convert + re-audit — watch the line`); this._log("convert", `re-convert queued: ${n}`); this.sim.assay.held = []; this.forceUpdate(); };
+  peekAssay = () => { this._assayOpen = !this._assayOpen; this.forceUpdate(); };
+  receipt = () => { const s = this.sim, b = s.conv.book; this._flash(`receipt · ${s.lastShipped} · ${b.pages}pp @ ${b.spp}s/p · marker 1.10 · vault a1b2c3d`); };
+  showConvert = () => { const c = this.sim.conv; this._flash(`⚙ ${c.done ? "idle" : "converting " + c.book.name + " — " + c.page + "/" + c.book.pages}`); };
+  toggleWatcher = () => { this.sim.watcher = !this.sim.watcher; this._flash(this.sim.watcher ? "Conveyor watcher running" : "Conveyor stopped — intake paused"); this.forceUpdate(); };
+  openReader = (name) => this._flash(`Opening ${name} on the vault…`);
+  minimize = () => this._flash("(the widget would minimize to the taskbar)");
+  pullVault = () => {
+    const s = this.sim;
+    if (s.vault.state === "ready") {
+      s.vault = { state: "working" }; this.forceUpdate();
+      setTimeout(() => { s.vault = { state: "success", names: "note" }; this.forceUpdate(); setTimeout(() => { s.vault = { state: "idle" }; this.forceUpdate(); }, 3000); }, 1200);
+    } else this._flash("Library — up to date");
+  };
+  drop = (cat) => {
+    const map = { documents: "report.pdf", photos: "scan.jpg", code: "main.rs", archive: "bundle.zip", "convert-gpu": "thesis.pdf", convert: "book.pdf", "convert-scan": "scanned.pdf" };
+    const s = this.sim, f = map[cat] || "file";
+    s.counts.intake++; this._log("intake", `${f} → ${cat}`); this._flash(`📥 sent ${f} to ${cat}`);
+    this.chips.push(this._newChip("flow")); if (this.chips.length > 10) this.chips.shift();
+    setTimeout(() => { s.counts.intake = Math.max(0, s.counts.intake - 1); this.forceUpdate(); }, 1600);
+    this.forceUpdate();
+  };
+  decide = (id, backend) => {
+    const s = this.sim, p = s.pending.find((x) => x.id === id);
+    if (!p) return;
+    p.working = true; this.forceUpdate();
+    this._flash(backend === "none" ? "Shipping as-is…" : `Analyst (${backend === "local" ? "🔒 local" : "☁ Flash"}) started…`);
+    this._log("gate", `${p.book.name} — routed ${backend}`);
+    setTimeout(() => {
+      s.pending = s.pending.filter((x) => x.id !== id); s.counts.gate = s.pending.length;
+      if (backend !== "none") this._log("analyst", `analysis done · ${Math.round(p.chunks * 0.9)}✓ ${Math.max(1, Math.round(p.chunks * 0.08))}🛡`);
+      this._shipFlow(p.book, false); this.forceUpdate();
+    }, 1800 / this._speed());
+  };
+  ruleChange = (e) => { this._rule = e.target.checked; this._flash(this._rule ? "Rule set: big docs auto-route 🔒 local" : "Rule cleared"); };
+
+  // ---- drill-down: station → live file explorer (quarantined projection) ----
+  openDrill = (seg, e) => {
+    if (e && e.stopPropagation) e.stopPropagation();
+    this._drill = seg;
+    const vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+    this._drillOrigin = (e && e.clientX != null) ? `${(e.clientX / vw * 100).toFixed(1)}% ${(e.clientY / vh * 100).toFixed(1)}%` : "50% 42%";
+    this.forceUpdate();
+  };
+  closeDrill = () => { this._drill = null; this.forceUpdate(); };
+  stop = (e) => { if (e && e.stopPropagation) e.stopPropagation(); };
+  toggleNode = (id) => { if (this._collapsed.has(id)) this._collapsed.delete(id); else this._collapsed.add(id); this.forceUpdate(); };
+  _slug = (n) => String(n).toLowerCase().replace(/[^a-z0-9\u4e00-\u9fff]+/g, "-").replace(/^-|-$/g, "").slice(0, 26);
+  _sha = (n) => { let h = 0; const s = String(n); for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0; return h.toString(16).padStart(8, "0").slice(0, 8); };
+
+  _bundleNode(book, opts) {
+    opts = opts || {};
+    const v = book.verdict, sv = book.survival, slug = this._slug(book.name), sha = this._sha(book.name);
+    const kids = [
+      { id: "md_" + sha, kind: "file", glyph: "📄", name: slug + ".md", size: Math.round(book.pages * 1.6) + " KB",
+        meta: "frontmatter · lane=" + book.lane + (book.lane === "scan" ? " ocr=force" : " ocr=need") + " · src_sha256=" + sha },
+      { id: "as_" + sha, kind: "dir", glyph: "📁", name: "assets/", meta: Math.max(1, Math.round(book.pages / 6)) + " images · ![[..]] embeds",
+        children: [ { id: "a1_" + sha, kind: "file", glyph: "🖼", name: "img-0001.png", size: "88 KB" },
+                    { id: "a2_" + sha, kind: "file", glyph: "🖼", name: "img-0002.png", size: "112 KB" } ] },
+      { id: "mf_" + sha, kind: "file", glyph: "⚙", name: "manifest.json", size: "1.2 KB",
+        meta: "src_sha256=" + sha + " · converter=marker 1.10 · " + book.pages + "pp @ " + book.spp.toFixed(1) + "s/p" },
+    ];
+    if (v === "fail" && book.zones) book.zones.forEach((z, i) => kids.push({
+      id: "z_" + sha + i, kind: "zone", glyph: "✕", name: "degeneration @ line " + z.line,
+      meta: "zlib " + z.zlib.toFixed(3) + " · tri×" + z.max_trigram + " · " + z.chars.toLocaleString() + " ch · \u201c" + z.excerpt + "\u2026\u201d" }));
+    return { id: "b_" + sha, kind: "dir", glyph: "📦", name: slug + "--" + sha, survival: sv.toFixed(3), pct: Math.round(sv * 100), verdict: v, children: kids };
+  }
+
+  _stationTree(seg) {
+    const s = this.sim, B = this.BOOKS, conv = s.conv, b = conv.book, k = s.kpi;
+    if (seg === "vault")
+      return { root: "~/file-portal/library · vault.git (bare) → Library/Inbox/", children: B.map((bk) => this._bundleNode(bk)) };
+    if (seg === "convert") {
+      const active = { id: "cv_active", kind: "file", glyph: "⚙", name: b.name, size: b.pages + "pp",
+        meta: conv.done ? "complete — bundling" : (conv.probing ? "probing text layer · chars/page test" : "page " + conv.page + "/" + b.pages + " · " + b.spp.toFixed(1) + " s/p · " + k.vram.toFixed(1) + " GB VRAM") };
+      return { root: "~/file-portal/pipeline · converter (systemd --user)", children: [
+        { id: "ci", kind: "dir", glyph: "📁", name: "convert-inbox/", meta: (s.counts.intake || 0) + " waiting · pymupdf4llm",
+          children: s.counts.intake ? [{ id: "ci1", kind: "file", glyph: "📄", name: "queued.pdf", meta: "awaiting engine" }] : [{ id: "ci0", kind: "note", name: "— empty —" }] },
+        { id: "cvd", kind: "dir", glyph: "📁", name: "converting/", meta: conv.done ? "idle" : "1 active", children: [active] },
+        { id: "cs", kind: "dir", glyph: "📁", name: "convert-scan-inbox/", meta: "force-OCR override · tesseract @300dpi", children: [{ id: "cs0", kind: "note", name: "— empty —" }] },
+        { id: "anc", kind: "dir", glyph: "📁", name: "library/anchor/", meta: "immutable as-converted snapshots + manifest.json",
+          children: B.slice(0, 2).map((bk) => ({ id: "an_" + this._sha(bk.name), kind: "file", glyph: "📄", name: this._slug(bk.name) + ".md", size: Math.round(bk.pages * 1.6) + " KB" })) },
+      ] };
+    }
+    if (seg === "assay") {
+      const held = s.assay.held || [], fails = B.filter((x) => x.verdict === "fail");
+      return { root: "library/staging · Survival Audit block (docs/15) · mode=" + s.assay.mode, children: [
+        { id: "held", kind: "dir", glyph: "📁", name: "held/", meta: held.length + " awaiting remedy · enforce", children: fails.map((bk) => this._bundleNode(bk, { held: true })) },
+        { id: "recent", kind: "dir", glyph: "📁", name: "recent verdicts", meta: s.audits.length + " scored · flag: zlib<0.20 OR tri≥40",
+          children: s.audits.slice(-6).reverse().map((a, i) => ({ id: "rv" + i, kind: "file", glyph: "◎", name: a.name, survival: a.survival.toFixed(3), pct: Math.round(a.survival * 100), verdict: a.verdict })) },
+      ] };
+    }
+    if (seg === "gate") {
+      return { root: "pending/ · analyst-mode.txt=" + s.gateMode, children: s.pending.length
+        ? s.pending.map((p) => ({ id: "g_" + p.id, kind: "file", glyph: "✳", name: this._slug(p.book.name) + "--" + this._sha(p.book.name) + ".json", verdict: "flag",
+            meta: Math.max(6, Math.round(p.book.pages / 4)) + " chunks · ~" + (p.book.pages * 450 / 1000).toFixed(1) + "k tok · rec 🔒" + (p.rec || "local") }))
+        : [{ id: "g0", kind: "note", name: "— gate idle · no decisions waiting —" }] };
+    }
+    if (seg === "ship") {
+      return { root: "vault-work/ (clone) → vault.git (bare) · Tailscale SSH", children: [
+        { id: "sh_last", kind: "file", glyph: "⇈", name: s.lastShipped, meta: "commit " + this._sha(s.lastShipped) + " · pushed + cat-file verified ✓" },
+        { id: "sh_del", kind: "note", name: "staging deleted only after push + blob verify (L12)" },
+        { id: "sh_log", kind: "file", glyph: "▤", name: "exporter.log", meta: "startup sweep retries on failure" },
+      ] };
+    }
+    return { root: "~/file-portal/inbox · allocator (no-sudo, systemd --user)", children: [
+      { id: "in_sorted", kind: "dir", glyph: "📁", name: "sorted/", meta: "documents · photos · code · archive (rules.toml)", children: [{ id: "in_s0", kind: "note", name: "— routed by category —" }] },
+      { id: "in_q", kind: "dir", glyph: "📁", name: "quarantine/", meta: "oversized / unmatched — outside watched tree", children: [{ id: "in_q0", kind: "note", name: "— empty —" }] },
+      { id: "in_belt", kind: "file", glyph: "▚", name: (s.counts.intake || 0) + " on the belt", verdict: s.watcher ? "pass" : null, meta: s.watcher ? "watcher up" : "watcher paused" },
+    ] };
+  }
+
+  _flatten(nodes, depth, out) {
+    out = out || [];
+    for (const n of nodes) {
+      const isDir = n.kind === "dir", collapsed = this._collapsed.has(n.id);
+      const nameColor = n.kind === "note" ? "var(--text-3)" : n.kind === "zone" ? "var(--clay)" : isDir ? "var(--text)" : "var(--text-2)";
+      out.push({
+        id: n.id, depth, indent: 12 + depth * 18, glyph: n.glyph || "", name: n.name,
+        meta: n.meta || "", size: n.size || "", survival: n.survival || null, pct: n.pct || 0,
+        verdict: n.verdict || null, color: this._verdColor(n.verdict), bg: this._verdBg(n.verdict),
+        caret: isDir ? (collapsed ? "▸" : "▾") : "", cursor: isDir ? "pointer" : "default",
+        nameColor, onClick: isDir ? (() => this.toggleNode(n.id)) : null,
+      });
+      if (isDir && !collapsed && n.children) this._flatten(n.children, depth + 1, out);
+    }
+    return out;
+  }
+
+  // ---- canvas belt ----
+  _refreshPalette() {
+    const src = this._root || document.documentElement, cs = getComputedStyle(src);
+    ["--flow", "--warn", "--clay", "--ok", "--border", "--border-strong", "--surface-2", "--text-3"].forEach((k) => this.PAL[k] = cs.getPropertyValue(k).trim());
+  }
+  _cssv(v) { return this.PAL[v] || (this._root ? getComputedStyle(this._root).getPropertyValue(v).trim() : "#888"); }
+  _tint(t) { return { flow: "--flow", warn: "--warn", clay: "--clay", ok: "--ok" }[t]; }
+  _sizeBelt() {
+    const c = this._belt; if (!c || !c.parentElement) return;
+    const r = c.parentElement.getBoundingClientRect();
+    this._DPR = Math.min(2, window.devicePixelRatio || 1); this._W = r.width; this._H = r.height;
+    c.width = this._W * this._DPR; c.height = this._H * this._DPR;
+    c.getContext("2d").setTransform(this._DPR, 0, 0, this._DPR, 0, 0);
+  }
+  _rr(ctx, x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
+  _drawBelt() {
+    const c = this._belt; if (!c || this.state.mode !== "room" || !this._W) return;
+    const ctx = c.getContext("2d"), W = this._W, H = this._H, yMid = H * 0.5;
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = this._cssv("--border-strong"); ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, yMid); ctx.lineTo(W, yMid); ctx.stroke();
+    for (let i = 0; i < 6; i++) {
+      const x = (i + 0.5) / 6 * W;
+      ctx.strokeStyle = this._cssv("--border"); ctx.beginPath(); ctx.moveTo(x, 12); ctx.lineTo(x, H - 12); ctx.stroke();
+      ctx.fillStyle = this._cssv("--text-3"); ctx.beginPath(); ctx.arc(x, yMid, 2.4, 0, 7); ctx.fill();
+    }
+    for (const d of this.chips) {
+      const x = d.x * W, y = H * d.y, col = this._cssv(this._tint(d.tint));
+      ctx.fillStyle = col; ctx.globalAlpha = 0.14; this._rr(ctx, x - 12, y - 8, 24, 16, 5); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = col; ctx.lineWidth = 1.4; ctx.fillStyle = this._cssv("--surface-2"); this._rr(ctx, x - 9, y - 6, 18, 12, 4); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = col; ctx.fillRect(x - 4, y - 2.5, 8, 1); ctx.fillRect(x - 4, y + 0.5, 5, 1);
+      if (!this._reduce && !this.state.paused) { d.x += d.speed; if (d.x > 1.05) { d.x = -0.05; d.tint = this._newChip().tint; d.y = this._rnd(0.28, 0.72); d.speed = this._rnd(0.018, 0.032) / 60; } }
+    }
+  }
+
+  _spark(data) {
+    const w = 66, h = 26, mn = Math.min(...data), mx = Math.max(...data), r = (mx - mn) || 1;
+    const pts = data.map((v, i) => `${((i / (data.length - 1)) * w).toFixed(1)},${(h - 3 - ((v - mn) / r) * (h - 6)).toFixed(1)}`).join(" ");
+    const last = pts.split(" ").pop().split(",");
+    return { pts, dotX: last[0], dotY: last[1] };
+  }
+
+  renderVals() {
+    const s = this.sim, k = s.kpi, conv = s.conv, b = conv.book;
+    const converting = !conv.done, pending = s.pending.length, av = s.assay.verdict;
+    const mode = this.state.mode, density = this.state.density;
+    const showBelt = this.props.showBelt !== false && density !== "minimal";
+    const showKpis = density !== "minimal";
+    const showPortals = this.props.showPortals !== false;
+
+    // stations (shared across surfaces)
+    const defs = [
+      { seg: "intake", glyph: "▚", name: "Intake", count: String(s.counts.intake), sub: s.watcher ? "watching" : "paused", st: s.counts.intake > 0 ? "active" : "", onClick: null },
+      { seg: "convert", glyph: "⚙", name: "Convert", count: String(s.counts.convert), sub: converting ? (conv.probing ? "probing" : this._etaText(this._convLeft()) + " left") : "idle", st: converting ? "active" : "", onClick: this.showConvert },
+      { seg: "gate", glyph: "✳", name: "Gate", count: pending > 0 ? String(pending) : "0", sub: pending > 0 ? "waiting" : this.MODE_LABELS[s.gateMode], st: pending > 0 ? "attn" : "", onClick: this.cycleGate },
+      { seg: "assay", glyph: "◎", name: "Assay", count: av === "pass" ? Number(s.assay.survival).toFixed(2) : (av || "—"), sub: "survival", st: av, onClick: this.peekAssay },
+      { seg: "ship", glyph: "⇈", name: "Ship", count: String(s.counts.ship), sub: s.lastShipped || "—", st: "", onClick: this.receipt },
+      { seg: "vault", glyph: "▤", name: "Vault", count: String(s.counts.vault), sub: "Library", st: "done", onClick: this.pullVault },
+    ];
+    const stations = defs.map((d, i) => {
+      const st = d.st, active = st === "active", done = st === "done", attn = st === "attn";
+      const verd = ["pass", "flag", "fail"].includes(st) ? st : null;
+      const accentC = (attn || active) ? "var(--clay)" : done ? "var(--ok)" : verd ? this._verdColor(verd) : "var(--text-2)";
+      const dv = d.seg === "convert" ? (converting ? (conv.probing ? "probing" : this._etaText(this._convLeft())) : "idle")
+        : d.seg === "gate" ? (pending > 0 ? pending + " waiting" : s.gateMode)
+        : d.seg === "assay" ? (av || "—")
+        : d.seg === "ship" ? (s.lastShipped ? s.lastShipped.toUpperCase() : "—")
+        : d.seg === "vault" ? (s.vault.state === "ready" ? "new" : "—") : String(s.counts.intake);
+      return {
+        ...d, sep: i > 0, cursor: d.onClick ? "pointer" : "default", drillClick: (e) => this.openDrill(d.seg, e),
+        glyphColor: accentC,
+        glyphBg: (active || attn || verd === "fail") ? "var(--clay-bg)" : verd === "pass" ? "var(--ok-bg)" : "var(--surface-2)",
+        glyphBorder: (active || attn) ? "var(--clay)" : done ? "rgba(111,191,115,.4)" : verd ? this._verdColor(verd) : "var(--border)",
+        countColor: attn ? "var(--clay)" : "var(--text)",
+        subColor: attn ? "var(--clay)" : active ? "var(--ok)" : verd ? this._verdColor(verd) : "var(--text-3)",
+        tileAnim: verd === "fail" ? "assay-pulse 1.7s ease-in-out infinite" : "none",
+        dotColor: verd ? this._verdColor(verd) : done ? "var(--ok)" : active ? "var(--clay)" : "var(--text-3)",
+        dotAnim: verd === "fail" ? "assay-pulse 1.7s ease-in-out infinite" : "none",
+        dockVal: dv,
+        dockColor: attn ? "var(--clay)" : verd === "pass" ? "var(--ok)" : verd === "flag" ? "var(--warn)" : verd === "fail" ? "var(--clay)" : active ? "var(--ok)" : "#cfc9c3",
+        big: d.seg === "vault" || d.seg === "intake" || d.seg === "ship",
+      };
+    });
+
+    // KPIs
+    const th = this._spark(s.sparks.thru), spk = this._spark(s.sparks.spp);
+    const vramPct = Math.min(100, k.vram / 10 * 100), survPct = Math.round(k.surv * 100);
+    const survCol = k.surv >= 0.9 ? "var(--ok)" : k.surv >= 0.75 ? "var(--warn)" : "var(--clay)";
+    const kpis = [
+      { label: "Throughput", val: k.thru.toFixed(1), unit: "pp/s", delta: "▲ 4%", deltaColor: "var(--ok)", spark: true, sparkPts: th.pts, dotX: th.dotX, dotY: th.dotY, sparkCol: "var(--ok)" },
+      { label: "Median s/page", val: k.spp.toFixed(1), unit: "", delta: b.lane + " lane", deltaColor: "var(--text-3)", spark: true, sparkPts: spk.pts, dotX: spk.dotX, dotY: spk.dotY, sparkCol: "var(--flow)" },
+      { label: "GPU VRAM", val: k.vram.toFixed(1), unit: "/10 GB", gauge: true, gaugePct: vramPct.toFixed(0), gaugeColor: vramPct > 92 ? "var(--clay)" : "var(--flow)" },
+      { label: "Queue depth", val: String(k.queue), unit: "", delta: k.queue ? k.queue + " converting" : "clear", deltaColor: "var(--text-3)" },
+      { label: "Survival avg", val: k.surv.toFixed(2), unit: "", gauge: true, gaugePct: String(survPct), gaugeColor: survCol },
+      { label: "Uptime", val: k.up.toFixed(1), unit: "%", delta: "4-day shift", deltaColor: "var(--text-3)" },
+    ];
+
+    // convert panel
+    const convO = {
+      name: b.name, lane: b.lane, page: conv.page, pages: b.pages,
+      pct: converting ? Math.min(100, Math.round(conv.page / b.pages * 100)) : 100,
+      eta: conv.done ? "complete" : (conv.probing ? "probing…" : this._range(this._convLeft())),
+      engine: "marker 1.10", batch: "32", vram: k.vram.toFixed(1) + " GB", spp: b.spp.toFixed(1),
+      state: converting ? (conv.probing ? "probing" : "running") : "idle",
+      laneBg: b.lane === "clean" ? "var(--flow-bg)" : "var(--warn-bg)", laneCol: b.lane === "clean" ? "var(--flow)" : "var(--warn)",
+    };
+
+    // assay
+    const A = s.assay, cls = this._verdColor(av);
+    const bands = (A.degeneration ? A.zones : []).map((z) => {
+      const left = this._clamp((z.line / A.mdLines) * 100, 0, 94);
+      const w = this._clamp(((z.chars || 0) / (A.mdLines * 45)) * 100, 2, 6);
+      return { left: left.toFixed(1), w: w.toFixed(1), color: "var(--clay)" };
+    });
+    const runs = (A.zones || []).slice(0, 3).map((z) => ({ k: Number(z.chars || 0).toLocaleString() + " ch", meta: "tri×" + z.max_trigram, quote: `"${z.excerpt}…"` }));
+    const assayO = {
+      bundle: A.bundle, verdict: av, survival: Number(A.survival).toFixed(3), pct: Math.round(Number(A.survival) * 100),
+      mode: A.mode, badgeSym: { pass: "✓", flag: "⚠", fail: "✕" }[av] || "", badgeColor: cls, meterColor: cls,
+      caption: A.degeneration ? `${A.zones.length} loop zone(s) · ${A.lane} lane` : `${runs.length} omission run(s) · ${A.lane} lane`,
+      degeneration: A.degeneration, bands, runs, held: A.held.map((h) => h.bundle), heldCount: A.held.length, heldNames: A.held.map((h) => h.bundle).join(", "),
+      showRemedy: av === "fail" || A.held.length > 0,
+      show: av === "flag" || av === "fail" || A.held.length > 0 || this._assayOpen,
+      cardBorder: av === "fail" ? "var(--clay)" : "rgba(224,179,76,.4)",
+    };
+    const auditReportColor = A.mode === "report" ? "var(--warn)" : "var(--text-3)";
+    const auditEnforceColor = A.mode === "enforce" ? "var(--warn)" : "var(--text-3)";
+
+    const audits = s.audits.slice(-4).reverse().map((a) => ({ name: a.name, survival: a.survival.toFixed(3), pct: Math.round(a.survival * 100), color: this._verdColor(a.verdict), bg: this._verdBg(a.verdict), verdict: a.verdict }));
+
+    const pendingCards = s.pending.map((p) => ({
+      id: p.id, name: p.book.name, working: p.working,
+      meta: `${p.chunks} chunks · ~${(p.tokens / 1000).toFixed(1)}k tok · GPU free`,
+      warn: p.warn, etaLocal: this._range(Math.round(p.book.pages * 1.1)), etaCloud: this._range(Math.round(p.book.pages * 0.4)),
+      localBorder: p.rec === "local" ? "var(--clay)" : "var(--border)", localBg: p.rec === "local" ? "var(--clay-bg)" : "var(--surface-2)",
+      cloudBorder: p.rec === "cloud" ? "var(--clay)" : "var(--border)", cloudBg: p.rec === "cloud" ? "var(--clay-bg)" : "var(--surface-2)",
+      showRule: p.chunks > 18, routeLocal: () => this.decide(p.id, "local"), routeCloud: () => this.decide(p.id, "cloud"), shipAsIs: () => this.decide(p.id, "none"),
+    }));
+
+    const events = s.events.slice(0, 12).map((e) => ({ ts: e.ts, tag: e.tag, msg: e.msg, tagColor: this._tagColor(e.tag) }));
+
+    // vault bar
+    const vs = s.vault.state;
+    const vault = vs === "ready" ? { cls: "ready", label: `Add ${s.vault.n || 1} new note${(s.vault.n || 1) === 1 ? "" : "s"} to Library`, note: s.vault.names || "", sparkColor: "#16130f", btnBg: "var(--clay)", btnBorder: "var(--clay)", btnColor: "#16130f", glow: "vault-glow 1.8s ease-in-out infinite", spin: "none" }
+      : vs === "working" ? { cls: "working", label: "Pulling…", note: "", sparkColor: "var(--clay)", btnBg: "var(--clay-bg)", btnBorder: "var(--clay)", btnColor: "#e8e2dd", glow: "none", spin: "vault-spin 1s linear infinite" }
+      : vs === "success" ? { cls: "success", label: "Added to Library", note: "✓ done", sparkColor: "var(--ok)", btnBg: "var(--ok-bg)", btnBorder: "var(--ok)", btnColor: "#e8e2dd", glow: "none", spin: "none" }
+      : { cls: "idle", label: "Library", note: "up to date", sparkColor: "var(--clay)", btnBg: "var(--clay-bg)", btnBorder: "rgba(217,119,87,.45)", btnColor: "#e8e2dd", glow: "none", spin: "none" };
+    vault.onClick = this.pullVault;
+
+    const portalDefs = [
+      { category: "documents", label: "Documents", icon: "📄" }, { category: "photos", label: "Photos", icon: "🖼" },
+      { category: "code", label: "Code", icon: "💻" }, { category: "archive", label: "Archive", icon: "📦" },
+      { category: "convert-gpu", label: "GPU → Vault", icon: "⚡" }, { category: "convert", label: "To Vault", icon: "🔁" },
+      { category: "convert-scan", label: "Force OCR → Vault", icon: "🔍" },
+    ];
+    const portals = portalDefs.map((p) => ({ ...p, onClick: () => this.drop(p.category), onDragOver: (e) => e.preventDefault(), onDrop: (e) => { e.preventDefault(); this.drop(p.category); } }));
+
+    const modes = [["dock", "Dock"], ["room", "Room"], ["wall", "Wall"]].map(([key, label]) => ({
+      key, label, active: mode === key, set: () => this.setMode(key),
+      color: mode === key ? "var(--text)" : "var(--text-2)", bg: mode === key ? "var(--elev)" : "transparent",
+      dockColor: mode === key ? "#fff" : "rgba(236,231,225,.55)", dockBg: mode === key ? "rgba(255,255,255,.14)" : "transparent",
+    }));
+    const densities = [["full", "Full"], ["dots", "Dots"], ["minimal", "Min"]].map(([key, label]) => ({
+      key, label, set: () => this.setDensity(key),
+      color: density === key ? "var(--text)" : "var(--text-3)", bg: density === key ? "var(--elev)" : "transparent",
+    }));
+    const accentColors = { clay: "#d97757", indigo: "#7c86d9", teal: "#4fb0a4" };
+    const accents = ["clay", "indigo", "teal"].map((key) => ({ key, color: accentColors[key], set: () => this.setAccent(key), ring: this.state.accent === key ? "var(--text)" : "transparent" }));
+
+    const wrapBg = mode === "room" ? "radial-gradient(1200px 600px at 78% -10%, var(--clay-bg), transparent 60%), var(--bg)"
+      : mode === "dock" ? "linear-gradient(165deg, #232a33, #0d0f13 72%)"
+      : "radial-gradient(1000px 700px at 50% -12%, rgba(217,119,87,.07), transparent 60%), #0b0a09";
+
+    const shiftText = "shift: " + s.shift.converted + " converted · " + s.shift.shipped + " shipped" + (s.shift.failed ? " · " + s.shift.failed + " held" : "");
+    const footLeft = this._flashMsg || shiftText;
+
+    let drill = null;
+    if (this._drill) {
+      const tree = this._stationTree(this._drill), sd = stations.find((x) => x.seg === this._drill);
+      drill = { seg: this._drill, glyph: sd ? sd.glyph : "▤", title: sd ? sd.name : this._drill, root: tree.root, origin: this._drillOrigin || "50% 42%", rows: this._flatten(tree.children, 0, []) };
+    }
+
+    return {
+      drillOpen: !!drill, drill, closeDrill: this.closeDrill, stop: this.stop,
+      mode, theme: this.state.theme, accent: this.state.accent, density,
+      isRoom: mode === "room", isDock: mode === "dock", isWall: mode === "wall",
+      rootRef: this._rootRef, beltRef: this._beltRef, wrapBg,
+      showBelt, showKpis, showPortals, stations, kpis, conv: convO, assay: assayO,
+      auditReportColor, auditEnforceColor, audits, pending: pendingCards, hasPending: pending > 0,
+      events, vault, portals, modes, densities, accents,
+      inTransit: this.chips.length, clock: this.state.clock, gpu: k.vram.toFixed(1),
+      sysLabel: "viable", watcherColor: s.watcher ? "var(--ok)" : "var(--text-3)", watcherLabel: s.watcher ? "up" : "off",
+      watcherDotColor: s.watcher ? "#6fbf73" : "#666",
+      toggleTheme: this.toggleTheme, toggleWatcher: this.toggleWatcher, toggleAudit: this.toggleAudit, reconvert: this.reconvert,
+      pullVault: this.pullVault, openObsidian: () => this.openReader("Obsidian"), openZennotes: () => this.openReader("ZenNotes"),
+      minimize: this.minimize, ruleChange: this.ruleChange, flash: this._flashMsg, shiftText, footLeft,
+      // wall extras
+      wallSurv: k.surv.toFixed(2), wallSurvColor: survCol, wallThru: k.thru.toFixed(1),
+      wallConv: converting ? b.name : "line idle", wallConvPct: convO.pct, wallEvent: events[0] ? events[0].msg : "",
+      paused: this.state.paused,
+    };
+  }
+}
+</script>
+
+
+</body></html>

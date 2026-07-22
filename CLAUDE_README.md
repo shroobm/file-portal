@@ -58,7 +58,27 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-*(No session open — S33 closed 2026-07-21, overnight. The Opsroom control-panel dashboard prototype is BUILT + committed (`4c7de7f`) under the new `prototypes/` quarantine section and published as an Artifact. Design lineage: Cybersyn Opsroom × ISOTYPE × observability × Linear × Claude Design System. Quarantined + disposable — reads/triggers nothing. Awaiting Rab's verdict. Also this shift: S32 hardened + rebuilt the widget (installer staged). Morning note left on the desktop. See the S33 Session Log entry.)*
+**S34 (2026-07-22, autonomous) — graduate the Control Room into the widget's face.** Rab
+delivered the merged Claude-Design artifact (`Control Room_ Opsroom & Widget Merged.zip`) and
+commissioned a full end-to-end session: make it the live face, running with Claude off, on
+real data, no regressions. Design record + build audit: **docs/16**.
+
+Plan (measured phases, muster at transitions):
+1. **Design principles** — docs/16 §1 (6 laws, projection + terracotta enforced). ✔ verify: doc has the laws mapped to enforcement.
+2. **Integration check** — docs/16 §3 field-mapping, every panel → command. ✔ verify: 0 unmapped panels.
+3. **Integration (build)** — token layer + surface switch + Room render, wired to existing commands; NEW read-only `room.rs` (`room_metrics`+`gpu_vram`, pure projections). ✔ verify: `cargo clippy -D warnings` clean + `npm run tauri build` exit 0 + mock-harness render 0 console errors.
+4. **Testing** — frontend boots clean against the live pipeline dir.
+5. **Widget testing** — launch release exe, face renders real state, controls invoke. ✔ screenshot.
+6. **Converter testing** — convert lane intact + reflected; smoke run if feasible (else documented).
+7. **Formatter/analyst testing** — gate/mode wiring writes analyst-mode.txt.
+8. **Vault path testing** — `vault_check/pull` against the clone.
+9. **Linux device sync testing** — Tailscale reachability + ship path (honest result if ThinkPad offline).
+10. **Documenting + auditing** — docs/16 phase log, CHANGELOG, ledger, memory; two clocks aligned.
+11. **Higher-order goals** — next MAJOR installments (Wall + belt + drill-down + per-page progress + supersede auto-swap).
+
+Safety: the pipeline (converter/formatter) is never touched (projection law); the installed
+widget keeps working until Rab runs the new installer; Dock is the guaranteed-good fallback.
+Deferred (§5): Wall wiring, canvas belt, drill-down explorer, live convert page %.
 
 ---
 
