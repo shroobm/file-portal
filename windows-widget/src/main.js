@@ -201,17 +201,60 @@ function pfEta(backendInfo) {
   return s == null ? "?" : `~${pfEtaOne(s)}`;
 }
 
+// ---- window sizing (S39): respect a manual resize -----------------------------------------
+// The window is resizable; the widget only auto-sizes to avoid clipping content. Once the user
+// drags a surface to their own size we remember it (per surface) and stop forcing — reflow then
+// only GROWS the Dock to prevent a clip, never shrinks and never touches width. (`surface` is
+// module-scoped below; these run after boot so it's initialised by call time.)
+const DEFAULT_DOCK_W = 480;
+const userSize = {};        // { dock?:{w,h}, room?:{w,h}, wall?:{w,h} } — set when the user drags
+let lastApplied = null;     // the last size WE set programmatically (to tell our resize from theirs)
+let suppressResizeUntil = 0;
+let winScale = 1;           // cached device scale factor (physical → logical)
+
+async function applySize(w, h) {
+  w = Math.round(w); h = Math.round(h);
+  lastApplied = { w, h };
+  suppressResizeUntil = Date.now() + 350; // ignore the resize echo of our own setSize
+  try {
+    const { LogicalSize } = window.__TAURI__.dpi;
+    await getCurrentWindow().setSize(new LogicalSize(w, h));
+  } catch (e) { dbg(`resize: ${e}`); }
+  suppressResizeUntil = Date.now() + 350; // re-arm past the event settle
+}
+
+// Watch for a MANUAL resize (a size we didn't set) and remember it for the current surface.
+async function initSizing() {
+  const win = getCurrentWindow();
+  try { winScale = await win.scaleFactor(); } catch { winScale = 1; }
+  try {
+    await win.onResized(({ payload }) => {
+      if (Date.now() < suppressResizeUntil) return;      // our own programmatic resize settling
+      const lw = Math.round(payload.width / winScale);
+      const lh = Math.round(payload.height / winScale);
+      if (!lastApplied || Math.abs(lw - lastApplied.w) > 2 || Math.abs(lh - lastApplied.h) > 2) {
+        userSize[surface] = { w: lw, h: lh };            // the user dragged this surface — keep it
+        dbg(`user-sized ${surface} → ${lw}×${lh}`);
+      }
+    });
+    await win.onScaleChanged(({ payload }) => { winScale = payload.scaleFactor || winScale; });
+  } catch (e) { dbg(`onResized unavailable: ${e}`); }
+}
+
 let pfCardCount = 0;
 function reflow() {
-  // Autosize to real content (S22 fix): the arithmetic model undercounted new rows and
-  // produced a scrollbar that clipped the titlebar icons. The DOM knows its height —
-  // ask it, after layout settles.
+  // Auto-fit the DOCK's height to content (S22: the DOM knows its height; the old arithmetic
+  // model clipped the titlebar). S39: never fight a manual resize — off the Dock we don't touch
+  // the window, and once the user has sized the Dock we only grow to prevent a clip.
+  if (surface !== "dock") return;
   requestAnimationFrame(() => {
-    const { LogicalSize } = window.__TAURI__.dpi;
-    const h = Math.ceil(document.body.scrollHeight) + 2;
-    getCurrentWindow()
-      .setSize(new LogicalSize(480, h))
-      .catch((e) => console.warn("resize failed", e));
+    const need = Math.ceil(document.body.scrollHeight) + 2;
+    const u = userSize.dock;
+    if (u) {
+      if (need > u.h) { u.h = need; applySize(u.w, need); } // grow just enough; keep their width
+      return;                                               // otherwise leave their size alone
+    }
+    applySize(DEFAULT_DOCK_W, need);                        // default auto-fit until they take over
   });
 }
 function pfResize(count) {
@@ -776,16 +819,19 @@ function enterSurface(name) {
   surface = name;
   document.querySelectorAll(".surf-btn").forEach((b) =>
     b.classList.toggle("active", b.dataset.surface === name));
-  const { LogicalSize } = window.__TAURI__.dpi;
   document.body.classList.toggle("surface-room", name === "room");
   document.body.classList.toggle("surface-wall", name === "wall");
   if (name === "dock") {
     setActiveSurface("off");
-    reflow(); // restore the Dock's content-fit height
+    // restore the user's Dock size if they set one, else content-fit
+    if (userSize.dock) applySize(userSize.dock.w, userSize.dock.h);
+    else reflow();
   } else {
     setActiveSurface(name); // "room" | "wall"
-    const [w, h] = SURFACE_SIZE[name];
-    getCurrentWindow().setSize(new LogicalSize(w, h)).catch((e) => dbg(`${name} resize: ${e}`));
+    const [w, h] = userSize[name]
+      ? [userSize[name].w, userSize[name].h] // their remembered size for this surface
+      : SURFACE_SIZE[name];                  // else the default
+    applySize(w, h);
   }
 }
 
@@ -802,5 +848,6 @@ watcherAutostart();
 shiftLoop();
 assayLoop();
 lineInit();
+initSizing(); // S39: start watching for a manual resize (per-surface size memory)
 dbg("boot: all loops launched");
 reflow();

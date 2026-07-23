@@ -100,6 +100,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **S39 — the widget window now respects a manual resize (2026-07-23).** Rab reported the widget
+  "defaults to a size" — dragging an edge to enlarge it reverted within a moment. Cause: `reflow()`
+  (`main.js`) re-asserted `setSize(480, content-height)` on nearly every poll (via
+  `pfCheck → pfRender → pfResize → reflow`, even with an empty queue), pinning the width to 480 and
+  the height to content, and it fired **regardless of surface** (so it also yanked Room/Wall back
+  toward Dock dimensions). The window was already `resizable: true` — the frontend was fighting the
+  user. Fix (frontend-only, no Rust): a manual resize is now detected via `getCurrentWindow().onResized`
+  (the event dims compared against the last size we set, with a short suppress-window after our own
+  `applySize` to ignore the settle echo) and **remembered per surface** (`userSize.{dock,room,wall}`).
+  `reflow()` is now Dock-only and, once the user has sized the Dock, only **grows** height to prevent
+  a content clip — it never shrinks and never touches width. Surface switches restore the remembered
+  size (else the default: Dock content-fit, Room 760×600, Wall 900×500). Verified live on the real
+  widget: a programmatic resize to 796×639 **held across 13 s of polling** (was reverting to ~496),
+  and the boot log recorded the `onResized` beacon (`user-sized dock → 780×631`). `node --check`
+  clean, `tauri build` green.
+
 - **S37 — the orphan-watcher shutdown: a force-killed / crashed widget can no longer leave a
   watcher running (2026-07-22).** Found by the S36 live PDF test: `watcher::stop` only ran on a
   graceful shutdown (the ⏻ button or the window-`Destroyed` event), so `Stop-Process -Force` or a
