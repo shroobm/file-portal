@@ -58,6 +58,25 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
+**S40 OPEN 2026-07-23 (Desktop) — start centered on monitor 1 (Rab-requested).** After the S39
+resize fix, Rab asked (sizes don't persist, so) the widget should **start up centered on monitor 1**
+— his **primary** monitor (`\\.\DISPLAY1`, 2560×1440 at origin 0,0; monitor 2 is secondary at
+-1280,116). Frontend-led + one capability grant.
+
+Plan / order:
+1. **`main.js::centerOnPrimary()`** — at boot (after the initial reflow settles the height), read
+   `primaryMonitor()` (position+size, physical) + `getCurrentWindow().outerSize()` and
+   `setPosition` to the monitor-center. Physical px throughout (no DPI mismatch). Best-effort
+   (`dbg` on failure). Only at launch — the user can still drag it anywhere after; onMoved isn't
+   tracked, so it won't fight moves.
+2. **Capability** — add `core:window:allow-set-position` to `capabilities/default.json`
+   (`primary-monitor` + `outer-size` are already in `core:window:default`; `set-size` was added S39).
+   *Verify:* `node --check`; `clippy -D warnings` (cap change compiles).
+3. **Rebuild ritual** → swap into the running widget (SHA256) + relaunch.
+4. **LIVE verify** — relaunch, read the window rect via Win32, confirm its center ≈ monitor-1 center
+   (≈1280,720) and it's on DISPLAY1 (x in [0,2560)).
+5. **Close** — CHANGELOG + ledger row + TIME-STATE in lockstep.
+
 *(S39 closed 2026-07-23 (Desktop). **Widget resize fix SHIPPED** (Rab-reported). The widget
 "defaulted to a size" — dragging an edge to enlarge it reverted, because `reflow()` (main.js)
 re-asserted `setSize(480, content-height)` on nearly every poll (via `pfCheck → pfRender → pfResize
