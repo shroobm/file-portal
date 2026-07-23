@@ -58,6 +58,30 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
+**S41 OPEN 2026-07-23 (Desktop) — GPU telemetry stream completed (docs/16 §8 #4).** Rab: continue the
+widget plans until done. S38 shipped the VRAM sparkline; the `gpu_vram` probe already returns
+util+temp (shown only as numbers). Give **utilization + temperature their own rolling sparklines** so
+§8 #4's "GPU telemetry stream (VRAM + utilization + temp) with a real rolling sparkline" is fully
+done. Frontend-only (data already flows from S38's Rust change); read-only projection.
+
+Plan / order (`room.js` + `styles.css`):
+1. **Extend the sampler** — `sampleVram` → `sampleGpu`: alongside `vramHist`, push `utilHist` +
+   `tempHist` (only when the field is present), same 48-sample bounded ring, same poll-is-the-sampler
+   principle (no backend thread).
+2. **Unified GPU telemetry strip** — new `gpuStrip(vm)`: a 3-cell row (VRAM % / GPU util % / Temp °C),
+   each a fixed-scale sparkline (VRAM 0–100, util 0–100, temp 30–95 °C) + current value, clay stroke
+   under pressure (VRAM>92 / util>95 / temp>83), else flow. Inserted in `render()` between the KPI
+   band and `room-panels`. The **VRAM sparkline graduates** from the KPI tile into this strip; the KPI
+   "GPU VRAM" tile reverts to value + gauge (no duplication).
+3. **CSS** — `.room-gpu` / `.rg-*` (mirrors the `.rk` tile idiom; theme-token colors).
+   *Verify:* `node --check`; extend the S38 browser harness — all 3 sparklines accumulate on their
+   fixed scales, pressure coloring, dark+light, 0 console errors.
+4. **Rebuild** → swap into the running widget (SHA256) + relaunch.
+5. **Close** — docs/16 §8 #4 marked fully done, CHANGELOG + ledger row + TIME-STATE in lockstep.
+
+Next after this: **S42 = true per-page convert %** (§8 #3, fail-safe Popen streaming of the converter).
+§8 #5 supersede = ThinkPad-only (widget side already done via ⟳ re-convert).
+
 *(S40 closed 2026-07-23 (Desktop). **Start-centered-on-monitor-1 SHIPPED** (Rab-requested follow-up
 to S39; sizes don't persist, so every launch should start somewhere predictable). New
 `main.js::centerOnPrimary()` runs once at boot (just after the initial reflow settles the height):
