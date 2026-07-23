@@ -8,6 +8,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S40 — the widget opens centered on the primary monitor (2026-07-23).** Rab-requested follow-up
+  to S39: since sizes don't persist, every launch should start in a predictable place — centered on
+  monitor 1 (his primary). New `main.js::centerOnPrimary()` runs once at boot (just after the initial
+  reflow settles the height): reads `primaryMonitor()` (position + size) and the window's
+  `outerSize()`, then `setPosition`s to the monitor-center — all in physical pixels, so it's correct
+  at any DPI and lands on the primary regardless of a second monitor's offset. Only at launch; the
+  user can still drag it anywhere (moves aren't tracked). Adds the `core:window:allow-set-position`
+  capability. Verified live: the relaunched window's center measured `(1280,720)` — exactly the
+  2560×1440 primary's center — on DISPLAY1. `node --check` clean, `tauri build` green.
+
 - **S38 — GPU telemetry sparkline in the Control Room (2026-07-23).** docs/16 §8 #4. The Room's
   GPU VRAM KPI tile now draws a **rolling sparkline** rather than a bare instantaneous gauge.
   - `room.js`: a bounded module-scoped ring (`vramHist`, 48 samples) fed once per `gatherVM()` —

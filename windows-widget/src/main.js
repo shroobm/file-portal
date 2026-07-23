@@ -241,6 +241,22 @@ async function initSizing() {
   } catch (e) { dbg(`onResized unavailable: ${e}`); }
 }
 
+// S40: open centered on the PRIMARY monitor (Rab's monitor 1). Sizes don't persist, so every
+// launch starts here; the user can still drag it anywhere afterwards (moves aren't tracked).
+// Physical px throughout — monitor bounds and the window's outer size are both physical.
+async function centerOnPrimary() {
+  try {
+    const { primaryMonitor } = window.__TAURI__.window;
+    const { PhysicalPosition } = window.__TAURI__.dpi;
+    const mon = await primaryMonitor();
+    if (!mon) return;
+    const ws = await getCurrentWindow().outerSize();
+    const x = Math.round(mon.position.x + (mon.size.width - ws.width) / 2);
+    const y = Math.round(mon.position.y + (mon.size.height - ws.height) / 2);
+    await getCurrentWindow().setPosition(new PhysicalPosition(x, y));
+  } catch (e) { dbg(`center: ${e}`); }
+}
+
 let pfCardCount = 0;
 function reflow() {
   // Auto-fit the DOCK's height to content (S22: the DOM knows its height; the old arithmetic
@@ -851,3 +867,4 @@ lineInit();
 initSizing(); // S39: start watching for a manual resize (per-surface size memory)
 dbg("boot: all loops launched");
 reflow();
+setTimeout(centerOnPrimary, 150); // S40: center on monitor 1 once the initial reflow settles height
