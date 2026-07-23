@@ -119,7 +119,7 @@ fn dir_child_count(p: &Path) -> Option<u64> {
 pub fn gpu_vram() -> Value {
     let out = Command::new("nvidia-smi")
         .args([
-            "--query-gpu=memory.used,memory.total",
+            "--query-gpu=memory.used,memory.total,utilization.gpu,temperature.gpu",
             "--format=csv,noheader,nounits",
         ])
         .creation_flags(CREATE_NO_WINDOW)
@@ -139,7 +139,11 @@ pub fn gpu_vram() -> Value {
     };
     // round to 1 decimal GB
     let gb = |mib: f64| (mib / 1024.0 * 10.0).round() / 10.0;
-    json!({ "used": gb(used_mib), "total": gb(total_mib) })
+    // S38: utilization (%) + temperature (°C) enrich the telemetry. Both optional — a card or
+    // driver that omits them (or prints "[N/A]") leaves the field null; VRAM still reports.
+    let util = parts.get(2).and_then(|s| s.parse::<f64>().ok());
+    let temp = parts.get(3).and_then(|s| s.parse::<f64>().ok());
+    json!({ "used": gb(used_mib), "total": gb(total_mib), "util": util, "temp": temp })
 }
 
 // ---- S36: the drill-down observation system — a station's real on-disk tree ----------------

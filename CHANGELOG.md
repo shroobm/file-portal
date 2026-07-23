@@ -8,6 +8,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S38 — GPU telemetry sparkline in the Control Room (2026-07-23).** docs/16 §8 #4. The Room's
+  GPU VRAM KPI tile now draws a **rolling sparkline** rather than a bare instantaneous gauge.
+  - `room.js`: a bounded module-scoped ring (`vramHist`, 48 samples) fed once per `gatherVM()` —
+    the poll loop is the sampler, no always-on background thread (the sparkline is unviewable with
+    the Room closed). `sparkSvg(series, col, domain?)` gained an optional fixed `{min,max}` domain;
+    the VRAM sparkline uses a **fixed 0–100 % scale** so height = true card-fullness (idle low, a
+    convert spikes) — unlike the autoscaled throughput/median tiles. Gauge stays as the first-poll
+    fallback (until ≥2 samples); clay stroke when the card is under pressure (>92 %), else flow.
+  - `room.rs`: `gpu_vram()` extended to also report **utilization + temperature**
+    (`--query-gpu=…,utilization.gpu,temperature.gpu` → `{used,total,util,temp}`; both optional,
+    `Null` when there is no probe). Surfaced on the header GPU stat (`4.2/10 GB · 41% · 62°`).
+  - Read-only projection; the pipeline is untouched. Verified in a browser harness (0 console
+    errors; the VRAM ring accumulated across polls; fixed-scale Y-coords matched exactly;
+    gauge→sparkline transition; util/temp in dark+light; throughput/median sparklines unregressed),
+    `clippy -D warnings` clean, `tauri build` green (release exe + MSI + NSIS). Still deferred: an
+    always-on backend sampler, and re-backing the throughput/median sparklines with a rolling window.
+
 - **S37 — a live convert progress bar (2026-07-22).** The Room's Convert station now draws a live
   progress bar + `%` from measured data — `elapsed ÷ (elapsed + estimated-remaining)`, where
   elapsed is the `.gpu-lock` age (new `convert_elapsed_s` in `line_state`) and the estimate is the

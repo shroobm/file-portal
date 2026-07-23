@@ -231,9 +231,22 @@ Python watcher (graceful `watcher::stop` skipped), and racing orphans thrashed t
 watcher (+ its Marker subprocesses) runs in a Windows Job Object with `KILL_ON_JOB_CLOSE`, so it
 dies with the widget by any means. Proven live (force-kill, incl. mid-convert → whole tree to zero).
 See CHANGELOG "Fixed / S37" + `watcher.rs`.
-4. **GPU telemetry stream.** Promote `gpu_vram` from a per-poll shell-out to a lightweight
-   sampler (VRAM + utilization + temp) with a real rolling sparkline; back the throughput /
-   median sparklines with a rolling window instead of the events tail.
+4. **GPU telemetry sparkline — SHIPPED S38 (2026-07-23).** The GPU VRAM KPI tile now draws a
+   **rolling sparkline** instead of a bare instantaneous gauge: the poll loop *is* the sampler
+   (one `nvidia-smi` read per `gatherVM`, accumulated into a bounded module-scoped ring — no
+   always-on background thread, since the sparkline is unviewable with the Room closed anyway). It
+   draws on a **fixed 0–100 % scale** so the height means true card-fullness (idle sits low, a
+   convert spikes) — deliberately *not* autoscaled like the throughput/median tiles, which would
+   exaggerate idle noise and flatten a real spike. `gpu_vram()` was extended to also report
+   **utilization + temperature** (`{used,total,util,temp}`, still `Null` when there is no probe),
+   surfaced on the header GPU stat (`4.2/10 GB · 41% · 62°`). Gauge remains the first-poll fallback
+   (until ≥2 samples); clay stroke under pressure (>92 %), else flow. `sparkSvg` gained an optional
+   fixed-domain param (existing tiles unchanged). Verified in the harness (0 console errors; exact
+   fixed-scale Y-coords; gauge→sparkline transition; util/temp in dark+light; throughput/median
+   sparklines unregressed), `clippy -D warnings` clean, `tauri build` green. **Still deferred**
+   (their own installments): an always-on backend sampler; and re-backing the throughput/median
+   sparklines with a rolling window (they work from the events tail today — reworking risks
+   regressing them).
 5. **Close the Beer remedy loop.** Audit flags → re-convert → re-audit passes → **supersede
    auto-swap** in the vault (THE SUPERSEDE GAP, ThinkPad exporter). The Room's ⟳ re-convert
    already re-queues; closing the loop needs the exporter's auto-swap on the ThinkPad lane.

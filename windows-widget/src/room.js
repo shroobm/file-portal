@@ -38,6 +38,18 @@ let surface = "room"; // "room" | "wall" — the density this module is renderin
 // invents no traffic — it visualises the line's real state. Reduced-motion → static.
 const belt = { canvas: null, chips: [], raf: 0, running: false, W: 0, H: 0, DPR: 1, pal: {}, reduce: false, targetN: 0, tints: [] };
 
+// S38: GPU telemetry rolling window (docs/16 §8 #4). The poll IS the sampler — each gatherVM()
+// does one nvidia-smi read (via gpu_vram) and we accumulate the VRAM %used here into a bounded
+// ring for the Room's sparkline. No always-on backend thread: sampling happens only while the
+// Room/Wall is being viewed (you can't see the sparkline with the Room closed anyway).
+const VRAM_HIST_MAX = 48;
+const vramHist = []; // recent VRAM %used samples (0..100), oldest → newest
+function sampleVram(v) {
+  if (!v || !v.total) return; // no probe → no fake sample (keeps the trend honest)
+  vramHist.push((v.used / v.total) * 100);
+  if (vramHist.length > VRAM_HIST_MAX) vramHist.shift();
+}
+
 // System verdict (shared by the Room header + the Wall): terracotta only when your hand is
 // required (a pending gate decision or an audit fail); green when viable; grey when paused.
 function systemVerdict(d) {
@@ -61,6 +73,7 @@ async function gatherVM() {
     call("room_metrics"), call("gpu_vram"),
   ]);
   try { gateMode = (await invoke("analyst_mode_get")) || gateMode; } catch { /* keep */ }
+  sampleVram(vram); // append this poll's VRAM reading to the rolling window (S38)
   return { ls, assay, shift, pf: pf || [], watcher, vault, metrics, vram };
 }
 
@@ -108,10 +121,15 @@ function shortName(s) {
   return String(s || "").replace(/\.pdf$/i, "").replace(/--[0-9a-f]{6,}$/, "").replace(/_/g, " ").slice(0, 22);
 }
 
-function sparkSvg(series, col) {
+// domain?: { min, max } draws on a FIXED scale (S38: VRAM uses 0..100 so height means true
+// fullness — idle sits low, a convert spikes). Omit it to autoscale min..max (throughput/median).
+function sparkSvg(series, col, domain) {
   if (!series || series.length < 2) return "";
-  const w = 66, h = 22, mn = Math.min(...series), mx = Math.max(...series), r = (mx - mn) || 1;
-  const pts = series.map((v, i) => `${((i / (series.length - 1)) * w).toFixed(1)},${(h - 2 - ((v - mn) / r) * (h - 4)).toFixed(1)}`).join(" ");
+  const w = 66, h = 22;
+  const mn = domain ? domain.min : Math.min(...series);
+  const mx = domain ? domain.max : Math.max(...series);
+  const r = (mx - mn) || 1;
+  const pts = series.map((v, i) => `${((i / (series.length - 1)) * w).toFixed(1)},${(h - 2 - clamp((v - mn) / r, 0, 1) * (h - 4)).toFixed(1)}`).join(" ");
   const [lx, ly] = pts.split(" ").pop().split(",");
   return `<svg class="rk-spark" viewBox="0 0 ${w} ${h}" preserveAspectRatio="none">` +
     `<polyline points="${pts}" fill="none" stroke="${col}" stroke-width="1.5"/>` +
@@ -137,7 +155,11 @@ function kpiTiles(d) {
     { label: "Median s/page", val: m.median_spp != null ? Number(m.median_spp).toFixed(1) : "—", unit: "",
       extra: sparkSvg(m.spp_series, "var(--flow)") },
     { label: "GPU VRAM", val: vramUsed != null ? Number(vramUsed).toFixed(1) : "—", unit: v?.total ? `/${v.total} GB` : "GB",
-      extra: v?.total ? gauge(vramPct, vramPct > 92 ? "var(--clay)" : "var(--flow)") : `<span class="rk-note">no GPU probe</span>` },
+      // S38: rolling sparkline (fixed 0..100% scale) once ≥2 samples; gauge is the first-poll
+      // fallback; clay stroke when the card is under pressure (>92%), else flow.
+      extra: v?.total
+        ? (sparkSvg(vramHist, vramPct > 92 ? "var(--clay)" : "var(--flow)", { min: 0, max: 100 }) || gauge(vramPct, vramPct > 92 ? "var(--clay)" : "var(--flow)"))
+        : `<span class="rk-note">no GPU probe</span>` },
     { label: "Queue depth", val: String(queue), unit: "", extra: `<span class="rk-note">${queue ? queue + " waiting" : "clear"}</span>` },
     { label: "Survival avg", val: surv != null ? Number(surv).toFixed(2) : "—", unit: "", extra: gauge(survPct, survCol) },
     { label: "Shipped today", val: String(sh.shipped ?? 0), unit: "", extra: `<span class="rk-note">${sh.converted ?? 0} converted · ${sh.failed ?? 0} held</span>` },
@@ -250,7 +272,13 @@ function eventMsg(e) {
 function header(d) {
   const w = d.watcher?.state === "running";
   const v = d.vram;
-  const gpu = v && v.total ? `${Number(v.used).toFixed(1)}/${v.total} GB` : "GPU —";
+  let gpu = v && v.total ? `${Number(v.used).toFixed(1)}/${v.total} GB` : "GPU —";
+  if (v && v.total) { // S38: append utilization + temperature when the probe reports them
+    const bits = [];
+    if (v.util != null) bits.push(`${Math.round(v.util)}%`);
+    if (v.temp != null) bits.push(`${Math.round(v.temp)}°`);
+    if (bits.length) gpu += ` · ${bits.join(" · ")}`;
+  }
   const clock = new Date().toISOString().slice(11, 19);
   const sv = systemVerdict(d);
   return `<div class="room-head">` +
