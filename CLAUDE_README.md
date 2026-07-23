@@ -58,16 +58,27 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-*(No session open — S34 closed 2026-07-22. The **Control Room is now the widget's face**: a
-`Dock ⇄ Room` surface switch; the Room is the operations dashboard (station rail + golden-signal
-KPIs + convert station + Survival-Audit evidence card + live event stream), wired to real
-pipeline data via the existing `invoke()` commands + two new read-only projections
-(`room_metrics` + `gpu_vram`). Built, `clippy -D warnings` clean, verified LIVE in the real
-Tauri app (VRAM from nvidia-smi, vault count from the Library, survival avg from manifests, the
-Cybernetics `fail` in terracotta), every pipeline segment tested green, and the **installed widget
-updated in place + hash-verified + relaunched — it's running now**. Design record + build audit:
-**docs/16**. Fresh installer staged (see the S34 Session Log entry). Deferred to next installments:
-Wall surface, canvas belt, drill-down explorer, live convert page %.)*
+**S35 (2026-07-22, autonomous) — complete the surface trio: the Wall + the canvas transit belt.**
+Continuing docs/16 §8 installments #1. Frontend-only, projection-safe (no pipeline touch); lift
+the belt + Wall code from the source object (`prototypes/control-panel/control-room/`).
+
+Plan (measured, muster at transitions):
+1. **Canvas transit belt** — add it under the Room's station rail: an ambient activity
+   visualization whose chip count/tint reflect REAL state (drop_waiting / converting / gate /
+   recent events); reduced-motion-safe; palette-cached. ✔ verify: renders in harness, animates,
+   0 console errors, respects `prefers-reduced-motion`.
+2. **Wall surface** — a third density: giant system verdict, the six stations as big dots
+   (colored by real state), three hero numbers (survival avg / throughput / vault). Add `Wall`
+   to the `Dock|Room|Wall` switch; window resizes. ✔ verify: harness render + real widget.
+3. **Build + verify** — clippy (if Rust touched — likely none), `tauri build`, launch, screenshot
+   Wall + Room-with-belt on real data.
+4. **(stretch) drill-down file explorer** — station → live tree; needs new read-only tree-read
+   commands in `room.rs` + the flip open. Only if segment 1–2 land clean.
+5. **Docs + audit + ledger + memory**; two clocks together.
+
+Safety: pipeline untouched (projection law); Dock/Room stay the proven fallbacks; the belt is
+ambient/decorative and invents no data. Deferred still: live convert page % (converter), Beer
+supersede auto-swap (ThinkPad, phase-gated).
 
 ---
 
