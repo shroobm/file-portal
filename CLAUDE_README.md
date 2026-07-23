@@ -58,6 +58,32 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
+**S39 OPEN 2026-07-23 (Desktop) — widget resize fix (Rab-reported).** Rab: the widget "defaults to a
+size" — he can't drag its side to make it larger without it reverting. Diagnosed: `reflow()`
+(main.js) re-asserts `setSize(480, content-height)` on **nearly every poll** (via
+`pfCheck → pfRender → pfResize → reflow`, even with an empty queue) — width pinned to 480, height
+forced to content, so a manual drag is stomped within one poll cycle. It also fires **regardless of
+surface** (yanks Room/Wall back toward Dock dims). Window is already `resizable:true`,
+`decorations:false`, no min/max caps; no Rust change needed. Rab chose **"respect my size"** (per-
+surface memory; only grow to prevent clipping).
+
+Plan / order (frontend-only, `main.js`):
+1. **Per-surface user-size memory** — `userSize = { dock?, room?, wall? }`. Detect a manual resize
+   via `getCurrentWindow().onResized` (compare the event's logical dims against `lastApplied`, with a
+   short suppress-window after our own `applySize` to ignore the settle echo). Cache `scaleFactor` at
+   boot for physical→logical.
+2. **`applySize(w,h)` helper** — the single programmatic resize path (records `lastApplied` +
+   suppress timestamp) replacing the two raw `setSize` sites (reflow + enterSurface).
+3. **`reflow()` = Dock-only + respect user size** — early-return unless `surface==='dock'`. If
+   `userSize.dock` set: only GROW height when content would clip (never shrink, never touch width);
+   else keep the auto-fit `480×content` default.
+4. **`enterSurface`** — restore `userSize[name]` if present, else the default (Dock→reflow content-
+   fit; Room `760×600` / Wall `900×500`).
+   *Verify:* `node --check`; browser harness — drag-resize sticks across a simulated poll; reflow no-ops
+   off-Dock; grow-on-clip works; surface switch restores remembered size; 0 console errors.
+5. **Rebuild ritual** → swap into the running widget (SHA256) + relaunch (Rab present).
+6. **Close** — CHANGELOG + ledger row + TIME-STATE in lockstep.
+
 *(S38 closed 2026-07-23 (Desktop). **GPU telemetry sparkline SHIPPED** (docs/16 §8 #4) — the next
 genuine installment after the Control Room finished at S37. The Room's GPU VRAM tile now draws a
 **rolling sparkline** instead of a bare gauge: a bounded module-scoped ring (`vramHist`, 48) fed one
