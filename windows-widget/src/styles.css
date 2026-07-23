@@ -96,6 +96,15 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .rk-gauge i { display: block; height: 100%; }
 .rk-note { font-size: 8.5px; color: var(--text-3); }
 
+/* S41: GPU telemetry strip — VRAM / util / temp rolling sparklines (docs/16 §8 #4) */
+.room-gpu { display: grid; grid-template-columns: repeat(3, 1fr); gap: 8px; margin-bottom: 10px; }
+.rg-cell { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r-sm); padding: 6px 9px; min-width: 0; }
+.rg-head { display: flex; justify-content: space-between; align-items: baseline; gap: 6px; }
+.rg-label { font-size: 8px; letter-spacing: .8px; text-transform: uppercase; color: var(--text-3); }
+.rg-val { font-size: 11px; color: var(--text); font-variant-numeric: tabular-nums; white-space: nowrap; }
+.rg-spark { height: 20px; margin-top: 3px; }
+.rg-spark .rk-spark { width: 100%; height: 20px; }
+
 .room-panels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
 .rp { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
 .rp.fail { border-color: var(--clay); }

@@ -8,6 +8,18 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S41 — the GPU telemetry stream is complete: util + temp sparklines (2026-07-23).** docs/16 §8 #4.
+  S38 shipped the VRAM sparkline; the `gpu_vram` probe already reported utilization + temperature (as
+  numbers only). Now a unified **GPU telemetry strip** in the Room shows all three as fixed-scale
+  rolling sparklines — **VRAM %** (0–100), **GPU util %** (0–100), **Temp °C** (30–95) — each with its
+  current value and a clay stroke under pressure (VRAM >92 %, util >95 %, temp >83 °C), else flow. The
+  sampler (`room.js`) now feeds three rings (`vramHist` / `utilHist` / `tempHist`) from the same one
+  read per poll — still no always-on backend thread. The VRAM sparkline graduated from the KPI tile
+  into the strip (the tile reverts to an at-a-glance gauge — no duplication). New `.room-gpu` / `.rg-*`
+  CSS (mirrors the KPI-tile idiom, theme-token colors). Read-only projection; pipeline untouched.
+  Harness-verified (0 console errors; all three sparklines accumulate on their fixed scales — the temp
+  Y-coords confirm the 30–95 domain; util clay at 98 %; dark + light), `tauri build` green.
+
 - **S40 — the widget opens centered on the primary monitor (2026-07-23).** Rab-requested follow-up
   to S39: since sizes don't persist, every launch should start in a predictable place — centered on
   monitor 1 (his primary). New `main.js::centerOnPrimary()` runs once at boot (just after the initial

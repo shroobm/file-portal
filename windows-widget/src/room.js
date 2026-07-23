@@ -42,12 +42,18 @@ const belt = { canvas: null, chips: [], raf: 0, running: false, W: 0, H: 0, DPR:
 // does one nvidia-smi read (via gpu_vram) and we accumulate the VRAM %used here into a bounded
 // ring for the Room's sparkline. No always-on backend thread: sampling happens only while the
 // Room/Wall is being viewed (you can't see the sparkline with the Room closed anyway).
-const VRAM_HIST_MAX = 48;
+const GPU_HIST_MAX = 48;
 const vramHist = []; // recent VRAM %used samples (0..100), oldest → newest
-function sampleVram(v) {
-  if (!v || !v.total) return; // no probe → no fake sample (keeps the trend honest)
-  vramHist.push((v.used / v.total) * 100);
-  if (vramHist.length > VRAM_HIST_MAX) vramHist.shift();
+const utilHist = []; // GPU utilisation % (0..100)
+const tempHist = []; // GPU temperature °C
+function pushRing(arr, val) { arr.push(val); if (arr.length > GPU_HIST_MAX) arr.shift(); }
+// S41: one nvidia-smi read per poll feeds all three rings (VRAM / util / temp). No fake samples
+// when the field is absent — the trend stays honest.
+function sampleGpu(v) {
+  if (!v || !v.total) return;
+  pushRing(vramHist, (v.used / v.total) * 100);
+  if (v.util != null) pushRing(utilHist, v.util);
+  if (v.temp != null) pushRing(tempHist, v.temp);
 }
 
 // System verdict (shared by the Room header + the Wall): terracotta only when your hand is
@@ -73,7 +79,7 @@ async function gatherVM() {
     call("room_metrics"), call("gpu_vram"),
   ]);
   try { gateMode = (await invoke("analyst_mode_get")) || gateMode; } catch { /* keep */ }
-  sampleVram(vram); // append this poll's VRAM reading to the rolling window (S38)
+  sampleGpu(vram); // append this poll's GPU reading (VRAM/util/temp) to the rolling windows (S38/S41)
   return { ls, assay, shift, pf: pf || [], watcher, vault, metrics, vram };
 }
 
@@ -155,11 +161,9 @@ function kpiTiles(d) {
     { label: "Median s/page", val: m.median_spp != null ? Number(m.median_spp).toFixed(1) : "—", unit: "",
       extra: sparkSvg(m.spp_series, "var(--flow)") },
     { label: "GPU VRAM", val: vramUsed != null ? Number(vramUsed).toFixed(1) : "—", unit: v?.total ? `/${v.total} GB` : "GB",
-      // S38: rolling sparkline (fixed 0..100% scale) once ≥2 samples; gauge is the first-poll
-      // fallback; clay stroke when the card is under pressure (>92%), else flow.
-      extra: v?.total
-        ? (sparkSvg(vramHist, vramPct > 92 ? "var(--clay)" : "var(--flow)", { min: 0, max: 100 }) || gauge(vramPct, vramPct > 92 ? "var(--clay)" : "var(--flow)"))
-        : `<span class="rk-note">no GPU probe</span>` },
+      // S41: the VRAM sparkline graduated to the unified GPU telemetry strip (below the KPI band);
+      // the tile keeps an at-a-glance gauge, clay under pressure (>92%).
+      extra: v?.total ? gauge(vramPct, vramPct > 92 ? "var(--clay)" : "var(--flow)") : `<span class="rk-note">no GPU probe</span>` },
     { label: "Queue depth", val: String(queue), unit: "", extra: `<span class="rk-note">${queue ? queue + " waiting" : "clear"}</span>` },
     { label: "Survival avg", val: surv != null ? Number(surv).toFixed(2) : "—", unit: "", extra: gauge(survPct, survCol) },
     { label: "Shipped today", val: String(sh.shipped ?? 0), unit: "", extra: `<span class="rk-note">${sh.converted ?? 0} converted · ${sh.failed ?? 0} held</span>` },
@@ -168,6 +172,26 @@ function kpiTiles(d) {
     `<div class="rk"><div class="rk-label">${t.label}</div>` +
     `<div class="rk-val">${t.val}<span class="rk-unit">${t.unit}</span></div>` +
     `<div class="rk-extra">${t.extra || ""}</div></div>`).join("")}</div>`;
+}
+
+// S41: the GPU telemetry stream (docs/16 §8 #4) — VRAM / util / temp as three fixed-scale rolling
+// sparklines. Each fed one sample per poll (the poll is the sampler). Clay stroke under pressure.
+function gpuStrip(d) {
+  const v = d.vram;
+  if (!v || !v.total) return ""; // no probe → no strip (the KPI tile already says "no GPU probe")
+  const vramPct = (v.used / v.total) * 100;
+  const cells = [
+    { label: "VRAM", val: `${Number(v.used).toFixed(1)}/${v.total} GB`, series: vramHist,
+      dom: { min: 0, max: 100 }, col: vramPct > 92 ? "var(--clay)" : "var(--flow)" },
+    { label: "GPU util", val: v.util != null ? `${Math.round(v.util)}%` : "—", series: utilHist,
+      dom: { min: 0, max: 100 }, col: (v.util ?? 0) > 95 ? "var(--clay)" : "var(--flow)" },
+    { label: "Temp", val: v.temp != null ? `${Math.round(v.temp)}°C` : "—", series: tempHist,
+      dom: { min: 30, max: 95 }, col: (v.temp ?? 0) > 83 ? "var(--clay)" : "var(--flow)" },
+  ];
+  return `<div class="room-gpu">` + cells.map((c) =>
+    `<div class="rg-cell"><div class="rg-head"><span class="rg-label">${c.label}</span>` +
+    `<span class="rg-val">${c.val}</span></div>` +
+    `<div class="rg-spark">${sparkSvg(c.series, c.col, c.dom)}</div></div>`).join("") + `</div>`;
 }
 
 function convertPanel(d) {
@@ -297,7 +321,7 @@ function render(vm) {
   roomEl.innerHTML =
     header(vm) + stationRail(vm) +
     `<canvas id="room-belt" class="room-belt"></canvas>` +
-    kpiTiles(vm) +
+    kpiTiles(vm) + gpuStrip(vm) +
     `<div class="room-panels">${convertPanel(vm)}${assayPanel(vm)}${eventsPanel(vm)}</div>` +
     `<div class="room-foot"><span>${esc(shiftLine(vm))}</span><span class="rf-lin">Control Room · projection of the live pipeline · docs/16</span></div>`;
   wire();

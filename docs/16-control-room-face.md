@@ -243,10 +243,19 @@ See CHANGELOG "Fixed / S37" + `watcher.rs`.
    (until ≥2 samples); clay stroke under pressure (>92 %), else flow. `sparkSvg` gained an optional
    fixed-domain param (existing tiles unchanged). Verified in the harness (0 console errors; exact
    fixed-scale Y-coords; gauge→sparkline transition; util/temp in dark+light; throughput/median
-   sparklines unregressed), `clippy -D warnings` clean, `tauri build` green. **Still deferred**
-   (their own installments): an always-on backend sampler; and re-backing the throughput/median
-   sparklines with a rolling window (they work from the events tail today — reworking risks
-   regressing them).
+   sparklines unregressed), `clippy -D warnings` clean, `tauri build` green.
+   **Completed S41 (2026-07-23):** the telemetry stream is now whole — **utilization + temperature
+   got their own rolling sparklines** in a unified **GPU telemetry strip** (VRAM % / GPU util % /
+   Temp °C, three fixed-scale sparklines: 0–100 / 0–100 / 30–95 °C, clay under pressure at
+   >92 / >95 / >83). The VRAM sparkline graduated from the KPI tile into the strip (tile reverts to a
+   gauge — no duplication). Same poll-is-the-sampler principle (`sampleGpu` feeds `vramHist` +
+   `utilHist` + `tempHist`); frontend-only. Harness-verified (0 console errors; all three accumulate
+   on their fixed scales — temp Y-coords confirm the 30–95 domain; util clay at 98 %; dark+light).
+   **Still deferred by choice** (their own installments, and each argued against above): an always-on
+   backend sampler (would probe the GPU with the Room closed — against the S37 idle-resource
+   discipline); and re-backing the throughput/median sparklines with a rolling window (their
+   events-tail series already IS the last-12-converts rolling window — reworking risks regressing a
+   working thing for no gain).
 5. **Close the Beer remedy loop.** Audit flags → re-convert → re-audit passes → **supersede
    auto-swap** in the vault (THE SUPERSEDE GAP, ThinkPad exporter). The Room's ⟳ re-convert
    already re-queues; closing the loop needs the exporter's auto-swap on the ThinkPad lane.
