@@ -192,10 +192,16 @@ Backend (two read-only projections, pipeline never touched):
 
 Not small fixes — the substantial builds this graduation sets up (each its own session):
 
-1. **The Wall surface + live canvas transit belt.** The glanceable across-room projection
-   (docs/14) plus the moving-package belt from the source object. Staged in the switch; needs
-   the belt-canvas port + a third window geometry. Pairs with the phone projection
-   ([[remote-dispatch-vision]], docs/14 Phase A).
+1. ~~**The Wall surface + live canvas transit belt.**~~ **✅ SHIPPED S35 (2026-07-22).** The
+   `Dock|Room|Wall` switch is complete: **Wall** = a glanceable across-room projection (giant
+   system verdict — terracotta only on attention/fail — the six stations as big dots, three hero
+   numbers: survival avg / throughput / vault) that the window resizes into (900×500); the
+   **canvas transit belt** sits under the Room's station rail as an *ambient activity projection*
+   — chip count/tint reflect real in-flight work (drop_waiting / converting / gate / held), empty
+   when the watcher is down, reduced-motion-safe, palette-cached. Frontend-only, no pipeline
+   touch. Verified in the harness (0 console errors) and **live in the real widget** (belt
+   animating, Wall "ATTENTION" on the real Cybernetics hold, live VRAM/survival). Still pairs with
+   the phone projection ([[remote-dispatch-vision]], docs/14 Phase A) as a future host target.
 2. **The drill-down file explorer** (station → live tree). New read-only tree-walk commands
    (vault Library, `held/`, `pending/`, `converting/`, `anchor/`) + Tauri **event push** so a
    node updates the instant the pipeline writes. DESIGN.md §4's named "graduation step" — the

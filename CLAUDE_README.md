@@ -58,27 +58,16 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**S35 (2026-07-22, autonomous) — complete the surface trio: the Wall + the canvas transit belt.**
-Continuing docs/16 §8 installments #1. Frontend-only, projection-safe (no pipeline touch); lift
-the belt + Wall code from the source object (`prototypes/control-panel/control-room/`).
-
-Plan (measured, muster at transitions):
-1. **Canvas transit belt** — add it under the Room's station rail: an ambient activity
-   visualization whose chip count/tint reflect REAL state (drop_waiting / converting / gate /
-   recent events); reduced-motion-safe; palette-cached. ✔ verify: renders in harness, animates,
-   0 console errors, respects `prefers-reduced-motion`.
-2. **Wall surface** — a third density: giant system verdict, the six stations as big dots
-   (colored by real state), three hero numbers (survival avg / throughput / vault). Add `Wall`
-   to the `Dock|Room|Wall` switch; window resizes. ✔ verify: harness render + real widget.
-3. **Build + verify** — clippy (if Rust touched — likely none), `tauri build`, launch, screenshot
-   Wall + Room-with-belt on real data.
-4. **(stretch) drill-down file explorer** — station → live tree; needs new read-only tree-read
-   commands in `room.rs` + the flip open. Only if segment 1–2 land clean.
-5. **Docs + audit + ledger + memory**; two clocks together.
-
-Safety: pipeline untouched (projection law); Dock/Room stay the proven fallbacks; the belt is
-ambient/decorative and invents no data. Deferred still: live convert page % (converter), Beer
-supersede auto-swap (ThinkPad, phase-gated).
+*(No session open — S35 closed 2026-07-22. **The surface trio is complete**: the
+`Dock ⇄ Room ⇄ Wall` switch. **Wall** = a glanceable across-room projection (giant verdict, six
+station dots, three hero numbers); the **canvas transit belt** sits under the Room's rail as an
+ambient activity projection (chips reflect real in-flight work; empty when the watcher's down;
+reduced-motion-safe). Frontend-only, pipeline untouched (projection law). Verified in the harness
+(0 console errors) and LIVE in the real widget (belt animating, Wall "ATTENTION" on the real
+Cybernetics hold, live VRAM/survival). Installed widget updated in place (SHA256-verified) +
+running (Dock). Design record: **docs/16** (§8 #1 now shipped). Next installment: the drill-down
+file explorer, docs/16 §8 #2. Deferred: live convert page % (converter), Beer supersede auto-swap
+(ThinkPad, phase-gated).)*
 
 ---
 
@@ -134,7 +123,8 @@ supersede auto-swap (ThinkPad, phase-gated).
 - ✅ **S32: live-test hardening + widget rebuild 2026-07-21.** Four defects found by running the installed widget end to end, all fixed + verified + committed (`eb4dd87`): (1) **autostart crash** on a Start-menu launch — windowless spawn inherited dead stdio → `Stdio::null()` in watcher.rs/preflight.rs; (2) **UI freeze** on an offline vault host — `vault_check`/`vault_pull` now async + spawn_blocking (off the main thread); (3) **clean-lane VRAM thrash/timeout** on figure-dense PDFs — `route()` now caps the clean-lane Marker batch (live-verified ~8 GB peak, was 9.9); (4) **audit false positives** on a table/heading-dense book — `degeneration()` recalibrated (docs/15 §9.2: zlib **AND** trigram + contiguous-run line check; re-verified Beer flags, other 4 clear). Widget **rebuilt** (fresh exe + installer, Rust fixes baked in). **AWAITING Rab: run the new installer** — `…\target\release\bundle\nsis\File Portal_0.1.0_x64-setup.exe` → Start-menu launch = a self-sufficient widget (autostart survives, no freeze, capped converts, recalibrated audit).
 - ✅ **S33: the Opsroom — a quarantined control-panel dashboard prototype 2026-07-21 (overnight, autonomous).** A professional, self-contained, zero-dependency dashboard (`prototypes/control-panel/opsroom/opsroom.html`): the 6-station line, a live **canvas transit viewer**, golden-signal KPI tiles, convert-station progress, the Survival Audit (verdicts + damage map), a live event stream. Theme-aware, reduced-motion-safe, palette-cached. Design lineage (researched; sources in `DESIGN.md`): Project Cybersyn's Opsroom × ISOTYPE × modern observability × Linear × the Claude Design System — "a control room for a viable system, in the lineage of the one Beer built." New **`prototypes/` quarantine section** (category/name; zero pipeline coupling; CI-untouched). Published as an Artifact. **Quarantined + disposable** — reads/triggers nothing. **AWAITING Rab's verdict**; if it lands, wire to the existing `invoke()` projections (`line_state`/`assay_status`/`shift_summary`/`last_receipt`).
 - ✅ **S34: the Control Room becomes the widget's face 2026-07-22 (autonomous).** Graduated the merged Claude-Design *Control Room* artifact into the live widget as a `Dock ⇄ Room` surface switch — Rab's own recommendation (the vanilla *lift*: lift the source object's logic + tokens + markup, drop its React runtime, swap its simulation for the existing `invoke()` projections). New **`room.js`** rebuilds the source object's `renderVals()` shape from real commands: six-station rail, golden-signal KPI band, convert station, the full Survival-Audit evidence card, live event stream. New **`room.rs`** adds two read-only projections — `room_metrics` (throughput / median s-per-page / survival average / recent audits / vault count, from `events.jsonl` + manifests + the Library clone) and `gpu_vram` (live `nvidia-smi`). Token layer (dark/light + clay/indigo/teal) lifted into `styles.css`; Dock left pixel-stable. **The pipeline was never touched** (projection law; `windows-converter/` untouched in git). Verified: mock harness on the real snapshot (0 console errors; fixed a light-mode `.ac-*` contrast bug), `clippy -D warnings` clean, `tauri build` green, and **LIVE in the real Tauri app** (VRAM 1.9/10 GB from nvidia-smi, VAULT 4 from the Library, survival avg 0.69, real event stream, Cybernetics `fail` in terracotta). Every pipeline segment tested green (converter/formatter compile + watcher watching; vault clone healthy; ThinkPad **active over Tailscale**). **The installed widget was updated in place (SHA256-verified copy) + relaunched — it is running now.** Fresh installer staged: `…\target\release\bundle\nsis\File Portal_0.1.0_x64-setup.exe`. Design record + build audit: **docs/16-control-room-face.md**. Deferred to next MAJOR installments (docs/16 §8): the Wall surface, the canvas transit belt, the drill-down file explorer, live convert page %.
-- ▶ Next up (user-gated): **drive the Room** (click `Room` in the titlebar) and give a verdict · the live **Beer** flag→re-convert→re-audit test (now visible in the Room's Survival-Audit card) · ThinkPad **exporter supersede flow** (auto-swap, THE SUPERSEDE GAP) + enrichment wiring · next installments: **Wall + canvas belt + drill-down explorer + live convert page %** (docs/16 §8). Opsroom prototype superseded by the graduated Room. Phase 5 Forgejo: deferred, maybe never. Carry-forward: `min_chars_per_page=100` provisional.
+- ✅ **S35: the surface trio completed — the Wall + the canvas transit belt 2026-07-22 (autonomous).** Continuing docs/16 §8 #1. Added the third density to the `Dock ⇄ Room ⇄ Wall` switch: **Wall** = a glanceable across-room projection (giant system verdict — terracotta only on attention/fail — the six stations as big dots + three hero numbers: survival avg / throughput / vault; window resizes to 900×500). The **canvas transit belt** sits under the Room's station rail as an *ambient activity projection* — chip count/tint reflect real in-flight work (drop_waiting / converting / gate / held), empty when the watcher is down; reduced-motion-safe, palette-cached, persistent chips across the poll's `innerHTML` redraw. The Room header verdict now reflects real state (viable/attention/paused). **Frontend-only — no Rust, pipeline untouched.** Verified: harness on the real snapshot (0 console errors, dark+light), `node --check`, `tauri build` green, and **LIVE in the real widget** (Dock⇄Room⇄Wall all switch; belt animating; Wall "ATTENTION" on the real Cybernetics hold; live VRAM 1.4/10, survival 0.69, vault 4). **Installed widget updated in place (SHA256-verified) + running (Dock, tucked top-left).** Design record: docs/16 (§8 #1 shipped).
+- ▶ Next up (user-gated): the **drill-down file explorer** (docs/16 §8 #2 — station → live tree; needs new read-only tree-read commands in `room.rs` + the flip-open; DESIGN.md's "biggest UI installment") · the live **Beer** flag→re-convert→re-audit test (visible in the Room's Survival-Audit card) · ThinkPad **exporter supersede flow** (auto-swap, THE SUPERSEDE GAP) · **live convert page %** (docs/16 §8 #3, touches the converter). Phase 5 Forgejo: deferred. Carry-forward: `min_chars_per_page=100` provisional.
 
 ---
 

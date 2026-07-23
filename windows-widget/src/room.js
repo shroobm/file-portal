@@ -31,6 +31,23 @@ let pollT = 0;
 let deps = {}; // { setStatus, dbg, getWindow, LogicalSize }
 // cross-surface bits the Dock owns; the Room mirrors them so a click here matches a click there
 let gateMode = "off";
+let surface = "room"; // "room" | "wall" — the density this module is rendering
+
+// the canvas transit belt (S35): an AMBIENT activity projection. Chip count/tint reflect real
+// in-flight work (drop_waiting / converting / gate / held); empty when the watcher is down. It
+// invents no traffic — it visualises the line's real state. Reduced-motion → static.
+const belt = { canvas: null, chips: [], raf: 0, running: false, W: 0, H: 0, DPR: 1, pal: {}, reduce: false, targetN: 0, tints: [] };
+
+// System verdict (shared by the Room header + the Wall): terracotta only when your hand is
+// required (a pending gate decision or an audit fail); green when viable; grey when paused.
+function systemVerdict(d) {
+  const gateN = (d.pf || []).length;
+  const av = d.assay?.verdict;
+  const w = d.watcher?.state === "running";
+  if (!w) return { word: "paused", color: "var(--text-3)" };
+  if (av === "fail" || gateN > 0) return { word: "attention", color: "var(--clay)" };
+  return { word: "viable", color: "var(--ok)" };
+}
 
 // ---- data gathering: assemble the view-model from real commands --------------------------
 async function gatherVM() {
@@ -230,9 +247,10 @@ function header(d) {
   const v = d.vram;
   const gpu = v && v.total ? `${Number(v.used).toFixed(1)}/${v.total} GB` : "GPU —";
   const clock = new Date().toISOString().slice(11, 19);
+  const sv = systemVerdict(d);
   return `<div class="room-head">` +
     `<div class="rh-brand"><span class="rh-logo">◆</span><div><div class="rh-title">File Portal</div><div class="rh-sub">OPERATIONS ROOM</div></div></div>` +
-    `<div class="rh-stat"><span class="dot ok"></span> System <b>viable</b></div>` +
+    `<div class="rh-stat"><span class="dot" style="background:${sv.color}"></span> System <b style="color:${sv.color}">${sv.word}</b></div>` +
     `<div class="rh-stat"><span class="dot ${w ? "ok" : "off"}"></span> Watcher <b>${w ? "up" : "off"}</b></div>` +
     `<div class="rh-stat mono">${gpu}</div>` +
     `<div class="rh-stat mono">${clock} UTC</div>` +
@@ -241,11 +259,16 @@ function header(d) {
 
 function render(vm) {
   if (!roomEl) return;
+  if (surface === "wall") { renderWall(vm); return; }
+  roomEl.className = "room-mode";
   roomEl.innerHTML =
-    header(vm) + stationRail(vm) + kpiTiles(vm) +
+    header(vm) + stationRail(vm) +
+    `<canvas id="room-belt" class="room-belt"></canvas>` +
+    kpiTiles(vm) +
     `<div class="room-panels">${convertPanel(vm)}${assayPanel(vm)}${eventsPanel(vm)}</div>` +
     `<div class="room-foot"><span>${esc(shiftLine(vm))}</span><span class="rf-lin">Control Room · projection of the live pipeline · docs/16</span></div>`;
   wire();
+  attachBelt(vm); // persistent chips (module state) survive the innerHTML replace
 }
 
 function shiftLine(d) {
@@ -318,15 +341,147 @@ async function roomLoop() {
   pollT = setTimeout(roomLoop, fast ? 4000 : 9000);
 }
 
+// ---- the canvas transit belt (S35) --------------------------------------------------------
+// Ambient projection of the line's real activity. Runs only while the Room is showing.
+function beltTargets(d) {
+  const w = d.watcher?.state === "running";
+  if (!w) return { n: 0, tints: [] };
+  const dw = d.ls?.drop_waiting || 0;
+  const conv = d.ls?.converting ? 1 : 0;
+  const gateN = (d.pf || []).length;
+  const heldN = d.assay?.held?.length || 0;
+  const n = Math.max(2, Math.min(12, 2 + dw + conv + gateN + heldN));
+  const tints = [];
+  for (let i = 0; i < dw; i++) tints.push("flow");
+  if (conv) tints.push("clay");
+  for (let i = 0; i < gateN; i++) tints.push("warn");
+  for (let i = 0; i < heldN; i++) tints.push("clay");
+  while (tints.length < n) tints.push("flow");
+  return { n, tints };
+}
+function newChip(tint) {
+  return { x: Math.random(), y: 0.28 + Math.random() * 0.44, speed: (0.018 + Math.random() * 0.014) / 60, tint: tint || "flow" };
+}
+function refreshBeltPalette() {
+  const cs = getComputedStyle(document.documentElement);
+  belt.pal = {};
+  for (const k of ["--flow", "--warn", "--clay", "--ok", "--border", "--border-strong", "--surface-2", "--text-3"]) {
+    belt.pal[k] = cs.getPropertyValue(k).trim() || "#888";
+  }
+  belt.reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
+}
+function sizeBelt() {
+  const c = belt.canvas; if (!c) return;
+  const r = c.getBoundingClientRect();
+  if (!r.width) return;
+  belt.DPR = Math.min(2, window.devicePixelRatio || 1);
+  belt.W = r.width; belt.H = r.height;
+  c.width = belt.W * belt.DPR; c.height = belt.H * belt.DPR;
+  c.getContext("2d").setTransform(belt.DPR, 0, 0, belt.DPR, 0, 0);
+}
+function rr(ctx, x, y, w, h, rad) {
+  ctx.beginPath(); ctx.moveTo(x + rad, y);
+  ctx.arcTo(x + w, y, x + w, y + h, rad); ctx.arcTo(x + w, y + h, x, y + h, rad);
+  ctx.arcTo(x, y + h, x, y, rad); ctx.arcTo(x, y, x + w, y, rad); ctx.closePath();
+}
+function tintColor(t) { return belt.pal[{ flow: "--flow", warn: "--warn", clay: "--clay", ok: "--ok" }[t]] || belt.pal["--flow"]; }
+function attachBelt(vm) {
+  belt.canvas = document.getElementById("room-belt");
+  if (!belt.canvas) return;
+  refreshBeltPalette();
+  const t = beltTargets(vm); belt.targetN = t.n; belt.tints = t.tints;
+  requestAnimationFrame(() => sizeBelt());
+  if (!belt.running) { belt.running = true; belt.raf = requestAnimationFrame(drawBelt); }
+}
+function stopBelt() {
+  belt.running = false;
+  if (belt.raf) cancelAnimationFrame(belt.raf);
+  belt.raf = 0;
+}
+function drawBelt() {
+  if (!belt.running) return;
+  const c = belt.canvas;
+  if (c && belt.W) {
+    // sync chip population to the real target
+    while (belt.chips.length < belt.targetN) belt.chips.push(newChip(belt.tints[belt.chips.length % (belt.tints.length || 1)]));
+    while (belt.chips.length > belt.targetN) belt.chips.pop();
+    const ctx = c.getContext("2d"), W = belt.W, H = belt.H, yMid = H * 0.5;
+    ctx.clearRect(0, 0, W, H);
+    ctx.strokeStyle = belt.pal["--border-strong"]; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.moveTo(0, yMid); ctx.lineTo(W, yMid); ctx.stroke();
+    for (let i = 0; i < 6; i++) {
+      const x = (i + 0.5) / 6 * W;
+      ctx.strokeStyle = belt.pal["--border"]; ctx.beginPath(); ctx.moveTo(x, 8); ctx.lineTo(x, H - 8); ctx.stroke();
+      ctx.fillStyle = belt.pal["--text-3"]; ctx.beginPath(); ctx.arc(x, yMid, 2.2, 0, 7); ctx.fill();
+    }
+    for (const d of belt.chips) {
+      const x = d.x * W, y = H * d.y, col = tintColor(d.tint);
+      ctx.fillStyle = col; ctx.globalAlpha = 0.14; rr(ctx, x - 11, y - 7, 22, 14, 4); ctx.fill(); ctx.globalAlpha = 1;
+      ctx.strokeStyle = col; ctx.lineWidth = 1.3; ctx.fillStyle = belt.pal["--surface-2"]; rr(ctx, x - 8, y - 5, 16, 10, 3); ctx.fill(); ctx.stroke();
+      ctx.fillStyle = col; ctx.fillRect(x - 3.5, y - 2, 7, 1); ctx.fillRect(x - 3.5, y + 0.5, 4.5, 1);
+      if (!belt.reduce) { d.x += d.speed; if (d.x > 1.05) { d.x = -0.05; d.tint = belt.tints[Math.floor(Math.random() * (belt.tints.length || 1))] || "flow"; d.y = 0.28 + Math.random() * 0.44; } }
+    }
+  }
+  belt.raf = requestAnimationFrame(drawBelt);
+}
+addEventListener("resize", () => { if (belt.running) sizeBelt(); });
+
+// ---- the Wall surface (S35): a glanceable projection for a screen across the room (docs/14) --
+function renderWall(vm) {
+  const sv = systemVerdict(vm);
+  const m = vm.metrics || {}, ls = vm.ls || {}, assay = vm.assay || {};
+  const surv = m.survival_avg, survStr = surv != null ? Number(surv).toFixed(2) : "—";
+  const survCol = surv == null ? "var(--text-3)" : surv >= 0.9 ? "var(--ok)" : surv >= 0.75 ? "var(--warn)" : "var(--clay)";
+  const thru = m.throughput_pp_s != null ? Number(m.throughput_pp_s).toFixed(1) : "—";
+  const vault = m.vault_count != null ? String(m.vault_count) : "—";
+  const conv = ls.converting ? shortName(ls.converting) : "line idle";
+  const gateN = (vm.pf || []).length;
+  // the six stations as big dots
+  const defs = [
+    { g: "▚", n: "Intake", on: (ls.drop_waiting || 0) > 0, col: "var(--flow)" },
+    { g: "⚙", n: "Convert", on: !!ls.converting, col: "var(--clay)" },
+    { g: "✳", n: "Gate", on: gateN > 0, col: "var(--clay)" },
+    { g: "◎", n: "Assay", on: assay.verdict === "fail", col: assay.verdict === "fail" ? "var(--clay)" : assay.verdict === "flag" ? "var(--warn)" : "var(--ok)", always: true },
+    { g: "⇈", n: "Ship", on: false, col: "var(--ok)" },
+    { g: "▤", n: "Vault", on: true, col: "var(--ok)", always: true },
+  ];
+  const dots = defs.map((s) => {
+    const lit = s.on || s.always;
+    const col = lit ? s.col : "var(--text-3)";
+    const pulse = (s.n === "Assay" && assay.verdict === "fail") ? "assay-pulse 1.7s ease-in-out infinite" : "none";
+    return `<div class="wl-st"><div class="wl-dot" style="color:${col};border-color:${col};animation:${pulse};opacity:${lit ? 1 : 0.4}">${s.g}</div><div class="wl-nm">${s.n}</div></div>`;
+  }).join("<span class='wl-link'></span>");
+  const latest = (vm.shift?.tail || []).slice(-1)[0];
+  const evtLine = latest ? eventMsg(latest) : "";
+  roomEl.className = "wall-mode";
+  roomEl.innerHTML =
+    `<div class="wall">` +
+    `<div class="wall-top"><span class="wl-brand">◆ File Portal</span><button class="rh-theme" id="room-theme">◐</button></div>` +
+    `<div class="wall-verdict" style="color:${sv.color}">${sv.word.toUpperCase()}</div>` +
+    `<div class="wall-line">${dots}</div>` +
+    `<div class="wall-heroes">` +
+    `<div class="wl-hero"><div class="wl-hv" style="color:${survCol}">${survStr}</div><div class="wl-hl">survival avg</div></div>` +
+    `<div class="wl-hero"><div class="wl-hv">${thru}<span>pp/s</span></div><div class="wl-hl">throughput</div></div>` +
+    `<div class="wl-hero"><div class="wl-hv">${vault}</div><div class="wl-hl">in the vault</div></div>` +
+    `</div>` +
+    `<div class="wall-foot"><span class="wl-conv">${esc(conv)}</span><span class="wl-evt">${esc(evtLine)}</span></div>` +
+    `</div>`;
+  roomEl.querySelector("#room-theme")?.addEventListener("click", toggleTheme);
+}
+
 // ---- public API ---------------------------------------------------------------------------
 export function initRoom(dependencies) {
   deps = dependencies || {};
   roomEl = document.getElementById("room");
 }
 
-export function setRoomActive(on) {
-  active = on;
+// name: "off" | "room" | "wall"
+export function setActiveSurface(name) {
   clearTimeout(pollT);
-  if (on) { roomEl.hidden = false; roomLoop(); }
-  else { roomEl.hidden = true; }
+  if (name === "off") { active = false; stopBelt(); roomEl.hidden = true; return; }
+  surface = name;
+  active = true;
+  if (name !== "room") stopBelt();
+  roomEl.hidden = false;
+  roomLoop();
 }

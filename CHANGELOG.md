@@ -8,6 +8,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S35 — the surface trio completed: the Wall + the canvas transit belt (2026-07-22).**
+  Continuing docs/16 §8. Frontend-only, projection-safe (no pipeline touch); design lifted from
+  the source object (`prototypes/control-panel/control-room/`).
+  - **Wall surface** — a third density in the `Dock ⇄ Room ⇄ Wall` switch: a glanceable
+    across-the-room projection (giant system verdict — terracotta only when your hand is required
+    — the six stations as big dots, three hero numbers: survival avg / throughput / vault). The
+    window resizes into it (900×500).
+  - **Canvas transit belt** — under the Room's station rail: an *ambient activity projection*
+    whose chip count and tint reflect real in-flight work (drop_waiting / converting / gate /
+    held), empty when the watcher is down. Reduced-motion-safe, palette-cached, redraws through
+    the Room's poll without resetting (persistent chip state across `innerHTML`). Invents no
+    traffic — it visualises the line's real state.
+  - The Room header's system verdict now reflects real state (`viable` / `attention` / `paused`)
+    instead of a constant. Verified in the harness (0 console errors, dark+light) and **live in
+    the real widget** (belt animating; Wall "ATTENTION" on the real Cybernetics hold; live VRAM,
+    survival average, vault count). Next: the drill-down file explorer (docs/16 §8 #2).
+
 - **S34 — the Control Room becomes the widget's face (2026-07-22).** Graduated the merged
   Claude-Design *Control Room* artifact into the live widget as a second surface, wired to real
   pipeline data. Design record + build audit: `docs/16-control-room-face.md`.
