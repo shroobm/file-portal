@@ -56,34 +56,23 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S42 OPEN 2026-07-23 (Desktop) — true per-page convert progress (docs/16 §8 #3).** Rab freed the
-machine + green-lit this (Steam/Overwolf closed, ~9 GB VRAM free). The **first change to the core
-converter** since the projection law — handled with maximum care + fail-safe design. Standing
-instruction: **free ALL resources at session close** (widget + watcher + convert procs → zero GPU
-load) so his little brother can game.
-
-Design — replace the Room's elapsed÷ETA estimate (S37) with REAL progress parsed live from Marker:
-1. **Capture the real format first** — make a tiny 3-page born-digital PDF (marker-env fitz), run
-   `marker_single` directly, capture stderr → see surya's actual multi-stage tqdm bars. Design the
-   regex against real output (NOT a guess). Surya bars are per-STAGE (layout/detection/OCR/recog),
-   not strictly per-page → the honest signal is **current stage + its n/total + %**.
-2. **`convert_and_ship.convert` — fail-safe streaming** — `subprocess.run(…,--disable_tqdm,capture)` →
-   `Popen(… no --disable_tqdm …, stdout=PIPE, stderr=STDOUT, text=True)`; a **daemon reader thread**
-   iterates lines (text-mode universal newlines splits tqdm's `\r` updates), matches the bar regex,
-   writes `{stage,n,total,pct,frac}` to `BASE/.convert-progress.json`. Main thread `proc.wait(timeout=3600)`
-   (kill on timeout), returncode check + error text from the captured output, markdown still read from
-   the file. **Any progress failure is swallowed — the convert result/behaviour is byte-identical.**
-   Clear the progress file in a `finally`.
-3. **`line.rs`** — read `.convert-progress.json` → add `convert_stage` + `convert_frac` (+ n/total) to
-   `line_state` (only while `.gpu-lock` present).
-4. **`room.js` convertPanel** — if `convert_frac` present, drive the bar + a stage label from it (real);
-   else fall back to the S37 elapsed÷ETA estimate. Harness-test the render.
-5. **Test** — `--dry-run` convert of the tiny PDF (NO vault write): watch `.convert-progress.json`
-   update live + confirm the convert completes normally (md produced, EXPORT skipped). Verify the JSON
-   shape line.rs expects. Then build + swap + (best-effort) live Room check.
-6. **Close** — docs/16 §8 #3 done, CHANGELOG + ledger + TIME-STATE, then **CLEAN SHUTDOWN** (kill
-   widget/watcher/convert, verify zero GPU compute load) — leave the installer staged, widget NOT
-   running (per Rab's free-the-GPU request; note it in the close).
+*(S42 closed 2026-07-23 (Desktop). **True per-page/per-stage convert progress SHIPPED** (docs/16 §8
+#3) — the widget's §8 plans are now all done. The Room's Convert station shows the **real current
+Marker stage + item count** streamed live (e.g. "Recognizing Layout · 2/3"), not just an elapsed
+estimate. **First change to the core converter since the projection law — done fail-safe.**
+`convert_and_ship.convert`: dropped `--disable_tqdm`, `subprocess.run` → `Popen` + a daemon reader
+thread parsing surya's tqdm bars (regex validated against real captured output) into
+`library/.convert-progress.json` `{stage,pct,n,total,frac}`; **all progress work is best-effort and
+cannot change the conversion** (same returncode check, 3600 s timeout w/ kill, markdown-from-file;
+faults swallowed; cleared on end/timeout). `line.rs` reads it only while `.gpu-lock` is held →
+`convert_stage`/`frac`/`n`/`total` in `line_state`. `room.js` Convert panel shows the live stage +
+count; the bar stays the forward-only elapsed÷ETA estimate (surya's multi-stage bars have no clean
+monotonic overall %). Validated: isolated `convert()` on a 3-page PDF wrote real stages, correct md
+(3721 ch), cleared progress, no events pollution; `clippy -D warnings` clean; convert-panel harness 0
+errors; `tauri build` green + boots (PID 17780). Installed = S42 (SHA `D8687FB2…`). **Per Rab's
+request the whole pipeline was then SHUT DOWN — widget + watcher stopped, zero GPU compute load — so
+his little brother can game; installed exe launches S42 next time. §8 #5 supersede remains
+ThinkPad-only** (widget side done via ⟳ re-convert).)*
 
 *(S41 closed 2026-07-23 (Desktop). **GPU telemetry stream COMPLETE** (docs/16 §8 #4). S38 shipped the
 VRAM sparkline; the probe already reported util+temp as numbers — S41 gives **utilization +
@@ -204,7 +193,8 @@ convert % (#3, core converter); the Beer remedy / SUPERSEDE GAP (#5, ThinkPad).)
 - ✅ **S39: widget resize fix 2026-07-23 (Desktop, Rab present).** Rab-reported: the widget "defaulted to a size" — dragging an edge to enlarge it reverted. Cause: `reflow()` (main.js) re-asserted `setSize(480, content)` on nearly every poll (via `pfCheck → pfRender → pfResize → reflow`, even empty-queue) and fired regardless of surface, pinning width to 480 + fighting the drag. Fix (frontend-only, no Rust): detect a manual resize via `getCurrentWindow().onResized` (event dims vs. the last size WE applied + a suppress-window for the settle echo), **remember it per surface** (`userSize.{dock,room,wall}`); `reflow()` now Dock-only and, once user-sized, only **grows** height to prevent a clip (never shrinks/never touches width); surface switches restore the remembered size (else default Dock content-fit / Room 760×600 / Wall 900×500). **Verified LIVE:** a programmatic resize to 796×639 **held across 13 s of polling** (was reverting to ~496); boot log recorded `user-sized dock → 780×631`. `node --check` clean, `tauri build` green. Installed widget swapped (SHA256 `BDA346A6…`) + relaunched fresh (PID 25504). Close `9cc0f31`.
 - ✅ **S40: start centered on monitor 1 2026-07-23 (Desktop, Rab-requested).** Follow-up to S39 (sizes don't persist → every launch should start predictably). New `main.js::centerOnPrimary()` runs once at boot (after the initial reflow settles height): `primaryMonitor()` (pos+size) + `outerSize()` → `setPosition` to the monitor-center, all physical px (DPI-correct; lands on the primary regardless of a 2nd monitor's offset). Launch-only; the user can still drag it anywhere (moves untracked). Added `core:window:allow-set-position` (regenerated `gen/schemas/capabilities.json`). **Verified LIVE:** relaunched window center = **(1280,720)** = the 2560×1440 primary's exact center, on DISPLAY1. `node --check` clean, `tauri build` green. Installed widget swapped (SHA256 `11038318…`) + relaunched (PID 10116, centered). Close `ba922f8`.
 - ✅ **S41: GPU telemetry stream complete 2026-07-23 (Desktop).** docs/16 §8 #4 fully done. Gave **utilization + temperature their own rolling sparklines**: a unified **GPU telemetry strip** in the Room (VRAM % / GPU util % / Temp °C, fixed scales 0–100 / 0–100 / 30–95 °C, clay under pressure >92/>95/>83, else flow). `sampleGpu` feeds three rings (`vramHist`/`utilHist`/`tempHist`) from the same one read per poll — no backend thread. The VRAM sparkline graduated from the KPI tile into the strip (tile → gauge). Frontend-only (`room.js` + `styles.css`); read-only projection. Harness-verified (0 console errors; all three accumulate on fixed scales — temp Y-coords confirm the 30–95 domain; util clay at 98%; dark+light), `tauri build` green. Installed swapped (SHA256 `55128BE2…`) + relaunched (PID 22152). Close `a0554dd`. Deferred by choice: always-on backend sampler; throughput/median rolling-window rework (already an events-tail rolling window).
-- ▶ Next up: **S42 = true per-page convert %** (§8 #3, fragile Marker `--disable_tqdm`→streamed-tqdm parsing of surya's multi-stage bars; touches the core convert — fail-safe Popen streaming) · ThinkPad **exporter supersede flow** (THE SUPERSEDE GAP, §8 #5 — widget side done via ⟳ re-convert; the exporter auto-swap is ThinkPad-only) · the **Beer** remedy loop (depends on the supersede). Phase 5 Forgejo: deferred. Carry-forward: `min_chars_per_page=100` provisional.
+- ✅ **S42: true per-page/per-stage convert progress 2026-07-23 (Desktop).** docs/16 §8 #3 done — **the widget's §8 plans are all complete.** The Room's Convert station shows the **real live Marker stage + item count** (e.g. "Recognizing Layout · 2/3"). **First change to the core converter since the projection law — fail-safe:** `convert_and_ship.convert` streams Marker (`Popen` + daemon reader thread parsing surya's tqdm bars, regex validated vs real output) → `library/.convert-progress.json`; all progress work is best-effort and CANNOT change the conversion (same returncode/timeout/markdown-from-file; faults swallowed; cleared on end). `line.rs` reads it while `.gpu-lock` held → `convert_stage`/`frac`/`n`/`total`. `room.js` shows the live stage; bar stays the forward-only elapsed÷ETA estimate. Validated: isolated `convert()` on a 3-page PDF wrote real stages + correct md (3721 ch) + cleared progress + no events pollution; `clippy -D warnings` clean; convert-panel harness 0 errors; `tauri build` green + boots. Installed = S42 (`D8687FB2…`). **Then per Rab's request the pipeline was SHUT DOWN (widget + watcher stopped, zero GPU load) so his little brother can game.**
+- ▶ Next up: **§8 #5 ThinkPad exporter supersede flow** (THE SUPERSEDE GAP — widget side done via ⟳ re-convert; the exporter auto-swap is ThinkPad-only + writes the vault → needs a ThinkPad session) · the **Beer** remedy loop (depends on the supersede). Phase 5 Forgejo: deferred. Carry-forward: `min_chars_per_page=100` provisional. **The Desktop widget's docs/16 §8 installments (#1–#4 + #3) are DONE.**
 
 ---
 
@@ -263,6 +253,7 @@ commit; "Docs touched" covers the whole session (open plan → close). Verify a 
 | 2026-07-23 | Desktop | S39: widget resize fix (Rab-reported). The widget "defaulted to a size" — a manual drag reverted because `reflow()` re-asserted `setSize(480, content)` on nearly every poll (via `pfCheck → pfRender → pfResize → reflow`, even empty-queue) and fired regardless of surface. Fix (main.js, frontend-only, no Rust): detect a manual resize via `getCurrentWindow().onResized` (event dims vs. last-applied + a suppress-window for the settle echo), remember per surface (`userSize.{dock,room,wall}`); `reflow()` now Dock-only + grow-only (never shrinks/touches width once user-sized); surface switches restore the remembered size (else default Dock content-fit / Room 760×600 / Wall 900×500). Verified LIVE: programmatic resize to 796×639 held across 13 s of polling (was reverting to ~496); boot log recorded `user-sized dock → 780×631`. `node --check` clean, `tauri build` green; installed widget swapped (SHA256 BDA346A6…) + relaunched fresh (PID 25504) | CLAUDE_README, CHANGELOG, main.js | 9cc0f31 |
 | 2026-07-23 | Desktop | S40: widget opens centered on the primary monitor (monitor 1), Rab-requested follow-up to S39. New `main.js::centerOnPrimary()` at boot (after the initial reflow settles height): `primaryMonitor()` pos+size + `outerSize()` → `setPosition` to the monitor-center, all physical px (DPI-correct; lands on the primary regardless of a 2nd monitor's offset). Launch-only; moves untracked. Added `core:window:allow-set-position` (regenerated `gen/schemas/capabilities.json`). Verified LIVE: relaunched window center = (1280,720) = the 2560×1440 primary's exact center, on DISPLAY1. `node --check` clean, `tauri build` green; installed swapped (SHA256 11038318…) + relaunched (PID 10116) | CLAUDE_README, CHANGELOG, main.js, capabilities/default.json, gen/schemas/capabilities.json | ba922f8 |
 | 2026-07-23 | Desktop | S41: GPU telemetry stream complete (docs/16 §8 #4). Gave utilization + temperature their own rolling sparklines — a unified GPU telemetry strip in the Room (VRAM % / GPU util % / Temp °C; fixed scales 0–100 / 0–100 / 30–95 °C; clay under pressure >92/>95/>83). `sampleGpu` feeds three rings (`vramHist`/`utilHist`/`tempHist`) from the same one nvidia-smi read per poll (no backend thread). The VRAM sparkline graduated from the KPI tile into the strip (tile → gauge, no duplication). New `.room-gpu`/`.rg-*` CSS. Frontend-only, read-only projection. Harness-verified (0 console errors; all three accumulate on fixed scales — temp Y-coords confirm the 30–95 domain; util clay at 98%; dark+light), `tauri build` green; installed swapped (SHA256 55128BE2…) + relaunched (PID 22152) | CLAUDE_README, CHANGELOG, docs/16, room.js, styles.css | a0554dd |
+| 2026-07-23 | Desktop | S42: true per-page/per-stage convert progress (docs/16 §8 #3 — widget §8 plans all done). Room's Convert station shows the real live Marker stage + item count (e.g. "Recognizing Layout · 2/3"). FIRST change to the core converter since the projection law, done fail-safe: `convert_and_ship.convert` drops `--disable_tqdm`, `subprocess.run`→`Popen` + daemon reader thread parsing surya's tqdm bars (regex validated vs real captured output) → `library/.convert-progress.json` `{stage,pct,n,total,frac}`; all progress work best-effort, CANNOT change the conversion (same returncode check, 3600s timeout w/ kill, markdown-from-file; faults swallowed; cleared on end/timeout). `line.rs` reads it only while `.gpu-lock` held → `convert_stage`/`frac`/`n`/`total` in `line_state`. `room.js` Convert panel shows the live stage; bar stays forward-only elapsed÷ETA (surya multi-stage bars → no clean monotonic overall %). Validated: isolated `convert()` on a 3-page PDF wrote real stages + correct md (3721 ch) + cleared progress + no events pollution; `clippy -D warnings` clean; convert-panel harness 0 errors; `tauri build` green + boots. Installed = S42 (D8687FB2…). Then per Rab's request the pipeline was SHUT DOWN (widget + watcher stopped, zero GPU load) for his brother to game | CLAUDE_README, CHANGELOG, docs/16, convert_and_ship.py, line.rs, room.js | 6cca7c1 |
 
 ---
 
