@@ -260,6 +260,18 @@ fn room_metrics(state: State<AppState>) -> Result<serde_json::Value, String> {
 fn gpu_vram() -> serde_json::Value {
     room::gpu_vram()
 }
+// S36 — the drill-down observation system: a station's real on-disk tree (read-only projection).
+#[tauri::command]
+fn station_tree(state: State<AppState>, seg: String) -> Result<serde_json::Value, String> {
+    let (pipeline, vault) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (cfg.gpu_pipeline_dir.clone(), cfg.vault_library_dir.clone())
+    };
+    room::station_tree(&pipeline, &vault, &seg)
+}
 #[tauri::command]
 fn watcher_status(
     state: State<AppState>,
@@ -412,6 +424,7 @@ fn main() {
             shift_summary,
             room_metrics,
             gpu_vram,
+            station_tree,
             watcher_status,
             watcher_start,
             watcher_stop,

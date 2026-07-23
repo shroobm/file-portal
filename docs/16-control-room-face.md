@@ -202,10 +202,22 @@ Not small fixes — the substantial builds this graduation sets up (each its own
    touch. Verified in the harness (0 console errors) and **live in the real widget** (belt
    animating, Wall "ATTENTION" on the real Cybernetics hold, live VRAM/survival). Still pairs with
    the phone projection ([[remote-dispatch-vision]], docs/14 Phase A) as a future host target.
-2. **The drill-down file explorer** (station → live tree). New read-only tree-walk commands
-   (vault Library, `held/`, `pending/`, `converting/`, `anchor/`) + Tauri **event push** so a
-   node updates the instant the pipeline writes. DESIGN.md §4's named "graduation step" — the
-   single biggest UI installment.
+2. ~~**The drill-down file explorer** (station → live tree).~~ **✅ SHIPPED S36 (2026-07-22).**
+   Clicking a Room station flip-expands (transform-origin at the click) into a **live, accurate
+   file tree read straight from disk** — a real observation system for granularity, not a
+   simulation. New read-only `room::station_tree(seg)` walks the real dirs per station: **vault**
+   → `Library/Inbox/*` bundles; **assay** → `held/*` (with the manifest's real degeneration zones)
+   + recent verdicts; **convert** → `drop/`, `.gpu-lock`, `drop/done/`, `anchor/`; **gate** →
+   `pending/*` + analyst-mode; **ship** → last-shipped (events) + invariants; **intake** → `drop/`
+   + `drop/failed/`. Each node carries true byte sizes, manifest fields (lane/pages/sha/engine),
+   the analyst pass/reject/fail line, and — for audited bundles — the verbatim degeneration zones
+   (zlib/tri×/chars/excerpt) and survival/verdict color-coding. The tree re-reads disk every 4 s
+   while open (live), collapse-state persists (stable name-hash ids), Esc/backdrop/× close.
+   Verified in the harness (0 console errors) and **live in the real widget**: the Assay drill
+   showed the held Cybernetics bundle's real `.md` (155 KB), `assets/` (92 files), and zones at
+   lines 1014/2400 exactly matching the on-disk manifest; the Convert drill showed the anchor
+   bundles with the real analyst summary (270✓ 22🛡 10✗). Frontend-only render + one read-only
+   Rust command; pipeline untouched.
 3. **Live convert page %.** The converter emits per-page progress; `line_state`/`room_metrics`
    read it → the convert station shows real page X/Y + a moving bar (today: ETA countdown).
    Touches the pipeline, so a careful dedicated session.

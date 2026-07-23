@@ -8,6 +8,26 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S36 — the drill-down observation system: station → live on-disk tree (2026-07-22).**
+  Continuing docs/16 §8 (#2). Clicking a Room station flip-expands into an accurate, live file
+  tree read straight from disk — a real granularity/observation surface, not a simulation.
+  - New read-only `room::station_tree(seg)` (`room.rs`) walks the real directories per station:
+    vault → `Library/Inbox/*` bundles; assay → `held/*` (with the manifest's real degeneration
+    zones) + recent verdicts; convert → `drop/`, `.gpu-lock`, `drop/done/`, `anchor/`; gate →
+    `pending/*` + analyst-mode; ship → last-shipped (from `events.jsonl`) + invariants; intake →
+    `drop/` + `drop/failed/`. Each node carries true byte sizes, manifest fields
+    (lane/pages/sha/engine), the analyst pass/reject/fail summary, and — for audited bundles —
+    the verbatim degeneration zones (zlib/tri×/chars/excerpt) with survival/verdict colour-coding.
+  - Frontend (`room.js`): the flip-open overlay (transform-origin at the click), a recursive
+    flattened tree with collapse/expand (stable name-hash ids so state persists), Esc / backdrop /
+    × to close, and a 4 s live re-read while open. Room station click now opens the drill (the
+    Room is observation-first; controls stay in the Dock + the assay panel).
+  - Read-only projection; the converter/formatter are never touched. Verified in the harness
+    (0 console errors) and **live in the real widget**: the Assay drill showed the held
+    Cybernetics bundle's real `.md` (155 KB) + `assets/` (92 files) + zones at lines 1014/2400
+    matching the on-disk manifest; the Convert drill showed anchor bundles with the real analyst
+    summary (270✓ 22🛡 10✗). `clippy -D warnings` clean, `tauri build` green.
+
 - **S35 — the surface trio completed: the Wall + the canvas transit belt (2026-07-22).**
   Continuing docs/16 §8. Frontend-only, projection-safe (no pipeline touch); design lifted from
   the source object (`prototypes/control-panel/control-room/`).

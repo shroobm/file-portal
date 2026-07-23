@@ -298,27 +298,101 @@ function wire() {
     try { await invoke("assay_reconvert", { source: b.dataset.src }); deps.setStatus?.(`Re-queued ${b.dataset.src}`); }
     catch (e) { b.disabled = false; deps.setStatus?.(`Re-convert: ${e}`); }
   }));
-  roomEl.querySelectorAll(".rl-st").forEach((el) => el.addEventListener("click", () => stationClick(el.dataset.seg)));
+  // S36: click a station to OPEN ITS DRILL-DOWN — the accurate observation of its real on-disk
+  // tree. (Controls — gate mode, audit lever, re-convert — live in the Dock + the assay panel.)
+  roomEl.querySelectorAll(".rl-st").forEach((el) =>
+    el.addEventListener("click", (ev) => openDrill(el.dataset.seg, ev)));
 }
 
-async function stationClick(seg) {
+// ---- the drill-down observation system (S36): station → live, real on-disk file tree --------
+let drill = null;           // { seg, tree }
+let drillCollapsed = new Set();
+let drillT = 0;
+let drillOrigin = "50% 40%";
+const STATION_LABEL = { intake: "Intake", convert: "Convert", gate: "Gate", assay: "Assay", ship: "Ship", vault: "Vault" };
+const STATION_GLYPH = { intake: "▚", convert: "⚙", gate: "✳", assay: "◎", ship: "⇈", vault: "▤" };
+
+function openDrill(seg, ev) {
+  drill = { seg, tree: null };
+  drillCollapsed = new Set();
+  const vw = window.innerWidth || 1, vh = window.innerHeight || 1;
+  drillOrigin = (ev && ev.clientX != null) ? `${(ev.clientX / vw * 100).toFixed(1)}% ${(ev.clientY / vh * 100).toFixed(1)}%` : "50% 40%";
+  clearTimeout(pollT); // pause the Room's own poll while inspecting
+  buildDrillShell();
+  drillLoop();
+}
+function killDrill() {
+  drill = null;
+  clearTimeout(drillT);
+  document.getElementById("drill-overlay")?.remove();
+  document.removeEventListener("keydown", drillEsc);
+}
+function closeDrill() {
+  if (!drill) return;
+  killDrill();
+  if (active && surface === "room") roomLoop(); // resume the Room poll
+}
+function drillEsc(e) { if (e.key === "Escape") closeDrill(); }
+function buildDrillShell() {
+  document.getElementById("drill-overlay")?.remove();
+  const o = document.createElement("div");
+  o.id = "drill-overlay";
+  o.innerHTML =
+    `<div class="drill-backdrop"></div>` +
+    `<div class="drill-panel" style="--drill-origin:${drillOrigin}">` +
+    `<div class="drill-head"><span class="dh-glyph">${STATION_GLYPH[drill.seg] || "▤"}</span>` +
+    `<span class="dh-title">${STATION_LABEL[drill.seg] || drill.seg} · live tree</span>` +
+    `<span class="dh-root"></span>` +
+    `<button class="dh-close" title="Close (Esc)">✕</button></div>` +
+    `<div class="drill-body"><div class="rp-note" style="padding:10px 14px">reading disk…</div></div></div>`;
+  document.body.appendChild(o);
+  o.querySelector(".drill-backdrop").addEventListener("click", closeDrill);
+  o.querySelector(".dh-close").addEventListener("click", closeDrill);
+  document.addEventListener("keydown", drillEsc);
+}
+async function drillLoop() {
+  if (!drill) return;
   try {
-    if (seg === "gate") {
-      const order = ["ask", "local", "gemini", "off"];
-      const next = order[(order.indexOf(gateMode) + 1) % order.length];
-      gateMode = await invoke("analyst_mode_set", { mode: next });
-      deps.setStatus?.(`Analyst gate: ${gateMode}`);
-      refresh();
-    } else if (seg === "ship") {
-      const r = await invoke("last_receipt");
-      const bits = [r.bundle];
-      if (r.convert) bits.push(`${r.convert.pages}pp @ ${r.convert.s_per_page}s/p`);
-      if (r.analyst) bits.push(`${r.analyst.backend}: ${r.analyst.passed}✓`);
-      deps.setStatus?.("receipt: " + bits.join(" · "));
-    } else if (seg === "vault") {
-      deps.setStatus?.("Library — use the Dock's Library bar to pull");
-    }
-  } catch (e) { deps.setStatus?.(`${seg}: ${e}`); }
+    drill.tree = await invoke("station_tree", { seg: drill.seg });
+    renderDrillBody();
+  } catch (e) { deps.dbg?.(`station_tree ${drill?.seg}: ${e}`); }
+  drillT = setTimeout(drillLoop, 4000); // live observation — re-read disk every 4s
+}
+function flattenTree(nodes, depth, out) {
+  for (const n of nodes) {
+    const isDir = n.kind === "dir";
+    const collapsed = drillCollapsed.has(n.id);
+    out.push({ ...n, depth, isDir, collapsed });
+    if (isDir && !collapsed && n.children) flattenTree(n.children, depth + 1, out);
+  }
+  return out;
+}
+function renderDrillBody() {
+  const o = document.getElementById("drill-overlay");
+  if (!o || !drill?.tree) return;
+  const rootEl = o.querySelector(".dh-root");
+  rootEl.textContent = drill.tree.root || "";
+  rootEl.title = drill.tree.root || "";
+  const rows = flattenTree(drill.tree.children || [], 0, []);
+  const body = o.querySelector(".drill-body");
+  body.innerHTML = rows.map((r) => {
+    const nameCol = r.kind === "note" ? "var(--text-3)" : r.kind === "zone" ? "var(--clay)" : r.isDir ? "var(--text)" : "var(--text-2)";
+    const caret = r.isDir ? (r.collapsed ? "▸" : "▾") : "";
+    const right = (r.verdict && r.verdict !== null)
+      ? `<span class="dverd" style="color:${VCOL[r.verdict] || "var(--text-3)"}">${r.survival != null ? Number(r.survival).toFixed(3) + " " : ""}${esc(r.verdict)}</span>`
+      : (r.size ? `<span class="dsize">${esc(r.size)}</span>` : "");
+    return `<div class="drow" data-id="${esc(r.id)}" data-dir="${r.isDir}" style="padding-left:${12 + r.depth * 18}px">` +
+      `<span class="dcaret">${caret}</span>` +
+      `<span class="dglyph">${r.glyph || ""}</span>` +
+      `<span class="dname" style="color:${nameCol}">${esc(r.name)}</span>` +
+      (r.meta ? `<span class="dmeta">${esc(r.meta)}</span>` : "") +
+      right + `</div>`;
+  }).join("");
+  body.querySelectorAll('.drow[data-dir="true"]').forEach((el) => el.addEventListener("click", () => {
+    const id = el.dataset.id;
+    if (drillCollapsed.has(id)) drillCollapsed.delete(id); else drillCollapsed.add(id);
+    renderDrillBody();
+  }));
 }
 
 function toggleTheme() {
@@ -478,6 +552,7 @@ export function initRoom(dependencies) {
 // name: "off" | "room" | "wall"
 export function setActiveSurface(name) {
   clearTimeout(pollT);
+  killDrill(); // any open inspector closes when the surface changes
   if (name === "off") { active = false; stopBelt(); roomEl.hidden = true; return; }
   surface = name;
   active = true;

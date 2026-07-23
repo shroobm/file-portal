@@ -162,6 +162,36 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .wall-foot .wl-conv { color: var(--text); }
 .wall-foot .wl-evt { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 
+/* ---- The drill-down: a station's real on-disk tree, flip-expanded (S36) -------------------- */
+@keyframes drill-in { from { opacity: 0; transform: scale(.4); } to { opacity: 1; transform: scale(1); } }
+#drill-overlay { position: fixed; inset: 0; z-index: 60; display: flex; }
+#drill-overlay .drill-backdrop { position: absolute; inset: 0; background: rgba(0,0,0,.45); animation: drill-fade .2s ease; }
+@keyframes drill-fade { from { opacity: 0; } to { opacity: 1; } }
+.drill-panel {
+  position: relative; margin: auto; width: min(94vw, 720px); max-height: 88vh;
+  display: flex; flex-direction: column; overflow: hidden;
+  background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: var(--r);
+  box-shadow: 0 24px 60px -20px rgba(0,0,0,.7);
+  transform-origin: var(--drill-origin, 50% 40%);
+  animation: drill-in .26s cubic-bezier(.2,.8,.2,1);
+}
+.drill-head { display: flex; align-items: center; gap: 8px; padding: 9px 12px; border-bottom: 1px solid var(--border); }
+.drill-head .dh-glyph { color: var(--clay); font-size: 15px; }
+.drill-head .dh-title { color: var(--text); font-size: 11.5px; letter-spacing: .3px; }
+.drill-head .dh-root { color: var(--text-3); font-size: 9px; margin-left: auto; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; max-width: 58%; font-family: var(--font-mono); }
+.drill-head .dh-close { border: 1px solid var(--border); background: var(--surface-2); color: var(--text-2); border-radius: 6px; width: 24px; height: 22px; cursor: pointer; flex: none; }
+.drill-head .dh-close:hover { background: var(--elev); color: var(--text); }
+.drill-body { overflow: auto; padding: 6px 0 8px; font-family: var(--font-mono); font-size: 10.5px; }
+.drow { display: flex; align-items: baseline; gap: 6px; padding: 2px 12px 2px 0; white-space: nowrap; }
+.drow[data-dir="true"] { cursor: pointer; }
+.drow:hover { background: var(--surface-2); }
+.drow .dcaret { width: 10px; flex: none; color: var(--text-3); text-align: center; }
+.drow .dglyph { width: 15px; flex: none; text-align: center; }
+.drow .dname { flex: none; }
+.drow .dmeta { color: var(--text-3); overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+.drow .dsize { margin-left: auto; color: var(--text-3); flex: none; padding-left: 8px; }
+.drow .dverd { margin-left: auto; flex: none; font-size: 9px; padding-left: 8px; }
+
 #titlebar {
   display: flex;
   align-items: center;
