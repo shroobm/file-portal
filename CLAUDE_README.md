@@ -56,7 +56,34 @@ git pull  # always first
 
 ## Current Session Plan
 
-*Replace this section at the start of each session. Commit it before starting work.*
+**S42 OPEN 2026-07-23 (Desktop) — true per-page convert progress (docs/16 §8 #3).** Rab freed the
+machine + green-lit this (Steam/Overwolf closed, ~9 GB VRAM free). The **first change to the core
+converter** since the projection law — handled with maximum care + fail-safe design. Standing
+instruction: **free ALL resources at session close** (widget + watcher + convert procs → zero GPU
+load) so his little brother can game.
+
+Design — replace the Room's elapsed÷ETA estimate (S37) with REAL progress parsed live from Marker:
+1. **Capture the real format first** — make a tiny 3-page born-digital PDF (marker-env fitz), run
+   `marker_single` directly, capture stderr → see surya's actual multi-stage tqdm bars. Design the
+   regex against real output (NOT a guess). Surya bars are per-STAGE (layout/detection/OCR/recog),
+   not strictly per-page → the honest signal is **current stage + its n/total + %**.
+2. **`convert_and_ship.convert` — fail-safe streaming** — `subprocess.run(…,--disable_tqdm,capture)` →
+   `Popen(… no --disable_tqdm …, stdout=PIPE, stderr=STDOUT, text=True)`; a **daemon reader thread**
+   iterates lines (text-mode universal newlines splits tqdm's `\r` updates), matches the bar regex,
+   writes `{stage,n,total,pct,frac}` to `BASE/.convert-progress.json`. Main thread `proc.wait(timeout=3600)`
+   (kill on timeout), returncode check + error text from the captured output, markdown still read from
+   the file. **Any progress failure is swallowed — the convert result/behaviour is byte-identical.**
+   Clear the progress file in a `finally`.
+3. **`line.rs`** — read `.convert-progress.json` → add `convert_stage` + `convert_frac` (+ n/total) to
+   `line_state` (only while `.gpu-lock` present).
+4. **`room.js` convertPanel** — if `convert_frac` present, drive the bar + a stage label from it (real);
+   else fall back to the S37 elapsed÷ETA estimate. Harness-test the render.
+5. **Test** — `--dry-run` convert of the tiny PDF (NO vault write): watch `.convert-progress.json`
+   update live + confirm the convert completes normally (md produced, EXPORT skipped). Verify the JSON
+   shape line.rs expects. Then build + swap + (best-effort) live Room check.
+6. **Close** — docs/16 §8 #3 done, CHANGELOG + ledger + TIME-STATE, then **CLEAN SHUTDOWN** (kill
+   widget/watcher/convert, verify zero GPU compute load) — leave the installer staged, widget NOT
+   running (per Rab's free-the-GPU request; note it in the close).
 
 *(S41 closed 2026-07-23 (Desktop). **GPU telemetry stream COMPLETE** (docs/16 §8 #4). S38 shipped the
 VRAM sparkline; the probe already reported util+temp as numbers — S41 gives **utilization +
