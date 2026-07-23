@@ -1,14 +1,63 @@
 // S20: the widget owns the conveyor watcher's lifecycle (docs/13) — spawn, supervise,
-// stop. Kills the manual console ritual. The child is watch_and_convert.py in the
-// marker-env; killing it mid-conversion is safe (the in-flight convert subprocess runs
-// to completion and ships; only the *watch loop* dies — restart resumes the queue).
+// stop. Kills the manual console ritual. The child is watch_and_convert.py in the marker-env.
+//
+// S37 — no orphans, ever. Before, `stop()` only ran on a GRACEFUL shutdown (the ⏻ button or the
+// window-Destroyed event). A force-kill (`Stop-Process -Force`) or a crash skipped it, so the
+// Python watcher lived on, kept polling drop/, and kept spawning converts — and several such
+// orphans racing the same file thrashed the GPU (found by the S36 live PDF test). Fix: the
+// watcher (and, by inheritance, its Marker convert subprocesses) is assigned to a Windows Job
+// Object with KILL_ON_JOB_CLOSE. The widget holds the only handle to that job for its whole life,
+// so when the widget process ends by ANY means — clean close, force-kill, or crash — the OS
+// closes the handle and terminates the whole job tree. The ⏻ "pause intake" path is unchanged:
+// it kills the watch loop while the widget keeps running, so the job handle stays open and an
+// in-flight convert still finishes; only widget EXIT tears everything down.
 
 use crate::vault::CREATE_NO_WINDOW;
 use serde::Serialize;
+use std::os::windows::io::AsRawHandle;
 use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
+use std::sync::{Mutex, OnceLock};
+use windows_sys::Win32::Foundation::HANDLE;
+use windows_sys::Win32::System::JobObjects::{
+    AssignProcessToJobObject, CreateJobObjectW, SetInformationJobObject,
+    JobObjectExtendedLimitInformation, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
+    JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+};
+
+// A single process-wide job, created once and held for the widget's whole life (never closed
+// explicitly — it closes when the process exits, which is exactly when we want the kill). Stored
+// as isize so the pointer-typed HANDLE can live in a Sync static.
+static JOB: OnceLock<isize> = OnceLock::new();
+
+fn kill_on_close_job() -> HANDLE {
+    let raw = *JOB.get_or_init(|| unsafe {
+        let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        if !job.is_null() {
+            let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
+            info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+            SetInformationJobObject(
+                job,
+                JobObjectExtendedLimitInformation,
+                &info as *const _ as *const core::ffi::c_void,
+                std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+            );
+        }
+        job as isize
+    });
+    raw as HANDLE
+}
+
+/// Put the watcher into the kill-on-close job so it (and any convert it spawns) dies with the
+/// widget. Best-effort: if the job or assignment fails, the watcher still runs — we just lose the
+/// force-kill guarantee for that launch, never correctness.
+fn adopt_into_job(child: &Child) {
+    let job = kill_on_close_job();
+    if !job.is_null() {
+        unsafe { AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE) };
+    }
+}
 
 pub struct WatcherState(pub Mutex<Option<Child>>);
 
@@ -80,6 +129,7 @@ pub fn start(
         .spawn()
         .map_err(|e| format!("failed to spawn watcher: {e}"))?;
     let pid = child.id();
+    adopt_into_job(&child); // dies with the widget even on a force-kill / crash (S37)
     *guard = Some(child);
     Ok(WatcherStatus {
         state: "running".into(),

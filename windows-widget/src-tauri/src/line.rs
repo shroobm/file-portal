@@ -81,6 +81,9 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "drop_waiting": count_pdfs(&base.join("drop")),
         "converting": converting,
         "converting_eta_s": converting_eta_s,
+        // S37: seconds since the .gpu-lock was taken — lets the face draw a live convert
+        // progress bar (elapsed / (elapsed + eta)) without any per-page hook in the converter.
+        "convert_elapsed_s": convert_elapsed_s,
         "failed_count": count_pdfs(&base.join("drop").join("failed")),
         "last_shipped": last_shipped,
         "latest": latest,

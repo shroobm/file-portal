@@ -8,6 +8,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S37 — a live convert progress bar (2026-07-22).** The Room's Convert station now draws a live
+  progress bar + `%` from measured data — `elapsed ÷ (elapsed + estimated-remaining)`, where
+  elapsed is the `.gpu-lock` age (new `convert_elapsed_s` in `line_state`) and the estimate is the
+  existing measured-median ETA. Capped at 95 % until the `converted` event actually fires (it's an
+  estimate, kept honest), smooth width transition + a gentle pulse (reduced-motion-safe). No
+  converter change — true per-page % stays a converter installment (Marker runs with
+  `--disable_tqdm` + buffered output; per-page would need fragile streamed-tqdm parsing of surya's
+  multi-stage bars).
+
 - **S36 — the drill-down observation system: station → live on-disk tree (2026-07-22).**
   Continuing docs/16 §8 (#2). Clicking a Room station flip-expands into an accurate, live file
   tree read straight from disk — a real granularity/observation surface, not a simulation.
@@ -73,6 +82,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
     the drill-down file explorer, and live convert page %.
 
 ### Fixed
+
+- **S37 — the orphan-watcher shutdown: a force-killed / crashed widget can no longer leave a
+  watcher running (2026-07-22).** Found by the S36 live PDF test: `watcher::stop` only ran on a
+  graceful shutdown (the ⏻ button or the window-`Destroyed` event), so `Stop-Process -Force` or a
+  crash skipped it — the Python watcher lived on, kept polling `drop/`, and kept spawning converts;
+  several such orphans racing the same file thrashed the 10 GB GPU (four concurrent Marker
+  instances, lock held for minutes, no completion). Fix (`watcher.rs`): the watcher — and, by job
+  inheritance, its Marker convert subprocesses — is assigned to a **Windows Job Object with
+  `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`**. The widget holds the only handle to that job for its whole
+  life, so when the widget process ends by **any** means (clean close, force-kill, or crash) the OS
+  closes the handle and terminates the whole job tree. Verified live: a `Stop-Process -Force` of the
+  widget — including **mid-convert** — takes the watcher *and* the running Marker convert to zero.
+  The ⏻ "pause intake" path is unchanged (the widget stays alive → the job handle stays open → an
+  in-flight convert still finishes); only widget **exit** tears the tree down. Adds `windows-sys`
+  (already in the lock via tauri — no new version).
 
 - **S32 — four defects found while live-testing the Assay (2026-07-21).** All surfaced by
   running the pipeline end to end (Rab installed the widget and dropped real documents);

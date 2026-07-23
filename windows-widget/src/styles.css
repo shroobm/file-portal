@@ -108,6 +108,10 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .rp-name { font-size: 11px; color: var(--text); margin-bottom: 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .rp-bar { height: 6px; border-radius: 3px; background: rgba(255,255,255,.06); overflow: hidden; margin-bottom: 8px; }
 .rp-bar i { display: block; height: 100%; }
+/* S37: a live convert bar — smooth width growth each poll + a gentle "working" pulse. */
+.rp-bar.live i { transition: width .8s ease; animation: convpulse 1.6s ease-in-out infinite; }
+@keyframes convpulse { 0%, 100% { opacity: 1; } 50% { opacity: .68; } }
+@media (prefers-reduced-motion: reduce) { .rp-bar.live i { animation: none; } }
 .rp-grid { display: grid; grid-template-columns: auto 1fr; gap: 2px 8px; font-size: 9.5px; color: var(--text-3); }
 .rp-grid b { color: var(--text-2); font-weight: 500; text-align: right; }
 .rp-note { font-size: 8.5px; color: var(--text-3); margin-top: 6px; font-style: italic; }

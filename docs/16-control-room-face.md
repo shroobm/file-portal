@@ -218,9 +218,19 @@ Not small fixes — the substantial builds this graduation sets up (each its own
    lines 1014/2400 exactly matching the on-disk manifest; the Convert drill showed the anchor
    bundles with the real analyst summary (270✓ 22🛡 10✗). Frontend-only render + one read-only
    Rust command; pipeline untouched.
-3. **Live convert page %.** The converter emits per-page progress; `line_state`/`room_metrics`
-   read it → the convert station shows real page X/Y + a moving bar (today: ETA countdown).
-   Touches the pipeline, so a careful dedicated session.
+3. **Live convert progress — PARTIAL S37.** The Convert station now shows a **live progress bar +
+   %** from measured data (elapsed `.gpu-lock` age ÷ measured-median ETA; `convert_elapsed_s` added
+   to `line_state`), capped at 95 % until `converted` fires. True **per-page %** is still deferred:
+   Marker runs with `--disable_tqdm` + buffered `subprocess.run`, so page progress would need
+   re-enabling tqdm, streaming `Popen`, and parsing surya's *multi-stage* (not per-page) bars —
+   fragile, and it touches the core convert call. A careful dedicated converter session.
+
+**Robustness fix (S37) — the orphan-watcher shutdown.** Not a docs/16 face feature, but found by
+the §7 live PDF test and fixed the same effort: a force-killed/crashed widget used to orphan its
+Python watcher (graceful `watcher::stop` skipped), and racing orphans thrashed the GPU. Fix: the
+watcher (+ its Marker subprocesses) runs in a Windows Job Object with `KILL_ON_JOB_CLOSE`, so it
+dies with the widget by any means. Proven live (force-kill, incl. mid-convert → whole tree to zero).
+See CHANGELOG "Fixed / S37" + `watcher.rs`.
 4. **GPU telemetry stream.** Promote `gpu_vram` from a per-poll shell-out to a lightweight
    sampler (VRAM + utilization + temp) with a real rolling sparkline; back the throughput /
    median sparklines with a rolling window instead of the events tail.

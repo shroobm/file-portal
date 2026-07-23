@@ -156,17 +156,22 @@ function convertPanel(d) {
   const vram = v && v.total ? `${Number(v.used).toFixed(1)} GB` : "—";
   const state = converting ? "RUNNING" : "IDLE";
   const stateCol = converting ? "var(--ok)" : "var(--text-3)";
-  const pct = converting && ls.converting_eta_s != null ? "" : (converting ? "" : "100");
+  // Live progress from measured data (S37): elapsed / (elapsed + estimated-remaining). Capped at
+  // 95% until the 'converted' event actually fires — it's an ETA-based estimate, kept honest.
+  const el = ls.convert_elapsed_s, rem = ls.converting_eta_s;
+  let pct = converting ? 6 : 100;
+  if (converting && el != null && rem != null && el + rem > 0) pct = Math.min(95, Math.round(el / (el + rem) * 100));
+  const elapsedTxt = converting && el != null ? etaText(el) + " elapsed" : "";
   return `<div class="rp"><div class="rp-head"><span class="rp-title">⚙ Convert station</span>` +
-    `<span class="rp-state" style="color:${stateCol}">${state}</span></div>` +
+    `<span class="rp-state" style="color:${stateCol}">${state}${converting ? " · " + pct + "%" : ""}</span></div>` +
     `<div class="rp-body"><div class="rp-name">${esc(shortName(name) || name)}</div>` +
-    `<div class="rp-bar"><i style="width:${converting ? 66 : 100}%;background:${converting ? "var(--clay)" : "var(--border-strong)"}"></i></div>` +
+    `<div class="rp-bar${converting ? " live" : ""}"><i style="width:${pct}%;background:${converting ? "var(--clay)" : "var(--border-strong)"}"></i></div>` +
     `<div class="rp-grid">` +
     `<span>eta</span><b>${eta}</b>` +
-    `<span>engine</span><b>marker 1.10</b>` +
-    `<span>batch cap</span><b>32</b>` +
+    `<span>elapsed</span><b>${elapsedTxt || "—"}</b>` +
+    `<span>engine</span><b>marker · batch 32</b>` +
     `<span>VRAM</span><b>${vram}</b>` +
-    `</div><div class="rp-note">live page % — next installment (converter emits none yet)</div></div></div>`;
+    `</div><div class="rp-note">progress = elapsed ÷ measured ETA (per-page %: converter installment)</div></div></div>`;
 }
 
 function assayPanel(d) {
