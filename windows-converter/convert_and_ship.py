@@ -22,6 +22,7 @@ import shutil
 import subprocess
 import sys
 import tempfile
+import threading
 import time
 from datetime import datetime, timezone
 from pathlib import Path
@@ -87,6 +88,31 @@ REMOTE_STAGING = "~/file-portal/library/staging"
 MIN_CHARS_PER_PAGE = 100  # provisional, same value + revisit-note as the ThinkPad's
 RECOGNITION_BATCH = 32
 CONVERTER_VERSION = "0.1.0-desktop"
+
+# S42: live convert progress (docs/16 §8 #3). The widget's line.rs reads this file while a
+# convert holds the .gpu-lock; the Room shows the real Marker/surya stage + per-page count.
+# ENTIRELY best-effort: writing/parsing this must never affect the conversion (see convert()).
+PROGRESS_FILE = Path(r"C:\Users\Bndit\ml\library\.convert-progress.json")
+# surya/tqdm bar, e.g. "Recognizing Layout:  33%|###3      | 1/3 [00:04<00:09, 4.67s/it]".
+# Indeterminate bars ("Detecting bboxes: 0it [...]") simply don't match and are skipped.
+_TQDM_RE = re.compile(r"([A-Za-z][\w ()/-]*?):\s*(\d{1,3})%\|[^|]*\|\s*(\d+)\s*/\s*(\d+)")
+
+
+def _write_progress(stage: str, pct: int, n: int, total: int) -> None:
+    try:
+        PROGRESS_FILE.write_text(json.dumps({
+            "stage": stage, "pct": pct, "n": n, "total": total,
+            "frac": max(0.0, min(1.0, pct / 100.0)),
+        }), encoding="utf-8")
+    except OSError:
+        pass  # progress is cosmetic — a write failure must never matter
+
+
+def _clear_progress() -> None:
+    try:
+        PROGRESS_FILE.unlink()
+    except OSError:
+        pass
 
 
 # ---------- Survival Audit enforcement lever (docs/15 §12) — default off ----------
@@ -249,15 +275,47 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     engine_src = work / f"{engine_stem}{src.suffix.lower()}"
     shutil.copy2(src, engine_src)
     out_root = work / "marker-out"
+
+    # S42: stream Marker's progress (tqdm enabled) so the widget can show the real stage + per-page
+    # count. A daemon reader thread parses surya's bars into PROGRESS_FILE; the main thread waits on
+    # the process exactly as before. Everything about progress is best-effort and wrapped so it can
+    # NEVER change the conversion's outcome — same returncode check, timeout, and markdown-from-file
+    # as the old subprocess.run. (Removing --disable_tqdm only re-enables the bars we now read.)
+    _clear_progress()
+    captured: list[str] = []
+
+    def _reader(pipe) -> None:
+        try:
+            for line in pipe:  # text mode: universal newlines split tqdm's \r refreshes into lines
+                captured.append(line)
+                m = _TQDM_RE.search(line)
+                if m:
+                    _write_progress(m.group(1).strip(), int(m.group(2)),
+                                    int(m.group(3)), int(m.group(4)))
+        except Exception:  # noqa: BLE001 — a reader fault must never break the convert
+            pass
+
     t0 = time.perf_counter()
-    proc = subprocess.run(
+    proc = subprocess.Popen(
         [str(MARKER), str(engine_src), "--output_dir", str(out_root),
-         "--output_format", "markdown", "--disable_tqdm", *extra],
-        capture_output=True, text=True, timeout=3600,
+         "--output_format", "markdown", *extra],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
     )
+    reader = threading.Thread(target=_reader, args=(proc.stdout,), daemon=True)
+    reader.start()
+    try:
+        proc.wait(timeout=3600)
+    except subprocess.TimeoutExpired:
+        proc.kill()
+        proc.wait()
+        reader.join(timeout=5)
+        _clear_progress()
+        raise RuntimeError("marker timed out after 3600s")
+    reader.join(timeout=5)
+    _clear_progress()
     wall = time.perf_counter() - t0
     if proc.returncode != 0:
-        raise RuntimeError(f"marker exited {proc.returncode}: {proc.stderr.strip()[:500]}")
+        raise RuntimeError(f"marker exited {proc.returncode}: {''.join(captured).strip()[:500]}")
     out_dir = out_root / engine_stem
     md_files = list(out_dir.glob("*.md"))
     if len(md_files) != 1:

@@ -41,6 +41,19 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         .ok()
         .and_then(|t| t.elapsed().ok())
         .map(|d| d.as_secs());
+    // S42: real convert progress the converter streams from Marker (stage + per-page count).
+    // Only read while a convert holds the lock — a stale file from a crash is ignored otherwise.
+    let convert_progress = converting.as_ref().and_then(|_| {
+        fs::read_to_string(base.join(".convert-progress.json"))
+            .ok()
+            .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+    });
+    let cp_field = |k: &str| {
+        convert_progress
+            .as_ref()
+            .and_then(|p| p.get(k).cloned())
+            .unwrap_or(Value::Null)
+    };
     let events_text = fs::read_to_string(base.join("events.jsonl")).unwrap_or_default();
     let events: Vec<Value> = events_text
         .lines()
@@ -84,6 +97,11 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         // S37: seconds since the .gpu-lock was taken — lets the face draw a live convert
         // progress bar (elapsed / (elapsed + eta)) without any per-page hook in the converter.
         "convert_elapsed_s": convert_elapsed_s,
+        // S42: the REAL current stage + per-page count, streamed from Marker (docs/16 §8 #3).
+        "convert_stage": cp_field("stage"),
+        "convert_frac": cp_field("frac"),
+        "convert_n": cp_field("n"),
+        "convert_total": cp_field("total"),
         "failed_count": count_pdfs(&base.join("drop").join("failed")),
         "last_shipped": last_shipped,
         "latest": latest,

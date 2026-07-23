@@ -8,6 +8,29 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S42 — true per-page / per-stage convert progress (2026-07-23).** docs/16 §8 #3. The Room's
+  Convert station now shows the **real current Marker stage + item count** streamed live (e.g.
+  "Recognizing Layout · 2/3"), not just an elapsed-time estimate. This is the **first change to the
+  core converter** since the projection law — done fail-safe.
+  - `convert_and_ship.convert` (`windows-converter`): dropped `--disable_tqdm` and switched
+    `subprocess.run` → `Popen` with a **daemon reader thread** that parses surya's tqdm bars
+    (regex validated against real captured output) into `…\library\.convert-progress.json`
+    `{stage,pct,n,total,frac}`. **Everything about progress is best-effort and cannot change the
+    conversion:** identical returncode check, 3600 s timeout (kill on expiry), markdown still read
+    from the output file; any reader/parse/IO fault is swallowed; the progress file is cleared when
+    the convert ends (or times out).
+  - `line.rs`: reads the progress file **only while the `.gpu-lock` is held** (a stale file from a
+    crash is ignored) → adds `convert_stage` / `convert_frac` / `convert_n` / `convert_total` to
+    `line_state`.
+  - `room.js` (Convert panel): shows the live stage + per-page count; the progress bar stays the
+    forward-only elapsed÷ETA estimate (a clean monotonic overall % isn't derivable from surya's
+    *multi-stage* bars — layout/OCR/tables each restart 0→100), so the honest per-page detail lives
+    in the stage row.
+  - Validated: an isolated `convert()` on a 3-page test PDF wrote real stages, produced correct
+    markdown (3721 chars), cleared the progress file, and polluted no events; `clippy -D warnings`
+    clean; convert-panel harness rendered "Recognizing Layout · 2/3" with 0 console errors;
+    `tauri build` green and the new build boots.
+
 - **S41 — the GPU telemetry stream is complete: util + temp sparklines (2026-07-23).** docs/16 §8 #4.
   S38 shipped the VRAM sparkline; the `gpu_vram` probe already reported utilization + temperature (as
   numbers only). Now a unified **GPU telemetry strip** in the Room shows all three as fixed-scale

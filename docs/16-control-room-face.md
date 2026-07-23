@@ -218,12 +218,23 @@ Not small fixes — the substantial builds this graduation sets up (each its own
    lines 1014/2400 exactly matching the on-disk manifest; the Convert drill showed the anchor
    bundles with the real analyst summary (270✓ 22🛡 10✗). Frontend-only render + one read-only
    Rust command; pipeline untouched.
-3. **Live convert progress — PARTIAL S37.** The Convert station now shows a **live progress bar +
-   %** from measured data (elapsed `.gpu-lock` age ÷ measured-median ETA; `convert_elapsed_s` added
-   to `line_state`), capped at 95 % until `converted` fires. True **per-page %** is still deferred:
-   Marker runs with `--disable_tqdm` + buffered `subprocess.run`, so page progress would need
-   re-enabling tqdm, streaming `Popen`, and parsing surya's *multi-stage* (not per-page) bars —
-   fragile, and it touches the core convert call. A careful dedicated converter session.
+3. **Live convert progress — DONE (S37 estimate → S42 real stage).** S37 added a monotonic bar +
+   `%` from measured data (elapsed `.gpu-lock` age ÷ measured-median ETA; `convert_elapsed_s`),
+   capped at 95 %. **S42 (2026-07-23)** adds the **real per-stage / per-page signal** — the first
+   change to the core converter since the projection law, handled fail-safe. `convert_and_ship.convert`
+   now streams Marker (dropped `--disable_tqdm`, `Popen` + a **daemon reader thread**) and parses
+   surya's tqdm bars (`([A-Za-z][\w ()/-]*?):\s*(\d+)%\|…\|\s*(\d+)/(\d+)`, validated against real
+   captured output) into `BASE/.convert-progress.json` `{stage,pct,n,total,frac}`. `line.rs` reads it
+   while the lock is held → `convert_stage`/`convert_frac`/`n`/`total` in `line_state`; the Room's
+   Convert panel shows the live stage + count (e.g. **"Recognizing Layout · 2/3"**). The bar stays the
+   forward-only elapsed÷ETA estimate (a clean overall % isn't derivable from surya's *multi-stage*
+   bars — layout/OCR/tables each restart 0→100); the honest per-page detail lives in the stage row.
+   **Fail-safe:** all progress work is wrapped so it can never affect the conversion — same returncode
+   check, 3600 s timeout (kill on expiry), and markdown-from-file as before; a reader/parse/IO fault is
+   swallowed. Validated: isolated `convert()` on a 3-page PDF wrote real stages
+   (`Recognizing Layout 3/3`, `Running OCR Error Detection 1/1`, `Recognizing tables 1/1`), produced
+   correct markdown (3721 chars), cleared the progress file, no events pollution; `clippy -D warnings`
+   clean; convert-panel harness 0 errors; `tauri build` green + boots.
 
 **Robustness fix (S37) — the orphan-watcher shutdown.** Not a docs/16 face feature, but found by
 the §7 live PDF test and fixed the same effort: a force-killed/crashed widget used to orphan its

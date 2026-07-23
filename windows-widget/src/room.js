@@ -208,16 +208,24 @@ function convertPanel(d) {
   let pct = converting ? 6 : 100;
   if (converting && el != null && rem != null && el + rem > 0) pct = Math.min(95, Math.round(el / (el + rem) * 100));
   const elapsedTxt = converting && el != null ? etaText(el) + " elapsed" : "";
+  // S42: the REAL current Marker stage + per-page count, streamed live (docs/16 §8 #3). The bar
+  // stays the monotonic elapsed÷ETA estimate (forward-only); the stage row is the true progress.
+  const stageTxt = converting && ls.convert_stage
+    ? `${esc(ls.convert_stage)}${ls.convert_total ? ` · ${ls.convert_n}/${ls.convert_total}` : ""}`
+    : "";
+  const note = stageTxt
+    ? "stage + item count = live from Marker · bar = elapsed ÷ measured ETA"
+    : "progress = elapsed ÷ measured ETA (Marker stage appears once it starts)";
   return `<div class="rp"><div class="rp-head"><span class="rp-title">⚙ Convert station</span>` +
     `<span class="rp-state" style="color:${stateCol}">${state}${converting ? " · " + pct + "%" : ""}</span></div>` +
     `<div class="rp-body"><div class="rp-name">${esc(shortName(name) || name)}</div>` +
     `<div class="rp-bar${converting ? " live" : ""}"><i style="width:${pct}%;background:${converting ? "var(--clay)" : "var(--border-strong)"}"></i></div>` +
     `<div class="rp-grid">` +
-    `<span>eta</span><b>${eta}</b>` +
+    (stageTxt ? `<span>stage</span><b>${stageTxt}</b>` : `<span>eta</span><b>${eta}</b>`) +
     `<span>elapsed</span><b>${elapsedTxt || "—"}</b>` +
     `<span>engine</span><b>marker · batch 32</b>` +
     `<span>VRAM</span><b>${vram}</b>` +
-    `</div><div class="rp-note">progress = elapsed ÷ measured ETA (per-page %: converter installment)</div></div></div>`;
+    `</div><div class="rp-note">${note}</div></div></div>`;
 }
 
 function assayPanel(d) {
