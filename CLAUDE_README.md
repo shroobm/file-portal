@@ -58,42 +58,22 @@ git pull  # always first
 
 *Replace this section at the start of each session. Commit it before starting work.*
 
-**S38 OPEN 2026-07-23 (Desktop) — GPU telemetry sparkline (docs/16 §8 #4).** The next genuine
-installment after the Control Room finished at S37. Promote the point-in-time `gpu_vram` probe into
-a **rolling telemetry sparkline** in the Room. Frontend-led + one tiny safe Rust extension;
-projection-law-clean (no pipeline touch).
-
-Plan / order (verify each before moving on):
-1. **Rust `room.rs::gpu_vram()`** — extend the nvidia-smi query to also return `util` +
-   `temp` (`utilization.gpu,temperature.gpu`, `--format=csv,noheader,nounits`) → `{used,total,util,temp}`.
-   Still returns `Null` when there is no probe. Backward-compatible (frontend reads new fields
-   defensively). *Verify:* `clippy -D warnings` clean; the JSON shape by eye.
-2. **Frontend `room.js`** —
-   (a) module-scoped rolling ring buffer `vramHist` (~48 samples of VRAM %used), pushed once per
-       `gatherVM()` when `vram?.total`; no push when the probe is null (no fake gaps). Cap length.
-   (b) `sparkSvg(series, col, domain?)` gains an optional fixed `{min,max}` domain → VRAM draws on a
-       true **0–100 %** scale (idle low, a convert spikes; honest, unlike the default autoscale the
-       throughput/median tiles keep).
-   (c) GPU VRAM KPI tile: render the sparkline once ≥2 samples exist (gauge fallback before that),
-       stroke clay when current pct>92 else flow; add a `util% · temp°C` note line.
-   *Verify:* `node --check`; mock harness on the REAL snapshot (0 console errors; sparkline
-   accumulates across polls; fixed scale correct; dark+light).
-3. **Rebuild ritual** — `npm run tauri build` green; update the installed widget in place
-   (SHA256-verified copy) + relaunch.
-4. **LIVE verify** — open the Room, watch the GPU tile accumulate a sparkline over ~30 s; confirm
-   util/temp populate; Dock pixel-stable; the other two spark tiles unregressed.
-5. **Close** — docs/16 §8 #4 marked shipped (+ note what's still deferred), CHANGELOG entry,
-   ledger row, cookie + TIME-STATE advanced in lockstep.
-
-**Deliberately NOT in scope (still deferred, recorded so the ledger stays honest):** an always-on
-backend sampler thread (would probe nvidia-smi even when the Room is closed and unviewable —
-against the S37 idle-resource discipline); and re-backing the throughput / median sparklines with a
-rolling window (they work from the events tail today; reworking risks regressing them — its own
-installment). Also still deferred: true per-page convert % (#3, core-converter session), the Beer
-remedy / SUPERSEDE GAP (#5, ThinkPad).
-
-*(Prior sessions S1–S37 are in the Change Ledger + Session Log below; S37 finished the Control Room —
-Dock/Room/Wall + belt + drill-down + the orphan-watcher Job-Object lifecycle fix.)*
+*(S38 closed 2026-07-23 (Desktop). **GPU telemetry sparkline SHIPPED** (docs/16 §8 #4) — the next
+genuine installment after the Control Room finished at S37. The Room's GPU VRAM tile now draws a
+**rolling sparkline** instead of a bare gauge: a bounded module-scoped ring (`vramHist`, 48) fed one
+sample per poll (the poll loop IS the sampler — no always-on backend thread), drawn on a **fixed
+0–100 % scale** so height = true card-fullness (idle low, a convert spikes; honest, unlike the
+autoscaled throughput/median tiles). `gpu_vram()` extended to also report **utilization +
+temperature** (`{used,total,util,temp}`), surfaced on the header GPU stat. `sparkSvg` gained an
+optional fixed-domain param; gauge stays the first-poll fallback. Read-only projection; pipeline
+untouched. Verified in a browser harness (0 console errors; the ring accumulated across polls; the
+fixed-scale Y-coords matched exactly; gauge→sparkline transition; util/temp in dark+light; the other
+two sparklines unregressed), `clippy -D warnings` clean, `tauri build` green. **Installed widget
+swapped in place (SHA256-verified, DC26F26D…) + relaunched (PID 28148) — running the S38 build now**
+(Rab present, approved the swap; the S37 Job Object re-confirmed live: the force-stop took the
+watcher + its child too). Close `6dc8813`. **Still deferred** (their own installments): an always-on
+backend sampler; re-backing throughput/median sparklines with a rolling window; true per-page
+convert % (#3, core converter); the Beer remedy / SUPERSEDE GAP (#5, ThinkPad).)*
 
 ---
 
@@ -152,7 +132,8 @@ Dock/Room/Wall + belt + drill-down + the orphan-watcher Job-Object lifecycle fix
 - ✅ **S35: the surface trio completed — the Wall + the canvas transit belt 2026-07-22 (autonomous).** Continuing docs/16 §8 #1. Added the third density to the `Dock ⇄ Room ⇄ Wall` switch: **Wall** = a glanceable across-room projection (giant system verdict — terracotta only on attention/fail — the six stations as big dots + three hero numbers: survival avg / throughput / vault; window resizes to 900×500). The **canvas transit belt** sits under the Room's station rail as an *ambient activity projection* — chip count/tint reflect real in-flight work (drop_waiting / converting / gate / held), empty when the watcher is down; reduced-motion-safe, palette-cached, persistent chips across the poll's `innerHTML` redraw. The Room header verdict now reflects real state (viable/attention/paused). **Frontend-only — no Rust, pipeline untouched.** Verified: harness on the real snapshot (0 console errors, dark+light), `node --check`, `tauri build` green, and **LIVE in the real widget** (Dock⇄Room⇄Wall all switch; belt animating; Wall "ATTENTION" on the real Cybernetics hold; live VRAM 1.4/10, survival 0.69, vault 4). **Installed widget updated in place (SHA256-verified) + running (Dock, tucked top-left).** Design record: docs/16 (§8 #1 shipped).
 - ✅ **S36: the drill-down observation system 2026-07-22 (autonomous).** docs/16 §8 #2. Clicking a Room station flip-expands (transform-origin at the click) into a **live, accurate on-disk file tree** — a real granularity/observation surface, not a simulation. New read-only `room::station_tree(seg)` (`room.rs`) walks the real directories per station: vault→`Library/Inbox/*`, assay→`held/*` (+ the manifest's real degeneration zones) + recent verdicts, convert→`drop/`/`.gpu-lock`/`drop/done/`/`anchor/`, gate→`pending/*`, ship→last-shipped, intake→`drop/`+`drop/failed/`. Nodes carry true byte sizes, manifest fields (lane/pages/sha/engine), the analyst pass/reject/fail summary, and verbatim degeneration zones (zlib/tri×/chars/excerpt) with survival/verdict colour. Frontend (`room.js`): flip-open overlay + recursive collapsible tree (stable name-hash ids) + Esc/backdrop/× close + 4 s live re-read. **Read-only; pipeline untouched.** clippy `-D warnings` clean, `tauri build` green; verified in the harness (0 console errors) + **LIVE in the real widget** (Assay drill: held Cybernetics real .md 155 KB / assets 92 / zones @1014,2400 == manifest; Convert drill: anchor analyst 270✓22🛡10✗). Installed widget updated in place (SHA256) + running.
 - ✅ **S37: orphan-watcher shutdown FIXED + Control Room finished 2026-07-22 (autonomous).** (a) **The live PDF test** (S36 payoff): re-dropped bojieli (dedup-safe) — the **observation system tracked it accurately live** (Convert drill showed drop→converting; Assay updated to bojieli 0.764 flag), but the convert **thrashed**: force-killing the widget ~5× this session (to adopt each rebuild) orphaned watchers (graceful `watcher::stop` skipped on force-kill), and 4 orphans raced the same file on the 10 GB GPU. Recovered (sweep + relaunch one); the **clean re-run succeeded end-to-end** (convert 73 s → audit → ship, sha `21bfdffc` dedup-skip, vault stayed 4). (b) **The fix** (`watcher.rs`): the watcher + its Marker subprocesses run in a Windows Job Object with `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`; the widget holds the sole handle for its life, so it dies with the widget by ANY means. **Proven live**: `Stop-Process -Force` — incl. **mid-convert** — takes watcher + Marker to zero. ⏻ pause unchanged (widget alive → in-flight convert finishes). Adds `windows-sys` (already in lock). (c) A **live convert progress bar** in the Room (elapsed ÷ measured ETA; `convert_elapsed_s` in `line_state`; capped 95 % until `converted`). clippy `-D warnings` clean, `tauri build` green; installed widget updated (SHA256) + running. **The Control Room is complete: Dock/Room/Wall + belt + drill-down + robust lifecycle.**
-- ▶ Next up (genuine future installments, docs/16 §8): **true per-page convert %** (needs fragile Marker `--disable_tqdm`→streamed-tqdm parsing of surya's multi-stage bars; touches the core convert) · **GPU telemetry sparkline** (§8 #4, widget-side) · ThinkPad **exporter supersede flow** (THE SUPERSEDE GAP, phase-gated) · the **Beer** remedy loop. Phase 5 Forgejo: deferred. Carry-forward: `min_chars_per_page=100` provisional.
+- ✅ **S38: GPU telemetry sparkline 2026-07-23 (Desktop, Rab present).** docs/16 §8 #4. The Room's GPU VRAM tile now draws a **rolling sparkline** (was a bare gauge): a bounded module ring (`vramHist`, 48) fed one sample per poll — the poll loop IS the sampler, no always-on backend thread — on a **fixed 0–100 % scale** so height = true card-fullness (idle low, a convert spikes; honest vs. the autoscaled throughput/median tiles). `room.rs::gpu_vram()` extended to also report **utilization + temperature** (`{used,total,util,temp}`), shown on the header GPU stat; `sparkSvg` gained an optional fixed-domain param; gauge is the first-poll fallback. Read-only projection; pipeline untouched. Harness-verified (0 console errors; ring accumulates across polls; fixed-scale Y-coords exact; gauge→sparkline; util/temp in dark+light; the other two sparklines unregressed), `clippy -D warnings` clean, `tauri build` green. **Installed widget swapped in place (SHA256 `DC26F26D…`) + relaunched (PID 28148) — running the S38 build now**; the S37 Job Object re-confirmed live (the force-stop took the watcher + its child too). Close `6dc8813`.
+- ▶ Next up (genuine future installments, docs/16 §8): **true per-page convert %** (needs fragile Marker `--disable_tqdm`→streamed-tqdm parsing of surya's multi-stage bars; touches the core convert) · ThinkPad **exporter supersede flow** (THE SUPERSEDE GAP, phase-gated) · the **Beer** remedy loop · telemetry extras still deferred (an always-on backend sampler; rolling-window-backed throughput/median sparklines). Phase 5 Forgejo: deferred. Carry-forward: `min_chars_per_page=100` provisional.
 
 ---
 
