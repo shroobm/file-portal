@@ -373,14 +373,20 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     )
     reader = threading.Thread(target=_reader, args=(proc.stdout,), daemon=True)
     reader.start()
+    # The cap scales with the book: a flat 3600 s silently made any book over ~1000 pages
+    # UNCONVERTIBLE (found S45 probing a 1,356-page Damodaran — 1.5-3.4 measured s/page puts it
+    # at 34-77 min, straddling the old cap). 20 s/page is ~2.5x the worst rate ever measured
+    # here (8.08 s/page, a dense 439-pp scan), so it still catches a genuine hang while never
+    # punishing a book for being long.
+    timeout_s = max(3600, pages * 20)
     try:
-        proc.wait(timeout=3600)
+        proc.wait(timeout=timeout_s)
     except subprocess.TimeoutExpired:
         proc.kill()
         proc.wait()
         reader.join(timeout=5)
         _clear_progress()
-        raise RuntimeError("marker timed out after 3600s")
+        raise RuntimeError(f"marker timed out after {timeout_s}s ({pages} pages)")
     reader.join(timeout=5)
     _clear_progress()
     wall = time.perf_counter() - t0

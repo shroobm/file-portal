@@ -219,6 +219,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **S45 — the conversion timeout no longer makes long books unconvertible (2026-07-25).** Found while
+  estimating a run, not by a report: `convert_and_ship.convert()` hard-killed Marker at a **flat
+  3600 s**. At the measured 1.5–3.4 s/page for the clean lane, that made **any book over roughly 1,000
+  pages structurally impossible to convert** — it would always be killed mid-run and surface as a
+  generic "marker timed out" rather than a size limit. A 1,356-page *Investment Valuation* (Damodaran
+  4e) straddles the cap exactly at 34–77 min.
+  - The cap now scales with the book: `max(3600, pages * 20)`. Twenty seconds per page is ~2.5× the
+    worst rate ever measured on this machine (8.08 s/page, a dense 439-pp scan), so it still catches a
+    genuine hang while never punishing a book for being long. The error message now reports both the
+    cap and the page count.
+  - `watch_and_convert.convert_one()`'s outer wrapper went **7200 s → 21600 s**. It is a backstop
+    against a wedged child blocking the queue, so it must sit *above* the inner cap — at 7200 s it
+    would silently have become the real limit and the inner fix would have been useless on the normal
+    drop-folder path.
+  - Caveat recorded honestly: raising a timeout does not make a large book *succeed*. The same session's
+    attempt on that 1,356-page book **stalled** at the VRAM ceiling (9,469 MiB of 10,240 used, 100 %
+    utilization, 20,858 s of CPU, and the live progress frozen at `Recognizing Text 0/1747` for 5 h) and
+    was killed deliberately. Mitigations proposed but **not** applied unattended: a page-count-aware
+    recognition-batch cap (below the current flat 32 for very large books), or `--page_range` chunking
+    so a long book is restartable instead of all-or-nothing.
+
 - **S39 — the widget window now respects a manual resize (2026-07-23).** Rab reported the widget
   "defaults to a size" — dragging an edge to enlarge it reverted within a moment. Cause: `reflow()`
   (`main.js`) re-asserted `setSize(480, content-height)` on nearly every poll (via

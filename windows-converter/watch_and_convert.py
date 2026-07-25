@@ -75,8 +75,12 @@ def convert_one(pdf: Path) -> None:
     emit("intake", "detected", source=pdf.name, analyst_mode=mode)
     LOCK_FILE.write_text(pdf.name, encoding="utf-8")
     try:
+        # Backstop only — convert_and_ship caps Marker itself, scaled to the page count. This
+        # outer cap exists so a wedged child can't block the queue forever, so it must sit ABOVE
+        # the inner one or it silently becomes the real limit (a flat 7200 s made long books
+        # unconvertible through the drop folder; found S45 on a 1,356-page book).
         proc = subprocess.run(args, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=7200)
+                              encoding="utf-8", errors="replace", timeout=21600)
     finally:
         LOCK_FILE.unlink(missing_ok=True)
     if proc.returncode == 0:
