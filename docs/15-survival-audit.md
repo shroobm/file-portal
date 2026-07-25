@@ -346,3 +346,89 @@ first, `cargo clippy -D warnings`, build, live-verify — can't be faked from a 
   enforce toggle), the CSS, wiring `_enforce_hold` into the ship/defer/resume paths, and the
   `⟳ re-convert` remedy + its manual-swap staging. Then live-test the Beer flag→re-convert→
   re-audit→supersede loop on the retained calibration specimen.
+
+## 14. Closing the loop — the supersede export (design record, 2026-07-25)
+
+§13's remedy loop dead-ends at **THE SUPERSEDE GAP**: `⟳ re-convert` re-runs the GPU lane on
+the *same source PDF*, so the better bundle carries the **same `source_sha256`**, and the
+exporter's dedup (`linux-converter/converter/exporter.py:129–141`) sees the SHA match and
+`EXPORT-SKIP`s it — the improved copy is discarded and the degraded note never moves. Until now
+the only fix was a **manual content-replace** in the Desktop clone (the Designing Freedom
+`9e40b2b` pattern). This section designs the automatic path. **The build is ThinkPad-primary
+(the exporter) with a Desktop companion (intent authoring); a dedicated session, not this one.**
+
+**14.1 The core problem — SHA can't tell remedy from accident.** A deliberate remedy re-convert
+and an accidental re-drop of the same PDF are *identical* by `source_sha256`. So supersede needs
+an **explicit intent that travels in the manifest**, and — the invariant that keeps the create-only
+contract (`exporter.py:14–20`) intact — that intent must be **authored by nothing but a deliberate
+`⟳` click.** No marker ⇒ no field ⇒ exporter skips exactly as today. Accidental re-drops stay safe
+by construction; supersede is a *named, opt-in exception*, never the default.
+
+**14.2 The contract — one manifest field, authored on the Desktop.**
+
+```json
+"supersede": { "reason": "audit-remedy", "from_verdict": "fail" }
+```
+
+- `windows-widget/.../assay.rs::reconvert` (today `assay.rs:135–153` just copies `drop/done/X`
+  → `drop/X`) additionally drops a companion marker, e.g. `drop/X.supersede.json`, carrying the
+  vaulted note's prior verdict.
+- `windows-converter/convert_and_ship.py` consumes the marker when it picks up `X` and stamps the
+  `supersede` block into the manifest it already builds (`convert_and_ship.py:344–355`), then
+  deletes the marker. The field is **absent** on every non-remedy conversion (serde/`.get()`
+  default — same pattern as the `fidelity` block, §7).
+
+**14.3 The exporter's supersede branch — locate-don't-assume, replace-in-place.** Replaces the
+current dedup block. On a manifest that carries `supersede`:
+
+1. **Verdict guard first (SIGNED — hard-refuse `fail`, §14.4).** If the *incoming* bundle's own
+   `fidelity.verdict != "pass"`, do **not** supersede — log `EXPORT-SUPERSEDE-HELD` and keep the
+   staging copy. A remedy that didn't actually fix the book must never overwrite the vault.
+2. **Locate the live note.** `git grep -l -F <source_sha> main -- *manifest.json` in the **bare**
+   repo → the manifest path(s). The note may have been **filed out of `Inbox/` by Rab** — the
+   dedup comment (`exporter.py:19`) already anticipates this — so the target is *the located
+   path's parent*, never a recomputed `Inbox/<slug>--<sha8>/`.
+   - **0 matches:** intent said supersede but nothing is vaulted → fall through to a normal create,
+     log the anomaly (`EXPORT-SUPERSEDE-MISS`).
+   - **>1 match:** ambiguous — `EXPORT-FAIL`, keep staging. Never guess which note to overwrite.
+3. **Preserve identity; replace contents only.** Keep the **existing note's `.md` filename and
+   folder** (read it from `git ls-tree HEAD:<target_rel>` — the non-`manifest.json` file);
+   write the new markdown under that *old* name, `git rm` the old `assets/`, add the new, overwrite
+   `manifest.json`. A re-convert may compute a different slug — supersede must **not rename**, or
+   `[[wikilinks]]` break and the note jumps folders.
+4. **No-op guard.** If the new note bytes equal the vaulted note's (nothing improved), skip with a
+   log — don't mint an empty supersede commit.
+5. Commit `supersede: <slug> (audit-remedy, fail→pass)`, log line `EXPORT-SUPERSEDE`, then the
+   **unchanged L12 gate** (push, `cat-file -e` the commit and every blob in the bare repo) before
+   removing staging. Crash-safety mirrors the create path (`exporter.py:146–172`): a
+   commit-but-no-push resumes by finding the new note sha already at `HEAD:<target_rel>` and
+   re-pushing/re-verifying rather than re-copying.
+
+**14.4 Decisions — SIGNED 2026-07-25 (Rab).**
+- **Verdict guard = hard-refuse `fail`.** The exporter supersedes **only** on an incoming `pass`.
+  A still-failing re-convert is held, never lands. The swap can never regress a note (§14.3 #1).
+  (`pass-or-improved` was offered and *not* adopted — kept for a later revisit if a partial remedy
+  is ever wanted.)
+- **Intent is authored only by `⟳`.** Never by verdict, never by a re-drop, never a global mode.
+- **Ambiguity refuses; a miss degrades to create** (§14.3 #2).
+
+**14.5 The honest bound — plumbing may be necessary but not sufficient.** Beer failed on an OCR
+decoder **loop** (§0, §12: 12.3% repetition). If today's Marker re-converts Beer to the *same*
+loop, this export path is correct and still lands *nothing* — the incoming verdict stays `fail`
+and the hard guard (14.4) holds it. Closing the loop *on Beer specifically* may therefore also need
+a **convert-side change** (a degeneration-triggered OCR retry with different params — cf. the S32
+`--recognition_batch_size 32` cap, or an OCR-DPI bump). That is a separate slice; the supersede
+export is worth building regardless, because it is the missing rail every future remedy rides.
+Drawn as such, not papered over.
+
+**14.6 Build split (dedicated session).**
+
+| Side | File | Change |
+| --- | --- | --- |
+| Desktop | `windows-widget/.../assay.rs` | `⟳` writes `drop/X.supersede.json` |
+| Desktop | `windows-converter/convert_and_ship.py` | consume marker → `manifest["supersede"]` |
+| **ThinkPad** | `linux-converter/converter/exporter.py` | the supersede branch (§14.3) — the hard part |
+
+The manifest `supersede` field is the seam between the two machines. Then live-test the full Beer
+flag→re-convert→re-audit→**supersede** loop on the retained calibration specimen (§14.5 caveat
+noted). A ThinkPad handoff prompt (per prompt-crafting-protocol) is written when that session opens.
