@@ -56,7 +56,33 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S43 OPEN 2026-07-25 (ThinkPad) — **the exporter supersede flow / THE SUPERSEDE GAP** (docs/15 §14,
+*(S44 OPEN 2026-07-25 (Desktop, autonomous overnight — Rab asleep) — **the DESKTOP HALF of the
+supersede seam** (docs/15 §14.2/§14.6). S43 shipped the ThinkPad exporter; nothing yet **authors**
+`manifest["supersede"]`, so the flow is dormant. Goal: make the widget's ⟳ the sole author of the
+intent, end to end. Researched first (findings: watcher skips non-`.pdf` + dotfiles + dirs;
+`count_pdfs` is pdf-only so counters are safe; `room.rs::file_nodes` lists every FILE so a loose
+marker would ghost the drill trees; `events.rs` counts ANY event named `failed`). Plan & order:
+(1) `assay.rs::reconvert` — read the source's newest manifest from `anchor/`/`pending/`/`held/` for
+`source_sha256` + `fidelity.verdict` (backend-authoritative; frontend `invoke` signature unchanged),
+then write `drop/.supersede/<src>.json` **BEFORE** copying the PDF into `drop/` (ordering hazard: the
+5 s poll could otherwise convert the PDF before the intent exists and silently lose the remedy), and
+roll the marker back if the copy fails. Marker dir is dot-prefixed AND a directory so all three
+existing scans skip it — no watcher/room.rs change. (2) `convert_and_ship.py` —
+`_take_supersede_marker()` consume-once at the top of `convert()` (a marker must never outlive its
+conversion) + `_stamp_supersede_safe()` folding it into `manifest["supersede"]` after the sha is
+known, with a sha-mismatch guard; **both wrapped so they can NEVER change the conversion's outcome**
+(the S42 fail-safe precedent — this is the core converter). One stamp point covers all 3 ship sites
+because anchor/pending/resume/ship all carry the same on-disk manifest. (3) Frontend phrase for the
+new `audit/supersede` event in `room.js` + `main.js`. Verify: `cargo clippy -D warnings`, `py_compile`,
+a **real marker round-trip test with NO GPU convert and NO vault write** (pipeline is shut down for
+Rab's brother's gaming — it stays down), `npm run tauri build`. **NOT doing:** restarting the watcher,
+any GPU convert, any real-vault supersede, any live Beer test — all Rab's call. Close: docs/15 §14.6,
+CHANGELOG, ledger row, memory, morning note.)*
+
+*(S43 closed 2026-07-25 (ThinkPad) — SHIPPED; closing SHA `bd02fc0`, tests 8→18, suite 51 passed,
+ruff clean, service restarted. Desktop review (S44) verified the ledger SHA is a true ancestor and the
+implementation matches the signed design. Original plan follows.* — **the exporter supersede flow /
+THE SUPERSEDE GAP** (docs/15 §14,
 docs/16 §8 #5). Goal: teach `linux-converter/converter/exporter.py` to **replace** an already-vaulted
 note in place when — and only when — a deliberate remedy re-convert (widget ⟳, which authors a
 `manifest["supersede"]` block) produces a **passing** bundle for the same `source_sha256`. Plan &
