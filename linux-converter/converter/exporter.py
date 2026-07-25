@@ -124,21 +124,69 @@ class Exporter:
         _git_check(vault_work, "fetch", "origin")
         _git_check(vault_work, "merge", "--ff-only", f"origin/{VAULT_BRANCH}")
 
-        # Dedup on the FULL source sha, against the bare repo (what the vault actually has,
-        # not what this clone has committed-but-maybe-not-pushed).
-        grep = _git(
-            vault_bare, "grep", "-q", "-F", source_sha, VAULT_BRANCH, "--", "*manifest.json"
-        )
-        if grep.returncode == 0:
+        # A deliberate audit remedy carries an opt-in `supersede` provenance block, authored by
+        # NOTHING but the widget's re-convert click (docs/15 §14). Its absence => behave exactly
+        # as before: a matching source_sha is a create-only no-op. Its presence is a named, opt-in
+        # exception that REPLACES the vaulted note in place. Accidental re-drops of the same PDF
+        # carry no field and so still skip, by construction.
+        supersede = manifest.get("supersede")
+        if supersede is not None:
+            # Verdict guard first (SIGNED, fail-closed): supersede ONLY on an incoming `pass`. A
+            # remedy that did not actually fix the note -- or whose audit never ran (a MISSING
+            # fidelity block is not "pass") -- must never overwrite the vault.
+            verdict = (manifest.get("fidelity") or {}).get("verdict")
+            if verdict != "pass":
+                logger.info(
+                    "EXPORT-SUPERSEDE-HELD %s: incoming verdict %r is not pass -- vault "
+                    "untouched, staging copy kept",
+                    bundle_dir.name,
+                    verdict,
+                )
+                return
+            # Locate the LIVE note by its full source_sha in the BARE repo -- never recompute the
+            # Inbox/ path, the Desktop may have filed the note out of Inbox/.
+            loc = _git(
+                vault_bare, "grep", "-l", "-F", source_sha, VAULT_BRANCH, "--", "*manifest.json"
+            )
+            if loc.returncode > 1:
+                raise ExportError(f"supersede locate grep failed: {loc.stderr.strip()}")
+            prefix = f"{VAULT_BRANCH}:"  # `git grep <rev>` prefixes every hit with "<rev>:"
+            matches = [
+                line[len(prefix) :] if line.startswith(prefix) else line
+                for line in loc.stdout.splitlines()
+                if line.strip()
+            ]
+            if len(matches) > 1:
+                raise ExportError(
+                    f"supersede ambiguous: source_sha {source_sha[:8]} is vaulted at {matches} "
+                    "-- refusing to guess which note to overwrite, staging copy kept"
+                )
+            if len(matches) == 1:
+                self._supersede_replace(bundle_dir, supersede, Path(matches[0]))
+                return
+            # 0 matches: intent said supersede but nothing is vaulted -> fall through to a normal
+            # create (do NOT run the dedup skip -- the sha is absent, it would not skip anyway).
             logger.info(
-                "EXPORT-SKIP %s: source_sha256 %s already in vault -- no-op, staging copy removed",
+                "EXPORT-SUPERSEDE-MISS %s: source_sha %s not in vault -- creating a new note",
                 bundle_dir.name,
                 source_sha[:8],
             )
-            shutil.rmtree(bundle_dir)
-            return
-        if grep.returncode > 1:
-            raise ExportError(f"dedup grep failed: {grep.stderr.strip()}")
+        else:
+            # Dedup on the FULL source sha, against the bare repo (what the vault actually has,
+            # not what this clone has committed-but-maybe-not-pushed).
+            grep = _git(
+                vault_bare, "grep", "-q", "-F", source_sha, VAULT_BRANCH, "--", "*manifest.json"
+            )
+            if grep.returncode == 0:
+                logger.info(
+                    "EXPORT-SKIP %s: source_sha256 %s already in vault -- no-op, staging copy removed",
+                    bundle_dir.name,
+                    source_sha[:8],
+                )
+                shutil.rmtree(bundle_dir)
+                return
+            if grep.returncode > 1:
+                raise ExportError(f"dedup grep failed: {grep.stderr.strip()}")
 
         target_rel = INBOX_REL / f"{slugify(bundle_dir.name)}--{source_sha[:8]}"
         target = vault_work / target_rel
@@ -183,6 +231,125 @@ class Exporter:
         shutil.rmtree(bundle_dir)
         logger.info(
             "EXPORTED %s -> %s (commit %s pushed + blob-verified, staging copy removed)",
+            bundle_dir.name,
+            target_rel,
+            commit_sha[:8],
+        )
+
+    def _supersede_replace(self, bundle_dir: Path, supersede: dict, manifest_rel: Path) -> None:
+        """Replace an already-vaulted note in place with a passing remedy re-convert (docs/15
+        §14). Identity is preserved: the live note's existing `.md` filename and folder stay put
+        (a re-convert may compute a different slug, and a rename would break `[[wikilinks]]` and
+        move the note between folders). Only contents change -- the markdown under its OLD name,
+        a fully swapped assets/, and the manifest. The L12 deletion gate is the create path's:
+        push, then `cat-file -e` the commit and every ACTUALLY-committed blob in the BARE repo
+        before staging is removed. Called only once the verdict guard passed and exactly one
+        vaulted note matched the source_sha (locate-don't-assume happens in the caller)."""
+        vault_work, vault_bare = self.paths.vault_work, self.paths.vault_bare
+        target_rel = manifest_rel.parent
+        target = vault_work / target_rel
+
+        # Identity to preserve: the live note's .md filename, read from the committed tree --
+        # never recomputed from the incoming bundle's slug.
+        tree = _git_check(
+            vault_work, "ls-tree", "--name-only", f"HEAD:{target_rel.as_posix()}"
+        ).splitlines()
+        old_md = [n for n in tree if n.endswith(".md")]
+        if len(old_md) != 1:
+            raise ExportError(
+                f"supersede: expected exactly one .md in {target_rel} at HEAD, found {old_md}"
+            )
+        old_md_name = old_md[0]
+
+        new_md = [p for p in bundle_dir.iterdir() if p.is_file() and p.suffix == ".md"]
+        if len(new_md) != 1:
+            raise ExportError(
+                f"supersede: expected exactly one .md in staging bundle {bundle_dir.name}, "
+                f"found {sorted(p.name for p in new_md)}"
+            )
+
+        # Replace contents in place. The new markdown is written under the OLD name; the new
+        # bundle's own slug never enters the tree. assets/ is fully swapped; manifest overwritten.
+        _git(
+            vault_work,
+            "rm",
+            "-r",
+            "--quiet",
+            "--ignore-unmatch",
+            "--",
+            f"{target_rel.as_posix()}/assets",
+        )
+        shutil.rmtree(target / "assets", ignore_errors=True)
+        if (bundle_dir / "assets").is_dir():
+            shutil.copytree(bundle_dir / "assets", target / "assets")
+        shutil.copyfile(new_md[0], target / old_md_name)
+        shutil.copyfile(bundle_dir / "manifest.json", target / "manifest.json")
+        _git_check(vault_work, "add", "--", target_rel.as_posix())
+
+        changed = [
+            line
+            for line in _git_check(
+                vault_work, "diff", "--cached", "--name-only", "HEAD"
+            ).splitlines()
+            if line
+        ]
+        manifest_path = f"{target_rel.as_posix()}/manifest.json"
+        if not changed:
+            # Resume: a prior run committed this exact supersede but the push did not land.
+            # Re-push and re-verify rather than minting a second commit.
+            logger.info(
+                "EXPORT-SUPERSEDE-RESUME %s: %s already committed -- re-pushing + re-verifying",
+                bundle_dir.name,
+                target_rel,
+            )
+        elif changed == [manifest_path]:
+            # Only the provenance block differs -> the note bytes are identical -> nothing to
+            # remedy. Don't mint an empty supersede commit; restore the worktree and stop.
+            _git_check(vault_work, "checkout", "HEAD", "--", target_rel.as_posix())
+            logger.info(
+                "EXPORT-SUPERSEDE-NOOP %s: remedy is byte-identical to the vaulted note -- "
+                "no swap, staging copy removed",
+                bundle_dir.name,
+            )
+            shutil.rmtree(bundle_dir)
+            return
+        else:
+            reason = supersede.get("reason", "supersede")
+            from_verdict = supersede.get("from_verdict", "?")
+            _git_check(
+                vault_work,
+                *GIT_IDENTITY,
+                "commit",
+                "-m",
+                f"supersede: {target_rel.name} ({reason}, {from_verdict}→pass)",
+                "--",
+                target_rel.as_posix(),
+            )
+            logger.info(
+                "EXPORT-SUPERSEDE %s -> %s (%s, %s->pass)",
+                bundle_dir.name,
+                target_rel,
+                reason,
+                from_verdict,
+            )
+
+        _git_check(vault_work, "push", "origin", VAULT_BRANCH)
+        commit_sha = _git_check(vault_work, "rev-parse", "HEAD")
+
+        # L12 gate: the commit and every committed blob must be readable from the BARE repo.
+        # The .md basename changed under supersede, so iterate the paths ACTUALLY committed
+        # (git ls-tree of the commit), not the staging bundle's filenames.
+        _git_check(vault_bare, "cat-file", "-e", f"{commit_sha}^{{commit}}")
+        committed = _git_check(
+            vault_work, "ls-tree", "-r", "--name-only", commit_sha, "--", target_rel.as_posix()
+        ).splitlines()
+        for rel in committed:
+            if rel:
+                _git_check(vault_bare, "cat-file", "-e", f"{commit_sha}:{rel}")
+
+        shutil.rmtree(bundle_dir)
+        logger.info(
+            "EXPORTED-SUPERSEDE %s -> %s (commit %s pushed + blob-verified, staging removed)",
             bundle_dir.name,
             target_rel,
             commit_sha[:8],

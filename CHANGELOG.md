@@ -8,6 +8,40 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S43 — the exporter supersede flow: closing the Beer remedy loop (2026-07-25).** docs/15 §14,
+  docs/16 §8 #5 (THE SUPERSEDE GAP). The exporter (`linux-converter/converter/exporter.py`) can now
+  **replace an already-vaulted note in place** with a deliberate remedy re-convert — but only under a
+  named, opt-in, fail-closed contract, so the create-only guarantee for every ordinary conversion is
+  untouched.
+  - **The seam is one manifest field.** A manifest may carry `"supersede": {"reason": …,
+    "from_verdict": …}`, authored by **nothing but the widget's ⟳ re-convert**. No field ⇒ the
+    exporter dedups exactly as before (a matching `source_sha256` is a create-only no-op). Accidental
+    re-drops of the same PDF stay safe *by construction* — they carry no field.
+  - **Verdict guard first (SIGNED, fail-closed).** Supersede proceeds only if the *incoming* bundle's
+    own `fidelity.verdict == "pass"`. A still-failing remedy, or one whose audit never ran (a
+    **missing** fidelity block is not `"pass"`), is held: `EXPORT-SUPERSEDE-HELD`, staging kept, vault
+    untouched. The guard is deliberately **not** widened to force the Beer specimen to land (§14.5).
+  - **Locate-don't-assume.** The live note is found by its full `source_sha256` via `git grep -l` in
+    the **bare** repo (the `main:` prefix stripped) — never by recomputing `Inbox/<slug>--<sha8>/`,
+    since the Desktop may have filed the note elsewhere. **0** matches ⇒ fall through to a normal
+    create (`EXPORT-SUPERSEDE-MISS`); **>1** ⇒ `EXPORT-FAIL`, staging kept (never guess).
+  - **Replace-in-place, identity preserved.** The existing note's `.md` filename and folder are kept
+    (read from the committed tree); the remedy's markdown is written under the **old** name so a
+    differing new slug can never rename the note or break `[[wikilinks]]`. `assets/` is fully swapped
+    and the manifest overwritten. A **no-op guard** (only the manifest changed ⇒ identical note bytes)
+    avoids an empty commit; a **resume** path (committed-but-unpushed) re-pushes rather than
+    re-committing. The **L12 deletion gate is unchanged** — push, then `cat-file -e` the commit and
+    every *actually-committed* blob in the bare repo (iterating `git ls-tree` of the commit, because
+    the `.md` basename changed) before the staging copy is removed.
+  - Verified: `linux-converter/tests/test_exporter.py` grew from 8 to 18 real-git tests (replace after
+    the note was filed out of `Inbox/`; old `.md` name preserved on a differing slug; assets swapped;
+    `fail` refuses + keeps staging; missing fidelity refuses; >1 match fails; 0 matches creates; no-op
+    identical bytes; no-field still skips; commit-without-push resumes). Full suite **51 passed**,
+    `ruff check` + `ruff format` clean, `file-portal-converter` restarted onto the new code.
+  - **Not in this session:** the Desktop half (`assay.rs` ⟳ writes `drop/X.supersede.json`;
+    `convert_and_ship.py` folds it into the manifest) and any real-vault supersede of the Beer
+    specimen — both require the Desktop pipeline (shut down for gaming) and are Rab's call.
+
 - **S42 — true per-page / per-stage convert progress (2026-07-23).** docs/16 §8 #3. The Room's
   Convert station now shows the **real current Marker stage + item count** streamed live (e.g.
   "Recognizing Layout · 2/3"), not just an elapsed-time estimate. This is the **first change to the
