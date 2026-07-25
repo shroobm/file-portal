@@ -56,6 +56,32 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S43 OPEN 2026-07-25 (ThinkPad) — **the exporter supersede flow / THE SUPERSEDE GAP** (docs/15 §14,
+docs/16 §8 #5). Goal: teach `linux-converter/converter/exporter.py` to **replace** an already-vaulted
+note in place when — and only when — a deliberate remedy re-convert (widget ⟳, which authors a
+`manifest["supersede"]` block) produces a **passing** bundle for the same `source_sha256`. Plan &
+order: (1) exporter — when a manifest carries `supersede`: **verdict guard first** (SIGNED, fail-closed:
+incoming `fidelity.verdict` must be `"pass"`; a missing block is NOT pass → `EXPORT-SUPERSEDE-HELD`,
+keep staging) → **locate** the live note by sha in the BARE repo (`git grep -l`, strip `main:`; 0=fall
+through to normal create + `EXPORT-SUPERSEDE-MISS`, >1=`EXPORT-FAIL` keep staging, never guess) →
+**replace-in-place** preserving the note's existing `.md` name + folder (new md written under the OLD
+name so `[[wikilinks]]` never break), swap `assets/`, overwrite manifest → **no-op guard** (only the
+manifest changed ⇒ identical note bytes ⇒ no empty commit) → **resume** (already-committed but unpushed
+⇒ re-push, not re-commit) → commit `supersede: <slug> (audit-remedy, fail→pass)` + the unchanged L12
+gate (push, then `cat-file -e` the commit and every ACTUALLY-committed blob in the bare repo — iterate
+`ls-tree` paths, not the staging filenames, since the .md basename changed) → remove staging. The
+create/dedup path for manifests WITHOUT the field is byte-for-byte unchanged (regression-guarded). (2)
+Extend `linux-converter/tests/test_exporter.py` (8 real-git tests today) with the §14 cases: replaces
+after the note was filed out of `Inbox/`; old .md name preserved when the new slug differs; assets
+swapped; `fail` refuses + keeps staging; missing fidelity refuses; >1 match fails; 0 matches creates;
+no-op identical bytes; no-field still skips; commit-without-push resumes. Verify each step with
+`pytest`. (3) Restart `file-portal-converter` (service runs from this checkout). **NO real-vault write
+and NO live e2e in this session** — proven on temp-repo tests only; a real Beer supersede + Desktop
+half (assay.rs marker + convert_and_ship consume) are Rab's call and need the Desktop pipeline (it's
+shut down for gaming). §14.5 honest bound respected: the verdict guard is NOT widened to force Beer to
+land. Desktop files touched only if coordinated. Verify: 17+/17 pytest green, `ruff` clean, service
+active.)*
+
 *(S42 closed 2026-07-23 (Desktop). **True per-page/per-stage convert progress SHIPPED** (docs/16 §8
 #3) — the widget's §8 plans are now all done. The Room's Convert station shows the **real current
 Marker stage + item count** streamed live (e.g. "Recognizing Layout · 2/3"), not just an elapsed
