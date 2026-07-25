@@ -270,3 +270,17 @@ See CHANGELOG "Fixed / S37" + `watcher.rs`.
 5. **Close the Beer remedy loop.** Audit flags → re-convert → re-audit passes → **supersede
    auto-swap** in the vault (THE SUPERSEDE GAP, ThinkPad exporter). The Room's ⟳ re-convert
    already re-queues; closing the loop needs the exporter's auto-swap on the ThinkPad lane.
+   **✅ BUILT S43 + S44 (2026-07-25)** — the rail is complete end to end (design: docs/15 §14).
+   **S43 (ThinkPad, `bd02fc0`):** the exporter replaces an already-vaulted note in place when a
+   manifest carries the opt-in `supersede` block **and** the incoming `fidelity.verdict == "pass"`
+   (fail-closed; locate-don't-assume in the bare repo; the note's `.md` name + folder preserved so
+   `[[wikilinks]]` survive; unchanged L12 gate). **S44 (Desktop):** `⟳` became the sole **author** of
+   that intent — `assay.rs` writes `drop/.supersede/<source>.json` (before the PDF, else the 5 s poll
+   could lose the remedy silently) and `convert_and_ship.py` consumes it **once** into
+   `manifest["supersede"]`, fail-safe. Invisible to every existing scan by construction, so no
+   watcher/counter/drill change was needed. Verified by 6 new Rust tests + a 21-check end-to-end seam
+   proof driving the real marker through the real exporter on temp git repos.
+   **Still open:** the **live Beer test** — it needs the pipeline running and a real vault write, so
+   it is Rab's call with him present. §14.5 stands: if Marker re-loops on Beer, the verdict stays
+   `fail`, the guard correctly holds it, and closing it *on Beer* becomes a convert-side
+   degeneration-retry slice — not a reason to widen a signed gate.

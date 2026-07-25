@@ -404,6 +404,8 @@ function tickerPhrase(ev) {
     "convert/converted": `⚙ converted ${s(ev.source)} in ${Math.round(ev.wall_s)}s — bundling`,
     "gate/pending": `✳ ${s(ev.bundle)} — awaiting YOUR routing decision`,
     "gate/auto_routed": `✳ ${s(ev.bundle)} — rule auto-routed 🔒 local`,
+    "audit/supersede": `◎ ${s(ev.source)} — remedy carried; a passing re-audit REPLACES the vaulted note`,
+    "audit/supersede_ignored": `◎ ${s(ev.source)} — remedy dropped (different file, same name)`,
     "analyst/start": `🧠 analyzing ${s(ev.bundle)} (${ev.backend})…`,
     "analyst/done": `🧠 analysis done: ${ev.chunks_passed}✓ ${ev.chunks_rejected || 0}🛡 in ${Math.round(ev.duration_s)}s`,
     "ship/shipped": `⇈ ${s(ev.bundle)} — shipped to vault ✓`,

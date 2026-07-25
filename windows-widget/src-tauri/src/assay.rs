@@ -7,9 +7,15 @@
 use serde_json::{json, Value};
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::time::SystemTime;
+use std::time::{SystemTime, UNIX_EPOCH};
 
 const AUDIT_MODES: [&str; 2] = ["report", "enforce"];
+
+/// Remedy markers live in a dot-prefixed SUBDIRECTORY of drop/ deliberately: the watcher skips
+/// non-files, dotfiles, and anything that isn't `.pdf`; `line.rs` counts only `.pdf`; and
+/// `room.rs`'s drill tree lists only files. A marker is therefore invisible to every existing
+/// scan, and adding it needed no change to the pipeline or to any projection.
+const SUPERSEDE_DIR: &str = ".supersede";
 
 /// report (default) = the audit observes but ships anyway; enforce = a `fail` verdict
 /// parks the bundle. Mirrors line::get_analyst_mode.
@@ -129,9 +135,49 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
     }))
 }
 
-/// Assay remedy (docs/15 §13): re-queue a source for conversion + re-audit by copying it
-/// from drop/done/ back into drop/ — the watcher picks it up on its next poll. The vault
-/// SWAP after a clean re-audit is manual (THE SUPERSEDE GAP); this only re-runs the audit.
+/// The newest manifest (by mtime) whose `source` is this file, across anchor/pending/held —
+/// every conversion leaves its as-converted record in one of those. Best-effort provenance
+/// for the remedy marker: read from disk rather than taken from the frontend, so the intent
+/// records what the pipeline actually holds. None when the record is gone (the remedy is
+/// still authored — the click is the intent; §14.2).
+fn newest_manifest_for_source(base: &Path, source: &str) -> Option<Value> {
+    let mut newest: Option<(Value, SystemTime)> = None;
+    for sub in ["anchor", "pending", "held"] {
+        let Ok(entries) = fs::read_dir(base.join(sub)) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            let manifest = entry.path().join("manifest.json");
+            let Ok(mtime) = fs::metadata(&manifest).and_then(|m| m.modified()) else {
+                continue;
+            };
+            let parsed: Option<Value> = fs::read_to_string(&manifest)
+                .ok()
+                .and_then(|t| serde_json::from_str(&t).ok());
+            let Some(value) = parsed else { continue };
+            if value["source"].as_str() != Some(source) {
+                continue;
+            }
+            let better = match &newest {
+                Some((_, t)) => mtime > *t,
+                None => true,
+            };
+            if better {
+                newest = Some((value, mtime));
+            }
+        }
+    }
+    newest.map(|(v, _)| v)
+}
+
+/// Assay remedy (docs/15 §13 + §14.2): re-queue a source for conversion + re-audit by copying
+/// it from drop/done/ back into drop/ — the watcher picks it up on its next poll — and author
+/// the **supersede intent** that lets the ThinkPad exporter REPLACE the already-vaulted note
+/// instead of dedup-skipping the better conversion (THE SUPERSEDE GAP).
+///
+/// This click is the ONLY thing in the system that authors that intent. A plain re-drop of the
+/// same PDF carries no marker, so it still skips — the exporter's create-only contract holds by
+/// construction, and supersede stays a named, opt-in exception.
 pub fn reconvert(gpu_pipeline_dir: &str, source: &str) -> Result<(), String> {
     if gpu_pipeline_dir.is_empty() {
         return Err("pipeline not configured".into());
@@ -149,6 +195,206 @@ pub fn reconvert(gpu_pipeline_dir: &str, source: &str) -> Result<(), String> {
     if dest.exists() {
         return Err("already queued for re-convert".into());
     }
-    fs::copy(&src, &dest).map_err(|e| format!("failed to re-queue: {e}"))?;
+
+    // The marker is written BEFORE the PDF lands. The watcher polls drop/ every 5 s, and a
+    // convert that started before the intent existed would ship as an ordinary create and the
+    // remedy would be silently lost to dedup. Dependency first, trigger second.
+    let prior = newest_manifest_for_source(base, source);
+    let marker_dir = base.join("drop").join(SUPERSEDE_DIR);
+    fs::create_dir_all(&marker_dir).map_err(|e| format!("failed to stage remedy marker: {e}"))?;
+    let marker = marker_dir.join(format!("{source}.json"));
+    let body = json!({
+        "reason": "audit-remedy",
+        "source": source,
+        // Provenance only (the exporter logs it); null when no prior record survives.
+        "from_verdict": prior.as_ref().map_or(Value::Null, |m| m["fidelity"]["verdict"].clone()),
+        // Guard: the converter drops the intent if the file it hashes isn't this one.
+        "source_sha256": prior.as_ref().map_or(Value::Null, |m| m["source_sha256"].clone()),
+        "requested_at_epoch_s": SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+    });
+    let encoded =
+        serde_json::to_string_pretty(&body).map_err(|e| format!("failed to encode marker: {e}"))?;
+    fs::write(&marker, encoded).map_err(|e| format!("failed to write remedy marker: {e}"))?;
+
+    if let Err(e) = fs::copy(&src, &dest) {
+        // The trigger never landed — take the intent back down with it, so no marker can
+        // outlive the click that authored it.
+        let _ = fs::remove_file(&marker);
+        return Err(format!("failed to re-queue: {e}"));
+    }
     Ok(())
+}
+
+// The widget crate carried no tests before S44. These cover the one path here that can cause a
+// vault note to be REPLACED rather than created, so it earns them: the marker is the entire
+// difference between a remedy and an accidental re-drop (docs/15 §14.2).
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::sync::atomic::{AtomicU32, Ordering};
+
+    static N: AtomicU32 = AtomicU32::new(0);
+
+    /// A throwaway pipeline root with drop/done/<source> present.
+    fn fixture(source: &str) -> PathBuf {
+        let unique = format!(
+            "fp-assay-{}-{}",
+            std::process::id(),
+            N.fetch_add(1, Ordering::SeqCst)
+        );
+        let base = std::env::temp_dir().join(unique);
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("drop").join("done")).unwrap();
+        fs::write(base.join("drop").join("done").join(source), b"%PDF-1.7 fake").unwrap();
+        base
+    }
+
+    fn write_manifest(base: &Path, sub: &str, bundle: &str, manifest: Value) {
+        let dir = base.join(sub).join(bundle);
+        fs::create_dir_all(&dir).unwrap();
+        fs::write(
+            dir.join("manifest.json"),
+            serde_json::to_string(&manifest).unwrap(),
+        )
+        .unwrap();
+    }
+
+    fn marker_of(base: &Path, source: &str) -> PathBuf {
+        base.join("drop").join(SUPERSEDE_DIR).join(format!("{source}.json"))
+    }
+
+    #[test]
+    fn authors_the_intent_from_the_on_disk_record() {
+        let source = "brain-of-the-firm.pdf";
+        let base = fixture(source);
+        let sha = "7de1c31a".repeat(8); // 64 hex chars
+        write_manifest(
+            &base,
+            "anchor",
+            "brain",
+            json!({
+                "source": source,
+                "source_sha256": sha,
+                "fidelity": { "verdict": "fail" },
+            }),
+        );
+
+        reconvert(base.to_str().unwrap(), source).unwrap();
+
+        let marker: Value =
+            serde_json::from_str(&fs::read_to_string(marker_of(&base, source)).unwrap()).unwrap();
+        assert_eq!(marker["reason"], "audit-remedy");
+        assert_eq!(marker["source"], source);
+        assert_eq!(marker["from_verdict"], "fail", "provenance read from disk");
+        assert_eq!(marker["source_sha256"], sha, "sha guard for the converter");
+        assert!(
+            base.join("drop").join(source).is_file(),
+            "the PDF is queued for the watcher"
+        );
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn authors_the_intent_even_with_no_prior_record() {
+        // The click IS the intent (§14.2). A missing anchor record only costs provenance.
+        let source = "orphaned.pdf";
+        let base = fixture(source);
+
+        reconvert(base.to_str().unwrap(), source).unwrap();
+
+        let marker: Value =
+            serde_json::from_str(&fs::read_to_string(marker_of(&base, source)).unwrap()).unwrap();
+        assert_eq!(marker["reason"], "audit-remedy");
+        assert!(marker["from_verdict"].is_null());
+        assert!(marker["source_sha256"].is_null(), "no sha to guard against");
+        assert!(base.join("drop").join(source).is_file());
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn refusals_leave_neither_intent_nor_trigger() {
+        let source = "paper.pdf";
+        let base = fixture(source);
+        let dir = base.to_str().unwrap();
+
+        assert!(reconvert(dir, "../escape.pdf").is_err(), "path separators");
+        assert!(reconvert(dir, "absent.pdf").is_err(), "not in drop/done");
+        assert!(reconvert("", source).is_err(), "pipeline not configured");
+        assert!(
+            !base.join("drop").join(SUPERSEDE_DIR).exists(),
+            "a refused remedy must not author intent"
+        );
+
+        // Already queued: the first call succeeds, the second must refuse.
+        reconvert(dir, source).unwrap();
+        assert!(reconvert(dir, source).is_err(), "already queued");
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn refuses_to_queue_when_the_intent_cannot_be_recorded() {
+        // If the marker cannot be written, queueing the convert anyway would burn a GPU run
+        // that silently does nothing (the exporter would dedup-skip it). Refuse instead.
+        let source = "paper.pdf";
+        let base = fixture(source);
+        fs::write(base.join("drop").join(SUPERSEDE_DIR), b"not a directory").unwrap();
+
+        assert!(reconvert(base.to_str().unwrap(), source).is_err());
+        assert!(
+            !base.join("drop").join(source).exists(),
+            "no trigger without intent"
+        );
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn the_marker_is_invisible_to_every_existing_scan() {
+        // Mirrors the three skips it relies on: the watcher's (dotfile / non-file / non-pdf),
+        // line.rs's count_pdfs (extension), and room.rs's file_nodes (files only).
+        let source = "paper.pdf";
+        let base = fixture(source);
+        reconvert(base.to_str().unwrap(), source).unwrap();
+
+        let holder = base.join("drop").join(SUPERSEDE_DIR);
+        assert!(holder.is_dir(), "a directory, so file-only scans skip it");
+        assert!(
+            holder.file_name().unwrap().to_str().unwrap().starts_with('.'),
+            "dot-prefixed, so the watcher's dotfile skip also covers it"
+        );
+        let stray_pdfs = fs::read_dir(base.join("drop"))
+            .unwrap()
+            .flatten()
+            .filter(|e| e.path().is_file())
+            .filter(|e| e.path().extension().is_some_and(|x| x == "pdf"))
+            .count();
+        assert_eq!(stray_pdfs, 1, "only the re-queued PDF is visible in drop/");
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// Leaves ONE real marker on disk for the cross-language seam check against the
+    /// converter's `_take_supersede_marker` — proving both halves agree on the actual bytes,
+    /// not on my description of them. Artifact path is printed by `cargo test -- --nocapture`.
+    #[test]
+    fn seam_proof_artifact_for_the_converter() {
+        let source = "seam-proof.pdf";
+        let base = std::env::temp_dir().join("fp-s44-seam-proof");
+        let _ = fs::remove_dir_all(&base);
+        fs::create_dir_all(base.join("drop").join("done")).unwrap();
+        fs::write(base.join("drop").join("done").join(source), b"%PDF-1.7 fake").unwrap();
+        write_manifest(
+            &base,
+            "held",
+            "seam",
+            json!({
+                "source": source,
+                "source_sha256": "ab".repeat(32),
+                "fidelity": { "verdict": "fail" },
+            }),
+        );
+        reconvert(base.to_str().unwrap(), source).unwrap();
+        println!("SEAM ARTIFACT: {}", marker_of(&base, source).display());
+    }
 }

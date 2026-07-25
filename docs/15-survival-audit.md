@@ -421,14 +421,53 @@ a **convert-side change** (a degeneration-triggered OCR retry with different par
 export is worth building regardless, because it is the missing rail every future remedy rides.
 Drawn as such, not papered over.
 
-**14.6 Build split (dedicated session).**
+**14.6 Build split — BOTH HALVES SHIPPED.**
 
-| Side | File | Change |
-| --- | --- | --- |
-| Desktop | `windows-widget/.../assay.rs` | `⟳` writes `drop/X.supersede.json` |
-| Desktop | `windows-converter/convert_and_ship.py` | consume marker → `manifest["supersede"]` |
-| **ThinkPad** | `linux-converter/converter/exporter.py` | the supersede branch (§14.3) — the hard part |
+| Side | File | Change | Status |
+| --- | --- | --- | --- |
+| **ThinkPad** | `linux-converter/converter/exporter.py` | the supersede branch (§14.3) | ✅ **S43** (`bd02fc0`) |
+| Desktop | `windows-widget/.../assay.rs` | `⟳` authors the intent marker | ✅ **S44** |
+| Desktop | `windows-converter/convert_and_ship.py` | consume marker → `manifest["supersede"]` | ✅ **S44** |
 
-The manifest `supersede` field is the seam between the two machines. Then live-test the full Beer
-flag→re-convert→re-audit→**supersede** loop on the retained calibration specimen (§14.5 caveat
-noted). A ThinkPad handoff prompt (per prompt-crafting-protocol) is written when that session opens.
+The manifest `supersede` field is the seam between the two machines. What remains is the **live Beer
+test** on the retained calibration specimen (§14.5 caveat stands) — it needs the Desktop pipeline
+running and a real vault write, so it is Rab's call, with him present.
+
+**14.7 The marker — the Desktop contract (built S44).**
+
+`⟳ re-convert` is the **only** thing in the system that authors supersede intent. It writes
+
+```
+<gpu_pipeline_dir>/drop/.supersede/<source-filename>.json
+  { reason, source, from_verdict, source_sha256, requested_at_epoch_s }
+```
+
+- **Provenance is read from disk, not from the UI.** `assay.rs` looks up the source's newest manifest
+  across `anchor/`/`pending/`/`held/` for `from_verdict` + `source_sha256`, so the intent records what
+  the pipeline actually holds. A missing record costs only provenance — **the click is the intent**;
+  the marker is still written (with nulls) and the remedy still runs.
+- **Ordering is load-bearing.** The marker is written **before** the PDF is copied into `drop/`. The
+  watcher polls every 5 s; a convert that began before the intent existed would ship as an ordinary
+  create and the remedy would be **silently lost** to dedup. If the PDF copy fails the marker is
+  rolled back. If the marker cannot be written the re-queue is **refused** — queueing a convert that
+  provably cannot supersede would burn a GPU run to no effect.
+- **Invisible by construction.** A dot-prefixed *subdirectory* clears all three existing scans with no
+  change to any of them: the watcher skips non-files, dotfiles and non-`.pdf`; `line.rs::count_pdfs`
+  counts only `.pdf` (so `drop_waiting` cannot be inflated); `room.rs::file_nodes` lists only files
+  (so no phantom node appears in the Convert/Intake drill trees).
+- **Consume-once.** `convert_and_ship._take_supersede_marker()` reads *and deletes* the marker at the
+  top of `convert()`, before any work — so an intent can never outlive the click that authored it and
+  latch onto a later drop of the same filename. A corrupt marker is deleted too. Losing an intent
+  (crash, failed convert) is the **safe** direction: the remedy reverts to today's dedup-skip.
+- **The sha guard** drops the intent when the file actually converted is not the one the widget
+  pointed at (same filename, different book). Defense-in-depth rather than load-bearing: the exporter
+  locates by the *incoming bundle's own real sha*, so even a mis-attached intent could only replace
+  that file's own note, and only on a `pass`.
+- **Fail-safe.** Both converter helpers are wrapped so they can never change a conversion's outcome
+  (§8; the S42 rule for touching the core converter). Absent/failed intent ⇒ absent field ⇒ the
+  exporter's unchanged create-only path.
+
+*Residual case, stated honestly:* a marker written but never consumed (watcher off, PDF deleted by
+hand) does persist. If that filename is later converted it would carry the intent — but the blast
+radius is bounded by the exporter locating on the incoming bundle's real sha and requiring `pass`, so
+the worst case is replacing that same source's own note with a better conversion of it.

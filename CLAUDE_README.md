@@ -56,28 +56,37 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S44 OPEN 2026-07-25 (Desktop, autonomous overnight — Rab asleep) — **the DESKTOP HALF of the
-supersede seam** (docs/15 §14.2/§14.6). S43 shipped the ThinkPad exporter; nothing yet **authors**
-`manifest["supersede"]`, so the flow is dormant. Goal: make the widget's ⟳ the sole author of the
-intent, end to end. Researched first (findings: watcher skips non-`.pdf` + dotfiles + dirs;
-`count_pdfs` is pdf-only so counters are safe; `room.rs::file_nodes` lists every FILE so a loose
-marker would ghost the drill trees; `events.rs` counts ANY event named `failed`). Plan & order:
-(1) `assay.rs::reconvert` — read the source's newest manifest from `anchor/`/`pending/`/`held/` for
-`source_sha256` + `fidelity.verdict` (backend-authoritative; frontend `invoke` signature unchanged),
-then write `drop/.supersede/<src>.json` **BEFORE** copying the PDF into `drop/` (ordering hazard: the
-5 s poll could otherwise convert the PDF before the intent exists and silently lose the remedy), and
-roll the marker back if the copy fails. Marker dir is dot-prefixed AND a directory so all three
-existing scans skip it — no watcher/room.rs change. (2) `convert_and_ship.py` —
-`_take_supersede_marker()` consume-once at the top of `convert()` (a marker must never outlive its
-conversion) + `_stamp_supersede_safe()` folding it into `manifest["supersede"]` after the sha is
-known, with a sha-mismatch guard; **both wrapped so they can NEVER change the conversion's outcome**
-(the S42 fail-safe precedent — this is the core converter). One stamp point covers all 3 ship sites
-because anchor/pending/resume/ship all carry the same on-disk manifest. (3) Frontend phrase for the
-new `audit/supersede` event in `room.js` + `main.js`. Verify: `cargo clippy -D warnings`, `py_compile`,
-a **real marker round-trip test with NO GPU convert and NO vault write** (pipeline is shut down for
-Rab's brother's gaming — it stays down), `npm run tauri build`. **NOT doing:** restarting the watcher,
-any GPU convert, any real-vault supersede, any live Beer test — all Rab's call. Close: docs/15 §14.6,
-CHANGELOG, ledger row, memory, morning note.)*
+*(S44 closed 2026-07-25 (Desktop, autonomous overnight — Rab asleep). **THE DESKTOP HALF OF THE
+SUPERSEDE SEAM SHIPPED — the Beer remedy rail is now complete end to end** (docs/15 §14.2/§14.6/§14.7,
+docs/16 §8 #5). S43 taught the exporter to *replace*; nothing **authored** `manifest["supersede"]`, so
+the flow was inert. Now `⟳ re-convert` is its sole author. **`assay.rs::reconvert`** reads the source's
+newest manifest from `anchor`/`pending`/`held` for `source_sha256` + `fidelity.verdict`
+(backend-authoritative — the frontend `invoke` signature is untouched) and writes
+`drop/.supersede/<source>.json` **BEFORE** copying the PDF (ordering is load-bearing: the 5 s poll
+could otherwise convert before the intent exists and lose the remedy silently); the marker is rolled
+back if the copy fails, and a re-queue whose intent cannot be recorded is **refused** rather than
+burning a GPU run to no effect. The marker is a dot-prefixed **subdirectory**, so it is invisible to
+all three existing scans (watcher: non-file/dotfile/non-pdf; `count_pdfs`: extension;
+`file_nodes`: files-only) — **no watcher, counter, or projection change was needed.**
+**`convert_and_ship.py`** gained `_take_supersede_marker()` (**consume-once** at the top of
+`convert()`, so an intent can never outlive its click) + `_stamp_supersede_safe()` (folds it into the
+manifest once the sha is known; sha-mismatch drops the intent) — **both wrapped so they can never
+change a conversion's outcome** (the S42 fail-safe rule; this is the core converter). One stamp point
+covers all three ship sites. New `audit/supersede` + `audit/supersede_ignored` events with Dock +
+Room phrases (not named `failed` — `events.rs` counts that). **Verified:** 6 new Rust tests (the
+widget crate's first — this is the one path that can cause a vault note to be *replaced*), `clippy
+--all-targets -D warnings` clean, `py_compile` + `node --check` clean, `tauri build` green, and a
+**21-check end-to-end seam proof** driving the marker the real Rust code wrote through the **real S43
+exporter** on temp git repos — consume-once holds, sha guard drops a mismatch, a still-`fail` remedy
+is refused with staging kept, and a passing remedy **replaced a note filed out of `Inbox/`** with its
+old `.md` name intact. Zero real-state impact: no GPU, no watcher started, no vault write, real
+`events.jsonl` untouched. **⚠ The running widget is still the S42 build (`D8687FB2…`); the S44 build
+(`38CC4D72…`) is STAGED, not installed** — Rab's widget was running and a Claude-launched widget reads
+the sandboxed AppData config (the S29 ghost), so adopting it is his one-step action. **Deliberately
+NOT done:** watcher restart, any GPU convert, any real-vault supersede, the live Beer test — the
+pipeline stayed down for his brother's gaming, and §14.5 stands (if Marker re-loops on Beer the guard
+correctly lands nothing; that would be a convert-side retry slice, not a reason to widen a signed
+gate).)*
 
 *(S43 closed 2026-07-25 (ThinkPad) — SHIPPED; closing SHA `bd02fc0`, tests 8→18, suite 51 passed,
 ruff clean, service restarted. Desktop review (S44) verified the ledger SHA is a true ancestor and the
@@ -247,7 +256,8 @@ convert % (#3, core converter); the Beer remedy / SUPERSEDE GAP (#5, ThinkPad).)
 - ✅ **S41: GPU telemetry stream complete 2026-07-23 (Desktop).** docs/16 §8 #4 fully done. Gave **utilization + temperature their own rolling sparklines**: a unified **GPU telemetry strip** in the Room (VRAM % / GPU util % / Temp °C, fixed scales 0–100 / 0–100 / 30–95 °C, clay under pressure >92/>95/>83, else flow). `sampleGpu` feeds three rings (`vramHist`/`utilHist`/`tempHist`) from the same one read per poll — no backend thread. The VRAM sparkline graduated from the KPI tile into the strip (tile → gauge). Frontend-only (`room.js` + `styles.css`); read-only projection. Harness-verified (0 console errors; all three accumulate on fixed scales — temp Y-coords confirm the 30–95 domain; util clay at 98%; dark+light), `tauri build` green. Installed swapped (SHA256 `55128BE2…`) + relaunched (PID 22152). Close `a0554dd`. Deferred by choice: always-on backend sampler; throughput/median rolling-window rework (already an events-tail rolling window).
 - ✅ **S42: true per-page/per-stage convert progress 2026-07-23 (Desktop).** docs/16 §8 #3 done — **the widget's §8 plans are all complete.** The Room's Convert station shows the **real live Marker stage + item count** (e.g. "Recognizing Layout · 2/3"). **First change to the core converter since the projection law — fail-safe:** `convert_and_ship.convert` streams Marker (`Popen` + daemon reader thread parsing surya's tqdm bars, regex validated vs real output) → `library/.convert-progress.json`; all progress work is best-effort and CANNOT change the conversion (same returncode/timeout/markdown-from-file; faults swallowed; cleared on end). `line.rs` reads it while `.gpu-lock` held → `convert_stage`/`frac`/`n`/`total`. `room.js` shows the live stage; bar stays the forward-only elapsed÷ETA estimate. Validated: isolated `convert()` on a 3-page PDF wrote real stages + correct md (3721 ch) + cleared progress + no events pollution; `clippy -D warnings` clean; convert-panel harness 0 errors; `tauri build` green + boots. Installed = S42 (`D8687FB2…`). **Then per Rab's request the pipeline was SHUT DOWN (widget + watcher stopped, zero GPU load) so his little brother can game.**
 - ✅ **S43: the exporter supersede flow BUILT + tested (2026-07-25, ThinkPad).** docs/15 §14 / docs/16 §8 #5 — THE SUPERSEDE GAP closed on the exporter side. `linux-converter/converter/exporter.py` now REPLACES an already-vaulted note in place when a manifest carries the opt-in `supersede` block AND the incoming `fidelity.verdict == "pass"` (fail-closed: a missing block is not pass → `EXPORT-SUPERSEDE-HELD`, staging kept). Locate-don't-assume via `git grep -l` in the bare repo (0 → normal create `EXPORT-SUPERSEDE-MISS`; >1 → `EXPORT-FAIL`, never guess); replace-in-place preserves the note's `.md` name + folder (new md under the OLD name → `[[wikilinks]]` never break), swaps `assets/`, overwrites manifest; no-op + resume guards; unchanged L12 gate (push + `cat-file -e` every committed blob, iterating `ls-tree` since the basename changed). Create/dedup path for field-less manifests byte-for-byte unchanged (regression-guarded). Tests 8 → 18 (real bare+clone git pairs), full suite **51 passed**, `ruff` clean, service restarted (PID 31739). §14.5 honoured — verdict guard NOT widened to force Beer to land. **NOT done (Rab's call / needs Desktop):** the Desktop half (`assay.rs` ⟳ marker + `convert_and_ship` consume) and a real vault supersede of the Brain-of-the-Firm specimen (pipeline shut down for gaming; real-vault write is Rab's decision).
-- ▶ Next up: **Desktop half of the supersede seam** — `assay.rs` ⟳ writes `drop/X.supersede.json`; `convert_and_ship.py` folds it into `manifest["supersede"]` — then (Rab present) a **live Beer remedy test**. If Beer re-loops on re-convert, the exporter correctly still lands nothing (verdict stays `fail`); closing it on Beer itself is a separate convert-side degeneration-retry slice, NOT a reason to loosen the signed guard. Phase 5 Forgejo: deferred. Carry-forward: `min_chars_per_page=100` provisional.
+- ✅ **S44: the Desktop half of the supersede seam BUILT + proven (2026-07-25, Desktop, autonomous overnight).** docs/15 §14.2/§14.6/§14.7 — **the remedy rail is now complete end to end.** `⟳ re-convert` became the sole **author** of supersede intent: `assay.rs::reconvert` reads the source's newest manifest (`anchor`/`pending`/`held`) for `source_sha256` + `fidelity.verdict` (backend-authoritative; frontend `invoke` signature untouched) and writes `drop/.supersede/<source>.json` **BEFORE** copying the PDF — ordering is load-bearing, since the 5 s poll could otherwise convert before the intent exists and lose the remedy silently; the marker rolls back if the copy fails, and a re-queue whose intent can't be recorded is **refused** rather than burning a GPU run to no effect. The marker is a dot-prefixed **subdirectory**, invisible to all three existing scans (watcher non-file/dotfile/non-pdf; `count_pdfs` extension; `file_nodes` files-only) → **no watcher, counter, or projection change needed.** `convert_and_ship.py` gained `_take_supersede_marker()` (**consume-once**, top of `convert()`) + `_stamp_supersede_safe()` (stamps once the sha is known; mismatch drops the intent) — **both wrapped so they can never change a conversion's outcome** (S42 fail-safe rule). One stamp point covers all 3 ship sites. New `audit/supersede` + `audit/supersede_ignored` events + Dock/Room phrases. **Verified:** 6 new Rust tests (the widget crate's first), `clippy --all-targets -D warnings` clean, `py_compile` + `node --check` clean, `tauri build` green, and a **21-check end-to-end seam proof** running the marker the real Rust code wrote through the **real S43 exporter** on temp git repos (consume-once; sha guard; still-`fail` refused with staging kept; a passing remedy **replaced a note filed out of `Inbox/`**, old `.md` name intact, commit `supersede: … (audit-remedy, fail→pass)`). Zero real-state impact — no GPU, no watcher started, no vault write, real `events.jsonl` untouched. **⚠ AWAITING Rab: adopt the build.** Running widget is still S42 (`D8687FB2…`); S44 is built (`38CC4D72…`) but **not installed** — his widget was running and a Claude-launched widget reads the sandboxed AppData config (the S29 ghost), so the swap is his one-step action.
+- ▶ Next up: **(1) adopt the S44 widget build** (close the widget, copy the new exe or run the staged installer). **(2) The live Beer remedy test with Rab present** — needs the pipeline restarted (it stayed down for his brother's gaming) and a real vault write. §14.5 stands: if Marker re-loops on Beer the verdict stays `fail`, the exporter correctly lands nothing, and closing it *on Beer* is a separate **convert-side degeneration-retry** slice — NOT a reason to loosen the signed guard. Phase 5 Forgejo: deferred. Carry-forward: `min_chars_per_page=100` provisional.
 
 ---
 

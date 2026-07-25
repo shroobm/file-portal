@@ -8,6 +8,46 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S44 — the Desktop half of the supersede seam: the remedy loop is now wired end to end
+  (2026-07-25).** docs/15 §14.2/§14.6/§14.7, docs/16 §8 #5. S43 taught the ThinkPad exporter to
+  *replace* a vaulted note; nothing yet **authored** the `manifest["supersede"]` block it keys on, so
+  the flow was inert. The widget's ⟳ re-convert is now that sole author, and the converter carries the
+  intent through to the bundle.
+  - **`assay.rs::reconvert` authors the intent.** It reads the source's newest manifest from
+    `anchor/`/`pending/`/`held/` for `source_sha256` + `fidelity.verdict` (backend-authoritative — the
+    frontend `invoke("assay_reconvert", { source })` signature is unchanged), then writes
+    `drop/.supersede/<source>.json` **before** copying the PDF into `drop/`. Ordering is load-bearing:
+    the watcher polls every 5 s, and a convert that began before the intent existed would ship as an
+    ordinary create and the remedy would be **silently lost** to dedup. If the PDF copy fails the
+    marker is rolled back; if the marker cannot be written the re-queue is refused outright (queueing
+    a convert that provably cannot supersede would burn a GPU run to no effect).
+  - **The marker is invisible to every existing scan, by construction.** A dot-prefixed
+    *subdirectory* of `drop/`: the watcher skips non-files, dotfiles and non-`.pdf`; `line.rs`'s
+    `count_pdfs` counts only `.pdf`, so `drop_waiting`/`failed_count` cannot be inflated; `room.rs`'s
+    `file_nodes` lists only files, so no phantom node appears in the Convert or Intake drill trees.
+    **No watcher, counter, or projection change was needed.**
+  - **`convert_and_ship.py` carries it.** `_take_supersede_marker()` is **consume-once** — read and
+    deleted at the top of `convert()`, before any work — so an intent can never outlive the click that
+    authored it and latch onto a later drop of the same filename; losing one (crash, failed convert)
+    is the safe direction, since the remedy then behaves exactly as before.
+    `_stamp_supersede_safe()` folds it into `manifest["supersede"]` once the sha is known, dropping
+    the intent if the file actually converted is not the one the widget pointed at. Both are wrapped
+    so they **can never change a conversion's outcome** (the S42 fail-safe rule for the core
+    converter). One stamp point suffices: the anchor copy, the `pending/` card + resume, and all three
+    ship sites carry that same on-disk manifest.
+  - New `audit/supersede` + `audit/supersede_ignored` events, with phrases in the Dock ticker and the
+    Room stream (deliberately not named `failed`, which `events.rs` counts into the day's failures).
+  - Verified: **6 new Rust tests** (the widget crate's first — this is the one path that can cause a
+    vault note to be *replaced*, so it earns them) covering intent contents, intent-without-record,
+    refusals leaving neither intent nor trigger, refusal when the intent cannot be recorded, and the
+    invisibility property. `cargo clippy --all-targets -D warnings` clean, `py_compile` +
+    `node --check` clean, `tauri build` green. **A 21-check end-to-end seam proof** drove the marker
+    the *real Rust code* wrote through the *real S43 exporter* against temp git repos: consume-once
+    holds, the sha guard drops a mismatched intent, a still-`fail` remedy is refused with staging
+    kept, and a passing remedy **replaced a note that had been filed out of `Inbox/`** — old `.md`
+    name preserved, assets swapped, no new Inbox note, commit `supersede: … (audit-remedy, fail→pass)`.
+    No GPU, no vault write, no real-state pollution (real `events.jsonl` untouched).
+
 - **S43 — the exporter supersede flow: closing the Beer remedy loop (2026-07-25).** docs/15 §14,
   docs/16 §8 #5 (THE SUPERSEDE GAP). The exporter (`linux-converter/converter/exporter.py`) can now
   **replace an already-vaulted note in place** with a deliberate remedy re-convert — but only under a

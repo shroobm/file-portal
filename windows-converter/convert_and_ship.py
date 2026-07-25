@@ -155,6 +155,72 @@ def _enforce_hold(bundle_dir: Path, bundle_name: str, source_sha: str) -> bool:
         return False
 
 
+# ---------- the ⟳ remedy's supersede intent (docs/15 §14.2) — best-effort, never raises ----------
+
+# The widget's Assay writes drop/.supersede/<source>.json when Rab clicks ⟳ re-convert. A
+# dot-prefixed SUBDIRECTORY, so the watcher (non-file + dotfile + non-.pdf skips), the widget's
+# drop counters (.pdf only) and its drill tree (files only) are all blind to it by construction.
+SUPERSEDE_DIR_NAME = ".supersede"
+
+
+def _take_supersede_marker(src: Path) -> dict | None:
+    """Consume the ⟳ remedy marker for `src`, if the Assay queued one (docs/15 §14.2).
+
+    CONSUME-ONCE: the marker is deleted the moment it is read — before the conversion runs — so
+    an intent can never outlive the click that authored it and latch onto some later drop of the
+    same filename. Losing an intent (crash, failed convert) is the SAFE direction: the remedy
+    then behaves exactly as it always did — the exporter dedup-skips — and Rab clicks ⟳ again.
+
+    Best-effort in both directions: absent, malformed, or undeletable all yield None rather than
+    disturbing the conversion."""
+    marker = src.parent / SUPERSEDE_DIR_NAME / f"{src.name}.json"
+    data = None
+    try:
+        if marker.is_file():
+            data = json.loads(marker.read_text(encoding="utf-8"))
+    except Exception:  # noqa: BLE001 — a malformed marker must never fail the line
+        data = None
+    try:
+        # Deleted even when unreadable: a corrupt marker must not linger and re-fire later.
+        marker.unlink(missing_ok=True)
+    except OSError:
+        pass
+    return data if isinstance(data, dict) else None
+
+
+def _stamp_supersede_safe(manifest: dict, marker: dict | None, source_sha: str, name: str) -> None:
+    """Fold a consumed ⟳ marker into manifest['supersede'] — the opt-in provenance the ThinkPad
+    exporter requires before it will REPLACE an already-vaulted note instead of skipping the
+    re-convert (docs/15 §14.3, shipped S43). No marker => no field => the exporter's unchanged
+    create-only dedup, so an accidental re-drop still skips, by construction.
+
+    The sha guard drops the intent when the file actually converted is not the one the widget
+    pointed at (same filename, different book). Never raises — provenance must never cost a
+    conversion (docs/15 §8, the S42 fail-safe rule)."""
+    try:
+        if not marker:
+            return
+        expected = marker.get("source_sha256")
+        if expected and expected != source_sha:
+            print(f"SUPERSEDE ignored — marker sha {str(expected)[:16]} != actual "
+                  f"{source_sha[:16]} (different file, same name)", flush=True)
+            emit("audit", "supersede_ignored", source=name,
+                 expected=str(expected)[:16], actual=source_sha[:16])
+            return
+        manifest["supersede"] = {
+            "reason": marker.get("reason") or "audit-remedy",
+            "from_verdict": marker.get("from_verdict") or "?",
+            "requested_at_epoch_s": marker.get("requested_at_epoch_s"),
+        }
+        print(f"SUPERSEDE intent carried (from_verdict="
+              f"{manifest['supersede']['from_verdict']}) — the exporter may replace the "
+              f"vaulted note if this conversion passes the audit", flush=True)
+        emit("audit", "supersede", source=name,
+             from_verdict=manifest["supersede"]["from_verdict"], sha=source_sha[:16])
+    except Exception as exc:  # noqa: BLE001 — provenance must never break the conversion
+        emit("audit", "error", phase="supersede", error=str(exc)[:150])
+
+
 # ---------- bundle contract, mirrored from linux-converter/converter/bundle.py ----------
 
 _IMAGE_LINK = re.compile(r"!\[[^\]]*\]\(\s*<?([^)>\s]+)>?(?:\s+\"[^\"]*\")?\s*\)")
@@ -262,6 +328,10 @@ def route(chars: float, ocr_fonts: bool) -> tuple[list[str], str, str]:
 
 def convert(src: Path, work: Path, use_analyst: bool = False,
             analyst_backend: str = "local") -> tuple[Path, str, dict]:
+    # Claim the ⟳ remedy intent FIRST (consume-once, docs/15 §14.2): read and delete before any
+    # work happens, so a marker can never survive this conversion. Stamped into the manifest
+    # further down, once the source sha is known and can be checked against it.
+    supersede_marker = _take_supersede_marker(src)
     chars, pages, ocr_fonts = probe(src)
     extra, lane, lane_reason = route(chars, ocr_fonts)
     print(f"PROBE {src.name}: {chars:.1f} chars/page, {pages} pages, ocr_fonts={ocr_fonts}"
@@ -353,6 +423,9 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         "marker_version": getattr(marker, "__version__", "unknown"),
         "converted_at": converted_at.isoformat(timespec="seconds"),
     }
+    # Rides every downstream path from here: the anchor copy, the pending/ card + resume, and
+    # all three ship sites carry this same manifest, so nothing else needs to know about it.
+    _stamp_supersede_safe(manifest, supersede_marker, source_sha, src.name)
     body = rewrite_image_links(markdown)
     # Survival Audit of the convert stage (docs/15) — before any analyst pass, so the
     # witness is scored against the raw Marker output. Report-only; never fails the line.

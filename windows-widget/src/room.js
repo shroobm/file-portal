@@ -294,6 +294,8 @@ function eventMsg(e) {
     "audit/scored": `scored ${s(e.source)} · survival ${e.doc_survival != null ? Number(e.doc_survival).toFixed(3) : "?"}`,
     "audit/flagged": `${s(e.source)} — verdict ${e.verdict}`,
     "audit/held": `${s(e.bundle)} — held · enforce`,
+    "audit/supersede": `${s(e.source)} — remedy carried · replaces on pass`,
+    "audit/supersede_ignored": `${s(e.source)} — remedy dropped · sha mismatch`,
     "gate/pending": `${s(e.bundle)} — awaiting routing`,
     "analyst/done": `analysis done · ${e.chunks_passed ?? "?"}✓`,
     "ship/shipped": `${s(e.bundle)} — shipped ✓`,
