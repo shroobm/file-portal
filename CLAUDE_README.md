@@ -56,6 +56,27 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S45 OPEN 2026-07-25 (Desktop, autonomous overnight — Rab asleep). **Adopt the S44 widget + convert two
+finance books to the vault.** Rab's ask: swap the widget build in, check the system has the juice, test
++ run the conversions, free resources, leave a morning message. (1) **Widget swapped** — S44
+(`38CC4D72…`) SHA256-verified into `%LOCALAPPDATA%`; note the pre-swap hash was `D4B50F23…`, NOT the
+`D8687FB2…` recorded at S44 close, so the exe had changed in between (Rab likely ran the staged
+installer). (2) **Capacity tested** with the pipeline's own `probe`/`route`: *Investment Valuation*
+(Damodaran 4e) = **1,356 pp, 2140 chars/pp, CLEAN lane** (born-digital); *Best Practices for Equity
+Research Analysts* (Valentine) = **465 pp, 1 char/pp, SCAN lane** (no text layer → OCR fires, the
+degeneration-hazard lane). Freed VRAM 8240→8782 MiB by closing Discord/ShareX/Edge (peak need ~8 GB —
+the pre-existing margin was ~240 MiB, too thin against the S32 thrash mode). ThinkPad exporter verified
+`active`, staging empty, 192 G free. (3) **A latent bug found by the probe and FIXED:** the flat
+3600 s Marker cap made **any book over ~1000 pages unconvertible** — Damodaran straddles it at 34–77
+min. Now `max(3600, pages*20)` (~2.5× the worst rate ever measured here, 8.08 s/pp), and the watcher's
+outer backstop 7200→21600 s so it can't silently become the real limit. (4) **Run:** both books
+sequentially via direct `convert_and_ship` invocation — deliberately NOT the drop folder, because
+`analyst-mode=ask` would park them in `pending/` awaiting Rab's card and he asked for them **vaulted**;
+`audit-mode=report` so a flagged verdict still ships. No analyst pass (his per-book call; local analyst
+on 1,356 pp would risk the whole unattended run). Verify each lands in the vault via the ThinkPad
+exporter. Close: free resources, CHANGELOG + ledger, memory, Gmail draft (standing rule for pipeline
+runs) + desktop morning note.)*
+
 *(S44 closed 2026-07-25 (Desktop, autonomous overnight — Rab asleep). **THE DESKTOP HALF OF THE
 SUPERSEDE SEAM SHIPPED — the Beer remedy rail is now complete end to end** (docs/15 §14.2/§14.6/§14.7,
 docs/16 §8 #5). S43 taught the exporter to *replace*; nothing **authored** `manifest["supersede"]`, so
