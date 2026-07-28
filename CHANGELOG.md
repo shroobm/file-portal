@@ -8,6 +8,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S46 — remote access: docs/17 runbook + `windows-remote/` gate scripts (2026-07-28).** Rab's
+  SSH + Sunshine brief re-grounded against the measured machine (S46 preflight) and redesigned into a
+  verification-gated runbook (`docs/17-remote-access-runbook.md`): corrections ledger (dead
+  `Rabbiallah` account, Gmail-mangled `100.64.0.0/10` firewall blocks, the never-disabled allow-any
+  auto rule, lockout-unsafe key rollover, wrong UAC-over-SSH diagnosis, missing `claude` CLI / tailnet
+  ACL / DERP + upload-bandwidth / host-key pinning / coexistence + audit accounting), gates 0–6 with
+  done-when + rollback, security-model delta (extends docs/06), remote ops cookbook, diagnostics
+  playbook, standing coexistence laws. New `windows-remote/gate1-bootstrap.ps1` (enable sshd scoped
+  to the tailnet at birth; self-asserts elevation + non-MSIX-sandboxed shell; prints host-key
+  fingerprints; transcript) and `gate2-lockdown.ps1` (two-run key-install → proven-login →
+  password-auth lockout; BOM-free writes; prepend-not-append sshd_config guard). Both parse clean
+  (PS language parser, 0 errors). **No system state changed by S46 itself** — the session's measured
+  surface (Medium IL, MSIX-redirected) is exactly what the new standing rule forbids from doing
+  system configuration; Gate 1 is Rab's, elevated + unpackaged.
+
 - **S44 — the Desktop half of the supersede seam: the remedy loop is now wired end to end
   (2026-07-25).** docs/15 §14.2/§14.6/§14.7, docs/16 §8 #5. S43 taught the ThinkPad exporter to
   *replace* a vaulted note; nothing yet **authored** the `manifest["supersede"]` block it keys on, so
