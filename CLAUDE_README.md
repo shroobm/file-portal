@@ -56,6 +56,23 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S46 open — Desktop, 2026-07-28.** Rab's ask: take his SSH + Sunshine remote-access brief (pasted
+from Gmail, externally fact-checked), re-examine it with full engineering care, redesign it so nothing
+is missing for *developing and operating this desktop from outside the home*, and implement. Plan:
+(1) MUSTER + survey (memory, docs/02/06/14, ledger) — done pre-commit, both clocks agreed (S45 /
+`c902a7b`); (2) machine preflight, strictly read-only — done: this session runs at **Medium IL with the
+filtered admin token AND is MSIX-sandbox-redirected** (AppData probe proven), so system changes are
+structurally out for this surface; sshd fully absent; RDP disabled; user is **`bndit`@`DESKTOP-BNDIT`**
+(the brief's "Rabbiallah" is the dead pre-reset account), tailnet `100.108.102.101`; `claude` CLI not
+installed for the shell user; AC-sleep already Never; (3) author **docs/17** — the corrected,
+gate-structured remote-access runbook (scoped-at-birth firewall, lockout-safe key rollover, Sunshine +
+display, coexistence laws, forensic accounting, remote ops cookbook) with a corrections ledger for
+every false/missing item in the source brief; (4) `windows-remote/` Gate 1 + Gate 2 scripts (Rab runs
+them elevated + unpackaged; they self-assert both); (5) CHANGELOG + desktop morning note; (6) close in
+lockstep. **NO system state change this session** — Gate 1 is Rab's by the brief's own design AND by
+this session's measured token. Verify: scripts parse (`powershell -File` syntax load), docs
+cross-references resolve, ledger row + TIME-STATE advance together.
+
 *(S45 closed 2026-07-25 (Desktop, autonomous overnight — Rab asleep). **OUTCOME: MIXED — widget adopted
 and a real latent bug fixed, but BOTH CONVERSIONS FAILED and the vault is UNCHANGED at 4 notes.**
 *Investment Valuation* (Damodaran, 1,356 pp, clean lane) **WEDGED**: 5 h 34 m wall with the live
