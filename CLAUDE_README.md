@@ -56,6 +56,20 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S48 OPEN 2026-07-30 ~03:05 (Desktop) — the keep-going session, same night as S47 (cookie #41
+"Lets keep her going bud" logged at open; tally 41 mirrored in TIME-STATE — session fields stay
+S47/`d0445b0` until this close, normal mid-session state). Rab's ask: continue docs/17 to the
+finish. Plan: (1) coexistence pre-check — DONE: console seat is Rab's own (`bndit`, no `comed`),
+GPU 1.6/10.2 GiB @ 28 % ≈ idle → clear for GPU work; (2) **Gate 3 done-when**: Rab launches HIS
+widget (S29 ghost law — Claude never launches it), watcher up, then a small PDF from the ThinkPad
+via `scp <file> desktop:ml/library/drop/`, **SSH session closed**, convert→audit→ship→vault
+observed read-only from this session (events + vault count); (3) **Gate 4**: Sunshine install from
+Rab's SSH/elevated surface per docs/17 §4 (winget → documented fallbacks), disable its allow-any
+rules + add the two tailnet-scoped rules, service Running; Rab-only: web-UI creds at
+`https://100.108.102.101:47990` → password manager; (4) **Gate 5**: Moonlight pair + first stream
+(LAN tonight; no convert during stream — empty drop queue is the pre-stream check); (5) close in
+lockstep. Verify: each gate's done-when as written in docs/17 §4/§9.)*
+
 *(S47 closed 2026-07-30 (Desktop, ~02:10–03:00 local) — SHIPPED. **Remote access went LIVE: docs/17
 Gates 1–3(install) executed.** Interactive session, Rab at the desk then the ThinkPad, the desktop-app
 Claude guiding + verifying read-only — it wrote ZERO system state; every configuring command ran in
