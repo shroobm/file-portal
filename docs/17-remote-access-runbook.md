@@ -264,7 +264,7 @@ byte-identical (`scp` a file both ways, `sha256sum` / `Get-FileHash` match).
 All done-whens measured: password refused, kbd-interactive refused, key login works, scp
 round-trip hash-identical on both machines.
 
-### Gate 3 — Claude Code over SSH — install ✅ (2026-07-30) · queued-drop test PENDING
+### Gate 3 — Claude Code over SSH ✅ (2026-07-30 — install AND queued-drop done-when)
 
 ```powershell
 # in the SSH session (real, unpackaged surface):
@@ -289,6 +289,15 @@ to end** — memory loaded from the pinned path, both clocks agreed, pen respect
 session held it; first time two Claude sessions shared the machine + memory live). Remaining
 done-when: one queued remote drop converting + shipping with the SSH session closed (pipeline was
 down tonight).
+
+**Queued-drop done-when met 2026-07-30 ~19:53:** `claude-code-up-and-running.pdf` (104 pp) scp'd
+ThinkPad → `drop/`, SSH session closed, then converted (141 s, 1.36 s/pp), analyzed locally
+(1052.6 s vs the card's 1022 s ETA — 3 %), shipped, and vaulted as **note 5** (`289dcbc`) with no
+shell involved. Getting there first required exhuming two S29-class ghosts (the widget's watcher
+had been dying silently at exit 0x67 since ~Jul 24 — the uv base Python and the S45 exe adoption
+both existed only in the sandbox mirror) and fixing the S42 progress-reader's cp1252 pipe-decode
+deadlock; see the S48 ledger row and [[desktop-machine]] / [[segment-convert-marker]] for the
+full forensics.
 
 Rules of the SSH era (standing):
 
@@ -463,7 +472,7 @@ ssh desktop "query user"      # comed active ⇒ the seat is his; coordinate, do
 
 - [ ] Gate 1: `sshd` Running + Automatic, allow-any rule disabled, scoped rule live, fingerprints recorded
 - [ ] Gate 2: key login proven, password auth refused, scp round-trip byte-identical, ACL allows ThinkPad→22
-- [ ] Gate 3: `claude` CLI installed; one MUSTER-clean SSH Claude session; one queued remote drop converted + shipped
+- [x] Gate 3: `claude` CLI installed; one MUSTER-clean SSH Claude session; one queued remote drop converted + shipped (all ✅ 2026-07-30)
 - [ ] Gate 4: Sunshine service up, installer rules disabled, scoped rules live, web creds in password manager
 - [ ] Gate 5: pairing done, in-home stream clean, out-of-home stream **direct** (not DERP) at a sustainable bitrate
 - [ ] §8 laws acknowledged in memory (segment note) + the event-log third clock spot-checked once

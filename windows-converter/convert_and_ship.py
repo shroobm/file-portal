@@ -358,18 +358,33 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         try:
             for line in pipe:  # text mode: universal newlines split tqdm's \r refreshes into lines
                 captured.append(line)
-                m = _TQDM_RE.search(line)
-                if m:
-                    _write_progress(m.group(1).strip(), int(m.group(2)),
-                                    int(m.group(3)), int(m.group(4)))
-        except Exception:  # noqa: BLE001 — a reader fault must never break the convert
-            pass
+                try:
+                    m = _TQDM_RE.search(line)
+                    if m:
+                        _write_progress(m.group(1).strip(), int(m.group(2)),
+                                        int(m.group(3)), int(m.group(4)))
+                except Exception:  # noqa: BLE001 — a parse fault must never stop the drain
+                    pass
+        except Exception:  # noqa: BLE001 — a reader fault must never break the convert — and it
+            # must never stop DRAINING either: with stdout piped, a dead reader lets the 64 KB
+            # pipe fill and Marker blocks on its next write, wedging the convert at zero CPU
+            # (S48: the cp1252-decode deadlock; S45's "stall" was this wearing a VRAM costume).
+            try:
+                for _ in pipe:
+                    pass
+            except Exception:
+                pass
 
     t0 = time.perf_counter()
     proc = subprocess.Popen(
         [str(MARKER), str(engine_src), "--output_dir", str(out_root),
          "--output_format", "markdown", *extra],
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+        # Marker inherits PYTHONIOENCODING=utf-8 (the watcher sets it), so the pipe carries
+        # UTF-8 — but text=True alone decodes with the locale codepage (cp1252 here), and
+        # surya's tqdm block glyphs contain bytes cp1252 cannot decode (0x8F et al.). The
+        # strict-decode error killed the reader thread and deadlocked the pipe (S48).
+        encoding="utf-8", errors="replace",
     )
     reader = threading.Thread(target=_reader, args=(proc.stdout,), daemon=True)
     reader.start()

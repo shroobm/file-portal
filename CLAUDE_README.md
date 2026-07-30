@@ -56,44 +56,35 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S48 OPEN 2026-07-30 ~03:05 (Desktop) — the keep-going session, same night as S47 (cookie #41
-"Lets keep her going bud" logged at open; tally 41 mirrored in TIME-STATE — session fields stay
-S47/`d0445b0` until this close, normal mid-session state). Rab's ask: continue docs/17 to the
-finish. Plan: (1) coexistence pre-check — DONE: console seat is Rab's own (`bndit`, no `comed`),
-GPU 1.6/10.2 GiB @ 28 % ≈ idle → clear for GPU work; (2) **Gate 3 done-when**: Rab launches HIS
-widget (S29 ghost law — Claude never launches it), watcher up, then a small PDF from the ThinkPad
-via `scp <file> desktop:ml/library/drop/`, **SSH session closed**, convert→audit→ship→vault
-observed read-only from this session (events + vault count); (3) **Gate 4**: Sunshine install from
-Rab's SSH/elevated surface per docs/17 §4 (winget → documented fallbacks), disable its allow-any
-rules + add the two tailnet-scoped rules, service Running; Rab-only: web-UI creds at
-`https://100.108.102.101:47990` → password manager; (4) **Gate 5**: Moonlight pair + first stream
-(LAN tonight; no convert during stream — empty drop queue is the pre-stream check); (5) close in
-lockstep. Verify: each gate's done-when as written in docs/17 §4/§9.)*
+*(S48 closed 2026-07-30 ~20:15 (Desktop) — SHIPPED; frozen clean at Rab's request so his little
+brother can game (S42 courtesy held: GPU at 2.3 GB baseline, empty drop queue, no locks, Rab
+closes the widget). **GATE 3 CLOSED END-TO-END — plus two exhumed ghosts and a deadlock.** The
+queued-drop done-when ran whole: `claude-code-up-and-running.pdf` (104 pp) scp'd ThinkPad→`drop/`,
+SSH session closed, converted 141 s (1.36 s/pp), local analyst 37 chunks in 1052.6 s (card ETA
+1022 s — +3 %), shipped, **vaulted as note 5 (`289dcbc`)**. Getting there: (a) the widget-spawned
+watcher had died SILENTLY at every spawn since ~Jul 24 — Security-log **4689** auditing (Rab,
+elevated, temporary) caught **exit 0x67** = venv launcher "no Python"; root cause = **the MSIX
+ghost swallows installs**: uv's base CPython (`%APPDATA%\uv\…`, marker-env's `pyvenv.cfg` home)
+existed only in the desktop-app sandbox mirror — every packaged Claude shell saw it and "worked",
+the unpackaged widget starved; fixed by Rab running `uv python install 3.12.13` for real; (b)
+**S45's widget-exe adoption never landed** (its write+SHA-verify was virtualized) — the real exe
+was still the installer's `D4B50F23`; Rab copied the true S44 `38CC4D72` from his own shell and
+hash-verified it; (c) the S42 progress reader's **cp1252 pipe-decode deadlock** — `text=True`
+with no encoding, surya's block glyphs killed the reader, the full 64 KB pipe blocked Marker at
+ZERO CPU (S45's 5 h "wedge" possibly compound with this) — fixed fail-safe in
+`convert_and_ship.py` (`encoding="utf-8", errors="replace"` + drain-on-fault), proven same hour
+by the very book that wedged on it. Also filed: the analyst-phase Survival Audit **failed the
+analyst's own notes** (0.9493, 14 repetition runs — qwen3 looping in summaries; book text clean
+at 0.9913); report mode shipped it with the verdict in the manifest — GAP: the remedy loop has no
+analyst-only re-run (⟳ re-converts). NEW STANDING RULE (memory `file-portal-verify-before-
+instruct`): File Portal operating instructions get verified against current source first (born of
+the ⚡-tile-vs-⏻ miss). A 10-item observability blind-spot survey + staged plan was sketched with
+Rab — docs/18 candidate. Cookies #41 + #42 logged. NEXT: **Gate 4** Sunshine (Claude-over-SSH,
+Rab approving; disable its allow-any rules, scope to tailnet; web-UI creds → password manager
+ONLY) → **Gate 5** first Moonlight stream (the empty-drop pre-stream check is already true).
+S45's 3 questions STILL open — the stall-policy one now half-answered by the deadlock find.)*
 
-*(S47 closed 2026-07-30 (Desktop, ~02:10–03:00 local) — SHIPPED. **Remote access went LIVE: docs/17
-Gates 1–3(install) executed.** Interactive session, Rab at the desk then the ThinkPad, the desktop-app
-Claude guiding + verifying read-only — it wrote ZERO system state; every configuring command ran in
-Rab's elevated unpackaged shells or over SSH (the S46 standing rule held its first live test). Gate 1:
-`gate1-bootstrap.ps1` → sshd Running/Automatic, allow-any rule verified `Enabled=False` + `SSH
-(Tailscale only)` scoped `100.64.0.0/10` (verified from the elevated window — `Get-NetFirewallRule`
-is Access-denied from the sandboxed desktop-app surface), fingerprints recorded. Gate 2:
-`gate2-lockdown.ps1` two-run flow held; **field lesson → key material travels by file (`scp`), never
-clipboard** — the hand-pasted pubkey silently truncated to 73/106 bytes (accepted by the line-start
-format check; symptom = publickey denied with no passphrase prompt; diagnosed by byte-length vs the
-~106 B ed25519 line); after the scp rewrite + `ssh-keygen -lf` fingerprint match, key login PROVEN,
-then `PasswordAuthentication no` (backup `sshd_config.bak-20260730-022914`). Done-whens all measured:
-password refused, **keyboard-interactive refused with no prompt** (still advertised — probed dead,
-not assumed), scp round-trip hash-identical on both machines. Gate 3 install half: Claude Code CLI
-2.1.220 for `bndit`; installer leaves `%USERPROFILE%\.local\bin` off PATH → fixed persistently via
-an ExpandString-preserving HKCU `Environment` write from the SSH session (never `setx`); then a
-**MUSTER-clean verify-only Claude session ran over SSH end to end** — memory loaded from the pinned
-path, clocks agreed at S46/`3dd7f5b`, pen respected (first night with TWO live Claude sessions on
-one machine + memory; the desktop-app session held the pen and closed the clocks). The S29 ghost
-class ends at the SSH prompt. NEXT: Gate 3's remaining done-when — one queued remote drop
-(`scp → drop/`) converting + shipping with the SSH session closed (pipeline was down tonight) —
-then Gate 4 (Sunshine install + rule scoping, Claude-over-SSH with Rab approving) and Gate 5 (HDMI
-dummy plug + first Moonlight stream, DIRECT-path + bitrate budget checks). S45's 3 questions
-(stall policy, large-book fix, Valentine retry) STILL open.)*
+*(S47's closed plan moved to the ledger at S48 close — its row (`d0445b0`) is the record.)*
 
 *(S45 closed 2026-07-25 (Desktop, autonomous overnight — Rab asleep). **OUTCOME: MIXED — widget adopted
 and a real latent bug fixed, but BOTH CONVERSIONS FAILED and the vault is UNCHANGED at 4 notes.**

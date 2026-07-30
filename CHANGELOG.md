@@ -8,6 +8,32 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S48 — Gate 3 closed end-to-end + the double-ghost exhumation + converter deadlock fix
+  (2026-07-30).** The first queued remote drop ran the whole line with the SSH session closed:
+  ThinkPad `scp` → watcher → Marker (104 pp, 141 s) → local analyst (37 chunks, 1052.6 s vs a
+  1022 s ETA) → ship → ThinkPad exporter → **vault note 5** (`289dcbc`). Getting there took a
+  forensic afternoon: the widget-spawned watcher had been dying **silently since ~Jul 24** —
+  Security-log 4689 auditing (Rab, elevated) caught **exit 0x67 (venv launcher "no Python")**,
+  and a PYTHONPATH sitecustomize birth-logger proved the interpreter never reached site init.
+  Root causes, both S29-class MSIX ghosts: (a) uv's managed CPython (`%APPDATA%\uv\python\…`,
+  marker-env's `pyvenv.cfg` home) existed **only in the desktop-app sandbox mirror** — every
+  packaged Claude shell saw it and "worked"; the unpackaged widget found nothing (fix: Rab ran
+  `uv python install 3.12.13` for real); (b) S45's widget-exe adoption never landed — the real
+  exe was still the installer's `D4B50F23`; Rab copied the true S44 `38CC4D72` from his own
+  shell and hash-verified it. Then the drop test immediately caught a THIRD latent bug: the S42
+  progress reader opened Marker's pipe `text=True` with no encoding → cp1252 strict decode died
+  on surya's tqdm block glyphs → the daemon reader exited → the full 64 KB pipe **blocked Marker
+  at zero CPU** (S42's 3-pp test had never filled the pipe; S45's 5 h "VRAM wedge" is possibly
+  compound with this). Fix in `convert_and_ship.py` (fail-safe per the S42 rule):
+  `encoding="utf-8", errors="replace"` + the reader now drains to EOF on parse faults. Also
+  recorded: the analyst-phase Survival Audit **failed the analyst's own notes** (0.9493, 14
+  repetition runs — qwen3 looping in summaries; book text clean at 0.9913) and report-mode
+  shipped it with the verdict filed in the manifest — surfacing that the remedy loop lacks an
+  analyst-only re-run (⟳ re-converts). New standing rule (memory:
+  `file-portal-verify-before-instruct`): File Portal operating instructions get verified against
+  current source before being given. Machine handed to Rab's brother clean at close (GPU
+  baseline, empty queue, no locks).
+
 - **S47 — remote access LIVE: docs/17 Gates 1–3(install) executed (2026-07-30).** Rab ran both gate
   scripts (elevated + unpackaged, per the S46 standing rule — the desktop-app session guided and
   verified read-only, wrote no system state): Gate 1 sshd scoped-at-birth (allow-any rule verified
