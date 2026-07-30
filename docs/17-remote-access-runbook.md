@@ -171,7 +171,7 @@ sitting if the first's verification failed.*
 No system state changed. Findings in §1; blocked-by-design confirmation: the desktop-app session
 measured Medium-IL + sandbox-redirected, which is precisely why Gates 1–2 are structured as below.
 
-### Gate 1 — enable sshd, scoped at birth — **RAB, at the desk, ~5 min**
+### Gate 1 — enable sshd, scoped at birth ✅ (2026-07-30, Rab at the desk)
 
 Open an **elevated, unpackaged** PowerShell (Start menu → Windows PowerShell → Run as administrator
 — *not* a shell opened through the Claude app), then:
@@ -197,7 +197,13 @@ Password auth is deliberately still ON — exposure is tailnet-only, and Gate 2 
 Get-NetFirewallRule -DisplayName 'SSH (Tailscale only)' | Disable-NetFirewallRule` (full removal:
 `Remove-WindowsCapability -Online -Name OpenSSH.Server~~~~0.0.1.0`).
 
-### Gate 2 — key-only auth, lockout-safe — **RAB, from the ThinkPad**
+**Completed 2026-07-30 ~02:10:** sshd Running/Automatic; allow-any rule verified `Enabled=False` and
+`SSH (Tailscale only)` verified `100.64.0.0/10` — verified from Rab's elevated window, because
+`Get-NetFirewallRule` is **Access-denied from the sandboxed desktop-app surface** (metadata/dir
+listings work; content + firewall reads don't — server-side verification goes through an elevated
+shell or `sshd.exe -T`). Fingerprints recorded; transcript `Desktop\gate1-bootstrap-transcript.txt`.
+
+### Gate 2 — key-only auth, lockout-safe ✅ (2026-07-30, Rab from the ThinkPad)
 
 ```bash
 # ThinkPad, once:
@@ -245,7 +251,20 @@ Only after that succeeds:
 (`ssh -o PreferredAuthentications=password desktop` → permission denied); an scp round-trip is
 byte-identical (`scp` a file both ways, `sha256sum` / `Get-FileHash` match).
 
-### Gate 3 — Claude Code over SSH — **Claude executes, Rab watches the first one**
+**Completed 2026-07-30 ~02:30** (backup `sshd_config.bak-20260730-022914`), with two field lessons:
+- **Key material travels by file (`scp`), never clipboard** — the first `-PubKey` run hand-pasted
+  the key and it truncated silently to 73 of 106 bytes; the format check only inspects the line
+  start, so it was accepted, and the symptom was `Permission denied` with *no passphrase prompt*.
+  Diagnosis = compare `administrators_authorized_keys` byte length to the pubkey line (~106 B for
+  ed25519 + comment). Fixed by `scp` of `id_ed25519.pub` + rewrite; fingerprint match confirmed
+  with `ssh-keygen -lf` before retesting.
+- **`keyboard-interactive` stays advertised after `PasswordAuthentication no`** — probed with
+  `ssh -o PreferredAuthentications=keyboard-interactive`: refused with no prompt, so the door is
+  dead on this Win32-OpenSSH build. Measured, not assumed; re-probe after any OpenSSH upgrade.
+All done-whens measured: password refused, kbd-interactive refused, key login works, scp
+round-trip hash-identical on both machines.
+
+### Gate 3 — Claude Code over SSH — install ✅ (2026-07-30) · queued-drop test PENDING
 
 ```powershell
 # in the SSH session (real, unpackaged surface):
@@ -260,6 +279,16 @@ ssh -t desktop        # -t: TTY, so the Claude Code UI renders
 # then in PowerShell:
 cd C:\Users\Bndit\Projects\file-portal ; git pull ; claude
 ```
+
+**Install half completed 2026-07-30 ~02:50:** CLI 2.1.220 at `C:\Users\Bndit\.local\bin\claude.exe`.
+The installer does **not** add that dir to PATH — fixed persistently from the SSH session (the
+correct, unpackaged surface) via an HKCU `Environment` registry write that preserves the
+`ExpandString` kind (`%USERPROFILE%\.local\bin`); `setx` was deliberately avoided (1024-char
+truncation + type-flattening). A **MUSTER-clean verify-only Claude session then ran over SSH end
+to end** — memory loaded from the pinned path, both clocks agreed, pen respected (the desktop-app
+session held it; first time two Claude sessions shared the machine + memory live). Remaining
+done-when: one queued remote drop converting + shipping with the SSH session closed (pipeline was
+down tonight).
 
 Rules of the SSH era (standing):
 

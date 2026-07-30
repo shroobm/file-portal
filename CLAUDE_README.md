@@ -56,31 +56,30 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S46 closed 2026-07-28 (Desktop) — SHIPPED. **The remote-access brief became `docs/17` + `windows-remote/`
-gate scripts; ZERO system state changed; Gates 1–2 await Rab (~15 min, one at the desk).** Load-bearing
-finds: the brief targets the dead pre-reset account; both firewall blocks Gmail-mangled (CGNAT range →
-google-redirect URL); the allow-any auto rule never disabled (scoping was ineffective as written);
-lockout-unsafe key rollover; UAC-over-SSH misdiagnosed (admin SSH = full token; the real risk is winget's
-MSIX activation); `claude` CLI absent for `bndit`; ThinkPad is a TAGGED node → ACL check added; Sunshine's
-own allow-any rules, DERP-vs-direct + home-upload budget, host-key pinning, console-seat + convert-vs-stream
-coexistence laws, and the OpenSSH event log as a third clock — all now in the runbook. Verification held:
-both scripts parse clean (PS language parser, 0 errors); morning note left; clocks advanced in lockstep.
-Original plan follows.* — Rab's ask: take his SSH + Sunshine remote-access brief (pasted
-from Gmail, externally fact-checked), re-examine it with full engineering care, redesign it so nothing
-is missing for *developing and operating this desktop from outside the home*, and implement. Plan:
-(1) MUSTER + survey (memory, docs/02/06/14, ledger) — done pre-commit, both clocks agreed (S45 /
-`c902a7b`); (2) machine preflight, strictly read-only — done: this session runs at **Medium IL with the
-filtered admin token AND is MSIX-sandbox-redirected** (AppData probe proven), so system changes are
-structurally out for this surface; sshd fully absent; RDP disabled; user is **`bndit`@`DESKTOP-BNDIT`**
-(the brief's "Rabbiallah" is the dead pre-reset account), tailnet `100.108.102.101`; `claude` CLI not
-installed for the shell user; AC-sleep already Never; (3) author **docs/17** — the corrected,
-gate-structured remote-access runbook (scoped-at-birth firewall, lockout-safe key rollover, Sunshine +
-display, coexistence laws, forensic accounting, remote ops cookbook) with a corrections ledger for
-every false/missing item in the source brief; (4) `windows-remote/` Gate 1 + Gate 2 scripts (Rab runs
-them elevated + unpackaged; they self-assert both); (5) CHANGELOG + desktop morning note; (6) close in
-lockstep. **NO system state change this session** — Gate 1 is Rab's by the brief's own design AND by
-this session's measured token. Verify: scripts parse (`powershell -File` syntax load), docs
-cross-references resolve, ledger row + TIME-STATE advance together.)*
+*(S47 closed 2026-07-30 (Desktop, ~02:10–03:00 local) — SHIPPED. **Remote access went LIVE: docs/17
+Gates 1–3(install) executed.** Interactive session, Rab at the desk then the ThinkPad, the desktop-app
+Claude guiding + verifying read-only — it wrote ZERO system state; every configuring command ran in
+Rab's elevated unpackaged shells or over SSH (the S46 standing rule held its first live test). Gate 1:
+`gate1-bootstrap.ps1` → sshd Running/Automatic, allow-any rule verified `Enabled=False` + `SSH
+(Tailscale only)` scoped `100.64.0.0/10` (verified from the elevated window — `Get-NetFirewallRule`
+is Access-denied from the sandboxed desktop-app surface), fingerprints recorded. Gate 2:
+`gate2-lockdown.ps1` two-run flow held; **field lesson → key material travels by file (`scp`), never
+clipboard** — the hand-pasted pubkey silently truncated to 73/106 bytes (accepted by the line-start
+format check; symptom = publickey denied with no passphrase prompt; diagnosed by byte-length vs the
+~106 B ed25519 line); after the scp rewrite + `ssh-keygen -lf` fingerprint match, key login PROVEN,
+then `PasswordAuthentication no` (backup `sshd_config.bak-20260730-022914`). Done-whens all measured:
+password refused, **keyboard-interactive refused with no prompt** (still advertised — probed dead,
+not assumed), scp round-trip hash-identical on both machines. Gate 3 install half: Claude Code CLI
+2.1.220 for `bndit`; installer leaves `%USERPROFILE%\.local\bin` off PATH → fixed persistently via
+an ExpandString-preserving HKCU `Environment` write from the SSH session (never `setx`); then a
+**MUSTER-clean verify-only Claude session ran over SSH end to end** — memory loaded from the pinned
+path, clocks agreed at S46/`3dd7f5b`, pen respected (first night with TWO live Claude sessions on
+one machine + memory; the desktop-app session held the pen and closed the clocks). The S29 ghost
+class ends at the SSH prompt. NEXT: Gate 3's remaining done-when — one queued remote drop
+(`scp → drop/`) converting + shipping with the SSH session closed (pipeline was down tonight) —
+then Gate 4 (Sunshine install + rule scoping, Claude-over-SSH with Rab approving) and Gate 5 (HDMI
+dummy plug + first Moonlight stream, DIRECT-path + bitrate budget checks). S45's 3 questions
+(stall policy, large-book fix, Valentine retry) STILL open.)*
 
 *(S45 closed 2026-07-25 (Desktop, autonomous overnight — Rab asleep). **OUTCOME: MIXED — widget adopted
 and a real latent bug fixed, but BOTH CONVERSIONS FAILED and the vault is UNCHANGED at 4 notes.**

@@ -8,6 +8,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S47 — remote access LIVE: docs/17 Gates 1–3(install) executed (2026-07-30).** Rab ran both gate
+  scripts (elevated + unpackaged, per the S46 standing rule — the desktop-app session guided and
+  verified read-only, wrote no system state): Gate 1 sshd scoped-at-birth (allow-any rule verified
+  disabled from the elevated shell — `Get-NetFirewallRule` is Access-denied from the sandboxed
+  surface), Gate 2 key-only auth (password AND keyboard-interactive both probed refused; scp
+  round-trip hash-identical on both machines). Two field lessons folded into docs/17: **key
+  material travels by file, never clipboard** (hand-pasted pubkey silently truncated 73/106 bytes →
+  key rejected with no passphrase prompt), and kbd-interactive stays *advertised* after
+  `PasswordAuthentication no` but is dead on this build (probed, not assumed). Gate 3 install half:
+  Claude Code CLI 2.1.220 for `bndit` + persistent PATH via ExpandString-preserving HKCU write from
+  the SSH session; a **MUSTER-clean verify-only Claude session ran over SSH end to end** (clocks
+  agreed; pen respected — first two-live-sessions night). Remaining: Gate 3 queued-drop done-when,
+  then Gates 4–5 (Sunshine + Moonlight). The S29 ghost class ends at the SSH prompt.
+
 - **S46 — remote access: docs/17 runbook + `windows-remote/` gate scripts (2026-07-28).** Rab's
   SSH + Sunshine brief re-grounded against the measured machine (S46 preflight) and redesigned into a
   verification-gated runbook (`docs/17-remote-access-runbook.md`): corrections ledger (dead
