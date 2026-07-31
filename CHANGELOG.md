@@ -8,6 +8,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S57 — the chunking spec SIGNED + docs/19: the Opus 5 execution plan (2026-07-31).** Stage
+  D's parameters decided live with Rab and written into docs/18 §5.2: lane-aware thresholds
+  (clean >600 pp / scan >400 pp), 200-page slices, clean cuts with every seam page recorded in
+  the manifest, slice recognition-batch as a USER LEVER (`chunk-batch.txt`: 8|16|32, default
+  16 — Rab: 8 "keeps it actually useful", 32 "if I really want to"), resume by (source_sha,
+  page_range), slice-prefixed progress, absolute-page asset renumbering, whole-book audit —
+  plus Rab's **conversion ledger** requirement: every successful vault conversion files a
+  learning record (pages/lane/chars-pp/s-pp/wall/chunked/slices/batch/peak-VRAM) and the
+  estimator upgrades from a global median to similarity-based, with every promise later paired
+  to its actual. And **docs/19 — a dummy-proof, context-free execution plan for an Opus 5
+  session** covering everything that remains: the twelve laws (each with its scar), the
+  measured machine map, current truth, Stages C2/D/E/F/G step-by-step with named STOP-for-Rab
+  points, the docs/17 remainders, and how to fail well. Docs only; no pipeline/GPU/source
+  changes. Cookie #50 — the fiftieth — commissioned it; the tally's #47–49 entries were
+  backfilled the same hour (headers had moved, entries hadn't — the flight recorder is whole
+  again).
+
 - **S56 — docs/18 STAGE C (first half) SHIPPED: the human-bless rail + the analyst heartbeat
   (2026-07-31).** The vault's constitution amended per Rab's signed sentence — **"pass, or flag
   with bless"**: the exporter's supersede guard now accepts a `flag` verdict when a valid

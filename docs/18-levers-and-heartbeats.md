@@ -95,10 +95,37 @@ terminal. This brief merges the S48 observability survey with the control-surfac
 1. **Stall policy: kill early on stall signature.** Frozen progress >15 min + lock held → kill,
    file to `failed/`, death-certificate event. (Zero-CPU deadlocks: already fixed at the root, S48.)
 2. **Large books: `--page_range` chunking as primary** — restartable slices, merged markdown —
-   **with a conservative recognition-batch cap applied inside slices** of very large books
-   (belt-and-suspenders at near-zero cost). ⚠ Rab flagged residual uncertainty and importance:
-   the chunking spec (slice size, merge correctness, per-slice progress/resume, audit-across-
-   slices) gets a **design review with Rab before build**; "no problems" is the acceptance bar.
+   **with a conservative recognition-batch cap applied inside slices** of very large books.
+   **STAGE D SPEC — SIGNED (S57, 2026-07-31, decided with Rab):**
+   - **Threshold (lane-aware):** clean lane > 600 pp; scan lane > 400 pp (scan runs hotter —
+     Valentine peaked ~8 GB at 465 pp). Page counts from the probe (pymupdf), never metadata.
+   - **Slice size: 200 pages.** A lost slice costs ~10 min; each slice re-pays ~90 s model load
+     (~18 % overhead at clean-lane rates); Damodaran = 7 slices.
+   - **Seams: clean cuts, recorded.** No overlap reconciliation in v1 (silent-text-loss risk).
+     Every seam page is recorded in `manifest["chunking"] = {slice_size, batch, seams: [pages]}`
+     — findable forever by the audit and the Repair Bench.
+   - **Slice recognition batch: A USER LEVER, default 16.** Rab's call, verbatim intent: 8 =
+     "keeps it actually useful" (max headroom), 16 = the go-faster default, 32 = "if I really
+     want to" (user knows their system). Backend truth = `chunk-batch.txt` (8|16|32, default 16,
+     re-read per slice); rendered on the Convert station's policy row; a proper selector joins
+     Stage E. Unchunked books keep batch 32.
+   - **Resume:** completed slices persist in the work dir keyed by (source_sha, page_range);
+     a re-run converts only missing slices. The S52 stall killer supervises each slice; a killed
+     slice fails alone.
+   - **Progress:** the S42 progress file gains a slice prefix ("slice 3/7 · Recognizing …");
+     `convert/slice` events per slice completion; the final `converted` event carries
+     `slices: n`.
+   - **Assets:** renumbered by absolute page offset, markdown refs rewritten at merge — slice
+     runs can never collide.
+   - **Audit:** the Survival Audit scores the MERGED whole book, exactly as today.
+   - **THE CONVERSION LEDGER (Rab's S57 requirement):** every successful vault conversion files
+     a learning record — pages, lane, chars/pp, s/pp, wall, chunked?, slices, slice batch, and
+     peak VRAM (the stall monitor's GPU sampler already sees it — record the max). Estimates for
+     new books come from SIMILAR past works (same lane, nearest chars/pp band) instead of one
+     global median, and every estimate is paired with its eventual actual (the promise-vs-actual
+     line, Stage E) so the tracker's reliability is itself visible. The events stream already
+     holds most fields — Stage D formalizes the record and upgrades the card's estimator to
+     similarity-based.
 3. **Valentine: retry next pipeline session.** Scan lane, 465 pp, ~30–60 min; vault note 6
    candidate.
 4. **Figure-heavy flag ceiling: human-bless override.** A per-book lever: Rab explicitly
@@ -167,7 +194,7 @@ unpackaged-adoption rule apply throughout)
 |---|---|---|
 | A | Death certificates + stall detector (§4A, §5.1) — **✅ SHIPPED S52** (2026-07-31, adopted `3571F771`, acceptance-tested live: deliberate watcher kill → certificate in ≤5 s; includes the per-held-item remedy buttons pulled forward from Stage C) | S |
 | B | Heartbeats + staleness + policy rows (§4B, §3) — **✅ SHIPPED S53** (2026-07-31, adopted `0356FC34`: convert liveness row "✓ Ns ago"/"frozen Ns ⚠" at 120 s clay from the new `progress_age_s` projection; audit lever wears its mode sentence; standing policy line on the Convert station; Stage A styling landed. Liveness row's live proof rides the next real convert) | M |
-| C | ~~Per-held remedies~~ (✅ S52) + analyst-only re-run + bless lever + seam events (§3, §4C, §5.4) | M–L |
+| C | ~~Per-held remedies~~ (✅ S52) + ~~bless lever~~ + ~~analyst per-chunk heartbeat~~ (**✅ S56**: the bless rail end-to-end — widget-authored sha-bound `bless.json` scp'd into ThinkPad staging, exporter guard amended to the signed "pass, or flag with bless", 5-case seam proof on temp repos; analyst `.analyst-progress.json` per chunk + Room render. Cybernetics = first customer, vaults on the next ThinkPad deploy sweep) · **REMAINING (C2): analyst-only re-run + seam-events return channel** | M–L |
 | D | `--page_range` chunking (spec review w/ Rab first; §5.2) | L |
 | E | Queue panel + Dock refresh + light theme (§7) | M |
 | F | Algedonic line + hygiene (§4D–E) | M |

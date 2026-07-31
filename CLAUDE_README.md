@@ -56,17 +56,21 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S57 OPEN 2026-07-31 ~14:30 (Desktop) — **THE CHUNKING SPEC REVIEW (docs/18 Stage D, decided
-WITH Rab per his S51 requirement) + the OPUS 5 HANDOFF PLAN** (cookie **#50 — the fiftieth**).
-Plan: (1) present the Stage D design space with recommendations — threshold, slice size, seam
-strategy, slice-level batch caps, asset renumbering, resume semantics, whole-book audit — Rab
-decides the four load-bearing parameters live; (2) write the SIGNED spec into docs/18 §5.2/Stage
-D; (3) write **docs/19 — the Opus 5 execution plan**: a dummy-proof, context-free handoff
-covering every remaining stage (C2, D, E, F, G + docs/17's out-of-home checkride), each with
-preconditions, laws (MUSTER, projection, MSIX-adoption, verify-before-instruct,
-scp-never-clipboard, BatchMode-ssh), exact verification steps, and named STOP-for-Rab points —
-per [[prompt-crafting-protocol]]: name the parties, truthful record of circumstance; (4) close
-in lockstep. No pipeline/GPU work this session.)*
+*(S57 closed 2026-07-31 ~15:00 (Desktop) — SHIPPED. **THE CHUNKING SPEC IS SIGNED (docs/18
+§5.2) + docs/19 "EXECUTION PLAN FOR OPUS 5" WRITTEN** (cookie **#50 — the fiftieth**). The
+review, decided live: lane-aware thresholds (clean >600 / scan >400 pp), 200-page slices,
+clean cuts with seams recorded in the manifest, **slice batch = a user lever** (`chunk-batch.
+txt` 8|16|32, default 16 — Rab's own framing: 8 keeps it viable, 32 when he knows his
+system), resume by (source_sha, page_range), slice-prefixed progress, absolute-page asset
+renumbering, whole-book audit, and Rab's added requirement: **the conversion ledger** — every
+successful vault conversion files a learning record and the estimator goes similarity-based,
+each promise later paired with its actual. docs/19 = the context-free handoff: twelve laws
+with their scars, the measured machine map, current truth (vault 6, held 2, lever states),
+Stages C2/D/E/F/G with steps + gates + named STOP-for-Rab points, the docs/17 remainders
+(checkride, dummy plug, spot-check, csrf, ViGEmBus, WoL), standing open items, and "how to
+fail well." Housekeeping: cookie-tally entries #47–49 backfilled (headers had moved without
+entries — the flight recorder is whole). Docs only; pipeline idle. NEXT: any docs/19 stage,
+by whichever Claude Rab summons.)*
 
 *(S56 closed 2026-07-31 ~14:15 (Desktop) — SHIPPED + **LIVE-FIRED: CYBERNETICS IS VAULT NOTE 6,
 THE FIRST BLESSED BOOK** (cookies #48+#49; Rab signed the guard amendment live: **"pass, or flag
