@@ -56,16 +56,19 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S54 OPEN 2026-07-31 ~04:15 (Desktop) — **VALENTINE'S RETRY** (cookie #46; decided at S51,
-docs/18 §5.3): *Best Practices for Equity Research Analysts* (Valentine, 465 pp, scan lane,
-parked since the S45 night died). Plan: (1) **move** (not copy — a copy would collide at the
-success-path `shutil.move` into done/) the PDF from `drop\done\` back into `drop\`; watcher
-re-queues within 5 s; (2) watch the run — this is also **Stage B's liveness row's first live
-audience** and the **stall monitor's healthy-path proof** (a normal convert now runs through the
-30 s monitor loop); scan lane ≈ 4–8 s/pp → ~31–62 min; inner cap 9,300 s; stall killer armed at
-900 s frozen; GPU free, no gaming, ~04:15; (3) ask-gate card at the end → Rab's analyst call
-(parks patiently if he's asleep); ship → vault note 6 candidate; (4) close in lockstep with
-measured results.)*
+*(S54 closed 2026-07-31 ~05:00 (Desktop) — **VALENTINE CONVERTED; THE AUDIT SAID NO — the
+degeneration tripwire's first PRE-VAULT catch.** Convert SUCCESS: 465 pp raw-scan lane in
+1,965 s (**4.23 s/pp**, inside the predicted 4–8 band — the routing table's raw-scan row is now
+MEASURED); **Stage B's liveness row had its first live audience** and the **S52 stall monitor's
+healthy path is PROVEN** (a full production convert ran inside the 30 s loop with zero
+interference). Audit: kind=`agreement`, survival 1.0, **degeneration TRUE → verdict FAIL** —
+OCR looping (the Beer disease class) caught AT BIRTH instead of after vaulting; gate card
+PARKED (`b6fbdd75f6242f53`, est 231 chunks) awaiting Rab's call; NOTHING shipped; vault stays
+5. The system refusing to repeat the Beer mistake is the win. Morning note left on the Desktop
++ Gmail run-draft `r8650576665122414247` per the standing rules; [[segment-convert-marker]]
+updated (measured rate + second degeneration case). NEXT: Rab's card decision (eyeball the
+zones → enforce-park or leave parked; a blind re-convert likely re-loops per Beer precedent) →
+then Stage C (bless lever) / the chunking spec review.)*
 
 *(S53 closed 2026-07-31 ~04:10 (Desktop) — SHIPPED + VERIFIED ON THE GLASS. **docs/18 Stage B:
 time itself renders now** (cookie #45 commissioned). `line.rs` projects `progress_age_s` (the
