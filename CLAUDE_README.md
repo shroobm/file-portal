@@ -56,20 +56,33 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S56 OPEN 2026-07-31 ~10:55 (Desktop) — **docs/18 STAGE C: the bless rail + per-chunk analyst
-events** (cookie #48). MUSTER at open: clean — internet died overnight AFTER every S48–S55 push
-landed (local == origin at `bb912cd`, no drift); machine rode it out (no reboot; widget
-relaunched this morning, watcher pair up). Scope, honestly: Stage C = **(a) the human-bless
-rail** (docs/18 §5.4, Rab-decided; Cybernetics' vault ticket) built on the S43/S44 supersede
-pattern — widget-authored bless marker (assay.rs, same discipline as ⟳), fail-safe manifest
-stamp, exporter `blessed` acceptance for flag verdicts, seam-proof on temp repos, ThinkPad
-deploy; design wrinkle to resolve by survey: Cybernetics' GOOD re-converted bundle already sits
-in ThinkPad staging (the S50 refusal kept it) — bless may target staging, not re-ship; **(b)
-per-chunk analyst events** (`analyst/chunk` from analyst.py + Room analyst-station progress —
-blind spot #6); **(c) seam-events return channel DEFERRED** to its own slice (C2). Plan: survey
-(exporter staging contract, analyst chunk loop, ship channel) → concrete design → Rab sign-off
-on the bless contract (vault-touching, same care as §14) → build → gates → seam tests → stage
-exe + ThinkPad deploy steps → close in lockstep.)*
+*(S56 closed 2026-07-31 ~14:15 (Desktop) — SHIPPED + **LIVE-FIRED: CYBERNETICS IS VAULT NOTE 6,
+THE FIRST BLESSED BOOK** (cookies #48+#49; Rab signed the guard amendment live: **"pass, or flag
+with bless"** — with "if you have a slight inkling of anxiety, look into it," which found the
+dead precondition: the anchor's Cybernetics is the OLD degenerate copy — her only good bundle
+lived in ThinkPad staging, kept by the S50 refusal → design pivoted to staging-side bless via a
+sha-bound `bless.json` scp'd over the existing channel, with the exporter's startup sweep as the
+acceptance trigger). BUILT: exporter guard amendment + `_read_bless_marker` (sha-bound, flag-
+only, marker survives failed exports); `assay.rs::bless` (sole author; eligibility validated
+against the EVENT STREAM — newest scored must be flag+degeneration-false — because local
+manifests lag staged truth; ships via scp); ✓ bless buttons both surfaces (flag+fail cards,
+backend as the real gate); analyst per-chunk heartbeat (`.analyst-progress.json` + line.rs
+fresh-only projection + Room render). PROVEN: **5-case seam test on the REAL exporter** (valid
+bless → vaulted+provenance; no marker / sha-mismatch / fail+marker → held; pass regression) +
+clippy/-D, node --check, 6/6 tests, builds green. THE FIELD GAUNTLET (all fixed): bless-button
+manifest-lag (flag-only render hid it for Cybernetics); scp **SFTP-mode literal paths** (embedded
+quotes became filename chars); **System32-OpenSSH's own known_hosts** → invisible host-key prompt
+→ the invoke hung forever, NINE zombie scp+ssh pairs (RAB'S Task-Manager call cracked it) →
+`BatchMode+accept-new+ConnectTimeout` = hang class extinct. The guard refused correctly under
+fire twice (Valentine's degeneration via a card-flip race; every marker-less sweep). FINALE:
+ThinkPad deploy (`~/file-portal-src`, pulled `e5bdd20`, service restart) → journal:
+**`EXPORT-BLESSED … (by=rab)` → `SUPERSEDE-MISS` → `EXPORTED … 70c60e61 pushed +
+blob-verified`** — verified from the desktop fetch: **Inbox = 6 notes**. Exe lineage BA23940B→
+BCD7C018→4F1C00F1→1C0A2319→**7D403BD6 adopted**. Held/ note: Cybernetics' STALE degenerate copy
+still sits in held/ (archaeology vs cleanup = Rab's call); Valentine remains the Repair Bench's
+customer. REMAINING Stage C2: analyst-only re-run + seam-events return channel + per-bundle
+bless targeting (the card-subject race, third face of the shadowing gap). NEXT: C2 or the
+chunking spec review — Rab's pick.)*
 
 *(S55 closed 2026-07-31 ~05:05 (Desktop) — **VALENTINE PARKED; the enforce gate's first
 production park, flawless** (cookie #47). Evidence-based call: her manifest shows 4 degeneration

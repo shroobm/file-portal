@@ -847,6 +847,7 @@ async function assayReconvert(btn) {
 async function assayBless(btn) {
    // Stage C (docs/18 §5.4): backend validates (flag + no degeneration + shipped) — this is a thin hand.
   const src = btn.dataset.src;
+  dbg(`bless click: src=${JSON.stringify(src)}`);
   btn.disabled = true;
   try {
     const bundle = await invoke("assay_bless", { source: src });

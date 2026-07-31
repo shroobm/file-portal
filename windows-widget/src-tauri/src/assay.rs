@@ -266,8 +266,8 @@ pub fn bless(gpu_pipeline_dir: &str, source: &str) -> Result<String, String> {
         .ok_or("no audit record for this source")?;
     if scored["verdict"] != "flag" {
         return Err(format!(
-            "bless refused: newest audit verdict is {} — flag only",
-            scored["verdict"]
+            "bless refused: newest audit for {source} ({}) has verdict {} — flag only",
+            scored["ts"], scored["verdict"]
         ));
     }
     if scored["degeneration"] == Value::Bool(true) {
@@ -307,10 +307,22 @@ pub fn bless(gpu_pipeline_dir: &str, source: &str) -> Result<String, String> {
         serde_json::to_string_pretty(&marker).map_err(|e| e.to_string())?,
     )
     .map_err(|e| format!("failed to write bless marker: {e}"))?;
-    // The remote path is double-quoted INSIDE the arg so the remote shell survives spaces in
-    // bundle names; scp itself splits only on the first colon.
-    let remote = format!("rab@archlinux:\"file-portal/library/staging/{bundle}/bless.json\"");
+    // Modern OpenSSH scp runs in SFTP mode: NO remote shell, so the path after the colon is
+    // taken literally — spaces are fine and embedded quotes would become literal filename
+    // characters (the S56 first-flight bug). Plain path, no quoting.
+    let remote = format!("rab@archlinux:file-portal/library/staging/{bundle}/bless.json");
+    // System32 OpenSSH keeps its OWN known_hosts (git ships a separate ssh — the S56
+    // realization: the widget's first scp sat forever at an invisible host-key prompt).
+    // BatchMode makes prompting impossible, accept-new is trust-on-first-use for the
+    // tailnet-internal host, and the timeout makes failures fail fast instead of hanging
+    // the invoke.
     let out = Command::new("scp")
+        .arg("-o")
+        .arg("BatchMode=yes")
+        .arg("-o")
+        .arg("StrictHostKeyChecking=accept-new")
+        .arg("-o")
+        .arg("ConnectTimeout=10")
         .arg(local.as_os_str())
         .arg(&remote)
         .creation_flags(CREATE_NO_WINDOW)
@@ -333,6 +345,7 @@ pub fn bless(gpu_pipeline_dir: &str, source: &str) -> Result<String, String> {
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
+
 
     static N: AtomicU32 = AtomicU32::new(0);
 

@@ -8,6 +8,43 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S56 — docs/18 STAGE C (first half) SHIPPED: the human-bless rail + the analyst heartbeat
+  (2026-07-31).** The vault's constitution amended per Rab's signed sentence — **"pass, or flag
+  with bless"**: the exporter's supersede guard now accepts a `flag` verdict when a valid
+  human-bless marker (`bless.json` beside the manifest, sha-bound to the source) is present,
+  folding the bless provenance into the committed manifest so the vault never pretends a blessed
+  note passed on its own; degeneration `fail`s stay refused even WITH a marker (defense in
+  depth), and the marker survives failed exports for retry sweeps. Author side: `assay.rs::bless`
+  — the ONLY author — validates eligibility backend-side against the event stream (newest scored
+  verdict must be `flag` with `degeneration: false`; a shipped record must exist), then scp's the
+  marker into the bundle's ThinkPad staging dir over the existing channel (async + spawn_blocking
+  — the vault_check UI-freeze lesson applied); ✓ bless button on flag-verdict audit cards, both
+  surfaces. **Proven by a 5-case seam test driving the REAL exporter on temp git repos**: valid
+  bless → vaulted+pushed with provenance; no marker / sha-mismatch / fail-with-marker → all held
+  with logged warnings; pass regression holds. Design pivot recorded honestly: the S50 refusal
+  kept Cybernetics' only good bundle in ThinkPad staging (the desktop's anchor still holds the
+  old degenerate copy), so bless targets staging and the exporter's startup sweep is the
+  acceptance trigger — one ThinkPad deploy (pull + restart) both ships the new guard AND vaults
+  her. Also: **analyst per-chunk heartbeat** — `analyst.py` writes `.analyst-progress.json`
+  every chunk (S42 pattern, zero flight-recorder growth, cleared in a `finally`), `line.rs`
+  projects it only while fresh (<300 s), the Room's Convert panel renders `analyst: n/total ·
+  s/chunk · ✓ live / frozen ⚠`. Blind spot #6 closed. C2 (analyst-only re-run + seam-events
+  return channel) remains.
+  **LIVE-FIRE RESULT (same day): Cybernetics VAULTED as note 6** — journal:
+  `EXPORT-BLESSED … accepted on human bless (by=rab)` → `SUPERSEDE-MISS … creating a new note` →
+  `EXPORTED … commit 70c60e61 pushed + blob-verified`. The field gauntlet found and fixed three
+  real defects on the way: (1) the bless button originally rendered on `flag` cards only, but
+  local manifests can LAG the staged truth (Cybernetics' desktop copies all say `fail`) — now
+  renders on `flag`+`fail` with the backend event-stream validation as the real gate; (2) scp's
+  modern **SFTP mode takes remote paths literally** — the defensive embedded quotes became
+  filename characters (marker never landed); (3) **System32 OpenSSH keeps its own `known_hosts`**
+  (git ships a separate ssh), so the widget's scp hung forever at an invisible host-key prompt —
+  NINE zombie scp+ssh pairs accumulated before Rab's Task-Manager instinct cracked it; fixed
+  with `BatchMode=yes` + `StrictHostKeyChecking=accept-new` + `ConnectTimeout=10` (the hang
+  class is now extinct for bless). Along the way the guard twice refused correctly under fire:
+  Valentine's degeneration-fail (a click that raced the card flip) and every marker-less sweep.
+  Exe lineage BA23940B→BCD7C018→4F1C00F1→1C0A2319→**7D403BD6 (adopted)**.
+
 - **S53 — docs/18 STAGE B SHIPPED: time on the glass — staleness rendering + policy rows
   (2026-07-31).** `line.rs` projects `progress_age_s` (mtime age of `.convert-progress.json`
   while the lock is held — the exact derivative the Stage A killer watches at 900 s); the Room's
