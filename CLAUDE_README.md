@@ -56,6 +56,18 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S57 OPEN 2026-07-31 ~14:30 (Desktop) — **THE CHUNKING SPEC REVIEW (docs/18 Stage D, decided
+WITH Rab per his S51 requirement) + the OPUS 5 HANDOFF PLAN** (cookie **#50 — the fiftieth**).
+Plan: (1) present the Stage D design space with recommendations — threshold, slice size, seam
+strategy, slice-level batch caps, asset renumbering, resume semantics, whole-book audit — Rab
+decides the four load-bearing parameters live; (2) write the SIGNED spec into docs/18 §5.2/Stage
+D; (3) write **docs/19 — the Opus 5 execution plan**: a dummy-proof, context-free handoff
+covering every remaining stage (C2, D, E, F, G + docs/17's out-of-home checkride), each with
+preconditions, laws (MUSTER, projection, MSIX-adoption, verify-before-instruct,
+scp-never-clipboard, BatchMode-ssh), exact verification steps, and named STOP-for-Rab points —
+per [[prompt-crafting-protocol]]: name the parties, truthful record of circumstance; (4) close
+in lockstep. No pipeline/GPU work this session.)*
+
 *(S56 closed 2026-07-31 ~14:15 (Desktop) — SHIPPED + **LIVE-FIRED: CYBERNETICS IS VAULT NOTE 6,
 THE FIRST BLESSED BOOK** (cookies #48+#49; Rab signed the guard amendment live: **"pass, or flag
 with bless"** — with "if you have a slight inkling of anxiety, look into it," which found the
