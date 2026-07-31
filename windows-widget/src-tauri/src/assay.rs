@@ -4,9 +4,12 @@
 // (degeneration zones, omission runs) + the held queue for the widget's ◎ station and
 // evidence card. Read-only, no state. Terracotta is the UI's to spend — this only reports.
 
+use crate::vault::CREATE_NO_WINDOW;
 use serde_json::{json, Value};
 use std::fs;
+use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
+use std::process::Command;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const AUDIT_MODES: [&str; 2] = ["report", "enforce"];
@@ -226,6 +229,101 @@ pub fn reconvert(gpu_pipeline_dir: &str, source: &str) -> Result<(), String> {
         return Err(format!("failed to re-queue: {e}"));
     }
     Ok(())
+}
+
+/// Human-bless (docs/18 §5.4; Rab signed S56: **"pass, or flag with bless"**): certify that the
+/// newest audit of `source` was `flag` WITHOUT degeneration — the figure-heavy ceiling, not
+/// disease — and place a sha-bound `bless.json` into the bundle's ThinkPad staging dir over the
+/// existing ssh channel. The exporter's amended supersede guard honors it on its next sweep;
+/// a degeneration fail can never be blessed from either side (that is Repair Bench territory).
+///
+/// This click is the ONLY author of bless markers. Eligibility is validated HERE, backend-side,
+/// against the event stream — the desktop's own record of the staged bundle's audit (its good
+/// manifest lives only in ThinkPad staging, kept there by the guard's earlier refusal, so local
+/// manifests may be an older generation; the sha they all share is the source PDF's).
+pub fn bless(gpu_pipeline_dir: &str, source: &str) -> Result<String, String> {
+    if gpu_pipeline_dir.is_empty() {
+        return Err("pipeline not configured".into());
+    }
+    if source.is_empty() || source.contains(['/', '\\', ':']) {
+        return Err("invalid source name".into());
+    }
+    let base = Path::new(gpu_pipeline_dir);
+    let events = fs::read_to_string(base.join("events.jsonl"))
+        .map_err(|e| format!("events.jsonl unreadable: {e}"))?;
+    let parsed: Vec<Value> = events
+        .lines()
+        .filter_map(|l| serde_json::from_str(l).ok())
+        .collect();
+    let scored = parsed
+        .iter()
+        .rev()
+        .find(|ev| {
+            ev["stage"] == "audit"
+                && ev["event"] == "scored"
+                && ev["source"].as_str() == Some(source)
+        })
+        .ok_or("no audit record for this source")?;
+    if scored["verdict"] != "flag" {
+        return Err(format!(
+            "bless refused: newest audit verdict is {} — flag only",
+            scored["verdict"]
+        ));
+    }
+    if scored["degeneration"] == Value::Bool(true) {
+        return Err("bless refused: degeneration is disease, not a ceiling (Repair Bench)".into());
+    }
+    let manifest = newest_manifest_for_source(base, source)
+        .ok_or("no local manifest records this source")?;
+    let sha = manifest["source_sha256"]
+        .as_str()
+        .ok_or("manifest lacks source_sha256")?
+        .to_string();
+    let sha16: String = sha.chars().take(16).collect();
+    let bundle = parsed
+        .iter()
+        .rev()
+        .find(|ev| {
+            ev["stage"] == "ship"
+                && ev["event"] == "shipped"
+                && ev["sha"].as_str() == Some(sha16.as_str())
+        })
+        .and_then(|ev| ev["bundle"].as_str())
+        .ok_or("no shipped record — bless targets bundles already held in ThinkPad staging")?
+        .to_string();
+    let marker = json!({
+        "source": source,
+        "source_sha256": sha,
+        "by": "rab",
+        "reason": "human-bless (figure-heavy ceiling, docs/18 §5.4)",
+        "ts": SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .map(|d| d.as_secs())
+            .unwrap_or(0),
+    });
+    let local = base.join(format!(".bless-{sha16}.json"));
+    fs::write(
+        &local,
+        serde_json::to_string_pretty(&marker).map_err(|e| e.to_string())?,
+    )
+    .map_err(|e| format!("failed to write bless marker: {e}"))?;
+    // The remote path is double-quoted INSIDE the arg so the remote shell survives spaces in
+    // bundle names; scp itself splits only on the first colon.
+    let remote = format!("rab@archlinux:\"file-portal/library/staging/{bundle}/bless.json\"");
+    let out = Command::new("scp")
+        .arg(local.as_os_str())
+        .arg(&remote)
+        .creation_flags(CREATE_NO_WINDOW)
+        .output();
+    let _ = fs::remove_file(&local); // the local copy never outlives the attempt
+    match out {
+        Ok(o) if o.status.success() => Ok(bundle),
+        Ok(o) => Err(format!(
+            "scp failed: {}",
+            String::from_utf8_lossy(&o.stderr).trim()
+        )),
+        Err(e) => Err(format!("scp not runnable: {e}")),
+    }
 }
 
 // The widget crate carried no tests before S44. These cover the one path here that can cause a

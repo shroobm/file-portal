@@ -784,8 +784,12 @@ function assayRender(st) {
   }
 
   let foot = "";
-  if (verdict === "fail" || held.length) {
-    foot = `<div class="ac-foot"><button class="ac-remedy" data-src="${escHtml(st.bundle)}">⟳ re-convert</button>` +
+  if (verdict === "fail" || verdict === "flag" || held.length) {
+    // Stage C (docs/18 §5.4): ✓ bless on flag AND fail cards — local manifests can lag the
+    // staged truth; the backend validates against the event stream (the fresher record).
+    const blessBtn = (verdict === "flag" || verdict === "fail")
+      ? `<button class="ac-bless" data-src="${escHtml(st.bundle)}">✓ bless</button>` : "";
+    foot = `<div class="ac-foot"><button class="ac-remedy" data-src="${escHtml(st.bundle)}">⟳ re-convert</button>${blessBtn}` +
       `<span class="ac-swapnote">swap: <b>manual</b> — supersede flow pending</span></div>`;
   }
 
@@ -812,6 +816,8 @@ function assayRender(st) {
   document.getElementById("audit-toggle")?.addEventListener("click", assayToggleMode);
   assayCard.querySelectorAll(".ac-remedy").forEach((b) =>
     b.addEventListener("click", () => assayReconvert(b)));
+  assayCard.querySelectorAll(".ac-bless").forEach((b) =>
+    b.addEventListener("click", () => assayBless(b)));
   reflow();
 }
 
@@ -835,6 +841,19 @@ async function assayReconvert(btn) {
   } catch (err) {
     btn.disabled = false;
     setStatus(`Re-convert: ${err}`);
+  }
+}
+
+async function assayBless(btn) {
+   // Stage C (docs/18 §5.4): backend validates (flag + no degeneration + shipped) — this is a thin hand.
+  const src = btn.dataset.src;
+  btn.disabled = true;
+  try {
+    const bundle = await invoke("assay_bless", { source: src });
+    setStatus(`Blessed ${bundle} — deploy/restart the ThinkPad exporter to vault it.`);
+  } catch (err) {
+    btn.disabled = false;
+    setStatus(`Bless: ${err}`);
   }
 }
 

@@ -141,6 +141,22 @@ fn assay_reconvert(state: State<AppState>, source: String) -> Result<(), String>
         .clone();
     assay::reconvert(&dir, &source)
 }
+// Stage C (docs/18 §5.4): the bless click. Async + spawn_blocking because it scp's the marker
+// to the ThinkPad over ssh — a blocking network call on the UI thread would freeze the widget
+// exactly like the vault_check lesson.
+#[tauri::command]
+async fn assay_bless(state: State<'_, AppState>, source: String) -> Result<String, String> {
+    let dir = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        cfg.gpu_pipeline_dir.clone()
+    };
+    tauri::async_runtime::spawn_blocking(move || assay::bless(&dir, &source))
+        .await
+        .map_err(|e| format!("bless task failed: {e}"))?
+}
 #[tauri::command]
 fn open_reader(state: State<AppState>, reader: String) -> Result<(), String> {
     let cfg = state
@@ -416,6 +432,7 @@ fn main() {
             audit_mode_get,
             audit_mode_set,
             assay_reconvert,
+            assay_bless,
             open_reader,
             open_failed_tray,
             reader_config,

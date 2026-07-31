@@ -233,6 +233,12 @@ function convertPanel(d) {
     `<span>engine</span><b>marker · batch 32</b>` +
     `<span>VRAM</span><b>${vram}</b>` +
     `</div><div class="rp-note">${note}</div>` +
+    (ls.analyst_n != null && ls.analyst_total != null
+      ? `<div class="rp-note">analyst: ${ls.analyst_n}/${ls.analyst_total} chunks` +
+        `${ls.analyst_s_per_chunk != null ? ` · ${ls.analyst_s_per_chunk} s/chunk` : ""} · ` +
+        `<span class="rp-age${(ls.analyst_age_s ?? 0) > 120 ? " frozen" : ""}">` +
+        `${(ls.analyst_age_s ?? 0) > 120 ? `frozen ${etaText(ls.analyst_age_s)} ⚠` : "✓ live"}</span></div>`
+      : "") +
     `<div class="rp-policy">policy: stall → kill early &gt;15 m · big books → chunking pending spec review (docs/18 §5)</div>` +
     `</div></div>`;
 }
@@ -266,8 +272,14 @@ function assayPanel(d) {
     list = "<ul class=\"ac-runs\">" + runs.slice(0, 3).map((r) =>
       `<li><span class="k">p${r.page}</span> · ${r.words} words · <q>"${esc(words(r.excerpt, 6))}…"</q></li>`).join("") + "</ul>";
   }
-  const foot = (av === "fail" || held.length)
-    ? `<div class="ac-foot"><button class="ac-remedy" data-src="${esc(a.bundle)}">⟳ re-convert</button><span class="ac-swapnote">swap: <b>manual</b> — supersede pending</span></div>` : "";
+  // Stage C (docs/18 §5.4): ✓ bless renders on flag AND fail cards because local manifests can
+  // lag the staged truth (Cybernetics: desktop manifests say fail, the staged re-convert is
+  // flag — the EVENT STREAM is the fresher record and the backend validates against it: flag +
+  // no degeneration + shipped). An ineligible click gets the backend's honest refusal.
+  const bless = (av === "flag" || av === "fail")
+    ? `<button class="ac-bless" data-src="${esc(a.bundle)}">✓ bless</button>` : "";
+  const foot = (av === "fail" || av === "flag" || held.length)
+    ? `<div class="ac-foot"><button class="ac-remedy" data-src="${esc(a.bundle)}">⟳ re-convert</button>${bless}<span class="ac-swapnote">swap: <b>manual</b> — supersede pending</span></div>` : "";
   // S52 (the S50 shadowing fix): per-held-item remedy buttons — same .ac-remedy class, so the
   // existing click wiring covers them; data-src = the manifest source filename, per contract.
   const heldHtml = held.length
@@ -385,6 +397,13 @@ function wire() {
     b.disabled = true;
     try { await invoke("assay_reconvert", { source: b.dataset.src }); deps.setStatus?.(`Re-queued ${b.dataset.src}`); }
     catch (e) { b.disabled = false; deps.setStatus?.(`Re-convert: ${e}`); }
+  }));
+  roomEl.querySelectorAll(".ac-bless").forEach((b) => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try {
+      const bundle = await invoke("assay_bless", { source: b.dataset.src });
+      deps.setStatus?.(`Blessed ${bundle} — deploy/restart the ThinkPad exporter to vault it`);
+    } catch (e) { b.disabled = false; deps.setStatus?.(`Bless: ${e}`); }
   }));
   // S36: click a station to OPEN ITS DRILL-DOWN — the accurate observation of its real on-disk
   // tree. (Controls — gate mode, audit lever, re-convert — live in the Dock + the assay panel.)

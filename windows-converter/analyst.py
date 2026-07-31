@@ -23,6 +23,9 @@ GEMINI_MODEL = "gemini-flash-latest"  # stable alias, resolves to current Flash
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 CHUNK_TARGET = 4000  # chars; well inside an 8k context with prompt + thinking room
 NUM_CTX = 8192
+# Stage C (docs/18 §4C): per-chunk liveness, the S42 progress-file pattern — overwritten every
+# chunk (zero flight-recorder growth); the file's mtime is the heartbeat the widget ages.
+ANALYST_PROGRESS = Path(r"C:\Users\Bndit\ml\library\.analyst-progress.json")
 
 # Measured end-to-end throughput (chars of input markdown per second, all-in:
 # chunking + model load/reload + generation + fence checks). Sources: local =
@@ -167,19 +170,42 @@ def process(markdown: str, backend: str = "local",
     chunks = _chunks(fenced)
     out, passed, rejected, failed = [], 0, 0, 0
     t0 = time.perf_counter()
-    for chunk in chunks:
+
+    def _progress(done: int) -> None:
+        # Best-effort per-chunk heartbeat — a write failure must never affect analysis.
         try:
-            candidate = generate(prompt + chunk)
-        except Exception:
-            out.append(chunk)  # API/backend error -> ship the un-analyzed original
-            failed += 1
-            continue
-        if _tokens_of(candidate) == _tokens_of(chunk):
-            out.append(candidate)
-            passed += 1
-        else:
-            out.append(chunk)  # fence violated -> ship the un-analyzed original
-            rejected += 1
+            elapsed = time.perf_counter() - t0
+            rate = round(elapsed / done, 1) if done else None
+            ANALYST_PROGRESS.write_text(json.dumps({
+                "n": done, "total": len(chunks), "s_per_chunk": rate,
+                "eta_s": int(rate * (len(chunks) - done)) if rate else None,
+            }), encoding="utf-8")
+        except OSError:
+            pass
+
+    _progress(0)
+    try:
+        for i, chunk in enumerate(chunks, 1):
+            try:
+                candidate = generate(prompt + chunk)
+            except Exception:
+                out.append(chunk)  # API/backend error -> ship the un-analyzed original
+                failed += 1
+                _progress(i)
+                continue
+            if _tokens_of(candidate) == _tokens_of(chunk):
+                out.append(candidate)
+                passed += 1
+            else:
+                out.append(chunk)  # fence violated -> ship the un-analyzed original
+                rejected += 1
+            _progress(i)
+    finally:
+        # The heartbeat never outlives the run — staleness must not be able to lie.
+        try:
+            ANALYST_PROGRESS.unlink(missing_ok=True)
+        except OSError:
+            pass
     meta = {
         "model": GEMINI_MODEL if backend == "gemini" else MODEL,
         "backend": backend,

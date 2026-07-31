@@ -64,6 +64,20 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             .and_then(|t| t.elapsed().ok())
             .map(|d| d.as_secs())
     });
+    // Stage C (docs/18 §4C): analyst per-chunk liveness — analyst.py overwrites this file every
+    // chunk; projected only while fresh (<300 s) so a crashed analyst can't leave a stale claim.
+    let analyst_progress = fs::metadata(base.join(".analyst-progress.json"))
+        .ok()
+        .and_then(|m| m.modified().ok())
+        .and_then(|t| t.elapsed().ok())
+        .map(|d| d.as_secs())
+        .filter(|age| *age <= 300)
+        .and_then(|age| {
+            let v: Value =
+                serde_json::from_str(&fs::read_to_string(base.join(".analyst-progress.json")).ok()?)
+                    .ok()?;
+            Some((v, age))
+        });
     let events_text = fs::read_to_string(base.join("events.jsonl")).unwrap_or_default();
     let events: Vec<Value> = events_text
         .lines()
@@ -114,6 +128,11 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "convert_total": cp_field("total"),
         // Stage B: liveness age of the progress stream (see above).
         "progress_age_s": progress_age_s,
+        // Stage C: analyst per-chunk heartbeat (None unless fresh).
+        "analyst_n": analyst_progress.as_ref().map_or(Value::Null, |(v, _)| v["n"].clone()),
+        "analyst_total": analyst_progress.as_ref().map_or(Value::Null, |(v, _)| v["total"].clone()),
+        "analyst_s_per_chunk": analyst_progress.as_ref().map_or(Value::Null, |(v, _)| v["s_per_chunk"].clone()),
+        "analyst_age_s": analyst_progress.as_ref().map(|(_, age)| *age),
         "failed_count": count_pdfs(&base.join("drop").join("failed")),
         "last_shipped": last_shipped,
         "latest": latest,

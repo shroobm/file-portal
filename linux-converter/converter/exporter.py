@@ -94,6 +94,42 @@ class Exporter:
             if entry.is_dir() and not entry.name.startswith("."):
                 self.export(entry)
 
+    @staticmethod
+    def _read_bless_marker(bundle_dir: Path, manifest: dict, verdict) -> dict | None:
+        """docs/18 §5.4 (S56): a human-bless marker lets a `flag` verdict through the supersede
+        guard. Valid iff it parses, its source_sha256 matches the staged manifest's, and the
+        staged verdict is exactly `flag` -- a degeneration `fail` stays refused even WITH a
+        marker (defense in depth: the widget refuses to author those, and this side refuses to
+        honor them). Never raises; anything invalid => None and the guard holds."""
+        path = bundle_dir / "bless.json"
+        if not path.exists():
+            return None
+        try:
+            marker = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            logger.warning(
+                "EXPORT-BLESS-INVALID %s: unreadable bless.json ignored", bundle_dir.name
+            )
+            return None
+        if marker.get("source_sha256") != manifest.get("source_sha256"):
+            logger.warning(
+                "EXPORT-BLESS-INVALID %s: bless source_sha mismatch -- ignored", bundle_dir.name
+            )
+            return None
+        if verdict != "flag":
+            logger.warning(
+                "EXPORT-BLESS-INVALID %s: bless on verdict %r refused (flag only)",
+                bundle_dir.name,
+                verdict,
+            )
+            return None
+        return {
+            "by": marker.get("by", "rab"),
+            "ts": marker.get("ts"),
+            "reason": marker.get("reason", "human-bless"),
+            "from_verdict": "flag",
+        }
+
     def export(self, bundle_dir: Path) -> None:
         # A single bad bundle must not kill the observer thread or block later exports.
         with self._lock:
@@ -131,18 +167,37 @@ class Exporter:
         # carry no field and so still skip, by construction.
         supersede = manifest.get("supersede")
         if supersede is not None:
-            # Verdict guard first (SIGNED, fail-closed): supersede ONLY on an incoming `pass`. A
-            # remedy that did not actually fix the note -- or whose audit never ran (a MISSING
-            # fidelity block is not "pass") -- must never overwrite the vault.
+            # Verdict guard first (SIGNED, fail-closed): supersede ONLY on an incoming `pass` --
+            # OR, since S56 (docs/18 §5.4, Rab signed 2026-07-31: "pass, or flag with bless"),
+            # an incoming `flag` accompanied by a VALID human-bless marker (bless.json beside
+            # the manifest, sha-bound, widget-authored). A remedy that did not actually fix the
+            # note -- or whose audit never ran (a MISSING fidelity block is not "pass") -- must
+            # never overwrite the vault on its own say-so.
             verdict = (manifest.get("fidelity") or {}).get("verdict")
-            if verdict != "pass":
+            blessed = self._read_bless_marker(bundle_dir, manifest, verdict)
+            if not (verdict == "pass" or (verdict == "flag" and blessed is not None)):
                 logger.info(
-                    "EXPORT-SUPERSEDE-HELD %s: incoming verdict %r is not pass -- vault "
-                    "untouched, staging copy kept",
+                    "EXPORT-SUPERSEDE-HELD %s: incoming verdict %r is not pass (and no valid "
+                    "bless) -- vault untouched, staging copy kept",
                     bundle_dir.name,
                     verdict,
                 )
                 return
+            if blessed is not None:
+                # Fold the bless provenance into the manifest BEFORE any vault write: the vault
+                # must never pretend a blessed note passed on its own merits. The marker file
+                # itself is NOT deleted here -- it dies with the staging dir after the L12 gate,
+                # so a failed export retries as still-blessed on the next sweep.
+                manifest["blessed"] = blessed
+                manifest_path.write_text(
+                    json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+                )
+                logger.info(
+                    "EXPORT-BLESSED %s: flag verdict accepted on human bless (by=%s, ts=%s)",
+                    bundle_dir.name,
+                    blessed.get("by"),
+                    blessed.get("ts"),
+                )
             # Locate the LIVE note by its full source_sha in the BARE repo -- never recompute the
             # Inbox/ path, the Desktop may have filed the note out of Inbox/.
             loc = _git(
