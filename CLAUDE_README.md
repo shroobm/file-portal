@@ -56,6 +56,24 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S52 OPEN 2026-07-31 ~03:20 (Desktop) — **AUTONOMOUS BUILD: docs/18 STAGE A — death certificates
++ the stall detector** (commissioned by Rab: "continue developing until you face a real block
+where I should come in"; cookie #44). Plan: (1) **converter side** (`convert_and_ship.py` — no
+widget rebuild needed, read fresh per convert): replace the blind `proc.wait(timeout)` with a
+monitor loop implementing the KILL-EARLY stall policy (docs/18 §5.1: progress-file mtime frozen
+>15 min while the convert runs → gather a triage signature (GPU util/mem via nvidia-smi,
+best-effort) → **tree-kill via `taskkill /T /F`** → `convert/stalled` event + failed/); fix the
+latent orphan bug in the existing timeout path with the same tree-kill (`proc.kill()` only kills
+the venv/console-script launcher — the real python grandchild survives; same class the S48 hunt
+exposed); all monitoring fail-safe per the S42 rule. (2) **widget side** (watcher.rs + main.js):
+death certificates — watcher spawns with stderr → `watcher-stderr.log` (a valid file handle; the
+S31 null-stdio fix was about invalid console handles, so this is safe) + `watcher_status`
+captures and REMEMBERS the exit code after reap; frontend polls watcher_status in the poll loop
+(kills the stale-green-⏻ blind spot #1/#2) and renders death honestly. (3) Verify: python — ast
++ an isolated fake-child stall test in the scratchpad (no GPU); Rust/JS — clippy `-D warnings`,
+`node --check`, `tauri build`; stage the exe + SHA. (4) **STOP at the real block: exe adoption =
+Rab's hand** (MSIX law) + his live smoke test. (5) Close in lockstep with honest state.)*
+
 *(S51 closed 2026-07-31 ~03:05 (Desktop) — SHIPPED. **docs/18 "Levers and Heartbeats" written and
 the four standing policy questions DECIDED live with Rab.** The decisions, now spec: (1) **stall
 policy = kill early** on the stall signature (progress mtime frozen >15 min + lock held → kill,
