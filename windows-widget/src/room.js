@@ -75,17 +75,24 @@ async function gatherVM() {
     try { return await invoke(name, args); }
     catch (e) { deps.dbg?.(`room ${name}: ${e}`); return null; }
   };
-  // Stage C2 (docs/19 §3.3): `receipts_read` is the CACHE read, never the network one — the
-  // fetch rides the Dock's 45 s vault poll. This loop runs every 4-9 s; an ssh call here would
-  // be one per poll.
-  const [ls, assay, shift, pf, watcher, vault, metrics, vram, receipts] = await Promise.all([
+  // NOTHING HERE MAY TOUCH THE NETWORK (S59). This loop runs every 4-9 s, so anything remote
+  // costs ~10 calls per Dock poll. `vault_check` used to be in this list: it runs `git fetch`
+  // to the ThinkPad over tailscale ssh (vault.rs::check), and the Room never read the result —
+  // the Vault tile's count comes from room_metrics' local `count_library`. So an open Room was
+  // waking the ThinkPad's sshd every few seconds to discard the answer, and blocking a worker
+  // thread for the dial timeout whenever the host was asleep. Vault freshness is unaffected:
+  // the Dock's vaultLoop (main.js, 45 s) re-arms regardless of which surface is showing.
+  // Same reason `receipts_read` below is the CACHE read — its network fetch rides that same
+  // Dock poll (Stage C2, docs/19 §3.3). If a future Room panel needs live vault state, read a
+  // cached projection; do NOT give this loop a network cadence.
+  const [ls, assay, shift, pf, watcher, metrics, vram, receipts] = await Promise.all([
     call("line_state"), call("assay_status"), call("shift_summary"),
-    call("preflight_list"), call("watcher_status"), call("vault_check"),
+    call("preflight_list"), call("watcher_status"),
     call("room_metrics"), call("gpu_vram"), call("receipts_read"),
   ]);
   try { gateMode = (await invoke("analyst_mode_get")) || gateMode; } catch { /* keep */ }
   sampleGpu(vram); // append this poll's GPU reading (VRAM/util/temp) to the rolling windows (S38/S41)
-  return { ls, assay, shift, pf: pf || [], watcher, vault, metrics, vram, receipts };
+  return { ls, assay, shift, pf: pf || [], watcher, metrics, vram, receipts };
 }
 
 // ---- render -------------------------------------------------------------------------------

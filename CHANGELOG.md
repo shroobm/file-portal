@@ -6,6 +6,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Fixed
+
+- **S59 — the Room stopped waking the ThinkPad every four seconds (2026-07-31).** `gatherVM()`
+  awaited `call("vault_check")` on every Room poll — every 4 s while converting, 9 s idle — and
+  `vault::check` runs `git fetch --quiet origin`, a real round trip to the ThinkPad over
+  tailscale ssh. Verification before the fix (standing rule) found the result was **never
+  read**: the binding was carried into the view-model and nothing consumed it, because the Vault
+  tile's count comes from `room_metrics`' local `count_library`. So an open Room was waking the
+  ThinkPad's sshd ~10x more often than the Dock's deliberate 45 s poll purely to discard the
+  answer, and blocking a worker thread for the dial timeout whenever the host was asleep. The
+  remedy was therefore a deletion, not the cached projection the task suggested — no new
+  command, no TTL, no API surface. Vault freshness is unchanged: the Dock's `vaultLoop` re-arms
+  regardless of which surface is showing. The removal leaves a comment stating the rule (the
+  Room's loop may not touch the network; read a cached projection if a future panel needs live
+  vault state) so it cannot be quietly restored. Proved by recording the commands one real
+  `gatherVM()` poll invokes: nine calls, none network-touching, receipts still rendering from
+  their local cache. Gates: `node --check`, clippy `-D warnings`, 11/11 rust tests, Room render
+  pass unchanged.
+
 ### Added
 
 - **S58 — docs/19 §3 STAGE C2 SHIPPED: the analyst-only re-run, per-bundle targeting, and the
