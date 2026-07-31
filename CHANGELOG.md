@@ -8,6 +8,24 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S50 — the supersede rail's FIRST PRODUCTION RUN: proven at every joint, ending in the guard's
+  designed refusal (2026-07-31).** Rab clicked ⟳ on the held Cybernetics bundle
+  (`c5afd9edcf620fc6`): the marker was authored before the PDF (S44's load-bearing ordering),
+  consumed exactly once, and the `audit/supersede` stamp rode the manifest with
+  `from_verdict: fail`. The re-convert (91 pp, 210 s) came back **without the original
+  degeneration** — Marker behaved — but survival re-scored 0.6884 ≈ the held copy's 0.688, now as
+  25 *omission* runs → verdict `flag`: measured twice, the score is the figure-heavy book's
+  structural ceiling in markdown, not a conversion defect. Shipped as-is (no analyst); the
+  ThinkPad exporter answered with the rail's last untested joint working as signed:
+  `EXPORT-SUPERSEDE-HELD … incoming verdict 'flag' is not pass — vault untouched, staging copy
+  kept` (confirmed from the ThinkPad journal — the desktop sees a refusal only as absence;
+  observability blind spot #8 live). Findings filed: figure-heavy books are **un-remediable to
+  `pass`** under the current contract (policy: human-blessing override or figure-aware lane —
+  Rab's call); the assay card's ⟳ can only target the newest-audited bundle, shadowing held items
+  (worked around via mtime touch; per-held-item remedy buttons queued as a task chip). The
+  replace-in-place case remains Beer's vaulted specimen. No source changes this session — docs +
+  memory only; pipeline left up.
+
 - **S49 — Gate 4 ✅ + Gate 5 in-home stream ✅: Sunshine is live, scoped at birth (2026-07-31).**
   Rab installed Sunshine 2026.516.143833 from an elevated shell (winget), disabled both
   auto-created allow-any firewall rules and added the two tailnet-scoped rules in the same

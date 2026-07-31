@@ -56,20 +56,24 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S50 OPEN 2026-07-31 ~01:50 (Desktop) — **THE LIVE SUPERSEDE REMEDY TEST** (docs/15 §14, the
-S43+S44 rail's first production run — queued since S44 as "pipeline up + Rab present"; both now
-true). MUSTER clean at open (S49/`8c2d667`, tally 42). Plan: (1) Rab relaunches the widget
-(double-click — first boot since the uv-python fix + true-S44-exe adoption; the watcher
-autostarting cleanly IS the regression test of S48's repairs); (2) Rab clicks **⟳ re-convert** on
-the held Cybernetics card in the Survival Audit panel — `assay.rs::reconvert` writes
-`drop/.supersede/<source>.json` BEFORE copying the PDF back into drop; (3) watch the rail
-read-only from this session: marker consumed once by `convert_and_ship` (first live run of the
-S48 pipe-decode fix on this book), convert → audit → verdict decides: **pass ⇒ supersede stamp ⇒
-ship ⇒ exporter REPLACES the vaulted note in place (old `.md` name kept, wikilinks intact)** /
-**fail ⇒ the guard correctly lands nothing (EXPORT-SUPERSEDE-HELD, staging kept)** — docs/15
-§14.5: EITHER outcome is a valid first live result, a re-loop is a convert-side retry slice, not
-a reason to widen the guard; (4) document the outcome (ledger + [[segment-vault-export]]) +
-close in lockstep. Coexistence: ~02:00, seat is Rab's, GPU idle, no gaming.)*
+*(S50 closed 2026-07-31 ~02:15 (Desktop) — SHIPPED. **THE SUPERSEDE RAIL RAN IN PRODUCTION — every
+joint proven, ending in the guard's designed refusal (the §14.5 branch).** Regression first: the
+widget's cold boot autostarted the watcher cleanly (S48's repairs hold). The run: card-face
+steered to the shadowed held bundle by an mtime touch (**UI gap found live: the assay ⟳ targets
+only the newest-audited bundle — held items get shadowed; task chip filed for per-held-item
+remedy buttons**), then Rab's ⟳ → marker authored BEFORE the PDF → consumed once → `audit/
+supersede from_verdict: fail` stamped → re-convert 91 pp / 210 s **without the original
+degeneration** (Marker behaved; the S48 pipe fix carried a second book) — but survival re-scored
+**0.6884 ≈ the held 0.688**, now as 25 OMISSION runs → verdict `flag`: measured twice, that score
+is the figure-heavy book's structural ceiling in markdown, not a defect → shipped as-is (no
+analyst, per plan; enforce-vs-report resolved from source: the lever parks on manifest verdict
+`fail` at ship time, so `flag` ships either way) → **ThinkPad exporter: `EXPORT-SUPERSEDE-HELD …
+incoming verdict 'flag' is not pass — vault untouched, staging copy kept`** — positive
+confirmation read from the ThinkPad journal by Rab (the desktop sees refusals only as absence:
+blind spot #8, live). NEW POLICY QUESTION for Rab: figure-heavy books are un-remediable to
+`pass` under the signed contract → human-blessing override or figure-aware scoring lane. The
+replace-in-place case remains Beer's vaulted specimen. Vault stays 5; pipeline left UP (watcher
+idle, GPU free). Docs+memory only — no source changes.)*
 
 *(S49 closed 2026-07-31 ~01:45 (Desktop) — SHIPPED. **Gate 4 ✅ and Gate 5's in-home half ✅: the
 desktop now streams.** MUSTER was clean at open (S48/`fa12a2f`, tally 42; fresh 01:05 logon, GPU
