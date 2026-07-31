@@ -521,10 +521,13 @@ function watcherRender(st) {
     return;
   }
   watcherBtn.hidden = false;
-  watcherBtn.className = st.state === "running" ? "running" : "";
+  const died = st.state === "stopped" && st.exit_code !== null && st.exit_code !== undefined;
+  watcherBtn.className = st.state === "running" ? "running" : died ? "died" : "";
   watcherBtn.title = st.state === "running"
     ? `Conveyor running (pid ${st.pid}) — click to pause intake`
-    : "Conveyor stopped — click to start";
+    : died
+      ? `Conveyor DIED (exit ${st.exit_code}) — last words: watcher-stderr.log — click to restart`
+      : "Conveyor stopped — click to start";
 }
 
 watcherBtn.addEventListener("click", async () => {
@@ -536,6 +539,27 @@ watcherBtn.addEventListener("click", async () => {
     setStatus(`Watcher: ${err}`);
   }
 });
+
+// Stage A (docs/18 §4B seed): liveness is PROVEN every 5 s, never remembered — the ⏻ was
+// stale-green over a corpse for five days (blind spot #1). A running→dead transition files
+// the death certificate where it can't be missed: widget-boot.log (via dbg) + the status line.
+let watcherLastState = null;
+async function watcherLoop() {
+  try {
+    const st = await invoke("watcher_status");
+    if (watcherLastState === "running" && st.state === "stopped") {
+      const code = (st.exit_code === null || st.exit_code === undefined) ? "?" : st.exit_code;
+      const note = `watcher DIED (exit ${code}) — last words in watcher-stderr.log`;
+      dbg(note);
+      setStatus(note);
+    }
+    watcherLastState = st.state;
+    watcherRender(st);
+  } catch (err) {
+    console.warn("watcher status poll failed", err);
+  }
+  setTimeout(watcherLoop, 5000);
+}
 
 async function watcherAutostart() {
   try {
@@ -765,10 +789,15 @@ function assayRender(st) {
       `<span class="ac-swapnote">swap: <b>manual</b> — supersede flow pending</span></div>`;
   }
 
+  // S52 (the S50 shadowing fix): every held bundle renders its OWN remedy button — the card's
+  // main ⟳ targets only the newest-audited subject, so held items were unreachable once
+  // anything newer got audited. Same .ac-remedy class = the existing handler wires them all.
   let heldHtml = "";
   if (held.length) {
-    const names = held.slice(0, 2).map((h) => escHtml(h.bundle)).join(", ");
-    heldHtml = `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy — ${names}</div>`;
+    heldHtml = `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy</div>` +
+      held.map((h) =>
+        `<div class="ac-held-row"><button class="ac-remedy" data-src="${escHtml(h.bundle)}">⟳</button> ` +
+        `<span class="ac-held-name">${escHtml(h.bundle)}</span></div>`).join("");
   }
 
   const badge = v ? `<span class="badge ${cls}">${verdict} ${v.sym}</span>` : "";
@@ -863,6 +892,7 @@ init().catch((err) => {
 vaultLoop();
 pfLoop();
 watcherAutostart();
+watcherLoop(); // Stage A: the honest 5 s liveness poll (never trust a remembered state)
 shiftLoop();
 assayLoop();
 lineInit();

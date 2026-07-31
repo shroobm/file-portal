@@ -56,23 +56,26 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S52 OPEN 2026-07-31 ~03:20 (Desktop) — **AUTONOMOUS BUILD: docs/18 STAGE A — death certificates
-+ the stall detector** (commissioned by Rab: "continue developing until you face a real block
-where I should come in"; cookie #44). Plan: (1) **converter side** (`convert_and_ship.py` — no
-widget rebuild needed, read fresh per convert): replace the blind `proc.wait(timeout)` with a
-monitor loop implementing the KILL-EARLY stall policy (docs/18 §5.1: progress-file mtime frozen
->15 min while the convert runs → gather a triage signature (GPU util/mem via nvidia-smi,
-best-effort) → **tree-kill via `taskkill /T /F`** → `convert/stalled` event + failed/); fix the
-latent orphan bug in the existing timeout path with the same tree-kill (`proc.kill()` only kills
-the venv/console-script launcher — the real python grandchild survives; same class the S48 hunt
-exposed); all monitoring fail-safe per the S42 rule. (2) **widget side** (watcher.rs + main.js):
-death certificates — watcher spawns with stderr → `watcher-stderr.log` (a valid file handle; the
-S31 null-stdio fix was about invalid console handles, so this is safe) + `watcher_status`
-captures and REMEMBERS the exit code after reap; frontend polls watcher_status in the poll loop
-(kills the stale-green-⏻ blind spot #1/#2) and renders death honestly. (3) Verify: python — ast
-+ an isolated fake-child stall test in the scratchpad (no GPU); Rust/JS — clippy `-D warnings`,
-`node --check`, `tauri build`; stage the exe + SHA. (4) **STOP at the real block: exe adoption =
-Rab's hand** (MSIX law) + his live smoke test. (5) Close in lockstep with honest state.)*
+*(S52 closed 2026-07-31 ~03:45 (Desktop) — SHIPPED + **PROVEN BY LIVE MURDER**. docs/18 Stage A
+built end to end in one autonomous run (cookie #44 commissioned), adopted by Rab (`3571F771`),
+acceptance-tested with a deliberate watcher kill. **Converter half** (live immediately, read
+fresh per convert): the blind `proc.wait` is now a 30 s monitor loop enforcing the KILL-EARLY
+policy — progress mtime frozen >900 s → GPU triage signature → tree-kill → `convert/stalled`
+death-certificate event; the latent ORPHAN bug in the timeout path fixed the same way (isolated
+test: `proc.kill()` leaves the launcher's real python alive; `taskkill /T` took the tree 2→0);
+fail-safe per the S42 rule, hard timeout preserved. **Widget half**: ⏻ backed by an honest 5 s
+liveness poll; death files a certificate (exit code remembered after reap → tooltip "Conveyor
+DIED (exit N)" + status line + widget-boot.log) and stderr lands in truncate-per-spawn
+`watcher-stderr.log` (the 0x67 class can never die unheard again); deliberate stops file no
+certificate; **per-held-item ⟳ remedy buttons on BOTH surfaces** (S50 shadowing gap closed —
+task chip retired; Stage C item pulled forward at Rab's ask). Gates: clippy `-D warnings`,
+`node --check` ×2, 6/6 rust tests, `tauri build` green. **LIVE ACCEPTANCE**: `taskkill /t` on
+the pair → ⏻ flipped in ≤5 s ("Conveyor DIED (exit 1)"), certificate in widget-boot.log, ⏻
+restart cleared it, fresh pair up (4100/11700). Bonus forensic: tauri's bundler PATCHES the exe
+post-build — the S48 `D4B50F23`-vs-`38CC4D72` five-second hash mystery EXPLAINED. One slip
+caught pre-check (grep-mangled `\` comments → fixed before node --check). Styling for
+`.ac-held-row`/`.died` deliberately deferred (functional unstyled; Stage B/E polish). NEXT:
+Stage B (heartbeats + staleness + policy rows) or Valentine's retry — Rab's pick.)*
 
 *(S51 closed 2026-07-31 ~03:05 (Desktop) — SHIPPED. **docs/18 "Levers and Heartbeats" written and
 the four standing policy questions DECIDED live with Rab.** The decisions, now spec: (1) **stall

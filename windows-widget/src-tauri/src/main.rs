@@ -291,14 +291,15 @@ fn watcher_start(
     state: State<AppState>,
     watcher_state: State<watcher::WatcherState>,
 ) -> Result<watcher::WatcherStatus, String> {
-    let (py, conv) = {
+    let (py, conv, pipe) = {
         let cfg = state
             .config
             .lock()
             .map_err(|_| "lock poisoned".to_string())?;
-        (cfg.gpu_python_exe.clone(), cfg.gpu_converter_dir.clone())
+        (cfg.gpu_python_exe.clone(), cfg.gpu_converter_dir.clone(),
+         cfg.gpu_pipeline_dir.clone())
     };
-    watcher::start(&watcher_state, &py, &conv)
+    watcher::start(&watcher_state, &py, &conv, &pipe)
 }
 #[tauri::command]
 fn watcher_stop(watcher_state: State<watcher::WatcherState>) -> watcher::WatcherStatus {
@@ -400,7 +401,7 @@ fn main() {
         .manage(AppState {
             config: Mutex::new(app_config),
         })
-        .manage(watcher::WatcherState(Mutex::new(None)))
+        .manage(watcher::WatcherState(Mutex::new(None), Mutex::new(None)))
         .invoke_handler(tauri::generate_handler![
             list_portals,
             send_to_portal,

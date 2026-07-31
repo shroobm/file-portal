@@ -259,8 +259,14 @@ function assayPanel(d) {
   }
   const foot = (av === "fail" || held.length)
     ? `<div class="ac-foot"><button class="ac-remedy" data-src="${esc(a.bundle)}">⟳ re-convert</button><span class="ac-swapnote">swap: <b>manual</b> — supersede pending</span></div>` : "";
+  // S52 (the S50 shadowing fix): per-held-item remedy buttons — same .ac-remedy class, so the
+  // existing click wiring covers them; data-src = the manifest source filename, per contract.
   const heldHtml = held.length
-    ? `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy — ${held.slice(0, 2).map((h) => esc(h.bundle)).join(", ")}</div>` : "";
+    ? `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy</div>` +
+      held.map((h) =>
+        `<div class="ac-held-row"><button class="ac-remedy" data-src="${esc(h.bundle)}">⟳</button> ` +
+        `<span class="ac-held-name">${esc(h.bundle)}</span></div>`).join("")
+    : "";
   const toggle = `<button class="rp-lever" id="room-audit-toggle" title="enforce parks a fail in held/">` +
     `<span class="${mode === "report" ? "on" : "off"}">report</span> ⇄ <span class="${mode === "enforce" ? "on" : "off"}">enforce</span></button>`;
   return `<div class="rp ${av === "fail" ? "fail" : ""}"><div class="rp-head"><span class="rp-title">◎ Survival Audit</span><span class="rp-grow"></span>${toggle}</div>` +

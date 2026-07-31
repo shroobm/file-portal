@@ -8,6 +8,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S52 — docs/18 STAGE A SHIPPED: death certificates + the stall detector, proven by live
+  murder (2026-07-31).** Converter (`convert_and_ship.py`, live immediately): the blind
+  `proc.wait(timeout)` is now a 30 s monitor loop enforcing the decided kill-early stall policy —
+  progress-file mtime frozen >900 s while Marker runs → GPU triage signature (util/mem via
+  nvidia-smi, best-effort) → **tree-kill** → `convert/stalled` event; the latent orphan bug fixed
+  in the same stroke (isolated test proved `proc.kill()` leaves the console-script launcher's
+  real python alive — `taskkill /T` took the whole tree, 2→0); all monitoring fail-safe per the
+  S42 rule, scaled hard timeout preserved as outer bound. Widget (`watcher.rs`/`main.rs`/
+  `main.js`/`room.js`, exe `3571F771` adopted by Rab's hand): the ⏻ is backed by an honest 5 s
+  liveness poll; a dead watcher files a **death certificate** — exit code remembered after reap
+  (blind spot #2), tooltip "Conveyor DIED (exit N)", status line + widget-boot.log entry — and
+  its stderr now lands in a truncate-per-spawn `watcher-stderr.log` (blind spot #3: the 0x67
+  launcher error died unheard into NUL for five days); deliberate stops file no certificate.
+  Plus **per-held-item ⟳ remedy buttons on both surfaces** (the S50 shadowing gap; task chip
+  retired). Gates: clippy `-D warnings`, `node --check` ×2, 6/6 rust tests, `tauri build` green.
+  **Live acceptance:** `taskkill /t` on the watcher pair → ⏻ flipped within 5 s with the exit
+  code; ⏻ restart cleared the certificate and brought a fresh pair. Bonus forensic: tauri's
+  bundler patches the exe post-build — the S48 `D4B50F23`-vs-`38CC4D72` hash mystery explained.
+
 - **S51 — docs/18 "Levers and Heartbeats": the observability + control design brief, and four
   standing policies DECIDED (2026-07-31).** Rab's decisions, now spec: stall policy = kill early
   on the stall signature (frozen progress >15 min + lock held → kill + death certificate); large

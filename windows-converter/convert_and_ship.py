@@ -88,6 +88,10 @@ REMOTE_STAGING = "~/file-portal/library/staging"
 MIN_CHARS_PER_PAGE = 100  # provisional, same value + revisit-note as the ThinkPad's
 RECOGNITION_BATCH = 32
 CONVERTER_VERSION = "0.1.0-desktop"
+# Stage A (docs/18 §5.1, decided 2026-07-31): progress frozen this long while Marker still
+# runs = the stall signature → kill early. Generous vs the longest legitimate quiet phase
+# (model load ~1-2 min); both wedge species (S48 pipe-deadlock, S45 VRAM-thrash) freeze for hours.
+STALL_FROZEN_S = 900
 
 # S42: live convert progress (docs/16 §8 #3). The widget's line.rs reads this file while a
 # convert holds the .gpu-lock; the Room shows the real Marker/surya stage + per-page count.
@@ -113,6 +117,33 @@ def _clear_progress() -> None:
         PROGRESS_FILE.unlink()
     except OSError:
         pass
+
+
+def _kill_tree(pid: int) -> None:
+    """Kill a process AND its descendants. `proc.kill()` alone kills only the console-script /
+    venv launcher on Windows — the real python underneath survives and keeps the GPU (the S48
+    orphan class). taskkill /T walks the tree. Best-effort: the caller still proc.kill()s."""
+    try:
+        subprocess.run(["taskkill", "/pid", str(pid), "/t", "/f"],
+                       capture_output=True, timeout=30)
+    except Exception:  # noqa: BLE001 — killing is a courtesy; the hard timeout still governs
+        pass
+
+
+def _gpu_signature() -> dict:
+    """Best-effort triage facts for a stall's death certificate: GPU util/mem at kill time.
+    High util + near-full mem = the VRAM-thrash species; low util = deadlock/IO species.
+    Facts only — classification is the reader's job. Never raises."""
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total",
+             "--format=csv,noheader,nounits"],
+            capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
+        util, used, total = (x.strip() for x in out.stdout.strip().split(",")[:3])
+        return {"gpu_util_pct": int(util), "gpu_mem_used_mib": int(used),
+                "gpu_mem_total_mib": int(total)}
+    except Exception:  # noqa: BLE001
+        return {}
 
 
 # ---------- Survival Audit enforcement lever (docs/15 §12) — default off ----------
@@ -394,14 +425,42 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # here (8.08 s/page, a dense 439-pp scan), so it still catches a genuine hang while never
     # punishing a book for being long.
     timeout_s = max(3600, pages * 20)
-    try:
-        proc.wait(timeout=timeout_s)
-    except subprocess.TimeoutExpired:
+
+    def _kill_and_clear() -> None:
+        _kill_tree(proc.pid)  # /T first — proc.kill() alone would orphan marker's real python
         proc.kill()
         proc.wait()
         reader.join(timeout=5)
         _clear_progress()
-        raise RuntimeError(f"marker timed out after {timeout_s}s ({pages} pages)")
+
+    # Stage A (docs/18 §4A; policy §5.1 "kill early", decided 2026-07-31): the wait is now a
+    # monitor. PROGRESS_FILE's mtime is the liveness signal Marker already emits; frozen too
+    # long while the process still runs is the stall signature of BOTH wedge species (the S48
+    # pipe-deadlock froze it at zero CPU, the S45 VRAM-thrash at pinned GPU). Monitoring is
+    # best-effort and can never fail a healthy convert (S42 rule); the scaled hard timeout
+    # stays as the outer bound.
+    while True:
+        try:
+            proc.wait(timeout=30)
+            break
+        except subprocess.TimeoutExpired:
+            pass
+        elapsed = time.perf_counter() - t0
+        if elapsed >= timeout_s:
+            _kill_and_clear()
+            raise RuntimeError(f"marker timed out after {timeout_s}s ({pages} pages)")
+        try:
+            frozen_s = time.time() - PROGRESS_FILE.stat().st_mtime
+        except OSError:
+            frozen_s = elapsed  # nothing written yet (model load etc.) — measure from start
+        if frozen_s > STALL_FROZEN_S:
+            sig = _gpu_signature()
+            _kill_and_clear()
+            emit("convert", "stalled", source=src.name, frozen_s=int(frozen_s),
+                 elapsed_s=int(elapsed), **sig)
+            raise RuntimeError(
+                f"marker stalled: progress frozen {int(frozen_s)}s "
+                f"(kill-early policy, docs/18 §5.1)")
     reader.join(timeout=5)
     _clear_progress()
     wall = time.perf_counter() - t0
