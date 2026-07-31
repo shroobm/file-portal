@@ -56,6 +56,22 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S51 OPEN 2026-07-31 ~02:35 (Desktop) — **DECISIONS + THE docs/18 DESIGN BRIEF: observability +
+control ("levers-and-heartbeats") overhaul.** Rab relayed two ChatGPT-generated UI-overhaul
+mockup sets (dark trio + light pair — visual aids, per [[external-ai-relay-protocol]] assessed on
+merits: keepers = richer Dock w/ live conversion card + prioritized queue, policy-as-UI
+("Survival < 0.7 requires remedy" + Configure), per-item queue menus, page-level risk strip,
+light theme; filtered out = fictional numbers/engines/"AI Agent" ship label/invented retention
+feature) and articulated the core design principle: **every autonomous behavior gets a visible,
+per-stage manual lever**. Plan: (1) settle the 4 open policy questions with Rab live (stall
+policy, large-book fix, Valentine retry, figure-heavy flag ceiling) — they are the first levers
+the new UI must render; (2) write **docs/18** merging the S48 observability blind-spot survey
+(10 items, heartbeats/death-certificates/stall-detector/per-chunk events/vantage stamps/
+algedonic line) with the control-surface overhaul (lever inventory, policy surfacing, queue
+management, audit-card evolution, theme) + a staged build plan honoring the projection law;
+(3) close in lockstep — implementation goes to dedicated sessions per [[build-workflow-protocol]].
+No pipeline/GPU work this session; widget stays up idle.)*
+
 *(S50 closed 2026-07-31 ~02:15 (Desktop) — SHIPPED. **THE SUPERSEDE RAIL RAN IN PRODUCTION — every
 joint proven, ending in the guard's designed refusal (the §14.5 branch).** Regression first: the
 widget's cold boot autostarted the watcher cleanly (S48's repairs hold). The run: card-face
