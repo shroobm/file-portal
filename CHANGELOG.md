@@ -8,6 +8,54 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S58 — docs/19 §3 STAGE C2 SHIPPED: the analyst-only re-run, per-bundle targeting, and the
+  seam receipts (2026-07-31).** Three gaps closed at once, all of them things the factory had
+  learned it needed the hard way.
+
+  **1. `⟲ re-analyze` — the analyst-only re-run.** `convert_and_ship.py --reanalyze <source>`
+  re-runs the analyst over an already-converted bundle and ships the result as a supersede;
+  **Marker never runs**, so remedying an ANALYST-phase failure no longer costs the GPU-hours of
+  re-reading a PDF whose convert-phase audit already passed (the claude-code book, vault note 5:
+  convert survival 0.9913 with no degeneration, analyst `fail` from qwen3 looping in its own
+  notes). Eligibility lives in Python alone — the re-run must start from a bundle whose markdown
+  is Marker output (a manifest with no `analyst` block), and when only analyst OUTPUT survives it
+  refuses out loud as an `analyst/rerun_refused` event rather than feeding a model its own
+  degenerated text. The bundle name is read from the `.md` inside the directory, never from the
+  directory (`unique_anchor` suffixes those with " (1)"), and the supersede provenance records
+  the verdict of the **vaulted** generation, not whichever record happened to be newest on disk.
+  Progress needed no new plumbing: `apply_analyst` already writes the S56 analyst heartbeat, so
+  the Room shows a re-run live. Widget side: `assay::reanalyze` validates only its own action
+  (legal source name, configured paths, script present) and **refuses while `.gpu-lock` is
+  held** — starting qwen3 underneath a running Marker is the S45 VRAM-thrash wedge signature.
+
+  **2. Per-bundle targeting.** `⟲` and `✓ bless` now render on EVERY held row with their own
+  `data-src`, on both surfaces (per-row `⟳` landed S52). Until now bless had exactly the reach
+  the remedy button had before S52 — the card's newest-audited subject only — so blessing a held
+  bundle meant flipping the card onto it first, and losing that race is what made the guard
+  refuse Valentine twice in S56.
+
+  **3. Seam receipts — the vault's answers, brought home.** Every `EXPORT-*` outcome used to
+  exist only in the ThinkPad's systemd journal, a machine the desktop cannot read, so the
+  widget's story of a book ended at `shipped`. The exporter now appends one JSON line per
+  outcome (`exported`, `exported-supersede`, `skip`, `supersede-held`, `supersede-miss`,
+  `supersede-noop`, `blessed`, `bless-invalid`, `failed`) to `~/file-portal/receipts.jsonl`, and
+  the widget's new `receipts.rs` tails it over `tailscale ssh` on the vault bar's existing 45 s
+  poll, caching to its OWN dot-prefixed file; the Room merges the two streams **at render time**
+  so each file keeps exactly one writer. Rab's call among three designs: receipts stay OUT of
+  the vault repo — the exporter's change is an append to a plain file, so the module that writes
+  the vault got no new git code, and the notes' own history gets no machine records.
+
+  **Verified:** clippy `-D warnings` clean, `node --check` on both touched JS files, **11/11**
+  Rust tests (3 new receipts tests + a re-run refusal test incl. the `.gpu-lock` guard), an
+  **8-case seam proof driving the REAL exporter against real git repos** (every outcome's
+  receipt, provenance surviving the seam, a bless-on-`fail` rejected, and — the fail-open case —
+  an unwritable receipts path costing a warning while the book still reaches the vault), and a
+  **5-part orchestration proof** of the re-run with the analyst and ship stubbed (pre-analyst
+  selection, supersede stamp, originals untouched, enforce-park, refusals). The
+  exporter↔widget seam is proved on REAL BYTES: the receipt line in `receipts.rs`'s test was
+  produced by the shipping `_receipt` and pasted in verbatim. Still owed: the live claude-code
+  re-run (~17 min of GPU, Rab's go) and the ThinkPad deploy that puts the receipts on the wire.
+
 - **S57 — the chunking spec SIGNED + docs/19: the Opus 5 execution plan (2026-07-31).** Stage
   D's parameters decided live with Rab and written into docs/18 §5.2: lane-aware thresholds
   (clean >600 pp / scan >400 pp), 200-page slices, clean cuts with every seam page recorded in

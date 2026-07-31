@@ -16,6 +16,8 @@ const VSYM = { pass: "✓", flag: "⚠", fail: "✕" };
 const TAGCOL = {
   intake: "var(--flow)", convert: "var(--text)", gate: "var(--warn)",
   analyst: "var(--flow)", audit: "var(--clay)", ship: "var(--ok)", vault: "var(--ok)",
+  // Stage C2: the ThinkPad exporter's own outcomes, merged into this stream (docs/19 §3.3).
+  export: "var(--ok)",
 };
 const MODE_LABELS = { ask: "ask", local: "auto-🔒", gemini: "auto-☁", off: "off" };
 
@@ -73,14 +75,17 @@ async function gatherVM() {
     try { return await invoke(name, args); }
     catch (e) { deps.dbg?.(`room ${name}: ${e}`); return null; }
   };
-  const [ls, assay, shift, pf, watcher, vault, metrics, vram] = await Promise.all([
+  // Stage C2 (docs/19 §3.3): `receipts_read` is the CACHE read, never the network one — the
+  // fetch rides the Dock's 45 s vault poll. This loop runs every 4-9 s; an ssh call here would
+  // be one per poll.
+  const [ls, assay, shift, pf, watcher, vault, metrics, vram, receipts] = await Promise.all([
     call("line_state"), call("assay_status"), call("shift_summary"),
     call("preflight_list"), call("watcher_status"), call("vault_check"),
-    call("room_metrics"), call("gpu_vram"),
+    call("room_metrics"), call("gpu_vram"), call("receipts_read"),
   ]);
   try { gateMode = (await invoke("analyst_mode_get")) || gateMode; } catch { /* keep */ }
   sampleGpu(vram); // append this poll's GPU reading (VRAM/util/temp) to the rolling windows (S38/S41)
-  return { ls, assay, shift, pf: pf || [], watcher, vault, metrics, vram };
+  return { ls, assay, shift, pf: pf || [], watcher, vault, metrics, vram, receipts };
 }
 
 // ---- render -------------------------------------------------------------------------------
@@ -279,13 +284,19 @@ function assayPanel(d) {
   const bless = (av === "flag" || av === "fail")
     ? `<button class="ac-bless" data-src="${esc(a.bundle)}">✓ bless</button>` : "";
   const foot = (av === "fail" || av === "flag" || held.length)
-    ? `<div class="ac-foot"><button class="ac-remedy" data-src="${esc(a.bundle)}">⟳ re-convert</button>${bless}<span class="ac-swapnote">swap: <b>manual</b> — supersede pending</span></div>` : "";
+    ? `<div class="ac-foot"><button class="ac-remedy" data-src="${esc(a.bundle)}">⟳ re-convert</button>` +
+      `<button class="ac-reanalyze" data-src="${esc(a.bundle)}">⟲ re-analyze</button>${bless}` +
+      `<span class="ac-swapnote">swap: <b>manual</b> — supersede pending</span></div>` : "";
   // S52 (the S50 shadowing fix): per-held-item remedy buttons — same .ac-remedy class, so the
   // existing click wiring covers them; data-src = the manifest source filename, per contract.
+  // Stage C2 (docs/19 §3.2): ⟲ re-analyze and ✓ bless join them per row, so no remedy needs the
+  // card to be pointing at its bundle first (the card-flip race that refused Valentine twice).
   const heldHtml = held.length
     ? `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy</div>` +
       held.map((h) =>
         `<div class="ac-held-row"><button class="ac-remedy" data-src="${esc(h.bundle)}">⟳</button> ` +
+        `<button class="ac-reanalyze" data-src="${esc(h.bundle)}">⟲</button> ` +
+        `<button class="ac-bless" data-src="${esc(h.bundle)}">✓</button> ` +
         `<span class="ac-held-name">${esc(h.bundle)}</span></div>`).join("")
     : "";
   const toggle = `<button class="rp-lever" id="room-audit-toggle" title="enforce parks a fail in held/">` +
@@ -305,15 +316,43 @@ function assayPanel(d) {
 }
 
 function eventsPanel(d) {
-  const tail = (d.shift?.tail || []).slice().reverse();
-  const rows = tail.slice(0, 12).map((e) => {
-    const ts = String(e.ts || "").slice(11, 19);
-    const tag = e.stage || e.tag || "";
-    const msg = e.msg || eventMsg(e);
-    return `<div class="rev"><span class="rev-ts">${ts}</span><span class="rev-tag" style="color:${TAGCOL[tag] || "var(--text-2)"}">${esc(tag)}</span><span class="rev-msg">${esc(msg)}</span></div>`;
-  }).join("");
-  return `<div class="rp rp-events"><div class="rp-head"><span class="rp-title">Event stream</span><span class="rp-grow"></span><span class="rp-file">events.jsonl</span></div>` +
+  // Stage C2 (docs/19 §3.3): two streams, one story. The desktop's events.jsonl (Python's) and
+  // the ThinkPad exporter's receipts (fetched into the widget's own cache) stay SEPARATE FILES
+  // with one writer each — the single-writer law — and are merged here, at render time, sorted
+  // by their own timestamps. Before this, the vault's answer to a shipped book lived only in a
+  // journal on another machine.
+  const local = (d.shift?.tail || []).map((e) => ({ ts: e.ts, tag: e.stage || e.tag || "", msg: e.msg || eventMsg(e) }));
+  const seam = (d.receipts?.rows || []).map((r) => ({ ts: r.ts, tag: "export", msg: receiptMsg(r) }));
+  const rows = local.concat(seam)
+    .sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")))
+    .reverse()
+    .slice(0, 12)
+    .map((e) =>
+      `<div class="rev"><span class="rev-ts">${String(e.ts || "").slice(11, 19)}</span>` +
+      `<span class="rev-tag" style="color:${TAGCOL[e.tag] || "var(--text-2)"}">${esc(e.tag)}</span>` +
+      `<span class="rev-msg">${esc(e.msg)}</span></div>`)
+    .join("");
+  const src = seam.length ? "events.jsonl + receipts" : "events.jsonl";
+  return `<div class="rp rp-events"><div class="rp-head"><span class="rp-title">Event stream</span><span class="rp-grow"></span><span class="rp-file">${src}</span></div>` +
     `<div class="rp-body">${rows || `<div class="rp-note">no events yet</div>`}</div></div>`;
+}
+
+// One exporter outcome as a human phrase. These are the vault's OWN words about a bundle —
+// what it did with the thing the desktop shipped it (docs/19 §3.3).
+function receiptMsg(r) {
+  const s = (v) => String(v ?? "").slice(0, 34);
+  const map = {
+    "exported": `${s(r.bundle)} — vaulted ✓ ${s(r.commit)}`,
+    "exported-supersede": `${s(r.bundle)} — REPLACED in vault (${s(r.reason)}) ${s(r.commit)}`,
+    "supersede-held": `${s(r.bundle)} — vault REFUSED · verdict ${s(r.verdict)}`,
+    "supersede-miss": `${s(r.bundle)} — nothing to replace · creating`,
+    "supersede-noop": `${s(r.bundle)} — identical to the vaulted note`,
+    "blessed": `${s(r.bundle)} — bless accepted (by=${s(r.by)})`,
+    "bless-invalid": `${s(r.bundle)} — bless REJECTED · ${s(r.why)}`,
+    "skip": `${s(r.bundle)} — already vaulted · skipped`,
+    "failed": `${s(r.bundle)} — export FAILED · ${s(r.error)}`,
+  };
+  return map[r.outcome] || `${s(r.outcome)} ${s(r.bundle)}`;
 }
 
 // turn a raw event line into a human phrase (mirrors main.js tickerPhrase, compacted)
@@ -397,6 +436,16 @@ function wire() {
     b.disabled = true;
     try { await invoke("assay_reconvert", { source: b.dataset.src }); deps.setStatus?.(`Re-queued ${b.dataset.src}`); }
     catch (e) { b.disabled = false; deps.setStatus?.(`Re-convert: ${e}`); }
+  }));
+  // Stage C2 (docs/19 §3.1): analyst-only re-run — same intent command the Dock's ⟲ uses. The
+  // backend follows the analyst gate; off/ask have no model, so local carries it.
+  roomEl.querySelectorAll(".ac-reanalyze").forEach((b) => b.addEventListener("click", async () => {
+    b.disabled = true;
+    const backend = (gateMode === "local" || gateMode === "gemini") ? gateMode : "local";
+    try {
+      await invoke("assay_reanalyze", { source: b.dataset.src, backend });
+      deps.setStatus?.(`Re-analyzing ${b.dataset.src} (${backend}) — Marker skipped`);
+    } catch (e) { b.disabled = false; deps.setStatus?.(`Re-analyze: ${e}`); }
   }));
   roomEl.querySelectorAll(".ac-bless").forEach((b) => b.addEventListener("click", async () => {
     b.disabled = true;

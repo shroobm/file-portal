@@ -688,8 +688,26 @@ vaultBtn.addEventListener("click", async () => {
   }
 });
 
+// Stage C2 (docs/19 §3.3): the seam receipts ride this poll rather than a timer of their own —
+// same cadence, same "is the ThinkPad awake" question the vault bar is already asking. Not
+// awaited: a sleeping host must slow nothing down, and the busy flag makes a slow fetch skip
+// its turn instead of piling threads up behind it.
+let receiptsBusy = false;
+async function receiptsFetch() {
+  if (receiptsBusy) return;
+  receiptsBusy = true;
+  try {
+    await invoke("receipts_fetch");
+  } catch (err) {
+    console.warn("receipts_fetch failed", err); // the cached tail stays on the glass
+  } finally {
+    receiptsBusy = false;
+  }
+}
+
 async function vaultLoop() {
   await vaultCheck();
+  receiptsFetch();
   const wait = Date.now() < vaultFastUntil ? VAULT_FAST_POLL_MS : VAULT_POLL_MS;
   setTimeout(vaultLoop, wait);
 }
@@ -789,18 +807,25 @@ function assayRender(st) {
     // staged truth; the backend validates against the event stream (the fresher record).
     const blessBtn = (verdict === "flag" || verdict === "fail")
       ? `<button class="ac-bless" data-src="${escHtml(st.bundle)}">✓ bless</button>` : "";
-    foot = `<div class="ac-foot"><button class="ac-remedy" data-src="${escHtml(st.bundle)}">⟳ re-convert</button>${blessBtn}` +
+    foot = `<div class="ac-foot"><button class="ac-remedy" data-src="${escHtml(st.bundle)}">⟳ re-convert</button>` +
+      `<button class="ac-reanalyze" data-src="${escHtml(st.bundle)}">⟲ re-analyze</button>${blessBtn}` +
       `<span class="ac-swapnote">swap: <b>manual</b> — supersede flow pending</span></div>`;
   }
 
   // S52 (the S50 shadowing fix): every held bundle renders its OWN remedy button — the card's
   // main ⟳ targets only the newest-audited subject, so held items were unreachable once
   // anything newer got audited. Same .ac-remedy class = the existing handler wires them all.
+  // Stage C2 (docs/19 §3.2): ⟲ and ✓ join it per row. Until now BLESS had exactly the reach
+  // the remedy button had before S52 — the card's subject only — so blessing a held bundle
+  // meant flipping the card onto it first, and losing that race is what made the guard refuse
+  // Valentine twice (S56). Every row now names its own target in data-src.
   let heldHtml = "";
   if (held.length) {
     heldHtml = `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy</div>` +
       held.map((h) =>
         `<div class="ac-held-row"><button class="ac-remedy" data-src="${escHtml(h.bundle)}">⟳</button> ` +
+        `<button class="ac-reanalyze" data-src="${escHtml(h.bundle)}">⟲</button> ` +
+        `<button class="ac-bless" data-src="${escHtml(h.bundle)}">✓</button> ` +
         `<span class="ac-held-name">${escHtml(h.bundle)}</span></div>`).join("");
   }
 
@@ -816,6 +841,8 @@ function assayRender(st) {
   document.getElementById("audit-toggle")?.addEventListener("click", assayToggleMode);
   assayCard.querySelectorAll(".ac-remedy").forEach((b) =>
     b.addEventListener("click", () => assayReconvert(b)));
+  assayCard.querySelectorAll(".ac-reanalyze").forEach((b) =>
+    b.addEventListener("click", () => assayReanalyze(b)));
   assayCard.querySelectorAll(".ac-bless").forEach((b) =>
     b.addEventListener("click", () => assayBless(b)));
   reflow();
@@ -841,6 +868,25 @@ async function assayReconvert(btn) {
   } catch (err) {
     btn.disabled = false;
     setStatus(`Re-convert: ${err}`);
+  }
+}
+
+// Stage C2 (docs/19 §3.1): the analyst-only re-run. Marker never runs — this remedies an
+// ANALYST-phase failure (the claude-code book: convert survival 0.991, analyst fail), so the
+// GPU-hours of re-reading a PDF that converted fine are not spent. The backend follows the
+// analyst gate's current setting; `off`/`ask` have no model to run with, so it falls back to
+// local and the status line says which one went. Eligibility is Python's answer, not this
+// button's: an ineligible click is refused in the event stream.
+async function assayReanalyze(btn) {
+  const src = btn.dataset.src;
+  const backend = (gateMode === "local" || gateMode === "gemini") ? gateMode : "local";
+  btn.disabled = true;
+  try {
+    await invoke("assay_reanalyze", { source: src, backend });
+    setStatus(`Re-analyzing ${src} (${backend}) — Marker is skipped; watch the analyst heartbeat.`);
+  } catch (err) {
+    btn.disabled = false;
+    setStatus(`Re-analyze: ${err}`);
   }
 }
 

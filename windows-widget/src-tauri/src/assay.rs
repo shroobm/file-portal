@@ -9,7 +9,7 @@ use serde_json::{json, Value};
 use std::fs;
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
-use std::process::Command;
+use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 const AUDIT_MODES: [&str; 2] = ["report", "enforce"];
@@ -228,6 +228,62 @@ pub fn reconvert(gpu_pipeline_dir: &str, source: &str) -> Result<(), String> {
         let _ = fs::remove_file(&marker);
         return Err(format!("failed to re-queue: {e}"));
     }
+    Ok(())
+}
+
+/// Stage C2 (docs/19 §3.1): the ⟲ analyst-only re-run. Spawns the converter's `--reanalyze`
+/// path detached, exactly as `preflight::decide` spawns `--resume` — the analyst can run 15+
+/// minutes and the widget must never block on it (the card's own state, here the event stream
+/// and the analyst heartbeat, is how progress is tracked).
+///
+/// This side validates ONLY what belongs to its own action: a legal source name, configured
+/// paths, a script that exists, and a free GPU. **Eligibility — is there a pre-analyst bundle
+/// to re-run? — is Python's alone** (`convert_and_ship.reanalyze`), because two derivations of
+/// the same fact drift apart (docs/18 blind spot #1); an ineligible click is refused out loud
+/// as an `analyst/rerun_refused` event rather than being second-guessed here.
+pub fn reanalyze(
+    gpu_pipeline_dir: &str,
+    gpu_python_exe: &str,
+    gpu_converter_dir: &str,
+    source: &str,
+    backend: &str,
+) -> Result<(), String> {
+    if gpu_pipeline_dir.is_empty() {
+        return Err("pipeline not configured".into());
+    }
+    if source.is_empty() || source.contains(['/', '\\', ':']) {
+        return Err("invalid source name".into());
+    }
+    if !matches!(backend, "local" | "gemini") {
+        return Err("invalid analyst backend".into());
+    }
+    if gpu_python_exe.is_empty() || gpu_converter_dir.is_empty() {
+        return Err("gpu_python_exe / gpu_converter_dir not configured".into());
+    }
+    let script = Path::new(gpu_converter_dir).join("convert_and_ship.py");
+    if !script.is_file() {
+        return Err(format!("converter script not found: {}", script.display()));
+    }
+    // The watcher holds .gpu-lock for the whole of a conversion. Starting qwen3 underneath
+    // Marker is the VRAM-thrash wedge signature (S45) on a 10 GB card, so the click refuses
+    // while the line is busy instead of queueing a collision. (The reverse race — the watcher
+    // starting a convert under a long re-run — is the same exposure the proven --resume path
+    // has always carried; it is not silently worsened here, and the Room shows the run live.)
+    if Path::new(gpu_pipeline_dir).join(".gpu-lock").exists() {
+        return Err("conveyor busy — a convert holds the GPU; re-run when the line is clear".into());
+    }
+    Command::new(gpu_python_exe)
+        .arg(&script)
+        .args(["--reanalyze", source, "--backend", backend])
+        // Without this the refusal messages (and any traceback) die on a cp1252 console.
+        .env("PYTHONIOENCODING", "utf-8")
+        // Null I/O so the detached run survives a windowless launch (the S31 lesson).
+        .stdin(Stdio::null())
+        .stdout(Stdio::null())
+        .stderr(Stdio::null())
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| format!("failed to spawn re-analyze: {e}"))?;
     Ok(())
 }
 
@@ -482,6 +538,45 @@ mod tests {
             .filter(|e| e.path().extension().is_some_and(|x| x == "pdf"))
             .count();
         assert_eq!(stray_pdfs, 1, "only the re-queued PDF is visible in drop/");
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    /// Stage C2: the ⟲ re-run's refusals. Every case here returns BEFORE the spawn, which is
+    /// what makes them testable — and the .gpu-lock case is the one that matters: launching
+    /// qwen3 under a running Marker is the VRAM-thrash wedge this guard exists to prevent.
+    #[test]
+    fn a_re_run_refuses_before_it_can_spawn_anything() {
+        let base = fixture("book.pdf");
+        let dir = base.to_str().unwrap();
+        // A real interpreter path is never reached in these cases; the refusals come first.
+        let py = "python.exe";
+        let conv = base.to_str().unwrap();
+
+        assert!(reanalyze("", py, conv, "book.pdf", "local").is_err(), "unconfigured");
+        assert!(
+            reanalyze(dir, py, conv, "../escape.pdf", "local").is_err(),
+            "path separators"
+        );
+        assert!(
+            reanalyze(dir, py, conv, "book.pdf", "qwen").is_err(),
+            "unknown analyst backend"
+        );
+        assert!(
+            reanalyze(dir, "", conv, "book.pdf", "local").is_err(),
+            "no interpreter configured"
+        );
+        assert!(
+            reanalyze(dir, py, conv, "book.pdf", "local").is_err(),
+            "no convert_and_ship.py in the converter dir"
+        );
+
+        // With a script present the only thing left standing between the click and a spawn is
+        // the GPU lock — hold it and the refusal must name the busy line.
+        fs::write(base.join("convert_and_ship.py"), b"# stand-in").unwrap();
+        fs::write(base.join(".gpu-lock"), b"some-book.pdf").unwrap();
+        let err = reanalyze(dir, py, conv, "book.pdf", "local").unwrap_err();
+        assert!(err.contains("busy"), "refusal explains itself: {err}");
+
         let _ = fs::remove_dir_all(&base);
     }
 

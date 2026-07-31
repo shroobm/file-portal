@@ -691,6 +691,116 @@ def resume(pend_id: str, backend: str) -> None:
         raise
 
 
+# ---------- the analyst-only re-run (docs/19 §3.1) ----------
+
+def _anchor_copies(source: str) -> list[tuple[Path, dict, str]]:
+    """Every anchored bundle whose manifest records `source`, newest first.
+
+    Returns (bundle_dir, manifest, bundle_name). The bundle NAME comes from the .md file
+    inside, never from the directory: `unique_anchor` may have suffixed the directory with
+    " (1)" to avoid a collision, but the note keeps its true name and apply_analyst opens
+    `<bundle_name>.md`."""
+    out: list[tuple[Path, dict, str, float]] = []
+    if not ANCHOR.is_dir():
+        return []
+    for entry in sorted(ANCHOR.iterdir()):
+        if not entry.is_dir():
+            continue
+        try:
+            manifest = json.loads((entry / "manifest.json").read_text(encoding="utf-8"))
+        except (OSError, ValueError):
+            continue
+        if manifest.get("source") != source:
+            continue
+        mds = [p for p in entry.glob("*.md")]
+        if len(mds) != 1:
+            continue  # not a bundle we can address by name
+        out.append((entry, manifest, mds[0].stem, entry.stat().st_mtime))
+    out.sort(key=lambda t: t[3], reverse=True)
+    return [(d, m, n) for d, m, n, _ in out]
+
+
+def reanalyze(source: str, backend: str) -> None:
+    """Analyst-only re-run (docs/19 §3.1): re-run the analyst over an ALREADY-CONVERTED
+    bundle and ship it as a supersede. **Marker never runs** — no GPU-hours are spent
+    re-reading a PDF whose convert-phase audit already passed; the failure being remedied is
+    the analyst's (the claude-code book: convert survival 0.991, analyst `fail` from qwen3
+    looping in its own notes).
+
+    Eligibility is decided HERE, not in the widget: the re-run must start from a bundle whose
+    markdown is Marker output, i.e. a manifest with NO `analyst` block. Re-analyzing an
+    analyst pass would feed the model its own degenerated text and compound the damage, so
+    when only analyst OUTPUT survives this refuses out loud (an event, not a silent no-op) —
+    the honest fix there is ⟳ re-convert, which rebuilds the Marker copy first.
+
+    GPU exposure is exactly the proven `--resume` path's: the widget refuses to launch while
+    the watcher holds `.gpu-lock`, and the watcher (whose queue this never touches) can still
+    start a convert underneath a long analyst run. Same trade the pending card has run under
+    since S18; the Room's analyst heartbeat makes the run visible while it happens."""
+    copies = _anchor_copies(source)
+    if not copies:
+        emit("analyst", "rerun_refused", source=source, reason="no anchored bundle")
+        sys.exit(f"REANALYZE refused: no anchored bundle records source {source!r}")
+    pre = [c for c in copies if not c[1].get("analyst")]
+    if not pre:
+        emit("analyst", "rerun_refused", source=source, reason="only analyst output survives")
+        # ASCII only: this string is printed to stderr, and a console left on cp1252 (any shell
+        # without PYTHONIOENCODING=utf-8 — Rab's, when he runs it by hand) raises
+        # UnicodeEncodeError on the glyphs the UI uses. A refusal must never fail to be read.
+        sys.exit(
+            f"REANALYZE refused: every anchored copy of {source!r} is already analyst output "
+            "-- re-analyzing an analyst pass compounds its damage. Use re-convert instead "
+            "(it rebuilds the Marker copy first)."
+        )
+    bundle_dir, manifest, bundle_name = pre[0]
+    source_sha = manifest["source_sha256"]
+    # Provenance for the supersede block = the verdict of the generation being REPLACED, which
+    # is the newest ANALYZED copy (what actually reached the vault) — not simply the newest
+    # record, which is often this pre-analyst input and would file a prettier verdict than the
+    # note being overwritten ever had.
+    analyzed = [c for c in copies if c[1].get("analyst")]
+    from_verdict = ((analyzed[0] if analyzed else copies[0])[1].get("fidelity") or {}).get("verdict")
+    print(f"REANALYZE {bundle_name} <- {bundle_dir.name} (backend={backend}, "
+          f"from_verdict={from_verdict})", flush=True)
+    emit("analyst", "rerun", source=source, bundle=bundle_name, backend=backend,
+         from_verdict=from_verdict, sha=source_sha[:16])
+
+    with tempfile.TemporaryDirectory(prefix="fp-reanalyze-") as work_str:
+        work = Path(work_str) / bundle_name
+        shutil.copytree(bundle_dir, work)
+        try:
+            meta = apply_analyst(work, bundle_name, backend)
+        except Exception as exc:
+            emit("analyst", "rerun_failed", source=source, bundle=bundle_name,
+                 error=str(exc)[:150])
+            raise
+        print(f"ANALYST done: {meta}", flush=True)
+
+        # The supersede intent: authored by the widget's ⟲ click exactly as ⟳ authors its
+        # marker (docs/15 §14.2's contract — a named, opt-in exception, never a re-drop).
+        # Same stamper, so the manifest shape and the audit/supersede event stay identical.
+        manifest_path = work / "manifest.json"
+        fresh = json.loads(manifest_path.read_text(encoding="utf-8"))
+        _stamp_supersede_safe(
+            fresh,
+            {"reason": "analyst-rerun", "from_verdict": from_verdict,
+             "source_sha256": source_sha,
+             "requested_at_epoch_s": int(time.time())},
+            source_sha, bundle_name,
+        )
+        manifest_path.write_text(json.dumps(fresh, indent=2) + "\n", encoding="utf-8")
+
+        # Keep the as-shipped copy for archaeology, beside (never over) the original.
+        ANCHOR.mkdir(parents=True, exist_ok=True)
+        anchor_dest = unique_anchor(ANCHOR / f"{bundle_name} [analyst-{backend} rerun]")
+        shutil.copytree(work, anchor_dest)
+        print(f"ANCHORED {anchor_dest}", flush=True)
+
+        if _enforce_hold(work, bundle_name, source_sha):
+            return
+        ship(work, bundle_name, source_sha)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pdf", type=Path, nargs="?")
@@ -703,10 +813,18 @@ def main():
                     help="convert + park in pending/ for the widget pre-flight card; no ship")
     ap.add_argument("--resume", metavar="ID",
                     help="ship a pending bundle (widget decision), analyst per --backend")
+    ap.add_argument("--reanalyze", metavar="SOURCE",
+                    help="analyst-only re-run of an anchored bundle (docs/19 §3.1); Marker "
+                         "never runs and the result ships as a supersede")
     args = ap.parse_args()
 
     if args.resume:
         resume(args.resume, args.backend)
+        return
+    if args.reanalyze:
+        if args.backend not in ("local", "gemini"):
+            sys.exit("--reanalyze needs an analyst backend: local or gemini")
+        reanalyze(args.reanalyze, args.backend)
         return
     if args.pdf is None:
         sys.exit("a PDF path is required unless --resume is given")

@@ -31,6 +31,7 @@ import shutil
 import subprocess
 import threading
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 
 from watchdog.events import FileSystemEventHandler
@@ -44,6 +45,18 @@ VAULT_BRANCH = "main"  # HEAD of the bare repo is pinned to refs/heads/main (Dec
 # the vault's Library folder (Decision #4: only Library/ is a repo), so repo-relative it is
 # plain Inbox/ (L14 — the doubled path shipped as Library/Library/Inbox/ in the vault).
 INBOX_REL = Path("Inbox")
+
+# Stage C2 (docs/19 §3.3, Rab signed S58): the seam receipt. Every EXPORT-* outcome used to
+# exist ONLY in this service's journal — a machine the Desktop cannot read (docs/19 law 12) —
+# so the desktop's story of a book ended at `shipped` and the vault's answer had to be fetched
+# by a human running journalctl. One JSON line per outcome lands here instead, and the widget
+# tails it over the ssh channel it already uses for bless.
+#
+# Deliberately NOT inside the vault repo (the two rejected alternatives were receipts committed
+# to the notes' own history, and a side branch): the vault holds notes, not machine records,
+# and this module's vault-touching code stays exactly as risky as it was — the addition is an
+# append to a plain file.
+RECEIPTS_NAME = "receipts.jsonl"
 
 # Machine-produced commits identify themselves; hand commits keep the user's identity.
 GIT_IDENTITY = [
@@ -94,8 +107,27 @@ class Exporter:
             if entry.is_dir() and not entry.name.startswith("."):
                 self.export(entry)
 
-    @staticmethod
-    def _read_bless_marker(bundle_dir: Path, manifest: dict, verdict) -> dict | None:
+    def _receipt(self, outcome: str, bundle_dir: Path, **fields) -> None:
+        """Append one seam receipt (RECEIPTS_NAME above). Best-effort in every direction: a
+        receipt that cannot be written costs a warning and nothing else — telemetry must never
+        cost an export (the same rule the Desktop's events.emit follows)."""
+        try:
+            record = {
+                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+                "outcome": outcome,
+                "bundle": bundle_dir.name,
+                **fields,
+            }
+            with open(self.paths.root / RECEIPTS_NAME, "a", encoding="utf-8") as fh:
+                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except Exception:  # noqa: BLE001
+            logger.warning(
+                "receipt %s for %s could not be written (export unaffected)",
+                outcome,
+                bundle_dir.name,
+            )
+
+    def _read_bless_marker(self, bundle_dir: Path, manifest: dict, verdict) -> dict | None:
         """docs/18 §5.4 (S56): a human-bless marker lets a `flag` verdict through the supersede
         guard. Valid iff it parses, its source_sha256 matches the staged manifest's, and the
         staged verdict is exactly `flag` -- a degeneration `fail` stays refused even WITH a
@@ -110,11 +142,13 @@ class Exporter:
             logger.warning(
                 "EXPORT-BLESS-INVALID %s: unreadable bless.json ignored", bundle_dir.name
             )
+            self._receipt("bless-invalid", bundle_dir, why="unreadable")
             return None
         if marker.get("source_sha256") != manifest.get("source_sha256"):
             logger.warning(
                 "EXPORT-BLESS-INVALID %s: bless source_sha mismatch -- ignored", bundle_dir.name
             )
+            self._receipt("bless-invalid", bundle_dir, why="sha mismatch")
             return None
         if verdict != "flag":
             logger.warning(
@@ -122,6 +156,7 @@ class Exporter:
                 bundle_dir.name,
                 verdict,
             )
+            self._receipt("bless-invalid", bundle_dir, why=f"verdict {verdict} (flag only)")
             return None
         return {
             "by": marker.get("by", "rab"),
@@ -137,8 +172,10 @@ class Exporter:
                 self._export(bundle_dir)
             except ExportError as exc:
                 logger.error("EXPORT-FAIL %s: %s (staging copy kept)", bundle_dir.name, exc)
-            except Exception:
+                self._receipt("failed", bundle_dir, error=str(exc)[:200])
+            except Exception as exc:  # noqa: BLE001 — logged with its traceback below
                 logger.exception("EXPORT-FAIL %s (staging copy kept)", bundle_dir.name)
+                self._receipt("failed", bundle_dir, error=f"{type(exc).__name__}: {exc}"[:200])
 
     def _export(self, bundle_dir: Path) -> None:
         if not bundle_dir.is_dir() or bundle_dir.name.startswith("."):
@@ -182,6 +219,9 @@ class Exporter:
                     bundle_dir.name,
                     verdict,
                 )
+                self._receipt(
+                    "supersede-held", bundle_dir, verdict=verdict, sha=source_sha[:16]
+                )
                 return
             if blessed is not None:
                 # Fold the bless provenance into the manifest BEFORE any vault write: the vault
@@ -197,6 +237,13 @@ class Exporter:
                     bundle_dir.name,
                     blessed.get("by"),
                     blessed.get("ts"),
+                )
+                self._receipt(
+                    "blessed",
+                    bundle_dir,
+                    by=blessed.get("by"),
+                    bless_ts=blessed.get("ts"),
+                    sha=source_sha[:16],
                 )
             # Locate the LIVE note by its full source_sha in the BARE repo -- never recompute the
             # Inbox/ path, the Desktop may have filed the note out of Inbox/.
@@ -226,6 +273,7 @@ class Exporter:
                 bundle_dir.name,
                 source_sha[:8],
             )
+            self._receipt("supersede-miss", bundle_dir, sha=source_sha[:16])
         else:
             # Dedup on the FULL source sha, against the bare repo (what the vault actually has,
             # not what this clone has committed-but-maybe-not-pushed).
@@ -238,6 +286,7 @@ class Exporter:
                     bundle_dir.name,
                     source_sha[:8],
                 )
+                self._receipt("skip", bundle_dir, sha=source_sha[:16])
                 shutil.rmtree(bundle_dir)
                 return
             if grep.returncode > 1:
@@ -289,6 +338,13 @@ class Exporter:
             bundle_dir.name,
             target_rel,
             commit_sha[:8],
+        )
+        self._receipt(
+            "exported",
+            bundle_dir,
+            note=target_rel.as_posix(),
+            commit=commit_sha[:8],
+            sha=source_sha[:16],
         )
 
     def _supersede_replace(self, bundle_dir: Path, supersede: dict, manifest_rel: Path) -> None:
@@ -366,6 +422,7 @@ class Exporter:
                 "no swap, staging copy removed",
                 bundle_dir.name,
             )
+            self._receipt("supersede-noop", bundle_dir, note=target_rel.as_posix())
             shutil.rmtree(bundle_dir)
             return
         else:
@@ -408,6 +465,14 @@ class Exporter:
             bundle_dir.name,
             target_rel,
             commit_sha[:8],
+        )
+        self._receipt(
+            "exported-supersede",
+            bundle_dir,
+            note=target_rel.as_posix(),
+            commit=commit_sha[:8],
+            reason=supersede.get("reason", "supersede"),
+            from_verdict=supersede.get("from_verdict", "?"),
         )
 
 

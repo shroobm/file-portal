@@ -627,3 +627,16 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .ac-bless { background: rgba(127, 176, 105, 0.14); border: 1px solid rgba(127, 176, 105, 0.4); color: #7fb069; border-radius: 4px; font-size: 10px; padding: 2px 8px; cursor: pointer; margin-left: 6px; }
 .ac-bless:hover { background: rgba(127, 176, 105, 0.26); }
 .ac-bless:disabled { opacity: 0.45; cursor: default; }
+
+/* S58 — docs/19 §3 Stage C2: the ⟲ analyst-only re-run, and the per-row remedy trio.
+   ⟲ wears the flow blue, not terracotta: re-convert spends GPU-hours re-reading a PDF, this
+   only re-runs the analyst, and the two must not read as the same weight of action. */
+.ac-reanalyze {
+  font-family: inherit; font-size: 9.5px; color: #8fb8d9; cursor: pointer; white-space: nowrap;
+  border: 1px solid rgba(143, 184, 217, 0.42); background: rgba(143, 184, 217, 0.12);
+  border-radius: 7px; padding: 4px 9px;
+}
+.ac-reanalyze:hover { background: rgba(143, 184, 217, 0.24); }
+.ac-reanalyze:disabled { opacity: 0.45; cursor: default; }
+/* In a held row the three buttons are icon-sized and must not shove the name off the edge. */
+.ac-held-row .ac-reanalyze, .ac-held-row .ac-bless { flex: none; margin-left: 0; padding: 2px 6px; }

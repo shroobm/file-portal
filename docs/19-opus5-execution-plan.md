@@ -99,6 +99,28 @@ doc and reality disagree, reality wins — measure, then update this doc.*
 
 ## 3. Stage C2 — analyst-only re-run + seam events + per-bundle targeting
 
+> **SHIPPED S58 (2026-07-31)** — all three built, gated, and proved by harness; see CHANGELOG.
+> The design decision below was signed by Rab at the top of that session: **receipts travel as
+> a plain `~/file-portal/receipts.jsonl` on the ThinkPad, tailed by the widget over `tailscale
+> ssh` on the vault bar's 45 s poll.** Neither offered option won — Rab took a third: keeping
+> the records out of the vault entirely means the exporter's change is an append to a plain
+> file, so the module that writes the vault gained no new git code. Rejected: receipts
+> committed into the vault repo (machine records + a conflict surface inside the notes' own
+> history) and a side `receipts` branch (git plumbing in the most dangerous module).
+>
+> **Still owed when this was written** (both need hands this session did not have):
+> 1. **RAB — deploy the ThinkPad** (`cd ~/file-portal-src && git pull && systemctl --user
+>    restart file-portal-converter`). Until then the remote receipts file does not exist; the
+>    widget's fetch handles that as a normal empty answer (verified by probe), so nothing
+>    breaks — the event stream simply shows no `export` rows yet.
+> 2. **RAB — adopt the widget build**, then the live claude-code re-run (~17 min GPU, so check
+>    `query user` first). Its `pass` should produce the first `exported-supersede` receipt and
+>    replace vault note 5 in place.
+>
+> Left undone deliberately: the **drill-down** entries still carry no per-bundle buttons (the
+> held ROWS on both surfaces do, which is what the card-flip race actually needed); adding them
+> to the drill tree is cosmetic follow-up, not a gap in the remedy's reach.
+
 **Precondition**: none. All desktop-side except the seam-events exporter half.
 1. **Analyst-only re-run**: a `⟲ re-analyze` button beside ⟳ on audit cards. New marker
    `drop/.reanalyze/<source>.json` (mirror the supersede pattern: widget-authored, sha-bound,

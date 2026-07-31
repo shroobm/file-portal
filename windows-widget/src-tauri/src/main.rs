@@ -6,6 +6,7 @@ mod config;
 mod events;
 mod line;
 mod preflight;
+mod receipts;
 mod room;
 mod status;
 mod transfer;
@@ -141,6 +142,23 @@ fn assay_reconvert(state: State<AppState>, source: String) -> Result<(), String>
         .clone();
     assay::reconvert(&dir, &source)
 }
+// Stage C2 (docs/19 §3.1): the ⟲ analyst-only re-run. Synchronous like assay_reconvert — it
+// only spawns a detached process; the long work happens in that child, not here.
+#[tauri::command]
+fn assay_reanalyze(state: State<AppState>, source: String, backend: String) -> Result<(), String> {
+    let (dir, py, conv) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (
+            cfg.gpu_pipeline_dir.clone(),
+            cfg.gpu_python_exe.clone(),
+            cfg.gpu_converter_dir.clone(),
+        )
+    };
+    assay::reanalyze(&dir, &py, &conv, &source, &backend)
+}
 // Stage C (docs/18 §5.4): the bless click. Async + spawn_blocking because it scp's the marker
 // to the ThinkPad over ssh — a blocking network call on the UI thread would freeze the widget
 // exactly like the vault_check lesson.
@@ -156,6 +174,37 @@ async fn assay_bless(state: State<'_, AppState>, source: String) -> Result<Strin
     tauri::async_runtime::spawn_blocking(move || assay::bless(&dir, &source))
         .await
         .map_err(|e| format!("bless task failed: {e}"))?
+}
+// Stage C2 (docs/19 §3.3): the seam receipts. `receipts_fetch` crosses the network, so it is
+// async + spawn_blocking and rides the vault bar's existing 45 s poll (a sleeping ThinkPad must
+// never freeze the UI — the vault_check lesson). `receipts_read` is a local cache read, cheap
+// enough for the Room's 4-9 s re-render.
+#[tauri::command]
+async fn receipts_fetch(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
+    let (dir, host, user) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (
+            cfg.gpu_pipeline_dir.clone(),
+            cfg.linux_host.clone(),
+            cfg.remote_user.clone(),
+        )
+    };
+    tauri::async_runtime::spawn_blocking(move || receipts::fetch(&dir, &host, &user))
+        .await
+        .map_err(|e| format!("receipts task failed: {e}"))?
+}
+#[tauri::command]
+fn receipts_read(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    Ok(receipts::read_cached(&dir))
 }
 #[tauri::command]
 fn open_reader(state: State<AppState>, reader: String) -> Result<(), String> {
@@ -432,7 +481,10 @@ fn main() {
             audit_mode_get,
             audit_mode_set,
             assay_reconvert,
+            assay_reanalyze,
             assay_bless,
+            receipts_fetch,
+            receipts_read,
             open_reader,
             open_failed_tray,
             reader_config,
