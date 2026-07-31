@@ -56,6 +56,27 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S59 — OPEN 2026-07-31 (Desktop, Opus 5) — throttle the Room's vault polling** (the task
+chipped at the S58 close; a separate session because S58's ledger row is already filed).
+
+MUSTER: clocks agreed at open — ledger S58 / `6364850` (ancestor-verified) == TIME-STATE ==
+tally 51/3; tree clean; pipeline idle.
+
+**The finding is sharper than the chip's.** The chip proposed caching `vault_check` for the
+Room. Verification first (standing rule) found the Room never USES it: `gatherVM` awaits
+`call("vault_check")` every 4–9 s — a `git fetch` to the ThinkPad over tailscale ssh — binds the
+result to `vault`, returns it in the view-model, **and nothing reads it**. The Vault tile's
+count comes from `room_metrics`'s `count_library`, a local directory read. So the remedy is a
+DELETION, not a cached projection: no new command, no TTL, no API surface. The Dock's own 45 s
+`vaultLoop` runs unconditionally (`main.js:958`, re-arms regardless of surface), so vault
+freshness is unaffected — only the discarded traffic goes away.
+
+1. Remove the call + its dead binding from `gatherVM`, leaving a comment that says why the Room
+   must not poll it, so a future session doesn't "restore" the fetch.
+2. Gates: `node --check`, clippy `-D warnings`, `cargo test`, `npm run build` → SHA-8 for
+   **Rab's** adoption (law 3; a frontend-only change still rides in the exe).
+3. Close in lockstep; leave the next session a clean boot.
+
 *(S58 closed 2026-07-31 ~19:30 (Desktop, Opus 5) — **STAGE C2 SHIPPED, ADOPTED, DEPLOYED, AND
 LIVE-FIRED — and the fire ended in an honest REFUSAL that the desktop could finally SEE.**
 Built: (1) `--reanalyze` — the analyst-only re-run, **Marker never runs**; eligibility is
