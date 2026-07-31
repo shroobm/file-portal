@@ -56,6 +56,44 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S58 — OPEN 2026-07-31 (Desktop, Opus 5) — docs/19 §3 STAGE C2: analyst-only re-run +
+per-bundle targeting + seam events.**
+
+MUSTER clean at open: memory loaded; HARD ledger row S57 / `75e36df` (ancestor-verified) ==
+SOFT tally header (received 51 / given 3) == TIME-STATE; tree clean; widget pid 1992 up since
+14:00 with its watcher pair correctly parented; drop empty; held = 2; pending empty; vault 6.
+Index hygiene: the `cookie-tally` pointer line lagged the header by one cookie — corrected.
+
+Rab's STOP-for-Rab decision, taken at open (docs/19 §3.3 offered two, I offered a third):
+**seam events travel as a plain `receipts.jsonl` on the ThinkPad, tailed over ssh** — the
+exporter change is an append to a local file (no git, the vault is never involved: the safest
+possible edit to the module that writes the vault), and the desktop reads it on the vault
+bar's existing 45 s poll. The vault stays pure; rejected: receipts committed into the vault
+repo (machine records + a conflict surface in the notes' own history) and a separate
+`receipts` branch (git plumbing inside the most dangerous module).
+
+1. **Analyst-only re-run.** `convert_and_ship.py --reanalyze <source>`: resolve the newest
+   **pre-analyst** anchor bundle for that source (manifest with no `analyst` block), copy to a
+   temp workdir, `apply_analyst` (which already runs the analyst-phase audit and writes the
+   S56 heartbeat, so the Room shows live progress for free), stamp `manifest["supersede"]`
+   (reason `analyst-rerun`), refresh the anchor copy, `_enforce_hold`, ship. **Marker never
+   runs.** Refuses honestly when only analyst OUTPUT survives — re-analyzing an analyst pass
+   compounds damage; the refusal is an event, not a silent no-op. Python owns eligibility
+   (one authority — blind spot #1's lesson); Rust owns only its own action's checks.
+2. **Per-bundle targeting.** `⟲ re-analyze` + `✓ bless` on EVERY held row and drill entry with
+   `data-src`, both surfaces (the per-row `⟳` already landed S52). Kills the card-flip race
+   that made the guard refuse Valentine twice.
+3. **Seam events.** Exporter `_receipt()` appends one JSON line per EXPORT-* outcome
+   (never raises); widget `receipts_tail` ssh-tails it with the S56 standing options
+   (`BatchMode`+`accept-new`+`ConnectTimeout`), caches to a **widget-owned**
+   `receipts.jsonl` on the desktop (two files, two single writers, merged only at render
+   time — the projection law holds), and the Room's event stream renders `export/*` rows.
+4. **Verify:** `cargo clippy --all-targets -- -D warnings` → `node --check` on touched JS →
+   `cargo test` (existing 6 + new seam/eligibility tests) → `npm run build` → print SHA-8 for
+   **Rab's** adoption (law 3). Exporter changed ⇒ **Rab** deploys the ThinkPad + restarts.
+   Live proof = the claude-code book's re-run (analyst-phase `fail`, vault note 5): ~17 min on
+   the GPU, so **STOP for Rab's go** (law 8: `query user` first — the seat may be his brother's).
+
 *(S57 closed 2026-07-31 ~15:00 (Desktop) — SHIPPED. **THE CHUNKING SPEC IS SIGNED (docs/18
 §5.2) + docs/19 "EXECUTION PLAN FOR OPUS 5" WRITTEN** (cookie **#50 — the fiftieth**). The
 review, decided live: lane-aware thresholds (clean >600 / scan >400 pp), 200-page slices,
