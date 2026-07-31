@@ -8,6 +8,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S53 — docs/18 STAGE B SHIPPED: time on the glass — staleness rendering + policy rows
+  (2026-07-31).** `line.rs` projects `progress_age_s` (mtime age of `.convert-progress.json`
+  while the lock is held — the exact derivative the Stage A killer watches at 900 s); the Room's
+  Convert station renders it as a liveness row: "✓ Ns ago" green while Marker's stream breathes,
+  **"frozen Ns ⚠" in clay past 120 s** — the human sees a freeze thirteen minutes before the
+  killer acts. Policy stepped out of the config files: the audit lever now wears its current
+  mode's sentence ("report: fails ship with the verdict filed" / "enforce: a fail parks in
+  held/ — nothing ships unproven") and the Convert station carries the standing policy line
+  (kill-early stall + chunking-pending-review, docs/18 §5). Stage A's deferred styling landed
+  (`.died` clay ⏻, held rows). Gates: clippy `-D warnings`, `node --check`, `tauri build`
+  green; adopted `0356FC34` by Rab's hand, verified visually (the policy rows exist only in the
+  new build). Read-only projection throughout — pipeline untouched.
+
 - **S52 — docs/18 STAGE A SHIPPED: death certificates + the stall detector, proven by live
   murder (2026-07-31).** Converter (`convert_and_ship.py`, live immediately): the blind
   `proc.wait(timeout)` is now a 30 s monitor loop enforcing the decided kill-early stall policy —

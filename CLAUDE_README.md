@@ -56,20 +56,21 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S53 OPEN 2026-07-31 ~04:00 (Desktop) — **docs/18 STAGE B: heartbeats, staleness rendering,
-policy rows** (cookie #45). Survey found blind spot #1's two-derivations already unified by
-Stage A's poll (room.js gathers `watcher_status` too), so Stage B = time-on-the-glass + policy
-surfacing. Plan: (1) `line.rs`: expose `progress_age_s` (mtime age of `.convert-progress.json`
-while the lock is held — the SAME derivative the Stage A killer watches at 900 s; the face shows
-it so a human sees freezing first); (2) `room.js`: Convert station renders the age — fresh chip
-normally, **"frozen Ns ⚠" in clay past 120 s**; policy sentences onto the glass: the audit
-lever gains its meaning per mode ("report: fails ship, verdict filed" / "enforce: fails park in
-held/"), the Convert station gains the standing stall policy line ("stall → kill early >15 m,
-docs/18 §5.1"); (3) `styles.css`: the deferred Stage A styles (`.ac-held-row`, `#watcher-btn.
-died` in clay) + the new staleness/policy classes, dark+light tokens; (4) gates: clippy, node
---check, tauri build; stage exe + SHA; (5) Rab adopts (MSIX law) + live verify: policy rows +
-held rows + a re-run of the kill test to see the styled `died` state; staleness chip's live
-proof rides the next real convert (Valentine). (6) Close in lockstep.)*
+*(S53 closed 2026-07-31 ~04:10 (Desktop) — SHIPPED + VERIFIED ON THE GLASS. **docs/18 Stage B:
+time itself renders now** (cookie #45 commissioned). `line.rs` projects `progress_age_s` (the
+progress file's mtime age while the lock is held — the exact derivative the Stage A killer
+watches at 900 s); the Room's Convert station renders it as a **liveness row** ("✓ Ns ago"
+green / **"frozen Ns ⚠" clay past 120 s** — the human sees a freeze ~13 min before the killer
+acts). Policy stepped onto the glass: the audit lever wears its mode's sentence ("report: fails
+ship with the verdict filed" ⇄ "enforce: a fail parks in held/ — nothing ships unproven"); the
+Convert station carries the standing policy line (kill-early + chunking-pending-spec-review,
+docs/18 §5). Stage A's deferred styles landed (clay `died` ⏻, held rows). Survey finding:
+blind spot #1's two-derivations was ALREADY unified by Stage A's shared poll — recorded, no
+work needed. Gates green (clippy -D warnings, node --check, tauri build); **adopted `0356FC34`
+by Rab**, verified by screenshot — mode sentence, held-row ⟳, policy line all live; VAULT tile
+reads 5. Liveness row's live proof deliberately rides the next real convert (Valentine).
+Read-only projection throughout; pipeline untouched, watcher up. NEXT: Valentine's retry (also
+live-tests the liveness row + the healthy path of the stall monitor) or Stage C — Rab's pick.)*
 
 *(S52 closed 2026-07-31 ~03:45 (Desktop) — SHIPPED + **PROVEN BY LIVE MURDER**. docs/18 Stage A
 built end to end in one autonomous run (cookie #44 commissioned), adopted by Rab (`3571F771`),

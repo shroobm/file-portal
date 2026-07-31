@@ -166,7 +166,7 @@ unpackaged-adoption rule apply throughout)
 | Stage | Contents | Size |
 |---|---|---|
 | A | Death certificates + stall detector (§4A, §5.1) — **✅ SHIPPED S52** (2026-07-31, adopted `3571F771`, acceptance-tested live: deliberate watcher kill → certificate in ≤5 s; includes the per-held-item remedy buttons pulled forward from Stage C) | S |
-| B | Heartbeats + staleness + policy rows (§4B, §3) | M |
+| B | Heartbeats + staleness + policy rows (§4B, §3) — **✅ SHIPPED S53** (2026-07-31, adopted `0356FC34`: convert liveness row "✓ Ns ago"/"frozen Ns ⚠" at 120 s clay from the new `progress_age_s` projection; audit lever wears its mode sentence; standing policy line on the Convert station; Stage A styling landed. Liveness row's live proof rides the next real convert) | M |
 | C | ~~Per-held remedies~~ (✅ S52) + analyst-only re-run + bless lever + seam events (§3, §4C, §5.4) | M–L |
 | D | `--page_range` chunking (spec review w/ Rab first; §5.2) | L |
 | E | Queue panel + Dock refresh + light theme (§7) | M |

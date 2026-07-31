@@ -613,3 +613,12 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .ac-swapnote b { color: #e0b34c; font-weight: 400; }
 .ac-held { font-size: 9px; color: #9a938d; padding: 4px 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
 .ac-held b { color: #d97757; font-weight: 400; }
+
+/* S52/S53 — docs/18 Stage A+B: death certificate, per-held remedies, staleness, policy rows */
+#watcher-btn.died { color: #d97757; }
+.ac-held-row { display: flex; align-items: center; gap: 6px; padding: 2px 10px; min-width: 0; }
+.ac-held-row .ac-remedy { flex: none; }
+.ac-held-name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 10px; color: #9a938d; }
+.rp-age { color: var(--ok, #7fb069); }
+.rp-age.frozen { color: var(--clay, #d97757); font-weight: 600; }
+.rp-policy { padding: 3px 10px 0; font-size: 9px; font-style: italic; color: var(--text-3, #55504b); }

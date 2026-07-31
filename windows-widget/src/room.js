@@ -216,6 +216,12 @@ function convertPanel(d) {
   const note = stageTxt
     ? "stage + item count = live from Marker · bar = elapsed ÷ measured ETA"
     : "progress = elapsed ÷ measured ETA (Marker stage appears once it starts)";
+  // Stage B (docs/18 §4B): render the progress stream's AGE — the same liveness derivative the
+  // Stage A stall detector kills on at 900 s. Clay past 120 s: the human sees the freeze first.
+  const age = converting && ls.progress_age_s != null ? Number(ls.progress_age_s) : null;
+  const ageHtml = age == null ? "—"
+    : age > 120 ? `<span class="rp-age frozen">frozen ${etaText(age)} ⚠</span>`
+      : `<span class="rp-age">✓ ${age}s ago</span>`;
   return `<div class="rp"><div class="rp-head"><span class="rp-title">⚙ Convert station</span>` +
     `<span class="rp-state" style="color:${stateCol}">${state}${converting ? " · " + pct + "%" : ""}</span></div>` +
     `<div class="rp-body"><div class="rp-name">${esc(shortName(name) || name)}</div>` +
@@ -223,9 +229,12 @@ function convertPanel(d) {
     `<div class="rp-grid">` +
     (stageTxt ? `<span>stage</span><b>${stageTxt}</b>` : `<span>eta</span><b>${eta}</b>`) +
     `<span>elapsed</span><b>${elapsedTxt || "—"}</b>` +
+    (converting ? `<span>liveness</span><b>${ageHtml}</b>` : "") +
     `<span>engine</span><b>marker · batch 32</b>` +
     `<span>VRAM</span><b>${vram}</b>` +
-    `</div><div class="rp-note">${note}</div></div></div>`;
+    `</div><div class="rp-note">${note}</div>` +
+    `<div class="rp-policy">policy: stall → kill early &gt;15 m · big books → chunking pending spec review (docs/18 §5)</div>` +
+    `</div></div>`;
 }
 
 function assayPanel(d) {
@@ -269,7 +278,13 @@ function assayPanel(d) {
     : "";
   const toggle = `<button class="rp-lever" id="room-audit-toggle" title="enforce parks a fail in held/">` +
     `<span class="${mode === "report" ? "on" : "off"}">report</span> ⇄ <span class="${mode === "enforce" ? "on" : "off"}">enforce</span></button>`;
+  // Stage B (docs/18 §2): the lever wears its policy sentence — what the CURRENT mode actually
+  // does, on the glass, not in a doc the operator has to remember.
+  const modeSentence = mode === "enforce"
+    ? "enforce: a fail parks in held/ — nothing ships unproven"
+    : "report: fails ship with the verdict filed in the manifest";
   return `<div class="rp ${av === "fail" ? "fail" : ""}"><div class="rp-head"><span class="rp-title">◎ Survival Audit</span><span class="rp-grow"></span>${toggle}</div>` +
+    `<div class="rp-policy">${modeSentence}</div>` +
     `<div class="rp-body"><div class="ac-verdict"><span class="nm">${esc(shortName(a.bundle) || "last convert")}</span>` +
     `<span class="meter"><i style="width:${pct}%;background:${col}"></i></span>` +
     `<span class="badge" style="color:${col}">${av} ${VSYM[av] || ""}</span></div>` +

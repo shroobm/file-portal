@@ -54,6 +54,16 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             .and_then(|p| p.get(k).cloned())
             .unwrap_or(Value::Null)
     };
+    // Stage B (docs/18 §4B): the progress file's AGE while the lock is held — the exact
+    // liveness derivative the Stage A stall detector kills on at 900 s. Projected so a human
+    // sees a freeze forming long before the killer acts. None when idle or nothing written.
+    let progress_age_s = converting.as_ref().and_then(|_| {
+        fs::metadata(base.join(".convert-progress.json"))
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|t| t.elapsed().ok())
+            .map(|d| d.as_secs())
+    });
     let events_text = fs::read_to_string(base.join("events.jsonl")).unwrap_or_default();
     let events: Vec<Value> = events_text
         .lines()
@@ -102,6 +112,8 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "convert_frac": cp_field("frac"),
         "convert_n": cp_field("n"),
         "convert_total": cp_field("total"),
+        // Stage B: liveness age of the progress stream (see above).
+        "progress_age_s": progress_age_s,
         "failed_count": count_pdfs(&base.join("drop").join("failed")),
         "last_shipped": last_shipped,
         "latest": latest,
