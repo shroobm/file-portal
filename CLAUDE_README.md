@@ -56,6 +56,21 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S50 OPEN 2026-07-31 ~01:50 (Desktop) — **THE LIVE SUPERSEDE REMEDY TEST** (docs/15 §14, the
+S43+S44 rail's first production run — queued since S44 as "pipeline up + Rab present"; both now
+true). MUSTER clean at open (S49/`8c2d667`, tally 42). Plan: (1) Rab relaunches the widget
+(double-click — first boot since the uv-python fix + true-S44-exe adoption; the watcher
+autostarting cleanly IS the regression test of S48's repairs); (2) Rab clicks **⟳ re-convert** on
+the held Cybernetics card in the Survival Audit panel — `assay.rs::reconvert` writes
+`drop/.supersede/<source>.json` BEFORE copying the PDF back into drop; (3) watch the rail
+read-only from this session: marker consumed once by `convert_and_ship` (first live run of the
+S48 pipe-decode fix on this book), convert → audit → verdict decides: **pass ⇒ supersede stamp ⇒
+ship ⇒ exporter REPLACES the vaulted note in place (old `.md` name kept, wikilinks intact)** /
+**fail ⇒ the guard correctly lands nothing (EXPORT-SUPERSEDE-HELD, staging kept)** — docs/15
+§14.5: EITHER outcome is a valid first live result, a re-loop is a convert-side retry slice, not
+a reason to widen the guard; (4) document the outcome (ledger + [[segment-vault-export]]) +
+close in lockstep. Coexistence: ~02:00, seat is Rab's, GPU idle, no gaming.)*
+
 *(S49 closed 2026-07-31 ~01:45 (Desktop) — SHIPPED. **Gate 4 ✅ and Gate 5's in-home half ✅: the
 desktop now streams.** MUSTER was clean at open (S48/`fa12a2f`, tally 42; fresh 01:05 logon, GPU
 idle, widget down throughout). Rab executed everything system-touching from his elevated shell —
