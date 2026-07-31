@@ -8,6 +8,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S49 — Gate 4 ✅ + Gate 5 in-home stream ✅: Sunshine is live, scoped at birth (2026-07-31).**
+  Rab installed Sunshine 2026.516.143833 from an elevated shell (winget), disabled both
+  auto-created allow-any firewall rules and added the two tailnet-scoped rules in the same
+  breath (verified from his window: originals `Enabled=False`, scoped pair live, service
+  Running, all four TCP ports listening); web-UI creds set at `https://localhost:47990` →
+  password manager. Field notes into docs/17: the web UI's **CSRF guard** rejects POSTs from
+  non-default origins (tailnet-IP access needs `csrf_allowed_origins` — deferred), and the
+  "Fatal: ViGEmBus" banner is gamepad-passthrough-only (kernel driver, upstream discontinued —
+  deliberately skipped). Then the ThinkPad paired `moonlight-qt` and the **first in-home
+  desktop stream ran clean**: 1 NVENC session, ~0.25 ms average encode latency, GPU 11 %/65 °C
+  — streaming costs the 3D engine essentially nothing. §9 checklist reconciled (Gates 1–2
+  boxes belatedly ticked, Gate 4 ticked). Remaining: HDMI dummy plug, out-of-home
+  qualification (direct path, ~70 % upload bitrate), Gate 6 (WoL) deferred.
+
 - **S48 — Gate 3 closed end-to-end + the double-ghost exhumation + converter deadlock fix
   (2026-07-30).** The first queued remote drop ran the whole line with the SSH session closed:
   ThinkPad `scp` → watcher → Marker (104 pp, 141 s) → local analyst (37 chunks, 1052.6 s vs a

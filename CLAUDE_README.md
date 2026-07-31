@@ -56,19 +56,25 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S49 OPEN 2026-07-31 ~01:10 (Desktop) — **Gate 4: Sunshine.** MUSTER clean at open (both clocks
-S48/`fa12a2f`, tally 42); machine fresh-logged 01:05, GPU idle, widget down and staying down (no
-pipeline work during the streaming gates). Plan: (1) Rab installs Sunshine from an elevated
-unpackaged shell at the desk (`winget install LizardByte.Sunshine`; docs/17 §4 fallbacks if MSIX
-activation balks); (2) IMMEDIATELY scope: disable Sunshine's auto-created allow-any firewall rules,
-add the two tailnet-scoped rules (TCP 47984,47989,47990,48010 / UDP 47998,47999,48000,48002 →
-`100.64.0.0/10`) — Rab's shell executes + verifies the rules (firewall reads are Access-denied from
-this sandboxed session; I verify service + listening ports read-only); (3) Rab-only: first visit
-`https://100.108.102.101:47990`, self-signed warning expected, set web-UI creds → password manager
-ONLY (GEMINI_API_KEY rule); (4) done-when per docs/17: service Running, allow-any rules disabled,
-creds stored; then **Gate 5** (HDMI dummy plug question, Moonlight pair, first stream — DIRECT
-path + bitrate ≤ ~70 % upload if out-of-home; tonight is LAN) if the night allows; (5) close in
-lockstep. Verify: docs/17 §4/§9 done-whens as written.)*
+*(S49 closed 2026-07-31 ~01:45 (Desktop) — SHIPPED. **Gate 4 ✅ and Gate 5's in-home half ✅: the
+desktop now streams.** MUSTER was clean at open (S48/`fa12a2f`, tally 42; fresh 01:05 logon, GPU
+idle, widget down throughout). Rab executed everything system-touching from his elevated shell —
+this session guided + verified read-only, zero system state written (the standing rule's third
+straight clean test). Gate 4: Sunshine 2026.516.143833 via winget; both auto allow-any rules
+disabled + the two tailnet-scoped rules added IN THE SAME PASTE as the install (no exposure
+window worth naming); verified from Rab's window (originals `Enabled=False`, scoped pair live,
+service Running) + read-only from this session (all four TCP ports listening); web-UI creds →
+password manager. Two field notes now in docs/17: the web UI's **CSRF origin guard** (POSTs only
+from `https://localhost:47990` by default — tailnet-origin config deferred until wanted) and
+**ViGEmBus deliberately skipped** (gamepad-only kernel driver, upstream discontinued). Gate 5:
+ThinkPad `moonlight-qt` paired via PIN at the localhost UI; **first in-home desktop stream
+measured clean from the host: 1 NVENC session, ~0.25 ms avg encode latency, GPU 11 %/65 °C** —
+streaming leaves the 3D engine free, as designed. §9 checklist reconciled (Gates 1–2 boxes were
+never ticked at S47 — fixed; Gate 4 ticked; Gate 5 annotated). REMAINING for the build: HDMI
+dummy plug (none on hand), **out-of-home qualification** (tailscale DIRECT path + bitrate ≤
+~70 % measured home upload — the true Gate 5 done-when), §8's event-log third-clock spot-check,
+Gate 6 (WoL) deferred. Pipeline stayed down all session; machine left with Sunshine as the only
+new resident, scoped to the tailnet at birth.)*
 
 *(S48 closed 2026-07-30 ~20:15 (Desktop) — SHIPPED; frozen clean at Rab's request so his little
 brother can game (S42 courtesy held: GPU at 2.3 GB baseline, empty drop queue, no locks, Rab

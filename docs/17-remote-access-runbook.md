@@ -342,7 +342,17 @@ sets the web-UI username/password — **password manager, never the repo, never 
 
 **Done when:** service running, rules scoped (the allow-any ones disabled), creds stored.
 
-### Gate 5 — display + first stream — **RAB**
+**Completed 2026-07-31 ~01:20 (Rab at the desk, elevated shell; version 2026.516.143833):** both
+auto-created allow-any rules verified `Enabled=False`, both `(Tailscale only)` rules live,
+`SunshineService` Running, all four TCP ports listening; creds set + password-managered. Two
+field notes: (1) **the web UI's CSRF guard rejects POSTs from non-default origins** — credential
+setup and PIN entry work at `https://localhost:47990`; remote web-UI use needs the tailnet origin
+added to `csrf_allowed_origins` in Sunshine's config (deferred until actually wanted); (2) the
+startup banner's "Fatal: ViGEmBus" is **gamepad passthrough only** — deliberately NOT installed
+(third-party kernel driver, upstream discontinued; revisit only if couch-gamepad streaming
+becomes a real want).
+
+### Gate 5 — display + first stream — **RAB** · pairing + in-home ✅ (2026-07-31) · out-of-home PENDING
 
 1. **Display:** seat an **HDMI dummy plug** (recommended: zero software, zero attack surface, and
    HDMI keeps EDID with the monitor off — DP would hot-unplug). Software alternative if preferred:
@@ -359,6 +369,12 @@ sets the web-UI username/password — **password manager, never the repo, never 
 
 **Done when:** a stable 10-minute out-of-home desktop stream + input, at a bitrate the home upload
 sustains.
+
+**Progress 2026-07-31 ~01:30:** ThinkPad `moonlight-qt` paired (PIN via the localhost web UI) and
+the **first in-home desktop stream ran clean** — measured from the host: 1 NVENC session,
+~0.25 ms average encode latency, GPU 11 % / 65 °C (encode is dedicated silicon; the 3D engine
+stays free). Physical monitor mirrors the stream until an HDMI dummy plug is seated (none on
+hand yet — step 1 stands). Steps 1 (plug) and 4 (out-of-home qualification) remain.
 
 ### Gate 6 — deferred, deliberately
 
@@ -470,9 +486,9 @@ ssh desktop "query user"      # comed active ⇒ the seat is his; coordinate, do
 
 ## 9. Done-when (the whole build)
 
-- [ ] Gate 1: `sshd` Running + Automatic, allow-any rule disabled, scoped rule live, fingerprints recorded
-- [ ] Gate 2: key login proven, password auth refused, scp round-trip byte-identical, ACL allows ThinkPad→22
+- [x] Gate 1: `sshd` Running + Automatic, allow-any rule disabled, scoped rule live, fingerprints recorded (✅ 2026-07-30; boxes belatedly ticked at S49)
+- [x] Gate 2: key login proven, password auth refused, scp round-trip byte-identical, ACL allows ThinkPad→22 (✅ 2026-07-30; kbd-interactive also probed refused)
 - [x] Gate 3: `claude` CLI installed; one MUSTER-clean SSH Claude session; one queued remote drop converted + shipped (all ✅ 2026-07-30)
-- [ ] Gate 4: Sunshine service up, installer rules disabled, scoped rules live, web creds in password manager
-- [ ] Gate 5: pairing done, in-home stream clean, out-of-home stream **direct** (not DERP) at a sustainable bitrate
+- [x] Gate 4: Sunshine service up, installer rules disabled, scoped rules live, web creds in password manager (✅ 2026-07-31)
+- [ ] Gate 5: pairing done ✅, in-home stream clean ✅ (2026-07-31: 1 NVENC session, ~0.25 ms encode latency, GPU 11 %) — **out-of-home stream direct-at-sustainable-bitrate still pending**
 - [ ] §8 laws acknowledged in memory (segment note) + the event-log third clock spot-checked once
