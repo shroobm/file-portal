@@ -56,21 +56,27 @@ git pull  # always first
 
 ## Current Session Plan
 
-*(S51 OPEN 2026-07-31 ~02:35 (Desktop) — **DECISIONS + THE docs/18 DESIGN BRIEF: observability +
-control ("levers-and-heartbeats") overhaul.** Rab relayed two ChatGPT-generated UI-overhaul
-mockup sets (dark trio + light pair — visual aids, per [[external-ai-relay-protocol]] assessed on
-merits: keepers = richer Dock w/ live conversion card + prioritized queue, policy-as-UI
-("Survival < 0.7 requires remedy" + Configure), per-item queue menus, page-level risk strip,
-light theme; filtered out = fictional numbers/engines/"AI Agent" ship label/invented retention
-feature) and articulated the core design principle: **every autonomous behavior gets a visible,
-per-stage manual lever**. Plan: (1) settle the 4 open policy questions with Rab live (stall
-policy, large-book fix, Valentine retry, figure-heavy flag ceiling) — they are the first levers
-the new UI must render; (2) write **docs/18** merging the S48 observability blind-spot survey
-(10 items, heartbeats/death-certificates/stall-detector/per-chunk events/vantage stamps/
-algedonic line) with the control-surface overhaul (lever inventory, policy surfacing, queue
-management, audit-card evolution, theme) + a staged build plan honoring the projection law;
-(3) close in lockstep — implementation goes to dedicated sessions per [[build-workflow-protocol]].
-No pipeline/GPU work this session; widget stays up idle.)*
+*(S51 closed 2026-07-31 ~03:05 (Desktop) — SHIPPED. **docs/18 "Levers and Heartbeats" written and
+the four standing policy questions DECIDED live with Rab.** The decisions, now spec: (1) **stall
+policy = kill early** on the stall signature (progress mtime frozen >15 min + lock held → kill,
+`failed/`, death-certificate event; zero-CPU deadlock class already root-fixed at S48); (2)
+**large books = `--page_range` chunking primary** + conservative slice-level batch caps —
+**mandatory spec review with Rab before build** (he flagged importance + residual uncertainty);
+(3) **Valentine retries next pipeline session** (scan lane, ~30–60 min, vault-6 candidate); (4)
+**figure-heavy flag ceiling = human-bless override** — widget-authored bless marker (same
+authoring discipline as supersede), exporter `blessed` path, Cybernetics the first customer.
+docs/18 merges the S48 ten-blind-spot survey + design principles (liveness proven not remembered;
+every observation carries vantage; every autonomous behavior has a visible lever; policy is UI)
++ the lever inventory + five observability stages + the mockup assessment ([[external-ai-relay-
+protocol]] honored: ChatGPT visuals mined for keepers — policy rows, queue panel, page-risk
+strip, light theme via the S34 tokens; fictions rejected incl. auto-purge retention) + a
+seven-stage build plan (A death-certs/stall-detector first) + **the Repair Bench**: Rab's
+human-in-the-loop repair surface, recentered mid-session on his key insight — **the human IS the
+vision model**: screenshot → bundle `assets/` (collision-safe `_repair_pN` names) → embedded
+reference at the audit-flagged zone → provenance stamp (`manifest["repairs"]`) → audit re-scores
+with image credit; no vision LLM needed (qwen3 text assist optional); prototype-first under
+`prototypes/`. Docs only — no pipeline/GPU/source changes; widget idle throughout. NEXT: build
+stages in docs/18 §8 order, each a dedicated session with its own open plan.)*
 
 *(S50 closed 2026-07-31 ~02:15 (Desktop) — SHIPPED. **THE SUPERSEDE RAIL RAN IN PRODUCTION — every
 joint proven, ending in the guard's designed refusal (the §14.5 branch).** Regression first: the

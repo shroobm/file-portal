@@ -8,6 +8,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S51 — docs/18 "Levers and Heartbeats": the observability + control design brief, and four
+  standing policies DECIDED (2026-07-31).** Rab's decisions, now spec: stall policy = kill early
+  on the stall signature (frozen progress >15 min + lock held → kill + death certificate); large
+  books = `--page_range` chunking primary with slice-level batch caps, mandatory spec review
+  before build; Valentine retries next pipeline session; figure-heavy flag ceiling = human-bless
+  override (widget-authored marker, exporter `blessed` path — Cybernetics first customer). The
+  brief merges the S48 ten-blind-spot survey with a lever inventory (every autonomous behavior
+  gets a visible per-stage lever), five observability stages (death certificates → heartbeats →
+  seam events → algedonic line → hygiene), a seven-stage build plan, an assessment of Rab's
+  relayed ChatGPT UI mockups (keepers: policy-as-UI, queue panel, risk strip, light theme;
+  fictions rejected — including any auto-purge retention), and **the Repair Bench**: Rab's
+  human-in-the-loop repair surface, centered on his insight that *the human is the vision model*
+  — screenshot → `assets/` → embedded reference at the flagged zone, provenance-stamped, audit
+  re-scored with image credit. Docs only; no pipeline, GPU, or source changes.
+
 - **S50 — the supersede rail's FIRST PRODUCTION RUN: proven at every joint, ending in the guard's
   designed refusal (2026-07-31).** Rab clicked ⟳ on the held Cybernetics bundle
   (`c5afd9edcf620fc6`): the marker was authored before the PDF (S44's load-bearing ordering),
