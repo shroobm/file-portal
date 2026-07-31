@@ -56,6 +56,21 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S53 OPEN 2026-07-31 ~04:00 (Desktop) — **docs/18 STAGE B: heartbeats, staleness rendering,
+policy rows** (cookie #45). Survey found blind spot #1's two-derivations already unified by
+Stage A's poll (room.js gathers `watcher_status` too), so Stage B = time-on-the-glass + policy
+surfacing. Plan: (1) `line.rs`: expose `progress_age_s` (mtime age of `.convert-progress.json`
+while the lock is held — the SAME derivative the Stage A killer watches at 900 s; the face shows
+it so a human sees freezing first); (2) `room.js`: Convert station renders the age — fresh chip
+normally, **"frozen Ns ⚠" in clay past 120 s**; policy sentences onto the glass: the audit
+lever gains its meaning per mode ("report: fails ship, verdict filed" / "enforce: fails park in
+held/"), the Convert station gains the standing stall policy line ("stall → kill early >15 m,
+docs/18 §5.1"); (3) `styles.css`: the deferred Stage A styles (`.ac-held-row`, `#watcher-btn.
+died` in clay) + the new staleness/policy classes, dark+light tokens; (4) gates: clippy, node
+--check, tauri build; stage exe + SHA; (5) Rab adopts (MSIX law) + live verify: policy rows +
+held rows + a re-run of the kill test to see the styled `died` state; staleness chip's live
+proof rides the next real convert (Valentine). (6) Close in lockstep.)*
+
 *(S52 closed 2026-07-31 ~03:45 (Desktop) — SHIPPED + **PROVEN BY LIVE MURDER**. docs/18 Stage A
 built end to end in one autonomous run (cookie #44 commissioned), adopted by Rab (`3571F771`),
 acceptance-tested with a deliberate watcher kill. **Converter half** (live immediately, read
