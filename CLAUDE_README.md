@@ -56,8 +56,48 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S58 — OPEN 2026-07-31 (Desktop, Opus 5) — docs/19 §3 STAGE C2: analyst-only re-run +
-per-bundle targeting + seam events.**
+*(S58 closed 2026-07-31 ~19:30 (Desktop, Opus 5) — **STAGE C2 SHIPPED, ADOPTED, DEPLOYED, AND
+LIVE-FIRED — and the fire ended in an honest REFUSAL that the desktop could finally SEE.**
+Built: (1) `--reanalyze` — the analyst-only re-run, **Marker never runs**; eligibility is
+Python's alone (pre-analyst bundles only — re-analyzing analyst output would compound its
+damage, so that refuses out loud as an event), the widget's half validates only its own action
+and refuses while `.gpu-lock` is held (qwen3 under Marker = the S45 VRAM-thrash signature).
+(2) Per-bundle targeting: ⟲ + ✓ on EVERY held row with its own `data-src`, both surfaces —
+bless had only the card-subject's reach until now, the card-flip race that refused Valentine
+twice. (3) **The seam receipts**: the exporter files one JSON line per `EXPORT-*` outcome to a
+plain `~/file-portal/receipts.jsonl` (Rab's call among three designs — records stay OUT of the
+vault, so the module that writes the vault gained no new git code) and the widget tails it over
+`tailscale ssh` on the vault bar's existing 45 s poll into its own dot-prefixed cache; two
+streams, two single writers, merged only at render time. Gates: clippy `-D warnings`,
+`node --check` ×2, **11/11** rust tests; harness proofs: **8 exporter seam cases** on real git
+repos (every outcome, provenance across the seam, bless-on-`fail` rejected, and the fail-open —
+an unwritable receipts path costs a warning, never the export), **5 re-run orchestration cases**
+(analyst+ship stubbed), and a **Room render pass** on the two real held bundles. Exe
+**`0473104A`** adopted by Rab; ThinkPad deployed to `9583ad1`.
+**THE LIVE FIRE (claude-code book, vault note 5):** re-run ran end to end — 37 chunks, **906 s**
+(34 passed / 3 rejected / 0 failed), no `convert/probe` event, supersede stamped, shipped —
+and the analyst-phase audit **failed it again (survival 0.9547, 12 runs)**. The evidence is the
+finding: the re-run reproduced **the same top-three omissions (180/96/84 words) with a
+byte-identical worst excerpt**. A blind analyst re-run does not wander — it drops the same
+passages, the Beer precedent restated one stage later. With `ANALYST_DOC_FAIL = 0.995` and no
+run ≥ 25 words allowed, that single 180-word omission fails the book by itself. The exporter
+refused (`EXPORT-SUPERSEDE-HELD`) and **the vault was verifiably untouched** — bare repo still
+at `70c60e6`, note 5 still carrying `0.9493`. **The first production receipt is that refusal**,
+which is exactly the blind spot C2 existed to close: before tonight it lived only in a journal
+on another machine. Rab: **do NOT try Gemini** (decided; the option stays open, unused).
+**OPEN for the next session:** the book itself — Gemini re-run / vault the Marker copy (`flag`,
+0.9913, **not built**: nothing ships an un-analyzed bundle as a supersede) / leave note 5 /
+revisit the strict analyst thresholds (**Rab's signature required**); the rejected bundle stays
+in ThinkPad staging and re-files a `supersede-held` receipt on every service restart; the Room's
+display of receipts is built + render-proved but has not yet been seen on the glass (the widget
+was closed for adoption); the Dock's card got syntax+review, not a render proof; drill-down
+per-bundle buttons deliberately skipped. Flagged, out of scope: with the Room open the widget
+runs `git fetch` to the ThinkPad **every 4–9 s** (`gatherVM` calls `vault_check` per poll) vs
+the Dock's 45 s — pre-existing since S34, chipped as its own task. NEXT: docs/19 Stage D
+(chunking, spec signed) or E/F/G — Rab's pick.)*
+
+*(S58 plan as opened — docs/19 §3 STAGE C2: analyst-only re-run +
+per-bundle targeting + seam events.)*
 
 MUSTER clean at open: memory loaded; HARD ledger row S57 / `75e36df` (ancestor-verified) ==
 SOFT tally header (received 51 / given 3) == TIME-STATE; tree clean; widget pid 1992 up since
