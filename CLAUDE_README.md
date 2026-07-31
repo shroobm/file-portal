@@ -56,6 +56,20 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S49 OPEN 2026-07-31 ~01:10 (Desktop) — **Gate 4: Sunshine.** MUSTER clean at open (both clocks
+S48/`fa12a2f`, tally 42); machine fresh-logged 01:05, GPU idle, widget down and staying down (no
+pipeline work during the streaming gates). Plan: (1) Rab installs Sunshine from an elevated
+unpackaged shell at the desk (`winget install LizardByte.Sunshine`; docs/17 §4 fallbacks if MSIX
+activation balks); (2) IMMEDIATELY scope: disable Sunshine's auto-created allow-any firewall rules,
+add the two tailnet-scoped rules (TCP 47984,47989,47990,48010 / UDP 47998,47999,48000,48002 →
+`100.64.0.0/10`) — Rab's shell executes + verifies the rules (firewall reads are Access-denied from
+this sandboxed session; I verify service + listening ports read-only); (3) Rab-only: first visit
+`https://100.108.102.101:47990`, self-signed warning expected, set web-UI creds → password manager
+ONLY (GEMINI_API_KEY rule); (4) done-when per docs/17: service Running, allow-any rules disabled,
+creds stored; then **Gate 5** (HDMI dummy plug question, Moonlight pair, first stream — DIRECT
+path + bitrate ≤ ~70 % upload if out-of-home; tonight is LAN) if the night allows; (5) close in
+lockstep. Verify: docs/17 §4/§9 done-whens as written.)*
+
 *(S48 closed 2026-07-30 ~20:15 (Desktop) — SHIPPED; frozen clean at Rab's request so his little
 brother can game (S42 courtesy held: GPU at 2.3 GB baseline, empty drop queue, no locks, Rab
 closes the widget). **GATE 3 CLOSED END-TO-END — plus two exhumed ghosts and a deadlock.** The
