@@ -56,8 +56,29 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S59 — OPEN 2026-07-31 (Desktop, Opus 5) — throttle the Room's vault polling** (the task
-chipped at the S58 close; a separate session because S58's ledger row is already filed).
+*(S59 closed 2026-07-31 ~20:05 (Desktop, Opus 5) — **THE ROOM STOPPED WAKING THE THINKPAD EVERY
+FOUR SECONDS.** The chipped task proposed caching `vault_check` for the Room; verifying first
+(standing rule) found something better: the Room **never read it**. `gatherVM` awaited
+`call("vault_check")` every 4 s converting / 9 s idle — and `vault::check` runs `git fetch
+--quiet origin` to the ThinkPad over tailscale ssh — then bound the result into the view-model
+where **nothing consumed it** (the Vault tile's count comes from `room_metrics`' local
+`count_library`). An open Room was waking the ThinkPad's sshd ~10× the Dock's deliberate 45 s
+cadence purely to discard the answer, and blocking a worker thread for the dial timeout whenever
+the host slept. So the remedy is a **deletion, not a cache** — no new command, no TTL, no API
+surface; vault freshness untouched because the Dock's `vaultLoop` re-arms regardless of surface.
+The call site now carries the rule as a comment (**this loop may not touch the network; read a
+cached projection instead**) so it cannot be quietly restored — the same rule S58 already
+followed by splitting `receipts_fetch` (network, Dock cadence) from `receipts_read` (local
+cache, what the Room polls). PROVED by recording what one real `gatherVM()` poll invokes: nine
+commands, **none network-touching**, receipts still rendering from cache. Gates: `node --check`,
+clippy `-D warnings`, 11/11 rust tests, Room render pass unchanged. Exe **`3EBDC802`** built and
+**awaiting Rab's adoption** (law 3 — a frontend-only change still rides in the binary; the
+installed exe is S58's `0473104A`). Pre-existing since S34. NEXT: docs/19 Stage D (chunking,
+spec signed) or E/F/G — Rab's pick; and S58's open items stand (the claude-code book's fate,
+receipts not yet seen on the glass).)*
+
+*(S59 plan as opened — throttle the Room's vault polling; the task chipped at the S58 close,
+taken as its own session because S58's ledger row was already filed.)*
 
 MUSTER: clocks agreed at open — ledger S58 / `6364850` (ancestor-verified) == TIME-STATE ==
 tally 51/3; tree clean; pipeline idle.
