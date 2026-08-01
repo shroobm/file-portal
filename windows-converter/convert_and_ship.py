@@ -171,33 +171,34 @@ def slice_ranges(pages: int, size: int = SLICE_PAGES) -> list[tuple[int, int]]:
     return [(s, min(s + size, pages) - 1) for s in range(0, pages, size)]
 
 
-# Marker names its images by page index WITHIN ITS OWN RUN — `_page_0_Picture_0.jpeg` is emitted
-# by every slice, so slice 2's page 0 is really page 200 and the files would collide on merge.
-# Both the filename and the markdown reference are shifted by the slice's absolute offset.
-_ASSET_PAGE = re.compile(r"^(_page_)(\d+)(_.*)$")
+# Asset names carry the page they came from: `_page_413_Figure_0.jpeg`.
+#
+# **MEASURED, not assumed (S60, the Damodaran acceptance run):** under `--page_range`, Marker
+# numbers assets by their ABSOLUTE page in the source PDF — a slice covering pages 200-399 emits
+# `_page_200_…` through `_page_399_…`, not `_page_0_…`. Slices therefore never collide and
+# nothing needs renumbering. The first cut of this stage assumed run-relative numbering and added
+# the slice offset, which double-counted it: a 1,356-page book produced asset pages up to 2553,
+# in bands of 400-599, 800-999, 1600-1799 … Links still resolved (filename and reference were
+# shifted together, so no figure was lost) but every page number above slice 1 was a lie, which
+# would have sent the Repair Bench to the wrong page forever.
+#
+# The synthetic harness could not catch it: the fake Marker emitted run-relative names because I
+# wrote it from the same wrong assumption the code held. Only the real book could tell us.
+_ASSET_PAGE = re.compile(r"^_page_(\d+)_")
 
 
-def shift_asset_name(name: str, offset: int) -> str | None:
-    """`_page_3_Figure_0.jpeg` + 200 -> `_page_203_Figure_0.jpeg`. None when the name isn't
-    Marker's page-indexed shape (leave anything else exactly as it is)."""
+def asset_page(name: str) -> int | None:
+    """The absolute source page a Marker asset came from; None if the name isn't that shape."""
     m = _ASSET_PAGE.match(name)
-    if not m:
-        return None
-    return f"{m.group(1)}{int(m.group(2)) + offset}{m.group(3)}"
+    return int(m.group(1)) if m else None
 
 
-def shift_image_refs(markdown: str, offset: int) -> str:
-    """Shift page indices inside IMAGE LINKS only — never across free text, which may legitimately
-    contain a string like `_page_12_` (this is a library of books about software)."""
-    def _replace(match: re.Match) -> str:
-        target = match.group(1)
-        if target.startswith(("http://", "https://", "data:")):
-            return match.group(0)
-        shifted = shift_asset_name(Path(target).name, offset)
-        return match.group(0) if shifted is None else match.group(0).replace(
-            Path(target).name, shifted, 1)
-
-    return _IMAGE_LINK.sub(_replace, markdown)
+def out_of_range_assets(names: list[str], start: int, end: int) -> list[str]:
+    """Assets whose page falls outside the slice that produced them. Expected to be empty — this
+    is the tripwire on the numbering behaviour above, so that if a future Marker switches to
+    run-relative names the merge says so loudly instead of silently mislabelling every page."""
+    return [n for n in names
+            if (p := asset_page(n)) is not None and not (start <= p <= end)]
 
 
 def _gpu_signature() -> dict:
@@ -434,8 +435,12 @@ def route(chars: float, ocr_fonts: bool) -> tuple[list[str], str, str]:
 LEDGER_FILE = Path(r"C:\Users\Bndit\ml\library\conversion-ledger.jsonl")
 
 
-def _ledger_record(manifest: dict, wall: float, peak_mib: int) -> None:
-    """File the learning record. Best-effort: a conversion is never lost to its own bookkeeping."""
+def _ledger_record(manifest: dict, cost_s: float, peak_mib: int,
+                   resumed_slices: int = 0, run_wall_s: float | None = None) -> None:
+    """File the learning record. `cost_s` is the book's TOTAL GPU cost including slices that were
+    resumed from an earlier run — that is what a future estimate needs. `run_wall_s` keeps this
+    run's own elapsed time alongside it, so the two never get confused later.
+    Best-effort: a conversion is never lost to its own bookkeeping."""
     try:
         pages = manifest.get("pages") or 1
         chunking = manifest.get("chunking")
@@ -446,8 +451,10 @@ def _ledger_record(manifest: dict, wall: float, peak_mib: int) -> None:
             "pages": pages,
             "lane": manifest.get("lane"),
             "chars_per_page": round(manifest.get("chars_per_page_detected") or 0, 1),
-            "wall_s": round(wall, 1),
-            "s_per_page": round(wall / pages, 3),
+            "wall_s": round(cost_s, 1),
+            "s_per_page": round(cost_s / pages, 3),
+            "run_wall_s": round(run_wall_s, 1) if run_wall_s is not None else None,
+            "resumed_slices": resumed_slices,
             "chunked": bool(chunking),
             "slices": (len(chunking["seams"]) + 1) if chunking else 1,
             "batch": chunking["batch"] if chunking else RECOGNITION_BATCH,
@@ -633,7 +640,9 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
          slice_size=SLICE_PAGES, batch=batch)
 
     parts: list[str] = []
-    total_wall = 0.0
+    total_wall = 0.0      # GPU time spent in THIS run (what the convert event reports)
+    resumed_wall = 0.0    # GPU time the resumed slices cost when they ran (the ledger wants it)
+    resumed_count = 0
     peak_mib = 0
     for i, (start, end) in enumerate(ranges, 1):
         slice_dir = book_work / f"slice-{start:05d}-{end:05d}"
@@ -647,16 +656,22 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
                 page_range=f"{start}-{end}", progress_prefix=f"slice {i}/{total} · ")
             total_wall += wall
             peak_mib = max(peak_mib, mib)
-            # Renumber to ABSOLUTE pages before publishing: every slice's Marker run numbers its
-            # images from 0, so without this, slice 2's `_page_0_Picture_0.jpeg` overwrites
-            # slice 1's on merge and the book silently loses figures.
+            # Assets keep the names Marker gave them: those are already ABSOLUTE page numbers
+            # (see the note above — measured on the Damodaran run, not assumed), so slices cannot
+            # collide and the markdown needs no rewriting either. The tripwire fires if that ever
+            # stops being true, because silently mislabelled pages are the expensive failure.
             staging.mkdir(parents=True)
-            (staging / "slice.md").write_text(shift_image_refs(md, start), encoding="utf-8")
-            for img in sorted(out_dir.iterdir()):
-                if img.suffix.lower() not in (".jpeg", ".jpg", ".png"):
-                    continue
-                shifted = shift_asset_name(img.name, start) or img.name
-                shutil.copy2(img, staging / shifted)
+            (staging / "slice.md").write_text(md, encoding="utf-8")
+            imgs = [p for p in sorted(out_dir.iterdir())
+                    if p.suffix.lower() in (".jpeg", ".jpg", ".png")]
+            stray = out_of_range_assets([p.name for p in imgs], start, end)
+            if stray:
+                print(f"  WARNING: {len(stray)} asset(s) outside pages {start}-{end}, "
+                      f"e.g. {stray[:3]} — Marker's asset numbering may have changed", flush=True)
+                emit("convert", "asset_range_warning", source=source_name,
+                     page_range=f"{start}-{end}", count=len(stray), examples=stray[:3])
+            for img in imgs:
+                shutil.copy2(img, staging / img.name)
             (staging / ".done").write_text(
                 json.dumps({"source_sha256": source_sha, "page_range": f"{start}-{end}",
                             "wall_s": round(wall, 1), "batch": batch}) + "\n", encoding="utf-8")
@@ -664,6 +679,17 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
             emit("convert", "slice", source=source_name, slice=i, slices=total,
                  page_range=f"{start}-{end}", wall_s=round(wall, 1), resumed=False)
         else:
+            # A resumed slice costs this run nothing, but it DID cost the GPU when it ran, and
+            # the ledger is trying to learn what a book of this shape actually takes. Counting
+            # only the re-run would file a rate that gets quietly better every time a slice is
+            # retried — an estimator that flatters itself (found on the Damodaran run: 1.69 s/pp
+            # reported vs 1.94 s/pp truly spent).
+            try:
+                prior = json.loads((slice_dir / ".done").read_text(encoding="utf-8"))
+                resumed_wall += float(prior.get("wall_s") or 0.0)
+            except (OSError, ValueError, TypeError):
+                pass
+            resumed_count += 1
             print(f"SLICE {i}/{total} pages {start}-{end}: RESUMED (already converted)", flush=True)
             emit("convert", "slice", source=source_name, slice=i, slices=total,
                  page_range=f"{start}-{end}", resumed=True)
@@ -678,7 +704,8 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     chunking = {"slice_size": SLICE_PAGES, "batch": batch,
                 "seams": [start + 1 for start, _ in ranges[1:]]}
     shutil.rmtree(book_work, ignore_errors=True)
-    return "\n\n".join(parts), merged_assets, total_wall, peak_mib, chunking
+    stats = {"cost_s": total_wall + resumed_wall, "resumed_slices": resumed_count}
+    return "\n\n".join(parts), merged_assets, total_wall, peak_mib, chunking, stats
 
 
 # ---------- the slice ----------
@@ -708,12 +735,13 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # the lanes cost different VRAM, and the page count is the probe's, never metadata.
     chunking = None
     if should_chunk(pages, lane):
-        markdown, assets_dir, wall, peak_mib, chunking = _convert_chunked(
+        markdown, assets_dir, wall, peak_mib, chunking, chunk_stats = _convert_chunked(
             src.name, engine_src, engine_stem, work, out_root, extra, pages, source_sha)
     else:
         out_dir, markdown, wall, peak_mib = _run_marker(
             engine_src, engine_stem, out_root, extra, pages, src.name)
         assets_dir = out_dir
+        chunk_stats = {"cost_s": wall, "resumed_slices": 0}
     print(f"CONVERTED in {wall:.1f}s ({wall / pages:.1f} s/page)", flush=True)
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
          s_per_page=round(wall / pages, 2), pages=pages,
@@ -755,7 +783,11 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # Rides every downstream path from here: the anchor copy, the pending/ card + resume, and
     # all three ship sites carry this same manifest, so nothing else needs to know about it.
     _stamp_supersede_safe(manifest, supersede_marker, source_sha, src.name)
-    _ledger_record(manifest, wall, peak_mib)
+    # The ledger learns from the book's TRUE cost, which includes any slices this run resumed
+    # rather than re-ran (see _convert_chunked) — otherwise every retry teaches it to promise
+    # a little more than the GPU can deliver.
+    _ledger_record(manifest, chunk_stats["cost_s"], peak_mib,
+                   resumed_slices=chunk_stats["resumed_slices"], run_wall_s=wall)
     body = rewrite_image_links(markdown)
     # Survival Audit of the convert stage (docs/15) — before any analyst pass, so the
     # witness is scored against the raw Marker output. Report-only; never fails the line.
