@@ -10,9 +10,11 @@ GPU discipline: called only after Marker has exited (the Phase 2 serialization);
 keep_alive=0 on every request so VRAM returns to baseline the moment we finish.
 """
 
+import hashlib
 import json
 import os
 import re
+import shutil
 import subprocess
 import time
 from pathlib import Path
@@ -155,6 +157,67 @@ def _tokens_of(text: str) -> list[str]:
     return sorted(_TOKEN.findall(text))
 
 
+# ---------- chunk-level resume (S61) ----------
+#
+# Built the morning a power cut killed Damodaran's analyst pass at chunk 936 of 969 — nine
+# minutes from done, ~4 hours gone — because this module held every chunk in memory and wrote
+# the markdown only at the end. Marker got slice resume in Stage D; this is the same discipline
+# one stage over: each finished chunk is journalled to disk the moment it exists, so an outage
+# costs one chunk (~16 s) instead of an afternoon.
+ANALYST_WORK = Path(r"C:\Users\Bndit\ml\library\.analyst-work")
+
+
+def _resume_key(fenced: str, backend: str, program: str) -> str:
+    """Binds EVERYTHING that changes the output: the fenced source text, the backend, the prompt
+    program, and the chunk size. Anything different produces a different key, so a stale journal
+    can never be silently reused against text it was not written for."""
+    h = hashlib.sha256()
+    h.update(fenced.encode("utf-8"))
+    h.update(f"|{backend}|{program}|{CHUNK_TARGET}".encode("utf-8"))
+    return h.hexdigest()[:16]
+
+
+def _chunk_hash(chunk: str) -> str:
+    return hashlib.sha256(chunk.encode("utf-8")).hexdigest()[:16]
+
+
+def _load_journal(path: Path, chunks: list[str]) -> dict[int, dict]:
+    """Completed chunks from a previous run, keyed by 1-based index.
+
+    Every record is re-validated against the chunk it claims to be (input hash), so a change in
+    chunking can never splice the wrong text into a book. A torn final line — the power cut
+    landing mid-write — simply fails to parse and that chunk is redone: the same append-only
+    discipline as events.jsonl, where losing the tail is always the safe direction."""
+    done: dict[int, dict] = {}
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError:
+        return done
+    for line in text.splitlines():
+        if not line.strip():
+            continue
+        try:
+            rec = json.loads(line)
+            i = int(rec["i"])
+            if 1 <= i <= len(chunks) and rec.get("hash") == _chunk_hash(chunks[i - 1]):
+                done[i] = rec
+        except (ValueError, KeyError, TypeError):
+            continue  # torn or malformed -> redo that chunk
+    return done
+
+
+def _append_journal(handle, i: int, chunk: str, status: str, text: str) -> None:
+    """One durable line per finished chunk. fsync because the whole point is surviving a power
+    cut — a line sitting in the OS write cache would be exactly as lost as no line at all."""
+    try:
+        handle.write(json.dumps({"i": i, "hash": _chunk_hash(chunk), "status": status,
+                                 "text": text}, ensure_ascii=False) + "\n")
+        handle.flush()
+        os.fsync(handle.fileno())
+    except (OSError, ValueError):
+        pass  # journalling must never cost the analysis itself
+
+
 def process(markdown: str, backend: str = "local",
             program: str = DEFAULT_PROGRAM) -> tuple[str, dict]:
     """Returns (markdown_out, analyst_meta). On any per-chunk fence violation or error the
@@ -171,36 +234,80 @@ def process(markdown: str, backend: str = "local",
     out, passed, rejected, failed = [], 0, 0, 0
     t0 = time.perf_counter()
 
-    def _progress(done: int) -> None:
+    # S61: pick up whatever a previous run finished before it died.
+    work_dir = ANALYST_WORK / _resume_key(fenced, backend, program)
+    journal_path = work_dir / "chunks.jsonl"
+    done = _load_journal(journal_path, chunks)
+    resumed = len(done)
+    generated = 0  # chunks this run actually paid the GPU for — the honest rate denominator
+    if resumed:
+        print(f"ANALYST resuming: {resumed}/{len(chunks)} chunks already done "
+              f"(journal {journal_path.name})", flush=True)
+
+    def _progress(pos: int) -> None:
         # Best-effort per-chunk heartbeat — a write failure must never affect analysis.
+        # The rate is measured over chunks GENERATED this run, never resumed ones: after a
+        # resume, dividing by position would report a rate the GPU never achieved and an ETA
+        # that quietly flatters itself (the S60 conversion-ledger lesson, one stage over).
         try:
             elapsed = time.perf_counter() - t0
-            rate = round(elapsed / done, 1) if done else None
+            rate = round(elapsed / generated, 1) if generated else None
             ANALYST_PROGRESS.write_text(json.dumps({
-                "n": done, "total": len(chunks), "s_per_chunk": rate,
-                "eta_s": int(rate * (len(chunks) - done)) if rate else None,
+                "n": pos, "total": len(chunks), "s_per_chunk": rate,
+                "eta_s": int(rate * (len(chunks) - pos)) if rate else None,
+                "resumed": resumed or None,
             }), encoding="utf-8")
         except OSError:
             pass
 
-    _progress(0)
+    _progress(resumed)
+    handle = None
     try:
+        try:
+            work_dir.mkdir(parents=True, exist_ok=True)
+            handle = open(journal_path, "a", encoding="utf-8")
+        except OSError:
+            handle = None  # unjournalled is worse, but never a reason to refuse the work
         for i, chunk in enumerate(chunks, 1):
+            if i in done:
+                rec = done[i]
+                out.append(rec.get("text", chunk))
+                status = rec.get("status")
+                passed += status == "passed"
+                rejected += status == "rejected"
+                failed += status == "failed"
+                continue
             try:
                 candidate = generate(prompt + chunk)
             except Exception:
                 out.append(chunk)  # API/backend error -> ship the un-analyzed original
                 failed += 1
+                generated += 1
+                # DELIBERATELY NOT JOURNALLED. A failure here means the backend errored — an
+                # ollama restart, a VRAM blip, a 5xx — which is exactly the kind of thing the
+                # next run would succeed at. Persisting it would bake a transient hiccup into
+                # the book forever, and resume would never retry it. Only deterministic outcomes
+                # of a completed call (passed / rejected) are worth remembering.
                 _progress(i)
                 continue
             if _tokens_of(candidate) == _tokens_of(chunk):
                 out.append(candidate)
                 passed += 1
+                status, text = "passed", candidate
             else:
                 out.append(chunk)  # fence violated -> ship the un-analyzed original
                 rejected += 1
+                status, text = "rejected", chunk
+            generated += 1
+            if handle:
+                _append_journal(handle, i, chunk, status, text)
             _progress(i)
     finally:
+        if handle:
+            try:
+                handle.close()
+            except OSError:
+                pass
         # The heartbeat never outlives the run — staleness must not be able to lie.
         try:
             ANALYST_PROGRESS.unlink(missing_ok=True)
@@ -213,8 +320,11 @@ def process(markdown: str, backend: str = "local",
         "chunks_passed": passed,
         "chunks_rejected": rejected,  # fence violations only
         "chunks_failed": failed,  # backend/API errors after retries
+        "chunks_resumed": resumed,  # carried from an earlier run's journal
         "duration_s": round(time.perf_counter() - t0, 1),
     }
+    # The book is assembled and about to be written — the journal has done its job.
+    shutil.rmtree(work_dir, ignore_errors=True)
     return unfence("\n\n".join(out), embeds), meta
 
 
