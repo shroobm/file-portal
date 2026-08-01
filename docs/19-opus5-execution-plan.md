@@ -143,6 +143,23 @@ doc and reality disagree, reality wins — measure, then update this doc.*
 
 ## 4. Stage D — chunking (THE SIGNED SPEC IS docs/18 §5.2 — follow it verbatim)
 
+> **CONVERTER SIDE SHIPPED S60 (2026-08-01)** — built to the spec verbatim; see CHANGELOG.
+> `convert()` slices long books, resumes from published slices, renumbers assets to absolute
+> pages, records seams in the manifest, reads the `chunk-batch.txt` lever per slice, and files a
+> conversion-ledger record with peak VRAM. The monitored Marker run was extracted to
+> `_run_marker()` so slices inherit every stall/orphan/timeout lesson unchanged.
+>
+> **STILL OWED — and it is the whole point of the stage:**
+> 1. **RAB — the Damodaran acceptance run.** 1,356 pp = 7 slices, 1–2 h of GPU even chunked, so
+>    it needs his go and a clear seat (`query user` first). Done-when: it converts end to end in
+>    slices AND resume is proven live (kill one slice mid-run, re-run, watch it skip the
+>    completed ones — the synthetic proof did exactly this, but a real book is the acceptance).
+> 2. Stage E surfaces the estimator: `estimate_from_ledger()` exists and is tested, but the
+>    card still shows the old global-median ETA, and promise-vs-actual pairing is §7's work.
+>
+> Nothing here changes the widget's contract; the only widget change was the policy row, which
+> had been claiming "chunking pending spec review" for three sessions after Rab signed it.
+
 Parameters are DECIDED (S57): clean >600 pp / scan >400 pp; 200-page slices; clean cuts with
 seams recorded in the manifest; slice batch = user lever `chunk-batch.txt` (8|16|32, default
 16); resume by (source_sha, page_range); slice-prefixed progress; assets renumbered by

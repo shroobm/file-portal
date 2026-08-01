@@ -251,7 +251,12 @@ function convertPanel(d) {
         `<span class="rp-age${(ls.analyst_age_s ?? 0) > 120 ? " frozen" : ""}">` +
         `${(ls.analyst_age_s ?? 0) > 120 ? `frozen ${etaText(ls.analyst_age_s)} ⚠` : "✓ live"}</span></div>`
       : "") +
-    `<div class="rp-policy">policy: stall → kill early &gt;15 m · big books → chunking pending spec review (docs/18 §5)</div>` +
+    // Stage D shipped (S60): the row states what a long book will ACTUALLY do, including the
+    // live lever value — it read "chunking pending spec review" for three sessions after the
+    // spec was signed, and a policy row that describes the past is worse than none.
+    `<div class="rp-policy">policy: stall → kill early &gt;15 m · long books → 200-pp resumable slices ` +
+    `(clean &gt;600 pp · scan &gt;400 pp) · slice batch <b>${esc(ls.chunk_batch ?? 16)}</b> ` +
+    `<span class="rp-lever-note">(chunk-batch.txt: 8 | 16 | 32)</span></div>` +
     `</div></div>`;
 }
 

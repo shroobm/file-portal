@@ -6,6 +6,64 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ## [Unreleased]
 
+### Added
+
+- **S60 — STAGE D: `--page_range` chunking, the slice lever, and the conversion ledger
+  (2026-08-01).** Long books were the last failure class that could still eat a night: over
+  ~600 pages a single Marker run balloons its batch, thrashes VRAM and dies hours in, taking
+  every converted page with it. Books now convert in **200-page slices** per the spec Rab signed
+  at S57 (docs/18 §5.2), built to it verbatim.
+  - **Lane-aware threshold** — clean >600 pp, scan >400 pp (scan runs hotter: Valentine peaked
+    ~8 GB at 465 pp), page counts from the pymupdf probe, never metadata.
+  - **Resume is the point.** Each finished slice is published into
+    `.chunk-work/<sha16>/slice-<start>-<end>/` **outside** the run's temp dir, keyed by
+    (source_sha, page_range), by dot-dir-then-rename so a half-written slice can never be
+    mistaken for a finished one. A killed slice costs only that slice; the re-run converts the
+    missing ones and skips the rest. The whole book's slice dir is removed once the merge
+    succeeds — the bundle holds everything by then, and these are gigabytes.
+  - **Assets renumbered to absolute pages.** Marker numbers images by page *within its own run*,
+    so every slice emits `_page_0_Picture_0.jpeg` and a naive merge would silently overwrite
+    figures. Filenames and their markdown references are shifted by the slice offset — and the
+    shift touches image links only, never free text, because a library of software books legibly
+    contains strings like `_page_12_`.
+  - **Seams recorded, never smoothed.** `manifest["chunking"] = {slice_size, batch, seams}`
+    (1-based first pages of slices 2..n) travels with the book forever, for the audit and the
+    Repair Bench. No overlap reconciliation in v1: it trades a tidy seam for the risk of silent
+    text loss, which is the one trade this factory refuses.
+  - **The slice batch is a USER LEVER** — `chunk-batch.txt` (8 | 16 | 32, default 16), re-read
+    per slice so an edit mid-book takes effect at the next one; off-menu or unparseable values
+    fall back to the default rather than handing Marker a number nobody chose. Unchunked books
+    keep batch 32. The Convert station's policy row now states the real behaviour and the live
+    lever value — it had read "chunking pending spec review" for three sessions after the spec
+    was signed.
+  - **Progress + events**: the progress file's stage gains a `slice 3/7 · ` prefix (the Room
+    renders it verbatim, so slice-level progress needed no widget change), `convert/chunking`
+    and per-slice `convert/slice` events, and the final `converted` event carries `slices` and
+    `peak_vram_mib`.
+  - **The conversion ledger** (Rab's S57 requirement): every successful conversion appends a
+    learning record to `conversion-ledger.jsonl` — pages, lane, chars/pp, wall, s/page, chunked,
+    slices, batch, peak VRAM (sampled by the stall monitor, which was already the thing watching
+    the GPU). `estimate_from_ledger()` turns it into a **similarity-based** estimate: same lane
+    first, then the three nearest chars/pp neighbours, median of their rates — and it returns
+    `None` rather than guessing when there is no evidence. Surfacing it on the card, with the
+    promise-vs-actual pairing, is Stage E's job per the spec.
+  - **One refactor to make it possible:** the monitored Marker run is now `_run_marker()`, shared
+    by the whole-book and slice paths, so the draining reader (S48's pipe deadlock), the
+    tree-kill (S48's orphan), the kill-early stall signature (S45/S48) and the page-scaled
+    timeout (S45) have exactly one implementation — each slice gets its own proportionate bound
+    and a killed slice fails alone.
+
+  **Verified without spending a GPU-hour**: 25 checks driving the REAL `convert()` over a
+  synthetic 610-page PDF with Marker faked at the process boundary — slice ranges and argv
+  (including `--page_range` and the lever's batch), merge order, asset renumbering with no
+  collisions, the manifest's seams, a killed slice aborting the book, exactly the two good
+  slices published for resume, the re-run skipping them, and **the resumed book byte-identical
+  to one converted in a single pass**; plus the lever's refusals, the ledger record, the
+  estimator's neighbour selection (and its refusal to borrow across lanes), and a short book
+  still taking the single-run path with batch 32 and no chunking block. Gates: clippy
+  `-D warnings`, `node --check`, 11/11 rust tests. **Not yet run on a real long book** — the
+  Damodaran acceptance test is 1–2 h of GPU and waits for Rab's go.
+
 ### Fixed
 
 - **S59 — the Room stopped waking the ThinkPad every four seconds (2026-07-31).** `gatherVM()`

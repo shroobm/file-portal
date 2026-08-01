@@ -130,6 +130,76 @@ def _kill_tree(pid: int) -> None:
         pass
 
 
+# ---------- Stage D: chunking (docs/18 §5.2, spec SIGNED with Rab S57) ----------
+
+# Lane-aware, because the lanes cost different VRAM: Valentine peaked ~8 GB at 465 scanned pp.
+# Page counts come from the pymupdf probe, never from PDF metadata (which lies).
+CHUNK_THRESHOLD_PAGES = {"clean": 600, "scan": 400}
+# A lost slice costs ~10 min; each slice re-pays ~90 s of model load (~18 % overhead at
+# clean-lane rates). Damodaran (1,356 pp) = 7 slices.
+SLICE_PAGES = 200
+# The slice recognition batch is a USER LEVER (Rab's framing: 8 "keeps it actually useful",
+# 16 the go-faster default, 32 "if I really want to"). Backend truth is this file, re-read per
+# slice so an edit mid-book takes effect at the next slice. Unchunked books keep RECOGNITION_BATCH.
+CHUNK_BATCH_FILE = Path(r"C:\Users\Bndit\ml\library\chunk-batch.txt")
+CHUNK_BATCH_ALLOWED = (8, 16, 32)
+CHUNK_BATCH_DEFAULT = 16
+# Completed slices live HERE, not in the run's temp dir, because resume must survive the process
+# that made them: keyed by (source_sha16, page_range) exactly as the spec requires.
+CHUNK_WORK = Path(r"C:\Users\Bndit\ml\library\.chunk-work")
+
+
+def chunk_batch() -> int:
+    """The slice recognition batch lever. Anything unparseable or off-menu falls back to the
+    default rather than handing Marker a number nobody chose."""
+    try:
+        value = int(CHUNK_BATCH_FILE.read_text(encoding="utf-8").strip())
+        return value if value in CHUNK_BATCH_ALLOWED else CHUNK_BATCH_DEFAULT
+    except (OSError, ValueError):
+        return CHUNK_BATCH_DEFAULT
+
+
+def should_chunk(pages: int, lane: str) -> bool:
+    """docs/18 §5.2's lane-aware threshold. Unknown lanes take the stricter bar."""
+    return pages > CHUNK_THRESHOLD_PAGES.get(lane, min(CHUNK_THRESHOLD_PAGES.values()))
+
+
+def slice_ranges(pages: int, size: int = SLICE_PAGES) -> list[tuple[int, int]]:
+    """Clean cuts, no overlap (v1: overlap reconciliation risks SILENT text loss, so the seam
+    is recorded instead of smoothed). Returns 0-indexed inclusive [start, end] pairs, which is
+    what Marker's --page_range speaks."""
+    return [(s, min(s + size, pages) - 1) for s in range(0, pages, size)]
+
+
+# Marker names its images by page index WITHIN ITS OWN RUN — `_page_0_Picture_0.jpeg` is emitted
+# by every slice, so slice 2's page 0 is really page 200 and the files would collide on merge.
+# Both the filename and the markdown reference are shifted by the slice's absolute offset.
+_ASSET_PAGE = re.compile(r"^(_page_)(\d+)(_.*)$")
+
+
+def shift_asset_name(name: str, offset: int) -> str | None:
+    """`_page_3_Figure_0.jpeg` + 200 -> `_page_203_Figure_0.jpeg`. None when the name isn't
+    Marker's page-indexed shape (leave anything else exactly as it is)."""
+    m = _ASSET_PAGE.match(name)
+    if not m:
+        return None
+    return f"{m.group(1)}{int(m.group(2)) + offset}{m.group(3)}"
+
+
+def shift_image_refs(markdown: str, offset: int) -> str:
+    """Shift page indices inside IMAGE LINKS only — never across free text, which may legitimately
+    contain a string like `_page_12_` (this is a library of books about software)."""
+    def _replace(match: re.Match) -> str:
+        target = match.group(1)
+        if target.startswith(("http://", "https://", "data:")):
+            return match.group(0)
+        shifted = shift_asset_name(Path(target).name, offset)
+        return match.group(0) if shifted is None else match.group(0).replace(
+            Path(target).name, shifted, 1)
+
+    return _IMAGE_LINK.sub(_replace, markdown)
+
+
 def _gpu_signature() -> dict:
     """Best-effort triage facts for a stall's death certificate: GPU util/mem at kill time.
     High util + near-full mem = the VRAM-thrash species; low util = deadlock/IO species.
@@ -355,6 +425,262 @@ def route(chars: float, ocr_fonts: bool) -> tuple[list[str], str, str]:
     return [*batch], "scan", "no_text_layer"
 
 
+# ---------- the conversion ledger (Rab's S57 requirement, docs/18 §5.2) ----------
+
+# One learning record per successful conversion. The events stream already held most of these
+# facts, but scattered across lines and stages; this is the shape the estimator reads, so a new
+# book's promise comes from SIMILAR past works (same lane, nearest chars/pp) instead of one
+# global median. Append-only, single writer (this converter), same discipline as events.jsonl.
+LEDGER_FILE = Path(r"C:\Users\Bndit\ml\library\conversion-ledger.jsonl")
+
+
+def _ledger_record(manifest: dict, wall: float, peak_mib: int) -> None:
+    """File the learning record. Best-effort: a conversion is never lost to its own bookkeeping."""
+    try:
+        pages = manifest.get("pages") or 1
+        chunking = manifest.get("chunking")
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "source": manifest.get("source"),
+            "source_sha256": (manifest.get("source_sha256") or "")[:16],
+            "pages": pages,
+            "lane": manifest.get("lane"),
+            "chars_per_page": round(manifest.get("chars_per_page_detected") or 0, 1),
+            "wall_s": round(wall, 1),
+            "s_per_page": round(wall / pages, 3),
+            "chunked": bool(chunking),
+            "slices": (len(chunking["seams"]) + 1) if chunking else 1,
+            "batch": chunking["batch"] if chunking else RECOGNITION_BATCH,
+            "peak_vram_mib": peak_mib or None,
+        }
+        LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
+        with open(LEDGER_FILE, "a", encoding="utf-8") as f:
+            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception as exc:  # noqa: BLE001
+        emit("convert", "ledger_error", error=str(exc)[:150])
+
+
+def estimate_from_ledger(pages: int, lane: str, chars_per_page: float) -> dict | None:
+    """The similarity-based estimate (docs/18 §5.2): same lane first, then the nearest chars/pp
+    neighbours, median of their s/page. Falls back to same-lane median, then None — a promise is
+    only made when there is real evidence behind it."""
+    try:
+        rows = [json.loads(l) for l in
+                LEDGER_FILE.read_text(encoding="utf-8").splitlines() if l.strip()]
+    except (OSError, ValueError):
+        return None
+    # `is not None`, not truthiness: a 0.0 rate is a real (if implausible) measurement, and
+    # silently discarding it would make the estimator lie about how much evidence it has.
+    same_lane = [r for r in rows
+                 if r.get("lane") == lane and r.get("s_per_page") is not None]
+    if not same_lane:
+        return None
+    neighbours = sorted(same_lane,
+                        key=lambda r: abs((r.get("chars_per_page") or 0) - chars_per_page))[:3]
+    rates = sorted(r["s_per_page"] for r in neighbours)
+    median = rates[len(rates) // 2]
+    return {
+        "s_per_page": median,
+        "eta_s": int(median * pages),
+        "basis": "similar",
+        "samples": len(neighbours),
+        "from_lane": lane,
+    }
+
+
+# ---------- the monitored Marker run (one whole book, or one slice of one) ----------
+
+def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[str],
+                pages: int, source_name: str, page_range: str | None = None,
+                progress_prefix: str = "") -> tuple[Path, str, float, int]:
+    """Run Marker once under the S52 stall monitor and return (out_dir, markdown, wall, peak MiB).
+
+    Extracted at S60 so the whole-book path and every chunked slice share ONE implementation of
+    the hard-won parts: the draining reader thread (S48's pipe deadlock), the tree-kill (S48's
+    orphan), the kill-early stall signature (S45/S48), and the page-scaled outer timeout (S45).
+    `page_range` is Marker's own 0-indexed `--page_range`; `progress_prefix` labels the progress
+    file so the Room can say which slice is running."""
+    _clear_progress()
+    captured: list[str] = []
+
+    def _reader(pipe) -> None:
+        try:
+            for line in pipe:  # text mode: universal newlines split tqdm's \r refreshes into lines
+                captured.append(line)
+                try:
+                    m = _TQDM_RE.search(line)
+                    if m:
+                        _write_progress(f"{progress_prefix}{m.group(1).strip()}", int(m.group(2)),
+                                        int(m.group(3)), int(m.group(4)))
+                except Exception:  # noqa: BLE001 — a parse fault must never stop the drain
+                    pass
+        except Exception:  # noqa: BLE001 — a reader fault must never break the convert — and it
+            # must never stop DRAINING either: with stdout piped, a dead reader lets the 64 KB
+            # pipe fill and Marker blocks on its next write, wedging the convert at zero CPU
+            # (S48: the cp1252-decode deadlock; S45's "stall" was this wearing a VRAM costume).
+            try:
+                for _ in pipe:
+                    pass
+            except Exception:
+                pass
+
+    t0 = time.perf_counter()
+    proc = subprocess.Popen(
+        [str(MARKER), str(engine_src), "--output_dir", str(out_root),
+         "--output_format", "markdown", *extra,
+         *(["--page_range", page_range] if page_range else [])],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
+        # Marker inherits PYTHONIOENCODING=utf-8 (the watcher sets it), so the pipe carries
+        # UTF-8 — but text=True alone decodes with the locale codepage (cp1252 here), and
+        # surya's tqdm block glyphs contain bytes cp1252 cannot decode (0x8F et al.). The
+        # strict-decode error killed the reader thread and deadlocked the pipe (S48).
+        encoding="utf-8", errors="replace",
+    )
+    reader = threading.Thread(target=_reader, args=(proc.stdout,), daemon=True)
+    reader.start()
+    # The cap scales with the work in front of it: a flat 3600 s silently made any book over
+    # ~1000 pages UNCONVERTIBLE (found S45 probing a 1,356-page Damodaran — 1.5-3.4 measured
+    # s/page puts it at 34-77 min, straddling the old cap). 20 s/page is ~2.5x the worst rate
+    # ever measured here (8.08 s/page, a dense 439-pp scan), so it still catches a genuine hang
+    # while never punishing a book for being long. For a slice, `pages` is the SLICE's page
+    # count, so each slice gets its own proportionate bound.
+    timeout_s = max(3600, pages * 20)
+    peak_mib = 0
+
+    def _kill_and_clear() -> None:
+        _kill_tree(proc.pid)  # /T first — proc.kill() alone would orphan marker's real python
+        proc.kill()
+        proc.wait()
+        reader.join(timeout=5)
+        _clear_progress()
+
+    # Stage A (docs/18 §4A; policy §5.1 "kill early", decided 2026-07-31): the wait is a monitor.
+    # PROGRESS_FILE's mtime is the liveness signal Marker already emits; frozen too long while the
+    # process still runs is the stall signature of BOTH wedge species (the S48 pipe-deadlock froze
+    # it at zero CPU, the S45 VRAM-thrash at pinned GPU). Monitoring is best-effort and can never
+    # fail a healthy convert (S42 rule); the scaled hard timeout stays as the outer bound.
+    while True:
+        try:
+            proc.wait(timeout=30)
+            break
+        except subprocess.TimeoutExpired:
+            pass
+        elapsed = time.perf_counter() - t0
+        # Stage D's conversion ledger wants peak VRAM, and this loop is already the thing that
+        # watches the GPU — sample here rather than adding a second watcher.
+        peak_mib = max(peak_mib, _gpu_signature().get("gpu_mem_used_mib", 0))
+        if elapsed >= timeout_s:
+            _kill_and_clear()
+            raise RuntimeError(f"marker timed out after {timeout_s}s ({pages} pages)")
+        try:
+            frozen_s = time.time() - PROGRESS_FILE.stat().st_mtime
+        except OSError:
+            frozen_s = elapsed  # nothing written yet (model load etc.) — measure from start
+        if frozen_s > STALL_FROZEN_S:
+            sig = _gpu_signature()
+            _kill_and_clear()
+            emit("convert", "stalled", source=source_name, frozen_s=int(frozen_s),
+                 elapsed_s=int(elapsed), page_range=page_range, **sig)
+            raise RuntimeError(
+                f"marker stalled: progress frozen {int(frozen_s)}s "
+                f"(kill-early policy, docs/18 §5.1)")
+    reader.join(timeout=5)
+    _clear_progress()
+    wall = time.perf_counter() - t0
+    if proc.returncode != 0:
+        raise RuntimeError(f"marker exited {proc.returncode}: {''.join(captured).strip()[:500]}")
+    out_dir = out_root / engine_stem
+    md_files = list(out_dir.glob("*.md"))
+    if len(md_files) != 1:
+        raise RuntimeError(f"expected exactly one .md in {out_dir}, found {len(md_files)}")
+    return out_dir, md_files[0].read_text(encoding="utf-8"), wall, peak_mib
+
+
+def _with_batch(extra: list[str], size: int) -> list[str]:
+    """`route()`'s args with the recognition batch replaced by the slice lever's value."""
+    out = list(extra)
+    for i, arg in enumerate(out):
+        if arg == "--recognition_batch_size" and i + 1 < len(out):
+            out[i + 1] = str(size)
+            return out
+    return [*out, "--recognition_batch_size", str(size)]
+
+
+def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work: Path,
+                     out_root: Path, extra: list[str], pages: int,
+                     source_sha: str) -> tuple[str, Path, float, int, dict]:
+    """Convert a long book in 200-page slices and merge (docs/18 §5.2, signed S57).
+
+    Returns (merged markdown, merged assets dir, total wall, peak MiB, chunking manifest block).
+
+    RESUME is the point of the whole design: each finished slice is published into
+    `.chunk-work/<sha16>/slice-<start>-<end>/` OUTSIDE the run's temp dir, so a killed slice (or
+    a killed process, or a reboot) costs only that slice — a re-run converts the missing ones and
+    skips the rest. Publication is dot-dir-then-rename, so a half-written slice can never be
+    mistaken for a finished one. The whole book's slice dir is removed once the merge succeeds:
+    the bundle now holds everything, and these are gigabytes."""
+    batch = chunk_batch()
+    ranges = slice_ranges(pages)
+    total = len(ranges)
+    book_work = CHUNK_WORK / source_sha[:16]
+    book_work.mkdir(parents=True, exist_ok=True)
+    merged_assets = work / "merged-assets"
+    merged_assets.mkdir(parents=True, exist_ok=True)
+    slice_extra = _with_batch(extra, batch)
+    print(f"CHUNKING {source_name}: {pages} pages -> {total} slices of {SLICE_PAGES} "
+          f"(recognition batch {batch}, lever {CHUNK_BATCH_FILE.name})", flush=True)
+    emit("convert", "chunking", source=source_name, pages=pages, slices=total,
+         slice_size=SLICE_PAGES, batch=batch)
+
+    parts: list[str] = []
+    total_wall = 0.0
+    peak_mib = 0
+    for i, (start, end) in enumerate(ranges, 1):
+        slice_dir = book_work / f"slice-{start:05d}-{end:05d}"
+        if not (slice_dir / ".done").is_file():
+            staging = book_work / f".part-{start:05d}-{end:05d}"
+            shutil.rmtree(staging, ignore_errors=True)
+            shutil.rmtree(out_root, ignore_errors=True)  # Marker reuses <out_root>/<stem>
+            print(f"SLICE {i}/{total} pages {start}-{end} …", flush=True)
+            out_dir, md, wall, mib = _run_marker(
+                engine_src, engine_stem, out_root, slice_extra, end - start + 1, source_name,
+                page_range=f"{start}-{end}", progress_prefix=f"slice {i}/{total} · ")
+            total_wall += wall
+            peak_mib = max(peak_mib, mib)
+            # Renumber to ABSOLUTE pages before publishing: every slice's Marker run numbers its
+            # images from 0, so without this, slice 2's `_page_0_Picture_0.jpeg` overwrites
+            # slice 1's on merge and the book silently loses figures.
+            staging.mkdir(parents=True)
+            (staging / "slice.md").write_text(shift_image_refs(md, start), encoding="utf-8")
+            for img in sorted(out_dir.iterdir()):
+                if img.suffix.lower() not in (".jpeg", ".jpg", ".png"):
+                    continue
+                shifted = shift_asset_name(img.name, start) or img.name
+                shutil.copy2(img, staging / shifted)
+            (staging / ".done").write_text(
+                json.dumps({"source_sha256": source_sha, "page_range": f"{start}-{end}",
+                            "wall_s": round(wall, 1), "batch": batch}) + "\n", encoding="utf-8")
+            staging.rename(slice_dir)  # atomic publish: .done exists only on a complete slice
+            emit("convert", "slice", source=source_name, slice=i, slices=total,
+                 page_range=f"{start}-{end}", wall_s=round(wall, 1), resumed=False)
+        else:
+            print(f"SLICE {i}/{total} pages {start}-{end}: RESUMED (already converted)", flush=True)
+            emit("convert", "slice", source=source_name, slice=i, slices=total,
+                 page_range=f"{start}-{end}", resumed=True)
+        parts.append((slice_dir / "slice.md").read_text(encoding="utf-8"))
+        for img in sorted(slice_dir.iterdir()):
+            if img.suffix.lower() in (".jpeg", ".jpg", ".png"):
+                shutil.copy2(img, merged_assets / img.name)
+
+    # Clean cuts: the seam is RECORDED, never smoothed. Overlap reconciliation in v1 risks
+    # silent text loss, which is the one failure this factory refuses to trade for tidiness.
+    # Seams are 1-based absolute page numbers of each slice's first page, after the first.
+    chunking = {"slice_size": SLICE_PAGES, "batch": batch,
+                "seams": [start + 1 for start, _ in ranges[1:]]}
+    shutil.rmtree(book_work, ignore_errors=True)
+    return "\n\n".join(parts), merged_assets, total_wall, peak_mib, chunking
+
+
 # ---------- the slice ----------
 
 def convert(src: Path, work: Path, use_analyst: bool = False,
@@ -376,112 +702,30 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     engine_src = work / f"{engine_stem}{src.suffix.lower()}"
     shutil.copy2(src, engine_src)
     out_root = work / "marker-out"
+    source_sha = sha256_of(src)  # needed up here now: slice resume is keyed by it
 
-    # S42: stream Marker's progress (tqdm enabled) so the widget can show the real stage + per-page
-    # count. A daemon reader thread parses surya's bars into PROGRESS_FILE; the main thread waits on
-    # the process exactly as before. Everything about progress is best-effort and wrapped so it can
-    # NEVER change the conversion's outcome — same returncode check, timeout, and markdown-from-file
-    # as the old subprocess.run. (Removing --disable_tqdm only re-enables the bars we now read.)
-    _clear_progress()
-    captured: list[str] = []
-
-    def _reader(pipe) -> None:
-        try:
-            for line in pipe:  # text mode: universal newlines split tqdm's \r refreshes into lines
-                captured.append(line)
-                try:
-                    m = _TQDM_RE.search(line)
-                    if m:
-                        _write_progress(m.group(1).strip(), int(m.group(2)),
-                                        int(m.group(3)), int(m.group(4)))
-                except Exception:  # noqa: BLE001 — a parse fault must never stop the drain
-                    pass
-        except Exception:  # noqa: BLE001 — a reader fault must never break the convert — and it
-            # must never stop DRAINING either: with stdout piped, a dead reader lets the 64 KB
-            # pipe fill and Marker blocks on its next write, wedging the convert at zero CPU
-            # (S48: the cp1252-decode deadlock; S45's "stall" was this wearing a VRAM costume).
-            try:
-                for _ in pipe:
-                    pass
-            except Exception:
-                pass
-
-    t0 = time.perf_counter()
-    proc = subprocess.Popen(
-        [str(MARKER), str(engine_src), "--output_dir", str(out_root),
-         "--output_format", "markdown", *extra],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
-        # Marker inherits PYTHONIOENCODING=utf-8 (the watcher sets it), so the pipe carries
-        # UTF-8 — but text=True alone decodes with the locale codepage (cp1252 here), and
-        # surya's tqdm block glyphs contain bytes cp1252 cannot decode (0x8F et al.). The
-        # strict-decode error killed the reader thread and deadlocked the pipe (S48).
-        encoding="utf-8", errors="replace",
-    )
-    reader = threading.Thread(target=_reader, args=(proc.stdout,), daemon=True)
-    reader.start()
-    # The cap scales with the book: a flat 3600 s silently made any book over ~1000 pages
-    # UNCONVERTIBLE (found S45 probing a 1,356-page Damodaran — 1.5-3.4 measured s/page puts it
-    # at 34-77 min, straddling the old cap). 20 s/page is ~2.5x the worst rate ever measured
-    # here (8.08 s/page, a dense 439-pp scan), so it still catches a genuine hang while never
-    # punishing a book for being long.
-    timeout_s = max(3600, pages * 20)
-
-    def _kill_and_clear() -> None:
-        _kill_tree(proc.pid)  # /T first — proc.kill() alone would orphan marker's real python
-        proc.kill()
-        proc.wait()
-        reader.join(timeout=5)
-        _clear_progress()
-
-    # Stage A (docs/18 §4A; policy §5.1 "kill early", decided 2026-07-31): the wait is now a
-    # monitor. PROGRESS_FILE's mtime is the liveness signal Marker already emits; frozen too
-    # long while the process still runs is the stall signature of BOTH wedge species (the S48
-    # pipe-deadlock froze it at zero CPU, the S45 VRAM-thrash at pinned GPU). Monitoring is
-    # best-effort and can never fail a healthy convert (S42 rule); the scaled hard timeout
-    # stays as the outer bound.
-    while True:
-        try:
-            proc.wait(timeout=30)
-            break
-        except subprocess.TimeoutExpired:
-            pass
-        elapsed = time.perf_counter() - t0
-        if elapsed >= timeout_s:
-            _kill_and_clear()
-            raise RuntimeError(f"marker timed out after {timeout_s}s ({pages} pages)")
-        try:
-            frozen_s = time.time() - PROGRESS_FILE.stat().st_mtime
-        except OSError:
-            frozen_s = elapsed  # nothing written yet (model load etc.) — measure from start
-        if frozen_s > STALL_FROZEN_S:
-            sig = _gpu_signature()
-            _kill_and_clear()
-            emit("convert", "stalled", source=src.name, frozen_s=int(frozen_s),
-                 elapsed_s=int(elapsed), **sig)
-            raise RuntimeError(
-                f"marker stalled: progress frozen {int(frozen_s)}s "
-                f"(kill-early policy, docs/18 §5.1)")
-    reader.join(timeout=5)
-    _clear_progress()
-    wall = time.perf_counter() - t0
-    if proc.returncode != 0:
-        raise RuntimeError(f"marker exited {proc.returncode}: {''.join(captured).strip()[:500]}")
-    out_dir = out_root / engine_stem
-    md_files = list(out_dir.glob("*.md"))
-    if len(md_files) != 1:
-        raise RuntimeError(f"expected exactly one .md in {out_dir}, found {len(md_files)}")
-    markdown = md_files[0].read_text(encoding="utf-8")
+    # Stage D (docs/18 §5.2): long books convert in slices. The threshold is lane-aware because
+    # the lanes cost different VRAM, and the page count is the probe's, never metadata.
+    chunking = None
+    if should_chunk(pages, lane):
+        markdown, assets_dir, wall, peak_mib, chunking = _convert_chunked(
+            src.name, engine_src, engine_stem, work, out_root, extra, pages, source_sha)
+    else:
+        out_dir, markdown, wall, peak_mib = _run_marker(
+            engine_src, engine_stem, out_root, extra, pages, src.name)
+        assets_dir = out_dir
     print(f"CONVERTED in {wall:.1f}s ({wall / pages:.1f} s/page)", flush=True)
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
-         s_per_page=round(wall / pages, 2), pages=pages)
+         s_per_page=round(wall / pages, 2), pages=pages,
+         slices=(len(chunking["seams"]) + 1) if chunking else 1,
+         peak_vram_mib=peak_mib or None)
 
     # Assemble the bundle in a dot-prefixed temp dir keyed on the source sha (L13 idiom).
-    source_sha = sha256_of(src)
     bundle_name = clamp_name(src.stem)
     tmp_dir = work / f".part-{source_sha[:16]}"
     assets = tmp_dir / "assets"
     assets.mkdir(parents=True)
-    for img in sorted(out_dir.iterdir()):
+    for img in sorted(assets_dir.iterdir()):
         if img.suffix.lower() in (".jpeg", ".jpg", ".png"):
             shutil.copy2(img, assets / img.name)
     converted_at = datetime.now(timezone.utc)
@@ -503,9 +747,15 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         "marker_version": getattr(marker, "__version__", "unknown"),
         "converted_at": converted_at.isoformat(timespec="seconds"),
     }
+    # Stage D: the seams travel WITH the book, forever. The audit scores the merged whole, and
+    # the Repair Bench needs to know where the cuts were when a figure or a sentence looks wrong
+    # near one (docs/18 §5.2). Absent on unchunked books, so nothing else has to change.
+    if chunking:
+        manifest["chunking"] = chunking
     # Rides every downstream path from here: the anchor copy, the pending/ card + resume, and
     # all three ship sites carry this same manifest, so nothing else needs to know about it.
     _stamp_supersede_safe(manifest, supersede_marker, source_sha, src.name)
+    _ledger_record(manifest, wall, peak_mib)
     body = rewrite_image_links(markdown)
     # Survival Audit of the convert stage (docs/15) — before any analyst pass, so the
     # witness is scored against the raw Marker output. Report-only; never fails the line.

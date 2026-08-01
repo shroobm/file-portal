@@ -622,6 +622,10 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .rp-age { color: var(--ok, #7fb069); }
 .rp-age.frozen { color: var(--clay, #d97757); font-weight: 600; }
 .rp-policy { padding: 3px 10px 0; font-size: 9px; font-style: italic; color: var(--text-3, #55504b); }
+/* S60 — Stage D: the policy row names the live lever value; the menu behind it stays quieter
+   than the value itself, so the row reads as "this is what will happen", not as a control. */
+.rp-policy b { color: var(--text-2, #9a938d); font-weight: 500; font-style: normal; }
+.rp-lever-note { opacity: 0.7; }
 
 /* S56 — docs/18 Stage C: the human-bless lever (flag verdicts only) */
 .ac-bless { background: rgba(127, 176, 105, 0.14); border: 1px solid rgba(127, 176, 105, 0.4); color: #7fb069; border-radius: 4px; font-size: 10px; padding: 2px 8px; cursor: pointer; margin-left: 6px; }

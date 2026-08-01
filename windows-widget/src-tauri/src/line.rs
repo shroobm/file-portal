@@ -136,7 +136,21 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "failed_count": count_pdfs(&base.join("drop").join("failed")),
         "last_shipped": last_shipped,
         "latest": latest,
+        // Stage D: the slice recognition-batch lever, so the Convert station's policy row can
+        // state what a long book will actually do instead of describing the default.
+        "chunk_batch": get_chunk_batch(gpu_pipeline_dir),
     }))
+}
+
+/// Stage D (docs/18 §5.2): the slice recognition batch. Python owns the file and re-reads it per
+/// slice; this is the read-only projection of the same value, validated identically so the glass
+/// can never advertise a number Marker would not be given.
+pub fn get_chunk_batch(gpu_pipeline_dir: &str) -> u32 {
+    fs::read_to_string(Path::new(gpu_pipeline_dir).join("chunk-batch.txt"))
+        .ok()
+        .and_then(|s| s.trim().parse::<u32>().ok())
+        .filter(|n| [8, 16, 32].contains(n))
+        .unwrap_or(16)
 }
 
 const MODES: [&str; 4] = ["ask", "local", "gemini", "off"];
