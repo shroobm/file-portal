@@ -56,6 +56,42 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S60 — OPEN 2026-08-01 (Desktop, Opus 5) — docs/19 §4 / docs/18 §5.2 STAGE D: `--page_range`
+chunking.** The signed spec is followed verbatim; nothing here is re-decided.
+
+MUSTER at open: clocks agreed — ledger S59 / `acd6cf9` (ancestor-verified) == TIME-STATE ==
+tally 51/3; tree clean. Adopted exe `3EBDC802` running (pid 12240), watcher up, drop empty,
+held 2, vault 6. ThinkPad back online, service `active`, staging still holds the rejected
+`claude-code-up-and-running` bundle (re-files a `supersede-held` receipt per sweep — 2 so far).
+**S58's display half is PROVEN on the glass** (Room event stream renders `export` rows under
+`events.jsonl + receipts`).
+
+**New standing constraint (Rab, 2026-08-01): the Gemini API is OFF until he has more usage.**
+Recorded in memory; `local` qwen3 carries everything. This also closes one of the four options
+for the claude-code book — its fate remains open, minus that one.
+
+Spec (docs/18 §5.2, signed S57 — build to this, do not relitigate): lane-aware threshold
+(clean >600 pp / scan >400 pp, page count from the pymupdf probe, never metadata) · 200-page
+slices · clean cuts with every seam recorded in `manifest["chunking"] = {slice_size, batch,
+seams:[pages]}` · slice recognition batch = USER LEVER `chunk-batch.txt` (8|16|32, default 16,
+re-read per slice; unchunked books keep 32) · resume keyed by (source_sha, page_range) so a
+re-run converts only missing slices, each slice supervised by the S52 stall killer and failing
+alone · progress gains a slice prefix + `convert/slice` events + `slices: n` on the final
+`converted` · assets renumbered by absolute page offset with markdown refs rewritten at merge ·
+the audit scores the MERGED book · plus **the conversion ledger**: every successful vault
+conversion files a learning record (pages/lane/chars-pp/s-pp/wall/chunked/slices/batch/peak
+VRAM) and the estimator upgrades from a global median to similarity-based.
+
+Order of work:
+1. Converter-side first, testable **without real GPU hours**: build the slicing/merge/resume
+   path and drive it on a synthetic long PDF (concatenate a small one past the threshold with
+   pymupdf), asserting seams, asset renumbering, resume-skips-completed, and manifest shape.
+2. The `chunk-batch.txt` lever + its policy row; the conversion ledger record + estimator.
+3. Gates: `node --check` on touched JS, clippy `-D warnings`, `cargo test`, `npm run build` →
+   SHA-8 for **Rab's** adoption (law 3).
+4. **STOP for Rab before the first REAL long-book run** (Damodaran = the acceptance test:
+   1–2 h of GPU even chunked, so it needs his go and a clear seat — law 8, `query user` first).
+
 *(S59 closed 2026-07-31 ~20:05 (Desktop, Opus 5) — **THE ROOM STOPPED WAKING THE THINKPAD EVERY
 FOUR SECONDS.** The chipped task proposed caching `vault_check` for the Room; verifying first
 (standing rule) found something better: the Room **never read it**. `gatherVM` awaited
