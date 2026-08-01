@@ -56,6 +56,37 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S61 — OPEN 2026-08-01 (Desktop, Opus 5) — give the ANALYST chunk-level resume, then restart
+Damodaran's pass protected.**
+
+Why, in one line: the analyst run died at **chunk 936 of 969 — nine minutes from done** — when
+the power went (brother switched the AC on; second outage today), and `analyst.process()` holds
+every chunk in memory and writes the markdown only at the end, so ~4 hours evaporated. The
+bundle survived intact (pre-analyst markdown, 313 assets), which is the only reason a restart is
+cheap in effort — it is not cheap in time. Rab's call: fix the gap first, then run.
+
+Design (mirrors Stage D's slice resume, which this pipeline just proved twice under real kills):
+- A per-chunk journal at `.analyst-work/<key16>/chunks.jsonl`, one JSON line per completed chunk
+  (`i`, input hash, status, output text), **fsync'd per chunk** — the whole point is surviving a
+  power cut, and an OS write cache would defeat it.
+- The key binds everything that changes the output: fenced source text + backend + program +
+  `CHUNK_TARGET`. Any change ⇒ a different key ⇒ no stale reuse, by construction.
+- On resume, each record's input hash is re-validated against the recomputed chunk at that index
+  before it is trusted; a torn final line (power cut mid-write) simply fails to parse and that
+  chunk is redone — the events.jsonl discipline.
+- Pass/reject/fail counts are recovered from the journal so the frontmatter stays truthful, and
+  the heartbeat's rate is computed from chunks actually GENERATED this run (not resumed ones),
+  so the Room's ETA does not lie after a resume — the S60 ledger lesson applied one stage over.
+- Journal removed on success. Always-on (no new parameter), so every analyst path is protected:
+  the pending-card resume, the inline `--analyst` convert, and `--reanalyze`.
+
+Then: restart Damodaran's analyst pass (969 chunks, ~4.2 h at the measured 15.7 s/chunk).
+
+⚠ Standing note for the end of that run: the audit ALREADY failed this book at the convert phase
+(0.927, degeneration true, table loops), and the lever is `report`, so on completion it will SHIP
+and the exporter will vault it. If Rab wants it parked instead, flip the audit lever to `enforce`
+— `_enforce_hold` re-reads it at ship time, so the choice can be made any time before the finish.
+
 *(S60 closed 2026-08-01 ~12:10 (Desktop, Opus 5) — **STAGE D SHIPPED AND LIVE-FIRED: DAMODARAN
 CONVERTED, AND THE ACCEPTANCE RUN FOUND TWO BUGS THE HARNESS COULD NOT.** Built to the signed
 spec verbatim: lane-aware threshold (clean >600 / scan >400 pp), 200-pp slices, resume keyed by
