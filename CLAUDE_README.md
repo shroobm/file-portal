@@ -56,8 +56,46 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S60 — OPEN 2026-08-01 (Desktop, Opus 5) — docs/19 §4 / docs/18 §5.2 STAGE D: `--page_range`
-chunking.** The signed spec is followed verbatim; nothing here is re-decided.
+*(S60 closed 2026-08-01 ~12:10 (Desktop, Opus 5) — **STAGE D SHIPPED AND LIVE-FIRED: DAMODARAN
+CONVERTED, AND THE ACCEPTANCE RUN FOUND TWO BUGS THE HARNESS COULD NOT.** Built to the signed
+spec verbatim: lane-aware threshold (clean >600 / scan >400 pp), 200-pp slices, resume keyed by
+(source_sha, page_range) published OUTSIDE the temp dir by dot-dir-then-rename, seams recorded in
+`manifest["chunking"]`, `chunk-batch.txt` lever (8|16|32, default 16, re-read per slice) with the
+Convert station's policy row rewritten to state real behaviour + the live value, slice-prefixed
+progress (the Room renders it verbatim — no widget change needed), `convert/chunking` +
+`convert/slice` events, `slices`+`peak_vram_mib` on `converted`, and **the conversion ledger**
+with a similarity-based `estimate_from_ledger()`. One enabling refactor: the monitored Marker run
+is now `_run_marker()`, shared by whole-book and slice paths, so every stall/orphan/timeout lesson
+has ONE implementation and each slice gets its own proportionate bound.
+**ACCEPTANCE (Damodaran, 1,356 pp):** 7 slices, **2,290 s / 1.69 s-pp**, anchored, card parked
+(`0d68f0e02293970c`), work dir cleaned. **Resume proven under a real kill** — slice 2's Marker
+tree `taskkill /T`'d mid-run: the book aborted rather than continuing with a hole, no `.part-`
+survived, no orphan held the GPU (all three levels died — the S48 lesson holding), and the re-run
+logged `SLICE 1/7 … RESUMED` and converted only 2–7. An **unplanned power cut** during an earlier
+attempt tested the same discipline harder and left no half-written slice, no stale lock, no
+corruption. **The wedge class is extinct.**
+**TWO DEFECTS FOUND BY THE REAL BOOK, both fixed (`6d0a560`):** (1) Marker's `--page_range`
+already numbers assets by ABSOLUTE page — the code added the slice offset on top, so asset pages
+reached **2553** on a 1,356-pp book (bands 400-599, 800-999, 1600-1799, 2400-2599). Nothing was
+lost (name and reference shifted together, every image resolved) but every page number above
+slice 1 was a lie the Repair Bench would have navigated by. Merge now keeps Marker's names +
+a `convert/asset_range_warning` tripwire. **THE LESSON: the synthetic harness confirmed the broken
+merge because its fake Marker was written from the same assumption as the code — a stub that
+shares the code's assumptions proves nothing.** (2) The ledger under-reported resumed runs (filed
+1.69 s-pp, truly spent 1.94) — now records TOTAL cost, `run_wall_s`, and `resumed_slices`.
+**TWO OPERATOR FINDINGS:** peak VRAM **9,786 / 10,240 MiB** even sliced at batch 16 (card-wide,
+less ~1.4 GB baseline) — thin margin, first hard argument for batch 8 on long clean books, and
+invisible before the ledger existed; and **the audit FAILED the book** (0.927, 25 runs,
+degeneration true) — verified NOT a seam artifact (nearest zone 357 lines from a seam, most
+700–12,000 away, every excerpt a table row): the Beer/Valentine table-loop disease in a finance
+textbook full of tables. **STILL OPEN:** Damodaran's pending card (867 analyst chunks ≈ 3 h local
+— Rab's routing call) and its failed audit; the claude-code book's fate (Gemini now OFF by Rab's
+standing instruction until he has more usage, so that option is closed); widget exe **`7B8E66E7`**
+awaiting adoption (Python fixes need no rebuild — the converter runs from the repo). NEXT: Stage E
+(queue panel, light theme, and the promise-vs-actual surfacing the ledger now feeds) or F/G.)*
+
+*(S60 plan as opened — docs/19 §4 / docs/18 §5.2 STAGE D: `--page_range`
+chunking.) The signed spec was followed verbatim; nothing was re-decided.*
 
 MUSTER at open: clocks agreed — ledger S59 / `acd6cf9` (ancestor-verified) == TIME-STATE ==
 tally 51/3; tree clean. Adopted exe `3EBDC802` running (pid 12240), watcher up, drop empty,

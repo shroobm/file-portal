@@ -61,8 +61,41 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   to one converted in a single pass**; plus the lever's refusals, the ledger record, the
   estimator's neighbour selection (and its refusal to borrow across lanes), and a short book
   still taking the single-run path with batch 32 and no chunking block. Gates: clippy
-  `-D warnings`, `node --check`, 11/11 rust tests. **Not yet run on a real long book** — the
-  Damodaran acceptance test is 1–2 h of GPU and waits for Rab's go.
+  `-D warnings`, `node --check`, 11/11 rust tests.
+
+  **ACCEPTANCE RUN — Damodaran, 1,356 pp, live (2026-08-01).** 7 slices, merged in **2,290 s
+  (1.69 s/page)**, anchored, pending card parked, slice work dir cleaned. **Resume proven under
+  a real kill**: slice 2's Marker tree was `taskkill /T`'d mid-conversion — the book aborted
+  rather than continuing with a hole, no `.part-` survived, no orphan held the GPU (all three
+  process levels died, the S48 lesson holding), and the re-run reported `SLICE 1/7 … RESUMED`
+  and converted only 2–7. An unplanned power cut during an earlier attempt tested the same
+  discipline harder still and left no half-written slice, no stale lock, and no corruption.
+  The wedge class that made this book unconvertible is extinct.
+
+  **Two defects the synthetic harness could not have caught, both fixed:**
+  1. **Asset page numbers were inflated.** Marker's `--page_range` already numbers assets by
+     ABSOLUTE page; the offset was added on top, so a 1,356-page book produced asset pages up to
+     **2553** in bands of 400-599, 800-999, 1600-1799, 2400-2599. Nothing was lost (filename and
+     reference shifted together, so every image resolved), but every page number above slice 1
+     was wrong — and that is what the Repair Bench will navigate by. The merge now keeps
+     Marker's own names and rewrites nothing, with a tripwire (`convert/asset_range_warning`) if
+     an asset ever falls outside its slice's range. **The harness confirmed the broken merge
+     because its fake Marker was written from the same wrong assumption as the code** — a stub
+     that shares the code's assumptions proves nothing; it now emits absolute names measured
+     from the real run, and asserts no asset may claim a page beyond the book.
+  2. **The ledger flattered itself on resumed runs** — Damodaran filed 1.69 s/pp having truly
+     spent **1.94**, because the resumed slice's 342.7 s was invisible to the re-run. It now
+     records the book's TOTAL cost (reading each resumed slice's `wall_s` from its `.done`),
+     keeps this run's elapsed as `run_wall_s`, and counts `resumed_slices`. Otherwise every
+     retry teaches the estimator to promise more than the GPU can deliver. 30 checks now pass.
+
+  **Two findings for the operator.** **Peak VRAM 9,786 MiB of 10,240** even sliced at batch 16
+  (card-wide, so less ~1.4 GB baseline) — thin margin, the first hard argument for batch 8 on
+  long clean-lane books, and a number that was invisible before the ledger existed. And **the
+  audit failed the book** (survival 0.927, 25 omission runs, degeneration true) — verified NOT
+  a seam artifact: the nearest zone is 357 lines from a seam, most are 700–12,000 away, and
+  every excerpt is a table row. It is the Beer/Valentine table-loop disease in a finance
+  textbook full of tables. Parked in `pending/`; nothing shipped.
 
 ### Fixed
 
