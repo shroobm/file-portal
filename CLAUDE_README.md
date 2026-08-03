@@ -56,6 +56,37 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S62 — OPEN 2026-08-03 ~07:40 UTC (Desktop, Fable 5, solo overnight; Rab up ~08:00 EDT) —
+THE GATES: Stage E + Stage F + Stage G (Repair Bench), new widget staged, live-tested.**
+
+Commissioned with cookie #52 and an explicit autonomy grant ("you're the engineer and
+developer here"). docs/19's STOP-points are honored by building provisional, lever-guarded,
+reversible versions flagged for Rab's morning signature — never by silently deciding policy:
+
+1. **Stage E (docs/19 §5):** Room **queue panel** (read-only order + `estimate_from_ledger`
+   est. start; the queue ORDER-control sidecar contract is **NOT built** — that changes watcher
+   semantics and needs Rab's signature, so the design ships in the morning note instead);
+   `chunk-batch.txt` as a **visible lever selector**; the **light theme finished** (S34 token
+   layer) + a theme toggle; converter `done` events gain **promise-vs-actual**; the pre-flight
+   card upgraded from global-median ETA to the ledger-fed estimator.
+2. **Stage F (docs/19 §6):** the **algedonic line** as a projection: unacknowledged
+   `died`/`stalled`/`fail`/`held` events (+ `supersede-held` receipts) older than **M** minutes
+   escalate to a banner on all three surfaces; ⚑ ack lever; M = `algedonic-minutes.txt`
+   (default 30, **PROVISIONAL** — M and the ack mechanism are Rab's call per docs/19, both
+   flagged for signature).
+3. **Stage G (docs/19 §7):** `prototypes/repair-bench/` — stdlib-python server + browser bench:
+   side-by-side source-PDF page raster ⇄ editable markdown, navigated by the audit's flagged
+   zones; paste OR auto-crop repair image → bundle `assets/_repair_pN_k.png` → embedded ref at
+   the zone → `manifest["repairs"]` provenance; **prospective re-score PREVIEW only** (the real
+   audit policy is untouched — image credit is Rab's signature); sandbox mode for safe trials.
+4. **Gates:** `node --check` on touched JS · `cargo clippy --all-targets -- -D warnings` ·
+   `cargo test` · `npm run build` → SHA-8 staged for **RAB's** adoption (law 3).
+5. **Acceptance:** a scripted Repair-Bench repair on a **sandbox copy** of held Valentine
+   (real zones, real raster, real provenance stamp; the real held bundle untouched), then a
+   small-book live pipeline run (~2 min GPU; seat verified free at 1,730/10,240 MiB baseline)
+   proving convert + promise-vs-actual + conversion-ledger + ship/dedup after the changes.
+6. Lockstep close + morning note + Gmail draft.
+
 *(S61 closed 2026-08-03 ~07:15 UTC (Desktop; built 2026-08-01 on Opus 5, closed by Fable 5 —
 the arc's power cuts kept ending sessions before close-out, so the flight recorder catches up
 here) — **ANALYST CHUNK-LEVEL RESUME BUILT + PROVEN BY A REAL POWER CUT MID-PASS, AND DAMODARAN
