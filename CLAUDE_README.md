@@ -56,36 +56,48 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S61 — OPEN 2026-08-01 (Desktop, Opus 5) — give the ANALYST chunk-level resume, then restart
-Damodaran's pass protected.**
+*(S61 closed 2026-08-03 ~07:15 UTC (Desktop; built 2026-08-01 on Opus 5, closed by Fable 5 —
+the arc's power cuts kept ending sessions before close-out, so the flight recorder catches up
+here) — **ANALYST CHUNK-LEVEL RESUME BUILT + PROVEN BY A REAL POWER CUT MID-PASS, AND DAMODARAN
+ENFORCE-PARKED ON RAB'S SIGNED CALL.** The build (`5dd25f3`; CHANGELOG entry this close):
+`analyst.process()` journals every completed chunk to `.analyst-work/<key16>/chunks.jsonl`,
+fsync'd per line; the key binds fenced text + backend + program + `CHUNK_TARGET`; each record's
+input hash is re-validated at resume; a torn final line is redone; **failed chunks deliberately
+NOT journalled** (transient backend errors must retry, not be remembered); counts recovered so
+the frontmatter stays truthful; heartbeat rate counts only chunks generated THIS run (the S60
+ledger-honesty lesson one stage over); journal removed on success; always-on across all three
+analyst paths. 21-check harness incl. a simulated mid-run kill — resumed book byte-identical.
+**LIVE FIRE:** the arc's third power cut killed the real pass at 688/969; the restart
+re-validated 688 journalled chunks and lost **~16 seconds**, where the pre-build cut at 936/969
+had lost **~4 hours**. Pass completed **945✓ / 24🛡 / 0✗ (688 resumed, 6,561.7 s)**.
+**Analyst-phase audit: FAIL (0.9525, 25 runs)** — joining the convert-phase FAIL (0.927,
+degeneration, table loops): **both phases condemn this book independently.** The ship then
+failed honestly (ThinkPad unreachable, tailscale 502): nothing vaulted, bundle safe in
+pending/, card `failed`, anchor copy on disk — nothing lost.
+**THE RETRY (2026-08-03, this close):** MUSTER clean (muster.sh: clocks agree at S60/`a6e28e5`,
+tally 51/3; HEAD ahead by exactly the declared open-S61 commits — expected, not a fork).
+ThinkPad pinged up; lever flipped report→**enforce** (Rab signed the park in the handoff
+prompt); then exactly `--resume 0d68f0e02293970c --backend none` — ships the already-analyzed
+bundle, **no analyst re-run** (a plain `--backend local` retry would have re-analyzed the
+analyst's own output: the segment-analyst TODO's live trap, avoided). Result in seconds:
+**`RESUMED+HELD` — held/ = 3 (Damodaran beside Valentine + Cybernetics-stale), pending empty,
+`audit/held` + `gate/resolved held:true` emitted, and the vault verifiably untouched (bare
+live-read: still `70c60e6`)**. Under enforce the resume path never opens a network connection;
+the park is purely local. **Lever LEFT at `enforce`** — deliberate: fail verdicts now park
+instead of vaulting; Rab can flip it from the Assay card if he wants report-mode standing.
+**NEXT — Rab's pick:** Stage E (queue panel + light theme + surfacing the conversion ledger's
+estimates) / Stage F (algedonic line) / **Stage G (Repair Bench — its case is now strongest:
+Valentine AND Damodaran are both parked table-loop patients, and the human is the vision
+model)**. Also open: the claude-code book's fate (vault note 5; Gemini option closed); widget
+exe **`7B8E66E7`** still awaiting Rab's adoption (all changes since are Python-side — no
+rebuild needed); the batch-8-on-long-clean-books policy call (S60's 9,786/10,240 MiB margin
+finding). Damodaran's Repair-Bench work order travels with the held bundle: both phase
+verdicts + `manifest["chunking"]` seams.)*
 
-Why, in one line: the analyst run died at **chunk 936 of 969 — nine minutes from done** — when
-the power went (brother switched the AC on; second outage today), and `analyst.process()` holds
-every chunk in memory and writes the markdown only at the end, so ~4 hours evaporated. The
-bundle survived intact (pre-analyst markdown, 313 assets), which is the only reason a restart is
-cheap in effort — it is not cheap in time. Rab's call: fix the gap first, then run.
-
-Design (mirrors Stage D's slice resume, which this pipeline just proved twice under real kills):
-- A per-chunk journal at `.analyst-work/<key16>/chunks.jsonl`, one JSON line per completed chunk
-  (`i`, input hash, status, output text), **fsync'd per chunk** — the whole point is surviving a
-  power cut, and an OS write cache would defeat it.
-- The key binds everything that changes the output: fenced source text + backend + program +
-  `CHUNK_TARGET`. Any change ⇒ a different key ⇒ no stale reuse, by construction.
-- On resume, each record's input hash is re-validated against the recomputed chunk at that index
-  before it is trusted; a torn final line (power cut mid-write) simply fails to parse and that
-  chunk is redone — the events.jsonl discipline.
-- Pass/reject/fail counts are recovered from the journal so the frontmatter stays truthful, and
-  the heartbeat's rate is computed from chunks actually GENERATED this run (not resumed ones),
-  so the Room's ETA does not lie after a resume — the S60 ledger lesson applied one stage over.
-- Journal removed on success. Always-on (no new parameter), so every analyst path is protected:
-  the pending-card resume, the inline `--analyst` convert, and `--reanalyze`.
-
-Then: restart Damodaran's analyst pass (969 chunks, ~4.2 h at the measured 15.7 s/chunk).
-
-⚠ Standing note for the end of that run: the audit ALREADY failed this book at the convert phase
-(0.927, degeneration true, table loops), and the lever is `report`, so on completion it will SHIP
-and the exporter will vault it. If Rab wants it parked instead, flip the audit lever to `enforce`
-— `_enforce_hold` re-reads it at ship time, so the choice can be made any time before the finish.
+*(S61 plan as opened 2026-08-01: journal-per-completed-chunk analyst resume — fsync'd,
+key-bound, hash-revalidated, failed-chunks-not-journalled — then restart Damodaran's 969-chunk
+pass protected. Built and fired as designed; the ⚠ lever standing note was executed as
+written: `_enforce_hold` re-read the lever at ship time and parked the book.)*
 
 *(S60 closed 2026-08-01 ~12:10 (Desktop, Opus 5) — **STAGE D SHIPPED AND LIVE-FIRED: DAMODARAN
 CONVERTED, AND THE ACCEPTANCE RUN FOUND TWO BUGS THE HARNESS COULD NOT.** Built to the signed

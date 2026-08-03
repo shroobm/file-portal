@@ -8,6 +8,35 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S61 — ANALYST chunk-level resume: a power cut costs one chunk, not an afternoon
+  (2026-08-01 → 2026-08-03).** `analyst.process()` held every finished chunk in memory and wrote
+  the markdown only at the end, so the S61 power cut at **chunk 936 of 969 — nine minutes from
+  done** — erased ~4 hours of qwen3 work while the bundle sat intact beside it. The analyst now
+  journals every completed chunk as it finishes and resumes from the journal after any death
+  (`windows-converter/analyst.py`, mirroring Stage D's slice resume one stage over).
+  - **The journal** — `.analyst-work/<key16>/chunks.jsonl`, one JSON line per completed chunk
+    (`i`, input hash, status, output), **fsync'd per line**: surviving power cuts is the whole
+    point, and an OS write cache would defeat it.
+  - **The key binds everything that changes the output** — fenced source text + backend +
+    program + `CHUNK_TARGET`. Any change ⇒ a different key ⇒ no stale reuse, by construction.
+  - **Trust is re-earned at resume:** each record's input hash is re-validated against the
+    recomputed chunk at that index before it is believed; a torn final line (power cut
+    mid-write) fails to parse and that one chunk is redone — the events.jsonl discipline.
+  - **Failed chunks are deliberately NOT journalled** — a transient backend error must be
+    retried on resume, not remembered as a permanent failure.
+  - Pass/reject/fail counts are recovered from the journal so the frontmatter stays truthful,
+    and the heartbeat's rate counts only chunks generated THIS run (resumed ones excluded), so
+    the Room's ETA does not lie after a resume — the S60 conversion-ledger honesty lesson
+    applied to the analyst. Journal removed on success. Always-on, no new parameter: the
+    pending-card resume, the inline `--analyst` convert, and `--reanalyze` are all protected.
+
+  **Verified by a 21-check harness** (backend faked at the process boundary): journal shape,
+  hash-mismatch rejection, torn-line tolerance, key isolation, and a simulated mid-run kill —
+  the resumed book **byte-identical** to an uninterrupted run. **Then verified by the real
+  thing:** the arc's third power cut killed Damodaran's live pass at chunk 688/969; the restart
+  re-validated all 688 journalled chunks and lost **~16 seconds** where the pre-build cut had
+  lost ~4 hours. The pass completed 945 ✓ / 24 🛡 / 0 ✗ (688 resumed, 6,561.7 s total).
+
 - **S60 — STAGE D: `--page_range` chunking, the slice lever, and the conversion ledger
   (2026-08-01).** Long books were the last failure class that could still eat a night: over
   ~600 pages a single Marker run balloons its batch, thrashes VRAM and dies hours in, taking
