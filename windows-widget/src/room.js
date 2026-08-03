@@ -85,14 +85,64 @@ async function gatherVM() {
   // Same reason `receipts_read` below is the CACHE read — its network fetch rides that same
   // Dock poll (Stage C2, docs/19 §3.3). If a future Room panel needs live vault state, read a
   // cached projection; do NOT give this loop a network cadence.
-  const [ls, assay, shift, pf, watcher, metrics, vram, receipts] = await Promise.all([
+  const [ls, assay, shift, pf, watcher, metrics, vram, receipts, alg] = await Promise.all([
     call("line_state"), call("assay_status"), call("shift_summary"),
     call("preflight_list"), call("watcher_status"),
     call("room_metrics"), call("gpu_vram"), call("receipts_read"),
+    call("algedonic_state"), // Stage F: local file derivation, no network (the S59 law holds)
   ]);
   try { gateMode = (await invoke("analyst_mode_get")) || gateMode; } catch { /* keep */ }
   sampleGpu(vram); // append this poll's GPU reading (VRAM/util/temp) to the rolling windows (S38/S41)
-  return { ls, assay, shift, pf: pf || [], watcher, metrics, vram, receipts };
+  return { ls, assay, shift, pf: pf || [], watcher, metrics, vram, receipts, alg };
+}
+
+// Stage F (docs/18 §6): the algedonic banner — pain that outlived M minutes unacknowledged.
+// Terracotta by design law #2: an unacknowledged escalation IS "your hand is required". The
+// M selector + ⚑ ack are PROVISIONAL levers (docs/19 §6 — Rab signs the final mechanism).
+const ALG_KIND = {
+  held: "parked in held/", "vault-held": "vault refused", stalled: "stalled",
+  failed: "failed", "bless-invalid": "bless rejected",
+};
+function algedonicBanner(d) {
+  const a = d.alg;
+  if (!a || !a.available) return "";
+  const esca = (a.alerts || []).filter((x) => x.escalated);
+  if (!esca.length) return "";
+  const rows = esca.slice(0, 4).map((x) =>
+    `<div class="alg-row"><span class="alg-age">${x.age_min >= 60 ? Math.round(x.age_min / 60) + "h" : x.age_min + "m"}</span>` +
+    `<span class="alg-msg">${esc(shortName(x.bundle) || x.bundle)} — ${ALG_KIND[x.kind] || esc(x.kind)}` +
+    `${x.detail ? ` · ${esc(String(x.detail).slice(0, 40))}` : ""}</span>` +
+    `<button class="alg-ack" data-id="${esc(x.id)}" title="acknowledge this occurrence">⚑ ack</button></div>`).join("");
+  return `<div class="alg-banner"><div class="alg-head"><span class="alg-title">⚑ ALGEDONIC</span>` +
+    `<span class="alg-sub">${esca.length} unacknowledged &gt; ${a.m_minutes} m` +
+    `${a.m_provisional ? " · provisional (docs/19 §6)" : ""}</span><span class="rp-grow"></span>` +
+    [15, 30, 60, 240].map((m) =>
+      `<button class="alg-m${a.m_minutes === m ? " on" : ""}" data-m="${m}">${m >= 60 ? m / 60 + "h" : m + "m"}</button>`).join("") +
+    `</div>${rows}</div>`;
+}
+
+// Stage E (docs/19 §5): the queue, in the watcher's own (name-sorted) order — read-only.
+// The ORDER control is a watcher-contract change awaiting Rab's signature; until he signs,
+// this panel observes and never steers.
+function queuePanel(d) {
+  const ls = d.ls || {};
+  const q = ls.queue || [];
+  const conv = ls.converting;
+  const est = ls.estimate;
+  const fmtB = (b) => (b == null ? "—" : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
+  const convRow = conv
+    ? `<div class="q-row converting"><span class="q-pos">▶</span><span class="q-name">${esc(conv)}</span>` +
+      `<span class="q-meta">${est && est.eta_s != null ? `promised ${etaText(est.eta_s)} · ${esc(est.basis)}${est.samples ? `×${est.samples}` : ""}` : "converting"}</span></div>`
+    : "";
+  const rows = q.map((f, i) =>
+    `<div class="q-row"><span class="q-pos">${i + 1}</span><span class="q-name">${esc(f.name)}</span>` +
+    `<span class="q-meta">${fmtB(f.bytes)}${i === 0 && !conv ? " · next" : ""}</span></div>`).join("");
+  const note = (q.length || conv)
+    ? `<div class="rp-note">estimates appear at probe (pages are measured, never metadata) · reordering awaits a signed watcher contract</div>`
+    : `<div class="rp-note">queue empty — drop a PDF on the ⚡ tile</div>`;
+  return `<div class="rp rp-queue"><div class="rp-head"><span class="rp-title">≡ Queue</span>` +
+    `<span class="rp-grow"></span><span class="rp-file">${q.length + (conv ? 1 : 0)} item(s) · watcher order</span></div>` +
+    `<div class="rp-body">${convRow}${rows}${note}</div></div>`;
 }
 
 // ---- render -------------------------------------------------------------------------------
@@ -214,19 +264,34 @@ function convertPanel(d) {
   const vram = v && v.total ? `${Number(v.used).toFixed(1)} GB` : "—";
   const state = converting ? "RUNNING" : "IDLE";
   const stateCol = converting ? "var(--ok)" : "var(--text-3)";
-  // Live progress from measured data (S37): elapsed / (elapsed + estimated-remaining). Capped at
-  // 95% until the 'converted' event actually fires — it's an ETA-based estimate, kept honest.
+  // Live progress from measured data (S37): elapsed ÷ total. Capped at 95% until the
+  // 'converted' event actually fires — it's an estimate, kept honest. Stage E: when the
+  // ledger made a PROMISE at probe time (Python's .convert-estimate.json, projected verbatim
+  // in ls.estimate — never re-derived here), the bar runs against the promise; otherwise the
+  // legacy global-median ETA carries it.
+  const est = ls.estimate;
+  const promisedTotal = est && est.eta_s != null ? est.eta_s : null;
   const el = ls.convert_elapsed_s, rem = ls.converting_eta_s;
   let pct = converting ? 6 : 100;
-  if (converting && el != null && rem != null && el + rem > 0) pct = Math.min(95, Math.round(el / (el + rem) * 100));
+  if (converting && promisedTotal != null && el != null && promisedTotal > 0)
+    pct = Math.min(95, Math.round(el / promisedTotal * 100));
+  else if (converting && el != null && rem != null && el + rem > 0)
+    pct = Math.min(95, Math.round(el / (el + rem) * 100));
   const elapsedTxt = converting && el != null ? etaText(el) + " elapsed" : "";
+  const promiseTxt = converting && est
+    ? (est.eta_s != null
+      ? `${etaText(Math.max(0, promisedTotal - (el || 0)))} left · ${est.s_per_page} s-pp (${esc(est.basis)}${est.samples ? ` ×${est.samples}` : ""})`
+      : "no ledger evidence for this shape yet")
+    : "";
   // S42: the REAL current Marker stage + per-page count, streamed live (docs/16 §8 #3). The bar
   // stays the monotonic elapsed÷ETA estimate (forward-only); the stage row is the true progress.
   const stageTxt = converting && ls.convert_stage
     ? `${esc(ls.convert_stage)}${ls.convert_total ? ` · ${ls.convert_n}/${ls.convert_total}` : ""}`
     : "";
   const note = stageTxt
-    ? "stage + item count = live from Marker · bar = elapsed ÷ measured ETA"
+    ? (promisedTotal != null
+      ? "stage + item count = live from Marker · bar = elapsed ÷ the ledger's promise"
+      : "stage + item count = live from Marker · bar = elapsed ÷ measured ETA")
     : "progress = elapsed ÷ measured ETA (Marker stage appears once it starts)";
   // Stage B (docs/18 §4B): render the progress stream's AGE — the same liveness derivative the
   // Stage A stall detector kills on at 900 s. Clay past 120 s: the human sees the freeze first.
@@ -240,9 +305,10 @@ function convertPanel(d) {
     `<div class="rp-bar${converting ? " live" : ""}"><i style="width:${pct}%;background:${converting ? "var(--clay)" : "var(--border-strong)"}"></i></div>` +
     `<div class="rp-grid">` +
     (stageTxt ? `<span>stage</span><b>${stageTxt}</b>` : `<span>eta</span><b>${eta}</b>`) +
+    (promiseTxt ? `<span>promise</span><b>${promiseTxt}</b>` : "") +
     `<span>elapsed</span><b>${elapsedTxt || "—"}</b>` +
     (converting ? `<span>liveness</span><b>${ageHtml}</b>` : "") +
-    `<span>engine</span><b>marker · batch 32</b>` +
+    `<span>engine</span><b>marker</b>` +
     `<span>VRAM</span><b>${vram}</b>` +
     `</div><div class="rp-note">${note}</div>` +
     (ls.analyst_n != null && ls.analyst_total != null
@@ -254,9 +320,13 @@ function convertPanel(d) {
     // Stage D shipped (S60): the row states what a long book will ACTUALLY do, including the
     // live lever value — it read "chunking pending spec review" for three sessions after the
     // spec was signed, and a policy row that describes the past is worse than none.
+    // Stage E: the batch value graduated from a stated number to a LIVE LEVER — three buttons
+    // writing chunk-batch.txt through the backend's validated setter, re-read per slice.
     `<div class="rp-policy">policy: stall → kill early &gt;15 m · long books → 200-pp resumable slices ` +
-    `(clean &gt;600 pp · scan &gt;400 pp) · slice batch <b>${esc(ls.chunk_batch ?? 16)}</b> ` +
-    `<span class="rp-lever-note">(chunk-batch.txt: 8 | 16 | 32)</span></div>` +
+    `(clean &gt;600 pp · scan &gt;400 pp) · slice batch ` +
+    [8, 16, 32].map((n) =>
+      `<button class="rp-batch${(ls.chunk_batch ?? 16) === n ? " on" : ""}" data-batch="${n}">${n}</button>`).join("") +
+    `<span class="rp-lever-note"> re-read per slice · 8 = VRAM headroom (S60: batch 16 peaked 9.8/10.2 GB)</span></div>` +
     `</div></div>`;
 }
 
@@ -413,10 +483,10 @@ function render(vm) {
   if (surface === "wall") { renderWall(vm); return; }
   roomEl.className = "room-mode";
   roomEl.innerHTML =
-    header(vm) + stationRail(vm) +
+    header(vm) + algedonicBanner(vm) + stationRail(vm) +
     `<canvas id="room-belt" class="room-belt"></canvas>` +
     kpiTiles(vm) + gpuStrip(vm) +
-    `<div class="room-panels">${convertPanel(vm)}${assayPanel(vm)}${eventsPanel(vm)}</div>` +
+    `<div class="room-panels">${convertPanel(vm)}${queuePanel(vm)}${assayPanel(vm)}${eventsPanel(vm)}</div>` +
     `<div class="room-foot"><span>${esc(shiftLine(vm))}</span><span class="rf-lin">Control Room · projection of the live pipeline · docs/16</span></div>`;
   wire();
   attachBelt(vm); // persistent chips (module state) survive the innerHTML replace
@@ -470,6 +540,25 @@ function wire() {
   // tree. (Controls — gate mode, audit lever, re-convert — live in the Dock + the assay panel.)
   roomEl.querySelectorAll(".rl-st").forEach((el) =>
     el.addEventListener("click", (ev) => openDrill(el.dataset.seg, ev)));
+  // Stage F: ⚑ acknowledge one occurrence (a NEW occurrence re-alarms — silencing the class
+  // is deliberately impossible), and the provisional M selector.
+  roomEl.querySelectorAll(".alg-ack").forEach((b) => b.addEventListener("click", async () => {
+    b.disabled = true;
+    try { await invoke("algedonic_ack", { id: b.dataset.id }); refresh(); }
+    catch (e) { b.disabled = false; deps.setStatus?.(`Ack: ${e}`); }
+  }));
+  roomEl.querySelectorAll(".alg-m").forEach((b) => b.addEventListener("click", async () => {
+    try { await invoke("algedonic_minutes_set", { m: Number(b.dataset.m) }); refresh(); }
+    catch (e) { deps.setStatus?.(`Algedonic M: ${e}`); }
+  }));
+  // Stage E: the slice-batch lever — validated backend write, Python re-reads per slice.
+  roomEl.querySelectorAll(".rp-batch").forEach((b) => b.addEventListener("click", async () => {
+    try {
+      const v = await invoke("chunk_batch_set", { batch: Number(b.dataset.batch) });
+      deps.setStatus?.(`Slice batch → ${v} (takes effect at the next slice)`);
+      refresh();
+    } catch (e) { deps.setStatus?.(`Batch: ${e}`); }
+  }));
 }
 
 // ---- the drill-down observation system (S36): station → live, real on-disk file tree --------
@@ -563,10 +652,13 @@ function renderDrillBody() {
   }));
 }
 
+// Stage E: the theme choice PERSISTS (docs/18 §7 — "light theme: finish, don't re-architect").
+// main.js applies the stored value at boot, so every launch opens in the chosen theme.
 function toggleTheme() {
   const root = document.documentElement;
   const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
   root.setAttribute("data-theme", next);
+  try { localStorage.setItem("fp-theme", next); } catch { /* storage unavailable — session-only */ }
 }
 
 let d0 = {}; // last view-model (for handlers that need current mode)
@@ -700,6 +792,8 @@ function renderWall(vm) {
     `<div class="wall">` +
     `<div class="wall-top"><span class="wl-brand">◆ File Portal</span><button class="rh-theme" id="room-theme">◐</button></div>` +
     `<div class="wall-verdict" style="color:${sv.color}">${sv.word.toUpperCase()}</div>` +
+    // Stage F: escalated pain is visible from across the room — that is the algedonic point.
+    ((vm.alg?.escalated) ? `<div class="wall-alg">⚑ ${vm.alg.escalated} unacknowledged &gt; ${vm.alg.m_minutes} m</div>` : "") +
     `<div class="wall-line">${dots}</div>` +
     `<div class="wall-heroes">` +
     `<div class="wl-hero"><div class="wl-hv" style="color:${survCol}">${survStr}</div><div class="wl-hl">survival avg</div></div>` +

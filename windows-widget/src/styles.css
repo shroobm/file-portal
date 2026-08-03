@@ -105,7 +105,8 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .rg-spark { height: 20px; margin-top: 3px; }
 .rg-spark .rk-spark { width: 100%; height: 20px; }
 
-.room-panels { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px; }
+/* Stage E: four panels (Convert · Queue · Assay · Events) — 2×2 reads better than a 4-row */
+.room-panels { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; }
 .rp { background: var(--surface-1); border: 1px solid var(--border); border-radius: var(--r); overflow: hidden; }
 .rp.fail { border-color: var(--clay); }
 .rp-head { display: flex; align-items: center; gap: 6px; padding: 7px 10px; border-bottom: 1px solid var(--border); }
@@ -631,6 +632,65 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .ac-bless { background: rgba(127, 176, 105, 0.14); border: 1px solid rgba(127, 176, 105, 0.4); color: #7fb069; border-radius: 4px; font-size: 10px; padding: 2px 8px; cursor: pointer; margin-left: 6px; }
 .ac-bless:hover { background: rgba(127, 176, 105, 0.26); }
 .ac-bless:disabled { opacity: 0.45; cursor: default; }
+
+/* Stage E (docs/19 §5) — the queue panel: the watcher's real order, observed not steered. */
+.rp-queue .rp-body { max-height: 190px; overflow-y: auto; }
+.q-row { display: flex; align-items: baseline; gap: 8px; font-size: 10px; padding: 2px 0; min-width: 0; }
+.q-pos { flex: none; width: 16px; text-align: right; color: var(--text-3); font-variant-numeric: tabular-nums; }
+.q-name { color: var(--text-2); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.q-meta { flex: none; margin-left: auto; color: var(--text-3); font-size: 9px; white-space: nowrap; }
+.q-row.converting .q-pos { color: var(--clay); }
+.q-row.converting .q-name { color: var(--text); }
+.q-row.converting .q-meta { color: var(--clay); }
+
+/* Stage E — the slice-batch lever buttons inside the policy row. The active value is the
+   statement; the other two are quiet options (the row still reads as "this is what happens"). */
+.rp-batch {
+  font-family: var(--font-mono); font-size: 9px; cursor: pointer; margin: 0 1px;
+  border: 1px solid var(--border); border-radius: 5px; padding: 1px 6px;
+  background: var(--surface-2); color: var(--text-3); font-style: normal;
+}
+.rp-batch.on { color: var(--warn); border-color: var(--warn); background: var(--warn-bg); }
+.rp-batch:hover:not(.on) { color: var(--text-2); }
+
+/* Stage F (docs/18 §6) — the algedonic banner. Terracotta by design law #2: an escalated,
+   unacknowledged alert is exactly "your hand is required". Nothing else in the Room pulses. */
+.alg-banner {
+  border: 1px solid var(--clay); border-radius: var(--r); background: var(--clay-bg);
+  margin-bottom: 10px; padding: 6px 10px 7px;
+  animation: assay-pulse 1.7s ease-in-out infinite;
+}
+@media (prefers-reduced-motion: reduce) { .alg-banner { animation: none; } }
+.alg-head { display: flex; align-items: center; gap: 8px; margin-bottom: 3px; }
+.alg-title { color: var(--clay); font-size: 10px; letter-spacing: 1.5px; font-weight: 600; }
+.alg-sub { color: var(--text-2); font-size: 9px; }
+.alg-m {
+  font-family: var(--font-mono); font-size: 8.5px; cursor: pointer;
+  border: 1px solid var(--border); border-radius: 5px; padding: 1px 5px;
+  background: var(--surface-2); color: var(--text-3);
+}
+.alg-m.on { color: var(--clay); border-color: var(--clay); }
+.alg-row { display: flex; align-items: baseline; gap: 8px; font-size: 10px; padding: 2px 0; min-width: 0; }
+.alg-age { flex: none; width: 26px; color: var(--clay); font-variant-numeric: tabular-nums; }
+.alg-msg { color: var(--text); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.alg-ack {
+  flex: none; margin-left: auto; font-family: var(--font-mono); font-size: 9px; cursor: pointer;
+  border: 1px solid var(--clay); border-radius: 5px; padding: 1px 7px;
+  background: var(--surface-1); color: var(--clay);
+}
+.alg-ack:hover { background: var(--clay); color: var(--surface-1); }
+.alg-ack:disabled { opacity: 0.45; cursor: default; }
+
+/* Stage F — the Dock's quiet chip + the Wall's across-the-room flag. */
+#algedonic-chip {
+  margin: 0 12px 6px; padding: 4px 10px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(217, 119, 87, 0.55); background: rgba(217, 119, 87, 0.12);
+  color: #d97757; font-family: Consolas, "Cascadia Mono", monospace; font-size: 10px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+}
+#algedonic-chip:hover { background: rgba(217, 119, 87, 0.22); }
+.wall-alg { text-align: center; color: var(--clay); font-size: clamp(12px, 2vw, 18px);
+  font-family: var(--font-mono); margin-top: 4px; }
 
 /* S58 — docs/19 §3 Stage C2: the ⟲ analyst-only re-run, and the per-row remedy trio.
    ⟲ wears the flow blue, not terracotta: re-convert spends GPU-hours re-reading a PDF, this

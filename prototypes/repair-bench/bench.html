@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>Repair Bench</title>
+<style>
+  /* The Room's token language (S34), lifted — the bench should feel like the same factory. */
+  :root {
+    color-scheme: dark;
+    --bg:#100e0c; --surface-1:#17130f; --surface-2:#1e1814; --elev:#241d18;
+    --border:rgba(240,228,216,.08); --border-strong:rgba(240,228,216,.16);
+    --text:#ece7e1; --text-2:#a89f95; --text-3:#6f665d;
+    --clay:#d97757; --clay-bg:rgba(217,119,87,.13);
+    --ok:#6fbf73; --ok-bg:rgba(111,191,115,.13);
+    --warn:#e0b34c; --warn-bg:rgba(224,179,76,.13);
+    --flow:#79a6bd; --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+  }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:radial-gradient(1200px 600px at 78% -10%, var(--clay-bg), transparent 60%), var(--bg);
+         color:var(--text); font-family:var(--mono); font-size:12px; height:100vh;
+         display:flex; flex-direction:column; overflow:hidden; }
+  header { display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid var(--border); }
+  .logo { color:var(--clay); font-size:16px; }
+  .ttl { font-family:"Segoe UI",sans-serif; font-weight:600; font-size:13px; }
+  .sub { font-size:8.5px; letter-spacing:2px; color:var(--text-3); }
+  .name { color:var(--text-2); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:34vw; }
+  .badge { font-size:9px; padding:2px 8px; border-radius:6px; border:1px solid var(--border-strong); }
+  .badge.fail { color:var(--clay); border-color:var(--clay); background:var(--clay-bg); }
+  .badge.sandbox { color:var(--warn); border-color:var(--warn); background:var(--warn-bg); }
+  .grow { flex:1; }
+  button { font-family:var(--mono); font-size:10px; color:var(--text-2); background:var(--surface-2);
+           border:1px solid var(--border-strong); border-radius:7px; padding:4px 10px; cursor:pointer; }
+  button:hover { color:var(--text); background:var(--elev); }
+  button.primary { color:var(--clay); border-color:var(--clay); background:var(--clay-bg); }
+  button:disabled { opacity:.4; cursor:default; }
+
+  /* the damage map + zone chips */
+  #zonebar { padding:8px 14px 4px; border-bottom:1px solid var(--border); }
+  #map { position:relative; height:12px; border-radius:3px; background:var(--surface-2); border:1px solid var(--border); }
+  #map .z { position:absolute; top:0; bottom:0; min-width:4px; border-radius:2px; background:var(--clay); opacity:.9; cursor:pointer; }
+  #map .z.repaired { background:var(--ok); }
+  #chips { display:flex; gap:6px; margin:7px 0 4px; flex-wrap:wrap; }
+  .chip { font-size:9.5px; padding:2px 8px; border-radius:6px; border:1px solid var(--border-strong);
+          color:var(--text-2); cursor:pointer; background:var(--surface-1); }
+  .chip.sel { border-color:var(--clay); color:var(--clay); background:var(--clay-bg); }
+  .chip.repaired { border-color:var(--ok); color:var(--ok); }
+
+  main { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:10px 14px; min-height:0; }
+  .pane { display:flex; flex-direction:column; background:var(--surface-1); border:1px solid var(--border);
+          border-radius:12px; overflow:hidden; min-height:0; }
+  .pane-head { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--border);
+               font-size:10px; color:var(--text-2); }
+
+  /* left: the source page + drag-crop */
+  #pagewrap { flex:1; overflow:auto; display:flex; align-items:flex-start; justify-content:center;
+              background:var(--surface-2); }
+  #pagebox { position:relative; }
+  #pageimg { display:block; max-width:100%; }
+  #cropbox { position:absolute; border:1.5px dashed var(--clay); background:rgba(217,119,87,.14); display:none; pointer-events:none; }
+  #nopdf { padding:30px; color:var(--text-3); font-style:italic; }
+
+  /* right: the markdown at the zone */
+  #ctx { flex:1; overflow:auto; padding:8px 12px; white-space:pre-wrap; word-break:break-word;
+         font-size:11px; line-height:1.5; color:var(--text-2); }
+  #ctx .zl { background:var(--clay-bg); color:var(--clay); display:block; }
+  #ctx .rl { color:var(--ok); display:block; }
+  #editor { flex:1; display:none; background:var(--surface-2); color:var(--text); border:0; outline:0;
+            padding:10px 12px; font-family:var(--mono); font-size:11px; line-height:1.5; resize:none; }
+
+  footer { display:flex; gap:10px; padding:8px 14px; border-top:1px solid var(--border); align-items:flex-start; }
+  #repairs { flex:1; display:flex; gap:8px; overflow-x:auto; }
+  .rep { display:flex; gap:6px; align-items:center; border:1px solid var(--border-strong); border-radius:8px;
+         padding:4px 8px; font-size:9px; color:var(--text-2); white-space:nowrap; }
+  .rep img { height:34px; border-radius:4px; display:block; }
+  #verdictbox { font-size:9.5px; color:var(--text-2); max-width:34%; }
+  #verdictbox b { color:var(--text); font-weight:500; }
+  #status { position:fixed; left:14px; bottom:52px; font-size:10px; color:var(--warn); max-width:70vw;
+            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; }
+</style>
+</head>
+<body>
+<header>
+  <span class="logo">◆</span>
+  <div><div class="ttl">Repair Bench</div><div class="sub">THE HUMAN IS THE VISION MODEL</div></div>
+  <span class="name" id="bname">—</span>
+  <span class="badge" id="bverdict">—</span>
+  <span class="badge sandbox" id="bsandbox" hidden>SANDBOX — originals untouched</span>
+  <span class="grow"></span>
+  <button id="rescore">◎ re-score preview</button>
+</header>
+
+<div id="zonebar">
+  <div id="map"></div>
+  <div id="chips"></div>
+</div>
+
+<main>
+  <section class="pane">
+    <div class="pane-head">
+      <span>source page</span><span class="grow"></span>
+      <button id="pprev">◂</button>
+      <span id="pnum" style="min-width:74px;text-align:center">— / —</span>
+      <button id="pnext">▸</button>
+      <button id="cropbtn" class="primary" disabled>✂ insert crop at zone</button>
+    </div>
+    <div id="pagewrap"><div id="pagebox"><img id="pageimg" alt="" /><div id="cropbox"></div></div>
+      <div id="nopdf" hidden>source PDF not found — markdown-only repairs (paste a screenshot: Ctrl+V)</div>
+    </div>
+  </section>
+
+  <section class="pane">
+    <div class="pane-head">
+      <span>markdown at the zone</span><span class="grow"></span>
+      <button id="edit">✎ edit</button>
+      <button id="save" hidden class="primary">save</button>
+    </div>
+    <div id="ctx"></div>
+    <textarea id="editor" spellcheck="false"></textarea>
+  </section>
+</main>
+
+<footer>
+  <div id="repairs"></div>
+  <div id="verdictbox">drag a rectangle on the page, then <b>✂ insert crop at zone</b> — or Ctrl+V a screenshot.
+    Repairs land in <b>assets/_repair_pN_k.png</b>, embedded <b>![[…]]</b> at the zone, provenance in
+    <b>manifest["repairs"]</b>. Re-score is a <b>preview</b> — audit credit for repairs is Rab's unsigned policy.</div>
+</footer>
+<div id="status"></div>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
+let st = null, zone = null, page = 1, mdText = "", crop = null;
+
+function status(m) { $("status").textContent = m; if (m) setTimeout(() => { if ($("status").textContent === m) $("status").textContent = ""; }, 6000); }
+
+async function api(path, body) {
+  const r = await fetch(path, body ? { method:"POST", body: JSON.stringify(body) } : undefined);
+  const j = await r.json().catch(() => ({ error: "bad response" }));
+  if (!r.ok || j.error) throw new Error(j.error || r.status);
+  return j;
+}
+
+async function load() {
+  st = await api("/api/state");
+  mdText = (await api("/api/md")).text;
+  $("bname").textContent = st.bundle;
+  $("bverdict").textContent = st.verdict || "—";
+  $("bverdict").className = "badge" + (st.verdict === "fail" ? " fail" : "");
+  $("bsandbox").hidden = !st.sandbox;
+  $("nopdf").hidden = st.pdf_available;
+  if (!st.pdf_available) $("pagebox").style.display = "none";
+  renderZones();
+  renderRepairs();
+  if (st.zones.length) selectZone(0); else { $("ctx").textContent = "no degeneration zones — nothing on the bench"; }
+}
+
+function renderZones() {
+  const mapEl = $("map"); mapEl.innerHTML = "";
+  const chips = $("chips"); chips.innerHTML = "";
+  st.zones.forEach((z, i) => {
+    const left = Math.min(97, z.line / st.md_lines * 100);
+    const w = Math.max(0.8, Math.min(8, (z.chars || 0) / (st.md_lines * 45) * 100));
+    const b = document.createElement("div");
+    b.className = "z" + (z.repaired ? " repaired" : "");
+    b.style.left = left + "%"; b.style.width = w + "%";
+    b.title = `zone @${z.line} · ${z.chars} ch`;
+    b.onclick = () => selectZone(i);
+    mapEl.appendChild(b);
+    const c = document.createElement("span");
+    c.className = "chip" + (zone === i ? " sel" : "") + (z.repaired ? " repaired" : "");
+    c.textContent = `${z.repaired ? "✓ " : ""}@${z.line} · ${(z.chars/1000).toFixed(1)}k ch · ~p${z.page_guess}`;
+    c.onclick = () => selectZone(i);
+    chips.appendChild(c);
+  });
+}
+
+function selectZone(i) {
+  zone = i;
+  const z = st.zones[i];
+  page = z.page_guess;
+  renderZones(); renderPage(); renderCtx();
+}
+
+function renderPage() {
+  if (!st.pdf_available) { $("pnum").textContent = "—"; return; }
+  $("pageimg").src = `/api/page?n=${page}`;
+  $("pnum").textContent = `${page} / ${st.pages}`;
+  clearCrop();
+}
+
+function renderCtx() {
+  const z = st.zones[zone];
+  const lines = mdText.split("\n");
+  const at = z.adjusted_line;                 // server-adjusted — the one authority
+  const from = Math.max(0, at - 9), to = Math.min(lines.length, at + 12);
+  let html = "";
+  for (let i = from; i < to; i++) {
+    const text = esc(lines[i]).slice(0, 400) || " ";
+    if (i === at - 1) html += `<span class="zl">▶ ${text}</span>`;
+    else if (lines[i].startsWith("![[assets/_repair")) html += `<span class="rl">${text}</span>`;
+    else html += text + "\n";
+  }
+  $("ctx").innerHTML = html;
+}
+
+// ---- page stepping ----
+$("pprev").onclick = () => { if (page > 1) { page--; renderPage(); } };
+$("pnext").onclick = () => { if (page < st.pages) { page++; renderPage(); } };
+addEventListener("keydown", (e) => {
+  if ($("editor").style.display === "block") return;
+  if (e.key === "ArrowLeft") $("pprev").click();
+  if (e.key === "ArrowRight") $("pnext").click();
+});
+
+// ---- drag-crop on the page image ----
+const box = $("pagebox"), cb = $("cropbox");
+let drag = null;
+function clearCrop() { crop = null; cb.style.display = "none"; $("cropbtn").disabled = true; }
+box.addEventListener("mousedown", (e) => {
+  if (!st?.pdf_available) return;
+  const r = $("pageimg").getBoundingClientRect();
+  drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, r };
+  e.preventDefault();
+});
+addEventListener("mousemove", (e) => {
+  if (!drag) return;
+  const x1 = Math.max(0, Math.min(drag.r.width, e.clientX - drag.r.left));
+  const y1 = Math.max(0, Math.min(drag.r.height, e.clientY - drag.r.top));
+  const [a, b2] = [Math.min(drag.x0, x1), Math.max(drag.x0, x1)];
+  const [c, d] = [Math.min(drag.y0, y1), Math.max(drag.y0, y1)];
+  Object.assign(cb.style, { display:"block", left:a+"px", top:c+"px", width:(b2-a)+"px", height:(d-c)+"px" });
+  crop = [a / drag.r.width, c / drag.r.height, b2 / drag.r.width, d / drag.r.height];
+});
+addEventListener("mouseup", () => {
+  if (drag && crop && (crop[2]-crop[0]) > 0.02 && (crop[3]-crop[1]) > 0.02) $("cropbtn").disabled = false;
+  else if (drag) clearCrop();
+  drag = null;
+});
+
+$("cropbtn").onclick = async () => {
+  if (crop == null || zone == null) return;
+  try {
+    const z = st.zones[zone];
+    const res = await api("/api/repair", { zone_line: z.line, page, rect: crop, note: `zone @${z.line}` });
+    status(`✓ ${res.asset} embedded after body line ${res.inserted_after_line}`);
+    await load(); selectZone(zone);
+  } catch (e) { status(`repair failed: ${e.message}`); }
+};
+
+// ---- paste a screenshot (the original design gesture) ----
+addEventListener("paste", async (e) => {
+  if (zone == null) return;
+  const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
+  if (!item) return;
+  const blob = item.getAsFile();
+  const b64 = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
+  try {
+    const z = st.zones[zone];
+    const res = await api("/api/repair", { zone_line: z.line, page, image_b64: b64, note: `pasted · zone @${z.line}` });
+    status(`✓ pasted → ${res.asset}`);
+    await load(); selectZone(zone);
+  } catch (err) { status(`paste failed: ${err.message}`); }
+});
+
+// ---- the editor (full body text; save writes through the server, .bench-bak kept) ----
+$("edit").onclick = () => {
+  const on = $("editor").style.display !== "block";
+  $("editor").style.display = on ? "block" : "none";
+  $("ctx").style.display = on ? "none" : "block";
+  $("save").hidden = !on;
+  if (on) {
+    $("editor").value = mdText;
+    const z = st.zones[zone];
+    const upto = mdText.split("\n").slice(0, z ? z.adjusted_line : 0).join("\n").length;
+    $("editor").focus(); $("editor").setSelectionRange(upto, upto);
+    requestAnimationFrame(() => { $("editor").scrollTop = Math.max(0, ($("editor").scrollHeight * (z ? z.adjusted_line / mdText.split("\n").length : 0)) - 120); });
+  }
+};
+$("save").onclick = async () => {
+  try {
+    await api("/api/md", { text: $("editor").value });
+    status("✓ saved (backup kept as .bench-bak)");
+    $("edit").click();
+    await load(); if (zone != null) selectZone(zone);
+  } catch (e) { status(`save failed: ${e.message}`); }
+};
+
+function renderRepairs() {
+  const el = $("repairs"); el.innerHTML = "";
+  (st.repairs || []).forEach((r) => {
+    const d = document.createElement("div");
+    d.className = "rep";
+    d.innerHTML = `<img src="/api/asset?name=${encodeURIComponent(r.asset)}" alt="" />` +
+      `<span>@${r.zone_line} · p${r.page} · ${esc(r.mode)}</span>`;
+    el.appendChild(d);
+  });
+}
+
+$("rescore").onclick = async () => {
+  $("rescore").disabled = true;
+  try {
+    const r = await api("/api/rescore");
+    const dn = r.degeneration_now;
+    $("verdictbox").innerHTML =
+      `<b>re-score preview</b> · degeneration now: <b>${dn.flagged ? "STILL FLAGGED" : "clean"}</b>` +
+      ` · ${dn.zones.length} zone(s) in the current text · repairs on ${r.zones_with_repairs}/${r.original_zones}` +
+      ` original zone(s) · ${r.repairs} repair(s) total<br/><span style="color:var(--text-3)">${esc(r.note)}</span>`;
+  } catch (e) { status(`re-score failed: ${e.message}`); }
+  $("rescore").disabled = false;
+};
+
+load().catch((e) => status(`load failed: ${e.message}`));
+</script>
+</body>
+</html>

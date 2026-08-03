@@ -119,6 +119,38 @@ def _clear_progress() -> None:
         pass
 
 
+# Stage E (docs/19 §5): the ledger-fed promise, written ONCE at convert start so the widget can
+# project it verbatim. Python is the only authority on the estimate (blind spot #1: never derive
+# the same number twice in two languages); line.rs reads this file, it never recomputes it.
+ESTIMATE_FILE = Path(r"C:\Users\Bndit\ml\library\.convert-estimate.json")
+
+
+def _write_estimate_safe(source: str, pages: int, lane: str, chars: float) -> dict | None:
+    """File the conversion's PROMISE beside its progress: the similarity estimate the ledger can
+    back, or an honest absence. Best-effort in every direction — the promise must never cost
+    the conversion (S42 rule)."""
+    try:
+        est = estimate_from_ledger(pages, lane, chars)
+        payload = {"source": source, "pages": pages, "lane": lane}
+        if est:
+            payload.update(est)
+            emit("convert", "estimate", source=source, eta_s=est["eta_s"],
+                 s_per_page=est["s_per_page"], basis=est["basis"], samples=est["samples"])
+        else:
+            payload["basis"] = "none"  # no evidence — the glass must say so, not guess
+        ESTIMATE_FILE.write_text(json.dumps(payload), encoding="utf-8")
+        return est
+    except Exception:  # noqa: BLE001 — cosmetic bookkeeping, never the line's problem
+        return None
+
+
+def _clear_estimate() -> None:
+    try:
+        ESTIMATE_FILE.unlink()
+    except OSError:
+        pass
+
+
 def _kill_tree(pid: int) -> None:
     """Kill a process AND its descendants. `proc.kill()` alone kills only the console-script /
     venv launcher on Windows — the real python underneath survives and keeps the GPU (the S48
@@ -722,6 +754,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
           f" -> lane={lane} ({lane_reason})", flush=True)
     emit("convert", "probe", source=src.name, chars_per_page=round(chars, 1),
          pages=pages, lane=lane, lane_reason=lane_reason)
+    # Stage E: the promise, filed before the work (docs/18 §5.2's promise-vs-actual pairing).
+    promised = _write_estimate_safe(src.name, pages, lane, chars)
 
     # Convert from a short sanitizer-proof copy (the ThinkPad's L15 idiom): Marker derives
     # its output dir and asset names from the input stem.
@@ -743,10 +777,17 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         assets_dir = out_dir
         chunk_stats = {"cost_s": wall, "resumed_slices": 0}
     print(f"CONVERTED in {wall:.1f}s ({wall / pages:.1f} s/page)", flush=True)
+    # Stage E: the promise rides the `converted` event beside the actual, forever — the event
+    # stream is where the estimator's honesty can be audited later (docs/19 §6 hygiene).
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
          s_per_page=round(wall / pages, 2), pages=pages,
          slices=(len(chunking["seams"]) + 1) if chunking else 1,
-         peak_vram_mib=peak_mib or None)
+         peak_vram_mib=peak_mib or None,
+         **({"promised_s_per_page": promised["s_per_page"],
+             "promised_eta_s": promised["eta_s"],
+             "estimate_basis": promised["basis"],
+             "estimate_samples": promised["samples"]} if promised else {}))
+    _clear_estimate()  # the promise's live audience (the convert bar) is done with it
 
     # Assemble the bundle in a dot-prefixed temp dir keyed on the source sha (L13 idiom).
     bundle_name = clamp_name(src.stem)

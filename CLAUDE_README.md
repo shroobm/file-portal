@@ -56,36 +56,49 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S62 — OPEN 2026-08-03 ~07:40 UTC (Desktop, Fable 5, solo overnight; Rab up ~08:00 EDT) —
-THE GATES: Stage E + Stage F + Stage G (Repair Bench), new widget staged, live-tested.**
+*(S62 closed 2026-08-03 ~08:20 UTC (Desktop, Fable 5, the solo overnight Rab commissioned with
+cookie #52 — "complete the gates… make sure it's something that wows… I'll be up around 8 am")
+— **STAGES E + F + G ALL SHIPPED AND PROVEN ON THE REAL THING; THE REPAIR BENCH LIVES.**
+Full technical record: the S62 CHANGELOG entry. The shape of the night:
+**Stage E** — the ledger's promise is filed at probe time (`.convert-estimate.json` +
+`convert/estimate` event, Python the one authority; line.rs projects verbatim), the
+`converted` event pairs promise with actual forever, the Room gained the **queue panel**
+(watcher's own order, read-only — the ORDER control awaits Rab's signature), the slice batch
+became a **live 8|16|32 lever**, and the **light theme is finished + persistent**.
+**Stage F** — `algedonic.rs`: unresolved `stalled`/`failed`/`held` events + vault refusals
+escalate after **M unacknowledged minutes** to a terracotta banner (Room, per-alert ⚑ ack) +
+Dock chip + Wall flag; a later success retires a failure, only a human retires a park, a new
+occurrence re-alarms past an old ack. **M (default 30) and the ack ledger are PROVISIONAL —
+Rab signs both**, the banner says so. **Stage G** — `prototypes/repair-bench/`: the human IS
+the vision model — source page ⇄ markdown at the zone, drag-crop or paste → collision-safe
+`assets/_repair_pN_k.png` → `![[…]]` at the zone → `manifest["repairs"]` provenance;
+re-score = PREVIEW only (audit credit is Rab's unsigned policy).
+**PROOFS:** bench acceptance **26/26 on a sandbox of the REAL Valentine** (real p120 raster,
+both gestures, offset math, real bundle hash-verified untouched) + live browser drive with 0
+console errors; widget gates all green (clippy -D warnings · **16/16 tests** incl. 5 new
+algedonic · node --check · `npm run build`) + a real-shaped render harness: banner/queue/
+levers/promise/Wall-flag render, ⚑ ack + batch clicks invoke with exact payloads, theme
+persists, 0 errors dark AND light; **live fire** — bojieli 19 pp re-converted (`--dry-run`,
+89.7 s): the FIRST promise-vs-actual pair on record (promised 1.689, actual 4.72 s-pp — the
+only neighbour was a 1,356-pp monster) and the ledger immediately grew the neighbour that
+fixes it. **The estimator was watched learning inside one session.**
+**STAGED FOR RAB (his hands only, law 3): exe SHA-8 `91F190AB`** at
+`windows-widget\src-tauri\target\release\file-portal-widget.exe` (supersedes `7B8E66E7`,
+which was never adopted — this build contains S59+S60+S62). Adoption: close the widget →
+`Copy-Item` → `Get-FileHash` expecting `91F190AB` → launch.
+**AWAITING RAB'S SIGNATURES (all provisional, all flagged on the glass):** (1) algedonic M +
+ack mechanism; (2) the queue ORDER-control watcher contract (sidecar order file — designed,
+not built); (3) audit credit for Repair-Bench repairs (the preview shows what it would say);
+(4) his first REAL repair session on Valentine — the bench's graduation criteria.
+**Bench quick-start:** `marker-env python prototypes\repair-bench\bench.py b6fbdd75f6242f53
+--sandbox` → http://127.0.0.1:7077/. Housekeeping notes: bojieli anchor copies now ×6+
+(cheap, cleanup = Rab's call); acceptance sandbox kept under `prototypes\repair-bench\
+.sandbox\` for inspection (gitignored).)*
 
-Commissioned with cookie #52 and an explicit autonomy grant ("you're the engineer and
-developer here"). docs/19's STOP-points are honored by building provisional, lever-guarded,
-reversible versions flagged for Rab's morning signature — never by silently deciding policy:
-
-1. **Stage E (docs/19 §5):** Room **queue panel** (read-only order + `estimate_from_ledger`
-   est. start; the queue ORDER-control sidecar contract is **NOT built** — that changes watcher
-   semantics and needs Rab's signature, so the design ships in the morning note instead);
-   `chunk-batch.txt` as a **visible lever selector**; the **light theme finished** (S34 token
-   layer) + a theme toggle; converter `done` events gain **promise-vs-actual**; the pre-flight
-   card upgraded from global-median ETA to the ledger-fed estimator.
-2. **Stage F (docs/19 §6):** the **algedonic line** as a projection: unacknowledged
-   `died`/`stalled`/`fail`/`held` events (+ `supersede-held` receipts) older than **M** minutes
-   escalate to a banner on all three surfaces; ⚑ ack lever; M = `algedonic-minutes.txt`
-   (default 30, **PROVISIONAL** — M and the ack mechanism are Rab's call per docs/19, both
-   flagged for signature).
-3. **Stage G (docs/19 §7):** `prototypes/repair-bench/` — stdlib-python server + browser bench:
-   side-by-side source-PDF page raster ⇄ editable markdown, navigated by the audit's flagged
-   zones; paste OR auto-crop repair image → bundle `assets/_repair_pN_k.png` → embedded ref at
-   the zone → `manifest["repairs"]` provenance; **prospective re-score PREVIEW only** (the real
-   audit policy is untouched — image credit is Rab's signature); sandbox mode for safe trials.
-4. **Gates:** `node --check` on touched JS · `cargo clippy --all-targets -- -D warnings` ·
-   `cargo test` · `npm run build` → SHA-8 staged for **RAB's** adoption (law 3).
-5. **Acceptance:** a scripted Repair-Bench repair on a **sandbox copy** of held Valentine
-   (real zones, real raster, real provenance stamp; the real held bundle untouched), then a
-   small-book live pipeline run (~2 min GPU; seat verified free at 1,730/10,240 MiB baseline)
-   proving convert + promise-vs-actual + conversion-ledger + ship/dedup after the changes.
-6. Lockstep close + morning note + Gmail draft.
+*(S62 plan as opened ~07:40: Stages E+F+G with docs/19's STOP-points honored as provisional
+lever-guarded builds flagged for signature; gates; sandbox-Valentine + small-book acceptance;
+lockstep close. Executed as written — nothing was re-decided, three signatures deliberately
+left un-taken.)*
 
 *(S61 closed 2026-08-03 ~07:15 UTC (Desktop; built 2026-08-01 on Opus 5, closed by Fable 5 —
 the arc's power cuts kept ending sessions before close-out, so the flight recorder catches up

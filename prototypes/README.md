@@ -26,6 +26,7 @@ prototypes/
 | Category | Name | What it is | Status |
 |---|---|---|---|
 | `control-panel` | `opsroom` | A professional control-panel / dashboard representation of the pipeline — pipeline segmentation, a live transit viewer, the Survival Audit, live numbers and progress bars. Self-contained `opsroom.html`; opens in any browser; zero dependencies. Design lineage: Project Cybersyn's Operations Room (Beer + Bonsiepe) × the Claude Design System × modern observability practice. | Prototype — awaiting Rab's verdict |
+| `repair-bench` | *(itself)* | **Stage G (docs/19 §7): "the human IS the vision model."** Source-PDF page ⇄ markdown side-by-side, navigated by the audit's flagged zones; drag-crop or paste a screenshot → `assets/_repair_pN_k.png` embedded `![[…]]` at the zone with `manifest["repairs"]` provenance; re-score is a preview only. `bench.py` (stdlib + pymupdf) + `bench.html` + `acceptance.py`; `README.md` is its design record. **Deviation from the mocked-data rule, by signed design:** it operates on real held bundles when a human runs it (`--sandbox` for trials) — the quarantine here means the pipeline never depends on or triggers it. | Prototype — 26/26 acceptance on a sandbox of the real Valentine; awaiting Rab's first real repair (graduation criteria: docs/19 §7) |
 
 ## Rules
 

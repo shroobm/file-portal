@@ -78,6 +78,48 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
                     .ok()?;
             Some((v, age))
         });
+    // Stage E (docs/19 §5): the queue, as the watcher will actually take it — sorted by name,
+    // which is `sorted(drop.iterdir())`'s order. Read-only: the ORDER control (a sidecar file
+    // the watcher would consult) is a contract change Rab has not signed, so this panel
+    // observes the real order and changes nothing.
+    let queue: Vec<Value> = fs::read_dir(base.join("drop"))
+        .map(|d| {
+            let mut names: Vec<_> = d
+                .flatten()
+                .filter(|e| {
+                    e.path()
+                        .extension()
+                        .and_then(|x| x.to_str())
+                        .is_some_and(|x| x.eq_ignore_ascii_case("pdf"))
+                })
+                .collect();
+            names.sort_by_key(|e| e.file_name());
+            names
+                .iter()
+                .take(15)
+                .map(|e| {
+                    let meta = e.metadata().ok();
+                    json!({
+                        "name": e.file_name().to_string_lossy(),
+                        "bytes": meta.as_ref().map(|m| m.len()),
+                        "age_s": meta
+                            .and_then(|m| m.modified().ok())
+                            .and_then(|t| t.elapsed().ok())
+                            .map(|d| d.as_secs()),
+                    })
+                })
+                .collect()
+        })
+        .unwrap_or_default();
+    // Stage E: the conversion's PROMISE — written once by Python at convert start
+    // (.convert-estimate.json, estimate_from_ledger's output verbatim). Projected only while
+    // the lock names the same source, so a stale promise can never dress a different book.
+    let estimate = converting.as_ref().and_then(|name| {
+        fs::read_to_string(base.join(".convert-estimate.json"))
+            .ok()
+            .and_then(|s| serde_json::from_str::<Value>(&s).ok())
+            .filter(|e| e["source"].as_str() == Some(name.as_str()))
+    });
     let events_text = fs::read_to_string(base.join("events.jsonl")).unwrap_or_default();
     let events: Vec<Value> = events_text
         .lines()
@@ -139,7 +181,27 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         // Stage D: the slice recognition-batch lever, so the Convert station's policy row can
         // state what a long book will actually do instead of describing the default.
         "chunk_batch": get_chunk_batch(gpu_pipeline_dir),
+        // Stage E: the waiting queue in watcher order + the ledger's promise for the piece
+        // in the press (docs/19 §5). Both read-only projections.
+        "queue": queue,
+        "estimate": estimate,
     }))
+}
+
+/// Stage E: the chunk-batch lever's WRITE side — same shape as `set_analyst_mode`: the widget
+/// writes user intent into the backend's own lever file; Python re-reads it per slice. The
+/// whitelist here must stay identical to `chunk_batch()`'s in convert_and_ship.py, or the glass
+/// could set a number Marker would silently ignore.
+pub fn set_chunk_batch(gpu_pipeline_dir: &str, batch: u32) -> Result<u32, String> {
+    if ![8, 16, 32].contains(&batch) {
+        return Err(format!("invalid slice batch: {batch} (8 | 16 | 32)"));
+    }
+    fs::write(
+        Path::new(gpu_pipeline_dir).join("chunk-batch.txt"),
+        format!("{batch}\n"),
+    )
+    .map_err(|e| format!("failed to write chunk-batch: {e}"))?;
+    Ok(batch)
 }
 
 /// Stage D (docs/18 §5.2): the slice recognition batch. Python owns the file and re-reads it per

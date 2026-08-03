@@ -8,6 +8,65 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S62 — THE GATES: Stage E (queue + promises + light theme), Stage F (the algedonic line),
+  Stage G (the Repair Bench) — one solo overnight, all proven on the real thing (2026-08-03).**
+  - **Stage E — the ledger's promises reach the glass (docs/19 §5).** `convert()` files its
+    PROMISE at probe time — `_write_estimate_safe()` writes `.convert-estimate.json`
+    (`estimate_from_ledger`'s output verbatim) plus a `convert/estimate` event — and the
+    `converted` event now carries `promised_s_per_page` / `promised_eta_s` / `estimate_basis`
+    beside the actual: the promise-vs-actual pairing, in the permanent record (docs/19 §6
+    hygiene). Python is the ONE authority on the number; `line.rs` projects the sidecar
+    verbatim and only while the lock names the same source (blind spot #1: never derive the
+    same figure twice in two languages). **The queue panel**: `line_state` gains `queue`
+    (drop/*.pdf in the watcher's own name-sorted order — read-only: the ORDER control is a
+    watcher-contract change that awaits Rab's signature, so the design ships in the morning
+    note, not the code) and the Room renders ▶ converting + waiting rows with sizes and the
+    promise. **The slice batch became a live lever** — 8 | 16 | 32 buttons in the Convert
+    policy row → `chunk_batch_set` (whitelist identical to Python's) → `chunk-batch.txt`,
+    re-read per slice. **The light theme is finished**: the ◐ choice persists via
+    `localStorage` and is applied at boot, both surfaces, token-complete.
+  - **Stage F — the algedonic line (docs/19 §6), PROVISIONAL by design.** New `algedonic.rs`:
+    unresolved pain — `convert/stalled`, `intake|gate|ship failed`, `audit/held` from
+    events.jsonl, plus `supersede-held` / `bless-invalid` / `failed` from the receipts cache —
+    becomes an alert with a stable id (`ts|kind|bundle`). A LATER success retires a failure; a
+    park is retired only by a human; dedupe keeps the newest occurrence per (kind, bundle);
+    7-day window. Unacknowledged alerts older than **M minutes ESCALATE**: a terracotta banner
+    in the Room with per-alert ⚑ ack, a quiet chip on the Dock (click → Room), a flag under
+    the Wall's verdict. M (`algedonic-minutes.txt`, default 30) and the append-only ack ledger
+    (`algedonic-acks.jsonl`) are **PROVISIONAL — Rab signs both** (docs/19 §6) and the banner
+    says so on the glass. Acking silences an occurrence, never the class: a newer occurrence
+    carries a new id and re-alarms (proven in tests). Five new unit tests (16 total), incl.
+    an ISO-8601 ↔ epoch round-trip without a date crate.
+  - **Stage G — the Repair Bench prototype (docs/19 §7), under `prototypes/repair-bench/`.**
+    Rab's design: **"the human IS the vision model."** `bench.py` (stdlib http + pymupdf,
+    zero new deps) + `bench.html`: the source-PDF page and the markdown at the flagged zone
+    side by side, navigated by the manifest's real zones (page seeded by line-ratio, refined
+    by the human with ◂ ▸); repair = drag a rectangle (server crops the 220-dpi raster) or
+    Ctrl+V a screenshot → `assets/_repair_pN_k.png` (collision-safe) → embedded `![[…]]` at
+    the zone — the vault's own reference style — with provenance appended to
+    `manifest["repairs"]`. Insertion offsets are server-tracked so later zones stay
+    addressable; a `.bench-bak` precedes the first write; `--sandbox` repairs a copy. The
+    re-score button is a **PREVIEW** (re-runs `fidelity_audit.degeneration` on the current
+    text, writes nothing): whether a repair image earns audit credit is an unsigned policy —
+    Rab signs it (docs/19 §10).
+
+  **Proofs, all against the real thing.** Repair Bench acceptance **26/26** on a sandbox copy
+  of the REAL held Valentine: real zones, a real page-120 raster from her source PDF, both
+  gestures, the offset arithmetic under out-of-order repairs, the HTTP layer, the preview
+  honestly answering "STILL FLAGGED — repairs on 3/4 zones" (images don't delete degenerate
+  text), and the real held bundle hash-verified untouched; then the served UI drove live in a
+  browser (zone chips, re-score) with 0 console errors. Widget: `clippy --all-targets -D
+  warnings` clean, 16/16 tests, `npm run build` green (exe SHA-8 `91F190AB` staged for RAB's
+  adoption), and a render harness over real-shaped S62 state — banner, queue, levers, promise
+  row, Wall flag all render; ⚑ ack and batch clicks invoke with exactly the right payloads;
+  the theme persists — 0 console errors, dark AND light. **Live fire:** bojieli (19 pp)
+  re-converted through the changed converter (`--dry-run`, 89.7 s): `convert/estimate` fired
+  (promised 32 s, `similar ×1`), `converted` carried the promise (1.689) beside the actual
+  (4.72 s-pp) — the FIRST promise-vs-actual pair on record, honestly bad because the ledger's
+  only neighbour was a 1,356-pp chunked monster — and the ledger now holds a second clean-lane
+  point, so the very next small book gets a sane promise. The estimator was watched learning
+  inside a single session.
+
 - **S61 — ANALYST chunk-level resume: a power cut costs one chunk, not an afternoon
   (2026-08-01 → 2026-08-03).** `analyst.process()` held every finished chunk in memory and wrote
   the markdown only at the end, so the S61 power cut at **chunk 936 of 969 — nine minutes from

@@ -1,6 +1,7 @@
 // Without this the exe is a console-subsystem binary and Windows attaches a console window
 // behind the widget on every launch (visible in the W8 live test).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+mod algedonic;
 mod assay;
 mod config;
 mod events;
@@ -81,6 +82,49 @@ fn line_state(state: State<AppState>) -> Result<serde_json::Value, String> {
         .gpu_pipeline_dir
         .clone();
     line::state(&dir)
+}
+// Stage E (docs/19 §5): the chunk-batch lever's write side — user intent into the backend's
+// own lever file, exactly the analyst-mode pattern. Python re-reads it per slice.
+#[tauri::command]
+fn chunk_batch_set(state: State<AppState>, batch: u32) -> Result<u32, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    line::set_chunk_batch(&dir, batch)
+}
+// Stage F (docs/19 §6): the algedonic line — all three are local file reads/writes, no network.
+#[tauri::command]
+fn algedonic_state(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    algedonic::state(&dir)
+}
+#[tauri::command]
+fn algedonic_ack(state: State<AppState>, id: String) -> Result<(), String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    algedonic::ack(&dir, &id)
+}
+#[tauri::command]
+fn algedonic_minutes_set(state: State<AppState>, m: u64) -> Result<u64, String> {
+    let dir = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?
+        .gpu_pipeline_dir
+        .clone();
+    algedonic::set_minutes(&dir, m)
 }
 #[tauri::command]
 fn analyst_mode_get(state: State<AppState>) -> Result<String, String> {
@@ -475,6 +519,10 @@ fn main() {
             preflight_decide,
             line_state,
             debug_log,
+            chunk_batch_set,
+            algedonic_state,
+            algedonic_ack,
+            algedonic_minutes_set,
             analyst_mode_get,
             analyst_mode_set,
             assay_status,

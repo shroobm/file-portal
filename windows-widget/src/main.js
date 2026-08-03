@@ -29,6 +29,15 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 dbg("boot: module evaluating");
 
+// Stage E (docs/19 §5): apply the persisted theme before first paint. The Room's ◐ button
+// owns the choice (room.js toggleTheme writes it); this makes every launch honor it.
+try {
+  const storedTheme = localStorage.getItem("fp-theme");
+  if (storedTheme === "light" || storedTheme === "dark") {
+    document.documentElement.setAttribute("data-theme", storedTheme);
+  }
+} catch { /* storage unavailable — the default dark stands */ }
+
 const portalsEl = document.getElementById("portals");
 const statusEl = document.getElementById("status");
 
@@ -916,6 +925,32 @@ async function assayLoop() {
   setTimeout(assayLoop, ASSAY_POLL_MS);
 }
 
+// ---- Stage F (docs/18 §6): the Dock's algedonic chip ---------------------------------------
+// The Dock is the surface that's actually open all day, so escalated pain must reach it too —
+// one quiet terracotta chip, not a modal. Click = jump to the Room, where the banner carries
+// the per-alert ⚑ ack buttons. Local file derivation on a slow poll; no network (S59 law).
+const algChip = document.getElementById("algedonic-chip");
+async function algedonicLoop() {
+  try {
+    const a = await invoke("algedonic_state");
+    const n = a?.escalated || 0;
+    if (n > 0 && surface === "dock") {
+      const worst = (a.alerts || []).find((x) => x.escalated);
+      algChip.hidden = false;
+      algChip.textContent =
+        `⚑ ${n} unacknowledged alert${n === 1 ? "" : "s"} > ${a.m_minutes} m` +
+        (worst ? ` — ${String(worst.bundle).slice(0, 28)} (${worst.kind})` : "") +
+        " · open the Room to ack";
+    } else {
+      algChip.hidden = true;
+    }
+  } catch (err) {
+    console.warn("algedonic_state failed", err);
+  }
+  setTimeout(algedonicLoop, 30000);
+}
+algChip.addEventListener("click", () => enterSurface("room"));
+
 // ---- S34: surface switch (Dock ⇄ Room) ------------------------------------------------
 // The projection principle at work (docs/16): one state, two densities. Dock is the narrow
 // floating widget (autosized). Room is a wider ops window. Only the layout + window size
@@ -961,6 +996,7 @@ watcherAutostart();
 watcherLoop(); // Stage A: the honest 5 s liveness poll (never trust a remembered state)
 shiftLoop();
 assayLoop();
+algedonicLoop(); // Stage F: escalated pain reaches the Dock too
 lineInit();
 initSizing(); // S39: start watching for a manual resize (per-surface size memory)
 dbg("boot: all loops launched");
