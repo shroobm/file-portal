@@ -56,6 +56,35 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S63 — OPEN 2026-08-04 ~08:50 UTC (Desktop, Fable 5, second solo overnight; commissioned by
+cookie #53, "goodnight… trust yourself, do protocol") — THE BENCH GRADUATES: Apple-grade
+aesthetics + the widget's FOURTH SURFACE (Dock ⇄ Room ⇄ Wall ⇄ Bench), mapped to the real
+system.**
+
+Context: after the S62 close Rab iterated live — the bench gained the Okular anatomy
+(Contents/Search/Pages sidebar, full-text search with highlights, and **⌖ locate**: zone pages
+found by text-evidence voting, 9/10 on Damodaran vs the old ratio guess) + the concept's light
+skin; a cp1252 banner crash was found by the preview launcher and fixed. That work is committed
+at this open as its own feat commit.
+
+1. **Commit the S62b iteration** (reader upgrade, cp1252 fix, launch.json, harness moved OUT of
+   bundled `src/`).
+2. **Apple pass** on bench.html: HIG-informed — SF-style system type stack, translucent blurred
+   toolbars, segmented controls, 8pt spacing grid, hairline borders, light+dark.
+3. **The graduation step (docs/16's own "graduation" language, docs/19 §7):** new
+   `bench.rs` — resolve a held bundle by source → find a free port → spawn
+   `prototypes/repair-bench/bench.py` detached (preflight::decide idiom, PYTHONIOENCODING,
+   null stdio, CREATE_NO_WINDOW) **inside the watcher's kill-on-close Job Object** (no orphaned
+   bench servers, ever) → poll ready → open a dedicated Tauri WebviewWindow on it. Surface
+   switch gains **Bench**; every held row gains 🔧. The bench operates on the REAL held bundle
+   (`.bench-bak` + append-only provenance are its safety); the prototype file itself stays
+   quarantined — the widget SPAWNS it, nothing imports it.
+4. Gates (node --check · clippy -D warnings · cargo test · build) → SHA-8 staged for RAB's
+   adoption; harness render + payload checks; the exact spawn command proven standalone.
+   Honest bound: the WebviewWindow-open click itself can only be proven live by Rab's adopted
+   launch (a Claude-launched widget is barred by law 3) — stated in the morning note.
+5. Lockstep close + morning note + Gmail draft.
+
 *(S62 closed 2026-08-03 ~08:20 UTC (Desktop, Fable 5, the solo overnight Rab commissioned with
 cookie #52 — "complete the gates… make sure it's something that wows… I'll be up around 8 am")
 — **STAGES E + F + G ALL SHIPPED AND PROVEN ON THE REAL THING; THE REPAIR BENCH LIVES.**
