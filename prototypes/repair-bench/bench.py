@@ -75,7 +75,13 @@ class Bench:
         else:
             self.dir = src_dir
         self.manifest_path = self.dir / "manifest.json"
-        self.manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+        # S64 (folder mode, Rab: "ITS ONLY THE FOLDER THAT MATTERS"): any folder holding one
+        # .md is benchable — anchor copies, pending cards, mid-conversions. No manifest means
+        # no audit zones and no source lookup, and the bench says so instead of refusing.
+        if self.manifest_path.is_file():
+            self.manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
+        else:
+            self.manifest = {}
         mds = [p for p in self.dir.iterdir() if p.suffix == ".md"]
         if len(mds) != 1:
             raise SystemExit(f"expected exactly one .md in {self.dir}, found {len(mds)}")
@@ -93,6 +99,10 @@ class Bench:
         self._texts: list[str] | None = None
         self._toc: list | None = None
         self._zone_loc: dict[int, dict] = {}
+        # S64: the AI assist's undo stack (body snapshots, newest last) + line-drift ledger so
+        # zone anchors stay honest after an edit changes the line count below them.
+        self._undo: list[str] = []
+        self._ai_drift: list[tuple[int, int]] = []  # (edit start line, lines added - removed)
 
     # ---- read side --------------------------------------------------------------------------
     def body(self) -> str:
@@ -108,7 +118,13 @@ class Bench:
 
     def state(self) -> dict:
         body_lines = self.body().count("\n") + 1
-        pages = int(self.manifest.get("pages") or 1)
+        pages = int(self.manifest.get("pages") or 0)
+        if not pages:
+            # Folder mode: no manifest — the PDF itself (if present) is the page authority.
+            try:
+                pages = self.doc().page_count if self.pdf else 1
+            except Exception:  # noqa: BLE001
+                pages = 1
         det_md_lines = (self.manifest.get("fidelity", {}).get("convert", {})
                         .get("tripwires", {}).get("degeneration_detail", {}).get("md_lines"))
         md_lines = int(det_md_lines or body_lines)
@@ -135,6 +151,8 @@ class Bench:
             "repairs": self.manifest.get("repairs", []),
             "pdf_available": self.pdf is not None,
             "pdf": str(self.pdf) if self.pdf else None,
+            "manifest_present": self.manifest_path.is_file(),
+            "undo_depth": len(self._undo),
         }
 
     def doc(self):
@@ -277,11 +295,13 @@ class Bench:
         return f"_repair_p{page}_{max(ks, default=0) + 1}.png"
 
     def _adjusted_line(self, zone_line: int) -> int:
-        """Each prior repair inserted 3 lines after ITS zone; a zone below those insertions has
-        shifted down by 3 per. The manifest's repairs list is the ledger of those shifts."""
+        """Each prior repair inserted 3 lines after ITS zone, and each AI edit may have grown
+        or shrunk its range — a zone below those changes has shifted by their sum. The
+        manifest's repairs list + the session's drift ledger are the record of those shifts."""
         prior = sum(3 for r in self.manifest.get("repairs", [])
                     if r.get("zone_line") is not None and r["zone_line"] < zone_line)
-        return zone_line + prior
+        drift = sum(d for (at, d) in self._ai_drift if at < zone_line)
+        return zone_line + prior + drift
 
     def repair(self, zone_line: int, page: int, rect: list[float] | None = None,
                image_b64: str | None = None, note: str = "") -> dict:
@@ -325,6 +345,103 @@ class Bench:
         self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
                                       encoding="utf-8")
         return {"asset": asset, "inserted_after_line": at, "record": rec}
+
+    # ---- the AI assist (S64): local qwen3 fixes a passage; every change is undoable --------
+    # The analyst's non-negotiable link-fence applies here too: qwen3 once INVENTED image URLs
+    # on an unfenced prompt, so every embed becomes an opaque token before the model sees the
+    # text, and a reply that damages the token multiset is REFUSED, never patched.
+    _EMBED_RE = re.compile(r"!\[\[[^\]]*\]\]|!\[[^\]]*\]\([^)]*\)")
+    OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
+    AI_MODEL = "qwen3:8b"
+
+    def _fence(self, text: str) -> tuple[str, list[str]]:
+        tokens: list[str] = []
+
+        def sub(m: re.Match) -> str:
+            tokens.append(m.group(0))
+            return f"⟦IMG-{len(tokens)}⟧"
+
+        return self._EMBED_RE.sub(sub, text), tokens
+
+    @staticmethod
+    def _unfence(text: str, tokens: list[str]) -> str | None:
+        """Every token exactly once, none invented — else None (the fence held; refuse)."""
+        found = re.findall(r"⟦IMG-(\d+)⟧", text)
+        if sorted(found) != sorted(str(i + 1) for i in range(len(tokens))):
+            return None
+        for i, tok in enumerate(tokens):
+            text = text.replace(f"⟦IMG-{i + 1}⟧", tok)
+        return text
+
+    def assist(self, start: int, end: int, instruction: str) -> dict:
+        """Rewrite body lines start..end (1-based, inclusive — the UI's visible slice) per the
+        instruction, via LOCAL qwen3 (the Gemini API stays off by Rab's standing rule).
+        Snapshot-first: every applied change is one ↩ away from gone."""
+        instruction = instruction.strip()
+        if not instruction:
+            raise ValueError("tell the model what to fix")
+        fm, body = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
+        lines = body.split("\n")
+        start = max(1, min(start, len(lines)))
+        end = max(start, min(end, len(lines)))
+        excerpt = "\n".join(lines[start - 1:end])
+        fenced, tokens = self._fence(excerpt)
+        prompt = (
+            "You are the Repair Bench assistant fixing conversion damage in a book's markdown "
+            "(OCR loops, mangled tables, broken headings, garbled sentences).\n"
+            "Rewrite the EXCERPT according to the INSTRUCTION.\n"
+            "Rules: output ONLY the revised excerpt — no commentary, no code fences. Keep every "
+            "⟦IMG-n⟧ token exactly once, in a sensible position. Repair, don't invent: "
+            "add no content the instruction does not call for.\n\n"
+            f"INSTRUCTION: {instruction}\n\nEXCERPT:\n{fenced}\n\nREVISED EXCERPT:"
+        )
+        import urllib.request
+        req = urllib.request.Request(
+            self.OLLAMA_URL,
+            data=json.dumps({
+                "model": self.AI_MODEL, "stream": False, "keep_alive": 0,
+                "prompt": prompt, "options": {"num_ctx": 8192}, "think": False,
+            }).encode("utf-8"),
+            headers={"Content-Type": "application/json"},
+        )
+        try:
+            with urllib.request.urlopen(req, timeout=300) as r:
+                reply = json.loads(r.read().decode("utf-8"))
+        except OSError as exc:
+            raise RuntimeError(f"Ollama unreachable ({exc}) — is it running?") from exc
+        if reply.get("error"):
+            raise RuntimeError(f"ollama: {reply['error']}")
+        out = reply.get("response", "").strip()
+        out = re.sub(r"<think>.*?</think>", "", out, flags=re.S).strip()  # belt over "think":False
+        if out.startswith("```"):
+            out = re.sub(r"^```[a-z]*\n|\n```$", "", out).strip()
+        if not out:
+            raise RuntimeError("the model returned nothing — change refused")
+        restored = self._unfence(out, tokens)
+        if restored is None:
+            raise RuntimeError("the model damaged an image embed — change REFUSED (link-fence)")
+        if restored == excerpt:
+            # A no-op is an honest answer ("nothing to fix") — report it, burn no undo slot.
+            return {"applied": False, "unchanged": True, "undo_depth": len(self._undo)}
+        self._backup_once()
+        self._undo.append(body)
+        del self._undo[:-20]  # bounded stack — twenty regrets is plenty
+        new_lines = restored.split("\n")
+        self._ai_drift.append((start, len(new_lines) - (end - start + 1)))
+        lines[start - 1:end] = new_lines
+        self.md_path.write_text(fm + "\n".join(lines), encoding="utf-8")
+        return {"applied": True, "start": start, "lines_before": end - start + 1,
+                "lines_after": len(new_lines), "undo_depth": len(self._undo)}
+
+    def undo_ai(self) -> dict:
+        """The ctrl-Z button: restore the body exactly as it was before the last AI change."""
+        if not self._undo:
+            raise ValueError("nothing to undo")
+        fm, _ = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
+        self.md_path.write_text(fm + self._undo.pop(), encoding="utf-8")
+        if self._ai_drift:
+            self._ai_drift.pop()
+        return {"undone": True, "undo_depth": len(self._undo)}
 
     # ---- the re-score PREVIEW (never writes; audit policy is Rab's signature) ---------------
     def rescore_preview(self) -> dict:
@@ -423,6 +540,13 @@ def make_handler(bench: Bench):
                     fm, _ = split_frontmatter(bench.md_path.read_text(encoding="utf-8"))
                     bench.md_path.write_text(fm + str(payload["text"]), encoding="utf-8")
                     self._json({"saved": True})
+                elif self.path == "/api/assist":
+                    self._json(bench.assist(
+                        start=int(payload["start"]), end=int(payload["end"]),
+                        instruction=str(payload.get("instruction", ""))[:500],
+                    ))
+                elif self.path == "/api/undo":
+                    self._json(bench.undo_ai())
                 else:
                     self._json({"error": "unknown path"}, 404)
             except Exception as exc:  # noqa: BLE001

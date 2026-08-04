@@ -165,6 +165,12 @@
   .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; }
   #nopdf { padding:36px; color:var(--text-3); }
 
+  /* the AI assist bar (S64): local qwen3, fenced, one ↩ from undone */
+  #aibar { display:flex; gap:6px; padding:8px 10px; border-bottom:1px solid var(--sep); flex:none;
+           background:var(--card-2); }
+  #aibar input { flex:1; min-width:0; }
+  #aiundo { color:var(--warn); background:var(--warn-bg); }
+
   /* markdown pane */
   #ctx { flex:1; overflow:auto; padding:10px 14px; white-space:pre-wrap; word-break:break-word;
          font-family:var(--mono); font-size:11px; line-height:1.6; color:var(--text-2); }
@@ -252,6 +258,11 @@
       <button id="edit">✎ edit</button>
       <button id="save" hidden class="primary">save</button>
     </div>
+    <div id="aibar">
+      <input id="ai" placeholder="tell qwen3 how to fix this passage… (local · embeds fenced · undoable)" />
+      <button id="aigo" class="primary">✦ fix</button>
+      <button id="aiundo" hidden title="restore the markdown exactly as it was before the last AI change">↩ undo AI</button>
+    </div>
     <div id="ctx"></div>
     <textarea id="editor" spellcheck="false"></textarea>
   </section>
@@ -304,8 +315,21 @@ async function load() {
   $("nopdf").hidden = st.pdf_available;
   if (!st.pdf_available) $("pagebox").style.display = "none";
   renderZones(); renderRepairs(); loadToc();
+  $("aiundo").hidden = !(st.undo_depth > 0);
   if (st.zones.length) selectZone(0);
-  else $("ctx").textContent = "no degeneration zones — nothing on the bench";
+  else renderCtxPlain(); // folder mode: no audit zones — the file itself is the bench
+}
+
+// Folder mode (S64): any convert/mid-conversion folder, zones or not. The visible slice is
+// the head of the file; the AI + repairs anchor to it, and paging is free.
+let ctxRange = { from: 1, to: 1 };
+function renderCtxPlain() {
+  const lines = mdText.split("\n");
+  ctxRange = { from: 1, to: Math.min(lines.length, 40) };
+  $("ctx").innerHTML = lines.slice(0, ctxRange.to).map((l) =>
+    l.startsWith("![[assets/_repair") ? `<span class="rl">${esc(l).slice(0, 400)}</span>` : (esc(l).slice(0, 400) || " ") + "\n"
+  ).join("");
+  if (!st.manifest_present) status("folder mode: no manifest here — no audit zones; AI fixes + repairs still work (a minimal manifest is created on the first repair)");
 }
 
 /* ---- zones (the concept's risk chips) ---- */
@@ -486,9 +510,11 @@ function markThumbCurrent() {
 /* ---- markdown context ---- */
 function renderCtx() {
   const z = st.zones[zone];
+  if (!z) { renderCtxPlain(); return; }
   const lines = mdText.split("\n");
   const at = z.adjusted_line;
   const from = Math.max(0, at - 9), to = Math.min(lines.length, at + 12);
+  ctxRange = { from: from + 1, to }; // 1-based inclusive — the AI assist's scope
   let html = "";
   for (let i = from; i < to; i++) {
     const text = esc(lines[i]).slice(0, 400) || " ";
@@ -563,6 +589,41 @@ $("save").onclick = async () => {
     $("edit").click();
     const keep = zone; await load(); if (keep != null) selectZone(keep);
   } catch (e) { status(`save failed: ${e.message}`); }
+};
+
+/* ---- the AI assist (S64): type → ✦ fix → (↩ undo AI if you disagree) ---- */
+async function refreshAfterAi() {
+  const keep = zone;
+  st = await api("/api/state");
+  mdText = (await api("/api/md")).text;
+  $("aiundo").hidden = !(st.undo_depth > 0);
+  renderZones(); renderRepairs();
+  if (keep != null && st.zones.length) { zone = keep; renderZones(); renderCtx(); }
+  else renderCtxPlain();
+}
+async function aiFix() {
+  const instruction = $("ai").value.trim();
+  if (!instruction) { status("tell the model what to fix first"); return; }
+  $("aigo").disabled = true;
+  status(`✦ qwen3 is rewriting lines ${ctxRange.from}–${ctxRange.to}… (local · ~30–60 s · embeds fenced)`);
+  try {
+    const r = await api("/api/assist", { start: ctxRange.from, end: ctxRange.to, instruction });
+    status(`✦ applied: ${r.lines_before} line(s) → ${r.lines_after} · ↩ undo AI is armed (${r.undo_depth} deep)`);
+    $("ai").value = "";
+    await refreshAfterAi();
+  } catch (e) { status(`✦ ${e.message}`); }
+  $("aigo").disabled = false;
+}
+$("aigo").onclick = aiFix;
+$("ai").onkeydown = (e) => { if (e.key === "Enter") aiFix(); };
+$("aiundo").onclick = async () => {
+  $("aiundo").disabled = true;
+  try {
+    const r = await api("/api/undo", {});
+    status(`↩ undone — the markdown is exactly as before (${r.undo_depth} more undo${r.undo_depth === 1 ? "" : "s"} available)`);
+    await refreshAfterAi();
+  } catch (e) { status(`↩ ${e.message}`); }
+  $("aiundo").disabled = false;
 };
 
 function renderRepairs() {
