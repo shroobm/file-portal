@@ -8,6 +8,47 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S63 — THE BENCH GRADUATES: the Apple pass + the widget's fourth surface (2026-08-04).**
+  Commissioned goodnight ("make it look like an app that could look aesthetically applicable
+  on apple products… map it and make it real… I want the widget running with the repair bench,
+  along with the dock, room, wall").
+  - **The Okular pass (S62b live iteration, committed at this open):** the bench's reader grew
+    real anatomy — a Contents/Search/Pages sidebar (the PDF's own 295-entry outline on
+    Damodaran; full-text search over a whitespace-normalized, de-hyphenated per-page index
+    with Okular-yellow hit highlights; a lazy thumbnail rail), page input + zoom, and
+    **⌖ locate**: a zone's true page found by mining prose needles around the wreck and
+    letting the text layer's pages vote — **9/10 of Damodaran's zones located by evidence**
+    (corrections up to ~39 pages off the old line-ratio guess), the tenth falling back to
+    ratio *labeled as such*. Raw scans (no text layer) degrade honestly. Plus a cp1252
+    banner crash found by the preview launcher's console and fixed (`errors="replace"`).
+  - **The Apple pass:** HIG-informed skin — system type stack (SF-first), translucent
+    saturated-blur chrome materials on header/toolbars/footer, an Apple segmented control for
+    the sidebar, hairline separators, the #f5f5f7 canvas with a Preview.app-style page stage,
+    a toast pill, true dark mode. The factory's law survives the skin: terracotta still means
+    exactly one thing.
+  - **The graduation (docs/19 §7's own criteria-shaped step):** new `windows-widget/src-tauri/
+    src/bench.rs` — the widget resolves a held bundle by the rows' existing `manifest.source`
+    contract, finds a free port (7077–7096), spawns `prototypes/repair-bench/bench.py`
+    detached (null stdio + a `bench-stderr.log` last-words file, `CREATE_NO_WINDOW`,
+    `PYTHONIOENCODING`), **adopts it into the watcher's kill-on-close Job Object** (no
+    orphaned bench servers by ANY widget exit — the S37 guarantee extended), waits for the
+    server, and opens a dedicated **Repair Bench window** (created on the main thread; an
+    existing window is renavigated + refronted, no label race). Surface row reads
+    **Dock · Room · Wall · Bench**; every held row on both surfaces gains **🔧** beside
+    ⟳ ⟲ ✓ (the S58 per-bundle law). The QUARANTINE SURVIVES GRADUATION: nothing imports the
+    prototype — the coupling is one spawned, supervised, job-owned child process. The slow
+    spawn+wait runs off the UI thread (the vault_check lesson).
+
+  **Proofs:** 20/20 rust tests (4 new: the resolution contract, calm refusal on empty held/,
+  port-scan skipping a bound port, script-path derivation from the repo layout) · clippy
+  `-D warnings` clean (two real catches: an E0597 guard-lifetime and a needless borrow) ·
+  `npm run build` green, exe **`3DCDF88E`** staged for RAB's adoption · **the exact spawn
+  command proven against the REAL held Damodaran** (served its real dir, 10 zones, 1,356 pp,
+  PDF found; killed clean) · harness render 0 errors with 🔧 invoking `bench_open` with the
+  row's exact source · the Apple-skinned bench live in a browser, 0 console errors, light and
+  dark. Honest bound: the WebviewWindow-open click itself is the one joint only Rab's adopted
+  launch can prove live — a Claude-launched widget stays barred by law 3.
+
 - **S62 — THE GATES: Stage E (queue + promises + light theme), Stage F (the algedonic line),
   Stage G (the Repair Bench) — one solo overnight, all proven on the real thing (2026-08-03).**
   - **Stage E — the ledger's promises reach the glass (docs/19 §5).** `convert()` files its

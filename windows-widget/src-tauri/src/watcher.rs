@@ -50,10 +50,11 @@ fn kill_on_close_job() -> HANDLE {
     raw as HANDLE
 }
 
-/// Put the watcher into the kill-on-close job so it (and any convert it spawns) dies with the
-/// widget. Best-effort: if the job or assignment fails, the watcher still runs — we just lose the
-/// force-kill guarantee for that launch, never correctness.
-fn adopt_into_job(child: &Child) {
+/// Put a spawned child into the kill-on-close job so it dies with the widget. Best-effort: if
+/// the job or assignment fails, the child still runs — we just lose the force-kill guarantee
+/// for that launch, never correctness. `pub(crate)` since S63: the Bench surface's spawned
+/// server gets the same no-orphans guarantee the watcher earned at S37.
+pub(crate) fn adopt_into_job(child: &Child) {
     let job = kill_on_close_job();
     if !job.is_null() {
         unsafe { AssignProcessToJobObject(job, child.as_raw_handle() as HANDLE) };

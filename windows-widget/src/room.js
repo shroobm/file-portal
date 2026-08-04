@@ -373,12 +373,14 @@ function assayPanel(d) {
   // existing click wiring covers them; data-src = the manifest source filename, per contract.
   // Stage C2 (docs/19 §3.2): ⟲ re-analyze and ✓ bless join them per row, so no remedy needs the
   // card to be pointing at its bundle first (the card-flip race that refused Valentine twice).
+  // S63: 🔧 joins the per-row trio — any held bundle straight onto the Repair Bench.
   const heldHtml = held.length
     ? `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy</div>` +
       held.map((h) =>
         `<div class="ac-held-row"><button class="ac-remedy" data-src="${esc(h.bundle)}">⟳</button> ` +
         `<button class="ac-reanalyze" data-src="${esc(h.bundle)}">⟲</button> ` +
         `<button class="ac-bless" data-src="${esc(h.bundle)}">✓</button> ` +
+        `<button class="ac-bench" data-src="${esc(h.bundle)}" title="open on the Repair Bench">🔧</button> ` +
         `<span class="ac-held-name">${esc(h.bundle)}</span></div>`).join("")
     : "";
   const toggle = `<button class="rp-lever" id="room-audit-toggle" title="enforce parks a fail in held/">` +
@@ -535,6 +537,14 @@ function wire() {
       const bundle = await invoke("assay_bless", { source: b.dataset.src });
       deps.setStatus?.(`Blessed ${bundle} — deploy/restart the ThinkPad exporter to vault it`);
     } catch (e) { b.disabled = false; deps.setStatus?.(`Bless: ${e}`); }
+  }));
+  // S63: 🔧 — the Repair Bench in its own window, spawned + supervised by the backend.
+  roomEl.querySelectorAll(".ac-bench").forEach((b) => b.addEventListener("click", async () => {
+    try {
+      deps.setStatus?.(`Opening the Repair Bench on ${b.dataset.src}…`);
+      const port = await invoke("bench_open", { source: b.dataset.src });
+      deps.setStatus?.(`Repair Bench up on 127.0.0.1:${port} — its window is open.`);
+    } catch (e) { deps.setStatus?.(`Bench: ${e}`); }
   }));
   // S36: click a station to OPEN ITS DRILL-DOWN — the accurate observation of its real on-disk
   // tree. (Controls — gate mode, audit lever, re-convert — live in the Dock + the assay panel.)

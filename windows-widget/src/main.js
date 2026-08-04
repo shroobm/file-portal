@@ -830,11 +830,14 @@ function assayRender(st) {
   // Valentine twice (S56). Every row now names its own target in data-src.
   let heldHtml = "";
   if (held.length) {
+    // S63: 🔧 joins the per-row trio — every held bundle can go straight onto the Repair
+    // Bench (the S58 rule: a remedy must never require flipping the card onto its target).
     heldHtml = `<div class="ac-held">held: <b>${held.length}</b> awaiting remedy</div>` +
       held.map((h) =>
         `<div class="ac-held-row"><button class="ac-remedy" data-src="${escHtml(h.bundle)}">⟳</button> ` +
         `<button class="ac-reanalyze" data-src="${escHtml(h.bundle)}">⟲</button> ` +
         `<button class="ac-bless" data-src="${escHtml(h.bundle)}">✓</button> ` +
+        `<button class="ac-bench" data-src="${escHtml(h.bundle)}" title="open on the Repair Bench">🔧</button> ` +
         `<span class="ac-held-name">${escHtml(h.bundle)}</span></div>`).join("");
   }
 
@@ -854,6 +857,8 @@ function assayRender(st) {
     b.addEventListener("click", () => assayReanalyze(b)));
   assayCard.querySelectorAll(".ac-bless").forEach((b) =>
     b.addEventListener("click", () => assayBless(b)));
+  assayCard.querySelectorAll(".ac-bench").forEach((b) =>
+    b.addEventListener("click", () => openBench(b.dataset.src)));
   reflow();
 }
 
@@ -983,8 +988,24 @@ function enterSurface(name) {
   }
 }
 
-document.querySelectorAll(".surf-btn").forEach((b) =>
+// Only the buttons that NAME a surface swap this window; the Bench button below opens its
+// own window instead (a fourth surface with its own glass — S63).
+document.querySelectorAll(".surf-btn[data-surface]").forEach((b) =>
   b.addEventListener("click", () => enterSurface(b.dataset.surface)));
+
+// S63: the Bench surface. The widget spawns the quarantined Repair Bench server on a held
+// bundle (backend resolves + supervises it; it dies with the widget via the Job Object) and
+// a dedicated window arrives once the server answers. No source = the newest held bundle.
+async function openBench(source) {
+  setStatus(source ? `Opening the Repair Bench on ${source}…` : "Opening the Repair Bench…");
+  try {
+    const port = await invoke("bench_open", { source: source || null });
+    setStatus(`Repair Bench up on 127.0.0.1:${port} — its window is open.`);
+  } catch (err) {
+    setStatus(`Bench: ${err}`);
+  }
+}
+document.getElementById("surf-bench").addEventListener("click", () => openBench(null));
 
 init().catch((err) => {
   console.error("init failed", err);

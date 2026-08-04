@@ -3,6 +3,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 mod algedonic;
 mod assay;
+mod bench;
 mod config;
 mod events;
 mod line;
@@ -82,6 +83,34 @@ fn line_state(state: State<AppState>) -> Result<serde_json::Value, String> {
         .gpu_pipeline_dir
         .clone();
     line::state(&dir)
+}
+// S63: the Bench surface — spawn the quarantined Repair Bench server on a held bundle and
+// open its dedicated window. Async + spawn_blocking: the spawn and its readiness wait must
+// never sit on the UI thread (the vault_check freeze lesson); the window itself is created
+// back on the main thread inside bench::open.
+#[tauri::command]
+async fn bench_open(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    bench_state: State<'_, bench::BenchState>,
+    source: Option<String>,
+) -> Result<u16, String> {
+    let (pipe, py, conv) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (
+            cfg.gpu_pipeline_dir.clone(),
+            cfg.gpu_python_exe.clone(),
+            cfg.gpu_converter_dir.clone(),
+        )
+    };
+    let bstate = bench_state.inner().clone();
+    let src = source.unwrap_or_default();
+    tauri::async_runtime::spawn_blocking(move || bench::open(app, &bstate, &pipe, &py, &conv, &src))
+        .await
+        .map_err(|e| format!("bench task failed: {e}"))?
 }
 // Stage E (docs/19 §5): the chunk-batch lever's write side — user intent into the backend's
 // own lever file, exactly the analyst-mode pattern. Python re-reads it per slice.
@@ -511,6 +540,7 @@ fn main() {
             config: Mutex::new(app_config),
         })
         .manage(watcher::WatcherState(Mutex::new(None), Mutex::new(None)))
+        .manage(bench::BenchState::default())
         .invoke_handler(tauri::generate_handler![
             list_portals,
             send_to_portal,
@@ -519,6 +549,7 @@ fn main() {
             preflight_decide,
             line_state,
             debug_log,
+            bench_open,
             chunk_batch_set,
             algedonic_state,
             algedonic_ack,

@@ -56,34 +56,31 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S63 — OPEN 2026-08-04 ~08:50 UTC (Desktop, Fable 5, second solo overnight; commissioned by
-cookie #53, "goodnight… trust yourself, do protocol") — THE BENCH GRADUATES: Apple-grade
-aesthetics + the widget's FOURTH SURFACE (Dock ⇄ Room ⇄ Wall ⇄ Bench), mapped to the real
-system.**
+*(S63 closed 2026-08-04 ~09:40 UTC (Desktop, Fable 5; the goodnight commission, cookie #53) —
+**THE BENCH WENT APPLE AND MOVED INTO THE WIDGET: Dock · Room · Wall · Bench.** Full record:
+the S63 CHANGELOG entry. In brief: the S62b live iteration (Okular anatomy — Contents/Search/
+Pages sidebar, full-text search + highlights, **⌖ locate** finding 9/10 of Damodaran's zone
+pages by text-evidence voting, corrections up to ~39 pp off the ratio guess; cp1252 banner fix)
+was committed at open (`e32ea51`); then the **Apple pass** (SF-first type, saturated-blur
+chrome materials, segmented controls, hairlines, #f5f5f7 canvas + Preview.app page stage, true
+dark mode — terracotta's meaning untouched); then the **graduation**: `bench.rs` spawns the
+quarantined prototype on a REAL held bundle (rows' `manifest.source` contract; free-port scan;
+null stdio + `bench-stderr.log` last words; **adopted into the S37 kill-on-close Job Object**),
+waits ready off the UI thread, and opens a dedicated Bench window (main-thread creation,
+renavigate-don't-recreate). Every held row wears 🔧 beside ⟳ ⟲ ✓ on both surfaces.
+**PROOFS: 20/20 tests (4 new bench) · clippy -D warnings clean · build green · the exact spawn
+command proven against the REAL held Damodaran (10 zones, 1,356 pp, real dir, killed clean) ·
+harness 0 errors with exact 🔧 payloads · the Apple bench live in-browser, 0 errors, both
+themes.** **STAGED FOR RAB: exe `3DCDF88E`** (supersedes 91F190AB, never adopted; contains
+S59+S60+S62+S63). The one joint only his adopted launch can prove live: the Bench window-open
+click (law 3 bars a Claude-launched widget). Previews left running for his morning: the
+Apple bench on :7077 (Damodaran sandbox), the Room harness on :7080/harness-s62.html.
+Signatures still owed (unchanged from S62): algedonic M + ack; queue-order contract; repair
+audit-credit; his first REAL Valentine repair.)*
 
-Context: after the S62 close Rab iterated live — the bench gained the Okular anatomy
-(Contents/Search/Pages sidebar, full-text search with highlights, and **⌖ locate**: zone pages
-found by text-evidence voting, 9/10 on Damodaran vs the old ratio guess) + the concept's light
-skin; a cp1252 banner crash was found by the preview launcher and fixed. That work is committed
-at this open as its own feat commit.
-
-1. **Commit the S62b iteration** (reader upgrade, cp1252 fix, launch.json, harness moved OUT of
-   bundled `src/`).
-2. **Apple pass** on bench.html: HIG-informed — SF-style system type stack, translucent blurred
-   toolbars, segmented controls, 8pt spacing grid, hairline borders, light+dark.
-3. **The graduation step (docs/16's own "graduation" language, docs/19 §7):** new
-   `bench.rs` — resolve a held bundle by source → find a free port → spawn
-   `prototypes/repair-bench/bench.py` detached (preflight::decide idiom, PYTHONIOENCODING,
-   null stdio, CREATE_NO_WINDOW) **inside the watcher's kill-on-close Job Object** (no orphaned
-   bench servers, ever) → poll ready → open a dedicated Tauri WebviewWindow on it. Surface
-   switch gains **Bench**; every held row gains 🔧. The bench operates on the REAL held bundle
-   (`.bench-bak` + append-only provenance are its safety); the prototype file itself stays
-   quarantined — the widget SPAWNS it, nothing imports it.
-4. Gates (node --check · clippy -D warnings · cargo test · build) → SHA-8 staged for RAB's
-   adoption; harness render + payload checks; the exact spawn command proven standalone.
-   Honest bound: the WebviewWindow-open click itself can only be proven live by Rab's adopted
-   launch (a Claude-launched widget is barred by law 3) — stated in the morning note.
-5. Lockstep close + morning note + Gmail draft.
+*(S63 plan as opened ~08:50: commit the S62b iteration · Apple pass · bench.rs graduation ·
+gates + staged SHA · lockstep close. Executed as written; two clippy catches and one stale
+localStorage theme fixed along the way.)*
 
 *(S62 closed 2026-08-03 ~08:20 UTC (Desktop, Fable 5, the solo overnight Rab commissioned with
 cookie #52 — "complete the gates… make sure it's something that wows… I'll be up around 8 am")
