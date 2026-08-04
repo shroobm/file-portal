@@ -4,88 +4,155 @@
 <meta charset="UTF-8" />
 <title>Repair Bench</title>
 <style>
-  /* The Room's token language (S34), lifted — the bench should feel like the same factory. */
+  /* ---- S62b: the concept's light skin first (Rab's mockup), the Room's dark as the alt.
+     Okular supplied the reader anatomy: contents/search/pages sidebar, page input, zoom,
+     area selection, highlighted hits. Terracotta still means exactly one thing. ---- */
   :root {
+    color-scheme: light;
+    --bg:#f2f3f6; --card:#ffffff; --card-2:#f7f8fa; --border:#e6e8ee; --border-2:#d8dbe4;
+    --text:#1c2130; --text-2:#5b6474; --text-3:#9aa2b1;
+    --accent:#3b82f6; --accent-bg:#eaf1fe;
+    --ok:#22a06b; --ok-bg:#e9f6f0; --warn:#e8853d; --warn-bg:#fdf1e7;
+    --clay:#d9603c; --clay-bg:#fbece7;
+    --hl:rgba(255,213,79,.45);
+    --shadow:0 1px 2px rgba(25,30,45,.05), 0 4px 14px rgba(25,30,45,.05);
+    --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+    --sans:"Segoe UI",system-ui,sans-serif;
+    --r:14px; --r-sm:9px;
+  }
+  [data-theme="dark"] {
     color-scheme: dark;
-    --bg:#100e0c; --surface-1:#17130f; --surface-2:#1e1814; --elev:#241d18;
-    --border:rgba(240,228,216,.08); --border-strong:rgba(240,228,216,.16);
+    --bg:#100e0c; --card:#17130f; --card-2:#1e1814; --border:rgba(240,228,216,.09); --border-2:rgba(240,228,216,.18);
     --text:#ece7e1; --text-2:#a89f95; --text-3:#6f665d;
-    --clay:#d97757; --clay-bg:rgba(217,119,87,.13);
-    --ok:#6fbf73; --ok-bg:rgba(111,191,115,.13);
-    --warn:#e0b34c; --warn-bg:rgba(224,179,76,.13);
-    --flow:#79a6bd; --mono:ui-monospace,"Cascadia Mono",Consolas,monospace;
+    --accent:#79a6bd; --accent-bg:rgba(121,166,189,.14);
+    --ok:#6fbf73; --ok-bg:rgba(111,191,115,.13); --warn:#e0b34c; --warn-bg:rgba(224,179,76,.13);
+    --clay:#d97757; --clay-bg:rgba(217,119,87,.14);
+    --hl:rgba(224,179,76,.35);
+    --shadow:none;
   }
   * { box-sizing:border-box; margin:0; padding:0; }
-  body { background:radial-gradient(1200px 600px at 78% -10%, var(--clay-bg), transparent 60%), var(--bg);
-         color:var(--text); font-family:var(--mono); font-size:12px; height:100vh;
-         display:flex; flex-direction:column; overflow:hidden; }
-  header { display:flex; align-items:center; gap:12px; padding:10px 14px; border-bottom:1px solid var(--border); }
-  .logo { color:var(--clay); font-size:16px; }
-  .ttl { font-family:"Segoe UI",sans-serif; font-weight:600; font-size:13px; }
-  .sub { font-size:8.5px; letter-spacing:2px; color:var(--text-3); }
-  .name { color:var(--text-2); font-size:11px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:34vw; }
-  .badge { font-size:9px; padding:2px 8px; border-radius:6px; border:1px solid var(--border-strong); }
-  .badge.fail { color:var(--clay); border-color:var(--clay); background:var(--clay-bg); }
-  .badge.sandbox { color:var(--warn); border-color:var(--warn); background:var(--warn-bg); }
-  .grow { flex:1; }
-  button { font-family:var(--mono); font-size:10px; color:var(--text-2); background:var(--surface-2);
-           border:1px solid var(--border-strong); border-radius:7px; padding:4px 10px; cursor:pointer; }
-  button:hover { color:var(--text); background:var(--elev); }
-  button.primary { color:var(--clay); border-color:var(--clay); background:var(--clay-bg); }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:13px;
+         height:100vh; display:flex; flex-direction:column; overflow:hidden; }
+  button { font-family:var(--sans); font-size:12px; color:var(--text-2); background:var(--card);
+           border:1px solid var(--border-2); border-radius:9px; padding:5px 11px; cursor:pointer; }
+  button:hover { color:var(--text); border-color:var(--text-3); }
+  button.primary { color:#fff; background:var(--accent); border-color:var(--accent); }
+  [data-theme="dark"] button.primary { color:var(--bg); }
   button:disabled { opacity:.4; cursor:default; }
+  input, select { font-family:var(--sans); font-size:12px; color:var(--text); background:var(--card);
+                  border:1px solid var(--border-2); border-radius:8px; padding:4px 8px; outline:none; }
+  input:focus { border-color:var(--accent); }
+  .mono { font-family:var(--mono); }
 
-  /* the damage map + zone chips */
-  #zonebar { padding:8px 14px 4px; border-bottom:1px solid var(--border); }
-  #map { position:relative; height:12px; border-radius:3px; background:var(--surface-2); border:1px solid var(--border); }
-  #map .z { position:absolute; top:0; bottom:0; min-width:4px; border-radius:2px; background:var(--clay); opacity:.9; cursor:pointer; }
+  /* ---- header: the concept's top bar ---- */
+  header { display:flex; align-items:center; gap:12px; padding:10px 16px;
+           background:var(--card); border-bottom:1px solid var(--border); box-shadow:var(--shadow); z-index:5; }
+  .logo { width:30px; height:30px; border-radius:9px; background:var(--clay-bg); color:var(--clay);
+          display:flex; align-items:center; justify-content:center; font-size:15px; }
+  .ttl { font-weight:600; font-size:14px; }
+  .sub { font-size:9px; letter-spacing:1.8px; color:var(--text-3); text-transform:uppercase; }
+  .name { color:var(--text-2); font-size:12px; max-width:26vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .chip { font-size:11px; padding:3px 10px; border-radius:999px; border:1px solid var(--border-2);
+          color:var(--text-2); background:var(--card-2); white-space:nowrap; }
+  .chip.fail { color:var(--clay); border-color:var(--clay); background:var(--clay-bg); font-weight:600; }
+  .chip.sandbox { color:var(--warn); border-color:var(--warn); background:var(--warn-bg); }
+  .chip.okc { color:var(--ok); border-color:var(--ok); background:var(--ok-bg); }
+  .grow { flex:1; }
+
+  /* ---- zone strip: the concept's "Top Risk Pages" ---- */
+  #zonebar { padding:9px 16px 7px; background:var(--card); border-bottom:1px solid var(--border); }
+  #map { position:relative; height:10px; border-radius:5px; background:var(--card-2); border:1px solid var(--border); }
+  #map .z { position:absolute; top:0; bottom:0; min-width:5px; border-radius:4px; background:var(--clay); cursor:pointer; }
   #map .z.repaired { background:var(--ok); }
-  #chips { display:flex; gap:6px; margin:7px 0 4px; flex-wrap:wrap; }
-  .chip { font-size:9.5px; padding:2px 8px; border-radius:6px; border:1px solid var(--border-strong);
-          color:var(--text-2); cursor:pointer; background:var(--surface-1); }
-  .chip.sel { border-color:var(--clay); color:var(--clay); background:var(--clay-bg); }
-  .chip.repaired { border-color:var(--ok); color:var(--ok); }
+  #chips { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
+  .zchip { display:flex; align-items:center; gap:7px; font-size:11px; padding:4px 10px; border-radius:10px;
+           border:1px solid var(--border-2); background:var(--card); cursor:pointer; box-shadow:var(--shadow); }
+  .zchip .pg { font-family:var(--mono); color:var(--clay); font-weight:600; }
+  .zchip q { color:var(--text-3); font-style:italic; max-width:200px; overflow:hidden;
+             text-overflow:ellipsis; white-space:nowrap; }
+  .zchip.sel { border-color:var(--accent); background:var(--accent-bg); }
+  .zchip.repaired .pg { color:var(--ok); }
 
-  main { flex:1; display:grid; grid-template-columns:1fr 1fr; gap:10px; padding:10px 14px; min-height:0; }
-  .pane { display:flex; flex-direction:column; background:var(--surface-1); border:1px solid var(--border);
-          border-radius:12px; overflow:hidden; min-height:0; }
-  .pane-head { display:flex; align-items:center; gap:8px; padding:6px 10px; border-bottom:1px solid var(--border);
-               font-size:10px; color:var(--text-2); }
+  /* ---- main: sidebar | stage | markdown ---- */
+  main { flex:1; display:grid; grid-template-columns:236px 1fr minmax(340px, 38%); gap:12px;
+         padding:12px 16px; min-height:0; }
+  .pane { display:flex; flex-direction:column; background:var(--card); border:1px solid var(--border);
+          border-radius:var(--r); overflow:hidden; min-height:0; box-shadow:var(--shadow); }
+  .pane-head { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--border);
+               font-size:11.5px; color:var(--text-2); flex:none; }
 
-  /* left: the source page + drag-crop */
-  #pagewrap { flex:1; overflow:auto; display:flex; align-items:flex-start; justify-content:center;
-              background:var(--surface-2); }
-  #pagebox { position:relative; }
-  #pageimg { display:block; max-width:100%; }
-  #cropbox { position:absolute; border:1.5px dashed var(--clay); background:rgba(217,119,87,.14); display:none; pointer-events:none; }
-  #nopdf { padding:30px; color:var(--text-3); font-style:italic; }
+  /* sidebar (Okular anatomy: Contents | Search | Pages) */
+  #side-tabs { display:flex; gap:2px; padding:8px 8px 0; flex:none; }
+  .stab { flex:1; text-align:center; font-size:11px; padding:6px 4px; border-radius:8px 8px 0 0;
+          color:var(--text-3); cursor:pointer; border:1px solid transparent; border-bottom:none; }
+  .stab.on { color:var(--text); background:var(--card-2); border-color:var(--border); }
+  .sbody { flex:1; overflow:auto; min-height:0; background:var(--card-2); border-top:1px solid var(--border); }
+  .toc-row { padding:4px 12px; font-size:11.5px; color:var(--text-2); cursor:pointer; display:flex; gap:8px;
+             white-space:nowrap; }
+  .toc-row:hover { background:var(--accent-bg); }
+  .toc-row.cur { color:var(--accent); font-weight:600; background:var(--accent-bg); }
+  .toc-row .t { overflow:hidden; text-overflow:ellipsis; flex:1; }
+  .toc-row .p { color:var(--text-3); font-family:var(--mono); font-size:10.5px; }
+  #searchbox { display:flex; gap:6px; padding:10px; flex:none; }
+  #searchbox input { flex:1; min-width:0; }
+  .hit { padding:6px 12px; border-bottom:1px solid var(--border); cursor:pointer; }
+  .hit:hover { background:var(--accent-bg); }
+  .hit .hp { font-family:var(--mono); font-size:11px; color:var(--accent); }
+  .hit .hx { font-size:10.5px; color:var(--text-3); overflow:hidden; text-overflow:ellipsis;
+             white-space:nowrap; display:block; }
+  .side-note { padding:12px; font-size:11px; color:var(--text-3); font-style:italic; }
+  #thumbs { display:flex; flex-direction:column; gap:8px; padding:10px; }
+  .thumb { border:2px solid var(--border); border-radius:6px; cursor:pointer; background:var(--card);
+           min-height:120px; display:flex; align-items:center; justify-content:center; position:relative; }
+  .thumb img { width:100%; border-radius:4px; display:block; }
+  .thumb.cur { border-color:var(--accent); }
+  .thumb .tn { position:absolute; bottom:3px; right:6px; font-family:var(--mono); font-size:9.5px;
+               color:var(--text-2); background:var(--card); border-radius:4px; padding:0 4px; opacity:.9; }
 
-  /* right: the markdown at the zone */
-  #ctx { flex:1; overflow:auto; padding:8px 12px; white-space:pre-wrap; word-break:break-word;
-         font-size:11px; line-height:1.5; color:var(--text-2); }
-  #ctx .zl { background:var(--clay-bg); color:var(--clay); display:block; }
+  /* stage (the page) */
+  #stage-tools { display:flex; align-items:center; gap:8px; padding:7px 10px; border-bottom:1px solid var(--border); flex:none; }
+  #pin { width:52px; text-align:center; font-family:var(--mono); }
+  #ptotal { color:var(--text-3); font-size:11.5px; white-space:nowrap; }
+  #locbadge { font-size:10.5px; color:var(--ok); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #pagewrap { flex:1; overflow:auto; background:var(--card-2); display:flex; justify-content:center; }
+  #pagebox { position:relative; margin:14px auto; height:fit-content; box-shadow:0 2px 18px rgba(20,25,40,.14); }
+  #pageimg { display:block; background:#fff; }
+  #cropbox { position:absolute; border:2px dashed var(--clay); background:var(--clay-bg); display:none; pointer-events:none; }
+  .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; }
+  #nopdf { padding:36px; color:var(--text-3); font-style:italic; }
+
+  /* markdown pane */
+  #ctx { flex:1; overflow:auto; padding:10px 14px; white-space:pre-wrap; word-break:break-word;
+         font-family:var(--mono); font-size:11px; line-height:1.55; color:var(--text-2); }
+  #ctx .zl { background:var(--clay-bg); color:var(--clay); display:block; border-radius:4px; padding:0 4px; }
   #ctx .rl { color:var(--ok); display:block; }
-  #editor { flex:1; display:none; background:var(--surface-2); color:var(--text); border:0; outline:0;
-            padding:10px 12px; font-family:var(--mono); font-size:11px; line-height:1.5; resize:none; }
+  #editor { flex:1; display:none; background:var(--card-2); color:var(--text); border:0; outline:0;
+            padding:12px 14px; font-family:var(--mono); font-size:11px; line-height:1.55; resize:none; }
 
-  footer { display:flex; gap:10px; padding:8px 14px; border-top:1px solid var(--border); align-items:flex-start; }
+  footer { display:flex; gap:12px; padding:9px 16px; border-top:1px solid var(--border);
+           background:var(--card); align-items:center; flex:none; }
   #repairs { flex:1; display:flex; gap:8px; overflow-x:auto; }
-  .rep { display:flex; gap:6px; align-items:center; border:1px solid var(--border-strong); border-radius:8px;
-         padding:4px 8px; font-size:9px; color:var(--text-2); white-space:nowrap; }
-  .rep img { height:34px; border-radius:4px; display:block; }
-  #verdictbox { font-size:9.5px; color:var(--text-2); max-width:34%; }
-  #verdictbox b { color:var(--text); font-weight:500; }
-  #status { position:fixed; left:14px; bottom:52px; font-size:10px; color:var(--warn); max-width:70vw;
-            overflow:hidden; text-overflow:ellipsis; white-space:nowrap; pointer-events:none; }
+  .rep { display:flex; gap:7px; align-items:center; border:1px solid var(--border-2); border-radius:10px;
+         padding:4px 9px; font-size:10.5px; color:var(--text-2); white-space:nowrap; background:var(--card-2); }
+  .rep img { height:32px; border-radius:5px; display:block; }
+  #verdictbox { font-size:11px; color:var(--text-2); max-width:36%; line-height:1.5; }
+  #verdictbox b { color:var(--text); }
+  #status { position:fixed; left:16px; bottom:58px; font-size:11px; color:var(--warn); max-width:70vw;
+            background:var(--card); border:1px solid var(--border-2); border-radius:8px; padding:4px 10px;
+            box-shadow:var(--shadow); display:none; z-index:9; }
 </style>
 </head>
 <body>
 <header>
-  <span class="logo">◆</span>
-  <div><div class="ttl">Repair Bench</div><div class="sub">THE HUMAN IS THE VISION MODEL</div></div>
+  <div class="logo">◆</div>
+  <div><div class="ttl">Repair Bench</div><div class="sub">the human is the vision model</div></div>
   <span class="name" id="bname">—</span>
-  <span class="badge" id="bverdict">—</span>
-  <span class="badge sandbox" id="bsandbox" hidden>SANDBOX — originals untouched</span>
+  <span class="chip fail" id="bverdict">—</span>
+  <span class="chip" id="bpages">—</span>
+  <span class="chip" id="bzones">—</span>
+  <span class="chip sandbox" id="bsandbox" hidden>SANDBOX — originals untouched</span>
   <span class="grow"></span>
+  <button id="theme" title="light ⇄ dark">◐</button>
   <button id="rescore">◎ re-score preview</button>
 </header>
 
@@ -95,12 +162,34 @@
 </div>
 
 <main>
+  <section class="pane" id="sidebar">
+    <div id="side-tabs">
+      <div class="stab on" data-tab="toc">Contents</div>
+      <div class="stab" data-tab="search">Search</div>
+      <div class="stab" data-tab="pages">Pages</div>
+    </div>
+    <div class="sbody" id="sb-toc"><div class="side-note">reading outline…</div></div>
+    <div class="sbody" id="sb-search" hidden>
+      <div id="searchbox"><input id="q" placeholder="search the source PDF…" /><button id="qgo">⌕</button></div>
+      <div id="qres"><div class="side-note">search the book's own text layer — hits jump and highlight, Okular-style.</div></div>
+    </div>
+    <div class="sbody" id="sb-pages" hidden><div id="thumbs"></div></div>
+  </section>
+
   <section class="pane">
-    <div class="pane-head">
-      <span>source page</span><span class="grow"></span>
+    <div id="stage-tools">
       <button id="pprev">◂</button>
-      <span id="pnum" style="min-width:74px;text-align:center">— / —</span>
+      <input id="pin" value="1" />
+      <span id="ptotal">/ —</span>
       <button id="pnext">▸</button>
+      <select id="zoom">
+        <option value="fit" selected>fit width</option>
+        <option value="0.75">75%</option><option value="1">100%</option>
+        <option value="1.5">150%</option><option value="2">200%</option>
+      </select>
+      <button id="locate" title="find this zone's true page from the text around it">⌖ locate zone</button>
+      <span id="locbadge"></span>
+      <span class="grow"></span>
       <button id="cropbtn" class="primary" disabled>✂ insert crop at zone</button>
     </div>
     <div id="pagewrap"><div id="pagebox"><img id="pageimg" alt="" /><div id="cropbox"></div></div>
@@ -121,19 +210,30 @@
 
 <footer>
   <div id="repairs"></div>
-  <div id="verdictbox">drag a rectangle on the page, then <b>✂ insert crop at zone</b> — or Ctrl+V a screenshot.
-    Repairs land in <b>assets/_repair_pN_k.png</b>, embedded <b>![[…]]</b> at the zone, provenance in
-    <b>manifest["repairs"]</b>. Re-score is a <b>preview</b> — audit credit for repairs is Rab's unsigned policy.</div>
+  <div id="verdictbox">Select a zone chip, <b>⌖ locate</b> finds its true page from the surrounding prose
+    (books with a text layer), then drag a rectangle → <b>✂ insert crop</b>, or Ctrl+V a screenshot.
+    Repairs land in <b>assets/</b>, embed <b>![[…]]</b> at the zone, provenance in <b>manifest["repairs"]</b>.
+    Re-score is a <b>preview</b> — audit credit is Rab's unsigned policy.</div>
 </footer>
 <div id="status"></div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
-let st = null, zone = null, page = 1, mdText = "", crop = null;
+let st = null, zone = null, page = 1, mdText = "", crop = null, hlQuery = null, toc = [], thumbsBuilt = false;
 
-function status(m) { $("status").textContent = m; if (m) setTimeout(() => { if ($("status").textContent === m) $("status").textContent = ""; }, 6000); }
+try { const t = localStorage.getItem("fp-bench-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch {}
+$("theme").onclick = () => {
+  const r = document.documentElement;
+  const next = r.getAttribute("data-theme") === "dark" ? "light" : "dark";
+  r.setAttribute("data-theme", next);
+  try { localStorage.setItem("fp-bench-theme", next); } catch {}
+};
 
+function status(m) {
+  const el = $("status"); el.textContent = m; el.style.display = m ? "block" : "none";
+  if (m) setTimeout(() => { if (el.textContent === m) el.style.display = "none"; }, 7000);
+}
 async function api(path, body) {
   const r = await fetch(path, body ? { method:"POST", body: JSON.stringify(body) } : undefined);
   const j = await r.json().catch(() => ({ error: "bad response" }));
@@ -144,32 +244,38 @@ async function api(path, body) {
 async function load() {
   st = await api("/api/state");
   mdText = (await api("/api/md")).text;
-  $("bname").textContent = st.bundle;
-  $("bverdict").textContent = st.verdict || "—";
-  $("bverdict").className = "badge" + (st.verdict === "fail" ? " fail" : "");
+  $("bname").textContent = st.bundle; $("bname").title = st.dir;
+  $("bverdict").textContent = "audit: " + (st.verdict || "—");
+  $("bpages").textContent = `${st.pages} pp · ${st.lane}`;
+  const rep = st.zones.filter((z) => z.repaired).length;
+  $("bzones").textContent = `zones ${rep}/${st.zones.length} repaired`;
+  $("bzones").className = "chip" + (rep === st.zones.length && st.zones.length ? " okc" : "");
   $("bsandbox").hidden = !st.sandbox;
+  $("ptotal").textContent = `/ ${st.pages}`;
   $("nopdf").hidden = st.pdf_available;
   if (!st.pdf_available) $("pagebox").style.display = "none";
-  renderZones();
-  renderRepairs();
-  if (st.zones.length) selectZone(0); else { $("ctx").textContent = "no degeneration zones — nothing on the bench"; }
+  renderZones(); renderRepairs(); loadToc();
+  if (st.zones.length) selectZone(0);
+  else $("ctx").textContent = "no degeneration zones — nothing on the bench";
 }
 
+/* ---- zones (the concept's risk chips) ---- */
 function renderZones() {
   const mapEl = $("map"); mapEl.innerHTML = "";
   const chips = $("chips"); chips.innerHTML = "";
   st.zones.forEach((z, i) => {
     const left = Math.min(97, z.line / st.md_lines * 100);
-    const w = Math.max(0.8, Math.min(8, (z.chars || 0) / (st.md_lines * 45) * 100));
+    const w = Math.max(1, Math.min(8, (z.chars || 0) / (st.md_lines * 45) * 100));
     const b = document.createElement("div");
     b.className = "z" + (z.repaired ? " repaired" : "");
     b.style.left = left + "%"; b.style.width = w + "%";
     b.title = `zone @${z.line} · ${z.chars} ch`;
     b.onclick = () => selectZone(i);
     mapEl.appendChild(b);
-    const c = document.createElement("span");
-    c.className = "chip" + (zone === i ? " sel" : "") + (z.repaired ? " repaired" : "");
-    c.textContent = `${z.repaired ? "✓ " : ""}@${z.line} · ${(z.chars/1000).toFixed(1)}k ch · ~p${z.page_guess}`;
+    const c = document.createElement("div");
+    c.className = "zchip" + (zone === i ? " sel" : "") + (z.repaired ? " repaired" : "");
+    c.innerHTML = `<span class="pg">${z.repaired ? "✓ " : ""}~p${z.located_page || z.page_guess}</span>` +
+      `<span>${(z.chars/1000).toFixed(1)}k ch</span><q>${esc(z.excerpt || "")}</q>`;
     c.onclick = () => selectZone(i);
     chips.appendChild(c);
   });
@@ -178,21 +284,161 @@ function renderZones() {
 function selectZone(i) {
   zone = i;
   const z = st.zones[i];
-  page = z.page_guess;
-  renderZones(); renderPage(); renderCtx();
+  goto(z.located_page || z.page_guess);
+  $("locbadge").textContent = z.located_page ? `⌖ text-evidence p${z.located_page}` : "";
+  renderZones(); renderCtx();
+  if (!z.located_page) autoLocate(i);
 }
 
-function renderPage() {
-  if (!st.pdf_available) { $("pnum").textContent = "—"; return; }
-  $("pageimg").src = `/api/page?n=${page}`;
-  $("pnum").textContent = `${page} / ${st.pages}`;
-  clearCrop();
+/* ---- the smart locate ---- */
+async function autoLocate(i) {
+  if (!st.pdf_available) return;
+  status("⌖ locating zone from surrounding prose… (first run indexes the whole book)");
+  try {
+    const r = await api(`/api/locate?i=${i}`);
+    st.zones[i].located_page = r.page;
+    if (r.method === "text-evidence") {
+      $("locbadge").textContent = `⌖ text-evidence p${r.page} · confidence ${r.confidence}`;
+      if (zone === i) goto(r.page);
+      status(`⌖ zone located at p${r.page} by ${r.needles} prose needle(s), confidence ${r.confidence}`);
+    } else {
+      $("locbadge").textContent = `~ratio p${r.page}`;
+      status(r.note || "ratio guess kept");
+    }
+    renderZones();
+  } catch (e) { status(`locate: ${e.message}`); }
+}
+$("locate").onclick = () => { if (zone != null) { delete st.zones[zone].located_page; autoLocate(zone); } };
+
+/* ---- page stage ---- */
+function dpiForZoom(z) { return (z === "fit" || Number(z) <= 1) ? 140 : 220; }
+function goto(n) {
+  page = Math.max(1, Math.min(st.pages, Number(n) || 1));
+  const z = $("zoom").value;
+  $("pageimg").src = `/api/page?n=${page}&dpi=${dpiForZoom(z)}`;
+  $("pin").value = page;
+  applyZoom(); clearCrop(); drawHighlights(); markTocCurrent(); markThumbCurrent();
+}
+function applyZoom() {
+  const z = $("zoom").value, img = $("pageimg");
+  if (z === "fit") { img.style.width = Math.min(900, $("pagewrap").clientWidth - 40) + "px"; }
+  else { img.style.width = (760 * Number(z)) + "px"; }
+}
+$("zoom").onchange = () => goto(page);
+$("pprev").onclick = () => goto(page - 1);
+$("pnext").onclick = () => goto(page + 1);
+$("pin").onkeydown = (e) => { if (e.key === "Enter") goto($("pin").value); };
+addEventListener("keydown", (e) => {
+  if (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)) return;
+  if (e.key === "ArrowLeft") goto(page - 1);
+  if (e.key === "ArrowRight") goto(page + 1);
+});
+
+/* ---- search-hit highlights (Okular yellow) ---- */
+async function drawHighlights() {
+  document.querySelectorAll(".hlbox").forEach((el) => el.remove());
+  if (!hlQuery) return;
+  try {
+    const { rects } = await api(`/api/rects?n=${page}&q=${encodeURIComponent(hlQuery)}`);
+    const img = $("pageimg");
+    const place = () => rects.forEach((r) => {
+      const d = document.createElement("div");
+      d.className = "hlbox";
+      d.style.left = (r[0] * img.clientWidth) + "px";
+      d.style.top = (r[1] * img.clientHeight) + "px";
+      d.style.width = ((r[2] - r[0]) * img.clientWidth) + "px";
+      d.style.height = ((r[3] - r[1]) * img.clientHeight) + "px";
+      $("pagebox").appendChild(d);
+    });
+    if (img.complete) place(); else img.onload = place;
+  } catch { /* highlights are decoration */ }
 }
 
+/* ---- sidebar tabs ---- */
+document.querySelectorAll(".stab").forEach((t) => t.onclick = () => {
+  document.querySelectorAll(".stab").forEach((x) => x.classList.toggle("on", x === t));
+  for (const id of ["toc","search","pages"]) $("sb-" + id).hidden = (t.dataset.tab !== id);
+  if (t.dataset.tab === "pages" && !thumbsBuilt) buildThumbs();
+});
+
+/* Contents */
+async function loadToc() {
+  try {
+    toc = (await api("/api/toc")).toc;
+    const el = $("sb-toc");
+    if (!toc.length) { el.innerHTML = `<div class="side-note">this book carries no outline (raw scans usually don't)</div>`; return; }
+    el.innerHTML = toc.map((e, i) =>
+      `<div class="toc-row" data-p="${e[2]}" data-i="${i}" style="padding-left:${8 + (e[0]-1)*14}px">` +
+      `<span class="t">${esc(e[1])}</span><span class="p">${e[2]}</span></div>`).join("");
+    el.querySelectorAll(".toc-row").forEach((r) => r.onclick = () => goto(Number(r.dataset.p)));
+    markTocCurrent();
+  } catch (e) { $("sb-toc").innerHTML = `<div class="side-note">outline unavailable: ${esc(e.message)}</div>`; }
+}
+function markTocCurrent() {
+  let cur = -1;
+  toc.forEach((e, i) => { if (e[2] <= page) cur = i; });
+  document.querySelectorAll(".toc-row").forEach((r) =>
+    r.classList.toggle("cur", Number(r.dataset.i) === cur));
+  const el = document.querySelector(".toc-row.cur");
+  if (el) el.scrollIntoView({ block: "nearest" });
+}
+
+/* Search */
+async function runSearch() {
+  const q = $("q").value.trim();
+  if (q.length < 3) { status("need 3+ characters"); return; }
+  $("qres").innerHTML = `<div class="side-note">searching… (first search indexes the whole book)</div>`;
+  try {
+    const r = await api(`/api/find?q=${encodeURIComponent(q)}`);
+    if (!r.searchable) { $("qres").innerHTML = `<div class="side-note">this book has NO text layer (raw scan) — search can't see it; use Contents/thumbnails + your eyes</div>`; return; }
+    hlQuery = q;
+    $("qres").innerHTML = r.pages.length
+      ? r.pages.map((h) => `<div class="hit" data-p="${h.page}"><span class="hp">p${h.page} · ${h.count}×</span>` +
+          `<span class="hx">…${esc(h.excerpt)}…</span></div>`).join("")
+      : `<div class="side-note">no hits for "${esc(q)}"</div>`;
+    $("qres").querySelectorAll(".hit").forEach((h) => h.onclick = () => goto(Number(h.dataset.p)));
+    if (r.pages.length) goto(r.pages[0].page);
+  } catch (e) { $("qres").innerHTML = `<div class="side-note">search failed: ${esc(e.message)}</div>`; }
+}
+$("qgo").onclick = runSearch;
+$("q").onkeydown = (e) => { if (e.key === "Enter") runSearch(); };
+
+/* Pages (lazy thumbnail rail) */
+function buildThumbs() {
+  thumbsBuilt = true;
+  const el = $("thumbs");
+  el.innerHTML = "";
+  const io = new IntersectionObserver((entries) => {
+    for (const en of entries) if (en.isIntersecting) {
+      const d = en.target;
+      if (!d.querySelector("img")) {
+        const img = document.createElement("img");
+        img.src = `/api/page?n=${d.dataset.n}&dpi=30`;
+        d.prepend(img);
+      }
+      io.unobserve(d);
+    }
+  }, { root: $("sb-pages"), rootMargin: "300px" });
+  for (let n = 1; n <= st.pages; n++) {
+    const d = document.createElement("div");
+    d.className = "thumb"; d.dataset.n = n;
+    d.innerHTML = `<span class="tn">${n}</span>`;
+    d.onclick = () => goto(n);
+    el.appendChild(d);
+    io.observe(d);
+  }
+  markThumbCurrent();
+}
+function markThumbCurrent() {
+  document.querySelectorAll(".thumb").forEach((t) =>
+    t.classList.toggle("cur", Number(t.dataset.n) === page));
+}
+
+/* ---- markdown context ---- */
 function renderCtx() {
   const z = st.zones[zone];
   const lines = mdText.split("\n");
-  const at = z.adjusted_line;                 // server-adjusted — the one authority
+  const at = z.adjusted_line;
   const from = Math.max(0, at - 9), to = Math.min(lines.length, at + 12);
   let html = "";
   for (let i = from; i < to; i++) {
@@ -204,16 +450,7 @@ function renderCtx() {
   $("ctx").innerHTML = html;
 }
 
-// ---- page stepping ----
-$("pprev").onclick = () => { if (page > 1) { page--; renderPage(); } };
-$("pnext").onclick = () => { if (page < st.pages) { page++; renderPage(); } };
-addEventListener("keydown", (e) => {
-  if ($("editor").style.display === "block") return;
-  if (e.key === "ArrowLeft") $("pprev").click();
-  if (e.key === "ArrowRight") $("pnext").click();
-});
-
-// ---- drag-crop on the page image ----
+/* ---- crop gesture ---- */
 const box = $("pagebox"), cb = $("cropbox");
 let drag = null;
 function clearCrop() { crop = null; cb.style.display = "none"; $("cropbtn").disabled = true; }
@@ -237,18 +474,17 @@ addEventListener("mouseup", () => {
   else if (drag) clearCrop();
   drag = null;
 });
-
 $("cropbtn").onclick = async () => {
   if (crop == null || zone == null) return;
   try {
     const z = st.zones[zone];
     const res = await api("/api/repair", { zone_line: z.line, page, rect: crop, note: `zone @${z.line}` });
     status(`✓ ${res.asset} embedded after body line ${res.inserted_after_line}`);
-    await load(); selectZone(zone);
+    const keep = zone; await load(); selectZone(keep);
   } catch (e) { status(`repair failed: ${e.message}`); }
 };
 
-// ---- paste a screenshot (the original design gesture) ----
+/* paste a screenshot */
 addEventListener("paste", async (e) => {
   if (zone == null) return;
   const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
@@ -259,30 +495,24 @@ addEventListener("paste", async (e) => {
     const z = st.zones[zone];
     const res = await api("/api/repair", { zone_line: z.line, page, image_b64: b64, note: `pasted · zone @${z.line}` });
     status(`✓ pasted → ${res.asset}`);
-    await load(); selectZone(zone);
+    const keep = zone; await load(); selectZone(keep);
   } catch (err) { status(`paste failed: ${err.message}`); }
 });
 
-// ---- the editor (full body text; save writes through the server, .bench-bak kept) ----
+/* editor */
 $("edit").onclick = () => {
   const on = $("editor").style.display !== "block";
   $("editor").style.display = on ? "block" : "none";
   $("ctx").style.display = on ? "none" : "block";
   $("save").hidden = !on;
-  if (on) {
-    $("editor").value = mdText;
-    const z = st.zones[zone];
-    const upto = mdText.split("\n").slice(0, z ? z.adjusted_line : 0).join("\n").length;
-    $("editor").focus(); $("editor").setSelectionRange(upto, upto);
-    requestAnimationFrame(() => { $("editor").scrollTop = Math.max(0, ($("editor").scrollHeight * (z ? z.adjusted_line / mdText.split("\n").length : 0)) - 120); });
-  }
+  if (on) { $("editor").value = mdText; }
 };
 $("save").onclick = async () => {
   try {
     await api("/api/md", { text: $("editor").value });
     status("✓ saved (backup kept as .bench-bak)");
     $("edit").click();
-    await load(); if (zone != null) selectZone(zone);
+    const keep = zone; await load(); if (keep != null) selectZone(keep);
   } catch (e) { status(`save failed: ${e.message}`); }
 };
 
@@ -310,6 +540,7 @@ $("rescore").onclick = async () => {
   $("rescore").disabled = false;
 };
 
+addEventListener("resize", () => { if ($("zoom").value === "fit") applyZoom(); });
 load().catch((e) => status(`load failed: ${e.message}`));
 </script>
 </body>

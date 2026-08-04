@@ -1,0 +1,25 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "repair-bench",
+      "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "prototypes/repair-bench/bench.py",
+        "prototypes/repair-bench/.sandbox/0d68f0e02293970c--20260804-032431",
+        "--port", "7077"
+      ],
+      "port": 7077
+    },
+    {
+      "name": "room-harness",
+      "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "-m", "http.server", "7080",
+        "--bind", "127.0.0.1",
+        "--directory", "windows-widget"
+      ],
+      "port": 7080
+    }
+  ]
+}

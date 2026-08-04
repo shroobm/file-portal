@@ -89,6 +89,10 @@ class Bench:
             self.pdf = cand
         self._doc = None
         self._bak_done = False
+        # S62b (the Okular pass): lazy per-page text index + TOC + zone-location votes.
+        self._texts: list[str] | None = None
+        self._toc: list | None = None
+        self._zone_loc: dict[int, dict] = {}
 
     # ---- read side --------------------------------------------------------------------------
     def body(self) -> str:
@@ -144,6 +148,121 @@ class Bench:
     def page_png(self, n: int, dpi: int = RASTER_DPI) -> bytes:
         page = self.doc().load_page(max(0, min(self.doc().page_count - 1, n - 1)))
         return page.get_pixmap(dpi=dpi).tobytes("png")
+
+    # ---- the reader side (S62b, the Okular pass: contents, search, locate) ------------------
+    def toc(self) -> list:
+        """The PDF's own table of contents: [[level, title, page], …]. Empty for books that
+        carry none (raw scans usually) — the UI says so instead of inventing one."""
+        if self._toc is None:
+            try:
+                self._toc = [[int(l), str(t)[:120], int(p)] for l, t, p in
+                             self.doc().get_toc(simple=True) if p > 0]
+            except Exception:  # noqa: BLE001 — a bad outline is an empty outline
+                self._toc = []
+        return self._toc
+
+    def _index(self) -> list[str]:
+        """Lazy per-page text (lowercased). One-time cost on first search — honest seconds on
+        a 1,356-pp book, then every search is instant. Empty strings for pages with no text
+        layer (raw scans), which makes 'search unavailable' a measured fact, not a guess."""
+        if self._texts is None:
+            # Whitespace-normalized: PDF text carries hard newlines mid-sentence, and a
+            # multi-word needle must match across them (found live on Damodaran — every
+            # needle missed until this join). "- " is the linebreak-hyphen artifact after
+            # the join ("invest- ment") — removed so needles match rejoined words.
+            self._texts = [
+                " ".join(self.doc().load_page(i).get_text("text").lower().split())
+                .replace("- ", "")
+                for i in range(self.doc().page_count)
+            ]
+        return self._texts
+
+    def find(self, q: str, limit: int = 40) -> dict:
+        q = " ".join(q.strip().lower().split())
+        if len(q) < 3:
+            return {"q": q, "pages": [], "searchable": True, "error": "need 3+ characters"}
+        idx = self._index()
+        searchable = any(idx)
+        hits = []
+        for i, text in enumerate(idx):
+            n = text.count(q)
+            if n:
+                at = text.find(q)
+                excerpt = text[max(0, at - 40):at + len(q) + 40].replace("\n", " ")
+                hits.append({"page": i + 1, "count": n, "excerpt": excerpt})
+                if len(hits) >= limit:
+                    break
+        return {"q": q, "pages": hits, "searchable": searchable,
+                "total_hits": sum(h["count"] for h in hits)}
+
+    def rects(self, n: int, q: str) -> list[list[float]]:
+        """Highlight rectangles for q on page n, as page-fraction boxes the UI overlays."""
+        page = self.doc().load_page(max(0, min(self.doc().page_count - 1, n - 1)))
+        r = page.rect
+        out = []
+        for hit in page.search_for(q)[:60]:
+            out.append([hit.x0 / r.width, hit.y0 / r.height,
+                        hit.x1 / r.width, hit.y1 / r.height])
+        return out
+
+    def locate_zone(self, zi: int) -> dict:
+        """THE SMART PART: find a zone's TRUE page by evidence, not ratio. The zone line itself
+        is degenerate junk, but the prose immediately around it is real text that also exists
+        on the source page — so mine needles from the surrounding lines, search the text
+        layer, and let the pages vote. Falls back to the ratio guess (and says so) when the
+        book has no text layer (raw scans) or the votes disagree."""
+        zones = self.zones()
+        if not (0 <= zi < len(zones)):
+            raise ValueError(f"no zone {zi}")
+        if zi in self._zone_loc:
+            return self._zone_loc[zi]
+        z = zones[zi]
+        st = self.state()
+        guess = st["zones"][zi]["page_guess"]
+        idx = self._index()
+        if not any(idx):
+            res = {"page": guess, "method": "ratio", "confidence": 0.0,
+                   "note": "no text layer (raw scan) — ratio guess only"}
+            self._zone_loc[zi] = res
+            return res
+        lines = self.body().split("\n")
+        at = st["zones"][zi]["adjusted_line"]
+        # Mine clean prose near the zone: skip table junk, embeds, headings, short fragments.
+        # Zones live in table thickets, so the window WIDENS until enough prose is found, and
+        # long lines contribute several 5-word shingles (short shingles survive the PDF's own
+        # typography better than one long one — measured on Damodaran).
+        needles: list[str] = []
+        for reach in (10, 25, 45):
+            needles.clear()
+            for ln in lines[max(0, at - reach):min(len(lines), at + reach // 2)]:
+                if ln.count("|") >= 3 or ln.startswith("!["):
+                    continue
+                t = re.sub(r"[#*_`>\[\]!|<]+", " ", ln)
+                t = " ".join(w for w in t.lower().split() if len(w) > 2)
+                words = t.split(" ")
+                for s in range(0, max(1, len(words) - 4), 5):
+                    if len(words) - s >= 5:
+                        needles.append(" ".join(words[s:s + 5]))
+                if len(needles) >= 12:
+                    break
+            if len(needles) >= 4:
+                break
+        needles = needles[:12]
+        votes: dict[int, int] = {}
+        for nd in needles:
+            for i, text in enumerate(idx):
+                if nd in text:
+                    votes[i + 1] = votes.get(i + 1, 0) + 1
+        if votes:
+            best = max(votes, key=lambda p: (votes[p], -abs(p - guess)))
+            res = {"page": best, "method": "text-evidence", "needles": len(needles),
+                   "confidence": round(votes[best] / max(1, len(needles)), 2),
+                   "votes": {str(k): v for k, v in sorted(votes.items())[:8]}}
+        else:
+            res = {"page": guess, "method": "ratio", "confidence": 0.0,
+                   "note": f"none of {len(needles)} needles matched — ratio guess kept"}
+        self._zone_loc[zi] = res
+        return res
 
     # ---- write side -------------------------------------------------------------------------
     def _backup_once(self) -> None:
@@ -272,6 +391,16 @@ def make_handler(bench: Bench):
                         self._json({"error": "no such asset"}, 404)
                 elif url.path == "/api/rescore":
                     self._json(bench.rescore_preview())
+                # ---- the reader (S62b, Okular pass) -------------------------------------
+                elif url.path == "/api/toc":
+                    self._json({"toc": bench.toc()})
+                elif url.path == "/api/find":
+                    self._json(bench.find(q.get("q", [""])[0]))
+                elif url.path == "/api/rects":
+                    self._json({"rects": bench.rects(int(q.get("n", ["1"])[0]),
+                                                     q.get("q", [""])[0])})
+                elif url.path == "/api/locate":
+                    self._json(bench.locate_zone(int(q.get("i", ["0"])[0])))
                 else:
                     self._json({"error": "unknown path"}, 404)
             except Exception as exc:  # noqa: BLE001 — report, never crash the bench
@@ -303,6 +432,13 @@ def make_handler(bench: Bench):
 
 
 def main():
+    # The console may be cp1252 (the preview launcher's is; PowerShell's usually isn't) —
+    # the banner's ✓/· glyphs must never crash the server. errors="replace" keeps whatever
+    # encoding the console really has and degrades glyphs to '?' instead of dying — the
+    # machine's known encode class (S48's pipe lesson, print side). Found live 2026-08-03.
+    for stream in (sys.stdout, sys.stderr):
+        if hasattr(stream, "reconfigure"):
+            stream.reconfigure(errors="replace")
     ap = argparse.ArgumentParser(description="The Repair Bench (prototype)")
     ap.add_argument("bundle", help="bundle dir, or a bare sha16 resolved against held/")
     ap.add_argument("--pdf", type=Path, help="source PDF (default: drop/done/<manifest.source>)")
