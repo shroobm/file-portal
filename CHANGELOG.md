@@ -8,6 +8,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S64 — FOLDER MODE + THE AI ASSIST (built live 2026-08-04, closed 2026-08-06).** Rab's
+  dawn commission: "open up any of the previous works… ITS ONLY THE FOLDER THAT MATTERS…
+  implement an AI feature… a button that does an ctrl z on the ai models changes."
+  - **Folder mode:** the bench opens ANY folder holding exactly one `.md` — held bundles,
+    anchor copies, pending bundles, mid-conversions. `manifest.json` is now optional: without
+    it there are no audit zones and no source lookup (said plainly on the glass), pages come
+    from the PDF itself when one is found, and a minimal manifest is created on the first
+    repair so provenance never goes unrecorded.
+  - **The AI assist (`/api/assist`):** type an instruction → LOCAL qwen3:8b (the analyst's
+    exact Ollama contract: `think: false`, `keep_alive: 0`, num_ctx 8192 — the Gemini API
+    stays off by Rab's standing rule) rewrites ONLY the visible passage. **The analyst's
+    link-fence applies verbatim**: every embed becomes an opaque ⟦IMG-n⟧ token before the
+    model sees the text, and a reply that damages the token multiset is REFUSED, never
+    patched. A no-op answer ("nothing to fix") is reported honestly and burns no undo slot.
+  - **The ctrl-Z (`/api/undo`):** every applied AI change pushes a full body snapshot
+    (bounded, 20 deep); ↩ restores the file BYTE-IDENTICALLY. AI line-drift is folded into
+    the same zone-anchor arithmetic the repairs use, so zones below an edit stay addressable.
+  - Python/HTML only — the staged widget exe `3DCDF88E` is unaffected and stays valid.
+
+  **Proven live on the Damodaran sandbox:** a real qwen3 edit applied (5 lines → 7, the
+  instruction followed), **all 313 embeds intact through the fence**, and undo restored the
+  body **byte-identically**; the no-op path proven first by accident (the model correctly
+  declined to change clean text — the assertion was wrong, the code was right). Acceptance
+  stayed **26/26** after the rewrite. UI verified in-browser, 0 console errors.
+
 - **S63 — THE BENCH GRADUATES: the Apple pass + the widget's fourth surface (2026-08-04).**
   Commissioned goodnight ("make it look like an app that could look aesthetically applicable
   on apple products… map it and make it real… I want the widget running with the repair bench,

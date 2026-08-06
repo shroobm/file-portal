@@ -56,6 +56,29 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S64 closed 2026-08-06 ~19:55 UTC (Desktop, Fable 5) — **FOLDER MODE + THE AI ASSIST, built
+live with Rab at dawn 2026-08-04, closed after his three-day hiatus at the next MUSTER** (the
+S61 pattern: the feat commit `84e5771` was declared in TIME-STATE as an open item, and this
+close is the flight recorder catching up — no open-plan commit existed because the work was
+live iteration on his instructions, cookies #53 and #54). What shipped (CHANGELOG S64): the
+bench opens ANY folder holding one `.md` (manifest optional — anchor copies, pending,
+mid-conversions; a minimal manifest is created on the first repair); **`/api/assist`** — local
+qwen3 rewrites the visible passage per a typed instruction under the analyst's **link-fence**
+(⟦IMG-n⟧ multiset verified; a damaged embed = change REFUSED; a no-op burns no undo slot);
+**`/api/undo`** — the ctrl-Z, body snapshots 20 deep, restore proven BYTE-IDENTICAL. AI
+line-drift folded into zone anchoring. Python-only; exe `3DCDF88E` unaffected.
+**PROOFS: real qwen3 edit applied live (5→7 lines), all 313 Damodaran embeds intact, undo
+byte-identical, 26/26 acceptance green after the rewrite, UI 0 console errors.**
+**MUSTER AT THIS CLOSE (2026-08-06): clocks were CLEAN at S63/`355a432` + the one declared
+commit ahead — and the installed widget exe reads `3DCDF88E`: RAB'S ADOPTION IS DONE** (he ran
+the Copy-Item before the hiatus). Remaining on his side, unchanged: the Bench window-open
+click's live proof (one titlebar click), Valentine's first real repair (the graduation), the
+four signatures (algedonic M + ack · queue-order contract · repair audit-credit ·
+standing-enforce blessing), the claude-code book's fate, Cybernetics' stale held copy, Textor
+re-download, docs/17 physical remainders. Next build candidates: the docs/19 status pass
+(§§2–7 now disagree with reality), events.jsonl rotation + `verified_from` stamps (Stage F
+hygiene leftovers), the cross-day event-row date stamp (S59 debt).)*
+
 *(S63 closed 2026-08-04 ~09:40 UTC (Desktop, Fable 5; the goodnight commission, cookie #53) —
 **THE BENCH WENT APPLE AND MOVED INTO THE WIDGET: Dock · Room · Wall · Bench.** Full record:
 the S63 CHANGELOG entry. In brief: the S62b live iteration (Okular anatomy — Contents/Search/
