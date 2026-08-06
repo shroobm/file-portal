@@ -469,8 +469,6 @@ class Bench:
 
 # ---- the thin HTTP layer ---------------------------------------------------------------------
 def make_handler(bench: Bench):
-    html = (BENCH_DIR / "bench.html").read_bytes()
-
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):  # quiet
             pass
@@ -490,7 +488,10 @@ def make_handler(bench: Bench):
                 url = urllib.parse.urlparse(self.path)
                 q = urllib.parse.parse_qs(url.query)
                 if url.path == "/":
-                    self._send(200, html, "text/html; charset=utf-8")
+                    # Read fresh per request (S65): a UI update reaches the user on F5,
+                    # not on the next server respawn — the help must never be stale.
+                    self._send(200, (BENCH_DIR / "bench.html").read_bytes(),
+                               "text/html; charset=utf-8")
                 elif url.path == "/api/state":
                     self._json(bench.state())
                 elif url.path == "/api/md":

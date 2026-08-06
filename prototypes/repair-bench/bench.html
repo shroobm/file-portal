@@ -165,6 +165,40 @@
   .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; }
   #nopdf { padding:36px; color:var(--text-3); }
 
+  /* S65 — the coach: one step at a time, auto-checked, Apple-banner material */
+  #coach { position:fixed; left:50%; transform:translateX(-50%); top:118px; z-index:8;
+           width:min(94vw, 760px); border-radius:14px; padding:8px 14px 10px;
+           background:var(--material); backdrop-filter:saturate(180%) blur(20px);
+           -webkit-backdrop-filter:saturate(180%) blur(20px);
+           box-shadow:0 0 0 1px var(--sep), 0 12px 40px rgba(0,0,0,.16); }
+  .coach-head { display:flex; align-items:center; gap:8px; font-size:12.5px; margin-bottom:6px; }
+  #coach-close { padding:2px 8px; }
+  .coach-steps { display:flex; gap:6px; }
+  .cstep { flex:1; border-radius:10px; padding:6px 9px; background:var(--fill); min-width:0; }
+  .cstep .cn { font-size:10px; font-weight:600; color:var(--text-3); }
+  .cstep .ct { font-size:11px; color:var(--text-2); line-height:1.35; }
+  .cstep.now { background:var(--accent-bg); box-shadow:0 0 0 2px var(--accent); }
+  .cstep.now .cn, .cstep.now .ct { color:var(--text); }
+  .cstep.done { background:var(--ok-bg); }
+  .cstep.done .cn { color:var(--ok); }
+  .cstep.done .ct { color:var(--text-3); text-decoration:line-through; }
+
+  /* S65 — the help sheet (the explicit display would defeat [hidden] without the guard) */
+  #help { position:fixed; inset:0; z-index:20; display:flex; }
+  #help[hidden], #coach[hidden] { display:none !important; }
+  .help-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.32); }
+  .help-sheet { position:relative; margin:auto; width:min(94vw, 680px); max-height:86vh;
+                display:flex; flex-direction:column; overflow:hidden; border-radius:16px;
+                background:var(--card); box-shadow:0 0 0 1px var(--sep), 0 24px 70px rgba(0,0,0,.3); }
+  .help-head { display:flex; align-items:center; gap:8px; padding:12px 16px;
+               border-bottom:1px solid var(--sep); font-size:13.5px; }
+  .help-body { overflow:auto; padding:6px 18px 18px; font-size:12.5px; line-height:1.6; color:var(--text-2); }
+  .help-body h3 { color:var(--text); font-size:12.5px; margin:14px 0 4px; letter-spacing:-0.01em; }
+  .help-body p { margin:6px 0; }
+  .help-body b { color:var(--text); font-weight:600; }
+  .help-body code { font-family:var(--mono); font-size:11px; background:var(--fill);
+                    border-radius:4px; padding:0 4px; }
+
   /* the AI assist bar (S64): local qwen3, fenced, one ↩ from undone */
   #aibar { display:flex; gap:6px; padding:8px 10px; border-bottom:1px solid var(--sep); flex:none;
            background:var(--card-2); }
@@ -207,9 +241,71 @@
   <span class="chip" id="bzones">—</span>
   <span class="chip sandbox" id="bsandbox" hidden>SANDBOX — originals untouched</span>
   <span class="grow"></span>
+  <button id="guide-btn" title="the step-by-step repair coach">☰ guide</button>
+  <button id="help-btn" title="what everything is and how a repair works">?</button>
   <button id="theme" title="light ⇄ dark">◐</button>
   <button id="rescore">◎ re-score preview</button>
 </header>
+
+<!-- S65: THE COACH — one step at a time, checked off as you actually do them. -->
+<div id="coach" hidden>
+  <div class="coach-head"><b>Your first repair, step by step</b><span class="grow"></span>
+    <button id="coach-close" title="hide (reopen with ☰ guide)">✕</button></div>
+  <div class="coach-steps" id="coach-steps"></div>
+</div>
+
+<!-- S65: THE HELP SHEET — the bench's knowledge, living in the bench. -->
+<div id="help" hidden>
+  <div class="help-backdrop"></div>
+  <div class="help-sheet">
+    <div class="help-head"><b>The Repair Bench — how it works</b><span class="grow"></span>
+      <button id="help-close">✕ close</button></div>
+    <div class="help-body">
+      <h3>What this is</h3>
+      <p>The audit can say <em>where</em> a conversion went wrong — it cannot see what the page
+      really held. <b>You can.</b> The bench puts the source page and the damaged markdown side
+      by side so a repair is one gesture. Everything here works on the folder you opened:
+      its <code>.md</code>, its <code>assets/</code>, its <code>manifest.json</code>.</p>
+      <h3>The three panes</h3>
+      <p><b>Left — the sidebar.</b> <em>Contents</em> is the PDF's own outline. <em>Search</em>
+      finds text in the book itself (books with a text layer; raw scans honestly say no).
+      <em>Pages</em> is a thumbnail rail.</p>
+      <p><b>Middle — the source page.</b> The truth, as printed. Page box + ◂ ▸ + zoom.
+      <b>⌖ locate</b> finds a zone's true page from the prose around the damage (text-layer
+      books); on raw scans it can only guess by ratio (<code>~</code>) — your eyes finish the job.</p>
+      <p><b>Right — the markdown at the zone.</b> What the conversion produced. The
+      <span style="color:var(--clay)">▶ highlighted line</span> is the wreck the audit flagged.
+      Repairs you've made show <span style="color:var(--ok)">green</span>.</p>
+      <h3>Starting a repair (the whole loop)</h3>
+      <p><b>1 · Pick a zone.</b> The chips under the header are the audit's flagged wreck sites
+      (size = damage). <code>✓</code> means already repaired.</p>
+      <p><b>2 · Find the true page.</b> The page jumps to the bench's best guess. Step ◂ ▸ and
+      zoom until you can <em>see</em> the damaged content — usually a table or figure.</p>
+      <p><b>3 · Capture the truth.</b> Drag a rectangle over it, click
+      <b>✂ insert crop at zone</b> — or Ctrl+V any screenshot. The image lands in
+      <code>assets/_repair_pN_k.png</code>, embedded <code>![[…]]</code> right at the zone,
+      provenance stamped into <code>manifest["repairs"]</code>. The chip earns its ✓.</p>
+      <p><b>4 · Fix the text</b> (this is what clears the degeneration flag). The wrecked
+      markdown is still wrecked <em>text</em>. Type an instruction into the AI bar —
+      <em>"replace this broken table with a clean markdown table matching the exhibit"</em> —
+      and <b>✦ fix</b>. Or <b>✎ edit</b> by hand and save.</p>
+      <p><b>5 · Check your work.</b> <b>◎ re-score preview</b> re-runs the degeneration
+      tripwire on the current text and answers honestly. An image alone does not clear
+      degenerate text; a text fix does. Whether repairs earn <em>audit credit</em> is an
+      unsigned policy — Rab signs it.</p>
+      <h3>The AI's rules</h3>
+      <p>Local qwen3 only (nothing leaves this machine). It sees the <em>visible passage</em>
+      only. Every image embed is fenced into an opaque token first — a reply that damages one
+      is <b>refused</b>, never patched. "Nothing to fix" is an honest answer and costs no undo.
+      <b>↩ undo AI</b> restores the file byte-for-byte, twenty changes deep.</p>
+      <h3>Your safety net</h3>
+      <p>Before the first write of a session the bench copies the markdown to
+      <code>.md.bench-bak</code>. Repairs are append-only and provenance-stamped. The
+      <code>--sandbox</code> flag (or the SANDBOX badge) means you're on a copy. Without it
+      you are repairing the real bundle — which is the point, and why the net exists.</p>
+    </div>
+  </div>
+</div>
 
 <div id="zonebar">
   <div id="map"></div>
@@ -356,6 +452,7 @@ function renderZones() {
 
 function selectZone(i) {
   zone = i;
+  coachMark("zone");
   const z = st.zones[i];
   goto(z.located_page || z.page_guess);
   $("locbadge").textContent = z.located_page ? `⌖ text-evidence p${z.located_page}` : "";
@@ -545,7 +642,10 @@ addEventListener("mousemove", (e) => {
   crop = [a / drag.r.width, c / drag.r.height, b2 / drag.r.width, d / drag.r.height];
 });
 addEventListener("mouseup", () => {
-  if (drag && crop && (crop[2]-crop[0]) > 0.02 && (crop[3]-crop[1]) > 0.02) $("cropbtn").disabled = false;
+  if (drag && crop && (crop[2]-crop[0]) > 0.02 && (crop[3]-crop[1]) > 0.02) {
+    $("cropbtn").disabled = false;
+    coachMark("cropDrawn");
+  }
   else if (drag) clearCrop();
   drag = null;
 });
@@ -555,6 +655,7 @@ $("cropbtn").onclick = async () => {
     const z = st.zones[zone];
     const res = await api("/api/repair", { zone_line: z.line, page, rect: crop, note: `zone @${z.line}` });
     status(`✓ ${res.asset} embedded after body line ${res.inserted_after_line}`);
+    coachMark("repaired");
     const keep = zone; await load(); selectZone(keep);
   } catch (e) { status(`repair failed: ${e.message}`); }
 };
@@ -570,6 +671,7 @@ addEventListener("paste", async (e) => {
     const z = st.zones[zone];
     const res = await api("/api/repair", { zone_line: z.line, page, image_b64: b64, note: `pasted · zone @${z.line}` });
     status(`✓ pasted → ${res.asset}`);
+    coachMark("repaired");
     const keep = zone; await load(); selectZone(keep);
   } catch (err) { status(`paste failed: ${err.message}`); }
 });
@@ -586,6 +688,7 @@ $("save").onclick = async () => {
   try {
     await api("/api/md", { text: $("editor").value });
     status("✓ saved (backup kept as .bench-bak)");
+    coachMark("textFixed");
     $("edit").click();
     const keep = zone; await load(); if (keep != null) selectZone(keep);
   } catch (e) { status(`save failed: ${e.message}`); }
@@ -608,7 +711,12 @@ async function aiFix() {
   status(`✦ qwen3 is rewriting lines ${ctxRange.from}–${ctxRange.to}… (local · ~30–60 s · embeds fenced)`);
   try {
     const r = await api("/api/assist", { start: ctxRange.from, end: ctxRange.to, instruction });
-    status(`✦ applied: ${r.lines_before} line(s) → ${r.lines_after} · ↩ undo AI is armed (${r.undo_depth} deep)`);
+    if (r.applied) {
+      status(`✦ applied: ${r.lines_before} line(s) → ${r.lines_after} · ↩ undo AI is armed (${r.undo_depth} deep)`);
+      coachMark("textFixed");
+    } else {
+      status("✦ the model found nothing to change — file untouched, no undo burned");
+    }
     $("ai").value = "";
     await refreshAfterAi();
   } catch (e) { status(`✦ ${e.message}`); }
@@ -639,6 +747,7 @@ function renderRepairs() {
 
 $("rescore").onclick = async () => {
   $("rescore").disabled = true;
+  coachMark("rescored");
   try {
     const r = await api("/api/rescore");
     const dn = r.degeneration_now;
@@ -650,8 +759,47 @@ $("rescore").onclick = async () => {
   $("rescore").disabled = false;
 };
 
+/* ---- S65: the help sheet + the repair coach ----------------------------------------------
+   Rab: "the information is lost… teach me, or create a help section to describe and focus
+   the user on the step by step process of starting a repair." The knowledge lives HERE now,
+   not in a chat that scrolls away. */
+$("help-btn").onclick = () => { $("help").hidden = false; };
+$("help-close").onclick = () => { $("help").hidden = true; };
+document.querySelector(".help-backdrop").onclick = () => { $("help").hidden = true; };
+addEventListener("keydown", (e) => { if (e.key === "Escape") $("help").hidden = true; });
+
+// The coach's evidence: what the user has ACTUALLY done this session. Steps check themselves
+// off from real events, never from claims.
+const coach = { zone: false, cropDrawn: false, repaired: false, textFixed: false, rescored: false };
+const COACH_STEPS = [
+  ["1 · pick a zone", "click a chip above — the audit's flagged wreck sites", () => coach.zone],
+  ["2 · find the page", "◂ ▸ + zoom until you SEE the damage (⌖ guesses; your eyes decide)", () => coach.cropDrawn || coach.repaired],
+  ["3 · capture it", "drag a rectangle → ✂ insert crop (or Ctrl+V a screenshot)", () => coach.repaired],
+  ["4 · fix the text", "tell the AI bar what to rebuild (✦ fix · ↩ undo) or ✎ edit", () => coach.textFixed],
+  ["5 · check", "◎ re-score preview — the honest answer", () => coach.rescored],
+];
+function coachRender() {
+  if ($("coach").hidden) return;
+  let nowMarked = false;
+  $("coach-steps").innerHTML = COACH_STEPS.map(([n, t, doneFn]) => {
+    const done = doneFn();
+    const now = !done && !nowMarked && (nowMarked = true);
+    return `<div class="cstep${done ? " done" : now ? " now" : ""}"><div class="cn">${done ? "✓ " : ""}${n}</div><div class="ct">${t}</div></div>`;
+  }).join("");
+  if (COACH_STEPS.every(([, , f]) => f())) {
+    try { localStorage.setItem("fp-bench-coached", "1"); } catch {}
+    status("🎓 that's the whole loop — the coach retires; ☰ guide brings it back anytime");
+    setTimeout(() => { $("coach").hidden = true; }, 4000);
+  }
+}
+function coachMark(k) { coach[k] = true; coachRender(); }
+$("guide-btn").onclick = () => { $("coach").hidden = false; coachRender(); };
+$("coach-close").onclick = () => { $("coach").hidden = true; };
+// First launch (per browser profile): the coach opens itself until one full repair loop is done.
+try { if (!localStorage.getItem("fp-bench-coached")) { $("coach").hidden = false; } } catch {}
+
 addEventListener("resize", () => { if ($("zoom").value === "fit") applyZoom(); });
-load().catch((e) => status(`load failed: ${e.message}`));
+load().then(() => coachRender()).catch((e) => status(`load failed: ${e.message}`));
 </script>
 </body>
 </html>
