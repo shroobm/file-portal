@@ -8,6 +8,41 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S65 — THE BENCH TEACHES, THE PARK LEARNS RESPECT, AND VALENTINE'S FIRST REPAIR
+  SURVIVES ITS FIRST THREAT (2026-08-06 → 07).** The session of the graduation: Rab
+  performed **Valentine's first real repair** (zone @1579 cropped from p234 — the ratio
+  guess said ~120; the human vision model out-ranged it by 114 pages on a raw scan), and
+  the arc's last unproven joint — the Bench window opening from the widget — was proven by
+  his click.
+  - **The bench teaches itself now** (Rab: "the information is lost… teach me, or create a
+    help section"): a **? help sheet** (anatomy, the repair loop, the AI's rules, the
+    safety net) and a **☰ step-by-step coach** — five steps checked off from REAL actions,
+    auto-opens until one full loop is completed, then retires. The UI is served fresh per
+    request, so F5 always gets the latest bench.
+  - **`_enforce_hold` learned to respect human work**: held bundles can carry Repair Bench
+    repairs now, and the park's rmtree-and-replace would have destroyed them. A
+    repairs-bearing occupant keeps its slot; the incoming copy parks BESIDE it,
+    timestamped. Found by chasing an anxiety **hours before Rab's live ⟲ re-run would have
+    deleted his first repair**; proven on temp git-free dirs before the run ended.
+  - **The docs/20 manual**: the complete user textbook + developer reference, committed as
+    its own docs commit (`258cedc`).
+  - **Acceptance harness matured**: baseline-aware (a live patient's prior repairs are the
+    new normal, measured relative to what it copied) and moved to OS-assigned ports after
+    the hardcoded port dialed Rab's LIVE bench through Windows SO_REUSEADDR — where his
+    fail-closed `/api/repair` refused the stray probe. 26/26 green again.
+
+  **The ⟲ live fire, end to end (Rab's click, 09:57–11:18 UTC):** Valentine's analyst-only
+  re-run — 266 chunks, **249✓ / 16🛡 / 1✗ in 4,859 s**, one monster chunk pushing the
+  heartbeat past a 300 s watch (lesson: the analyst's stall doctrine is 900 s, same as the
+  converter's). Verdict stayed **fail** (her degeneration lives in the convert phase, as
+  forecast) → the enforce gate parked it — and because the RUNNING process predated the
+  fix, its old code overwrote the held slot exactly as predicted. **Nothing was lost**:
+  the repaired bundle had been hash-verified into safekeeping first, and after the run it
+  was restored to its slot (hash-identical, repairs + .bench-bak intact) with the rerun
+  copy preserved beside it as `held/<sha16>--rerun-<ts>` — precisely the layout the fixed
+  code now produces on its own. The night also produced Stage F's first unprompted
+  production use: Rab ⚑-acknowledged the Damodaran alert himself at 09:51.
+
 - **S64 — FOLDER MODE + THE AI ASSIST (built live 2026-08-04, closed 2026-08-06).** Rab's
   dawn commission: "open up any of the previous works… ITS ONLY THE FOLDER THAT MATTERS…
   implement an AI feature… a button that does an ctrl z on the ai models changes."

@@ -56,6 +56,31 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S65 closed 2026-08-07 ~11:30 UTC (Desktop, Fable 5; live with Rab through the evening, solo
+through the night — cookies #53–54 were S63/S64's; none new) — **THE GRADUATION SESSION.**
+Full record: CHANGELOG S65. The arc: Rab's Bench click proved the last unproven joint → his
+FIRST REAL REPAIR on Valentine (@1579 from p234; ratio had guessed ~120) met docs/19 §7's
+graduation criteria → his "the information is lost… teach me" became the in-bench **? help
+sheet + ☰ repair coach** (auto-opens until one full loop; steps check off from real actions;
+UI now served fresh per request) → chasing the enforce-park thread found that **`_enforce_hold`
+would rmtree human repairs** — fixed (repairs-bearing occupants keep their slot, incoming parks
+beside) and proven HOURS before his live ⟲ run ended → the run itself (his click): 266 chunks,
+**249✓/16🛡/1✗, 4,859 s**, verdict stayed fail (convert-phase degeneration, as forecast) → the
+old in-memory code parked over his repair exactly as predicted → **restored from the
+pre-taken hash-verified backup**: `held/b6fbdd75f6242f53` = the repaired original again
+(hash-identical), the rerun preserved beside as `--rerun-20260807-111848`, Rab to judge its
+fate. Also: **Stage F's first unprompted production ack** (Rab ⚑-acked Damodaran at 09:51);
+the **docs/20 File Portal Manual** (user textbook + developer reference) written and
+committed; acceptance baseline-aware + OS-assigned ports (the hardcoded port had dialed his
+LIVE bench via SO_REUSEADDR — his fail-closed guards refused it); monitor lessons recorded
+(git-bash `ps -W` PID column lies; the analyst's stall doctrine is 900 s — a raw-scan monster
+chunk ran >6 min legitimately). held/ = 4 dirs (Damodaran · Valentine-repaired ·
+Valentine-rerun · Cybernetics-stale); vault untouched all night; the stray guard-test event
+`X` pre-acked. **AWAITING RAB (unchanged + one new):** the four signatures (algedonic M + ack
+· queue-order · repair audit-credit · standing-enforce) · the rerun copy's fate (keep for
+comparison / delete) · claude-code fate · Cybernetics-stale · Textor re-download. Next build
+candidates: docs/19 status pass · events rotation + `verified_from` · cross-day date stamp.)*
+
 *(S64 closed 2026-08-06 ~19:55 UTC (Desktop, Fable 5) — **FOLDER MODE + THE AI ASSIST, built
 live with Rab at dawn 2026-08-04, closed after his three-day hiatus at the next MUSTER** (the
 S61 pattern: the feat commit `84e5771` was declared in TIME-STATE as an open item, and this
