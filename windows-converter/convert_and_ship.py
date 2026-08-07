@@ -278,7 +278,22 @@ def _enforce_hold(bundle_dir: Path, bundle_name: str, source_sha: str) -> bool:
         HELD.mkdir(parents=True, exist_ok=True)
         dest = HELD / source_sha[:16]
         if dest.exists():
-            shutil.rmtree(dest)
+            # S65: a held bundle can carry HUMAN work now — Repair Bench repairs, a
+            # .bench-bak (docs/19 §7). Parking must never destroy a human's repairs: a
+            # repairs-bearing occupant keeps its slot and the incoming copy parks BESIDE
+            # it, timestamped, both visible on the assay's held rows. (Found 2026-08-07,
+            # hours before a live ⟲ re-run would have rmtree'd Valentine's first repair.)
+            occupant_repairs = False
+            try:
+                occupant = json.loads((dest / "manifest.json").read_text(encoding="utf-8"))
+                occupant_repairs = bool(occupant.get("repairs"))
+            except Exception:  # noqa: BLE001 — unreadable manifest = treat as replaceable
+                pass
+            if occupant_repairs or any(dest.glob("*.bench-bak")):
+                stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+                dest = HELD / f"{source_sha[:16]}--superseded-{stamp}"
+            else:
+                shutil.rmtree(dest)
         shutil.copytree(bundle_dir, dest)
         emit("audit", "held", bundle=bundle_name,
              source=manifest.get("source", bundle_name), verdict="fail")
