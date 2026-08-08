@@ -4,48 +4,43 @@
 <meta charset="UTF-8" />
 <title>Repair Bench</title>
 <style>
-  /* ---- S63: the Apple pass (Rab: "aesthetically applicable on apple products"). HIG-informed:
-     system type stack, translucent saturated-blur chrome materials, segmented controls, Apple
-     separator hairlines, the #f5f5f7 canvas, Preview.app's page stage, true dark mode. The
-     factory's one law survives every skin: terracotta means "your hand is required". ---- */
+  /* ---- S66: the dummy-proof pass. Same Apple system as S63 (SF stack, blur chrome,
+     segmented controls, hairlines, Preview.app stage) — now DECLUTTERED from a real
+     simulated walkthrough: instructions live in help, chips breathe, the coach docks
+     instead of covering the toolbar, every control explains itself, and the ◆ icon
+     opens anything ("Select a PDF"). Terracotta still means exactly one thing. ---- */
   :root {
     color-scheme: light;
     --bg:#f5f5f7;
-    --wallpaper:radial-gradient(1200px 700px at 85% -8%, rgba(0,122,255,.055), transparent 60%),
-                radial-gradient(900px 600px at -5% 108%, rgba(217,96,60,.05), transparent 55%);
-    --material:rgba(255,255,255,.68); --card:#ffffff; --card-2:#fbfbfd;
-    --fill:rgba(120,120,128,.12); --fill-2:rgba(120,120,128,.2);
-    --sep:rgba(60,60,67,.12); --sep-2:rgba(60,60,67,.22);
+    --wallpaper:radial-gradient(1200px 700px at 85% -8%, rgba(0,122,255,.05), transparent 60%),
+                radial-gradient(900px 600px at -5% 108%, rgba(217,96,60,.045), transparent 55%);
+    --material:rgba(255,255,255,.7); --card:#ffffff; --card-2:#fbfbfd;
+    --fill:rgba(120,120,128,.1); --fill-2:rgba(120,120,128,.18);
+    --sep:rgba(60,60,67,.1); --sep-2:rgba(60,60,67,.2);
     --text:#1d1d1f; --text-2:rgba(60,60,67,.62); --text-3:rgba(60,60,67,.32);
     --accent:#007aff; --accent-bg:rgba(0,122,255,.1);
     --ok:#34c759; --ok-bg:rgba(52,199,89,.12);
     --warn:#ff9500; --warn-bg:rgba(255,149,0,.13);
-    --clay:#d9603c; --clay-bg:rgba(217,96,60,.11);
+    --clay:#d9603c; --clay-bg:rgba(217,96,60,.1);
     --hl:rgba(255,214,10,.5);
-    --stage:#e8e8ed;
-    --shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.06);
-    --shadow-page:0 2px 8px rgba(0,0,0,.12), 0 12px 40px rgba(0,0,0,.14);
+    --stage:#e9e9ee;
+    --shadow:0 1px 2px rgba(0,0,0,.04), 0 8px 24px rgba(0,0,0,.05);
+    --shadow-page:0 2px 8px rgba(0,0,0,.12), 0 12px 40px rgba(0,0,0,.13);
     --mono:ui-monospace,"SF Mono","Cascadia Mono",Consolas,monospace;
     --sans:-apple-system,BlinkMacSystemFont,"SF Pro Text","Segoe UI Variable Text","Segoe UI",system-ui,sans-serif;
-    --r:14px; --r-sm:9px;
   }
   [data-theme="dark"] {
     color-scheme: dark;
-    --bg:#000000;
-    --wallpaper:radial-gradient(1200px 700px at 85% -8%, rgba(10,132,255,.09), transparent 60%),
-                radial-gradient(900px 600px at -5% 108%, rgba(224,118,90,.07), transparent 55%);
-    --material:rgba(28,28,30,.66); --card:#1c1c1e; --card-2:#242426;
-    --fill:rgba(120,120,128,.24); --fill-2:rgba(120,120,128,.34);
-    --sep:rgba(255,255,255,.1); --sep-2:rgba(255,255,255,.18);
+    --bg:#000; --wallpaper:radial-gradient(1200px 700px at 85% -8%, rgba(10,132,255,.08), transparent 60%);
+    --material:rgba(28,28,30,.68); --card:#1c1c1e; --card-2:#242426;
+    --fill:rgba(120,120,128,.22); --fill-2:rgba(120,120,128,.32);
+    --sep:rgba(255,255,255,.09); --sep-2:rgba(255,255,255,.17);
     --text:#f5f5f7; --text-2:rgba(235,235,245,.6); --text-3:rgba(235,235,245,.3);
     --accent:#0a84ff; --accent-bg:rgba(10,132,255,.16);
-    --ok:#30d158; --ok-bg:rgba(48,209,88,.16);
-    --warn:#ff9f0a; --warn-bg:rgba(255,159,10,.16);
-    --clay:#e0765a; --clay-bg:rgba(224,118,90,.16);
-    --hl:rgba(255,214,10,.34);
-    --stage:#161617;
-    --shadow:none;
-    --shadow-page:0 2px 8px rgba(0,0,0,.5), 0 12px 40px rgba(0,0,0,.55);
+    --ok:#30d158; --ok-bg:rgba(48,209,88,.15); --warn:#ff9f0a; --warn-bg:rgba(255,159,10,.15);
+    --clay:#e0765a; --clay-bg:rgba(224,118,90,.15);
+    --hl:rgba(255,214,10,.32); --stage:#151516;
+    --shadow:none; --shadow-page:0 2px 8px rgba(0,0,0,.5), 0 12px 40px rgba(0,0,0,.5);
   }
   * { box-sizing:border-box; margin:0; padding:0; }
   ::-webkit-scrollbar { width:9px; height:9px; }
@@ -55,7 +50,8 @@
          height:100vh; display:flex; flex-direction:column; overflow:hidden;
          -webkit-font-smoothing:antialiased; letter-spacing:-0.01em; }
   button { font-family:var(--sans); font-size:12.5px; font-weight:500; color:var(--text); background:var(--fill);
-           border:none; border-radius:8px; padding:5px 12px; cursor:pointer; transition:background .16s ease, transform .08s ease; }
+           border:none; border-radius:8px; padding:5px 12px; min-height:26px; cursor:pointer;
+           transition:background .16s ease, transform .08s ease; }
   button:hover { background:var(--fill-2); }
   button:active { transform:scale(.97); }
   button.primary { color:#fff; background:var(--accent); }
@@ -63,63 +59,81 @@
   button:disabled { opacity:.35; cursor:default; transform:none; }
   button:focus-visible, input:focus-visible, select:focus-visible { outline:3px solid var(--accent-bg); outline-offset:1px; }
   input, select { font-family:var(--sans); font-size:12.5px; color:var(--text); background:var(--fill);
-                  border:none; border-radius:8px; padding:5px 10px; outline:none; transition:box-shadow .16s ease; }
+                  border:none; border-radius:8px; padding:5px 10px; min-height:26px; outline:none; }
   input:focus { box-shadow:0 0 0 3px var(--accent-bg); background:var(--card); }
-  .mono { font-family:var(--mono); }
   @media (prefers-reduced-motion: reduce) { * { transition:none !important; animation:none !important; } }
 
-  /* ---- header: translucent chrome material (macOS toolbar) ---- */
-  header { display:flex; align-items:center; gap:12px; padding:10px 16px;
+  /* ---- header: three calm clusters (identity · patient · actions) ---- */
+  header { display:flex; align-items:center; gap:14px; padding:10px 16px;
            background:var(--material); backdrop-filter:saturate(180%) blur(20px);
            -webkit-backdrop-filter:saturate(180%) blur(20px);
            border-bottom:1px solid var(--sep); z-index:5; }
+  #open-btn { display:flex; align-items:center; gap:9px; background:none; padding:2px 6px 2px 2px; border-radius:10px; }
+  #open-btn:hover { background:var(--fill); }
   .logo { width:30px; height:30px; border-radius:8px; background:linear-gradient(135deg, var(--clay), #b94a2c);
-          color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px;
+          color:#fff; display:flex; align-items:center; justify-content:center; font-size:14px; flex:none;
           box-shadow:inset 0 1px 0 rgba(255,255,255,.25), 0 1px 3px rgba(0,0,0,.18); }
-  .ttl { font-weight:600; font-size:15px; letter-spacing:-0.02em;
+  .ttl { font-weight:600; font-size:15px; letter-spacing:-0.02em; text-align:left;
          font-family:-apple-system,BlinkMacSystemFont,"SF Pro Display","Segoe UI Variable Display","Segoe UI",system-ui; }
-  .sub { font-size:9px; letter-spacing:1.6px; color:var(--text-3); text-transform:uppercase; }
-  .name { color:var(--text-2); font-size:12px; max-width:26vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .sub { font-size:9.5px; color:var(--accent); text-align:left; }
+  .patient { display:flex; align-items:center; gap:8px; min-width:0; }
+  .name { color:var(--text-2); font-size:12px; max-width:24vw; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
   .chip { font-size:11px; font-weight:500; padding:3px 10px; border-radius:999px;
           color:var(--text-2); background:var(--fill); white-space:nowrap; }
   .chip.fail { color:var(--clay); background:var(--clay-bg); font-weight:600; }
   .chip.sandbox { color:var(--warn); background:var(--warn-bg); }
   .chip.okc { color:var(--ok); background:var(--ok-bg); }
+  .chip.reader { color:var(--accent); background:var(--accent-bg); }
   .grow { flex:1; }
+  #info-btn { font-weight:600; }
 
-  /* ---- zone strip: risk tokens over a hairline card ---- */
-  #zonebar { padding:9px 16px 8px; background:var(--material); backdrop-filter:saturate(180%) blur(20px);
+  /* ---- zone strip: readable tokens, excerpts live in tooltips ---- */
+  #zonebar { padding:8px 16px; background:var(--material); backdrop-filter:saturate(180%) blur(20px);
              -webkit-backdrop-filter:saturate(180%) blur(20px); border-bottom:1px solid var(--sep); }
-  #map { position:relative; height:8px; border-radius:4px; background:var(--fill); }
-  #map .z { position:absolute; top:0; bottom:0; min-width:5px; border-radius:4px; background:var(--clay);
-            cursor:pointer; transition:filter .16s ease; }
+  #map { position:relative; height:7px; border-radius:4px; background:var(--fill); }
+  #map .z { position:absolute; top:0; bottom:0; min-width:5px; border-radius:4px; background:var(--clay); cursor:pointer; }
   #map .z:hover { filter:brightness(1.12); }
   #map .z.repaired { background:var(--ok); }
-  #chips { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; }
-  .zchip { display:flex; align-items:center; gap:7px; font-size:11.5px; padding:4px 11px; border-radius:999px;
+  #chips { display:flex; gap:8px; margin-top:8px; flex-wrap:wrap; align-items:center; }
+  .zchip { display:flex; align-items:center; gap:8px; font-size:11.5px; padding:4px 12px; border-radius:999px;
            background:var(--card); cursor:pointer; box-shadow:0 0 0 1px var(--sep), var(--shadow);
-           transition:box-shadow .16s ease, background .16s ease; }
-  .zchip:hover { box-shadow:0 0 0 1px var(--sep-2), var(--shadow); }
-  .zchip .pg { font-family:var(--mono); color:var(--clay); font-weight:600; }
-  .zchip q { color:var(--text-3); font-style:normal; max-width:200px; overflow:hidden;
-             text-overflow:ellipsis; white-space:nowrap; }
+           transition:box-shadow .16s ease; }
+  .zchip .zn { font-weight:600; }
+  .zchip .zp { font-family:var(--mono); color:var(--clay); }
+  .zchip .zs { color:var(--text-3); }
   .zchip.sel { box-shadow:0 0 0 2px var(--accent); background:var(--accent-bg); }
-  .zchip.repaired .pg { color:var(--ok); }
+  .zchip.repaired .zp { color:var(--ok); }
+  #zonefacts { font-size:11px; color:var(--text-3); margin-left:auto; white-space:nowrap; }
 
-  /* ---- main: sidebar | stage | markdown ---- */
-  main { flex:1; display:grid; grid-template-columns:238px 1fr minmax(340px, 38%); gap:12px;
+  /* ---- the coach: a DOCKED band (never covers controls), one step in focus ---- */
+  #coach { display:flex; align-items:center; gap:8px; padding:7px 16px;
+           background:var(--accent-bg); border-bottom:1px solid var(--sep); }
+  .coach-steps { display:flex; gap:6px; flex:1; min-width:0; }
+  .cstep { flex:1; min-width:0; border-radius:9px; padding:4px 10px; background:var(--card);
+           box-shadow:0 0 0 1px var(--sep); }
+  .cstep .cn { font-size:10px; font-weight:600; color:var(--text-3); white-space:nowrap; }
+  .cstep .ct { font-size:10.5px; color:var(--text-2); line-height:1.3; overflow:hidden;
+               text-overflow:ellipsis; white-space:nowrap; }
+  .cstep.now { box-shadow:0 0 0 2px var(--accent); }
+  .cstep.now .cn, .cstep.now .ct { color:var(--text); }
+  .cstep.done { background:var(--ok-bg); box-shadow:none; }
+  .cstep.done .cn { color:var(--ok); }
+  .cstep.done .ct { color:var(--text-3); }
+
+  main { flex:1; display:grid; grid-template-columns:236px 1fr minmax(340px, 37%); gap:12px;
          padding:12px 16px; min-height:0; }
   .pane { display:flex; flex-direction:column; background:var(--card);
-          border-radius:var(--r); overflow:hidden; min-height:0;
+          border-radius:14px; overflow:hidden; min-height:0;
           box-shadow:0 0 0 1px var(--sep), var(--shadow); }
   .pane-head { display:flex; align-items:center; gap:8px; padding:8px 12px; border-bottom:1px solid var(--sep);
-               font-size:11.5px; font-weight:500; color:var(--text-2); flex:none; }
+               font-size:11px; font-weight:600; letter-spacing:.3px; text-transform:uppercase;
+               color:var(--text-3); flex:none; }
 
-  /* sidebar (Okular anatomy, Apple segmented control) */
+  /* sidebar */
   #side-tabs { display:flex; margin:8px; padding:2px; gap:2px; flex:none;
                background:var(--fill); border-radius:9px; }
-  .stab { flex:1; text-align:center; font-size:11.5px; font-weight:500; padding:4px 4px; border-radius:7px;
-          color:var(--text-2); cursor:pointer; transition:background .16s ease, color .16s ease; }
+  .stab { flex:1; text-align:center; font-size:11.5px; font-weight:500; padding:4px; border-radius:7px;
+          color:var(--text-2); cursor:pointer; transition:background .16s ease; }
   .stab.on { color:var(--text); background:var(--card); box-shadow:0 1px 3px rgba(0,0,0,.14); }
   .sbody { flex:1; overflow:auto; min-height:0; border-top:1px solid var(--sep); }
   .toc-row { padding:4px 12px; font-size:11.5px; color:var(--text-2); cursor:pointer; display:flex; gap:8px;
@@ -130,31 +144,35 @@
   .toc-row .p { color:var(--text-3); font-family:var(--mono); font-size:10.5px; }
   #searchbox { display:flex; gap:6px; padding:10px; flex:none; }
   #searchbox input { flex:1; min-width:0; }
+  #hlclear { display:none; }
   .hit { padding:6px 12px; border-bottom:1px solid var(--sep); cursor:pointer; }
   .hit:hover { background:var(--fill); }
   .hit .hp { font-family:var(--mono); font-size:11px; color:var(--accent); }
   .hit .hx { font-size:10.5px; color:var(--text-3); overflow:hidden; text-overflow:ellipsis;
              white-space:nowrap; display:block; }
-  .side-note { padding:12px; font-size:11px; color:var(--text-3); }
+  .side-note { padding:12px; font-size:11px; color:var(--text-3); line-height:1.5; }
   #thumbs { display:flex; flex-direction:column; gap:10px; padding:10px; }
   .thumb { border-radius:6px; cursor:pointer; background:var(--card-2);
-           box-shadow:0 0 0 1px var(--sep), 0 1px 4px rgba(0,0,0,.08);
-           min-height:120px; display:flex; align-items:center; justify-content:center; position:relative;
-           transition:box-shadow .16s ease; }
+           box-shadow:0 0 0 1px var(--sep); min-height:120px; position:relative;
+           display:flex; align-items:center; justify-content:center; }
   .thumb img { width:100%; border-radius:6px; display:block; }
-  .thumb.cur { box-shadow:0 0 0 2.5px var(--accent), 0 1px 4px rgba(0,0,0,.08); }
+  .thumb.cur { box-shadow:0 0 0 2.5px var(--accent); }
   .thumb .tn { position:absolute; bottom:4px; right:6px; font-family:var(--mono); font-size:9.5px;
                color:var(--text-2); background:var(--material); backdrop-filter:blur(8px);
                border-radius:5px; padding:0 5px; }
 
-  /* stage (the page, Preview.app posture) */
+  /* stage */
   #stage-tools { display:flex; align-items:center; gap:8px; padding:7px 10px;
                  border-bottom:1px solid var(--sep); flex:none;
                  background:var(--material); backdrop-filter:saturate(180%) blur(20px);
                  -webkit-backdrop-filter:saturate(180%) blur(20px); }
   #pin { width:54px; text-align:center; font-family:var(--mono); }
   #ptotal { color:var(--text-3); font-size:11.5px; white-space:nowrap; font-family:var(--mono); }
-  #locbadge { font-size:10.5px; color:var(--ok); white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  #stage-info { display:flex; align-items:center; gap:8px; padding:4px 12px; flex:none;
+                border-bottom:1px solid var(--sep); font-size:10.5px; color:var(--text-2);
+                background:var(--card-2); min-height:24px; }
+  #locbadge { color:var(--ok); white-space:nowrap; }
+  #locbadge.ratio { color:var(--text-3); }
   #pagewrap { flex:1; overflow:auto; background:var(--stage); display:flex; justify-content:center; }
   #pagebox { position:relative; margin:18px auto; height:fit-content; box-shadow:var(--shadow-page);
              border-radius:3px; overflow:hidden; }
@@ -165,47 +183,11 @@
   .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; }
   #nopdf { padding:36px; color:var(--text-3); }
 
-  /* S65 — the coach: one step at a time, auto-checked, Apple-banner material */
-  #coach { position:fixed; left:50%; transform:translateX(-50%); top:118px; z-index:8;
-           width:min(94vw, 760px); border-radius:14px; padding:8px 14px 10px;
-           background:var(--material); backdrop-filter:saturate(180%) blur(20px);
-           -webkit-backdrop-filter:saturate(180%) blur(20px);
-           box-shadow:0 0 0 1px var(--sep), 0 12px 40px rgba(0,0,0,.16); }
-  .coach-head { display:flex; align-items:center; gap:8px; font-size:12.5px; margin-bottom:6px; }
-  #coach-close { padding:2px 8px; }
-  .coach-steps { display:flex; gap:6px; }
-  .cstep { flex:1; border-radius:10px; padding:6px 9px; background:var(--fill); min-width:0; }
-  .cstep .cn { font-size:10px; font-weight:600; color:var(--text-3); }
-  .cstep .ct { font-size:11px; color:var(--text-2); line-height:1.35; }
-  .cstep.now { background:var(--accent-bg); box-shadow:0 0 0 2px var(--accent); }
-  .cstep.now .cn, .cstep.now .ct { color:var(--text); }
-  .cstep.done { background:var(--ok-bg); }
-  .cstep.done .cn { color:var(--ok); }
-  .cstep.done .ct { color:var(--text-3); text-decoration:line-through; }
-
-  /* S65 — the help sheet (the explicit display would defeat [hidden] without the guard) */
-  #help { position:fixed; inset:0; z-index:20; display:flex; }
-  #help[hidden], #coach[hidden] { display:none !important; }
-  .help-backdrop { position:absolute; inset:0; background:rgba(0,0,0,.32); }
-  .help-sheet { position:relative; margin:auto; width:min(94vw, 680px); max-height:86vh;
-                display:flex; flex-direction:column; overflow:hidden; border-radius:16px;
-                background:var(--card); box-shadow:0 0 0 1px var(--sep), 0 24px 70px rgba(0,0,0,.3); }
-  .help-head { display:flex; align-items:center; gap:8px; padding:12px 16px;
-               border-bottom:1px solid var(--sep); font-size:13.5px; }
-  .help-body { overflow:auto; padding:6px 18px 18px; font-size:12.5px; line-height:1.6; color:var(--text-2); }
-  .help-body h3 { color:var(--text); font-size:12.5px; margin:14px 0 4px; letter-spacing:-0.01em; }
-  .help-body p { margin:6px 0; }
-  .help-body b { color:var(--text); font-weight:600; }
-  .help-body code { font-family:var(--mono); font-size:11px; background:var(--fill);
-                    border-radius:4px; padding:0 4px; }
-
-  /* the AI assist bar (S64): local qwen3, fenced, one ↩ from undone */
+  /* markdown pane */
   #aibar { display:flex; gap:6px; padding:8px 10px; border-bottom:1px solid var(--sep); flex:none;
            background:var(--card-2); }
   #aibar input { flex:1; min-width:0; }
   #aiundo { color:var(--warn); background:var(--warn-bg); }
-
-  /* markdown pane */
   #ctx { flex:1; overflow:auto; padding:10px 14px; white-space:pre-wrap; word-break:break-word;
          font-family:var(--mono); font-size:11px; line-height:1.6; color:var(--text-2); }
   #ctx .zl { background:var(--clay-bg); color:var(--clay); display:block; border-radius:5px; padding:1px 5px; }
@@ -213,98 +195,83 @@
   #editor { flex:1; display:none; background:var(--card-2); color:var(--text); border:0; outline:0;
             padding:12px 14px; font-family:var(--mono); font-size:11px; line-height:1.6; resize:none; }
 
-  footer { display:flex; gap:12px; padding:9px 16px; border-top:1px solid var(--sep);
+  /* footer: repairs + one calm source line (the instructions live in ? help) */
+  footer { display:flex; gap:12px; padding:8px 16px; border-top:1px solid var(--sep); align-items:center;
            background:var(--material); backdrop-filter:saturate(180%) blur(20px);
-           -webkit-backdrop-filter:saturate(180%) blur(20px); align-items:center; flex:none; }
-  #repairs { flex:1; display:flex; gap:8px; overflow-x:auto; }
-  .rep { display:flex; gap:7px; align-items:center; border-radius:10px;
-         padding:4px 9px; font-size:10.5px; color:var(--text-2); white-space:nowrap;
+           -webkit-backdrop-filter:saturate(180%) blur(20px); flex:none; min-height:44px; }
+  #repairs { flex:1; display:flex; gap:8px; overflow-x:auto; align-items:center; }
+  #repairs .rlabel { font-size:10px; font-weight:600; letter-spacing:.3px; text-transform:uppercase;
+                     color:var(--text-3); flex:none; }
+  .rep { display:flex; gap:7px; align-items:center; border-radius:10px; padding:3px 9px;
+         font-size:10.5px; color:var(--text-2); white-space:nowrap;
          background:var(--card); box-shadow:0 0 0 1px var(--sep); }
-  .rep img { height:32px; border-radius:6px; display:block; }
-  #verdictbox { font-size:11px; color:var(--text-2); max-width:36%; line-height:1.5; }
-  #verdictbox b { color:var(--text); font-weight:600; }
-  #status { position:fixed; left:50%; transform:translateX(-50%); bottom:64px; font-size:12px;
+  .rep img { height:30px; border-radius:5px; display:block; }
+  #srcline { font-size:10.5px; color:var(--text-3); font-family:var(--mono); max-width:40%;
+             overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+
+  #status { position:fixed; left:50%; transform:translateX(-50%); bottom:60px; font-size:12px;
             font-weight:500; color:var(--text); max-width:70vw;
             background:var(--material); backdrop-filter:saturate(180%) blur(20px);
             -webkit-backdrop-filter:saturate(180%) blur(20px);
             border-radius:999px; padding:7px 16px;
             box-shadow:0 0 0 1px var(--sep), 0 8px 30px rgba(0,0,0,.18); display:none; z-index:9; }
+
+  /* modals (help / picker / info) — one shared sheet system */
+  .modal { position:fixed; inset:0; z-index:20; display:flex; }
+  .modal[hidden], #coach[hidden] { display:none !important; }
+  .modal .backdrop { position:absolute; inset:0; background:rgba(0,0,0,.3); }
+  .sheet { position:relative; margin:auto; width:min(94vw, 640px); max-height:84vh;
+           display:flex; flex-direction:column; overflow:hidden; border-radius:16px;
+           background:var(--card); box-shadow:0 0 0 1px var(--sep), 0 24px 70px rgba(0,0,0,.3); }
+  .sheet-head { display:flex; align-items:center; gap:8px; padding:12px 16px;
+                border-bottom:1px solid var(--sep); font-size:13.5px; font-weight:600; }
+  .sheet-body { overflow:auto; padding:6px 18px 18px; font-size:12.5px; line-height:1.6; color:var(--text-2); }
+  .sheet-body h3 { color:var(--text); font-size:12.5px; margin:14px 0 4px; }
+  .sheet-body p { margin:6px 0; }
+  .sheet-body b { color:var(--text); font-weight:600; }
+  .sheet-body code { font-family:var(--mono); font-size:11px; background:var(--fill); border-radius:4px; padding:0 4px; }
+  /* picker rows */
+  .pick-group { font-size:10.5px; font-weight:600; letter-spacing:.4px; text-transform:uppercase;
+                color:var(--text-3); margin:12px 0 4px; }
+  .pick { display:flex; align-items:center; gap:10px; padding:7px 10px; border-radius:10px; cursor:pointer; }
+  .pick:hover { background:var(--fill); }
+  .pick .pi { width:26px; height:26px; border-radius:7px; background:var(--fill); flex:none;
+              display:flex; align-items:center; justify-content:center; font-size:13px; }
+  .pick .pn { flex:1; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; color:var(--text); font-size:12px; }
+  .pick .pm { flex:none; font-size:10.5px; color:var(--text-3); font-family:var(--mono); }
+  .pick .pv { flex:none; font-size:10px; padding:1px 8px; border-radius:999px; }
+  .pick .pv.fail { color:var(--clay); background:var(--clay-bg); }
+  .pick .pv.rep { color:var(--ok); background:var(--ok-bg); }
+  /* info rows */
+  .inforow { display:flex; gap:10px; padding:4px 0; border-bottom:1px solid var(--sep); font-size:12px; }
+  .inforow .k { width:130px; flex:none; color:var(--text-3); }
+  .inforow .v { color:var(--text); font-family:var(--mono); font-size:11.5px; word-break:break-all; }
 </style>
 </head>
 <body>
 <header>
-  <div class="logo">◆</div>
-  <div><div class="ttl">Repair Bench</div><div class="sub">the human is the vision model</div></div>
-  <span class="name" id="bname">—</span>
-  <span class="chip fail" id="bverdict">—</span>
-  <span class="chip" id="bpages">—</span>
-  <span class="chip" id="bzones">—</span>
-  <span class="chip sandbox" id="bsandbox" hidden>SANDBOX — originals untouched</span>
+  <button id="open-btn" title="Select a PDF or bundle to put on the bench">
+    <span class="logo">◆</span>
+    <span><span class="ttl">Repair Bench</span><br/><span class="sub">click to select a PDF ▾</span></span>
+  </button>
+  <span class="patient">
+    <span class="name" id="bname">—</span>
+    <span class="chip fail" id="bverdict" hidden>—</span>
+    <span class="chip" id="bzones" hidden>—</span>
+    <span class="chip reader" id="breader" hidden>READING MODE — bare PDF, nothing here can write</span>
+    <span class="chip sandbox" id="bsandbox" hidden>SANDBOX — repairs land on a copy</span>
+  </span>
   <span class="grow"></span>
+  <button id="info-btn" title="everything about this patient — source, hashes, audit, repairs">ⓘ</button>
   <button id="guide-btn" title="the step-by-step repair coach">☰ guide</button>
   <button id="help-btn" title="what everything is and how a repair works">?</button>
   <button id="theme" title="light ⇄ dark">◐</button>
-  <button id="rescore">◎ re-score preview</button>
+  <button id="rescore" title="re-run the degeneration check on the current text — a preview, writes nothing">◎ re-score</button>
 </header>
 
-<!-- S65: THE COACH — one step at a time, checked off as you actually do them. -->
 <div id="coach" hidden>
-  <div class="coach-head"><b>Your first repair, step by step</b><span class="grow"></span>
-    <button id="coach-close" title="hide (reopen with ☰ guide)">✕</button></div>
   <div class="coach-steps" id="coach-steps"></div>
-</div>
-
-<!-- S65: THE HELP SHEET — the bench's knowledge, living in the bench. -->
-<div id="help" hidden>
-  <div class="help-backdrop"></div>
-  <div class="help-sheet">
-    <div class="help-head"><b>The Repair Bench — how it works</b><span class="grow"></span>
-      <button id="help-close">✕ close</button></div>
-    <div class="help-body">
-      <h3>What this is</h3>
-      <p>The audit can say <em>where</em> a conversion went wrong — it cannot see what the page
-      really held. <b>You can.</b> The bench puts the source page and the damaged markdown side
-      by side so a repair is one gesture. Everything here works on the folder you opened:
-      its <code>.md</code>, its <code>assets/</code>, its <code>manifest.json</code>.</p>
-      <h3>The three panes</h3>
-      <p><b>Left — the sidebar.</b> <em>Contents</em> is the PDF's own outline. <em>Search</em>
-      finds text in the book itself (books with a text layer; raw scans honestly say no).
-      <em>Pages</em> is a thumbnail rail.</p>
-      <p><b>Middle — the source page.</b> The truth, as printed. Page box + ◂ ▸ + zoom.
-      <b>⌖ locate</b> finds a zone's true page from the prose around the damage (text-layer
-      books); on raw scans it can only guess by ratio (<code>~</code>) — your eyes finish the job.</p>
-      <p><b>Right — the markdown at the zone.</b> What the conversion produced. The
-      <span style="color:var(--clay)">▶ highlighted line</span> is the wreck the audit flagged.
-      Repairs you've made show <span style="color:var(--ok)">green</span>.</p>
-      <h3>Starting a repair (the whole loop)</h3>
-      <p><b>1 · Pick a zone.</b> The chips under the header are the audit's flagged wreck sites
-      (size = damage). <code>✓</code> means already repaired.</p>
-      <p><b>2 · Find the true page.</b> The page jumps to the bench's best guess. Step ◂ ▸ and
-      zoom until you can <em>see</em> the damaged content — usually a table or figure.</p>
-      <p><b>3 · Capture the truth.</b> Drag a rectangle over it, click
-      <b>✂ insert crop at zone</b> — or Ctrl+V any screenshot. The image lands in
-      <code>assets/_repair_pN_k.png</code>, embedded <code>![[…]]</code> right at the zone,
-      provenance stamped into <code>manifest["repairs"]</code>. The chip earns its ✓.</p>
-      <p><b>4 · Fix the text</b> (this is what clears the degeneration flag). The wrecked
-      markdown is still wrecked <em>text</em>. Type an instruction into the AI bar —
-      <em>"replace this broken table with a clean markdown table matching the exhibit"</em> —
-      and <b>✦ fix</b>. Or <b>✎ edit</b> by hand and save.</p>
-      <p><b>5 · Check your work.</b> <b>◎ re-score preview</b> re-runs the degeneration
-      tripwire on the current text and answers honestly. An image alone does not clear
-      degenerate text; a text fix does. Whether repairs earn <em>audit credit</em> is an
-      unsigned policy — Rab signs it.</p>
-      <h3>The AI's rules</h3>
-      <p>Local qwen3 only (nothing leaves this machine). It sees the <em>visible passage</em>
-      only. Every image embed is fenced into an opaque token first — a reply that damages one
-      is <b>refused</b>, never patched. "Nothing to fix" is an honest answer and costs no undo.
-      <b>↩ undo AI</b> restores the file byte-for-byte, twenty changes deep.</p>
-      <h3>Your safety net</h3>
-      <p>Before the first write of a session the bench copies the markdown to
-      <code>.md.bench-bak</code>. Repairs are append-only and provenance-stamped. The
-      <code>--sandbox</code> flag (or the SANDBOX badge) means you're on a copy. Without it
-      you are repairing the real bundle — which is the point, and why the net exists.</p>
-    </div>
-  </div>
+  <button id="coach-close" title="hide (reopen with ☰ guide)">✕</button>
 </div>
 
 <div id="zonebar">
@@ -316,48 +283,47 @@
   <section class="pane" id="sidebar">
     <div id="side-tabs">
       <div class="stab on" data-tab="toc">Contents</div>
-      <div class="stab" data-tab="search">Search</div>
+      <div class="stab" data-tab="search" id="search-tab">Search</div>
       <div class="stab" data-tab="pages">Pages</div>
     </div>
     <div class="sbody" id="sb-toc"><div class="side-note">reading outline…</div></div>
     <div class="sbody" id="sb-search" hidden>
-      <div id="searchbox"><input id="q" placeholder="search the source PDF…" /><button id="qgo">⌕</button></div>
-      <div id="qres"><div class="side-note">search the book's own text layer — hits jump and highlight, Okular-style.</div></div>
+      <div id="searchbox"><input id="q" placeholder="search the book's text…" /><button id="qgo" title="search">⌕</button><button id="hlclear" title="clear highlights">✕</button></div>
+      <div id="qres"><div class="side-note">Results list here — click one to jump; hits highlight on the page. Your place is never stolen: no auto-jump.</div></div>
     </div>
     <div class="sbody" id="sb-pages" hidden><div id="thumbs"></div></div>
   </section>
 
   <section class="pane">
     <div id="stage-tools">
-      <button id="pprev">◂</button>
-      <input id="pin" value="1" />
+      <button id="pprev" title="previous page (←)">◂</button>
+      <input id="pin" value="1" title="page number — type and press Enter" />
       <span id="ptotal">/ —</span>
-      <button id="pnext">▸</button>
-      <select id="zoom">
+      <button id="pnext" title="next page (→)">▸</button>
+      <select id="zoom" title="zoom">
         <option value="fit" selected>fit width</option>
         <option value="0.75">75%</option><option value="1">100%</option>
         <option value="1.5">150%</option><option value="2">200%</option>
       </select>
-      <button id="locate" title="find this zone's true page from the text around it">⌖ locate zone</button>
-      <span id="locbadge"></span>
+      <button id="locate" title="find this zone's true page from the prose around it (text-layer books)">⌖ locate</button>
       <span class="grow"></span>
-      <button id="cropbtn" class="primary" disabled>✂ insert crop at zone</button>
+      <button id="cropbtn" class="primary" disabled>✂ drag a region first</button>
     </div>
+    <div id="stage-info"><span id="locbadge"></span><span class="grow"></span><span id="zonehint"></span></div>
     <div id="pagewrap"><div id="pagebox"><img id="pageimg" alt="" /><div id="cropbox"></div></div>
       <div id="nopdf" hidden>source PDF not found — markdown-only repairs (paste a screenshot: Ctrl+V)</div>
     </div>
   </section>
 
-  <section class="pane">
-    <div class="pane-head">
-      <span>markdown at the zone</span><span class="grow"></span>
-      <button id="edit">✎ edit</button>
+  <section class="pane" id="md-pane">
+    <div class="pane-head"><span id="md-title">markdown at the zone</span><span class="grow"></span>
+      <button id="edit" title="edit the whole file by hand">✎ edit</button>
       <button id="save" hidden class="primary">save</button>
     </div>
     <div id="aibar">
       <input id="ai" placeholder="tell qwen3 how to fix this passage… (local · embeds fenced · undoable)" />
-      <button id="aigo" class="primary">✦ fix</button>
-      <button id="aiundo" hidden title="restore the markdown exactly as it was before the last AI change">↩ undo AI</button>
+      <button id="aigo" class="primary" title="rewrite the visible passage with local AI">✦ fix</button>
+      <button id="aiundo" hidden title="restore the markdown exactly as before the last AI change">↩ undo AI</button>
     </div>
     <div id="ctx"></div>
     <textarea id="editor" spellcheck="false"></textarea>
@@ -365,18 +331,73 @@
 </main>
 
 <footer>
-  <div id="repairs"></div>
-  <div id="verdictbox">Select a zone chip, <b>⌖ locate</b> finds its true page from the surrounding prose
-    (books with a text layer), then drag a rectangle → <b>✂ insert crop</b>, or Ctrl+V a screenshot.
-    Repairs land in <b>assets/</b>, embed <b>![[…]]</b> at the zone, provenance in <b>manifest["repairs"]</b>.
-    Re-score is a <b>preview</b> — audit credit is Rab's unsigned policy.</div>
+  <div id="repairs"><span class="rlabel">repairs</span><span class="side-note" id="norepairs" style="padding:0">none yet</span></div>
+  <span id="srcline">—</span>
 </footer>
 <div id="status"></div>
+
+<div class="modal" id="picker" hidden>
+  <div class="backdrop" data-close="picker"></div>
+  <div class="sheet">
+    <div class="sheet-head">Select a PDF or bundle<span class="grow"></span><button data-close="picker">✕ close</button></div>
+    <div class="sheet-body" id="picker-body"><div class="side-note">loading the library…</div></div>
+  </div>
+</div>
+
+<div class="modal" id="info" hidden>
+  <div class="backdrop" data-close="info"></div>
+  <div class="sheet">
+    <div class="sheet-head">This patient, exactly<span class="grow"></span><button data-close="info">✕ close</button></div>
+    <div class="sheet-body" id="info-body"></div>
+  </div>
+</div>
+
+<div class="modal" id="help" hidden>
+  <div class="backdrop" data-close="help"></div>
+  <div class="sheet">
+    <div class="sheet-head">The Repair Bench — how it works<span class="grow"></span><button data-close="help">✕ close</button></div>
+    <div class="sheet-body">
+      <h3>What this is</h3>
+      <p>The audit can say <em>where</em> a conversion went wrong — it cannot see what the page
+      really held. <b>You can.</b> The bench puts the source page and the damaged markdown side
+      by side so a repair is one gesture. Click the <b>◆ icon</b> any time to put a different
+      book on the bench — held bundles, pending bundles, anchor copies, or a bare PDF
+      (which opens in honest reading mode: browse, search, no writes).</p>
+      <h3>The three panes</h3>
+      <p><b>Left:</b> <em>Contents</em> is the PDF's own outline · <em>Search</em> finds text in
+      the book (raw scans honestly say they have no text layer; results never yank you away —
+      you click when ready) · <em>Pages</em> is a thumbnail rail that opens at your page.</p>
+      <p><b>Middle:</b> the source page. <b>⌖ locate</b> finds a zone's true page from the prose
+      around the damage on text-layer books; raw scans get a labeled <code>~ratio</code> guess
+      your eyes refine.</p>
+      <p><b>Right:</b> the markdown at the zone — the <span style="color:var(--clay)">▶ line</span>
+      is the wreck; your repairs show <span style="color:var(--ok)">green</span>.</p>
+      <h3>Starting a repair (the loop the ☰ coach walks with you)</h3>
+      <p><b>1 · Pick a zone</b> — the chips are the audit's flagged wreck sites (hover one for
+      its excerpt). <b>2 · Find the page</b> — ◂ ▸ and zoom until you SEE the damage.
+      <b>3 · Capture</b> — drag a rectangle → <b>✂ insert crop</b>, or Ctrl+V a screenshot;
+      it lands in <code>assets/</code>, embedded at the zone, provenance stamped.
+      <b>4 · Fix the text</b> — the AI bar (✦ fix / ↩ undo) or ✎ edit; this is what clears the
+      degeneration flag. <b>5 · ◎ re-score</b> — an honest preview; audit credit is Rab's
+      unsigned policy.</p>
+      <h3>The AI's rules</h3>
+      <p>Local qwen3 only; sees only the visible passage; every image embed is fenced into an
+      opaque token first and a damaged fence means the change is <b>refused</b>; "nothing to
+      fix" is honest and costs no undo; <b>↩ undo AI</b> is byte-identical, twenty deep.</p>
+      <h3>Your safety net</h3>
+      <p><code>.md.bench-bak</code> before the first write · append-only provenance in
+      <code>manifest["repairs"]</code> · the SANDBOX badge means you're on a copy · the READING
+      badge means nothing can write at all · and the pipeline can never overwrite a bundle that
+      carries your repairs.</p>
+    </div>
+  </div>
+</div>
 
 <script>
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 let st = null, zone = null, page = 1, mdText = "", crop = null, hlQuery = null, toc = [], thumbsBuilt = false;
+let ctxRange = { from: 1, to: 1 };
 
 try { const t = localStorage.getItem("fp-bench-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch {}
 $("theme").onclick = () => {
@@ -386,9 +407,11 @@ $("theme").onclick = () => {
   try { localStorage.setItem("fp-bench-theme", next); } catch {}
 };
 
-function status(m) {
-  const el = $("status"); el.textContent = m; el.style.display = m ? "block" : "none";
-  if (m) setTimeout(() => { if (el.textContent === m) el.style.display = "none"; }, 7000);
+let statusSticky = false;
+function status(m, sticky = false) {
+  const el = $("status"); statusSticky = sticky;
+  el.textContent = m; el.style.display = m ? "block" : "none";
+  if (m && !sticky) setTimeout(() => { if (el.textContent === m && !statusSticky) el.style.display = "none"; }, 7000);
 }
 async function api(path, body) {
   const r = await fetch(path, body ? { method:"POST", body: JSON.stringify(body) } : undefined);
@@ -397,57 +420,67 @@ async function api(path, body) {
   return j;
 }
 
+/* ---- modals (one system) ---- */
+document.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => { $(b.dataset.close).hidden = true; });
+addEventListener("keydown", (e) => { if (e.key === "Escape") ["help","picker","info"].forEach((id) => $(id).hidden = true); });
+$("help-btn").onclick = () => { $("help").hidden = false; };
+
+/* ---- boot / reload for the current (or freshly opened) patient ---- */
 async function load() {
   st = await api("/api/state");
-  mdText = (await api("/api/md")).text;
-  $("bname").textContent = st.bundle; $("bname").title = st.dir;
-  $("bverdict").textContent = "audit: " + (st.verdict || "—");
-  $("bpages").textContent = `${st.pages} pp · ${st.lane}`;
+  mdText = st.pdf_only ? "" : (await api("/api/md")).text;
+  zone = null; hlQuery = null; thumbsBuilt = false; toc = [];
+  $("bname").textContent = st.pdf_only ? (st.pdf || "").split("\\").pop() : st.bundle;
+  $("bname").title = st.dir;
+  $("bverdict").hidden = !st.verdict; $("bverdict").textContent = "audit: " + st.verdict;
   const rep = st.zones.filter((z) => z.repaired).length;
+  $("bzones").hidden = st.pdf_only || !st.zones.length;
   $("bzones").textContent = `zones ${rep}/${st.zones.length} repaired`;
   $("bzones").className = "chip" + (rep === st.zones.length && st.zones.length ? " okc" : "");
+  $("breader").hidden = !st.pdf_only;
   $("bsandbox").hidden = !st.sandbox;
   $("ptotal").textContent = `/ ${st.pages}`;
   $("nopdf").hidden = st.pdf_available;
-  if (!st.pdf_available) $("pagebox").style.display = "none";
+  $("pagebox").style.display = st.pdf_available ? "" : "none";
+  $("md-pane").style.display = st.pdf_only ? "none" : "";
+  document.querySelector("main").style.gridTemplateColumns = st.pdf_only ? "236px 1fr" : "236px 1fr minmax(340px, 37%)";
+  $("srcline").textContent = st.pdf || st.dir || "—";
+  $("srcline").title = $("srcline").textContent;
   renderZones(); renderRepairs(); loadToc();
   $("aiundo").hidden = !(st.undo_depth > 0);
   if (st.zones.length) selectZone(0);
-  else renderCtxPlain(); // folder mode: no audit zones — the file itself is the bench
+  else { page = 1; goto(1); if (!st.pdf_only) renderCtxPlain(); }
+  coachRender();
 }
 
-// Folder mode (S64): any convert/mid-conversion folder, zones or not. The visible slice is
-// the head of the file; the AI + repairs anchor to it, and paging is free.
-let ctxRange = { from: 1, to: 1 };
-function renderCtxPlain() {
-  const lines = mdText.split("\n");
-  ctxRange = { from: 1, to: Math.min(lines.length, 40) };
-  $("ctx").innerHTML = lines.slice(0, ctxRange.to).map((l) =>
-    l.startsWith("![[assets/_repair") ? `<span class="rl">${esc(l).slice(0, 400)}</span>` : (esc(l).slice(0, 400) || " ") + "\n"
-  ).join("");
-  if (!st.manifest_present) status("folder mode: no manifest here — no audit zones; AI fixes + repairs still work (a minimal manifest is created on the first repair)");
-}
-
-/* ---- zones (the concept's risk chips) ---- */
+/* ---- zones ---- */
 function renderZones() {
   const mapEl = $("map"); mapEl.innerHTML = "";
   const chips = $("chips"); chips.innerHTML = "";
+  $("zonebar").style.display = st.zones.length ? "" : "none";
   st.zones.forEach((z, i) => {
     const left = Math.min(97, z.line / st.md_lines * 100);
     const w = Math.max(1, Math.min(8, (z.chars || 0) / (st.md_lines * 45) * 100));
     const b = document.createElement("div");
     b.className = "z" + (z.repaired ? " repaired" : "");
     b.style.left = left + "%"; b.style.width = w + "%";
-    b.title = `zone @${z.line} · ${z.chars} ch`;
+    b.title = `zone ${i + 1} @line ${z.line} · ${(z.chars/1000).toFixed(1)}k chars`;
     b.onclick = () => selectZone(i);
     mapEl.appendChild(b);
     const c = document.createElement("div");
     c.className = "zchip" + (zone === i ? " sel" : "") + (z.repaired ? " repaired" : "");
-    c.innerHTML = `<span class="pg">${z.repaired ? "✓ " : ""}~p${z.located_page || z.page_guess}</span>` +
-      `<span>${(z.chars/1000).toFixed(1)}k ch</span><q>${esc(z.excerpt || "")}</q>`;
+    c.title = `“${z.excerpt || ""}…”  — click to open this wreck site`;
+    c.innerHTML = `<span class="zn">${z.repaired ? "✓" : ""} Zone ${i + 1}</span>` +
+      `<span class="zp">${z.located_page ? "p" + z.located_page : "~p" + z.page_guess}</span>` +
+      `<span class="zs">${(z.chars/1000).toFixed(1)}k</span>`;
     c.onclick = () => selectZone(i);
     chips.appendChild(c);
   });
+  const done = st.zones.filter((z) => z.repaired).length;
+  const facts = document.createElement("span");
+  facts.id = "zonefacts";
+  facts.textContent = st.zones.length ? `${st.zones.length} wreck site(s) · ${done} repaired` : "";
+  chips.appendChild(facts);
 }
 
 function selectZone(i) {
@@ -455,44 +488,44 @@ function selectZone(i) {
   coachMark("zone");
   const z = st.zones[i];
   goto(z.located_page || z.page_guess);
-  $("locbadge").textContent = z.located_page ? `⌖ text-evidence p${z.located_page}` : "";
+  setLocBadge(z);
   renderZones(); renderCtx();
-  if (!z.located_page) autoLocate(i);
+  if (!z.located_page && st.pdf_available && !st.pdf_only) autoLocate(i);
 }
-
-/* ---- the smart locate ---- */
+function setLocBadge(z) {
+  const el = $("locbadge");
+  if (!z) { el.textContent = ""; return; }
+  if (z.located_page) { el.className = ""; el.textContent = `⌖ located by text evidence: p${z.located_page}${z.loc_conf ? ` (confidence ${z.loc_conf})` : ""}`; }
+  else { el.className = "ratio"; el.textContent = `~ ratio guess: p${z.page_guess} — step ◂ ▸ until you see the damage`; }
+}
 async function autoLocate(i) {
-  if (!st.pdf_available) return;
-  status("⌖ locating zone from surrounding prose… (first run indexes the whole book)");
+  status("⌖ locating the zone from surrounding prose… (first run indexes the whole book)");
   try {
     const r = await api(`/api/locate?i=${i}`);
-    st.zones[i].located_page = r.page;
+    st.zones[i].located_page = r.method === "text-evidence" ? r.page : null;
+    st.zones[i].loc_conf = r.confidence;
     if (r.method === "text-evidence") {
-      $("locbadge").textContent = `⌖ text-evidence p${r.page} · confidence ${r.confidence}`;
       if (zone === i) goto(r.page);
-      status(`⌖ zone located at p${r.page} by ${r.needles} prose needle(s), confidence ${r.confidence}`);
-    } else {
-      $("locbadge").textContent = `~ratio p${r.page}`;
-      status(r.note || "ratio guess kept");
-    }
+      status(`⌖ located: p${r.page} (confidence ${r.confidence})`);
+    } else { status(r.note || "no text evidence — the ratio guess stands"); }
+    if (zone === i) setLocBadge(st.zones[i]);
     renderZones();
   } catch (e) { status(`locate: ${e.message}`); }
 }
 $("locate").onclick = () => { if (zone != null) { delete st.zones[zone].located_page; autoLocate(zone); } };
 
-/* ---- page stage ---- */
+/* ---- the stage ---- */
 function dpiForZoom(z) { return (z === "fit" || Number(z) <= 1) ? 140 : 220; }
 function goto(n) {
   page = Math.max(1, Math.min(st.pages, Number(n) || 1));
-  const z = $("zoom").value;
-  $("pageimg").src = `/api/page?n=${page}&dpi=${dpiForZoom(z)}`;
+  $("pageimg").src = `/api/page?n=${page}&dpi=${dpiForZoom($("zoom").value)}`;
   $("pin").value = page;
   applyZoom(); clearCrop(); drawHighlights(); markTocCurrent(); markThumbCurrent();
 }
 function applyZoom() {
   const z = $("zoom").value, img = $("pageimg");
-  if (z === "fit") { img.style.width = Math.min(900, $("pagewrap").clientWidth - 40) + "px"; }
-  else { img.style.width = (760 * Number(z)) + "px"; }
+  if (z === "fit") img.style.width = Math.min(900, $("pagewrap").clientWidth - 40) + "px";
+  else img.style.width = (760 * Number(z)) + "px";
 }
 $("zoom").onchange = () => goto(page);
 $("pprev").onclick = () => goto(page - 1);
@@ -504,7 +537,6 @@ addEventListener("keydown", (e) => {
   if (e.key === "ArrowRight") goto(page + 1);
 });
 
-/* ---- search-hit highlights (Okular yellow) ---- */
 async function drawHighlights() {
   document.querySelectorAll(".hlbox").forEach((el) => el.remove());
   if (!hlQuery) return;
@@ -524,14 +556,12 @@ async function drawHighlights() {
   } catch { /* highlights are decoration */ }
 }
 
-/* ---- sidebar tabs ---- */
+/* ---- sidebar ---- */
 document.querySelectorAll(".stab").forEach((t) => t.onclick = () => {
   document.querySelectorAll(".stab").forEach((x) => x.classList.toggle("on", x === t));
   for (const id of ["toc","search","pages"]) $("sb-" + id).hidden = (t.dataset.tab !== id);
-  if (t.dataset.tab === "pages" && !thumbsBuilt) buildThumbs();
+  if (t.dataset.tab === "pages") { if (!thumbsBuilt) buildThumbs(); scrollThumbToCurrent(); }
 });
-
-/* Contents */
 async function loadToc() {
   try {
     toc = (await api("/api/toc")).toc;
@@ -547,45 +577,37 @@ async function loadToc() {
 function markTocCurrent() {
   let cur = -1;
   toc.forEach((e, i) => { if (e[2] <= page) cur = i; });
-  document.querySelectorAll(".toc-row").forEach((r) =>
-    r.classList.toggle("cur", Number(r.dataset.i) === cur));
-  const el = document.querySelector(".toc-row.cur");
-  if (el) el.scrollIntoView({ block: "nearest" });
+  document.querySelectorAll(".toc-row").forEach((r) => r.classList.toggle("cur", Number(r.dataset.i) === cur));
+  document.querySelector(".toc-row.cur")?.scrollIntoView({ block: "nearest" });
 }
-
-/* Search */
 async function runSearch() {
   const q = $("q").value.trim();
-  if (q.length < 3) { status("need 3+ characters"); return; }
-  $("qres").innerHTML = `<div class="side-note">searching… (first search indexes the whole book)</div>`;
+  if (q.length < 3) { status("search needs 3+ characters"); return; }
+  $("qres").innerHTML = `<div class="side-note">searching… (the first search indexes the whole book)</div>`;
   try {
     const r = await api(`/api/find?q=${encodeURIComponent(q)}`);
-    if (!r.searchable) { $("qres").innerHTML = `<div class="side-note">this book has NO text layer (raw scan) — search can't see it; use Contents/thumbnails + your eyes</div>`; return; }
-    hlQuery = q;
+    if (!r.searchable) { $("qres").innerHTML = `<div class="side-note">this book has NO text layer (raw scan) — search cannot see it. Use Contents, Pages, and your eyes.</div>`; return; }
+    hlQuery = q; $("hlclear").style.display = "";
+    $("search-tab").textContent = `Search (${r.pages.length})`;
     $("qres").innerHTML = r.pages.length
       ? r.pages.map((h) => `<div class="hit" data-p="${h.page}"><span class="hp">p${h.page} · ${h.count}×</span>` +
           `<span class="hx">…${esc(h.excerpt)}…</span></div>`).join("")
-      : `<div class="side-note">no hits for "${esc(q)}"</div>`;
+      : `<div class="side-note">no hits for “${esc(q)}”</div>`;
     $("qres").querySelectorAll(".hit").forEach((h) => h.onclick = () => goto(Number(h.dataset.p)));
-    if (r.pages.length) goto(r.pages[0].page);
+    drawHighlights(); // your place is NOT stolen — click a result when ready
   } catch (e) { $("qres").innerHTML = `<div class="side-note">search failed: ${esc(e.message)}</div>`; }
 }
 $("qgo").onclick = runSearch;
 $("q").onkeydown = (e) => { if (e.key === "Enter") runSearch(); };
+$("hlclear").onclick = () => { hlQuery = null; $("hlclear").style.display = "none"; $("search-tab").textContent = "Search"; $("q").value = ""; $("qres").innerHTML = ""; drawHighlights(); };
 
-/* Pages (lazy thumbnail rail) */
 function buildThumbs() {
   thumbsBuilt = true;
-  const el = $("thumbs");
-  el.innerHTML = "";
+  const el = $("thumbs"); el.innerHTML = "";
   const io = new IntersectionObserver((entries) => {
     for (const en of entries) if (en.isIntersecting) {
       const d = en.target;
-      if (!d.querySelector("img")) {
-        const img = document.createElement("img");
-        img.src = `/api/page?n=${d.dataset.n}&dpi=30`;
-        d.prepend(img);
-      }
+      if (!d.querySelector("img")) { const img = document.createElement("img"); img.src = `/api/page?n=${d.dataset.n}&dpi=30`; d.prepend(img); }
       io.unobserve(d);
     }
   }, { root: $("sb-pages"), rootMargin: "300px" });
@@ -594,24 +616,35 @@ function buildThumbs() {
     d.className = "thumb"; d.dataset.n = n;
     d.innerHTML = `<span class="tn">${n}</span>`;
     d.onclick = () => goto(n);
-    el.appendChild(d);
-    io.observe(d);
+    el.appendChild(d); io.observe(d);
   }
   markThumbCurrent();
 }
 function markThumbCurrent() {
-  document.querySelectorAll(".thumb").forEach((t) =>
-    t.classList.toggle("cur", Number(t.dataset.n) === page));
+  document.querySelectorAll(".thumb").forEach((t) => t.classList.toggle("cur", Number(t.dataset.n) === page));
+}
+function scrollThumbToCurrent() {
+  document.querySelector(".thumb.cur")?.scrollIntoView({ block: "center" }); // opens where YOU are
 }
 
 /* ---- markdown context ---- */
+function renderCtxPlain() {
+  const lines = mdText.split("\n");
+  ctxRange = { from: 1, to: Math.min(lines.length, 40) };
+  $("md-title").textContent = "markdown (head of file — no audit zones)";
+  $("ctx").innerHTML = lines.slice(0, ctxRange.to).map((l) =>
+    l.startsWith("![[assets/_repair") ? `<span class="rl">${esc(l).slice(0, 400)}</span>` : (esc(l).slice(0, 400) || " ") + "\n").join("");
+  if (!st.manifest_present) status("folder mode: no manifest — no audit zones; AI fixes + repairs still work");
+}
 function renderCtx() {
   const z = st.zones[zone];
   if (!z) { renderCtxPlain(); return; }
+  $("md-title").textContent = `markdown at zone ${zone + 1}`;
+  $("zonehint").textContent = `zone ${zone + 1} of ${st.zones.length} · ${(z.chars/1000).toFixed(1)}k damaged chars at line ${z.line}`;
   const lines = mdText.split("\n");
   const at = z.adjusted_line;
   const from = Math.max(0, at - 9), to = Math.min(lines.length, at + 12);
-  ctxRange = { from: from + 1, to }; // 1-based inclusive — the AI assist's scope
+  ctxRange = { from: from + 1, to };
   let html = "";
   for (let i = from; i < to; i++) {
     const text = esc(lines[i]).slice(0, 400) || " ";
@@ -622,12 +655,12 @@ function renderCtx() {
   $("ctx").innerHTML = html;
 }
 
-/* ---- crop gesture ---- */
+/* ---- crop gesture (the button narrates its own state) ---- */
 const box = $("pagebox"), cb = $("cropbox");
 let drag = null;
-function clearCrop() { crop = null; cb.style.display = "none"; $("cropbtn").disabled = true; }
+function clearCrop() { crop = null; cb.style.display = "none"; $("cropbtn").disabled = true; $("cropbtn").textContent = "✂ drag a region first"; }
 box.addEventListener("mousedown", (e) => {
-  if (!st?.pdf_available) return;
+  if (!st?.pdf_available || st.pdf_only) return;
   const r = $("pageimg").getBoundingClientRect();
   drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, r };
   e.preventDefault();
@@ -644,57 +677,37 @@ addEventListener("mousemove", (e) => {
 addEventListener("mouseup", () => {
   if (drag && crop && (crop[2]-crop[0]) > 0.02 && (crop[3]-crop[1]) > 0.02) {
     $("cropbtn").disabled = false;
+    $("cropbtn").textContent = `✂ insert crop at zone ${zone != null ? zone + 1 : ""}`;
     coachMark("cropDrawn");
-  }
-  else if (drag) clearCrop();
+  } else if (drag) clearCrop();
   drag = null;
 });
 $("cropbtn").onclick = async () => {
-  if (crop == null || zone == null) return;
+  if (crop == null) return;
   try {
-    const z = st.zones[zone];
-    const res = await api("/api/repair", { zone_line: z.line, page, rect: crop, note: `zone @${z.line}` });
+    const z = st.zones[zone] || { line: ctxRange.to };
+    const res = await api("/api/repair", { zone_line: z.line, page, rect: crop, note: zone != null ? `zone ${zone + 1} @${z.line}` : "folder mode" });
     status(`✓ ${res.asset} embedded after body line ${res.inserted_after_line}`);
     coachMark("repaired");
-    const keep = zone; await load(); selectZone(keep);
+    const keep = zone; await load(); if (keep != null && st.zones.length) selectZone(keep);
   } catch (e) { status(`repair failed: ${e.message}`); }
 };
-
-/* paste a screenshot */
 addEventListener("paste", async (e) => {
-  if (zone == null) return;
+  if (st?.pdf_only) return;
   const item = [...(e.clipboardData?.items || [])].find((i) => i.type.startsWith("image/"));
   if (!item) return;
   const blob = item.getAsFile();
   const b64 = await new Promise((res) => { const fr = new FileReader(); fr.onload = () => res(fr.result); fr.readAsDataURL(blob); });
   try {
-    const z = st.zones[zone];
-    const res = await api("/api/repair", { zone_line: z.line, page, image_b64: b64, note: `pasted · zone @${z.line}` });
+    const z = st.zones[zone] || { line: ctxRange.to };
+    const res = await api("/api/repair", { zone_line: z.line, page, image_b64: b64, note: "pasted" });
     status(`✓ pasted → ${res.asset}`);
     coachMark("repaired");
-    const keep = zone; await load(); selectZone(keep);
+    const keep = zone; await load(); if (keep != null && st.zones.length) selectZone(keep);
   } catch (err) { status(`paste failed: ${err.message}`); }
 });
 
-/* editor */
-$("edit").onclick = () => {
-  const on = $("editor").style.display !== "block";
-  $("editor").style.display = on ? "block" : "none";
-  $("ctx").style.display = on ? "none" : "block";
-  $("save").hidden = !on;
-  if (on) { $("editor").value = mdText; }
-};
-$("save").onclick = async () => {
-  try {
-    await api("/api/md", { text: $("editor").value });
-    status("✓ saved (backup kept as .bench-bak)");
-    coachMark("textFixed");
-    $("edit").click();
-    const keep = zone; await load(); if (keep != null) selectZone(keep);
-  } catch (e) { status(`save failed: ${e.message}`); }
-};
-
-/* ---- the AI assist (S64): type → ✦ fix → (↩ undo AI if you disagree) ---- */
+/* ---- the AI assist: honest busy state with a live clock ---- */
 async function refreshAfterAi() {
   const keep = zone;
   st = await api("/api/state");
@@ -707,20 +720,23 @@ async function refreshAfterAi() {
 async function aiFix() {
   const instruction = $("ai").value.trim();
   if (!instruction) { status("tell the model what to fix first"); return; }
-  $("aigo").disabled = true;
-  status(`✦ qwen3 is rewriting lines ${ctxRange.from}–${ctxRange.to}… (local · ~30–60 s · embeds fenced)`);
+  $("aigo").disabled = true; $("ai").disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    $("aigo").textContent = `✦ fixing… ${Math.round((Date.now() - t0) / 1000)}s`;
+    status(`✦ qwen3 is rewriting lines ${ctxRange.from}–${ctxRange.to} · ${Math.round((Date.now() - t0) / 1000)}s (local · embeds fenced)`, true);
+  }, 1000);
   try {
     const r = await api("/api/assist", { start: ctxRange.from, end: ctxRange.to, instruction });
     if (r.applied) {
       status(`✦ applied: ${r.lines_before} line(s) → ${r.lines_after} · ↩ undo AI is armed (${r.undo_depth} deep)`);
       coachMark("textFixed");
-    } else {
-      status("✦ the model found nothing to change — file untouched, no undo burned");
-    }
-    $("ai").value = "";
-    await refreshAfterAi();
+      $("ai").value = "";
+      await refreshAfterAi();
+    } else status("✦ the model found nothing to change — file untouched, no undo burned");
   } catch (e) { status(`✦ ${e.message}`); }
-  $("aigo").disabled = false;
+  clearInterval(tick);
+  $("aigo").disabled = false; $("ai").disabled = false; $("aigo").textContent = "✦ fix";
 }
 $("aigo").onclick = aiFix;
 $("ai").onkeydown = (e) => { if (e.key === "Enter") aiFix(); };
@@ -728,19 +744,39 @@ $("aiundo").onclick = async () => {
   $("aiundo").disabled = true;
   try {
     const r = await api("/api/undo", {});
-    status(`↩ undone — the markdown is exactly as before (${r.undo_depth} more undo${r.undo_depth === 1 ? "" : "s"} available)`);
+    status(`↩ undone — byte-identical (${r.undo_depth} more available)`);
     await refreshAfterAi();
   } catch (e) { status(`↩ ${e.message}`); }
   $("aiundo").disabled = false;
 };
 
+/* ---- editor ---- */
+$("edit").onclick = () => {
+  const on = $("editor").style.display !== "block";
+  $("editor").style.display = on ? "block" : "none";
+  $("ctx").style.display = on ? "none" : "block";
+  $("save").hidden = !on;
+  if (on) $("editor").value = mdText;
+};
+$("save").onclick = async () => {
+  try {
+    await api("/api/md", { text: $("editor").value });
+    status("✓ saved (backup kept as .bench-bak)");
+    coachMark("textFixed");
+    $("edit").click();
+    const keep = zone; await load(); if (keep != null && st.zones.length) selectZone(keep);
+  } catch (e) { status(`save failed: ${e.message}`); }
+};
+
 function renderRepairs() {
-  const el = $("repairs"); el.innerHTML = "";
-  (st.repairs || []).forEach((r) => {
+  const el = $("repairs");
+  el.innerHTML = `<span class="rlabel">repairs</span>`;
+  if (!(st.repairs || []).length) { el.innerHTML += `<span class="side-note" style="padding:0">none yet</span>`; return; }
+  st.repairs.forEach((r) => {
     const d = document.createElement("div");
     d.className = "rep";
-    d.innerHTML = `<img src="/api/asset?name=${encodeURIComponent(r.asset)}" alt="" />` +
-      `<span>@${r.zone_line} · p${r.page} · ${esc(r.mode)}</span>`;
+    d.title = `${r.ts} · ${r.note || r.mode}`;
+    d.innerHTML = `<img src="/api/asset?name=${encodeURIComponent(r.asset)}" alt="" /><span>@${r.zone_line} · p${r.page}</span>`;
     el.appendChild(d);
   });
 }
@@ -751,32 +787,68 @@ $("rescore").onclick = async () => {
   try {
     const r = await api("/api/rescore");
     const dn = r.degeneration_now;
-    $("verdictbox").innerHTML =
-      `<b>re-score preview</b> · degeneration now: <b>${dn.flagged ? "STILL FLAGGED" : "clean"}</b>` +
-      ` · ${dn.zones.length} zone(s) in the current text · repairs on ${r.zones_with_repairs}/${r.original_zones}` +
-      ` original zone(s) · ${r.repairs} repair(s) total<br/><span style="color:var(--text-3)">${esc(r.note)}</span>`;
-  } catch (e) { status(`re-score failed: ${e.message}`); }
+    status(`◎ preview: degeneration ${dn.flagged ? "STILL FLAGGED" : "clean"} · ${dn.zones.length} zone(s) in current text · repairs on ${r.zones_with_repairs}/${r.original_zones} zones — ${esc(r.note).slice(0, 60)}…`, true);
+  } catch (e) { status(`◎ ${e.message}`); }
   $("rescore").disabled = false;
 };
 
-/* ---- S65: the help sheet + the repair coach ----------------------------------------------
-   Rab: "the information is lost… teach me, or create a help section to describe and focus
-   the user on the step by step process of starting a repair." The knowledge lives HERE now,
-   not in a chat that scrolls away. */
-$("help-btn").onclick = () => { $("help").hidden = false; };
-$("help-close").onclick = () => { $("help").hidden = true; };
-document.querySelector(".help-backdrop").onclick = () => { $("help").hidden = true; };
-addEventListener("keydown", (e) => { if (e.key === "Escape") $("help").hidden = true; });
+/* ---- ⓘ info: everything about this patient, straight from /api/state ---- */
+$("info-btn").onclick = () => {
+  const rows = [
+    ["opened from", st.dir], ["markdown", st.md_name || "— (bare PDF)"],
+    ["source", st.source || "—"], ["source sha16", st.source_sha16 || "—"],
+    ["PDF", st.pdf || "not found"], ["pages", st.pages], ["lane", st.lane || "—"],
+    ["audit verdict", st.verdict || "—"], ["survival", st.doc_survival ?? "—"],
+    ["audit kind", st.audit_kind || "—"], ["converted at", st.converted_at || "—"],
+    ["zones", st.zones.length], ["repairs", (st.repairs || []).length],
+    ["AI undo depth", st.undo_depth], ["manifest", st.manifest_present ? "present" : "absent"],
+    ["mode", st.pdf_only ? "READING (no writes possible)" : st.sandbox ? "SANDBOX copy" : "live bundle"],
+  ];
+  $("info-body").innerHTML = rows.map(([k, v]) =>
+    `<div class="inforow"><span class="k">${k}</span><span class="v">${esc(String(v))}</span></div>`).join("") +
+    ((st.repairs || []).length ? `<h3>repair log</h3>` + st.repairs.map((r) =>
+      `<div class="inforow"><span class="k">${esc(r.ts)}</span><span class="v">${esc(r.asset)} · zone @${r.zone_line} · p${r.page} · ${esc(r.mode)}</span></div>`).join("") : "");
+  $("info").hidden = false;
+};
 
-// The coach's evidence: what the user has ACTUALLY done this session. Steps check themselves
-// off from real events, never from claims.
+/* ---- the ◆ opener: Select a PDF (or bundle) ---- */
+$("open-btn").onclick = async () => {
+  $("picker").hidden = false;
+  $("picker-body").innerHTML = `<div class="side-note">loading the library…</div>`;
+  try {
+    const lib = await api("/api/library");
+    const row = (it, icon, meta, verdictChip) =>
+      `<div class="pick" data-path="${esc(it.path)}"><span class="pi">${icon}</span>` +
+      `<span class="pn" title="${esc(it.path)}">${esc(it.source || it.name)}</span>` +
+      (verdictChip || "") + `<span class="pm">${meta}</span></div>`;
+    const bundleRows = (arr) => arr.map((b) => row(b, "📁",
+      `${b.pages ?? "?"} pp`,
+      (b.repairs ? `<span class="pv rep">✓ ${b.repairs} repair${b.repairs === 1 ? "" : "s"}</span>` : "") +
+      (b.verdict === "fail" ? `<span class="pv fail">fail</span>` : ""))).join("");
+    $("picker-body").innerHTML =
+      (lib.held.length ? `<div class="pick-group">Held — awaiting repair</div>` + bundleRows(lib.held) : "") +
+      (lib.pending.length ? `<div class="pick-group">Pending — awaiting routing</div>` + bundleRows(lib.pending) : "") +
+      (lib.anchor.length ? `<div class="pick-group">Anchor copies — conversions on record</div>` + bundleRows(lib.anchor) : "") +
+      (lib.pdfs.length ? `<div class="pick-group">Source PDFs — open read-only</div>` +
+        lib.pdfs.map((p) => row(p, "📄", `${p.mb} MB`)).join("") : "") ||
+      `<div class="side-note">nothing to open — the pipeline folders are empty</div>`;
+    $("picker-body").querySelectorAll(".pick").forEach((el) => el.onclick = async () => {
+      $("picker").hidden = true;
+      status("opening…");
+      try { await api("/api/open", { path: el.dataset.path }); await load(); status(`✓ on the bench: ${$("bname").textContent}`); }
+      catch (e) { status(`open failed: ${e.message}`); }
+    });
+  } catch (e) { $("picker-body").innerHTML = `<div class="side-note">library failed: ${esc(e.message)}</div>`; }
+};
+
+/* ---- the coach (docked band; steps check off from REAL actions) ---- */
 const coach = { zone: false, cropDrawn: false, repaired: false, textFixed: false, rescored: false };
 const COACH_STEPS = [
-  ["1 · pick a zone", "click a chip above — the audit's flagged wreck sites", () => coach.zone],
-  ["2 · find the page", "◂ ▸ + zoom until you SEE the damage (⌖ guesses; your eyes decide)", () => coach.cropDrawn || coach.repaired],
-  ["3 · capture it", "drag a rectangle → ✂ insert crop (or Ctrl+V a screenshot)", () => coach.repaired],
-  ["4 · fix the text", "tell the AI bar what to rebuild (✦ fix · ↩ undo) or ✎ edit", () => coach.textFixed],
-  ["5 · check", "◎ re-score preview — the honest answer", () => coach.rescored],
+  ["1 pick a zone", "click a chip above", () => coach.zone],
+  ["2 find the page", "◂ ▸ + zoom until you SEE the damage", () => coach.cropDrawn || coach.repaired],
+  ["3 capture it", "drag a rectangle → ✂ (or Ctrl+V)", () => coach.repaired],
+  ["4 fix the text", "✦ fix (↩ undoable) or ✎ edit", () => coach.textFixed],
+  ["5 check", "◎ re-score — the honest preview", () => coach.rescored],
 ];
 function coachRender() {
   if ($("coach").hidden) return;
@@ -795,11 +867,10 @@ function coachRender() {
 function coachMark(k) { coach[k] = true; coachRender(); }
 $("guide-btn").onclick = () => { $("coach").hidden = false; coachRender(); };
 $("coach-close").onclick = () => { $("coach").hidden = true; };
-// First launch (per browser profile): the coach opens itself until one full repair loop is done.
-try { if (!localStorage.getItem("fp-bench-coached")) { $("coach").hidden = false; } } catch {}
+try { if (!localStorage.getItem("fp-bench-coached")) $("coach").hidden = false; } catch {}
 
 addEventListener("resize", () => { if ($("zoom").value === "fit") applyZoom(); });
-load().then(() => coachRender()).catch((e) => status(`load failed: ${e.message}`));
+load().catch((e) => status(`load failed: ${e.message}`, true));
 </script>
 </body>
 </html>

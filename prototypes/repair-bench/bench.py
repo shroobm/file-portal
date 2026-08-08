@@ -25,6 +25,7 @@ import argparse
 import base64
 import io
 import json
+import os
 import re
 import shutil
 import sys
@@ -37,6 +38,10 @@ BENCH_DIR = Path(__file__).resolve().parent
 REPO = BENCH_DIR.parents[1]
 HELD = Path(r"C:\Users\Bndit\ml\library\held")
 DONE = Path(r"C:\Users\Bndit\ml\library\drop\done")
+PENDING = Path(r"C:\Users\Bndit\ml\library\pending")
+ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
+# The picker (S66) may only open things inside these roots — server-side allowlist.
+OPEN_ROOTS = (HELD, PENDING, ANCHOR, DONE, BENCH_DIR / ".sandbox")
 RASTER_DPI = 140      # the browsing raster
 CROP_DPI = 220        # repairs deserve more pixels than the browsing view
 ASSET_RE = re.compile(r"^_repair_p(\d+)_(\d+)\.png$")
@@ -64,10 +69,10 @@ class Bench:
         src_dir = Path(bundle_dir)
         if not src_dir.is_dir() and (HELD / str(bundle_dir)).is_dir():
             src_dir = HELD / str(bundle_dir)  # bare sha16 convenience
-        if not src_dir.is_dir():
-            raise SystemExit(f"not a bundle dir: {bundle_dir}")
-        self.sandbox = bool(sandbox)
-        if sandbox:
+        if not src_dir.is_dir() and not (src_dir.is_file() and src_dir.suffix.lower() == ".pdf"):
+            raise SystemExit(f"not a bundle dir or a PDF: {bundle_dir}")
+        self.sandbox = bool(sandbox) and src_dir.is_dir()  # a bare PDF is read-only anyway
+        if self.sandbox:
             dest = BENCH_DIR / ".sandbox" / f"{src_dir.name}--{datetime.now():%Y%m%d-%H%M%S}"
             dest.parent.mkdir(exist_ok=True)
             shutil.copytree(src_dir, dest)
@@ -82,7 +87,20 @@ class Bench:
             self.manifest = json.loads(self.manifest_path.read_text(encoding="utf-8"))
         else:
             self.manifest = {}
-        mds = [p for p in self.dir.iterdir() if p.suffix == ".md"]
+        # S66 reader mode: a bare PDF (no bundle) opens honestly read-only — pages, contents,
+        # search, ⌖-style browsing; no markdown, no repairs, no AI. self.md_path is None then,
+        # and every write path guards on it.
+        self.md_path: Path | None
+        mds = [p for p in self.dir.iterdir() if p.suffix == ".md"] if self.dir.is_dir() else []
+        if self.dir.is_file() and self.dir.suffix.lower() == ".pdf":
+            self.pdf_only = True
+            self.md_path = None
+            self.assets = None  # type: ignore[assignment]
+            self.pdf = self.dir
+            self.dir = self.dir.parent
+            self._finish_init()
+            return
+        self.pdf_only = False
         if len(mds) != 1:
             raise SystemExit(f"expected exactly one .md in {self.dir}, found {len(mds)}")
         self.md_path = mds[0]
@@ -93,6 +111,9 @@ class Bench:
         cand = Path(pdf) if pdf else DONE / self.manifest.get("source", "")
         if cand and cand.is_file():
             self.pdf = cand
+        self._finish_init()
+
+    def _finish_init(self) -> None:
         self._doc = None
         self._bak_done = False
         # S62b (the Okular pass): lazy per-page text index + TOC + zone-location votes.
@@ -106,6 +127,8 @@ class Bench:
 
     # ---- read side --------------------------------------------------------------------------
     def body(self) -> str:
+        if self.md_path is None:
+            return ""
         return split_frontmatter(self.md_path.read_text(encoding="utf-8"))[1]
 
     def zones(self) -> list[dict]:
@@ -153,7 +176,19 @@ class Bench:
             "pdf": str(self.pdf) if self.pdf else None,
             "manifest_present": self.manifest_path.is_file(),
             "undo_depth": len(self._undo),
+            # S66 accuracy pass — everything the info popover states, straight from source:
+            "pdf_only": self.pdf_only,
+            "md_name": self.md_path.name if self.md_path else None,
+            "source_sha16": (self.manifest.get("source_sha256") or "")[:16] or None,
+            "doc_survival": (self.manifest.get("fidelity", {}).get("convert", {})
+                             .get("doc_survival")),
+            "audit_kind": self.manifest.get("fidelity", {}).get("convert", {}).get("kind"),
+            "converted_at": self.manifest.get("converted_at"),
         }
+
+    def _require_md(self) -> None:
+        if self.md_path is None:
+            raise ValueError("reading mode — this is a bare PDF; there is no markdown to edit")
 
     def doc(self):
         if self.pdf is None:
@@ -307,6 +342,7 @@ class Bench:
                image_b64: str | None = None, note: str = "") -> dict:
         """The one gesture: capture (crop or paste) → assets/ → ![[embed]] at the zone →
         provenance. Raises on anything invalid — the HTTP layer reports, never guesses."""
+        self._require_md()
         if rect is not None:
             import fitz
             page_obj = self.doc().load_page(page - 1)
@@ -377,6 +413,7 @@ class Bench:
         """Rewrite body lines start..end (1-based, inclusive — the UI's visible slice) per the
         instruction, via LOCAL qwen3 (the Gemini API stays off by Rab's standing rule).
         Snapshot-first: every applied change is one ↩ away from gone."""
+        self._require_md()
         instruction = instruction.strip()
         if not instruction:
             raise ValueError("tell the model what to fix")
@@ -435,6 +472,7 @@ class Bench:
 
     def undo_ai(self) -> dict:
         """The ctrl-Z button: restore the body exactly as it was before the last AI change."""
+        self._require_md()
         if not self._undo:
             raise ValueError("nothing to undo")
         fm, _ = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
@@ -445,6 +483,7 @@ class Bench:
 
     # ---- the re-score PREVIEW (never writes; audit policy is Rab's signature) ---------------
     def rescore_preview(self) -> dict:
+        self._require_md()
         sys.path.insert(0, str(REPO / "windows-converter"))
         try:
             import fidelity_audit as fa
@@ -467,8 +506,54 @@ class Bench:
         }
 
 
+# ---- the picker (S66): what the ◆ icon can open, and the switch itself ----------------------
+def library_listing() -> dict:
+    """Server-side enumeration for the picker — the browser can never hand us a real path,
+    so the bench offers the pipeline's own places, newest first."""
+    def bundles(root: Path, cap: int = 30) -> list[dict]:
+        out: list[dict] = []
+        if not root.is_dir():
+            return out
+        dirs = sorted((d for d in root.iterdir() if d.is_dir()),
+                      key=lambda d: d.stat().st_mtime, reverse=True)[:cap]
+        for d in dirs:
+            mds = [p for p in d.iterdir() if p.suffix == ".md"]
+            if len(mds) != 1:
+                continue
+            man: dict = {}
+            try:
+                man = json.loads((d / "manifest.json").read_text(encoding="utf-8"))
+            except Exception:  # noqa: BLE001 — a folder without a manifest still lists
+                pass
+            out.append({
+                "path": str(d), "name": d.name, "source": man.get("source"),
+                "verdict": (man.get("fidelity") or {}).get("verdict"),
+                "repairs": len(man.get("repairs") or []), "pages": man.get("pages"),
+            })
+        return out
+    pdfs = []
+    if DONE.is_dir():
+        for p in sorted(DONE.glob("*.pdf"), key=lambda q: q.stat().st_mtime, reverse=True)[:30]:
+            pdfs.append({"path": str(p), "name": p.name,
+                         "mb": round(p.stat().st_size / 1048576, 1)})
+    return {"held": bundles(HELD), "pending": bundles(PENDING),
+            "anchor": bundles(ANCHOR), "pdfs": pdfs}
+
+
+def open_target(path_str: str) -> Bench:
+    """Open a picker choice — allowlist-contained: only paths inside the pipeline's own
+    roots (or the bench sandbox) may be opened, and only as the types we know."""
+    p = Path(path_str).resolve()
+    if not any(str(p).lower().startswith(str(root.resolve()).lower() + os.sep)
+               or p == root.resolve() for root in OPEN_ROOTS):
+        raise ValueError("path is outside the bench's allowed roots")
+    return Bench(p)
+
+
 # ---- the thin HTTP layer ---------------------------------------------------------------------
 def make_handler(bench: Bench):
+    bench0 = bench
+
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):  # quiet
             pass
@@ -484,6 +569,7 @@ def make_handler(bench: Bench):
             self._send(code, json.dumps(obj).encode("utf-8"))
 
         def do_GET(self):
+            bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
             try:
                 url = urllib.parse.urlparse(self.path)
                 q = urllib.parse.parse_qs(url.query)
@@ -519,12 +605,15 @@ def make_handler(bench: Bench):
                                                      q.get("q", [""])[0])})
                 elif url.path == "/api/locate":
                     self._json(bench.locate_zone(int(q.get("i", ["0"])[0])))
+                elif url.path == "/api/library":
+                    self._json(library_listing())
                 else:
                     self._json({"error": "unknown path"}, 404)
             except Exception as exc:  # noqa: BLE001 — report, never crash the bench
                 self._json({"error": str(exc)[:300]}, 500)
 
         def do_POST(self):
+            bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
             try:
                 n = int(self.headers.get("Content-Length", "0"))
                 payload = json.loads(self.rfile.read(n) or b"{}")
@@ -537,10 +626,15 @@ def make_handler(bench: Bench):
                         note=str(payload.get("note", ""))[:120],
                     ))
                 elif self.path == "/api/md":
+                    bench._require_md()
                     bench._backup_once()
                     fm, _ = split_frontmatter(bench.md_path.read_text(encoding="utf-8"))
                     bench.md_path.write_text(fm + str(payload["text"]), encoding="utf-8")
                     self._json({"saved": True})
+                elif self.path == "/api/open":
+                    new_bench = open_target(str(payload["path"]))
+                    self.server.bench = new_bench
+                    self._json(new_bench.state())
                 elif self.path == "/api/assist":
                     self._json(bench.assist(
                         start=int(payload["start"]), end=int(payload["end"]),
