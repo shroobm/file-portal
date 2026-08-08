@@ -328,6 +328,51 @@ pub fn last_receipt(gpu_pipeline_dir: &str) -> Result<Value, String> {
     Ok(receipt)
 }
 
+/// S66 (Rab: "make it easy for anyone via the widget to access and open important files for
+/// engineering purposes"): open a NAMED engineering target — never an arbitrary path; the
+/// match below IS the allowlist. Files open in Notepad, folders in Explorer.
+pub fn open_engineering(
+    gpu_pipeline_dir: &str,
+    gpu_converter_dir: &str,
+    vault_library_dir: &str,
+    target: &str,
+) -> Result<String, String> {
+    let pipe = Path::new(gpu_pipeline_dir);
+    let (path, is_dir): (std::path::PathBuf, bool) = match target {
+        "pipeline" => (pipe.to_path_buf(), true),
+        "drop" => (pipe.join("drop"), true),
+        "held" => (pipe.join("held"), true),
+        "pending" => (pipe.join("pending"), true),
+        "anchor" => (pipe.join("anchor"), true),
+        "events" => (pipe.join("events.jsonl"), false),
+        "ledger" => (pipe.join("conversion-ledger.jsonl"), false),
+        "watcher-log" => (pipe.join("watcher.log"), false),
+        "watcher-stderr" => (pipe.join("watcher-stderr.log"), false),
+        "bench-stderr" => (pipe.join("bench-stderr.log"), false),
+        "boot-log" => (pipe.join("widget-boot.log"), false),
+        "receipts-cache" => (pipe.join(".receipts-cache.jsonl"), false),
+        "repo" => (
+            Path::new(gpu_converter_dir)
+                .parent()
+                .ok_or("converter dir has no parent")?
+                .to_path_buf(),
+            true,
+        ),
+        "library" => (Path::new(vault_library_dir).to_path_buf(), true),
+        _ => return Err(format!("unknown engineering target: {target}")),
+    };
+    if !path.exists() {
+        return Err(format!("not there yet: {}", path.display()));
+    }
+    let shown = path.display().to_string();
+    Command::new(if is_dir { "explorer.exe" } else { "notepad.exe" })
+        .arg(&path)
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| format!("failed to open {target}: {e}"))?;
+    Ok(shown)
+}
+
 /// Open the failed tray (or any pipeline folder) in Explorer for hands-on triage.
 pub fn open_folder(path: &str) -> Result<(), String> {
     Command::new("explorer.exe")

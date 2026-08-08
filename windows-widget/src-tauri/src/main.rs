@@ -326,6 +326,22 @@ fn last_receipt(state: State<AppState>) -> Result<serde_json::Value, String> {
         .clone();
     line::last_receipt(&dir)
 }
+// S66: engineering quick-access — a NAMED allowlist target (see line::open_engineering).
+#[tauri::command]
+fn open_engineering(state: State<AppState>, target: String) -> Result<String, String> {
+    let (pipe, conv, vault) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (
+            cfg.gpu_pipeline_dir.clone(),
+            cfg.gpu_converter_dir.clone(),
+            cfg.vault_library_dir.clone(),
+        )
+    };
+    line::open_engineering(&pipe, &conv, &vault, &target)
+}
 #[tauri::command]
 fn open_failed_tray(state: State<AppState>) -> Result<(), String> {
     let dir = state
@@ -565,6 +581,7 @@ fn main() {
             receipts_fetch,
             receipts_read,
             open_reader,
+            open_engineering,
             open_failed_tray,
             reader_config,
             rules_set,

@@ -477,7 +477,43 @@ function header(d) {
     `<div class="rh-stat"><span class="dot ${w ? "ok" : "off"}"></span> Watcher <b>${w ? "up" : "off"}</b></div>` +
     `<div class="rh-stat mono">${gpu}</div>` +
     `<div class="rh-stat mono">${clock} UTC</div>` +
+    // S66: engineering quick-access — the important files, one click from the Room.
+    `<button class="rh-theme" id="room-files" title="Open engineering files">🗁</button>` +
     `<button class="rh-theme" id="room-theme" title="Toggle theme">◐</button></div>`;
+}
+
+// S66: the 🗁 menu — named allowlist targets only (the backend match is the law).
+const ENG_TARGETS = [
+  ["events", "events.jsonl — the event stream"],
+  ["ledger", "conversion-ledger.jsonl — measured costs"],
+  ["watcher-stderr", "watcher-stderr.log — the conveyor's last words"],
+  ["bench-stderr", "bench-stderr.log — the bench server's last words"],
+  ["boot-log", "widget-boot.log — boot beacons + window errors"],
+  ["watcher-log", "watcher.log"],
+  ["receipts-cache", ".receipts-cache.jsonl — the vault's answers"],
+  ["held", "held\\ — parked bundles"],
+  ["pending", "pending\\ — awaiting routing"],
+  ["anchor", "anchor\\ — conversions on record"],
+  ["drop", "drop\\ — the intake belt"],
+  ["pipeline", "the whole pipeline folder"],
+  ["library", "the vault Library clone"],
+  ["repo", "the source repo"],
+];
+function toggleEngMenu() {
+  const old = document.getElementById("eng-menu");
+  if (old) { old.remove(); return; }
+  const m = document.createElement("div");
+  m.id = "eng-menu";
+  m.innerHTML = `<div class="em-title">ENGINEERING FILES</div>` + ENG_TARGETS.map(([t, label]) =>
+    `<button class="em-row" data-t="${t}">${esc(label)}</button>`).join("");
+  roomEl.appendChild(m);
+  m.querySelectorAll(".em-row").forEach((b) => b.addEventListener("click", async () => {
+    try {
+      const p = await invoke("open_engineering", { target: b.dataset.t });
+      deps.setStatus?.(`Opened ${p}`);
+    } catch (e) { deps.setStatus?.(`Open: ${e}`); }
+    m.remove();
+  }));
 }
 
 function render(vm) {
@@ -507,6 +543,7 @@ function shiftLine(d) {
 // ---- interaction (through the SAME intent commands the Dock uses) --------------------------
 function wire() {
   roomEl.querySelector("#room-theme")?.addEventListener("click", toggleTheme);
+  roomEl.querySelector("#room-files")?.addEventListener("click", toggleEngMenu);
   roomEl.querySelector("#room-audit-toggle")?.addEventListener("click", async () => {
     try {
       const cur = (d0.assay?.mode) || "report";

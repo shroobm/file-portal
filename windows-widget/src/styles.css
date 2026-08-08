@@ -681,6 +681,20 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .alg-ack:hover { background: var(--clay); color: var(--surface-1); }
 .alg-ack:disabled { opacity: 0.45; cursor: default; }
 
+/* S66 — the 🗁 engineering-files menu (Room): named targets, one click each. */
+#eng-menu {
+  position: absolute; top: 40px; right: 12px; z-index: 40; width: 300px;
+  background: var(--surface-1); border: 1px solid var(--border-strong); border-radius: var(--r);
+  box-shadow: 0 16px 44px -12px rgba(0,0,0,.6); padding: 6px; display: flex; flex-direction: column;
+}
+#eng-menu .em-title { font-size: 8px; letter-spacing: 1.2px; color: var(--text-3); padding: 4px 8px 6px; }
+#eng-menu .em-row {
+  text-align: left; font-family: var(--font-mono); font-size: 10px; color: var(--text-2);
+  background: transparent; border: none; border-radius: 6px; padding: 5px 8px; cursor: pointer;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+#eng-menu .em-row:hover { background: var(--surface-2); color: var(--text); }
+
 /* Stage F — the Dock's quiet chip + the Wall's across-the-room flag. */
 #algedonic-chip {
   margin: 0 12px 6px; padding: 4px 10px; border-radius: 8px; cursor: pointer;
