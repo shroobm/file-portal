@@ -56,6 +56,26 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S66 — OPEN 2026-08-07 (Desktop, Fable 5; cookie #55) — DUMMY-PROOF THE BENCH, live with
+Rab. GATED INCREMENTS by his instruction ("if you run out of context, focus on a gate
+procedure") — each gate commits before the next begins, so a context loss costs nothing:**
+
+- **G0 ✅** Rab's call executed: the Valentine rerun copy DELETED (repaired copy verified in
+  her slot first); cookie #55 logged.
+- **G1** Simulate the real experience first-hand in the browser — both patients (raw-scan
+  Valentine sandbox, text-layer Damodaran sandbox), every gesture (zones, ⌖, ◂▸, zoom, crop,
+  paste, ✦ AI, ↩, ✎, search, contents, thumbnails, ? , ☰, re-score) — write the friction list.
+- **G2** Bench overhaul from that list: declutter (density down, hints into help), modern
+  coherent skin (stay in the S63 Apple system), **the icon becomes an opener — "Select a
+  PDF": a server-side picker over held/pending/anchor bundles + done PDFs** (bundles open
+  repairable; bare PDFs open in an honest read-only reader mode), accuracy pass (every figure
+  on the glass traceable to /api/state; nothing missing), future-proof structure. Commit.
+- **G3** Re-simulate + acceptance 26/26 + zero console errors. Commit.
+- **G4** Widget: **engineering quick-access** — an allowlisted `open_path` command + a Room
+  menu opening the important files (events.jsonl, logs, ledger, manifests, pipeline dirs) in
+  Explorer/Notepad. Gates (clippy/tests/node/build) → SHA staged for RAB. Commit.
+- **G5** Lockstep close + morning note + draft.
+
 *(S65 closed 2026-08-07 ~11:30 UTC (Desktop, Fable 5; live with Rab through the evening, solo
 through the night — cookies #53–54 were S63/S64's; none new) — **THE GRADUATION SESSION.**
 Full record: CHANGELOG S65. The arc: Rab's Bench click proved the last unproven joint → his
