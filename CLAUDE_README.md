@@ -56,25 +56,20 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S66 — OPEN 2026-08-07 (Desktop, Fable 5; cookie #55) — DUMMY-PROOF THE BENCH, live with
-Rab. GATED INCREMENTS by his instruction ("if you run out of context, focus on a gate
-procedure") — each gate commits before the next begins, so a context loss costs nothing:**
-
-- **G0 ✅** Rab's call executed: the Valentine rerun copy DELETED (repaired copy verified in
-  her slot first); cookie #55 logged.
-- **G1** Simulate the real experience first-hand in the browser — both patients (raw-scan
-  Valentine sandbox, text-layer Damodaran sandbox), every gesture (zones, ⌖, ◂▸, zoom, crop,
-  paste, ✦ AI, ↩, ✎, search, contents, thumbnails, ? , ☰, re-score) — write the friction list.
-- **G2** Bench overhaul from that list: declutter (density down, hints into help), modern
-  coherent skin (stay in the S63 Apple system), **the icon becomes an opener — "Select a
-  PDF": a server-side picker over held/pending/anchor bundles + done PDFs** (bundles open
-  repairable; bare PDFs open in an honest read-only reader mode), accuracy pass (every figure
-  on the glass traceable to /api/state; nothing missing), future-proof structure. Commit.
-- **G3** Re-simulate + acceptance 26/26 + zero console errors. Commit.
-- **G4** Widget: **engineering quick-access** — an allowlisted `open_path` command + a Room
-  menu opening the important files (events.jsonl, logs, ledger, manifests, pipeline dirs) in
-  Explorer/Notepad. Gates (clippy/tests/node/build) → SHA staged for RAB. Commit.
-- **G5** Lockstep close + morning note + draft.
+*(S66 closed 2026-08-08 ~00:45 UTC (Desktop, Fable 5; cookie #55) — **THE DUMMY-PROOF PASS,
+every gate landed in its own commit** (Rab's context-loss discipline): **G0** the Valentine
+rerun copy deleted on his word (repaired copy verified in-slot first) · **G1** the bench
+DRIVEN in-browser as a fresh user — the friction list was real (coach covering the toolbar,
+colliding chips, a 56 px clipped ⌖ badge, search stealing your place, a 7 s toast on a 60 s
+AI job, a 326-char footer wall) · **G2+G3** all of it fixed and RE-SIMULATED green
+(`aaa4b3a`): docked coach, clean zone tokens, self-narrating ✂, live AI clock, no-steal
+search, thumbs open at your page, ⓘ info, **the ◆ "Select a PDF" opener** (allowlisted
+picker: held/pending/anchor bundles repairable, bare PDFs in refusing READING MODE;
+System32-open refused, proven), acceptance 26/26 · **G4** the Room's **🗁 engineering
+quick-access** (named allowlist → Notepad/Explorer; 14 targets; harness-verified payloads)
+(`14ece7a`), gates green — **exe `F28C58A8` staged for RAB** (supersedes 3DCDF88E; one
+Copy-Item as before). Full detail: CHANGELOG S66. **AWAITING RAB:** adoption of `F28C58A8`;
+the four signatures; Valentine's remaining zones; claude-code / Cybernetics-stale / Textor.)*
 
 *(S65 closed 2026-08-07 ~11:30 UTC (Desktop, Fable 5; live with Rab through the evening, solo
 through the night — cookies #53–54 were S63/S64's; none new) — **THE GRADUATION SESSION.**

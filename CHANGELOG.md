@@ -8,6 +8,39 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S66 — THE DUMMY-PROOF PASS: simulated first, then fixed (2026-08-07 → 08).** Rab's
+  commission: "simulate the interactions and experience beforehand… frictionless… update the
+  UI… open files via clicking the icon… engineering access via the widget… not so dense."
+  Every change below traces to a friction point found by actually DRIVING the bench in a
+  browser as a fresh user (Gate 1's list, in the session log).
+  - **Bench UX (found → fixed):** the coach floated OVER the stage toolbar → now a docked
+    band that can't cover controls; zone chips collided numbers and leaked table junk →
+    clean tokens ("✓ Zone 1 · p396 · 5.6k", excerpt in the tooltip); the ⌖ badge was clipped
+    to 56 px → a full-width info line ("located by text evidence: p396 (confidence 0.4)" /
+    an honest ratio hint); ✂ never explained itself → the button narrates its own state
+    ("drag a region first" → "insert crop at zone N"); search auto-jumped you away from your
+    zone → results wait for your click (hit-count in the tab, clearable highlights); the
+    Pages rail opened at page 1 → opens centered on YOUR page; the AI toast died at 7 s
+    during a 60 s job → a live elapsed clock on the button and a sticky status; the 326-char
+    instruction wall left the footer for the ? help; ⓘ shows everything about the patient
+    (paths, sha16, survival, repair log, mode) straight from /api/state.
+  - **The ◆ icon opens things ("Select a PDF"):** a server-enumerated picker over held /
+    pending / anchor bundles and done-tray PDFs — bundles open repairable, **bare PDFs open
+    in READING MODE** (browse/outline/search; every write path refuses with a plain
+    sentence). `/api/open` is allowlist-contained to the pipeline's own roots (System32
+    refused, proven).
+  - **Widget 🗁 (Room header): engineering quick-access** — named allowlist targets only
+    (events.jsonl, conversion ledger, all four last-words logs, receipts cache, held/
+    pending/anchor/drop, the pipeline root, the Library clone, the repo) opening in
+    Notepad/Explorer via `line::open_engineering`.
+
+  **Proofs:** the fixes re-verified by a second simulated walkthrough (coach docked, badges
+  readable, reader-mode writes refused, outside-path open refused, 0 console errors) ·
+  acceptance **26/26** · clippy `-D warnings` clean · 20/20 tests · `node --check` clean ·
+  build green — **exe `F28C58A8` staged for RAB** (supersedes 3DCDF88E; adds the 🗁 menu).
+  Also this session: Rab's call executed — the Valentine rerun copy deleted, her repaired
+  bundle verified in the slot first.
+
 - **S65 — THE BENCH TEACHES, THE PARK LEARNS RESPECT, AND VALENTINE'S FIRST REPAIR
   SURVIVES ITS FIRST THREAT (2026-08-06 → 07).** The session of the graduation: Rab
   performed **Valentine's first real repair** (zone @1579 cropped from p234 — the ratio
