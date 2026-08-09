@@ -176,6 +176,28 @@ Session numbers are **global and sequential across both machines**, not per-mach
 next one with `grep -oE '\bS[0-9]{1,3}\b' CLAUDE_README.md | sort -t S -k2 -n | tail -1`, never by
 assumption.
 
+### The ledger row cap: 80 words
+
+**A Change Ledger row may not exceed 80 words in its milestone column.** Not a guideline — a
+number, so it can be checked:
+
+```bash
+sed -n '<line>p' CLAUDE_README.md | awk -F'|' '{print $4}' | wc -w
+```
+
+A row carries only: what shipped (one clause), what is open and whose it is, and **the pointer to
+the closeout file**. Everything else — the narrative, the evidence, the divergences, the defects
+found — lives in `sessions/`, which is the entire point of moving it there.
+
+*Why a hard number:* S67 wrote this document's "prose mass mistaken for knowledge" anti-pattern
+(§6) and then produced a **499-word** ledger row — 2.4× the S66 row it had criticized hours
+earlier — and proposed to "watch whether S68 is shorter." An aspiration that survived its own
+author by ninety minutes is not a constraint. The row was cut to comply. Rows written before this
+cap stand as history; do not retro-edit another session's row.
+
+If a row cannot be said in 80 words, that is evidence the closeout file is doing its job, not
+evidence the cap is wrong.
+
 ## 8. What "done" looks like
 
 The contract is working when: a defect is retrieved from the index rather than rediscovered; a
