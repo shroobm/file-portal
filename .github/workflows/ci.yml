@@ -55,6 +55,25 @@ jobs:
         run: pytest tests/ -v
 
   rust:
+    # Scoped to master + PRs, NOT to feat/library-pipeline, deliberately (S67). Enabling CI on the
+    # feature branch surfaced pre-existing drift the Rust half had accumulated while CI was silent:
+    # `cargo fmt --check` fails across 8 files / 36 hunks in src/ (algedonic, assay, bench, line,
+    # main, receipts, room, watcher). That is not a regression — it drifted because the desktop
+    # lane's rebuild ritual runs `cargo clippy --all-targets -- -D warnings` and never `cargo fmt`,
+    # so clippy stayed clean and formatting rotted.
+    #
+    # It is not fixed from the receiver lane because (a) those are desktop-owned files and the
+    # desktop sometimes carries uncommitted work in its tree, so reformatting 8 files while it is
+    # offline invites a conflict, and (b) clippy cannot be verified from Linux at all (Tauri needs
+    # the webkit2gtk stack), so a green local check here would prove nothing about this job.
+    #
+    # To bring Rust onto the branch — desktop lane, in this order: run `cargo fmt` in
+    # windows-widget/src-tauri, confirm `cargo fmt --check` and `cargo clippy --all-targets --
+    # -D warnings` both pass, add `cargo fmt --check` to the rebuild ritual so it cannot rot again,
+    # then add feat/library-pipeline to this `if:`. Consider pinning the toolchain the way ruff is
+    # now pinned (SYM-019) — `@stable` moves, and a new clippy release is the same trap.
+    # Tracked as SYM-020.
+    if: github.ref == 'refs/heads/master' || github.event_name == 'pull_request'
     runs-on: windows-latest
     defaults:
       run:
