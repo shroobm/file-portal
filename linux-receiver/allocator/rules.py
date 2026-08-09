@@ -64,7 +64,11 @@ class RuleSet:
 
     @staticmethod
     def _expand(template: str) -> str:
-        now = datetime.now()
+        # LOCAL time on purpose: {yyyy}/{mm}/{dd} name the folders a human browses, so they must
+        # match the day HE dropped the file, not UTC's. A newer ruff flags this as DTZ005 ("naive
+        # datetime"); do NOT satisfy it by passing tz=UTC -- east of Greenwich that silently files
+        # evening drops under tomorrow's date. If the rule must be silenced, silence the rule.
+        now = datetime.now()  # noqa: DTZ005
         return template.format(
             yyyy=now.strftime("%Y"), mm=now.strftime("%m"), dd=now.strftime("%d")
         )

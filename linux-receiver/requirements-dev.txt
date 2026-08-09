@@ -1,3 +1,7 @@
 -r requirements.txt
 pytest>=8.0
-ruff>=0.4
+# ruff is pinned exactly, not floated. CI installs from this file, so `ruff>=0.4` meant CI
+# resolved whatever minor was newest (0.16.2 on 2026-08-09) while local venvs held an older one
+# (0.15.20) -- a newer ruff's broader default rule set failed code that lints clean locally.
+# Bumping this pin is a deliberate act: expect new rules, and read them before satisfying them.
+ruff==0.15.20
