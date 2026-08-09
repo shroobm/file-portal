@@ -31,6 +31,13 @@ git pull  # always first
 - If the solution to a step changes from the plan, note the change and why inline
 
 ### 4. Before Closing the Session
+- **Write the session closeout: `docs/21-session-closeout-contract.md`.** Six core sections every
+  session without exception (Intent, Implementation Delta, Decision Ledger, Known Failures, Symptom
+  Signatures, Next Entry Point); the other twelve when code shipped or a contract changed. Failures
+  get a symptom row in **`SYMPTOM-INDEX.md`** (repo root) — which you also *read* at open, because a
+  defect rediscovered is a MUSTER failure. Every claim carries an epistemic tag; never promote
+  inference to fact. Closeouts live in `sessions/S<N>-<machine>-<date>.md`; the ledger row below
+  points at them. *(Introduced S67 — Decision 5 there awaits Rab's signature.)*
 - Move the current session plan to **Session Log** with a timestamp and outcome
 - Update the machine's task list above (check off done items, add new ones)
 - Write the concrete next steps so the next Claude can start immediately
