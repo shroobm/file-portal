@@ -8,6 +8,49 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S67 — THE CLOSEOUT CONTRACT, THE SYMPTOM INDEX, AND CI THAT ACTUALLY RUNS (2026-08-09,
+  ThinkPad/receiver lane).** Full narrative in `sessions/S67-thinkpad-2026-08-09.md` — this entry
+  covers the source changes only.
+  - **Added `docs/21-session-closeout-contract.md`** — every session now ends structured: six
+    epistemic tags with admission prices (`Verified` requires a second check that cannot fail the
+    same way as the first), 6 core / 12 extended sections with an abort clause, derived-vs-authored
+    split, and the rule that inference is never promoted to fact.
+  - **Added `SYMPTOM-INDEX.md`** (repo root) — failures keyed on *what the system does when it's
+    wrong*, for retrieval backward from a symptom without knowing which session produced it. Seeded
+    with 17 rows from the Change Ledger and `docs/19`'s laws; grew to 20 during this session. Read
+    at session open; `CLAUDE_README.md` §4 now binds the close ceremony to it.
+  - **Fixed — CI had not run since 2026-07-13** (205 commits, ~4 weeks). It triggered only on push
+    to `master` plus `pull_request`, while all work is direct-pushed to `feat/library-pipeline`.
+    `.github/workflows/ci.yml` now runs on the feature branch and additionally lints
+    `linux-converter` and runs its **51 tests** — the largest uncovered area and the code that
+    writes the vault. Green on run `31336207277` (24 + 51). Filed SYM-018.
+  - **Fixed — `linux-converter/converter/exporter.py`**: a committed `ruff format` violation in the
+    `_receipt("supersede-held", …)` call. Formatting only, no behaviour change; it had been
+    invisible because CI never covered that project.
+  - **Fixed — unpinned linter made CI nondeterministic.** CI resolved ruff 0.16.2 from `ruff>=0.4`
+    while local venvs held 0.15.20, and the newer default rule set failed code that lints clean
+    locally. `ruff==0.15.20` pinned in `linux-receiver/requirements-dev.txt` and
+    `linux-converter/requirements-dev.txt`, with the reason inline. Filed SYM-019.
+  - **Guarded — `linux-receiver/allocator/rules.py`**: `_expand()`'s naive `datetime.now()` is
+    deliberate; `{yyyy}/{mm}/{dd}` are folder names a human browses, so they must match the day the
+    file was dropped. Satisfying ruff 0.16's DTZ005 with `tz=UTC` would file evening drops under
+    tomorrow's date west of Greenwich. Comment + `noqa` at the call site; **no behaviour change**.
+  - **Scoped — the `rust:` CI job** stays on `master` + `pull_request` via an `if:`. Enabling the
+    branch surfaced pre-existing drift (`cargo fmt --check` fails across 8 files / 36 hunks in
+    `windows-widget/src-tauri/src/`), which rotted because the desktop rebuild ritual runs
+    `cargo clippy --all-targets -- -D warnings` and never `cargo fmt`. Left to the desktop lane
+    with the five-step re-enable procedure in the workflow comment; Rust gating is unchanged from
+    before, not newly red. Filed SYM-020. `cargo test` remains absent from CI for the same
+    reason — unverifiable from Linux.
+  - **Docs — the front door described a project that no longer exists.** `README.md` called
+    `linux-converter` a "log-only skeleton" and the project an "early scaffold"; `docs/00`–`docs/09`
+    contained zero mentions of the vault, Marker, the analyst pass, the audit or the bench; and
+    `docs/20`, the accurate manual, had no inbound link from anywhere. README rewritten with an
+    honest two-era Status and all seven code areas; scope banners added to all ten first-era docs;
+    `docs/00`'s false skeleton claim deleted; `docs/01`'s transport line corrected to match
+    `transfer.rs` (it documented a `--` the code deliberately omits); `docs/07` extended to the four
+    subprojects it never mentioned, including `linux-converter`'s previously undocumented tests.
+
 - **S66 — THE DUMMY-PROOF PASS: simulated first, then fixed (2026-08-07 → 08).** Rab's
   commission: "simulate the interactions and experience beforehand… frictionless… update the
   UI… open files via clicking the icon… engineering access via the widget… not so dense."
