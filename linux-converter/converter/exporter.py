@@ -219,9 +219,7 @@ class Exporter:
                     bundle_dir.name,
                     verdict,
                 )
-                self._receipt(
-                    "supersede-held", bundle_dir, verdict=verdict, sha=source_sha[:16]
-                )
+                self._receipt("supersede-held", bundle_dir, verdict=verdict, sha=source_sha[:16])
                 return
             if blessed is not None:
                 # Fold the bless provenance into the manifest BEFORE any vault write: the vault

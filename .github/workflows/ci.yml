@@ -1,15 +1,23 @@
 # CI for File Portal — see docs/08-roadmap.md (v3).
 #
-# python: ruff lint + format check for both subprojects, pytest for the allocator.
+# python: ruff lint + format check for all three Linux subprojects, pytest for the allocator and
+#         the converter (the converter writes the vault — it is the last code that should be
+#         unverified).
 # rust:   cargo fmt + clippy for the Tauri widget, run on windows-latest because that is the
 #         widget's actual target and Tauri compiles there without extra system libraries
 #         (Linux runners would need the whole webkit2gtk stack just to type-check).
+#
+# Trigger note (S67): this workflow used to fire only on push to `master` and on pull requests.
+# All work happens by direct push to `feat/library-pipeline` and the project does not use PRs, so
+# CI had not run on 203 consecutive commits — every green check in the ledger was a hand-run local
+# check. Feature branches are listed explicitly below rather than using `branches: ['**']`, so a
+# throwaway branch does not burn minutes.
 
 name: CI
 
 on:
   push:
-    branches: [master]
+    branches: [master, feat/library-pipeline]
   pull_request:
 
 jobs:
@@ -21,7 +29,9 @@ jobs:
         with:
           python-version: "3.11"
       - name: Install dependencies
-        run: pip install -r linux-receiver/requirements-dev.txt
+        run: |
+          pip install -r linux-receiver/requirements-dev.txt
+          pip install -r linux-converter/requirements-dev.txt
       - name: Lint (linux-receiver)
         working-directory: linux-receiver
         run: |
@@ -32,8 +42,16 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+      - name: Lint (linux-converter)
+        working-directory: linux-converter
+        run: |
+          ruff check .
+          ruff format --check .
       - name: Test (linux-receiver)
         working-directory: linux-receiver
+        run: pytest tests/ -v
+      - name: Test (linux-converter)
+        working-directory: linux-converter
         run: pytest tests/ -v
 
   rust:
