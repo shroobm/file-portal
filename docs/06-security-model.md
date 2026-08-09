@@ -1,5 +1,12 @@
 # 06 — Security Model
 
+> **Scope: the first era — file routing.** This document describes the original system (drag a file
+> onto a tile, the allocator sorts it on the Linux box), which is built and in daily use. It does
+> **not** cover the document library pipeline the project grew later — conversion, the survival
+> audit, the vault, the control room, the repair bench. For the system as a whole see
+> [`20-file-portal-manual.md`](20-file-portal-manual.md); the pipeline's own design docs are `10`–`19`.
+> Statements here are accurate within this scope unless noted inline.
+
 Be explicit about what this design protects against and what it doesn't — that's the difference
 between a security model and wishful thinking.
 

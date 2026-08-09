@@ -31,16 +31,25 @@ or trusting a third-party cloud relay. This project avoids all three:
 
 | Path                | What it is                                                              |
 |---------------------|--------------------------------------------------------------------------|
-| `docs/`             | The knowledge base — read `docs/00-overview.md` first.                  |
-| `windows-widget/`   | The Tauri desktop app that renders the portal widgets.                  |
+| `docs/`             | The knowledge base. **Start with [`docs/20-file-portal-manual.md`](docs/20-file-portal-manual.md)** — the current system, end to end. `docs/00`–`docs/09` describe the original file-routing tool only (see Status). |
+| `windows-widget/`   | The Tauri desktop app: portal tiles plus the Dock · Room · Wall · Bench surfaces. |
+| `windows-converter/`| Desktop-side document conversion — Marker/GPU lanes, the analyst pass, the survival audit, shipping bundles to the Linux staging area. |
+| `windows-remote/`   | Remote-access setup and lockdown scripts for the desktop (see [`docs/17-remote-access-runbook.md`](docs/17-remote-access-runbook.md)). |
 | `linux-receiver/`   | The user-level allocator service that sorts incoming files.             |
-| `linux-converter/`  | The user-level converter service watching `pipeline/convert-inbox` (log-only skeleton; engine lands in Part 3 of `docs/10-library-pipeline-plan.md`). |
+| `linux-converter/`  | The user-level converter + **exporter** service: converts documents and writes vaulted notes into the bare git vault. |
 | `linux-dashboard/`  | Optional GTK4 desktop app that visualizes `sorted/` (gallery + lists).  |
+| `prototypes/`       | Working prototypes, notably `repair-bench/` — the human-in-the-loop repair tool for failed conversions. |
+| `coordination/`     | Agent-to-agent message bus between the two machines — see its own README. |
+| `sessions/`         | One structured closeout per development session ([`docs/21`](docs/21-session-closeout-contract.md)). |
+| `SYMPTOM-INDEX.md`  | Known failures, keyed on what the system *does* when it's wrong. Read it before debugging anything. |
+| `CLAUDE_README.md`  | The cross-machine mission brief, session protocol, and Change Ledger. |
 | `scripts/`          | One-off setup helpers (Tailscale SSH config, dev environment bootstrap).|
 
 ## Quickstart
 
-1. Read [`docs/00-overview.md`](docs/00-overview.md) for the full mental model.
+1. Read [`docs/20-file-portal-manual.md`](docs/20-file-portal-manual.md) — the user textbook and
+   developer reference for the system as it actually stands. For the original file-routing design
+   in isolation, [`docs/00-overview.md`](docs/00-overview.md) still holds.
 2. Set up Tailscale SSH between the two machines: [`docs/02-tailscale-setup.md`](docs/02-tailscale-setup.md).
 3. Install the Linux allocator service: [`linux-receiver/README.md`](linux-receiver/README.md).
 4. Run the Windows widget in dev mode: [`windows-widget/README.md`](windows-widget/README.md).
@@ -48,8 +57,20 @@ or trusting a third-party cloud relay. This project avoids all three:
 
 ## Status
 
-Early scaffold — architecture and interfaces are defined, implementation is in progress. See
-[`docs/08-roadmap.md`](docs/08-roadmap.md) for what's done vs. planned.
+**Two eras, and it matters when reading the docs.** The original goal — drag a file onto a tile,
+have it sorted on the Linux box — is **built and in daily use**: streamed transfer over Tailscale
+SSH, the allocator, the status feed, the dashboard.
+
+The project then grew a second half: a **document library pipeline** that converts dropped PDFs to
+markdown (GPU Marker with clean/scan lanes), scores them for degeneration in a survival audit,
+holds anything that fails, and exports blessed bundles into a git-backed Obsidian vault — plus a
+control-room UI, remote access, and a repair bench for fixing failed conversions by hand.
+
+`docs/00`–`docs/09` were written for the first era and **do not describe the pipeline at all**.
+`docs/10` onward is the second era; [`docs/20`](docs/20-file-portal-manual.md) is the current
+whole-system reference and [`CHANGELOG.md`](CHANGELOG.md) plus `CLAUDE_README.md`'s Change Ledger
+are the authoritative record of what shipped when. [`docs/08-roadmap.md`](docs/08-roadmap.md)
+tracks the first era only and its checkboxes lag reality.
 
 ## License
 

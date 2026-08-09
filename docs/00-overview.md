@@ -1,5 +1,12 @@
 # 00 — Overview
 
+> **Scope: the first era — file routing.** This document describes the original system (drag a file
+> onto a tile, the allocator sorts it on the Linux box), which is built and in daily use. It does
+> **not** cover the document library pipeline the project grew later — conversion, the survival
+> audit, the vault, the control room, the repair bench. For the system as a whole see
+> [`20-file-portal-manual.md`](20-file-portal-manual.md); the pipeline's own design docs are `10`–`19`.
+> Statements here are accurate within this scope unless noted inline.
+
 ## The problem
 
 You want to drag a file on your Windows desktop and have it land in the right folder on a Linux
@@ -31,8 +38,11 @@ Three pieces, each with one job:
      extension, by which portal/category it arrived through, or by simple glob patterns.
    - **`linux-converter/`**: a second `systemd --user` service that watches
      `~/file-portal/pipeline/convert-inbox` — where the allocator routes the `convert` category —
-     and turns dropped documents into markdown bundles. Currently a log-only skeleton; the
-     conversion engine is Part 3 of [`10-library-pipeline-plan.md`](10-library-pipeline-plan.md).
+     and turns dropped documents into markdown bundles. **The engine shipped 2026-07-10** (clean and
+     scan lanes, a chars-per-page probe, atomic bundles) and the service also carries the
+     **exporter**, which writes accepted bundles into the git-backed vault. That half of the system
+     is out of scope here — see [`20-file-portal-manual.md`](20-file-portal-manual.md) and
+     [`15-survival-audit.md`](15-survival-audit.md).
    - **`linux-dashboard/`** (optional, read-only): a standalone GTK4 desktop app that visualizes
      what's actually in `sorted/` — a thumbnail gallery for photos, a browsable list for
      everything else — and updates live as the allocator sorts new files in. Not part of the

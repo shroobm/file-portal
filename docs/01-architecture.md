@@ -1,5 +1,12 @@
 # 01 — Architecture
 
+> **Scope: the first era — file routing.** This document describes the original system (drag a file
+> onto a tile, the allocator sorts it on the Linux box), which is built and in daily use. It does
+> **not** cover the document library pipeline the project grew later — conversion, the survival
+> audit, the vault, the control room, the repair bench. For the system as a whole see
+> [`20-file-portal-manual.md`](20-file-portal-manual.md); the pipeline's own design docs are `10`–`19`.
+> Statements here are accurate within this scope unless noted inline.
+
 ## Component diagram
 
 ```
@@ -15,7 +22,7 @@
    │  Rust command: transfer::send(category, file_paths)       │
    │        │                                                  │
    │        ▼                                                  │
-   │  spawns: tailscale ssh <user>@<host> -- "... cat > inbox/<cat>/.part-<file> && mv -f .part-<file> <file>"  │
+   │  spawns: tailscale ssh <user>@<host> "... cat > inbox/<cat>/.part-<file> && mv -f .part-<file> <file>"  │
    │          (bytes streamed into a temp .part- file over stdin, then atomic mv; no rsync/scp)  │
    └────────┼───────────────────────────────────────────────────┘
             │  Tailscale tunnel (WireGuard, tailnet-only)
@@ -40,7 +47,7 @@
 1. User drags one or more files onto a portal widget in the Windows app.
 2. The frontend (HTML/JS) calls a Tauri command (`send_to_portal`) with the category name and the
    absolute file paths (Tauri's drag-and-drop API gives native paths, not blobs).
-3. The Rust backend shells out to `tailscale ssh <user>@<host> -- "mkdir -p <inbox>/<category> &&
+3. The Rust backend shells out to `tailscale ssh <user>@<host> "mkdir -p <inbox>/<category> &&
    cat > <inbox>/<category>/.part-<filename> && mv -f <…>/.part-<filename> <…>/<filename>"` and
    streams each file's bytes into that remote `cat` over the process's stdin — one file per
    invocation. Writing to a temporary `.part-<filename>` and then `mv`-ing it into place makes the
