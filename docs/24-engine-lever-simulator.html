@@ -1,0 +1,450 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- docs/24 — the Engine Lever investigation + simulator (S70, Rab's commission).
+     Self-contained, zero dependencies: the simulator is vanilla JS, the diagrams are CSS.
+     Every number carries its epistemic tag: [M] Measured on this machine's real timeline,
+     [I] Inferred (uncalibrated prediction — a band, not a promise), [H] Historical.
+     THIS IS A SIMULATION of recorded history + tagged prediction. It drives nothing. -->
+<title>24 · The Engine Lever — investigation + simulator</title>
+<style>
+  :root {
+    --bg:#f0eeea; --surface:#faf8f5; --surface-2:#ffffff; --inset:#e8e4de;
+    --border:rgba(40,30,22,.13); --border-strong:rgba(40,30,22,.24);
+    --text:#221d18; --text-2:#665d54; --text-3:#96887c;
+    --clay:#c15f3c; --clay-bg:rgba(193,95,60,.09);
+    --ok:#3f8f46; --ok-bg:rgba(63,143,70,.10);
+    --warn:#a97c17; --warn-bg:rgba(169,124,23,.10);
+    --flow:#3f7690; --flow-bg:rgba(63,118,144,.10);
+    --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+    --sans:"Segoe UI Variable Text","Segoe UI",-apple-system,system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg:#14110e; --surface:#1b1713; --surface-2:#221c17; --inset:#0e0c0a;
+    --border:rgba(240,228,216,.10); --border-strong:rgba(240,228,216,.2);
+    --text:#ece7e1; --text-2:#a89f95; --text-3:#6f665d;
+    --clay:#d97757; --clay-bg:rgba(217,119,87,.12);
+    --ok:#6fbf73; --ok-bg:rgba(111,191,115,.12);
+    --warn:#e0b34c; --warn-bg:rgba(224,179,76,.12);
+    --flow:#79a6bd; --flow-bg:rgba(121,166,189,.12);
+  } }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:15px;
+         line-height:1.6; max-width:1020px; margin:0 auto; padding:36px 26px 90px; }
+  .eyebrow { font-family:var(--mono); font-size:10.5px; letter-spacing:1.8px; text-transform:uppercase;
+             color:var(--clay); margin-bottom:10px; }
+  h1 { font-size:29px; line-height:1.2; letter-spacing:-.3px; margin-bottom:10px; }
+  .lede { color:var(--text-2); font-size:15.5px; max-width:800px; }
+  .meta { display:flex; flex-wrap:wrap; gap:6px 20px; margin:16px 0 6px; font-family:var(--mono);
+          font-size:11px; color:var(--text-3); }
+  .meta b { color:var(--text-2); }
+  .ch { display:flex; align-items:baseline; gap:12px; margin:44px 0 12px; padding-top:24px;
+        border-top:1px solid var(--border); }
+  .ch .num { font-family:var(--mono); font-size:10.5px; letter-spacing:1.6px; color:var(--clay); }
+  h2 { font-size:19px; letter-spacing:-.2px; }
+  h3 { font-size:14.5px; margin:18px 0 8px; }
+  p { margin:9px 0; max-width:860px; }
+  .note { border-left:3px solid var(--clay); background:var(--clay-bg); border-radius:0 8px 8px 0;
+          padding:11px 15px; margin:13px 0; }
+  .note.ok { border-color:var(--ok); background:var(--ok-bg); }
+  .note.flow { border-color:var(--flow); background:var(--flow-bg); }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th { text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px;
+       text-transform:uppercase; color:var(--text-3); padding:7px 10px 5px;
+       border-bottom:1px solid var(--border-strong); }
+  td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .tw { overflow-x:auto; margin:10px 0; }
+  code { font-family:var(--mono); font-size:.92em; background:var(--inset); padding:1px 5px; border-radius:4px; }
+  .tag { font-family:var(--mono); font-size:9.5px; letter-spacing:.5px; padding:2px 6px;
+         border-radius:20px; white-space:nowrap; }
+  .tag.m { color:var(--ok); background:var(--ok-bg); border:1px solid var(--ok); }
+  .tag.i { color:var(--warn); background:var(--warn-bg); border:1px solid var(--warn); }
+  .tag.h { color:var(--text-3); background:var(--inset); }
+  .tag.new { color:var(--clay); background:var(--clay-bg); border:1px solid var(--clay); }
+  /* the chain chips */
+  .chain { display:flex; flex-wrap:wrap; align-items:center; gap:10px; margin:14px 0; font-family:var(--mono); font-size:12px; }
+  .chip { background:var(--surface); border:1px solid var(--border-strong); border-radius:9px; padding:10px 14px; }
+  .chip b { display:block; font-size:12.5px; }
+  .chip span { color:var(--text-3); font-size:10.5px; }
+  .chain .arrow { color:var(--clay); font-size:16px; }
+  /* simulator */
+  .sim { background:var(--surface); border:1px solid var(--border-strong); border-radius:12px;
+         padding:20px; margin:16px 0; }
+  .patients { display:grid; grid-template-columns:repeat(auto-fit,minmax(170px,1fr)); gap:9px; }
+  .pt { background:var(--surface-2); border:1px solid var(--border); border-radius:9px; padding:11px 12px;
+        cursor:pointer; transition:border-color .15s; }
+  .pt:hover { border-color:var(--clay); }
+  .pt.sel { border-color:var(--clay); background:var(--clay-bg); }
+  .pt b { font-size:13px; display:block; }
+  .pt .prof { font-family:var(--mono); font-size:10px; color:var(--text-3); margin-top:4px; line-height:1.5; }
+  .askcard { border:1px solid var(--clay); border-radius:10px; background:var(--surface-2);
+             padding:15px 16px; margin-top:16px; }
+  .askcard h3 { margin:0 0 4px; color:var(--clay); }
+  .levers { display:grid; grid-template-columns:repeat(auto-fit,minmax(215px,1fr)); gap:9px; margin-top:10px; }
+  .lever { text-align:left; background:var(--surface); border:1px solid var(--border-strong); border-radius:9px;
+           padding:11px 13px; cursor:pointer; font:inherit; color:inherit; transition:border-color .15s; }
+  .lever:hover { border-color:var(--clay); }
+  .lever b { display:block; font-size:13px; }
+  .lever .d { font-family:var(--mono); font-size:10px; color:var(--text-3); margin-top:4px; line-height:1.55; }
+  .reco { font-family:var(--mono); font-size:10.5px; color:var(--text-2); margin-top:10px; }
+  .reco b { color:var(--clay); }
+  /* rail */
+  .rail { display:flex; align-items:center; gap:6px; margin:18px 0 10px; font-family:var(--mono); }
+  .st { flex:1; text-align:center; border:1px solid var(--border); border-radius:8px; padding:8px 4px;
+        color:var(--text-3); font-size:11px; background:var(--surface-2); transition:all .2s; }
+  .st .g { font-size:16px; display:block; }
+  .st.on { color:var(--clay); border-color:var(--clay); background:var(--clay-bg); }
+  .st.done { color:var(--ok); border-color:var(--ok); }
+  .st.dead { color:var(--warn); border-color:var(--warn); background:var(--warn-bg); }
+  .log { background:var(--inset); border-radius:8px; font-family:var(--mono); font-size:11.5px;
+         line-height:1.7; padding:12px 14px; height:230px; overflow-y:auto; }
+  .log .t { color:var(--text-3); margin-right:8px; }
+  .log .ok { color:var(--ok); } .log .warn { color:var(--warn); } .log .fail { color:var(--clay); }
+  .log .info { color:var(--flow); } .log .hum { color:var(--text-2); }
+  .outcome { display:none; border:1px solid var(--border-strong); border-radius:10px; padding:13px 15px;
+             margin-top:12px; background:var(--surface-2); }
+  .outcome.show { display:block; }
+  .verdict { font-family:var(--mono); font-size:12px; padding:3px 10px; border-radius:20px; }
+  .verdict.pass { color:var(--ok); background:var(--ok-bg); border:1px solid var(--ok); }
+  .verdict.flag { color:var(--warn); background:var(--warn-bg); border:1px solid var(--warn); }
+  .verdict.fail { color:var(--clay); background:var(--clay-bg); border:1px solid var(--clay); }
+  .hist { font-family:var(--mono); font-size:10.5px; color:var(--text-3); margin-top:8px; line-height:1.6; }
+  .again { margin-top:10px; background:none; border:1px solid var(--border-strong); color:var(--text-2);
+           border-radius:8px; padding:6px 14px; cursor:pointer; font:inherit; font-size:12.5px; }
+  .again:hover { border-color:var(--clay); color:var(--clay); }
+  .foot { margin-top:54px; padding-top:14px; border-top:1px solid var(--border);
+          font-family:var(--mono); font-size:10.5px; color:var(--text-3); line-height:1.8; }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">◆ File Portal · docs/24 · Investigation + Simulator · nothing here drives the pipeline</div>
+<h1>The Engine Lever — one capability, three scopes, and a choice card</h1>
+<p class="lede">Rab's chain, taken seriously: the models that can read a cropped zone can also read a page —
+and a whole PDF. That makes conversion a <em>routing</em> question, and this factory already has a law for
+routing questions: <b>a lever the human clicks, where the position determines capability and level of
+output</b> — exactly how <code>analyst-mode.txt</code> trades local privacy against Gemini speed today.
+Below: the investigation, then a simulator that replays the real timeline through the choice.</p>
+<div class="meta">
+  <span><b>basis</b> the Change Ledger + docs/22 (stress-tested) + the S69 research thread</span>
+  <span><b>tags</b> [M] measured here · [I] inferred, uncalibrated · [H] historical</span>
+  <span><b>date</b> 2026-08-10 · Desktop S70</span>
+</div>
+
+<!-- ============================================================ 1 -->
+<section>
+  <div class="ch"><span class="num">PART·01</span><h2>The chain — zone, page, document; one lever family</h2></div>
+  <div class="chain">
+    <div class="chip"><b>ZONE · the Bench repair</b><span>crop → DocTags → gates → accept<br>docs/23's proposal — the beachhead</span></div>
+    <div class="arrow">→</div>
+    <div class="chip"><b>PAGE · targeted re-read</b><span>a flagged page re-read in place<br>same model, same gates, bigger crop</span></div>
+    <div class="arrow">→</div>
+    <div class="chip"><b>DOCUMENT · the engine lever</b><span>whole-PDF conversion routed by choice<br>Marker ⇄ granite-docling ⇄ pymupdf4llm</span></div>
+  </div>
+  <p>The scopes share everything that matters: the same reader, the same audit downstream, the same
+  refusal posture, the same provenance. What changes is <em>where the choice sits</em>. At zone scope the
+  choice is implicit (the Bench). At document scope it must be explicit — and the widget already owns the
+  organ for explicit choices: <b>the pre-flight card</b>. Today that card asks <em>"local or Gemini?"</em>
+  about the analyst. The investigation's conclusion is that the same card can ask <em>"which eye?"</em>
+  about conversion — one more lever file, one more row of buttons, zero new laws.</p>
+  <div class="note flow"><p><b>Why this isn't feature creep:</b> SYM-003 — table-loop degeneration — is the
+  index's only OPEN row, and 4 of 4 table-or-figure-dense books through the GPU lane have hit it. The lever
+  is not variety for its own sake; it is <em>routing around the incumbent's one open disease</em>, with the
+  incumbent remaining the default for everything it is good at.</p></div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section>
+  <div class="ch"><span class="num">PART·02</span><h2>The simulator — a real patient, the choice card, the consequences</h2></div>
+  <p>Pick a book. Every profile below is a <b>real book from this factory's timeline</b>, and every event
+  the simulation plays is either <span class="tag m">[M] measured</span> — it happened, session cited — or
+  <span class="tag i">[I] inferred</span> — the uncalibrated prediction band for an engine that has not run
+  here yet. The simulator compresses time (~1 s ≈ 25 sim-minutes) and never touches the pipeline.</p>
+
+  <div class="sim">
+    <h3>1 · The patient</h3>
+    <div class="patients" id="patients"></div>
+    <div class="askcard" id="askcard" style="display:none">
+      <h3 id="askTitle">Do you want to use…</h3>
+      <div style="font-family:var(--mono);font-size:10.5px;color:var(--text-3)" id="askProfile"></div>
+      <div class="levers" id="levers"></div>
+      <div class="reco" id="reco"></div>
+    </div>
+    <div id="runzone" style="display:none">
+      <div class="rail" id="rail"></div>
+      <div class="log" id="log"></div>
+      <div class="outcome" id="outcome"></div>
+      <button class="again" id="again">↺ run another patient / lever</button>
+    </div>
+  </div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section>
+  <div class="ch"><span class="num">PART·03</span><h2>The rates — movement and failure, tagged</h2></div>
+  <h3>Rate of movement (conversion, this machine)</h3>
+  <div class="tw"><table>
+    <tr><th>engine · lane</th><th>s / page</th><th>tag</th><th>evidence</th></tr>
+    <tr><td>Marker · clean</td><td>1.36 – 2.31</td><td><span class="tag m">M</span></td><td>claude-code 104 pp / 141 s (S48) · Cybernetics 91 pp / 210 s (S50)</td></tr>
+    <tr><td>Marker · clean, chunked</td><td>1.94 (true)</td><td><span class="tag m">M</span></td><td>Damodaran 1,356 pp incl. resumed slices — the ledger folds retries back in so the estimator can't flatter itself (S60)</td></tr>
+    <tr><td>Marker · scan</td><td>~8.1</td><td><span class="tag m">M</span></td><td>Brain of the Firm 439 pp / 59 min (first production run)</td></tr>
+    <tr><td>granite-docling-258M · any</td><td>1 – 5 (band)</td><td><span class="tag i">I</span></td><td>autoregressive DocTags decode; literature claims competitive accuracy at 258M — <b>uncalibrated here; first job is an S28-style calibration over the vaulted corpus</b></td></tr>
+    <tr><td>pymupdf4llm · clean</td><td>~0.1 – 0.3</td><td><span class="tag i">I</span></td><td>text-layer extraction, CPU; the ThinkPad's own lane — instant and plain (tables flatten)</td></tr>
+    <tr><td>analyst · local qwen3</td><td>~138 chars/s</td><td><span class="tag m">M</span></td><td>static fallback constant, measured; ~28.4 s/chunk on claude-code</td></tr>
+  </table></div>
+
+  <h3>Failure rates (the honest small-n)</h3>
+  <div class="tw"><table>
+    <tr><th>class</th><th>observed</th><th>rate</th><th>guard today</th></tr>
+    <tr><td><b>Degeneration-class verdict</b> (SYM-003, OPEN)</td><td>Brain (12.3% OCR loops, the calibration specimen) · Valentine fail · Damodaran fail · Cybernetics flag-ceiling · claude-code analyst-loop</td><td><b>5 of 6</b> GPU-lane books carry at least one fail/flag-class finding; <b>4/4 table-or-figure-dense books</b> hit it — 100% on its home turf</td><td>audit gates + enforce-park + the Bench; <b>the lever is the proposed structural answer</b></td></tr>
+    <tr><td>VRAM thrash / wedge</td><td>S45 Damodaran 5 h 34 m frozen · Cybernetics uncapped DNF</td><td>2 incidents, then 0 since guards</td><td>batch cap 32 · chunk-batch lever · stall-kill 900 s</td></tr>
+    <tr><td>Pipe deadlock (cp1252)</td><td>S48, wore a VRAM costume in S45</td><td>1, then 0</td><td>utf-8 + errors=replace + drain-on-fault</td></tr>
+    <tr><td>Power cut mid-run</td><td>analyst chunk 936/969 (~4 h at risk)</td><td>1; the next cut cost <b>16 s</b></td><td>slice resume + fsync'd chunk journal</td></tr>
+    <tr><td>ThinkPad offline mid-ship</td><td>first production run</td><td>1; reattach measured 2 s</td><td>recovery sentinel + tar-kill-on-ssh-death</td></tr>
+    <tr><td>ssh/scp invisible-prompt hangs</td><td>9 zombie pairs before diagnosis (S56)</td><td>class extinct</td><td>BatchMode + accept-new + ConnectTimeout, everywhere</td></tr>
+  </table></div>
+  <div class="note ok"><p><b>Reading the rates honestly:</b> infrastructure failure classes were each observed
+  once, guarded, and have not recurred — recurrence of a guarded class is a MUSTER failure, not bad luck.
+  The one <em>structural</em> failure (SYM-003) is different: it recurs on every table-dense book by nature,
+  which is exactly why it deserves a routing answer rather than another patch. Small n is small n: these are
+  the factory's real six books, not a benchmark — the simulator's [I] bands stay bands until calibration.</p></div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section>
+  <div class="ch"><span class="num">PART·04</span><h2>What the investigation concludes</h2></div>
+  <div class="tw"><table>
+    <tr><th>finding</th><th>consequence</th></tr>
+    <tr><td>The chain is real — zone, page, document are one capability at three scopes</td><td>build at zone scope first (docs/23); the lever inherits a calibrated, governed reader instead of gambling on one</td></tr>
+    <tr><td>The lever pattern already exists in law and UI</td><td>an <code>engine-mode.txt</code>-class lever + one pre-flight card row; <b>no new architecture</b>; per-book choice via the ask card, standing choice via the lever file</td></tr>
+    <tr><td>SYM-003 is the target, and it lives where Marker's decoder loops on structure</td><td>a structure-native reader (DocTags) attacks the disease at its DNA — <span class="tag i">[I]</span> until calibrated</td></tr>
+    <tr><td>Representation ceilings are lever-immune</td><td>Cybernetics' 0.688 is what a figure-heavy book <em>is</em> in markdown — no engine position fixes it; the bless rail stays load-bearing</td></tr>
+    <tr><td>Analyst failures are a different lever</td><td>claude-code's loop happened <em>after</em> a clean convert; engine choice cannot touch it — keep the levers orthogonal, one per authority</td></tr>
+    <tr><td>Every new engine enters through calibration, never through trust</td><td>the S28→S30 tradition: run it over the vaulted corpus, measure, put real numbers where the [I] bands are, then Rab signs thresholds</td></tr>
+  </table></div>
+</section>
+
+<div class="foot">
+  FILE PORTAL · docs/24 · THE ENGINE LEVER — investigation + simulator · Desktop S70 · 2026-08-10 ·
+  every [M] number cites the Change Ledger / docs/22 (stress-tested S69) · [I] bands are uncalibrated
+  predictions and say so · the simulator replays recorded history and drives nothing · unsigned as of
+  this revision: the lever itself, its thresholds, repair audit-credit
+</div>
+
+<script>
+(() => {
+  "use strict";
+  // ---------- data: real patients, real history ----------
+  const BOOKS = {
+    brain: { name:"Brain of the Firm", prof:"439 pp · scan lane · Beer", pages:439,
+      hist:"History [M]: Marker 59 min (~8.1 s/pp) · analyst local 3 h 42 m · survived a ThinkPad outage mid-ship (recovery sentinel, 2 s reattach) · vaulted f310f759. Its vaulted text carries 12.3% OCR loops — the audit's calibration specimen." },
+    claudecode: { name:"Claude Code: Up & Running", prof:"104 pp · clean · 2k chars/pp", pages:104,
+      hist:"History [M]: Marker 141 s (1.36 s/pp) · analyst 37 chunks / 1,052.6 s · analyst-phase audit FAILED the analyst's own notes (0.9493, 14 runs; book text 0.9913 clean) · vaulted note 5 with the verdict filed; the later re-run was refused 3× (supersede-held) and deleted on Rab's word (SYM-015)." },
+    damodaran: { name:"Investment Valuation 4e", prof:"1,356 pp · clean · 2,140 chars/pp", pages:1356,
+      hist:"History [M]: S45 full-book run wedged — frozen 5 h 01 m at Recognizing Text, 9,469/10,240 MiB — killed. S60: 200-pp chunking, batch 16 (peak 9,786 MiB), power cut at analyst chunk 936/969 → resume journal replayed in ~16 s; true 1.94 s/pp. Audits: convert 0.927 + table-loop zones, analyst 0.9525/25 runs → enforce-parked. The Bench located 9/10 zones." },
+    valentine: { name:"Best Practices (Valentine)", prof:"465 pp · scan · 1.4 chars/pp · table-dense", pages:465,
+      hist:"History [M]: converted, then degeneration FAIL → held. First real human repair (@1579 ← p234 — the ratio guess was out by 114 pp; evidence-locate won). The ⟲ analyst re-run burned 4,859 s (249✓/16🛡/1✗) and the verdict STAYED fail — an analyst pass cannot fix convert-phase damage." },
+    cybernetics: { name:"Cybernetics Book of Models", prof:"91 pp · clean · figure-dense", pages:91,
+      hist:"History [M]: the original uncapped run was the VRAM-thrash DNF that bought the batch-32 law. Re-convert 210 s (2.31 s/pp); survival 0.6884 ≈ 0.688 measured twice — the figure-heavy structural ceiling → flag forever → BLESSED through the S56 rail → vault note 6." },
+  };
+  const ENGINES = {
+    marker: { name:"Marker (surya) — the incumbent", d:"GPU 8–9.8 GB · clean 1.4–2.3 s/pp · scan ~8.1 s/pp [M]<br>known DNA: table-loop degeneration (SYM-003, open)" },
+    docling: { name:"granite-docling-258M — DocTags", d:"sub-GB, CPU-capable · 1–5 s/pp [I] UNCALIBRATED<br>structure-native tables; small-model scan risk" },
+    pymu: { name:"pymupdf4llm — CPU text layer", d:"~0.1–0.3 s/pp [I] · zero VRAM · clean lane only<br>instant and plain; complex tables flatten" },
+  };
+  const RECO = {
+    brain:"445-pp degraded scan: surya's OCR depth is the proven eye [M]; docling on old print is an [I] risk. Recommendation: marker.",
+    claudecode:"Clean, short, text-rich: every engine converts this fine — its real risk was the ANALYST loop, which no engine position touches. Recommendation: pymupdf4llm if you want speed, marker for fidelity.",
+    damodaran:"1,356 pp of finance tables — the incumbent's open disease [M]. DocTags' structure-native tables are the bet worth calibrating [I]. Recommendation: docling (calibration run), marker+chunking as the proven path.",
+    valentine:"Table-dense SCAN — the hardest square: marker converts but loops [M]; docling's table sense meets its scan weakness [I]. Recommendation: marker, then Bench transcribe on the zones (docs/23).",
+    cybernetics:"Figure-heavy: the 0.688 ceiling is representation, not conversion — every position hits it. Recommendation: any engine + the bless rail; choose by speed (pymupdf4llm).",
+  };
+  // scripts: per book×engine — [minute, station(0..5|-1 incident), class, message]
+  const RUNS = {
+    "brain|marker": { wall:281, verdict:"pass", land:"vaulted — note among 6", script:[
+      [0,0,"info","▚ intake — brain-of-the-firm.pdf → drop/ (.gpu-lock taken)"],
+      [2,1,"info","⚙ probe: 439 pp · no text layer → scan lane [M]"],
+      [4,1,"info","⚙ Marker + full OCR, batch 32 — ~8.1 s/pp measured [M]"],
+      [59,1,"ok","⚙ convert done 59 min — exactly the first production run's wall [M]"],
+      [61,3,"warn","◎ audit: OCR-loop zones present (12.3% — this book IS the calibration specimen) [M/H]"],
+      [63,2,"hum","✳ card: analyst? → local (3 h 42 m, air-gapped) — as Rab chose in history"],
+      [275,2,"ok","✳ analyst complete 3 h 42 m [M]"],
+      [277,4,"fail","⇈ ship: ThinkPad OFFLINE mid-tar — ssh died, tar killed so the real error surfaces [M]"],
+      [279,4,"info","⇈ recovery sentinel polling… host returns → resume --backend none [M]"],
+      [280,4,"ok","⇈ reattach → staged in 2 s [M]"],
+      [281,5,"ok","▤ exporter: dedup clear → committed f310f759 → L12 blob-verify → vaulted [M]"],
+    ]},
+    "brain|docling": { wall:110, verdict:"flag", land:"held pending calibration review", script:[
+      [0,0,"info","▚ intake — brain-of-the-firm.pdf (.gpu-lock)"],
+      [2,1,"info","⚙ probe: scan lane · routing to granite-docling-258M [I]"],
+      [3,1,"warn","⚙ UNCALIBRATED: 439 pp × 1–5 s/pp → band 7–37 min; playing the midpoint [I]"],
+      [55,1,"warn","⚙ degraded 1970s print: a 258M reader's misread risk is why surya stays the scan default [I]"],
+      [95,1,"ok","⚙ DocTags decoded · docling renders markdown [I]"],
+      [100,3,"warn","◎ audit vs pymupdf witness: agreement uncertain on degraded glyphs → flag-band [I]"],
+      [108,3,"info","◎ two-reader cross-check (surya) would arbitrate — docs/23's gate, page-scope [I]"],
+      [110,5,"warn","▤ prediction: flag → held for human review; calibration data captured either way [I]"],
+    ]},
+    "brain|pymu": { wall:2, verdict:"fail", land:"rerouted — no text layer", script:[
+      [0,0,"info","▚ intake — brain-of-the-firm.pdf"],
+      [1,1,"info","⚙ probe: chars/pp ≈ 0 — no text layer [M]"],
+      [2,1,"fail","⚙ pymupdf4llm is a text-layer reader: scan lane → reroute to an OCR engine (the Linux lane's own rule) [M/H]"],
+    ]},
+    "claudecode|marker": { wall:22, verdict:"fail", land:"vaulted with verdict filed (history: analyst loop)", script:[
+      [0,0,"info","▚ intake — claude-code-up-and-running.pdf (remote drop, Gate 3) [M]"],
+      [1,1,"info","⚙ probe: 104 pp · clean · ~2k chars/pp [M]"],
+      [3,1,"ok","⚙ Marker 141 s (1.36 s/pp) — measured [M]"],
+      [4,3,"ok","◎ convert-phase audit: 0.9913, one page flagged — clean [M]"],
+      [5,2,"hum","✳ card → local analyst (37 chunks) [M]"],
+      [21,2,"ok","✳ analyst 1,052.6 s — ETA promised 1,022 s, +3% [M]"],
+      [22,3,"fail","◎ analyst-phase audit: the analyst's OWN notes loop — 0.9493, 14 runs; book text clean. Engine choice could not have prevented this [M]"],
+      [22,5,"warn","▤ vaulted note 5 with the verdict filed; the later ⟲ re-run was refused 3× and deleted (SYM-015) [M]"],
+    ]},
+    "claudecode|docling": { wall:9, verdict:"pass", land:"vaulted (predicted)", script:[
+      [0,0,"info","▚ intake — claude-code-up-and-running.pdf"],
+      [1,1,"info","⚙ probe: clean · 104 pp → DocTags decode, band 2–9 min [I]"],
+      [6,1,"ok","⚙ code blocks + headings are DocTags natives [I]"],
+      [8,3,"ok","◎ audit vs witness: text-rich clean lane → pass-band [I]"],
+      [9,5,"ok","▤ vaulted (predicted). NOTE: run the analyst after and its loop risk is UNCHANGED — different lever [M/H]"],
+    ]},
+    "claudecode|pymu": { wall:1, verdict:"pass", land:"vaulted (predicted, plain)", script:[
+      [0,0,"info","▚ intake — claude-code-up-and-running.pdf"],
+      [1,1,"ok","⚙ text-layer extraction: ~30 s CPU, zero VRAM [I]"],
+      [1,3,"ok","◎ prose survives; code fencing plainer than Marker's [I]"],
+      [1,5,"ok","▤ vaulted (predicted) — the speed position for text-rich clean PDFs"],
+    ]},
+    "damodaran|marker": { wall:2100, verdict:"fail", land:"held/ — the Bench's flagship patient", script:[
+      [0,0,"info","▚ intake — investment-valuation-4e.pdf (.gpu-lock)"],
+      [2,1,"info","⚙ probe: 1,356 pp (metadata claims 290 — the probe governs, metadata lies) [M]"],
+      [3,1,"warn","⚙ >600 pp clean → 200-pp chunking, 7 slices, batch 16 (the S45 full-book wedge bought this path) [M]"],
+      [5,-1,"fail","⌁ HISTORY REPLAY: the S45 attempt froze 5 h 01 m at Recognizing Text, 9,469/10,240 MiB — stall-killed at 900 s frozen under today's guard [M]"],
+      [400,1,"info","⚙ slice 3/7 · batch-16 peak 9,786 MiB — headroom is the chunk-batch lever's job [M]"],
+      [800,1,"ok","⚙ slices publish to .chunk-work, .done last — resume-safe [M]"],
+      [1200,-1,"fail","⌁ POWER CUT (history: at analyst chunk 936/969) — ~4 h of work at risk…"],
+      [1202,2,"ok","✳ resume journal replays finished chunks in ~16 s — the cut costs seconds now [M]"],
+      [1900,2,"ok","✳ analyst complete · true rate 1.94 s/pp (retries folded into the ledger honestly) [M]"],
+      [2050,3,"fail","◎ audit: convert 0.927 + table-loop zones · analyst 0.9525 / 25 runs → FAIL [M]"],
+      [2100,3,"warn","◎ enforce-park → held/ · the Bench located 9/10 zones · docs/23's transcribe is the proposed heal [M]"],
+    ]},
+    "damodaran|docling": { wall:1130, verdict:"flag", land:"held for calibration review — the bet, quantified", script:[
+      [0,0,"info","▚ intake — investment-valuation-4e.pdf"],
+      [2,1,"info","⚙ probe: 1,356 pp · finance tables wall-to-wall — SYM-003's home turf [M]"],
+      [4,1,"warn","⚙ UNCALIBRATED band 23–113 min; playing midpoint. Long-book autoregressive decode is the open risk [I]"],
+      [400,1,"info","⚙ tables decode as DocTags <table> structures — no pipe-markdown loops possible at decode time [I]"],
+      [900,1,"ok","⚙ decode complete · docling renders markdown deterministically [I]"],
+      [1050,3,"warn","◎ audit: numeric multiset + dimension gates over 700+ tables — the governed check, document-scope [I]"],
+      [1130,5,"warn","▤ prediction: pass-or-flag band; either way the calibration numbers replace these [I] tags — that is the run's real product"],
+    ]},
+    "damodaran|pymu": { wall:7, verdict:"flag", land:"vaulted plain (predicted) — tables flattened", script:[
+      [0,0,"info","▚ intake — investment-valuation-4e.pdf"],
+      [2,1,"ok","⚙ text-layer extraction ~4–7 min CPU, zero GPU drama [I]"],
+      [5,3,"warn","◎ tables FLATTEN — content survives, structure does not; MixRAG says downstream retrieval pays that bill [H]"],
+      [7,5,"warn","▤ vaulted plain (predicted): fast, honest, and structurally poorer — the trade the card should say out loud"],
+    ]},
+    "valentine|marker": { wall:75, verdict:"fail", land:"held/ — the first human repair's patient", script:[
+      [0,0,"info","▚ intake — best-practices-valentine.pdf"],
+      [1,1,"info","⚙ probe: 465 pp · 1.4 chars/pp → scan lane [M]"],
+      [63,1,"ok","⚙ Marker full-OCR converts (~8 s/pp class) [M]"],
+      [68,3,"fail","◎ audit: table-loop degeneration → FAIL → held [M]"],
+      [70,-1,"warn","⌁ HISTORY: the ⟲ re-run burned 4,859 s and the verdict STAYED fail — analyst passes cannot fix convert damage [M]"],
+      [73,3,"hum","◎ the repair that worked was HUMAN: @1579 ← p234 (the ratio guess missed by 114 pp; evidence-locate won) [M]"],
+      [75,3,"warn","◎ docs/23's transcribe mode is that gesture with a reading eye — the zone-scope answer [new]"],
+    ]},
+    "valentine|docling": { wall:35, verdict:"flag", land:"held for review — the hardest square", script:[
+      [0,0,"info","▚ intake — best-practices-valentine.pdf"],
+      [1,1,"warn","⚙ table-dense SCAN: docling's table strength meets its small-model scan weakness — the genuinely uncertain square [I]"],
+      [20,1,"info","⚙ band 8–39 min; midpoint playing [I]"],
+      [30,3,"warn","◎ two-reader gate (× surya) earns its keep here — disagreement rate IS the calibration datum [I]"],
+      [35,5,"warn","▤ prediction: flag-band, human review; zone-scope Bench transcribe remains the precise tool [I]"],
+    ]},
+    "valentine|pymu": { wall:2, verdict:"fail", land:"rerouted — no text layer", script:[
+      [0,0,"info","▚ intake — best-practices-valentine.pdf"],
+      [1,1,"info","⚙ probe: 1.4 chars/pp — effectively no text layer [M]"],
+      [2,1,"fail","⚙ reroute to an OCR engine — the clean lane's own no-cycle rule [M/H]"],
+    ]},
+    "cybernetics|marker": { wall:4, verdict:"flag", land:"vaulted note 6 — via the bless rail", script:[
+      [0,0,"info","▚ intake — cybernetics-book-of-models.pdf"],
+      [1,-1,"fail","⌁ HISTORY REPLAY: the uncapped first run auto-scaled its batch to fill VRAM and thrashed to DNF — this bought the batch-32 law [M]"],
+      [2,1,"ok","⚙ re-convert under the cap: 210 s (2.31 s/pp) [M]"],
+      [3,3,"warn","◎ survival 0.6884 ≈ 0.688 measured twice — the figure-heavy ceiling; not a conversion defect [M]"],
+      [4,3,"hum","◎ flag forever → Rab's ✓ bless (sha-bound, event-validated) [M]"],
+      [4,5,"ok","▤ EXPORT-BLESSED (by=rab) → vault note 6 [M]"],
+    ]},
+    "cybernetics|docling": { wall:5, verdict:"flag", land:"the ceiling is lever-immune (predicted)", script:[
+      [0,0,"info","▚ intake — cybernetics-book-of-models.pdf"],
+      [2,1,"ok","⚙ 91 pp decode, band 2–8 min [I]"],
+      [4,3,"warn","◎ the 0.688 ceiling is REPRESENTATION — what a figure-heavy book is in markdown. No engine position moves it [M→I]"],
+      [5,5,"warn","▤ flag → the bless rail stays load-bearing regardless of engine — the lever's honest limit"],
+    ]},
+    "cybernetics|pymu": { wall:1, verdict:"flag", land:"same ceiling, fastest arrival (predicted)", script:[
+      [0,0,"info","▚ intake — cybernetics-book-of-models.pdf"],
+      [1,1,"ok","⚙ 91 pp text layer in seconds, zero VRAM [I]"],
+      [1,3,"warn","◎ same 0.688-class ceiling, arrived at fastest — when every position flags, choose by cost [I]"],
+    ]},
+  };
+  const STATIONS = ["▚ Intake","⚙ Convert","✳ Gate","◎ Assay","⇈ Ship","▤ Vault"];
+  // ---------- ui ----------
+  const $ = id => document.getElementById(id);
+  let book = null, timer = null;
+  const pd = $("patients");
+  for (const [id,b] of Object.entries(BOOKS)) {
+    const el = document.createElement("div"); el.className = "pt"; el.dataset.id = id;
+    el.innerHTML = `<b>${b.name}</b><div class="prof">${b.prof}</div>`;
+    el.onclick = () => pick(id); pd.appendChild(el);
+  }
+  function pick(id) {
+    book = id;
+    [...pd.children].forEach(c => c.classList.toggle("sel", c.dataset.id === id));
+    $("askcard").style.display = "block"; $("runzone").style.display = "none";
+    $("askTitle").textContent = `Do you want to use… — ${BOOKS[id].name}`;
+    $("askProfile").textContent = BOOKS[id].prof;
+    const lv = $("levers"); lv.innerHTML = "";
+    for (const [eid,e] of Object.entries(ENGINES)) {
+      const btn = document.createElement("button"); btn.className = "lever";
+      btn.innerHTML = `<b>${e.name}</b><div class="d">${e.d}</div>`;
+      btn.onclick = () => run(id, eid); lv.appendChild(btn);
+    }
+    $("reco").innerHTML = `<b>recommendation:</b> ${RECO[id]}`;
+  }
+  function run(bid, eid) {
+    if (timer) clearInterval(timer);
+    const R = RUNS[`${bid}|${eid}`];
+    $("runzone").style.display = "block"; $("outcome").className = "outcome";
+    const rail = $("rail"); rail.innerHTML = "";
+    STATIONS.forEach(s => { const d = document.createElement("div"); d.className = "st";
+      const [g,...rest] = s.split(" "); d.innerHTML = `<span class="g">${g}</span>${rest.join(" ")}`; rail.appendChild(d); });
+    const log = $("log"); log.innerHTML = "";
+    const SIM_MS = 9000, evs = [...R.script]; let done = 0;
+    const t0 = performance.now();
+    timer = setInterval(() => {
+      const frac = Math.min(1, (performance.now() - t0) / SIM_MS);
+      const now = frac * R.wall;
+      while (done < evs.length && evs[done][0] <= now) {
+        const [min, st, cls, msg] = evs[done++];
+        const h = Math.floor(min/60), m = Math.round(min%60);
+        const line = document.createElement("div");
+        line.innerHTML = `<span class="t">t+${h ? h+"h" : ""}${String(m).padStart(2,"0")}m</span><span class="${cls}">${msg}</span>`;
+        log.appendChild(line); log.scrollTop = log.scrollHeight;
+        if (st >= 0) [...rail.children].forEach((c,i) => {
+          c.classList.toggle("on", i === st);
+          if (i < st) { c.classList.add("done"); c.classList.remove("on"); }
+          if (cls === "fail" && i === st) c.classList.add("dead"); else if (i === st) c.classList.remove("dead");
+        });
+      }
+      if (frac >= 1) {
+        clearInterval(timer); timer = null;
+        const o = $("outcome"); o.className = "outcome show";
+        const h = Math.floor(R.wall/60), m = Math.round(R.wall%60);
+        o.innerHTML = `<b>Outcome:</b> <span class="verdict ${R.verdict}">${R.verdict.toUpperCase()}</span>
+          &nbsp; wall ${h ? h+" h " : ""}${m} min (sim) &nbsp;·&nbsp; landed: <b>${R.land}</b>
+          <div class="hist">${BOOKS[bid].hist}</div>`;
+      }
+    }, 60);
+  }
+  $("again").onclick = () => { if (timer) clearInterval(timer); $("runzone").style.display = "none";
+    window.scrollTo({ top: $("patients").offsetTop - 80, behavior: "smooth" }); };
+})();
+</script>
+</body>
+</html>
