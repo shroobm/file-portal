@@ -63,25 +63,17 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S72 — Desktop — 2026-08-10 (Fable 5, overnight while Rab naps). THE DESIGN-PLAN PHASE — his
-commission, his sequencing: the deployment is live and he has used it, so now the PLAN for the
-new look. His brief: "professionally looking… big screen… like the visual element of those
-animated 3d custom mechanical keyboard reels on instagram, WITHOUT changing the major design
-elements that make File Portal, File Portal." PLAN ONLY — the widget is not touched.**
-
-- **G1 — research.** The reel aesthetic decomposed (what actually makes those clips feel that
-  way) + the modern zero-dependency CSS that can carry it (spring `linear()` easing, layered
-  elevation, `@property`); grounded, cited.
-- **G2 — docs/25, the design plan.** Identity charter (what may never change) · the aesthetic
-  translation (material/depth/motion/lighting/focus, each mapped to a File Portal surface) ·
-  token-first implementation strategy · phased slices with gates + acceptance criteria ·
-  risks/laws (reduced-motion, projection law, 60 fps, zero deps). WITH a live CONCEPT STRIP
-  embedded — keycap-grade station tiles + a Wall hero frame, self-contained, stamped CONCEPT
-  (the widget untouched; this is the plan made tangible).
-- **G3 — proof + delivery.** HTTP-probed + console-clean; launched in his real browser for
-  waking; morning note to the desktop folder (overnight-report protocol).
-- **G4 — paperwork.** CHANGELOG · closeout `sessions/S72-desktop-2026-08-10.md` · ledger row ·
-  push · CI watch · clocks in lockstep.
+*(S72 closed 2026-08-10 (Desktop, Fable 5, overnight) — **THE DESIGN PLAN: docs/25, "mass,
+damping, and one hero shot."** The reel aesthetic decomposed → the thesis **"the thock, not the
+RGB"** (File Portal owns the curated identity; it lacks MASS) · identity charter · translation
+table (elevation tokens · pure-CSS damped springs via `linear()` · ONE terracotta underglow ·
+the Wall as the big-screen hero) · **live concept strip on the plan's own page** (keycaps press,
+the underglow walks — HTTP-probed, console clean) · sliced build plan 0–5, token-first,
+Wall-first, each slice Rab-signed with one-block reverts · sound = a lever, default OFF, his
+call. **THE WIDGET UNTOUCHED** — plan only, his sequencing. Delivered to his real browser +
+morning note on the desktop. Closeout: `sessions/S72-desktop-2026-08-10.md`. AWAITING: his
+slice signatures (recommended start 0+1, the Wall) + S71's thresholds/audit-credit + the
+standing queue.)*
 
 *(S71 closed 2026-08-10 (Desktop, Fable 5) — **CALIBRATED, THEN BUILT: THE ⌨ TRANSCRIBE GESTURE
 IS LIVE — and the machine BSOD'd mid-calibration and lost NOTHING.** G1 docling-env isolated

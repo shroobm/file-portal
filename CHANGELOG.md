@@ -8,6 +8,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S72 — THE DESIGN PLAN (2026-08-10, Desktop lane, overnight).** Narrative in
+  `sessions/S72-desktop-2026-08-10.md`.
+  - **Added — `docs/25-design-plan.html`**: the big-screen redesign brief on Rab's commission —
+    the reel aesthetic decomposed ("the thock, not the RGB"), the identity charter (what may
+    never change), the translation table (elevation tokens · pure-CSS damped springs via
+    `linear()` · one terracotta underglow · the Wall as hero shot), a LIVE concept strip on the
+    plan's own page, and a token-first sliced build plan (0–5, each Rab-signed, one-block
+    reverts). **The widget is untouched** — plan only, per his sequencing.
+
 - **S71 — CALIBRATED, THEN BUILT: THE TRANSCRIBE GESTURE IS LIVE (2026-08-10, Desktop lane).**
   Narrative (including the crash): `sessions/S71-desktop-2026-08-10.md`.
   - **Added — `prototypes/docling-calibration/`** (calibrate.py · results.jsonl · report · README):
