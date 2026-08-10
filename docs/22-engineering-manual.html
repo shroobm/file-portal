@@ -149,7 +149,7 @@
 <main>
 
 <div class="cover">
-  <div class="eyebrow">Service &amp; Engineering Reference · rev. S67, amended S68</div>
+  <div class="eyebrow">Service &amp; Engineering Reference · rev. S69 — stress-tested</div>
   <h1>File Portal: the complete engineering manual</h1>
   <p>Two machines, one factory: a Windows desktop with the GPU and the glass, a Linux laptop with the
   vault and the last word. This manual is written on the car-manual principle — everything the system
@@ -158,6 +158,7 @@
   <div class="meta">
     <span><b>repo</b> shroobm/file-portal · feat/library-pipeline</span>
     <span><b>compiled</b> 2026-08-09, from a full source read at HEAD 23f0365</span>
+    <span><b>stress-tested</b> S69 · 2026-08-10 — every checkable claim re-derived from source; 3 counts corrected</span>
     <span><b>code</b> ~6.5k py · 3.7k rs · 1.9k js · 2.9k html</span>
   </div>
 </div>
@@ -404,8 +405,8 @@ stateDiagram-v2
   <p>A loop is <b>BOTH</b> crushed-compressible <b>AND</b> extreme-repetitive: per-paragraph zlib ratio
   &lt; 0.20 <b>AND</b> max repeated word-trigram ≥ 40 (AND, not OR — dense tables compress too, but their
   words vary: table max trigram measured 28 vs loop minimum 1,674). Plus a contiguous-repeated-line check
-  (run of &gt; 20 identical non-blank non-table lines — legitimate structure repeats <em>distributed</em>, a stuck
-  decoder repeats <em>contiguously</em>).</p>
+  (a run of &gt; 20 identical non-blank non-table lines, counting only lines longer than 20 chars —
+  legitimate structure repeats <em>distributed</em>, a stuck decoder repeats <em>contiguously</em>).</p>
   <h3>The verdict — signed policy, do not widen</h3>
   <div class="note"><p>Exactly <b>two</b> signals reach <code>fail</code>: degeneration (either lane), and
   analyst near-exact loss (Marker is a perfect reference: survival &lt; 0.995 or any run ≥ 25 words = a rewrite,
@@ -486,7 +487,7 @@ Desktop: Obsidian vault/Library   clone of the bare repo over tailscale ssh (rea
 <!-- ============================================================ 10 -->
 <section id="s10">
   <div class="ch"><span class="num">CH·10</span><h2>The widget — four surfaces, one truth</h2></div>
-  <p><b>Source:</b> 15 Rust modules (~3.7k lines), <code>main.js</code> (1,025), <code>room.js</code> (871),
+  <p><b>Source:</b> 14 Rust modules (3,792 lines), <code>main.js</code> (1,025), <code>room.js</code> (871),
   <code>styles.css</code> (728). Tauri v2, framework-free JS by rule, global Tauri API (no bundler).
   20 Rust unit tests. Surfaces: <b>Dock</b> (compact, auto-sized), <b>Room</b> (ops dashboard),
   <b>Wall</b> (across-the-room), <b>Bench</b> (own window, CH·11).</p>
@@ -510,7 +511,7 @@ Desktop: Obsidian vault/Library   clone of the bare repo over tailscale ssh (rea
     <tr><td>Room refresh</td><td>9 s (4 s converting)</td><td><b>forbidden</b></td><td>gatherVM: 9 local commands in parallel. The S59 law — <code>vault_check</code> was once in this list, waking the ThinkPad's sshd every few seconds to discard the answer.</td></tr>
   </table></div>
 
-  <h3>Command reference (37 Tauri commands)</h3>
+  <h3>Command reference (38 Tauri commands)</h3>
   <div class="tw"><table>
     <tr><th>area</th><th>commands</th><th>notes</th></tr>
     <tr><td>transfer</td><td><code>list_portals · send_to_portal · fetch_file_status</code></td><td>CH·03</td></tr>
@@ -563,7 +564,7 @@ Desktop: Obsidian vault/Library   clone of the bare repo over tailscale ssh (rea
 <!-- ============================================================ 12 -->
 <section id="s12">
   <div class="ch"><span class="num">CH·12</span><h2>The dashboard — linux-dashboard</h2></div>
-  <p><b>Source:</b> ~600 lines across 8 modules. GTK4/libadwaita, read-only viewer of <code>sorted/</code>.
+  <p><b>Source:</b> 705 lines across 9 files (7 modules + 2 package inits). GTK4/libadwaita, read-only viewer of <code>sorted/</code>.
   Single-instance app (<code>com.shroobm.fileportal.Dashboard</code>): a second launch toggles the window.
   Photo grid (160 px thumbnails, LRU cache keyed on path+mtime, yyyy/mm date-range filter) and a flat
   sortable list for other categories (double-click opens via the default app). Live updates: a watchdog
@@ -709,16 +710,28 @@ npm run build       # then hash the exe, print SHA-8
   <div class="ch"><span class="num">CH·17</span><h2>Coverage &amp; provenance — what this manual rests on</h2></div>
   <p>Per the project's own epistemic discipline (<code>docs/21</code>), this manual states its basis:</p>
   <ul>
-    <li><span class="tag obs">Observed</span> — every executable source file was read line-by-line at HEAD <code>23f0365</code> (2026-08-09): all of <code>linux-receiver</code>, <code>linux-converter</code> (+ 4 test files), <code>linux-dashboard</code>, all four <code>windows-converter</code> modules, all 15 Rust modules, <code>main.js</code>, <code>room.js</code>, <code>styles.css</code>, <code>index.html</code>, <code>bench.py</code>, <code>acceptance.py</code>, every install script, systemd unit, PS1 script, and config file. Both Linux test suites were <em>executed</em> (24 + 51 green) during the same session.</li>
+    <li><span class="tag obs">Observed</span> — every executable source file was read line-by-line at HEAD <code>23f0365</code> (2026-08-09): all of <code>linux-receiver</code>, <code>linux-converter</code> (+ 4 test files), <code>linux-dashboard</code>, all four <code>windows-converter</code> modules, all 14 Rust modules, <code>main.js</code>, <code>room.js</code>, <code>styles.css</code>, <code>index.html</code>, <code>bench.py</code>, <code>acceptance.py</code>, every install script, systemd unit, PS1 script, and config file. Both Linux test suites were <em>executed</em> (24 + 51 green) during the same session.</li>
     <li><span class="tag obs">Observed, structurally</span> — <code>bench.html</code>: full CSS/head + complete API-call and element map (its behavior is fully specified by bench.py's endpoints, all read); docs 11/15/16/18/20: headings + all load-bearing constants, which are duplicated verbatim in code comments that <em>were</em> read line-by-line.</li>
     <li><span class="tag hist">Historical</span> — session narratives (S1–S66 events, measured numbers like VRAM peaks and survival scores) come from the Change Ledger and CHANGELOG as written by their sessions; this manual repeats them faithfully but did not re-observe them.</li>
+    <li><span class="tag obs">Stress-tested</span> — S69 (2026-08-10, Desktop lane), on Rab's commission:
+    every checkable claim re-derived from <em>current</em> source by a second, differently-shaped method —
+    greps of the constants, counts, keys, cadences, outcomes and thresholds themselves, never a re-read of
+    this manual's citations (SYM-001: two checks sharing an assumption are one check). Result: all 21 cited
+    line counts exact; every constant, verdict gate, config key, event stage, receipt outcome, poll cadence,
+    port range and guard behaviour verified against code. <b>Three counts corrected</b> (Rust modules 15→14,
+    Tauri commands 37→38 — registered = declared, none dangling — and the dashboard's ~600/8 → 705 lines / 9
+    files) and one precision gap closed (the repeated-line rule counts only lines &gt;20 chars). Two places
+    found where this manual was right and the <em>code's own commentary</em> was wrong — the watcher's
+    analyst-mode docstring missing <code>ask</code>, and <code>converter.toml</code>'s banned
+    <code>force_ocr=True</code> wording (SYM-012's trap) — both fixed the same session.</li>
     <li><b>Not covered:</b> <code>prototypes/control-panel/</code> static mockups (superseded by room.js, quarantined, zero coupling — confirmed by reading the quarantine rules and room.js's lineage comment); generated Tauri schemas; package-lock.</li>
     <li><b>Unknowable from the ThinkPad:</b> live Desktop state (exe adoption, held/ contents, lever positions). Everything Desktop-side here describes <em>code and committed evidence</em>, not current runtime state.</li>
   </ul>
-  <div class="note ok"><p><b>Keeping this manual honest:</b> it describes HEAD <code>23f0365</code>. When code
-  moves, the code wins — per the project's own rule: <em>"when this doc and reality disagree, reality wins —
-  measure, then update this doc."</em></p></div>
-  <div class="foot">FILE PORTAL ENGINEERING MANUAL · compiled by the S67 full-source read · ThinkPad/receiver lane ·
+  <div class="note ok"><p><b>Keeping this manual honest:</b> compiled at HEAD <code>23f0365</code>,
+  re-verified claim-by-claim against the S69 tree (2026-08-10). When code moves, the code wins — per the
+  project's own rule: <em>"when this doc and reality disagree, reality wins — measure, then update this
+  doc."</em></p></div>
+  <div class="foot">FILE PORTAL ENGINEERING MANUAL · compiled by the S67 full-source read (ThinkPad) · stress-tested by the S69 source sweep (Desktop) ·
   companion documents: docs/20 (user manual) · docs/21 (closeout contract) · SYMPTOM-INDEX.md (live failure index) · CLAUDE_README.md (session brain)</div>
 </section>
 
