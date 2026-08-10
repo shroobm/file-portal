@@ -45,6 +45,13 @@ OPEN_ROOTS = (HELD, PENDING, ANCHOR, DONE, BENCH_DIR / ".sandbox")
 RASTER_DPI = 140      # the browsing raster
 CROP_DPI = 220        # repairs deserve more pixels than the browsing view
 ASSET_RE = re.compile(r"^_repair_p(\d+)_(\d+)\.png$")
+# S71 — the transcribe gesture (docs/23 built): granite-docling reads a crop into governed
+# markdown. The model runs in ITS OWN env via a process-per-request worker — never in this
+# interpreter (marker-env stays a production lane, not a lab bench).
+DOCLING_PY = Path(r"C:\Users\Bndit\ml\docling-env\Scripts\python.exe")
+TRANSCRIBE_WORKER = BENCH_DIR / "transcribe_worker.py"
+TRANSCRIBE_DTYPE = "bf16"  # calibrated S71 (prototypes/docling-calibration/)
+GPU_LOCK = Path(r"C:\Users\Bndit\ml\library\.gpu-lock")
 
 
 def _now_iso() -> str:
@@ -330,10 +337,13 @@ class Bench:
         return f"_repair_p{page}_{max(ks, default=0) + 1}.png"
 
     def _adjusted_line(self, zone_line: int) -> int:
-        """Each prior repair inserted 3 lines after ITS zone, and each AI edit may have grown
-        or shrunk its range — a zone below those changes has shifted by their sum. The
-        manifest's repairs list + the session's drift ledger are the record of those shifts."""
-        prior = sum(3 for r in self.manifest.get("repairs", [])
+        """Each prior repair inserted lines after ITS zone (crop/paste = 3; transcribe = its
+        record's own `lines` count — restart-safe because the manifest carries it), and each
+        AI edit may have grown or shrunk its range — a zone below those changes has shifted by
+        their sum. Transcriptions deliberately do NOT ride the drift ledger: their shift lives
+        in the manifest record, which survives a bench restart (the ledger does not)."""
+        prior = sum((r.get("lines") or 0) if r.get("mode") == "transcribe" else 3
+                    for r in self.manifest.get("repairs", [])
                     if r.get("zone_line") is not None and r["zone_line"] < zone_line)
         drift = sum(d for (at, d) in self._ai_drift if at < zone_line)
         return zone_line + prior + drift
@@ -381,6 +391,104 @@ class Bench:
         self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
                                       encoding="utf-8")
         return {"asset": asset, "inserted_after_line": at, "record": rec}
+
+    # ---- the transcribe gesture (S71, docs/23 built): the crop gains a reading eye ----------
+    def transcribe(self, zone_line: int, page: int, rect: list[float]) -> dict:
+        """Crop the region (the repair gesture's own crop path, same 220 dpi), hand it to the
+        granite-docling worker in docling-env, and return a PROPOSAL — markdown + gate
+        receipts + the crop image. Nothing is applied here; the human is the final gate.
+        Refuses while .gpu-lock is held (serialization law) and when the worker env is absent
+        (honest setup message, never a traceback)."""
+        self._require_md()
+        if GPU_LOCK.exists():
+            raise RuntimeError("the line holds the GPU (.gpu-lock) — transcribe after the "
+                               "conversion finishes (serialization law)")
+        if not DOCLING_PY.is_file():
+            raise RuntimeError("docling-env not found — run the S71 setup "
+                               "(uv venv C:\\Users\\Bndit\\ml\\docling-env; see "
+                               "prototypes/docling-calibration/README.md)")
+        import subprocess
+        import tempfile
+        import fitz
+        page_obj = self.doc().load_page(page - 1)
+        r = page_obj.rect
+        x0, y0, x1, y1 = rect
+        if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):
+            raise ValueError(f"bad crop rect {rect} (fractions, x0<x1, y0<y1)")
+        clip = fitz.Rect(x0 * r.width, y0 * r.height, x1 * r.width, y1 * r.height)
+        png = page_obj.get_pixmap(dpi=CROP_DPI, clip=clip).tobytes("png")
+        # Witness text for the same clip — exists on clean-lane pages, empty on scans; the
+        # worker computes the numeric-multiset + window gates only when it has one.
+        witness = page_obj.get_text(clip=clip) or ""
+        tmp_png = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
+        tmp_png.write(png)
+        tmp_png.close()
+        tmp_wit = None
+        try:
+            if witness.strip():
+                tmp_wit = tempfile.NamedTemporaryFile(suffix=".txt", delete=False,
+                                                      mode="w", encoding="utf-8")
+                tmp_wit.write(witness)
+                tmp_wit.close()
+            cmd = [str(DOCLING_PY), str(TRANSCRIBE_WORKER), "--image", tmp_png.name,
+                   "--dtype", TRANSCRIBE_DTYPE]
+            if tmp_wit:
+                cmd += ["--witness", tmp_wit.name]
+            # 360 s: calibration measured dense TABLE crops at 84-182 s (output-bound decode;
+            # those runs were also GPU-contended) — 240 was too tight for the exact crops
+            # this gesture exists for. The UI's live clock keeps the wait honest.
+            proc = subprocess.run(cmd, capture_output=True, text=True, timeout=360,
+                                  encoding="utf-8", errors="replace")
+            try:
+                res = json.loads(proc.stdout.strip().splitlines()[-1])
+            except Exception:  # noqa: BLE001
+                raise RuntimeError(f"worker spoke no JSON (exit {proc.returncode}): "
+                                   f"{(proc.stderr or proc.stdout)[-200:]}") from None
+            if not res.get("ok"):
+                raise RuntimeError(f"transcribe refused: {res.get('error', 'unknown')} — "
+                                   "the ✂ image embed remains the floor")
+            return {"proposal": True, "zone_line": zone_line, "page": page, "rect": rect,
+                    "markdown": res["markdown"], "gates": res["gates"],
+                    "secs": res["secs"], "load_s": res["load_s"],
+                    "vram_mib": res["vram_mib"], "model": res["model"],
+                    "crop_b64": base64.b64encode(png).decode("ascii")}
+        finally:
+            os.unlink(tmp_png.name)
+            if tmp_wit:
+                os.unlink(tmp_wit.name)
+
+    def transcribe_apply(self, zone_line: int, page: int, markdown: str,
+                         gates: dict | None = None, secs: float | None = None,
+                         rect: list[float] | None = None) -> dict:
+        """Apply an ACCEPTED proposal: insert the (possibly human-edited) markdown at the
+        zone, snapshot-first so ↩ undo restores byte-identical, provenance to
+        manifest.repairs with mode:'transcribe'. Same drift ledger as the AI assist —
+        zone anchors below the insertion stay honest."""
+        self._require_md()
+        markdown = (markdown or "").strip("\n")
+        if not markdown.strip():
+            raise ValueError("nothing to insert — an empty proposal is a discard")
+        self._backup_once()
+        fm, body = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
+        self._undo.append(("transcribe", body))
+        del self._undo[:-20]  # the assist's bounded stack, shared philosophy
+        lines = body.split("\n")
+        at = min(self._adjusted_line(zone_line), len(lines))
+        inserted = ["", *markdown.split("\n"),
+                    f"<!-- transcribed p{page} · granite-docling-258M · repair-bench -->"]
+        lines[at:at] = inserted
+        self.md_path.write_text(fm + "\n".join(lines), encoding="utf-8")
+        # NO drift-ledger entry: the shift travels in the record's `lines` (restart-safe),
+        # and undo_ai pairs the snapshot with the record so provenance can never desync.
+        rec = {"ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": None,
+               "mode": "transcribe", "model": "granite-docling-258M", "lines": len(inserted),
+               "gates": gates or {}, "secs": secs, "by": "repair-bench",
+               "dpi": CROP_DPI, "rect": rect}
+        self.manifest.setdefault("repairs", []).append(rec)
+        self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
+                                      encoding="utf-8")
+        return {"inserted_after_line": at, "lines": len(inserted),
+                "undo_depth": len(self._undo), "record": rec}
 
     # ---- the AI assist (S64): local qwen3 fixes a passage; every change is undoable --------
     # The analyst's non-negotiable link-fence applies here too: qwen3 once INVENTED image URLs
@@ -461,7 +569,7 @@ class Bench:
             # A no-op is an honest answer ("nothing to fix") — report it, burn no undo slot.
             return {"applied": False, "unchanged": True, "undo_depth": len(self._undo)}
         self._backup_once()
-        self._undo.append(body)
+        self._undo.append(("assist", body))
         del self._undo[:-20]  # bounded stack — twenty regrets is plenty
         new_lines = restored.split("\n")
         self._ai_drift.append((start, len(new_lines) - (end - start + 1)))
@@ -471,15 +579,24 @@ class Bench:
                 "lines_after": len(new_lines), "undo_depth": len(self._undo)}
 
     def undo_ai(self) -> dict:
-        """The ctrl-Z button: restore the body exactly as it was before the last AI change."""
+        """The ctrl-Z button: restore the body exactly as it was before the last AI change.
+        Kind-aware (S71): undoing an assist pops its drift entry; undoing a transcription
+        pops its manifest.repairs record too — body and provenance can never disagree."""
         self._require_md()
         if not self._undo:
             raise ValueError("nothing to undo")
+        kind, body = self._undo.pop()
         fm, _ = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
-        self.md_path.write_text(fm + self._undo.pop(), encoding="utf-8")
-        if self._ai_drift:
+        self.md_path.write_text(fm + body, encoding="utf-8")
+        if kind == "assist" and self._ai_drift:
             self._ai_drift.pop()
-        return {"undone": True, "undo_depth": len(self._undo)}
+        if kind == "transcribe":
+            reps = self.manifest.get("repairs", [])
+            if reps and reps[-1].get("mode") == "transcribe":
+                reps.pop()
+                self.manifest_path.write_text(
+                    json.dumps(self.manifest, indent=2) + "\n", encoding="utf-8")
+        return {"undone": True, "undo_depth": len(self._undo), "kind": kind}
 
     # ---- the re-score PREVIEW (never writes; audit policy is Rab's signature) ---------------
     def rescore_preview(self) -> dict:
@@ -635,6 +752,16 @@ def make_handler(bench: Bench):
                     new_bench = open_target(str(payload["path"]))
                     self.server.bench = new_bench
                     self._json(new_bench.state())
+                elif self.path == "/api/transcribe":
+                    self._json(bench.transcribe(
+                        zone_line=int(payload["zone_line"]), page=int(payload["page"]),
+                        rect=payload["rect"]))
+                elif self.path == "/api/transcribe_apply":
+                    self._json(bench.transcribe_apply(
+                        zone_line=int(payload["zone_line"]), page=int(payload["page"]),
+                        markdown=str(payload.get("markdown", "")),
+                        gates=payload.get("gates"), secs=payload.get("secs"),
+                        rect=payload.get("rect")))
                 elif self.path == "/api/assist":
                     self._json(bench.assist(
                         start=int(payload["start"]), end=int(payload["end"]),

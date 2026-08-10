@@ -152,6 +152,57 @@ def main() -> int:
               e.code == 500 and b"error" in e.read())
     server.shutdown()
 
+    # ---- 8b. transcribe plumbing (S71) — model-free by design ------------------------------
+    # The apply/undo/provenance rails are model-independent; they get checked here with a
+    # fixed payload. The MODEL path is proven live in the session's G5 (a real crop through
+    # the real worker) — two differently-shaped checks, per SYM-001, never a stub that
+    # pretends to be granite-docling.
+    z_first = st["zones"][0]["line"]
+    body_before_t = bench.body()
+    depth_before = len(bench._undo)
+    reps_before = len(bench.manifest.get("repairs", []))
+    later_pre = [z for z in bench.state()["zones"] if z["line"] > z_first]
+    adj_before_t = later_pre[0]["adjusted_line"] if later_pre else None
+    ta = bench.transcribe_apply(zone_line=z_first, page=3,
+                                markdown="| a | b |\n|---|---|\n| 1 | 2 |",
+                                gates={"parse_ok": True, "tables": 1}, secs=2.0,
+                                rect=[.1, .1, .9, .5])
+    check("transcribe_apply inserts text lines (no asset)",
+          ta["record"]["asset"] is None and ta["record"]["mode"] == "transcribe"
+          and ta["lines"] == 5 and ta["record"]["lines"] == 5)
+    check("transcribe provenance carries model + gates",
+          ta["record"]["model"] == "granite-docling-258M"
+          and ta["record"]["gates"].get("tables") == 1)
+    check("transcribe arms the undo stack", len(bench._undo) == depth_before + 1)
+    check("transcribed table present in the body", "| a | b |" in bench.body())
+    later = [z for z in bench.state()["zones"] if z["line"] > z_first]
+    if later and adj_before_t is not None:
+        check("zones below shifted by EXACTLY the record's lines (no double count)",
+              later[0]["adjusted_line"] == adj_before_t + ta["lines"])
+    u = bench.undo_ai()
+    check("undo restores the body byte-identical after transcribe",
+          bench.body() == body_before_t and u["kind"] == "transcribe")
+    check("undo removed the transcribe record — provenance cannot desync",
+          len(bench.manifest.get("repairs", [])) == reps_before
+          and not any(r.get("mode") == "transcribe"
+                      for r in bench.manifest.get("repairs", [])))
+    try:
+        bench.transcribe_apply(zone_line=z_first, page=3, markdown="   ")
+        check("empty transcription refused as a discard", False)
+    except ValueError:
+        check("empty transcription refused as a discard", True)
+    real_docling_py = B.DOCLING_PY
+    try:
+        B.DOCLING_PY = Path(r"C:\nonexistent\python.exe")
+        try:
+            bench.transcribe(zone_line=z_first, page=3, rect=[.1, .1, .9, .5])
+            check("missing docling-env refused with the setup message", False)
+        except RuntimeError as exc:
+            check("missing docling-env refused with the setup message",
+                  "docling-env not found" in str(exc))
+    finally:
+        B.DOCLING_PY = real_docling_py
+
     # ---- 9. the REAL held bundle is byte-identical ------------------------------------------
     after = {p.name: sha(p) for p in (md_real, HELD_VAL / "manifest.json")}
     check("REAL held Valentine untouched (md + manifest hashes)", before == after)

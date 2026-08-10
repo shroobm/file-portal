@@ -182,6 +182,17 @@
              box-shadow:0 0 0 4000px rgba(0,0,0,.14); }
   .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; }
   #nopdf { padding:36px; color:var(--text-3); }
+  /* S71 — the transcribe proposal panel: side-by-side, human is the final gate */
+  #tpanel { border:1px solid var(--accent); border-radius:10px; margin:8px 10px; padding:10px 12px; background:var(--fill); }
+  .tp-head { font-size:12px; color:var(--text-2); margin-bottom:8px; }
+  .tp-cols { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
+  .tp-cols img { max-width:100%; border-radius:6px; border:1px solid var(--line); background:#fff; }
+  .tp-label { font-size:10.5px; color:var(--text-3); text-transform:uppercase; letter-spacing:.8px; margin-bottom:4px; }
+  #tmd { width:100%; min-height:160px; resize:vertical; font:12px/1.55 ui-monospace,Consolas,monospace;
+         color:var(--text); background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:8px; }
+  .tp-foot { display:flex; align-items:center; gap:8px; margin-top:8px; font-size:11px; color:var(--text-3); }
+  .rep-txt { display:inline-flex; align-items:center; justify-content:center; width:34px; height:26px;
+             border:1px solid var(--line); border-radius:5px; background:var(--fill); font-size:13px; }
 
   /* markdown pane */
   #aibar { display:flex; gap:6px; padding:8px 10px; border-bottom:1px solid var(--sep); flex:none;
@@ -307,7 +318,20 @@
       </select>
       <button id="locate" title="find this zone's true page from the prose around it (text-layer books)">⌖ locate</button>
       <span class="grow"></span>
+      <button id="readbtn" disabled
+        title="S71: granite-docling reads the dragged region into markdown — proposed, gated, you accept">⌨ drag a region first</button>
       <button id="cropbtn" class="primary" disabled>✂ drag a region first</button>
+    </div>
+    <div id="tpanel" hidden>
+      <div class="tp-head">⌨ the region, read — <b>you are the final gate</b>: edit the text if it needs it, then insert or discard</div>
+      <div class="tp-cols">
+        <div><div class="tp-label">what the page holds</div><img id="tcrop" alt="crop" /></div>
+        <div><div class="tp-label">what the model read (editable)</div><textarea id="tmd" spellcheck="false"></textarea></div>
+      </div>
+      <div class="tp-foot"><span id="tgates"></span><span class="grow"></span>
+        <button id="tinsert" class="primary">✓ insert text at zone</button>
+        <button id="tdiscard">✗ discard</button>
+      </div>
     </div>
     <div id="stage-info"><span id="locbadge"></span><span class="grow"></span><span id="zonehint"></span></div>
     <div id="pagewrap"><div id="pagebox"><img id="pageimg" alt="" /><div id="cropbox"></div></div>
@@ -658,7 +682,7 @@ function renderCtx() {
 /* ---- crop gesture (the button narrates its own state) ---- */
 const box = $("pagebox"), cb = $("cropbox");
 let drag = null;
-function clearCrop() { crop = null; cb.style.display = "none"; $("cropbtn").disabled = true; $("cropbtn").textContent = "✂ drag a region first"; }
+function clearCrop() { crop = null; cb.style.display = "none"; $("cropbtn").disabled = true; $("cropbtn").textContent = "✂ drag a region first"; $("readbtn").disabled = true; $("readbtn").textContent = "⌨ drag a region first"; }
 box.addEventListener("mousedown", (e) => {
   if (!st?.pdf_available || st.pdf_only) return;
   const r = $("pageimg").getBoundingClientRect();
@@ -678,6 +702,8 @@ addEventListener("mouseup", () => {
   if (drag && crop && (crop[2]-crop[0]) > 0.02 && (crop[3]-crop[1]) > 0.02) {
     $("cropbtn").disabled = false;
     $("cropbtn").textContent = `✂ insert crop at zone ${zone != null ? zone + 1 : ""}`;
+    $("readbtn").disabled = false;
+    $("readbtn").textContent = "⌨ read region";
     coachMark("cropDrawn");
   } else if (drag) clearCrop();
   drag = null;
@@ -706,6 +732,51 @@ addEventListener("paste", async (e) => {
     const keep = zone; await load(); if (keep != null && st.zones.length) selectZone(keep);
   } catch (err) { status(`paste failed: ${err.message}`); }
 });
+
+/* ---- the transcribe gesture (S71): the crop gains a reading eye ---- */
+let tprop = null;
+function gateLine(r) {
+  const g = r.gates || {};
+  const f = (v) => v == null ? "—" : v;
+  return `gates: numbers J=${f(g.numeric_jaccard)} · windows ${f(g.window_survival)} · tables ${f(g.tables)} · read ${r.secs}s (+${r.load_s}s load) · ${r.vram_mib} MiB peak · ${r.model} · local, nothing leaves this machine`;
+}
+$("readbtn").onclick = async () => {
+  if (crop == null) return;
+  const z = st.zones[zone] || { line: ctxRange.to };
+  $("readbtn").disabled = true; $("cropbtn").disabled = true;
+  const t0 = Date.now();
+  const tick = setInterval(() => {
+    const s = Math.round((Date.now() - t0) / 1000);
+    $("readbtn").textContent = `⌨ reading… ${s}s`;
+    status(`⌨ granite-docling-258M reads the region · ${s}s (local · sub-GB · the process exits after — VRAM returns)`, true);
+  }, 1000);
+  try {
+    const r = await api("/api/transcribe", { zone_line: z.line, page, rect: crop });
+    tprop = r;
+    $("tcrop").src = "data:image/png;base64," + r.crop_b64;
+    $("tmd").value = r.markdown;
+    $("tgates").textContent = gateLine(r);
+    $("tpanel").hidden = false;
+    status("⌨ proposal ready — you are the final gate: edit if needed, then insert or discard");
+  } catch (e) { status(`⌨ ${e.message}`); }
+  clearInterval(tick);
+  $("readbtn").disabled = false; $("readbtn").textContent = "⌨ read region";
+  $("cropbtn").disabled = crop == null;
+};
+$("tinsert").onclick = async () => {
+  if (!tprop) return;
+  try {
+    const r = await api("/api/transcribe_apply", {
+      zone_line: tprop.zone_line, page: tprop.page, markdown: $("tmd").value,
+      gates: tprop.gates, secs: tprop.secs, rect: tprop.rect,
+    });
+    status(`⌨ ✓ ${r.lines} line(s) inserted after body line ${r.inserted_after_line} · ↩ undo armed (${r.undo_depth} deep)`);
+    $("tpanel").hidden = true; tprop = null; clearCrop();
+    coachMark("repaired");
+    await refreshAfterAi();
+  } catch (e) { status(`⌨ ${e.message}`); }
+};
+$("tdiscard").onclick = () => { $("tpanel").hidden = true; tprop = null; status("⌨ proposal discarded — nothing written"); };
 
 /* ---- the AI assist: honest busy state with a live clock ---- */
 async function refreshAfterAi() {
@@ -776,7 +847,11 @@ function renderRepairs() {
     const d = document.createElement("div");
     d.className = "rep";
     d.title = `${r.ts} · ${r.note || r.mode}`;
-    d.innerHTML = `<img src="/api/asset?name=${encodeURIComponent(r.asset)}" alt="" /><span>@${r.zone_line} · p${r.page}</span>`;
+    // S71: transcribe records carry no asset — a ⌨ text chip, not a broken <img>
+    const face = r.asset
+      ? `<img src="/api/asset?name=${encodeURIComponent(r.asset)}" alt="" />`
+      : `<span class="rep-txt" title="transcribed text (${(r.lines || 0)} lines)">⌨</span>`;
+    d.innerHTML = `${face}<span>@${r.zone_line} · p${r.page}</span>`;
     el.appendChild(d);
   });
 }
