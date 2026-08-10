@@ -2,9 +2,10 @@
 
 Drop a PDF into DROP_DIR and it goes through the full slice-1 pipeline (policy-routed
 Marker -> bundle -> anchor -> ship to ThinkPad staging -> existing exporter). Analyst
-routing is a manual toggle until the widget pre-flight card exists (S18): the file
-`analyst-mode.txt` next to the drop folder holds `off`, `local`, or `gemini`, re-read
-before every conversion — the per-segment-switch principle from the docs/11 design note.
+routing: the file `analyst-mode.txt` next to the drop folder holds `off`, `local`,
+`gemini`, or `ask` (parks the conversion in pending/ for the widget's pre-flight card),
+re-read before every conversion — the per-segment-switch principle from the docs/11
+design note.
 
 Design mirrors the allocator's watcher discipline, poll-based (no extra deps):
 dotfiles ignored, size-stability wait before touching a file, one conversion at a
@@ -28,7 +29,7 @@ BASE = Path(r"C:\Users\Bndit\ml\library")
 DROP_DIR = BASE / "drop"
 DONE_DIR = DROP_DIR / "done"
 FAILED_DIR = DROP_DIR / "failed"
-MODE_FILE = BASE / "analyst-mode.txt"  # off | local | gemini
+MODE_FILE = BASE / "analyst-mode.txt"  # off | local | gemini | ask
 LOCK_FILE = BASE / ".gpu-lock"  # busy signal for the future control-room card
 LOG_FILE = BASE / "watcher.log"
 CONVERT = Path(__file__).parent / "convert_and_ship.py"

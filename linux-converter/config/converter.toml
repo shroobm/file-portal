@@ -9,7 +9,9 @@
 # conversion logs its chars_per_page -- revisit after ~30 real documents have been through.
 min_chars_per_page = 100
 
-# OCR render resolution for the Scan lane (force_ocr=True).
+# OCR render resolution for the Scan lane. The lane's OCR is OCRMode.FORCE_DROP_OLD (see
+# engines.py) -- NOT force_ocr=True, which means FORCE_KEEP_OLD and would trust a bad prior
+# OCR layer (SYM-012's trap; this comment used to carry the banned wording).
 ocr_dpi = 300
 ocr_language = "eng"
 
