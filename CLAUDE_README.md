@@ -63,27 +63,17 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S68 — Desktop — 2026-08-10 (Fable 5). Commissioned by Rab mid-check-in: clear SYM-020, and give
-`docs/22` a scrollspy TOC.** Gates, each its own commit:
-
-- **G1 — the reformat.** `cargo fmt` in `windows-widget/src-tauri`, committed alone (pure
-  whitespace, nothing else rides along). Verify: `cargo fmt --check` exit 0; `git diff --stat`
-  matches the 8 files SYM-020 names.
-- **G2 — prove the pair.** `cargo clippy --all-targets -- -D warnings` and `cargo test` on the
-  reformatted tree. Verify: both exit 0 locally. No widget rebuild — formatting has no behavior,
-  so the kill-widget/adopt dance stays out of scope.
-- **G3 — the guards (the actual fix).** `cargo fmt --check` added to the rebuild ritual in
-  `docs/19` §1; `feat/library-pipeline` added to the rust job's `if:`; toolchain pinned to the
-  desktop's real `1.97.1` (SYM-019's lesson, same trap via `@stable` clippy); a `cargo test` step
-  if G2 shows the suite hermetic. Verify: push → the rust job fires on the branch and goes green —
-  the runner is the only differently-shaped check for a CI change (SYM-001).
-- **G4 — docs/22 scrollspy.** The left TOC highlights the chapter in view: window-scroll driven,
-  dependency-free, in its own `<script>` so the mermaid CDN import can never stall it; `.active`
-  styled in the file's own tokens. Verify: driven in the browser pane — scrolling lights
-  successive rows, click-nav still lands, no console errors.
-- **G5 — the paperwork.** SYM-020 row → `fixed`; both 2026-08-09 coordination messages flipped to
-  `done` with outcomes; CHANGELOG; closeout `sessions/S68-desktop-2026-08-10.md` under docs/21;
-  ledger row as pointer, ≤80 words.
+*(S68 closed 2026-08-10 ~04:35 UTC (Desktop, Fable 5) — **SYM-020 CLEARED + THE MANUAL'S
+SCROLLSPY; five gates, all green.** G1 `b415a2f` the 8-file whitespace-only reformat · G2 clippy
+`-D warnings` + 20/20 `cargo test` on the reformatted tree · G3 `6549b03` `cargo fmt --check` now
+LEADS the rebuild ritual (docs/19 §1), rust CI joined the branch, toolchain pinned `1.97.1`,
+`cargo test` step added · G4 `f4e6453` the scrollspy — browser-driven proof (s1/s7/s14/s17 light
+correctly, click-nav lands at scroll-padding, console clean) · G5 SYM-020 → `fixed`, both
+2026-08-09 coordination messages → `done`, closeout `sessions/S68-desktop-2026-08-10.md` (docs/21,
+second use). **First on-branch rust run `31354570931` GREEN (5 m 07 s cold).** Widget exe
+untouched — `F28C58A8` stands, nothing to adopt. Awaiting Rab: Decision 5 signature + the
+standing four; S67's other awaits were cleared by observation at the check-in (exe adopted,
+claude-code deleted, staging confirmed empty).)*
 
 *(S66 closed 2026-08-08 ~00:45 UTC (Desktop, Fable 5; cookie #55) — **THE DUMMY-PROOF PASS,
 every gate landed in its own commit** (Rab's context-loss discipline): **G0** the Valentine
