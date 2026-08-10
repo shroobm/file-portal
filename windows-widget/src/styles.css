@@ -26,6 +26,31 @@
 [data-accent="indigo"] { --clay: #7c86d9; --clay-hi: #99a0e6; --clay-bg: rgba(124,134,217,.15); }
 [data-accent="teal"]   { --clay: #4fb0a4; --clay-hi: #63c4b8; --clay-bg: rgba(79,176,164,.15); }
 
+/* S73 — docs/25 design tokens (Slice 0): the MASS layer. Defined here; consumed ONLY where a
+   signed slice applies them (Slice 1: the Wall). Motion stays transform/opacity/filter-only;
+   the spring is a sampled damped spring — "the thock curve": one firm overshoot, fast settle —
+   via linear(), Chromium-native in the Tauri WebView, zero JS at runtime. */
+:root {
+  --fp-key-face: linear-gradient(180deg, rgba(255,255,255,.05), rgba(255,255,255,0) 40%);
+  --fp-elev-rest: 0 1px 0 rgba(255,255,255,.04) inset, 0 -2px 0 rgba(0,0,0,.16) inset,
+                  0 2px 3px rgba(0,0,0,.32), 0 8px 18px rgba(0,0,0,.26);
+  --fp-elev-hover: 0 1px 0 rgba(255,255,255,.06) inset, 0 -2px 0 rgba(0,0,0,.16) inset,
+                   0 4px 6px rgba(0,0,0,.32), 0 14px 30px rgba(0,0,0,.3);
+  --fp-elev-press: 0 1px 0 rgba(255,255,255,.03) inset, 0 -1px 0 rgba(0,0,0,.2) inset,
+                   0 1px 1px rgba(0,0,0,.36), 0 3px 8px rgba(0,0,0,.22);
+  --fp-spring-thock: linear(0, .618 22%, .944 40%, 1.052 56%, 1.008 72%, .996 84%, 1);
+  --fp-dur-press: 70ms; --fp-dur-release: 340ms;
+}
+[data-theme="light"] {
+  --fp-key-face: linear-gradient(180deg, rgba(255,255,255,.7), rgba(255,255,255,0) 40%);
+  --fp-elev-rest: 0 1px 0 rgba(255,255,255,.8) inset, 0 -2px 0 rgba(40,30,22,.08) inset,
+                  0 2px 3px rgba(40,30,22,.14), 0 8px 18px rgba(40,30,22,.1);
+  --fp-elev-hover: 0 1px 0 rgba(255,255,255,.9) inset, 0 -2px 0 rgba(40,30,22,.08) inset,
+                   0 4px 6px rgba(40,30,22,.16), 0 14px 30px rgba(40,30,22,.12);
+  --fp-elev-press: 0 1px 0 rgba(255,255,255,.6) inset, 0 -1px 0 rgba(40,30,22,.1) inset,
+                   0 1px 1px rgba(40,30,22,.16), 0 3px 8px rgba(40,30,22,.08);
+}
+
 * {
   box-sizing: border-box;
   margin: 0;
@@ -40,7 +65,10 @@ body {
 
 /* In Room/Wall mode the floating widget becomes a solid ops window. */
 body.surface-room { background: radial-gradient(1200px 600px at 78% -10%, var(--clay-bg), transparent 60%), var(--bg); }
-body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--clay-bg), transparent 60%), var(--bg); }
+body.surface-wall { background:
+  radial-gradient(1000px 700px at 50% -12%, var(--clay-bg), transparent 60%),
+  radial-gradient(60% 46% at 50% 108%, color-mix(in srgb, var(--clay) 7%, transparent), transparent 70%),
+  var(--bg); } /* S73 Slice 1: the lower depth wash — the hero shot's floor light */
 :is(body.surface-room, body.surface-wall) #portals,
 :is(body.surface-room, body.surface-wall) #line,
 :is(body.surface-room, body.surface-wall) #assay-card,
@@ -159,16 +187,28 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 .wall-top { display: flex; align-items: center; justify-content: space-between; }
 .wl-brand { color: var(--clay); font-size: 13px; letter-spacing: .5px; }
 .wall-verdict { font-family: "Segoe UI", sans-serif; font-weight: 700; letter-spacing: 4px;
-  font-size: clamp(40px, 9vw, 96px); line-height: 1; text-align: center; margin: auto 0 6px; }
+  font-size: clamp(48px, 11vw, 130px); line-height: 1; text-align: center; margin: auto 0 6px; }
+/* S73 Slice 1 — the grammar law made CSS: bloom exists ONLY when the verdict is terracotta
+   (your hand is required). Viable green and localizer amber never glow. */
+.wall-verdict.wv-attn { text-shadow: 0 0 34px color-mix(in srgb, var(--clay) 35%, transparent); }
 .wall-line { display: flex; align-items: center; justify-content: center; gap: 0; margin: 6px 0 auto; }
 .wl-st { display: flex; flex-direction: column; align-items: center; gap: 8px; }
 .wl-dot { width: clamp(40px, 6vw, 62px); height: clamp(40px, 6vw, 62px); display: flex; align-items: center; justify-content: center;
-  border: 2px solid var(--text-3); border-radius: 50%; font-size: clamp(18px, 2.6vw, 26px); }
+  border: 2px solid var(--text-3); border-radius: 50%; font-size: clamp(18px, 2.6vw, 26px);
+  /* S73 Slice 1: keycap mass — face light + layered elevation; the circle stays a circle */
+  position: relative; background: var(--fp-key-face), var(--surface-1); box-shadow: var(--fp-elev-rest); }
+/* the underglow: ONE warm LED, only under a station that requires a hand (Gate-with-cards,
+   Assay-fail) — set by renderWall, never by styling whim */
+.wl-dot.wl-glow::after { content: ""; position: absolute; inset: auto 14% -10px 14%; height: 10px;
+  background: var(--clay); filter: blur(9px); opacity: .5; border-radius: 50%;
+  animation: fp-breathe 2.6s ease-in-out infinite; }
+@keyframes fp-breathe { 50% { opacity: .22; } }
 .wl-nm { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
 .wl-link { flex: 1; max-width: 90px; height: 2px; background: var(--border-strong); margin: 0 4px; align-self: flex-start; margin-top: clamp(20px, 3vw, 30px); }
 .wall-heroes { display: flex; justify-content: space-around; gap: 20px; margin: auto 0; }
 .wl-hero { text-align: center; }
-.wl-hv { font-family: "Segoe UI", sans-serif; font-weight: 700; font-size: clamp(34px, 6vw, 60px); line-height: 1; }
+.wl-hv { font-family: "Segoe UI", sans-serif; font-weight: 700; font-size: clamp(38px, 7vw, 76px); line-height: 1;
+  text-shadow: 0 2px 14px rgba(0,0,0,.30); } /* S73: mass, not glow — heroes never bloom */
 .wl-hv span { font-size: 0.35em; color: var(--text-3); margin-left: 3px; }
 .wl-hl { font-size: 11px; letter-spacing: 1.5px; text-transform: uppercase; color: var(--text-3); margin-top: 6px; }
 .wall-foot { display: flex; justify-content: space-between; gap: 16px; margin-top: auto; padding-top: 12px;
@@ -704,7 +744,11 @@ body.surface-wall { background: radial-gradient(1000px 700px at 50% -12%, var(--
 }
 #algedonic-chip:hover { background: rgba(217, 119, 87, 0.22); }
 .wall-alg { text-align: center; color: var(--clay); font-size: clamp(12px, 2vw, 18px);
-  font-family: var(--font-mono); margin-top: 4px; }
+  font-family: var(--font-mono); margin-top: 4px;
+  /* S73 Slice 1: escalated pain may bloom — it is BY DEFINITION a summons for a hand */
+  text-shadow: 0 0 22px color-mix(in srgb, var(--clay) 40%, transparent); }
+/* S73 Slice 1: reduced-motion collapses the Wall's only added motion (the underglow breathe) */
+@media (prefers-reduced-motion: reduce) { .wl-dot.wl-glow::after { animation: none; } }
 
 /* S58 — docs/19 §3 Stage C2: the ⟲ analyst-only re-run, and the per-row remedy trio.
    ⟲ wears the flow blue, not terracotta: re-convert spends GPU-hours re-reading a PDF, this

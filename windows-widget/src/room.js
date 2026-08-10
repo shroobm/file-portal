@@ -830,7 +830,10 @@ function renderWall(vm) {
     const lit = s.on || s.always;
     const col = lit ? s.col : "var(--text-3)";
     const pulse = (s.n === "Assay" && assay.verdict === "fail") ? "assay-pulse 1.7s ease-in-out infinite" : "none";
-    return `<div class="wl-st"><div class="wl-dot" style="color:${col};border-color:${col};animation:${pulse};opacity:${lit ? 1 : 0.4}">${s.g}</div><div class="wl-nm">${s.n}</div></div>`;
+    // S73 Slice 1 (docs/25 grammar law): the underglow marks ONLY a station requiring a hand —
+    // Gate holding cards, or Assay on a fail. Activity (Convert) gets mass, never glow.
+    const glow = ((s.n === "Gate" && s.on) || (s.n === "Assay" && assay.verdict === "fail")) ? " wl-glow" : "";
+    return `<div class="wl-st"><div class="wl-dot${glow}" style="color:${col};border-color:${col};animation:${pulse};opacity:${lit ? 1 : 0.4}">${s.g}</div><div class="wl-nm">${s.n}</div></div>`;
   }).join("<span class='wl-link'></span>");
   const latest = (vm.shift?.tail || []).slice(-1)[0];
   const evtLine = latest ? eventMsg(latest) : "";
@@ -838,7 +841,7 @@ function renderWall(vm) {
   roomEl.innerHTML =
     `<div class="wall">` +
     `<div class="wall-top"><span class="wl-brand">◆ File Portal</span><button class="rh-theme" id="room-theme">◐</button></div>` +
-    `<div class="wall-verdict" style="color:${sv.color}">${sv.word.toUpperCase()}</div>` +
+    `<div class="wall-verdict${String(sv.color).includes("clay") ? " wv-attn" : ""}" style="color:${sv.color}">${sv.word.toUpperCase()}</div>` +
     // Stage F: escalated pain is visible from across the room — that is the algedonic point.
     ((vm.alg?.escalated) ? `<div class="wall-alg">⚑ ${vm.alg.escalated} unacknowledged &gt; ${vm.alg.m_minutes} m</div>` : "") +
     `<div class="wall-line">${dots}</div>` +
