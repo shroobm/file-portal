@@ -63,23 +63,16 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S73 — Desktop — 2026-08-10 (Fable 5). RAB SIGNED SLICE 0+1 — THE WALL (docs/25 Part 5); cookie
-#58; the manual shipped to his phone via Gmail draft (Drive link) + the overnight report.**
-
-- **G1 — Slice 0.** The `--fp-*` token layer lands in `styles.css` applied to NOTHING (elevation
-  rest/hover/press · the thock spring via `linear()` · durations · key-face · underglow). Verify:
-  grep proves zero `var(--fp-` consumers; CSS parses.
-- **G2 — Slice 1.** The Wall wears the tokens: depth wash on the surface background · hero type
-  scale up (3-meter test) · verdict bloom ONLY when the verdict is terracotta (`wv-attn`, grammar
-  law) · keycap mass on the station dots · underglow ONLY on hand-required stations (Gate-with-
-  cards, Assay-fail) + the algedonic banner · heroes get shadow mass, no glow · reduced-motion
-  collapses the breathe. JS: two surgical lines in `renderWall` (tone classes — the projection
-  law untouched, zero new numbers).
-- **G3 — the ritual + staging.** `cargo fmt --check` → clippy → `cargo test` → `node --check`
-  room.js → `npm run build` → hash the exe → **STAGED for Rab's adoption (law 3)**. Verify the
-  Wall render via the room-harness where possible.
-- **G4 — paperwork.** CHANGELOG · closeout `sessions/S73-desktop-2026-08-10.md` · ledger row ·
-  push · CI · clocks.
+*(S73 closed 2026-08-10 (Desktop, Fable 5; cookie #58) — **SLICE 0+1 SIGNED AND BUILT: THE WALL
+WEARS THE TOKENS.** Slice 0: the `--fp-*` mass layer (theme-tuned elevations · the `linear()`
+thock spring · key-face), audit-proven one-consumer-only. Slice 1: the Wall — depth wash ·
+verdict 48–130px with bloom ONLY when terracotta (`wv-attn`) · keycap dots (circles stay
+circles) · underglow ONLY on hand-required stations + the algedonic banner · heroes mass-not-
+glow · reduced-motion collapse; room.js = two class derivations from existing data, projection
+law intact. Ritual green (fmt silent · clippy · node · 20/20 · build). **STAGED `48BCB4A6`,
+UNADOPTED — Rab's hand + his big-screen verdict gate slices 2–5.** Also: the manual to his phone
+(Drive link + Gmail draft `r1202885857142346313` with the S71–S73 report). Closeout:
+`sessions/S73-desktop-2026-08-10.md`.)*
 
 *(S72 closed 2026-08-10 (Desktop, Fable 5, overnight) — **THE DESIGN PLAN: docs/25, "mass,
 damping, and one hero shot."** The reel aesthetic decomposed → the thesis **"the thock, not the

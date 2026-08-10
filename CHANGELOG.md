@@ -8,6 +8,24 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S73 — SLICE 0+1 SIGNED AND BUILT: THE WALL WEARS THE TOKENS (2026-08-10, Desktop lane).**
+  Narrative in `sessions/S73-desktop-2026-08-10.md`.
+  - **Added — the `--fp-*` token layer (Slice 0)** in `windows-widget/src/styles.css`: elevation
+    rest/hover/press (theme-tuned dark + light) · the thock spring via `linear()` · durations ·
+    key-face. Audit: exactly ONE consumer (the Wall) — everything else defined-but-unapplied,
+    per the slice contract.
+  - **Changed — the Wall (Slice 1):** lower depth wash on the surface · verdict scale up for the
+    3-meter test with bloom ONLY when terracotta (`wv-attn` — the grammar law made CSS) · keycap
+    mass on the station dots (circles stay circles) · underglow ONLY under hand-required
+    stations (Gate-with-cards, Assay-fail) + the algedonic banner · heroes get shadow mass,
+    never glow · reduced-motion collapses the breathe. `room.js`: two surgical class derivations
+    from EXISTING data — projection law intact, zero new numbers.
+  - **Ritual:** fmt silent · clippy clean · `node --check` OK · 20/20 tests · build green.
+    **Staged exe `48BCB4A6`** (supersedes running `F28C58A8`) — **adoption is Rab's hand**;
+    his big-screen look is Slice 1's acceptance gate.
+  - Also this session: the manual mirrored to Drive + Gmail draft (link + overnight report) for
+    his phone; cookie #58.
+
 - **S72 — THE DESIGN PLAN (2026-08-10, Desktop lane, overnight).** Narrative in
   `sessions/S72-desktop-2026-08-10.md`.
   - **Added — `docs/25-design-plan.html`**: the big-screen redesign brief on Rab's commission —
