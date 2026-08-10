@@ -20,6 +20,12 @@
         "--directory", "windows-widget"
       ],
       "port": 7080
+    },
+    {
+      "name": "docs",
+      "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
+      "runtimeArgs": ["-m", "http.server", "8321", "--directory", "docs"],
+      "port": 8321
     }
   ]
 }

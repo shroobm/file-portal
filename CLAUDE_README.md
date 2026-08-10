@@ -63,20 +63,19 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S69 — Desktop — 2026-08-10 (Fable 5). Rab's commission: stress-test `docs/22` — check every
-claim's "applicability in reality vs what it's just saying," then remake the manual accordingly.**
-
-- **G1 — claim inventory.** Full re-read; every checkable assertion extracted per chapter
-  (constants, paths, commands, behaviours, formats, laws).
-- **G2 — the verification sweep.** Each claim re-derived from CURRENT source/config/live state —
-  never from the manual's own citations (SYM-001: the compiler's read and this read must not share
-  assumptions; where the manual cites a file, the file gets read). Verdicts: **holds** / **stale**
-  / **wrong** / **unverifiable-from-here** / **toothless** (true but says nothing a reader could
-  act on or falsify).
-- **G3 — the remake.** Corrections applied in place; claims that can't pay for their tag get
-  downgraded, given teeth, or cut; rev → "stress-tested S69". Design + scrollspy preserved.
-- **G4 — proof + paperwork.** Render + spy re-verified in the browser; CHANGELOG; closeout
-  `sessions/S69-desktop-2026-08-10.md`; ledger row ≤80 words; push; CI green.
+*(S69 closed 2026-08-10 (Desktop, Fable 5) — **THE MANUAL STRESS-TESTED on Rab's commission;
+every checkable claim re-derived from source, never from its own citations (SYM-001).**
+**~150 claims held** — all 21 cited line counts exact, every constant/threshold/config key/event
+stage/receipt outcome/cadence/port/guard verified. **3 counts corrected** (`5562cdf`): Rust
+modules 15→14 · Tauri commands 37→38 (registered = declared, none dangling) · dashboard ~600/8 →
+705 lines/9 files; + the repeated-line rule's &gt;20-chars condition; CH·17 provenance gains the
+S69 sweep; rev → "S69 — stress-tested". **2 stale CODE comments fixed where the manual was right
+and the code's commentary wrong** (`ceb0f95`): watch_and_convert.py's missing `ask`,
+converter.toml's banned `force_ocr=True` wording (SYM-012's trap at a user surface) — comments
+only, zero behaviour, py_compile proven. Render + scrollspy re-proven over a real HTTP server
+(the pane pins file:// to static snapshots — `docs` launch entry added). A Write clobbered the
+tracked launch.json and was caught + restored additively the same hour (closeout §10). Closeout:
+`sessions/S69-desktop-2026-08-10.md`.)*
 
 *(S68 closed 2026-08-10 ~04:35 UTC (Desktop, Fable 5) — **SYM-020 CLEARED + THE MANUAL'S
 SCROLLSPY; five gates, all green.** G1 `b415a2f` the 8-file whitespace-only reformat · G2 clippy

@@ -8,6 +8,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S69 — THE MANUAL STRESS-TESTED (2026-08-10, Desktop lane).** Rab's commission: "check each
+  aspect of it for its applicability in reality vs what it's just saying." Narrative in
+  `sessions/S69-desktop-2026-08-10.md`.
+  - **Verified — ~150 claims re-derived from current source** by a second, differently-shaped
+    method (greps of the constants/counts/keys themselves, never the manual's citations —
+    SYM-001's discipline). Held: all 21 cited line counts exact, and every constant, verdict
+    gate, config key, event stage, receipt outcome, poll cadence, port range and guard
+    behaviour checked came back true.
+  - **Fixed — `docs/22`:** Rust modules 15→14; Tauri commands 37→38 (registered = declared,
+    none dangling); dashboard "~600 lines / 8 modules" → 705 lines / 9 files; the repeated-line
+    degeneration rule gains its &gt;20-chars condition; CH·17 provenance gains the S69
+    stress-test entry; rev → "S69 — stress-tested".
+  - **Fixed — two stale code comments the sweep caught (comments only, zero behaviour):**
+    `windows-converter/watch_and_convert.py`'s analyst-mode story finally names `ask` (the mode
+    has existed since S18); `linux-converter/config/converter.toml` no longer describes the scan
+    lane as `force_ocr=True` — SYM-012's exact banned wording, sitting at the surface a user
+    edits.
+  - **Added — `.claude/launch.json` gains a `docs` entry** (serve `docs/` on 8321): the Browser
+    pane pins `file://` pages to static snapshots, so in-browser doc verification needs a real
+    HTTP server.
+
 - **S68 — SYM-020 CLEARED + THE MANUAL'S SCROLLSPY (2026-08-10, Desktop lane).** Narrative in
   `sessions/S68-desktop-2026-08-10.md`.
   - **Fixed — the Rust formatting drift (SYM-020).** `cargo fmt` across the 8 files S67 named,
