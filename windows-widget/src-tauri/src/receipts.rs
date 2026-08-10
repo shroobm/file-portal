@@ -154,7 +154,10 @@ mod tests {
         let v = read_cached(dir.to_str().unwrap());
         let rows = v["rows"].as_array().unwrap();
         assert_eq!(rows.len(), 2);
-        assert_eq!(rows[1]["outcome"], "supersede-held", "file order is preserved");
+        assert_eq!(
+            rows[1]["outcome"], "supersede-held",
+            "file order is preserved"
+        );
         let _ = fs::remove_dir_all(&dir);
     }
 }

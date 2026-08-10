@@ -450,8 +450,11 @@ fn watcher_start(
             .config
             .lock()
             .map_err(|_| "lock poisoned".to_string())?;
-        (cfg.gpu_python_exe.clone(), cfg.gpu_converter_dir.clone(),
-         cfg.gpu_pipeline_dir.clone())
+        (
+            cfg.gpu_python_exe.clone(),
+            cfg.gpu_converter_dir.clone(),
+            cfg.gpu_pipeline_dir.clone(),
+        )
     };
     watcher::start(&watcher_state, &py, &conv, &pipe)
 }

@@ -25,7 +25,9 @@ pub fn metrics(gpu_pipeline_dir: &str, vault_library_dir: &str) -> Result<Value,
     let mut spp: Vec<f64> = Vec::new();
     let (mut total_pages, mut total_wall) = (0f64, 0f64);
     for line in events_text.lines() {
-        let Ok(ev) = serde_json::from_str::<Value>(line) else { continue };
+        let Ok(ev) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
         if ev["stage"] == "convert" && ev["event"] == "converted" {
             if let Some(s) = ev["s_per_page"].as_f64() {
                 spp.push(s);
@@ -56,12 +58,20 @@ pub fn metrics(gpu_pipeline_dir: &str, vault_library_dir: &str) -> Result<Value,
     let mut surv_sum = 0f64;
     let mut surv_n = 0u32;
     for sub in ["anchor", "pending", "held"] {
-        let Ok(entries) = fs::read_dir(base.join(sub)) else { continue };
+        let Ok(entries) = fs::read_dir(base.join(sub)) else {
+            continue;
+        };
         for entry in entries.flatten() {
             let manifest = entry.path().join("manifest.json");
-            let Ok(mtime) = fs::metadata(&manifest).and_then(|m| m.modified()) else { continue };
-            let Ok(text) = fs::read_to_string(&manifest) else { continue };
-            let Ok(m) = serde_json::from_str::<Value>(&text) else { continue };
+            let Ok(mtime) = fs::metadata(&manifest).and_then(|m| m.modified()) else {
+                continue;
+            };
+            let Ok(text) = fs::read_to_string(&manifest) else {
+                continue;
+            };
+            let Ok(m) = serde_json::from_str::<Value>(&text) else {
+                continue;
+            };
             let fid = &m["fidelity"];
             if fid.is_null() {
                 continue; // pre-audit anchor (converted before S28) — skip, don't count
@@ -73,12 +83,19 @@ pub fn metrics(gpu_pipeline_dir: &str, vault_library_dir: &str) -> Result<Value,
                 surv_n += 1;
             }
             let name = m["source"].as_str().unwrap_or("").to_string();
-            audits.push((mtime, json!({ "name": name, "survival": survival, "verdict": verdict })));
+            audits.push((
+                mtime,
+                json!({ "name": name, "survival": survival, "verdict": verdict }),
+            ));
         }
     }
     audits.sort_by_key(|a| std::cmp::Reverse(a.0));
     let recent_audits: Vec<Value> = audits.iter().take(6).map(|(_, v)| v.clone()).collect();
-    let survival_avg = if surv_n > 0 { json!(surv_sum / surv_n as f64) } else { Value::Null };
+    let survival_avg = if surv_n > 0 {
+        json!(surv_sum / surv_n as f64)
+    } else {
+        Value::Null
+    };
 
     // --- vault count: notes in the Library clone (Library/Inbox/<slug>--<sha8>/) ---
     // Falls back to the anchor snapshot count if the vault clone isn't reachable/configured.
@@ -171,7 +188,9 @@ fn size_str(bytes: u64) -> String {
     }
 }
 fn dir_count(p: &Path) -> u64 {
-    fs::read_dir(p).map(|d| d.flatten().count() as u64).unwrap_or(0)
+    fs::read_dir(p)
+        .map(|d| d.flatten().count() as u64)
+        .unwrap_or(0)
 }
 fn flen(p: &Path) -> u64 {
     fs::metadata(p).map(|m| m.len()).unwrap_or(0)
@@ -209,7 +228,10 @@ fn file_nodes(dir: &Path, prefix: &str, glyph: &str) -> Vec<Value> {
 /// A converted bundle folder (anchor / held / vault Inbox): the .md + assets/ + manifest.json,
 /// plus the analyst summary and — when audited — the real degeneration zones. All from disk.
 fn bundle_node(dir: &Path, prefix: &str) -> Value {
-    let name = dir.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+    let name = dir
+        .file_name()
+        .map(|n| n.to_string_lossy().to_string())
+        .unwrap_or_default();
     let id = nid(prefix, &name);
     let man = read_manifest(dir);
     let mut kids: Vec<Value> = vec![];
@@ -219,7 +241,10 @@ fn bundle_node(dir: &Path, prefix: &str) -> Value {
     };
     entries.sort();
     for p in &entries {
-        let fname = p.file_name().map(|n| n.to_string_lossy().to_string()).unwrap_or_default();
+        let fname = p
+            .file_name()
+            .map(|n| n.to_string_lossy().to_string())
+            .unwrap_or_default();
         if p.is_dir() && fname == "assets" {
             kids.push(json!({ "id": nid(&id, "assets"), "kind": "dir", "glyph": "\u{1F4C1}", "name": "assets/", "meta": format!("{} files", dir_count(p)) }));
         } else if fname.ends_with(".md") {
@@ -233,7 +258,12 @@ fn bundle_node(dir: &Path, prefix: &str) -> Value {
                         m["lane"].as_str().unwrap_or("?"),
                         m["pages"].as_u64().unwrap_or(0),
                         m["engine"].as_str().unwrap_or("?"),
-                        m["source_sha256"].as_str().unwrap_or("").chars().take(8).collect::<String>()
+                        m["source_sha256"]
+                            .as_str()
+                            .unwrap_or("")
+                            .chars()
+                            .take(8)
+                            .collect::<String>()
                     )
                 })
                 .unwrap_or_default();
@@ -277,7 +307,11 @@ fn bundle_node(dir: &Path, prefix: &str) -> Value {
 /// Bundle folders under a pipeline subdir (anchor / held), sorted.
 fn bundles_in(base: &Path, sub: &str, prefix: &str) -> Vec<Value> {
     let mut dirs: Vec<PathBuf> = match fs::read_dir(base.join(sub)) {
-        Ok(e) => e.flatten().map(|x| x.path()).filter(|p| p.is_dir()).collect(),
+        Ok(e) => e
+            .flatten()
+            .map(|x| x.path())
+            .filter(|p| p.is_dir())
+            .collect(),
         Err(_) => vec![],
     };
     dirs.sort();
@@ -288,7 +322,11 @@ fn bundles_in(base: &Path, sub: &str, prefix: &str) -> Vec<Value> {
 }
 
 /// The station's real on-disk tree. `seg` ∈ intake/convert/gate/assay/ship/vault.
-pub fn station_tree(gpu_pipeline_dir: &str, vault_library_dir: &str, seg: &str) -> Result<Value, String> {
+pub fn station_tree(
+    gpu_pipeline_dir: &str,
+    vault_library_dir: &str,
+    seg: &str,
+) -> Result<Value, String> {
     if gpu_pipeline_dir.is_empty() {
         return Ok(json!({ "root": "pipeline not configured", "children": [] }));
     }
@@ -297,12 +335,19 @@ pub fn station_tree(gpu_pipeline_dir: &str, vault_library_dir: &str, seg: &str) 
         "vault" => {
             let inbox = Path::new(vault_library_dir).join("Inbox");
             let mut dirs: Vec<PathBuf> = match fs::read_dir(&inbox) {
-                Ok(e) => e.flatten().map(|x| x.path()).filter(|p| p.is_dir()).collect(),
+                Ok(e) => e
+                    .flatten()
+                    .map(|x| x.path())
+                    .filter(|p| p.is_dir())
+                    .collect(),
                 Err(_) => vec![],
             };
             dirs.sort();
             let children: Vec<Value> = if dirs.is_empty() {
-                vec![note_node("v-empty", "— Library empty (or vault clone unreachable) —")]
+                vec![note_node(
+                    "v-empty",
+                    "— Library empty (or vault clone unreachable) —",
+                )]
             } else {
                 dirs.iter().map(|d| bundle_node(d, "v")).collect()
             };
@@ -311,13 +356,18 @@ pub fn station_tree(gpu_pipeline_dir: &str, vault_library_dir: &str, seg: &str) 
         "assay" => {
             let mode = crate::assay::get_mode(gpu_pipeline_dir);
             let held = bundles_in(base, "held", "h");
-            let held_n = fs::read_dir(base.join("held")).map(|d| d.flatten().filter(|e| e.path().is_dir()).count()).unwrap_or(0);
+            let held_n = fs::read_dir(base.join("held"))
+                .map(|d| d.flatten().filter(|e| e.path().is_dir()).count())
+                .unwrap_or(0);
             let mut recent: Vec<(SystemTime, Value)> = vec![];
             for sub in ["anchor", "held", "pending"] {
                 if let Ok(entries) = fs::read_dir(base.join(sub)) {
                     for e in entries.flatten() {
                         let manifest = e.path().join("manifest.json");
-                        if let (Ok(mt), Some(m)) = (fs::metadata(&manifest).and_then(|x| x.modified()), read_manifest(&e.path())) {
+                        if let (Ok(mt), Some(m)) = (
+                            fs::metadata(&manifest).and_then(|x| x.modified()),
+                            read_manifest(&e.path()),
+                        ) {
                             if m["fidelity"].is_null() {
                                 continue;
                             }
@@ -338,9 +388,14 @@ pub fn station_tree(gpu_pipeline_dir: &str, vault_library_dir: &str, seg: &str) 
         }
         "convert" => {
             let lock = base.join(".gpu-lock");
-            let converting = fs::read_to_string(&lock).ok().map(|s| s.trim().to_string()).filter(|s| !s.is_empty());
+            let converting = fs::read_to_string(&lock)
+                .ok()
+                .map(|s| s.trim().to_string())
+                .filter(|s| !s.is_empty());
             let active = match &converting {
-                Some(name) => json!({ "id": "cv-active", "kind": "file", "glyph": "\u{2699}", "name": name, "meta": "converting now · .gpu-lock held" }),
+                Some(name) => {
+                    json!({ "id": "cv-active", "kind": "file", "glyph": "\u{2699}", "name": name, "meta": "converting now · .gpu-lock held" })
+                }
                 None => note_node("cv-idle", "\u{2699} converting: idle · no .gpu-lock"),
             };
             json!({ "root": format!("{}  ·  converter (Marker, policy-routed)", gpu_pipeline_dir), "children": [
@@ -360,10 +415,14 @@ pub fn station_tree(gpu_pipeline_dir: &str, vault_library_dir: &str, seg: &str) 
         }
         "ship" => {
             let text = fs::read_to_string(base.join("events.jsonl")).unwrap_or_default();
-            let last = text.lines().filter_map(|l| serde_json::from_str::<Value>(l).ok())
+            let last = text
+                .lines()
+                .filter_map(|l| serde_json::from_str::<Value>(l).ok())
                 .rfind(|e| e["stage"] == "ship" && e["event"] == "shipped");
             let last_node = match last {
-                Some(e) => json!({ "id": "sh-last", "kind": "file", "glyph": "\u{21C8}", "name": e["bundle"].as_str().unwrap_or("(unknown)").to_string(), "meta": format!("shipped {}", e["ts"].as_str().unwrap_or("")) }),
+                Some(e) => {
+                    json!({ "id": "sh-last", "kind": "file", "glyph": "\u{21C8}", "name": e["bundle"].as_str().unwrap_or("(unknown)").to_string(), "meta": format!("shipped {}", e["ts"].as_str().unwrap_or("")) })
+                }
                 None => note_node("sh-none", "— nothing shipped yet —"),
             };
             json!({ "root": "vault-work/ (clone) \u{2192} vault.git (bare) · Tailscale SSH".to_string(), "children": [

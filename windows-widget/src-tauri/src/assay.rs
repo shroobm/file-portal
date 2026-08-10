@@ -109,7 +109,9 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
     let held = held_list(base);
 
     let Some(manifest_path) = newest_manifest(base) else {
-        return Ok(json!({ "available": true, "mode": mode, "verdict": Value::Null, "held": held }));
+        return Ok(
+            json!({ "available": true, "mode": mode, "verdict": Value::Null, "held": held }),
+        );
     };
     let manifest: Value = fs::read_to_string(&manifest_path)
         .ok()
@@ -117,7 +119,9 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
         .unwrap_or_else(|| json!({}));
     let fid = &manifest["fidelity"];
     if fid.is_null() {
-        return Ok(json!({ "available": true, "mode": mode, "verdict": Value::Null, "held": held }));
+        return Ok(
+            json!({ "available": true, "mode": mode, "verdict": Value::Null, "held": held }),
+        );
     }
     let conv = &fid["convert"];
     let degen = &conv["tripwires"]["degeneration_detail"];
@@ -270,7 +274,9 @@ pub fn reanalyze(
     // starting a convert under a long re-run — is the same exposure the proven --resume path
     // has always carried; it is not silently worsened here, and the Room shows the run live.)
     if Path::new(gpu_pipeline_dir).join(".gpu-lock").exists() {
-        return Err("conveyor busy — a convert holds the GPU; re-run when the line is clear".into());
+        return Err(
+            "conveyor busy — a convert holds the GPU; re-run when the line is clear".into(),
+        );
     }
     Command::new(gpu_python_exe)
         .arg(&script)
@@ -329,8 +335,8 @@ pub fn bless(gpu_pipeline_dir: &str, source: &str) -> Result<String, String> {
     if scored["degeneration"] == Value::Bool(true) {
         return Err("bless refused: degeneration is disease, not a ceiling (Repair Bench)".into());
     }
-    let manifest = newest_manifest_for_source(base, source)
-        .ok_or("no local manifest records this source")?;
+    let manifest =
+        newest_manifest_for_source(base, source).ok_or("no local manifest records this source")?;
     let sha = manifest["source_sha256"]
         .as_str()
         .ok_or("manifest lacks source_sha256")?
@@ -402,7 +408,6 @@ mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
 
-
     static N: AtomicU32 = AtomicU32::new(0);
 
     /// A throwaway pipeline root with drop/done/<source> present.
@@ -415,7 +420,11 @@ mod tests {
         let base = std::env::temp_dir().join(unique);
         let _ = fs::remove_dir_all(&base);
         fs::create_dir_all(base.join("drop").join("done")).unwrap();
-        fs::write(base.join("drop").join("done").join(source), b"%PDF-1.7 fake").unwrap();
+        fs::write(
+            base.join("drop").join("done").join(source),
+            b"%PDF-1.7 fake",
+        )
+        .unwrap();
         base
     }
 
@@ -430,7 +439,9 @@ mod tests {
     }
 
     fn marker_of(base: &Path, source: &str) -> PathBuf {
-        base.join("drop").join(SUPERSEDE_DIR).join(format!("{source}.json"))
+        base.join("drop")
+            .join(SUPERSEDE_DIR)
+            .join(format!("{source}.json"))
     }
 
     #[test]
@@ -528,7 +539,12 @@ mod tests {
         let holder = base.join("drop").join(SUPERSEDE_DIR);
         assert!(holder.is_dir(), "a directory, so file-only scans skip it");
         assert!(
-            holder.file_name().unwrap().to_str().unwrap().starts_with('.'),
+            holder
+                .file_name()
+                .unwrap()
+                .to_str()
+                .unwrap()
+                .starts_with('.'),
             "dot-prefixed, so the watcher's dotfile skip also covers it"
         );
         let stray_pdfs = fs::read_dir(base.join("drop"))
@@ -552,7 +568,10 @@ mod tests {
         let py = "python.exe";
         let conv = base.to_str().unwrap();
 
-        assert!(reanalyze("", py, conv, "book.pdf", "local").is_err(), "unconfigured");
+        assert!(
+            reanalyze("", py, conv, "book.pdf", "local").is_err(),
+            "unconfigured"
+        );
         assert!(
             reanalyze(dir, py, conv, "../escape.pdf", "local").is_err(),
             "path separators"
@@ -589,7 +608,11 @@ mod tests {
         let base = std::env::temp_dir().join("fp-s44-seam-proof");
         let _ = fs::remove_dir_all(&base);
         fs::create_dir_all(base.join("drop").join("done")).unwrap();
-        fs::write(base.join("drop").join("done").join(source), b"%PDF-1.7 fake").unwrap();
+        fs::write(
+            base.join("drop").join("done").join(source),
+            b"%PDF-1.7 fake",
+        )
+        .unwrap();
         write_manifest(
             &base,
             "held",

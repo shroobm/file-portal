@@ -114,7 +114,10 @@ pub fn open(
         return Err("gpu_python_exe / gpu_converter_dir not configured".into());
     }
     let dir = resolve_held(gpu_pipeline_dir, source)?;
-    let mut guard = state.0.lock().map_err(|_| "bench lock poisoned".to_string())?;
+    let mut guard = state
+        .0
+        .lock()
+        .map_err(|_| "bench lock poisoned".to_string())?;
     if let Some(run) = guard.as_mut() {
         let alive = matches!(run.child.try_wait(), Ok(None));
         if alive && run.dir == dir {

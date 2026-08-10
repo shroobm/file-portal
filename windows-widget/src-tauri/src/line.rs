@@ -73,9 +73,10 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         .map(|d| d.as_secs())
         .filter(|age| *age <= 300)
         .and_then(|age| {
-            let v: Value =
-                serde_json::from_str(&fs::read_to_string(base.join(".analyst-progress.json")).ok()?)
-                    .ok()?;
+            let v: Value = serde_json::from_str(
+                &fs::read_to_string(base.join(".analyst-progress.json")).ok()?,
+            )
+            .ok()?;
             Some((v, age))
         });
     // Stage E (docs/19 §5): the queue, as the watcher will actually take it — sorted by name,
@@ -365,11 +366,15 @@ pub fn open_engineering(
         return Err(format!("not there yet: {}", path.display()));
     }
     let shown = path.display().to_string();
-    Command::new(if is_dir { "explorer.exe" } else { "notepad.exe" })
-        .arg(&path)
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| format!("failed to open {target}: {e}"))?;
+    Command::new(if is_dir {
+        "explorer.exe"
+    } else {
+        "notepad.exe"
+    })
+    .arg(&path)
+    .creation_flags(CREATE_NO_WINDOW)
+    .spawn()
+    .map_err(|e| format!("failed to open {target}: {e}"))?;
     Ok(shown)
 }
 

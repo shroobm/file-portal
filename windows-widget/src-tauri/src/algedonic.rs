@@ -162,9 +162,8 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
     }
 
     // ---- window, dedupe (kind+bundle keeps the NEWEST occurrence), sort, cap ------------
-    candidates.retain(|(ts, ..)| {
-        parse_iso_utc(ts).is_some_and(|t| now.saturating_sub(t) <= WINDOW_S)
-    });
+    candidates
+        .retain(|(ts, ..)| parse_iso_utc(ts).is_some_and(|t| now.saturating_sub(t) <= WINDOW_S));
     candidates.sort_by(|a, b| b.0.cmp(&a.0)); // newest first
     let mut seen = std::collections::HashSet::new();
     candidates.retain(|(_, kind, _, bundle, _)| seen.insert(format!("{kind}|{bundle}")));
@@ -293,7 +292,11 @@ mod tests {
         .unwrap();
         let st = state(&dir).unwrap();
         let alerts = st["alerts"].as_array().unwrap();
-        assert_eq!(alerts.len(), 1, "BookB's failure was resolved by its later ship");
+        assert_eq!(
+            alerts.len(),
+            1,
+            "BookB's failure was resolved by its later ship"
+        );
         assert_eq!(alerts[0]["kind"], "held");
         assert_eq!(alerts[0]["bundle"], "BookA");
         assert_eq!(alerts[0]["acked"], false);
@@ -345,8 +348,15 @@ mod tests {
         ));
         fs::write(Path::new(&dir).join("events.jsonl"), text).unwrap();
         let st3 = state(&dir).unwrap();
-        assert_eq!(st3["alerts"].as_array().unwrap().len(), 1, "deduped by kind+bundle");
-        assert_eq!(st3["alerts"][0]["acked"], false, "the newer occurrence re-alarms");
+        assert_eq!(
+            st3["alerts"].as_array().unwrap().len(),
+            1,
+            "deduped by kind+bundle"
+        );
+        assert_eq!(
+            st3["alerts"][0]["acked"], false,
+            "the newer occurrence re-alarms"
+        );
         assert_eq!(st3["unacked"], 1);
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-ack"));
     }
