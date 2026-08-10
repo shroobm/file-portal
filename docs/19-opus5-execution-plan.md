@@ -65,8 +65,9 @@ doc and reality disagree, reality wins — measure, then update this doc.*
   missing again). Converter code runs FROM THE REPO (`windows-converter/`), read fresh per
   convert — python-side changes need no widget rebuild.
 - **Widget**: source `windows-widget/`; installed exe `C:\Users\Bndit\AppData\Local\File
-  Portal\file-portal-widget.exe` (currently `7D403BD6`). Rebuild ritual: `cargo clippy
-  --all-targets -- -D warnings` → `node --check` on touched JS → `cargo test` → `npm run
+  Portal\file-portal-widget.exe` (currently `7D403BD6`). Rebuild ritual: `cargo fmt --check`
+  FIRST (SYM-020 — clippy never catches formatting, so without this step it rots invisibly) →
+  `cargo clippy --all-targets -- -D warnings` → `node --check` on touched JS → `cargo test` → `npm run
   build` (in `windows-widget/`) → hash `target\release\file-portal-widget.exe` → RAB adopts
   (law 3). Tauri's bundler patches the exe post-build — hashes differ between raw and bundled
   stages; hash what you stage.

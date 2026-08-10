@@ -147,7 +147,7 @@
 <main>
 
 <div class="cover">
-  <div class="eyebrow">Service &amp; Engineering Reference · rev. S67</div>
+  <div class="eyebrow">Service &amp; Engineering Reference · rev. S67, amended S68</div>
   <h1>File Portal: the complete engineering manual</h1>
   <p>Two machines, one factory: a Windows desktop with the GPU and the glass, a Linux laptop with the
   vault and the last word. This manual is written on the car-manual principle — everything the system
@@ -659,7 +659,7 @@ Desktop: Obsidian vault/Library   clone of the bare repo over tailscale ssh (rea
     <tr><td>git-bash <code>ps -W</code> PID column lies</td><td>SYM-017 — cross-check tasklist</td><td><span class="tag hist">known</span></td></tr>
     <tr><td>No CI status ever appears on a push</td><td>SYM-018 — trigger was master+PR only; silent 2026-07-13→08-09 (205 commits). Runs on the branch now; converter's 51 tests included.</td><td><span class="tag ok obs">fixed S67</span></td></tr>
     <tr><td>CI lint fails on code that's clean locally</td><td>SYM-019 — unpinned ruff (CI 0.16.2 vs local 0.15.20); pinned. Trap: don't "fix" rules.py's DTZ005 with UTC.</td><td><span class="tag ok obs">fixed S67</span></td></tr>
-    <tr><td><code>cargo fmt --check</code> fails on 8 files while clippy passes</td><td>SYM-020 — the rebuild ritual runs clippy, never fmt. Desktop's to clear; 5-step re-enable procedure lives in the workflow's <code>if:</code> comment.</td><td><span class="tag open">open — desktop lane</span></td></tr>
+    <tr><td><code>cargo fmt --check</code> fails on 8 files while clippy passes</td><td>SYM-020 — the rebuild ritual ran clippy, never fmt. Cleared S68: whitespace-only reformat, <code>cargo fmt --check</code> now leads the ritual, rust CI on the branch (toolchain pinned 1.97.1 per SYM-019, <code>cargo test</code> added).</td><td><span class="tag ok obs">fixed S68</span></td></tr>
   </table></div>
 </section>
 
@@ -673,9 +673,10 @@ git diff --name-only HEAD@{1}..HEAD -- linux-converter linux-receiver linux-dash
 systemctl --user restart file-portal-converter   # startup sweep re-processes staging — not free
 # never sudo; journalctl --user needs a login session (have Rab run it over SSH)</code></pre>
   <h3>Desktop widget rebuild ritual</h3>
-  <pre><code>cargo clippy --all-targets -- -D warnings   # (add cargo fmt --check — SYM-020's actual fix)
+  <pre><code>cargo fmt --check                           # FIRST — SYM-020: clippy never catches formatting
+cargo clippy --all-targets -- -D warnings
 node --check &lt;touched .js&gt;
-cargo test          # not in CI — this is the only gate
+cargo test          # mirrored in CI since S68
 npm run build       # then hash the exe, print SHA-8
 # ADOPTION IS RAB'S HAND: he closes the widget, Copy-Item + Get-FileHash in HIS shell, relaunches</code></pre>
   <h3>Session protocol</h3>
@@ -685,17 +686,19 @@ npm run build       # then hash the exe, print SHA-8
     <li><b>Close commit</b>, then the <b>ledger row as a separate one-line follow-up commit</b> — never <code>--amend</code> (SYM-016), never a SHA you haven't seen, ≤ 80 words in the milestone column, pointing at <code>sessions/S&lt;N&gt;-&lt;machine&gt;-&lt;date&gt;.md</code>.</li>
     <li><b>Cross-machine mail</b>: <code>coordination/messages/</code> — timestamped files, newest unexpired open message is authoritative, never edit a sent body, flip <code>status: done</code> + an Outcome section when finished, no hostnames/IPs/usernames (rule 6: the repo may go public).</li>
   </ol>
-  <h3>CI (S67)</h3>
+  <h3>CI (S67–S68)</h3>
   <p>Runs on pushes to <code>master</code> + <code>feat/library-pipeline</code>: ruff (all three Linux
-  subprojects, pinned 0.15.20) + pytest (allocator 24, converter 51). The Rust job is scoped to master/PR
-  until the Desktop clears SYM-020. <code>cargo test</code> and <code>windows-converter</code> remain
-  hand-run gates.</p>
-  <h3>Standing STOP-for-Rab items <span class="tag open">as of S67</span></h3>
+  subprojects, pinned 0.15.20) + pytest (allocator 24, converter 51), and since S68 the Rust job on
+  windows-latest (toolchain pinned 1.97.1 per SYM-019): <code>cargo fmt --check</code>, clippy
+  <code>-D warnings</code>, <code>cargo test</code> (20). <code>windows-converter</code> remains a
+  hand-run gate.</p>
+  <h3>Standing STOP-for-Rab items <span class="tag open">as of S68</span></h3>
   <ul>
     <li>Algedonic M + ack mechanism — provisional, unsigned</li>
     <li>Queue-order control — the panel observes; reordering awaits a signed watcher contract</li>
     <li>Repair audit-credit — the bench's re-score stays a preview until signed</li>
-    <li>SYM-020 (Desktop cargo fmt) · Cybernetics stale held copy · exe <code>F28C58A8</code> adoption state — knowable only from the Desktop</li>
+    <li>Cybernetics stale held copy — Rab's call <em>(S68 resolved the other two Desktop unknowns:
+    SYM-020 cleared, and exe <code>F28C58A8</code> confirmed adopted on-disk, mtime 2026-08-08)</em></li>
   </ul>
 </section>
 
