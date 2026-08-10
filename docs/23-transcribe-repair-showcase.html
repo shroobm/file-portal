@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- docs/23 — design showcase, committed S70 on Rab's word. Drawn in docs/22's design
+     language. Self-contained except the mermaid renderer (jsdelivr CDN); offline,
+     diagrams degrade to their readable text source, same contract as the manual.
+     Status: PROPOSAL — nothing here is built; the two unsigned rows in Part 6 are Rab's. -->
+<title>23 · The Life of a Book — and the Transcribe Repair</title>
+<style>
+  :root {
+    --bg:#f0eeea; --surface:#faf8f5; --surface-2:#ffffff; --inset:#e8e4de;
+    --border:rgba(40,30,22,.13); --border-strong:rgba(40,30,22,.24);
+    --text:#221d18; --text-2:#665d54; --text-3:#96887c;
+    --clay:#c15f3c; --clay-bg:rgba(193,95,60,.09);
+    --ok:#3f8f46; --ok-bg:rgba(63,143,70,.10);
+    --warn:#a97c17; --warn-bg:rgba(169,124,23,.10);
+    --flow:#3f7690; --flow-bg:rgba(63,118,144,.10);
+    --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+    --sans:"Segoe UI Variable Text","Segoe UI",-apple-system,system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg:#14110e; --surface:#1b1713; --surface-2:#221c17; --inset:#0e0c0a;
+    --border:rgba(240,228,216,.10); --border-strong:rgba(240,228,216,.2);
+    --text:#ece7e1; --text-2:#a89f95; --text-3:#6f665d;
+    --clay:#d97757; --clay-bg:rgba(217,119,87,.12);
+    --ok:#6fbf73; --ok-bg:rgba(111,191,115,.12);
+    --warn:#e0b34c; --warn-bg:rgba(224,179,76,.12);
+    --flow:#79a6bd; --flow-bg:rgba(121,166,189,.12);
+  } }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  html { scroll-behavior:smooth; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:15px;
+         line-height:1.62; max-width:960px; margin:0 auto; padding:36px 28px 80px; }
+  .eyebrow { font-family:var(--mono); font-size:10.5px; letter-spacing:1.8px; text-transform:uppercase;
+             color:var(--clay); margin-bottom:10px; }
+  h1 { font-size:30px; line-height:1.2; letter-spacing:-.3px; margin-bottom:12px; }
+  .lede { color:var(--text-2); font-size:16px; max-width:760px; }
+  .meta { display:flex; flex-wrap:wrap; gap:8px 22px; margin:18px 0 8px; font-family:var(--mono);
+          font-size:11px; color:var(--text-3); }
+  .meta b { color:var(--text-2); font-weight:600; }
+  .ch { display:flex; align-items:baseline; gap:12px; margin:46px 0 14px; padding-top:26px;
+        border-top:1px solid var(--border); }
+  .ch .num { font-family:var(--mono); font-size:10.5px; letter-spacing:1.6px; color:var(--clay); }
+  h2 { font-size:20px; letter-spacing:-.2px; }
+  h3 { font-size:15px; margin:22px 0 8px; }
+  p { margin:10px 0; max-width:820px; }
+  .card { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+          padding:18px 20px; margin:14px 0; overflow-x:auto; }
+  .mermaid { background:var(--surface); border:1px solid var(--border); border-radius:10px;
+             padding:14px; margin:14px 0; overflow-x:auto; font-family:var(--mono); font-size:12px;
+             color:var(--text-2); }
+  .note { border-left:3px solid var(--clay); background:var(--clay-bg); border-radius:0 8px 8px 0;
+          padding:12px 16px; margin:14px 0; }
+  .note.ok { border-color:var(--ok); background:var(--ok-bg); }
+  .note.flow { border-color:var(--flow); background:var(--flow-bg); }
+  table { border-collapse:collapse; width:100%; font-size:13.5px; }
+  th { text-align:left; font-family:var(--mono); font-size:10.5px; letter-spacing:1px;
+       text-transform:uppercase; color:var(--text-3); padding:8px 12px 6px;
+       border-bottom:1px solid var(--border-strong); }
+  td { padding:9px 12px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .tw { overflow-x:auto; }
+  code { font-family:var(--mono); font-size:.92em; background:var(--inset);
+         padding:1px 5px; border-radius:4px; }
+  .tag { font-family:var(--mono); font-size:10px; letter-spacing:.6px; padding:2px 7px;
+         border-radius:20px; white-space:nowrap; }
+  .tag.new { color:var(--clay); background:var(--clay-bg); border:1px solid var(--clay); }
+  .tag.ok { color:var(--ok); background:var(--ok-bg); }
+  .tag.hist { color:var(--text-3); background:var(--inset); }
+  .statrow { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; margin:16px 0; }
+  .stat { background:var(--surface); border:1px solid var(--border); border-radius:10px; padding:14px 16px; }
+  .stat .v { font-family:var(--mono); font-size:21px; color:var(--clay); }
+  .stat .k { font-size:11.5px; color:var(--text-3); margin-top:3px; line-height:1.35; }
+  .foot { margin-top:52px; padding-top:16px; border-top:1px solid var(--border);
+          font-family:var(--mono); font-size:10.5px; color:var(--text-3); line-height:1.8; }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">◆ File Portal · Design Showcase · proposal — nothing built, nothing signed</div>
+<h1>The life of a book, and the repair that reads</h1>
+<p class="lede">The pipeline as it runs tonight, drawn from the manual's own diagram — and one proposed
+change grafted exactly where it would live: the Repair Bench's crop gesture gains a reading eye, so a
+damaged zone can be restored as <em>governed text</em> instead of a pixel patch.</p>
+<div class="meta">
+  <span><b>basis</b> docs/22 CH·1 + CH·11 (stress-tested S69)</span>
+  <span><b>research</b> Granite-Docling-258M · NovaLAD · TableGPT2 · MixRAG</span>
+  <span><b>date</b> 2026-08-10</span>
+  <span><b>status</b> for Rab's eyes — build shape at the end</span>
+</div>
+
+<!-- ============================================================ 1 -->
+<section>
+  <div class="ch"><span class="num">PART·01</span><h2>The life of a book — today, unchanged</h2></div>
+  <p>This is the manual's diagram, verbatim. Every state below exists and runs tonight. The proposal
+  touches <b>none of this topology</b> — read it once, then find the one edge that changes:
+  <code>held → repaired</code>, bottom-left.</p>
+  <pre class="mermaid">
+stateDiagram-v2
+  [*] --> dropped: PDF into drop/
+  dropped --> probed: watcher picks it up (.gpu-lock)
+  probed --> converting: route() picks lane + flags
+  converting --> converting: >600pp clean / >400pp scan → 200-page slices, resumable
+  converting --> audited: Marker done → survival audit
+  audited --> pending: analyst-mode = ask → widget card
+  audited --> analyzed: analyst pass (link-fenced)
+  pending --> analyzed: human picks local / gemini / ship-as-is
+  analyzed --> reaudited: analyst-phase audit → final verdict
+  reaudited --> held: enforce mode + verdict fail
+  reaudited --> shipped: tar over tailscale ssh → ThinkPad staging
+  held --> repaired: Repair Bench (human crops the real page)
+  held --> reconverted: ⟳ / ⟲ remedies (supersede intent)
+  reconverted --> probed
+  shipped --> vaulted: exporter — dedup, verdict guard, push, L12 blob-verify
+  shipped --> refused: supersede-held / failed → staging kept, receipt written
+  vaulted --> [*]: git pull → Obsidian Library
+  </pre>
+  <div class="note flow"><p><b>Why that edge matters:</b> the <code>held/</code> pocket is not hypothetical —
+  four patients sit in it right now (Damodaran · Valentine-repaired · Valentine-rerun · Cybernetics-stale),
+  and all four carry the same wound: <b>table-loop degeneration</b>. S50 and S65 proved the other remedy
+  arrows can't heal it — re-convert reproduces Marker's loop, and an analyst pass can't fix convert-phase
+  damage. The Bench edge is the only one that works, and today it repairs with <em>pixels</em>.</p></div>
+</section>
+
+<!-- ============================================================ 2 -->
+<section>
+  <div class="ch"><span class="num">PART·02</span><h2>The proposal — inside the <code>held → repaired</code> edge</h2></div>
+  <p>Today that edge is: drag a rectangle → 220-dpi crop → PNG embedded at the zone. The book keeps the
+  truth, but as a picture — unsearchable, un-scorable, invisible to any future retrieval. The proposal
+  expands the <em>interior</em> of the same gesture: the crop is <b>read</b>, the reading is <b>governed</b>,
+  and only text that survives every gate reaches your accept button. Terracotta = new; everything else
+  already exists.</p>
+  <pre class="mermaid">
+flowchart TB
+  classDef today fill:#3f8f4622,stroke:#3f8f46,color:#3f8f46
+  classDef new fill:#c15f3c22,stroke:#c15f3c,color:#c15f3c
+  classDef gate fill:#3f769022,stroke:#3f7690,color:#3f7690
+  classDef human fill:#a97c1722,stroke:#a97c17,color:#a97c17
+
+  HELD[held/ bundle — audit said fail]:::today --> BENCH[Bench opens the patient at the flagged zone]:::today
+  BENCH --> CROP[human drags a rectangle — server crops at 220 dpi]:::today
+  CROP --> LAYOUT[structure detect — NovaLAD pattern:<br/>multi-column? row groups? merged cells?]:::new
+  LAYOUT -->|spanned cells or unreadable| EMBED
+  LAYOUT --> R1[granite-docling 258M<br/>reads crop → DocTags]:::new
+  LAYOUT --> R2[surya recognition<br/>reads crop → raw text lines]:::new
+  R1 --> REN[docling renders DocTags → markdown<br/>deterministic library, not the model]:::new
+  REN --> G1{DocTags parse +<br/>table dimensions consistent?}:::gate
+  G1 -->|fail| EMBED
+  G1 --> G2{12-word windows cross-agree,<br/>both directions, vs surya?}:::gate
+  R2 --> G2
+  G2 -->|fail| EMBED
+  G2 --> G3{numeric multiset conserved?<br/>every number, nothing added}:::gate
+  G3 -->|fail| EMBED
+  G3 --> SIDE[side-by-side: crop image vs rendered markdown]:::human
+  SIDE -->|reject| EMBED
+  SIDE -->|accept| LAND[text lands at the zone — undo-able,<br/>provenance + crop kept as the receipt]:::new
+  LAND --> SCORE[re-score preview — degeneration re-run<br/>on the healed text]:::today
+  EMBED[image embed — today's gesture,<br/>the floor: never worse than tonight]:::today
+  </pre>
+  <div class="note"><p><b>The refusal posture is the fence's:</b> a proposal that fails any gate is refused,
+  never repaired — and refusal falls back to the image embed, which is exactly today's behavior. The floor
+  of this design is the present. It can only add.</p></div>
+</section>
+
+<!-- ============================================================ 3 -->
+<section>
+  <div class="ch"><span class="num">PART·03</span><h2>The gates — what each one catches, and what it costs</h2></div>
+  <div class="tw"><table>
+    <tr><th>gate</th><th>catches</th><th>method</th><th>cost</th></tr>
+    <tr><td><b>Crop discipline</b></td><td>ungovernable scope</td><td>zones, never pages — small input means every check below stays tractable</td><td>free (already the Bench's shape)</td></tr>
+    <tr><td><b>Structure detect</b> <span class="tag new">new</span></td><td>reading-order lies; merged cells markdown cannot represent</td><td>NovaLAD's split: semantic + structural detectors; spanned cells → honest fallback</td><td>CPU-class, ms–s</td></tr>
+    <tr><td><b>DocTags parse + dimensions</b> <span class="tag new">new</span></td><td>malformed structure, truncated tables</td><td>the model does perception only; a deterministic library serializes — bad grammar cannot reach a human</td><td>free, total</td></tr>
+    <tr><td><b>Two unlike readers</b> <span class="tag new">new</span></td><td>invention and omission</td><td>granite-docling × surya: a generative reader checked by a recognition model that <em>cannot compose</em> — the audit's own 12-word windows, both directions (SYM-001 as architecture)</td><td>seconds; ≤ ~3 GB total</td></tr>
+    <tr><td><b>Numeric multiset</b> <span class="tag new">new</span></td><td>the highest-stakes tokens in table zones</td><td>the link-fence's contract with digits instead of ⟦IMG-n⟧ — permutation-invariant, per TableGPT2's own theory of tables</td><td>free</td></tr>
+    <tr><td><b>Human accept</b></td><td>gestalt — order, meaning</td><td>side-by-side, one glance sufficient <em>because</em> the machine already policed words and numbers; 20-deep undo</td><td>~30–60 s</td></tr>
+    <tr><td><b>Provenance</b></td><td>future doubt</td><td><code>manifest.repairs</code> gains <code>mode:"transcribe"</code> + model + scores; the crop PNG stays as the receipt — every acceptance re-auditable forever</td><td>free</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ 4 -->
+<section>
+  <div class="ch"><span class="num">PART·04</span><h2>The tier ladder — the cheapest reader that works, always</h2></div>
+  <div class="tw"><table>
+    <tr><th>tier</th><th>reader</th><th>when</th><th>GPU</th></tr>
+    <tr><td><b>0</b> <span class="tag ok">free</span></td><td>the witness (pymupdf text)</td><td>clean-lane zones — the source text layer exists; no model, no reading, just restoration</td><td>none</td></tr>
+    <tr><td><b>1</b> <span class="tag ok">installed</span></td><td>surya recognition (Marker's own eye)</td><td>scan-lane prose — transcription is its literal contract; it cannot invent</td><td>~2–3 GB, seconds</td></tr>
+    <tr><td><b>2</b> <span class="tag new">proposed</span></td><td>granite-docling-258M → DocTags</td><td>tables and structured zones — the held/ population's actual wound</td><td><b>sub-GB</b>, seconds, CPU-capable</td></tr>
+  </table></div>
+  <div class="note ok"><p><b>The GPU objection, resolved by the research:</b> the original sizing assumed a
+  7B vision model (~5.5–7 GB). Granite-Docling is <b>~27× smaller</b>, purpose-built for exactly this task,
+  and quantized builds run under Ollama with the pipeline's own <code>keep_alive:0</code> pattern. The
+  sledgehammer the concern was about no longer needs to exist. Serialization law unchanged: nothing wakes
+  while <code>.gpu-lock</code> is held.</p></div>
+  <div class="statrow">
+    <div class="stat"><div class="v">258M</div><div class="k">parameters — vs 7B first considered (~27× smaller)</div></div>
+    <div class="stat"><div class="v">&lt; 1 GB</div><div class="k">reader footprint; whole governed stack ≤ ~3 GB</div></div>
+    <div class="stat"><div class="v">~5–15 s</div><div class="k">per zone, load included; batch all zones per wake</div></div>
+    <div class="stat"><div class="v">&lt; 1 Wh</div><div class="k">energy per zone — under a lightbulb-minute</div></div>
+    <div class="stat"><div class="v">~500×</div><div class="k">cheaper per zone than the re-convert remedy — which also loses</div></div>
+    <div class="stat"><div class="v">0</div><div class="k">bytes leave the machine — air-gapped, Bench standing rule</div></div>
+  </div>
+</section>
+
+<!-- ============================================================ 5 -->
+<section>
+  <div class="ch"><span class="num">PART·05</span><h2>Why text, not pixels — the downstream stakes</h2></div>
+  <p>A pixel patch preserves truth a human can see; text preserves truth the <em>system</em> can use.
+  Searchable in Obsidian. Re-scorable by the audit (the degeneration preview finally improves, because the
+  loop is gone, not covered). And retrievable later: MixRAG's finding is that RAG over text-plus-table
+  documents collapses unless table <em>structure</em> survives ingestion — its hierarchical row-and-column
+  representations need real tables as input. The enrichment consumer this vault is heading toward will
+  inherit exactly what the Bench writes today.</p>
+  <div class="tw"><table>
+    <tr><th>repair form</th><th>human-readable</th><th>searchable</th><th>re-scorable</th><th>retrievable (RAG)</th></tr>
+    <tr><td>image embed (today)</td><td>✓</td><td>—</td><td>—</td><td>—</td></tr>
+    <tr><td>flattened text</td><td>✓</td><td>✓</td><td>✓</td><td>weak</td></tr>
+    <tr><td><b>governed structured markdown</b> <span class="tag new">proposed</span></td><td>✓</td><td>✓</td><td>✓</td><td>✓</td></tr>
+  </table></div>
+</section>
+
+<!-- ============================================================ 6 -->
+<section>
+  <div class="ch"><span class="num">PART·06</span><h2>What this does not change, and what stays yours</h2></div>
+  <div class="tw"><table>
+    <tr><th>boundary</th><th>status</th></tr>
+    <tr><td>The book's state machine — no new states, no new edges; one edge's interior grows</td><td><span class="tag hist">unchanged</span></td></tr>
+    <tr><td>Serialization law — no model wakes while Marker holds the GPU</td><td><span class="tag hist">unchanged</span></td></tr>
+    <tr><td>Create-only vault + supersede guard — a repaired bundle still exits held/ only through the signed rails</td><td><span class="tag hist">unchanged</span></td></tr>
+    <tr><td>Repair audit-credit — whether a repair (pixel <em>or</em> text) earns verdict credit</td><td><span class="tag new">unsigned — Rab</span></td></tr>
+    <tr><td>Gate thresholds — calibrated over the four held/ patients first, then signed, never assumed (the S28→S30 tradition)</td><td><span class="tag new">unsigned — Rab</span></td></tr>
+  </table></div>
+  <div class="note"><p><b>Build shape, if commissioned:</b> a Bench slice, not a new machine — one
+  <code>/api/transcribe</code> endpoint beside <code>/api/assist</code>, one model pull (~sub-GB), the gates,
+  and the side-by-side accept UI. The undo stack, zone arithmetic, busy clock, gpu-lock refusal, provenance
+  writer, and fallback gesture all exist tonight.</p></div>
+</section>
+
+<div class="foot">
+  FILE PORTAL · DESIGN SHOWCASE · the life of a book × the transcribe repair · drawn 2026-08-10 from the
+  S69 analysis thread · research: IBM Granite-Docling-258M (DocTags) · NovaLAD arXiv 2603.00122 ·
+  TableGPT2 arXiv 2411.02059 · Mixture-of-RAG arXiv 2504.09554 · diagrams: docs/22 CH·1 verbatim +
+  the proposed edge interior · nothing here is built, and the two unsigned rows are the point
+</div>
+
+<script type="module">
+  // Same contract as the manual: render diagrams if the CDN is reachable, else the
+  // readable text source stands.
+  try {
+    const m = await import("https://cdn.jsdelivr.net/npm/mermaid@11/dist/mermaid.esm.min.mjs");
+    const dark = matchMedia("(prefers-color-scheme: dark)").matches;
+    m.default.initialize({ startOnLoad: false, theme: dark ? "dark" : "neutral" });
+    await m.default.run({ querySelector: ".mermaid" });
+  } catch (e) { /* offline — text fallback stands */ }
+</script>
+</body>
+</html>
