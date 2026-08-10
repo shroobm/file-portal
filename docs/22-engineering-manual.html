@@ -56,6 +56,8 @@
   nav .brand-sub { color:var(--text-3); font-size:9.5px; letter-spacing:1.6px; text-transform:uppercase; margin-bottom:18px; }
   nav a { display:block; color:var(--text-2); text-decoration:none; padding:3px 8px; border-radius:6px; line-height:1.45; }
   nav a:hover { background:var(--clay-bg); color:var(--text); }
+  nav a.active { background:var(--clay-bg); color:var(--text); }
+  nav a.active .n { color:var(--clay); font-weight:600; }
   nav a .n { color:var(--text-3); display:inline-block; width:24px; }
   nav .part { margin:14px 0 4px; color:var(--text-3); font-size:9px; letter-spacing:1.5px; text-transform:uppercase; padding-left:8px; }
   main { padding:30px 40px 90px; min-width:0; }
@@ -722,6 +724,33 @@ npm run build       # then hash the exe, print SHA-8
 
 </main>
 </div>
+<script>
+  // Scrollspy (S68): the TOC row for the chapter in view stays lit. The window is the scroller
+  // (nav is sticky, main flows), so the rule is positional rather than IntersectionObserver:
+  // current = the last section whose top has passed a reading line near the viewport top; at
+  // the very bottom the final chapter wins even when too short to reach the line. Deliberately
+  // its own classic script — the mermaid CDN import below must never delay it.
+  (() => {
+    const links = [...document.querySelectorAll("nav a[href^='#']")];
+    const sections = links.map(a => document.getElementById(a.getAttribute("href").slice(1))).filter(Boolean);
+    let current = null, ticking = false;
+    const update = () => {
+      const line = Math.min(innerHeight * 0.25, 180);
+      let id = sections.length ? sections[0].id : null;
+      for (const s of sections) { if (s.getBoundingClientRect().top <= line) id = s.id; else break; }
+      if (sections.length && innerHeight + scrollY >= document.documentElement.scrollHeight - 2)
+        id = sections[sections.length - 1].id;
+      if (id === current) return;
+      current = id;
+      for (const a of links) a.classList.toggle("active", a.getAttribute("href") === "#" + id);
+    };
+    addEventListener("scroll", () => {
+      if (!ticking) { ticking = true; requestAnimationFrame(() => { ticking = false; update(); }); }
+    }, { passive: true });
+    addEventListener("resize", update);
+    update();
+  })();
+</script>
 <script type="module">
   // Render the two flow diagrams. Fails soft: offline, the <pre class="mermaid"> blocks
   // simply display their (deliberately readable) source text.
