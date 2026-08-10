@@ -63,25 +63,17 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S70 — Desktop — 2026-08-10 (Fable 5). Rab's commission, MUSTER-keyed: (a) land the transcribe
-showcase as `docs/23`; (b) THE ENGINE LEVER investigation — his chain: the transcribe models can
-also convert whole PDFs, so engine choice generalizes into a lever like analyst local⇄gemini
-("the lever determines capability and level of output"). Deliverable = `docs/24`, an interactive
-investigation + simulator: pick a real patient, face the "do you want to use X/Y/Z" card, click
-the lever, watch the node route the stations with events + rates drawn from the REAL timeline —
-movement rates and failure rates included, epistemic tags on every number.**
-
-- **G1 — docs/23.** Scratchpad showcase → `docs/23-transcribe-repair-showcase.html` (header
-  comment updated to committed status). Verify: file in tree, renders over the docs server.
-- **G2 — docs/24 build.** Investigation prose + vanilla-JS simulator: 5 real book profiles
-  (Brain of the Firm · claude-code · Damodaran · Valentine · Cybernetics) × 3 lever positions
-  (Marker GPU · granite-docling-258M · pymupdf4llm CPU); scripted from timeline truth (S45 wedge,
-  S48 deadlock, S60 chunking, SYM-003 loops, power-cut resume, ThinkPad outage); rates panel
-  split Measured vs Inferred. Verify: lever click routes, log plays, console clean.
-- **G3 — the house law.** Proof over the `docs` HTTP server, then LAUNCH both docs in the real
-  browser (in-app render is a courtesy, never proof).
-- **G4 — paperwork.** CHANGELOG · closeout `sessions/S70-desktop-2026-08-10.md` · ledger row
-  ≤80 words · push · CI watch.
+*(S70 closed 2026-08-10 (Desktop, Fable 5) — **DOCS/23 LANDED + THE ENGINE LEVER INVESTIGATION;
+four gates green, MUSTER run out loud at open.** G1 `6696039` the transcribe showcase committed
+on Rab's word (content-identical, status comment only) · G2 `19a93e7` **docs/24** — Rab's
+zone→page→document chain investigated + an interactive zero-dependency simulator: 5 real patients
+× 3 lever positions scripted from timeline truth (S45 wedge replay, S60 power-cut → 16 s resume,
+SYM-003 loops, the Cybernetics lever-immune ceiling, ThinkPad outage + sentinel), ask-card with
+per-book recommendations, movement/failure rates tagged **Measured vs Inferred** (docling =
+uncalibrated bands until an S28-style run) · G3 HTTP-probed green (wedge+power-cut fire, FAIL/FLAG
+land correctly, console clean ×2) + **both docs delivered to the real browser** (the house law) ·
+G4 closeout `sessions/S70-desktop-2026-08-10.md`. Unsigned queue grows by one: **the engine lever
+itself**. Next: transcribe build (docs/23 Part 6) or calibration run — Rab's fork.)*
 
 *(S69 closed 2026-08-10 (Desktop, Fable 5) — **THE MANUAL STRESS-TESTED on Rab's commission;
 every checkable claim re-derived from source, never from its own citations (SYM-001).**

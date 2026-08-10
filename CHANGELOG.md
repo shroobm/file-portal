@@ -8,6 +8,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S70 — DOCS/23 LANDED + THE ENGINE LEVER INVESTIGATION (2026-08-10, Desktop lane).** Narrative
+  in `sessions/S70-desktop-2026-08-10.md`.
+  - **Added — `docs/23-transcribe-repair-showcase.html`** (committed from the S69 thread's
+    scratchpad on Rab's word): the life-of-a-book diagram verbatim + the transcribe repair drawn
+    inside the `held → repaired` edge — gates, tier ladder, stats, and the two unsigned rows
+    that stay Rab's.
+  - **Added — `docs/24-engine-lever-simulator.html`**: the investigation of Rab's chain (zone →
+    page → document; engine choice as a lever — the `analyst-mode` law generalized) plus an
+    interactive zero-dependency simulator: 5 real patients × 3 lever positions, event scripts
+    drawn from the timeline's own incidents (the S45 VRAM wedge, the S60 power-cut resume,
+    SYM-003 table-loops, the Cybernetics ceiling + bless rail, the ThinkPad outage + recovery
+    sentinel), a "do you want to use X/Y/Z" ask-card with per-book recommendations, and
+    movement/failure-rate tables split **Measured vs Inferred** — the granite-docling column
+    stays an uncalibrated band until an S28-style calibration run replaces it.
+
 - **S69 — THE MANUAL STRESS-TESTED (2026-08-10, Desktop lane).** Rab's commission: "check each
   aspect of it for its applicability in reality vs what it's just saying." Narrative in
   `sessions/S69-desktop-2026-08-10.md`.
