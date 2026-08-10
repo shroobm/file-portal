@@ -8,6 +8,32 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S71 — CALIBRATED, THEN BUILT: THE TRANSCRIBE GESTURE IS LIVE (2026-08-10, Desktop lane).**
+  Narrative (including the crash): `sessions/S71-desktop-2026-08-10.md`.
+  - **Added — `prototypes/docling-calibration/`** (calibrate.py · results.jsonl · report · README):
+    granite-docling-258M measured on the real corpus BEFORE any build (S28→S30 tradition).
+    Verdicts: document scope refused on this card (output-bound ~10 tok/s ⇒ tens of hours/book);
+    zone scope is the calibrated home — **table crops conserved 95–100% of numeric tokens and
+    emitted real `<otsl>` structure**; degraded-scan crops refuse honestly; **fp16 rejected live**
+    (no-EOS hang, tree-killed), bf16 pinned. `docling-env` isolated (recipe in the README);
+    marker-env untouched.
+  - **Added — the Bench transcribe gesture (docs/23 Part 6, built exactly as drawn):**
+    `transcribe_worker.py` (process-per-request in docling-env; VRAM returns on exit; 360 s cap),
+    `/api/transcribe` + `/api/transcribe_apply` in `bench.py` (gpu-lock + missing-env refusals;
+    witness gates: parse · numeric Jaccard · exact-window survival), the `⌨ read region` UI with
+    an EDITABLE side-by-side proposal (human as final gate), kind-aware undo that pops the
+    provenance record with the text (body and manifest can never desync), restart-safe line
+    arithmetic (`repairs[].lines`), ⌨ chips in the repairs rail. **Acceptance 26 → 35 checks**;
+    live G5 proof: a real Damodaran zone → page 396, a real finance table proposed at numeric
+    J 0.95, applied, undone byte-identical, re-applied.
+  - **Fixed — a caught double-count** in zone-shift arithmetic (manifest ×3 AND drift ledger)
+    before it ever ran; **fixed — repairs rail** rendered a broken `<img>` for asset-less records.
+  - **Filed — SYM-021** (a `;`-chained background task survives its current command's kill) and
+    **SYM-022** (two GPU model processes + desktop → VIDEO_SCHEDULER reboot; one-lab-process law).
+    The crash cost zero data — fsync-per-row calibration + files on disk.
+  - **Docs — 22/23/24 amended to calibrated truth** (crop/page bands, the document-scope refusal,
+    docs/24 simulator scripts corrected from `[I]` to `[M]`).
+
 - **S70 — DOCS/23 LANDED + THE ENGINE LEVER INVESTIGATION (2026-08-10, Desktop lane).** Narrative
   in `sessions/S70-desktop-2026-08-10.md`.
   - **Added — `docs/23-transcribe-repair-showcase.html`** (committed from the S69 thread's

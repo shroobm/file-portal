@@ -120,7 +120,7 @@
 </head>
 <body>
 
-<div class="eyebrow">◆ File Portal · docs/24 · Investigation + Simulator · nothing here drives the pipeline</div>
+<div class="eyebrow">◆ File Portal · docs/24 · Investigation + Simulator · nothing here drives the pipeline · granite-docling rows CALIBRATED S71</div>
 <h1>The Engine Lever — one capability, three scopes, and a choice card</h1>
 <p class="lede">Rab's chain, taken seriously: the models that can read a cropped zone can also read a page —
 and a whole PDF. That makes conversion a <em>routing</em> question, and this factory already has a law for
@@ -190,7 +190,8 @@ Below: the investigation, then a simulator that replays the real timeline throug
     <tr><td>Marker · clean</td><td>1.36 – 2.31</td><td><span class="tag m">M</span></td><td>claude-code 104 pp / 141 s (S48) · Cybernetics 91 pp / 210 s (S50)</td></tr>
     <tr><td>Marker · clean, chunked</td><td>1.94 (true)</td><td><span class="tag m">M</span></td><td>Damodaran 1,356 pp incl. resumed slices — the ledger folds retries back in so the estimator can't flatter itself (S60)</td></tr>
     <tr><td>Marker · scan</td><td>~8.1</td><td><span class="tag m">M</span></td><td>Brain of the Firm 439 pp / 59 min (first production run)</td></tr>
-    <tr><td>granite-docling-258M · any</td><td>1 – 5 (band)</td><td><span class="tag i">I</span></td><td>autoregressive DocTags decode; literature claims competitive accuracy at 258M — <b>uncalibrated here; first job is an S28-style calibration over the vaulted corpus</b></td></tr>
+    <tr><td>granite-docling-258M · <b>page</b></td><td>3.5 – 149+</td><td><span class="tag m">M</span></td><td><b>CALIBRATED S71</b> — decode is output-bound (~10 tok/s): sparse pages seconds, dense prose ~85 s, table pages 149 s+ (token-wall runs exist). Document scope ⇒ <b>tens of hours per book — refused on this card</b>; Marker keeps the document lane</td></tr>
+    <tr><td>granite-docling-258M · <b>crop</b> (the Bench)</td><td>2 – 91</td><td><span class="tag m">M</span></td><td><b>CALIBRATED S71</b> — output-bound: sparse crops 2–3 s, the LIVE Damodaran zone read 90.6 s uncontended with <b>a real table emitted and numeric Jaccard 0.95</b> (table crops measured J = 1.0 twice); degraded-scan crops refuse into the ✂ floor; ~650–860 MiB; fp16 rejected live (no-EOS), <b>bf16 pinned</b></td></tr>
     <tr><td>pymupdf4llm · clean</td><td>~0.1 – 0.3</td><td><span class="tag i">I</span></td><td>text-layer extraction, CPU; the ThinkPad's own lane — instant and plain (tables flatten)</td></tr>
     <tr><td>analyst · local qwen3</td><td>~138 chars/s</td><td><span class="tag m">M</span></td><td>static fallback constant, measured; ~28.4 s/chunk on claude-code</td></tr>
   </table></div>
@@ -219,7 +220,7 @@ Below: the investigation, then a simulator that replays the real timeline throug
     <tr><th>finding</th><th>consequence</th></tr>
     <tr><td>The chain is real — zone, page, document are one capability at three scopes</td><td>build at zone scope first (docs/23); the lever inherits a calibrated, governed reader instead of gambling on one</td></tr>
     <tr><td>The lever pattern already exists in law and UI</td><td>an <code>engine-mode.txt</code>-class lever + one pre-flight card row; <b>no new architecture</b>; per-book choice via the ask card, standing choice via the lever file</td></tr>
-    <tr><td>SYM-003 is the target, and it lives where Marker's decoder loops on structure</td><td>a structure-native reader (DocTags) attacks the disease at its DNA — <span class="tag i">[I]</span> until calibrated</td></tr>
+    <tr><td>SYM-003 is the target, and it lives where Marker's decoder loops on structure</td><td>a structure-native reader (DocTags) attacks the disease at its DNA — <span class="tag m">[M] CALIBRATED S71:</span> on the flagship finance-table page a real <code>&lt;otsl&gt;</code> table emerged with 97% of the numbers conserved. <b>But scope decides everything:</b> at ~10 tok/s output-bound decode, document scope costs tens of hours (refused); <b>zone scope costs 2–3 s (BUILT — the Bench's ⌨ transcribe, S71)</b>; page scope (29–149 s per flagged page) is the open middle</td></tr>
     <tr><td>Representation ceilings are lever-immune</td><td>Cybernetics' 0.688 is what a figure-heavy book <em>is</em> in markdown — no engine position fixes it; the bless rail stays load-bearing</td></tr>
     <tr><td>Analyst failures are a different lever</td><td>claude-code's loop happened <em>after</em> a clean convert; engine choice cannot touch it — keep the levers orthogonal, one per authority</td></tr>
     <tr><td>Every new engine enters through calibration, never through trust</td><td>the S28→S30 tradition: run it over the vaulted corpus, measure, put real numbers where the [I] bands are, then Rab signs thresholds</td></tr>
@@ -276,15 +277,11 @@ Below: the investigation, then a simulator that replays the real timeline throug
       [280,4,"ok","⇈ reattach → staged in 2 s [M]"],
       [281,5,"ok","▤ exporter: dedup clear → committed f310f759 → L12 blob-verify → vaulted [M]"],
     ]},
-    "brain|docling": { wall:110, verdict:"flag", land:"held pending calibration review", script:[
+    "brain|docling": { wall:5, verdict:"fail", land:"not run at document scope (S71) — surya keeps the scan lane", script:[
       [0,0,"info","▚ intake — brain-of-the-firm.pdf (.gpu-lock)"],
-      [2,1,"info","⚙ probe: scan lane · routing to granite-docling-258M [I]"],
-      [3,1,"warn","⚙ UNCALIBRATED: 439 pp × 1–5 s/pp → band 7–37 min; playing the midpoint [I]"],
-      [55,1,"warn","⚙ degraded 1970s print: a 258M reader's misread risk is why surya stays the scan default [I]"],
-      [95,1,"ok","⚙ DocTags decoded · docling renders markdown [I]"],
-      [100,3,"warn","◎ audit vs pymupdf witness: agreement uncertain on degraded glyphs → flag-band [I]"],
-      [108,3,"info","◎ two-reader cross-check (surya) would arbitrate — docs/23's gate, page-scope [I]"],
-      [110,5,"warn","▤ prediction: flag → held for human review; calibration data captured either way [I]"],
+      [1,1,"info","⚙ probe: scan lane · 439 degraded 1970s pages [M]"],
+      [3,1,"fail","⚙ CALIBRATED S71: output-bound decode → hours at document scope, on top of a 258M reader's degraded-print misread risk — refused [M]"],
+      [5,3,"warn","◎ surya stays the scan default; docling's calibrated home is the zone crop where a human checks the read [M]"],
     ]},
     "brain|pymu": { wall:2, verdict:"fail", land:"rerouted — no text layer", script:[
       [0,0,"info","▚ intake — brain-of-the-firm.pdf"],
@@ -301,12 +298,12 @@ Below: the investigation, then a simulator that replays the real timeline throug
       [22,3,"fail","◎ analyst-phase audit: the analyst's OWN notes loop — 0.9493, 14 runs; book text clean. Engine choice could not have prevented this [M]"],
       [22,5,"warn","▤ vaulted note 5 with the verdict filed; the later ⟲ re-run was refused 3× and deleted (SYM-015) [M]"],
     ]},
-    "claudecode|docling": { wall:9, verdict:"pass", land:"vaulted (predicted)", script:[
+    "claudecode|docling": { wall:8, verdict:"flag", land:"convertible — but Marker did it in 141 s; no reason to route here (S71)", script:[
       [0,0,"info","▚ intake — claude-code-up-and-running.pdf"],
-      [1,1,"info","⚙ probe: clean · 104 pp → DocTags decode, band 2–9 min [I]"],
-      [6,1,"ok","⚙ code blocks + headings are DocTags natives [I]"],
-      [8,3,"ok","◎ audit vs witness: text-rich clean lane → pass-band [I]"],
-      [9,5,"ok","▤ vaulted (predicted). NOTE: run the analyst after and its loop risk is UNCHANGED — different lever [M/H]"],
+      [1,1,"info","⚙ probe: clean · 104 pp → DocTags decode [M]"],
+      [3,1,"warn","⚙ CALIBRATED S71: 3.5–85 s/pp output-bound → 104 pp ≈ 6 min–2.5 h vs Marker's measured 141 s [M]"],
+      [5,1,"ok","⚙ quality is real — p5 read at 0.857 exact-window survival — but speed decides the document lane [M]"],
+      [8,5,"warn","▤ the document lane stays Marker's. NOTE: the analyst's loop risk is UNCHANGED by any engine — different lever [M/H]"],
     ]},
     "claudecode|pymu": { wall:1, verdict:"pass", land:"vaulted (predicted, plain)", script:[
       [0,0,"info","▚ intake — claude-code-up-and-running.pdf"],
@@ -327,14 +324,12 @@ Below: the investigation, then a simulator that replays the real timeline throug
       [2050,3,"fail","◎ audit: convert 0.927 + table-loop zones · analyst 0.9525 / 25 runs → FAIL [M]"],
       [2100,3,"warn","◎ enforce-park → held/ · the Bench located 9/10 zones · docs/23's transcribe is the proposed heal [M]"],
     ]},
-    "damodaran|docling": { wall:1130, verdict:"flag", land:"held for calibration review — the bet, quantified", script:[
+    "damodaran|docling": { wall:6, verdict:"fail", land:"NOT RUN at document scope — calibration answered before the GPU had to (S71)", script:[
       [0,0,"info","▚ intake — investment-valuation-4e.pdf"],
-      [2,1,"info","⚙ probe: 1,356 pp · finance tables wall-to-wall — SYM-003's home turf [M]"],
-      [4,1,"warn","⚙ UNCALIBRATED band 23–113 min; playing midpoint. Long-book autoregressive decode is the open risk [I]"],
-      [400,1,"info","⚙ tables decode as DocTags <table> structures — no pipe-markdown loops possible at decode time [I]"],
-      [900,1,"ok","⚙ decode complete · docling renders markdown deterministically [I]"],
-      [1050,3,"warn","◎ audit: numeric multiset + dimension gates over 700+ tables — the governed check, document-scope [I]"],
-      [1130,5,"warn","▤ prediction: pass-or-flag band; either way the calibration numbers replace these [I] tags — that is the run's real product"],
+      [1,1,"info","⚙ probe: 1,356 pp · finance tables wall-to-wall — SYM-003's home turf [M]"],
+      [2,1,"fail","⚙ CALIBRATED S71: decode is output-bound ~10 tok/s → p100 measured 149 s; 1,356 pp ≈ 34–56 HOURS. Document scope REFUSED on this card [M]"],
+      [4,1,"ok","⚙ but the same page emitted a REAL <otsl> table with numeric Jaccard 0.9688 — the reading is good; the scope was wrong [M]"],
+      [6,3,"warn","◎ the calibrated path: Marker converts the document; the Bench's ⌨ transcribe heals the zones at 2–3 s a crop — one capability, the RIGHT scope [M]"],
     ]},
     "damodaran|pymu": { wall:7, verdict:"flag", land:"vaulted plain (predicted) — tables flattened", script:[
       [0,0,"info","▚ intake — investment-valuation-4e.pdf"],
@@ -351,12 +346,11 @@ Below: the investigation, then a simulator that replays the real timeline throug
       [73,3,"hum","◎ the repair that worked was HUMAN: @1579 ← p234 (the ratio guess missed by 114 pp; evidence-locate won) [M]"],
       [75,3,"warn","◎ docs/23's transcribe mode is that gesture with a reading eye — the zone-scope answer [new]"],
     ]},
-    "valentine|docling": { wall:35, verdict:"flag", land:"held for review — the hardest square", script:[
+    "valentine|docling": { wall:5, verdict:"fail", land:"not run at document scope (S71) — the Bench's ⌨ heals her zones instead", script:[
       [0,0,"info","▚ intake — best-practices-valentine.pdf"],
-      [1,1,"warn","⚙ table-dense SCAN: docling's table strength meets its small-model scan weakness — the genuinely uncertain square [I]"],
-      [20,1,"info","⚙ band 8–39 min; midpoint playing [I]"],
-      [30,3,"warn","◎ two-reader gate (× surya) earns its keep here — disagreement rate IS the calibration datum [I]"],
-      [35,5,"warn","▤ prediction: flag-band, human review; zone-scope Bench transcribe remains the precise tool [I]"],
+      [1,1,"warn","⚙ table-dense SCAN: docling's table strength meets its small-model scan weakness — the hardest square [M]"],
+      [3,1,"fail","⚙ CALIBRATED S71: output-bound decode makes 465 scan pages a multi-hour bet with scan-quality risk — document scope refused [M]"],
+      [5,3,"warn","◎ the calibrated tool for this patient is zone-scope: ⌨ transcribe at 2–3 s a crop, human as final gate — BUILT S71 [M]"],
     ]},
     "valentine|pymu": { wall:2, verdict:"fail", land:"rerouted — no text layer", script:[
       [0,0,"info","▚ intake — best-practices-valentine.pdf"],
@@ -371,10 +365,10 @@ Below: the investigation, then a simulator that replays the real timeline throug
       [4,3,"hum","◎ flag forever → Rab's ✓ bless (sha-bound, event-validated) [M]"],
       [4,5,"ok","▤ EXPORT-BLESSED (by=rab) → vault note 6 [M]"],
     ]},
-    "cybernetics|docling": { wall:5, verdict:"flag", land:"the ceiling is lever-immune (predicted)", script:[
+    "cybernetics|docling": { wall:5, verdict:"flag", land:"the ceiling is lever-immune (calibrated)", script:[
       [0,0,"info","▚ intake — cybernetics-book-of-models.pdf"],
-      [2,1,"ok","⚙ 91 pp decode, band 2–8 min [I]"],
-      [4,3,"warn","◎ the 0.688 ceiling is REPRESENTATION — what a figure-heavy book is in markdown. No engine position moves it [M→I]"],
+      [2,1,"warn","⚙ CALIBRATED S71: 91 pp × output-bound decode ≈ 30 min–2 h vs Marker's 210 s — and its p10/p40 reads scored 0.16/0.61 window survival on figure pages [M]"],
+      [4,3,"warn","◎ the 0.688 ceiling is REPRESENTATION — what a figure-heavy book is in markdown. No engine position moves it [M]"],
       [5,5,"warn","▤ flag → the bless rail stays load-bearing regardless of engine — the lever's honest limit"],
     ]},
     "cybernetics|pymu": { wall:1, verdict:"flag", land:"same ceiling, fastest arrival (predicted)", script:[

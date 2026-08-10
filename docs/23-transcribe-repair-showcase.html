@@ -230,10 +230,17 @@ flowchart TB
     <tr><td>Repair audit-credit — whether a repair (pixel <em>or</em> text) earns verdict credit</td><td><span class="tag new">unsigned — Rab</span></td></tr>
     <tr><td>Gate thresholds — calibrated over the four held/ patients first, then signed, never assumed (the S28→S30 tradition)</td><td><span class="tag new">unsigned — Rab</span></td></tr>
   </table></div>
-  <div class="note"><p><b>Build shape, if commissioned:</b> a Bench slice, not a new machine — one
-  <code>/api/transcribe</code> endpoint beside <code>/api/assist</code>, one model pull (~sub-GB), the gates,
-  and the side-by-side accept UI. The undo stack, zone arithmetic, busy clock, gpu-lock refusal, provenance
-  writer, and fallback gesture all exist tonight.</p></div>
+  <div class="note ok"><p><b>Build shape — commissioned and BUILT, S71 (2026-08-10), exactly as drawn:</b>
+  calibration first (<code>prototypes/docling-calibration/</code> — before any code touched the Bench:
+  sparse crops 2–3 s, dense table crops ~90 s output-bound with numeric J 0.95–1.0 and real table
+  structure, degraded scans refusing honestly, ~650–860 MiB), then <code>/api/transcribe</code> +
+  <code>/api/transcribe_apply</code> beside <code>/api/assist</code>, the <code>⌨ read region</code> gesture
+  with the side-by-side proposal (the markdown is editable — the human-as-final-gate made literal),
+  gate receipts (parse · numeric Jaccard · window survival), undo shared with the assist stack,
+  <code>repairs[].mode:"transcribe"</code> provenance, refusal on <code>.gpu-lock</code> and on a missing
+  env, and the ✂ image embed standing as the floor. Acceptance 34/34. Gate <em>thresholds</em> and audit
+  credit remain the two unsigned rows below — v1 reports the numbers and auto-refuses only parse
+  failures; the human accepts or discards.</p></div>
 </section>
 
 <div class="foot">

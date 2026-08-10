@@ -149,7 +149,7 @@
 <main>
 
 <div class="cover">
-  <div class="eyebrow">Service &amp; Engineering Reference · rev. S69 — stress-tested</div>
+  <div class="eyebrow">Service &amp; Engineering Reference · rev. S69 — stress-tested · amended S71 (the transcribe gesture)</div>
   <h1>File Portal: the complete engineering manual</h1>
   <p>Two machines, one factory: a Windows desktop with the GPU and the glass, a Linux laptop with the
   vault and the last word. This manual is written on the car-manual principle — everything the system
@@ -558,6 +558,19 @@ Desktop: Obsidian vault/Library   clone of the bare repo over tailscale ssh (rea
     <li><b>AI assist</b> (<code>/api/assist</code>): local qwen3 only (Gemini off by standing rule), the analyst's exact contract, under the same link-fence — a reply that damages the token multiset is refused, never patched. Every applied change is one <code>/api/undo</code> from gone (20-deep body snapshots, byte-identical restore). An unchanged reply is an honest no-op that burns no undo slot.</li>
     <li><b>Reader mode:</b> the ◆ picker (server-enumerated: held/pending/anchor/done-PDFs — the browser can never hand it a path; <code>open_target</code> is allowlist-contained) opens bundles repairably and bare PDFs read-only with every write path refusing. Okular-grade reading: TOC, normalized full-text search (de-hyphenated, whitespace-joined — needles missed until that join), highlight rects, thumbnails, no-steal search.</li>
     <li><b>Re-score is a preview</b> — it re-runs <code>fidelity_audit.degeneration()</code> on current text but writes no verdict: whether repairs earn audit credit is an unsigned policy that belongs to Rab.</li>
+    <li><b>The transcribe gesture (S71 — docs/23 built):</b> the crop gains a reading eye. <code>⌨ read
+    region</code> sends the same 220-dpi crop to <b>granite-docling-258M</b> in its own isolated env
+    (<code>transcribe_worker.py</code>, process-per-request — weights load, the crop is read, the process
+    exits, VRAM returns). DocTags render to markdown <em>by library, never by model</em>; gate receipts ride
+    the proposal (parse · numeric-token Jaccard · exact-window survival vs the clip's witness where a text
+    layer exists); the proposal is <em>editable</em> before insert — the human-as-final-gate made literal —
+    and accept is undo-able, stamped <code>repairs[].mode:"transcribe"</code>. Refuses while
+    <code>.gpu-lock</code> is held; every failure falls back to the ✂ image embed (the floor). Calibrated
+    before built (<code>prototypes/docling-calibration/</code>): sparse crops 2–3 s; dense TABLE crops
+    output-bound at ~90 s uncontended (the live G5 zone read) with <b>numeric Jaccard 0.95–1.0 and real
+    table structure emitted</b>; degraded-scan crops can refuse into the ✂ floor (measured, by design);
+    ~650–860 MiB peak; <b>fp16 rejected live</b> (no-EOS degeneration — tree-killed), bf16 pinned;
+    worker cap 360 s.</li>
   </ul>
 </section>
 
@@ -621,7 +634,8 @@ Desktop: Obsidian vault/Library   clone of the bare repo over tailscale ssh (rea
                  "analyst":{doc_survival,runs[]}, "verdict":"pass|flag|fail" },
   "supersede": { "reason","from_verdict","requested_at_epoch_s" },     // opt-in; widget-authored only
   "blessed":   { "by","ts","reason","from_verdict":"flag" },           // folded in by the exporter
-  "repairs":   [ { "ts","zone_line","page","asset","mode":"crop|paste","note","by","dpi","rect" } ] }</code></pre>
+  "repairs":   [ { "ts","zone_line","page","asset","mode":"crop|paste|transcribe","note","by","dpi","rect",
+                   "model","gates","secs" } ] }   // transcribe (S71): asset null, model+gates+secs carried</code></pre>
   <div class="tw"><table>
     <tr><th>file</th><th>writer</th><th>one line means</th></tr>
     <tr><td><code>events.jsonl</code></td><td>every desktop pipeline stage</td><td><code>{ts, pid, stage, event, …}</code> — stages intake/convert/gate/analyst/audit/ship; notable events: probe, estimate, chunking, slice, converted (carries the promise beside the actual), stalled (+GPU signature), scored, flagged, held, supersede, pending, resolved, shipped, rerun_refused</td></tr>
