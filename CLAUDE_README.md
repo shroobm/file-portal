@@ -63,6 +63,31 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S71 — Desktop — 2026-08-10 (Fable 5). Rab's commission: THE CALIBRATION RUN, then THE
+TRANSCRIBE BUILD, set up for his hands in a fresh File Portal instance.** The S28→S30 tradition:
+measure on the real corpus first, then build on the measurements. Gates:
+
+- **G1 — the environment.** Isolated `docling-env` (uv venv; cu128 torch matching marker-env's
+  known-good; `docling` + granite-docling-258M from HF). NOTHING installs into marker-env — the
+  production lane's heart is not a lab bench. Verify: import + a hello-conversion.
+- **G2 — the calibration.** `prototypes/docling-calibration/calibrate.py`: sampled pages from the
+  done/ corpus (table-dense Damodaran + Valentine weighted; clean claude-code; scan Brain;
+  figure-dense Cybernetics) → measured s/page, VRAM peak, table-emission, witness-agreement
+  (clean lane). Output: `calibration-report.md` + json. Serialization law: refuses if `.gpu-lock`.
+- **G3 — docs/24 [I] → measured.** The rate table and simulator bands get the real numbers,
+  stamped "CALIBRATED S71".
+- **G4 — the build.** Bench transcribe, docs/23 Part 6's shape: `transcribe_worker.py` (runs in
+  docling-env via subprocess — process-per-request, VRAM returns like keep_alive:0),
+  `/api/transcribe` in bench.py (crop → worker → DocTags→markdown → gates: parse + numeric
+  multiset vs witness + dimensions), ⌨ Transcribe in bench.html (side-by-side proposal, accept =
+  existing undo-able insertion, `repairs[].mode:"transcribe"`). Pure py/html — the widget spawns
+  bench fresh, NO exe rebuild, NO adoption.
+- **G5 — the live proof + the fresh instance.** Harness-driven end-to-end on the .sandbox patient
+  (OS-assigned port): one real crop transcribed, gates fire, accept inserts, undo restores,
+  manifest records. Then the table is set for Rab: fresh widget → Bench → ⌨.
+- **G6 — paperwork.** CHANGELOG · closeout `sessions/S71-desktop-2026-08-10.md` · ledger row ·
+  push · CI.
+
 *(S70 closed 2026-08-10 (Desktop, Fable 5) — **DOCS/23 LANDED + THE ENGINE LEVER INVESTIGATION;
 four gates green, MUSTER run out loud at open.** G1 `6696039` the transcribe showcase committed
 on Rab's word (content-identical, status comment only) · G2 `19a93e7` **docs/24** — Rab's
