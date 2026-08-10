@@ -8,6 +8,22 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S68 — SYM-020 CLEARED + THE MANUAL'S SCROLLSPY (2026-08-10, Desktop lane).** Narrative in
+  `sessions/S68-desktop-2026-08-10.md`.
+  - **Fixed — the Rust formatting drift (SYM-020).** `cargo fmt` across the 8 files S67 named,
+    whitespace only, in its own commit (`b415a2f`); `cargo fmt --check`, `cargo clippy
+    --all-targets -- -D warnings` and `cargo test` (20/20) all proven on the reformatted tree.
+    The durable fix: `cargo fmt --check` now **leads** the rebuild ritual (`docs/19` §1), so the
+    rot cannot restart unnoticed.
+  - **Changed — `.github/workflows/ci.yml`.** The `rust:` job runs on `feat/library-pipeline`;
+    toolchain pinned `1.97.1` (the desktop's real rustc — SYM-019's lesson applied before a new
+    clippy could spring it); a `cargo test` step added, mirroring the hand-run ritual.
+  - **Added — `docs/22` scrollspy.** The manual's TOC now highlights the chapter in view: a
+    positional spy (last section-top past a reading line; the bottom pins the final chapter) in
+    its own classic script so the mermaid CDN import can never stall it; active row styled in the
+    manual's existing tokens. The manual's failure catalog, runbook ritual, CI note and STOP list
+    updated to the cleared state; cover rev stamped "S67, amended S68".
+
 - **S67 — THE CLOSEOUT CONTRACT, THE SYMPTOM INDEX, AND CI THAT ACTUALLY RUNS (2026-08-09,
   ThinkPad/receiver lane).** Full narrative in `sessions/S67-thinkpad-2026-08-09.md` — this entry
   covers the source changes only.
