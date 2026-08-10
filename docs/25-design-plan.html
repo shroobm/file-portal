@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<!-- docs/25 — THE DESIGN PLAN (S72). Rab's commission, his sequencing: plan first, the widget
+     untouched. The concept strip below is a CONCEPT — it demonstrates proposed tokens on mock
+     tiles inside THIS page only. Zero dependencies. Nothing here ships until Rab signs a slice. -->
+<title>25 · The Design Plan — mass, damping, and one hero shot</title>
+<style>
+  :root {
+    --bg:#f0eeea; --surface:#faf8f5; --surface-2:#ffffff; --inset:#e8e4de;
+    --border:rgba(40,30,22,.13); --border-strong:rgba(40,30,22,.24);
+    --text:#221d18; --text-2:#665d54; --text-3:#96887c;
+    --clay:#c15f3c; --clay-bg:rgba(193,95,60,.09);
+    --ok:#3f8f46; --ok-bg:rgba(63,143,70,.10);
+    --warn:#a97c17; --warn-bg:rgba(169,124,23,.10);
+    --flow:#3f7690; --flow-bg:rgba(63,118,144,.10);
+    --mono:ui-monospace,"Cascadia Mono","SF Mono",Consolas,monospace;
+    --sans:"Segoe UI Variable Text","Segoe UI",-apple-system,system-ui,sans-serif;
+  }
+  @media (prefers-color-scheme: dark) { :root {
+    --bg:#14110e; --surface:#1b1713; --surface-2:#221c17; --inset:#0e0c0a;
+    --border:rgba(240,228,216,.10); --border-strong:rgba(240,228,216,.2);
+    --text:#ece7e1; --text-2:#a89f95; --text-3:#6f665d;
+    --clay:#d97757; --clay-bg:rgba(217,119,87,.12);
+    --ok:#6fbf73; --ok-bg:rgba(111,191,115,.12);
+    --warn:#e0b34c; --warn-bg:rgba(224,179,76,.12);
+    --flow:#79a6bd; --flow-bg:rgba(121,166,189,.12);
+  } }
+  * { box-sizing:border-box; margin:0; padding:0; }
+  body { background:var(--bg); color:var(--text); font-family:var(--sans); font-size:15px;
+         line-height:1.62; max-width:1000px; margin:0 auto; padding:36px 26px 90px; }
+  .eyebrow { font-family:var(--mono); font-size:10.5px; letter-spacing:1.8px; text-transform:uppercase;
+             color:var(--clay); margin-bottom:10px; }
+  h1 { font-size:29px; line-height:1.2; letter-spacing:-.3px; margin-bottom:10px; }
+  .lede { color:var(--text-2); font-size:15.5px; max-width:820px; }
+  .meta { display:flex; flex-wrap:wrap; gap:6px 20px; margin:16px 0 6px; font-family:var(--mono);
+          font-size:11px; color:var(--text-3); }
+  .meta b { color:var(--text-2); }
+  .ch { display:flex; align-items:baseline; gap:12px; margin:44px 0 12px; padding-top:24px;
+        border-top:1px solid var(--border); }
+  .ch .num { font-family:var(--mono); font-size:10.5px; letter-spacing:1.6px; color:var(--clay); }
+  h2 { font-size:19px; } h3 { font-size:14.5px; margin:18px 0 8px; }
+  p { margin:9px 0; max-width:860px; }
+  .note { border-left:3px solid var(--clay); background:var(--clay-bg); border-radius:0 8px 8px 0;
+          padding:11px 15px; margin:13px 0; }
+  .note.ok { border-color:var(--ok); background:var(--ok-bg); }
+  table { border-collapse:collapse; width:100%; font-size:13px; }
+  th { text-align:left; font-family:var(--mono); font-size:10px; letter-spacing:1px;
+       text-transform:uppercase; color:var(--text-3); padding:7px 10px 5px;
+       border-bottom:1px solid var(--border-strong); }
+  td { padding:8px 10px; border-bottom:1px solid var(--border); vertical-align:top; }
+  .tw { overflow-x:auto; margin:10px 0; }
+  code { font-family:var(--mono); font-size:.92em; background:var(--inset); padding:1px 5px; border-radius:4px; }
+  .tag { font-family:var(--mono); font-size:9.5px; letter-spacing:.5px; padding:2px 7px; border-radius:20px; }
+  .tag.law { color:var(--clay); background:var(--clay-bg); border:1px solid var(--clay); }
+  .foot { margin-top:54px; padding-top:14px; border-top:1px solid var(--border);
+          font-family:var(--mono); font-size:10.5px; color:var(--text-3); line-height:1.8; }
+
+  /* ================= THE CONCEPT STRIP (this page only — the widget is untouched) =========
+     Proposed token layer, demonstrated live. Motion: transform/opacity only; springs via
+     linear() (sampled damped spring — the THOCK curve: one firm overshoot, fast settle);
+     full reduced-motion collapse. */
+  .concept {
+    --key-face: linear-gradient(180deg, rgba(255,255,255,.055), rgba(255,255,255,0) 38%),
+                var(--surface-2);
+    --key-edge: rgba(0,0,0,.42);
+    --elev-rest: 0 1px 0 rgba(255,255,255,.04) inset, 0 -2px 0 rgba(0,0,0,.18) inset,
+                 0 2px 3px rgba(0,0,0,.35), 0 8px 18px rgba(0,0,0,.28);
+    --elev-hover:0 1px 0 rgba(255,255,255,.06) inset, 0 -2px 0 rgba(0,0,0,.18) inset,
+                 0 4px 6px rgba(0,0,0,.35), 0 14px 30px rgba(0,0,0,.32);
+    --elev-press:0 1px 0 rgba(255,255,255,.03) inset, 0 -1px 0 rgba(0,0,0,.22) inset,
+                 0 1px 1px rgba(0,0,0,.4), 0 3px 8px rgba(0,0,0,.25);
+    --spring-thock: linear(0, .618 22%, .944 40%, 1.052 56%, 1.008 72%, .996 84%, 1);
+    --dur-press: 70ms; --dur-release: 340ms;
+    background:#14110e; border:1px solid var(--border-strong); border-radius:14px;
+    padding:26px 24px 20px; margin:16px 0; color:#ece7e1;
+  }
+  .concept .strip-label { font-family:var(--mono); font-size:10px; letter-spacing:1.6px;
+    text-transform:uppercase; color:#6f665d; margin-bottom:16px; }
+  .keyrow { display:flex; gap:14px; flex-wrap:wrap; }
+  .key {
+    position:relative; width:96px; padding:14px 8px 12px; text-align:center; cursor:pointer;
+    border-radius:10px; border:1px solid var(--key-edge);
+    background:var(--key-face); background-color:#221c17;
+    box-shadow:var(--elev-rest);
+    transition:transform var(--dur-release) var(--spring-thock),
+               box-shadow var(--dur-release) var(--spring-thock);
+    user-select:none;
+  }
+  .key:hover { transform:translateY(-2px); box-shadow:var(--elev-hover); }
+  .key:active, .key.pressed { transform:translateY(2px); box-shadow:var(--elev-press);
+    transition-duration:var(--dur-press); transition-timing-function:cubic-bezier(.3,0,.7,0); }
+  .key .g { display:block; font-size:22px; line-height:1.1; }
+  .key .lbl { font-family:var(--mono); font-size:9.5px; letter-spacing:1.2px; color:#a89f95;
+              text-transform:uppercase; margin-top:6px; display:block; }
+  .key.active { color:#d97757; }
+  .key.active::after { content:""; position:absolute; inset:auto 12% -7px 12%; height:10px;
+    background:#d97757; filter:blur(9px); opacity:.55; border-radius:50%;
+    animation:breathe 2.6s ease-in-out infinite; }
+  @keyframes breathe { 50% { opacity:.28; } }
+  .key.done { color:#6fbf73; }
+  /* the Wall hero frame */
+  .hero { margin-top:22px; border-radius:12px; padding:30px 26px; position:relative; overflow:hidden;
+    background:radial-gradient(120% 140% at 50% -20%, #221c17 0%, #14110e 58%);
+    border:1px solid var(--key-edge); box-shadow:var(--elev-rest); }
+  .hero .vlabel { font-family:var(--mono); font-size:10px; letter-spacing:2.2px; color:#6f665d;
+    text-transform:uppercase; }
+  .hero .verdict { font-family:var(--mono); font-size:64px; font-weight:700; letter-spacing:-1px;
+    color:#d97757; text-shadow:0 0 34px rgba(217,119,87,.35); line-height:1.05; }
+  .hero .sub { font-family:var(--mono); font-size:11.5px; color:#a89f95; margin-top:6px; }
+  .hero .depth { position:absolute; inset:0; pointer-events:none;
+    background:radial-gradient(60% 50% at 50% 105%, rgba(217,119,87,.10), transparent 70%); }
+  .concept .foot-note { font-family:var(--mono); font-size:10px; color:#6f665d; margin-top:14px; }
+  @media (prefers-reduced-motion: reduce) {
+    .key, .key:hover, .key:active { transition:none; transform:none; }
+    .key.active::after { animation:none; }
+  }
+</style>
+</head>
+<body>
+
+<div class="eyebrow">◆ File Portal · docs/25 · THE DESIGN PLAN · plan only — the widget is untouched until Rab signs a slice</div>
+<h1>Mass, damping, and one hero shot</h1>
+<p class="lede">Rab's brief, verbatim: <em>"make it professionally looking, and something that can be put on a
+big screen and make people go wow… like the visual element of those animated 3d custom mechanical keyboard
+reels on instagram, WITHOUT changing the major design elements that make File Portal, File Portal."</em>
+This document is the plan: what those reels are actually made of, which of their moves File Portal may
+borrow, which it must refuse, and the exact slices that would ship it.</p>
+<div class="meta">
+  <span><b>status</b> PLAN — nothing ships unsigned</span>
+  <span><b>session</b> Desktop S72 · 2026-08-10</span>
+  <span><b>deps</b> zero — vanilla CSS/JS, as always</span>
+</div>
+
+<section>
+  <div class="ch"><span class="num">PART·01</span><h2>The identity charter — what may never change</h2></div>
+  <div class="tw"><table>
+    <tr><th>element</th><th>rule</th></tr>
+    <tr><td><b>The terracotta grammar</b></td><td>terracotta = your hand is required · green = viable · amber = localizer · blue = flow. This is meaning, not decoration — no treatment may dilute it, and nothing else may glow terracotta.</td></tr>
+    <tr><td><b>The station glyphs</b> ▚ ⚙ ✳ ◎ ⇈ ▤</td><td>identical on every surface, always.</td></tr>
+    <tr><td><b>The projection law</b></td><td>the UI invents no numbers. A redesign changes how truth LOOKS, never what it says.</td></tr>
+    <tr><td><b>Honest busy states</b></td><td>live clocks and receipts stay; nothing "feels fast" by hiding time.</td></tr>
+    <tr><td><b>Room density</b></td><td>the ops surface stays an ops surface — information density is a feature, not a casualty.</td></tr>
+    <tr><td><b>Reduced-motion + zero deps</b></td><td>every motion collapses cleanly under <code>prefers-reduced-motion</code>; no frameworks, no libraries.</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <div class="ch"><span class="num">PART·02</span><h2>The research — what a keyboard reel actually is</h2></div>
+  <p>Decomposed, the reels run on five ingredients: <b>material mass</b> (thick PBT keycaps, aluminum
+  cases — surfaces that read as dense and matte, never glossy-cheap); <b>damped acoustics</b> — the
+  "thock" is prized precisely because it is deep, foam-dampened, and restrained, not clacky;
+  <b>macro intimacy</b> (one subject, shallow depth of field, everything else falls away);
+  <b>curation as identity</b> (every component chosen, nothing default); and <b>disciplined lighting</b>
+  (one warm accent under the caps — the tasteful builds are exactly NOT the RGB rainbow).</p>
+  <div class="note"><p><b>The thesis: the thock, not the RGB.</b> File Portal already owns the hard part —
+  a curated identity: terracotta on near-black, monospace, ISOTYPE glyphs, Beer's lineage. What it lacks
+  is <b>mass</b>. Panels sit flat; state changes teleport; nothing has weight. The redesign is not a new
+  face — it is giving the existing face <em>physical presence</em>: keycap-grade elevation, damped spring
+  motion, one warm underglow, and a hero shot for the big screen.</p></div>
+</section>
+
+<section>
+  <div class="ch"><span class="num">PART·03</span><h2>The translation — reel ingredient → File Portal treatment</h2></div>
+  <div class="tw"><table>
+    <tr><th>ingredient</th><th>treatment</th><th>where</th><th>machinery</th></tr>
+    <tr><td><b>Material mass</b></td><td>station tiles and cards become <em>keycaps</em>: layered elevation (inset top-light, hard contact shadow, soft ambient), a whisper of top-edge specular, matte body</td><td>Room rail · Dock tiles · Bench chips</td><td>layered <code>box-shadow</code> tokens (3 elevations: rest/hover/press), one gradient token — paint-only, zero layout shift</td></tr>
+    <tr><td><b>Damped motion</b></td><td>state changes get <em>travel</em>: press-in fast and mechanical, release on a damped spring — ONE firm overshoot, fast settle. Never bouncy, never floaty</td><td>every interactive tile; station completion "presses" itself</td><td><code>linear()</code> spring easing (a sampled damped-spring — pure CSS, Chromium-native in the Tauri WebView); transform/opacity only → compositor-cheap 60 fps</td></tr>
+    <tr><td><b>Disciplined lighting</b></td><td>the ACTIVE station gets a terracotta <em>underglow</em> — one warm LED beneath the cap, breathing slowly. Nothing else glows. Verdict green/amber never glow (grammar intact)</td><td>Room rail active station · Wall verdict</td><td>a blurred pseudo-element + one keyframe; honors the terracotta-means-your-hand rule by reserving glow for attention</td></tr>
+    <tr><td><b>Macro intimacy</b></td><td><b>the Wall is the hero shot</b>: one giant focal element (verdict / algedonic state), background layers fall into depth (vignette + soft radial), big-screen type scale</td><td>Wall (the across-the-room surface — the "reel frame")</td><td>radial-gradient depth layers, text-shadow bloom on the focal only, larger clamp() type scale</td></tr>
+    <tr><td><b>Curation</b></td><td>a single <b>token layer</b> holds every material/motion decision — one place to tune, one place to revert; nothing hand-tweaked per element</td><td><code>styles.css</code> top block</td><td>CSS custom properties: <code>--elev-*</code>, <code>--spring-thock</code>, <code>--dur-*</code>, <code>--underglow</code></td></tr>
+    <tr><td><b>Sound (the actual thock)</b></td><td><span class="tag law">Rab decides</span> optional, DEFAULT OFF, a lever like every lever: one soft damped tick on station-complete only. Reels are half sound — but an ops room must never nag</td><td>lever file <code>ui-sound.txt</code> (off·on)</td><td>one short sample, WebAudio, gated by the lever + reduced-motion</td></tr>
+  </table></div>
+</section>
+
+<section>
+  <div class="ch"><span class="num">PART·04</span><h2>The concept — live, on this page only</h2></div>
+  <p>The proposed tokens, demonstrated on mock tiles. <b>Hover</b> a key (it lifts), <b>press</b> one
+  (mechanical travel in, damped-spring release — the thock curve), note the one terracotta underglow on
+  the active station and the Wall hero frame beneath. This strip is the plan made tangible; the widget
+  has not been touched.</p>
+  <div class="concept">
+    <div class="strip-label">CONCEPT · proposed station-rail treatment · press a key</div>
+    <div class="keyrow" id="keyrow">
+      <div class="key done"><span class="g">▚</span><span class="lbl">Intake</span></div>
+      <div class="key active"><span class="g">⚙</span><span class="lbl">Convert</span></div>
+      <div class="key"><span class="g">✳</span><span class="lbl">Gate</span></div>
+      <div class="key"><span class="g">◎</span><span class="lbl">Assay</span></div>
+      <div class="key"><span class="g">⇈</span><span class="lbl">Ship</span></div>
+      <div class="key"><span class="g">▤</span><span class="lbl">Vault</span></div>
+    </div>
+    <div class="hero">
+      <div class="depth"></div>
+      <div class="vlabel">CONCEPT · the Wall as the hero shot</div>
+      <div class="verdict">HELD · 4</div>
+      <div class="sub">your hand is required — 4 patients on the bench · line idle · vault 6 notes</div>
+    </div>
+    <div class="foot-note">motion: transform/opacity only · spring = sampled damped spring via linear() ·
+    reduced-motion collapses everything · terracotta glows ONLY where your hand is required</div>
+  </div>
+</section>
+
+<section>
+  <div class="ch"><span class="num">PART·05</span><h2>The build plan — token-first, sliced, signed</h2></div>
+  <div class="tw"><table>
+    <tr><th>slice</th><th>scope</th><th>proof gate</th></tr>
+    <tr><td><b>0 — the token layer</b></td><td>elevation/spring/underglow tokens land in <code>styles.css</code>, applied to NOTHING yet</td><td>diff shows tokens only; widget renders pixel-identical</td></tr>
+    <tr><td><b>1 — the Wall</b> (the big-screen surface — the wow, first)</td><td>hero scale + depth layers + verdict bloom + underglow</td><td>side-by-side screenshots · 60 fps trace · reduced-motion pass · Rab on the actual big screen</td></tr>
+    <tr><td><b>2 — the Room rail</b></td><td>keycap stations + press-on-complete + active underglow; density untouched</td><td>same gates + projection-law audit (zero new numbers)</td></tr>
+    <tr><td><b>3 — the Dock</b></td><td>tile mass + press states</td><td>same gates</td></tr>
+    <tr><td><b>4 — the Bench chrome</b></td><td>chips/buttons inherit tokens (zone chips, ⌨/✂/✦)</td><td>same gates + acceptance suite stays green</td></tr>
+    <tr><td><b>5 — sound</b> <span class="tag law">only if Rab signs</span></td><td>the lever + one damped tick</td><td>his ears, his call</td></tr>
+  </table></div>
+  <p>Each slice is one gated session commit, browser-proven, and reverts by deleting one token block or
+  one class application — the curation lives in one place by design. Rebuild ritual applies from slice 1
+  (fmt → clippy → test → build → Rab adopts) since the widget ships CSS inside the exe.</p>
+</section>
+
+<section>
+  <div class="ch"><span class="num">PART·06</span><h2>Acceptance — how "wow" is verified without breaking laws</h2></div>
+  <div class="tw"><table>
+    <tr><th>check</th><th>bar</th></tr>
+    <tr><td>Identity</td><td>a stranger shown before/after says "same product, better built" — not "new product"</td></tr>
+    <tr><td>Grammar</td><td>terracotta still means exactly one thing; glow appears ONLY where a hand is required</td></tr>
+    <tr><td>Performance</td><td>transform/opacity-only motion; no paint storms; 60 fps on the 3080's desktop, obviously, but also under GPU load (a convert running)</td></tr>
+    <tr><td>Honesty</td><td>projection law audit per slice: the DOM's numbers are byte-identical to the pre-slice build's</td></tr>
+    <tr><td>Accessibility</td><td>reduced-motion = zero travel, zero breathing, opacity-only; contrast unchanged</td></tr>
+    <tr><td>The big screen</td><td>the Wall readable and composed at 3–4 m viewing distance — the reel frame test, Rab holding the phone camera</td></tr>
+  </table></div>
+  <div class="note ok"><p><b>What this plan refuses:</b> RGB-rainbow anything · parallax that moves data ·
+  glassmorphism blur over numbers · skeleton-shimmer fakery · any motion longer than 400 ms · any
+  dependency. The reels feel premium because of restraint; so does an ops room.</p></div>
+</section>
+
+<div class="foot">
+  FILE PORTAL · docs/25 · THE DESIGN PLAN · Desktop S72 · plan only, widget untouched · concept strip is
+  this page's own CSS · research: reel-aesthetic decomposition + pure-CSS springs via linear() ·
+  awaiting Rab: slice signatures (0–5), the sound lever verdict, and the big-screen test
+</div>
+
+<script>
+  // Concept-strip demo: click = press+damped-spring release; the active underglow walks the rail.
+  const keys = [...document.querySelectorAll(".key")];
+  keys.forEach((k, i) => k.addEventListener("click", () => {
+    keys.forEach(x => x.classList.remove("active"));
+    k.classList.add("pressed");
+    setTimeout(() => { k.classList.remove("pressed"); k.classList.add("active"); }, 80);
+  }));
+</script>
+</body>
+</html>
