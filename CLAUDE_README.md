@@ -63,6 +63,21 @@ git pull  # always first
 
 ## Current Session Plan
 
+**S69 — Desktop — 2026-08-10 (Fable 5). Rab's commission: stress-test `docs/22` — check every
+claim's "applicability in reality vs what it's just saying," then remake the manual accordingly.**
+
+- **G1 — claim inventory.** Full re-read; every checkable assertion extracted per chapter
+  (constants, paths, commands, behaviours, formats, laws).
+- **G2 — the verification sweep.** Each claim re-derived from CURRENT source/config/live state —
+  never from the manual's own citations (SYM-001: the compiler's read and this read must not share
+  assumptions; where the manual cites a file, the file gets read). Verdicts: **holds** / **stale**
+  / **wrong** / **unverifiable-from-here** / **toothless** (true but says nothing a reader could
+  act on or falsify).
+- **G3 — the remake.** Corrections applied in place; claims that can't pay for their tag get
+  downgraded, given teeth, or cut; rev → "stress-tested S69". Design + scrollspy preserved.
+- **G4 — proof + paperwork.** Render + spy re-verified in the browser; CHANGELOG; closeout
+  `sessions/S69-desktop-2026-08-10.md`; ledger row ≤80 words; push; CI green.
+
 *(S68 closed 2026-08-10 ~04:35 UTC (Desktop, Fable 5) — **SYM-020 CLEARED + THE MANUAL'S
 SCROLLSPY; five gates, all green.** G1 `b415a2f` the 8-file whitespace-only reformat · G2 clippy
 `-D warnings` + 20/20 `cargo test` on the reformatted tree · G3 `6549b03` `cargo fmt --check` now
