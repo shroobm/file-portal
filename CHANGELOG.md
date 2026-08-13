@@ -8,6 +8,33 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S74 — SLICE 2 + THE SIGNED GLOW AMENDMENT: THE RAIL WEARS KEYCAPS, THE SUMMONS WEARS ITS
+  AGE AND VOLUME (2026-08-13, Desktop lane, overnight).** Narrative in
+  `sessions/S74-desktop-2026-08-13.md`.
+  - **Added — the glow amendment (Rab signed at bedtime: "2 signals are just 1"):** the
+    underglow stays ONE binary summons; two modulations ride it. **Intensity** (`fp-ga2/ga3`)
+    steps at the signed algedonic M lever and caps at 4×M — the ledger's own escalation unit,
+    no invented thresholds; derived from `alg.alerts[].age_min` (held/vault-held kinds).
+    **Spread** (`fp-gv2/gv3`) steps with waiting volume — Gate cards (`pf.length`), Assay
+    fail + held queue. Gate modulates by volume only (cards carry no on-disk age — modulate
+    only where the ledger measures). Wall and Room rail both.
+  - **Changed — the Room rail (Slice 2):** `.rl-glyph` wears keycap mass (key-face + elevation
+    tokens; the JS tint now arrives as `--rl-bg` so the face layers over it) · hover/press
+    elevation states · **press-on-complete** — a keycap plays ONE thock (press → `linear()`
+    spring release) when its station finishes work (converting→idle, vault count increment),
+    tracked poll-to-poll in module state · rail underglow ONLY on hand-required stations
+    (grammar law), wearing the same two modulations · reduced-motion collapses breathe + press.
+    **Density untouched — zero size/spacing changes.**
+  - **Projection-law audit (new reusable rig `harness-s74-audit.html`):** pre/post-slice
+    room.js rendered against the identical stub — the Room's 2100-char innerText differs at
+    exactly ONE character (the header clock's seconds digit, pre-existing); the Wall: zero
+    diffs. Press one-shots, modulator ramp-up AND drop-off, Gate volume-only glow, heroes
+    mass-only — all proven live in the HTTP-served harness, console clean throughout.
+  - **Ritual:** fmt silent · clippy clean · 20/20 tests · `node --check` OK · build green.
+    **Staged exe `0454114C`** (supersedes adopted `48BCB4A6`) — **adoption is Rab's hand.**
+  - Also this session: cookies #59–61 logged; Rab killed the widget pre-sleep clearing the
+    lane; Gmail draft + desktop morning note delivered at close.
+
 - **S73 — SLICE 0+1 SIGNED AND BUILT: THE WALL WEARS THE TOKENS (2026-08-10, Desktop lane).**
   Narrative in `sessions/S73-desktop-2026-08-10.md`.
   - **Added — the `--fp-*` token layer (Slice 0)** in `windows-widget/src/styles.css`: elevation

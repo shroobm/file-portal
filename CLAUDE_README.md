@@ -63,30 +63,20 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S74 — Desktop — 2026-08-13 (Fable 5). RAB SIGNED at bedtime: the Wall glow-metrics amendment
-("2 signals are just 1" — age→intensity · volume→spread, presence stays the ONE binary summons)
-+ SLICE 2 — THE ROOM RAIL (docs/25 Part 5); cookies #59–61; overnight autonomous (Rab asleep,
-widget killed by his hand pre-sleep — lane clear); Gmail draft + desktop morning note at close.**
-
-- **G1 — the signed glow amendment (slice-1 rider, Wall only).** The underglow gains two
-  modulations of the ONE summons: **intensity** ramps with the summons's age (`alg.alerts[].age_min`
-  where the ledger records it; hard-capped so a weekend-old flag never becomes a searchlight) and
-  **spread** steps with volume (Gate: `pf.length` · Assay: fail + `held.length`). Presence rule
-  UNCHANGED — Gate-with-cards / Assay-fail only; green+amber never glow; heroes never glow.
-  Verify: harness render across synthetic VM states · grammar audit · reduced-motion = static
-  encoding (no breathe, same intensity/spread).
-- **G2 — Slice 2: the Room rail.** `.rl-glyph` wears keycap mass (key-face + `--fp-elev-*` from
-  slice 0); **press-on-complete** = one-shot thock spring on a completion transition
-  (converting→idle · vault count increment), tracked module-local from existing VM fields;
-  rail underglow ONLY on hand-required stations (Gate attn / Assay fail), wearing the same two
-  modulations. **Density untouched** (zero size/spacing changes). Projection-law audit: the
-  DOM's numbers byte-identical pre/post slice (harness diff).
-- **G3 — ritual + staging.** `cargo fmt --check` LEADS (SYM-020) → clippy `-D warnings` →
-  `cargo test` → `node --check` room.js + main.js → `npm run tauri build` → hash the exe →
-  **STAGED for Rab's morning adoption (SYM-007 — his hand, never mine)**.
-- **G4 — paperwork.** CHANGELOG · closeout `sessions/S74-desktop-2026-08-13.md` · ledger row as
-  a separate follow-up commit (SYM-016, never amend) · push · CI · clocks lockstep · Gmail
-  draft + desktop morning note (overnight-report protocol).
+*(S74 closed 2026-08-13 (Desktop, Fable 5, overnight; cookies #59–61) — **SLICE 2 + THE SIGNED
+GLOW AMENDMENT: THE RAIL WEARS KEYCAPS, THE SUMMONS WEARS ITS AGE AND VOLUME.** Rab adopted
+`48BCB4A6` at open, gave the big-screen verdict, signed the amendment at bedtime ("2 signals
+are just 1"), and killed the widget to clear the lane. Amendment: `fp-ga2/ga3` intensity steps
+at the signed M lever (cap 4×M — the ledger's own unit, zero invented thresholds) ·
+`fp-gv2/gv3` spread steps with waiting volume · Gate volume-only (no on-disk age) — modulations
+of the ONE binary summons, Wall + rail both. Slice 2: `.rl-glyph` keycap mass (tint via
+`--rl-bg` so the face layers) · hover/press elevation · press-on-complete one-shot thock on
+completion transitions (poll-to-poll `railPrev`) · rail underglow hand-required-only · density
+untouched. **Audit rig `harness-s74-audit.html` (kept for slices 3–5): Room innerText differs
+by ONE clock digit, Wall zero diffs; presslog exactly one convert + one vault press; modulators
+proven ramping AND dropping; heroes mass-only; console clean.** Ritual green (fmt silent ·
+clippy · 20/20 · node ×2 · build). **STAGED `0454114C`, UNADOPTED — Rab's hand; his rail
+verdict gates slice 3.** Closeout: `sessions/S74-desktop-2026-08-13.md`.)*
 
 *(S73 closed 2026-08-10 (Desktop, Fable 5; cookie #58) — **SLICE 0+1 SIGNED AND BUILT: THE WALL
 WEARS THE TOKENS.** Slice 0: the `--fp-*` mass layer (theme-tuned elevations · the `linear()`
