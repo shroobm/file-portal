@@ -603,9 +603,17 @@ fn main() {
         .on_window_event(|window, event| {
             // The conveyor dies with its control room — no orphaned watch loops. An
             // in-flight conversion still runs to completion (see watcher.rs header).
+            //
+            // S76 (SYM-023): this hook fires for EVERY window, and it was written in the
+            // one-window era (S37). When the Bench window (S63, "repair-bench") was closed
+            // while the widget lived, this arm assassinated the watcher — first fired
+            // 2026-08-13. Only the MAIN window's death is the widget's death; any window
+            // added later inherits this guard by construction.
             if let tauri::WindowEvent::Destroyed = event {
-                let state: State<watcher::WatcherState> = window.app_handle().state();
-                watcher::stop(&state);
+                if window.label() == "main" {
+                    let state: State<watcher::WatcherState> = window.app_handle().state();
+                    watcher::stop(&state);
+                }
             }
         })
         .run(tauri::generate_context!())
