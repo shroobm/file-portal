@@ -58,6 +58,27 @@ function sampleGpu(v) {
   if (v.temp != null) pushRing(tempHist, v.temp);
 }
 
+// S74 — the signed glow amendment ("2 signals are just 1"): the summons stays binary; these
+// classes only MODULATE it. Age steps at the signed M lever and caps at 4×M (the ledger's own
+// escalation unit — no invented thresholds); volume steps with the count of waiting items.
+// Consumed by renderWall (wl-glow) and stationRail (rl-glow); see the fp-g* block in styles.css.
+function glowMods(vol, ageMin, mMin) {
+  const m = mMin > 0 ? mMin : 30;
+  return (vol >= 4 ? " fp-gv3" : vol >= 2 ? " fp-gv2" : "") +
+    (ageMin >= 4 * m ? " fp-ga3" : ageMin >= m ? " fp-ga2" : "");
+}
+// The assay summons's age = the oldest held/vault-held occurrence the algedonic ledger records.
+// Gate cards carry no on-disk age, so the Gate's glow modulates by volume only — honest by
+// construction: we modulate only where the ledger already measures.
+function heldAgeMin(alg) {
+  return Math.max(0, ...((alg?.alerts) || [])
+    .filter((a) => a.kind === "held" || a.kind === "vault-held")
+    .map((a) => a.age_min || 0));
+}
+
+// S74 slice 2: press-on-complete memory — the previous poll's completion-relevant fields.
+const railPrev = { converting: null, vault: null };
+
 // System verdict (shared by the Room header + the Wall): terracotta only when your hand is
 // required (a pending gate decision or an audit fail); green when viable; grey when paused.
 function systemVerdict(d) {
@@ -167,6 +188,19 @@ function stationRail(d) {
     { seg: "vault", glyph: "▤", name: "Vault", count: String(m.vault_count ?? "—"),
       sub: "Library", st: "done" },
   ];
+  // S74 slice 2: press-on-complete — compare this poll's completion-relevant fields to the last
+  // poll's; a station that just finished work gets rl-pressed for THIS render only (one thock).
+  const vaultN = m.vault_count ?? null;
+  const pressed = {
+    convert: !!(railPrev.converting && !converting),
+    vault: railPrev.vault != null && vaultN != null && vaultN > railPrev.vault,
+  };
+  railPrev.converting = ls.converting || null;
+  if (vaultN != null) railPrev.vault = vaultN;
+  // S74 (signed): the same two glow modulations the Wall wears — volume + ledger-recorded age.
+  const mM = d.alg?.m_minutes;
+  const assayVol = 1 + ((assay.held || []).length);
+  const assayAge = heldAgeMin(d.alg);
   return `<div class="room-line">${defs.map((x, i) => {
     const active = x.st === "active", done = x.st === "done", attn = x.st === "attn";
     const verd = ["pass", "flag", "fail"].includes(x.st) ? x.st : null;
@@ -176,9 +210,16 @@ function stationRail(d) {
     const pulse = verd === "fail" ? "assay-pulse 1.7s ease-in-out infinite" : "none";
     const countCol = attn ? "var(--clay)" : "var(--text)";
     const subCol = attn ? "var(--clay)" : active ? "var(--ok)" : verd ? VCOL[verd] : "var(--text-3)";
+    // grammar law: rail underglow ONLY where a hand is required — Gate holding cards, Assay fail
+    const glow = (x.seg === "gate" && attn) ? " rl-glow" + glowMods(gateN, 0, mM)
+      : (x.seg === "assay" && verd === "fail") ? " rl-glow" + glowMods(assayVol, assayAge, mM) : "";
+    const press = ((x.seg === "convert" && pressed.convert) || (x.seg === "vault" && pressed.vault)) ? " rl-pressed" : "";
+    // inline animation only when the pulse is real — a blanket animation:none would override
+    // the rl-pressed keyframe (class animations lose to inline)
+    const anim = pulse === "none" ? "" : `;animation:${pulse}`;
     return (i ? `<span class="rl-sep">·</span>` : "") +
       `<button class="rl-st" data-seg="${x.seg}" title="${x.name}">` +
-      `<span class="rl-glyph" style="color:${accent};background:${glyphBg};border-color:${border};animation:${pulse}">${x.glyph}</span>` +
+      `<span class="rl-glyph${glow}${press}" style="color:${accent};--rl-bg:${glyphBg};border-color:${border}${anim}">${x.glyph}</span>` +
       `<span class="rl-name">${x.name}</span>` +
       `<span class="rl-count" style="color:${countCol}">${x.count}</span>` +
       `<span class="rl-sub" style="color:${subCol}">${esc(x.sub)}</span></button>`;
@@ -826,13 +867,19 @@ function renderWall(vm) {
     { g: "⇈", n: "Ship", on: false, col: "var(--ok)" },
     { g: "▤", n: "Vault", on: true, col: "var(--ok)", always: true },
   ];
+  // S74 (signed): the glow's two modulations, derived from fields already in the VM —
+  // volume (Gate cards; the failing bundle + the held queue) and age (the algedonic ledger).
+  const mM = vm.alg?.m_minutes;
+  const assayVol = 1 + ((assay.held || []).length);
+  const assayAge = heldAgeMin(vm.alg);
   const dots = defs.map((s) => {
     const lit = s.on || s.always;
     const col = lit ? s.col : "var(--text-3)";
     const pulse = (s.n === "Assay" && assay.verdict === "fail") ? "assay-pulse 1.7s ease-in-out infinite" : "none";
     // S73 Slice 1 (docs/25 grammar law): the underglow marks ONLY a station requiring a hand —
     // Gate holding cards, or Assay on a fail. Activity (Convert) gets mass, never glow.
-    const glow = ((s.n === "Gate" && s.on) || (s.n === "Assay" && assay.verdict === "fail")) ? " wl-glow" : "";
+    const glow = (s.n === "Gate" && s.on) ? " wl-glow" + glowMods(gateN, 0, mM)
+      : (s.n === "Assay" && assay.verdict === "fail") ? " wl-glow" + glowMods(assayVol, assayAge, mM) : "";
     return `<div class="wl-st"><div class="wl-dot${glow}" style="color:${col};border-color:${col};animation:${pulse};opacity:${lit ? 1 : 0.4}">${s.g}</div><div class="wl-nm">${s.n}</div></div>`;
   }).join("<span class='wl-link'></span>");
   const latest = (vm.shift?.tail || []).slice(-1)[0];

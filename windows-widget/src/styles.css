@@ -108,7 +108,27 @@ body.surface-wall { background:
 .rl-st { flex: 1; display: flex; flex-direction: column; align-items: center; gap: 3px;
   padding: 6px 4px; border: none; background: transparent; cursor: pointer; min-width: 66px; }
 .rl-glyph { width: 30px; height: 30px; display: flex; align-items: center; justify-content: center;
-  border-radius: 9px; border: 1px solid var(--border); background: var(--surface-2); font-size: 15px; }
+  border-radius: 9px; border: 1px solid var(--border); font-size: 15px;
+  /* S74 Slice 2: keycap mass — the same key-face + elevation the Wall's dots wear. The tint the
+     JS used to write into background now arrives as --rl-bg so the face can layer over it. */
+  position: relative; background: var(--fp-key-face), var(--rl-bg, var(--surface-2));
+  box-shadow: var(--fp-elev-rest);
+  transition: box-shadow var(--fp-dur-press) ease, transform var(--fp-dur-press) ease; }
+.rl-st:hover .rl-glyph { box-shadow: var(--fp-elev-hover); }
+.rl-st:active .rl-glyph { box-shadow: var(--fp-elev-press); transform: translateY(1px); }
+/* press-on-complete: one render carries rl-pressed when a station just finished work — the
+   keycap plays ONE thock (press → spring release); the class is gone by the next poll */
+.rl-glyph.rl-pressed { animation: fp-keypress var(--fp-dur-release) var(--fp-spring-thock) 1; }
+@keyframes fp-keypress { 0% { transform: translateY(2px); box-shadow: var(--fp-elev-press); }
+  100% { transform: none; box-shadow: var(--fp-elev-rest); } }
+/* the rail's underglow: same grammar as the Wall's (hand-required only), smaller LED */
+.rl-glyph.rl-glow::after { content: ""; position: absolute; inset: auto var(--fp-glow-in, 14%) -7px var(--fp-glow-in, 14%);
+  height: 7px; background: var(--clay); filter: blur(6px); opacity: var(--fp-glow-o, .5);
+  border-radius: 50%; animation: fp-breathe 2.6s ease-in-out infinite; }
+@media (prefers-reduced-motion: reduce) {
+  .rl-glyph.rl-pressed { animation: none; }
+  .rl-glyph.rl-glow::after { animation: none; }
+}
 .rl-name { font-size: 8.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
 .rl-count { font-size: 15px; font-weight: 600; }
 .rl-sub { font-size: 8.5px; color: var(--text-3); max-width: 78px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
@@ -199,10 +219,16 @@ body.surface-wall { background:
   position: relative; background: var(--fp-key-face), var(--surface-1); box-shadow: var(--fp-elev-rest); }
 /* the underglow: ONE warm LED, only under a station that requires a hand (Gate-with-cards,
    Assay-fail) — set by renderWall, never by styling whim */
-.wl-dot.wl-glow::after { content: ""; position: absolute; inset: auto 14% -10px 14%; height: 10px;
-  background: var(--clay); filter: blur(9px); opacity: .5; border-radius: 50%;
+.wl-dot.wl-glow::after { content: ""; position: absolute; inset: auto var(--fp-glow-in, 14%) -10px var(--fp-glow-in, 14%); height: 10px;
+  background: var(--clay); filter: blur(9px); opacity: var(--fp-glow-o, .5); border-radius: 50%;
   animation: fp-breathe 2.6s ease-in-out infinite; }
-@keyframes fp-breathe { 50% { opacity: .22; } }
+/* S74 — the signed amendment ("2 signals are just 1"): age and volume MODULATE the one summons,
+   they never create a glow. Intensity steps at the signed M lever and caps at 4×M — the ledger's
+   own escalation unit, no invented thresholds. Spread steps with how many items wait.
+   These classes are set ONLY beside wl-glow / rl-glow in room.js — presence stays binary. */
+.fp-ga2 { --fp-glow-o: .68; } .fp-ga3 { --fp-glow-o: .85; }
+.fp-gv2 { --fp-glow-in: 6%; } .fp-gv3 { --fp-glow-in: 0%; }
+@keyframes fp-breathe { 50% { opacity: calc(var(--fp-glow-o, .5) * .44); } }
 .wl-nm { font-size: 10px; letter-spacing: 1px; text-transform: uppercase; color: var(--text-3); }
 .wl-link { flex: 1; max-width: 90px; height: 2px; background: var(--border-strong); margin: 0 4px; align-self: flex-start; margin-top: clamp(20px, 3vw, 30px); }
 .wall-heroes { display: flex; justify-content: space-around; gap: 20px; margin: auto 0; }

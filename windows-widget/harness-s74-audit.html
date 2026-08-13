@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<!-- The per-slice projection-law audit rig (born S74, reusable for slices 3-5). Renders a
+     PRE-slice room.js and the current src/room.js against the IDENTICAL stub and compares the
+     rendered innerText byte-for-byte — a slice that claims "classes and styles only" is held
+     to it. Before use, regenerate the pre file (it is NOT committed):
+       git show <pre-slice-SHA>:windows-widget/src/room.js > windows-widget/room-pre-s74.js
+     Serve via the room-harness launch entry (port 7080); result lands in window.__AUDIT.
+     Legitimate diff: ONE character inside the Room header's live clock (room.js "clock"). -->
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<title>S74 audit</title>
+<link rel="stylesheet" href="src/styles.css" />
+</head>
+<body class="surface-room">
+<div id="room"></div>
+<pre id="audit-out" style="position:fixed;top:4px;right:4px;z-index:99;background:#000;color:#0f0;padding:6px;font-size:11px"></pre>
+<script>
+window.__ERRS = [];
+addEventListener("error", (e) => __ERRS.push(e.message));
+addEventListener("unhandledrejection", (e) => __ERRS.push(String(e.reason)));
+const DATA = {
+  line_state: {
+    available: true, drop_waiting: 2, converting: "Some Long Finance Book.pdf",
+    converting_eta_s: 1400, convert_elapsed_s: 300, convert_stage: "Recognizing Text",
+    convert_frac: 0.4, convert_n: 2, convert_total: 7, progress_age_s: 12,
+    analyst_n: null, analyst_total: null, analyst_s_per_chunk: null, analyst_age_s: null,
+    failed_count: 1, last_shipped: { bundle: "claude-code-up-and-running", ts: "2026-07-31T18:00:00+00:00" },
+    latest: { ts: "2026-08-03T07:13:03+00:00", stage: "audit", event: "held", bundle: "Investment Valuation - Aswath Damodaran (4e, 2025)" },
+    chunk_batch: 16,
+    queue: [
+      { name: "A first waiting book.pdf", bytes: 12345678, age_s: 120 },
+      { name: "B second waiting book.pdf", bytes: 4567890, age_s: 60 },
+    ],
+    estimate: { source: "Some Long Finance Book.pdf", pages: 1356, lane: "clean",
+                s_per_page: 1.689, eta_s: 2290, basis: "similar", samples: 1 },
+  },
+  assay_status: {
+    available: true, bundle: "Investment Valuation - Aswath Damodaran (4e, 2025)",
+    verdict: "fail", mode: "enforce", doc_survival: 0.927, kind: "fidelity",
+    degeneration: true, md_lines: 6100,
+    zones: [{ line: 1579, chars: 9553, zlib: 0.124, max_trigram: 76, excerpt: "| | Start with this source" }],
+    runs: [], pages_scored: 1351,
+    held: [{ bundle: "Best Practices for Equity Research Analysts" },
+           { bundle: "Investment Valuation - Aswath Damodaran (4e, 2025)" },
+           { bundle: "Cybernetics_Book_of_Models (stale)" }],
+  },
+  shift_summary: {
+    available: true,
+    today: { converted: 1, analyzed: 1, chunks_protected: 24, shipped: 0, failed: 1 },
+    tail: [
+      { ts: "2026-08-03T07:13:03+00:00", stage: "audit", event: "held", bundle: "Investment Valuation - Aswath Damodaran (4e, 2025)" },
+      { ts: "2026-08-03T04:37:46+00:00", stage: "gate", event: "failed", id: "0d68f0e02293970c", error: "ship failed: 502" },
+    ],
+  },
+  preflight_list: [],
+  watcher_status: { state: "running", pid: 1234 },
+  room_metrics: { throughput_pp_s: 0.6, median_spp: 1.7, survival_avg: 0.93, vault_count: 6, spp_series: [2.1, 1.9, 1.7, 1.69] },
+  gpu_vram: { used: 9.6, total: 10, util: 98, temp: 76 },
+  receipts_read: { available: true, source: "cache", rows: [
+    { ts: "2026-08-01T10:11:33+00:00", outcome: "supersede-held", bundle: "claude-code-up-and-running", verdict: "fail" }] },
+  algedonic_state: {
+    available: true, m_minutes: 30, m_provisional: true, unacked: 2, escalated: 2,
+    alerts: [
+      { id: "a1", ts: "2026-08-03T07:13:03+00:00", kind: "held", stage: "audit",
+        bundle: "Investment Valuation - Aswath Damodaran (4e, 2025)", detail: "fail",
+        age_min: 45, acked: false, escalated: true },
+      { id: "a2", ts: "2026-08-01T10:11:33+00:00", kind: "vault-held", stage: "export",
+        bundle: "claude-code-up-and-running", detail: "fail",
+        age_min: 2760, acked: false, escalated: true },
+    ],
+  },
+  analyst_mode_get: "local",
+  algedonic_ack: null, algedonic_minutes_set: 30, chunk_batch_set: 8, audit_mode_set: "report",
+  bench_open: 7077, open_engineering: "x",
+};
+window.__TAURI__ = { core: { invoke: async (name) => (name in DATA ? DATA[name] : null) } };
+</script>
+<script type="module">
+const wait = (ms) => new Promise((r) => setTimeout(r, ms));
+const cap = () => document.getElementById("room").innerText;
+async function renderWith(mod) {
+  mod.initRoom({ setStatus: () => {}, dbg: () => {} });
+  mod.setActiveSurface("room"); await wait(700); const room = cap();
+  mod.setActiveSurface("wall"); await wait(700); const wall = cap();
+  mod.setActiveSurface("off");  await wait(100);
+  return { room, wall };
+}
+const pre  = await renderWith(await import("./room-pre-s74.js"));
+const post = await renderWith(await import("./src/room.js"));
+// every position where the two strings differ, with context — the Room header carries a live
+// clock (room.js:513), so a legitimate audit shows diffs ONLY inside that 8-char span
+function diffs(a, b) {
+  const out = [];
+  for (let i = 0; i < Math.max(a.length, b.length); i++)
+    if (a[i] !== b[i]) out.push({ i, pre: a.slice(i - 6, i + 8), post: b.slice(i - 6, i + 8) });
+  return out.slice(0, 12);
+}
+window.__AUDIT = {
+  roomEqual: pre.room === post.room,
+  wallEqual: pre.wall === post.wall,
+  preRoom: pre.room.length, postRoom: post.room.length,
+  preWall: pre.wall.length, postWall: post.wall.length,
+  roomDiffs: diffs(pre.room, post.room),
+  wallDiffs: diffs(pre.wall, post.wall),
+  errs: window.__ERRS,
+};
+document.getElementById("audit-out").textContent = JSON.stringify(window.__AUDIT, null, 1);
+</script>
+</body>
+</html>
