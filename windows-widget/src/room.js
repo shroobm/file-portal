@@ -207,19 +207,19 @@ function stationRail(d) {
     const accent = (attn || active) ? "var(--clay)" : done ? "var(--ok)" : verd ? VCOL[verd] : "var(--text-2)";
     const glyphBg = (active || attn || verd === "fail") ? "var(--clay-bg)" : verd === "pass" ? "var(--ok-bg)" : "var(--surface-2)";
     const border = (active || attn) ? "var(--clay)" : done ? "rgba(111,191,115,.4)" : verd ? VCOL[verd] : "var(--border)";
-    const pulse = verd === "fail" ? "assay-pulse 1.7s ease-in-out infinite" : "none";
     const countCol = attn ? "var(--clay)" : "var(--text)";
     const subCol = attn ? "var(--clay)" : active ? "var(--ok)" : verd ? VCOL[verd] : "var(--text-3)";
     // grammar law: rail underglow ONLY where a hand is required — Gate holding cards, Assay fail
     const glow = (x.seg === "gate" && attn) ? " rl-glow" + glowMods(gateN, 0, mM)
       : (x.seg === "assay" && verd === "fail") ? " rl-glow" + glowMods(assayVol, assayAge, mM) : "";
     const press = ((x.seg === "convert" && pressed.convert) || (x.seg === "vault" && pressed.vault)) ? " rl-pressed" : "";
-    // inline animation only when the pulse is real — a blanket animation:none would override
-    // the rl-pressed keyframe (class animations lose to inline)
-    const anim = pulse === "none" ? "" : `;animation:${pulse}`;
+    // S75 (docs/26 F1): the fail pulse is a CLASS, never an inline animation — an inline
+    // declaration outranks every stylesheet rule, which made the pulse uncollapsible under
+    // prefers-reduced-motion. Classes also can't collide with rl-pressed (fail ≠ convert/vault).
+    const fail = verd === "fail" ? " rl-fail" : "";
     return (i ? `<span class="rl-sep">·</span>` : "") +
       `<button class="rl-st" data-seg="${x.seg}" title="${x.name}">` +
-      `<span class="rl-glyph${glow}${press}" style="color:${accent};--rl-bg:${glyphBg};border-color:${border}${anim}">${x.glyph}</span>` +
+      `<span class="rl-glyph${glow}${press}${fail}" style="color:${accent};--rl-bg:${glyphBg};border-color:${border}">${x.glyph}</span>` +
       `<span class="rl-name">${x.name}</span>` +
       `<span class="rl-count" style="color:${countCol}">${x.count}</span>` +
       `<span class="rl-sub" style="color:${subCol}">${esc(x.sub)}</span></button>`;
@@ -875,12 +875,13 @@ function renderWall(vm) {
   const dots = defs.map((s) => {
     const lit = s.on || s.always;
     const col = lit ? s.col : "var(--text-3)";
-    const pulse = (s.n === "Assay" && assay.verdict === "fail") ? "assay-pulse 1.7s ease-in-out infinite" : "none";
+    // S75 (docs/26 F1): fail pulse via class, not inline animation — see stationRail's note.
+    const fail = (s.n === "Assay" && assay.verdict === "fail") ? " wl-fail" : "";
     // S73 Slice 1 (docs/25 grammar law): the underglow marks ONLY a station requiring a hand —
     // Gate holding cards, or Assay on a fail. Activity (Convert) gets mass, never glow.
     const glow = (s.n === "Gate" && s.on) ? " wl-glow" + glowMods(gateN, 0, mM)
       : (s.n === "Assay" && assay.verdict === "fail") ? " wl-glow" + glowMods(assayVol, assayAge, mM) : "";
-    return `<div class="wl-st"><div class="wl-dot${glow}" style="color:${col};border-color:${col};animation:${pulse};opacity:${lit ? 1 : 0.4}">${s.g}</div><div class="wl-nm">${s.n}</div></div>`;
+    return `<div class="wl-st"><div class="wl-dot${glow}${fail}" style="color:${col};border-color:${col};opacity:${lit ? 1 : 0.4}">${s.g}</div><div class="wl-nm">${s.n}</div></div>`;
   }).join("<span class='wl-link'></span>");
   const latest = (vm.shift?.tail || []).slice(-1)[0];
   const evtLine = latest ? eventMsg(latest) : "";
@@ -888,7 +889,9 @@ function renderWall(vm) {
   roomEl.innerHTML =
     `<div class="wall">` +
     `<div class="wall-top"><span class="wl-brand">◆ File Portal</span><button class="rh-theme" id="room-theme">◐</button></div>` +
-    `<div class="wall-verdict${String(sv.color).includes("clay") ? " wv-attn" : ""}" style="color:${sv.color}">${sv.word.toUpperCase()}</div>` +
+    // S75 (docs/26 F10): the bloom law keys on the VERDICT, not on sniffing a colour-string —
+    // renaming a CSS token must never silently repeal "bloom only when your hand is required".
+    `<div class="wall-verdict${sv.word === "attention" ? " wv-attn" : ""}" style="color:${sv.color}">${sv.word.toUpperCase()}</div>` +
     // Stage F: escalated pain is visible from across the room — that is the algedonic point.
     ((vm.alg?.escalated) ? `<div class="wall-alg">⚑ ${vm.alg.escalated} unacknowledged &gt; ${vm.alg.m_minutes} m</div>` : "") +
     `<div class="wall-line">${dots}</div>` +

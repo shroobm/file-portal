@@ -639,26 +639,35 @@ function describeBundles(st) {
 }
 
 function vaultApply(st) {
+  // S75 (docs/26 F9): ▤ in the station line was declared and never written — dead since birth.
+  // It now mirrors the same vault_check data the bar renders; "attn" only on a delivery to
+  // pull, which IS a hand-required state (docs/13: the one thing the vault asks a human for).
   if (st.state === "disabled") {
     vaultDisabled = true;
     vaultBar.hidden = true;
+    stSet(stLib, "—", "");
     return;
   }
   vaultBar.hidden = false;
   if (st.state === "updates") {
     const n = (st.bundles ?? []).length || st.behind;
+    stSet(stLib, `+${n}`, "attn");
     vaultRender("ready", {
       label: `Add ${n} new note${n === 1 ? "" : "s"} to Library`,
       note: describeBundles(st),
     });
   } else if (st.state === "pulled") {
+    stSet(stLib, "✓", "");
     vaultRender("success", { label: "Added to Library", note: "✓ " + describeBundles(st) });
     setTimeout(() => vaultCheck(), 4000);
   } else if (st.state === "up-to-date") {
+    stSet(stLib, "✓", "");
     vaultRender("idle", { label: "Library", note: "up to date" });
   } else if (st.state === "offline") {
+    stSet(stLib, "—", "");
     vaultRender("offline", { label: "Library", note: "vault host unreachable — will retry" });
   } else {
+    stSet(stLib, "—", "");
     vaultRender("offline", { label: "Library", note: st.detail || "error" });
     console.error("vault error", st.detail);
   }
@@ -787,14 +796,16 @@ function assayRender(st) {
       const w = Math.max(1.5, Math.min(12, ((z.chars || 0) / (mdLines * 45)) * 100));
       return `<span class="z degen" style="left:${left.toFixed(1)}%;width:${w.toFixed(1)}%"></span>`;
     }).join("");
-    map = `<div class="ac-caption"><b>degeneration</b> — ${zones.length} loop zone(s) · ${st.kind} lane</div>` +
+    // S75 (docs/26 F12): kind escaped + null→"" for parity with room.js (it read "null lane"
+    // here on a pre-audit manifest). The "<kind> lane" WORDING itself is F6, awaiting Rab.
+    map = `<div class="ac-caption"><b>degeneration</b> — ${zones.length} loop zone(s) · ${escHtml(st.kind)} lane</div>` +
       `<div class="ac-map">${bands}</div>`;
   } else if (runs.length && st.pages_scored) {
     const bands = runs.slice(0, 40).map((r) => {
       const left = Math.max(0, Math.min(98, ((r.page || 0) / st.pages_scored) * 100));
       return `<span class="z run" style="left:${left.toFixed(1)}%;width:1.5%"></span>`;
     }).join("");
-    map = `<div class="ac-caption">${runs.length} omission run(s) · ${st.kind} lane</div>` +
+    map = `<div class="ac-caption">${runs.length} omission run(s) · ${escHtml(st.kind)} lane</div>` +
       `<div class="ac-map">${bands}</div>`;
   }
 
