@@ -8,6 +8,34 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S75 — THE REPAIR SLICE, MECHANICAL HALF + THE FIRST COMMANDED CIRCLE (2026-08-13,
+  Desktop lane, Rab present).** Narrative in `sessions/S75-desktop-2026-08-13.md`; reference
+  frame in **`docs/26-mass-audit-findings.md`** (new — the S74 three-lane mass audit filed
+  durably: 15 graded findings, the mechanical-vs-semantic gate).
+  - **Fixed — six mechanical findings (`f270f30`):** F1 reduced-motion COMPLETED (assay
+    pulse de-inlined to `rl-fail`/`wl-fail` classes — the inline write was uncollapsible by
+    any media query; drill zoom → fade; vault-glow / vault-spin ×2 / pf-spark / assay-dot /
+    micro-transitions guarded) · F2 the Wall bleed (Dock `#status` + `#algedonic-chip`
+    hidden on surface-wall ONLY — the Room keeps its feedback sink; Wall height now
+    `calc(100vh − 26px titlebar)` — the hero no longer overflows) · F9 dead `#st-lib` wired
+    to `vault_check` state (attn only on a delivery-to-pull) · F10 verdict bloom keyed on
+    `sv.word`, not colour-string sniffing · F11 `assay-pulse`/`vault-glow` shadows
+    token-derived via `color-mix(var(--clay))` — they now follow theme + accent levers ·
+    F12 `st.kind` escaped, null-parity across surfaces.
+  - **Semantic findings F3–F8 deliberately untouched** — the signature sheet (docs/26)
+    awaits Rab: wash carve-out · 400 ms reconciliation · witness relabel · survival honesty
+    (null-not-1.0 + pages_scored) · terracotta colour policy.
+  - **Acceptance = the first commanded `/circle` run** (two independent lanes): all six
+    FIXED-COMPLETE · semantic fence HELD (only sanctioned files touched) · all S73/S74
+    invariants HOLD (glow grammar, token containment, density, press mechanics) · the audit
+    rig re-proven empirically (Room diff = clock digits, Wall zero). One observation
+    actioned: a guard comment on the rl-fail/rl-pressed implicit invariant.
+  - **Ritual:** fmt silent · clippy clean · 20/20 · node ×2 · build green. **Staged exe
+    `B7F720C4`** (supersedes `0454114C`, adopted by Rab this morning) — **adoption is Rab's
+    hand.** Also this session: the Bench operating-doctrine gap recorded (no canonical
+    good-repair example; entropy-loss target 0.01–1.00%; operator-simplicity discovery
+    mission queued after signatures); cookies #62–64.
+
 - **S74 — SLICE 2 + THE SIGNED GLOW AMENDMENT: THE RAIL WEARS KEYCAPS, THE SUMMONS WEARS ITS
   AGE AND VOLUME (2026-08-13, Desktop lane, overnight).** Narrative in
   `sessions/S74-desktop-2026-08-13.md`.

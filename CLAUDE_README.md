@@ -63,34 +63,20 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S75 — Desktop — 2026-08-13 (Fable 5, Rab present). THE REPAIR SLICE, MECHANICAL HALF —
-commissioned after the S74 three-lane mass audit (cookies #62–63). Order: file the audit →
-mechanical repairs → /circle acceptance → signature sheet. SEMANTIC FINDINGS UNTOUCHED
-(wash carve-out · 400 ms reconciliation · witness relabel · survival honesty · terracotta
-colour policy — all await Rab's signatures). Bench doctrine noted for the record: operating
-maturity UNDISCOVERED — no canonical good-repair example exists; Rab's entropy-loss target
-0.01–1.00% (minimum-operator-work measure, not guaranteeable); the semantic/visual
-operator-simplicity discovery mission (agents) is queued AFTER the signatures resolve.**
-
-- **G0 — docs/26.** The S74 mass-audit findings filed durably: three lanes synthesized,
-  graded verdicts (HELD/VIOLATION/EROSION/TENSION/BLEED/HONEST-BUT-CONFUSING/FRAGILE/DEAD),
-  the mechanical-vs-semantic gate split. The repair slice's reference frame.
-- **G1 — mechanical repairs** (target state unambiguous under signed law): Wall hide-list
-  (#status + #algedonic-chip hidden on surface-wall only — the Room keeps its status sink)
-  + the Wall's 100vh overflow · reduced-motion completion (assay pulse DE-INLINED to
-  .rl-fail/.wl-fail classes killing the structural uncollapsibility; drill-in zoom,
-  vault-glow, vault-spin ×2, #st-assay pulse, micro-transitions all guarded) ·
-  esc(st.kind) + null-render parity (main.js ↔ room.js) · wv-attn derived from sv.word
-  not colour-string-sniffing · assay-pulse/vault-glow hardcoded hex → token-derived ·
-  #st-lib wired to the vault count from data the Dock already reads (wire-don't-delete,
-  the flagged judgment call).
-- **G2 — proofs + ritual.** Audit rig re-run (pre-file = this open's SHA) proving Room/Wall
-  text unchanged · harness live checks · fmt → clippy → test → node ×2 → build → hash →
-  staged for Rab's adoption (his hand).
-- **G3 — /circle acceptance** on the repair slice (assessment-only; the skill's first
-  commanded run). Findings into the closeout.
-- **G4 — paperwork.** CHANGELOG · closeout `sessions/S75-desktop-2026-08-13.md` · ledger row
-  (separate follow-up commit) · push · clocks lockstep · the signature sheet re-presented.
+*(S75 closed 2026-08-13 (Desktop, Fable 5, Rab present; cookies #62–64) — **THE REPAIR
+SLICE, MECHANICAL HALF + THE FIRST COMMANDED CIRCLE.** docs/26 NEW (the S74 mass audit
+filed: 15 graded findings + gate split + signature sheet). Six mechanical findings FIXED
+(`f270f30`): reduced-motion completed with the assay pulse DE-INLINED to rl-fail/wl-fail
+classes (the inline write was uncollapsible by any media query) · Wall bleed killed
+(#status/#algedonic-chip hidden surface-wall only; height calc(100vh−26px titlebar)) ·
+dead #st-lib wired to vault_check · bloom keyed on sv.word · pulses token-derived via
+color-mix · st.kind escaped. **Semantic F3–F8 untouched — the fence held under audit.**
+Acceptance = the first commanded /circle (two lanes): six FIXED-COMPLETE · fence HELD ·
+all S73/S74 invariants HOLD · rig re-proven; one observation → guard comment (`b909758`).
+Ritual green 20/20. **STAGED `B7F720C4`, UNADOPTED — Rab's hand + the §5 five checks.**
+Bench doctrine recorded: operating maturity undiscovered, entropy target 0.01–1.00%,
+operator-simplicity discovery mission queued after the signature sheet. Closeout:
+`sessions/S75-desktop-2026-08-13.md`.)*
 
 *(S74 closed 2026-08-13 (Desktop, Fable 5, overnight; cookies #59–61) — **SLICE 2 + THE SIGNED
 GLOW AMENDMENT: THE RAIL WEARS KEYCAPS, THE SUMMONS WEARS ITS AGE AND VOLUME.** Rab adopted
