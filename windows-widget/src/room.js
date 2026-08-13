@@ -215,7 +215,10 @@ function stationRail(d) {
     const press = ((x.seg === "convert" && pressed.convert) || (x.seg === "vault" && pressed.vault)) ? " rl-pressed" : "";
     // S75 (docs/26 F1): the fail pulse is a CLASS, never an inline animation — an inline
     // declaration outranks every stylesheet rule, which made the pulse uncollapsible under
-    // prefers-reduced-motion. Classes also can't collide with rl-pressed (fail ≠ convert/vault).
+    // prefers-reduced-motion. Classes also can't collide with rl-pressed (fail ≠ convert/vault)
+    // — but ONLY because defs above never gives convert/vault a verdict-bearing `st`. If that
+    // ever changes, rl-fail would silently override rl-pressed by stylesheet order (circle
+    // acceptance observation, S75): keep verdicts off the convert/vault rows.
     const fail = verd === "fail" ? " rl-fail" : "";
     return (i ? `<span class="rl-sep">·</span>` : "") +
       `<button class="rl-st" data-seg="${x.seg}" title="${x.name}">` +
