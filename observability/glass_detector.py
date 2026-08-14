@@ -28,8 +28,9 @@ Usage
     python observability/glass_detector.py --since HEAD~1 # §5.4: only keys added since REF
     python observability/glass_detector.py --json         # machine-readable
 
-Whether this runs in CI, in the closeout ritual, or both is docs/29 §8 decision 3 and is
-UNSIGNED. Until Rab signs it, the default is report-only.
+SIGNED (Rab, 2026-08-14, docs/29 §8.3): this runs in the CLOSEOUT RITUAL, in `--since` mode —
+the census scoped to the keys THIS session introduced. CI does not run it, and the standing
+backlog is advisory. See CLAUDE_README.md §4 and docs/21 §5.
 
 Honest limits (read these before trusting a clean run):
   * A key whose name is a common word ("name", "id", "kind", "size") will almost always find
@@ -78,6 +79,15 @@ class _PyProducer(ast.NodeVisitor):
 
     def __init__(self) -> None:
         self.found: list[tuple[str, int, str]] = []  # (key, lineno, context)
+        # Two independent double-count sources, both measured on the real tree (docs/31 §1.13:
+        # analyst.py harvested 90 keys for 49 distinct, +84%). (1) _harvest recursed via
+        # ast.walk into ALL descendants and then recursed again from each nested dict, so a
+        # grandchild was harvested once per ancestor level. (2) a nested `def` was scanned once
+        # by the enclosing function's ast.walk and again by visit_FunctionDef after
+        # generic_visit. Identity sets kill both; the id() is safe because the AST is held
+        # alive by `tree` for the whole visit.
+        self._seen_dicts: set[int] = set()
+        self._seen_fns: set[int] = set()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
         self._scan_function(node)
@@ -88,6 +98,9 @@ class _PyProducer(ast.NodeVisitor):
         self.generic_visit(node)
 
     def _scan_function(self, fn: ast.AST) -> None:
+        if id(fn) in self._seen_fns:
+            return
+        self._seen_fns.add(id(fn))
         name = getattr(fn, "name", "?")
 
         # 1. names that are returned, and dicts returned literally.
@@ -138,16 +151,15 @@ class _PyProducer(ast.NodeVisitor):
                         if isinstance(a, ast.Dict):
                             escaping.append(a)
 
-        seen: set[int] = set()
         for d in escaping:
-            if id(d) in seen:
-                continue
-            seen.add(id(d))
             self._harvest(d, name)
 
     def _harvest(self, d: ast.Dict, ctx: str) -> None:
         """Keys of this dict and of every dict nested in its values — a nested dict that rides
         out inside a returned payload escapes just as surely as the top level."""
+        if id(d) in self._seen_dicts:
+            return
+        self._seen_dicts.add(id(d))
         for k, v in zip(d.keys, d.values):
             if isinstance(k, ast.Constant) and isinstance(k.value, str):
                 self.found.append((k.value, k.lineno, ctx))
@@ -171,6 +183,8 @@ _JSON_BANG = re.compile(r"json!\s*\(")
 _RS_KEY = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:')
 _SERDE_RENAME = re.compile(r'#\[serde\s*\(\s*rename\s*=\s*"([^"]+)"')
 _RS_FIELD = re.compile(r"^\s*pub\s+([a-z_][a-z0-9_]*)\s*:", re.M)
+# same shape, but anchored after a diff's leading `+` rather than at line start
+_RS_FIELD_ADDED = re.compile(r"^\+\s*pub(?:\([^)]*\))?\s+([a-z_][a-z0-9_]*)\s*:")
 
 
 def keys_from_rust(path: Path) -> list[tuple[str, int, str]]:
@@ -223,6 +237,26 @@ def keys_from(path: Path) -> list[tuple[str, int, str]]:
 # --------------------------------------------------------------------------------------------
 
 
+def resolve_glob(pattern: str) -> list[Path]:
+    """Globs are repo-relative, but an ABSOLUTE pattern is honoured too so a test fixture can
+    live outside the working tree — the acceptance harness used to plant its fixtures inside
+    the repo, which leaks an untracked dir if a run is interrupted (this machine has had two
+    power cuts mid-run)."""
+    p = Path(pattern)
+    if p.is_absolute():
+        import glob as _glob
+
+        return sorted(Path(m) for m in _glob.glob(pattern))
+    return sorted(ROOT.glob(pattern))
+
+
+def rel(p: Path) -> str:
+    try:
+        return str(p.relative_to(ROOT))
+    except ValueError:
+        return str(p)
+
+
 def renderer_text(paths: list[Path]) -> str:
     return "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in paths if p.is_file())
 
@@ -243,20 +277,42 @@ def referenced(key: str, blob: str, cache: dict[str, bool]) -> bool:
 def added_keys_since(ref: str) -> set[str] | None:
     """String literals appearing on ADDED lines since `ref`. Line numbers shift under a diff,
     so this matches on the key text rather than pretending to track position."""
+    # encoding= is LOAD-BEARING. Without it `text=True` decodes git's output with the console
+    # codepage (cp1252 on this machine), and this repo's sources are full of § — · ✓ ◍. The
+    # UnicodeDecodeError is raised inside subprocess's READER THREAD, so it never propagates:
+    # run() returns stdout=None, the except below is bypassed, and .splitlines() dies with
+    # AttributeError. That is not theoretical — it was S78's shipped state, and the first
+    # offending byte came from the ◍ in this tool's OWN acceptance.py. The only refs that
+    # "worked" were the ones whose diff was zero bytes, which is exactly what the acceptance
+    # test used. See docs/31 §1.1.
     try:
-        diff = subprocess.run(
+        proc = subprocess.run(
             ["git", "-C", str(ROOT), "diff", "-U0", ref, "--", "*.py", "*.rs"],
             capture_output=True,
             text=True,
+            encoding="utf-8",
+            errors="replace",
             check=True,
-        ).stdout
-    except (subprocess.CalledProcessError, FileNotFoundError) as e:
+        )
+    except (subprocess.CalledProcessError, FileNotFoundError, OSError) as e:
         print(f"! --since {ref} failed ({e}); falling back to the full census", file=sys.stderr)
         return None
+    if proc.stdout is None:  # belt-and-braces: a reader-thread death still lands here
+        print(f"! --since {ref} produced no readable diff; full census", file=sys.stderr)
+        return None
+
     keys: set[str] = set()
-    for line in diff.splitlines():
-        if line.startswith("+") and not line.startswith("+++"):
-            keys.update(re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:', line))
+    for line in proc.stdout.splitlines():
+        if not line.startswith("+") or line.startswith("+++"):
+            continue
+        # Three dialects, because the extractors have three. A filter that only knew
+        # `"key":` was blind to the widget lane's ENTIRE Rust vocabulary — 7 Serialize
+        # structs, 30 fields — so adding `pub chunks_skipped: u64` and rendering it nowhere
+        # passed the signed closeout as "0 keys in scope". That is docs/29 Mode D reproduced
+        # inside the instrument built to prevent Mode D (docs/31 §1.3).
+        keys.update(re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:', line))  # py dict / json!
+        keys.update(_RS_FIELD_ADDED.findall(line))  # rust `pub field:`
+        keys.update(_SERDE_RENAME.findall(line))  # rust #[serde(rename = "x")]
     return keys
 
 
@@ -291,17 +347,41 @@ def main() -> int:
             print(f"! dispositions.json: {k} has no reason — silence must be signed", file=sys.stderr)
             return 2
 
+    known_lanes = {lane["name"] for lane in cfg["lanes"]}
+    if args.lane:
+        # A typo'd lane name used to print NOTHING and exit 0 under --enforce (docs/31 §1.10):
+        # the loudest possible silence, from the tool whose subject is silence.
+        unknown = [n for n in args.lane if n not in known_lanes]
+        if unknown:
+            print(
+                f"! unknown lane(s): {', '.join(unknown)} — known: {', '.join(sorted(known_lanes))}",
+                file=sys.stderr,
+            )
+            return 2
+
     only_added = added_keys_since(args.since) if args.since else None
+    # Distinguish "scoped to a real diff" from "the ref was a typo and we silently widened".
+    # The header used to claim the scope either way, and --json carried no marker at all.
+    since_fell_back = bool(args.since) and only_added is None
 
     report: dict[str, dict] = {}
     glitches: list[tuple[str, str, int, str, str]] = []
     used_signatures: set[str] = set()
+    empty_globs: list[str] = []
 
     for lane in cfg["lanes"]:
         if args.lane and lane["name"] not in args.lane:
             continue
-        producers = [p for g in lane["producers"] for p in sorted(ROOT.glob(g))]
-        renderers = [p for g in lane["renderers"] for p in sorted(ROOT.glob(g))]
+        producers = [p for g in lane["producers"] for p in resolve_glob(g)]
+        renderers = [p for g in lane["renderers"] for p in resolve_glob(g)]
+        # A producer glob that matches nothing is a lane that passes forever. Renaming
+        # bench.py once turned the whole bench lane green (docs/31 §1.10).
+        for g in lane["producers"]:
+            if not resolve_glob(g):
+                empty_globs.append(f"{lane['name']}: producers {g!r}")
+        for g in lane["renderers"]:
+            if not resolve_glob(g):
+                empty_globs.append(f"{lane['name']}: renderers {g!r}")
         blob = renderer_text(renderers)
         cache: dict[str, bool] = {}
 
@@ -310,61 +390,102 @@ def main() -> int:
             for key, lineno, ctx in keys_from(prod):
                 if len(key) < MIN_KEY_LEN:
                     continue
+                sig = f"{lane['name']}:{key}"
+                # Staleness is about whether a SIGNATURE still has a producer — a question
+                # about the tree, not about this run's scope. Marking it used before the
+                # --since filter is what keeps stale detection alive in the SIGNED mode;
+                # computing it after meant the only mechanism that catches a rotted DEAD
+                # entry was switched off in the only mode Rab signed (docs/31 §1.8).
+                if sig in signed:
+                    used_signatures.add(sig)
                 if only_added is not None and key not in only_added:
                     continue
-                sig = f"{lane['name']}:{key}"
                 if referenced(key, blob, cache):
                     verdict = "glass"
                 elif sig in signed:
                     verdict = signed[sig]["disposition"].lower()
-                    used_signatures.add(sig)
                 else:
                     verdict = "GLITCH"
                     glitches.append(
-                        (lane["name"], key, lineno, str(prod.relative_to(ROOT)), ctx)
+                        (lane["name"], key, lineno, rel(prod), ctx)
                     )
                 lane_rows.append(
                     {
                         "key": key,
-                        "producer": str(prod.relative_to(ROOT)),
+                        "producer": rel(prod),
                         "line": lineno,
                         "context": ctx,
                         "verdict": verdict,
                     }
                 )
         report[lane["name"]] = {
-            "producers": [str(p.relative_to(ROOT)) for p in producers],
-            "renderers": [str(p.relative_to(ROOT)) for p in renderers],
+            "producers": [rel(p) for p in producers],
+            "renderers": [rel(p) for p in renderers],
             "rows": lane_rows,
         }
 
-    stale = sorted(set(signed) - used_signatures) if not (args.lane or args.since) else []
+    # --lane genuinely narrows which signatures could be reached, so staleness is not
+    # answerable there. --since no longer suppresses it (see used_signatures, above).
+    stale = sorted(set(signed) - used_signatures) if not args.lane else []
+
+    # THE ACTIONABLE UNIT IS THE SIGNATURE, and a signature is `lane:key` — so one entry in
+    # dispositions.json silences every occurrence of that key in that lane. Reporting rows
+    # inflated every headline number S78 produced by 17–45% (93 rows for 77 real glitches;
+    # 613 "keys" for 335). docs/31 §1.13.
+    distinct_glitches = sorted({(g[0], g[1]) for g in glitches})
 
     if args.json:
-        print(json.dumps({"lanes": report, "glitches": glitches, "stale": stale}, indent=2))
+        print(
+            json.dumps(
+                {
+                    "lanes": report,
+                    "glitches": glitches,  # every occurrence, with file:line
+                    "distinct_glitches": [list(x) for x in distinct_glitches],
+                    "glitch_count": len(distinct_glitches),
+                    "stale": stale,
+                    "empty_globs": empty_globs,
+                    "since": args.since,
+                    "since_fell_back": since_fell_back,
+                },
+                indent=2,
+            )
+        )
     else:
-        _print_census(report, glitches, stale, args)
+        _print_census(report, glitches, distinct_glitches, stale, empty_globs, since_fell_back, args)
 
-    if args.enforce and (glitches or stale):
+    if args.enforce and (glitches or stale or empty_globs):
         return 1
     return 0
 
 
-def _print_census(report, glitches, stale, args) -> None:
+def _print_census(report, glitches, distinct_glitches, stale, empty_globs, fell_back, args) -> None:
     print("──────── GLASS DETECTOR · docs/29 §5.1 ────────")
-    if args.since:
+    if args.since and not fell_back:
         print(f"    scope: keys added since {args.since} (§5.4 same-commit rule)")
+    elif args.since and fell_back:
+        print(f"    ! scope REQUESTED since {args.since} but the ref did not resolve —")
+        print("      this is the FULL census, not a scoped one")
     for name, lane in report.items():
         counts: dict[str, int] = {}
         for r in lane["rows"]:
             counts[r["verdict"]] = counts.get(r["verdict"], 0) + 1
         tally = " · ".join(f"{k} {v}" for k, v in sorted(counts.items())) or "no keys"
-        print(f"\n  [{name}] {len(lane['rows'])} keys — {tally}")
+        distinct = len({r["key"] for r in lane["rows"]})
+        print(f"\n  [{name}] {distinct} keys ({len(lane['rows'])} sites) — {tally} by site")
         print(f"      producers: {', '.join(lane['producers']) or '(none matched)'}")
         print(f"      renderers: {', '.join(lane['renderers']) or '(none matched)'}")
 
+    if empty_globs:
+        print(f"\n  ✗ {len(empty_globs)} GLOB(S) MATCHED NOTHING — that lane cannot fail:")
+        for g in empty_globs:
+            print(f"      {g}")
+
     if glitches:
-        print(f"\n  ✗ {len(glitches)} UNSIGNED GLITCH(ES) — computed, stored, reaching nobody:")
+        sites = len(glitches)
+        print(
+            f"\n  ✗ {len(distinct_glitches)} UNSIGNED GLITCH(ES) at {sites} site(s) — "
+            "computed, stored, reaching nobody:"
+        )
         for lane, key, lineno, prod, ctx in glitches:
             print(f"      {lane}:{key}\n          {prod}:{lineno}  ({ctx})")
         print(

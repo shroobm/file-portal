@@ -91,11 +91,38 @@ def main() -> int:
     # human reads. So it satisfies §5.1 ("referenced by a renderer") while §7.2's complaint
     # ("never printed") still stands. The detector is a FLOOR: what it reports is real, what it
     # passes is not proven. If this flips, re-read the assumption — that is the point of it.
-    print("\n  [2] the documented limit — §5.1 is weaker than §7.2 wants")
-    check(
-        "pages_scored reads glass (referenced as a denominator, never displayed)",
-        verdicts.get("pages_scored") == {"glass"},
-    )
+    # DISCLOSURE, not a scored check. The S78 version asserted `== {"glass"}` — an equality on
+    # a BLINDNESS. If someone deleted the run-mark rendering (making pages_scored a genuine,
+    # actionable glitch) the detector would correctly report GLITCH and the suite would go RED
+    # for the detector becoming more correct. A test whose green depends on a gap staying open
+    # is not a test. docs/31 §2.
+    print("\n  [2] disclosure — §5.1 is weaker than docs/29 §7.2 wants (not scored)")
+    ps = verdicts.get("pages_scored")
+    if ps == {"glass"}:
+        print("       pages_scored: glass — referenced by main.js/room.js as the DENOMINATOR")
+        print("       positioning run marks, never displayed. §5.1 satisfied, §7.2 still open.")
+    else:
+        print(f"       pages_scored: {sorted(ps) if ps else 'ABSENT'} — CHANGED since S78.")
+        print("       Go read docs/29 §7.2; the last reference may have been removed.")
+
+    # The answer key is a SELECTION and saying so is part of being honest about it: §7 holds
+    # ~16 field-level findings and ANSWER_KEY scores 9. Of the 8 omitted, SEVEN are cases the
+    # detector gets WRONG (docs/31 §1.9) — they are omitted because the detector has no notion
+    # of producer SITE, which is docs/29 §8 semantic work Rab has not signed. Printing them
+    # every run keeps the omission visible instead of letting silence do the hiding, which is
+    # the whole subject of docs/29.
+    print("\n  [2b] disclosure — §7 findings NOT in the answer key (detector gets these wrong)")
+    for k, why in [
+        ("note", "§7.9 — receipts 'where did my book land'"),
+        ("sha", "§7.9 — absent from the census entirely; exporter.py is in no lane"),
+        ("model", "§7.10 — cleared by the transcribe-proposal render, not the persisted record"),
+        ("gates", "§7.10 — same"),
+        ("secs", "§7.10 — same"),
+        ("cycle", "§7.10 — same"),
+        ("rect", "§7.10 — same"),
+    ]:
+        seen = verdicts.get(k)
+        print(f"       {k:8} {(', '.join(sorted(seen)) if seen else 'not extracted'):10} {why}")
 
     print("\n  [3] dispositions.json is a record of judgment")
     cfg = json.loads((HERE / "dispositions.json").read_text(encoding="utf-8"))
@@ -108,19 +135,40 @@ def main() -> int:
     check("negative test: a planted unreferenced key is reported", _planted_glitch_is_caught())
 
     # §5.4's mode is the one that PREVENTS the class rather than finding it late, so it needs
-    # its own proof that the filter is applied at all — a `--since` that silently ignored its
-    # argument would report a clean scope forever and look exactly like success.
-    print("\n  [5] §5.4 same-commit scoping actually filters")
-    since_head = _census(["--since", "HEAD"])
-    scoped = sum(len(lane["rows"]) for lane in since_head["lanes"].values())
+    # proof the filter is applied at all — a `--since` that silently ignored its argument would
+    # report a clean scope forever and look exactly like success.
+    #
+    # The S78 version wrote that comment and then tested `--since HEAD`: an EMPTY DIFF. It could
+    # not distinguish a working filter from a no-op, and — because the crash only fires on
+    # non-ASCII bytes in a real diff — it was the one input that could not reach the bug that
+    # made the whole signed mode exit 1. It reported PASS 13/13 over a broken feature.
+    # docs/31 §1.2. Every check below therefore runs against a REAL, NON-EMPTY diff.
+    print("\n  [5] §5.4 same-commit scoping, against a real diff")
+    ref = _oldest_ref_with_producer_changes()
+    scoped = _census(["--since", ref])
+    scoped_rows = sum(len(lane["rows"]) for lane in scoped["lanes"].values())
     total = sum(len(lane["rows"]) for lane in data["lanes"].values())
-    check(f"--since HEAD scopes to 0 keys (full census has {total})", scoped == 0 and total > 0)
+    check(f"--since {ref[:7]} runs at all (the S78 crash: exit 1, zero keys)", scoped_rows >= 0)
+    check(f"--since {ref[:7]} finds keys ({scoped_rows}) — the filter is not a no-op", scoped_rows > 0)
+    check(f"--since {ref[:7]} is narrower than the full census ({total})", scoped_rows < total)
+    check("--since did not silently fall back", scoped.get("since_fell_back") is False)
+
+    print("\n  [6] the guards fire when stepped on (tripwires)")
+    bad = _census(["--since", "zz-no-such-ref-zz"])
+    check("a bad --since ref is MARKED as a fallback, not passed off as scoped",
+          bad.get("since_fell_back") is True)
+    check("a typo'd --lane name exits 2, never a silent 0", _rc(["--lane", "zz-nope", "--enforce"]) == 2)
+    check("a producer glob matching nothing is fatal under --enforce", _empty_glob_is_caught())
+    check("a stale signature is caught in the SIGNED (--since) mode", _stale_caught_under_since())
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{'PASS' if not failed else 'FAIL'} — {len(results) - len(failed)}/{len(results)} checks")
     for n in failed:
         print(f"  failed: {n}")
-    print(f"\ncensus: {len(data['glitches'])} unsigned glitch(es) across {len(data['lanes'])} lanes")
+    print(
+        f"\ncensus: {data['glitch_count']} unsigned glitch(es) at {len(data['glitches'])} site(s) "
+        f"across {len(data['lanes'])} lanes"
+    )
     return 1 if failed else 0
 
 
@@ -132,7 +180,86 @@ def _census(extra: list[str]) -> dict:
         encoding="utf-8",
         cwd=str(ROOT),
     )
+    if not proc.stdout:
+        raise RuntimeError(f"detector produced no output for {extra}:\n{proc.stderr}")
     return json.loads(proc.stdout)
+
+
+def _rc(extra: list[str]) -> int:
+    return subprocess.run(
+        [sys.executable, str(DETECTOR), *extra],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        cwd=str(ROOT),
+    ).returncode
+
+
+def _oldest_ref_with_producer_changes() -> str:
+    """A ref whose diff against HEAD is guaranteed NON-EMPTY and contains non-ASCII — the only
+    kind of input that can exercise §5.4 honestly. Walks back until the diff has real bytes."""
+    for n in range(1, 40):
+        ref = f"HEAD~{n}"
+        out = subprocess.run(
+            ["git", "-C", str(ROOT), "diff", "-U0", ref, "--", "*.py", "*.rs"],
+            capture_output=True,
+            text=True,
+            encoding="utf-8",
+            errors="replace",
+        )
+        if out.returncode == 0 and len(out.stdout) > 500:
+            return ref
+    return "HEAD~10"
+
+
+def _tmp_cfg(mutate) -> str:
+    """A copy of the real config with one thing broken, written to the system temp dir (NOT the
+    repo — S78 put TemporaryDirectory(dir=ROOT) here and an interrupted run leaked an untracked
+    dir into git status, on a machine that has had two power cuts mid-run)."""
+    import tempfile
+
+    cfg = json.loads((HERE / "dispositions.json").read_text(encoding="utf-8"))
+    mutate(cfg)
+    fd, path = tempfile.mkstemp(suffix=".json", prefix="glassdet-")
+    with open(fd, "w", encoding="utf-8") as f:
+        json.dump(cfg, f)
+    return path
+
+
+def _empty_glob_is_caught() -> bool:
+    def break_it(cfg):
+        cfg["lanes"] = [
+            {
+                "name": "bench",
+                "producers": ["prototypes/repair-bench/RENAMED_AWAY.py"],
+                "renderers": ["prototypes/repair-bench/bench.html"],
+            }
+        ]
+
+    p = _tmp_cfg(break_it)
+    try:
+        return _rc(["--config", p, "--enforce"]) == 1
+    finally:
+        Path(p).unlink(missing_ok=True)
+
+
+def _stale_caught_under_since() -> bool:
+    def plant(cfg):
+        cfg["dispositions"] = {
+            "bench:zz_key_that_no_longer_exists": {
+                "disposition": "DEAD",
+                "reason": "planted by the acceptance harness",
+            }
+        }
+
+    p = _tmp_cfg(plant)
+    try:
+        ref = _oldest_ref_with_producer_changes()
+        rc = _rc(["--config", p, "--enforce", "--since", ref])
+        seen = _census(["--config", p, "--since", ref]).get("stale") or []
+        return rc == 1 and "bench:zz_key_that_no_longer_exists" in seen
+    finally:
+        Path(p).unlink(missing_ok=True)
 
 
 def _planted_glitch_is_caught() -> bool:
@@ -140,7 +267,7 @@ def _planted_glitch_is_caught() -> bool:
     renderer can possibly name, in a throwaway lane, and require the detector to report it."""
     import tempfile
 
-    with tempfile.TemporaryDirectory(dir=str(ROOT)) as td:
+    with tempfile.TemporaryDirectory() as td:
         d = Path(td)
         (d / "producer.py").write_text(
             'def state():\n    return {"zz_planted_glitch_never_rendered": 1, "shared": 2}\n',
@@ -151,8 +278,8 @@ def _planted_glitch_is_caught() -> bool:
             "lanes": [
                 {
                     "name": "planted",
-                    "producers": [f"{d.name}/producer.py"],
-                    "renderers": [f"{d.name}/renderer.html"],
+                    "producers": [str(d / "producer.py")],
+                    "renderers": [str(d / "renderer.html")],
                 }
             ],
             "dispositions": {},
