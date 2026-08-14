@@ -73,16 +73,26 @@ pub fn decide(
     if !json_path.is_file() {
         return Err("pending card no longer exists".into());
     }
+    // S76 (SYM-024): stderr goes to a LAST-WORDS FILE, never null — a resume that dies
+    // before flipping the card's state used to vanish without a trace (observed 2026-08-13:
+    // a routed card stayed "pending", no analyst, no evidence anywhere). The bench-stderr.log
+    // idiom (S63); an open file handle is safe where an inherited console handle was not (S31).
+    let last_words = fs::OpenOptions::new()
+        .create(true)
+        .append(true)
+        .open(Path::new(gpu_pipeline_dir).join("resume-stderr.log"))
+        .map(Stdio::from)
+        .unwrap_or_else(|_| Stdio::null());
     Command::new(gpu_python_exe)
         .arg(&script)
         .args(["--resume", id, "--backend", backend])
         .env("PYTHONIOENCODING", "utf-8")
-        // Null I/O so the detached resume survives a windowless (Start-menu) launch — same
-        // dead-inherited-handle crash the watcher hit (S31). It's fire-and-forget; the card
-        // JSON state file, not stdout, is how the widget tracks it.
+        // Null stdin/stdout so the detached resume survives a windowless (Start-menu) launch —
+        // same dead-inherited-handle crash the watcher hit (S31). It's fire-and-forget; the
+        // card JSON state file, not stdout, is how the widget tracks it.
         .stdin(Stdio::null())
         .stdout(Stdio::null())
-        .stderr(Stdio::null())
+        .stderr(last_words)
         .creation_flags(CREATE_NO_WINDOW)
         .spawn()
         .map_err(|e| format!("failed to spawn resume: {e}"))?;
