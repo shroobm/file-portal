@@ -122,7 +122,74 @@ decision, and conflating them is what made the hole.*
 
 **5. M and the ack mechanism** (§3.4) — outstanding since S57.
 
-## 6. Why this is a session and not a patch
+## 6. SIGNED (Rab, 2026-08-14, S78)
+
+**§5.4 — SIGNED: decouple the alarm from enforcement.** A `fail` verdict raises algedonically
+regardless of `audit_mode`. Shipping behaviour changes not at all. *Report* means **ship
+anyway**, never **stay silent**.
+
+**§5.2 — DEFERRED to a research day, with §5.2 option 1 standing as the default meanwhile**
+(widget writes the morning note; no autonomous outbound mail). Rab's words: *"this is the two
+signals = one signal situation, so I prefer that I also get a notification from the widget and
+its completion — I'm just not sure this was the case or feature."*
+
+**Answering the uncertainty, `Observed 2026-08-14` (S78, read from source, per the
+verify-before-instruct rule):** it is **not** a feature. `windows-widget/` contains **zero**
+notification code of any kind — no `tauri-plugin-notification` (not in `Cargo.toml`), no Web
+Notification API, no toast, no tray balloon. Grep across `src-tauri/src/`, `main.js`,
+`room.js`, `index.html` returns nothing. **The widget cannot reach a human who is not looking
+at it, by any path** — not for pain, and not for completion either.
+
+docs/29 §8.3 was also signed this session: the glass detector runs in the **closeout ritual in
+`--since` mode**.
+
+## 6b. The research day — outline (Rab's ask; queued AHEAD of the guided Valentine)
+
+The thing being researched is not "add toasts". It is Rab's *two signals = one signal*
+principle applied to interruption: **what earns the right to reach a human who is not
+looking?** Completion, failure, and silence are three occasions for one answer, and if they
+get three mechanisms the project has repeated the mistake docs/29 named.
+
+**The finding that should open the day.** Beer's term is *algedonic* — pain **and** pleasure.
+Our implementation matches only the `algos` half. Every alert kind in `algedonic.rs` is a
+failure; a finished book — the thing Rab actually waits for — has no channel at all. The module
+is half-named after a thing it half-implements. Whether that is a gap or a correct narrowing is
+the first question of the day, and it decides the shape of everything after it.
+
+**Lane 1 — ground truth, before any design (the S28/S71 tradition).** Enumerate every terminal
+event the pipeline can produce (converted · shipped · held · failed · stalled · vault-refused ·
+silence) and measure, for each, how a human currently learns of it and how long that takes.
+Include the states nobody has measured: widget minimised, widget closed, machine locked, and
+Rab away over Sunshine (docs/17). **Strictly serial on the machine** — the one-lab-process law
+(SYM-022) is not negotiable, and a measurement lane that races another is worthless anyway.
+
+**Lane 2 — the doctrine.** What is the *interrupt budget*? A channel that fires on everything
+is a channel that gets muted, and a muted channel is worse than none because it reads as
+covered. Candidate grammar to test: exactly one interrupt per **run**, carrying the run's whole
+verdict, plus escalation only for pain that outlives M. Test it against the five-silent-days
+case and against a normal 6-book night.
+
+**Lane 3 — mechanism survey.** `tauri-plugin-notification` vs a tray balloon vs the morning
+note; behaviour under Windows Focus Assist / Do Not Disturb; what a notification does when the
+widget is closed (it cannot fire — which may make the morning note the *only* honest channel
+for the closed case); and the remote case, where the human is not at this machine at all.
+
+**Would it require agents? Mostly no — and deliberately so.**
+- **Lane 1: no agents.** Machine-bound, serial, one process on the card. Parallelism here is
+  a hazard, not a speedup.
+- **Lane 2: one agent, worth it.** An independent read of Beer's actual algedonic definition
+  against our implementation — the kind of "is our reading of the source honest?" question
+  where a second pair of eyes that has not been staring at `algedonic.rs` is genuinely better.
+  This is what Rab's standing agent grant (cookie #64) was for.
+- **Lane 3: one agent, optional.** A survey lane on notification mechanisms and
+  reduced-interruption doctrine. Useful, easily done inline if the day is short.
+
+So: **two agent lanes at most, both on the *reading* half; the *measuring* half stays serial
+and mine.** A `/circle` at the end judges the day against this outline.
+
+**Queue position:** ahead of the guided Valentine, per Rab, 2026-08-14.
+
+## 7. Why this is a session and not a patch
 
 Decisions 1 and 4 change what the system *claims about itself*, and decision 2 touches an
 outward-facing channel. Everything here is small in code and large in commitment. The survey is

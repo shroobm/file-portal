@@ -177,8 +177,13 @@ the default lever position. That deserves its own session.
 
 1. The converse projection law (§4) as stated.
 2. The five dispositions (§5.2) and the six-step procedure (§5.3).
-3. The timing rule (§5.4) — same-commit disposition — and whether the detector runs in CI, in
-   the closeout ritual, or both.
+3. ~~The timing rule (§5.4) — same-commit disposition — and whether the detector runs in CI, in
+   the closeout ritual, or both.~~ **SIGNED (Rab, 2026-08-14, S78): the closeout ritual, in
+   `--since` mode** — the census scoped to the keys *this session* introduced, which is the only
+   mode that prevents the class rather than finding it later. It also covers `prototypes/`,
+   which CI does not touch. The 93-glitch backlog stays advisory and blocks nothing.
+   Built and proven in `observability/` (S78); see `observability/README.md` for what it
+   cannot see.
 4. Whether docs/21 §5's Observable Contract moves from EXTENDED to **CORE** tier. Today a session
    that ships no code may skip it entirely — which is exactly how a stored-but-unshown value
    survives a closeout.
