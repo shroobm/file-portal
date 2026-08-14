@@ -203,6 +203,13 @@ class Bench:
         det_md_lines = (self.manifest.get("fidelity", {}).get("convert", {})
                         .get("tripwires", {}).get("degeneration_detail", {}).get("md_lines"))
         md_lines = int(det_md_lines or body_lines)
+        reps = self.manifest.get("repairs", [])
+        runs = []
+        for r in self.runs()[:40]:
+            at = self._resolve_run_line(r)
+            runs.append({**r, "anchor_line": at,
+                         "repaired": at is not None
+                         and any(rec.get("zone_line") == at for rec in reps)})
         zones = []
         for z in self.zones():
             guess = max(1, min(pages, round(z["line"] / md_lines * pages))) if md_lines else 1
@@ -230,7 +237,11 @@ class Bench:
             "md_lines": md_lines,
             "verdict": self.manifest.get("fidelity", {}).get("verdict"),
             "zones": zones,
-            "runs": self.runs()[:40],
+            # S76 (SYM-026): omission runs are damage too — the audit located 18 on the Beer
+            # while the chip row showed 2. Each gets an anchor_line where one can be found, so
+            # a crop has somewhere to land; `repaired` uses the same zone_line key the repair
+            # records already carry.
+            "runs": runs,
             "repairs": self.manifest.get("repairs", []),
             "pdf_available": self.pdf is not None,
             "pdf": str(self.pdf) if self.pdf else None,
@@ -413,6 +424,27 @@ class Bench:
                     if r.get("zone_line") is not None and r["zone_line"] < zone_line)
         drift = sum(d for (at, d) in self._ai_drift if at < zone_line)
         return zone_line + prior + drift
+
+    def _resolve_run_line(self, run: dict) -> int | None:
+        """S76 (SYM-026): an omission run is PAGE-anchored — the audit knows what the witness
+        had and the output lost, but not a line. Its excerpt however BEGINS with text the
+        output still has (the loss starts partway in), so the opening words locate where the
+        missing material belongs. Short prefixes only: the tail of the excerpt is precisely
+        the part that is gone, so a long needle can never match."""
+        words = (run.get("excerpt") or "").split()
+        if len(words) < 3:
+            return None
+        body_norm = [" ".join(ln.split()).lower() for ln in self.body().split("\n")]
+        for n in (6, 5, 4, 3):
+            if len(words) < n:
+                continue
+            needle = " ".join(words[:n]).lower().strip("-—•* ")
+            if len(needle) < 8:
+                continue
+            hits = [i + 1 for i, ln in enumerate(body_norm) if needle in ln]
+            if hits:
+                return hits[0]
+        return None
 
     def _resolve_zone_line(self, z: dict) -> tuple[int, str]:
         """SYM-025: a zone's `line` was recorded by the CONVERT-phase audit, but the analyst

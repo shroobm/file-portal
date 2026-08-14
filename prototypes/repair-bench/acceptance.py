@@ -259,6 +259,29 @@ def main() -> int:
     check("undo popped the collapse record — provenance cannot desync",
           len(bench.manifest.get("repairs", [])) == reps_pre_c)
 
+    # ---- 8d. omission runs are damage too (S76, SYM-026) -------------------------------------
+    # The audit records loops AND omission runs; only loops ever got chips. Runs are
+    # page-anchored, so they need no line arithmetic — but where their excerpt STARTS with
+    # text the output still has, that gives a precise place for a crop to land.
+    st_runs = bench.state()["runs"]
+    check("every run carries an anchor_line key (None is a legitimate answer)",
+          all("anchor_line" in r for r in st_runs))
+    check("every run carries a repaired flag", all("repaired" in r for r in st_runs))
+    synth_body = bench.body()
+    probe_line = next((i + 1 for i, ln in enumerate(synth_body.split("\n"))
+                       if len(ln.split()) > 8), None)
+    if probe_line:
+        words = synth_body.split("\n")[probe_line - 1].split()[:5]
+        fake_run = {"page": 1, "words": 40,
+                    "excerpt": " ".join(words).lower() + " zzz lost material here"}
+        check("a run whose excerpt opens with surviving text anchors to that line",
+              bench._resolve_run_line(fake_run) == probe_line)
+    check("a run of pure OCR noise anchors to nothing rather than guessing",
+          bench._resolve_run_line({"page": 9, "words": 20,
+                                   "excerpt": "cl$ms£ct4 <xi)v/^fc-c4fe'v(-6-h^tr"}) is None)
+    check("a run with too little text is refused an anchor",
+          bench._resolve_run_line({"page": 9, "words": 3, "excerpt": "a b"}) is None)
+
     # ---- 9. the REAL held bundle is byte-identical ------------------------------------------
     after = {p.name: sha(p) for p in (md_real, HELD_VAL / "manifest.json")}
     check("REAL held Valentine untouched (md + manifest hashes)", before == after)

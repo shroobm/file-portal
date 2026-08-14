@@ -103,6 +103,12 @@
   .zchip .zs { color:var(--text-3); }
   .zchip.sel { box-shadow:0 0 0 2px var(--accent); background:var(--accent-bg); }
   .zchip.repaired .zp { color:var(--ok); }
+  /* S76 (SYM-026) — omission runs: the OTHER damage the audit already located. Amber, not
+     clay: a hole in the text is a localizer, not the terracotta "your hand is required". */
+  .zchip.omit { box-shadow:0 0 0 1px var(--warn, #b8860b); }
+  .zchip.omit .zn { font-weight:500; }
+  .zchip.omit .zp { color:var(--warn, #b8860b); }
+  .zchip.omit.noanchor { opacity:.55; }
   #zonefacts { font-size:11px; color:var(--text-3); margin-left:auto; white-space:nowrap; }
 
   /* ---- the coach: a DOCKED band (never covers controls), one step in focus ---- */
@@ -437,6 +443,7 @@
 const $ = (id) => document.getElementById(id);
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;" }[c]));
 let st = null, zone = null, page = 1, mdText = "", crop = null, hlQuery = null, toc = [], thumbsBuilt = false;
+let runIdx = null;   // S76 (SYM-026): the selected omission run, if any — zone and runIdx are exclusive
 let ctxRange = { from: 1, to: 1 };
 
 try { const t = localStorage.getItem("fp-bench-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch {}
@@ -516,15 +523,57 @@ function renderZones() {
     c.onclick = () => selectZone(i);
     chips.appendChild(c);
   });
+  // S76 (SYM-026): the audit records TWO kinds of damage. Loops got chips from day one;
+  // omission runs — text the witness had and the output lost — were computed, stored, and
+  // projected all the way to this page, then thrown away. They are damage; show them.
+  const runs = st.runs || [];
+  runs.forEach((r, i) => {
+    const c = document.createElement("div");
+    c.className = "zchip omit" + (runIdx === i ? " sel" : "")
+      + (r.repaired ? " repaired" : "") + (r.anchor_line ? "" : " noanchor");
+    c.title = `omission — ${r.words} words the page has that the text lost\n“${r.excerpt || ""}…”\n`
+      + (r.anchor_line ? `anchored at body line ${r.anchor_line} — click, then ✂ crop the page`
+                       : "no anchor found in the text — click to view the page");
+    c.innerHTML = `<span class="zn">${r.repaired ? "✓ " : ""}◍ p${r.page}</span>` +
+      `<span class="zs">${r.words}w</span>`;
+    c.onclick = () => selectRun(i);
+    chips.appendChild(c);
+  });
   const done = st.zones.filter((z) => z.repaired).length;
+  const rdone = runs.filter((r) => r.repaired).length;
   const facts = document.createElement("span");
   facts.id = "zonefacts";
-  facts.textContent = st.zones.length ? `${st.zones.length} wreck site(s) · ${done} repaired` : "";
+  facts.textContent = st.zones.length || runs.length
+    ? `${st.zones.length} wreck site(s) · ${done} repaired`
+      + (runs.length ? ` · ${runs.length} omission(s) · ${rdone} repaired` : "")
+    : "";
   chips.appendChild(facts);
+}
+
+// S76: selecting an omission run — page-anchored, so no line arithmetic is involved. The
+// crop lands at the run's anchor_line when one was found; without an anchor the operator can
+// still read the page and decide.
+function selectRun(i) {
+  const r = (st.runs || [])[i];
+  if (!r) return;
+  runIdx = i; zone = null;
+  coachMark("zone");
+  $("collapsebtn").hidden = true;
+  $("cpanel").hidden = true; cprop = null;
+  goto(r.page);
+  $("locbadge").className = "";
+  $("locbadge").textContent = `◍ omission on p${r.page} — ${r.words} words the page has that the text lost`
+    + (r.anchor_line ? ` · anchored at body line ${r.anchor_line}` : " · no text anchor found");
+  $("zonehint").textContent = `“${(r.excerpt || "").slice(0, 90)}…”`;
+  renderZones(); renderCtx();
+  status(r.anchor_line
+    ? "◍ drag the region on the page, then ✂ — it will land where the text goes missing"
+    : "◍ no anchor in the text for this run — read the page and use a zone if it fits better");
 }
 
 function selectZone(i) {
   zone = i;
+  runIdx = null;          // S76: zone and omission-run selection are exclusive
   coachMark("zone");
   const z = st.zones[i];
   goto(z.located_page || z.page_guess);
@@ -731,11 +780,19 @@ addEventListener("mouseup", () => {
 $("cropbtn").onclick = async () => {
   if (crop == null) return;
   try {
-    const z = st.zones[zone] || { line: ctxRange.to };
-    const res = await api("/api/repair", { zone_line: z.line, page, rect: crop, note: zone != null ? `zone ${zone + 1} @${z.line}` : "folder mode" });
+    // S76 (SYM-026): a selected omission run targets its own anchor line; otherwise the
+    // selected zone, otherwise the visible context (folder mode). One of three, never mixed.
+    const run = runIdx != null ? (st.runs || [])[runIdx] : null;
+    const line = run?.anchor_line ?? (st.zones[zone]?.line ?? ctxRange.to);
+    const note = run ? `omission p${run.page} (${run.words}w)`
+                     : (zone != null ? `zone ${zone + 1} @${line}` : "folder mode");
+    const res = await api("/api/repair", { zone_line: line, page, rect: crop, note });
     status(`✓ ${res.asset} embedded after body line ${res.inserted_after_line}`);
     coachMark("repaired");
-    const keep = zone; await load(); if (keep != null && st.zones.length) selectZone(keep);
+    const keepZ = zone, keepR = runIdx;
+    await load();
+    if (keepR != null) selectRun(keepR);
+    else if (keepZ != null && st.zones.length) selectZone(keepZ);
   } catch (e) { status(`repair failed: ${e.message}`); }
 };
 addEventListener("paste", async (e) => {
