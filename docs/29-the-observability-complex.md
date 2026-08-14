@@ -181,7 +181,10 @@ the default lever position. That deserves its own session.
    the closeout ritual, or both.~~ **SIGNED (Rab, 2026-08-14, S78): the closeout ritual, in
    `--since` mode** — the census scoped to the keys *this session* introduced, which is the only
    mode that prevents the class rather than finding it later. It also covers `prototypes/`,
-   which CI does not touch. The 93-glitch backlog stays advisory and blocks nothing.
+   which CI does not touch. The standing backlog stays advisory and blocks nothing. *(Reported
+   as "93" when this line was written; that was occurrences, not glitches. Measured: **76
+   distinct `lane:key` at 87 sites**. A count is exactly the kind of stored measurement this
+   document governs, so it is corrected here rather than left to rot.)*
    Built and proven in `observability/` (S78); see `observability/README.md` for what it
    cannot see.
 4. Whether docs/21 §5's Observable Contract moves from EXTENDED to **CORE** tier. Today a session

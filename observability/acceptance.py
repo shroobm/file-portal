@@ -144,14 +144,32 @@ def main() -> int:
     # made the whole signed mode exit 1. It reported PASS 13/13 over a broken feature.
     # docs/31 §1.2. Every check below therefore runs against a REAL, NON-EMPTY diff.
     print("\n  [5] §5.4 same-commit scoping, against a real diff")
-    ref = _oldest_ref_with_producer_changes()
-    scoped = _census(["--since", ref])
-    scoped_rows = sum(len(lane["rows"]) for lane in scoped["lanes"].values())
+    keyed, nonascii = _exercising_ref()
     total = sum(len(lane["rows"]) for lane in data["lanes"].values())
-    check(f"--since {ref[:7]} runs at all (the S78 crash: exit 1, zero keys)", scoped_rows >= 0)
-    check(f"--since {ref[:7]} finds keys ({scoped_rows}) — the filter is not a no-op", scoped_rows > 0)
-    check(f"--since {ref[:7]} is narrower than the full census ({total})", scoped_rows < total)
-    check("--since did not silently fall back", scoped.get("since_fell_back") is False)
+
+    # The crash regression (docs/31 §1.1) needs a diff with NON-ASCII bytes in it — that is the
+    # whole bug: git's output decoded as cp1252. Asserting on the EXIT CODE, not on a count:
+    # the S79 version asserted `scoped_rows >= 0`, a sum of len()s, which is a tautology — the
+    # regression test for the headline bug could not fail. And a real crash never reached it,
+    # because _census raises on empty stdout and the harness tracebacks instead of printing FAIL.
+    if nonascii is None:
+        print("       SKIP — no ref in the last 40 commits has a non-ASCII diff")
+    else:
+        check(
+            f"--since {nonascii[:7]} survives a NON-ASCII diff (the cp1252 crash: exit 1)",
+            _rc(["--since", nonascii]) == 0,
+        )
+
+    if keyed is None:
+        print("       SKIP — no ref in the last 40 commits introduces an extractable key")
+    else:
+        scoped = _census(["--since", keyed])
+        scoped_rows = sum(len(lane["rows"]) for lane in scoped["lanes"].values())
+        check(f"--since {keyed[:7]} finds keys ({scoped_rows}) — the filter is not a no-op",
+              scoped_rows > 0)
+        check(f"--since {keyed[:7]} is narrower than the full census ({total})",
+              scoped_rows < total)
+        check("--since did not silently fall back", scoped.get("since_fell_back") is False)
 
     print("\n  [6] the guards fire when stepped on (tripwires)")
     bad = _census(["--since", "zz-no-such-ref-zz"])
@@ -195,21 +213,46 @@ def _rc(extra: list[str]) -> int:
     ).returncode
 
 
-def _oldest_ref_with_producer_changes() -> str:
-    """A ref whose diff against HEAD is guaranteed NON-EMPTY and contains non-ASCII — the only
-    kind of input that can exercise §5.4 honestly. Walks back until the diff has real bytes."""
+def _diff_since(ref: str) -> str | None:
+    out = subprocess.run(
+        ["git", "-C", str(ROOT), "diff", "-U0", ref, "--", "*.py", "*.rs"],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    return out.stdout if out.returncode == 0 else None
+
+
+def _exercising_ref() -> tuple[str | None, str | None]:
+    """Two refs, each chosen for the PROPERTY it must exercise — never for a proxy.
+
+    S79: the first version of this picked a ref by `len(diff) > 500` and called it "guaranteed
+    non-empty AND contains non-ASCII". Byte length is neither. `ed20c02` added 171 lines with no
+    dict-key literal in them, sailed past the 500-byte gate, and turned the suite RED two commits
+    after it was written — not because the detector regressed, but because of the incidental
+    content of an unrelated commit. A guard that stands in for the property it asserts will
+    eventually assert something else.
+
+    Returns (ref whose diff yields >=1 extracted key, ref whose diff contains non-ASCII).
+    They are usually the same ref and need not be. Either may be None on a shallow history —
+    the caller reports that as a skip, never as a pass.
+    """
+    keyed = nonascii = None
     for n in range(1, 40):
         ref = f"HEAD~{n}"
-        out = subprocess.run(
-            ["git", "-C", str(ROOT), "diff", "-U0", ref, "--", "*.py", "*.rs"],
-            capture_output=True,
-            text=True,
-            encoding="utf-8",
-            errors="replace",
-        )
-        if out.returncode == 0 and len(out.stdout) > 500:
-            return ref
-    return "HEAD~10"
+        diff = _diff_since(ref)
+        if diff is None:
+            break
+        if keyed is None:
+            found = _census(["--since", ref])
+            if sum(len(ln["rows"]) for ln in found["lanes"].values()) > 0:
+                keyed = ref
+        if nonascii is None and any(ord(c) > 127 for c in diff):
+            nonascii = ref
+        if keyed and nonascii:
+            break
+    return keyed, nonascii
 
 
 def _tmp_cfg(mutate) -> str:
@@ -254,7 +297,9 @@ def _stale_caught_under_since() -> bool:
 
     p = _tmp_cfg(plant)
     try:
-        ref = _oldest_ref_with_producer_changes()
+        ref, _ = _exercising_ref()
+        if ref is None:
+            return False
         rc = _rc(["--config", p, "--enforce", "--since", ref])
         seen = _census(["--config", p, "--since", ref]).get("stale") or []
         return rc == 1 and "bench:zz_key_that_no_longer_exists" in seen

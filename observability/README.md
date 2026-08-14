@@ -76,10 +76,15 @@ The detector is a **floor**. What it reports is real; what it passes is *not pro
 6. **The detector knows key *names*, not producer *sites*.** A lane's renderers are
    concatenated into one flat blob, so a key is cleared by *any* payload naming it — never
    specifically the payload it was produced into. This is why docs/29 §7.10's finding is
-   invisible: `model`, `gates`, `secs` and `cycle` are persisted into `manifest["repairs"][]`
-   (`bench.py:943-946`) and read back from there by nobody, yet all four score `glass` off the
-   *transcribe proposal*'s `gateLine()` (`bench.html:838`) and the *collapse preview*
-   (`bench.html:887`) — the same names carried on different payloads. §7.10's own wording is
+   invisible. There are three `setdefault("repairs", …)` sites, and the keys come from two of
+   them: `model`, `gates` and `secs` are persisted by the **transcribe** record
+   (`bench.py:862-865`, appended at `:866`), `cycle` by the **collapse** record
+   (`bench.py:943-946`). None is read back from the manifest by anything, yet all four score
+   `glass` off the *transcribe proposal*'s `gateLine()` (`bench.html:838`) and the *collapse
+   preview* (`bench.html:887`) — the same names carried on different payloads.
+   *(docs/31 §1.9 cited `bench.py:944-948` for all four, and the first correction of this line
+   moved the numbers without fixing the conflation. Two passes to get a citation right is worth
+   recording: the census tells you a key is clear, never which payload cleared it.)* §7.10's own wording is
    "goes dark **once persisted**", and the detector cannot express "once". Whether it gains
    site-awareness is docs/31 §5.2 item 4, unsigned.
 

@@ -185,6 +185,8 @@ _SERDE_RENAME = re.compile(r'#\[serde\s*\(\s*rename\s*=\s*"([^"]+)"')
 _RS_FIELD = re.compile(r"^\s*pub\s+([a-z_][a-z0-9_]*)\s*:", re.M)
 # same shape, but anchored after a diff's leading `+` rather than at line start
 _RS_FIELD_ADDED = re.compile(r"^\+\s*pub(?:\([^)]*\))?\s+([a-z_][a-z0-9_]*)\s*:")
+# a quoted key in dict-KEY position on an added line — not a comparison literal
+_DICT_KEY_ADDED = re.compile(r'(?:[{,(]|^\+)\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*:')
 
 
 def keys_from_rust(path: Path) -> list[tuple[str, int, str]]:
@@ -310,7 +312,12 @@ def added_keys_since(ref: str) -> set[str] | None:
         # structs, 30 fields — so adding `pub chunks_skipped: u64` and rendering it nowhere
         # passed the signed closeout as "0 keys in scope". That is docs/29 Mode D reproduced
         # inside the instrument built to prevent Mode D (docs/31 §1.3).
-        keys.update(re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:', line))  # py dict / json!
+        # Anchored to a dict-KEY position — after `{`, `,`, `(` or the diff's own `+`/indent.
+        # Unanchored, `"([A-Za-z_]\w*)"\s*:` also matches the literal in
+        #   `if manifest.get("fidelity", {}).get("verdict") != "fail":`
+        # and `fail` entered the scope of ed20c02 as a measured key. Any `if x == "lit":` line
+        # minted a phantom (docs/31 round 2, §11).
+        keys.update(_DICT_KEY_ADDED.findall(line))  # py dict / json!
         keys.update(_RS_FIELD_ADDED.findall(line))  # rust `pub field:`
         keys.update(_SERDE_RENAME.findall(line))  # rust #[serde(rename = "x")]
     return keys

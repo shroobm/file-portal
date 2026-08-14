@@ -45,7 +45,7 @@ git pull  # always first
   for: either it appears in a `CHANGELOG.md` entry, or it is a doc/protocol file listed in
   your new Change Ledger row. If a source file changed and no CHANGELOG entry describes it,
   write one before closing.
-- **Run `python observability/glass_detector.py --since <last ledger SHA>`** — the same ref as
+- **Run the glass detector, `--since <last ledger SHA>`** — the same ref as
   the line above, because docs/29 §5.4 requires a measured value to get its disposition in the
   commit that adds it, so the scope is exactly the keys this session introduced. Every key it
   names must leave the session **either rendered where a human looks, or recorded in
@@ -56,6 +56,13 @@ git pull  # always first
   2026-08-14, docs/29 §8.3 — the closeout ritual in `--since` mode, not CI; the standing
   backlog it prints is advisory and blocks nothing. A clean run is a floor, not a proof —
   `observability/README.md` lists the six things it cannot see.)*
+  **On this desktop, bare `python` is the Microsoft Store stub and exits 49** — there is no
+  system Python. Use the uv-managed interpreter:
+  ```bash
+  "$HOME/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe" observability/glass_detector.py --since <last ledger SHA>
+  ```
+  *(Recorded because the step was signed, written as bare `python`, and was not runnable as
+  written on the one machine it was written for — S79 found it by trying it.)*
 - Append your Change Ledger row **after** the closing commit is made, in a **one-line
   follow-up commit** — do NOT `git commit --amend` it into the closing commit: amending
   changes that commit's SHA and orphans the row you just wrote (discovered by doing exactly
