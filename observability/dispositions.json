@@ -1,0 +1,52 @@
+{
+  "_README": [
+    "docs/29 §5.2 — the signed-silence record. A key the glass detector cannot find in any",
+    "renderer is reported as a GLITCH until it appears here with a disposition AND a reason.",
+    "That is the whole mechanism: silence signed, never defaulted. Adding a line here is a",
+    "judgment you are putting your name to, not a way to quiet the tool.",
+    "",
+    "Disposition is one of GLASS / EVIDENCE / REPORT / INTERNAL / DEAD (§5.2). Reason answers",
+    "docs/29 §5.3 step 4 — 'does this already have a home, anywhere, live or archival?' — and",
+    "names that home. DEAD means the producer should be deleted; a DEAD entry that outlives",
+    "the session that wrote it is itself a defect.",
+    "",
+    "Keys are `<lane>:<key>`. Run: python observability/glass_detector.py"
+  ],
+
+  "lanes": [
+    {
+      "name": "bench",
+      "_note": "The Repair Bench serves its own UI. This is the lane SYM-026 was found in: state() projected `runs` (18 omission runs on the S76 Beer) and bench.html referenced it zero times.",
+      "producers": ["prototypes/repair-bench/bench.py"],
+      "renderers": ["prototypes/repair-bench/bench.html"]
+    },
+    {
+      "name": "widget",
+      "_note": "Rust computes, JS renders. The `chunks_resumed` / `resumed` / `eta_s` heartbeat died on this wire (docs/29 §7.5).",
+      "producers": ["windows-widget/src-tauri/src/*.rs"],
+      "renderers": [
+        "windows-widget/src/main.js",
+        "windows-widget/src/room.js",
+        "windows-widget/src/index.html"
+      ]
+    },
+    {
+      "name": "converter",
+      "_note": "The converter writes the manifest and the receipts. Its readers are downstream CODE rather than a surface, so a hit here means 'something consumes it', which is weaker than 'a human sees it' — the bench and widget lanes then re-check whether the consumer projects it onward. `manifest.chunking.seams[]` (docs/29 §7.3) is the case this two-hop shape is built to catch.",
+      "producers": [
+        "windows-converter/convert_and_ship.py",
+        "windows-converter/fidelity_audit.py",
+        "windows-converter/analyst.py"
+      ],
+      "renderers": [
+        "prototypes/repair-bench/bench.py",
+        "prototypes/repair-bench/bench.html",
+        "windows-widget/src-tauri/src/*.rs",
+        "windows-widget/src/*.js",
+        "linux-converter/converter/*.py"
+      ]
+    }
+  ],
+
+  "dispositions": {}
+}
