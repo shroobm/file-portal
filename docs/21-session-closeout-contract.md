@@ -85,6 +85,7 @@ that governs the memory library.
 |---|---|
 | 2. Starting State | the MUSTER output, verbatim |
 | 3. Development Chain | `git log --oneline <last ledger SHA>..HEAD` |
+| 5. Observable Contract | the *census* half only: `python observability/glass_detector.py --since <last ledger SHA>` (docs/29 §5.1 — the keys this session introduced). The items themselves stay authored: a command can prove a measured value reaches nobody, never that a human should care |
 | 7. Implementation Delta | `git diff --stat <last ledger SHA>..HEAD` + one line of intent per file |
 | 9. Evidence | the actual command transcripts — quoted, not paraphrased |
 | 17. Current State | live reads (unit state, vault tip, staging, receipts, exe hash) |
@@ -99,7 +100,7 @@ Everything else is authored, and authored sections are where tags matter most.
 | 2 | **Starting State** | ext | MUSTER output; the clocks; what was already broken on arrival |
 | 3 | **Development Chain** | ext | commits in order, each with why it exists — the narrative git can't hold |
 | 4 | **Analogue + Boundary** | ext | the real-world system this imitates and **exactly how far** ("Okular's search, outline, thumbnails — *not* its annotation model"). The boundary is what stops a human reporting an unbuilt feature as a defect |
-| 5 | **Observable Contract** | ext | 3–5 things a human should now see, each checkable in under a minute, each with its failure condition stated in advance. **An item that cannot fail is not an item** |
+| 5 | **Observable Contract** | ext | 3–5 things a human should now see, each checkable in under a minute, each with its failure condition stated in advance. **An item that cannot fail is not an item**. Then run the detector (§3): every key it names leaves this session either rendered, or recorded in `observability/dispositions.json` with a disposition and a reason — docs/29 §5.4, same commit, because a later sweep only ever finds this class. *(Whether this section moves to **core** is docs/29 §8.4, unsigned. Today a session that ships no code may skip it, which is exactly how a stored-but-unshown value survives a closeout)* |
 | 6 | **Deliberate Divergences** | ext | where we knowingly differ from the analogue or from the obvious approach, and why — so intent is never re-reported as bug |
 | 7 | **Implementation Delta** | core | what is materially different: files, behaviours, contracts. Derived, then annotated |
 | 8 | **Decision Ledger** | core | each decision, its rationale, **what was rejected and why**, and who signed it. Rejected options are the expensive half — they're what stops the next session re-proposing them |

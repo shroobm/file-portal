@@ -45,6 +45,17 @@ git pull  # always first
   for: either it appears in a `CHANGELOG.md` entry, or it is a doc/protocol file listed in
   your new Change Ledger row. If a source file changed and no CHANGELOG entry describes it,
   write one before closing.
+- **Run `python observability/glass_detector.py --since <last ledger SHA>`** — the same ref as
+  the line above, because docs/29 §5.4 requires a measured value to get its disposition in the
+  commit that adds it, so the scope is exactly the keys this session introduced. Every key it
+  names must leave the session **either rendered where a human looks, or recorded in
+  `observability/dispositions.json` with a disposition and a reason** — never deferred: a
+  retrospective sweep only ever *finds* this class, it has never prevented one (S76 named the
+  pattern and shipped a fourth instance ninety minutes later; S77 made two more while
+  investigating it; S78 built the detector and called it from nowhere). *(Signed by Rab
+  2026-08-14, docs/29 §8.3 — the closeout ritual in `--since` mode, not CI; the standing
+  backlog it prints is advisory and blocks nothing. A clean run is a floor, not a proof —
+  `observability/README.md` lists the six things it cannot see.)*
 - Append your Change Ledger row **after** the closing commit is made, in a **one-line
   follow-up commit** — do NOT `git commit --amend` it into the closing commit: amending
   changes that commit's SHA and orphans the row you just wrote (discovered by doing exactly
