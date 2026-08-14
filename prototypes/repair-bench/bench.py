@@ -58,6 +58,12 @@ GPU_LOCK = Path(r"C:\Users\Bndit\ml\library\.gpu-lock")
 # ("the state of" x157) carries nothing past its first instance. These thresholds are
 # MEASURED, not guessed: over the 117 substantial paragraphs of the S76 Beer the loop scored
 # TTR 0.0147 and the cleanest legitimate prose 0.5190 — a 35x chasm with nothing in it.
+# S76/docs/28 §4 — the five outcomes a located defect can reach. Three are DERIVED from
+# provenance (the machine can see them); `dismissed-noise` is a human judgment and the only
+# one an operator sets by hand — on a scan lane the witness is itself OCR, so a "loss" may be
+# the converter correctly declining to reproduce garbage.
+OUTCOMES = ("open", "collapsed", "image-restored", "text-restored", "dismissed-noise")
+OUTCOMES_MANUAL = ("open", "dismissed-noise")
 LEDGER_CONTEXT = 3         # S76/docs/28: lines of margin kept either side of a change
 LEDGER_VERBATIM_MAX = 20000  # chars of changed text stored verbatim before truncating
 TTR_LOOP_MAX = 0.10        # type-token ratio below this = a loop, not language
@@ -211,14 +217,18 @@ class Bench:
         runs = []
         for r in self.runs()[:40]:
             at = self._resolve_run_line(r)
-            runs.append({**r, "anchor_line": at,
+            oc, why = self._outcome(self.run_key(r), at)
+            runs.append({**r, "anchor_line": at, "key": self.run_key(r),
+                         "outcome": oc, "outcome_reason": why,
                          "repaired": at is not None
                          and any(rec.get("zone_line") == at for rec in reps)})
         zones = []
         for z in self.zones():
             guess = max(1, min(pages, round(z["line"] / md_lines * pages))) if md_lines else 1
             at, anchor = self._resolve_zone_line(z)
-            zones.append({**z, "page_guess": guess,
+            zoc, zwhy = self._outcome(self.zone_key(z), z["line"])
+            zones.append({**z, "page_guess": guess, "key": self.zone_key(z),
+                          "outcome": zoc, "outcome_reason": zwhy,
                           # the server is the ONE authority on line adjustment (insertions shift
                           # everything below them) — the UI never re-derives this
                           "adjusted_line": at,
@@ -250,7 +260,7 @@ class Bench:
             "pdf_available": self.pdf is not None,
             "pdf": str(self.pdf) if self.pdf else None,
             "manifest_present": self.manifest_path.is_file(),
-            "undo_depth": len(self._undo),
+            "undo_depth": self.undo_depth(),   # docs/28: ledger-derived, survives a restart
             # S66 accuracy pass — everything the info popover states, straight from source:
             "pdf_only": self.pdf_only,
             "md_name": self.md_path.name if self.md_path else None,
@@ -489,6 +499,75 @@ class Bench:
         self.md_path.write_text(fm + new_body, encoding="utf-8")
         return events
 
+    def writes(self) -> list[list[dict]]:
+        """Ledger events grouped by the write that produced them (one write can change several
+        regions), oldest first."""
+        out: list[list[dict]] = []
+        for e in self.ledger():
+            if out and (out[-1][0]["sha_before"], out[-1][0]["sha_after"]) == \
+                    (e["sha_before"], e["sha_after"]):
+                out[-1].append(e)
+            else:
+                out.append([e])
+        return out
+
+    def undo_depth(self) -> int:
+        """How many changes could still be walked back. Ledger-derived, so a bench restart no
+        longer resets it to zero and pretends nothing ever happened."""
+        ws = self.writes()
+        reverted = {e["reverts"] for w in ws for e in w if e.get("reverts")}
+        return len([w for w in ws
+                    if w[0]["gesture"] != "undo" and w[0]["sha_after"] not in reverted])
+
+    def undo_ledger(self) -> dict:
+        """ctrl-Z, ledger-driven (docs/28 §5.2) — survives a bench restart, which the
+        in-memory stack never could. Reverting is exact rather than approximate: each event
+        knows the lines it produced and the lines it displaced, so applying
+        `lines[after] = removed` in reverse order is the inverse of the write.
+
+        An undo is itself recorded and names what it reverted, so pressing it repeatedly walks
+        back through history instead of redoing itself."""
+        self._require_md()
+        ws = self.writes()
+        if not ws:
+            raise ValueError("nothing to undo — the ledger is empty")
+        reverted = {e["reverts"] for w in ws for e in w if e.get("reverts")}
+        target = None
+        for w in reversed(ws):
+            if w[0]["gesture"] == "undo" or w[0]["sha_after"] in reverted:
+                continue
+            target = w
+            break
+        if target is None:
+            raise ValueError("nothing left to undo — every change has been reverted")
+        body = self.body()
+        if self._sha(body) != target[0]["sha_after"]:
+            raise ValueError("the body no longer matches that change — refusing to guess "
+                             "(restore from .bench-bak if you need to go further back)")
+        if any(e["margin"].get("truncated") for e in target):
+            raise ValueError("that change archived too much text to reconstruct exactly — "
+                             "the ledger holds a truncated copy; restore by hand")
+        lines = body.split("\n")
+        for e in sorted(target, key=lambda x: x["at"]["after"][0], reverse=True):
+            a1, a2 = e["at"]["after"]
+            lines[a1 - 1:a2] = e["margin"]["removed"]
+        gesture = target[0]["gesture"]
+        self._write_body("\n".join(lines), gesture="undo",
+                         note=f"reverted a {gesture}",
+                         extra={"reverts": target[0]["sha_after"]})
+        # provenance must not survive the body it described (the transcribe law, generalised)
+        reps = self.manifest.get("repairs", [])
+        if reps and reps[-1].get("mode") in ("transcribe", "collapse", "crop", "paste") \
+                and gesture in ("transcribe", "collapse", "crop", "paste"):
+            reps.pop()
+            self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
+                                          encoding="utf-8")
+        return {"undone": True, "gesture": gesture, "regions": len(target),
+                "chars_restored": sum(e["chars"]["removed"] for e in target),
+                "remaining": len([w for w in self.writes()
+                                  if w[0]["gesture"] != "undo"
+                                  and w[0]["sha_after"] not in reverted]) - 1}
+
     def ledger_audit(self) -> dict:
         """The chain check: each event's sha_before must equal the previous sha_after, and the
         newest sha_after must equal the body on disk. A break means something wrote around the
@@ -539,6 +618,72 @@ class Bench:
                     if r.get("zone_line") is not None and r["zone_line"] < zone_line)
         drift = sum(d for (at, d) in self._ai_drift if at < zone_line)
         return zone_line + prior + drift
+
+    # ---- outcome triage (S76, docs/28 §4) ---------------------------------------------------
+    @staticmethod
+    def zone_key(z: dict) -> str:
+        return f"z{z['line']}"
+
+    @staticmethod
+    def run_key(r: dict) -> str:
+        """Stable across re-orderings: page + a hash of the witness excerpt."""
+        h = hashlib.sha256((r.get("excerpt") or "").encode("utf-8")).hexdigest()[:8]
+        return f"r{r.get('page')}-{h}"
+
+    def _outcome(self, key: str, at: int | None) -> tuple[str, str]:
+        """(outcome, reason). An explicit operator judgment always wins over derivation —
+        the human is allowed to know something the provenance cannot show."""
+        t = (self.manifest.get("triage") or {}).get(key)
+        if t and t.get("outcome") and t["outcome"] != "open":
+            return t["outcome"], t.get("reason", "")
+        if at is None:
+            return "open", ""
+        modes = {r.get("mode") for r in self.manifest.get("repairs", [])
+                 if r.get("zone_line") == at}
+        # strongest claim first: real text beats an image, an image beats mere noise removal
+        for mode, outcome in (("transcribe", "text-restored"), ("crop", "image-restored"),
+                              ("paste", "image-restored"), ("collapse", "collapsed")):
+            if mode in modes:
+                return outcome, ""
+        return "open", ""
+
+    def triage(self, key: str, outcome: str, reason: str = "") -> dict:
+        """Record the operator's judgment on one located defect. Only the human-only outcomes
+        may be set here; the derived ones are read from provenance and cannot be asserted."""
+        if outcome not in OUTCOMES_MANUAL:
+            raise ValueError(f"{outcome!r} is derived from provenance, not declared — "
+                             f"settable: {list(OUTCOMES_MANUAL)}")
+        if outcome == "dismissed-noise" and not reason.strip():
+            raise ValueError("dismissing located damage requires a reason — an unexplained "
+                             "dismissal is indistinguishable from ignoring it")
+        t = self.manifest.setdefault("triage", {})
+        if outcome == "open":
+            t.pop(key, None)
+        else:
+            t[key] = {"outcome": outcome, "reason": reason.strip()[:300],
+                      "ts": _now_iso(), "by": "repair-bench"}
+        self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
+                                      encoding="utf-8")
+        return {"key": key, "outcome": outcome, "reason": reason.strip()[:300]}
+
+    def coverage(self) -> dict:
+        """docs/28 §4 question 2: has a human addressed every located defect? Provenance, not
+        measurement — reported BESIDE the metrics and never blended into them."""
+        st = self.state()
+        tally: dict[str, int] = {o: 0 for o in OUTCOMES}
+        sites = []
+        for z in st["zones"]:
+            tally[z["outcome"]] = tally.get(z["outcome"], 0) + 1
+            sites.append({"kind": "zone", "key": self.zone_key(z), "at": z["adjusted_line"],
+                          "outcome": z["outcome"], "reason": z.get("outcome_reason", "")})
+        for r in st["runs"]:
+            tally[r["outcome"]] = tally.get(r["outcome"], 0) + 1
+            sites.append({"kind": "omission", "key": self.run_key(r), "page": r.get("page"),
+                          "outcome": r["outcome"], "reason": r.get("outcome_reason", "")})
+        total = len(sites)
+        return {"sites": sites, "total": total, "tally": tally,
+                "open": tally.get("open", 0),
+                "addressed": total - tally.get("open", 0)}
 
     def _resolve_run_line(self, run: dict) -> int | None:
         """S76 (SYM-026): an omission run is PAGE-anchored — the audit knows what the witness
@@ -722,7 +867,7 @@ class Bench:
         self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
                                       encoding="utf-8")
         return {"inserted_after_line": at, "lines": len(inserted),
-                "undo_depth": len(self._undo), "record": rec}
+                "undo_depth": self.undo_depth(), "record": rec}
 
     # ---- the AI assist (S64): local qwen3 fixes a passage; every change is undoable --------
     # The analyst's non-negotiable link-fence applies here too: qwen3 once INVENTED image URLs
@@ -802,7 +947,7 @@ class Bench:
         self.manifest.setdefault("repairs", []).append(rec)
         self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
                                       encoding="utf-8")
-        return {"record": rec, "undo_depth": len(self._undo), "chars_removed": removed,
+        return {"record": rec, "undo_depth": self.undo_depth(), "chars_removed": removed,
                 "delta_lines": delta, "at": at, "para_lines": [first, last]}
 
     def _fence(self, text: str) -> tuple[str, list[str]]:
@@ -874,7 +1019,7 @@ class Bench:
             raise RuntimeError("the model damaged an image embed — change REFUSED (link-fence)")
         if restored == excerpt:
             # A no-op is an honest answer ("nothing to fix") — report it, burn no undo slot.
-            return {"applied": False, "unchanged": True, "undo_depth": len(self._undo)}
+            return {"applied": False, "unchanged": True, "undo_depth": self.undo_depth()}
         self._backup_once()
         self._undo.append(("assist", body))
         del self._undo[:-20]  # bounded stack — twenty regrets is plenty
@@ -884,7 +1029,7 @@ class Bench:
         self._write_body("\n".join(lines), gesture="assist",
                          note=f"qwen3 rewrote lines {start}–{end}")
         return {"applied": True, "start": start, "lines_before": end - start + 1,
-                "lines_after": len(new_lines), "undo_depth": len(self._undo)}
+                "lines_after": len(new_lines), "undo_depth": self.undo_depth()}
 
     def undo_ai(self) -> dict:
         """The ctrl-Z button: restore the body exactly as it was before the last AI change.
@@ -905,7 +1050,7 @@ class Bench:
                 reps.pop()
                 self.manifest_path.write_text(
                     json.dumps(self.manifest, indent=2) + "\n", encoding="utf-8")
-        return {"undone": True, "undo_depth": len(self._undo), "kind": kind}
+        return {"undone": True, "undo_depth": self.undo_depth(), "kind": kind}
 
     # ---- the re-score PREVIEW (never writes; audit policy is Rab's signature) ---------------
     def rescore_preview(self) -> dict:
@@ -918,10 +1063,28 @@ class Bench:
         det = fa.degeneration(self.body())
         orig = self.zones()
         repaired_lines = {r["zone_line"] for r in self.manifest.get("repairs", [])}
+        cov = self.coverage()
+        # docs/28 §4 — TWO questions, never merged into one number.
+        #  1. does the TEXT still match its source?  Measurement. Degeneration genuinely
+        #     clears when a loop goes; an omission does NOT clear because an image was placed
+        #     — cropping page 114 restores content to a READER and nothing to a comparison.
+        #  2. has a human addressed every located defect?  Provenance, reported beside it.
+        open_sites = cov["open"]
+        eligible = (not det.get("flagged")) and open_sites == 0
+        if det.get("flagged"):
+            why = "degeneration is still present in the text"
+        elif open_sites:
+            why = f"{open_sites} located defect(s) still open"
+        else:
+            why = ("nothing left open — but image-restored and dismissed-noise are HUMAN "
+                   "assertions, so this is a recommendation for the bless rail, not a pass")
         return {
             "preview": True,
             "note": ("PREVIEW ONLY — the shipping audit re-runs in the pipeline, and whether a "
-                     "repair image earns credit is an unsigned policy (Rab signs; docs/19 §10)"),
+                     "repair earns audit credit THERE is still unsigned policy (docs/19 §10). "
+                     "The two answers below are deliberately not blended: the metric measures "
+                     "text, the coverage counts judgments."),
+            # --- 1. measurement: recomputed from the current body, meaning unchanged --------
             "degeneration_now": {
                 "flagged": det.get("flagged"),
                 "zones": (det.get("worst") or [])[:6],
@@ -929,7 +1092,76 @@ class Bench:
             "original_zones": len(orig),
             "zones_with_repairs": sum(1 for z in orig if z["line"] in repaired_lines),
             "repairs": len(self.manifest.get("repairs", [])),
+            # --- 2. provenance: what a human has actually done about it --------------------
+            "coverage": cov,
+            # --- 3. a recommendation that reads both, and claims no more than it may -------
+            "vault_recommendation": {
+                "eligible": eligible,
+                "why": why,
+                "route": "bless rail (S56) — the machine never credits an image as text; "
+                         "the operator signs that the images carry what the text cannot",
+            },
         }
+
+    # ---- the final report (S76, docs/28 §3) --------------------------------------------------
+    def repairs_report(self, write: bool = False) -> dict:
+        """Walk the ledger and the triage into the artifact that should travel with the vault
+        note: what was done to this book, by whom, and what is still open."""
+        self._require_md()
+        evs, cov = self.ledger(), self.coverage()
+        body_chars = len(self.body())
+        removed = sum(e["chars"]["removed"] for e in evs if e["gesture"] != "undo")
+        added = sum(e["chars"]["added"] for e in evs if e["gesture"] != "undo")
+        by_gesture: dict[str, int] = {}
+        for e in evs:
+            by_gesture[e["gesture"]] = by_gesture.get(e["gesture"], 0) + 1
+        aud = self.ledger_audit()
+        lines = [
+            f"# Repairs — {self.manifest.get('source') or self.dir.name}",
+            "",
+            f"- bundle: `{self.dir.name}`",
+            f"- generated: {_now_iso()}",
+            f"- ledger: {len(evs)} event(s) across {aud['writes']} write(s); "
+            f"chain {'intact' if aud['intact'] else 'BROKEN — a write bypassed the ledger'}"
+            f"; body {'matches' if aud['matches_disk'] else 'DOES NOT MATCH'} the newest event",
+            "",
+            "## What changed",
+            "",
+            f"- characters removed: **{removed}** "
+            f"({removed / max(1, body_chars + removed) * 100:.3f}% of the document)",
+            f"- characters added: **{added}**",
+            "- gestures: " + (", ".join(f"{k} ×{v}" for k, v in sorted(by_gesture.items()))
+                              or "none"),
+            "",
+            "## Located damage",
+            "",
+            "| site | where | outcome | reason |",
+            "|---|---|---|---|",
+        ]
+        for s in cov["sites"]:
+            where = f"line {s['at']}" if s["kind"] == "zone" else f"p{s['page']}"
+            lines.append(f"| {s['kind']} | {where} | `{s['outcome']}` | {s['reason'] or '—'} |")
+        lines += [
+            "",
+            f"**{cov['addressed']} of {cov['total']} addressed · {cov['open']} still open.**",
+            "",
+            "## What this report does and does not claim",
+            "",
+            "- `text-restored` was verified by re-measurement; the text genuinely exists now.",
+            "- `image-restored` means a human placed the page image. A reader can read it; a",
+            "  text comparison still counts the passage missing, and that is correct.",
+            "- `collapsed` removed noise. Nothing was recovered and nothing is claimed.",
+            "- `dismissed-noise` is an operator judgment that the witness itself was garbage —",
+            "  on a scan lane the witness is OCR too, so a 'loss' can be the converter",
+            "  correctly declining to reproduce nonsense.",
+        ]
+        text = "\n".join(lines) + "\n"
+        if write:
+            (self.dir / "REPAIRS.md").write_text(text, encoding="utf-8")
+        return {"markdown": text, "written": bool(write),
+                "path": str(self.dir / "REPAIRS.md") if write else None,
+                "chars_removed": removed, "chars_added": added,
+                "entropy_pct": round(removed / max(1, body_chars + removed) * 100, 3)}
 
 
 # ---- the picker (S66): what the ◆ icon can open, and the switch itself ----------------------
@@ -1019,6 +1251,9 @@ def make_handler(bench: Bench):
                         self._send(200, p.read_bytes(), "image/png")
                     else:
                         self._json({"error": "no such asset"}, 404)
+                elif url.path == "/api/ledger":
+                    self._json({"events": bench.ledger(), "audit": bench.ledger_audit(),
+                                "coverage": bench.coverage()})
                 elif url.path == "/api/rescore":
                     self._json(bench.rescore_preview())
                 # ---- the reader (S62b, Okular pass) -------------------------------------
@@ -1090,7 +1325,14 @@ def make_handler(bench: Bench):
                         instruction=str(payload.get("instruction", ""))[:500],
                     ))
                 elif self.path == "/api/undo":
-                    self._json(bench.undo_ai())
+                    # docs/28 §5.2: ledger-driven, so ctrl-Z survives a bench restart
+                    self._json(bench.undo_ledger())
+                elif self.path == "/api/triage":
+                    self._json(bench.triage(str(payload["key"]),
+                                            str(payload["outcome"]),
+                                            str(payload.get("reason", ""))))
+                elif self.path == "/api/report":
+                    self._json(bench.repairs_report(write=bool(payload.get("write"))))
                 else:
                     self._json({"error": "unknown path"}, 404)
             except Exception as exc:  # noqa: BLE001

@@ -335,6 +335,62 @@ def main() -> int:
     check("but the bypass stays on the record FOREVER — an append-only ledger cannot forget",
           aud2["intact"] is False and len(aud2["breaks"]) == 1)
 
+    # ---- 8f. ledger-driven undo, triage, the rescore split, the report (docs/28 §5.2–5.5) ----
+    depth0 = bench.undo_depth()
+    check("undo depth is ledger-derived, so it survives a restart", depth0 > 0)
+    body_u = bench.body()
+    lines_u = body_u.split("\n")
+    lines_u.insert(2, "a line that will be walked back by the ledger")
+    bench._write_body("\n".join(lines_u), gesture="manual-edit", note="undo probe")
+    check("the new change is undoable", bench.undo_depth() == depth0 + 1)
+    u = bench.undo_ledger()
+    check("ledger undo restores the body byte-identical",
+          bench.body() == body_u and u["undone"] is True)
+    check("the undo is itself recorded — history is never erased",
+          bench.writes()[-1][0]["gesture"] == "undo")
+    check("undoing does not redo itself on the next press",
+          bench.undo_depth() == depth0)
+
+    zk = bench.zone_key(bench.state()["zones"][0])
+    try:
+        bench.triage(zk, "dismissed-noise", "")
+        check("dismissing damage without a reason is refused", False)
+    except ValueError:
+        check("dismissing damage without a reason is refused", True)
+    try:
+        bench.triage(zk, "text-restored", "asserting a derived outcome")
+        check("a DERIVED outcome cannot be asserted by hand", False)
+    except ValueError:
+        check("a DERIVED outcome cannot be asserted by hand", True)
+    bench.triage(zk, "dismissed-noise", "the witness OCR was garbage here")
+    zz = next(z for z in bench.state()["zones"] if bench.zone_key(z) == zk)
+    check("an operator judgment shows on the site with its reason",
+          zz["outcome"] == "dismissed-noise" and "garbage" in zz["outcome_reason"])
+
+    cov = bench.coverage()
+    check("coverage counts every located site once",
+          cov["total"] == len(bench.state()["zones"]) + len(bench.state()["runs"]))
+    check("coverage separates addressed from open",
+          cov["addressed"] + cov["open"] == cov["total"])
+
+    rs2 = bench.rescore_preview()
+    check("the rescore reports measurement and coverage side by side, unblended",
+          "degeneration_now" in rs2 and "coverage" in rs2)
+    check("the rescore recommends rather than passes, and names the bless rail",
+          "bless" in rs2["vault_recommendation"]["route"]
+          and isinstance(rs2["vault_recommendation"]["eligible"], bool))
+    check("open sites block the recommendation",
+          rs2["vault_recommendation"]["eligible"] is False if cov["open"] else True)
+
+    rep = bench.repairs_report(write=True)
+    check("REPAIRS.md is written beside the bundle",
+          (bench.dir / "REPAIRS.md").is_file())
+    check("the report states the entropy figure Rab set as the work measure",
+          "% of the document" in rep["markdown"] and rep["entropy_pct"] >= 0)
+    check("the report refuses to claim an image restored the TEXT",
+          "still counts the passage missing" in rep["markdown"]
+          and "Nothing was recovered and nothing is claimed" in rep["markdown"])
+
     # ---- 9. the REAL held bundle is byte-identical ------------------------------------------
     after = {p.name: sha(p) for p in (md_real, HELD_VAL / "manifest.json")}
     check("REAL held Valentine untouched (md + manifest hashes)", before == after)
