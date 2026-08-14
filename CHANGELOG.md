@@ -8,6 +8,35 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S77 — THE OBSERVABILITY COMPLEX (docs/29, 2026-08-14, Desktop lane).** Rab's question —
+  *how do we efficiently determine what should be wired to the glass?* — and his correction:
+  these are **glitches, not bugs**, because the system was designed observable, so silence is
+  the design's own intent failing. Three read-only agent lanes measured **~83 fields computed,
+  persisted, and reaching no human**.
+  - **Diagnosis:** the projection law is one-directional — it forbids the UI to invent numbers
+    and never requires a measured number to reach anyone. Corpus-wide, **every law with teeth
+    governs what may be written; none governs what must be read**, and a consumer pays zero
+    cost to ignore a producer's key.
+  - **Why it cannot be learned reactively:** ~30 of ~40 laws were bought by incidents that
+    announced themselves; a value shown to nobody raises nothing. Demonstrated twice — S76
+    named the pattern and shipped a fourth instance 90 minutes later; S77 produced two more
+    while investigating the first four.
+  - **The law:** every value the pipeline measures and stores must have a disposition —
+    GLASS / EVIDENCE / REPORT / INTERNAL / DEAD — or a signed reason for its silence. Silence
+    stays legitimate; silence *by default* ends. **The operative rule is timing**: the commit
+    that adds a persisted field renders it or records its disposition in that same commit.
+  - Plus a predictive four-mode failure taxonomy, a six-step decision procedure, and the family
+    observation: chokepoint · ledger · this are one principle, the first two write-side, this
+    the read side no law has governed.
+  - **Fixed the three we made ourselves:** `/api/rescore`'s vault recommendation (the button
+    that asks "is this book fit for the vault" fetched the answer and discarded it) ·
+    `resume-stderr.log` reachable in the 🗁 menu (built S76 to cure traceless failure, it had
+    inherited the disease) · the five-outcome triage now visible on the chips, marks quiet and
+    never pulsing.
+  - **SYM-027** files the class with its diagnosis recipe; SYM-025/026 corrected to `fixed`
+    (the index read at every session open was stale on both); `docs/20` gains **law 2b**.
+  - Acceptance **85/85**, ritual green, staged exe `DB82AE3F`.
+
 - **S76 — THE FOURTH BEER, THREE BUGS, AND THE REPAIR LEDGER (2026-08-13 → 08-14, Desktop
   lane, Rab present; cookies #65–69).** Narrative in `sessions/S76-desktop-2026-08-14.md`.
   - **The run.** *Diagnosing the System for Organizations* (Beer, 184 pp, scan lane) converted

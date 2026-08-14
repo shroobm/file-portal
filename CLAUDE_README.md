@@ -63,36 +63,24 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S77 — Desktop — 2026-08-14 (Fable 5, Rab present). THE OBSERVABILITY COMPLEX — how do we
-efficiently decide what gets wired to the glass?** Rab's framing, immediately after the S76
-close: these are **GLITCHES, not bugs** — the system was *designed* highly observable, so a
-measurement that reaches nobody is the design's own intent failing, not a coding error. The
-easy cases are easy; the question is how to catch the ones we haven't had yet. Working
-hypothesis to test: **the projection law is one-directional** (docs/13 forbids the UI to
-invent numbers; nothing requires a measured number to reach anyone).
-
-- **G1 — the evidence (3 agent lanes, read-only, running).** (a) An exhaustive CENSUS of every
-  computed/persisted value across converter, receiver, widget commands and bench routes,
-  classified REACHES-GLASS / LOG-ONLY / COMPUTED-AND-SILENT / INTERNAL. (b) The LAWS CORPUS —
-  every stated law from docs/12–28 + CLAUDE_README + SYMPTOM-INDEX, classified by enforcement
-  (code / test / ritual / prose-only) and analysed for DIRECTIONAL GAPS. (c) ETIOLOGY of the
-  four known glitches from git history, generalised into a taxonomy that predicts where the
-  next one appears — plus the COUNTER-CASE: what is correctly silent, and the criteria that
-  boundary implies.
-- **G2 — the complex itself.** Not one law but the machinery: a mechanical detector (producer
-  → consumer trace, zero-renderer = flagged), a forced disposition (**GLASS / REPORT /
-  INTERNAL / DEAD — silence must be justified in writing, never defaulted**), the criteria
-  that earn glass (actionability · decision latency · surprise · cost of blindness), and the
-  docs/13 grammar constraint on where a new value may legitimately live.
-- **G3 — the family observation.** Test whether this is the SAME pattern as S76's two builds
-  (the ledger: no write escapes the record; the chokepoint: recording precedes action). If so
-  the project has rediscovered one principle three times in one night and should name it once.
-- **G4 — the manual.** Findings into **docs/20 §12 (single-writer laws) and §14 (gates,
-  rituals, invariants)**, and the engineering manual docs/22 where it carries the same
-  material. Rab's standing instruction: the manual is part of the deliverable, not an
-  afterthought.
-- **G5 — paperwork.** New doc for the complex · SYMPTOM-INDEX row if the class earns one ·
-  closeout · ledger row · clocks lockstep.
+*(S77 closed 2026-08-14 (Desktop, Fable 5, Rab present) — **THE OBSERVABILITY COMPLEX
+(docs/29).** Rab: *"less of a law and more of a complex… these aren't bugs, they should be
+considered glitches, because the system was designed to be highly observable."* Three
+read-only agent lanes: **~83 fields computed, persisted, reaching no human.** Diagnosis — the
+projection law is HALF a law (forbids the UI to invent; never requires the machine to speak);
+corpus-wide, every law with teeth governs what may be WRITTEN and none governs what must be
+READ. The reactive engine cannot learn the class: it fires only on failures that announce
+themselves, and this one raises nothing — proven when S76 named the pattern then shipped a
+fourth instance 90 min later, and S77 produced two more while investigating. **The law:** every
+measured, stored value must have a disposition — GLASS/EVIDENCE/REPORT/INTERNAL/DEAD — silence
+signed, never defaulted; the operative rule is TIMING (same-commit disposition). Four
+predictive failure modes; a six-step procedure whose sharpest question is *"does this already
+have a home anywhere?"* **Family:** chokepoint · ledger · this = one principle, the first two
+write-side (strong), this read-side (ungoverned). **Fixed our own three** (rescore verdict
+discarded by its own button · resume-stderr.log unreachable — it inherited the disease it
+cured · triage outcomes invisible). SYM-027 files the class; SYM-025/026 corrected to `fixed`;
+manual gains law 2b. Acceptance 85/85, ritual green, **staged `DB82AE3F`**. Closeout:
+`sessions/S77-desktop-2026-08-14.md`.)*
 
 *(S76 closed 2026-08-14 (Desktop, Fable 5, Rab present; cookies #65–69) — **THE FOURTH BEER,
 THREE BUGS, AND THE REPAIR LEDGER.** *Diagnosing the System for Organizations* (184 pp, scan)
