@@ -262,13 +262,48 @@ def audit_mode() -> str:
         return "report"
 
 
+def _raise_audit_verdict(bundle_dir: Path, bundle_name: str) -> None:
+    """Raise a fidelity verdict of 'fail' on the algedonic line, WHATEVER audit-mode.txt says
+    (docs/30 §5.4, SIGNED by Rab 2026-08-14: "Report means ship anyway, never stay silent").
+
+    The hole this closes (docs/30 §3.3): two independently reasonable defaults — "report mode
+    ships, it does not park" and "the alarm keys on the park event" — composed into one neither
+    looked like alone. `audit/held` is emitted after `_enforce_hold`'s mode check, so under the
+    default lever a book that FAILED its audit shipped and raised nothing at all. Latent rather
+    than live on this machine only because audit-mode.txt happens to read `enforce` (docs/31
+    §1.14); the lever is one click away from silence either way.
+
+    Emitted from `_enforce_hold`'s doorway because that is the ONE chokepoint every ship path
+    passes carrying its final verdict — the same reason that function reads the manifest off
+    disk rather than trusting the in-memory copy (docs/28's chokepoint discipline). Strictly
+    BEFORE the lever is consulted, so the lever cannot govern what gets written; strictly
+    self-contained, so no fault here can change what enforcement then does (docs/15 §8).
+
+    Fields are EXACTLY `audit/held`'s (bundle + source + verdict), for two reasons: the widget's
+    dedupe key is the bundle, and both events fire for one book in enforce mode — algedonic.rs
+    retires this one in favour of the park, so one book raises one alarm. And a new key would be
+    a new undispositioned measurement (docs/29), which is the disease next door."""
+    try:
+        manifest = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+        if manifest.get("fidelity", {}).get("verdict") != "fail":
+            return
+        emit("audit", "verdict_fail", bundle=bundle_name,
+             source=manifest.get("source", bundle_name), verdict="fail")
+    except Exception:  # noqa: BLE001 — the alarm must never cost a bundle (docs/15 §8)
+        pass
+
+
 def _enforce_hold(bundle_dir: Path, bundle_name: str, source_sha: str) -> bool:
     """If enforce mode AND the on-disk manifest's fidelity verdict is 'fail', park the
     bundle in held/<sha16>/ (with its manifest + assets) instead of shipping, and emit
     audit/held. Reads the manifest from disk so it sees the FINAL (post-analyst) verdict.
-    Returns True if held. Default report mode makes this a no-op. Fails OPEN: any error
-    ships the bundle (with its verdict-carrying manifest) rather than losing it, and emits
-    audit/error — enforcement must never cost a conversion."""
+    Returns True if held. Default report mode makes the HOLD a no-op — but never the alarm
+    (docs/30 §5.4; see _raise_audit_verdict above). Fails OPEN: any error ships the bundle
+    (with its verdict-carrying manifest) rather than losing it, and emits audit/error —
+    enforcement must never cost a conversion."""
+    # docs/30 §5.4 — the verdict is a fact about the BOOK; the lever below only ever decided
+    # what to do about it. Raised first, and never from inside the try that governs shipping.
+    _raise_audit_verdict(bundle_dir, bundle_name)
     try:
         if audit_mode() != "enforce":
             return False

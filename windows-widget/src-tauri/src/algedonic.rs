@@ -1,9 +1,9 @@
 // Stage F (docs/18 §6 / docs/19 §6): THE ALGEDONIC LINE — pain that goes unacknowledged
 // escalates, instead of scrolling quietly out of an event stream nobody was watching. Beer's
 // term is deliberate: an algedonic signal bypasses the normal reporting hierarchy. Here that
-// means: any `stalled` / `failed` / `held` fact (from Python's events.jsonl, or the ThinkPad
-// exporter's receipts) that no human has acknowledged within M minutes surfaces as a banner on
-// every widget surface until someone clicks ⚑.
+// means: any `stalled` / `failed` / `held` / `verdict_fail` fact (from Python's events.jsonl, or
+// the ThinkPad exporter's receipts) that no human has acknowledged within M minutes surfaces as a
+// banner on every widget surface until someone clicks ⚑.
 //
 // PROVISIONAL CONTRACT (flagged for Rab per docs/19 §6 — "M and the ack mechanism = Rab's
 // call"): M lives in `algedonic-minutes.txt` (default 30, a lever like audit-mode.txt), and an
@@ -109,6 +109,12 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         let kind = match (stage, event) {
             ("convert", "stalled") => "stalled",
             ("audit", "held") => "held",
+            // docs/30 §5.4 (SIGNED, Rab 2026-08-14): the fidelity VERDICT raises on its own,
+            // whatever audit-mode.txt chose to do about it. Until this arm existed, `held` was
+            // the line's only fidelity route on the desktop side, and `held` is emitted after
+            // the lever's early return — so in report mode a failed book shipped and raised
+            // nothing (docs/30 §3.3). "Report" means ship anyway; it never meant stay silent.
+            ("audit", "verdict_fail") => "verdict-fail",
             ("intake", "failed") | ("gate", "failed") | ("ship", "failed") => "failed",
             _ => continue,
         };
@@ -131,7 +137,25 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
                     | (Some("audit"), Some("held")) // a park is the RESOLUTION of a ship failure
             ) && !(stage == "audit") // ...but nothing auto-resolves a park except a human
         });
-        if !resolved {
+        // Supersession (docs/30 §5.4): `verdict-fail` and the two HELD kinds are ONE pain seen
+        // twice — the verdict, and what somebody downstream did about it. In enforce mode
+        // `_enforce_hold` writes both for the same book, so the park (which names an action and
+        // a location) stands in for the bare verdict; on the vault side a `supersede-held`
+        // receipt already carried the same failure (docs/31 §1.14) and must not double-alarm.
+        // `>=`, not `>`: events.jsonl stamps to the SECOND and those two writes are adjacent.
+        // Only the verdict yields — a park is never suppressed by anything but a human.
+        let superseded = kind == "verdict-fail"
+            && (events.iter().any(|later| {
+                later["ts"].as_str().unwrap_or("") >= ts.as_str()
+                    && sfield(later, &["bundle", "source", "id"]) == bundle
+                    && later["stage"].as_str() == Some("audit")
+                    && later["event"].as_str() == Some("held")
+            }) || receipt_rows.iter().any(|r| {
+                r["ts"].as_str().unwrap_or("") >= ts.as_str()
+                    && r["bundle"].as_str() == Some(bundle.as_str())
+                    && r["outcome"].as_str() == Some("supersede-held")
+            }));
+        if !resolved && !superseded {
             candidates.push((ts, kind.into(), stage.into(), bundle, detail));
         }
     }
@@ -359,6 +383,111 @@ mod tests {
         );
         assert_eq!(st3["unacked"], 1);
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-ack"));
+    }
+
+    #[test]
+    fn a_fidelity_verdict_raises_even_though_report_mode_shipped_the_book() {
+        // docs/30 §3.3's hole, from the other side: report mode ships, so there is no `held`
+        // event and never will be — the ONLY trace is the verdict itself. A later successful
+        // ship must not retire it either: the book shipping is exactly what the alarm is about.
+        let dir = tmp("fp-alg-verdict");
+        let (older, recent) = (iso_of(now_epoch() - 120), now_iso());
+        fs::write(
+            Path::new(&dir).join("events.jsonl"),
+            format!(
+                "{{\"ts\": \"{older}\", \"stage\": \"audit\", \"event\": \"verdict_fail\", \"bundle\": \"BookV\", \"source\": \"BookV.pdf\", \"verdict\": \"fail\"}}\n\
+                 {{\"ts\": \"{recent}\", \"stage\": \"ship\", \"event\": \"shipped\", \"bundle\": \"BookV\"}}\n"
+            ),
+        )
+        .unwrap();
+        let st = state(&dir).unwrap();
+        let alerts = st["alerts"].as_array().unwrap();
+        assert_eq!(
+            alerts.len(),
+            1,
+            "the shipped book is the alarm, not its retirement"
+        );
+        assert_eq!(alerts[0]["kind"], "verdict-fail");
+        assert_eq!(
+            alerts[0]["bundle"], "BookV",
+            "keyed by bundle, as `held` is"
+        );
+        assert_eq!(alerts[0]["detail"], "fail");
+        assert_eq!(st["unacked"], 1);
+        let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-verdict"));
+    }
+
+    #[test]
+    fn one_book_raises_one_alarm_however_many_ways_it_says_so() {
+        // Enforce mode writes BOTH events for one book, in the same second (events.jsonl stamps
+        // to the second and `_enforce_hold` emits them either side of one copytree). The park
+        // supersedes the bare verdict; the ship failure it resolves still retires as before.
+        let dir = tmp("fp-alg-verdict-park");
+        let recent = now_iso();
+        fs::write(
+            Path::new(&dir).join("events.jsonl"),
+            format!(
+                "{{\"ts\": \"2026-08-03T04:37:46+00:00\", \"stage\": \"ship\", \"event\": \"failed\", \"bundle\": \"BookP\", \"error\": \"502\"}}\n\
+                 {{\"ts\": \"{recent}\", \"stage\": \"audit\", \"event\": \"verdict_fail\", \"bundle\": \"BookP\", \"verdict\": \"fail\"}}\n\
+                 {{\"ts\": \"{recent}\", \"stage\": \"audit\", \"event\": \"held\", \"bundle\": \"BookP\", \"verdict\": \"fail\"}}\n"
+            ),
+        )
+        .unwrap();
+        let st = state(&dir).unwrap();
+        let alerts = st["alerts"].as_array().unwrap();
+        assert_eq!(
+            alerts.len(),
+            1,
+            "the verdict and its park are one pain, not two"
+        );
+        assert_eq!(
+            alerts[0]["kind"], "held",
+            "the park is the fuller statement"
+        );
+        let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-verdict-park"));
+    }
+
+    #[test]
+    fn the_vaults_own_refusal_also_stands_in_for_the_desktop_verdict() {
+        // docs/31 §1.14: a fidelity fail on the SUPERSEDE path already raised as `vault-held`
+        // long before this arm existed. Report mode ships it, the ThinkPad refuses it, and the
+        // human must hear that once — not once per side of the seam.
+        let dir = tmp("fp-alg-verdict-vault");
+        let older = iso_of(now_epoch() - 600);
+        let recent = now_iso();
+        fs::write(
+            Path::new(&dir).join("events.jsonl"),
+            format!(
+                "{{\"ts\": \"{older}\", \"stage\": \"audit\", \"event\": \"verdict_fail\", \"bundle\": \"BookS\", \"verdict\": \"fail\"}}\n"
+            ),
+        )
+        .unwrap();
+        fs::write(
+            Path::new(&dir).join(".receipts-cache.jsonl"),
+            format!(
+                "{{\"ts\": \"{recent}\", \"outcome\": \"supersede-held\", \"bundle\": \"BookS\", \"verdict\": \"fail\"}}\n"
+            ),
+        )
+        .unwrap();
+        let st = state(&dir).unwrap();
+        let alerts = st["alerts"].as_array().unwrap();
+        assert_eq!(alerts.len(), 1);
+        assert_eq!(alerts[0]["kind"], "vault-held");
+        // ...but a refusal that PREDATES the verdict is a different occurrence and suppresses
+        // nothing: the desktop's fresh failure still has to be heard. (Aged out of WINDOW_S so
+        // the old receipt cannot contribute an alert of its own and blur what is being asserted.)
+        let ancient = iso_of(now_epoch() - 30 * 86_400);
+        fs::write(
+            Path::new(&dir).join(".receipts-cache.jsonl"),
+            format!(
+                "{{\"ts\": \"{ancient}\", \"outcome\": \"supersede-held\", \"bundle\": \"BookS\", \"verdict\": \"fail\"}}\n"
+            ),
+        )
+        .unwrap();
+        let st2 = state(&dir).unwrap();
+        assert_eq!(st2["alerts"].as_array().unwrap().len(), 1);
+        assert_eq!(st2["alerts"][0]["kind"], "verdict-fail");
+        let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-verdict-vault"));
     }
 
     #[test]

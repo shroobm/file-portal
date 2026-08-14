@@ -123,6 +123,10 @@ async function gatherVM() {
 const ALG_KIND = {
   held: "parked in held/", "vault-held": "vault refused", stalled: "stalled",
   failed: "failed", "bless-invalid": "bless rejected",
+  // docs/30 §5.4 (signed 2026-08-14): the verdict is a fact independent of what enforcement
+  // chose to do about it. In the default `report` mode a fidelity FAIL ships anyway — so this
+  // kind says both halves out loud, because "failed" alone would read as "it was stopped".
+  "verdict-fail": "audit FAILED · not parked",
 };
 function algedonicBanner(d) {
   const a = d.alg;
@@ -493,6 +497,7 @@ function eventMsg(e) {
     "convert/converted": `converted ${s(e.source)} in ${Math.round(e.wall_s || 0)}s`,
     "audit/scored": `scored ${s(e.source)} · survival ${e.doc_survival != null ? Number(e.doc_survival).toFixed(3) : "?"}`,
     "audit/flagged": `${s(e.source)} — verdict ${e.verdict}`,
+    "audit/verdict_fail": `${s(e.bundle)} — verdict FAIL · algedonic`,
     "audit/held": `${s(e.bundle)} — held · enforce`,
     "audit/supersede": `${s(e.source)} — remedy carried · replaces on pass`,
     "audit/supersede_ignored": `${s(e.source)} — remedy dropped · sha mismatch`,

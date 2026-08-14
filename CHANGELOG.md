@@ -597,6 +597,42 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
+- **S79 — a failed fidelity audit now raises whatever the enforcement lever says (docs/30 §5.4,
+  SIGNED by Rab 2026-08-14).** Two independently reasonable defaults composed into a hole neither
+  looked like alone: `audit_mode()` returns `report` by default (ship anyway, do not park), and
+  the algedonic line's only desktop route for a fidelity failure was `audit/held` — which
+  `_enforce_hold` emits *after* its `mode != "enforce"` early return. In report mode a book that
+  FAILED its audit therefore shipped and raised nothing at all. *Report* was only ever a decision
+  about **shipping**; it was never a decision to **stay silent**.
+  - **The verdict is now its own event.** `convert_and_ship._raise_audit_verdict` emits
+    `audit/verdict_fail` from `_enforce_hold`'s doorway — the one chokepoint every ship path
+    passes carrying its final (post-analyst) verdict — **before** the lever is read, and wholly
+    outside the `try` that governs enforcement. `_enforce_hold`'s return value, its `held/`
+    copytree, its `audit/held`, its print and its fail-open `audit/error` are byte-for-byte
+    unchanged; **shipping behaviour is identical in both modes.**
+  - **Not a synonym for `audit/flagged`, which was checked first and rejected.** `flagged` fires
+    per *phase*, on the convert-only verdict before the analyst has run; it fires on `flag` as
+    well as `fail` at convert (docs/15 §12 is explicit that localiser signals must never fail a
+    book, so routing it would erode the terracotta signal); it fires at scoring time, so a
+    `--dry-run` or a bundle parked in `pending/` awaiting Rab's own card would alarm for a book
+    that has not shipped; and its subject key is `source` — `Book.pdf` from `convert()`,
+    `Book` from `apply_analyst()` — so it can key neither the dedupe nor the `held` interaction.
+  - **One book, one alarm.** `algedonic.rs` gains the `("audit","verdict_fail") => "verdict-fail"`
+    arm plus a supersession rule: a `verdict-fail` yields to an `audit/held` event or a
+    `supersede-held` receipt for the same bundle at the same-or-later stamp. Enforce mode writes
+    both events within one second (events.jsonl stamps to the second), and a fidelity fail on the
+    supersede path already raised as `vault-held` (docs/31 §1.14) — so the fuller statement wins
+    and the bare verdict retires. Nothing suppresses a park but a human, as before.
+  - Fields are exactly `audit/held`'s (`bundle` + `source` + `verdict`), so no new measured key
+    enters the census undispositioned (docs/29). Three Rust tests added — the report-mode raise
+    including its survival of a later successful ship, the park interaction, and the vault-receipt
+    interaction with its negative case; each was proved to fail against a mutated fix before being
+    kept (docs/31 §3: *"did we check the measurement could fail"*). `cargo fmt --check` clean,
+    clippy `-D warnings` clean, **23/23** rust tests (was 20).
+  - **Open, deliberately:** the `verdict-fail` kind has no `ALG_KIND` label in `room.js` yet, so
+    the banner renders the raw kind string; and a `--defer-analyst` bundle sitting in `pending/`
+    raises at `resume()`, not at conversion.
+
 - **S59 — the Room stopped waking the ThinkPad every four seconds (2026-07-31).** `gatherVM()`
   awaited `call("vault_check")` on every Room poll — every 4 s while converting, 9 s idle — and
   `vault::check` runs `git fetch --quiet origin`, a real round trip to the ThinkPad over
