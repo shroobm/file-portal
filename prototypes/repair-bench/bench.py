@@ -25,6 +25,8 @@ import argparse
 import base64
 import io
 import json
+import difflib
+import hashlib
 import os
 import re
 import shutil
@@ -56,6 +58,8 @@ GPU_LOCK = Path(r"C:\Users\Bndit\ml\library\.gpu-lock")
 # ("the state of" x157) carries nothing past its first instance. These thresholds are
 # MEASURED, not guessed: over the 117 substantial paragraphs of the S76 Beer the loop scored
 # TTR 0.0147 and the cleanest legitimate prose 0.5190 — a 35x chasm with nothing in it.
+LEDGER_CONTEXT = 3         # S76/docs/28: lines of margin kept either side of a change
+LEDGER_VERBATIM_MAX = 20000  # chars of changed text stored verbatim before truncating
 TTR_LOOP_MAX = 0.10        # type-token ratio below this = a loop, not language
 MIN_CYCLE_REPEATS = 8      # fewer repeats is emphasis or a refrain, not a stuck decoder
 MAX_CYCLE_PERIOD = 12      # tokens; the longest cycle we are willing to call a loop
@@ -395,6 +399,117 @@ class Bench:
             shutil.copy2(self.md_path, bak)
         self._bak_done = True
 
+    # ---- THE CHOKEPOINT + the repair ledger (S76, docs/28 — signed by Rab) ------------------
+    @property
+    def ledger_path(self) -> Path:
+        return self.dir / "repairs.jsonl"
+
+    def ledger(self) -> list[dict]:
+        """Every recorded change to this body, oldest first. A torn final line (power cut
+        mid-append) costs that one event, never the history — the S60 lesson."""
+        if not self.ledger_path.is_file():
+            return []
+        out = []
+        for ln in self.ledger_path.read_text(encoding="utf-8").splitlines():
+            if ln.strip():
+                try:
+                    out.append(json.loads(ln))
+                except json.JSONDecodeError:
+                    pass
+        return out
+
+    @staticmethod
+    def _sha(text: str) -> str:
+        return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
+
+    @staticmethod
+    def _cap(lines: list[str]) -> tuple[list[str], bool]:
+        """Changed text is stored VERBATIM so the ledger archives what left the document —
+        capped, because a pathological edit must not make the ledger unreadable."""
+        total = sum(len(x) for x in lines)
+        if total <= LEDGER_VERBATIM_MAX:
+            return lines, False
+        keep, used = [], 0
+        for ln in lines:
+            if used + len(ln) > LEDGER_VERBATIM_MAX:
+                break
+            keep.append(ln)
+            used += len(ln)
+        keep.append(f"…[{total - used} more chars truncated · full-region sha "
+                    f"{hashlib.sha256(chr(10).join(lines).encode()).hexdigest()[:16]}]")
+        return keep, True
+
+    def _write_body(self, new_body: str, *, gesture: str, zone_line: int | None = None,
+                    note: str = "", extra: dict | None = None) -> list[dict]:
+        """THE chokepoint. No body write in this class may bypass it (docs/28 §2).
+
+        Diffs old→new, classifies every changed region as removal/addition/edit, files the
+        events, and only then writes. Recording FIRST is deliberate — the same ordering law
+        the supersede marker follows (docs/15 §14.7): an action whose intent cannot be filed
+        must not happen. If the body write then fails, the sha chain surfaces it at the next
+        read, which is far better than a change nobody can name."""
+        self._require_md()
+        old_body = self.body()
+        if new_body == old_body:
+            return []                       # a no-op burns no history
+        self._backup_once()
+        old_lines, new_lines = old_body.split("\n"), new_body.split("\n")
+        sha_before, sha_after = self._sha(old_body), self._sha(new_body)
+        seq = len(self.ledger())
+        events = []
+        for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
+                None, old_lines, new_lines, autojunk=False).get_opcodes():
+            if tag == "equal":
+                continue
+            removed, added = old_lines[i1:i2], new_lines[j1:j2]
+            rem_kept, rem_trunc = self._cap(removed)
+            add_kept, add_trunc = self._cap(added)
+            events.append({
+                "ts": _now_iso(), "seq": seq + len(events), "gesture": gesture,
+                "kind": {"delete": "removal", "insert": "addition", "replace": "edit"}[tag],
+                "zone_line": zone_line, "note": note,
+                "at": {"before": [i1 + 1, i2], "after": [j1 + 1, j2]},
+                "chars": {"removed": sum(len(x) for x in removed),
+                          "added": sum(len(x) for x in added)},
+                "margin": {
+                    "context_before": old_lines[max(0, i1 - LEDGER_CONTEXT):i1],
+                    "removed": rem_kept, "added": add_kept,
+                    "context_after": old_lines[i2:i2 + LEDGER_CONTEXT],
+                    "truncated": rem_trunc or add_trunc,
+                },
+                "sha_before": sha_before, "sha_after": sha_after,
+                **(extra or {}),
+            })
+        with self.ledger_path.open("a", encoding="utf-8") as fh:
+            for ev in events:
+                fh.write(json.dumps(ev, ensure_ascii=False) + "\n")
+            fh.flush()
+            os.fsync(fh.fileno())    # S71: a record not fsynced is a record you may lose
+        fm, _ = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
+        self.md_path.write_text(fm + new_body, encoding="utf-8")
+        return events
+
+    def ledger_audit(self) -> dict:
+        """The chain check: each event's sha_before must equal the previous sha_after, and the
+        newest sha_after must equal the body on disk. A break means something wrote around the
+        chokepoint — the ledger's whole purpose is to be able to say so."""
+        evs = self.ledger()
+        if not evs:
+            return {"events": 0, "writes": 0, "intact": True, "breaks": [],
+                    "matches_disk": None}
+        # ONE _write_body call can emit several events (a diff with several changed regions);
+        # they all share the write's sha pair, so the chain is checked per WRITE, not per event.
+        writes: list[tuple[str, str]] = []
+        for e in evs:
+            pair = (e["sha_before"], e["sha_after"])
+            if not writes or writes[-1] != pair:
+                writes.append(pair)
+        breaks = [{"at_write": i, "expected": writes[i - 1][1], "found": writes[i][0]}
+                  for i in range(1, len(writes)) if writes[i][0] != writes[i - 1][1]]
+        return {"events": len(evs), "writes": len(writes), "intact": not breaks,
+                "breaks": breaks,
+                "matches_disk": self._sha(self.body()) == writes[-1][1]}
+
     def _next_asset(self, page: int) -> str:
         ks = [int(m.group(2)) for p in self.assets.iterdir()
               if (m := ASSET_RE.match(p.name)) and int(m.group(1)) == page]
@@ -498,7 +613,8 @@ class Bench:
         at = min(self._adjusted_line(zone_line), len(lines))  # insert AFTER this body line
         caption = f"repair p{page}" + (f" — {note}" if note else "")
         lines[at:at] = ["", f"![[assets/{asset}]]", f"<!-- {caption} · repair-bench -->"]
-        self.md_path.write_text(fm + "\n".join(lines), encoding="utf-8")
+        self._write_body("\n".join(lines), gesture=mode, zone_line=zone_line, note=note,
+                         extra={"asset": asset, "page": page})
 
         rec = {"ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": asset,
                "mode": mode, "note": note, "by": "repair-bench",
@@ -594,7 +710,8 @@ class Bench:
         inserted = ["", *markdown.split("\n"),
                     f"<!-- transcribed p{page} · granite-docling-258M · repair-bench -->"]
         lines[at:at] = inserted
-        self.md_path.write_text(fm + "\n".join(lines), encoding="utf-8")
+        self._write_body("\n".join(lines), gesture="transcribe", zone_line=zone_line,
+                         note=f"granite-docling p{page}", extra={"page": page})
         # NO drift-ledger entry: the shift travels in the record's `lines` (restart-safe),
         # and undo_ai pairs the snapshot with the record so provenance can never desync.
         rec = {"ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": None,
@@ -674,7 +791,9 @@ class Bench:
         del self._undo[:-20]              # the same bounded stack the other gestures share
         lines = body.split("\n")
         lines[first - 1:last] = new_para.split("\n")
-        self.md_path.write_text(fm + "\n".join(lines), encoding="utf-8")
+        self._write_body("\n".join(lines), gesture="collapse", zone_line=zone_line,
+                         note=f"{p}-token loop x{repeats}",
+                         extra={"period_tokens": p, "repeats": repeats})
 
         rec = {"ts": _now_iso(), "zone_line": zone_line, "page": None, "asset": None,
                "mode": "collapse", "by": "repair-bench", "delta": delta,
@@ -762,7 +881,8 @@ class Bench:
         new_lines = restored.split("\n")
         self._ai_drift.append((start, len(new_lines) - (end - start + 1)))
         lines[start - 1:end] = new_lines
-        self.md_path.write_text(fm + "\n".join(lines), encoding="utf-8")
+        self._write_body("\n".join(lines), gesture="assist",
+                         note=f"qwen3 rewrote lines {start}–{end}")
         return {"applied": True, "start": start, "lines_before": end - start + 1,
                 "lines_after": len(new_lines), "undo_depth": len(self._undo)}
 
@@ -774,8 +894,9 @@ class Bench:
         if not self._undo:
             raise ValueError("nothing to undo")
         kind, body = self._undo.pop()
-        fm, _ = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
-        self.md_path.write_text(fm + body, encoding="utf-8")
+        # docs/28: an undo is itself a change, and history records it rather than erasing —
+        # the ledger is append-only, so "what was here before" stays answerable forever.
+        self._write_body(body, gesture="undo", note=f"reverted a {kind}")
         if kind == "assist" and self._ai_drift:
             self._ai_drift.pop()
         if kind in ("transcribe", "collapse"):
@@ -931,11 +1052,19 @@ def make_handler(bench: Bench):
                         note=str(payload.get("note", ""))[:120],
                     ))
                 elif self.path == "/api/md":
+                    # docs/28: the manual ✎ save was the one path that left NO trace at all —
+                    # it now goes through the same chokepoint as every gesture.
                     bench._require_md()
-                    bench._backup_once()
-                    fm, _ = split_frontmatter(bench.md_path.read_text(encoding="utf-8"))
-                    bench.md_path.write_text(fm + str(payload["text"]), encoding="utf-8")
-                    self._json({"saved": True})
+                    prev_body = bench.body()
+                    evs = bench._write_body(str(payload["text"]), gesture="manual-edit",
+                                            note="✎ edit")
+                    if evs:                      # a no-op save must not burn an undo slot
+                        bench._undo.append(("manual-edit", prev_body))
+                        del bench._undo[:-20]
+                    self._json({"saved": True, "events": len(evs),
+                                "chars_removed": sum(e["chars"]["removed"] for e in evs),
+                                "chars_added": sum(e["chars"]["added"] for e in evs),
+                                "undo_depth": len(bench._undo)})
                 elif self.path == "/api/open":
                     new_bench = open_target(str(payload["path"]))
                     self.server.bench = new_bench

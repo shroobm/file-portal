@@ -217,9 +217,12 @@ def main() -> int:
           B.find_cycle("the quick brown fox jumped over the lazy dog and kept on running") is None)
 
     loop_para = "Q. The claim of the claim of " + "the claim of " * 90 + "th Ex"
-    fm_c, body_c = B.split_frontmatter(bench.md_path.read_text(encoding="utf-8"))
+    body_c = bench.body()
     loop_line = body_c.count("\n") + 2
-    bench.md_path.write_text(fm_c + body_c + "\n\n" + loop_para + "\n", encoding="utf-8")
+    # even a test fixture goes through the chokepoint — that is the law (docs/28), and an
+    # earlier draft of this suite proved it by smuggling a write and being caught
+    bench._write_body(body_c + "\n\n" + loop_para + "\n", gesture="test-fixture",
+                      note="synthetic loop for the collapse checks")
     det = (bench.manifest.setdefault("fidelity", {}).setdefault("convert", {})
            .setdefault("tripwires", {}).setdefault("degeneration_detail", {}))
     det.setdefault("worst", []).append(
@@ -281,6 +284,56 @@ def main() -> int:
                                    "excerpt": "cl$ms£ct4 <xi)v/^fc-c4fe'v(-6-h^tr"}) is None)
     check("a run with too little text is refused an anchor",
           bench._resolve_run_line({"page": 9, "words": 3, "excerpt": "a b"}) is None)
+
+    # ---- 8e. the repair ledger (S76, docs/28 — signed) ---------------------------------------
+    # The law: no body write may bypass the chokepoint. The manual ✎ save was the path that
+    # used to leave NO trace at all — it is the one that matters most here.
+    led0 = len(bench.ledger())
+    check("the ledger file lives beside the bundle", bench.ledger_path.name == "repairs.jsonl")
+    check("gestures so far are all on the ledger", led0 > 0)
+
+    body_m = bench.body()
+    lines_m = body_m.split("\n")
+    victim = next(i for i, ln in enumerate(lines_m) if len(ln) > 60)
+    removed_text = lines_m[victim]
+    del lines_m[victim]
+    ev = bench._write_body("\n".join(lines_m), gesture="manual-edit", note="acceptance")
+    check("a manual edit files an event (the hole docs/28 closes)", len(ev) == 1)
+    check("the event classifies it as a removal", ev[0]["kind"] == "removal")
+    check("the removed text is archived VERBATIM in the ledger",
+          removed_text in ev[0]["margin"]["removed"])
+    check("the event carries the margin either side",
+          "context_before" in ev[0]["margin"] and "context_after" in ev[0]["margin"])
+    check("the event counts the characters removed",
+          ev[0]["chars"]["removed"] == len(removed_text) and ev[0]["chars"]["added"] == 0)
+
+    lines_m.insert(victim, "a brand new line that was never here before")
+    ev2 = bench._write_body("\n".join(lines_m), gesture="manual-edit", note="acceptance")
+    check("an insertion classifies as an addition", ev2[0]["kind"] == "addition")
+    lines_m[victim] = "the same line, rewritten differently"
+    ev3 = bench._write_body("\n".join(lines_m), gesture="manual-edit", note="acceptance")
+    check("a rewrite classifies as an edit", ev3[0]["kind"] == "edit")
+
+    check("a no-op write files nothing and burns no history",
+          bench._write_body(bench.body(), gesture="manual-edit") == []
+          and len(bench.ledger()) == led0 + 3)
+
+    aud = bench.ledger_audit()
+    check("the sha chain is intact", aud["intact"] and not aud["breaks"])
+    check("the newest event matches the body on disk", aud["matches_disk"] is True)
+
+    # a write that goes AROUND the chokepoint must be detectable — that is the whole point
+    fm_x, body_x = B.split_frontmatter(bench.md_path.read_text(encoding="utf-8"))
+    bench.md_path.write_text(fm_x + body_x + "\nsmuggled in behind the ledger\n",
+                             encoding="utf-8")
+    check("a write that bypasses the chokepoint is DETECTED",
+          bench.ledger_audit()["matches_disk"] is False)
+    bench._write_body(body_x, gesture="manual-edit", note="acceptance restore")
+    aud2 = bench.ledger_audit()
+    check("the body matches the ledger again after the bypass is recorded",
+          aud2["matches_disk"] is True)
+    check("but the bypass stays on the record FOREVER — an append-only ledger cannot forget",
+          aud2["intact"] is False and len(aud2["breaks"]) == 1)
 
     # ---- 9. the REAL held bundle is byte-identical ------------------------------------------
     after = {p.name: sha(p) for p in (md_real, HELD_VAL / "manifest.json")}
