@@ -8,6 +8,50 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S76 — THE FOURTH BEER, THREE BUGS, AND THE REPAIR LEDGER (2026-08-13 → 08-14, Desktop
+  lane, Rab present; cookies #65–69).** Narrative in `sessions/S76-desktop-2026-08-14.md`.
+  - **The run.** *Diagnosing the System for Organizations* (Beer, 184 pp, scan lane) converted
+    in 952.9 s (5.18 s/page, peak VRAM 9.4 GB), failed its convert audit on degeneration
+    (agreement 0.9558, 18 omission runs), analysed locally (55✓/0🛡/1✗, 1199 s), failed again
+    at 0.9791, and **parked in `held/` under enforce** — vault stayed 6. **Two power cuts hit
+    mid-analysis and cost nothing** (chunk journal resumed 35/56 then 36/56); both pinned from
+    the Windows event log. Rab's circuit diagnosis (full GPU load + the living-room AC on one
+    breaker) is now machine memory.
+  - **Fixed — SYM-023:** closing the Repair Bench window silently killed the intake watcher.
+    `on_window_event(Destroyed)` fired for EVERY window and was written in the one-window era
+    (S37); the S63 Bench made it a latent assassin. Now guarded on `window.label() == "main"`,
+    so any future window inherits the guard.
+  - **Hardened — SYM-024:** a routed gate card produced no analyst and left no trace at all,
+    because the detached resume's stderr went to `Stdio::null()`. It now appends to
+    `library\resume-stderr.log`. Cause unproven on one observation; the evidence path exists
+    for the next firing.
+  - **Fixed — SYM-025:** bench zone lines came from the convert-phase audit, but the analyst
+    rewrites the body afterwards, so they pointed at unrelated passages (Beer zone 1: recorded
+    1847, really 1831, drifting to 16 lines off as edits landed). Zones now resolve by
+    searching the live body for the stored **excerpt** — a hit already reflects every shift,
+    so it deliberately does not also take the drift terms.
+  - **Fixed — SYM-026:** the audit records loops **and** omission runs; only loops ever got
+    chips. 18 runs sat recorded, projected to the browser, and discarded — Rab found one (the
+    p114 brace diagram, 60 words) by reading the page. Runs are now amber `◍` repair sites,
+    page-anchored, 6 of 18 with a precise `anchor_line` and the rest honestly unanchored.
+  - **Added — the COLLAPSE gesture (docs/27, signed).** A decoder token-loop carries nothing
+    past its first instance. Detection is the measured type–token ratio (loop 0.0147 vs
+    cleanest prose 0.5190 across 117 paragraphs — 35× separation, no tuning) plus a
+    shortest-period cycle search. Keeps the paragraph's head and tail, cuts only the proven
+    repeat, stamps provenance. Reports `collapsed`, never `repaired`: it removes noise and
+    restores nothing, and says so.
+  - **Added — THE REPAIR LEDGER (docs/28, signed).** No body write may bypass `_write_body`;
+    all six paths funnel through it, including the manual ✎ save that previously left no trace
+    whatsoever. Each write diffs old→new, classifies every region removal/addition/edit, and
+    appends events to a bundle-local `repairs.jsonl` (fsynced, torn-line tolerant) carrying the
+    margin **and the changed text verbatim** — the ledger archives what left the document.
+    Recording precedes writing. A sha chain makes a bypass **detectable and permanent**.
+  - **Added — ledger-driven undo** (exact inverse, survives restart, records itself),
+    **outcome triage** (five outcomes; three derived from provenance and unassertable by hand,
+    `dismissed-noise` requiring a reason), **the rescore split** (measurement and coverage
+    never blended; eligibility a recommendation routed to the bless rail), and **REPAIRS.md**.
+  - **Acceptance 35 → 85 checks**, real Valentine byte-identical throughout.
+
 - **S75 — THE REPAIR SLICE, MECHANICAL HALF + THE FIRST COMMANDED CIRCLE (2026-08-13,
   Desktop lane, Rab present).** Narrative in `sessions/S75-desktop-2026-08-13.md`; reference
   frame in **`docs/26-mass-audit-findings.md`** (new — the S74 three-lane mass audit filed

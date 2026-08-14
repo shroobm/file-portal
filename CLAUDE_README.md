@@ -63,22 +63,22 @@ git pull  # always first
 
 ## Current Session Plan
 
-**S76 — Desktop — 2026-08-13 (Fable 5, Rab present; cookie #65). THE FOURTH BEER + THE
-GUIDED VALENTINE.** Run *Diagnosing the System for Organizations* (Stafford Beer, 210 pp,
-20.5 MB, from Downloads) through the engine end to end; THEN — after it vaults or fails,
-Rab's explicit sequencing — guide him hands-on through Valentine zones 2–4 on the Bench
-(bench already up on :7077, bundle `b6fbdd75f6242f53`): the first operator-doctrine session
-in vivo, observations feed the queued discovery mission.
-
-- **G1 — the run.** Preflight DONE (gpu-lock absent · drop empty · widget `B7F720C4` PID 312 ·
-  ONE watcher 24480 · bench 21096 on :7077 · VRAM 2.7/10 baseline). Drop → probe (lane +
-  estimate reported) → convert (stall doctrine 900 s; monitor events.jsonl + estimate
-  sidecar) → gate ask-mode (Rab's click) → analyst → audit (verdict honest, enforce parks) →
-  ship → vault-or-held.
-- **G2 — the guided repair.** Valentine zones 2–4, coach-by-coach; every instruction
-  verified against current bench.html/bench.py FIRST (verify-before-instruct). Doctrine
-  observations recorded for the discovery mission (entropy target 0.01–1.00%).
-- **G3 — paperwork.** CHANGELOG · closeout · ledger row · push · clocks lockstep.
+*(S76 closed 2026-08-14 (Desktop, Fable 5, Rab present; cookies #65–69) — **THE FOURTH BEER,
+THREE BUGS, AND THE REPAIR LEDGER.** *Diagnosing the System for Organizations* (184 pp, scan)
+converted 952.9 s / 5.18 s-pp, failed on degeneration (agreement 0.9558, 18 omission runs),
+analysed 55✓/0🛡/1✗, failed again 0.9791, **parked in held/ under enforce — vault stayed 6**.
+**Two power cuts mid-analysis cost ZERO** (journal resumed 35/56 → 36/56; both pinned from the
+event log; Rab's AC-on-one-breaker diagnosis now machine memory). Bugs: **SYM-023** closing
+the Bench window killed the watcher (label guard) · **SYM-024** a dying resume left no trace
+(last-words file; cause unproven) · **SYM-025** zone lines stale after the analyst rewrite
+(excerpt anchoring) · **SYM-026** 18 located omissions invisible — **Rab found one by eye**
+(now amber ◍ repair sites). Signed and built: **docs/27 COLLAPSE** (type–token ratio 0.0147 vs
+0.5190, 35× separation; removes noise, never claims restoration) and **docs/28 THE REPAIR
+LEDGER** (one chokepoint, `repairs.jsonl` with verbatim removed text + sha chain that makes a
+bypass permanent, ledger-driven undo, five-outcome triage, the rescore split, REPAIRS.md).
+**Acceptance 35 → 85**, real Valentine byte-identical throughout. Installed exe `C3D277F7`.
+**NOT reached: the guided Valentine session** — still the standing commission. Closeout:
+`sessions/S76-desktop-2026-08-14.md`.)*
 
 *(S75 closed 2026-08-13 (Desktop, Fable 5, Rab present; cookies #62–64) — **THE REPAIR
 SLICE, MECHANICAL HALF + THE FIRST COMMANDED CIRCLE.** docs/26 NEW (the S74 mass audit
