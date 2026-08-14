@@ -109,6 +109,8 @@
   .zchip.omit .zn { font-weight:500; }
   .zchip.omit .zp { color:var(--warn, #b8860b); }
   .zchip.omit.noanchor { opacity:.55; }
+  /* S77: a decided site wears a quiet mark — never a pulse (docs/13's one law) */
+  .zchip .zo { font-size:11px; opacity:.75; cursor:help; }
   #zonefacts { font-size:11px; color:var(--text-3); margin-left:auto; white-space:nowrap; }
 
   /* ---- the coach: a DOCKED band (never covers controls), one step in focus ---- */
@@ -501,6 +503,22 @@ async function load() {
 }
 
 /* ---- zones ---- */
+// S77 (docs/29): the five docs/28 outcomes, made visible. `open` stays blank — an untouched
+// site is the default and needs no chrome; only a REACHED state earns a mark, and none of them
+// pulse (a decided site is the opposite of "your hand is required").
+const OUTCOME_FACE = {
+  "text-restored": ["✎", "text restored — re-measured, the text genuinely exists now"],
+  "image-restored": ["🖼", "image restored — a reader can read it; a text comparison still counts it missing"],
+  "collapsed": ["⌫", "collapsed — noise removed, nothing recovered and nothing claimed"],
+  "dismissed-noise": ["∅", "dismissed as witness noise"],
+};
+function outcomeTag(site) {
+  const f = OUTCOME_FACE[site.outcome];
+  if (!f) return "";
+  const why = site.outcome_reason ? ` — ${site.outcome_reason}` : "";
+  return `<span class="zo" title="${esc(f[1])}${esc(why)}">${f[0]}</span>`;
+}
+
 function renderZones() {
   const mapEl = $("map"); mapEl.innerHTML = "";
   const chips = $("chips"); chips.innerHTML = "";
@@ -519,7 +537,7 @@ function renderZones() {
     c.title = `“${z.excerpt || ""}…”  — click to open this wreck site`;
     c.innerHTML = `<span class="zn">${z.repaired ? "✓" : ""} Zone ${i + 1}</span>` +
       `<span class="zp">${z.located_page ? "p" + z.located_page : "~p" + z.page_guess}</span>` +
-      `<span class="zs">${(z.chars/1000).toFixed(1)}k</span>`;
+      `<span class="zs">${(z.chars/1000).toFixed(1)}k</span>` + outcomeTag(z);
     c.onclick = () => selectZone(i);
     chips.appendChild(c);
   });
@@ -534,8 +552,10 @@ function renderZones() {
     c.title = `omission — ${r.words} words the page has that the text lost\n“${r.excerpt || ""}…”\n`
       + (r.anchor_line ? `anchored at body line ${r.anchor_line} — click, then ✂ crop the page`
                        : "no anchor found in the text — click to view the page");
+    // S77 (docs/29 §7.4): the outcome was computed and invisible — a human's judgment had
+    // nowhere to appear, so a revisited site couldn't show it had already been cleared.
     c.innerHTML = `<span class="zn">${r.repaired ? "✓ " : ""}◍ p${r.page}</span>` +
-      `<span class="zs">${r.words}w</span>`;
+      `<span class="zs">${r.words}w</span>` + outcomeTag(r);
     c.onclick = () => selectRun(i);
     chips.appendChild(c);
   });
@@ -975,7 +995,18 @@ $("rescore").onclick = async () => {
   try {
     const r = await api("/api/rescore");
     const dn = r.degeneration_now;
-    status(`◎ preview: degeneration ${dn.flagged ? "STILL FLAGGED" : "clean"} · ${dn.zones.length} zone(s) in current text · repairs on ${r.zones_with_repairs}/${r.original_zones} zones — ${esc(r.note).slice(0, 60)}…`, true);
+    // S77 (docs/29 §7.1): this handler used to fetch the vault recommendation and THROW IT
+    // AWAY — the button that asks "is this book fit for the vault" discarded the answer.
+    // Measurement and coverage stay side by side and unblended, per docs/28 §4.
+    const c = r.coverage || { addressed: 0, total: 0, open: 0, tally: {} };
+    const v = r.vault_recommendation || {};
+    const kinds = Object.entries(c.tally || {})
+      .filter(([k, n]) => n && k !== "open").map(([k, n]) => `${n} ${k}`).join(" · ");
+    status(`◎ preview — MEASURED: degeneration ${dn.flagged ? "STILL FLAGGED" : "clean"}` +
+           ` · ${dn.zones.length} zone(s) in the current text.` +
+           `  COVERED: ${c.addressed}/${c.total} site(s) addressed${kinds ? ` (${kinds})` : ""}` +
+           `${c.open ? ` · ${c.open} OPEN` : ""}.` +
+           `  VAULT: ${v.eligible ? "eligible" : "not yet"} — ${v.why || "no recommendation"}`, true);
   } catch (e) { status(`◎ ${e.message}`); }
   $("rescore").disabled = false;
 };

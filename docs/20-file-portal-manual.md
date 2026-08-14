@@ -317,13 +317,25 @@ undo, re-score preview) + `bench.html` (the Apple-skinned UI + coach + help) +
 | `algedonic-acks.jsonl` | widget ⚑ | algedonic.rs |
 | `.receipts-cache.jsonl` | widget (fetch) | Room render |
 | `drop/.supersede/<src>.json` | assay.rs ⟳ (consume-once) | convert_and_ship |
-| `watcher.log`, `watcher-stderr.log`, `bench-stderr.log`, `widget-boot.log` | their processes | humans + diagnostics |
+| `watcher.log`, `watcher-stderr.log`, `bench-stderr.log`, `resume-stderr.log`, `widget-boot.log` | their processes | humans + diagnostics (all five in the Room's 🗁 menu) |
+| `held/<sha16>/repairs.jsonl` | Repair Bench `_write_body` **chokepoint** (S76, docs/28) | ledger audit, undo, REPAIRS.md |
 | `anchor/ pending/ held/ drop/(done,failed)` | converter (held/ also: Repair Bench) | projections, bench |
 | ThinkPad `~/file-portal/receipts.jsonl` | exporter | widget fetch |
 
 Marker files are **consume-once**; a lost intent is the safe direction. Manifests carry
 `fidelity`, `chunking` (seams), `supersede`, `repairs`, `blessed` — the book's whole
 biography travels with it.
+
+**But a biography nobody reads is not observability.** The single-writer law governs who may
+*write* each file. It says nothing about whether anyone *reads* it — and an S77 census found
+**~83 measured fields that reach no human at all**, including `page_coverage`, the detector
+built specifically for this project's stated catastrophic failure mode (silent omission).
+The counterpart law is **docs/29 — the converse projection law**: *every value the pipeline
+measures and stores must have a disposition — a surface, an evidence card, a report, or a
+signed reason for its silence.* Read docs/29 §5.3 before adding any field; §5.4 is the rule
+that matters — **the commit that adds a persisted field must render it or record its
+disposition in the same commit.** Retrospective sweeps find these; only concurrency prevents
+them.
 
 ## 13. What each device should be doing
 
@@ -359,6 +371,14 @@ StrictHostKeyChecking=accept-new -o ConnectTimeout=10`).
    TIME-STATE ↔ cookie tally).
 2. **The projection law**: the widget reads; Python owns pipeline truth; levers write
    only backend-owned files.
+2b. **The CONVERSE projection law (docs/29, S77)** — the other half, and the newer one:
+   *every value the pipeline measures and stores must have a disposition — GLASS, EVIDENCE,
+   REPORT, INTERNAL, or DEAD — and silence must be signed, never defaulted.* Law 2 stops the
+   UI lying upward; nothing before this required the machine to speak at all. Census: **~83
+   silent fields**. **The operative rule is timing** — the commit that adds a persisted field
+   renders it or records its disposition *in that same commit*. Decide with docs/29 §5.3's
+   six questions; the shortest useful one is **"does this already have a home anywhere, live
+   or archival?"** — silence is a defect only when the answer is *nowhere*.
 3. **Widget gates**: `cargo clippy --all-targets -- -D warnings` · `node --check` ·
    `cargo test` · `npm run build` → hash → **Rab adopts**.
 4. **Fail-safe rule (S42)**: progress/estimate/provenance bookkeeping may never change a

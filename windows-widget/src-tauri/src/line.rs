@@ -349,6 +349,10 @@ pub fn open_engineering(
         "ledger" => (pipe.join("conversion-ledger.jsonl"), false),
         "watcher-log" => (pipe.join("watcher.log"), false),
         "watcher-stderr" => (pipe.join("watcher-stderr.log"), false),
+        // S77 (docs/29 §7.7): built in S76 to cure traceless failure (SYM-024) and then left
+        // unreachable — it inherited the disease it was made to cure. Its two sibling logs
+        // were both already here.
+        "resume-stderr" => (pipe.join("resume-stderr.log"), false),
         "bench-stderr" => (pipe.join("bench-stderr.log"), false),
         "boot-log" => (pipe.join("widget-boot.log"), false),
         "receipts-cache" => (pipe.join(".receipts-cache.jsonl"), false),

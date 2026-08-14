@@ -531,6 +531,7 @@ const ENG_TARGETS = [
   ["events", "events.jsonl — the event stream"],
   ["ledger", "conversion-ledger.jsonl — measured costs"],
   ["watcher-stderr", "watcher-stderr.log — the conveyor's last words"],
+  ["resume-stderr", "resume-stderr.log — a dying analyst resume's last words (SYM-024)"],
   ["bench-stderr", "bench-stderr.log — the bench server's last words"],
   ["boot-log", "widget-boot.log — boot beacons + window errors"],
   ["watcher-log", "watcher.log"],
