@@ -183,7 +183,10 @@
   .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; }
   #nopdf { padding:36px; color:var(--text-3); }
   /* S71 — the transcribe proposal panel: side-by-side, human is the final gate */
-  #tpanel { border:1px solid var(--accent); border-radius:10px; margin:8px 10px; padding:10px 12px; background:var(--fill); }
+  #tpanel, #cpanel { border:1px solid var(--accent); border-radius:10px; margin:8px 10px; padding:10px 12px; background:var(--fill); }
+  .tp-plain { font-family:var(--mono); font-size:11px; line-height:1.5; color:var(--text-2);
+    background:var(--bg); border:1px solid var(--line); border-radius:6px; padding:7px 9px;
+    max-height:150px; overflow:auto; white-space:pre-wrap; word-break:break-word; }
   .tp-head { font-size:12px; color:var(--text-2); margin-bottom:8px; }
   .tp-cols { display:grid; grid-template-columns:1fr 1fr; gap:10px; }
   .tp-cols img { max-width:100%; border-radius:6px; border:1px solid var(--line); background:#fff; }
@@ -318,9 +321,22 @@
       </select>
       <button id="locate" title="find this zone's true page from the prose around it (text-layer books)">⌖ locate</button>
       <span class="grow"></span>
+      <button id="collapsebtn" hidden
+        title="S76: this zone is a decoder token-loop — cut the repetition to one instance, keeping the head and tail. Removes noise only; the lost content still needs the page.">⌫ collapse loop</button>
       <button id="readbtn" disabled
         title="S71: granite-docling reads the dragged region into markdown — proposed, gated, you accept">⌨ drag a region first</button>
       <button id="cropbtn" class="primary" disabled>✂ drag a region first</button>
+    </div>
+    <div id="cpanel" hidden>
+      <div class="tp-head">⌫ a token loop — <b>this removes noise, not damage</b>: the real content lives only on the page, so crop it in after</div>
+      <div class="tp-cols">
+        <div><div class="tp-label">what will be cut</div><div id="cwhat" class="tp-plain"></div></div>
+        <div><div class="tp-label">what the paragraph becomes</div><div id="cafter" class="tp-plain"></div></div>
+      </div>
+      <div class="tp-foot"><span id="cgates"></span><span class="grow"></span>
+        <button id="cinsert" class="primary">✓ collapse it</button>
+        <button id="cdiscard">✗ discard</button>
+      </div>
     </div>
     <div id="tpanel" hidden>
       <div class="tp-head">⌨ the region, read — <b>you are the final gate</b>: edit the text if it needs it, then insert or discard</div>
@@ -514,6 +530,10 @@ function selectZone(i) {
   goto(z.located_page || z.page_guess);
   setLocBadge(z);
   renderZones(); renderCtx();
+  // S76: offer the collapse only where it could apply — the server is still the authority
+  // on whether the paragraph is really a loop (it refuses anything that reads as language).
+  $("collapsebtn").hidden = !!z.collapsed;
+  $("cpanel").hidden = true; cprop = null;
   if (!z.located_page && st.pdf_available && !st.pdf_only) autoLocate(i);
 }
 function setLocBadge(z) {
@@ -778,6 +798,38 @@ $("tinsert").onclick = async () => {
 };
 $("tdiscard").onclick = () => { $("tpanel").hidden = true; tprop = null; status("⌨ proposal discarded — nothing written"); };
 
+// ---- S76: the collapse gesture (docs/27, signed) — mechanical, no model, no GPU ----------
+let cprop = null;
+$("collapsebtn").onclick = async () => {
+  if (zone == null) { status("pick a zone first"); return; }
+  const z = st.zones[zone];
+  try {
+    const r = await api("/api/collapse_preview", { zone_line: z.line });
+    cprop = r;
+    $("cwhat").textContent =
+      `"${r.cycle}" repeated ~${r.repeats}x — ${r.chars_removed} characters\n\n` +
+      `kept before: …${r.head_kept}\nkept after : ${r.tail_kept}…`;
+    $("cafter").textContent = r.preview;
+    $("cgates").textContent =
+      `type-token ratio ${r.ttr} (loop below ${0.10}) · ${r.chars_before} → ${r.chars_after} chars` +
+      ` · anchored by ${r.anchor} at body line ${r.at}`;
+    $("cpanel").hidden = false;
+    status("⌫ preview only — nothing written yet");
+  } catch (e) { status(`⌫ ${e.message}`); }
+};
+$("cinsert").onclick = async () => {
+  if (!cprop) return;
+  try {
+    const r = await api("/api/collapse", { zone_line: cprop.zone_line });
+    status(`⌫ ✓ ${r.chars_removed} chars of loop removed · ↩ undo armed (${r.undo_depth} deep)` +
+           ` — the content itself still needs a crop from the page`);
+    $("cpanel").hidden = true; cprop = null;
+    coachMark("repaired");
+    await refreshAfterAi();
+  } catch (e) { status(`⌫ ${e.message}`); }
+};
+$("cdiscard").onclick = () => { $("cpanel").hidden = true; cprop = null; status("⌫ discarded — nothing written"); };
+
 /* ---- the AI assist: honest busy state with a live clock ---- */
 async function refreshAfterAi() {
   const keep = zone;
@@ -848,10 +900,14 @@ function renderRepairs() {
     d.className = "rep";
     d.title = `${r.ts} · ${r.note || r.mode}`;
     // S71: transcribe records carry no asset — a ⌨ text chip, not a broken <img>
+    // S76: nor does a collapse — its own ⌫ chip, so it can't borrow transcribe's face
     const face = r.asset
       ? `<img src="/api/asset?name=${encodeURIComponent(r.asset)}" alt="" />`
-      : `<span class="rep-txt" title="transcribed text (${(r.lines || 0)} lines)">⌨</span>`;
-    d.innerHTML = `${face}<span>@${r.zone_line} · p${r.page}</span>`;
+      : r.mode === "collapse"
+        ? `<span class="rep-txt" title="collapsed a ${r.period_tokens}-token loop x${r.repeats} (${r.chars_removed} chars)">⌫</span>`
+        : `<span class="rep-txt" title="transcribed text (${(r.lines || 0)} lines)">⌨</span>`;
+    const where = r.page ? `p${r.page}` : (r.mode === "collapse" ? "loop" : "—");
+    d.innerHTML = `${face}<span>@${r.zone_line} · ${where}</span>`;
     el.appendChild(d);
   });
 }

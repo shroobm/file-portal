@@ -203,6 +203,62 @@ def main() -> int:
     finally:
         B.DOCLING_PY = real_docling_py
 
+    # ---- 8c. the COLLAPSE gesture (S76, docs/27 — signed) ------------------------------------
+    # A synthetic loop is appended to the SANDBOX body + a matching zone to the sandbox
+    # manifest, so this section proves the gesture without depending on any particular real
+    # bundle still carrying a wreck.
+    check("type-token ratio separates a loop from prose",
+          B.type_token_ratio("the state of " * 60) < 0.10
+          and B.type_token_ratio(
+              "Management is the profession of control and this sentence varies its words") > 0.5)
+    check("find_cycle reports the shortest period, not a multiple",
+          (B.find_cycle("A. " + "the state of " * 60) or (None,))[0] == 3)
+    check("find_cycle refuses a short non-repeating passage",
+          B.find_cycle("the quick brown fox jumped over the lazy dog and kept on running") is None)
+
+    loop_para = "Q. The claim of the claim of " + "the claim of " * 90 + "th Ex"
+    fm_c, body_c = B.split_frontmatter(bench.md_path.read_text(encoding="utf-8"))
+    loop_line = body_c.count("\n") + 2
+    bench.md_path.write_text(fm_c + body_c + "\n\n" + loop_para + "\n", encoding="utf-8")
+    det = (bench.manifest.setdefault("fidelity", {}).setdefault("convert", {})
+           .setdefault("tripwires", {}).setdefault("degeneration_detail", {}))
+    det.setdefault("worst", []).append(
+        {"line": loop_line, "chars": len(loop_para), "zlib": 0.02, "max_trigram": 90,
+         "excerpt": "Q. The claim of the claim of"})
+    bench.manifest_path.write_text(json.dumps(bench.manifest, indent=2) + "\n", encoding="utf-8")
+    bench.manifest = json.loads(bench.manifest_path.read_text(encoding="utf-8"))
+
+    body_pre_c, reps_pre_c, undo_pre_c = bench.body(), len(bench.manifest["repairs"]), len(bench._undo)
+    zc = next(z for z in bench.state()["zones"] if z["line"] == loop_line)
+    check("SYM-025: the synthetic zone anchors by excerpt, not by its recorded line",
+          zc["anchor"] == "excerpt")
+    pv = bench.collapse(zone_line=loop_line, preview=True)
+    check("collapse preview writes nothing", bench.body() == body_pre_c)
+    check("collapse preview finds the 3-token cycle", pv["period_tokens"] == 3)
+
+    rc = bench.collapse(zone_line=loop_line)["record"]
+    check("collapse record: mode='collapse', no asset, SIGNED delta",
+          rc["mode"] == "collapse" and rc["asset"] is None and "delta" in rc)
+    check("_record_shift reads a collapse's signed delta, never the flat +3",
+          B.Bench._record_shift(rc) == rc["delta"])
+    check("the loop is gone but head and tail survive",
+          "claim of the claim of the claim" not in bench.body()
+          and "Q. The claim of" in bench.body() and "th Ex" in bench.body())
+    check("collapse arms the undo stack", len(bench._undo) == undo_pre_c + 1)
+    zc2 = next(z for z in bench.state()["zones"] if z["line"] == loop_line)
+    check("a collapsed zone reports collapsed=True and repaired=False (it restored nothing)",
+          zc2.get("collapsed") is True and zc2.get("repaired") is False)
+    try:
+        bench.collapse(zone_line=loop_line)
+        check("collapsing an already-collapsed zone is refused", False)
+    except ValueError:
+        check("collapsing an already-collapsed zone is refused", True)
+    uc = bench.undo_ai()
+    check("undo restores the body byte-identical after collapse",
+          uc["kind"] == "collapse" and bench.body() == body_pre_c)
+    check("undo popped the collapse record — provenance cannot desync",
+          len(bench.manifest.get("repairs", [])) == reps_pre_c)
+
     # ---- 9. the REAL held bundle is byte-identical ------------------------------------------
     after = {p.name: sha(p) for p in (md_real, HELD_VAL / "manifest.json")}
     check("REAL held Valentine untouched (md + manifest hashes)", before == after)

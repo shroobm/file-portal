@@ -52,10 +52,55 @@ DOCLING_PY = Path(r"C:\Users\Bndit\ml\docling-env\Scripts\python.exe")
 TRANSCRIBE_WORKER = BENCH_DIR / "transcribe_worker.py"
 TRANSCRIBE_DTYPE = "bf16"  # calibrated S71 (prototypes/docling-calibration/)
 GPU_LOCK = Path(r"C:\Users\Bndit\ml\library\.gpu-lock")
+# S76 — the COLLAPSE gesture (docs/27, signed by Rab 2026-08-14). A decoder token-loop
+# ("the state of" x157) carries nothing past its first instance. These thresholds are
+# MEASURED, not guessed: over the 117 substantial paragraphs of the S76 Beer the loop scored
+# TTR 0.0147 and the cleanest legitimate prose 0.5190 — a 35x chasm with nothing in it.
+TTR_LOOP_MAX = 0.10        # type-token ratio below this = a loop, not language
+MIN_CYCLE_REPEATS = 8      # fewer repeats is emphasis or a refrain, not a stuck decoder
+MAX_CYCLE_PERIOD = 12      # tokens; the longest cycle we are willing to call a loop
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def type_token_ratio(text: str) -> float:
+    """Unique tokens / tokens. The acute loop signature (docs/27 §3) — more discriminating
+    than zlib, which needs the trigram AND-gate to avoid firing on dense tables (a table
+    repeats STRUCTURE but varies its WORDS, so its ratio stays high)."""
+    toks = text.lower().split()
+    if len(toks) < 5:                      # CJK / space-free block
+        toks = list(re.sub(r"\s", "", text))
+    return len(set(toks)) / len(toks) if toks else 1.0
+
+
+def find_cycle(text: str):
+    """The dominant CONSECUTIVE repetition, or None. Returns (period, first_tok, last_tok,
+    repeats). Period is in tokens; the run is the maximal stretch where tok[i] == tok[i+p].
+    Shortest period wins (ties break on coverage) so "the state of" is found rather than
+    an accidental multiple of it."""
+    toks = [m.group().lower() for m in re.finditer(r"\S+", text)]
+    n = len(toks)
+    if n < 20:
+        return None
+    best = None
+    for p in range(1, MAX_CYCLE_PERIOD + 1):
+        i = 0
+        while i + p < n:
+            if toks[i] != toks[i + p]:
+                i += 1
+                continue
+            j = i
+            while j + p < n and toks[j] == toks[j + p]:
+                j += 1
+            covered = j - i + p
+            repeats = covered // p
+            if repeats >= MIN_CYCLE_REPEATS and (
+                    best is None or p < best[0] or (p == best[0] and covered > best[4])):
+                best = (p, i, j + p - 1, repeats, covered)
+            i = j + 1
+    return best
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:
@@ -161,12 +206,20 @@ class Bench:
         zones = []
         for z in self.zones():
             guess = max(1, min(pages, round(z["line"] / md_lines * pages))) if md_lines else 1
+            at, anchor = self._resolve_zone_line(z)
             zones.append({**z, "page_guess": guess,
                           # the server is the ONE authority on line adjustment (insertions shift
                           # everything below them) — the UI never re-derives this
-                          "adjusted_line": self._adjusted_line(z["line"]),
+                          "adjusted_line": at,
+                          "anchor": anchor,   # "excerpt" = found in the live body; "drift" = estimated
+                          # S76: a collapse removes noise but restores nothing, so it is
+                          # reported separately — calling it "repaired" would overclaim
                           "repaired": any(r.get("zone_line") == z["line"]
-                                          for r in self.manifest.get("repairs", []))})
+                                          and r.get("mode") != "collapse"
+                                          for r in self.manifest.get("repairs", [])),
+                          "collapsed": any(r.get("zone_line") == z["line"]
+                                           and r.get("mode") == "collapse"
+                                           for r in self.manifest.get("repairs", []))})
         return {
             "bundle": self.dir.name,
             "dir": str(self.dir),
@@ -336,17 +389,49 @@ class Bench:
               if (m := ASSET_RE.match(p.name)) and int(m.group(1)) == page]
         return f"_repair_p{page}_{max(ks, default=0) + 1}.png"
 
+    @staticmethod
+    def _record_shift(r: dict) -> int:
+        """Lines a persisted repair record moved everything below it. Crop/paste insert a
+        fixed 3 ("", embed, comment); transcribe carries its own count; collapse carries a
+        SIGNED delta (negative — it removes lines). Collapse deliberately uses `delta` rather
+        than reusing `lines`, because the UI renders `r.lines || 0` and a negative there would
+        corrupt the repairs chip."""
+        if r.get("mode") == "transcribe":
+            return r.get("lines") or 0
+        if r.get("mode") == "collapse":
+            return r.get("delta") or 0
+        return 3
+
     def _adjusted_line(self, zone_line: int) -> int:
-        """Each prior repair inserted lines after ITS zone (crop/paste = 3; transcribe = its
-        record's own `lines` count — restart-safe because the manifest carries it), and each
+        """Each prior repair moved everything below ITS zone (see _record_shift), and each
         AI edit may have grown or shrunk its range — a zone below those changes has shifted by
-        their sum. Transcriptions deliberately do NOT ride the drift ledger: their shift lives
-        in the manifest record, which survives a bench restart (the ledger does not)."""
-        prior = sum((r.get("lines") or 0) if r.get("mode") == "transcribe" else 3
+        their sum. Transcriptions and collapses deliberately do NOT ride the drift ledger:
+        their shift lives in the manifest record, which survives a bench restart (the ledger
+        does not)."""
+        prior = sum(self._record_shift(r)
                     for r in self.manifest.get("repairs", [])
                     if r.get("zone_line") is not None and r["zone_line"] < zone_line)
         drift = sum(d for (at, d) in self._ai_drift if at < zone_line)
         return zone_line + prior + drift
+
+    def _resolve_zone_line(self, z: dict) -> tuple[int, str]:
+        """SYM-025: a zone's `line` was recorded by the CONVERT-phase audit, but the analyst
+        phase rewrites the body afterwards (S76 Beer: md_lines 3013 → live body 2997), so that
+        number can point at an unrelated passage — and _adjusted_line has no term for an edit
+        made before the bench ever opened. The EXCERPT is the durable anchor; the line number
+        is the fragile one.
+
+        A live-body hit ALREADY reflects every shift from every source, so it must NOT also
+        take the drift terms — that would double-count. Fall back to the arithmetic only when
+        the excerpt is gone (a repaired or collapsed zone), and say which was used."""
+        excerpt = (z.get("excerpt") or "").strip()
+        adj = self._adjusted_line(z["line"])
+        if excerpt:
+            hits = [i + 1 for i, ln in enumerate(self.body().split("\n"))
+                    if excerpt in " ".join(ln.split())]
+            if hits:
+                return min(hits, key=lambda h: abs(h - adj)), "excerpt"
+        return adj, "drift"
 
     def repair(self, zone_line: int, page: int, rect: list[float] | None = None,
                image_b64: str | None = None, note: str = "") -> dict:
@@ -498,6 +583,77 @@ class Bench:
     OLLAMA_URL = "http://127.0.0.1:11434/api/generate"
     AI_MODEL = "qwen3:8b"
 
+    # ---- the collapse gesture (S76, docs/27 — signed by Rab) --------------------------------
+    def _zone_paragraph(self, at: int) -> tuple[int, int, str]:
+        """The blank-line-delimited block containing body line `at`, 1-indexed inclusive."""
+        lines = self.body().split("\n")
+        i = min(max(at, 1), len(lines)) - 1
+        while i < len(lines) - 1 and not lines[i].strip():
+            i += 1                                   # a blank anchor belongs to what follows
+        a = b = i
+        while a > 0 and lines[a - 1].strip():
+            a -= 1
+        while b < len(lines) - 1 and lines[b + 1].strip():
+            b += 1
+        return a + 1, b + 1, "\n".join(lines[a:b + 1])
+
+    def collapse(self, zone_line: int, preview: bool = False) -> dict:
+        """Reduce a decoder token-loop to one instance, keeping the paragraph's head and tail.
+        Mechanical: no crop, no model, no GPU — the loop carries no information past its first
+        instance (docs/27). It removes NOISE and does NOT restore the lost content, which still
+        lives only in the page image; that is why a collapsed zone is reported `collapsed`,
+        never `repaired`. Refuses anything that still reads as language."""
+        self._require_md()
+        z = next((x for x in self.zones() if x["line"] == zone_line), None)
+        if z is None:
+            raise ValueError(f"no zone recorded at line {zone_line}")
+        at, anchor = self._resolve_zone_line(z)
+        first, last, para = self._zone_paragraph(at)
+        ttr = type_token_ratio(para)
+        if ttr >= TTR_LOOP_MAX:
+            raise ValueError(f"refused: type-token ratio {ttr:.4f} >= {TTR_LOOP_MAX} — this "
+                             f"paragraph still reads as language, not a loop")
+        found = find_cycle(para)
+        if not found:
+            raise ValueError("refused: no consecutive repeating cycle found")
+        p, i0, i1, repeats, _covered = found
+        spans = [(m.start(), m.end()) for m in re.finditer(r"\S+", para)]
+        lo, hi = spans[i0][0], spans[min(i1, len(spans) - 1)][1]
+        one = para[lo:spans[min(i0 + p - 1, len(spans) - 1)][1]]
+        removed = (hi - lo) - len(one)
+        marker = (f"<!-- repair-bench collapse: a {p}-token loop repeated ~{repeats}x "
+                  f"({removed} chars) reduced to one instance · the lost content is still "
+                  f"only in the page image -->")
+        new_para = f"{para[:lo]}{one}{para[hi:]}\n{marker}"
+        delta = new_para.count("\n") - para.count("\n")   # SIGNED: the marker adds a line,
+        # a multi-line loop removes many — either way the record carries the truth
+        head, tail = para[:lo], para[hi:]
+        if preview:
+            return {"zone_line": zone_line, "at": at, "anchor": anchor,
+                    "para_lines": [first, last], "ttr": round(ttr, 4),
+                    "period_tokens": p, "repeats": repeats, "chars_removed": removed,
+                    "cycle": one[:80], "head_kept": head[-70:], "tail_kept": tail[:70],
+                    "chars_before": len(para), "chars_after": len(new_para),
+                    "delta_lines": delta, "preview": new_para[:400]}
+
+        self._backup_once()
+        fm, body = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
+        self._undo.append(("collapse", body))
+        del self._undo[:-20]              # the same bounded stack the other gestures share
+        lines = body.split("\n")
+        lines[first - 1:last] = new_para.split("\n")
+        self.md_path.write_text(fm + "\n".join(lines), encoding="utf-8")
+
+        rec = {"ts": _now_iso(), "zone_line": zone_line, "page": None, "asset": None,
+               "mode": "collapse", "by": "repair-bench", "delta": delta,
+               "chars_removed": removed, "period_tokens": p, "repeats": repeats,
+               "cycle": one[:80], "anchor": anchor}
+        self.manifest.setdefault("repairs", []).append(rec)
+        self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
+                                      encoding="utf-8")
+        return {"record": rec, "undo_depth": len(self._undo), "chars_removed": removed,
+                "delta_lines": delta, "at": at, "para_lines": [first, last]}
+
     def _fence(self, text: str) -> tuple[str, list[str]]:
         tokens: list[str] = []
 
@@ -590,9 +746,9 @@ class Bench:
         self.md_path.write_text(fm + body, encoding="utf-8")
         if kind == "assist" and self._ai_drift:
             self._ai_drift.pop()
-        if kind == "transcribe":
+        if kind in ("transcribe", "collapse"):
             reps = self.manifest.get("repairs", [])
-            if reps and reps[-1].get("mode") == "transcribe":
+            if reps and reps[-1].get("mode") == kind:
                 reps.pop()
                 self.manifest_path.write_text(
                     json.dumps(self.manifest, indent=2) + "\n", encoding="utf-8")
@@ -762,6 +918,11 @@ def make_handler(bench: Bench):
                         markdown=str(payload.get("markdown", "")),
                         gates=payload.get("gates"), secs=payload.get("secs"),
                         rect=payload.get("rect")))
+                elif self.path == "/api/collapse_preview":
+                    self._json(bench.collapse(zone_line=int(payload["zone_line"]),
+                                              preview=True))
+                elif self.path == "/api/collapse":
+                    self._json(bench.collapse(zone_line=int(payload["zone_line"])))
                 elif self.path == "/api/assist":
                     self._json(bench.assist(
                         start=int(payload["start"]), end=int(payload["end"]),
