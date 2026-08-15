@@ -219,8 +219,16 @@ fi
 printf '[3] PIN\n'
 row "--since" "${led_sha:-UNKNOWN}"
 row "closeout" "$closeout"
+# Three states, not two. Re-running the open MID-SESSION is normal — Rab reruns it, and a
+# reconciliation loop reruns it — so "the closeout exists" must not be reported as an incident
+# when the thing that exists is THIS session's own file. The discriminator is mechanical: a
+# closeout for this number, this machine, and today is this session's; one carrying a different
+# machine or date belongs to someone else and is a real collision.
 if [[ -n "$this_n" && -f "$FP_REPO/$closeout" ]]; then
-  row "" "EXISTS already — do not overwrite; reconcile first"; fail=1
+  added=$(git -C "$FP_REPO" log --diff-filter=A --format=%h -- "$closeout" 2>/dev/null | tail -1)
+  row "" "OPEN — this session's closeout exists${added:+, added in $added} · §1 must stay byte-identical to close"
+elif [[ -n "$this_n" && -n "$(ls -1 "$FP_REPO/sessions/S${this_n}-"* 2>/dev/null)" ]]; then
+  row "" "COLLISION — a closeout for S${this_n} exists under a different machine/date"; fail=1
 else
   row "" "absent — SKILL.md Phase 6 creates it BEFORE work, with §1 Intent in Rab's words"
 fi
