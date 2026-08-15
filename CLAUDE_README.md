@@ -62,7 +62,7 @@ git pull  # always first
   "$HOME/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe" observability/glass_detector.py --since <last ledger SHA>
   ```
   *(Recorded because the step was signed, written as bare `python`, and was not runnable as
-  written on the one machine it was written for — S79 found it by trying it.)*
+  written on the one machine it was written for — S78 found it by trying it.)*
 - Append your Change Ledger row **after** the closing commit is made, in a **one-line
   follow-up commit** — do NOT `git commit --amend` it into the closing commit: amending
   changes that commit's SHA and orphans the row you just wrote (discovered by doing exactly

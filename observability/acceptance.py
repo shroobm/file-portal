@@ -149,7 +149,7 @@ def main() -> int:
 
     # The crash regression (docs/31 §1.1) needs a diff with NON-ASCII bytes in it — that is the
     # whole bug: git's output decoded as cp1252. Asserting on the EXIT CODE, not on a count:
-    # the S79 version asserted `scoped_rows >= 0`, a sum of len()s, which is a tautology — the
+    # the S78 version asserted `scoped_rows >= 0`, a sum of len()s, which is a tautology — the
     # regression test for the headline bug could not fail. And a real crash never reached it,
     # because _census raises on empty stdout and the harness tracebacks instead of printing FAIL.
     if nonascii is None:
@@ -227,7 +227,7 @@ def _diff_since(ref: str) -> str | None:
 def _exercising_ref() -> tuple[str | None, str | None]:
     """Two refs, each chosen for the PROPERTY it must exercise — never for a proxy.
 
-    S79: the first version of this picked a ref by `len(diff) > 500` and called it "guaranteed
+    S78: the first version of this picked a ref by `len(diff) > 500` and called it "guaranteed
     non-empty AND contains non-ASCII". Byte length is neither. `ed20c02` added 171 lines with no
     dict-key literal in them, sailed past the 500-byte gate, and turned the suite RED two commits
     after it was written — not because the detector regressed, but because of the incidental

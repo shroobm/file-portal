@@ -41,7 +41,7 @@ fi
 # 6 leaves slack for a longer close without ever reaching the index.
 TS_WINDOW=6
 #
-# S79: the window arms ONCE. It used to re-arm on EVERY line matching the token, so a second
+# S78: the window arms ONCE. It used to re-arm on EVERY line matching the token, so a second
 # mention anywhere in the file appended a second block — and the very edit that removed the
 # stale `received 55` from the index put the word TIME-STATE there instead, re-planting the
 # fault it was written to cure. A fixture then showed [2] printing a green `✓ 71` read off an
@@ -95,7 +95,7 @@ exp_sess=$(printf '%s\n' "$ts_block" | grep -oE 'S[0-9]+' | head -1)
 # verdict (ok / skip + why) and the discards are counted in [3b]. They used to vanish with no
 # count and no warning: 21 of 83 rows here are historical (pre-S16, before the `S<n>:` convention)
 # and legitimately unparseable, but the SAME silence would swallow a NEW row whose closer forgot
-# the `S79:` prefix or the SHA cell. Muster would then select the PREVIOUS row and report a
+# the `S<n>:` prefix or the SHA cell. Muster would then select the PREVIOUS row and report a
 # phantom SHA mismatch — a bad close wearing a rewind's clothing, i.e. the exact misdiagnosis the
 # [3a] guard was built to prevent, arriving by another door.
 parsed=$(grep -E '^\| 20[0-9][0-9]-' "$README" 2>/dev/null | awk -F'|' '

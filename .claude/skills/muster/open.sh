@@ -68,21 +68,43 @@ today=$(date +%Y-%m-%d)
 closeout="sessions/S${this_n}-${machine}-${today}.md"
 [[ -n "$this_n" ]] && row "this session" "S$this_n  ·  $machine  ·  $today"
 
-# Collision check. A number already spoken for somewhere in the tree means either this session
-# is misnumbered or a previous one wrote under a number it did not own. Both are faults, and
-# they are indistinguishable from here — so this REPORTS and does not guess.
+# Collision check. A number already spoken for means either this session is misnumbered or an
+# earlier one wrote under a number it did not own. Both are faults, they are indistinguishable
+# from here, and so this REPORTS and does not guess.
+#
+# SCOPED TO THE INHERITED TREE, at the newest ledger SHA — never to the working tree. The
+# question is "was S<N> already spoken for in the record this session INHERITED", and a live-tree
+# grep cannot answer it: the moment this session legitimately writes its own number, the check
+# starts reporting the session to itself. That is the same defect shape as `tail -1` (position
+# standing in for newest) and the TIME-STATE line-distance window — a cheap observable that is
+# true when chosen and drifts the moment the thing it measures moves. Caught by running it:
+# after the S79/S78 corrections it still fired, naming three files whose S79 references were
+# written by S79 and were correct.
 if [[ -n "$this_n" ]]; then
   if [[ -n "$(ls -1 "$FP_REPO/sessions/S${this_n}-"* 2>/dev/null)" ]]; then
     row "collision" "sessions/S${this_n}-* ALREADY EXISTS — this number is taken"; fail=1
   fi
-  hits=$(git -C "$FP_REPO" grep -lE "\bS${this_n}\b" -- . 2>/dev/null | tr '\n' ' ')
+  # Two different questions, and only one of them is mechanical (docs/21 §6: mechanical checks
+  # belong on mechanical facts, judgment checks belong to human hands — confusing the two is how
+  # a check comes to share the blind spot of the thing it checks).
+  #
+  # HARD — an unambiguous ownership claim: a closeout file for this number already exists. A
+  # ledger row cannot exist by construction, since this number is the newest row's plus one.
+  # Nothing to interpret; this fails.
+  #
+  # ADVISORY — prose in the inherited tree naming this number. A grep cannot tell "an artifact
+  # misattributed to S<N>" from "a forward-looking reference to S<N> that was correct when
+  # written". Both are real and they read identically: on 2026-08-15 the same grep returned six
+  # genuine misattributions AND two correct forward references in docs/31 ("a future row that
+  # omits S79:", "test against S79's own work"). A blanket correction would have broken the
+  # correct ones. So this lists and the reader judges — it does not vote.
+  hits=$(git -C "$FP_REPO" grep -lE "\bS${this_n}\b" "${led_sha:-HEAD}" -- . 2>/dev/null \
+         | sed "s|^${led_sha}:||" | tr '\n' ' ')
   if [[ -n "$hits" ]]; then
-    row "collision" "S${this_n} is already named in tracked files:"
+    row "advisory" "S${this_n} is named in the INHERITED tree (${led_sha:-HEAD}) — read each, do not blanket-correct:"
     printf '    %-16s %s\n' "" "$hits"
-    row "" "→ resolve before writing anything under S${this_n} (see SKILL.md Phase 0)"
-    fail=1
   else
-    row "collision" "none — S${this_n} is unused in tracked files"
+    row "advisory" "S${this_n} unnamed in the inherited tree"
   fi
 fi
 

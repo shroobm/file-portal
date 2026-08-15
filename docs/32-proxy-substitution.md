@@ -66,7 +66,7 @@ The record bears this out exactly:
 - **S78** built the detector for the class, and the detector's `--since` filter was blind to an
   entire language dialect — Mode D inside the Mode D detector — while its README said "wired into
   nothing" beside a doc citing that README as proof it was signed.
-- **S79** fixed "a harness that could not fail" by writing a check that could not fail
+- **S78** fixed "a harness that could not fail" by writing a check that could not fail
   (`scoped_rows >= 0`), shipped the suite **red** while three artifacts recorded it green, and —
   in the very edit that removed a stale number from `MEMORY.md` — re-planted the second anchor
   that `muster.sh` had been repaired for that same hour.
@@ -103,7 +103,7 @@ A tripwire violates the **property** and checks that the **proxy** fires. It is 
 measures the correlation itself rather than assuming it. His instruction is the cure, arrived at
 by instinct, before anything here was diagnosed.
 
-It works, and this session is the evidence: every S79 fix was tripwired, and the tripwires caught
+It works, and this session is the evidence: every S78 fix was tripwired, and the tripwires caught
 what review did not — the two-anchor fixture printed a green `✓ 71` off an index bullet while the
 real clock sat blank, which no amount of reading the diff would have surfaced.
 

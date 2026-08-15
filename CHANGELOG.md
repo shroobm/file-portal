@@ -597,7 +597,7 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Fixed
 
-- **S79 — a failed fidelity audit now raises whatever the enforcement lever says (docs/30 §5.4,
+- **S78 — a failed fidelity audit now raises whatever the enforcement lever says (docs/30 §5.4,
   SIGNED by Rab 2026-08-14).** Two independently reasonable defaults composed into a hole neither
   looked like alone: `audit_mode()` returns `report` by default (ship anyway, do not park), and
   the algedonic line's only desktop route for a fidelity failure was `audit/held` — which
