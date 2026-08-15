@@ -139,7 +139,13 @@ function algedonicBanner(d) {
     `${x.detail ? ` · ${esc(String(x.detail).slice(0, 40))}` : ""}</span>` +
     `<button class="alg-ack" data-id="${esc(x.id)}" title="acknowledge this occurrence">⚑ ack</button></div>`).join("");
   return `<div class="alg-banner"><div class="alg-head"><span class="alg-title">⚑ ALGEDONIC</span>` +
+    // `capped` > 0 means the cap dropped alerts, so the count beside it is a count of what is
+    // SHOWN, not of what stands. Saying so is the whole point: S78 added the field and rendered
+    // it nowhere, and the closeout detector caught it the same day (docs/29 §5.4's timing rule
+    // doing exactly its job). An unfalsifiable number on the glass is the disease this alarm
+    // was rebuilt to stop telling.
     `<span class="alg-sub">${esca.length} unacknowledged &gt; ${a.m_minutes} m` +
+    (a.capped ? ` · +${a.capped} not shown (cap)` : "") +
     `${a.m_provisional ? " · provisional (docs/19 §6)" : ""}</span><span class="rp-grow"></span>` +
     [15, 30, 60, 240].map((m) =>
       `<button class="alg-m${a.m_minutes === m ? " on" : ""}" data-m="${m}">${m >= 60 ? m / 60 + "h" : m + "m"}</button>`).join("") +

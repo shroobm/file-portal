@@ -81,7 +81,24 @@ git pull  # always first
 
 ## Current Session Plan
 
-### S78 — Desktop — 2026-08-14 — OPEN
+*(S78 CLOSED 2026-08-14 — **FOUR ROUNDS, FOUR RECURRENCES, AND THE DISEASE NAMED.** The MUSTER
+opened on an ordering fault wearing a rewind's clothing (SYM-028). The docs/29 detector was
+built — then `/circle` found it **broken in the exact mode Rab had signed**, with its acceptance
+suite green over the break because it tested the one input that could not fail. Repairs were
+distributed to three agents behind a per-section review gate; `/circle` #2 found the repairs
+defective too, **including one I planted into the guard I had just fixed**. **docs/32** names the
+cause: **PROXY SUBSTITUTION** — establishing a property by checking something cheaper that
+correlates with it, never re-checking the correlation; a guard IS a proxy, so building one is
+when the disease acts. SIGNED: §8.3 closeout ritual · §5.4 alarm decoupled from enforcement ·
+**the permanence rule** ("no timelimits on fails… permanent until appended") · **error
+structure** (unbuilt). At the bench I then **destroyed the matrix columns in Valentine's zones
+1–2**, mistaking populated `•` cells for phantom ones because I inspected two cells and
+generalised — **reverted byte-exactly by docs/28's ledger undo**, its first real use. Also found:
+Rab's own p234 crop is **printed page 208**, embedded in the wrong table. **Valentine markdown is
+byte-identical to session open; held/ still 4.** Closeout: `sessions/S78-desktop-2026-08-14.md`
+— read §19.)*
+
+### S78 — Desktop — 2026-08-14 — CLOSED
 
 **MUSTER at open: `muster.sh` exited 1. Reconciled — the clocks agreed; the instrument was
 broken.** TIME-STATE `60acd77` (S77) is ancestor-verified and correct; the script reported

@@ -48,5 +48,10 @@
     }
   ],
 
-  "dispositions": {}
+  "dispositions": {
+    "bench:reason": {
+      "disposition": "EVIDENCE",
+      "reason": "The five-outcome triage's free-text reason (bench.py:667 triage, :678/:682 coverage). Its home is the opened zone/run card, not the chip row — docs/29 §5.3 step 3: a localizer is EVIDENCE, revealed when the card is open, never promoted to ambient chrome. NOTE ON SCOPE: this key surfaced under `--since 60acd77` only because dispositions.json's own `reason` fields entered the diff as added `\"reason\":` lines — a false positive of name-based scoping (the key was not added to a producer this session). Recorded as the honest disposition anyway rather than waved away, since the question it forces is the right one. The scoping weakness itself belongs on docs/31 §5.2's sheet."
+    }
+  }
 }
