@@ -1,0 +1,208 @@
+#!/usr/bin/env bash
+# .claude/skills/muster/open.sh — the MECHANICAL half of the session open.
+#
+# docs/21 §3: "never author a derivable section." Everything a command can produce is produced
+# here; everything requiring judgment stays in SKILL.md, where a reader does it. Mechanical
+# checks belong on mechanical facts; judgment checks belong to human hands (docs/21 §6).
+#
+# THE OUTPUT DISCIPLINE — read this before adding a line to the card:
+#   This script prints VALUES, never ✓, for everything except a process exit code. A row of
+#   checkmarks can be skimmed as "fine"; `held 4 · exe C3D277F7 · census 75/84` cannot. The
+#   whole failure mode this file exists inside is a green summary standing in for a read state
+#   (docs/32 — proxy substitution). A ✓ here is only ever an exit code.
+#
+# Exit: 0 = the mechanical half is clean. 1 = an incident the session must reconcile first.
+#
+# Overrides (same names muster.sh uses, so a fixture drives both):
+#   MEMORY_LIB=  FP_REPO=  PIPE_ROOT=  VAULT_DIR=  WIDGET_EXE=
+set -uo pipefail
+
+HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+FP_REPO="${FP_REPO:-$(cd "$HERE/../../.." && pwd)}"
+MEMORY_LIB="${MEMORY_LIB:-$HOME/.claude/projects/C--Users-Bndit-Documents-Claude-Code-Memory-Backup/memory}"
+PIPE_ROOT="${PIPE_ROOT:-$HOME/ml/library}"
+VAULT_DIR="${VAULT_DIR:-$HOME/Documents/Obsidian/Obsidian and Zennotes Vault/Library}"
+WIDGET_EXE="${WIDGET_EXE:-$HOME/AppData/Local/File Portal/file-portal-widget.exe}"
+README="$FP_REPO/CLAUDE_README.md"
+
+fail=0
+row() { printf '    %-16s %s\n' "$1" "$2"; }
+
+printf '════════ MUSTER · OPEN · %s ════════\n' "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [0] IDENTITY — which session is this?
+#
+# The number comes from LEDGER ROWS ONLY: lines that open `| <date> |` and carry an `S<n>:`
+# cell. It is never taken from prose. docs/21 §7 prescribes
+#     grep -oE '\bS[0-9]{1,3}\b' CLAUDE_README.md | sort -t S -k2 -n | tail -1
+# under the banner "never by assumption" — and on 2026-08-15 that command returned S79 off a
+# PROSE mention at CLAUDE_README.md:65 while the newest ledger row was S78. A selector that
+# reads narrative is the same defect as `tail -1` reading position (SYM-028): a cheap proxy
+# for "which session is newest" that drifted from the property and kept passing.
+printf '[0] IDENTITY\n'
+if [[ ! -f "$README" ]]; then
+  row "ledger" "MISSING — no $README"; fail=1
+  led_n=""; led_sha=""
+else
+  led_line=$(grep -E '^\| 20[0-9][0-9]-' "$README" | awk -F'|' '
+    { for (i=1;i<=NF;i++) gsub(/^[ \t\r]+|[ \t\r]+$/,"",$i)
+      sess=""; sha=""
+      for (i=1;i<=NF;i++) if ($i ~ /^S[0-9]+:/) { sess=substr($i,2,index($i,":")-2); break }
+      for (i=NF;i>=1;i--) if ($i != "") { sha=$i; break }
+      if (sess != "" && sha ~ /^[0-9a-fA-F]{7,40}$/) print sess, sha }' | sort -k1,1n | tail -1)
+  led_n=$(printf '%s' "$led_line" | awk '{print $1}')
+  led_sha=$(printf '%s' "$led_line" | awk '{print $2}')
+  if [[ -z "$led_n" ]]; then
+    row "ledger" "UNPARSEABLE — no row carries both an S<n>: cell and a SHA"; fail=1
+  else
+    row "ledger newest" "S$led_n  $led_sha"
+  fi
+fi
+
+this_n=""
+if [[ -n "$led_n" ]]; then this_n=$((led_n + 1)); fi
+machine=$(uname -s 2>/dev/null)
+case "$machine" in MINGW*|MSYS*|CYGWIN*) machine="desktop" ;; Linux) machine="thinkpad" ;; *) machine="unknown" ;; esac
+today=$(date +%Y-%m-%d)
+closeout="sessions/S${this_n}-${machine}-${today}.md"
+[[ -n "$this_n" ]] && row "this session" "S$this_n  ·  $machine  ·  $today"
+
+# Collision check. A number already spoken for somewhere in the tree means either this session
+# is misnumbered or a previous one wrote under a number it did not own. Both are faults, and
+# they are indistinguishable from here — so this REPORTS and does not guess.
+if [[ -n "$this_n" ]]; then
+  if [[ -n "$(ls -1 "$FP_REPO/sessions/S${this_n}-"* 2>/dev/null)" ]]; then
+    row "collision" "sessions/S${this_n}-* ALREADY EXISTS — this number is taken"; fail=1
+  fi
+  hits=$(git -C "$FP_REPO" grep -lE "\bS${this_n}\b" -- . 2>/dev/null | tr '\n' ' ')
+  if [[ -n "$hits" ]]; then
+    row "collision" "S${this_n} is already named in tracked files:"
+    printf '    %-16s %s\n' "" "$hits"
+    row "" "→ resolve before writing anything under S${this_n} (see SKILL.md Phase 0)"
+    fail=1
+  else
+    row "collision" "none — S${this_n} is unused in tracked files"
+  fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [1] GROUND — the clocks, verbatim, plus the verifier's own integrity.
+printf '[1] GROUND\n'
+VENDOR="$HERE/muster.sh"
+HOMECOPY="$HOME/.claude/muster.sh"
+if [[ -f "$VENDOR" ]]; then
+  vh=$(sha256sum "$VENDOR" | cut -c1-8 | tr 'a-f' 'A-F')
+  if [[ -f "$HOMECOPY" ]]; then
+    hh=$(sha256sum "$HOMECOPY" | cut -c1-8 | tr 'a-f' 'A-F')
+    if [[ "$vh" == "$hh" ]]; then row "verifier" "$vh  (repo == ~/.claude)"
+    else row "verifier" "DRIFT repo=$vh  home=$hh — the two copies disagree"; fail=1; fi
+  else
+    row "verifier" "$vh  (repo only; no ~/.claude/muster.sh)"
+  fi
+else
+  row "verifier" "MISSING — $VENDOR"; fail=1
+fi
+
+if [[ -f "$VENDOR" ]]; then
+  MEMORY_LIB="$MEMORY_LIB" FP_REPO="$FP_REPO" bash "$VENDOR"
+  mexit=$?
+  row "muster exit" "$mexit"
+  [[ "$mexit" -ne 0 ]] && fail=1
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [2] LIVE — today's reality. Every value here is `Observed` at the timestamp above and at NO
+# other time. The previous closeout's §17 is `Historical` and may not stand in for any of it:
+# on 2026-08-15 S78's §17 read "widget down · bench down" while both had been up since 12:59.
+printf '[2] LIVE\n'
+if [[ -d "$PIPE_ROOT" ]]; then
+  cnt() { ls -1d "$PIPE_ROOT/$1"/*/ 2>/dev/null | grep -c . ; }
+  fcnt() { ls -1 "$PIPE_ROOT/$1"/*.pdf 2>/dev/null | grep -c . ; }
+  row "pipeline" "held $(cnt held) · anchor $(cnt anchor) · pending $(cnt pending) · drop $(fcnt drop)"
+  row "levers" "audit=$(cat "$PIPE_ROOT/audit-mode.txt" 2>/dev/null || echo '?') · analyst=$(cat "$PIPE_ROOT/analyst-mode.txt" 2>/dev/null || echo '?') · batch=$(cat "$PIPE_ROOT/chunk-batch.txt" 2>/dev/null || echo '?')"
+  row "gpu-lock" "$([[ -e "$PIPE_ROOT/.gpu-lock" ]] && echo 'PRESENT — a convert holds the card' || echo 'absent')"
+  row "events" "$(grep -c . "$PIPE_ROOT/events.jsonl" 2>/dev/null || echo 0) line(s)"
+else
+  row "pipeline" "UNREAD — no $PIPE_ROOT on this machine (say unread, never fine)"
+fi
+
+# THE FAILED-PROBE RULE, paid for during this script's own first run:
+#
+#   A probe that FAILED must never render as a NEGATIVE OBSERVATION.
+#
+# The first version ran `tasklist /FI "IMAGENAME eq …" /NH`. Git Bash's MSYS layer rewrites a
+# leading `/FI` into a Windows path (`C:/Program Files/Git/FI`), tasklist rejected it, the error
+# went to stderr, `2>/dev/null` swallowed it, awk got an empty string — and the card printed
+# `widget  down` while PID 10048 was alive and had been all afternoon. An empty result stood in
+# for "not running": a cheap proxy for the property, silently wrong, confidently rendered. That
+# is docs/32 exactly, inside the guard written against docs/32, on its first run — the §6
+# prediction landing immediately.
+#
+# So: take the process table ONCE with no `/` switches (nothing for MSYS to rewrite), verify the
+# call actually produced a table, and only then count. If the probe did not succeed, the row says
+# UNREAD. `down` is a claim, and a claim needs a reading behind it.
+ps_table=$(tasklist 2>/dev/null); ps_rc=$?
+if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
+  wpid=$(printf '%s\n' "$ps_table" | awk '/^file-portal-widget\.exe/{print $2; exit}')
+  row "widget" "${wpid:-down (table read, no match)}"
+  row "python procs" "$(printf '%s\n' "$ps_table" | grep -c '^python\.exe')"
+  row "ollama" "$(printf '%s\n' "$ps_table" | grep -c '^ollama')"
+else
+  row "processes" "UNREAD — process-table probe failed (rc=$ps_rc); NOT a statement that anything is down"
+fi
+
+if [[ -f "$WIDGET_EXE" ]]; then
+  row "installed exe" "$(sha256sum "$WIDGET_EXE" | cut -c1-8 | tr 'a-f' 'A-F')  (adoption is Rab's hand — docs/19 §0.3)"
+else
+  row "installed exe" "UNREAD — not at $WIDGET_EXE"
+fi
+
+if [[ -d "$VAULT_DIR" ]]; then
+  row "vault" "$(find "$VAULT_DIR" -name '*.md' -not -path '*/.git/*' 2>/dev/null | grep -c .) note(s) · tip $(git -C "$VAULT_DIR" log --format=%h -1 2>/dev/null || echo '?')"
+else
+  row "vault" "UNREAD — no $VAULT_DIR"
+fi
+# The receiver half. coordination/messages/2026-08-09 fixes the split: the desktop can verify the
+# soft clock, the widget/exe, the pipeline root and the GPU; the vault tip, staging occupants,
+# receipts and unit liveness exist only on the ThinkPad and must be READ, never assumed. ssh flags
+# are docs/19 law 6 — without BatchMode a windowless process hangs forever on an invisible
+# host-key prompt (S56: nine zombie scp pairs). `timeout` is the second belt: this probe may cost
+# the open a few seconds and can never cost it the session.
+if [[ -n "${MUSTER_NO_REMOTE:-}" ]]; then
+  row "thinkpad" "SKIPPED — MUSTER_NO_REMOTE set"
+elif ! command -v ssh >/dev/null 2>&1; then
+  row "thinkpad" "UNREAD — no ssh on this machine"
+else
+  rmt=$(timeout 25 ssh -o BatchMode=yes -o StrictHostKeyChecking=accept-new -o ConnectTimeout=10 \
+        rab@archlinux 'printf "%s|%s|%s|%s" \
+          "$(systemctl --user is-active file-portal-converter 2>/dev/null)" \
+          "$(git -C ~/file-portal/vault.git log --format=%h -1 2>/dev/null)" \
+          "$(ls -1 ~/file-portal/library/staging 2>/dev/null | wc -l)" \
+          "$(wc -l < ~/file-portal/receipts.jsonl 2>/dev/null)"' 2>/dev/null)
+  if [[ -n "$rmt" ]]; then
+    IFS='|' read -r r_unit r_tip r_stg r_rcpt <<< "$rmt"
+    row "thinkpad" "converter=$r_unit · vault tip $r_tip · staging $r_stg · receipts $r_rcpt"
+  else
+    row "thinkpad" "UNREAD — host did not answer; NOT a statement that it is down or clean"
+  fi
+fi
+
+# ─────────────────────────────────────────────────────────────────────────────
+# [3] PIN — fix the closeout's terms NOW, while nothing is known about the outcome.
+#
+# S78 §10.1: the closeout ref was chosen at CLOSE by `len(diff) > 500` — a proxy for "this diff
+# introduces a producer key" — and the session shipped a green report over a red suite. A ref
+# picked before any result exists cannot be picked to suit one.
+printf '[3] PIN\n'
+row "--since" "${led_sha:-UNKNOWN}"
+row "closeout" "$closeout"
+if [[ -n "$this_n" && -f "$FP_REPO/$closeout" ]]; then
+  row "" "EXISTS already — do not overwrite; reconcile first"; fail=1
+else
+  row "" "absent — SKILL.md Phase 6 creates it BEFORE work, with §1 Intent in Rab's words"
+fi
+
+printf '════════ mechanical half: %s ════════\n' \
+  "$([[ "$fail" -eq 0 ]] && echo 'clean (exit 0) — judgment half is SKILL.md Phases 2-6' || echo 'INCIDENT (exit 1) — reconcile before work')"
+exit "$fail"

@@ -1,0 +1,14 @@
+# This repo runs core.autocrlf=true with no repo-wide .gitattributes, so git converts LF to CRLF
+# on checkout for anything it considers text. A shell script with CRLF does not run — bash reads
+# the trailing \r as part of the command and dies with `$'\r': command not found`.
+#
+# Already realized elsewhere in the tree: scripts/linux/bootstrap-arch.sh is checked out here with
+# 38 CRs (Observed 2026-08-15). Nobody has been bitten because it is only ever executed on Arch,
+# where autocrlf is not true. These scripts are executed HERE, on Windows, by the session that
+# depends on them — so the same conversion would break the instrument on the next fresh clone,
+# silently and immediately.
+#
+# Scoped to this directory on purpose. A repo-wide `*.sh text eol=lf` would also rewrite
+# bootstrap-arch.sh's working-tree bytes, which is a change outside this skill's remit and
+# outside what was signed — raised with Rab instead of taken.
+*.sh text eol=lf
