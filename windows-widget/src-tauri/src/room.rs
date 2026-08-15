@@ -380,7 +380,14 @@ pub fn station_tree(
             }
             recent.sort_by_key(|a| std::cmp::Reverse(a.0));
             let recent_nodes: Vec<Value> = recent.into_iter().take(8).map(|(_, v)| v).collect();
-            json!({ "root": format!("Survival Audit · mode={} · flag: zlib<0.20 OR tri\u{2265}40 (docs/15)", mode), "children": [
+            // S78: this label said OR. The gate is AND — `fidelity_audit.py:56-58` +
+            // `if ratio < DEGEN_ZLIB_MAX and mx >= DEGEN_TRIGRAM_MAX`. OR was the OLD path and
+            // it was REMOVED because it false-fired on the table-dense Cybernetics book (zlib
+            // 0.11/0.15, trigram 28/10). So the Room was advertising the rule that got deleted
+            // for being wrong. The projection law forbids the UI inventing NUMBERS and says
+            // nothing about it misstating a RULE — a gap worth its own line someday, because a
+            // wrong rule-label teaches a wrong model of the machine.
+            json!({ "root": format!("Survival Audit · mode={} · flag: zlib<0.20 AND tri\u{2265}40 (docs/15)", mode), "children": [
                 dir_node("as-held", "\u{1F4C1}", "held/", &format!("{} awaiting remedy · enforce parks fails here", held_n), held),
                 dir_node("as-recent", "\u{1F4C1}", "recent verdicts", &format!("{} scored", recent_nodes.len()), recent_nodes),
                 note_node("as-mode", &format!("audit-mode.txt = {}", mode)),

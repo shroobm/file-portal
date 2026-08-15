@@ -1178,9 +1178,17 @@ No file conflicts if each machine stays in its lane.
 
 ---
 
-## MACHINE: DESKTOP-OBTQIRD (Windows)
+## MACHINE: DESKTOP-BNDIT (Windows)
 
-*Claude Code in `C:\Users\Rabbiallah\Projects\file-portal\windows-widget`*
+*Claude Code in `C:\Users\Bndit\Projects\file-portal\windows-widget`*
+
+> **Hostname and user, measured** (`hostname` / `whoami`, S46 2026-07-28, re-confirmed S78
+> 2026-08-14): **`DESKTOP-BNDIT`**, user **`Bndit`**. The pre-reset account `Rabbiallah` is
+> **dead** and every `C:\Users\Rabbiallah\…` path with it. S46 recorded this correction (see the
+> ✅ S46 row above) and it never reached this heading, so the file asserted a dead machine name
+> for 17 days while carrying its own correction 100 lines higher. **Session Log rows below keep
+> `DESKTOP-OBTQIRD` on purpose** — they are the historical record of what each session believed,
+> and rewriting them would falsify it. This heading is the live statement; those are archive.
 
 ### Part 1 — Windows Tasks (do these first)
 
