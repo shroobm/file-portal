@@ -223,9 +223,12 @@ uses it on Valentine successfully.
 Cybernetics' stale held copy (cleanup vs archaeology); standing-enforce (does the audit
 lever default to enforce now that bless exists?); Beer's replace-in-place supersede (needs a
 `pass` re-convert or a Repair Bench pass — the vaulted degenerate copy is the deliberate
-calibration specimen until then); Textor upgrade (source PDF re-download needed); keep_alive
-middle for the analyst (~15–25 % wall tax, VRAM courtesy trade); `.ac-held-row` polish and
-any UI debt noted in styles.css comments.
+calibration specimen until then); Textor upgrade (source PDF re-download needed); ~~keep_alive
+middle for the analyst (~15–25 % wall tax, VRAM courtesy trade)~~ **DONE S79 — and the estimate
+was low. Measured, not estimated: `keep_alive 0` cost 4.7–10 s per chunk, 21.8 s/chunk in
+production against 11.47 s held — a 47 % wall tax, not 15–25 %. The courtesy is still paid, by
+an explicit `unload()` in `process()`'s finally rather than by unloading after every chunk;**
+`.ac-held-row` polish and any UI debt noted in styles.css comments.
 
 ## 10. How to fail well
 

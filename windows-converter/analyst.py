@@ -21,6 +21,25 @@ from pathlib import Path
 
 MODEL = "qwen3:8b"
 OLLAMA_URL = "http://localhost:11434/api/generate"
+# S79 — RESIDENCY. Measured on the S76 Beer with this module's own program and chunker:
+#
+#   keep_alive 0   mean 21.47 s/chunk = load  9.62 (44.8%) + prompt-eval 0.49 + gen 11.11
+#   keep_alive 5m  mean 11.75 s/chunk = load  0.21 ( 1.8%) + prompt-eval 0.19 + gen 11.04
+#   generation rate 75.7 tok/s cold vs 76.0 warm — IDENTICAL
+#
+# Every chunk was unloading a model and reloading it for the next one. Steady-state that is
+# ~4.7 s per chunk (the first load off disk costs ~19.5 s), so 29-46% of the analyst's wall
+# clock bought nothing at all. docs/19 §9 estimated this at "15-25%" — the estimate was low and
+# is retired here rather than left to rot.
+#
+# The unload was a real VRAM courtesy to Marker on a 10 GB card, and it is still owed. What
+# changes is WHEN it is paid: the model is held for the phase and released by an explicit act in
+# process()'s finally, never by an elapsed timer. A timer is a promise no other stage can check,
+# and it would leave ~5 GB resident exactly when the next book's convert wants the card. Release
+# is an append, not an expiry — the permanence rule's shape, one stage over.
+#
+# The hold must simply outlast any gap BETWEEN chunks; it is not the thing that frees the card.
+KEEP_ALIVE_HOLD = "30m"
 GEMINI_MODEL = "gemini-flash-latest"  # stable alias, resolves to current Flash
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 CHUNK_TARGET = 4000  # chars; well inside an 8k context with prompt + thinking room
@@ -134,7 +153,7 @@ def _generate_gemini(prompt: str) -> str:
 
 def _generate(prompt: str) -> str:
     body = json.dumps({
-        "model": MODEL, "stream": False, "keep_alive": 0, "prompt": prompt,
+        "model": MODEL, "stream": False, "keep_alive": KEEP_ALIVE_HOLD, "prompt": prompt,
         "options": {"num_ctx": NUM_CTX},
         "think": False,
     })
@@ -151,6 +170,25 @@ def _generate(prompt: str) -> str:
     if reply.get("error"):
         raise RuntimeError(f"ollama: {reply['error']}")
     return reply["response"].strip()
+
+
+def unload() -> None:
+    """Release the model from VRAM now — the explicit half of KEEP_ALIVE_HOLD.
+
+    Best-effort by construction. The fail-safe rule (S42) is that progress/estimate/provenance
+    bookkeeping may never change a conversion's outcome, and this runs in a `finally` after the
+    book is already assembled. A failed unload costs VRAM until Ollama's own idle timer catches
+    it; a raised exception here would cost the analysis, which is the worse trade.
+    """
+    try:
+        body = json.dumps({"model": MODEL, "keep_alive": 0})
+        subprocess.run(
+            ["curl", "-s", "-X", "POST", OLLAMA_URL,
+             "-H", "Content-Type: application/json", "--data-binary", "@-"],
+            input=body.encode("utf-8"), capture_output=True, timeout=60,
+        )
+    except Exception:  # noqa: BLE001 — see docstring; this may never propagate
+        pass
 
 
 def _tokens_of(text: str) -> list[str]:
@@ -313,6 +351,12 @@ def process(markdown: str, backend: str = "local",
             ANALYST_PROGRESS.unlink(missing_ok=True)
         except OSError:
             pass
+        # S79: hand the card back. The model was held across chunks (KEEP_ALIVE_HOLD); this is
+        # the act that ends the hold, and it runs whether the phase finished, failed, or was
+        # interrupted — the same reason the heartbeat is cleared here. Local backend only:
+        # Gemini holds nothing on this machine.
+        if backend == "local":
+            unload()
     meta = {
         "model": GEMINI_MODEL if backend == "gemini" else MODEL,
         "backend": backend,
