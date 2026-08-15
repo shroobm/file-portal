@@ -22,7 +22,15 @@ use std::path::Path;
 const ACKS_NAME: &str = "algedonic-acks.jsonl";
 const MINUTES_NAME: &str = "algedonic-minutes.txt";
 const DEFAULT_MINUTES: u64 = 30; // PROVISIONAL default — Rab signs the real number
-const WINDOW_S: u64 = 7 * 86_400; // older pain is archaeology, not an alarm
+
+// SIGNED (Rab, 2026-08-14): "No timelimits on fails, they are permanent status until they are
+// appended." An unacknowledged fact is retired by something APPENDED — an ack, or a resolving
+// event/receipt — and never by elapsed time. The old `WINDOW_S` dropped ANY candidate older than
+// seven days: on 2026-08-14 at 11:18 Valentine's park, unacknowledged since 08-07, silently left
+// the alarm with no trace of the transition, and three of the four books in held/ had already
+// gone the same way. The incident this stage exists to prevent lasted FIVE days; the expiry sat
+// at seven. Acked facts still fade — because an ack IS an append.
+const ACKED_WINDOW_S: u64 = 7 * 86_400;
 const MAX_ALERTS: usize = 12;
 
 pub fn minutes(gpu_pipeline_dir: &str) -> u64 {
@@ -137,24 +145,29 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
                     | (Some("audit"), Some("held")) // a park is the RESOLUTION of a ship failure
             ) && !(stage == "audit") // ...but nothing auto-resolves a park except a human
         });
-        // Supersession (docs/30 §5.4): `verdict-fail` and the two HELD kinds are ONE pain seen
-        // twice — the verdict, and what somebody downstream did about it. In enforce mode
-        // `_enforce_hold` writes both for the same book, so the park (which names an action and
-        // a location) stands in for the bare verdict; on the vault side a `supersede-held`
-        // receipt already carried the same failure (docs/31 §1.14) and must not double-alarm.
-        // `>=`, not `>`: events.jsonl stamps to the SECOND and those two writes are adjacent.
-        // Only the verdict yields — a park is never suppressed by anything but a human.
+        // Supersession (docs/30 §5.4): `verdict-fail` and `audit/held` are ONE pain seen twice —
+        // the verdict, and what enforcement did about it. In enforce mode `_enforce_hold` writes
+        // both for the same book within the same second, so the park — which names an action and
+        // a location — stands in for the bare verdict. `>=`, not `>`: events.jsonl stamps to the
+        // SECOND and those two writes are adjacent.
+        //
+        // A PARK MAY SUPERSEDE; A RECEIPT MAY NOT. The receipt arm was here too, and it was a
+        // hole: `vault-held` retires ALL BY ITSELF on a later `exported`/`blessed` row, and one
+        // ⚑ silences it. So a report-mode book that failed its audit, shipped anyway, and was
+        // then refused at the vault showed exactly one alert reading "vault refused" — which
+        // says the VAULT stopped it — and after the next clean export, nothing at all. The
+        // desktop's own verdict was erased by a fact that could evaporate. A park cannot: only
+        // a human retires one. Under the signed rule (2026-08-14) a fact may only be superseded
+        // by something at least as permanent as itself, so the two now raise separately.
+        // Two facts, two alarms, both true: the desktop shipped a failing book, AND the vault
+        // refused a later supersede. Tidier was wronger.
         let superseded = kind == "verdict-fail"
-            && (events.iter().any(|later| {
+            && events.iter().any(|later| {
                 later["ts"].as_str().unwrap_or("") >= ts.as_str()
                     && sfield(later, &["bundle", "source", "id"]) == bundle
                     && later["stage"].as_str() == Some("audit")
                     && later["event"].as_str() == Some("held")
-            }) || receipt_rows.iter().any(|r| {
-                r["ts"].as_str().unwrap_or("") >= ts.as_str()
-                    && r["bundle"].as_str() == Some(bundle.as_str())
-                    && r["outcome"].as_str() == Some("supersede-held")
-            }));
+            });
         if !resolved && !superseded {
             candidates.push((ts, kind.into(), stage.into(), bundle, detail));
         }
@@ -185,12 +198,33 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         }
     }
 
-    // ---- window, dedupe (kind+bundle keeps the NEWEST occurrence), sort, cap ------------
-    candidates
-        .retain(|(ts, ..)| parse_iso_utc(ts).is_some_and(|t| now.saturating_sub(t) <= WINDOW_S));
+    // ---- dedupe, then age out ONLY what a human has appended to, then cap oldest-last ----
     candidates.sort_by(|a, b| b.0.cmp(&a.0)); // newest first
     let mut seen = std::collections::HashSet::new();
     candidates.retain(|(_, kind, _, bundle, _)| seen.insert(format!("{kind}|{bundle}")));
+
+    // The signed rule: time retires nothing. Only an ACK (an append) lets a fact fade, and even
+    // then only after it has been quiet a while. An unparseable ts is KEPT — dropping a fact
+    // because its stamp is malformed is the same silence by another door.
+    let acked_of =
+        |ts: &str, kind: &str, bundle: &str| acks.contains(&format!("{ts}|{kind}|{bundle}"));
+    candidates.retain(|(ts, kind, _, bundle, _)| {
+        if !acked_of(ts, kind, bundle) {
+            return true; // unacknowledged pain is permanent
+        }
+        parse_iso_utc(ts).is_none_or(|t| now.saturating_sub(t) <= ACKED_WINDOW_S)
+    });
+
+    // The cap discards the LEAST urgent, not the oldest. It used to truncate a newest-first
+    // list, so it dropped exactly the aged, unacked, escalated facts the banner exists for —
+    // and then counted `unacked`/`escalated` over what survived, making the number on the glass
+    // unfalsifiable (docs/31 §1.6). Order: unacked before acked, then oldest first (an older
+    // unanswered fact outranks a fresh one), and the discard is REPORTED, never silent.
+    candidates.sort_by(|a, b| {
+        let ack = |c: &(String, String, String, String, String)| acked_of(&c.0, &c.1, &c.3);
+        ack(a).cmp(&ack(b)).then(a.0.cmp(&b.0))
+    });
+    let dropped = candidates.len().saturating_sub(MAX_ALERTS);
     candidates.truncate(MAX_ALERTS);
 
     let alerts: Vec<Value> = candidates
@@ -217,6 +251,10 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "alerts": alerts,
         "unacked": unacked,
         "escalated": escalated,
+        // The cap's discard is a measured value, so it gets a home rather than a silence
+        // (docs/29 §5.2). Non-zero means the banner is showing a SUBSET and the counts above
+        // are counts of what is shown.
+        "capped": dropped,
     }))
 }
 
@@ -448,10 +486,19 @@ mod tests {
     }
 
     #[test]
-    fn the_vaults_own_refusal_also_stands_in_for_the_desktop_verdict() {
-        // docs/31 §1.14: a fidelity fail on the SUPERSEDE path already raised as `vault-held`
-        // long before this arm existed. Report mode ships it, the ThinkPad refuses it, and the
-        // human must hear that once — not once per side of the seam.
+    fn a_receipt_never_erases_the_desktops_own_verdict() {
+        // OVERTURNED, and deliberately: this test used to assert that a `supersede-held` receipt
+        // suppressed the desktop's `verdict-fail`, so the human heard the pain "once, not once
+        // per side of the seam". Tidier, and wrong. `vault-held` retires ALL BY ITSELF on a
+        // later `exported`/`blessed` row, and one ⚑ silences it — so the desktop's verdict was
+        // being erased by a fact that could evaporate. A report-mode book that failed its audit,
+        // shipped anyway, and was then refused at the vault displayed one alert reading "vault
+        // refused" — which says the VAULT stopped it — and after the next clean export, nothing.
+        //
+        // SIGNED (Rab, 2026-08-14): "No timelimits on fails, they are permanent status until
+        // they are appended." A fact may only be superseded by something at least as permanent
+        // as itself. A park qualifies (only a human retires one); a receipt does not.
+        // Two facts, two alarms, both true.
         let dir = tmp("fp-alg-verdict-vault");
         let older = iso_of(now_epoch() - 600);
         let recent = now_iso();
@@ -470,23 +517,65 @@ mod tests {
         )
         .unwrap();
         let st = state(&dir).unwrap();
-        let alerts = st["alerts"].as_array().unwrap();
-        assert_eq!(alerts.len(), 1);
-        assert_eq!(alerts[0]["kind"], "vault-held");
-        // ...but a refusal that PREDATES the verdict is a different occurrence and suppresses
-        // nothing: the desktop's fresh failure still has to be heard. (Aged out of WINDOW_S so
-        // the old receipt cannot contribute an alert of its own and blur what is being asserted.)
-        let ancient = iso_of(now_epoch() - 30 * 86_400);
+        let kinds: Vec<&str> = st["alerts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a["kind"].as_str().unwrap())
+            .collect();
+        assert_eq!(kinds.len(), 2, "two facts, two alarms: {kinds:?}");
+        assert!(kinds.contains(&"verdict-fail"), "the desktop shipped it");
+        assert!(
+            kinds.contains(&"vault-held"),
+            "the vault refused a supersede"
+        );
+
+        // And the erasure that used to follow: a later clean export retires `vault-held` on its
+        // own. The desktop's verdict must SURVIVE that — it is the one saying a failing book is
+        // in the vault, and nothing about an export makes that untrue.
+        // Stamps must be STRICTLY ordered: the retirement predicate is `>` and events.jsonl /
+        // receipts stamp only to the second, so two `now_iso()` calls in one test collide and
+        // the export silently fails to retire anything.
+        let refused = iso_of(now_epoch() - 300);
+        let newer = now_iso();
         fs::write(
             Path::new(&dir).join(".receipts-cache.jsonl"),
             format!(
-                "{{\"ts\": \"{ancient}\", \"outcome\": \"supersede-held\", \"bundle\": \"BookS\", \"verdict\": \"fail\"}}\n"
+                "{{\"ts\": \"{refused}\", \"outcome\": \"supersede-held\", \"bundle\": \"BookS\", \"verdict\": \"fail\"}}\n\
+                 {{\"ts\": \"{newer}\", \"outcome\": \"exported\", \"bundle\": \"BookS\"}}\n"
             ),
         )
         .unwrap();
         let st2 = state(&dir).unwrap();
-        assert_eq!(st2["alerts"].as_array().unwrap().len(), 1);
-        assert_eq!(st2["alerts"][0]["kind"], "verdict-fail");
+        let kinds2: Vec<&str> = st2["alerts"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|a| a["kind"].as_str().unwrap())
+            .collect();
+        assert_eq!(
+            kinds2,
+            vec!["verdict-fail"],
+            "the export retires the vault's refusal and NOTHING else: {kinds2:?}"
+        );
+
+        // The signed rule, directly: age retires nothing. A month-old unacked verdict stands.
+        let ancient = iso_of(now_epoch() - 30 * 86_400);
+        fs::write(
+            Path::new(&dir).join("events.jsonl"),
+            format!(
+                "{{\"ts\": \"{ancient}\", \"stage\": \"audit\", \"event\": \"verdict_fail\", \"bundle\": \"BookOld\", \"verdict\": \"fail\"}}\n"
+            ),
+        )
+        .unwrap();
+        fs::write(Path::new(&dir).join(".receipts-cache.jsonl"), "").unwrap();
+        let st3 = state(&dir).unwrap();
+        assert_eq!(
+            st3["alerts"].as_array().unwrap().len(),
+            1,
+            "30 days unacknowledged is still standing pain"
+        );
+        assert_eq!(st3["unacked"], 1);
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-verdict-vault"));
     }
 

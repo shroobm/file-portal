@@ -124,6 +124,30 @@ decision, and conflating them is what made the hole.*
 
 ## 6. SIGNED (Rab, 2026-08-14, S78)
 
+**THE PERMANENCE RULE — SIGNED:** *"No timelimits on fails, they are permanent status until they
+are appended."*
+
+Retirement is something **appended**, never something **elapsed**. This settles three defects at
+once (docs/31 §1.5, §1.6, and Circle 2 §1):
+
+- **`WINDOW_S` is gone for unacknowledged facts.** It dropped anything older than seven days —
+  Valentine's park left the alarm at 11:18 on 2026-08-14, unacknowledged since 08-07, with no
+  trace of the transition, and three of the four books in `held/` had already gone the same way.
+  The incident this stage exists to prevent lasted five days; the expiry sat at seven. An
+  **acked** fact still fades after seven days, because an ack *is* an append.
+- **The cap discards the least urgent, not the oldest**, and reports the discard as `capped`.
+  It used to truncate a newest-first list — dropping exactly the aged, unacked, escalated facts
+  the banner exists for — and then count `unacked`/`escalated` over the survivors, making the
+  number on the glass unfalsifiable.
+- **A fact may only be superseded by something at least as permanent as itself.** A park
+  qualifies: only a human retires one. A `supersede-held` **receipt does not** — it retires by
+  itself on a later `exported`/`blessed` row, and one ⚑ silences it. So the desktop's own
+  `verdict-fail` was being erased by a fact that could evaporate, leaving one alert reading
+  "vault refused" about a book the desktop had shipped. The two now raise separately: two facts,
+  two alarms, both true. Tidier was wronger.
+
+
+
 **§5.4 — SIGNED: decouple the alarm from enforcement.** A `fail` verdict raises algedonically
 regardless of `audit_mode`. Shipping behaviour changes not at all. *Report* means **ship
 anyway**, never **stay silent**.
