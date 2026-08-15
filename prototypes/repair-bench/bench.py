@@ -261,7 +261,9 @@ class Bench:
         if rule == "bullet_matrix":
             worst = max((ln.count("•") for ln in win), default=0)
             if worst >= 3:
-                return f"a row carrying {worst} • marks ({sum(ln.count('•') for ln in win)} in this window) — intersections, not empties"
+                # Evidence only. The interpretation lives in the entry and the caution — a
+                # `matched_on` that argues its own case reads as a fragment wherever it is quoted.
+                return f"a row carrying {worst} • marks, {sum(ln.count('•') for ln in win)} in this window"
             return None
         if rule == "one_letter_rows":
             run = 0
@@ -316,9 +318,17 @@ class Bench:
         if sid != "F" and any(h[0] == "F" for h in hits):
             f = next(h[1] for h in hits if h[0] == "F")
             fev = next(h[2] for h in hits if h[0] == "F")
-            caution = (f"ALSO MATCHES F ({f['name']}) — {fev}. Before removing ANY column or "
-                       f"cell here, print every cell of the row: S78 deleted 13 'phantom empty' "
-                       f"columns that held 418 • marks.")
+            # Say what is on the page and what breaks — not which session learned it. Rab read
+            # the first version of this line and asked "what the hell does this mean": it named
+            # a signature letter and cited an incident, so only someone who had already read the
+            # closeout could act on it. That is the failure the bank exists to prevent, printed
+            # by the bank itself. `cite` carries the provenance; this carries the meaning.
+            caution = (f"This site also looks like a GRID whose column headings were lost — {fev}. "
+                       f"The blank-looking columns are not empty: each • is content, marking which "
+                       f"source covers which row. The headings are printed sideways on the page and "
+                       f"the converter could not read them. Count the marks and print the whole row "
+                       f"before you delete anything here — sampling two cells is how thirteen "
+                       f"populated columns once got removed as 'empty'.")
         return {"signature": sid, "name": s["name"], "tag": s.get("tag", "Inferred"),
                 "reason": s["reason"], "highlight": s["highlight"], "solution": s["solution"],
                 "auto": s.get("auto", ""), "matched_on": ev, "cite": s.get("cite", ""),
