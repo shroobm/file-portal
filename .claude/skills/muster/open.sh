@@ -81,9 +81,11 @@ closeout="sessions/S${this_n}-${machine}-${today}.md"
 # after the S79/S78 corrections it still fired, naming three files whose S79 references were
 # written by S79 and were correct.
 if [[ -n "$this_n" ]]; then
-  if [[ -n "$(ls -1 "$FP_REPO/sessions/S${this_n}-"* 2>/dev/null)" ]]; then
-    row "collision" "sessions/S${this_n}-* ALREADY EXISTS — this number is taken"; fail=1
-  fi
+  # "Does a closeout already own this number" is asked ONCE, in [3] PIN, where it gets the three
+  # states it actually has: this session's own / another machine-or-date's / absent. It used to
+  # be asked here too as a flat exists-or-not, and the two answers disagreed the moment Phase 6
+  # ran — PIN said OPEN while this said COLLISION, so the card contradicted itself and exited 1.
+  # One question, one place, one answer.
   # Two different questions, and only one of them is mechanical (docs/21 §6: mechanical checks
   # belong on mechanical facts, judgment checks belong to human hands — confusing the two is how
   # a check comes to share the blind spot of the thing it checks).
