@@ -103,6 +103,27 @@
   .zchip .zs { color:var(--text-3); }
   .zchip.sel { box-shadow:0 0 0 2px var(--accent); background:var(--accent-bg); }
   .zchip.repaired .zp { color:var(--ok); }
+  /* S79 — the error structure (S78 §8.5). reason · highlight · solution, on the glass, the
+     moment a site is selected. Deliberately NOT terracotta: terracotta means "your hand is
+     required" and nothing else may pulse (docs/13). A diagnosis is an explanation, not a
+     summons — the summons was the chip. */
+  #diag { display:none; margin:0 14px 10px; padding:10px 14px; border-radius:12px;
+          background:var(--panel-2, rgba(127,127,127,.07)); border:1px solid var(--line);
+          font-size:12px; line-height:1.5; }
+  #diag.on { display:block; }
+  #diag .dh { display:flex; align-items:baseline; gap:8px; flex-wrap:wrap; margin-bottom:6px; }
+  #diag .dsig { font-family:var(--mono); font-weight:700; letter-spacing:.02em; }
+  #diag .dname { font-weight:600; }
+  #diag .dtag { font-family:var(--mono); font-size:10px; padding:1px 6px; border-radius:999px;
+                border:1px solid var(--line); color:var(--text-3); }
+  #diag .dtag.obs { color:var(--ok); border-color:var(--ok); }
+  #diag .dev { font-family:var(--mono); font-size:10.5px; color:var(--text-3); }
+  #diag dl { display:grid; grid-template-columns:max-content 1fr; gap:2px 12px; margin:0; }
+  #diag dt { font-size:10px; text-transform:uppercase; letter-spacing:.06em; color:var(--text-3); }
+  #diag dd { margin:0 0 4px; }
+  #diag .dcaution { margin-top:8px; padding:8px 10px; border-radius:8px;
+                    border:1px solid var(--clay); color:var(--clay); font-weight:600; }
+  #diag .dcite { margin-top:6px; font-size:10px; color:var(--text-3); font-family:var(--mono); }
   /* S76 (SYM-026) — omission runs: the OTHER damage the audit already located. Amber, not
      clay: a hole in the text is a localizer, not the terracotta "your hand is required". */
   .zchip.omit { box-shadow:0 0 0 1px var(--warn, #b8860b); }
@@ -300,6 +321,10 @@
   <div id="map"></div>
   <div id="chips"></div>
 </div>
+<!-- S79: the error structure (S78 §8.5). Rab: "any time a zone pops up, there needs to be given
+     a reason of what's the issue, the highlight of it and a comment that contains the solution…
+     banked… to reduce latency between decision making and editing." -->
+<div id="diag"></div>
 
 <main>
   <section class="pane" id="sidebar">
@@ -519,6 +544,33 @@ function outcomeTag(site) {
   return `<span class="zo" title="${esc(f[1])}${esc(why)}">${f[0]}</span>`;
 }
 
+// S79 — the error structure (S78 §8.5), rendered in the same commit that adds the fields
+// (docs/29 §5.4). Every key of `diagnosis` reaches a human here: signature, name, tag,
+// matched_on, reason, highlight, solution, auto, caution, also, cite.
+//
+// The TAG is on the glass on purpose. A banked signature is a pattern match, not a sighting,
+// and this project's most expensive edit came from acting on an inference dressed as an
+// observation. The operator gets to see which one they are holding before they touch anything.
+function renderDiagnosis(site) {
+  const el = $("diag");
+  const d = site && site.diagnosis;
+  if (!d) { el.className = ""; el.innerHTML = ""; return; }
+  const obs = d.tag === "Observed" ? " obs" : "";
+  const sig = d.signature ? `<span class="dsig">${esc(d.signature)}</span>` : "";
+  const also = (d.also || []).length ? ` · also ${(d.also).map(esc).join(", ")}` : "";
+  el.className = "on";
+  el.innerHTML =
+    `<div class="dh">${sig}<span class="dname">${esc(d.name)}</span>` +
+    `<span class="dtag${obs}">${esc(d.tag)}</span>` +
+    `<span class="dev">${esc(d.matched_on || "no mechanical evidence")}${esc(also)}</span></div>` +
+    `<dl><dt>reason</dt><dd>${esc(d.reason)}</dd>` +
+    `<dt>highlight</dt><dd>${esc(d.highlight)}</dd>` +
+    `<dt>solution</dt><dd>${esc(d.solution)}</dd>` +
+    `<dt>auto</dt><dd>${esc(d.auto || "—")}</dd></dl>` +
+    (d.caution ? `<div class="dcaution">⚠ ${esc(d.caution)}</div>` : "") +
+    (d.cite ? `<div class="dcite">${esc(d.cite)}</div>` : "");
+}
+
 function renderZones() {
   const mapEl = $("map"); mapEl.innerHTML = "";
   const chips = $("chips"); chips.innerHTML = "";
@@ -585,6 +637,7 @@ function selectRun(i) {
   $("locbadge").textContent = `◍ omission on p${r.page} — ${r.words} words the page has that the text lost`
     + (r.anchor_line ? ` · anchored at body line ${r.anchor_line}` : " · no text anchor found");
   $("zonehint").textContent = `“${(r.excerpt || "").slice(0, 90)}…”`;
+  renderDiagnosis(r);
   renderZones(); renderCtx();
   status(r.anchor_line
     ? "◍ drag the region on the page, then ✂ — it will land where the text goes missing"
@@ -598,6 +651,7 @@ function selectZone(i) {
   const z = st.zones[i];
   goto(z.located_page || z.page_guess);
   setLocBadge(z);
+  renderDiagnosis(z);
   renderZones(); renderCtx();
   // S76: offer the collapse only where it could apply — the server is still the authority
   // on whether the paragraph is really a loop (it refuses anything that reads as language).

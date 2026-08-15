@@ -1,0 +1,96 @@
+{
+  "_README": [
+    "THE SIGNATURE BANK — S78 §8.5, signed by Rab 2026-08-14, built S79.",
+    "",
+    "Rab's words: 'any time a zone pops up, there needs to be given a reason of what's the",
+    "issue, the highlight of it and a comment that contains the solution... banked... to reduce",
+    "latency between decision making and editing.' And why: 'new operators in the future would",
+    "not be able to discern critically without investigating the tool itself... the program",
+    "should already provide that.'",
+    "",
+    "A zone arrives from the convert-time audit carrying MEASUREMENTS (line, chars, zlib,",
+    "max_trigram, excerpt) and no meaning. This file is the meaning: each entry pairs a",
+    "mechanical detector against the zone's own body window with the three things an operator",
+    "needs before touching anything — reason, highlight, solution.",
+    "",
+    "EVERY MATCH IS `Inferred`, NEVER `Observed`. A detector is a proxy for a defect class, and",
+    "a proxy that is never re-checked is how S78 destroyed 418 bullet marks in Valentine by",
+    "generalising from two sampled cells (docs/32). So a match ships with `matched_on` — the",
+    "evidence that fired it — and the bench prints the tag beside the diagnosis. The operator",
+    "confirms or overrides; the machine never asserts it saw what it only pattern-matched.",
+    "",
+    "An unmatched zone is `unclassified`, and that is an honest answer. Do not add a catch-all.",
+    "",
+    "Seeded from Valentine's A-F bank (S78 §16), which is the scoring rubric for any rival",
+    "engine (S78 §18.3: measure on the real corpus, score named defects, never vibes)."
+  ],
+
+  "signatures": [
+    {
+      "id": "E",
+      "name": "decoder token-loop",
+      "detect": "degeneration",
+      "tag": "Observed",
+      "reason": "The OCR decoder got stuck and emitted the same token sequence hundreds of times. This is not a layout problem — it is generated text that was never on the page, and it has usually eaten whatever real content followed it.",
+      "highlight": "The repeated phrase at the zone line. Compare its length against the surrounding paragraphs: the loop is the block that compresses far better than prose ever does.",
+      "solution": "Collapse it (⌫). A collapse removes noise and restores nothing — say so and do not claim credit for content. Then read the source page: whatever the loop displaced is still missing and needs a crop or a transcription. On the S76 Beer this ate list item 9.",
+      "auto": "collapse only; content is lost",
+      "cite": "docs/15 §9.2 · S78 §16 E"
+    },
+    {
+      "id": "C",
+      "name": "embed severing a table header",
+      "detect": "embed_between_header_and_delimiter",
+      "tag": "Observed",
+      "reason": "A repair image was inserted between a table's header row and its |---| delimiter. Markdown then stops recognising the table entirely, so the whole grid renders as raw pipes — the repair broke more than it fixed.",
+      "highlight": "The ![[...]] line sitting immediately below a | header | row and above (or instead of) its delimiter.",
+      "solution": "Move the embed to AFTER the table's last row. Bench.repair() inserts after the zone line with no structural check, so this is a bench defect, not an operator error — the same insertion is correct three lines lower.",
+      "auto": "yes — move the embed below the table",
+      "cite": "S78 §16 C · S78 §15 (unfiled symptom)"
+    },
+    {
+      "id": "A",
+      "name": "column-wrap as literal <br>",
+      "detect": "br_inside_cells",
+      "tag": "Observed",
+      "reason": "The converter preserved a visual line-wrap inside a table cell as a literal <br>. The content is all present and correct; only its shape is wrong.",
+      "highlight": "Cells containing <br> where the text either side is one continuous phrase.",
+      "solution": "Join the fragments with a space and delete the <br>. Nothing is missing here, so this must NOT be treated as an omission — do not crop a page for it.",
+      "auto": "yes",
+      "cite": "S78 §16 A"
+    },
+    {
+      "id": "D",
+      "name": "row-merge",
+      "detect": "row_merge",
+      "tag": "Inferred",
+      "reason": "Several table rows were collapsed into a single row, with <br> standing in for the row breaks. The cells are present but their alignment to columns is lost, so the table asserts relationships that were never on the page.",
+      "highlight": "One table row far longer than its neighbours, carrying repeated <br> at consistent intervals.",
+      "solution": "Split on <br> back into separate rows, then check each against the source page — the column alignment is exactly what cannot be recovered from the markdown alone, and a wrong alignment is worse than a missing one.",
+      "auto": "partial — the split is mechanical, the alignment is not",
+      "cite": "S78 §16 D"
+    },
+    {
+      "id": "B",
+      "name": "rotated label shredded",
+      "detect": "one_letter_rows",
+      "tag": "Inferred",
+      "reason": "A label printed vertically on the page (a rotated axis or column header) was read one character per row. `_ S A R<br>T<br>E<br>G Ϋ́` is STRATEGY. The letters survive; the word does not.",
+      "highlight": "Three or more consecutive lines whose entire content is one or two characters.",
+      "solution": "Read the letters in order, reconstruct the word, and write it back as a single cell. Confirm against the source page before writing — the reading order of a rotated label is not always top-to-bottom.",
+      "auto": "structure yes, the word needs an eye",
+      "cite": "S78 §16 B"
+    },
+    {
+      "id": "F",
+      "name": "matrix mis-read",
+      "detect": "bullet_matrix",
+      "tag": "Inferred",
+      "reason": "This is a questions × sources MATRIX, not a two-column table. The • marks at the intersections survived; the rotated column headers did not. It therefore LOOKS like a narrow table with a wide band of empty columns, and it is not — those columns are populated.",
+      "highlight": "Rows carrying three or more • glyphs across many cells. Count the • marks in the whole zone before deciding anything.",
+      "solution": "DO NOT remove the apparently-empty columns. S78 deleted 13 of them as 'phantom' after inspecting two cells; they were the matrix's source columns and held 418 • marks, recovered only by docs/28's ledger undo. Print every cell in a row before editing, and recover the headers from the source page.",
+      "auto": "unknown — the one signature that has already caused data loss",
+      "cite": "S78 §16 F · S78 §10.5"
+    }
+  ]
+}

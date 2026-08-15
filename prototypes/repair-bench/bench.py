@@ -153,7 +153,15 @@ class Bench:
         # search, ⌖-style browsing; no markdown, no repairs, no AI. self.md_path is None then,
         # and every write path guards on it.
         self.md_path: Path | None
-        mds = [p for p in self.dir.iterdir() if p.suffix == ".md"] if self.dir.is_dir() else []
+        # REPAIRS.md is the ledger's final report (docs/28 §3), generated BESIDE the bundle — it
+        # is an artifact about the body, never the body. Without this exclusion, declaring a
+        # patient done makes that patient permanently un-openable on the bench: the scan below
+        # demands exactly one .md and the report is the second. Found S79 by generating a report
+        # and then trying to reopen the bundle. It had not bitten in production only because no
+        # patient has been declared done yet — the real held Valentine still carries one .md.
+        GENERATED_MD = {"REPAIRS.md"}
+        mds = [p for p in self.dir.iterdir()
+               if p.suffix == ".md" and p.name not in GENERATED_MD] if self.dir.is_dir() else []
         if self.dir.is_file() and self.dir.suffix.lower() == ".pdf":
             self.pdf_only = True
             self.md_path = None
@@ -201,6 +209,121 @@ class Bench:
     def runs(self) -> list[dict]:
         return list(self.manifest.get("fidelity", {}).get("convert", {}).get("runs") or [])
 
+    # ── THE SIGNATURE BANK (S78 §8.5, signed by Rab 2026-08-14; built S79) ────────────────
+    #
+    # Rab: "any time a zone pops up, there needs to be given a reason of what's the issue, the
+    # highlight of it and a comment that contains the solution… banked… to reduce latency
+    # between decision making and editing." And the why: "new operators in the future would not
+    # be able to discern critically without investigating the tool itself… the program should
+    # already provide that."
+    #
+    # A zone arrives from the convert-time audit carrying MEASUREMENTS and no meaning. The bank
+    # supplies the meaning — as an INFERENCE with its evidence attached, never as an observation.
+    # `matched_on` is the load-bearing field: a diagnosis with no evidence is a label, and a
+    # label is the proxy this project keeps mistaking for a property (docs/32).
+    _BANK: list[dict] | None = None
+
+    # Detector order is CONSEQUENCE order, never confidence order. F (the matrix) is checked
+    # BEFORE A and D, which are the two that would tell an operator "the content is all present,
+    # only its shape is wrong". On S78 that exact mis-ranking is what made 13 populated columns
+    # look phantom: they carried 418 • marks, two cells were sampled, and the edit preceded the
+    # look. A signature that has already cost real data outranks a tidier explanation.
+    _ORDER = ("E", "C", "F", "B", "D", "A")
+
+    @classmethod
+    def _bank(cls) -> list[dict]:
+        if cls._BANK is None:
+            try:
+                raw = (Path(__file__).parent / "signatures.json").read_text(encoding="utf-8")
+                cls._BANK = json.loads(raw).get("signatures", [])
+            except Exception:  # noqa: BLE001 — a missing bank degrades to unclassified, never crashes the bench
+                cls._BANK = []
+        return cls._BANK
+
+    def _detect(self, rule: str, site: dict, win: list[str]) -> str | None:
+        """Return the EVIDENCE that fired this rule, or None. Never a bare True: the operator
+        is owed what the machine actually saw, in the same breath as the conclusion."""
+        if rule == "degeneration":
+            mx, zl = site.get("max_trigram") or 0, site.get("zlib")
+            if mx >= 40:
+                return f"max_trigram {mx} ≥ 40 — the audit's own threshold"
+            if zl is not None and zl <= 0.20:
+                return f"zlib {zl} ≤ 0.20 — the audit's own threshold"
+            return None
+        if rule == "embed_between_header_and_delimiter":
+            for i, ln in enumerate(win):
+                if ln.lstrip().startswith("![["):
+                    prev = next((w for w in reversed(win[:i]) if w.strip()), "")
+                    nxt = next((w for w in win[i + 1:] if w.strip()), "")
+                    if prev.lstrip().startswith("|") and not re.match(r"^\s*\|[\s:|-]+\|\s*$", nxt):
+                        return "an ![[…]] embed sits between a | header | row and its |---| delimiter"
+            return None
+        if rule == "bullet_matrix":
+            worst = max((ln.count("•") for ln in win), default=0)
+            if worst >= 3:
+                return f"a row carrying {worst} • marks ({sum(ln.count('•') for ln in win)} in this window) — intersections, not empties"
+            return None
+        if rule == "one_letter_rows":
+            run = 0
+            for ln in win:
+                s = ln.strip().strip("|").strip()
+                if 1 <= len(s) <= 2 and s.isalpha():
+                    run += 1
+                    if run >= 3:
+                        return f"{run}+ consecutive rows whose whole content is one character"
+                else:
+                    run = 0
+            return None
+        if rule == "row_merge":
+            for ln in win:
+                if ln.lstrip().startswith("|") and ln.count("<br>") >= 3:
+                    return f"one table row carrying {ln.count('<br>')} <br> separators"
+            return None
+        if rule == "br_inside_cells":
+            n = sum(1 for ln in win if ln.lstrip().startswith("|") and "<br>" in ln)
+            if n:
+                return f"{n} table row(s) with <br> inside a cell"
+            return None
+        return None
+
+    def diagnose(self, site: dict, line: int | None = None) -> dict:
+        """reason · highlight · solution for one damage site, from the bank. Every field here is
+        rendered on the zone card (bench.html renderDiagnosis) — docs/29 §5.4: the commit that
+        adds a projected field renders it in the same commit."""
+        lines = self.body().split("\n")
+        at = max(1, int(line or site.get("line") or 1)) - 1
+        win = lines[max(0, at - 4): at + 12]
+        bank = {s["id"]: s for s in self._bank()}
+        hits = [(sid, bank[sid], ev) for sid in self._ORDER if sid in bank
+                for ev in [self._detect(bank[sid].get("detect", ""), site, win)] if ev]
+        if not hits:
+            # An honest Unknown. Do NOT add a catch-all signature: a diagnosis that always
+            # matches carries no information and would be the tautology of docs/32 rule 2.
+            return {"signature": None, "name": "unclassified", "tag": "Unknown", "auto": "no",
+                    "reason": "No banked signature matched this site.",
+                    "highlight": "Read the markdown at the zone line beside the source page, and print every cell of any row before editing it.",
+                    "solution": "Diagnose by hand, then add the signature to signatures.json so the next operator does not start cold. That is what the bank is for.",
+                    "matched_on": "", "caution": "", "also": [], "cite": "S78 §8.5"}
+        sid, s, ev = hits[0]
+        # E is not a competing hypothesis for a zone — every member of `worst[]` IS a
+        # degeneration block by construction, so E's detector has zero discriminating power
+        # here and will almost always take the primary slot. That is correct (it is what the
+        # audit MEASURED, hence `Observed`) but it would bury the specific structural findings
+        # underneath it — including F, whose whole entry is a warning against the edit that
+        # destroyed 418 • marks in S78. A secondary signature that has already cost data does
+        # not get to be a footnote, so it is lifted into its own field the UI renders loudly.
+        caution = ""
+        if sid != "F" and any(h[0] == "F" for h in hits):
+            f = next(h[1] for h in hits if h[0] == "F")
+            fev = next(h[2] for h in hits if h[0] == "F")
+            caution = (f"ALSO MATCHES F ({f['name']}) — {fev}. Before removing ANY column or "
+                       f"cell here, print every cell of the row: S78 deleted 13 'phantom empty' "
+                       f"columns that held 418 • marks.")
+        return {"signature": sid, "name": s["name"], "tag": s.get("tag", "Inferred"),
+                "reason": s["reason"], "highlight": s["highlight"], "solution": s["solution"],
+                "auto": s.get("auto", ""), "matched_on": ev, "cite": s.get("cite", ""),
+                "caution": caution, "also": [h[0] for h in hits[1:]]}
+
     def state(self) -> dict:
         body_lines = self.body().count("\n") + 1
         pages = int(self.manifest.get("pages") or 0)
@@ -220,6 +343,7 @@ class Bench:
             oc, why = self._outcome(self.run_key(r), at)
             runs.append({**r, "anchor_line": at, "key": self.run_key(r),
                          "outcome": oc, "outcome_reason": why,
+                         "diagnosis": self.diagnose(r, at),
                          "repaired": at is not None
                          and any(rec.get("zone_line") == at for rec in reps)})
         zones = []
@@ -229,6 +353,7 @@ class Bench:
             zoc, zwhy = self._outcome(self.zone_key(z), z["line"])
             zones.append({**z, "page_guess": guess, "key": self.zone_key(z),
                           "outcome": zoc, "outcome_reason": zwhy,
+                          "diagnosis": self.diagnose(z, at),
                           # the server is the ONE authority on line adjustment (insertions shift
                           # everything below them) — the UI never re-derives this
                           "adjusted_line": at,
