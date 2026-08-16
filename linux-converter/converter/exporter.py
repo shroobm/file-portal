@@ -58,6 +58,16 @@ INBOX_REL = Path("Inbox")
 # append to a plain file.
 RECEIPTS_NAME = "receipts.jsonl"
 
+# Spot-check sampling (2026-08-16): every Nth ACCEPTED export is flagged for Rab's eyes even
+# though its verdicts all passed — every mature pipeline assumes its confidence signal
+# sometimes lies (FADGI 3rd ed. inspects "10 images or 10% of each batch, whichever is
+# larger"; AWS A2I ships a sample-regardless-of-confidence condition; Michigan/TCP sampled 5%
+# against 99.995%). At this pipeline's batch size the FADGI floor collapses to "every 10th".
+# The counter derives from receipts.jsonl itself (count of prior `exported` outcomes), so it
+# is deterministic, stateless, and restart-proof. Report-mode: the flag rides the receipt;
+# nothing is held. N is Rab's number — promote to converter.toml when he wants to tune it.
+SPOT_CHECK_EVERY = 10
+
 # Machine-produced commits identify themselves; hand commits keep the user's identity.
 GIT_IDENTITY = [
     "-c",
@@ -118,14 +128,43 @@ class Exporter:
                 "bundle": bundle_dir.name,
                 **fields,
             }
-            with open(self.paths.root / RECEIPTS_NAME, "a", encoding="utf-8") as fh:
-                fh.write(json.dumps(record, ensure_ascii=False) + "\n")
+            receipts_path = self.paths.root / RECEIPTS_NAME
+            # A crash mid-append can leave a torn final line with no newline; appending
+            # straight onto it would glue THIS record into the garbage and lose both. Heal
+            # the boundary: if the file doesn't end in a newline, start with one (the torn
+            # line stays torn — readers already skip unparseable lines — but this record
+            # survives). Observed shape, not hypothetical: S76 took two power cuts mid-run.
+            lead = ""
+            try:
+                with open(receipts_path, "rb") as check:
+                    check.seek(-1, 2)
+                    if check.read(1) != b"\n":
+                        lead = "\n"
+            except OSError:
+                pass  # missing or empty file needs no lead
+            with open(receipts_path, "a", encoding="utf-8") as fh:
+                fh.write(lead + json.dumps(record, ensure_ascii=False) + "\n")
         except Exception:  # noqa: BLE001
             logger.warning(
                 "receipt %s for %s could not be written (export unaffected)",
                 outcome,
                 bundle_dir.name,
             )
+
+    def _exported_count(self) -> int:
+        """Count prior `exported` receipts — the spot-check counter's source of truth."""
+        try:
+            with open(self.paths.root / RECEIPTS_NAME, encoding="utf-8") as fh:
+                count = 0
+                for line in fh:
+                    try:
+                        if json.loads(line).get("outcome") == "exported":
+                            count += 1
+                    except ValueError:
+                        continue  # a torn line must not break counting
+                return count
+        except OSError:
+            return 0
 
     def _read_bless_marker(self, bundle_dir: Path, manifest: dict, verdict) -> dict | None:
         """docs/18 §5.4 (S56): a human-bless marker lets a `flag` verdict through the supersede
@@ -337,12 +376,28 @@ class Exporter:
             target_rel,
             commit_sha[:8],
         )
+        extra = {}
+        # Surface the linux-lane degeneration verdict at the seam (docs/29: a measured value
+        # that reaches nobody is the defect) — a flagged-but-published conversion must be
+        # visible in the receipt the Desktop tails, not only in this machine's journal.
+        if (manifest.get("degeneration") or {}).get("flagged"):
+            extra["degeneration_flagged"] = True
+        nth = self._exported_count() + 1
+        if SPOT_CHECK_EVERY and nth % SPOT_CHECK_EVERY == 0:
+            extra["spot_check"] = True
+            logger.info(
+                "SPOT-CHECK %s -- accepted export #%d, flagged for human review (every %d)",
+                bundle_dir.name,
+                nth,
+                SPOT_CHECK_EVERY,
+            )
         self._receipt(
             "exported",
             bundle_dir,
             note=target_rel.as_posix(),
             commit=commit_sha[:8],
             sha=source_sha[:16],
+            **extra,
         )
 
     def _supersede_replace(self, bundle_dir: Path, supersede: dict, manifest_rel: Path) -> None:
