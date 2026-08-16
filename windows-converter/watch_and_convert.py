@@ -17,6 +17,7 @@ Run with the marker-env interpreter:
 """
 
 import logging
+import os
 import shutil
 import subprocess
 import sys
@@ -25,14 +26,18 @@ from pathlib import Path
 
 from events import emit
 
-BASE = Path(r"C:\Users\Bndit\ml\library")
+# FP_PIPELINE / FP_CONVERT exist for the deferral-gate tripwire, which runs THIS file for real
+# against an isolated root and a stub converter (SYM-010: never the live dirs, never Marker).
+# Unset - the production case - nothing changes.
+BASE = Path(os.environ.get("FP_PIPELINE", r"C:\Users\Bndit\ml\library"))
 DROP_DIR = BASE / "drop"
 DONE_DIR = DROP_DIR / "done"
 FAILED_DIR = DROP_DIR / "failed"
 MODE_FILE = BASE / "analyst-mode.txt"  # off | local | gemini | ask
 LOCK_FILE = BASE / ".gpu-lock"  # busy signal for the future control-room card
+HOLD_FILE = BASE / "chat-hold.json"  # the assistant's claim on the card - written by room_chat.py ONLY
 LOG_FILE = BASE / "watcher.log"
-CONVERT = Path(__file__).parent / "convert_and_ship.py"
+CONVERT = Path(os.environ.get("FP_CONVERT", str(Path(__file__).parent / "convert_and_ship.py")))
 PYTHON = sys.executable
 PATTERNS = {".pdf"}
 POLL_S = 5
@@ -65,7 +70,36 @@ def stable_size(path: Path, interval: float = 1.0, timeout: float = 120.0) -> bo
     return False
 
 
+# One deferral log/event per PDF per hold episode - the loop retries every POLL_S seconds and a
+# held card can stay held for a long chat; a log line every 5 s would bury the signal.
+_deferred: set[str] = set()
+
+
+def chat_hold() -> str | None:
+    """The assistant's claim on the card - READ here, written only by room_chat.py.
+
+    THE SIGNED WATCHER DEFERRAL GATE (docs/33 §2.3, signed by Rab 2026-08-15; built S85 on his
+    graduation commission). The conveyor refuses to START a conversion while the assistant holds
+    the card; the PDF stays in drop/ and the normal poll picks it up the moment the hold clears.
+    A lost intent is the safe direction (docs/19) - and unlike `.gpu-lock` (SYM-032), this file
+    is read by the thing that yields, which is what makes it a gate instead of a name.
+    """
+    try:
+        return HOLD_FILE.read_text(encoding="utf-8").strip() or "the assistant"
+    except OSError:
+        return None
+
+
 def convert_one(pdf: Path) -> None:
+    hold = chat_hold()
+    if hold:
+        if pdf.name not in _deferred:
+            _deferred.add(pdf.name)
+            logger.info("DEFERRED %s - the assistant holds the card (chat-hold.json); "
+                        "retrying every %ss until it clears", pdf.name, POLL_S)
+            emit("intake", "deferred", source=pdf.name, reason="chat-hold")
+        return
+    _deferred.discard(pdf.name)
     mode = analyst_mode()
     args = [PYTHON, str(CONVERT), str(pdf)]
     if mode == "ask":

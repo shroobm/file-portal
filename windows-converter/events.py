@@ -8,7 +8,10 @@ import os
 from datetime import datetime, timezone
 from pathlib import Path
 
-EVENTS_FILE = Path(r"C:\Users\Bndit\ml\library\events.jsonl")
+# FP_PIPELINE override matches watch_and_convert.py's: the deferral-gate tripwire runs the real
+# watcher against an isolated root, and its telemetry must land THERE - a test event in the live
+# stream would render on the widget as a phantom arrival (SYM-010's class).
+EVENTS_FILE = Path(os.environ.get("FP_PIPELINE", r"C:\Users\Bndit\ml\library")) / "events.jsonl"
 
 
 def emit(stage: str, event: str, **fields) -> None:
