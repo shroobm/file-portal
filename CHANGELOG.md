@@ -8,6 +8,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S84 — THE GLM-OCR PROBE: THE EXISTENCE PROOF, SIGNED BY RAB'S EYES (2026-08-16, Desktop
+  lane, Fable).** Commission in his words: *"the word, S84 is the GLM OCR probe"*; download
+  authorized by name, source and size. `ggml-org/GLM-OCR-GGUF` (Q8_0 950 MB + mmproj 484 MB)
+  pulled onto the existing llama.cpp **b10448** install — which **loads and serves it** (the
+  probe's first question, answered in the first hour). Five pages of the held Beer (scan lane,
+  verdict `fail`, 18 omission runs), rendered at 180 dpi from the `Verified` source PDF whose
+  sha256 IS the bundle key. **Three of three adjudicated omission runs recovered** — p77, p76,
+  p114 — with the same mechanistic signature every time: Marker's lane kept the typeset print and
+  **dropped Beer's handwritten figure content**; GLM read both. The audit's garble
+  `r system three v` resolved to *"System Three\*, V — 'management audit'"*. **Rab confirmed the
+  handwriting against the page renders** — the existence proof is signed, not inferred. Cost
+  (`Observed`, n=5): ~2.5–3.3 s wall per page, decode ~310–330 tok/s, every stop `stop`.
+  Two suspect readings flagged against the model ("Mammal corporation", "placards it") — the
+  smoothing class the bench's accept/reject exists for. **Stated untested:** the SYM-003
+  table-loop hypothesis (no degeneration zone was exercised), whole-book behaviour, hallucination
+  rate at scale. Quarantined in `prototypes/glm-ocr-probe/` (outputs tracked; page renders
+  ignored as re-derivable). **Feeds two decisions, both awaiting signatures as their own builds:
+  the bench second-reader and the scan-lane challenger.**
+
 - **S83 — THE COOLED A-B-A: PARITY, AND FOR THE FIRST TIME THE RATIOS ARE ADMISSIBLE
   (2026-08-16, Desktop lane, Fable).** Same 30 chunks as S82, `--cool-to 55` before every arm,
   incumbent measured first AND last: **ORDER DRIFT −1.6 %** (limit 5 %) — the card held still, so
