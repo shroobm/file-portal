@@ -1,0 +1,11 @@
+[Unit]
+Description=Weekly File Portal vault fixity check (NDSA Levels level 3: fixed intervals, with logs)
+
+[Timer]
+OnCalendar=weekly
+# A week the laptop slept through fires on next boot instead of being skipped.
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

@@ -68,6 +68,36 @@ RECEIPTS_NAME = "receipts.jsonl"
 # nothing is held. N is Rab's number — promote to converter.toml when he wants to tune it.
 SPOT_CHECK_EVERY = 10
 
+
+def append_receipt(root: Path, outcome: str, **fields) -> None:
+    """Append one seam receipt to <root>/receipts.jsonl. Best-effort and never raises:
+    telemetry must never cost the operation it reports on. Shared by the Exporter and the
+    fixity check (converter/fixity.py)."""
+    try:
+        record = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "outcome": outcome,
+            **fields,
+        }
+        receipts_path = root / RECEIPTS_NAME
+        # A crash mid-append can leave a torn final line with no newline; appending straight
+        # onto it would glue THIS record into the garbage and lose both. Heal the boundary:
+        # if the file doesn't end in a newline, start with one (the torn line stays torn —
+        # readers already skip unparseable lines — but this record survives). Observed shape,
+        # not hypothetical: S76 took two power cuts mid-run.
+        lead = ""
+        try:
+            with open(receipts_path, "rb") as check:
+                check.seek(-1, 2)
+                if check.read(1) != b"\n":
+                    lead = "\n"
+        except OSError:
+            pass  # missing or empty file needs no lead
+        with open(receipts_path, "a", encoding="utf-8") as fh:
+            fh.write(lead + json.dumps(record, ensure_ascii=False) + "\n")
+    except Exception:  # noqa: BLE001
+        logger.warning("receipt %s could not be written (operation unaffected)", outcome)
+
 # Machine-produced commits identify themselves; hand commits keep the user's identity.
 GIT_IDENTITY = [
     "-c",
@@ -121,35 +151,7 @@ class Exporter:
         """Append one seam receipt (RECEIPTS_NAME above). Best-effort in every direction: a
         receipt that cannot be written costs a warning and nothing else — telemetry must never
         cost an export (the same rule the Desktop's events.emit follows)."""
-        try:
-            record = {
-                "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                "outcome": outcome,
-                "bundle": bundle_dir.name,
-                **fields,
-            }
-            receipts_path = self.paths.root / RECEIPTS_NAME
-            # A crash mid-append can leave a torn final line with no newline; appending
-            # straight onto it would glue THIS record into the garbage and lose both. Heal
-            # the boundary: if the file doesn't end in a newline, start with one (the torn
-            # line stays torn — readers already skip unparseable lines — but this record
-            # survives). Observed shape, not hypothetical: S76 took two power cuts mid-run.
-            lead = ""
-            try:
-                with open(receipts_path, "rb") as check:
-                    check.seek(-1, 2)
-                    if check.read(1) != b"\n":
-                        lead = "\n"
-            except OSError:
-                pass  # missing or empty file needs no lead
-            with open(receipts_path, "a", encoding="utf-8") as fh:
-                fh.write(lead + json.dumps(record, ensure_ascii=False) + "\n")
-        except Exception:  # noqa: BLE001
-            logger.warning(
-                "receipt %s for %s could not be written (export unaffected)",
-                outcome,
-                bundle_dir.name,
-            )
+        append_receipt(self.paths.root, outcome, bundle=bundle_dir.name, **fields)
 
     def _exported_count(self) -> int:
         """Count prior `exported` receipts — the spot-check counter's source of truth."""

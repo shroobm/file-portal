@@ -1,0 +1,10 @@
+[Unit]
+Description=File Portal vault fixity check (git fsck over the bare vault; NDSA level-3 cadence)
+
+[Service]
+# Oneshot fired by the matching .timer. A fail exits nonzero (unit shows red) and writes a
+# fail receipt; repair is never automated. __WORKDIR__/__EXEC_PATH__ substituted by
+# scripts/install.sh, same templating as the converter unit.
+Type=oneshot
+WorkingDirectory=__WORKDIR__
+ExecStart=__EXEC_PATH__ -m converter.fixity
