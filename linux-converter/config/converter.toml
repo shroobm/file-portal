@@ -7,6 +7,12 @@
 # this quarantines the file (the Scan lane is terminal -- see docs/10, Part 3).
 # PROVISIONAL: 100 is a common heuristic, not a measured fact about this corpus. Every
 # conversion logs its chars_per_page -- revisit after ~30 real documents have been through.
+# Calibration check 2026-08-16: the log's 29 probe/yield lines dedupe to ~10 DISTINCT
+# documents (only 2 real books), so the ~30-document bar is NOT met and 100 stays
+# provisional. What the data does show: separation is clean at 100 with zero misroutes --
+# no-text-layer probes at exactly 0.0, real text layers 118-2585 chars/page (the 118-122
+# cluster is synthetic single-sentence gate-test PDFs; real books probe >=914), OCR yields
+# 279-2624 with the blank-scan control at 0. Re-run this check at ~30 distinct documents.
 min_chars_per_page = 100
 
 # OCR render resolution for the Scan lane. The lane's OCR is OCRMode.FORCE_DROP_OLD (see
