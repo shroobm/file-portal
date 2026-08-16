@@ -29,7 +29,7 @@ from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from converter import bundle, engines, exporter
+from converter import bundle, degeneration, engines, exporter
 from converter.config import DEFAULT_ROOT, Paths, Settings
 from converter.status import StatusWriter
 
@@ -185,6 +185,21 @@ class ConvertHandler(FileSystemEventHandler):
                 )
                 return
 
+        # Degeneration tripwire (ported from the Desktop audit -- see degeneration.py).
+        # Report-mode: the verdict travels in the manifest and the journal; it never blocks
+        # publishing. The exporter surfaces `flagged` in the ingest receipt, so a looping
+        # conversion cannot reach the vault silently even though it still reaches it.
+        degen = degeneration.degeneration(markdown)
+        if degen["flagged"]:
+            logger.warning(
+                "DEGENERATION %s blocks=%d repeated_lines=%d worst_zlib=%s "
+                "-- published anyway (report mode)",
+                file_path.name,
+                len(degen["worst"]),
+                degen["repeated_lines"],
+                degen["worst"][0]["zlib"] if degen["worst"] else "-",
+            )
+
         converted_at = bundle.utcnow()
         ocr = lane == "scan"
         frontmatter = bundle.render_frontmatter(
@@ -208,6 +223,7 @@ class ConvertHandler(FileSystemEventHandler):
             "converter_version": VERSION,
             "pymupdf4llm_version": engines.pymupdf4llm.__version__,
             "converted_at": converted_at.isoformat(timespec="seconds"),
+            "degeneration": degen,
         }
         bundle.assemble(tmp_dir, bundle_name, markdown, frontmatter, manifest)
         anchor_dest, staging_dest = bundle.publish(
