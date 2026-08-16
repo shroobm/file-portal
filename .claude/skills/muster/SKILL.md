@@ -115,6 +115,12 @@ State these as in force, each with its trigger, because they bind *after* the op
 - **The link fence is non-negotiable** wherever an LLM touches markdown.
 - **Repo markdown is CRLF** — slice it with `head`/`tail` only; `sed`/`awk`/`grep` strip CR,
   and a bare `grep` cannot even see them (SYM-029; `grep -U` can).
+- **Every measured number obeys `docs/34`** — the measurement language. Name the numerator and
+  the denominator; never blend prefill with decode or cold with warm; give `n` and a spread; a
+  ratio prints both its sides; a percentage prints its base; a duration nobody reported renders
+  `UNREAD`, never `0.0`. The tag says what kind of claim it is, `docs/34` says what it counts, and
+  a number needs both. *(S79's "+27 %" was unusable at S80's open not because it was wrong but
+  because the sentence never said what had been counted.)*
 - **Cookies get logged before other work** — header, ledger entry, and the TIME-STATE mirror.
 
 ## Phase 6 — Commission, and pin it before you know the outcome

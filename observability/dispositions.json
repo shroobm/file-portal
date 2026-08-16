@@ -12,18 +12,23 @@
     "",
     "Keys are `<lane>:<key>`. Run: python observability/glass_detector.py"
   ],
-
   "lanes": [
     {
       "name": "bench",
       "_note": "The Repair Bench serves its own UI. This is the lane SYM-026 was found in: state() projected `runs` (18 omission runs on the S76 Beer) and bench.html referenced it zero times.",
-      "producers": ["prototypes/repair-bench/bench.py"],
-      "renderers": ["prototypes/repair-bench/bench.html"]
+      "producers": [
+        "prototypes/repair-bench/bench.py"
+      ],
+      "renderers": [
+        "prototypes/repair-bench/bench.html"
+      ]
     },
     {
       "name": "widget",
       "_note": "Rust computes, JS renders. The `chunks_resumed` / `resumed` / `eta_s` heartbeat died on this wire (docs/29 §7.5).",
-      "producers": ["windows-widget/src-tauri/src/*.rs"],
+      "producers": [
+        "windows-widget/src-tauri/src/*.rs"
+      ],
       "renderers": [
         "windows-widget/src/main.js",
         "windows-widget/src/room.js",
@@ -47,7 +52,6 @@
       ]
     }
   ],
-
   "dispositions": {
     "bench:stream": {
       "disposition": "INTERNAL",
@@ -64,6 +68,18 @@
     "bench:reason": {
       "disposition": "EVIDENCE",
       "reason": "The five-outcome triage's free-text reason (bench.py:667 triage, :678/:682 coverage). Its home is the opened zone/run card, not the chip row — docs/29 §5.3 step 3: a localizer is EVIDENCE, revealed when the card is open, never promoted to ambient chrome. NOTE ON SCOPE: this key surfaced under `--since 60acd77` only because dispositions.json's own `reason` fields entered the diff as added `\"reason\":` lines — a false positive of name-based scoping (the key was not added to a producer this session). Recorded as the honest disposition anyway rather than waved away, since the question it forces is the right one. The scoping weakness itself belongs on docs/31 §5.2's sheet."
+    },
+    "bench:options": {
+      "disposition": "INTERNAL",
+      "reason": "Outbound request parameter on the bench's assist call (bench.py:1135) - the ollama options envelope. docs/29 §5.3 step 1: it exists only to configure another process, and carries nothing a human would act on. Same class as bench:stream and bench:keep_alive. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
+    },
+    "bench:num_ctx": {
+      "disposition": "INTERNAL",
+      "reason": "Outbound request parameter (bench.py:1135) - the context window handed to ollama for the assist call. A knob sent OUT, not a value computed for a reader; when its size matters to a human it reaches them as a failure (a truncated answer), not as a number. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
+    },
+    "bench:think": {
+      "disposition": "INTERNAL",
+      "reason": "Outbound request parameter (bench.py:1135) - tells qwen3 not to emit a reasoning block. Correct there: the operator wants the answer, not the deliberation. S80/S81 measured what this flag is worth (thinking ON costs 6.5x the tokens on the analyst's workload), and that measurement has its home in docs/34 and the CHANGELOG, not on the bench surface. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
     }
   }
 }

@@ -8,6 +8,77 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S81 — THE MEASUREMENT LANGUAGE (2026-08-15, Desktop lane).** Rab's commission: *"a grammar and
+  language that is legible … input that into the manual, and into a document accessed by the
+  operator and you as well, so we can keep ourself accountable on the language, and make sure it
+  matches what the world already understands as well."*
+  **`docs/34-measurement-language.md`** — the source of truth. Nothing in it is house vocabulary:
+  prefill/decode, TTFT, TPOT, p50/p95, cold/warm, concurrency-vs-batch-size and goodput mean here
+  what they mean in the literature, so one of our numbers and a stranger's benchmark can be read
+  against each other. **The seven rules:** name the numerator and the denominator · never mix cold
+  with warm · give `n` and a spread, never a bare mean · a ratio prints both its sides · a
+  percentage prints its base · a duration nobody reported renders `UNREAD`, never `0.0` · sampling
+  never promotes. Plus: state the build. **`throughput` is never used bare** — prefill is
+  compute-bound and parallel, decode is memory-bandwidth-bound and sequential, and prefill
+  routinely runs 3–10× decode on the same card, so a blended "tok/s" moves when the input/output
+  ratio moves while nothing about the machine has.
+  **Placed at both ends of the accountability**: the operator reads it as
+  `docs/22-engineering-manual.html` **ch.18** (new; the manual's footer lifted out of ch.17 to sit
+  at the end of `<main>` where it belongs), and the machine is bound by it through a new standing
+  order in `/muster`, re-read at every session open.
+  **The field map is `Observed`, not recalled** — both backends were probed for the fields they
+  actually return. It carries two traps: **Ollama reports nanoseconds and llama.cpp milliseconds**
+  (same shape, same position, 10⁶ apart), and **a cached prefill is not a measured prefill** —
+  `timings.prompt_n` counts tokens actually *processed*, so a cached prompt reports `prompt_n = 1`
+  and yields a rate that is arithmetically correct and describes a one-token prefill.
+- **THE THROUGHPUT RESULT: `+27 %` DOES NOT REPRODUCE — llama.cpp is *slower* on both phases.**
+  Warm, concurrency 1, n=8, cold-started card, qwen3:8b both sides, llama.cpp cache hits 0:
+  **decode 97.7 tok/s (p50 98.9) vs Ollama 102.6 (p50 102.3) = 0.95×**; **prefill 3,766.3
+  (p50 3,843.6) vs 4,650.7 (p50 4,580.1) = 0.81×**. The token gate reproduced S80 at n=8 on a
+  different sample: `--jinja` alone **+260.1 %**, `enable_thinking:false` **−3.1 %**.
+  **And the comparison's premise was wrong.** `Observed`: **Ollama 0.32.13 runs `llama-server` as
+  its own engine** (`AppData\Local\Programs\Ollama\lib\ollama\`, parent `ollama serve`). This was
+  never engine-vs-engine — it is **one engine under two sets of flags**, and Ollama's are
+  `-b 1024 -ub 1024 --no-jinja --chat-template chatml --flash-attn auto --context-shift` against
+  our `-ub 512` default and `--jinja`. The micro-batch gap is the leading candidate for the 0.81×
+  prefill difference — a hypothesis with an experiment attached, not a conclusion. The migration's
+  question is no longer "is llama.cpp faster" but "which flags, and what does bypassing Ollama
+  buy." The analyst was **not** pointed at llama.cpp.
+- **The throughput arm** in `windows-converter/backend_parity.py` — the half S80 left unmeasured
+  and named as the only thing blocking the llama.cpp migration. Reports prefill and decode
+  separately with `n` and a spread, warms up on a chunk it will **not** time, records the engine
+  build, and cross-checks every server-reported phase against client wall time — a differently
+  shaped clock that cannot be wrong the same way (SYM-001). Speed is printed only for an arm that
+  **passed the token gate**: a fast backend that writes the wrong thing is not a faster backend.
+
+### Fixed
+
+- **The harness written to obey `docs/34` walked into that document's own cache trap, twice, on
+  its first two runs.** It warmed up on a chunk it then measured, reporting **37,729 tok/s**
+  prefill against **4,801** for the next chunk; then its second llama.cpp arm re-sent the first
+  arm's exact prompts and was handed 524 and 1,166 tokens free. Both readings were confident,
+  neither raised an error. Now: the warmup uses an unmeasured chunk, requests carry
+  `"cache_prompt": false`, and **any prefill rate whose prompt was >20 % cached is withheld as
+  `UNREAD`** rather than footnoted — a number that is correct and materially meaningless is still
+  a lie told to whoever reads it next. The rule was written into `docs/34` and ch.18 *after* being
+  paid for. Also fixed: Ollama exposes no cache field and the first draft wrote `0` there — a guess
+  wearing a reading's clothes; it is `None`, and it prints `UNREAD`.
+- **The token gate would have failed the incumbent against itself.** It required zero fence
+  failures outright, so the moment Ollama rejected a chunk — which it does; the analyst's own
+  reject counter exists for that — the production backend was marked FAIL on its own numbers
+  (`ollama_think_false … fence bad 1 … FAIL`). The incumbent sets the bar: a candidate must be no
+  **worse**, not perfect.
+- **One stalled request no longer costs an entire measurement run (SYM-034, filed).** An Ollama
+  request hung indefinitely on chunk 87 of the Valentine — ordinary prose, 3,537 chars, *smaller*
+  than the arm's average, zero table rows — with no error anywhere, the HTTP API still answering,
+  and the **identical request completing in 7.5 s on a hand-retry seconds later**. Cause
+  **UNPROVEN on one observation**; it shares its shape with SYM-024. The exposure is bounded rather
+  than fixed: the per-request ceiling is cut 900 s → **300 s** (a warm chunk of this size takes
+  3–25 s, so 300 s is a stall and not a slow request), and a stall is recorded as a **hole** — the
+  record carries `None` throughout so no rate can average over it, the arm prints its stall count,
+  and the run continues. Production `analyst.py` already degrades correctly here, shipping the
+  un-analyzed original, so this class costs a measurement rather than a page.
+
 - **S80 — `--jinja` IS NECESSARY AND NOT SUFFICIENT (2026-08-15, Desktop lane).** S79 left the
   llama.cpp migration mid-flight with a gate stated in tokens, not speed: Ollama ~814/chunk,
   llama.cpp 1,380–2,048 and twice at the cap. Re-measured on the held Valentine, qwen3:8b on both

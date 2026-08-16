@@ -1,46 +1,70 @@
 #!/usr/bin/env python3
-"""Backend parity harness — is a candidate backend allowed to replace Ollama for the analyst?
+"""Backend parity harness — may a candidate backend replace Ollama for the analyst?
 
-WHY THIS EXISTS. S79 measured llama.cpp against Ollama and recorded the outcome as prose:
-"Ollama ~814 per chunk; llama.cpp 1,380-2,048, twice hit the cap." No harness was kept, so at
-S80's open those numbers could not be re-derived from anything in the repo — only quoted. A
-number that cannot be re-measured cannot be promoted past `Historical` (docs/21 rule 3), which
-made an otherwise-finished investigation unbankable. This file is the missing half.
+Answers two separate questions, because they fail for different reasons and one does not imply
+the other:
 
-WHAT THE GATE IS. Not speed. The analyst's output is a near-verbatim REWRITE of its input, so a
-correct chunk lands close to its own size and stops on its own. Two ways that breaks:
+  THE TOKEN GATE (S80)  Does the candidate produce output of the same SIZE, stopping on its own,
+                        passing the image fence? A backend that rambles or truncates corrupts
+                        books regardless of how fast it is.
+  THE THROUGHPUT ARM    Given equal output, is it faster — and by how much, on which phase?
+      (S81)             Speed is only admissible AFTER the token gate passes; a fast backend that
+                        writes the wrong thing is not a faster backend.
 
-  * the model THINKS out loud, spending its budget on reasoning that is not the deliverable;
-  * the output runs to the cap (`finish_reason: length`), truncating the chunk mid-book.
+VOCABULARY IS FIXED BY docs/34-measurement-language.md. This file is that document's first
+consumer and prints in its terms: prefill and decode are reported separately and never blended,
+every rate names its numerator and denominator, `n` and a spread accompany every mean, ratios
+print both of their sides, and a duration the backend did not report renders UNREAD rather than
+0.0. If this harness and docs/34 ever disagree, THIS FILE IS WRONG — a document may describe an
+instrument, but an instrument may not invent a word the document does not define.
 
-Truncation drops trailing image placeholders, so `analyst._tokens_of` rejects the chunk and the
-UN-ANALYZED original ships. The failure is silent and lands in the vault. Hence the gate:
-completion tokens comparable to Ollama's on the SAME chunks, `stop` on every one, fence clean.
+WHY THE HARNESS EXISTS AT ALL. S79 measured llama.cpp and recorded "+27 % tok/s and 1.72×
+batching" as prose. No harness was kept, so at S80's open the figures could not be re-derived,
+only quoted, and quoting is what docs/21 rule 3 forbids. An investigation that had actually been
+done was unbankable because nobody could say what had been counted.
 
-WHAT S80 MEASURED (Valentine, 5 chunks, qwen3:8b both sides):
+WHAT S80 MEASURED (Valentine, 5 chunks, qwen3:8b both sides), token gate:
 
-    ollama --think:false            2,307 tok   max 633    stop 5/5   fence 5/5
-    llama.cpp --jinja               14,893 tok  max 4,526  stop 5/5   fence 5/5   <- 6.46x
-    llama.cpp --jinja +no-think     2,300 tok   max 633    stop 5/5   fence 5/5   <- -0.3%
+    ollama --think:false            2,307 tok   max   633   stop 5/5   fence 5/5
+    llama.cpp --jinja              14,893 tok   max 4,526   stop 5/5   fence 5/5   <- 6.46x
+    llama.cpp --jinja +no-think     2,300 tok   max   633   stop 5/5   fence 5/5   <- -0.3%
 
 `--jinja` ALONE FAILS THE GATE, and fails it upward: it makes llama.cpp apply qwen3's embedded
-chat template, whose default is thinking ON. The analyst has always sent Ollama `"think": False`
-(analyst.py). The llama.cpp counterpart is `chat_template_kwargs.enable_thinking = false`, and
-with it the two backends land within 2.1% per chunk. `--jinja` is necessary and NOT sufficient.
+chat template, whose default is thinking ON. analyst.py has always sent Ollama `"think": False`;
+the llama.cpp counterpart is `chat_template_kwargs.enable_thinking = false`. `--jinja` is
+necessary and NOT sufficient.
+
+WHAT S81 MEASURED (same book, n=8, warm, concurrency 1, cold-started card), throughput:
+
+    ollama 0.32.13              prefill 4,650.7 tok/s   decode 102.6 tok/s   e2e  6.7 s
+    llama.cpp +no-think         prefill 3,766.3 tok/s   decode  97.7 tok/s   e2e  7.0 s
+                                        = 0.81x                 = 0.95x
+
+S79's "+27 %" DOES NOT REPRODUCE. Measured this way llama.cpp is slower on both phases.
+
+AND THE COMPARISON'S PREMISE IS WRONG. Ollama 0.32.13 runs llama-server as its OWN engine
+(AppData\\Local\\Programs\\Ollama\\lib\\ollama\\llama-server.exe, parent `ollama serve`). This is not
+engine vs engine - it is ONE ENGINE UNDER TWO SETS OF FLAGS. Ollama invokes it with
+`-b 1024 -ub 1024 --no-jinja --chat-template chatml --flash-attn auto --context-shift`; we use the
+`-ub 512` default and `--jinja`. The micro-batch gap is the leading candidate for the 0.81x
+prefill difference - a hypothesis with an experiment attached, not a conclusion. Whoever picks
+this up: vary the flags on one engine before concluding anything about two products.
 
 SAMPLING NEVER PROMOTES. N chunks measured is `Inferred` about the book, never `Observed` about
 all of it (docs/21 rule 2). Raise -n before trusting this with a migration.
 
 ONE LAB PROCESS ON THE CARD, EVER (SYM-022). Ollama is unloaded and VRAM proven back to baseline
-before llama-server is started. Never run this while a conversion is running.
+before llama-server starts. Never run this while a conversion is running.
 
-    python backend_parity.py                     # default: held Valentine, 5 chunks
-    python backend_parity.py --book PATH -n 12
+    python backend_parity.py                 # token gate + throughput, 5 chunks
+    python backend_parity.py -n 12
+    python backend_parity.py --gate-only     # skip throughput (faster, no warmups)
 """
 from __future__ import annotations
 
 import argparse
 import json
+import statistics
 import subprocess
 import sys
 import time
@@ -50,7 +74,7 @@ from pathlib import Path
 import analyst
 
 LLAMA_EXE = Path(r"C:\Users\Bndit\ml\llama\llama-server.exe")
-# The Ollama blob IS the gguf — same bytes, so the comparison cannot drift on weights.
+# The Ollama blob IS the gguf - same bytes, so the comparison cannot drift on weights.
 # Verified S80: this sha resolves to exactly one manifest, registry.ollama.ai/library/qwen3/8b.
 MODEL_GGUF = Path(r"C:\Users\Bndit\.ollama\models\blobs"
                   r"\sha256-a3de86cd1c132c822487ededd47a324c50491393e6565cd14bafa40d0b8e686f")
@@ -58,6 +82,109 @@ DEFAULT_BOOK = Path(r"C:\Users\Bndit\ml\library\held\b6fbdd75f6242f53"
                     r"\Best Practices for Equity Research Analysts - James J Valentine (2011).md")
 PORT = 7117  # room-chat owns 7110-7119; the bench owns 7077-7096. Do not borrow either.
 
+UNREAD = "UNREAD"          # docs/34 rule 6 - never 0.0 for a duration nobody reported
+# A warm chunk of this size takes ~3-25 s. 300 s is a stall, not a slow request. The analyst's
+# own ceiling is 900 s because THERE the cost of giving up is a lost page; here it is a lost
+# measurement, which is cheaper to retry than to wait out.
+REQUEST_TIMEOUT_S = 300
+NS_PER_S = 1e9             # ollama reports NANOseconds
+MS_PER_S = 1e3             # llama.cpp reports MILLIseconds - a 10^6 difference, see docs/34 §4
+
+
+# ── the unit boundary ────────────────────────────────────────────────────────────────────────
+#
+# docs/34 §4's trap: the two backends report the same quantities, in the same shape, in the same
+# position, in units that differ by a factor of a MILLION. Both are converted to SECONDS here,
+# once, at the edge. No raw duration travels further into this file than these two functions.
+
+def _phases_ollama(r: dict) -> dict:
+    """Ollama /api/generate -> phases in SECONDS. None where the field is absent."""
+    def s(key: str) -> float | None:
+        v = r.get(key)
+        return None if v is None else v / NS_PER_S
+    return {"prefill_tok": r.get("prompt_eval_count"), "prefill_s": s("prompt_eval_duration"),
+            "decode_tok": r.get("eval_count"), "decode_s": s("eval_duration"),
+            "load_s": s("load_duration"), "server_total_s": s("total_duration"),
+            # Ollama exposes no cache-hit field. The first draft wrote 0 here, which is a GUESS
+            # wearing a reading's clothes - the exact move SYM-031 forbids. It is None, and it
+            # prints UNREAD, because "we cannot see it" and "there were none" are different facts.
+            "cached_tok": None}
+
+
+def _phases_llamacpp(r: dict) -> dict:
+    """llama.cpp /v1/chat/completions -> phases in SECONDS. None where the field is absent."""
+    t = r.get("timings") or {}
+    usage = r.get("usage") or {}
+    def s(key: str) -> float | None:
+        v = t.get(key)
+        return None if v is None else v / MS_PER_S
+    return {"prefill_tok": t.get("prompt_n", usage.get("prompt_tokens")), "prefill_s": s("prompt_ms"),
+            "decode_tok": t.get("predicted_n", usage.get("completion_tokens")),
+            "decode_s": s("predicted_ms"), "load_s": None,  # load is server startup, timed by us
+            "server_total_s": None,
+            "cached_tok": t.get("cache_n", (usage.get("prompt_tokens_details") or {}).get(
+                "cached_tokens", 0))}
+
+
+def rate(tokens: int | None, seconds: float | None) -> float | None:
+    """Tokens per second, or None. A rate needs a duration somebody actually reported."""
+    if tokens is None or seconds is None or seconds <= 0:
+        return None
+    return tokens / seconds
+
+
+# How much of a prompt may arrive from the KV cache before its prefill rate stops describing
+# prefill. The shared part of every request here is the ~90-token readability program, so a few
+# percent is structural and harmless; a fifth is not.
+CACHE_CONTAMINATION = 0.20
+# A prefill rate this far above the run's own cold-cache reference is not a measurement.
+PREFILL_IMPLAUSIBLE_X = 3.0
+
+
+def prefill_rate(rec: dict) -> float | None:
+    """Prefill throughput, or None when the prefill did not actually happen.
+
+    Rule 6 says a rate needs a duration the backend reported. Its twin, learned the hard way in
+    S81: a prefill rate needs a PREFILL. `timings.prompt_n` counts only the tokens genuinely
+    processed, so a fully cached prompt reports `prompt_n=1` and yields a confident, internally
+    consistent 74.6 tok/s that describes a one-token prefill and nothing anyone cares about. The
+    second llama arm re-sent the first arm's exact prompts and got 524 and 1,166 tokens free.
+    A number that is arithmetically correct and materially meaningless is still a lie told to
+    whoever reads it next, so it is withheld rather than footnoted.
+    """
+    processed, cached = rec.get("prefill_tok"), rec.get("cached_tok")
+    if processed is None:
+        return None
+    if cached:
+        total = processed + cached
+        if total and cached / total > CACHE_CONTAMINATION:
+            return None
+    return rate(processed, rec.get("prefill_s"))
+
+
+def fmt_rate(v: float | None) -> str:
+    return UNREAD if v is None else f"{v:,.1f}"
+
+
+def summarise(values: list[float | None], unit: str) -> str:
+    """docs/34 rule 3: n and a spread, never a bare mean. p95 only once n is big enough to
+    mean anything - at n=5 the 95th percentile IS the maximum, and dressing the maximum up in
+    a percentile's clothing is a proxy wearing a reputation."""
+    vals = sorted(v for v in values if v is not None)
+    if not vals:
+        return f"{UNREAD} (no arm reported a duration)"
+    n = len(vals)
+    mean = statistics.fmean(vals)
+    p50 = statistics.median(vals)
+    if n >= 20:
+        p95 = statistics.quantiles(vals, n=20)[18]
+        spread = f"p50 {p50:,.1f}, p95 {p95:,.1f}"
+    else:
+        spread = f"p50 {p50:,.1f}, min {vals[0]:,.1f}, max {vals[-1]:,.1f}"
+    return f"{mean:,.1f} {unit}  (n={n}, {spread})"
+
+
+# ── plumbing ─────────────────────────────────────────────────────────────────────────────────
 
 def vram_mib() -> int:
     """MiB in use. Raises rather than returning a number nobody watched (SYM-031)."""
@@ -68,7 +195,7 @@ def vram_mib() -> int:
     return int(out.stdout.strip().splitlines()[0])
 
 
-def post(url: str, body: dict, timeout: int = 900) -> dict:
+def post(url: str, body: dict, timeout: int = REQUEST_TIMEOUT_S) -> dict:
     raw = json.dumps(body).encode("utf-8")
     proc = subprocess.run(["curl", "-s", "-X", "POST", url,
                            "-H", "Content-Type: application/json", "--data-binary", "@-"],
@@ -79,56 +206,154 @@ def post(url: str, body: dict, timeout: int = 900) -> dict:
 
 
 def _row(rec: dict) -> str:
-    return (f"  chunk {rec['chunk']:>4}  in {rec['in_chars']:>5}c/{rec['prompt_tok']:>5}t  "
-            f"out {rec['out_chars']:>5}c/{rec['out_tok']:>5}t  stop={rec['stop']:<8} "
-            f"fence={'ok' if rec['fence'] else 'VIOLATED'}  think={rec['think_chars']:>6}c  "
-            f"{rec['wall_s']}s")
+    return (f"  chunk {rec['chunk']:>4}  in {rec['in_chars']:>5}c/{rec['prefill_tok'] or 0:>5}t  "
+            f"out {rec['out_chars']:>5}c/{rec['decode_tok'] or 0:>5}t  stop={rec['stop']:<7} "
+            f"fence={'ok' if rec['fence'] else 'BAD':<3}  "
+            f"prefill {fmt_rate(rec['prefill_tps']):>7}  decode {fmt_rate(rec['decode_tps']):>6} "
+            f"tok/s  wall {rec['wall_s']:>5.1f}s")
+
+
+# ── the arms ─────────────────────────────────────────────────────────────────────────────────
+
+def run_arm(label: str, send, picked: list[tuple[int, str]], warm_chunk: str | None) -> list[dict]:
+    """One configuration under test. `send(chunk) -> (raw_response, text, phases, stop)`.
+
+    docs/34 rule 2: cold and warm are never mixed. The warmup request is DISCARDED, not averaged
+    in - a first request carries model load and cache population, and folding it into a mean
+    produces a figure describing no request that was actually made.
+
+    THE WARMUP CHUNK IS NOT ONE OF THE MEASURED ONES. The first draft warmed on picked[0], so the
+    first measured request re-sent a prompt whose KV cache was already populated and its prefill
+    was reported at 37,729 tok/s against 4,801 for the next chunk - an eightfold "speedup" that
+    was the harness measuring its own warmup. docs/34 §4 documents this trap in the abstract; the
+    instrument written to obey that document walked into it on its first run.
+    """
+    print("=" * 96 + f"\nARM - {label}\n" + "=" * 96, flush=True)
+    warm_ref = None
+    if warm_chunk is not None:
+        print("  warmup on an UNMEASURED chunk (discarded - docs/34 rule 2, and its prefill must "
+              "not seed\n  the cache of a chunk we are about to time)...", flush=True)
+        _raw, _text, wphases, _stop = send(warm_chunk)
+        # The warmup follows a proven-cold card, so ITS prefill is real. That makes it a MEASURED
+        # reference for what this hardware actually does - better than a hardcoded ceiling, which
+        # would rot the first time the card changes.
+        warm_ref = rate(wphases.get("prefill_tok"), wphases.get("prefill_s"))
+        if warm_ref:
+            print(f"  cold-cache reference: prefill {warm_ref:,.0f} tok/s  "
+                  f"(> {PREFILL_IMPLAUSIBLE_X:g}x this did not really prefill)", flush=True)
+    arm = []
+    for i, chunk in picked:
+        t0 = time.perf_counter()
+        try:
+            raw, text, phases, stop = send(chunk)
+        except subprocess.TimeoutExpired:
+            # S81: an ollama request stalled indefinitely on chunk 87 - ordinary prose, 3,537
+            # chars, no tables - and the SAME chunk completed by hand in 7.5 s immediately after
+            # (SYM-034, cause unproven). The first draft let that abort the run, so one transient
+            # stall cost eight chunks across three arms. A measurement tool records the hole and
+            # keeps measuring; it must never quietly average over it, so the record carries None
+            # everywhere and the arm reports its stall count.
+            print(f"  chunk {i:>4}  STALLED - no response in {REQUEST_TIMEOUT_S}s (SYM-034). "
+                  f"Recorded as a hole, not a zero; continuing.", flush=True)
+            arm.append({"chunk": i, "in_chars": len(chunk), "out_chars": 0, "stop": "STALL",
+                        "fence": False, "wall_s": round(time.perf_counter() - t0, 2),
+                        "stalled": True, "prefill_tok": None, "prefill_s": None,
+                        "decode_tok": None, "decode_s": None, "cached_tok": None,
+                        "prefill_tps": None, "decode_tps": None, "clock_ok": True})
+            continue
+        wall = time.perf_counter() - t0
+        rec = {"chunk": i, "in_chars": len(chunk), "out_chars": len(text), "stop": stop,
+               "fence": analyst._tokens_of(text) == analyst._tokens_of(chunk),
+               "wall_s": round(wall, 2), **phases}
+        rec["prefill_tps"] = prefill_rate(rec)
+        # Ollama reports no cache field, so prefill_rate() is blind there. This is not: a rate far
+        # above the run's own cold-cache reference is not a fast prefill, it is an absent one.
+        # S81 printed 61,093 / 63,619 / 65,393 tok/s on a card that does ~4,000-6,000, because a
+        # previous run's engine was still resident with these very prompts cached.
+        if (rec["prefill_tps"] and warm_ref
+                and rec["prefill_tps"] > PREFILL_IMPLAUSIBLE_X * warm_ref):
+            print(f"  chunk {i:>4}  prefill {rec['prefill_tps']:,.0f} tok/s is > "
+                  f"{PREFILL_IMPLAUSIBLE_X:g}x the cold reference — cache-contaminated, withheld",
+                  flush=True)
+            rec["prefill_tps"] = None
+            rec["prefill_suspect"] = True
+        rec["decode_tps"] = rate(rec["decode_tok"], rec["decode_s"])
+        # The independent second clock (docs/34 §4). Server-reported phases share every
+        # assumption the server makes; wall time is measured here and includes transport, so it
+        # cannot be wrong in the same way. Server time must be LESS than wall time.
+        srv = sum(x for x in (rec["prefill_s"], rec["decode_s"]) if x is not None)
+        rec["clock_ok"] = srv <= rec["wall_s"] + 0.05
+        if not rec["clock_ok"]:
+            print(f"  !! chunk {i}: server phases {srv:.2f}s EXCEED wall {rec['wall_s']:.2f}s - "
+                  f"the unit mapping is wrong, not the model", flush=True)
+        arm.append(rec)
+        print(_row(rec), flush=True)
+    return arm
 
 
 def main() -> int:
     ap = argparse.ArgumentParser()
     ap.add_argument("--book", type=Path, default=DEFAULT_BOOK)
     ap.add_argument("-n", "--chunks", type=int, default=5)
+    ap.add_argument("--gate-only", action="store_true", help="skip warmups and the throughput table")
     ap.add_argument("--out", type=Path, default=Path(__file__).with_name("backend_parity.json"))
     args = ap.parse_args()
+    warm = not args.gate_only
 
+    # START FROM A PROVEN-COLD CARD. Two things go wrong otherwise, and S81 hit both in one run:
+    # the "baseline" gets measured with a model already resident (7,323 MiB), which makes the
+    # later unload check pass trivially; and Ollama's prompt cache still holds the previous run's
+    # chunks, so the first measured prefills came back at 61,000-65,000 tok/s on a card that does
+    # ~4,000-6,000. Ollama exposes NO cache field, so the contamination guard cannot see that -
+    # the only real defence is to make the cache empty by construction. Unloading drops it.
+    print("cold start: releasing any resident ollama model before the baseline...", flush=True)
+    try:
+        post(analyst.OLLAMA_URL, {"model": analyst.MODEL, "keep_alive": 0}, timeout=60)
+    except Exception:  # noqa: BLE001 - nothing loaded is a perfectly good outcome
+        pass
+    settle = vram_mib()
+    for _ in range(30):
+        time.sleep(2)
+        now = vram_mib()
+        if abs(now - settle) < 60:
+            break
+        settle = now
     base = vram_mib()
-    print(f"VRAM baseline: {base} MiB", flush=True)
+    ollama_ver = json.loads(subprocess.run(
+        ["curl", "-s", "http://localhost:11434/api/version"],
+        capture_output=True, timeout=30).stdout.decode("utf-8")).get("version", "?")
 
     fenced, embeds = analyst.fence(args.book.read_text(encoding="utf-8"))
     chunks = analyst._chunks(fenced)
     program = analyst.load_program(analyst.DEFAULT_PROGRAM)
-    print(f"book: {args.book.name}\n  {len(embeds)} embeds - {len(chunks)} chunks "
-          f"@ target {analyst.CHUNK_TARGET}", flush=True)
-
     step = max(1, len(chunks) // (args.chunks + 1))
     picked = [(i, chunks[i]) for i in range(step, len(chunks), step)][:args.chunks]
+    # A warmup chunk that is NOT in the measured set - see run_arm's docstring.
+    picked_ix = {i for i, _ in picked}
+    warm_chunk = next((c for j, c in enumerate(chunks) if j not in picked_ix), None) if warm else None
+
+    print(f"VRAM baseline {base} MiB - ollama {ollama_ver} - qwen3:8b - flash-attn on - "
+          f"-c {analyst.NUM_CTX} - concurrency 1")
+    print(f"book: {args.book.name}\n  {len(embeds)} embeds - {len(chunks)} chunks "
+          f"@ target {analyst.CHUNK_TARGET}")
     print("  sampled: " + ", ".join(str(i) for i, _ in picked)
           + f"\n  a sample never promotes a claim about all {len(chunks)} chunks\n", flush=True)
 
     results: dict[str, list[dict]] = {}
+    meta: dict[str, str] = {"ollama": ollama_ver}
 
-    print("=" * 78 + "\nARM - ollama /api/generate think:false (production today)\n" + "=" * 78,
-          flush=True)
-    arm = []
-    for i, chunk in picked:
-        t0 = time.perf_counter()
+    def ollama_send(chunk: str):
         r = post(analyst.OLLAMA_URL, {
             "model": analyst.MODEL, "stream": False, "keep_alive": analyst.KEEP_ALIVE_HOLD,
-            "prompt": program + chunk, "options": {"num_ctx": analyst.NUM_CTX}, "think": False,
-        })
+            "prompt": program + chunk, "options": {"num_ctx": analyst.NUM_CTX}, "think": False})
         if r.get("error"):
             raise RuntimeError(f"ollama: {r['error']}")
-        text = r["response"].strip()
-        rec = {"chunk": i, "in_chars": len(chunk), "prompt_tok": r.get("prompt_eval_count"),
-               "out_tok": r.get("eval_count"), "stop": r.get("done_reason"), "out_chars": len(text),
-               "fence": analyst._tokens_of(text) == analyst._tokens_of(chunk), "think_chars": 0,
-               "wall_s": round(time.perf_counter() - t0, 1)}
-        arm.append(rec)
-        print(_row(rec), flush=True)
-    results["ollama_think_false"] = arm
+        return r, r["response"].strip(), _phases_ollama(r), r.get("done_reason")
 
-    # SYM-022: the card carries one lab process. Prove the release, do not assume it.
+    results["ollama_think_false"] = run_arm(
+        "ollama /api/generate think:false (production today)", ollama_send, picked, warm_chunk)
+
+    # SYM-022: one lab process on the card, ever. Prove the release, do not assume it.
     print("\n  releasing ollama (keep_alive 0)...", flush=True)
     post(analyst.OLLAMA_URL, {"model": analyst.MODEL, "keep_alive": 0}, timeout=60)
     for _ in range(60):
@@ -157,32 +382,29 @@ def main() -> int:
                 time.sleep(0.5)
         if not ready:
             raise RuntimeError("llama-server alive but never answered /health (timeout, not crash)")
-        print(f"llama-server up in {time.perf_counter() - t0:.1f}s on :{PORT}\n", flush=True)
+        load_s = time.perf_counter() - t0
+        print(f"llama-server cold load {load_s:.1f}s on :{PORT}  "
+              f"(docs/34 cost 1 - reported, never folded into a warm rate)\n", flush=True)
+        meta["llamacpp_load_s"] = f"{load_s:.1f}"
+
+        def make_llama_send(extra: dict):
+            def send(chunk: str):
+                r = post(f"http://127.0.0.1:{PORT}/v1/chat/completions",
+                         {"model": "qwen3", "stream": False, "cache_prompt": False,
+                          "messages": [{"role": "user", "content": program + chunk}], **extra})
+                if "choices" not in r:
+                    raise RuntimeError(f"llama.cpp: {json.dumps(r)[:300]}")
+                meta.setdefault("llamacpp", r.get("system_fingerprint", "?"))
+                msg = r["choices"][0]["message"]
+                return (r, (msg.get("content") or "").strip(), _phases_llamacpp(r),
+                        r["choices"][0].get("finish_reason"))
+            return send
 
         for label, extra in (
             ("llamacpp_jinja_default", {}),
             ("llamacpp_jinja_nothink", {"chat_template_kwargs": {"enable_thinking": False}}),
         ):
-            print("=" * 78 + f"\nARM - {label}\n" + "=" * 78, flush=True)
-            arm = []
-            for i, chunk in picked:
-                body = {"model": "qwen3", "stream": False,
-                        "messages": [{"role": "user", "content": program + chunk}], **extra}
-                t1 = time.perf_counter()
-                r = post(f"http://127.0.0.1:{PORT}/v1/chat/completions", body)
-                if "choices" not in r:
-                    raise RuntimeError(f"llama.cpp: {json.dumps(r)[:300]}")
-                ch, usage = r["choices"][0], r.get("usage", {})
-                text = (ch["message"].get("content") or "").strip()
-                rec = {"chunk": i, "in_chars": len(chunk), "prompt_tok": usage.get("prompt_tokens"),
-                       "out_tok": usage.get("completion_tokens"), "stop": ch.get("finish_reason"),
-                       "out_chars": len(text), "think_chars": len(
-                           ch["message"].get("reasoning_content") or ""),
-                       "fence": analyst._tokens_of(text) == analyst._tokens_of(chunk),
-                       "wall_s": round(time.perf_counter() - t1, 1)}
-                arm.append(rec)
-                print(_row(rec), flush=True)
-            results[label] = arm
+            results[label] = run_arm(f"llama.cpp {label}", make_llama_send(extra), picked, warm_chunk)
     finally:
         try:
             proc.terminate()
@@ -191,22 +413,84 @@ def main() -> int:
             proc.kill()
         print("\nllama-server terminated.", flush=True)
 
-    print("\n" + "=" * 78 + "\nPARITY (gate = tokens + stop reason + fence, NOT speed)\n" + "=" * 78)
-    print(f"{'arm':<26}{'tokens':>9}{'max':>8}{'not-stop':>10}{'fence bad':>11}{'vs ollama':>11}")
-    ref = sum(r["out_tok"] for r in results["ollama_think_false"])
-    verdict_ok = []
+    # ── 1. THE TOKEN GATE ────────────────────────────────────────────────────────────────────
+    print("\n" + "=" * 96)
+    print("1. TOKEN GATE - does it write the same SIZE of thing, stop by itself, pass the fence?")
+    print("=" * 96)
+    print(f"{'arm':<26}{'decode tok':>11}{'max':>8}{'not-stop':>10}{'fence bad':>11}{'vs ollama':>12}")
+    incumbent = results["ollama_think_false"]
+    ref = sum(r["decode_tok"] or 0 for r in incumbent)
+    # THE INCUMBENT DEFINES THE BAR, it does not have to be perfect. The first draft required zero
+    # fence failures outright, so the moment ollama itself rejected a chunk - which it does; the
+    # analyst's own reject counter exists for that - the production backend FAILED its own gate.
+    # A candidate has to be no WORSE than what is already shipping, which is the actual question.
+    ref_fence = sum(1 for r in incumbent if not r["fence"])
+    ref_stop = sum(1 for r in incumbent if r["stop"] != "stop")
+    gate = {}
     for label, rows in results.items():
-        tot = sum(r["out_tok"] for r in rows)
+        tot = sum(r["decode_tok"] or 0 for r in rows)
         bad_stop = sum(1 for r in rows if r["stop"] != "stop")
         bad_fence = sum(1 for r in rows if not r["fence"])
-        print(f"{label:<26}{tot:>9}{max(r['out_tok'] for r in rows):>8}{bad_stop:>10}"
-              f"{bad_fence:>11}{100.0 * (tot - ref) / ref:>+10.1f}%")
-        verdict_ok.append((label, abs(tot - ref) / ref <= 0.10 and not bad_stop and not bad_fence))
-
-    print("\nPASSES THE GATE (within 10% of ollama, all stop, fence clean):")
-    for label, good in verdict_ok:
+        print(f"{label:<26}{tot:>11,}{max(r['decode_tok'] or 0 for r in rows):>8,}{bad_stop:>10}"
+              f"{bad_fence:>11}{100.0 * (tot - ref) / ref:>+11.1f}%")
+        gate[label] = (abs(tot - ref) / ref <= 0.10
+                       and bad_stop <= ref_stop and bad_fence <= ref_fence)
+    if ref_fence or ref_stop:
+        print(f"  (bar set by the incumbent: {ref_fence} fence failure(s), {ref_stop} non-stop - "
+              f"a candidate must be no worse, not perfect)")
+    for label, good in gate.items():
         print(f"  {'PASS' if good else 'FAIL'}  {label}")
-    args.out.write_text(json.dumps(results, indent=2), encoding="utf-8")
+
+    if args.gate_only:
+        args.out.write_text(json.dumps({"meta": meta, "arms": results}, indent=2), encoding="utf-8")
+        print(f"\nraw -> {args.out}")
+        return 0
+
+    # ── 2. THROUGHPUT ────────────────────────────────────────────────────────────────────────
+    print("\n" + "=" * 96)
+    print("2. THROUGHPUT - warm, concurrency 1. Prefill and decode NEVER blended (docs/34 §1).")
+    print("=" * 96)
+    print(f"  builds: ollama {meta.get('ollama')} - llama.cpp {meta.get('llamacpp', '?')}"
+          f" - llama.cpp cold load {meta.get('llamacpp_load_s', '?')}s (excluded below)")
+    def _cache_total(rows: list[dict]) -> str:
+        vals = [r.get("cached_tok") for r in rows]
+        return UNREAD if all(v is None for v in vals) else str(sum(v or 0 for v in vals))
+    cache = {lb: _cache_total(rows) for lb, rows in results.items()}
+    print(f"  cached prefill tokens: " + ", ".join(f"{lb.split('_')[0]}={v}"
+                                                   for lb, v in cache.items())
+          + "   (a cached prefill is not a measured prefill - docs/34 §4)\n")
+    for label, rows in results.items():
+        stalls = sum(1 for r in rows if r.get("stalled"))
+        print(f"  {label}" + (f"   [{stalls} STALLED - excluded, SYM-034]" if stalls else ""))
+        print(f"      prefill throughput  {summarise([r['prefill_tps'] for r in rows], 'tok/s')}")
+        print(f"      decode  throughput  {summarise([r['decode_tps'] for r in rows], 'tok/s')}")
+        print(f"      end-to-end latency  {summarise([r['wall_s'] for r in rows], 's')}")
+        bad_clock = sum(1 for r in rows if not r["clock_ok"])
+        if bad_clock:
+            print(f"      !! {bad_clock} request(s): server phases exceeded wall time")
+        print()
+
+    # ── 3. THE RATIO - both sides, always (docs/34 rule 4) ───────────────────────────────────
+    print("=" * 96)
+    print("3. SPEEDUP - only meaningful for an arm that PASSED the token gate")
+    print("=" * 96)
+    o = results["ollama_think_false"]
+    o_dec = statistics.fmean([r["decode_tps"] for r in o if r["decode_tps"] is not None])
+    for label, rows in results.items():
+        if label == "ollama_think_false":
+            continue
+        vals = [r["decode_tps"] for r in rows if r["decode_tps"] is not None]
+        if not vals:
+            print(f"  {label}: {UNREAD}")
+            continue
+        c_dec = statistics.fmean(vals)
+        verdict = "" if gate[label] else "   <- FAILED THE TOKEN GATE, speed is not admissible"
+        print(f"  {label}:  decode {c_dec:,.1f} tok/s  vs  ollama {o_dec:,.1f} tok/s  "
+              f"= {c_dec / o_dec:.2f}x{verdict}")
+    print("\n  A speedup prints both of its sides (docs/34 rule 4). n is small; raise -n before\n"
+          "  this is used to justify a migration. Sampling never promotes.")
+
+    args.out.write_text(json.dumps({"meta": meta, "arms": results}, indent=2), encoding="utf-8")
     print(f"\nraw -> {args.out}")
     return 0
 

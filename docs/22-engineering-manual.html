@@ -145,6 +145,7 @@
   <a href="#s15"><span class="n">15</span>Failure catalog</a>
   <a href="#s16"><span class="n">16</span>Operations runbook</a>
   <a href="#s17"><span class="n">17</span>Coverage &amp; provenance</a>
+  <a href="#s18"><span class="n">18</span>Measurement language</a>
 </nav>
 <main>
 
@@ -745,9 +746,217 @@ npm run build       # then hash the exe, print SHA-8
   re-verified claim-by-claim against the S69 tree (2026-08-10). When code moves, the code wins — per the
   project's own rule: <em>"when this doc and reality disagree, reality wins — measure, then update this
   doc."</em></p></div>
-  <div class="foot">FILE PORTAL ENGINEERING MANUAL · compiled by the S67 full-source read (ThinkPad) · stress-tested by the S69 source sweep (Desktop) ·
-  companion documents: docs/20 (user manual) · docs/21 (closeout contract) · SYMPTOM-INDEX.md (live failure index) · CLAUDE_README.md (session brain)</div>
+  
 </section>
+
+<!-- ============================================================ 18 -->
+<section id="s18">
+  <div class="ch"><span class="num">CH·18</span><h2>Measurement language — how a number may be stated</h2></div>
+  <p>Full text: <code>docs/34-measurement-language.md</code>. This chapter is the operator's copy.
+  It binds every measured number this project states — in a closeout, a ledger row, a commit
+  message, or a sentence to Rab. Nothing here is house vocabulary: every term is the term the
+  field already uses, so that one of our numbers and a stranger's benchmark mean the same thing.</p>
+
+  <div class="note"><p><b>Why it exists.</b> S79 measured llama.cpp and wrote
+  <em>"+27 % tok/s and 1.72× batching."</em> At S80's open those numbers could not be used — not
+  because they were wrong, but because the sentence never says <b>what was counted, over which
+  clock, under what conditions</b>. +27 % of which tokens? Input or output? Warm or cold? One
+  request or many? Against which build? A number stated that way is not a measurement; it is a
+  rumour with a decimal point. This is Rab's S79 law — <em>a name must carry a mechanism</em> —
+  applied to quantities.</p></div>
+
+  <h3>The five costs inside one request</h3>
+  <p>Almost every misleading benchmark quotes one of these and implies another.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Cost</th><th>What is happening</th><th>Paid when</th></tr></thead>
+    <tbody>
+      <tr><td><b>1 Load</b></td><td>weights read from disk into VRAM</td><td>cold start only</td></tr>
+      <tr><td><b>2 Prefill</b></td><td>input tokens processed, KV cache built</td><td>every request — scales with input length</td></tr>
+      <tr><td><b>3 Decode</b></td><td>output tokens produced, one at a time</td><td>every request — scales with output length</td></tr>
+      <tr><td><b>4 Transport</b></td><td>HTTP, JSON, process hop</td><td>every request</td></tr>
+      <tr><td><b>5 Queue</b></td><td>waiting behind other requests</td><td>under concurrency only</td></tr>
+    </tbody>
+  </table></div>
+  <p><b>Prefill and decode have different physics.</b> Prefill is compute-bound and parallel — the
+  whole prompt at once. Decode is memory-bandwidth-bound and sequential — each token waits for the
+  one before it. Prefill routinely runs 3–10× the tokens per second decode does, on the same card
+  and model. A single blended "tok/s" therefore says almost nothing: change the ratio of input
+  length to output length and the blended figure moves while nothing about the machine has.</p>
+  <p><span class="tag obs">Observed</span> S81, this card, qwen3:8b, 15-token prompt: prefill
+  <b>339.6 tok/s</b>, decode <b>56.1 tok/s</b> — a 6.1× difference <em>inside one request</em>.</p>
+
+  <h3>The vocabulary</h3>
+  <div class="tw"><table>
+    <thead><tr><th>Term</th><th>Definition</th><th>Also called</th><th>Unit</th></tr></thead>
+    <tbody>
+      <tr><td><b>prefill</b></td><td>processing input tokens before the first output token</td><td>prompt processing, <code>pp</code></td><td>tokens; ms</td></tr>
+      <tr><td><b>decode</b></td><td>producing output tokens, sequentially</td><td>generation, <code>tg</code>, eval</td><td>tokens; ms</td></tr>
+      <tr><td><b>prefill throughput</b></td><td>prefill tokens ÷ prefill duration</td><td>prompt tok/s</td><td>tokens/s</td></tr>
+      <tr><td><b>decode throughput</b></td><td>decode tokens ÷ decode duration</td><td>generation tok/s</td><td>tokens/s</td></tr>
+      <tr><td><b>TTFT</b></td><td>request sent → first output token</td><td>time to first token</td><td>ms</td></tr>
+      <tr><td><b>TPOT</b></td><td>mean gap between output tokens</td><td>inter-token latency, ITL</td><td>ms/token</td></tr>
+      <tr><td><b>end-to-end latency</b></td><td>request sent → last byte, transport included</td><td>e2e, wall time</td><td>s</td></tr>
+      <tr><td><b>load time</b></td><td>weights disk → VRAM until healthy</td><td>cold start</td><td>s</td></tr>
+      <tr><td><b>concurrency</b></td><td>requests in flight at once <em>(client)</em></td><td>—</td><td>count</td></tr>
+      <tr><td><b>batch size</b></td><td>requests the <em>server</em> fuses into one pass</td><td>—</td><td>count</td></tr>
+      <tr><td><b>goodput</b></td><td>throughput counting only output that <em>passed acceptance</em></td><td>—</td><td>tokens/s</td></tr>
+    </tbody>
+  </table></div>
+  <p><b><code>throughput</code> is never used bare</b> — it is always <em>prefill throughput</em> or
+  <em>decode throughput</em>. An unqualified "tok/s" is not admissible here. <b>Concurrency is not
+  batch size</b>: concurrency is what the client does, batch size is what the server does about it
+  (S79's "1.72× batching" names neither, which is part of why it cannot be banked).
+  <b>Goodput is the figure that pays the bills</b> on this line: the analyst's output is worth
+  nothing unless it passes the image fence, and a truncated rewrite drops trailing
+  <code>⟦IMG-n⟧</code> so the un-analyzed original ships. Tokens produced and then rejected are
+  waste, not throughput.</p>
+
+  <h3>The seven rules</h3>
+  <ol>
+    <li><b>Name the numerator and the denominator.</b> "Decode throughput 56.1 tok/s" — output tokens over decode-phase seconds. Not "56 tok/s".</li>
+    <li><b>Never mix cold and warm.</b> Load is reported separately or excluded explicitly. A cold first request can be 10× the wall time of the warm ones after it; averaging them describes no real request.</li>
+    <li><b>State <code>n</code> and a spread.</b> A bare mean hides its own dispersion. Give p50 and min–max (or p95 once n ≥ 20). One measurement is n=1 and must say so.</li>
+    <li><b>A ratio prints both of its sides.</b> Not "1.72× faster" but "1.72× (A 96 tok/s vs B 56 tok/s, both warm decode)".</li>
+    <li><b>A percentage prints its base.</b> "+27 %" is meaningless without "of what, measured how".</li>
+    <li><b>A rate needs a duration the backend actually reported.</b> Missing field ⇒ <code>UNREAD</code>, never <code>0.0 tok/s</code>, never a silent fallback to wall time dressed as the model's own clock (SYM-031).</li>
+    <li><b>Sampling never promotes.</b> N chunks measured is <span class="tag hist">Inferred</span> about the corpus, never <span class="tag obs">Observed</span> about all of it. Say which, and give N.</li>
+  </ol>
+  <p><b>Corollary — state the build.</b> A rate belongs to one engine build, model file and card.
+  llama.cpp reports <code>system_fingerprint</code> (e.g. <code>b10448-ad1de39e0</code>); Ollama
+  reports its version. Record it beside the number, or next month's comparison is against an
+  unknown.</p>
+
+  <h3>Where the numbers come from</h3>
+  <p><span class="tag obs">Observed 2026-08-15</span> by direct probe of both backends. Do not
+  quote a field that is not in these tables without probing for it first.</p>
+  <div class="tw"><table>
+    <thead><tr><th>Ollama <code>POST /api/generate</code></th><th>Meaning</th><th>Unit</th></tr></thead>
+    <tbody>
+      <tr><td><code>load_duration</code></td><td>cost 1, model load</td><td><b>nanoseconds</b></td></tr>
+      <tr><td><code>prompt_eval_count</code> / <code>prompt_eval_duration</code></td><td>prefill tokens / duration</td><td>tokens; <b>ns</b></td></tr>
+      <tr><td><code>eval_count</code> / <code>eval_duration</code></td><td>decode tokens / duration</td><td>tokens; <b>ns</b></td></tr>
+      <tr><td><code>total_duration</code></td><td>server-side end-to-end</td><td><b>ns</b></td></tr>
+      <tr><td><code>done_reason</code></td><td>why it stopped (<code>stop</code>/<code>length</code>)</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+  <div class="tw"><table>
+    <thead><tr><th>llama-server <code>POST /v1/chat/completions</code></th><th>Meaning</th><th>Unit</th></tr></thead>
+    <tbody>
+      <tr><td><code>usage.prompt_tokens</code> / <code>usage.completion_tokens</code></td><td>prefill / decode tokens</td><td>tokens</td></tr>
+      <tr><td><code>timings.prompt_n</code> / <code>timings.prompt_ms</code></td><td>prefill tokens / duration</td><td>tokens; <b>milliseconds</b></td></tr>
+      <tr><td><code>timings.predicted_n</code> / <code>timings.predicted_ms</code></td><td>decode tokens / duration</td><td>tokens; <b>ms</b></td></tr>
+      <tr><td><code>timings.prompt_per_second</code> / <code>predicted_per_second</code></td><td>throughput, server-computed</td><td>tokens/s</td></tr>
+      <tr><td><code>timings.cache_n</code>, <code>usage.prompt_tokens_details.cached_tokens</code></td><td>prefill served from cache</td><td>tokens</td></tr>
+      <tr><td><code>system_fingerprint</code></td><td>engine build</td><td>—</td></tr>
+      <tr><td><code>choices[0].finish_reason</code></td><td>why it stopped</td><td>—</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><p><b>⚠ The unit trap.</b> <b>Ollama reports nanoseconds. llama.cpp reports
+  milliseconds.</b> Same shape of number, same position, same kind of response — differing by
+  <b>10⁶</b>. A rate computed with the wrong divisor is not obviously wrong; it is off by a factor
+  of a million, which reads as either absurd or, after a second mistake, plausible. Convert both to
+  <b>seconds</b> at the boundary, once, and never carry a raw duration further.</p>
+  <p><b>⚠ Cached prefill is not measured prefill.</b> Both backends reuse the KV cache across
+  requests sharing a prefix. When <code>cached_tokens</code>/<code>cache_n</code> is non-zero, part
+  of the prefill did not happen and a prefill rate computed over the full prompt is inflated —
+  sometimes enormously. <span class="tag obs">Observed S81</span>: the harness written to obey this
+  document warmed up on a chunk it then measured, and reported <b>37,729 tok/s</b> prefill against
+  <b>4,801</b> for the next chunk — an eightfold "speedup" that was the instrument measuring its
+  own warmup; on the next run its second llama.cpp arm re-sent the first arm's exact prompts and was
+  handed 524 and 1,166 tokens free, reporting <code>prompt_n = 1</code>. Note that
+  <code>timings.prompt_n</code> counts tokens actually <em>processed</em>, not the prompt's length, so a
+  cached prompt yields a rate that is arithmetically correct and describes a one-token prefill.</p>
+  <p><b>The rule: a prefill rate is WITHHELD</b> — <code>UNREAD</code> — <b>when more than 20 % of its
+  prompt arrived from cache.</b> Not footnoted, withheld: a number that is correct and materially
+  meaningless is still a lie told to whoever reads it next. Measure so it does not arise — warm on a
+  chunk you will not time, send distinct prompts, and set <code>"cache_prompt": false</code> where the
+  engine allows it — and <b>start from a proven-cold card</b>, unloading the model before the baseline so
+  the cache is empty by construction rather than by hope.</p>
+  <p><b>When the cache is invisible.</b> Ollama exposes <b>no</b> cache field at all, so the 20 % rule
+  cannot even be evaluated for it — the guard is blind exactly where the danger is unseeable. Two
+  defences, both needed: unload first (structural), and treat the warmup — which follows a proven-cold
+  card, so its prefill is real — as the run's <b>measured reference for this hardware</b>, withholding any
+  later rate more than <b>3×</b> it. A measured reference beats a hardcoded ceiling, which would rot the
+  first time the card changes. <span class="tag obs">Observed S81</span>, the third instance in one
+  session: with a previous run's engine still resident, Ollama reported prefill at <b>61,093 / 63,619 /
+  65,393 tok/s</b> on a card whose honest figure is ~4,000–6,000, and the same run printed a VRAM
+  “baseline” of <b>7,323 MiB</b> taken while a model was loaded — which would have made its own unload
+  check pass trivially. Neither raised an error. These paragraphs exist because writing the warning down
+  was not sufficient to avoid the thing warned about.</p></div>
+  <p><b>The independent second clock.</b> Both tables are the <em>server's own</em> account of
+  itself, so two rates drawn from them are one check (SYM-001). The harness also records
+  client-side wall time — a differently-shaped measurement including transport, which cannot be
+  wrong the same way. Server phases must total <em>less</em> than wall time; if they ever exceed
+  it, the unit mapping is wrong, and that discrepancy is the alarm.</p>
+
+  <h3>House words → standard words</h3>
+  <div class="tw"><table>
+    <thead><tr><th>House word</th><th>In standard terms</th></tr></thead>
+    <tbody>
+      <tr><td><b>the card</b></td><td>the GPU (one RTX 3080, 10 GiB)</td></tr>
+      <tr><td><b>chunk</b></td><td>one request's input unit — ~4,000 characters of book markdown</td></tr>
+      <tr><td><b>arm</b></td><td>an experimental condition; one configuration under test</td></tr>
+      <tr><td><b>the gate</b></td><td>the acceptance criterion a candidate must pass to be adopted</td></tr>
+      <tr><td><b>the fence</b></td><td>the output-validity check — image-placeholder multiset equality</td></tr>
+      <tr><td><b>residency</b></td><td>keeping weights loaded between requests (<code>keep_alive</code>)</td></tr>
+      <tr><td><b>wall clock</b></td><td>end-to-end latency, client-side</td></tr>
+      <tr><td><b>the analyst</b></td><td>the LLM rewrite pass over converted markdown</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>Name the invocation, not just the product</h3>
+  <p><span class="tag obs">Observed S81</span> <b>Ollama 0.32.13 runs <code>llama-server</code> as its own
+  inference engine</b> (<code>AppData\Local\Programs\Ollama\lib\ollama\llama-server.exe</code>, spawned by
+  <code>ollama serve</code>). So a measurement labelled &ldquo;Ollama vs llama.cpp&rdquo; is <b>not engine
+  versus engine</b> &mdash; it is one engine under two sets of flags:</p>
+  <div class="tw"><table>
+    <thead><tr><th></th><th>Ollama's own invocation</th><th>ours</th></tr></thead>
+    <tbody>
+      <tr><td>batch / ubatch</td><td><code>-b 1024 -ub 1024</code></td><td>defaults (<code>-b 2048 -ub 512</code>)</td></tr>
+      <tr><td>template</td><td><code>--no-jinja --chat-template chatml</code></td><td><code>--jinja</code></td></tr>
+      <tr><td>flash attention</td><td><code>auto</code></td><td><code>on</code></td></tr>
+      <tr><td>context</td><td><code>-c 8192 --context-shift --keep 4</code></td><td><code>-c 8192</code></td></tr>
+    </tbody>
+  </table></div>
+  <p>A smaller micro-batch processes the prompt in more passes, which is the leading candidate for the
+  <b>0.81&times;</b> prefill gap measured in S81 &mdash; a hypothesis with an experiment attached, not a
+  conclusion. <b>State the flags whenever the engines are named</b>, or a configuration difference gets
+  reported as an engine difference.</p>
+
+  <h3>A worked example</h3>
+  <p><b>Not admissible:</b></p>
+  <pre><code>llama.cpp is 27% faster.</code></pre>
+  <p>Which tokens? Which phase? Warm? How many requests? Which build? Nothing can be checked, and
+  nothing can be re-derived once anything changes.</p>
+  <p><b>Admissible:</b></p>
+  <pre><code>Decode throughput, warm, concurrency 1, n=8, cold-started card:
+  llama.cpp b10448-ad1de39e0 +no-think    97.7 tok/s  (p50  98.9, min  92.2, max 100.3)
+  ollama    0.32.13                      102.6 tok/s  (p50 102.3, min 101.0, max 104.9)  = 0.95x
+Prefill throughput, same conditions:
+  llama.cpp                             3,766.3 tok/s (p50 3,843.6)
+  ollama                                4,650.7 tok/s (p50 4,580.1)                      = 0.81x
+qwen3:8b, RTX 3080, -c 8192, flash-attn on. llama.cpp cache hits 0; ollama cache state UNREAD.
+llama.cpp cold load 16.3 s, excluded. 8 of 266 chunks - Inferred about the book.
+Reproduce: python windows-converter/backend_parity.py -n 8</code></pre>
+  <p><b>Note what it says.</b> S79 recorded <code>+27 %</code> in llama.cpp's favour. Measured this
+  way llama.cpp is <b>slower on both phases</b>. The grammar did not produce that result &mdash; it
+  made it visible, which is the whole reason the rules exist.</p>
+  <p>The second is longer. It is also the only one worth writing down, because it is the only one
+  still checkable in six months by someone who was not there.</p>
+
+  <div class="note"><p><b>Where this is enforced.</b> <code>windows-converter/backend_parity.py</code>
+  prints in this vocabulary and refuses to print a rate whose duration it did not observe. If the
+  harness and <code>docs/34</code> ever disagree, <b>the harness is wrong</b> — a document may
+  describe an instrument, but an instrument may not invent a word the document does not define.
+  <code>docs/21</code> supplies the epistemic tag; this chapter supplies the units. A number needs
+  both: what kind of claim it is, and what it counts.</p>
+  <p><b>What this cannot do:</b> it cannot make a measurement correct — only legible and checkable.
+  A number can satisfy every rule here and still be measured on the wrong workload, which is the
+  mistake this project has made most often. Legibility is the floor, not the proof.</p></div>
+</section>
+
+<div class="foot">FILE PORTAL ENGINEERING MANUAL · compiled by the S67 full-source read (ThinkPad) · stress-tested by the S69 source sweep (Desktop) ·
+  companion documents: docs/20 (user manual) · docs/21 (closeout contract) · SYMPTOM-INDEX.md (live failure index) · CLAUDE_README.md (session brain) · docs/34 (measurement language)</div>
 
 </main>
 </div>
