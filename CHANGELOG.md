@@ -8,6 +8,44 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S80 — `--jinja` IS NECESSARY AND NOT SUFFICIENT (2026-08-15, Desktop lane).** S79 left the
+  llama.cpp migration mid-flight with a gate stated in tokens, not speed: Ollama ~814/chunk,
+  llama.cpp 1,380–2,048 and twice at the cap. Re-measured on the held Valentine, qwen3:8b on both
+  sides (the Ollama blob **is** the gguf, so the comparison cannot drift on weights), 5 chunks
+  through the analyst's own `fence()` and `_chunks()`:
+
+  | arm | tokens | max | stop | fence |
+  |---|---|---|---|---|
+  | ollama `think:false` (production) | 2,307 | 633 | 5/5 | 5/5 |
+  | llama.cpp `--jinja` | 14,893 | 4,526 | 5/5 | 5/5 |
+  | llama.cpp `--jinja` + `enable_thinking:false` | 2,300 | 633 | 5/5 | 5/5 |
+
+  **`--jinja` alone fails the gate, and fails it upward — 6.46× the tokens**, 3,311–21,380 chars
+  of reasoning per chunk. **Replicated end-to-end by the committed harness** — 2,298 / 14,948 /
+  2,291, the −0.3 % landing twice. `--jinja` makes llama.cpp apply qwen3's *embedded* template, whose
+  default is thinking **ON**; `analyst.py:158` has always sent Ollama `"think": False`. With the
+  llama.cpp counterpart (`chat_template_kwargs.enable_thinking=false`) the backends land **−0.3%**
+  overall and within ±2.1% per chunk. S79 §18's instruction — restart with `--jinja` and
+  re-measure — would have failed on its own terms.
+- **`windows-converter/backend_parity.py`** — the harness S79 did not keep. Its absence is why the
+  814 / 1,380–2,048 figures could not be re-derived at S80's open, only quoted, which is what made
+  a finished investigation unbankable (docs/21 rule 3). Unloads Ollama and proves VRAM back to
+  baseline before starting llama-server (SYM-022); gates on tokens + stop reason + the image
+  fence, never speed; prints the sampling caveat with the verdict.
+
+### Fixed
+
+- **The MUSTER card reported the first widget, not every widget.** `open.sh` used
+  `awk '{print $2; exit}'`, so S80's own open printed `widget 18856` while 18856 **and** 19536
+  were alive, each having spawned its own watcher chain onto the same drop folder. The mirror of
+  the rule S79 wrote at that very line: case 7 guards a probe that FAILED being rendered as
+  absence; nothing guarded a probe that SUCCEEDED being rendered as the whole truth after reading
+  one row. Tripwires 13–15 added (two widgets report as two and name both; one widget still
+  renders as a bare pid, so the new row cannot pass by always shouting). **SYM-033** filed: the
+  Tauri app has no single-instance guard and `.gpu-lock` arbitrates nothing (SYM-032), so
+  SYM-022's precondition is reachable by a double-click. The card now SHOWS it; nothing yet
+  PREVENTS it.
+
 - **S79 — THE SESSION LEARNED TO OPEN ITSELF (2026-08-15, Desktop lane).** Rab's commission: *"a
   command skill, akin to that of circle, for each session, so it starts honestly, exactly, without
   deviation"*, built on the chain he named — Observed / Verified / Inferred / Intended / Unknown /
