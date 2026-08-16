@@ -29,7 +29,7 @@ from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from converter import bundle, degeneration, engines, exporter
+from converter import bundle, degeneration, engines, exporter, sdnotify
 from converter.config import DEFAULT_ROOT, Paths, Settings
 from converter.status import StatusWriter
 
@@ -310,9 +310,22 @@ def run(root: Path, settings_path: Path):
     # idempotent and lock-serialized, so a bundle caught by both is a harmless no-op.
     vault_exporter.sweep()
 
+    # READY after the watches are armed and the sweep ran -- under Type=notify this line IS
+    # the startup contract, so it must mean "actually serving", not "process exists".
+    sdnotify.sd_notify("READY=1")
+    heartbeat = sdnotify.watchdog_armed()
     try:
         while True:
             time.sleep(1)
+            # Heartbeat only while the observer thread is alive: a dead watcher inside a
+            # living process is SYM-023's failure shape, and the watchdog turns that silent
+            # wedge into a restart. Deliberately NOT tied to event dispatch -- a legitimate
+            # multi-minute conversion holds the single dispatch thread and must not read as
+            # a hang (so a hung conversion subprocess is NOT covered here; that would need a
+            # per-conversion deadline, a different tool). One datagram per second is noise
+            # systemd is built to absorb.
+            if heartbeat and observer.is_alive():
+                sdnotify.sd_notify("WATCHDOG=1")
     except KeyboardInterrupt:
         observer.stop()
     observer.join()

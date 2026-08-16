@@ -3,7 +3,14 @@ Description=File Portal converter (converts documents dropped into pipeline/conv
 After=network-online.target
 
 [Service]
-Type=simple
+# Type=notify + WatchdogSec (2026-08-16): the service proves liveness instead of merely
+# existing. READY=1 fires after the watches are armed and the startup sweep ran; the main
+# loop then heartbeats WATCHDOG=1 only while the observer thread is alive, so a dead
+# watcher inside a living process (SYM-023's class) becomes a restart, not a silent wedge.
+# 90s is deliberately generous (restart-storm avoidance; tighten only after measuring).
+# Restart=on-failure already covers watchdog kills.
+Type=notify
+WatchdogSec=90
 # __WORKDIR__ and __EXEC_PATH__ are substituted with the real clone path by scripts/install.sh
 # (same templating as linux-dashboard) -- a hardcoded path breaks any clone not at
 # ~/file-portal-src.

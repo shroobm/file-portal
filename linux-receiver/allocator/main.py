@@ -13,6 +13,7 @@ from watchdog.observers import Observer
 
 from allocator.config import DEFAULT_ROOT, Paths
 from allocator.rules import RuleSet
+from allocator.sdnotify import sd_notify, watchdog_armed
 from allocator.status import StatusWriter
 
 logger = logging.getLogger("file-portal-allocator")
@@ -194,9 +195,17 @@ def run(root: Path, rules_path: Path):
     observer.start()
     logger.info("watching %s", paths.inbox)
 
+    # READY after the watch is armed -- under Type=notify this line IS the startup contract.
+    sd_notify("READY=1")
+    heartbeat = watchdog_armed()
     try:
         while True:
             time.sleep(1)
+            # Heartbeat only while the observer thread is alive: a dead watcher inside a
+            # living process (SYM-023's failure shape) becomes a watchdog restart instead of
+            # a silent wedge. See linux-converter/converter/main.py for the full rationale.
+            if heartbeat and observer.is_alive():
+                sd_notify("WATCHDOG=1")
     except KeyboardInterrupt:
         observer.stop()
     observer.join()
