@@ -84,6 +84,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import statistics
 import subprocess
 import sys
@@ -157,7 +158,8 @@ def rate(tokens: int | None, seconds: float | None) -> float | None:
 # prefill. The shared part of every request here is the ~90-token readability program, so a few
 # percent is structural and harmless; a fifth is not.
 CACHE_CONTAMINATION = 0.20
-# A prefill rate this far above the run's own cold-cache reference is not a measurement.
+# A prefill rate this far above ITS OWN ARM'S MEDIAN is not a measurement. (S83: the S82
+# draft judged against the single warmup, and the warmup was once the anomaly - S82 10.4.)
 PREFILL_IMPLAUSIBLE_X = 3.0
 # How far the incumbent may move between its first and last measurement before every cross-arm
 # ratio in the run is suspect. S82 measured -20.5 % across a 25-minute run, so this is not a
@@ -184,6 +186,43 @@ def prefill_rate(rec: dict) -> float | None:
         if total and cached / total > CACHE_CONTAMINATION:
             return None
     return rate(processed, rec.get("prefill_s"))
+
+
+def censor_prefill_outliers(rows: list[dict]) -> list[dict]:
+    """Withhold prefill rates far above the arm's own MEDIAN. Returns the withheld records.
+
+    The median because the S82 draft judged against the warmup - one measurement, which is
+    exactly what docs/21 rule 3 forbids trusting - and on one run the warmup was itself the
+    anomaly (823 tok/s, hot card), so two legitimate prefills were withheld (S82 10.4). A
+    median is robust to one bad point. Wholesale contamination is prevented STRUCTURALLY by
+    the cold start; this does not try to catch it and cannot.
+    """
+    vals = sorted(r["prefill_tps"] for r in rows if r.get("prefill_tps"))
+    if len(vals) < 3:
+        return []      # a median of one or two points is not a reference either
+    med = statistics.median(vals)
+    out = []
+    for r in rows:
+        tps = r.get("prefill_tps")
+        if tps and tps > PREFILL_IMPLAUSIBLE_X * med:
+            r["prefill_tps"] = None
+            r["prefill_suspect"] = True
+            out.append(r)
+    return out
+
+
+def gate_verdict(tot: int, ref: int, bad_stop: int, ref_stop: int,
+                 bad_fence: int, ref_fence: int) -> bool:
+    """The token gate. The incumbent sets the bar - a candidate must be no WORSE, not perfect
+    (S81 10.5: the first draft demanded zero fence failures and thereby failed the production
+    backend against its own numbers)."""
+    return abs(tot - ref) / ref <= 0.10 and bad_stop <= ref_stop and bad_fence <= ref_fence
+
+
+def order_drift_verdict(first_mean: float, last_mean: float) -> tuple[float, bool]:
+    """A-B-A (SYM-035): (drift fraction, cross-arm ratios admissible)."""
+    drift = (last_mean - first_mean) / first_mean
+    return drift, abs(drift) <= ORDER_DRIFT_LIMIT
 
 
 def fmt_rate(v: float | None) -> str:
@@ -217,6 +256,65 @@ def vram_mib() -> int:
     if out.returncode != 0:
         raise RuntimeError(f"nvidia-smi exited {out.returncode}: {out.stderr.strip()}")
     return int(out.stdout.strip().splitlines()[0])
+
+
+PIPE_ROOT = Path(os.environ.get("FP_PIPELINE", r"C:\Users\Bndit\ml\library"))
+GPU_LOCK = PIPE_ROOT / ".gpu-lock"
+
+
+def convert_running() -> str | None:
+    """The converter's busy SIGNAL, read and never written. Returns the book, or None.
+
+    SYM-032 is precise: `.gpu-lock` is not a lock, because nothing gates on it. It is however a
+    truthful signal - watch_and_convert.py:77 writes it before a conversion and :86 deletes it
+    after - and reading it is exactly what room-chat does (chat.py, the same two-file contract).
+    A measurement that starts while Marker is on the card measures Marker, and two model
+    processes on one card is SYM-022's precondition, which cost a reboot in S71.
+    """
+    try:
+        return GPU_LOCK.read_text(encoding="utf-8").strip() or "a conversion"
+    except OSError:
+        return None
+
+
+def watcher_running() -> bool:
+    """Is an intake watcher alive? Not fatal - it converts only when something is dropped - but
+    the operator deserves to be told before a 30-minute measurement that a dropped PDF would
+    land a second model on the card partway through."""
+    try:
+        out = subprocess.run(["tasklist"], capture_output=True, text=True, timeout=30)
+        if out.returncode != 0:
+            return False          # a failed probe is not a claim that nothing is running;
+        return "python.exe" in out.stdout   # the caller prints UNREAD-shaped wording for that
+    except Exception:  # noqa: BLE001
+        return False
+
+
+def cool_to(target_c: int, ceiling_s: int = 900, label: str = "") -> int | None:
+    """Idle until the card is at or below target_c. Returns the temperature reached, or None.
+
+    S82's finding is that arm order determines the answer: whichever arm runs last is measured on
+    a hotter card than the one that ran first. A-B-A MEASURES that; this REMOVES it, by starting
+    every arm from the same thermal state instead of from whatever the previous arm left behind.
+    The two are complementary - the cool-down makes the comparison fair, the A-B-A proves it was.
+    """
+    t, _ = gpu_state()
+    if t is None:
+        print(f"  cool-down {label}: UNREAD - no temperature probe, proceeding uncooled",
+              flush=True)
+        return None
+    if t <= target_c:
+        print(f"  cool-down {label}: already {t}C (target {target_c}C)", flush=True)
+        return t
+    t0 = time.perf_counter()
+    print(f"  cool-down {label}: {t}C, waiting for {target_c}C...", flush=True)
+    while time.perf_counter() - t0 < ceiling_s:
+        time.sleep(10)
+        t, _ = gpu_state()
+        if t is None or t <= target_c:
+            break
+    print(f"  cool-down {label}: {t}C after {time.perf_counter() - t0:.0f}s", flush=True)
+    return t
 
 
 def gpu_state() -> tuple[int | None, int | None]:
@@ -272,18 +370,19 @@ def run_arm(label: str, send, picked: list[tuple[int, str]], warm_chunk: str | N
     instrument written to obey that document walked into it on its first run.
     """
     print("=" * 96 + f"\nARM - {label}\n" + "=" * 96, flush=True)
-    warm_ref = None
     if warm_chunk is not None:
         print("  warmup on an UNMEASURED chunk (discarded - docs/34 rule 2, and its prefill must "
               "not seed\n  the cache of a chunk we are about to time)...", flush=True)
         _raw, _text, wphases, _stop = send(warm_chunk)
-        # The warmup follows a proven-cold card, so ITS prefill is real. That makes it a MEASURED
-        # reference for what this hardware actually does - better than a hardcoded ceiling, which
-        # would rot the first time the card changes.
-        warm_ref = rate(wphases.get("prefill_tok"), wphases.get("prefill_s"))
-        if warm_ref:
-            print(f"  cold-cache reference: prefill {warm_ref:,.0f} tok/s  "
-                  f"(> {PREFILL_IMPLAUSIBLE_X:g}x this did not really prefill)", flush=True)
+        wtps = rate(wphases.get("prefill_tok"), wphases.get("prefill_s"))
+        if wtps:
+            # Informational ONLY. The S82 draft used this single point as the outlier REFERENCE,
+            # and on one validation run the warmup was itself the anomaly (823 tok/s on a hot
+            # card): two legitimate prefills were withheld against it (S82 §10.4). A single
+            # measurement is never a reference - docs/21 rule 3 applies to the instrument's own
+            # calibration too. The judge is the arm's MEDIAN, at reporting time.
+            print(f"  warmup prefill {wtps:,.0f} tok/s  (informational - the outlier judge is "
+                  f"the arm's own median)", flush=True)
     arm = []
     for i, chunk in picked:
         t0 = time.perf_counter()
@@ -310,17 +409,6 @@ def run_arm(label: str, send, picked: list[tuple[int, str]], warm_chunk: str | N
                "fence": analyst._tokens_of(text) == analyst._tokens_of(chunk),
                "wall_s": round(wall, 2), "gpu_c": gt, "gpu_mhz": gc, **phases}
         rec["prefill_tps"] = prefill_rate(rec)
-        # Ollama reports no cache field, so prefill_rate() is blind there. This is not: a rate far
-        # above the run's own cold-cache reference is not a fast prefill, it is an absent one.
-        # S81 printed 61,093 / 63,619 / 65,393 tok/s on a card that does ~4,000-6,000, because a
-        # previous run's engine was still resident with these very prompts cached.
-        if (rec["prefill_tps"] and warm_ref
-                and rec["prefill_tps"] > PREFILL_IMPLAUSIBLE_X * warm_ref):
-            print(f"  chunk {i:>4}  prefill {rec['prefill_tps']:,.0f} tok/s is > "
-                  f"{PREFILL_IMPLAUSIBLE_X:g}x the cold reference — cache-contaminated, withheld",
-                  flush=True)
-            rec["prefill_tps"] = None
-            rec["prefill_suspect"] = True
         rec["decode_tps"] = rate(rec["decode_tok"], rec["decode_s"])
         # The independent second clock (docs/34 §4). Server-reported phases share every
         # assumption the server makes; wall time is measured here and includes transport, so it
@@ -340,6 +428,9 @@ def main() -> int:
     ap.add_argument("--book", type=Path, default=DEFAULT_BOOK)
     ap.add_argument("-n", "--chunks", type=int, default=5)
     ap.add_argument("--gate-only", action="store_true", help="skip warmups and the throughput table")
+    ap.add_argument("--cool-to", type=int, default=None, metavar="C",
+                    help="idle until the GPU is at or below this temperature before EACH arm "
+                         "(S82: arm order otherwise determines the answer)")
     ap.add_argument("--out", type=Path, default=Path(__file__).with_name("backend_parity.json"))
     args = ap.parse_args()
     warm = not args.gate_only
@@ -362,6 +453,15 @@ def main() -> int:
         if abs(now - settle) < 60:
             break
         settle = now
+    busy = convert_running()
+    if busy:
+        print(f"REFUSING: a conversion is running ({busy}). Two model processes on one card is "
+              f"SYM-022,\n          which cost a reboot in S71. Wait for it to finish.")
+        return 1
+    if watcher_running():
+        print("NOTE: an intake watcher is alive. Nothing is queued, but a PDF dropped during this\n"
+              "      run would put Marker on the card beside the measurement. Do not drop while\n"
+              "      this is running.\n")
     base = vram_mib()
     ollama_ver = json.loads(subprocess.run(
         ["curl", "-s", "http://localhost:11434/api/version"],
@@ -394,6 +494,8 @@ def main() -> int:
             raise RuntimeError(f"ollama: {r['error']}")
         return r, r["response"].strip(), _phases_ollama(r), r.get("done_reason")
 
+    if args.cool_to:
+        cool_to(args.cool_to, label="before arm 1 (ollama)")
     results["ollama_think_false"] = run_arm(
         "ollama /api/generate think:false (production today)", ollama_send, picked, warm_chunk)
 
@@ -448,6 +550,8 @@ def main() -> int:
             ("llamacpp_jinja_default", {}),
             ("llamacpp_jinja_nothink", {"chat_template_kwargs": {"enable_thinking": False}}),
         ):
+            if args.cool_to:
+                cool_to(args.cool_to, label=f"before {label}")
             results[label] = run_arm(f"llama.cpp {label}", make_llama_send(extra), picked, warm_chunk)
     finally:
         try:
@@ -476,11 +580,19 @@ def main() -> int:
         print("A-B-A CONTROL - re-measuring the incumbent LAST, on the card as the candidates "
               "found it")
         print("=" * 96, flush=True)
+        if args.cool_to:
+            cool_to(args.cool_to, label="before the A-B-A recheck")
         results["ollama_recheck"] = run_arm(
             "ollama /api/generate think:false (RECHECK, end of run)", ollama_send, picked,
             warm_chunk)
 
     # ── 1. THE TOKEN GATE ────────────────────────────────────────────────────────────────────
+    # S83: judge prefill outliers against each arm's own median - see the function.
+    for label, rows in results.items():
+        for r in censor_prefill_outliers(rows):
+            print(f"  {label}  chunk {r['chunk']:>4}: prefill withheld - above "
+                  f"{PREFILL_IMPLAUSIBLE_X:g}x the arm median (cache or mismeasure)")
+
     print("\n" + "=" * 96)
     print("1. TOKEN GATE - does it write the same SIZE of thing, stop by itself, pass the fence?")
     print("=" * 96)
@@ -502,8 +614,7 @@ def main() -> int:
         bad_fence = sum(1 for r in rows if not r["fence"])
         print(f"{label:<26}{tot:>11,}{max(r['decode_tok'] or 0 for r in rows):>8,}{bad_stop:>10}"
               f"{bad_fence:>11}{100.0 * (tot - ref) / ref:>+11.1f}%")
-        gate[label] = (abs(tot - ref) / ref <= 0.10
-                       and bad_stop <= ref_stop and bad_fence <= ref_fence)
+        gate[label] = gate_verdict(tot, ref, bad_stop, ref_stop, bad_fence, ref_fence)
     if ref_fence or ref_stop:
         print(f"  (bar set by the incumbent: {ref_fence} fence failure(s), {ref_stop} non-stop - "
               f"a candidate must be no worse, not perfect)")
@@ -552,14 +663,14 @@ def main() -> int:
     recheck = results.get("ollama_recheck")
     if recheck:
         r_dec = statistics.fmean([r["decode_tps"] for r in recheck if r["decode_tps"] is not None])
-        drift = (r_dec - o_dec) / o_dec
+        drift, admissible = order_drift_verdict(o_dec, r_dec)
         c0 = [r["gpu_c"] for r in o if r.get("gpu_c")]
         c1 = [r["gpu_c"] for r in recheck if r.get("gpu_c")]
         temps = (f"  GPU {statistics.fmean(c0):.0f}C -> {statistics.fmean(c1):.0f}C"
                  if c0 and c1 else f"  GPU temp {UNREAD}")
         print(f"  ORDER DRIFT: incumbent decode {o_dec:,.1f} tok/s first, {r_dec:,.1f} last "
               f"= {drift:+.1%}{temps}")
-        if abs(drift) > ORDER_DRIFT_LIMIT:
+        if not admissible:
             print(f"\n  *** RATIOS WITHHELD. The incumbent moved {drift:+.1%} between its two "
                   f"measurements,\n      which is more than the {ORDER_DRIFT_LIMIT:.0%} limit. The "
                   f"card did not hold still, so a\n      cross-arm ratio would report the run's "
