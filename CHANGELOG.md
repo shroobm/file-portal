@@ -8,6 +8,40 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S82 — RAISING `n` DID NOT CONFIRM THE RESULT, IT EXPOSED THE METHOD (2026-08-16, Desktop
+  lane).** Rab: *"raise n to 30 and re-measure."* At n=30 the gap did not merely persist, it
+  **widened** — decode 0.77× (was 0.95× at n=8), prefill 0.62× (was 0.81×). A result that
+  strengthens with sample size reads as confirmation. It was **an artefact of arm order**.
+  The arms run in fixed sequence, so the incumbent is always measured on a cool idle card and the
+  candidates always after 20+ minutes of sustained load. Regressing decode rate on **position in
+  the run** versus **output length**: ollama (1st) −0.24 / −0.50, llama.cpp default (2nd)
+  **−0.78** / −0.33, nothink (3rd) **−0.36** / −0.15 — the candidates are dominated by position,
+  and the nothink arm's outputs are near-constant (mean 678 tokens) so length cannot explain it.
+  **Decisive: the same configuration on the same chunks measured 97.7 tok/s in a 7-minute run and
+  77.7 in a 25-minute one, −20.5 %.** Confirmed independently when a following short run measured
+  **Ollama itself** at 71–79 tok/s against its own 100–103 on a cool card. A longer run means more
+  drift, so the artefact scales with `n` exactly as a real effect would.
+  **Consequence: the 0.77× / 0.62× ratios are NOT admissible as engine comparisons — and neither
+  were S81's 0.95× / 0.81×**, which came from the same design and were merely less contaminated by
+  a shorter run. What survives is the **token gate**, which is a comparison of output *content*
+  and is order-independent: at n=30 `--jinja` alone **+342.9 %** (and it hit the cap once,
+  reproducing S79's "twice hit the cap"), `enable_thinking:false` **−0.1 %** with 0 non-stop.
+- **The A-B-A control** in `backend_parity.py` — the incumbent is now measured **first and last**,
+  the drift between its own two measurements is published, and **>5 % drift withholds every
+  cross-arm ratio** rather than footnoting it. GPU temperature and clock are sampled per request
+  so the mechanism is visible rather than inferred. Interleaving arms would be a stronger control
+  but needs both backends resident at once, which SYM-022 forbids; A-B-A is what the
+  one-process-on-the-card law leaves available. Rule written into `docs/34` §4 and manual ch.18.
+  **SYM-035** filed. **Watched firing** on a genuinely unstable validation run — `ORDER DRIFT:
+  incumbent decode 74.8 tok/s first, 88.3 last = +18.1% … RATIOS WITHHELD` — the property violated
+  and the alarm heard, not merely written.
+- **The mechanism was NOT what it was first called.** The drift was framed as thermal throttling;
+  the per-request temperature added to catch it then showed temperature **rising** 75→83 °C while
+  throughput also **rose** 74.8→88.3 tok/s — the wrong sign for throttling — with `HW Thermal
+  Slowdown` at 0 µs lifetime. **The confound is `Observed` and quantified; its mechanism is
+  `Unknown`.** Corrected in `docs/34`, manual ch.18 and SYM-035's root-cause column, which had all
+  three carried the thermal story. The finding rests on the measured drift, not on the story.
+
 - **S81 — THE MEASUREMENT LANGUAGE (2026-08-15, Desktop lane).** Rab's commission: *"a grammar and
   language that is legible … input that into the manual, and into a document accessed by the
   operator and you as well, so we can keep ourself accountable on the language, and make sure it

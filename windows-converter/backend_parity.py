@@ -50,8 +50,28 @@ engine vs engine - it is ONE ENGINE UNDER TWO SETS OF FLAGS. Ollama invokes it w
 prefill difference - a hypothesis with an experiment attached, not a conclusion. Whoever picks
 this up: vary the flags on one engine before concluding anything about two products.
 
+WHAT S82 FOUND WHEN n WAS RAISED TO 30 - AND WHY THE RATIOS ABOVE ARE NOT ADMISSIBLE.
+
+The gap did not merely persist at n=30, it WIDENED: decode 0.77x (was 0.95x), prefill 0.62x (was
+0.81x). A result that strengthens with sample size reads as confirmation. It was an artefact of
+ARM ORDER. The arms run in fixed sequence, so the incumbent is always measured on a cool idle
+card and the candidates always after 20+ minutes of sustained load. Decode rate regressed on
+POSITION vs on OUTPUT LENGTH: ollama (1st) -0.24 / -0.50; llama.cpp default (2nd) -0.78 / -0.33;
+nothink (3rd) -0.36 / -0.15. The candidates are dominated by position, and the nothink arm's
+outputs are near-constant (mean 678 tokens), so length cannot explain it. Decisive: the SAME
+config on the SAME chunks gave 97.7 tok/s in a 7-minute run and 77.7 in a 25-minute one, -20.5 %;
+and a short run immediately afterwards measured OLLAMA ITSELF at 71-79 tok/s against its own
+100-103 on a cool card. A longer run means more drift, so the artefact scales with n exactly as a
+real effect would (SYM-035).
+
+Hence the A-B-A control below: the incumbent is measured FIRST and LAST, the drift is published,
+and >5 % drift WITHHOLDS every cross-arm ratio. What survives all of this is the TOKEN GATE - a
+comparison of output CONTENT, which is order-independent.
+
 SAMPLING NEVER PROMOTES. N chunks measured is `Inferred` about the book, never `Observed` about
-all of it (docs/21 rule 2). Raise -n before trusting this with a migration.
+all of it (docs/21 rule 2). Raise -n before trusting this with a migration - but note that at
+n=30 raising it exposed the method rather than confirming the result, which is the better outcome
+and the reason to keep doing it.
 
 ONE LAB PROCESS ON THE CARD, EVER (SYM-022). Ollama is unloaded and VRAM proven back to baseline
 before llama-server starts. Never run this while a conversion is running.
@@ -139,6 +159,10 @@ def rate(tokens: int | None, seconds: float | None) -> float | None:
 CACHE_CONTAMINATION = 0.20
 # A prefill rate this far above the run's own cold-cache reference is not a measurement.
 PREFILL_IMPLAUSIBLE_X = 3.0
+# How far the incumbent may move between its first and last measurement before every cross-arm
+# ratio in the run is suspect. S82 measured -20.5 % across a 25-minute run, so this is not a
+# theoretical bound.
+ORDER_DRIFT_LIMIT = 0.05
 
 
 def prefill_rate(rec: dict) -> float | None:
@@ -193,6 +217,25 @@ def vram_mib() -> int:
     if out.returncode != 0:
         raise RuntimeError(f"nvidia-smi exited {out.returncode}: {out.stderr.strip()}")
     return int(out.stdout.strip().splitlines()[0])
+
+
+def gpu_state() -> tuple[int | None, int | None]:
+    """(temperature C, graphics clock MHz), or (None, None) if the probe failed.
+
+    S82: sustained load moves these, and the arms run in a fixed order, so without them a
+    position effect is indistinguishable from an engine difference. Never guess a value here -
+    a failed probe returns None and prints UNREAD.
+    """
+    try:
+        out = subprocess.run(
+            ["nvidia-smi", "--query-gpu=temperature.gpu,clocks.current.graphics",
+             "--format=csv,noheader,nounits"], capture_output=True, text=True, timeout=15)
+        if out.returncode != 0:
+            return None, None
+        t, c = out.stdout.strip().splitlines()[0].split(",")
+        return int(t), int(c)
+    except Exception:  # noqa: BLE001
+        return None, None
 
 
 def post(url: str, body: dict, timeout: int = REQUEST_TIMEOUT_S) -> dict:
@@ -262,9 +305,10 @@ def run_arm(label: str, send, picked: list[tuple[int, str]], warm_chunk: str | N
                         "prefill_tps": None, "decode_tps": None, "clock_ok": True})
             continue
         wall = time.perf_counter() - t0
+        gt, gc = gpu_state()
         rec = {"chunk": i, "in_chars": len(chunk), "out_chars": len(text), "stop": stop,
                "fence": analyst._tokens_of(text) == analyst._tokens_of(chunk),
-               "wall_s": round(wall, 2), **phases}
+               "wall_s": round(wall, 2), "gpu_c": gt, "gpu_mhz": gc, **phases}
         rec["prefill_tps"] = prefill_rate(rec)
         # Ollama reports no cache field, so prefill_rate() is blind there. This is not: a rate far
         # above the run's own cold-cache reference is not a fast prefill, it is an absent one.
@@ -413,6 +457,29 @@ def main() -> int:
             proc.kill()
         print("\nllama-server terminated.", flush=True)
 
+    # ── A-B-A: measure the incumbent AGAIN, last ────────────────────────────────────────────
+    #
+    # S82's finding, and the reason this exists. The arms run in a fixed order, so the incumbent
+    # was always measured first on a cool idle card and the candidates always after 20+ minutes
+    # of sustained load. Within-arm regression on the n=30 run: decode rate correlated with
+    # POSITION at r=-0.78 (llama default) and -0.36 (nothink) while correlating with output
+    # length at only -0.33 and -0.15 - and the nothink arm's outputs are near-constant, so length
+    # cannot explain it. The same config measured 97.7 tok/s in a 7-minute run and 77.7 in a
+    # 25-minute one: -20.5 %, from run duration alone.
+    #
+    # An A/B where A is always first is not an A/B. Re-running the incumbent LAST turns the
+    # confound into a measured quantity: whatever the card lost over the session shows up as
+    # drift, and if it is large the ratios are withheld rather than published with a caveat
+    # nobody will read.
+    if not args.gate_only:
+        print("\n" + "=" * 96)
+        print("A-B-A CONTROL - re-measuring the incumbent LAST, on the card as the candidates "
+              "found it")
+        print("=" * 96, flush=True)
+        results["ollama_recheck"] = run_arm(
+            "ollama /api/generate think:false (RECHECK, end of run)", ollama_send, picked,
+            warm_chunk)
+
     # ── 1. THE TOKEN GATE ────────────────────────────────────────────────────────────────────
     print("\n" + "=" * 96)
     print("1. TOKEN GATE - does it write the same SIZE of thing, stop by itself, pass the fence?")
@@ -428,6 +495,8 @@ def main() -> int:
     ref_stop = sum(1 for r in incumbent if r["stop"] != "stop")
     gate = {}
     for label, rows in results.items():
+        if label == "ollama_recheck":
+            continue
         tot = sum(r["decode_tok"] or 0 for r in rows)
         bad_stop = sum(1 for r in rows if r["stop"] != "stop")
         bad_fence = sum(1 for r in rows if not r["fence"])
@@ -476,8 +545,31 @@ def main() -> int:
     print("=" * 96)
     o = results["ollama_think_false"]
     o_dec = statistics.fmean([r["decode_tps"] for r in o if r["decode_tps"] is not None])
+
+    # The confound, measured. If the incumbent is materially slower the second time, the card
+    # changed underneath the experiment and every cross-arm ratio inherits that change.
+    drift = None
+    recheck = results.get("ollama_recheck")
+    if recheck:
+        r_dec = statistics.fmean([r["decode_tps"] for r in recheck if r["decode_tps"] is not None])
+        drift = (r_dec - o_dec) / o_dec
+        c0 = [r["gpu_c"] for r in o if r.get("gpu_c")]
+        c1 = [r["gpu_c"] for r in recheck if r.get("gpu_c")]
+        temps = (f"  GPU {statistics.fmean(c0):.0f}C -> {statistics.fmean(c1):.0f}C"
+                 if c0 and c1 else f"  GPU temp {UNREAD}")
+        print(f"  ORDER DRIFT: incumbent decode {o_dec:,.1f} tok/s first, {r_dec:,.1f} last "
+              f"= {drift:+.1%}{temps}")
+        if abs(drift) > ORDER_DRIFT_LIMIT:
+            print(f"\n  *** RATIOS WITHHELD. The incumbent moved {drift:+.1%} between its two "
+                  f"measurements,\n      which is more than the {ORDER_DRIFT_LIMIT:.0%} limit. The "
+                  f"card did not hold still, so a\n      cross-arm ratio would report the run's "
+                  f"own drift as an engine difference.\n      Re-measure with a cooled card, or "
+                  f"compare each arm against the incumbent\n      measurement nearest it in time.")
+            return 0
+        print(f"  (within the {ORDER_DRIFT_LIMIT:.0%} limit - ratios below are admissible)\n")
+
     for label, rows in results.items():
-        if label == "ollama_think_false":
+        if label in ("ollama_think_false", "ollama_recheck"):
             continue
         vals = [r["decode_tps"] for r in rows if r["decode_tps"] is not None]
         if not vals:

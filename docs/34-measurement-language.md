@@ -188,6 +188,44 @@ in this table without probing for it first.**
 > and neither raised an error. This paragraph exists because writing the warning down was not
 > sufficient to avoid the thing warned about.
 
+> ### ⚠ Measurement ORDER is a condition
+> An A/B in which A is always measured first and B always second is **not an A/B**. Hardware does
+> not hold still across a long run, and whichever arm runs last is measured on a different machine
+> — in effect — than the one that ran first.
+>
+> **Do not attach a mechanism you have not measured.** S82 first framed this as thermal
+> throttling; the per-request temperature added to catch it then showed temperature *rising*
+> 75 °C → 83 °C while throughput also *rose* 74.8 → 88.3 tok/s, which is the wrong sign for simple
+> throttling, and `HW Thermal Slowdown` reads 0 µs lifetime. **The confound is `Observed` and
+> quantified; its mechanism is `Unknown`.** That is enough — the finding rests on the measured
+> drift, not on the story, and every cross-arm ratio is confounded whether the cause is heat,
+> clock-boost states settling, power management, or something else entirely.
+>
+> `Observed, S82` — three arms, fixed order, n=30 over ~25 minutes. Regressing decode rate on
+> **position in the run** against decode rate on **output length**:
+>
+> | arm | r(length, rate) | r(**position**, rate) |
+> |---|---|---|
+> | ollama (1st) | −0.50 | −0.24 |
+> | llama.cpp default (2nd) | −0.33 | **−0.78** |
+> | llama.cpp nothink (3rd) | −0.15 | **−0.36** |
+>
+> The candidates are dominated by position, not by how much they wrote — and the nothink arm's
+> outputs are near-constant (mean 678 tokens), so length cannot explain its decline. The decisive
+> comparison: **the same configuration on the same chunks measured 97.7 tok/s in a 7-minute run
+> and 77.7 tok/s in a 25-minute one — −20.5 %, from run duration alone.** Every cross-arm ratio in
+> both runs inherits that drift.
+>
+> **The rule: measure the incumbent twice — first and last (A-B-A) — and publish the drift.** If
+> the incumbent moves more than **5 %** between its own two measurements, the card did not hold
+> still and **cross-arm ratios are withheld**, because they would report the run's drift as an
+> engine difference. Sample GPU temperature and clock per request so the mechanism is visible
+> rather than inferred.
+>
+> Interleaving arms request-by-request is the stronger control, but here it is unavailable: it
+> would require both backends resident simultaneously, which SYM-022 forbids. A-B-A is what the
+> one-process-on-the-card law leaves available.
+
 ### The independent second clock
 
 Both tables above are the **server's own** account of itself. A rate derived from them shares every
@@ -241,22 +279,34 @@ Our vocabulary is allowed, but it must be translatable on sight. This table is t
 Which tokens? Which phase? Warm? How many requests? Which build? Nothing here can be checked, and
 nothing can be re-derived once anything changes.
 
-**Admissible** — and this is the real S81 measurement, not an invented illustration:
+**Admissible** — a real measurement, stated so that it can be checked:
 
-> **Decode throughput, warm, concurrency 1, n=8, cold-started card:** llama.cpp
-> `b10448-ad1de39e0` + `enable_thinking:false` **97.7 tok/s** (p50 98.9, min 92.2, max 100.3) vs
-> Ollama 0.32.13 **102.6 tok/s** (p50 102.3, min 101.0, max 104.9) — **0.95×**.
-> **Prefill throughput**, same conditions: 3,766.3 tok/s (p50 3,843.6) vs 4,650.7 (p50 4,580.1) —
-> **0.81×**. qwen3:8b, RTX 3080, `-c 8192`, flash attention on, llama.cpp cache hits 0, Ollama
-> cache state `UNREAD`, llama.cpp cold load 16.3 s excluded. 8 of 266 chunks — `Inferred` about
-> the book. Reproduce: `python windows-converter/backend_parity.py -n 8`.
+> **Token gate, n=30, 30 of 266 chunks, qwen3:8b both sides:** `llama.cpp --jinja` produced
+> **+342.9 %** the decode tokens of the Ollama incumbent (90,180 vs 20,363) and hit the cap once;
+> with `chat_template_kwargs.enable_thinking=false`, **−0.1 %** (20,346), 0 non-stop, fence no
+> worse than the incumbent's. Ollama 0.32.13, llama.cpp `b10448-ad1de39e0`, RTX 3080, `-c 8192`,
+> flash attention on. 30 of 266 chunks — `Inferred` about the book. Reproduce:
+> `python windows-converter/backend_parity.py -n 30`.
 
 The second is longer. It is also the only one of the two worth writing down, because it is the
 only one still checkable in six months by someone who was not there.
 
-**And note what it says.** S79 recorded `+27 %` in llama.cpp's favour. Measured this way,
-llama.cpp is **slower on both phases** — 0.95× decode, 0.81× prefill. The grammar did not make
-that result; it made it *visible*, and it is the reason the rules exist.
+### 7.1 Why the throughput example was withdrawn
+
+This section previously carried a *throughput* example — "llama.cpp 0.95× decode, 0.81× prefill" —
+presented as the model of a well-stated number. **Both ratios have been withdrawn**, along with
+the n=30 figures that appeared to confirm them (0.77× and 0.62×). They were confounded by
+measurement order (§4), and raising `n` made the artefact *larger*, which looked like
+corroboration.
+
+That is left recorded rather than deleted, because it is the sharpest lesson in this document:
+**a number can satisfy every rule here — numerator, denominator, `n`, spread, build, conditions,
+a reproducing command — and still be wrong, because the conditions list was missing an entry
+nobody had thought of.** The rules make a number checkable. They do not make it true.
+
+The example above is a **token-gate** result rather than a throughput one on purpose: it compares
+output *content*, which is order-independent, so it survived the failure that destroyed the
+throughput figures.
 
 ### 7.1 A trap the vocabulary itself exposes
 
@@ -272,8 +322,10 @@ under two sets of flags**, and the differences are in the flags:
 | flash attention | `auto` | `on` |
 | context | `-c 8192 --context-shift --keep 4` | `-c 8192` |
 
-A smaller micro-batch processes the prompt in more passes, which is the leading candidate for the
-0.81× prefill gap — and it is a *hypothesis with an experiment attached*, not a conclusion. State
+A smaller micro-batch processes the prompt in more passes, which was the leading candidate for the
+prefill gap **back when a prefill gap was still a measured quantity** — §7.1 above withdrew it. The
+flags question survives the withdrawal and is now the *only* live question, because it is a
+question about one engine rather than a comparison between two runs. State
 the flags whenever the engines are named, or a configuration difference will be reported as an
 engine difference. Rule: **name the invocation, not just the product.**
 

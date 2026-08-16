@@ -889,6 +889,38 @@ npm run build       # then hash the exe, print SHA-8
   wrong the same way. Server phases must total <em>less</em> than wall time; if they ever exceed
   it, the unit mapping is wrong, and that discrepancy is the alarm.</p>
 
+  <h3>Measurement order is a condition</h3>
+  <p>An A/B in which A is always measured first and B always second <b>is not an A/B</b>. Hardware does
+  not hold still across a long run, and whichever arm runs last is measured &mdash; in effect &mdash; on a
+  different machine than the one that ran first.</p>
+  <p><b>Do not attach a mechanism you have not measured.</b> S82 first framed this as thermal throttling;
+  the per-request temperature added to catch it then showed temperature <em>rising</em> 75&nbsp;&deg;C &rarr;
+  83&nbsp;&deg;C while throughput also <em>rose</em> 74.8 &rarr; 88.3 tok/s &mdash; the wrong sign for simple
+  throttling &mdash; and <code>HW Thermal Slowdown</code> reads 0&nbsp;&micro;s lifetime. <b>The confound is
+  Observed and quantified; its mechanism is Unknown.</b> That is enough: the finding rests on the measured
+  drift, not on the story.</p>
+  <p><span class="tag obs">Observed S82</span> three arms, fixed order, n=30 over ~25 minutes. Decode
+  rate regressed on <b>position in the run</b> versus on <b>output length</b>:</p>
+  <div class="tw"><table>
+    <thead><tr><th>arm</th><th>r(length, rate)</th><th>r(position, rate)</th></tr></thead>
+    <tbody>
+      <tr><td>ollama (1st)</td><td>&minus;0.50</td><td>&minus;0.24</td></tr>
+      <tr><td>llama.cpp default (2nd)</td><td>&minus;0.33</td><td><b>&minus;0.78</b></td></tr>
+      <tr><td>llama.cpp nothink (3rd)</td><td>&minus;0.15</td><td><b>&minus;0.36</b></td></tr>
+    </tbody>
+  </table></div>
+  <p>The candidates are dominated by <b>position</b>, not by how much they wrote &mdash; and the nothink
+  arm's outputs are near-constant (mean 678 tokens), so length cannot explain its decline. The decisive
+  comparison: <b>the same configuration on the same chunks measured 97.7 tok/s in a 7-minute run and
+  77.7 tok/s in a 25-minute one &mdash; &minus;20.5 %, from run duration alone.</b></p>
+  <div class="note"><p><b>The rule: measure the incumbent twice &mdash; first and last (A-B-A) &mdash;
+  and publish the drift.</b> If the incumbent moves more than <b>5 %</b> between its own two
+  measurements, the card did not hold still and <b>cross-arm ratios are withheld</b>: they would report
+  the run's own drift as an engine difference. Sample GPU temperature and clock per request so the
+  mechanism is visible rather than inferred. Interleaving arms request-by-request is the stronger
+  control but is unavailable here &mdash; it needs both backends resident at once, which SYM-022 forbids.
+  A-B-A is what the one-process-on-the-card law leaves available.</p></div>
+
   <h3>House words → standard words</h3>
   <div class="tw"><table>
     <thead><tr><th>House word</th><th>In standard terms</th></tr></thead>
@@ -918,10 +950,12 @@ npm run build       # then hash the exe, print SHA-8
       <tr><td>context</td><td><code>-c 8192 --context-shift --keep 4</code></td><td><code>-c 8192</code></td></tr>
     </tbody>
   </table></div>
-  <p>A smaller micro-batch processes the prompt in more passes, which is the leading candidate for the
-  <b>0.81&times;</b> prefill gap measured in S81 &mdash; a hypothesis with an experiment attached, not a
-  conclusion. <b>State the flags whenever the engines are named</b>, or a configuration difference gets
-  reported as an engine difference.</p>
+  <p>A smaller micro-batch processes the prompt in more passes, which <em>was</em> the leading candidate
+  for the prefill gap &mdash; back when a prefill gap was still a measured quantity. S82 withdrew those
+  ratios (see the worked example below). The flags question survives the withdrawal and is now the only
+  live one, because it asks about a single engine rather than comparing two runs.
+  <b>State the flags whenever the engines are named</b>, or a configuration difference gets reported as
+  an engine difference.</p>
 
   <h3>A worked example</h3>
   <p><b>Not admissible:</b></p>
@@ -929,18 +963,24 @@ npm run build       # then hash the exe, print SHA-8
   <p>Which tokens? Which phase? Warm? How many requests? Which build? Nothing can be checked, and
   nothing can be re-derived once anything changes.</p>
   <p><b>Admissible:</b></p>
-  <pre><code>Decode throughput, warm, concurrency 1, n=8, cold-started card:
-  llama.cpp b10448-ad1de39e0 +no-think    97.7 tok/s  (p50  98.9, min  92.2, max 100.3)
-  ollama    0.32.13                      102.6 tok/s  (p50 102.3, min 101.0, max 104.9)  = 0.95x
-Prefill throughput, same conditions:
-  llama.cpp                             3,766.3 tok/s (p50 3,843.6)
-  ollama                                4,650.7 tok/s (p50 4,580.1)                      = 0.81x
-qwen3:8b, RTX 3080, -c 8192, flash-attn on. llama.cpp cache hits 0; ollama cache state UNREAD.
-llama.cpp cold load 16.3 s, excluded. 8 of 266 chunks - Inferred about the book.
-Reproduce: python windows-converter/backend_parity.py -n 8</code></pre>
-  <p><b>Note what it says.</b> S79 recorded <code>+27 %</code> in llama.cpp's favour. Measured this
-  way llama.cpp is <b>slower on both phases</b>. The grammar did not produce that result &mdash; it
-  made it visible, which is the whole reason the rules exist.</p>
+  <pre><code>Token gate, n=30, 30 of 266 chunks, qwen3:8b both sides:
+  llama.cpp --jinja                 90,180 decode tok  (+342.9% vs incumbent, hit the cap once)
+  llama.cpp --jinja +no-think       20,346 decode tok  (-0.1%, 0 non-stop, fence no worse)
+  ollama 0.32.13 (incumbent)        20,363 decode tok
+ollama 0.32.13, llama.cpp b10448-ad1de39e0, RTX 3080, -c 8192, flash-attn on.
+30 of 266 chunks - Inferred about the book.
+Reproduce: python windows-converter/backend_parity.py -n 30</code></pre>
+  <div class="note"><p><b>Why this example is a token gate and not a throughput number.</b> This chapter
+  previously carried &ldquo;llama.cpp 0.95&times; decode, 0.81&times; prefill&rdquo; here as the model of a
+  well-stated number. <b>Those ratios have been withdrawn</b>, along with the n=30 figures that appeared to
+  confirm them (0.77&times; and 0.62&times;): they were confounded by measurement order, and raising
+  <code>n</code> made the artefact <em>larger</em>, which looked like corroboration.</p>
+  <p>It is recorded rather than deleted because it is the sharpest lesson here: <b>a number can satisfy
+  every rule in this chapter &mdash; numerator, denominator, n, spread, build, conditions, a reproducing
+  command &mdash; and still be wrong, because the conditions list was missing an entry nobody had thought
+  of.</b> The rules make a number checkable. They do not make it true. The example above compares output
+  <em>content</em>, which is order-independent, so it survived the failure that destroyed the throughput
+  figures.</p></div>
   <p>The second is longer. It is also the only one worth writing down, because it is the only one
   still checkable in six months by someone who was not there.</p>
 
