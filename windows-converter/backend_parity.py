@@ -101,7 +101,10 @@ MODEL_GGUF = Path(r"C:\Users\Bndit\.ollama\models\blobs"
                   r"\sha256-a3de86cd1c132c822487ededd47a324c50491393e6565cd14bafa40d0b8e686f")
 DEFAULT_BOOK = Path(r"C:\Users\Bndit\ml\library\held\b6fbdd75f6242f53"
                     r"\Best Practices for Equity Research Analysts - James J Valentine (2011).md")
-PORT = 7117  # room-chat owns 7110-7119; the bench owns 7077-7096. Do not borrow either.
+# S83: this was 7117 - INSIDE room-chat's range, directly under this do-not-borrow comment. It
+# never bit only because room-chat was down. A do-not-borrow comment that borrows is SYM-032's
+# shape in miniature: the words carried no mechanism.
+PORT = 7127  # room-chat owns 7110-7119; the bench owns 7077-7096. Do not borrow either.
 
 UNREAD = "UNREAD"          # docs/34 rule 6 - never 0.0 for a duration nobody reported
 # A warm chunk of this size takes ~3-25 s. 300 s is a stall, not a slow request. The analyst's

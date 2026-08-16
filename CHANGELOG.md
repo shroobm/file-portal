@@ -8,6 +8,49 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S83 — THE COOLED A-B-A: PARITY, AND FOR THE FIRST TIME THE RATIOS ARE ADMISSIBLE
+  (2026-08-16, Desktop lane, Fable).** Same 30 chunks as S82, `--cool-to 55` before every arm,
+  incumbent measured first AND last: **ORDER DRIFT −1.6 %** (limit 5 %) — the card held still, so
+  the instrument published instead of withholding. **Decode 1.00×** (llama.cpp+no-think 84.8
+  tok/s, p50 84.7, p95 86.7 vs Ollama 84.7, p50 84.6, p95 86.1, both n=30). **Prefill 0.89×**
+  (3,507.5 vs 3,950.1 tok/s) — a small real gap consistent with the `-ub` hypothesis, worth
+  ~1–2 % end-to-end at this workload shape. The **token gate held a fourth time** on a fourth
+  sample (`--jinja` alone FAIL, +343 % class; `+no-think` PASS, −0.1 %). Two honest caveats
+  carried with the result: the whole run sat at ~84 tok/s where yesterday's runs sat at ~100 —
+  the machine has day-states, mechanism still `Unknown` (SYM-035), which is *why* only within-run
+  ratios are trusted; and under **docs/34 rule 8** this is the *first* controlled run, so 1.00×
+  is banked as the first admissible measurement, not yet as THE number. The architectural
+  conclusion needs no more precision: **the analyst gains nothing measurable from leaving
+  Ollama.** Recommendation (unsigned): keep the de-facto two-engine state — analyst on Ollama,
+  room-chat/bench-assist on direct llama-server — and close the migration thread.
+- **THE LOOK-BACK SINCE S77 (Rab: "take in what might have happened, and implement solutions")**
+  shipped five countermeasures the same session they were named: the **median outlier judge**
+  (S82 §10.4 closed — the warmup is informational, never the reference) ·
+  **`backend_parity_selftest.py`**, nine offline tripwires banking every pathology S80–S82 paid
+  for, **which fired on its very first run** and caught a partially applied patch before the GPU
+  did · the **card's llama-server row** (a name is not an identity; the parent PID decides — S81's
+  misread, now met at the exact place it happened; muster tripwires 15 → **16**) · two **standing
+  orders** (*a status sentence to Rab carries its probe*; *a guard born today gets its tripwire
+  today*) · **docs/34 rule 8: a ratio needs two runs** (four ratios were published on one run
+  each and all four died), synced to manual ch.18, awaiting Rab's countersign.
+- **S84 commissioned by Rab** (*"the word, S84 is the GLM OCR probe"*): a quarantined probe of
+  GLM-OCR (Zhipu 0.9B, MIT, region-parallel — the hypothesis is it structurally dodges SYM-003's
+  table-loop) as bench second-reader and scan-lane challenger, gated by the Survival Audit on our
+  books, never by the vendor's benchmark. Artifact pinned; ~1.44 GB download authorized.
+
+### Fixed
+
+- **SYM-036 filed:** an exact-match patch fed through the session harness's *quoted* heredoc
+  finds zero occurrences of text that is verifiably present — the harness collapses one level of
+  backslash escaping, so a `\\n` anchor arrives as a newline. Two patch attempts failed against
+  bytes that were provably there before diagnosis; anchors built with `chr()` (or the Edit tool)
+  are immune. Filed with the companion lesson: a multi-step in-memory patch that aborts writes
+  NOTHING — the fix must re-apply every step, not the failed one (the S83 partial-wire incident,
+  caught by the new selftest's first firing).
+- `backend_parity.py` listened on **7117, inside room-chat's stated range (7110–7119), directly
+  under a comment saying "do not borrow either."** Never bit — room-chat was down — but a
+  do-not-borrow comment borrowing is SYM-032's shape in miniature. Moved to 7127.
+
 - **S82 — RAISING `n` DID NOT CONFIRM THE RESULT, IT EXPOSED THE METHOD (2026-08-16, Desktop
   lane).** Rab: *"raise n to 30 and re-measure."* At n=30 the gap did not merely persist, it
   **widened** — decode 0.77× (was 0.95× at n=8), prefill 0.62× (was 0.81×). A result that
