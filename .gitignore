@@ -40,3 +40,5 @@ windows-converter/__pycache__/
 
 # S78: the glass detector's own bytecode
 observability/__pycache__/
+prototypes/__pycache__/
+prototypes/**/__pycache__/

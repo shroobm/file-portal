@@ -81,6 +81,23 @@ git pull  # always first
 
 ## Current Session Plan
 
+*(S79 CLOSED 2026-08-15 — **THE SESSION LEARNED TO OPEN ITSELF, AND THE OPENING CAUGHT IT SEVEN
+TIMES.** Rab commissioned a command skill "so it starts honestly, exactly, without deviation",
+built on the epistemic chain as an **admission gate**: **`/muster`** now derives session identity
+from ledger rows only, prints values instead of checkmarks, pins the closeout ref before any
+result exists, and **creates the closeout at OPEN** so docs/21's "written before work" is finally
+checkable. `muster.sh` is vendored into the repo (S78 §10.4 closed). Also shipped: the **error
+structure** (reason · highlight · solution, banked as Valentine's A–F, with the evidence that
+fired each match) · the **analyst residency fix** — measured, **47 % of its wall clock was
+reloading a model it had just unloaded**, generation rate unchanged · **docs/33**, a Circle
+finding the chat surface fits the plumbing but not the doctrine (two amendments signed) ·
+`room-chat` quarantined, a citation engine that refuses rather than guesses. **Seven defects
+found in guards while building the guards** — including **`.gpu-lock`, a file named lock that
+gates nothing**, which I told Rab already worked before checking. His design law for the arc:
+*"a name must carry a mechanism."* Closeout: `sessions/S79-desktop-2026-08-15.md` — read §19.
+**NEXT: the `--jinja` parity re-measure (gate is token count, not speed), then room-chat's
+graduation — Job Object + the signed watcher gate.**)*
+
 *(S78 CLOSED 2026-08-14 — **FOUR ROUNDS, FOUR RECURRENCES, AND THE DISEASE NAMED.** The MUSTER
 opened on an ordering fault wearing a rewind's clothing (SYM-028). The docs/29 detector was
 built — then `/circle` found it **broken in the exact mode Rab had signed**, with its acceptance

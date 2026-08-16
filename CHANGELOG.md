@@ -8,6 +8,51 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S79 — THE SESSION LEARNED TO OPEN ITSELF (2026-08-15, Desktop lane).** Rab's commission: *"a
+  command skill, akin to that of circle, for each session, so it starts honestly, exactly, without
+  deviation"*, built on the chain he named — Observed / Verified / Inferred / Intended / Unknown /
+  Historical — used as an **admission gate** rather than a labelling scheme.
+  **`/muster`** (`.claude/skills/muster/`) — `open.sh` derives session identity from **ledger rows
+  only** (docs/21 §7's prescribed command returned S79 off *prose*), runs both clocks verbatim,
+  reads live desktop *and* receiver state, and **pins the closeout's `--since` ref before any
+  result exists**. It prints VALUES, never checkmarks: a row of ticks can be skimmed as "fine",
+  `held 4 · exe C3D277F7` cannot. `selftest.sh` carries 12 tripwires plus a positive control.
+  `muster.sh` is **vendored into the repo**, closing S78 §10.4 — the instrument that detects
+  tampering with both clocks had one copy, in no repository.
+  **The closeout is now created at OPEN** carrying §1 Intent, making docs/21's "written before work
+  and left unedited" mechanically checkable for the first time (all 12 prior closeouts were first
+  committed in their own *closing* commit).
+- **THE ERROR STRUCTURE (S78 §8.5, signed 2026-08-14; built S79).** Every damage site on the
+  Repair Bench now arrives with **reason · highlight · solution**, classified against a banked
+  signature (`prototypes/repair-bench/signatures.json`, seeded with Valentine's A–F) and carrying
+  **`matched_on`** — the evidence that fired it — plus its epistemic tag, so the operator can see
+  whether the machine *saw* it or pattern-matched it. Rendered in the same commit as the fields
+  (docs/29 §5.4). On Valentine's zones 1–2 — the exact sites where S78 destroyed 418 `•` marks —
+  the card now warns that the blank-looking columns are a grid's populated intersections.
+  The bank's own rule, written after Rab could not parse its first output: **explain the defect,
+  never the history.** A session number is provenance and belongs in `cite`.
+- **`prototypes/room-chat/`** — the Room's assistant, quarantined, from docs/33's five mechanical
+  findings. A **citation engine, not an oracle**: every answer carries a citation that resolves to
+  a document actually in the corpus, or is replaced by a refusal — enforced mechanically, never by
+  asking the model nicely. Load/unload buttons, and a **real mutex** (`chat-hold.json` written by
+  the widget side, `.gpu-lock` read from the converter) because `.gpu-lock` turned out to gate
+  nothing. 20/20 tripwires. Not graduated: the Job Object and the signed watcher gate are owed.
+
+### Changed
+
+- **The analyst holds its model across chunks** (`windows-converter/analyst.py`). Measured with
+  the real program and chunker: `keep_alive 0` cost **9.62 s of every 21.47 s chunk** to unload and
+  reload a model it had just used, while generation was **identical** (75.7 vs 76.0 tok/s). The
+  Beer book's analyst phase fell from **21.8 s/chunk to 11.47 s** — 47 % of its wall clock was
+  reloading. The VRAM courtesy to Marker is still paid, by an explicit `unload()` in `process()`'s
+  `finally`: **release is an act, not a timer**, because a 30-minute expiry would leave ~5 GB
+  resident exactly when the next book's convert wants the card. docs/19 §9's "15–25 % wall tax"
+  estimate is retired — it was low. `THROUGHPUT_CHARS_PER_S` deliberately left at 138.0:
+  `eta_range()` self-calibrates from event history after three samples.
+- **`prototypes/repair-bench/bench.py`** — `REPAIRS.md` no longer makes its own patient
+  un-openable (SYM-030: the body scan demanded exactly one `.md` and the final report was the
+  second).
+
 - **S77 — THE OBSERVABILITY COMPLEX (docs/29, 2026-08-14, Desktop lane).** Rab's question —
   *how do we efficiently determine what should be wired to the glass?* — and his correction:
   these are **glitches, not bugs**, because the system was designed observable, so silence is

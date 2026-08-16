@@ -49,6 +49,18 @@
   ],
 
   "dispositions": {
+    "bench:stream": {
+      "disposition": "INTERNAL",
+      "reason": "An outbound request parameter on the bench's ✦ assist call (bench.py:1134) — it tells Ollama not to stream. docs/29 §5.3 step 1: it exists only to feed another computation, so it is correctly silent and no human ever wants it on a surface. SCOPE NOTE, and it is the point of this entry: bench.py was NOT touched this session. This key entered the --since scope from `analyst.py`'s request body, which S79 edited for the residency fix, because the filter harvests key NAMES across the whole *.py diff and then attributes them to whichever lane has a producer using that name. That is the identical mis-scoping S79 diagnosed in the `bench:reason` entry below at 21:00 and then reproduced at its own close six hours later. docs/31 §5.2 item 7 — whether outbound request bodies are 'measured, stored values' at all — is UNSIGNED, and this is the second piece of evidence that they are not."
+    },
+    "bench:keep_alive": {
+      "disposition": "INTERNAL",
+      "reason": "Outbound request parameter (bench.py:1134): the bench's assist deliberately sends keep_alive 0 so the model leaves VRAM after a single interactive call — correct there, unlike the analyst, whose calls are back-to-back (S79 residency fix). Control flow, never a surface. Same scope note as bench:stream: it arrived from analyst.py's diff, not from any change to the bench."
+    },
+    "bench:prompt": {
+      "disposition": "INTERNAL",
+      "reason": "Outbound request parameter (bench.py:1135) — the text sent to the model. Its content is already visible to the operator: they typed it into the AI bar and the proposal comes back on the glass. Showing the assembled prompt would be chrome nobody asked for (docs/29 §5.3 step 5). Same scope note as bench:stream."
+    },
     "bench:reason": {
       "disposition": "EVIDENCE",
       "reason": "The five-outcome triage's free-text reason (bench.py:667 triage, :678/:682 coverage). Its home is the opened zone/run card, not the chip row — docs/29 §5.3 step 3: a localizer is EVIDENCE, revealed when the card is open, never promoted to ambient chrome. NOTE ON SCOPE: this key surfaced under `--since 60acd77` only because dispositions.json's own `reason` fields entered the diff as added `\"reason\":` lines — a false positive of name-based scoping (the key was not added to a producer this session). Recorded as the honest disposition anyway rather than waved away, since the question it forces is the right one. The scoping weakness itself belongs on docs/31 §5.2's sheet."
