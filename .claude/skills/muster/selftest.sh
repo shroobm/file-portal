@@ -159,6 +159,42 @@ out=$(MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK
 if printf '%s' "$out" | grep -qE 'thinkpad +UNREAD'; then ok "an unreachable receiver renders UNREAD, never 'clean'"
 else bad "an unreachable receiver renders UNREAD" "got: $(printf '%s' "$out" | grep thinkpad)"; fi
 
+# CASE 9 — THE PARTIAL-OBSERVATION RULE, the mirror of case 7, paid for by S80's own open. Case 7
+# guards a probe that FAILED being rendered as absence. This guards a probe that SUCCEEDED being
+# rendered as the WHOLE truth when it saw only the first row: `awk '{print $2; exit}'` printed
+# `widget 18856` while 18856 and 19536 were both alive, each with its own watcher on the same drop
+# folder (SYM-033). Violate: a process table with TWO widget rows. The card must name both.
+cat > "$WORK/fakebin/tasklist" <<'FAKE'
+#!/bin/sh
+cat <<'TBL'
+Image Name                     PID Session Name        Session#    Mem Usage
+========================= ======== ================ =========== ============
+System Idle Process              0 Services                   0          8 K
+explorer.exe                  5200 Console                    1     90,000 K
+file-portal-widget.exe       18856 Console                    1     22,000 K
+file-portal-widget.exe       19536 Console                    1     25,000 K
+python.exe                    6420 Console                    1      3,000 K
+ollama.exe                    9168 Console                    1     38,000 K
+TBL
+FAKE
+chmod +x "$WORK/fakebin/tasklist"
+out=$(PATH="$WORK/fakebin:$PATH" MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'widget +2 INSTANCES'; then ok "two widgets are reported as two, not as the first one"
+else bad "two widgets are reported as two" "got: $(printf '%s' "$out" | grep -E ' widget ')"; fi
+if printf '%s' "$out" | grep -q '18856' && printf '%s' "$out" | grep -q '19536'; then
+  ok "…and BOTH pids are named, not just the first"
+else bad "…and BOTH pids are named" "got: $(printf '%s' "$out" | grep -E ' widget ')"; fi
+
+# CASE 10 — the other direction, so the new row cannot pass by always shouting. One widget must
+# still render as a bare pid: a guard that fires on every input is the tautology case 0 exists to
+# catch, one row over.
+sed -i '/19536/d' "$WORK/fakebin/tasklist"
+out=$(PATH="$WORK/fakebin:$PATH" MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'widget +18856 *$'; then ok "one widget still renders as a bare pid"
+else bad "one widget still renders as a bare pid" "got: $(printf '%s' "$out" | grep -E ' widget ')"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

@@ -168,8 +168,20 @@ fi
 # UNREAD. `down` is a claim, and a claim needs a reading behind it.
 ps_table=$(tasklist 2>/dev/null); ps_rc=$?
 if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
-  wpid=$(printf '%s\n' "$ps_table" | awk '/^file-portal-widget\.exe/{print $2; exit}')
-  row "widget" "${wpid:-down (table read, no match)}"
+  # AND THE MIRROR OF THAT RULE, paid for by S80's own open. A probe that SUCCEEDED must not
+  # render a PARTIAL observation as a whole one. This line was `{print $2; exit}` — first match
+  # wins, the rest discarded — so the card printed `widget  18856` while 18856 AND 19536 were both
+  # alive, each having spawned its own watcher chain onto the same drop folder. Nothing stops a
+  # second launch (no single-instance guard in the Tauri app) and `.gpu-lock` arbitrates nothing
+  # (SYM-032), so two instances is a state this machine can actually reach — which makes the card
+  # the place it has to become visible. `down` needed a reading behind it; so does `one`.
+  wpids=$(printf '%s\n' "$ps_table" | awk '/^file-portal-widget\.exe/{print $2}')
+  wn=$(printf '%s\n' "$wpids" | grep -c .)
+  if [[ "$wn" -gt 1 ]]; then
+    row "widget" "$wn INSTANCES: $(printf '%s' "$wpids" | tr '\n' ' ')— each spawns its own watcher, no mutex between them (SYM-033)"
+  else
+    row "widget" "${wpids:-down (table read, no match)}"
+  fi
   row "python procs" "$(printf '%s\n' "$ps_table" | grep -c '^python\.exe')"
   row "ollama" "$(printf '%s\n' "$ps_table" | grep -c '^ollama')"
 else
