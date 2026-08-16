@@ -32,7 +32,7 @@ HERE = Path(__file__).parent
 SCRATCH = Path(tempfile.mkdtemp(prefix="room-chat-test-"))
 os.environ["FP_PIPELINE"] = str(SCRATCH)
 
-spec = importlib.util.spec_from_file_location("chat", HERE / "chat.py")
+spec = importlib.util.spec_from_file_location("chat", HERE / "room_chat.py")
 chat = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(chat)
 

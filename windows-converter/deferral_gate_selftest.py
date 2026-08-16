@@ -40,8 +40,10 @@ def main() -> int:
         encoding="utf-8")
 
     hold = root / "chat-hold.json"
-    hold.write_text(json.dumps({"port": 0, "model": "tripwire", "ts": time.time()}),
-                    encoding="utf-8")
+    # The hold carries OUR pid - a live process, so the reaper must respect it (a pid-less or
+    # dead-pid hold is stale by the S85 reap law, and phase C proves that half).
+    hold.write_text(json.dumps({"held_by": "tripwire", "pid": os.getpid(), "port": 0,
+                                "model": "tripwire"}), encoding="utf-8")
 
     env = {**os.environ, "FP_PIPELINE": str(root), "FP_CONVERT": str(stub)}
     watcher = subprocess.Popen(
@@ -66,7 +68,7 @@ def main() -> int:
               log.count("DEFERRED") == 1, f"count={log.count('DEFERRED')}")
 
         # Phase B - CLEARED. The same PDF must convert on the next poll.
-        hold.unlink()
+        hold.unlink(missing_ok=True)   # missing_ok: a reaper bug must fail CHECKS, not crash the suite
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline and not marker.exists():
             time.sleep(1)
@@ -78,6 +80,21 @@ def main() -> int:
         check("cleared: the PDF was archived to done/", (drop / "done" / "tripwire.pdf").exists())
         log = (root / "watcher.log").read_text(encoding="utf-8")
         check("cleared: CONVERTING logged after the deferral", "CONVERTING tripwire.pdf" in log)
+
+        # Phase C - STALE. A hold from a DEAD pid must be reaped, not obeyed: a Job-Object kill
+        # runs no cleanup, and without the reap the conveyor would defer forever (recon hazard 3).
+        marker.unlink(missing_ok=True)
+        hold.write_text(json.dumps({"held_by": "ghost", "pid": 999_999_999, "port": 0,
+                                    "model": "ghost"}), encoding="utf-8")
+        (drop / "stale.pdf").write_bytes(b"%PDF-1.4 second tripwire")
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and not marker.exists():
+            time.sleep(1)
+        check("stale: a dead pid's hold did NOT stop the convert", marker.exists())
+        log = (root / "watcher.log").read_text(encoding="utf-8")
+        check("stale: the reap was logged, naming the dead pid",
+              "REAPED" in log and "999999999" in log)
+        check("stale: the hold file is gone", not hold.exists())
     finally:
         subprocess.run(["taskkill", "/pid", str(watcher.pid), "/t", "/f"],
                        capture_output=True)  # tree-kill, never a bare kill (SYM-006)

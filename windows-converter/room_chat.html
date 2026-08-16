@@ -50,18 +50,27 @@
   input { flex:1; font:inherit; padding:8px 12px; border-radius:9px; border:1px solid var(--line);
           background:var(--panel); color:var(--text); }
   input:focus { outline:none; border-color:var(--accent); }
+  select { font:inherit; font-size:12px; max-width:30ch; padding:5px 8px; border-radius:8px;
+           border:1px solid var(--line); background:var(--panel); color:var(--text); }
+  #tree { padding:4px 14px 7px; border-bottom:1px solid var(--line); font-family:var(--mono);
+          font-size:10.5px; color:var(--text-3); }
 </style>
 
 <header>
   <h1>Room · Assistant</h1>
   <span id="why"></span>
   <span class="grow"></span>
+  <!-- S85: "so I can talk to models that I have downloaded on my device" — enumerated from the
+       two on-disk stores by /api/models; the id round-trips, never a path. -->
+  <select id="model" title="models already on this device"></select>
   <button id="load">Load model</button>
   <button id="unload" disabled>Unload</button>
 </header>
 
 <!-- READ FROM DISK. The model neither sees nor writes any of this. -->
 <div id="state"></div>
+<!-- The live tree (docs/35's live half) — names, verbatim, bounded. Also never the model's. -->
+<div id="tree"></div>
 
 <div id="log">
   <div class="msg sys">The model is not loaded. Loading it takes the GPU, so a conversion cannot
@@ -95,27 +104,49 @@ async function renderState() {
     ` · pending <b>${s.pending ?? "?"}</b> · drop <b>${s.drop_pdfs ?? "?"}</b>` +
     ` · audit <b>${esc(s.audit_mode ?? "?")}</b> · analyst <b>${esc(s.analyst_mode ?? "?")}</b>` +
     (s.convert_running ? ` · <b>converting ${esc(s.convert_running)}</b>` : " · card free");
+  // The tree line: bounded names, straight from disk (UNREAD renders as UNREAD, never as none).
+  const t = s.tree || {};
+  const list = v => v === null || v === undefined ? "UNREAD" : (v.length ? v.join(", ") : "—");
+  $("tree").textContent = `held/: ${list(t.held)}   ·   pending/: ${list(t.pending)}`
+    + (t.drop?.length ? `   ·   drop/: ${list(t.drop)}` : "");
   return s;
+}
+
+async function renderModels(loadedName) {
+  const r = await (await fetch("/api/models")).json();
+  const sel = $("model");
+  const prev = sel.value;
+  sel.innerHTML = (r.models || []).map(m =>
+    `<option value="${esc(m.id)}"${m.note ? ` title="${esc(m.note)}"` : ""}>` +
+    `${esc(m.id)} · ${m.gb} GB${m.note ? " ⚠" : ""}</option>`).join("");
+  // keep the operator's selection across refreshes; a loaded model pins the picker to itself
+  const want = loadedName ? [...sel.options].find(o => loadedName.includes(o.value) || o.value.includes(loadedName.replace(/\.gguf$/, "")))?.value : prev;
+  if (want) sel.value = want;
 }
 
 async function refresh() {
   const s = await renderState();
   const st = await (await fetch("/api/status")).json();
-  $("load").disabled = st.loaded || !!s.convert_running;
+  await renderModels(st.loaded ? st.model : null);
+  // The picker stays live while a model is up: choosing a DIFFERENT one and clicking Load is
+  // the switch gesture (the server unloads first - one model on the card, ever).
+  $("load").disabled = !!s.convert_running;
   $("unload").disabled = !st.loaded;
   $("q").disabled = $("send").disabled = !st.loaded;
   // A disabled control that will not say why is a small cruelty. docs/33 §2.2's spirit: the
   // operator is owed the reason, not just the greyed-out edge.
   $("why").textContent = s.convert_running ? `converting ${s.convert_running} — the card is busy`
-                       : st.loaded ? `loaded on :${st.port}` : "";
+                       : st.loaded ? `${esc(st.model ?? "model")} on :${st.port}` : "";
   return st;
 }
 
 $("load").onclick = async () => {
   $("load").disabled = true;
-  const t = say("sys", "loading the model — an 8B takes ~20 s cold…");
+  const picked = $("model").value;
+  const t = say("sys", `loading ${esc(picked)} — an 8B takes ~20 s cold…`);
   try {
-    const st = await (await fetch("/api/load", {method:"POST"})).json();
+    const st = await (await fetch("/api/load", {method:"POST",
+                       body: JSON.stringify({model: picked})})).json();
     if (st.error) throw new Error(st.error);
     // The greeting Rab asked for: a confirmation with NUMBERS in it, not the word "ready".
     t.textContent = `model loaded — ${st.model_gb} GB · ${st.model}\n`

@@ -33,13 +33,15 @@ import shutil
 import socket
 import subprocess
 import sys
+
+import corpus_schema  # the live half of docs/35 - sibling module, stdlib only
 import time
 import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
 HERE = Path(__file__).parent
-REPO = HERE.parent.parent
+REPO = HERE.parent  # S85: promoted from prototypes/room-chat (two deep) to windows-converter (one)
 PIPE = Path(os.environ.get("FP_PIPELINE", r"C:\Users\Bndit\ml\library"))
 
 # docs/33 §2.5 — the bench owns 7077..7096. Taking one of its ports would make the next Repair
@@ -114,7 +116,55 @@ def convert_running() -> str | None:
 # a proxy and calling it the property).
 CORPUS = [
     ("docs/20-file-portal-manual.md", "the operator manual — surfaces, levers, the life of a book"),
+    # S85, Rab's graduation commission: "a schema regarding the file portal knowledge corpus,
+    # and manual, which should describe everything regarding the file, and all the folders and
+    # files within." docs/35 is that schema - the CURATED half; live listings stay on the
+    # surface as data (corpus_schema.tree_snapshot), never in the model's mouth (docs/33 §2.1).
+    ("docs/35-portal-schema.md", "the portal schema — every folder and file, what writes and reads it"),
 ]
+
+
+# ── the models already on this device ────────────────────────────────────────────────────────
+#
+# "so I can talk to models that I have downloaded on my device" (Rab, S85). Two stores exist on
+# this machine and BOTH are enumerated from disk - never the network:
+#   * ollama's:    ~\.ollama\models\manifests\<registry>\<ns>\<repo>\<tag> -> blob sha256
+#                  (the blob IS the gguf - verified S80, one manifest per model)
+#   * llama.cpp's: ~\.cache\huggingface\hub\models--<org>--<repo>\snapshots\<rev>\*.gguf
+#                  (where `-hf` downloads land - observed S85 on the GLM-OCR pull)
+# The picker offers ids, and /api/load resolves ONLY ids from this list - a request never
+# carries a raw path (the corpus of loadable things is ours, not the caller's).
+OLLAMA_STORE = Path.home() / ".ollama" / "models"
+HF_HUB_CACHE = Path.home() / ".cache" / "huggingface" / "hub"
+
+
+def discover_models() -> list[dict]:
+    out = []
+    man_root = OLLAMA_STORE / "manifests"
+    if man_root.is_dir():
+        for mf in sorted(p for p in man_root.rglob("*") if p.is_file()):
+            try:
+                man = json.loads(mf.read_text(encoding="utf-8"))
+                digest = next(l["digest"] for l in man.get("layers", [])
+                              if "model" in l.get("mediaType", ""))
+                blob = OLLAMA_STORE / "blobs" / digest.replace(":", "-")
+                if not blob.is_file():
+                    continue
+                name = f"{mf.parent.name}:{mf.name}"
+                out.append({"id": name, "kind": "ollama", "path": str(blob),
+                            "gb": round(blob.stat().st_size / 1e9, 1)})
+            except Exception:  # noqa: BLE001 - one unreadable manifest never hides the rest
+                continue
+    if HF_HUB_CACHE.is_dir():
+        for g in sorted(HF_HUB_CACHE.glob("models--*/snapshots/*/*.gguf")):
+            if "mmproj" in g.name.lower():
+                continue  # a projector is a companion file, not a loadable chat model
+            entry = {"id": g.stem, "kind": "hf-cache", "path": str(g),
+                     "gb": round(g.stat().st_size / 1e9, 1)}
+            if any("mmproj" in s.name.lower() for s in g.parent.glob("*.gguf")):
+                entry["note"] = "vision/OCR model — loads TEXT-ONLY here; its projector is not wired"
+            out.append(entry)
+    return out
 
 
 def load_corpus() -> tuple[str, dict[str, list[str]]]:
@@ -206,7 +256,13 @@ class Llama:
                     return p
         raise RuntimeError(f"no free port in {LLAMA_PORTS.start}..{LLAMA_PORTS.stop}")
 
-    def load(self) -> dict:
+    def load(self, model: Path | None = None) -> dict:
+        # S85: the picker. A different model while one is loaded = unload first, then load -
+        # never two on the card (SYM-022). Same model already up = the status, free.
+        if model is not None and self.loaded and model != self.model:
+            self.unload()
+        if model is not None:
+            self.model = model
         if self.loaded:
             return self.status()
         busy = convert_running()
@@ -325,11 +381,17 @@ class Handler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         if self.path in ("/", "/index.html"):
-            return self._send(200, (HERE / "chat.html").read_bytes(), "text/html; charset=utf-8")
+            return self._send(200, (HERE / "room_chat.html").read_bytes(), "text/html; charset=utf-8")
         if self.path == "/api/status":
             return self._send(200, self.llama.status())
         if self.path == "/api/state":
-            return self._send(200, pipeline_state())
+            # The pipeline numbers plus the live tree - DATA for the strip, rendered verbatim,
+            # never fed to the model (docs/33 §2.1 and docs/35 §6).
+            state = pipeline_state()
+            state["tree"] = corpus_schema.tree_snapshot(PIPE)
+            return self._send(200, state)
+        if self.path == "/api/models":
+            return self._send(200, {"models": discover_models()})
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
@@ -337,7 +399,15 @@ class Handler(BaseHTTPRequestHandler):
         req = json.loads(self.rfile.read(n) or b"{}")
         try:
             if self.path == "/api/load":
-                return self._send(200, self.llama.load())
+                model = None
+                if req.get("model"):
+                    # Resolve the id against OUR discovery - a request never carries a path.
+                    hit = next((m for m in discover_models() if m["id"] == req["model"]), None)
+                    if hit is None:
+                        return self._send(404, {"error": f"unknown model id {req['model']!r} — "
+                                                         "not in the on-device list"})
+                    model = Path(hit["path"])
+                return self._send(200, self.llama.load(model))
             if self.path == "/api/unload":
                 return self._send(200, self.llama.unload())
             if self.path == "/api/ask":
@@ -362,6 +432,29 @@ def main() -> None:
     context, index = load_corpus()
     if not index:
         sys.exit(f"no corpus — expected {CORPUS[0][0]} under {REPO}")
+
+    # STALE-HOLD SELF-REAP (S85, recon hazard 3): a Job-Object kill runs no cleanup, so a hold
+    # written by a dead previous instance would make the watcher defer forever. We are the hold's
+    # single writer, so reaping our predecessor's is lawful - keyed on pid liveness, mechanical.
+    # (The watcher carries the same reap for the case where the chat server never comes back.)
+    try:
+        stale = json.loads(HOLD.read_text(encoding="utf-8"))
+        pid = int(stale.get("pid", -1))
+        # NEVER os.kill(pid, 0) on Windows - CPython implements it as TerminateProcess(sig=exit
+        # code): the POSIX liveness idiom murders the process it probes. Caught by the deferral
+        # tripwire (S85). watch_and_convert.pid_alive is the honest probe; imported lazily to
+        # keep this module importable standalone.
+        from watch_and_convert import pid_alive
+        alive = pid > 0 and pid != os.getpid() and pid_alive(pid)
+        if not alive:
+            HOLD.unlink(missing_ok=True)
+            print(f"reaped a stale chat-hold from dead pid {pid} — the card was never actually "
+                  f"held; the conveyor is free", flush=True)
+    except FileNotFoundError:
+        pass
+    except Exception:                                      # noqa: BLE001 - malformed = stale
+        HOLD.unlink(missing_ok=True)
+        print("reaped a malformed chat-hold — unreadable JSON cannot hold a card", flush=True)
     Handler.llama = Llama(Path(a.llama), Path(a.model))
     Handler.context, Handler.index = context, index
     print(f"room-chat on http://127.0.0.1:{a.port}  ·  corpus {list(index)} "
