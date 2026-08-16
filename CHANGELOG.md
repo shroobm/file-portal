@@ -8,6 +8,47 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S85 — THE ASSISTANT GRADUATES: THE LLAMA APP EMBEDDED IN FILE PORTAL (2026-08-16 overnight,
+  Desktop lane, Fable; Rab's bedtime commission, cookie #73).** The S79 quarantine ships:
+  `room_chat.py` + its page + acceptance move to `windows-converter/` (git mv, history kept),
+  and the widget owns the lifecycle — new `chat.rs` on bench.rs's chassis with the deliberate
+  differences: a **`chat_stop`** exists (a resident 8B with no visible off-switch is VRAM held
+  by nothing), a **death-certificate** mutex (the watcher's idiom), and the 6 s health ceiling
+  is **not copied** — the slow llama load lives behind the page's own Load button (docs/33
+  §2.4). `llama_server_exe` config key, **empty hides the feature** (reader_config idiom);
+  spawn adopted into the Job Object (S37); Assistant button beside Bench.
+- **THE MODEL PICKER** — *"so I can talk to models that I have downloaded on my device"*:
+  `/api/models` enumerates both on-device stores from disk (ollama manifests → blobs; the HF
+  hub cache where `-hf` pulls land), the page offers ids, `/api/load` resolves ONLY against our
+  own discovery — a request never carries a path. Switching models unloads first: one model on
+  the card, ever. Vision models honestly flagged "loads TEXT-ONLY here". Proven live: qwen3:8b
+  (5.2 GB) + GLM-OCR-Q8_0 (1.0 GB) both discovered.
+- **THE PORTAL SCHEMA** — *"a schema … and manual, which should describe everything regarding
+  the file, and all the folders and files within"*: **docs/35-portal-schema.md**, the manual of
+  the portal itself — both roots, every folder and file class, marker files, ledger schemas,
+  bundle anatomy, the repo map — citable line-by-line and now part of the chat corpus beside
+  docs/20. Its live half, `corpus_schema.py`, renders the actual tree as DATA on the surface
+  (UNREAD never rendered as absence); the model never sees it — docs/33 §2.1 kept intact.
+- **THE SIGNED WATCHER DEFERRAL GATE, built and fired** (docs/33 §2.3, signed S79): the
+  conveyor reads `chat-hold.json` before converting — held: defer with one log line and one
+  event, PDF stays in drop/; cleared: the next 5 s poll converts it. Plus the **stale-hold
+  reap**: a hold whose pid is dead is deleted, not obeyed — a Job-Object kill runs no cleanup,
+  and without the reap the conveyor would defer forever. Tripwire
+  (`deferral_gate_selftest.py`) **12/12**: held defers · cleared converts · stale reaped —
+  against the REAL watcher in an isolated root with a stub converter.
+
+### Fixed
+
+- **`os.kill(pid, 0)` is not a liveness probe on Windows — it is `TerminateProcess` in
+  disguise** (CPython maps the signal to the exit code): the POSIX idiom either murders the
+  process it checks or errors into a false "dead". The deferral tripwire's first firing caught
+  it — a live holder was declared dead and its valid hold reaped. `pid_alive()` =
+  `OpenProcess` + `GetExitCodeProcess == STILL_ACTIVE`, used by both reapers.
+- The acceptance suite caught the relocation bug on its first post-move run: `REPO` resolved
+  one level too high from the new home and the corpus silently vanished (20/20 after).
+- `events.py`'s hardcoded stream path gained the `FP_PIPELINE` override — isolated test
+  telemetry can no longer render as phantom arrivals on the live widget.
+
 - **S84 — THE GLM-OCR PROBE: THE EXISTENCE PROOF, SIGNED BY RAB'S EYES (2026-08-16, Desktop
   lane, Fable).** Commission in his words: *"the word, S84 is the GLM OCR probe"*; download
   authorized by name, source and size. `ggml-org/GLM-OCR-GGUF` (Q8_0 950 MB + mmproj 484 MB)

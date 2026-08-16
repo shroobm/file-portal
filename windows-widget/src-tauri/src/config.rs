@@ -25,6 +25,12 @@ pub struct AppConfig {
     /// Add-to-Library button is hidden. `serde(default)` keeps pre-W8 config files parsing.
     #[serde(default)]
     pub vault_library_dir: String,
+
+    /// Path to llama-server.exe (lives OUTSIDE the repo — docs/33 §2). Empty = the Assistant
+    /// button is hidden; the feature simply does not exist on a machine that has not set it up
+    /// (the ThinkPad included). S85, the graduation key.
+    #[serde(default)]
+    pub llama_server_exe: String,
     /// S18 GPU pipeline root (holds pending\, drop\, anchor\ — see windows-converter/).
     /// Empty = the pre-flight card is hidden; the same per-segment-toggle pattern as above.
     #[serde(default)]
@@ -51,6 +57,7 @@ impl Default for AppConfig {
             remote_user: "CHANGE_ME".into(),
             remote_inbox_root: "~/file-portal/inbox".into(),
             vault_library_dir: String::new(),
+            llama_server_exe: String::new(),
             gpu_pipeline_dir: String::new(),
             gpu_python_exe: String::new(),
             gpu_converter_dir: String::new(),

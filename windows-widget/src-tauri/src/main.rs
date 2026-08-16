@@ -4,6 +4,7 @@
 mod algedonic;
 mod assay;
 mod bench;
+mod chat;
 mod config;
 mod events;
 mod line;
@@ -352,6 +353,56 @@ fn open_failed_tray(state: State<AppState>) -> Result<(), String> {
         .clone();
     line::open_folder(&format!("{dir}\\drop\\failed"))
 }
+// S85: the assistant's lifecycle — bench_open's chassis with a stop and a death certificate.
+// The model LOAD is not here: the UI server is stdlib-instant, and the slow llama load happens
+// behind the page's own Load button (docs/33 §2.4 — the 6 s ceiling stays un-copied).
+#[tauri::command]
+async fn chat_open(
+    app: tauri::AppHandle,
+    state: State<'_, AppState>,
+    chat_state: State<'_, chat::ChatState>,
+) -> Result<u16, String> {
+    let (pipe, py, conv, llama) = {
+        let cfg = state
+            .config
+            .lock()
+            .map_err(|_| "lock poisoned".to_string())?;
+        (
+            cfg.gpu_pipeline_dir.clone(),
+            cfg.gpu_python_exe.clone(),
+            cfg.gpu_converter_dir.clone(),
+            cfg.llama_server_exe.clone(),
+        )
+    };
+    let cstate = chat_state.inner().clone();
+    tauri::async_runtime::spawn_blocking(move || {
+        chat::open(app, &cstate, &pipe, &py, &conv, &llama)
+    })
+    .await
+    .map_err(|e| format!("chat task failed: {e}"))?
+}
+
+#[tauri::command]
+fn chat_stop(chat_state: State<chat::ChatState>) -> Result<bool, String> {
+    chat::stop(&chat_state)
+}
+
+#[tauri::command]
+fn chat_status(chat_state: State<chat::ChatState>) -> Result<serde_json::Value, String> {
+    chat::status(&chat_state)
+}
+
+// The reader_config idiom: a BOOLEAN, never the path — the page learns whether the feature
+// exists, not where the binary lives.
+#[tauri::command]
+fn chat_config(state: State<AppState>) -> Result<serde_json::Value, String> {
+    let cfg = state
+        .config
+        .lock()
+        .map_err(|_| "lock poisoned".to_string())?;
+    Ok(serde_json::json!({ "configured": !cfg.llama_server_exe.is_empty() }))
+}
+
 #[tauri::command]
 fn reader_config(state: State<AppState>) -> Result<serde_json::Value, String> {
     let cfg = state
@@ -560,6 +611,7 @@ fn main() {
         })
         .manage(watcher::WatcherState(Mutex::new(None), Mutex::new(None)))
         .manage(bench::BenchState::default())
+        .manage(chat::ChatState::default())
         .invoke_handler(tauri::generate_handler![
             list_portals,
             send_to_portal,
@@ -598,7 +650,11 @@ fn main() {
             watcher_start,
             watcher_stop,
             vault_check,
-            vault_pull
+            vault_pull,
+            chat_open,
+            chat_stop,
+            chat_status,
+            chat_config
         ])
         .on_window_event(|window, event| {
             // The conveyor dies with its control room — no orphaned watch loops. An

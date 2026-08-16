@@ -213,7 +213,8 @@ fn show_window(app: tauri::AppHandle, port: u16, dir: &Path) {
     });
 }
 
-fn log_boot(app: &tauri::AppHandle, msg: &str) {
+pub(crate) fn log_boot(app: &tauri::AppHandle, msg: &str) {
+    // pub(crate) since S85: chat.rs's window path reports through the same channel.
     use tauri::Manager;
     let state: tauri::State<crate::AppState> = app.state();
     // Clone the path out and release the lock immediately — a guard held across the write

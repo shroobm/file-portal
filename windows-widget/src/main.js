@@ -510,6 +510,11 @@ async function lineInit() {
           invoke("open_reader", { reader: name }).catch((e) => setStatus(`Reader: ${e}`)));
       }
     }
+    // S85, same idiom one feature over: the Assistant button exists only where
+    // llama_server_exe is configured (empty key = the feature is hidden, docs/33 §2).
+    const cc = await invoke("chat_config");
+    dbg(`chat_config: ${JSON.stringify(cc)}`);
+    if (cc.configured) document.getElementById("surf-chat").hidden = false;
   } catch (err) {
     setStatus(`readers: ${err}`);
   }
@@ -1007,6 +1012,18 @@ document.querySelectorAll(".surf-btn[data-surface]").forEach((b) =>
 // S63: the Bench surface. The widget spawns the quarantined Repair Bench server on a held
 // bundle (backend resolves + supervises it; it dies with the widget via the Job Object) and
 // a dedicated window arrives once the server answers. No source = the newest held bundle.
+// S85: the assistant's door. Same shape as the bench — the widget spawns the graduated
+// room_chat.py and the window opens on it; model pick + load + ask all live in that page.
+async function openChat() {
+  setStatus("Opening the assistant…");
+  try {
+    const port = await invoke("chat_open");
+    setStatus(`Assistant up on 127.0.0.1:${port} — its window is open.`);
+  } catch (err) {
+    setStatus(`Assistant: ${err}`);
+  }
+}
+
 async function openBench(source) {
   setStatus(source ? `Opening the Repair Bench on ${source}…` : "Opening the Repair Bench…");
   try {
@@ -1017,6 +1034,7 @@ async function openBench(source) {
   }
 }
 document.getElementById("surf-bench").addEventListener("click", () => openBench(null));
+document.getElementById("surf-chat").addEventListener("click", () => openChat());
 
 init().catch((err) => {
   console.error("init failed", err);
