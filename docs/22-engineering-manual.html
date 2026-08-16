@@ -811,7 +811,7 @@ npm run build       # then hash the exe, print SHA-8
   <code>⟦IMG-n⟧</code> so the un-analyzed original ships. Tokens produced and then rejected are
   waste, not throughput.</p>
 
-  <h3>The seven rules</h3>
+  <h3>The rules</h3>
   <ol>
     <li><b>Name the numerator and the denominator.</b> "Decode throughput 56.1 tok/s" — output tokens over decode-phase seconds. Not "56 tok/s".</li>
     <li><b>Never mix cold and warm.</b> Load is reported separately or excluded explicitly. A cold first request can be 10× the wall time of the warm ones after it; averaging them describes no real request.</li>
@@ -820,6 +820,10 @@ npm run build       # then hash the exe, print SHA-8
     <li><b>A percentage prints its base.</b> "+27 %" is meaningless without "of what, measured how".</li>
     <li><b>A rate needs a duration the backend actually reported.</b> Missing field ⇒ <code>UNREAD</code>, never <code>0.0 tok/s</code>, never a silent fallback to wall time dressed as the model's own clock (SYM-031).</li>
     <li><b>Sampling never promotes.</b> N chunks measured is <span class="tag hist">Inferred</span> about the corpus, never <span class="tag obs">Observed</span> about all of it. Say which, and give N.</li>
+    <li><b>A ratio needs two runs.</b> One run's ratio, however well-conditioned, stays inside the
+    instrument's own output; it is published only after a second independent run (a different day, a
+    re-idled card) agrees within the order-drift limit. Added S83 &mdash; four ratios were published on
+    one run each, and all four were withdrawn.</li>
   </ol>
   <p><b>Corollary — state the build.</b> A rate belongs to one engine build, model file and card.
   llama.cpp reports <code>system_fingerprint</code> (e.g. <code>b10448-ad1de39e0</code>); Ollama

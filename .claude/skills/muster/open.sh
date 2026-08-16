@@ -184,6 +184,15 @@ if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
   fi
   row "python procs" "$(printf '%s\n' "$ps_table" | grep -c '^python\.exe')"
   row "ollama" "$(printf '%s\n' "$ps_table" | grep -c '^ollama')"
+  # S81 §10.4: a hung run was reported healthy because a process NAMED llama-server was read as
+  # ours - it was ollama's own engine (ollama >= 0.32 runs llama-server.exe internally, from
+  # AppData\Local\Programs\Ollama\lib\ollama\). The name is not an identity; only the parent PID
+  # decides. The row exists so the next glance at the card meets the lesson at the exact place
+  # the mistake was made.
+  lsn=$(printf '%s\n' "$ps_table" | grep -c '^llama-server\.exe')
+  if [[ "$lsn" -gt 0 ]]; then
+    row "llama-server" "$lsn — the NAME does not identify it (ollama's engine is also llama-server.exe); the parent PID decides, never the name (S81)"
+  fi
 else
   row "processes" "UNREAD — process-table probe failed (rc=$ps_rc); NOT a statement that anything is down"
 fi

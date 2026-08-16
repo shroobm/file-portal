@@ -84,7 +84,7 @@ analyst, prefer goodput and say so.
 
 ---
 
-## 3. The seven rules for stating a number
+## 3. The rules for stating a number
 
 1. **Name the numerator and the denominator.** "Decode throughput 56.1 tok/s" — output tokens over
    decode-phase seconds. Not "56 tok/s".
@@ -103,6 +103,12 @@ analyst, prefer goodput and say so.
    reading.)
 7. **Sampling never promotes.** N chunks measured is `Inferred` about the corpus, never `Observed`
    about all of it. Say which, and give N.
+8. **A ratio needs two runs.** However well-conditioned, a ratio from one run stays inside the
+   instrument's own output. It is published — CHANGELOG, a ledger row, memory, a sentence to Rab
+   stated as a finding — only after a second independent run (a different day, or a re-idled
+   card) agrees within the order-drift limit. *(Added S83, generalising §7.1: four ratios were
+   published on one run each, and all four were withdrawn. Awaiting Rab's countersign, since this
+   document is his signed law.)*
 
 **Corollary — state the build.** A rate belongs to a specific engine build, model file, and
 hardware. llama.cpp reports `system_fingerprint` (e.g. `b10448-ad1de39e0`); Ollama reports its
@@ -333,6 +339,9 @@ engine difference. Rule: **name the invocation, not just the product.**
 
 ## 8. Where this is enforced
 
+- **`windows-converter/backend_parity_selftest.py`** steps on the instrument's own guards,
+  offline: the ns/ms boundary, the cached-prefill judge, UNREAD-never-zero, the incumbent bar,
+  the order-drift limit. Run it whenever the harness changes and before trusting a record run.
 - **`windows-converter/backend_parity.py`** prints in this vocabulary and refuses to print a rate
   whose duration it did not observe. If the harness and this document ever disagree, **the harness
   is wrong** — a document may describe an instrument, but an instrument may not invent a word the

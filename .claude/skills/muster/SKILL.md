@@ -115,6 +115,18 @@ State these as in force, each with its trigger, because they bind *after* the op
 - **The link fence is non-negotiable** wherever an LLM touches markdown.
 - **Repo markdown is CRLF** — slice it with `head`/`tail` only; `sed`/`awk`/`grep` strip CR,
   and a bare `grep` cannot even see them (SYM-029; `grep -U` can).
+- **A status sentence to Rab carries its probe** — the command and the output line it rests on,
+  in the reply, at the moment of the claim. Three consecutive sessions an inference reached him
+  dressed as an observation, and every one was a mid-work status sentence, never a closeout:
+  S79 `.gpu-lock` "already exists" (untested), S81 a hung run called "healthy" off a process
+  *name* (it was ollama's own engine), S82 "thermal" without a thermometer. The tag law lives or
+  dies in live sentences; the closeout only performs the autopsy.
+- **A guard born today gets its tripwire today** — docs/32 §6 has held five sessions running:
+  the defect moves into whatever was built to enforce the rule (S79 seven-for-seven, S81's
+  cache traps inside the instrument obeying the document that names them, S82's reference that
+  was itself the forbidden single measurement). `selftest.sh` guards the open;
+  `backend_parity_selftest.py` guards the instrument. A new guard without a test that violates
+  its property is a proxy with a birth certificate.
 - **Every measured number obeys `docs/34`** — the measurement language. Name the numerator and
   the denominator; never blend prefill with decode or cold with warm; give `n` and a spread; a
   ratio prints both its sides; a percentage prints its base; a duration nobody reported renders

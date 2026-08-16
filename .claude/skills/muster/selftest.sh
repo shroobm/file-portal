@@ -175,6 +175,7 @@ file-portal-widget.exe       18856 Console                    1     22,000 K
 file-portal-widget.exe       19536 Console                    1     25,000 K
 python.exe                    6420 Console                    1      3,000 K
 ollama.exe                    9168 Console                    1     38,000 K
+llama-server.exe             21240 Console                    1  1,500,000 K
 TBL
 FAKE
 chmod +x "$WORK/fakebin/tasklist"
@@ -185,6 +186,9 @@ else bad "two widgets are reported as two" "got: $(printf '%s' "$out" | grep -E 
 if printf '%s' "$out" | grep -q '18856' && printf '%s' "$out" | grep -q '19536'; then
   ok "…and BOTH pids are named, not just the first"
 else bad "…and BOTH pids are named" "got: $(printf '%s' "$out" | grep -E ' widget ')"; fi
+if printf '%s' "$out" | grep -qE 'llama-server +1 .*parent PID decides'; then
+  ok "…and a llama-server is counted with its identity caveat, never identified by name"
+else bad "llama-server identity caveat" "got: $(printf '%s' "$out" | grep 'llama-server')"; fi
 
 # CASE 10 — the other direction, so the new row cannot pass by always shouting. One widget must
 # still render as a bare pid: a guard that fires on every input is the tautology case 0 exists to
