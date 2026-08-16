@@ -117,7 +117,7 @@ async function renderModels(loadedName) {
   const sel = $("model");
   const prev = sel.value;
   sel.innerHTML = (r.models || []).map(m =>
-    `<option value="${esc(m.id)}"${m.note ? ` title="${esc(m.note)}"` : ""}>` +
+    `<option value="${esc(m.id)}" title="${esc(m.path)}${m.note ? " — " + esc(m.note) : ""}">` +
     `${esc(m.id)} · ${m.gb} GB${m.note ? " ⚠" : ""}</option>`).join("");
   // keep the operator's selection across refreshes; a loaded model pins the picker to itself
   const want = loadedName ? [...sel.options].find(o => loadedName.includes(o.value) || o.value.includes(loadedName.replace(/\.gguf$/, "")))?.value : prev;

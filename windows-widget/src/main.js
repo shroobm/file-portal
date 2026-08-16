@@ -133,8 +133,11 @@ async function init() {
           }
         } else {
           console.error("transfer failures", report.failed);
-          const firstError = report.failed[0]?.error ?? "unknown error";
-          setStatus(`Sent ${report.sent.length}, failed ${failedCount}: ${firstError}`);
+          // WHICH file failed, not just how many — FailedTransfer.path was computed and
+          // stored but reached only devtools (docs/29: a glitch); the operator acts on the name.
+          const first = report.failed[0];
+          const firstWhere = first ? `${first.path.split(/[\/]/).pop()}: ${first.error}` : "unknown error";
+          setStatus(`Sent ${report.sent.length}, failed ${failedCount} — ${firstWhere}`);
         }
       } catch (err) {
         console.error("send_to_portal failed", err);
@@ -1017,8 +1020,14 @@ document.querySelectorAll(".surf-btn[data-surface]").forEach((b) =>
 async function openChat() {
   setStatus("Opening the assistant…");
   try {
+    // The death certificate renders HERE (docs/29 §5.4): a server that died since last time
+    // is reported to the operator's face, not silently replaced (the watcher's idiom).
+    const prev = await invoke("chat_status");
+    dbg(`chat_status: ${JSON.stringify(prev)}`);
     const port = await invoke("chat_open");
-    setStatus(`Assistant up on 127.0.0.1:${port} — its window is open.`);
+    setStatus(prev.last_exit != null && !prev.running
+      ? `Assistant up on 127.0.0.1:${port} — the previous server died (exit ${prev.last_exit}).`
+      : `Assistant up on 127.0.0.1:${port} — its window is open.`);
   } catch (err) {
     setStatus(`Assistant: ${err}`);
   }

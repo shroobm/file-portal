@@ -240,6 +240,7 @@ def _enforce_citation(answer: str, index: dict[str, list[str]]) -> tuple[str, li
 class Llama:
     def __init__(self, exe: Path, model: Path):
         self.exe, self.model = exe, model
+        self.model_name: str | None = None   # the picker id - an ollama blob's filename is a sha
         self.proc: subprocess.Popen | None = None
         self.port: int | None = None
         self.started: float | None = None
@@ -256,13 +257,15 @@ class Llama:
                     return p
         raise RuntimeError(f"no free port in {LLAMA_PORTS.start}..{LLAMA_PORTS.stop}")
 
-    def load(self, model: Path | None = None) -> dict:
+    def load(self, model: Path | None = None, name: str | None = None) -> dict:
         # S85: the picker. A different model while one is loaded = unload first, then load -
         # never two on the card (SYM-022). Same model already up = the status, free.
         if model is not None and self.loaded and model != self.model:
             self.unload()
         if model is not None:
             self.model = model
+        if name is not None:
+            self.model_name = name
         if self.loaded:
             return self.status()
         busy = convert_running()
@@ -280,7 +283,7 @@ class Llama:
             raise RuntimeError(f"a conversion started while loading ({again}) — yielding the card")
         errlog = PIPE / "chat-stderr.log"
         self.proc = subprocess.Popen(
-            [str(self.exe), "-m", str(self.model), "-ngl", "99", "-c", "8192",
+            [str(self.exe), "-m", str(self.model), "-ngl", "99", "-c", "16384",  # S85: docs/20+35 corpus MEASURED at ~9.5k tok; 8k truncated it
              "--flash-attn", "on", "--jinja", "--host", "127.0.0.1", "--port", str(self.port)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=open(errlog, "wb"),      # last words, the watcher-stderr idiom
@@ -326,7 +329,7 @@ class Llama:
 
     def status(self) -> dict:
         return {"loaded": self.loaded, "port": self.port,
-                "model": self.model.name if self.model else None,
+                "model": self.model_name or (self.model.name if self.model else None),
                 "model_gb": round(self.model.stat().st_size / 1e9, 2) if self.model.is_file() else None,
                 "load_s": self.ready_s,
                 "uptime_s": round(time.perf_counter() - self.started, 1) if (self.loaded and self.started) else None,
@@ -407,7 +410,7 @@ class Handler(BaseHTTPRequestHandler):
                         return self._send(404, {"error": f"unknown model id {req['model']!r} — "
                                                          "not in the on-device list"})
                     model = Path(hit["path"])
-                return self._send(200, self.llama.load(model))
+                return self._send(200, self.llama.load(model, req.get("model")))
             if self.path == "/api/unload":
                 return self._send(200, self.llama.unload())
             if self.path == "/api/ask":
