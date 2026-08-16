@@ -98,6 +98,7 @@ def append_receipt(root: Path, outcome: str, **fields) -> None:
     except Exception:  # noqa: BLE001
         logger.warning("receipt %s could not be written (operation unaffected)", outcome)
 
+
 # Machine-produced commits identify themselves; hand commits keep the user's identity.
 GIT_IDENTITY = [
     "-c",
