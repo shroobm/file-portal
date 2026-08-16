@@ -12,6 +12,12 @@
       "port": 7077
     },
     {
+      "name": "room-chat",
+      "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
+      "runtimeArgs": ["prototypes/room-chat/chat.py", "--port", "7100"],
+      "port": 7100
+    },
+    {
       "name": "room-harness",
       "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
       "runtimeArgs": [

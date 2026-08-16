@@ -1,0 +1,151 @@
+<!doctype html>
+<meta charset="utf-8">
+<title>Room · Assistant</title>
+<!--
+  S79 — the Room's assistant, quarantined prototype (docs/33).
+
+  Framework-free vanilla, like every other surface in this widget: the webview runs the files as
+  written (docs/20 §10). No terracotta anywhere and nothing pulses — docs/13 reserves #D97757 for
+  "your hand is required" and this panel never requires a hand. An assistant explains; the
+  summons was somewhere else.
+
+  THE DIVISION THAT MAKES THIS LAWFUL (docs/33 §2.1, signed by Rab 2026-08-15):
+  everything in the state strip is READ FROM DISK by /api/state and rendered here verbatim. The
+  model never sees it and never speaks it. Prose from the model lives only in the transcript, and
+  only ever with a citation the server already resolved.
+-->
+<style>
+  :root {
+    --bg:#141416; --panel:#1b1b1e; --line:#2c2c31; --text:#e8e8ea; --text-2:#a0a0a8;
+    --text-3:#6e6e78; --accent:#7aa2f7; --ok:#8fbf7f; --mono:ui-monospace,"Cascadia Code",Consolas,monospace;
+  }
+  @media (prefers-color-scheme: light) {
+    :root { --bg:#f6f6f7; --panel:#fff; --line:#e2e2e6; --text:#1a1a1c; --text-2:#5a5a64;
+            --text-3:#8a8a94; --accent:#3b6fd4; --ok:#4a8f3a; }
+  }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--text); font:13px/1.55 system-ui,-apple-system,"Segoe UI",sans-serif;
+         display:flex; flex-direction:column; height:100vh; }
+  header { display:flex; align-items:center; gap:10px; padding:10px 14px; border-bottom:1px solid var(--line); }
+  h1 { font-size:13px; font-weight:600; margin:0; letter-spacing:.01em; }
+  .grow { flex:1; }
+  button { font:inherit; font-size:12px; padding:5px 12px; border-radius:8px; border:1px solid var(--line);
+           background:var(--panel); color:var(--text); cursor:pointer; }
+  button:hover:not(:disabled) { border-color:var(--accent); }
+  button:disabled { opacity:.45; cursor:not-allowed; }
+  #why { font-size:11px; color:var(--text-3); }
+  #state { display:flex; gap:14px; flex-wrap:wrap; padding:7px 14px; border-bottom:1px solid var(--line);
+           font-family:var(--mono); font-size:11px; color:var(--text-2); }
+  #state b { color:var(--text); font-weight:600; }
+  #log { flex:1; overflow-y:auto; padding:14px; display:flex; flex-direction:column; gap:12px; }
+  .msg { max-width:74ch; }
+  .msg.you { align-self:flex-end; background:var(--panel); border:1px solid var(--line);
+             border-radius:12px 12px 2px 12px; padding:7px 12px; }
+  .msg.it { border-left:2px solid var(--line); padding-left:12px; white-space:pre-wrap; }
+  .msg.sys { font-family:var(--mono); font-size:11px; color:var(--text-3); border-left:2px solid var(--ok);
+             padding-left:12px; white-space:pre-wrap; }
+  .cites { margin-top:6px; font-family:var(--mono); font-size:10.5px; color:var(--text-3); }
+  .withheld { color:var(--text-3); font-style:italic; }
+  form { display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--line); }
+  input { flex:1; font:inherit; padding:8px 12px; border-radius:9px; border:1px solid var(--line);
+          background:var(--panel); color:var(--text); }
+  input:focus { outline:none; border-color:var(--accent); }
+</style>
+
+<header>
+  <h1>Room · Assistant</h1>
+  <span id="why"></span>
+  <span class="grow"></span>
+  <button id="load">Load model</button>
+  <button id="unload" disabled>Unload</button>
+</header>
+
+<!-- READ FROM DISK. The model neither sees nor writes any of this. -->
+<div id="state"></div>
+
+<div id="log">
+  <div class="msg sys">The model is not loaded. Loading it takes the GPU, so a conversion cannot
+run while it is up — and it will refuse to load while one is already running.</div>
+</div>
+
+<form id="ask">
+  <input id="q" placeholder="Ask about the widget — it answers from the manual, with citations, or says it doesn't know" disabled autocomplete="off">
+  <button id="send" disabled>Ask</button>
+</form>
+
+<script>
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? "").replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+
+function say(cls, html) {
+  const d = document.createElement("div");
+  d.className = "msg " + cls;
+  d.innerHTML = html;
+  $("log").appendChild(d);
+  $("log").scrollTop = $("log").scrollHeight;
+  return d;
+}
+
+// The state strip is a projection, refreshed on its own clock. Values only — no adjectives, and
+// nothing here has passed through the model.
+async function renderState() {
+  const s = await (await fetch("/api/state")).json();
+  $("state").innerHTML =
+    `held <b>${s.held ?? "?"}</b> · anchor <b>${s.anchor ?? "?"}</b>` +
+    ` · pending <b>${s.pending ?? "?"}</b> · drop <b>${s.drop_pdfs ?? "?"}</b>` +
+    ` · audit <b>${esc(s.audit_mode ?? "?")}</b> · analyst <b>${esc(s.analyst_mode ?? "?")}</b>` +
+    (s.convert_running ? ` · <b>converting ${esc(s.convert_running)}</b>` : " · card free");
+  return s;
+}
+
+async function refresh() {
+  const s = await renderState();
+  const st = await (await fetch("/api/status")).json();
+  $("load").disabled = st.loaded || !!s.convert_running;
+  $("unload").disabled = !st.loaded;
+  $("q").disabled = $("send").disabled = !st.loaded;
+  // A disabled control that will not say why is a small cruelty. docs/33 §2.2's spirit: the
+  // operator is owed the reason, not just the greyed-out edge.
+  $("why").textContent = s.convert_running ? `converting ${s.convert_running} — the card is busy`
+                       : st.loaded ? `loaded on :${st.port}` : "";
+  return st;
+}
+
+$("load").onclick = async () => {
+  $("load").disabled = true;
+  const t = say("sys", "loading the model — an 8B takes ~20 s cold…");
+  try {
+    const st = await (await fetch("/api/load", {method:"POST"})).json();
+    if (st.error) throw new Error(st.error);
+    // The greeting Rab asked for: a confirmation with NUMBERS in it, not the word "ready".
+    t.textContent = `model loaded — ${st.model_gb} GB · ${st.model}\n`
+                  + `serving on 127.0.0.1:${st.port} · came up in ${st.load_s ?? "?"} s\n`
+                  + `the GPU is held for the chat; a conversion will defer until you unload.\n`
+                  + `Ask about the widget. Every answer carries a citation you can open, or it says it doesn't know.`;
+  } catch (e) { t.textContent = "could not load — " + e.message; }
+  refresh();
+};
+
+$("unload").onclick = async () => {
+  await fetch("/api/unload", {method:"POST"});
+  say("sys", "unloaded — the card is back and the pipeline can convert again.");
+  refresh();
+};
+
+$("ask").onsubmit = async ev => {
+  ev.preventDefault();
+  const q = $("q").value.trim();
+  if (!q) return;
+  $("q").value = "";
+  say("you", esc(q));
+  const t = say("it", "…");
+  const r = await (await fetch("/api/ask", {method:"POST", body: JSON.stringify({q})})).json();
+  if (r.error) { t.textContent = "error — " + r.error; return; }
+  t.innerHTML = esc(r.answer)
+    + (r.citations?.length ? `<div class="cites">↳ ${r.citations.map(esc).join(" · ")}</div>` : "")
+    + (r.verdict === "withheld-uncited" ? `<div class="cites withheld">an answer was produced and withheld — it cited nothing checkable</div>` : "");
+};
+
+refresh();
+setInterval(renderState, 4000);
+</script>
