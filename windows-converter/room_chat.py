@@ -121,6 +121,13 @@ CORPUS = [
     # files within." docs/35 is that schema - the CURATED half; live listings stay on the
     # surface as data (corpus_schema.tree_snapshot), never in the model's mouth (docs/33 §2.1).
     ("docs/35-portal-schema.md", "the portal schema — every folder and file, what writes and reads it"),
+    # S87, signed by Rab the night of the first live session: his first real question — "what
+    # is this program about, what should an engineer know before diving into it" — was
+    # correctly WITHHELD (docs/33 §2.2) because its answer lived in no document the model was
+    # given. docs/36 is that answer (the two-machine familiarization's briefing, S79-ThinkPad
+    # + S86-Desktop), and his question widened the corpus's audience from operator to
+    # engineer. Fit re-measured at admission: see the S87 closeout for the tokenizer numbers.
+    ("docs/36-repository-briefing.md", "the repository briefing — architecture, subsystems, flows, invariants, risks, for an engineer"),
 ]
 
 
@@ -283,7 +290,7 @@ class Llama:
             raise RuntimeError(f"a conversion started while loading ({again}) — yielding the card")
         errlog = PIPE / "chat-stderr.log"
         self.proc = subprocess.Popen(
-            [str(self.exe), "-m", str(self.model), "-ngl", "99", "-c", "16384",  # S85: docs/20+35 corpus MEASURED at ~9.5k tok; 8k truncated it
+            [str(self.exe), "-m", str(self.model), "-ngl", "99", "-c", "16384",  # S87: system+docs/20+35+36 MEASURED 12,909 tok (llama-tokenize, qwen3 vocab) -> 3,475 headroom; re-measure at any corpus change (S85's 8k truncation lesson)
              "--flash-attn", "on", "--jinja", "--host", "127.0.0.1", "--port", str(self.port)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=open(errlog, "wb"),      # last words, the watcher-stderr idiom

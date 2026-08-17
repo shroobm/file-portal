@@ -1,24 +1,28 @@
 # docs/36 — The Repository Briefing
 
-*The deliverable of the two-machine familiarization pass: ThinkPad S79 read the tree it could
-see and handed off WIP (coordination `2026-08-16T21-51`); Desktop S86 completed the must-do
-list and merged the fork the handoff itself exposed. Provenance is tagged per docs/21: facts
-marked **[TP]** were `Verified`/`Observed` by ThinkPad S79 on its box (2026-08-16, fork-point
-tree); **[S86]** were `Observed`/`Verified` on the Desktop tonight (2026-08-16, merged tree);
-untagged structure is stable across both. Counts are commands-cited so they can be re-derived,
-never trusted from this page (SYM-039).*
+*The two-machine familiarization's deliverable: ThinkPad S79 read the tree it could see and
+handed off WIP; Desktop S86 completed the checklist and merged the fork the handoff exposed;
+S87 finished this into the mappings Rab commissioned, and admitted it to the assistant's
+corpus. Provenance: **[TP]** = verified by ThinkPad S79 on its box (2026-08-16, fork-point
+tree); **[S86]/[S87]** = observed on the Desktop (merged tree); untagged = stable across
+both. Counts cite their deriving command — re-derive, never quote (SYM-039).*
 
-*Filed at docs/36 by the docs/NN precedent — Rab may direct it elsewhere; move the file, keep
-the history.*
-
-## 1. What this repository is
+## 1. What this is
 
 A two-machine **document factory**: books (PDF/EPUB/DOCX) drop onto a Windows desktop widget,
 convert to Markdown bundles on the desktop GPU (Marker) or the Linux CPU lanes (pymupdf4llm /
-pandoc), survive a survival audit, optionally pass a local-LLM readability analyst, ship over
-Tailscale to the ThinkPad, and export into a git-backed Obsidian vault ("the Library"). Every
-stage writes receipts; two humans' worth of laws (docs/00–35) govern what may be claimed,
-projected, and shipped. ~20.6k lines of source **[TP]**.
+pandoc), pass a survival audit and optionally a local-LLM readability analyst, ship over
+Tailscale to the ThinkPad, and export into a git-backed Obsidian vault (the Library). Every
+stage writes receipts; the laws in docs/00–35 govern what may be claimed, projected, and
+shipped. An embedded assistant (this document is part of its corpus) answers questions about
+the system with citations or refuses. ~20.6k lines of source **[TP]**.
+
+What an engineer must internalize before touching anything: (1) **projection** — surfaces
+render measured values verbatim or not at all; (2) **single-writer** — every shared file has
+exactly one writer; (3) **epistemic tags** — a claim is Observed/Verified/Inferred/Intended/
+Unknown/Historical and consequential acts need Observed premises; (4) **adoption is Rab's
+hand** — built exes are staged, never launched by the builder; (5) the GPU carries **one lab
+process, ever**.
 
 ## 2. Architecture map
 
@@ -27,144 +31,112 @@ Windows desktop                              ThinkPad (Linux, always-on-ish)
 ┌─────────────────────────────┐              ┌──────────────────────────────┐
 │ windows-widget (Tauri v2)   │  tailscale   │ linux-receiver (allocator)   │
 │  Dock ⇄ Room ⇄ Wall + Bench │  ssh cat>    │  inbox/ → sorted/ + pipeline │
-│  42 commands [S86]          │ ───────────► │ linux-converter (2 watches)  │
+│  + Assistant (S85)          │ ───────────► │ linux-converter (2 watches)  │
 │  spawns: watcher chain,     │              │  convert lanes + EXPORTER    │
-│  bench.py, room_chat.py     │              │  → vault.git (bare) + clone  │
-│ windows-converter (GPU)     │  tar stream  │  receipts.jsonl (seam)       │
-│  convert_and_ship 1,205 ln  │ ───────────► │  systemd units + watchdogs   │
-│  Marker → bundle → ship     │              │  weekly vault fixity [TP]    │
-└─────────────────────────────┘              └──────────────────────────────┘
-Both clones push/pull origin (GitHub) — the repo IS the message bus (coordination/)
-and, since S86, the session ledger's two machine LANES live in one CLAUDE_README.
+│  bench.py, room_chat.py     │  tar stream  │  → vault.git (bare) + clone  │
+│ windows-converter (GPU)     │ ───────────► │  receipts.jsonl (the seam)   │
+│  convert_and_ship → bundle  │              │  systemd + watchdogs +       │
+└─────────────────────────────┘              │  weekly vault fixity [TP]    │
+        │ git push/pull                      └───────────┬──────────────────┘
+        └────────────► GitHub (origin) ◄─────────────────┘
+   one repo = code + message bus (coordination/) + the session ledger (machine LANES, S86)
 ```
-
-Entry points: widget `main.rs` (boot → config → watcher autostart); `watch_and_convert.py`
-(drop poll → single-flight convert); allocator `main.py` (inotify on inbox/); converter
-`main.py` (pipeline + staging watches); exporter sweep at staging arrival.
 
 ## 3. Subsystem map
 
-### windows-widget (Rust, Tauri v2 + vanilla JS)
-Modules and roles as mapped by **[TP]** §3 (all read in full there), still accurate post-merge
-with these S85 additions **[S86]**: **`chat.rs`** — the embedded assistant on bench.rs's
-chassis: spawns `windows-converter/room_chat.py` inside the watcher's Job Object,
-`llama_server_exe` config key (empty hides the feature), `chat_stop`, death-certificate mutex
-with the exit code RENDERED on reopen. Command count 38 → **42** (`grep -c
-"#\[tauri::command\]" src/*.rs`), crate tests 20 → **23** (`cargo test`, tonight: 23 passed,
-fmt + clippy -D warnings clean, toolchain 1.97.1).
+| Subsystem | Role | Key files (largest first) | Proof | State |
+|---|---|---|---|---|
+| windows-widget | The operator's surface: Dock/Room/Wall, Bench + Assistant windows, watcher lifecycle, transports, levers | main.rs, assay.rs, room.rs, chat.rs [S85], line.rs, algedonic.rs, bench.rs, watcher.rs, transfer.rs, receipts.rs, vault.rs, config.rs, preflight.rs · JS: main.js, room.js, styles.css | `cargo test` 23/23 [S87] · fmt+clippy clean · CI rust job | live; 42 commands (`grep -c "#\[tauri::command\]" src/*.rs`) |
+| windows-converter | GPU convert lane: probe→route→Marker→audit→analyst→bundle→ship; the assistant's server | convert_and_ship.py (~1.2k lines), fidelity_audit.py, analyst.py, room_chat.py [S85], watch_and_convert.py, events.py | NO test suite, not in CI — decision before Rab [S86] | live; hardcoded `ml\` paths (see §7) |
+| linux-receiver | inbox watcher → rules → sorted/ + pipeline feeds | allocator/: main.py, rules.py, status.py, sdnotify.py [TP] | pytest (receiver suite green [TP]) · CI · systemd watchdog live-proven [TP] | live |
+| linux-converter | CPU convert lanes + THE EXPORTER (vault's only writer) + fixity | converter/: exporter.py, main.py, bundle.py, engines.py, degeneration.py [TP], fixity.py [TP] | pytest (converter suite green [TP]) · CI · watchdog | live |
+| prototypes/repair-bench | Human repair of held bundles: crop/transcribe/collapse/AI-assist over a ledger with undo | bench.py, bench.html, acceptance.py, transcribe_worker.py | acceptance vs sandboxed real bundle; quarantined (child process only) | live tool |
+| windows-remote | SSH access gates (docs/17): scoped-at-birth firewall, two-run lockout | gate1-bootstrap.ps1, gate2-lockdown.ps1 [S86 read] | transcripts + MSIX-probe refusal | done through Gate 5 in-home |
+| observability/ | The glass detector: computed-but-rendered-nowhere finder, closeout-ritual mode | glass_detector.py, acceptance.py, dispositions.json | acceptance suite; runs at every close | live guard |
+| .claude/skills/muster | The session-open protocol: lane-aware clocks, origin fetch, collision checks | open.sh, muster.sh, selftest.sh, SKILL.md | selftest 22/22 [S86] | live guard |
+| linux-dashboard | GTK4 read-only viewer of sorted/ | main.py, window.py, scanner.py, widgets/ | skimmed [TP] | passive |
 
-Frontend: `main.js` (Dock; drag→portal, preflight cards, watcher lifecycle + death
-certificate, vault bar, assay card, algedonic chip, Assistant panel [S85]); `room.js` (Room +
-Wall surfaces). Render-body reading **[S86]** confirms the outlined model and adds the
-load-bearing constraints: projection-only holds everywhere; `gatherVM` enforces the S59
-no-network law (its comment carries the history); the S74 glow grammar modulates ONLY from the
-signed M lever and item volume; press-on-complete diffs poll N against N−1; the S75 rule that
-convert/vault rail rows must never carry a verdict (or `rl-fail` overrides `rl-pressed` by
-stylesheet order); the belt invents no traffic; the drill-down pauses the Room poll; GPU
-rings sample only while viewed. `styles.css` carries the `--fp-*` mass/glow token layer with
-reduced-motion collapse (26 refs, `grep -c -- "--fp-"`) **[S86]**.
+## 4. Flow maps
 
-### windows-converter (Python, GPU lane; NOT in CI)
-`convert_and_ship.py` (~1,205 lines after tonight), `fidelity_audit.py`, `analyst.py`,
-`watch_and_convert.py`, `events.py`, `room_chat.py` [S85: the assistant server — model picker
-over ollama manifests + HF hub cache, citation-or-refusal over docs/20+35 corpus, signed
-chat-hold deferral gate consumed by the watcher]. Full mechanics in **[TP]** §3 (read in
-full there) — still accurate, plus: the scan-lane `ocr_dpi` frontmatter stamp is now DERIVED
-from the installed Marker (`DocumentBuilder.highres_image_dpi`, observed `int 192`) **[S86]**.
-Hardcoded `C:\…\ml\` paths remain (see §6 Risks).
+**A. Drop → vault (GPU lane):** ⚡ tile → `drop/` → watcher (single-flight; defers while the
+assistant holds a model via `chat-hold.json` [S85]) → probe (chars/page + OCR-layer detect)
+routes clean/scan → Marker (chunked >600pp clean / >400pp scan; resumable slices; stall
+monitor kills >900s frozen) → survival audit → [analyst per `analyst-mode.txt`] → bundle
+(manifest + fidelity block) → `anchor/` + tar-stream to ThinkPad `staging/` → exporter verdict
+gate (fail-closed; sha-dedup vs bare) → vault commit + receipt → widget receipt cache → Room.
 
-### linux-receiver / linux-converter (Python, systemd; in CI)
-As **[TP]** §3 (read line-by-line there), plus their own S78: degeneration tripwire ported to
-the linux lanes (report-mode), spot-check every 10th accepted export (`spot_check: true`
-receipts), systemd watchdogs live-proven on both services, weekly vault fixity timer
-(`git fsck --strict`, `fixity-check` receipts), torn-line healing in `append_receipt`
-(SYM-037). Suites: receiver 28 passed / converter 73 passed **[TP]** (`pytest`, their box; CI
-re-runs both on every push to the branch).
+**B. Drop → vault (Linux lanes):** inbox categories → allocator rules → pipeline watches →
+pymupdf4llm (Clean=KEEP_OLD auto-OCR / Scan=DROP_OLD@300dpi — never `force_ocr`, SYM-012) or
+pandoc → degeneration tripwire [TP] → same staging → the same exporter serves both fronts.
 
-### prototypes/ (quarantined)
-`repair-bench/` — human repair of held bundles. `bench.html` read in full **[S86]**: the
-SYM-026 omission-run chips (◍, anchor-aware), the S79 error-structure diagnosis card rendering
-signature/name/**epistemic tag**/reason/highlight/solution on the glass, three-way crop
-targeting (run anchor / zone line / context), transcribe gates (numeric Jaccard · window
-survival · tables), collapse preview with TTR gate, ledger undo depth surfaced, rescore
-keeping MEASURED / COVERED / VAULT unblended, ◆ picker grouping held/pending/anchor/PDFs.
-`bench.py` mechanics as **[TP]** §3. Pipeline never imports the bench (child process only).
+**C. The gate (deferred analyst):** mode `ask` → pending card → widget routes → detached
+`--resume` (stderr to a last-words file, SYM-024).
 
-### windows-remote (zero pipeline coupling)
-Both ps1 bodies read **[S86]**: `gate1-bootstrap.ps1` — OpenSSH Server enabled with the
-firewall scoped AT BIRTH to the tailnet CGNAT range, the auto-created allow-any rule
-disabled, PS 5.1 as SSH shell, host-key fingerprints printed for pinning, and an MSIX-sandbox
-probe that REFUSES to run from a packaged shell (SYM-007's law mechanized). `gate2-lockdown.ps1`
-— two runs BY DESIGN (key install + proven login before password lockout), admin keys in
-`administrators_authorized_keys` with ACL lock, UTF-8-no-BOM load-bearing, and
-prepend-never-append into `sshd_config` (an appended directive would silently scope itself to
-the trailing Match block).
+**D. Remedy loop:** assay ◎ / Room held rows → ⟳ re-convert (authors THE supersede marker) ·
+⟲ re-analyze (refused under `.gpu-lock`) · ✓ bless (sha-bound, flag-only, no degeneration) ·
+🔧 Bench (repairs.jsonl chokepoint, sha chain, undo; REPAIRS.md excluded from body scan,
+SYM-030-desktop).
 
-## 4. Cross-system flows
+**E. The assistant:** titlebar → `chat_open` spawns room_chat.py (Job Object) → picker
+(ollama manifests + HF cache, ids only) → load (`-c 16384`; fixed prompt MEASURED 12,909 tok
+[S87], headroom 3,475) → answers cite docs/20/35/36 or are withheld (docs/33 §2.2) → unload
+clears the hold.
 
-1. **Drop → vault (GPU lane):** ⚡ tile → `drop/` → watcher (single-flight, `.gpu-lock`
-   holder) → probe routes clean/scan → Marker (chunked >600/400 pp, resumable slices) →
-   audit → [analyst] → bundle → anchor/ + tar-stream to ThinkPad staging → exporter verdict
-   gate → vault commit + receipt → widget receipt cache → Room event stream.
-2. **Drop → vault (Linux lanes):** inbox categories → allocator → pipeline watches →
-   pymupdf4llm/pandoc → since S78 also the degeneration tripwire → same staging → same
-   exporter. One exporter serves both fronts.
-3. **The gate:** analyst-mode `ask` defers to a pending card; the widget routes
-   (`--resume <id>`, detached, stderr to a last-words file — SYM-024).
-4. **Remedy loop:** assay card / Room held rows → reconvert (supersede marker, THE one
-   author) / reanalyze / bless (sha-bound, verdict-guarded) / Bench repair (chokepoint +
-   repairs.jsonl + sha chain, docs/28).
-5. **The assistant [S85]:** picker → `room_chat.py` loads llama-server (Job Object) → answers
-   cite docs/20/docs/35 or refuse; live tree renders as surface DATA; `chat-hold.json` defers
-   the watcher's converts while a model is resident (signed gate, tripwired 12/12).
-6. **Session record:** MUSTER open (lane-aware clocks + origin row [S86]) → work → closeout →
-   ledger row → push (enforced by the origin row after the 2026-08-16 fork).
+**F. The session record:** muster open (per-lane clocks + origin fetch) → opening commit →
+work → closeout §§ + glass detector → close commit → ledger row (separate commit, never
+amend, SYM-016) → push (ahead-0 is part of the close, S86).
 
-## 5. Interfaces & invariants (the ones that bite)
+## 5. Interface & contract map
 
-- **Pipeline dir contract** (widget ⇄ Python): events.jsonl single-writer per file; levers are
-  intent files (analyst-mode/audit-mode/chunk-batch/rules.json); `.gpu-lock` is a busy SIGNAL,
-  not a mutex (SYM-032) — the real exclusion is the chat-hold gate + one-lab-process law.
-- **Bundle anatomy:** manifest.json (fidelity block, supersede block, chunking seams),
-  `clamp_name` 80 utf-8 bytes (Windows MAX_PATH; SYM-014 row corrected S86), assets by
-  ABSOLUTE page (SYM-002), frontmatter mirrored across engines.
-- **Transport:** tailscale ssh `mkdir -p && cat > .part-X && mv` (transfer.rs) / tar-stream
-  per bundle (converter); ASCII-only local tar paths; atomic dotfile-then-rename at EVERY hop.
-- **Vault:** bare + work clone, ff-only merges, pathspec-scoped commits, L12 gate (blob
-  verified in bare before staging cleanup), dedup by full source sha in bare grep.
-- **Projection law** (docs/13/33): surfaces render measured values verbatim or not at all;
-  docs/29's glass detector runs in the closeout ritual (`--since` mode).
-- **Two clocks + two lanes [S86]:** ledger machine column = lane; muster parses per-lane
-  (`MUSTER_LANE`), origin fetch at open; symptom IDs one shared namespace.
-- **Repo markdown is CRLF** — slice with head/tail, `sed -b`, or the Edit tool (SYM-029).
+| Artifact | Single writer | Readers | Contract / trap | Rows |
+|---|---|---|---|---|
+| `events.jsonl` | windows-converter (events.py) | widget line.rs/events.rs, Room | append-only telemetry; best-effort | — |
+| `receipts.jsonl` (ThinkPad) | exporter | widget receipts.rs (ssh tail → cache) | the vault's own answers; torn-line healed | SYM-037 |
+| `.receipts-cache.jsonl` | widget receipts.rs | Room render | empty fetch never overwrites cache | — |
+| `.gpu-lock` | watch_and_convert.py | displays only | a busy SIGNAL, not a mutex | SYM-032 |
+| `chat-hold.json` | widget/room_chat | watcher (defers) | the real GPU exclusion, signed S85; stale holds reaped by pid-liveness | — |
+| levers: `analyst-mode.txt` `audit-mode.txt` `chunk-batch.txt` `rules.json` | widget (validated setters) | Python, re-read per event/slice | user intent files | — |
+| `pending/<id>.json` | convert_and_ship `--defer-analyst` | preflight.rs → cards | decide spawns detached resume | SYM-024 |
+| `drop/.supersede/<src>.json` | assay.rs reconvert (ONLY author) | convert_and_ship (consume-once) | sha-guarded; the exporter's verdict gate closes THE SUPERSEDE GAP | — |
+| bundle `manifest.json` | converter (each lane) | assay.rs, Bench, exporter | fidelity block; `clamp_name` 80 utf-8 bytes | SYM-014 |
+| `config.toml` (%APPDATA%) | **Rab's hand only** — a packaged session's write lands in the MSIX mirage | widget at boot | verify from the widget's boot log, never from the writing surface | SYM-007 (4th firing S87-filed) |
+| vault (bare + clone) | exporter commits; Desktop pulls | Obsidian, room metrics | ff-only, pathspec-scoped, L12 blob gate, weekly fixity [TP] | — |
+| Change Ledger (CLAUDE_README) | each session's close, own MACHINE LANE | muster (per-lane parse) | append-below; row = separate commit; SHAs must be ancestors | SYM-016/028/040 |
 
-## 6. Risks / debt (current, honest)
+## 6. The doctrine map (docs/ → what governs what)
 
-- **windows-converter untested & not in CI** — the only substantial untested code; drives the
-  GPU and the vault feed. Decision drafted for Rab (§7 of the S86 closeout): a pure-seam
-  suite (probe routing, frontmatter, estimate math, supersede take/stamp, name clamps) would
-  cover the logic without GPU; the Marker/ship paths stay acceptance-tested by use.
-- **Config-vs-hardcode duality:** `gpu_*` config keys and `C:\…\ml\` constants agree today
-  **[S86]** by convention only; extend S85's `FP_PIPELINE` env override so the widget's spawn
-  passes the configured root (next converter slice).
-- **`assay::bless` literal user@host** (assay.rs:375) while every other transport reads
-  config — a host rename breaks bless alone, at click time. Fix = thread
-  `linux_host`/`remote_user` through; deferred so the staged exe `6CA0DEF0` stays exactly
-  what Rab will adopt.
-- **Three new receipt fields unrendered** (`spot_check`, `degeneration_flagged`,
-  `fixity-check`) — SYM-027's shape; needs glass or a signed disposition next widget slice.
-- **SYM-033** two-widget prevention unbuilt (card shows it; nothing prevents it).
-- **Open symptom rows:** SYM-003 (table-loop degeneration), SYM-024 (unproven resume death),
-  SYM-027 (observability debt), SYM-032, SYM-033, SYM-034 (stalled generate), SYM-035
-  (order-drift confound), SYM-039 (docs drift class; this file cites commands for that
-  reason).
-- **ThinkPad-local CLAUDE.md is untracked** — its stale counts can't be fixed from here;
-  assigned back in the S86 coordination reply.
+| Range | Governs |
+|---|---|
+| 00–09 | Foundations: overview, architecture, tailnet, widget, receiver, rules, security, dev guide, roadmap, dashboard |
+| 10–12 | The library pipeline: plan, GPU revamp, phase-4 rewiring |
+| 13–14, 16 | Surfaces: projection law (13), remote projection (14), the Room's face (16) |
+| 15 | The Survival Audit: witness, scoring, verdict policy (SIGNED) |
+| 17 | Remote access runbook (gates; MSIX refusal idiom) |
+| 18–19 | Levers & heartbeats; execution laws (kill trees, ssh flags, adoption, GPU serialization) |
+| 20 | THE OPERATOR MANUAL (assistant corpus) |
+| 21 | Session closeout contract: epistemic tags, §-structure, admission prices |
+| 22–25 | HTML artifacts: engineering manual, showcases, design plan |
+| 26–28 | Audits & repair: mass-audit findings, collapse (27), the repair ledger (28) |
+| 29–32 | The observability complex (29), algedonic channels (30), circle findings (31), proxy substitution (32) |
+| 33 | The chat surface doctrine: projection §2.1, citation-or-refusal §2.2, deferral gate §2.3 |
+| 34 | The measurement language: numerator+denominator+conditions, always |
+| 35 | The portal schema (assistant corpus) |
+| 36 | This briefing (assistant corpus, S87) |
 
-## 7. Unresolved questions (Rab's)
+## 7. Risk register
 
-- Where this briefing should live if not docs/36.
-- windows-converter test debt: accept / pure-seam suite / full harness.
-- `SPOT_CHECK_EVERY` 10 → 3–5 at current volume (ThinkPad's number, awaiting his word).
-- The standing S85 queue: stale-hold reap countersign · SYM-033 prevention · GLM bench
-  second-reader · wrapper decision · docs/34 rule 8 countersign.
+| Risk | Evidence | Direction | Gate |
+|---|---|---|---|
+| windows-converter untested, not in CI | only substantial untested code; drives GPU + vault feed [TP] | pure-seam suite recommended [S86] | Rab's word |
+| config-vs-hardcode duality (`gpu_*` vs `ml\` constants) | agree today by convention only [S86] | extend S85's FP_PIPELINE env override | next converter slice |
+| `assay::bless` literal user@host (assay.rs) | ignores `linux_host`/`remote_user`; host rename breaks bless alone [TP][S86] | thread config through | next widget slice (staged-exe protection ended at adoption) |
+| 3 receipt fields unrendered (`spot_check`, `degeneration_flagged`, `fixity-check`) | SYM-027's shape [TP] | glass or signed disposition | next widget slice |
+| SYM-033 second-widget launch unprevented | card shows it; nothing stops it | single-instance guard | Rab's signature |
+| conversation headroom 3,475 tok | fixed prompt 12,909/16,384 [S87] | trim history or raise `-c` (re-measure VRAM) | when long chats hit it |
+| open symptom rows | SYM-003 (table loops), 024, 027, 032, 034, 035 | per-row | standing |
+
+## 8. Unresolved questions (owner: Rab)
+
+Converter test decision · `SPOT_CHECK_EVERY` 10→3–5 · this file's location if not docs/36 ·
+stale-hold reap countersign · GLM bench second-reader · wrapper decision · docs/34 rule 8 ·
+the ThinkPad's untracked CLAUDE.md counts (assigned back, coordination 2026-08-17T03-05).
