@@ -8,6 +8,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S89 — THE THINKING ATE THE ANSWER (2026-08-17 ~2 AM, Desktop lane, Fable; Rab's standing
+  sign).** The S88 fold's first live firing handed over the evidence: the third withhold was a
+  **304-token answer stump with zero pointers, cut mid-sentence** — and the direct probe showed
+  why: `finish_reason: length`, reasoning 2,163 chars vs content 1,021 — **qwen3's thinking
+  block spends from ask()'s same `max_tokens=700`**. A long-think draw truncates the answer
+  before its citations. Fix: budget → **2,048** (prompt is a constant ~12.9k cached tok
+  against 16,384; ≤~3,400 always fits). Proof, product-equivalent request, n=5: **5/5 cited,
+  5/5 natural stop, completion 1,047–1,439 tok — every draw would have truncated at 700.**
+  Narrative: `sessions/S89-desktop-2026-08-17.md`.
+
 - **S88 — THE GUARD LEARNS THE PROPERTY, THE WITHHELD LEAVE EVIDENCE (2026-08-17 ~1 AM,
   Desktop lane, Fable; Rab: "just build buddy, I sign… search for your exact answer").** His
   re-asked engineer question drew a second withhold while the identical repro drew five clean

@@ -373,7 +373,14 @@ class Llama:
             "model": "chat",
             "messages": [{"role": "system", "content": SYSTEM + "\n\n" + context},
                          {"role": "user", "content": question}],
-            "max_tokens": 700, "temperature": 0.2,
+            # S89: this is a COMBINED thinking+answer budget — qwen3 under --jinja spends its
+            # reasoning block from the same max_tokens, and at 700 a long-thinking draw left a
+            # 304-token answer stump, truncated mid-sentence BEFORE its citations, which the
+            # guard then rightly withheld (finish_reason "length", reasoning 2,163 chars vs
+            # content 1,021 — measured on the third live withhold, S89 §2). The prompt is a
+            # constant ~12.9k tok (asks are stateless) against -c 16384, so ≤~3,400 always
+            # fits; 2,048 covers the longest observed think plus a full cited answer.
+            "max_tokens": 2048, "temperature": 0.2,
         }).encode("utf-8")
         req = urllib.request.Request(f"http://127.0.0.1:{self.port}/v1/chat/completions",
                                      data=body, headers={"Content-Type": "application/json"})
