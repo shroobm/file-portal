@@ -79,9 +79,18 @@ jobs:
         run: |
           rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
           rustup default 1.97.1
-      - uses: Swatinem/rust-cache@v2
+      # S91 second verse: with rust-toolchain inlined, the 429 moved to the NEXT third-party
+      # archive (Swatinem/rust-cache — this run's log). The evidence pattern: codeload
+      # throttles third-party action downloads while first-party ones (checkout/setup-python,
+      # the python job's, green throughout) are served fine. So the cache uses the
+      # first-party action with explicit paths. Key change = one cold build, then warm.
+      - uses: actions/cache@v4
         with:
-          workspaces: windows-widget/src-tauri
+          path: |
+            ~/.cargo/registry
+            ~/.cargo/git
+            windows-widget/src-tauri/target
+          key: rust-1.97.1-${{ runner.os }}-${{ hashFiles('windows-widget/src-tauri/Cargo.lock') }}
       - name: Format check
         run: cargo fmt --check
       - name: Clippy
