@@ -8,6 +8,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S91 — THE WEATHER FIX (2026-08-17 midday, Desktop lane, Fable; Rab remote: "CI/Rust
+  failed in 1 minute").** Both failures died at "Set up job" before any repo step: GitHub's
+  codeload 429'd THIRD-party action archives while first-party ones served fine (the python
+  job stayed green throughout). Two verses: toolchain via preinstalled rustup (1.97.1 pin
+  kept, SYM-019) · cache via first-party `actions/cache@v4` — the rust job now downloads
+  zero third-party archives. **Verdict observed: green on `7738d37`.** §10 confession: the
+  first CI watcher passed a short SHA to a full-SHA API filter and rendered the failed query
+  as "pending" ×24 — SYM-031's shape, refired in my own tooling, same night.
+  Narrative: `sessions/S91-desktop-2026-08-17.md`.
+
 - **S90 — THE HANDOFF (2026-08-17 morning, Desktop lane, Fable; Rab remote from work).**
   Tonight's chat-only knowledge distilled into **`docs/37-next-stage-plan.md`**: the
   five-stage plan (truth repairs → hardening slice → converter tests/CI → verified seam →
