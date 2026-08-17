@@ -109,7 +109,80 @@ recorded choice.
 5. Standing from before tonight: docs/26 signature sheet (5) · stale-hold reap countersign ·
    docs/34 rule 8 · GLM second-reader · wrapper · SPOT_CHECK_EVERY 10→3–5.
 
-## §4 Live-state notes a fresh session must not re-derive wrongly
+## §4 Stage 0 pre-mortem — deviations solved ahead of the curve (S92)
+
+*Each Stage 0 task, its known trip points, and the recourse — so the next instance executes
+instead of discovering. Facts marked `Observed S92` were verified at filing.*
+
+**T1 · docs/35 fixes ×4** — trips: (a) docs/35 is CORPUS → after editing, RE-MEASURE (the
+recipe, verbatim — assemble then tokenize):
+`marker-env python -c "import sys; sys.path.insert(0, r'C:\...\windows-converter'); import room_chat; t,_=room_chat.load_corpus(); open(OUT,'w',encoding='utf-8').write(room_chat.SYSTEM+'\n\n'+t)"`
+then `C:\Users\Bndit\ml\llama\llama-tokenize.exe -m <qwen3 blob> -f OUT --show-count` (blob
+path: read `~\.ollama\models\manifests\registry.ollama.ai\library\qwen3\8b`, layers→model
+digest→`blobs\sha256-<digest>`; if the model is gone, measure with the vocab of whatever
+model the assistant actually runs, and say so — docs/34 conditions). (b) If the number
+moves, THREE stale sites cascade: `room_chat.py:293` comment · docs/36 §4.E · docs/36 §7
+risk row. (c) Section numbers in docs/35 should not shift (citations resolve per-doc; §N is
+display, but stability is free). (d) Corpus edits reach the assistant only at Rab's next
+widget restart — tell him to restart ONCE, after Stage 0 closes, and then do the fourth ask.
+(e) Run `room_chat_acceptance.py` after (24/24 expected; it re-loads the corpus).
+
+**T2 · F-09 re-read per slice** *(only with Rab's signature in his prompt; absent → do the
+rest, leave F-09 flagged, never guess)* — move the `chunk_batch()` read + `_with_batch`
+inside the slice loop. Trips: (a) the `chunking` event (~:721) reports the run-start value —
+fine, each slice's print/`.done` carries its own. (b) No suite exists yet (Stage 2): verify
+by py_compile + review; the fix ships `Intended`, exercised at the next real chunked
+convert — SAY SO in the closeout, no over-claim. (c) DESIGN TENSION with T3, resolved in
+advance: batch is a PERFORMANCE knob (VRAM/speed), not an output-identity input — T3 must
+NOT gate resume on batch equality, or a mid-book lever change (the very point of F-09)
+invalidates good slices. Record batch for forensics; gate on identity only.
+
+**T3 · `.done` identity** — at the skip branch (~:731): parse `.done`; re-convert the slice
+(loudly) if `source_sha256` mismatches or if new identity fields (engine `extra` args,
+Marker version — reuse the existing `import marker` provenance) mismatch. Do NOT gate on
+`batch` (see T2c). Legacy `.done` files lacking new fields: **moot — `.chunk-work` is EMPTY
+(`Observed S92`)**, no interrupted run spans the upgrade; still code the missing-field case
+as re-convert-and-log (cheap, correct for the future).
+
+**T4 · events.py torn-line healing** — port `append_receipt`'s last-byte check (SYM-037).
+Trips: emit() is hot — the check is one `seek(-1)` read, keep the never-raise contract.
+**A guard born today gets its tripwire today**: a ~15-line `events_selftest.py` (seed a torn
+file, emit, assert both lines parse) ships in the same commit; Stage 2 absorbs it later.
+
+**T5 · analyst.py urllib swap** — replace the curl subprocess with urllib (room_chat's ask()
+idiom); key goes in the Request header object, off argv. Trips: (a) PRESERVE the free-tier
+pacing + 3-retry backoff semantics exactly — they are load-bearing (rate limits). (b) TLS:
+curl bundled its own trust; stdlib ssl must prove itself — probe once in-session with a
+keyless request to the Gemini endpoint (expect a 4xx JSON, which proves TLS + reachability
+without spending a key call); if TLS fails on this box, STOP and file rather than shipping a
+broken swap. (c) Error mapping: HTTPError/URLError → the existing backend-failure path
+(original text kept, not journalled). Ships `Intended` + TLS `Observed`; first real Gemini
+run completes the proof.
+
+**T6 · index honesty** — SYM-032 refresh (append a dated status update; the index is
+append-only in spirit — never rewrite the row's history) · new rows for F-09 and the
+no-lock-resume blind spot: **next free IDs are SYM-041/042 (`Observed S92`; re-verify by
+grep before writing — the fork lesson)** · the real docs/08 transport entry (read docs/08's
+format first; transfer.rs:11-12 and docs/01:91 point at it). ALL of these files may be CRLF:
+Edit tool or `sed -b`/`printf '%s\r\n'` appends; verify `CR==LF` counts after (SYM-029).
+
+**Cross-cutting recourse:**
+- **Commit per task**, not one omnibus — an interrupted session then loses nothing (context
+  exhaustion mid-session is survivable by design).
+- **CI**: expect green; the S91 fix removed all third-party action downloads. If red: `gh`
+  is UNAUTHENTICATED on this box — the working route is the stored git credential:
+  `TOKEN=$(printf "protocol=https\nhost=github.com\n" | git credential fill | grep ^password= | cut -d= -f2)`
+  then the Actions REST API. `head_sha` filtering needs the FULL sha (S91 §10.1 was this).
+- **GPU**: Stage 0 is CPU-only (llama-tokenize included). Rab's widget/model: untouchable.
+- **Origin at open**: the ThinkPad may have pushed (their reply asked them to pull/adopt) —
+  a `behind N` row means pull first, and their lane's rows are lane-filtered noise to the
+  clock, by design.
+- **config.toml**: Rab's-hand territory, always (docs/37 §4).
+- **Rab's sequencing**: close Stage 0 → he restarts the widget once → fourth ask. If the
+  fourth ask is withheld AGAIN: the raw is in the fold and `room-chat-withheld.jsonl` —
+  diagnose from evidence, not reproduction.
+
+## §5 Live-state notes a fresh session must not re-derive wrongly
 
 - Assistant: adopted exe `6CA0DEF0`; corpus = docs/20+35+36, fit **12,909/16,384 tok**
   (re-measure on ANY corpus change); `max_tokens=2048` fix is ON DISK — **live only after
