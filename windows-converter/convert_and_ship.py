@@ -732,9 +732,9 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     book_work.mkdir(parents=True, exist_ok=True)
     merged_assets = work / "merged-assets"
     merged_assets.mkdir(parents=True, exist_ok=True)
-    slice_extra = _with_batch(extra, batch)
     print(f"CHUNKING {source_name}: {pages} pages -> {total} slices of {SLICE_PAGES} "
-          f"(recognition batch {batch}, lever {CHUNK_BATCH_FILE.name})", flush=True)
+          f"(recognition batch {batch} at start, lever {CHUNK_BATCH_FILE.name}, "
+          f"re-read per slice)", flush=True)
     emit("convert", "chunking", source=source_name, pages=pages, slices=total,
          slice_size=SLICE_PAGES, batch=batch)
 
@@ -765,10 +765,17 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
                 shutil.rmtree(slice_dir, ignore_errors=True)
                 prior = None
         if prior is None:
+            # F-09, SIGNED per-slice (Rab 2026-08-17, docs/37 §3.1): the lever is re-read for
+            # EVERY slice, honoring the promise docs/18 §4, docs/20 and line.rs make — mid-book
+            # VRAM steering is what the lever exists for (S60). The slice print, its event, and
+            # its .done carry the value actually used; the CHUNKING banner and the manifest's
+            # chunking.batch keep the run-start reading (docs/37 §4 T2a).
+            slice_batch = chunk_batch()
+            slice_extra = _with_batch(extra, slice_batch)
             staging = book_work / f".part-{start:05d}-{end:05d}"
             shutil.rmtree(staging, ignore_errors=True)
             shutil.rmtree(out_root, ignore_errors=True)  # Marker reuses <out_root>/<stem>
-            print(f"SLICE {i}/{total} pages {start}-{end} …", flush=True)
+            print(f"SLICE {i}/{total} pages {start}-{end} (batch {slice_batch}) …", flush=True)
             out_dir, md, wall, mib = _run_marker(
                 engine_src, engine_stem, out_root, slice_extra, end - start + 1, source_name,
                 page_range=f"{start}-{end}", progress_prefix=f"slice {i}/{total} · ")
@@ -795,12 +802,13 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
             # criterion (docs/37 §4 T2c: the lever must stay live mid-book).
             (staging / ".done").write_text(
                 json.dumps({"source_sha256": source_sha, "page_range": f"{start}-{end}",
-                            "wall_s": round(wall, 1), "batch": batch,
+                            "wall_s": round(wall, 1), "batch": slice_batch,
                             "engine_args": list(extra),
                             "marker_version": marker_version}) + "\n", encoding="utf-8")
             staging.rename(slice_dir)  # atomic publish: .done exists only on a complete slice
             emit("convert", "slice", source=source_name, slice=i, slices=total,
-                 page_range=f"{start}-{end}", wall_s=round(wall, 1), resumed=False)
+                 page_range=f"{start}-{end}", wall_s=round(wall, 1), batch=slice_batch,
+                 resumed=False)
         else:
             # A resumed slice costs this run nothing, but it DID cost the GPU when it ran, and
             # the ledger is trying to learn what a book of this shape actually takes. Counting
