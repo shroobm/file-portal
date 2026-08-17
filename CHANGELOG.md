@@ -8,6 +8,25 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S87 — THE CORPUS WIDENS, THE MAPPINGS LAND (2026-08-16 late evening, Desktop lane, Fable;
+  Rab signed both).** His first live assistant question — *"what is this program about, what
+  should an engineer know before diving into it"* — was correctly WITHHELD (docs/33 §2.2): its
+  answer lived in no document the model was given, because that document was born the same
+  night. Two closures:
+  - **docs/36 admitted to the assistant's corpus** (`room_chat.py` CORPUS), fit **measured
+    with the model's own tokenizer**: fixed prompt 12,909/16,384 tok, headroom 3,475 —
+    re-measured after the rewrite, per its own new rule (S85's 8k-truncation lesson applied
+    BEFORE shipping this time).
+  - **docs/36 v2 — the handoff's item 8 finished to specification**: the several mappings
+    (subsystem map · flow maps A–F · interface/contract single-writer map · doctrine map
+    00–36 · risk register · question register), merging the ThinkPad's collected knowledge
+    with the Desktop's, size held at v1's context budget.
+  - Filed from the post-S86 chat: **SYM-007's 4th firing** (S85 keyed config.toml from the
+    packaged surface; the write virtualized; Rab's hand re-inserted) + the corollary:
+    config.toml is Rab's-hand/widget-verified territory. Notepad's off-screen registry
+    position (X=−1920) diagnosed the same evening, fix given.
+  - Narrative: `sessions/S87-desktop-2026-08-16.md`.
+
 - **S86 — THE FORK RECONCILED + THE FAMILIARIZATION COMPLETED (2026-08-16 evening, Desktop
   lane, Fable; Rab signed the reconcile 1–4 and the checklist start).** The ThinkPad's push
   revealed a fork at Desktop S77's row: 52 unpushed Desktop commits (S78–S85) beside their
