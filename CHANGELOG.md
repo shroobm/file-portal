@@ -8,6 +8,15 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S92 — THE PRE-MORTEM (2026-08-17 afternoon, Desktop lane, Fable; Rab remote).** Stage 0
+  expanded into docs/37 §4: every task with its trip points and recourse — the corpus
+  re-measure recipe and its 3-site number cascade, F-09 only-with-signature, the T2/T3
+  tension pre-resolved (batch is a performance knob, never a resume-identity gate),
+  tripwire-same-commit for the torn-line fix, the urllib TLS probe, SYM-041/042 reserved,
+  per-task commits, the credential-fill CI route. Pre-verified: `.chunk-work` empty. *(This
+  entry landed one commit after S92's close — the row overstated the file list for two
+  minutes; recorded in the S93 accounting.)* Narrative: `sessions/S92-desktop-2026-08-17.md`.
+
 - **S91 — THE WEATHER FIX (2026-08-17 midday, Desktop lane, Fable; Rab remote: "CI/Rust
   failed in 1 minute").** Both failures died at "Set up job" before any repo step: GitHub's
   codeload 429'd THIRD-party action archives while first-party ones served fine (the python
