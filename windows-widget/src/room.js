@@ -475,12 +475,36 @@ function eventsPanel(d) {
     `<div class="rp-body">${rows || `<div class="rp-note">no events yet</div>`}</div></div>`;
 }
 
+// The recent-audits list — docs/16's own ledger row read BACKEND+ since S34: room.rs computed
+// six verdicts per render and no surface ever read them (SYM-027's named specimen, dossier
+// F-11 bonus). Render-only addition (S94): the projection law's missing read half. Guards all
+// three absent shapes: invoke error (metrics null), available:false (no other keys), and the
+// pre-S94 harness stubs that lack the field entirely.
+function auditsPanel(d) {
+  const list = (d.metrics || {}).recent_audits || [];
+  if (!list.length) return "";
+  const rows = list.map((r) => {
+    const v = r.verdict != null ? String(r.verdict) : "";
+    const surv = r.survival != null ? Number(r.survival).toFixed(3) : "—";
+    return `<div class="rev"><span class="rev-tag" style="color:${VCOL[v] || "var(--text-3)"}">${VSYM[v] || "·"} ${esc(v)}</span>` +
+      `<span class="rev-msg">${esc(shortName(r.name))} · survival ${surv}</span></div>`;
+  }).join("");
+  return `<div class="rp rp-audits"><div class="rp-head"><span class="rp-title">Recent audits</span>` +
+    `<span class="rp-grow"></span><span class="rp-file">newest ${list.length}</span></div>` +
+    `<div class="rp-body">${rows}</div></div>`;
+}
+
 // One exporter outcome as a human phrase. These are the vault's OWN words about a bundle —
 // what it did with the thing the desktop shipped it (docs/19 §3.3).
 function receiptMsg(r) {
   const s = (v) => String(v ?? "").slice(0, 34);
   const map = {
-    "exported": `${s(r.bundle)} — vaulted ✓ ${s(r.commit)}`,
+    // The spot_check / degeneration_flagged flags ride the exported outcome (exporter.py):
+    // the receipt half was built so the desktop could SEE them, and this render is the half
+    // that never was (docs/37 §1 Stage 1, S94).
+    "exported": `${s(r.bundle)} — vaulted ✓ ${s(r.commit)}` +
+      (r.spot_check ? " · 👁 spot-check: eyes owed" : "") +
+      (r.degeneration_flagged ? " · degeneration ⚠" : ""),
     "exported-supersede": `${s(r.bundle)} — REPLACED in vault (${s(r.reason)}) ${s(r.commit)}`,
     "supersede-held": `${s(r.bundle)} — vault REFUSED · verdict ${s(r.verdict)}`,
     "supersede-miss": `${s(r.bundle)} — nothing to replace · creating`,
@@ -489,6 +513,12 @@ function receiptMsg(r) {
     "bless-invalid": `${s(r.bundle)} — bless REJECTED · ${s(r.why)}`,
     "skip": `${s(r.bundle)} — already vaulted · skipped`,
     "failed": `${s(r.bundle)} — export FAILED · ${s(r.error)}`,
+    // fixity.py's records carry result/tip/error and NO bundle field — before S94 this fell
+    // to the fallback and rendered as the bare string "fixity-check": a corrupt vault and a
+    // clean one looked identical.
+    "fixity-check": r.result === "pass"
+      ? `vault fixity ✓ tip ${s(r.tip)}`
+      : `vault fixity FAILED · ${s(r.error || r.tip)}`,
   };
   return map[r.outcome] || `${s(r.outcome)} ${s(r.bundle)}`;
 }
@@ -580,7 +610,7 @@ function render(vm) {
     header(vm) + algedonicBanner(vm) + stationRail(vm) +
     `<canvas id="room-belt" class="room-belt"></canvas>` +
     kpiTiles(vm) + gpuStrip(vm) +
-    `<div class="room-panels">${convertPanel(vm)}${queuePanel(vm)}${assayPanel(vm)}${eventsPanel(vm)}</div>` +
+    `<div class="room-panels">${convertPanel(vm)}${queuePanel(vm)}${assayPanel(vm)}${auditsPanel(vm)}${eventsPanel(vm)}</div>` +
     `<div class="room-foot"><span>${esc(shiftLine(vm))}</span><span class="rf-lin">Control Room · projection of the live pipeline · docs/16</span></div>`;
   wire();
   attachBelt(vm); // persistent chips (module state) survive the innerHTML replace

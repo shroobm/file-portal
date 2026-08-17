@@ -106,7 +106,7 @@ out of scope (→ §9 higher-order goals).
 |---|---|---|
 | Convert panel (name/lane/eta/engine/batch) | `line_state` + static engine label | REAL (page%/vram → DEFER/BACKEND+) |
 | Survival Audit card (verdict/survival/degeneration/zones/runs/held/mode) | `assay_status` | REAL (reuse existing `assayRender` logic) |
-| Recent audits list | all-manifest scan | **BACKEND+** (`room_metrics.recent_audits`) |
+| Recent audits list | all-manifest scan | REAL — rendered S94 (`auditsPanel`, room.js; was **BACKEND+** from S34, the SYM-027 specimen) |
 | Gate cards (chunks/tokens/rec/etas) | `preflight_list` | REAL |
 | Event stream | `shift_summary.tail` (last 10) | REAL |
 | Vault bar | `vault_check` → state/bundles/behind | REAL |
