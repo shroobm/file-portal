@@ -17,6 +17,7 @@ force-OCR VRAM-fill stall, docs/11 Phase 1).
 import argparse
 import hashlib
 import json
+import os
 import re
 import shutil
 import subprocess
@@ -189,6 +190,59 @@ def chunk_batch() -> int:
         return value if value in CHUNK_BATCH_ALLOWED else CHUNK_BATCH_DEFAULT
     except (OSError, ValueError):
         return CHUNK_BATCH_DEFAULT
+
+
+# ---------- the card mutex (SYM-033 / SYM-042; signed docs/37 §3.2, Rab 2026-08-17) ----------
+#
+# Unlike `.gpu-lock` — a write-only busy SIGNAL that only the watcher writes (SYM-032) — this
+# is a named OS mutex the kernel enforces for EVERY converter entry: watcher child, --resume,
+# --reanalyze, and hand runs (SYM-042's blind spot). Local\ namespace: all entries run in the
+# one desktop session. Held for the process lifetime; the OS releases it at exit, and a dead
+# holder surrenders it as WAIT_ABANDONED, which is safe to inherit here because the slice
+# machinery already publishes atomically (.part -> rename; a torn .done re-converts).
+CARD_MUTEX_NAME = os.environ.get("FP_CARD_MUTEX", "Local\\file-portal-card")
+
+
+def acquire_card_mutex() -> object | None:
+    """Blocks (LOUDLY, never silently) until this process owns the card. Returns the handle,
+    or None on the one fail-open path: CreateMutexW itself failing, printed and emitted —
+    availability over a guard the OS refused to make; the human gate (nvidia-smi, docs/19)
+    still stands. Poll interval is env-tunable so the tripwire can run in milliseconds."""
+    import ctypes
+
+    k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+    handle = k32.CreateMutexW(None, False, CARD_MUTEX_NAME)
+    if not handle:
+        print(f"CARD MUTEX unavailable (CreateMutexW error {ctypes.get_last_error()}) — "
+              f"proceeding UNGUARDED", flush=True)
+        emit("convert", "card_mutex", state="unavailable")
+        return None
+    WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT = 0x00, 0x80, 0x102
+    poll_ms = int(os.environ.get("FP_CARD_MUTEX_POLL_MS", "30000"))
+    result = k32.WaitForSingleObject(handle, 0)
+    if result == WAIT_TIMEOUT:
+        print(f"CARD BUSY: another converter holds {CARD_MUTEX_NAME} — waiting", flush=True)
+        emit("convert", "card_mutex", state="wait")
+        while result == WAIT_TIMEOUT:
+            result = k32.WaitForSingleObject(handle, poll_ms)
+            if result == WAIT_TIMEOUT:
+                print("CARD BUSY: still waiting …", flush=True)
+    if result == WAIT_ABANDONED:
+        # The prior holder died mid-hold. Ownership transferred to us; the on-disk state it
+        # left is resumable by design, so proceeding is correct — but say so.
+        print("CARD MUTEX inherited from a dead holder (WAIT_ABANDONED) — proceeding", flush=True)
+        emit("convert", "card_mutex", state="inherited")
+    return handle
+
+
+def release_card_mutex(handle: object | None) -> None:
+    """The tripwire's half — production holds to process exit and lets the OS release."""
+    if handle:
+        import ctypes
+
+        k32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        k32.ReleaseMutex(handle)
+        k32.CloseHandle(handle)
 
 
 def should_chunk(pages: int, lane: str) -> bool:
@@ -1249,6 +1303,11 @@ def main():
                     help="analyst-only re-run of an anchored bundle (docs/19 §3.1); Marker "
                          "never runs and the result ships as a supersede")
     args = ap.parse_args()
+
+    # The GPU span begins here for EVERY entry — convert, --resume, --reanalyze — so the
+    # card is claimed before dispatch (docs/37 §3.2, signed; SYM-042's cover). Held to
+    # process exit; the OS releases it.
+    acquire_card_mutex()
 
     if args.resume:
         resume(args.resume, args.backend)
