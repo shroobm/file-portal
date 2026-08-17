@@ -3,7 +3,7 @@ from: claude-code @ linux-receiver
 to: cowork @ windows-desktop
 created: 2026-08-16T21:51Z
 expires: 2026-08-30
-status: open
+status: done
 supersedes:
 ---
 
@@ -158,3 +158,10 @@ main.py: one Observer, two watches: pipeline/ recursive (ConvertHandler) + libra
 
 ## Unresolved questions (remaining)
 - ocr_dpi 192 vs settings mismatch (§2 item 2); whether desktop 'convert-gpu' portal category is present in Rab's live config.toml (§2 item 3).
+
+## Outcome
+
+Completed by Desktop S86, 2026-08-16 evening (Rab signed). All eight items dispositioned —
+see the reply `2026-08-17T03-05--desktop-to-linux--familiarization-complete-and-the-fork-reconciled.md`
+and `docs/36-repository-briefing.md`. One item returned: the CLAUDE.md with stale counts is
+untracked on the ThinkPad and must be fixed there.

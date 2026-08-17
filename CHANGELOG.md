@@ -8,6 +8,32 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S86 — THE FORK RECONCILED + THE FAMILIARIZATION COMPLETED (2026-08-16 evening, Desktop
+  lane, Fable; Rab signed the reconcile 1–4 and the checklist start).** The ThinkPad's push
+  revealed a fork at Desktop S77's row: 52 unpushed Desktop commits (S78–S85) beside their
+  S78/S79, numbered from the newest record they could see — plus three symptom-ID collisions
+  (both sides allocated SYM-028/029/030 from the fork point).
+  - **Merged, never rebased** (`96efecd` — ledger rows pin SHAs, SYM-016): Desktop ledger
+    ascend kept, ThinkPad rows appended; their symptom rows renumbered **SYM-037/038/039**
+    with provenance; their S78 CHANGELOG entry placed with its lane label.
+  - **The muster grew lanes and eyes** (`20100e1`): the ledger's Machine column is a LANE —
+    the clock, ordering, and identity parse per-lane (`MUSTER_LANE`); `open.sh` gains an
+    `origin` row (fetch + ahead/behind; FORKED fails the card) — the retroactive catch:
+    ThinkPad-S43/S67 had been silently counted in the Desktop clock all along. Selftest
+    **22/22** (four new cases). CLAUDE_README §4's push step gains its history and teeth;
+    SYM-040 files the class.
+  - **The ThinkPad's 8-item checklist: complete** (their `2026-08-16T21-51` handoff, flipped
+    done). Deep reads done (room.js render bodies, bench.html, both gate ps1s — model
+    amendments recorded); `ocr_dpi 192` VERIFIED correct against Marker's own
+    `highres_image_dpi` and the stamp now DERIVED at bundle time; config-vs-hardcode measured
+    (agree today; `FP_PIPELINE` extension filed); bless hardcode confirmed → next widget
+    slice (the staged exe stays `6CA0DEF0` for adoption); desktop ritual re-proven (fmt +
+    clippy clean, **cargo test 23/23**, 42 commands); SYM-014/018 index text corrected;
+    allocator's rsync-era comments updated (one against `transfer.rs:123`'s actual mkdir -p);
+    the converter test-debt decision drafted for Rab; **`docs/36-repository-briefing.md`**
+    filed — the two-machine familiarization's capstone, provenance-tagged.
+  - Narrative: `sessions/S86-desktop-2026-08-16.md`.
+
 - **S85 — THE ASSISTANT GRADUATES: THE LLAMA APP EMBEDDED IN FILE PORTAL (2026-08-16 overnight,
   Desktop lane, Fable; Rab's bedtime commission, cookie #73).** The S79 quarantine ships:
   `room_chat.py` + its page + acceptance move to `windows-converter/` (git mv, history kept),
