@@ -8,6 +8,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S90 — THE HANDOFF (2026-08-17 morning, Desktop lane, Fable; Rab remote from work).**
+  Tonight's chat-only knowledge distilled into **`docs/37-next-stage-plan.md`**: the
+  five-stage plan (truth repairs → hardening slice → converter tests/CI → verified seam →
+  product; SQLite/CDG parked behind re-entry criteria), the ChatGPT dossier's 27
+  code-verified verdicts as a digest (8 CONFIRMED new — F-09 lever, F-13 argv key, F-14
+  CSP+devtools, F-16 DOCX bypass, F-17 unverified anchor, F-20 docs/35 corpus drift ×4;
+  their "28/29 acceptance" contradicted — ours is 33/33 at the same HEAD), the OPEN
+  signature register, and a §0 reading map so the next session opens on ~10k tokens.
+  Narrative: `sessions/S90-desktop-2026-08-17.md`.
+
 - **S89 — THE THINKING ATE THE ANSWER (2026-08-17 ~2 AM, Desktop lane, Fable; Rab's standing
   sign).** The S88 fold's first live firing handed over the evidence: the third withhold was a
   **304-token answer stump with zero pointers, cut mid-sentence** — and the direct probe showed
