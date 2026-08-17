@@ -25,7 +25,20 @@ def emit(stage: str, event: str, **fields) -> None:
             **fields,
         }
         EVENTS_FILE.parent.mkdir(parents=True, exist_ok=True)
+        # A crash mid-append leaves a torn final line with no newline; appending straight onto
+        # it would glue THIS record into the garbage and lose both (SYM-037 — healed first in
+        # exporter.append_receipt, ported here S93). Heal the boundary: lead with a newline
+        # when the file's last byte isn't one. The torn line stays torn — readers already skip
+        # unparseable lines — but this record survives. One seek(-1) read; emit() stays hot.
+        lead = ""
+        try:
+            with open(EVENTS_FILE, "rb") as check:
+                check.seek(-1, 2)
+                if check.read(1) != b"\n":
+                    lead = "\n"
+        except OSError:
+            pass  # missing or empty file needs no lead
         with open(EVENTS_FILE, "a", encoding="utf-8") as f:
-            f.write(json.dumps(record, ensure_ascii=False) + "\n")
+            f.write(lead + json.dumps(record, ensure_ascii=False) + "\n")
     except Exception:
         pass
