@@ -695,6 +695,20 @@ def _with_batch(extra: list[str], size: int) -> list[str]:
     return [*out, "--recognition_batch_size", str(size)]
 
 
+def _done_identity_mismatch(prior: dict, source_sha: str, extra: list[str],
+                            marker_version: str) -> list[str]:
+    """Names every identity field a finished slice's `.done` does NOT match (empty = safe to
+    resume). F-02's repair: `.done` used to be trusted by PRESENCE alone, so a slice converted
+    from a different config could be silently merged into this book. `batch` is deliberately
+    NOT an identity field: it is a performance knob (VRAM/speed), not an output-identity
+    input — gating on it would invalidate good slices at every mid-book lever change, which
+    is the lever's whole point (docs/37 §4 T2c). A missing field (legacy `.done`) reads as a
+    mismatch: re-convert-and-log is cheap and correct."""
+    fields = {"source_sha256": source_sha, "engine_args": list(extra),
+              "marker_version": marker_version}
+    return [key for key, want in fields.items() if prior.get(key) != want]
+
+
 def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work: Path,
                      out_root: Path, extra: list[str], pages: int,
                      source_sha: str) -> tuple[str, Path, float, int, dict]:
@@ -708,6 +722,9 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     skips the rest. Publication is dot-dir-then-rename, so a half-written slice can never be
     mistaken for a finished one. The whole book's slice dir is removed once the merge succeeds:
     the bundle now holds everything, and these are gigabytes."""
+    import marker  # marker-env only; version for provenance (the manifest stamp's twin)
+
+    marker_version = getattr(marker, "__version__", "unknown")
     batch = chunk_batch()
     ranges = slice_ranges(pages)
     total = len(ranges)
@@ -728,7 +745,26 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     peak_mib = 0
     for i, (start, end) in enumerate(ranges, 1):
         slice_dir = book_work / f"slice-{start:05d}-{end:05d}"
-        if not (slice_dir / ".done").is_file():
+        # Resume admission (F-02's repair): a finished slice is reused only when its .done
+        # RECORDS this job's identity — presence alone used to admit slices converted under a
+        # different engine config or Marker version, silently mixing outputs into one book.
+        prior: dict | None = None
+        if (slice_dir / ".done").is_file():
+            try:
+                parsed = json.loads((slice_dir / ".done").read_text(encoding="utf-8"))
+                prior = parsed if isinstance(parsed, dict) else None
+            except (OSError, ValueError):
+                prior = None
+            stale = (_done_identity_mismatch(prior, source_sha, extra, marker_version)
+                     if prior is not None else ["unparseable"])
+            if stale:
+                print(f"SLICE {i}/{total} pages {start}-{end}: STALE .done "
+                      f"({', '.join(stale)}) - re-converting", flush=True)
+                emit("convert", "slice_stale", source=source_name, slice=i, slices=total,
+                     page_range=f"{start}-{end}", mismatch=stale)
+                shutil.rmtree(slice_dir, ignore_errors=True)
+                prior = None
+        if prior is None:
             staging = book_work / f".part-{start:05d}-{end:05d}"
             shutil.rmtree(staging, ignore_errors=True)
             shutil.rmtree(out_root, ignore_errors=True)  # Marker reuses <out_root>/<stem>
@@ -754,9 +790,14 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
                      page_range=f"{start}-{end}", count=len(stray), examples=stray[:3])
             for img in imgs:
                 shutil.copy2(img, staging / img.name)
+            # Identity fields (source_sha256, engine_args, marker_version) gate the next
+            # resume; wall_s feeds the ledger; batch is FORENSIC only — never an admission
+            # criterion (docs/37 §4 T2c: the lever must stay live mid-book).
             (staging / ".done").write_text(
                 json.dumps({"source_sha256": source_sha, "page_range": f"{start}-{end}",
-                            "wall_s": round(wall, 1), "batch": batch}) + "\n", encoding="utf-8")
+                            "wall_s": round(wall, 1), "batch": batch,
+                            "engine_args": list(extra),
+                            "marker_version": marker_version}) + "\n", encoding="utf-8")
             staging.rename(slice_dir)  # atomic publish: .done exists only on a complete slice
             emit("convert", "slice", source=source_name, slice=i, slices=total,
                  page_range=f"{start}-{end}", wall_s=round(wall, 1), resumed=False)
@@ -767,9 +808,8 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
             # retried — an estimator that flatters itself (found on the Damodaran run: 1.69 s/pp
             # reported vs 1.94 s/pp truly spent).
             try:
-                prior = json.loads((slice_dir / ".done").read_text(encoding="utf-8"))
                 resumed_wall += float(prior.get("wall_s") or 0.0)
-            except (OSError, ValueError, TypeError):
+            except (ValueError, TypeError):
                 pass
             resumed_count += 1
             print(f"SLICE {i}/{total} pages {start}-{end}: RESUMED (already converted)", flush=True)
