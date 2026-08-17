@@ -8,6 +8,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S88 — THE GUARD LEARNS THE PROPERTY, THE WITHHELD LEAVE EVIDENCE (2026-08-17 ~1 AM,
+  Desktop lane, Fable; Rab: "just build buddy, I sign… search for your exact answer").** His
+  re-asked engineer question drew a second withhold while the identical repro drew five clean
+  citations — temp 0.2's dice picked the citation format, and the strict paren parser decided
+  admission on punctuation. Three fixes, one restart:
+  - **Citation resolution relaxed to the property** (docs/33 §2.2 untouched): any `docs/NN`
+    token that RESOLVES against the corpus counts; compound forms ("§§1–3", multi-doc parens,
+    unparenthesized pointers) stop killing grounded answers; non-corpus pointers still count
+    for nothing (negative control in the suite).
+  - **Withheld answers leave evidence**: `room-chat-withheld.jsonl` (server-side, single
+    writer, best-effort) + the page renders the raw in a folded "show what was withheld" —
+    the field used to reach the browser and die (SYM-027's shape, docs/29, fixed same-commit).
+  - Acceptance **24/24** (four new cases). Narrative: `sessions/S88-desktop-2026-08-17.md`.
+
 - **S87 — THE CORPUS WIDENS, THE MAPPINGS LAND (2026-08-16 late evening, Desktop lane, Fable;
   Rab signed both).** His first live assistant question — *"what is this program about, what
   should an engineer know before diving into it"* — was correctly WITHHELD (docs/33 §2.2): its

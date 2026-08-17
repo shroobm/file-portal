@@ -207,6 +207,18 @@ thrown away and replaced with a refusal:
 
 CITE_RE = re.compile(r"\((docs/[\w.\-]+(?:\.md)?)\s*§?\s*([\d.]+)?\)|\(([\w./\\-]+):(\d+)\)")
 
+# S88 (Rab: "if something trips … search for your exact answer"): the paren form above is the
+# REQUESTED format, not the property. The property (docs/33 §2.2) is "points at something the
+# operator can open and check" — and a broad question makes the model write compound citations
+# ("docs/36 §§1–3"; "docs/20 §1, docs/36 §5" inside one paren) that the strict form parses to
+# NOTHING, so a fully-grounded answer is withheld as uncited. Observed the night docs/36
+# joined the corpus: Rab's engineer question drew a withhold; the identical repro minutes
+# later drew five clean citations. The dice picked the format; the format decided admission.
+# Resolution therefore falls back to ANY docs/NN token in the answer — each still resolved
+# against the corpus index, so a pointer to a document we never gave the model counts for
+# nothing, exactly as before.
+DOC_TOKEN_RE = re.compile(r"docs/[\w.\-]+")
+
 
 def _enforce_citation(answer: str, index: dict[str, list[str]]) -> tuple[str, list[str], str]:
     """THE GUARD. Returns (answer_or_refusal, resolved_citations, verdict).
@@ -236,6 +248,19 @@ def _enforce_citation(answer: str, index: dict[str, list[str]]) -> tuple[str, li
                     or k.split("/")[-1].startswith(tgt.split("/")[-1])), None)
         if hit:
             resolved.append(f"{target}{'§' + sec if sec else ''}{':' + line if line else ''}")
+    # S88: the format-forgiving pass — see DOC_TOKEN_RE's comment. Same stem resolution, same
+    # refusal for anything the corpus does not hold; only the punctuation requirement dies.
+    seen = {c.split("§")[0].split(":")[0] for c in resolved}
+    for tok in DOC_TOKEN_RE.findall(answer):
+        tgt = tok.rstrip(".,;:").replace("\\", "/").strip()
+        if not tgt or tgt in seen:
+            continue
+        hit = next((k for k in index
+                    if k == tgt or k.startswith(tgt) or tgt.startswith(k)
+                    or k.split("/")[-1].startswith(tgt.split("/")[-1])), None)
+        if hit:
+            resolved.append(tgt)
+        seen.add(tgt)
     if not resolved:
         return ("I don't know — that isn't in the manual I was given.\n\n"
                 "(An answer was produced but carried no citation that resolves to a document "
@@ -356,6 +381,23 @@ class Llama:
             return json.loads(r.read())["choices"][0]["message"]["content"].strip()
 
 
+# S88: a withheld answer used to reach the page and die unrendered (SYM-027's shape, docs/29)
+# — the one artifact that explains a refusal was the one thing nobody kept. Single writer:
+# this server. Best-effort: a logging failure never breaks an ask.
+WITHHELD_LOG = PIPE / "room-chat-withheld.jsonl"
+
+
+def _log_withheld(q: str, raw: str) -> None:
+    try:
+        line = json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "q": q[:500],
+                           "raw": raw[:4000], "tokens": DOC_TOKEN_RE.findall(raw)[:20]},
+                          ensure_ascii=False)
+        with WITHHELD_LOG.open("a", encoding="utf-8") as f:
+            f.write(line + "\n")
+    except OSError:
+        pass
+
+
 # ── the surface's own state, read from disk, never from the model (docs/33 §2.1) ─────────────
 def pipeline_state() -> dict:
     def count(sub, pat="*"):
@@ -425,6 +467,8 @@ class Handler(BaseHTTPRequestHandler):
                     return self._send(409, {"error": "the model is not loaded"})
                 raw = self.llama.ask(req.get("q", ""), self.context)
                 answer, cites, verdict = _enforce_citation(raw, self.index)
+                if verdict == "withheld-uncited":
+                    _log_withheld(req.get("q", ""), raw)  # S88: the refusal keeps its evidence
                 return self._send(200, {"answer": answer, "citations": cites,
                                         "verdict": verdict, "withheld": raw if verdict == "withheld-uncited" else None})
         except Exception as e:                             # noqa: BLE001

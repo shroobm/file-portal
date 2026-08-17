@@ -87,6 +87,32 @@ a, cites, verdict = chat._enforce_citation(
 check("an honest refusal passes through unaltered", verdict == "honest-refusal",
       "the guard mangled a refusal")
 
+# ── S88: format fragility (each shape below is a REAL admissible answer the pre-S88 guard
+# withheld as "uncited" — the dice picked the format, the format decided admission) ──
+a, cites, verdict = chat._enforce_citation(
+    "The factory has two lanes (docs/20 §1, docs/36 §5) and mappings (docs/36 §§1–3).", index)
+check("S88: compound citations in one paren resolve", verdict == "cited" and bool(cites),
+      f"verdict={verdict} cites={cites} — a grounded answer refused for its punctuation")
+a, cites, verdict = chat._enforce_citation(
+    "Per docs/36 the projection law binds every surface the widget renders.", index)
+check("S88: an unparenthesized doc pointer resolves", verdict == "cited",
+      f"verdict={verdict} — a checkable pointer refused for missing parens")
+# The negative control the relaxation MUST keep: pointers to documents the model was never
+# given still count for nothing, in any format.
+a, cites, verdict = chat._enforce_citation(
+    "The gate doctrine lives in docs/33 and docs/99-phantom.md, thoroughly described.", index)
+check("S88: non-corpus pointers still count for NOTHING (docs/33, docs/99)",
+      verdict == "withheld-uncited",
+      f"verdict={verdict} cites={cites} — the relaxed parser resolved a doc it never had")
+
+# ── S88: a withheld answer leaves evidence (SYM-027: the raw used to die unrendered) ──
+chat.WITHHELD_LOG = SCRATCH / "room-chat-withheld.jsonl"   # rebind: never the live pipeline (SYM-010)
+chat._log_withheld("test question", "raw uncited text naming docs/33 for the tokens field")
+_wl = (SCRATCH / "room-chat-withheld.jsonl")
+check("S88: a withheld answer leaves an evidence line",
+      _wl.is_file() and "docs/33" in _wl.read_text(encoding="utf-8"),
+      "no evidence line written — the refusal is unexplainable again")
+
 print("\n── the mutex (docs/33 §2.3, signed) ──")
 
 lock = SCRATCH / ".gpu-lock"

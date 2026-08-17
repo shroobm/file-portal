@@ -46,6 +46,9 @@
              padding-left:12px; white-space:pre-wrap; }
   .cites { margin-top:6px; font-family:var(--mono); font-size:10.5px; color:var(--text-3); }
   .withheld { color:var(--text-3); font-style:italic; }
+  .withheld-raw { margin-top:4px; }
+  .withheld-raw summary { cursor:pointer; }
+  .withheld-raw pre { white-space:pre-wrap; font-size:11px; margin:4px 0 0; opacity:.8; }
   form { display:flex; gap:8px; padding:12px 14px; border-top:1px solid var(--line); }
   input { flex:1; font:inherit; padding:8px 12px; border-radius:9px; border:1px solid var(--line);
           background:var(--panel); color:var(--text); }
@@ -174,7 +177,14 @@ $("ask").onsubmit = async ev => {
   if (r.error) { t.textContent = "error — " + r.error; return; }
   t.innerHTML = esc(r.answer)
     + (r.citations?.length ? `<div class="cites">↳ ${r.citations.map(esc).join(" · ")}</div>` : "")
-    + (r.verdict === "withheld-uncited" ? `<div class="cites withheld">an answer was produced and withheld — it cited nothing checkable</div>` : "");
+    + (r.verdict === "withheld-uncited"
+      ? `<div class="cites withheld">an answer was produced and withheld — it cited nothing checkable${
+          r.withheld ? `<details class="withheld-raw"><summary>show what was withheld</summary><pre>${esc(r.withheld)}</pre></details>` : ""
+        }</div>`
+      : "");
+  // S88: the raw used to arrive here and be DROPPED (SYM-027's shape, docs/29) — the one
+  // artifact that explains a refusal. It renders foldered, clearly marked as inadmissible;
+  // the server also keeps it in room-chat-withheld.jsonl.
 };
 
 refresh();
