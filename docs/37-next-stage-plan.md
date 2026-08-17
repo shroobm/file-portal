@@ -39,7 +39,7 @@ no-lock resume blind spot, write the real docs/08 transport entry.
 **Stage 1 — the hardening slice** *(ONE widget build + Rab's adoption)*
 CSP set + devtools out of release (test every surface — the chat window loads localhost) ·
 bless via config (assay.rs literal) · render `spot_check` / `degeneration_flagged` /
-`fixity-check` receipts · `recent_audits` rendered or dispositioned · **[needs signature]**
+`fixity-check` receipts · `recent_audits` rendered or dispositioned · **[signed 2026-08-17, §3.2]**
 single-instance guard + named OS mutex around the Marker launch (SYM-033 prevention; the
 mutex also covers `--resume`/manual runs the file-gates cannot see).
 *Exit: ritual green · SHA-8 staged · Rab's hand · every new guard stepped on.*
@@ -102,8 +102,10 @@ recorded choice.
 
 1. **F-09 semantics**: re-read per slice (honors the signed promise; the lever exists for
    mid-book VRAM steering, S60) ~or~ immutable-per-job (dossier's reproducibility argument).
-   Fable recommends per-slice.
-2. **SYM-033 prevention + named mutex** (Stage 1's third bullet).
+   Fable recommends per-slice. **SIGNED per-slice (Rab, 2026-08-17, in-chat: "F-09
+   per-slice signed") — built S94.**
+2. **SYM-033 prevention + named mutex** (Stage 1's third bullet). **SIGNED (Rab,
+   2026-08-17, in-chat: "Stage 1 GO with the mutex") — built S94.**
 3. **Asset posture**: warn (today) vs fail/quarantine on out-of-range (Stage 2 encodes it).
 4. Stage 2 GO · Stage 3 GO.
 5. Standing from before tonight: docs/26 signature sheet (5) · stale-hold reap countersign ·
