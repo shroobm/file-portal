@@ -8,6 +8,32 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S93 — STAGE 0, THE TRUTH REPAIRS (2026-08-17 evening, Desktop lane, Fable; Rab: "check
+  what last session left for you to do… work until it's done").** The S92 pre-mortem executed
+  as written, one commit per task. **T1** docs/35's four corpus lies fixed against source
+  (`ask` joins the analyst-mode enum · `chunk-batch.txt` = the CONVERTER's Marker slice
+  batch 8|16|32, not an analyst knob · events.rs is the READ side · verdict enum gains
+  `flag`), then the corpus re-measured by the room_chat comment's own rule: **13,076/16,384
+  tok, headroom 3,308** (llama-tokenize, qwen3 vocab, CPU-only; fixed point verified after
+  the cascade — FOUR stale sites, the pre-mortem's list said three, docs/37 §5 was the
+  fourth), `room_chat_acceptance.py` 24/24 after. **T2** F-09 deliberately NOT built — no
+  signature in Rab's prompt; filed as SYM-041 instead. **T3** `.done` reads what it writes:
+  slice resume is identity-gated on `source_sha256` + `engine_args` + `marker_version`
+  (legacy/unparseable `.done` → re-convert loudly, `slice_stale` event); `batch` recorded
+  but NEVER gating (T2c), predicate exercised 6/6 in-session. **T4** `events.emit()` heals
+  the torn-line boundary (SYM-037 ported from `append_receipt`) with `events_selftest.py`
+  in the same commit, 7/7 incl. positive control. **T5** analyst.py drops curl for urllib —
+  the Gemini key leaves argv (F-13/CWE-214); pacing/retries/backoff/message shapes
+  preserved (one recorded broadening: a request timeout now retries as a transport failure
+  instead of aborting the chunk); keyless TLS probe observed HTTP 403 JSON before the swap
+  shipped; local path proven live against ollama with zero GPU. **T6** index honesty:
+  SYM-032 dated refresh, SYM-041/042 filed (IDs re-verified free by grep first), docs/08's
+  transport entry ends F-05's dangling pointer, SYM-027's stale `{}` clause dated, and the
+  glass detector's 3 named signatures signed in `dispositions.json` → re-run clean. The
+  planned multi-agent verification pass died on a session limit (5/5 agents, honest zero) —
+  replaced by a full end-to-end diff read; recorded, not hidden.
+  Narrative: `sessions/S93-desktop-2026-08-17.md`.
+
 - **S92 — THE PRE-MORTEM (2026-08-17 afternoon, Desktop lane, Fable; Rab remote).** Stage 0
   expanded into docs/37 §4: every task with its trip points and recourse — the corpus
   re-measure recipe and its 3-site number cascade, F-09 only-with-signature, the T2/T3
