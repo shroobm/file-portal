@@ -78,8 +78,8 @@ pandoc → degeneration tripwire [TP] → same staging → the same exporter ser
 SYM-030-desktop).
 
 **E. The assistant:** titlebar → `chat_open` spawns room_chat.py (Job Object) → picker
-(ollama manifests + HF cache, ids only) → load (`-c 16384`; fixed prompt MEASURED 12,909 tok
-[S87], headroom 3,475) → answers cite docs/20/35/36 or are withheld (docs/33 §2.2) → unload
+(ollama manifests + HF cache, ids only) → load (`-c 16384`; fixed prompt MEASURED 13,076 tok
+[S93], headroom 3,308) → answers cite docs/20/35/36 or are withheld (docs/33 §2.2) → unload
 clears the hold.
 
 **F. The session record:** muster open (per-lane clocks + origin fetch) → opening commit →
@@ -132,7 +132,7 @@ amend, SYM-016) → push (ahead-0 is part of the close, S86).
 | `assay::bless` literal user@host (assay.rs) | ignores `linux_host`/`remote_user`; host rename breaks bless alone [TP][S86] | thread config through | next widget slice (staged-exe protection ended at adoption) |
 | 3 receipt fields unrendered (`spot_check`, `degeneration_flagged`, `fixity-check`) | SYM-027's shape [TP] | glass or signed disposition | next widget slice |
 | SYM-033 second-widget launch unprevented | card shows it; nothing stops it | single-instance guard | Rab's signature |
-| conversation headroom 3,475 tok | fixed prompt 12,909/16,384 [S87] | trim history or raise `-c` (re-measure VRAM) | when long chats hit it |
+| conversation headroom 3,308 tok | fixed prompt 13,076/16,384 [S93] | trim history or raise `-c` (re-measure VRAM) | when long chats hit it |
 | open symptom rows | SYM-003 (table loops), 024, 027, 032, 034, 035 | per-row | standing |
 
 ## 8. Unresolved questions (owner: Rab)

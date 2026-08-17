@@ -184,8 +184,9 @@ Edit tool or `sed -b`/`printf '%s\r\n'` appends; verify `CR==LF` counts after (S
 
 ## §5 Live-state notes a fresh session must not re-derive wrongly
 
-- Assistant: adopted exe `6CA0DEF0`; corpus = docs/20+35+36, fit **12,909/16,384 tok**
-  (re-measure on ANY corpus change); `max_tokens=2048` fix is ON DISK — **live only after
+- Assistant: adopted exe `6CA0DEF0`; corpus = docs/20+35+36, fit **13,076/16,384 tok**
+  (re-measured S93 after the Stage 0 docs/35 repairs; re-measure on ANY corpus change);
+  `max_tokens=2048` fix is ON DISK — **live only after
   Rab's next widget restart**, and his fourth ask of the engineer question is still pending.
 - `config.toml` is Rab's-hand/widget-verified territory — a packaged session reads its own
   MSIX mirage on that path, permanently (SYM-007 4th firing; verify via widget boot log).

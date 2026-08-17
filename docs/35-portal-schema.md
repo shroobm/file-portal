@@ -55,11 +55,15 @@ Normally empty; an occupant means a decision is owed.
 ## 3. The pipeline root, file by file
 
 ### 3.1 The levers (single-value text files; the widget writes, python reads)
-- `analyst-mode.txt` — `local` | `gemini` | `off`: which analyst backend the next conversion
-  uses. `local` = qwen3:8b via Ollama, air-gapped; `gemini` = cloud, text leaves the machine.
+- `analyst-mode.txt` — `off` | `local` | `gemini` | `ask`: which analyst backend the next
+  conversion uses. `local` = qwen3:8b via Ollama, air-gapped; `gemini` = cloud, text leaves
+  the machine; `ask` = park the conversion in `pending/` for the widget's pre-flight card
+  (the routing decision is owed, not defaulted).
 - `audit-mode.txt` — `report` | `enforce`: whether a `fail` verdict merely reports or actually
   parks the bundle in `held/`.
-- `chunk-batch.txt` — analyst chunk batch size (integer).
+- `chunk-batch.txt` — the **converter's** Marker recognition batch size per 200-page slice
+  (`8` | `16` | `32`, default 16), re-read every slice — a live VRAM/speed lever (8 buys
+  headroom; a long clean book peaked 9.8/10.2 GB at 16). Not an analyst knob.
 
 ### 3.2 The marker files (presence-is-the-message)
 - `.gpu-lock` — written by the watcher before a conversion, deleted after. **It is a busy
@@ -73,7 +77,9 @@ Normally empty; an occupant means a decision is owed.
 - `events.jsonl` — the factory's event stream. One JSON object per line:
   `{ts, pid, stage, event, …}` where `stage` ∈ intake/convert/analyst/audit/gate/ship/chat and
   stage-specific fields follow (e.g. `{"stage":"audit","event":"held","bundle":…,"verdict":"fail"}`).
-  Emitted from python via `windows-converter/events.py` and from Rust via `events.rs`.
+  Emitted from python via `windows-converter/events.py`; the widget's `events.rs` is the
+  **read** side — it summarizes the stream and hands the raw tail to the UI, read-only,
+  nothing stored (the single-writer law holds).
 - `conversion-ledger.jsonl` — one line per conversion with the measured facts:
   `{ts, source, source_sha256, pages, lane, chars_per_page, wall_s, s_per_page, run_wall_s,
   resumed_slices, chunked, slices, batch, peak_vram_mib}`. This is where ETAs learn from.
@@ -97,7 +103,8 @@ Normally empty; an occupant means a decision is owed.
 - `engine` (`marker`), `lane` (`clean` | `scan`), `lane_reason`, `chars_per_page_detected` —
   how the converter routed it and why.
 - `pages`, `converter_version`, `marker_version`, `converted_at`.
-- `fidelity` — the Survival Audit's block: `verdict` (`pass`|`fail`), and under `convert`:
+- `fidelity` — the Survival Audit's block: `verdict` (`pass`|`flag`|`fail` — only the hard
+  gates reach `fail`; localizer signals cap at `flag`), and under `convert`:
   scores, page flags, `tripwires.degeneration_detail.worst[]` (loop sites, line-keyed) and
   `runs[]` (omission runs, page-keyed — text the OCR dropped).
 - `analyst` — the analyst pass record: backend, model, chunks passed/rejected/failed, timing.

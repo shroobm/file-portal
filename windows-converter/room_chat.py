@@ -315,7 +315,7 @@ class Llama:
             raise RuntimeError(f"a conversion started while loading ({again}) — yielding the card")
         errlog = PIPE / "chat-stderr.log"
         self.proc = subprocess.Popen(
-            [str(self.exe), "-m", str(self.model), "-ngl", "99", "-c", "16384",  # S87: system+docs/20+35+36 MEASURED 12,909 tok (llama-tokenize, qwen3 vocab) -> 3,475 headroom; re-measure at any corpus change (S85's 8k truncation lesson)
+            [str(self.exe), "-m", str(self.model), "-ngl", "99", "-c", "16384",  # S93: system+docs/20+35+36 MEASURED 13,076 tok (llama-tokenize, qwen3 vocab) -> 3,308 headroom; re-measure at any corpus change (S85's 8k truncation lesson)
              "--flash-attn", "on", "--jinja", "--host", "127.0.0.1", "--port", str(self.port)],
             stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
             stderr=open(errlog, "wb"),      # last words, the watcher-stderr idiom
