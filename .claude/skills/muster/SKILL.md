@@ -174,6 +174,9 @@ Not this skill's job to perform, but the open sets its terms, so state them at o
    the SHA you just wrote.
 5. Both clocks advanced together; §1 unedited; **no artifact carries a session number other
    than this session's**.
+6. **The close pushes** (`git push`, after the ledger row). An unpushed close is how the
+   2026-08-16 fork grew 52 commits deep: the ThinkPad numbered its sessions from the last row
+   it could SEE. The open's origin row shows the backlog; the close is where it goes to zero.
 
 ## What this cannot see
 
@@ -193,10 +196,12 @@ A floor, not a proof — state these rather than let a clean card imply them:
 bash .claude/skills/muster/selftest.sh
 ```
 
-Twelve cases, each violating the property its guard stands for: out-of-order ledger rows, a
+Fifteen cases, each violating the property its guard stands for: out-of-order ledger rows, a
 malformed newest row, a TIME-STATE stripped of its count beside a plausible decoy, a non-git
 repo, a SHA that is not the ledger's, a far-future session number planted in prose, a failed
-process probe, and an unreachable receiver. **Case 0 is a positive control** — without it the
+process probe, an unreachable receiver, a ThinkPad row planted mid-table with a higher session
+number (the lane rule, born of the 2026-08-16 fork), and a forked / behind-only / ahead-only
+origin (the origin rule, same birth). **Case 0 is a positive control** — without it the
 suite cannot distinguish "the guard fired" from "everything always fires", which is the shape
 of the tautology S78 shipped in this exact position.
 

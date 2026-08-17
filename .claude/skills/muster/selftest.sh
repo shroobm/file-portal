@@ -199,6 +199,56 @@ out=$(PATH="$WORK/fakebin:$PATH" MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$
 if printf '%s' "$out" | grep -qE 'widget +18856 *$'; then ok "one widget still renders as a bare pid"
 else bad "one widget still renders as a bare pid" "got: $(printf '%s' "$out" | grep -E ' widget ')"; fi
 
+printf '\n──── lane + origin tripwires (born of the 2026-08-16 fork) ────\n'
+
+# CASE 11 — THE LANE RULE. The property: the clock reads the Desktop lane. Violate: plant a
+# ThinkPad row with a HIGHER session number mid-table. The old parser would adopt S99 as newest
+# (phantom SHA mismatch) AND fail [3a] on 99->42. The new one must pass clean, select S42, and
+# NAME the lane row rather than silently dropping it.
+R="$WORK/c11"; sha=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-05 | ThinkPad | S99: their newest | aaaaaaa |' '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"; git -C "$R" commit -qam rows >/dev/null 2>&1
+mklib "$WORK/l11" 12 S42 "$sha"
+out=$(run "$WORK/l11" "$R"); rc=$?
+assert "LANE: a ThinkPad S99 mid-table neither breaks order nor becomes the clock" 0 'HARD clock.*✓.*S42' "$rc" "$out"
+if printf '%s' "$out" | grep -qE 'other-lane: ThinkPad-S99'; then ok "…and the lane row is NAMED on the card, not silently gone"
+else bad "…and the lane row is NAMED on the card" "got: $(printf '%s' "$out" | grep 'LEDGER PARSE')"; fi
+
+# CASE 12 — the same lane rule at IDENTITY. Violate with the same fixture: open.sh must derive
+# S43 from the Desktop lane, never S100 from the ThinkPad's S99.
+out=$(MEMORY_LIB="$WORK/l11" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" \
+      WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'this session +S43'; then ok "IDENTITY: derives S43 from the Desktop lane, not S100 from the ThinkPad's"
+else bad "IDENTITY derives from the Desktop lane" "got: $(printf '%s' "$out" | grep 'this session')"; fi
+
+# CASE 13 — THE ORIGIN RULE. The property: the hard clock covers the SHARED record. Violate:
+# fork a fixture origin (local ahead 1 / behind 1) and assert the card FAILS naming FORKED.
+# ssh is stubbed to die fast so the receiver probe can neither slow nor rescue the card.
+printf '#!/bin/sh\nexit 255\n' > "$WORK/fakebin/ssh"; chmod +x "$WORK/fakebin/ssh"
+B13="$WORK/c13-bare"; git init -q --bare "$B13" 2>/dev/null
+A13="$WORK/c13a"; sha=$(mkrepo "$A13" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$A13/CLAUDE_README.md"; git -C "$A13" commit -qam rows >/dev/null 2>&1
+sha=$(git -C "$A13" log --format=%h -2 2>/dev/null | tail -1)
+git -C "$A13" remote add origin "$B13"; git -C "$A13" push -qu origin HEAD >/dev/null 2>&1
+C13="$WORK/c13c"; git clone -q "$B13" "$C13" 2>/dev/null   # cloned NOW = behind-only later (case 14)
+D13="$WORK/c13d"; git clone -q "$B13" "$D13" 2>/dev/null
+git -C "$D13" config user.email t@t; git -C "$D13" config user.name t
+printf 'their work\n' > "$D13/other.txt"; git -C "$D13" add -A >/dev/null 2>&1; git -C "$D13" commit -qm theirs >/dev/null 2>&1; git -C "$D13" push -q >/dev/null 2>&1
+printf 'my work\n' > "$A13/mine.txt"; git -C "$A13" add -A >/dev/null 2>&1; git -C "$A13" commit -qm mine >/dev/null 2>&1
+mklib "$WORK/l13" 12 S42 "$sha"
+out=$(PATH="$WORK/fakebin:$PATH" MEMORY_LIB="$WORK/l13" FP_REPO="$A13" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" bash "$OPEN" 2>&1); rc=$?
+assert "ORIGIN: a forked upstream FAILS the card, naming both counts" 1 'FORKED — ahead 1 / behind 1' "$rc" "$out"
+
+# CASE 14 — the other directions, so the origin row cannot pass by always shouting: behind-only
+# and ahead-only are ADVISORIES (exit 0), each named for what it is.
+out=$(PATH="$WORK/fakebin:$PATH" MEMORY_LIB="$WORK/l13" FP_REPO="$C13" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" bash "$OPEN" 2>&1); rc=$?
+assert "ORIGIN: behind-only is an advisory (pull before work), not an incident" 0 'behind 1 — new work on origin' "$rc" "$out"
+printf 'unpushed\n' > "$D13/more.txt"; git -C "$D13" add -A >/dev/null 2>&1; git -C "$D13" commit -qm unpushed >/dev/null 2>&1
+out=$(PATH="$WORK/fakebin:$PATH" MEMORY_LIB="$WORK/l13" FP_REPO="$D13" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" bash "$OPEN" 2>&1); rc=$?
+assert "ORIGIN: ahead-only is an advisory (the close must push), not an incident" 0 'ahead 1 — unpushed local work' "$rc" "$out"
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

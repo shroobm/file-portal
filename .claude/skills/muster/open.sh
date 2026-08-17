@@ -45,8 +45,12 @@ if [[ ! -f "$README" ]]; then
   row "ledger" "MISSING — no $README"; fail=1
   led_n=""; led_sha=""
 else
-  led_line=$(grep -E '^\| 20[0-9][0-9]-' "$README" | awk -F'|' '
+  # S86: identity reads THIS machine's lane only (ledger cell 2). After the 2026-08-16 fork
+  # merge the table carries ThinkPad rows; without the filter, a foreign row with a higher
+  # number would move this machine's identity (their S99 would make this session S100).
+  led_line=$(grep -E '^\| 20[0-9][0-9]-' "$README" | awk -F'|' -v lane="${MUSTER_LANE:-Desktop}" '
     { for (i=1;i<=NF;i++) gsub(/^[ \t\r]+|[ \t\r]+$/,"",$i)
+      if ($3 != lane) next
       sess=""; sha=""
       for (i=1;i<=NF;i++) if ($i ~ /^S[0-9]+:/) { sess=substr($i,2,index($i,":")-2); break }
       for (i=NF;i>=1;i--) if ($i != "") { sha=$i; break }
@@ -133,6 +137,39 @@ if [[ -f "$VENDOR" ]]; then
   mexit=$?
   row "muster exit" "$mexit"
   [[ "$mexit" -ne 0 ]] && fail=1
+fi
+
+# THE ORIGIN RULE, born 2026-08-16 (S86). The hard clock verified LOCAL history only, and the
+# local card was green while origin carried a fork: 52 unpushed Desktop commits (S78–S85) beside
+# 11 ThinkPad commits whose sessions had taken the same numbers from the last row they could see.
+# The clock cannot see a fork it never fetches — it was found this time only because Rab said
+# "the ThinkPad left you a message". Fetch is read-only; a FAILED fetch renders UNREAD
+# (SYM-031), never "in sync". Three live states, three severities: diverged (ahead AND behind)
+# is the fork class and FAILS the card — reconcile by MERGE, never rebase, because ledger rows
+# pin SHAs that a rebase would orphan (SYM-016); behind-only means pull before work; ahead-only
+# is the unpushed backlog that GREW this fork — the close must push (CLAUDE_README §4).
+if [[ -n "${MUSTER_NO_REMOTE:-}" ]]; then
+  row "origin" "SKIPPED — MUSTER_NO_REMOTE set"
+elif ! git -C "$FP_REPO" rev-parse --git-dir >/dev/null 2>&1; then
+  row "origin" "n/a — not a git repo"
+elif ! git -C "$FP_REPO" rev-parse --abbrev-ref '@{upstream}' >/dev/null 2>&1; then
+  row "origin" "no upstream configured for this branch"
+elif timeout 30 git -C "$FP_REPO" fetch --quiet 2>/dev/null; then
+  ahead=$(git -C "$FP_REPO" rev-list --count '@{upstream}..HEAD' 2>/dev/null)
+  behind=$(git -C "$FP_REPO" rev-list --count 'HEAD..@{upstream}' 2>/dev/null)
+  if [[ -z "$ahead" || -z "$behind" ]]; then
+    row "origin" "UNREAD — fetched, but ahead/behind counts unavailable"
+  elif [[ "$ahead" -gt 0 && "$behind" -gt 0 ]]; then
+    row "origin" "FORKED — ahead $ahead / behind $behind of upstream: reconcile before work (merge, never rebase — SYM-016)"; fail=1
+  elif [[ "$behind" -gt 0 ]]; then
+    row "origin" "behind $behind — new work on origin; pull before work"
+  elif [[ "$ahead" -gt 0 ]]; then
+    row "origin" "ahead $ahead — unpushed local work; the close must push"
+  else
+    row "origin" "in sync (fetched)"
+  fi
+else
+  row "origin" "UNREAD — fetch failed; NOT a statement that origin matches local"
 fi
 
 # ─────────────────────────────────────────────────────────────────────────────

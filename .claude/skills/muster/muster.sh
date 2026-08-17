@@ -98,13 +98,29 @@ exp_sess=$(printf '%s\n' "$ts_block" | grep -oE 'S[0-9]+' | head -1)
 # the `S<n>:` prefix or the SHA cell. Muster would then select the PREVIOUS row and report a
 # phantom SHA mismatch — a bad close wearing a rewind's clothing, i.e. the exact misdiagnosis the
 # [3a] guard was built to prevent, arriving by another door.
-parsed=$(grep -E '^\| 20[0-9][0-9]-' "$README" 2>/dev/null | awk -F'|' '
+#
+# S86: the ledger is MULTI-LANE. The machine column (cell 2) names whose clock a row belongs to.
+# At the 2026-08-16 fork merge, ThinkPad rows S78/S79 joined a table whose Desktop lane stood at
+# S85 — same numbers, different lanes, both legitimate (each side derived its next number from
+# the newest record it could see; the Desktop's 52-commit unpushed backlog made theirs stale).
+# A row from another machine parses fine but must never enter THIS clock: selection is by max
+# session number, so the moment another lane's number passed ours, muster would adopt their row
+# and report a phantom mismatch — a lane fault wearing a rewind's clothing, the same family as
+# SYM-028. Lane rows get their own verdict (never "skip"): they are counted and NAMED in [3b],
+# so a Desktop row that mistypes its machine cell shows up as a named lane discard, not silence,
+# and they are exempt from the [3b] tail alarm, because a foreign row near the tail is the
+# EXPECTED shape after a merge, not a malformed close.
+LANE="${MUSTER_LANE:-Desktop}"
+parsed=$(grep -E '^\| 20[0-9][0-9]-' "$README" 2>/dev/null | awk -F'|' -v lane="$LANE" '
   {
     for (i = 1; i <= NF; i++) gsub(/^[ \t\r]+|[ \t\r]+$/, "", $i)
     sess = ""; sha = ""
     for (i = 1; i <= NF; i++) if ($i ~ /^S[0-9]+:/) { sess = substr($i, 2, index($i, ":") - 2); break }
     for (i = NF; i >= 1; i--) if ($i != "") { sha = $i; break }
-    if (sess != "" && sha ~ /^[0-9a-fA-F]{7,40}$/) { print "ok", NR, sess, sha; next }
+    if (sess != "" && sha ~ /^[0-9a-fA-F]{7,40}$/) {
+      if ($3 != lane) { print "lane", NR, $3 "-S" sess; next }
+      print "ok", NR, sess, sha; next
+    }
     why = (sess == "" ? "no-S<n>" : "")
     if (sha !~ /^[0-9a-fA-F]{7,40}$/) why = (why == "" ? "no-sha" : why "+no-sha")
     print "skip", NR, why
@@ -113,9 +129,13 @@ parsed=$(grep -E '^\| 20[0-9][0-9]-' "$README" 2>/dev/null | awk -F'|' '
 
 ledger=$(printf '%s\n' "$parsed" | awk '$1 == "ok"   { print $2, $3, $4 }')
 skipped=$(printf '%s\n' "$parsed" | awk '$1 == "skip" { print $2, $3 }')
+lanes=$(printf '%s\n' "$parsed" | awk '$1 == "lane" { print $3 }')
 rows_total=$(printf '%s\n' "$parsed" | awk '$1 == "rows" { print $2 }')
 rows_ok=$(printf '%s\n' "$ledger"  | grep -c .)
 rows_skip=$(printf '%s\n' "$skipped" | grep -c .)
+rows_lane=$(printf '%s\n' "$lanes" | grep -c .)
+lane_note=""
+[[ "$rows_lane" -gt 0 ]] && lane_note=$(printf ' · %s other-lane: %s' "$rows_lane" "$(printf '%s' "$lanes" | tr '\n' ' ' | sed 's/ $//')")
 
 led_sess=$(printf '%s\n' "$ledger" | sort -k2,2n | tail -1 | awk '{print "S" $2}')
 led_sha=$(printf '%s\n' "$ledger" | sort -k2,2n | tail -1 | awk '{print $3}')
@@ -132,8 +152,8 @@ if [[ -n "$order_bad" ]]; then
 elif [[ "$rows_ok" -eq 0 ]]; then
   printf '[3a] LEDGER ORDER  ✗ 0 parseable rows — no order was checked (ledger missing or unreadable?)\n'; fail=1
 else
-  printf '[3a] LEDGER ORDER  ✓ %s rows ascend (S%s → S%s)\n' \
-    "$rows_ok" "$(printf '%s\n' "$ledger" | head -1 | awk '{print $2}')" \
+  printf '[3a] LEDGER ORDER  ✓ %s %s-lane rows ascend (S%s → S%s)\n' \
+    "$rows_ok" "$LANE" "$(printf '%s\n' "$ledger" | head -1 | awk '{print $2}')" \
     "$(printf '%s\n' "$ledger" | tail -1 | awk '{print $2}')"
 fi
 
@@ -150,12 +170,12 @@ if [[ -n "$tail_bad" ]]; then
   printf '[3b] LEDGER PARSE  ✗ UNPARSEABLE ROW IN THE LAST %s: %s— a NEW row failed to parse; the\n' "$TAIL_ROWS" "$tail_bad"
   printf '                     selected session %s is the row BEFORE it, not the newest. Fix the row.\n' "$led_sess"; fail=1
 elif [[ "$rows_skip" -eq 0 ]]; then
-  printf '[3b] LEDGER PARSE  ✓ %s/%s rows parsed · 0 discarded\n' "$rows_ok" "$rows_total"
+  printf '[3b] LEDGER PARSE  ✓ %s/%s rows parsed · 0 discarded%s\n' "$rows_ok" "$rows_total" "$lane_note"
 else
   # Name the NEWEST discard, not just the count: that is the one that would move if the rot
   # ever crept toward the tail, and a count alone cannot show it moving.
-  printf '[3b] LEDGER PARSE  ✓ %s/%s rows parsed · %s discarded, newest at row %s · tail = last %s\n' \
-    "$rows_ok" "$rows_total" "$rows_skip" "$(printf '%s\n' "$skipped" | tail -1 | awk '{print $1}')" "$TAIL_ROWS"
+  printf '[3b] LEDGER PARSE  ✓ %s/%s rows parsed · %s discarded, newest at row %s · tail = last %s%s\n' \
+    "$rows_ok" "$rows_total" "$rows_skip" "$(printf '%s\n' "$skipped" | tail -1 | awk '{print $1}')" "$TAIL_ROWS" "$lane_note"
 fi
 
 # S78: a missing or non-git FP_REPO used to fall through `merge-base --is-ancestor ... 2>/dev/null`
