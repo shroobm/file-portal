@@ -17,6 +17,8 @@ import re
 import shutil
 import subprocess
 import time
+import urllib.error
+import urllib.request
 from pathlib import Path
 
 MODEL = "qwen3:8b"
@@ -106,8 +108,9 @@ _gemini_last_call = 0.0
 
 def _generate_gemini(prompt: str) -> str:
     """One fenced chunk through Gemini Flash, paced under the free-tier RPM cap.
-    The API key is read from the user environment and passed via header inside the
-    child process's argv — it is never logged, printed, or embedded in code.
+    The API key is read from the user environment and sent as a request header from
+    THIS process — it is never on any argv (the curl form put it there, visible to any
+    process lister: F-13/CWE-214, repaired S93), never logged, never embedded in code.
     Cloud routing: chunk text leaves the machine."""
     global _gemini_last_call
     key = os.environ.get("GEMINI_API_KEY") or ""
@@ -116,30 +119,43 @@ def _generate_gemini(prompt: str) -> str:
     body = json.dumps({
         "contents": [{"parts": [{"text": prompt}]}],
         "generationConfig": {"temperature": 0.2},
-    })
+    }).encode("utf-8")
     last_err = "unknown"
     for attempt in range(3):
         wait = _GEMINI_MIN_INTERVAL_S - (time.monotonic() - _gemini_last_call)
         if wait > 0:
             time.sleep(wait)
         _gemini_last_call = time.monotonic()
-        proc = subprocess.run(
-            ["curl", "-s", "-X", "POST", GEMINI_URL,
-             "-H", "Content-Type: application/json",
-             "-H", f"x-goog-api-key: {key}",
-             "--data-binary", "@-"],
-            input=body.encode("utf-8"), capture_output=True, timeout=300,
-        )
-        if proc.returncode != 0:
-            last_err = f"curl exited {proc.returncode}"
+        # stdlib TLS proven against this exact endpoint by a keyless probe before the swap
+        # shipped (docs/37 §4 T5b: expect a 4xx JSON — observed HTTP 403 PERMISSION_DENIED).
+        req = urllib.request.Request(GEMINI_URL, data=body, headers={
+            "Content-Type": "application/json", "x-goog-api-key": key})
+        try:
+            with urllib.request.urlopen(req, timeout=300) as r:
+                reply = json.loads(r.read().decode("utf-8"))
+        except urllib.error.HTTPError as e:
+            # Gemini's errors arrive as HTTP statuses carrying the same JSON body curl used
+            # to hand us on stdout — read it and keep the retry semantics exactly.
+            try:
+                err = json.loads(e.read().decode("utf-8", errors="replace")).get("error", {})
+            except ValueError:
+                err = {}
+            code = err.get("code", e.code)
+            last_err = f"gemini {code}: {str(err.get('message', 'unknown'))[:150]}"
+            if code in (429, 500, 503):
+                time.sleep(20 * (attempt + 1))  # backoff and retry rate/server errors
+                continue
+            raise RuntimeError(last_err) from None
+        except (urllib.error.URLError, TimeoutError, OSError) as e:
+            # Transport-level failure — the old "curl exited N" path, same backoff.
+            last_err = f"transport: {str(getattr(e, 'reason', e))[:150]}"
             time.sleep(15 * (attempt + 1))
             continue
-        reply = json.loads(proc.stdout.decode("utf-8"))
-        if "error" in reply:
+        if "error" in reply:  # defensive: a 200 carrying an error block
             err = reply["error"]
             last_err = f"gemini {err.get('code', '?')}: {err.get('message', 'unknown')[:150]}"
             if err.get("code") in (429, 500, 503):
-                time.sleep(20 * (attempt + 1))  # backoff and retry rate/server errors
+                time.sleep(20 * (attempt + 1))
                 continue
             raise RuntimeError(last_err)
         parts = reply["candidates"][0]["content"]["parts"]
@@ -156,17 +172,22 @@ def _generate(prompt: str) -> str:
         "model": MODEL, "stream": False, "keep_alive": KEEP_ALIVE_HOLD, "prompt": prompt,
         "options": {"num_ctx": NUM_CTX},
         "think": False,
-    })
-    # curl with a UTF-8 body file-free: pass via stdin (PS quoting hazards, docs/11 Phase 2,
-    # do not apply here — this runs inside Python with bytes end to end).
-    proc = subprocess.run(
-        ["curl", "-s", "-X", "POST", OLLAMA_URL,
-         "-H", "Content-Type: application/json", "--data-binary", "@-"],
-        input=body.encode("utf-8"), capture_output=True, timeout=900,
-    )
-    if proc.returncode != 0:
-        raise RuntimeError(f"curl exited {proc.returncode}")
-    reply = json.loads(proc.stdout.decode("utf-8"))
+    }).encode("utf-8")
+    # urllib with bytes end to end (room_chat's ask() idiom; the PS quoting hazards of
+    # docs/11 Phase 2 never applied in-process). Localhost — nothing leaves the machine.
+    # A transport error raises to the caller, which ships the un-analyzed original —
+    # exactly the curl-exited-nonzero path this replaces.
+    req = urllib.request.Request(OLLAMA_URL, data=body,
+                                 headers={"Content-Type": "application/json"})
+    try:
+        with urllib.request.urlopen(req, timeout=900) as r:
+            reply = json.loads(r.read().decode("utf-8"))
+    except urllib.error.HTTPError as e:
+        try:
+            msg = json.loads(e.read().decode("utf-8", errors="replace")).get("error", "")
+        except ValueError:
+            msg = ""
+        raise RuntimeError(f"ollama: {msg or f'HTTP {e.code}'}") from None
     if reply.get("error"):
         raise RuntimeError(f"ollama: {reply['error']}")
     return reply["response"].strip()
@@ -181,12 +202,11 @@ def unload() -> None:
     it; a raised exception here would cost the analysis, which is the worse trade.
     """
     try:
-        body = json.dumps({"model": MODEL, "keep_alive": 0})
-        subprocess.run(
-            ["curl", "-s", "-X", "POST", OLLAMA_URL,
-             "-H", "Content-Type: application/json", "--data-binary", "@-"],
-            input=body.encode("utf-8"), capture_output=True, timeout=60,
-        )
+        body = json.dumps({"model": MODEL, "keep_alive": 0}).encode("utf-8")
+        req = urllib.request.Request(OLLAMA_URL, data=body,
+                                     headers={"Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=60):
+            pass
     except Exception:  # noqa: BLE001 — see docstring; this may never propagate
         pass
 
