@@ -35,8 +35,9 @@ class InboxHandler(FileSystemEventHandler):
         self.react_to_created = react_to_created
 
     def on_moved(self, event):
-        # rsync renames its temp file into place on completion -- this is the event that
-        # actually means "a full file has arrived." See docs/04-linux-receiver.md.
+        # The transport's finishing rename (transfer.rs streams to `.part-<name>` then `mv`s it
+        # into place; rsync did the same in its era) -- this is the event that actually means
+        # "a full file has arrived." See docs/04-linux-receiver.md.
         if not event.is_directory:
             self._handle(Path(event.dest_path))
 
@@ -74,8 +75,9 @@ class InboxHandler(FileSystemEventHandler):
         # defense-in-depth against the old re-processing loop.
         if self.paths.quarantine in file_path.parents:
             return
-        # Dot-prefixed files are in-progress temp files (rsync writes `.name.XXXXXX` then
-        # renames); the rename into place arrives separately as on_moved.
+        # Dot-prefixed files are in-progress temp files (the transport streams to
+        # `.part-<name>` then renames; rsync's `.name.XXXXXX` in its era); the rename into
+        # place arrives separately as on_moved.
         if file_path.name.startswith("."):
             return
 
@@ -168,9 +170,10 @@ def run(root: Path, rules_path: Path):
     paths = Paths.from_root(root)
     paths.ensure_exist()
 
-    # Pre-create inbox/<category>/ for every category in rules.toml. rsync/scp can't create a
-    # missing remote directory themselves, so without this the first transfer to a fresh
-    # category would fail.
+    # Pre-create inbox/<category>/ for every category in rules.toml. The widget's transport
+    # now runs `mkdir -p` itself (transfer.rs), so for IT this is redundant -- it stays as
+    # defense for any sender that does not (hand-run scp, the rsync era's tooling), where the
+    # first transfer to a fresh category would otherwise fail.
     rules = RuleSet.load(rules_path)
     categories = {rule.category for rule in rules.rules}
     for category in categories:

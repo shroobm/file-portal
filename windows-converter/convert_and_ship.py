@@ -849,8 +849,19 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
             shutil.copy2(img, assets / img.name)
     converted_at = datetime.now(timezone.utc)
     ocr = lane == "scan"
+    # The stamped DPI is DERIVED from the installed Marker, never retyped: the scan lane's OCR
+    # really runs on the highres page renders (builders/document.py highres_image_dpi, "used
+    # for OCR"; lowres 96 is layout-only) and this converter passes no override. The linux
+    # lane's 300 is ITS engine's real setting — different engines, both stamps truthful
+    # (coordination 2026-08-16T21-51 §2.2; SYM-039's rule: a hand-typed count drifts).
+    if ocr:
+        from marker.builders.document import DocumentBuilder  # marker-env only
+
+        stamp_dpi = DocumentBuilder.highres_image_dpi
+    else:
+        stamp_dpi = None
     frontmatter = render_frontmatter(
-        "marker", lane, lane_reason, chars, ocr, 192 if ocr else None, converted_at, source_sha
+        "marker", lane, lane_reason, chars, ocr, stamp_dpi, converted_at, source_sha
     )
     import marker  # marker-env only; version for provenance
 
