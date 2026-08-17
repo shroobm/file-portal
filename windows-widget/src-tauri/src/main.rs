@@ -238,14 +238,18 @@ fn assay_reanalyze(state: State<AppState>, source: String, backend: String) -> R
 // exactly like the vault_check lesson.
 #[tauri::command]
 async fn assay_bless(state: State<'_, AppState>, source: String) -> Result<String, String> {
-    let dir = {
+    let (dir, host, user) = {
         let cfg = state
             .config
             .lock()
             .map_err(|_| "lock poisoned".to_string())?;
-        cfg.gpu_pipeline_dir.clone()
+        (
+            cfg.gpu_pipeline_dir.clone(),
+            cfg.linux_host.clone(),
+            cfg.remote_user.clone(),
+        )
     };
-    tauri::async_runtime::spawn_blocking(move || assay::bless(&dir, &source))
+    tauri::async_runtime::spawn_blocking(move || assay::bless(&dir, &host, &user, &source))
         .await
         .map_err(|e| format!("bless task failed: {e}"))?
 }
@@ -606,6 +610,15 @@ fn main() {
     hydrate_env_from_registry();
     let app_config = config::load_or_init().expect("failed to load config");
     tauri::Builder::default()
+        // SYM-033 (signed docs/37 §3.2): nothing prevented a second full instance — two
+        // watcher chains on one drop folder, SYM-022's crash precondition a double-click
+        // away. First plugin registered, per the plugin's own contract. A second launch
+        // now fronts the ONE widget instead of becoming a second factory.
+        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+            if let Some(w) = app.get_webview_window("main") {
+                let _ = w.set_focus();
+            }
+        }))
         .manage(AppState {
             config: Mutex::new(app_config),
         })

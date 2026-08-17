@@ -435,6 +435,17 @@ class Handler(BaseHTTPRequestHandler):
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(raw)))
+        if ctype.startswith("text/html"):
+            # F-14's real surface (S94): this page renders MODEL OUTPUT (answers + the
+            # withheld fold). The tauri.conf CSP governs only app-served windows — an
+            # External-URL document is governed by ITS server's headers, i.e. these. The
+            # page's own inline script/style stay allowed (it ships them); the teeth are
+            # connect-src/default-src 'self': rendered output cannot make this page fetch,
+            # frame, or embed anything off this origin.
+            self.send_header("Content-Security-Policy",
+                             "default-src 'self'; script-src 'self' 'unsafe-inline'; "
+                             "style-src 'self' 'unsafe-inline'; img-src 'self' data:; "
+                             "connect-src 'self'")
         self.end_headers()
         self.wfile.write(raw)
 

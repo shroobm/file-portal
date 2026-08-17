@@ -303,9 +303,17 @@ pub fn reanalyze(
 /// against the event stream — the desktop's own record of the staged bundle's audit (its good
 /// manifest lives only in ThinkPad staging, kept there by the guard's earlier refusal, so local
 /// manifests may be an older generation; the sha they all share is the source PDF's).
-pub fn bless(gpu_pipeline_dir: &str, source: &str) -> Result<String, String> {
+pub fn bless(
+    gpu_pipeline_dir: &str,
+    linux_host: &str,
+    remote_user: &str,
+    source: &str,
+) -> Result<String, String> {
     if gpu_pipeline_dir.is_empty() {
         return Err("pipeline not configured".into());
+    }
+    if linux_host.is_empty() || remote_user.is_empty() {
+        return Err("linux_host / remote_user not configured".into());
     }
     if source.is_empty() || source.contains(['/', '\\', ':']) {
         return Err("invalid source name".into());
@@ -372,7 +380,12 @@ pub fn bless(gpu_pipeline_dir: &str, source: &str) -> Result<String, String> {
     // Modern OpenSSH scp runs in SFTP mode: NO remote shell, so the path after the colon is
     // taken literally — spaces are fine and embedded quotes would become literal filename
     // characters (the S56 first-flight bug). Plain path, no quoting.
-    let remote = format!("rab@archlinux:file-portal/library/staging/{bundle}/bless.json");
+    // Stage 1 (S94): user@host from AppConfig like every other ssh surface (status.rs,
+    // receipts.rs, transfer.rs) — this was the widget's one config-bypassing destination
+    // (docs/37 §1 "bless via config"). The staging path stays literal: it is the ThinkPad
+    // repo's layout contract, not a per-machine value.
+    let remote =
+        format!("{remote_user}@{linux_host}:file-portal/library/staging/{bundle}/bless.json");
     // System32 OpenSSH keeps its OWN known_hosts (git ships a separate ssh — the S56
     // realization: the widget's first scp sat forever at an invisible host-key prompt).
     // BatchMode makes prompting impossible, accept-new is trust-on-first-use for the
