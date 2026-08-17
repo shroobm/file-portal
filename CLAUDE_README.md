@@ -76,6 +76,15 @@ git pull  # always first
   git commit -m "session: close — [machine] [date]"
   git push
   ```
+  **The `git push` above is load-bearing, and it was skipped eight closes running.** S78–S85
+  closed clean and pushed nothing; the ThinkPad, deriving its next session number from the
+  newest row it could SEE, took S78/S79 a second time, and the 2026-08-16 fork followed
+  (reconciled in the S86 merge `96efecd`). Enforcement now exists: `open.sh` prints an
+  `origin` row (`ahead N` = unpushed backlog, `FORKED` fails the card) — a close that leaves
+  `ahead` nonzero has not closed. Two conventions born of the same fork: **session numbers
+  are machine-scoped lanes** (the `| Machine |` column is the lane; muster keys each clock on
+  its own lane), and **symptom IDs are ONE shared namespace** (the collision cost SYM-028/029/
+  030 their uniqueness; the ThinkPad's three were renumbered SYM-037/038/039 at the merge).
 
 ---
 
