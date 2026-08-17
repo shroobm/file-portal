@@ -70,10 +70,15 @@ jobs:
       - uses: actions/checkout@v4
       # Pinned like ruff (SYM-019): `@stable` moves, and a new clippy's lint set is the same trap.
       # 1.97.1 is the desktop's real rustc — the machine whose hand-run ritual this job mirrors.
-      - uses: dtolnay/rust-toolchain@stable
-        with:
-          toolchain: "1.97.1"
-          components: rustfmt, clippy
+      # S91: the dtolnay/rust-toolchain ACTION's own archive download 429'd from codeload on
+      # two consecutive runs (2026-08-17, run 32042976659 — the job died at "Set up job",
+      # before any repo step). The runner ships rustup, so the pinned toolchain is installed
+      # directly and the third-party download dependency is gone.
+      - name: Install Rust 1.97.1
+        shell: pwsh
+        run: |
+          rustup toolchain install 1.97.1 --profile minimal --component rustfmt --component clippy
+          rustup default 1.97.1
       - uses: Swatinem/rust-cache@v2
         with:
           workspaces: windows-widget/src-tauri
