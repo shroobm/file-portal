@@ -49,6 +49,22 @@
 - [ ] Screenshot/demo GIF for the README.
 - [ ] Decide on public vs. private GitHub repo and finalize `CONTRIBUTING.md` if public.
 
+## Transport — revisiting the raw `cat` stream
+
+*`transfer.rs:11-12` and `docs/01-architecture.md`'s tradeoff paragraph have pointed at this
+entry since the transport was built; it was a dangling pointer until 2026-08-17 (S93). The
+accepted tradeoff, recorded in docs/01: the `tailscale ssh … cat > dest` stream is not
+resumable, not checksummed, and reports no progress — an interrupted large transfer re-sends
+from scratch.*
+
+- [ ] **Library-pipeline lane — scheduled**: `docs/37` Stage 3 (the verified seam) closes the
+      integrity half — a per-file SHA-256 `inventory.json` at bundle build on both lanes, the
+      exporter verifying it BEFORE commit, and the receipt binding the package digest. An
+      arrival is then proven intact instead of assumed.
+- [ ] **File-routing lane (this document's scope) — unscheduled**: resumable/chunked transfer
+      for very large single files stays a non-goal until a real interrupted-transfer incident
+      is observed; that incident is the re-entry trigger.
+
 ## Explicitly out of scope (for now)
 
 - Mobile clients.
