@@ -29,7 +29,7 @@ from pathlib import Path
 from watchdog.events import FileSystemEventHandler
 from watchdog.observers import Observer
 
-from converter import bundle, engines, exporter
+from converter import bundle, degeneration, engines, exporter, sdnotify
 from converter.config import DEFAULT_ROOT, Paths, Settings
 from converter.status import StatusWriter
 
@@ -185,6 +185,21 @@ class ConvertHandler(FileSystemEventHandler):
                 )
                 return
 
+        # Degeneration tripwire (ported from the Desktop audit -- see degeneration.py).
+        # Report-mode: the verdict travels in the manifest and the journal; it never blocks
+        # publishing. The exporter surfaces `flagged` in the ingest receipt, so a looping
+        # conversion cannot reach the vault silently even though it still reaches it.
+        degen = degeneration.degeneration(markdown)
+        if degen["flagged"]:
+            logger.warning(
+                "DEGENERATION %s blocks=%d repeated_lines=%d worst_zlib=%s "
+                "-- published anyway (report mode)",
+                file_path.name,
+                len(degen["worst"]),
+                degen["repeated_lines"],
+                degen["worst"][0]["zlib"] if degen["worst"] else "-",
+            )
+
         converted_at = bundle.utcnow()
         ocr = lane == "scan"
         frontmatter = bundle.render_frontmatter(
@@ -208,6 +223,7 @@ class ConvertHandler(FileSystemEventHandler):
             "converter_version": VERSION,
             "pymupdf4llm_version": engines.pymupdf4llm.__version__,
             "converted_at": converted_at.isoformat(timespec="seconds"),
+            "degeneration": degen,
         }
         bundle.assemble(tmp_dir, bundle_name, markdown, frontmatter, manifest)
         anchor_dest, staging_dest = bundle.publish(
@@ -294,9 +310,22 @@ def run(root: Path, settings_path: Path):
     # idempotent and lock-serialized, so a bundle caught by both is a harmless no-op.
     vault_exporter.sweep()
 
+    # READY after the watches are armed and the sweep ran -- under Type=notify this line IS
+    # the startup contract, so it must mean "actually serving", not "process exists".
+    sdnotify.sd_notify("READY=1")
+    heartbeat = sdnotify.watchdog_armed()
     try:
         while True:
             time.sleep(1)
+            # Heartbeat only while the observer thread is alive: a dead watcher inside a
+            # living process is SYM-023's failure shape, and the watchdog turns that silent
+            # wedge into a restart. Deliberately NOT tied to event dispatch -- a legitimate
+            # multi-minute conversion holds the single dispatch thread and must not read as
+            # a hang (so a hung conversion subprocess is NOT covered here; that would need a
+            # per-conversion deadline, a different tool). One datagram per second is noise
+            # systemd is built to absorb.
+            if heartbeat and observer.is_alive():
+                sdnotify.sd_notify("WATCHDOG=1")
     except KeyboardInterrupt:
         observer.stop()
     observer.join()

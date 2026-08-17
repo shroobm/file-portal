@@ -357,3 +357,74 @@ def test_supersede_commit_without_push_resumes(paths):
     assert not bundle.exists()
     assert bare_commits(paths) == 3, "resumed the SAME commit, no second supersede"
     assert "the remedy" in bare_show(paths, f"{dest}/paper.md")
+
+
+# ---------------------------------------------------------------------------
+# Spot-check sampling + degeneration surfacing (2026-08-16).
+# ---------------------------------------------------------------------------
+def read_receipts(paths):
+    records = []
+    for ln in (paths.root / "receipts.jsonl").read_text().splitlines():
+        try:
+            records.append(json.loads(ln))
+        except ValueError:  # a deliberately torn seed line in one test
+            continue
+    return records
+
+
+def test_spot_check_fires_on_exactly_the_nth_accept(paths, monkeypatch):
+    import converter.exporter as exporter_mod
+
+    monkeypatch.setattr(exporter_mod, "SPOT_CHECK_EVERY", 3)
+    ex = Exporter(paths)
+    shas = [f"{i:02x}11" * 16 for i in range(4)]
+    for i, sha in enumerate(shas):
+        ex.export(make_bundle(paths, f"book-{i}", sha))
+    exported = [r for r in read_receipts(paths) if r["outcome"] == "exported"]
+    assert [r.get("spot_check") for r in exported] == [None, None, True, None]
+
+
+def test_spot_check_counter_survives_restart(paths, monkeypatch):
+    # The counter derives from receipts.jsonl, not process memory: a NEW Exporter instance
+    # (a service restart) must keep counting where the old one stopped.
+    import converter.exporter as exporter_mod
+
+    monkeypatch.setattr(exporter_mod, "SPOT_CHECK_EVERY", 2)
+    Exporter(paths).export(make_bundle(paths, "first", SHA_A))
+    Exporter(paths).export(make_bundle(paths, "second", SHA_B))
+    exported = [r for r in read_receipts(paths) if r["outcome"] == "exported"]
+    assert [r.get("spot_check") for r in exported] == [None, True]
+
+
+def test_spot_check_counts_only_exported_outcomes_and_tolerates_torn_lines(paths, monkeypatch):
+    import converter.exporter as exporter_mod
+
+    monkeypatch.setattr(exporter_mod, "SPOT_CHECK_EVERY", 2)
+    # Pre-seed: one non-exported receipt and one torn line -- neither may count.
+    (paths.root / "receipts.jsonl").write_text(
+        json.dumps({"outcome": "skip", "bundle": "x"}) + "\n" + '{"outcome": "expo'
+    )
+    ex = Exporter(paths)
+    ex.export(make_bundle(paths, "one", SHA_A))
+    ex.export(make_bundle(paths, "two", SHA_B))
+    exported = [r for r in read_receipts(paths) if r["outcome"] == "exported"]
+    assert [r.get("spot_check") for r in exported] == [None, True]
+
+
+def test_degeneration_flag_reaches_the_receipt(paths):
+    bundle = make_bundle(paths, "loopy", SHA_A)
+    manifest = json.loads((bundle / "manifest.json").read_text())
+    manifest["degeneration"] = {"flagged": True, "repeated_lines": 0, "md_lines": 9, "worst": []}
+    (bundle / "manifest.json").write_text(json.dumps(manifest))
+    Exporter(paths).export(bundle)
+    exported = [r for r in read_receipts(paths) if r["outcome"] == "exported"]
+    assert exported[0]["degeneration_flagged"] is True
+    # The bundle still exported -- report mode holds nothing.
+    assert bare_has(paths, f"Inbox/loopy--{SHA_A[:8]}/manifest.json")
+
+
+def test_clean_manifest_adds_no_flag_keys(paths):
+    Exporter(paths).export(make_bundle(paths, "plain", SHA_A))
+    exported = [r for r in read_receipts(paths) if r["outcome"] == "exported"]
+    assert "degeneration_flagged" not in exported[0]
+    assert "spot_check" not in exported[0]

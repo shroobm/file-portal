@@ -299,6 +299,31 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
   un-openable (SYM-030: the body scan demanded exactly one `.md` and the final report was the
   second).
 
+- **S78 — THE SECOND GATE (2026-08-16, ThinkPad lane).** World research (USA/Canada/Japan/
+  China/Russia/LatAm pools, three agent sweeps, primary sources) cross-referenced against the
+  codebase — which killed the first plan draft: the proposed compression-ratio probe already
+  existed, calibrated, in the Desktop audit since 2026-07-20. The cross-reference exposed the
+  real gap instead: **the linux lanes publish to the same staging the vault ingests from, with
+  no degeneration gate at all.**
+  - **Degeneration tripwire ported to the linux lanes** (`converter/degeneration.py`): the
+    Desktop's calibrated zlib+trigram detector, thresholds carried with docs/15 §9.1/§9.2
+    provenance, report-mode — verdict rides `manifest.json` and the journal, never blocks.
+  - **Spot-check sampling** (FADGI 3rd ed. floor): every 10th ACCEPTED export's receipt gains
+    `spot_check: true` — passes get sampled too, because confidence signals lie. Counter
+    derives from receipts.jsonl: deterministic, restart-proof.
+  - **systemd watchdog on both services** (Type=notify, WatchdogSec=90): heartbeats tied to
+    observer-thread liveness, so a dead watcher inside a living process (SYM-023's class)
+    restarts instead of wedging. **Live-proven: both services SIGSTOPped, both restarted by
+    systemd inside 130 s (NRestarts 0→1).**
+  - **Weekly vault fixity timer** (NDSA Levels L3): `git fsck --strict` over the bare vault,
+    one `fixity-check` receipt per run (PREMIS event term). First live run: pass, tip
+    `70c60e61`.
+  - **Receipts torn-line healing** (SYM-028, found by this session's own tests): a crash
+    mid-append no longer destroys the next receipt written after recovery.
+  - `min_chars_per_page` calibration honestly NOT performed — the config asked for ~30 real
+    documents, the logs dedupe to ~10; evidence recorded, threshold held, bar kept.
+  - Suites 73+28 green; SYM-028/SYM-029 filed. Narrative: `sessions/S78-thinkpad-2026-08-16.md`.
+
 - **S77 — THE OBSERVABILITY COMPLEX (docs/29, 2026-08-14, Desktop lane).** Rab's question —
   *how do we efficiently determine what should be wired to the glass?* — and his correction:
   these are **glitches, not bugs**, because the system was designed observable, so silence is

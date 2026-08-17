@@ -3,7 +3,13 @@ Description=File Portal allocator (sorts incoming files from the Windows widget)
 After=network-online.target
 
 [Service]
-Type=simple
+# Type=notify + WatchdogSec (2026-08-16): the service proves liveness instead of merely
+# existing -- READY=1 once the inbox watch is armed, then WATCHDOG=1 heartbeats only while
+# the observer thread is alive (a dead watcher inside a living process becomes a restart,
+# not a silent wedge -- SYM-023's class). 90s is deliberately generous; tighten only after
+# measuring. Restart=on-failure already covers watchdog kills.
+Type=notify
+WatchdogSec=90
 # __WORKDIR__ and __EXEC_PATH__ are substituted with the real clone path by scripts/install.sh
 # (same templating as linux-dashboard) -- a hardcoded path breaks any clone not at
 # ~/file-portal-src.

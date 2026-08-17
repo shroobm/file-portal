@@ -89,6 +89,9 @@ class TestCleanLane:
         manifest = json.loads((paths.anchor / "digital" / "manifest.json").read_text())
         assert manifest["engine"] == "pymupdf4llm"
         assert manifest["source_sha256"]
+        # The degeneration tripwire runs on every conversion (report mode) and its verdict
+        # travels in the manifest -- a clean synthetic PDF must scan clean.
+        assert manifest["degeneration"]["flagged"] is False
         # Success emits no status event -- the allocator hop already showed green.
         assert not (paths.logs / "status.json").exists()
 
