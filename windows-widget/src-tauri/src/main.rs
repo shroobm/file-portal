@@ -616,6 +616,12 @@ fn main() {
         // now fronts the ONE widget instead of becoming a second factory.
         .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
+                // set_focus alone no-ops on a MINIMIZED window (tao skips it) — and the
+                // minimized widget is the ONE state where a user relaunches to bring it
+                // back (the titlebar has a dedicated minimize button, main.js). Restore
+                // first; both calls are no-ops when already visible. S94 review catch.
+                let _ = w.unminimize();
+                let _ = w.show();
                 let _ = w.set_focus();
             }
         }))
