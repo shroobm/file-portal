@@ -8,6 +8,35 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S94 — STAGE 1, THE HARDENING SLICE (2026-08-17 night, Desktop lane, Fable; Rab, after
+  the fourth ask landed cited: "F-09 per-slice signed, Stage 1 GO with the mutex").** Both
+  §3 signatures recorded first, then built. **F-09** (SYM-041): `chunk_batch()` re-read
+  per slice at last — the code now honors the promise docs/18/20 and line.rs always made;
+  slice print/event/`.done` carry the per-slice value. **The card mutex** (SYM-042, and
+  SYM-022's precondition closed): `Local\file-portal-card`, OS-enforced, claimed at
+  `main()` dispatch so watcher children, `--resume`, `--reanalyze` and hand runs ALL
+  serialize; loud wait, abandonment inherited safely; tripwire 7/7 with proven-real
+  contention (the first draft tested two different mutexes — caught by its own red).
+  **Widget hardening, ONE build**: tauri.conf CSP set (main window, deny-by-default) +
+  room_chat.py serves its own CSP on the page that renders model output (the External-URL
+  fact the survey established: config CSP cannot govern it) · devtools out of release ·
+  `tauri-plugin-single-instance` fronts a second launch (SYM-033 prevention, two layers
+  with the mutex) · bless via config (the `rab@archlinux` literal, the widget's last
+  config-bypassing destination) · **the missing renders**: `spot_check` /
+  `degeneration_flagged` / `fixity-check` receipts get real phrases, and
+  `room_metrics.recent_audits` — computed since S34, read by nothing (SYM-027's named
+  specimen) — gets its Room panel. Six-reader survey workflow preceded the edits; fmt +
+  clippy `-D warnings` + `cargo test` 23/23 + acceptance 24/24. The adversarial review
+  (part workflow, part solo after a session-limit half-death — dead verifiers re-judged
+  inline, never counted as refutals) returned three real findings, all fixed
+  pre-adoption: the single-instance callback now restores a MINIMIZED widget
+  (`unminimize`+`show`+focus — the one state a relaunch serves), a false "wait is loud
+  in watcher.log" claim was corrected in place (child stdout is captured; render +
+  live-log filed for Stage 2), and the config CSP got its honest `Intended` label.
+  Rebuilt; SHA-8 staged for Rab's adoption; renders, single-instance, and both CSPs
+  ship `Intended` until his launch.
+  Narrative: `sessions/S94-desktop-2026-08-17.md`.
+
 - **S93 — STAGE 0, THE TRUTH REPAIRS (2026-08-17 evening, Desktop lane, Fable; Rab: "check
   what last session left for you to do… work until it's done").** The S92 pre-mortem executed
   as written, one commit per task. **T1** docs/35's four corpus lies fixed against source
