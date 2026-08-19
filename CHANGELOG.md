@@ -8,6 +8,30 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S96 — THE MEMORY LIBRARY REPAIR (2026-08-19, Desktop lane).** Added
+  `docs/39-memory-library-inventory.md` (full inventory of the 28-file memory library: paths,
+  file tree, per-file volume, link graph, and findings) and this closeout. **Opened on an
+  INCIDENT (`open.sh` exit 1): S95 wrote its ledger row and never advanced the `MEMORY.md`
+  TIME-STATE mirror.** Diagnosed as a missed update, not a fork or rewind, and reconciled —
+  TIME-STATE now mirrors S95/`b93218e`/row `42b1509`, and the close gate reads exit 0. Outside
+  this repo: the memory library was placed under local git with a **round-trip-proven
+  byte-exact rollback** (a first attempt silently CR-stripped 4 files including the index and
+  the soft clock; caught by its own tripwire, fixed with `add --renormalize`); five actively
+  WRONG memory claims were corrected (gemini transport `curl`→urllib · the standing Gemini bar
+  missing beside a live config value · Damodaran's park location · the exporter supersede flow
+  listed as pending when built at S43 · session numbering stated as global when it is
+  machine-scoped since S86); two missing maps were restored (docs map 00–14→00–39; the widget
+  exe lineage through the installed `C3C05D49`); and a false "PENDING RAB'S HAND: adopt
+  `C3C05D49`" was corrected — the adoption was already done, so the next session would have
+  re-instructed it. **`~/.codex/AGENTS.md` was repaired**: a blanket Claude→Codex
+  find-and-replace had mangled the literal memory path, sending every Codex session to a
+  nonexistent directory — the blind-session failure that file exists to prevent. Four
+  read-only counterparty agents argued the plan down: four of the nine catalogued findings were
+  **withdrawn on evidence** and one narrowed, and one agent finding was **refuted** by
+  measurement (a "dirty" vault clone proved to be the documented stat-only phantom). No session
+  narrative was rewritten; no dated historical state was folded; product source and pipeline
+  untouched. Narrative: `sessions/S96-desktop-2026-08-19.md`.
+
 - **S95 — COMPLETE FILE PORTAL SYSTEM SCOPE (2026-08-19, Desktop lane).** Added
   `docs/38-file-portal-full-system-scope.md`: a source-traced, reader-first whole-system map
   covering boundaries, machines and authority, all maintained component families, end-to-end
