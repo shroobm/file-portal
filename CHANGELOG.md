@@ -8,6 +8,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S95 — COMPLETE FILE PORTAL SYSTEM SCOPE (2026-08-19, Desktop lane).** Added
+  `docs/38-file-portal-full-system-scope.md`: a source-traced, reader-first whole-system map
+  covering boundaries, machines and authority, all maintained component families, end-to-end
+  routes, runtime state, interfaces, configuration, security, lifecycle, verification, and a
+  candid limitation register. The document includes a comprehensive domain glossary plus a
+  File Portal → conventional software-engineering translation index so operators and developers
+  can share terminology without losing implementation precision. The attached 294-file snapshot
+  was treated as read-only evidence and matched active tracked content after line-ending
+  normalization. Local checks passed where recorded; observability acceptance remains honestly
+  red at 38/39 due to its stale `recent_audits` expectation, Linux suites and external runtime
+  state remain `UNREAD`, and the scoped documentation delta introduced zero unsigned glitches.
+  Narrative: `sessions/S95-desktop-2026-08-19.md`.
+
 - **S94 — STAGE 1, THE HARDENING SLICE (2026-08-17 night, Desktop lane, Fable; Rab, after
   the fourth ask landed cited: "F-09 per-slice signed, Stage 1 GO with the mutex").** Both
   §3 signatures recorded first, then built. **F-09** (SYM-041): `chunk_batch()` re-read
