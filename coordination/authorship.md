@@ -15,8 +15,10 @@ Every **prose section, ledger row, and doc** a model writes carries a claim:
 
 - Section or doc: `⟨claimed: Fable · S<n> · <UTC date>⟩` / `⟨claimed: Codex · S<n> · <date>⟩`
   — one line, at the top of the doc or the end of the section it claims.
-- Change Ledger rows: the session cell already opens `S<n>:` — append the model to the date
-  lane cell era: write rows as `| <date> | Desktop | S<n> (Fable): …` going forward.
+- Change Ledger rows: the session cell already opens `S<n>:` — and MUST keep opening that
+  way (muster's ledger parser keys on `S<n>:`; a stamp before the colon broke it, caught by
+  the S99 close-verification muster). Write rows as `| <date> | Desktop | S<n>: ⟨Fable⟩ …`
+  — the stamp goes AFTER the colon.
 - Commits: a model trailer. Fable already commits with
   `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`; Codex is asked (relay entry 1) to
   adopt an equivalent — its close `3b56f13` carries no trailer today, which is the measured
