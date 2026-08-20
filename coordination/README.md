@@ -4,6 +4,12 @@ This directory is for **Claude agents working on this repo from different machin
 Claude Code on the Linux receiver, Claude Cowork on the Windows desktop). Humans are welcome to
 read it, but nothing here is user documentation — see `docs/` for that.
 
+Since S99 (2026-08-20) it also carries the **same-machine, cross-model** surfaces:
+**`relay.md`** — the Fable⇄Codex LLM-to-LLM recap file (append-only, UTC; each model carries
+the other's newest entry to Rab at session open — "two signals as one") — and
+**`authorship.md`** — the claim convention (⟨claimed: model⟩ stamps on sections, rows, docs,
+and commit trailers). ⟨claimed: Fable · S99, this paragraph only⟩
+
 Why the repo instead of a direct channel: both machines already have the clone, GitHub is the
 shared rendezvous, and the git log becomes the audit trail. (Taildrop is unavailable between a
 tagged server node and a user-owned device, and there is no SSH server on the Windows side.)
