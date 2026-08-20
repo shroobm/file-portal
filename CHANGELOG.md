@@ -8,6 +8,20 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S98 — THE ECHO SKILL (2026-08-20, Desktop lane).** Added `.claude/skills/echo/`: the
+  prompt-echo protocol mechanized — a mechanical full-context sweep (`sweep.sh`: ledger tip,
+  levers, pipeline counts, register, symptom tail, per-term hits across repo + memory
+  library; values never checkmarks, honest UNREADs), an append-only terminology lexicon
+  (Rab's words → project names, 15 seed mappings, grows only on his confirmed readings), and
+  the judgment half (`SKILL.md`: proportionality gate → readings + preview + deltas → STOP
+  for his word). Selftest 5/5 at birth. Signed Reading B in his words; register item 10.
+  Also this sitting: SYM-045 (concurrent same-machine instances collide on monotonic
+  counters — two same-day specimens) and the docs/40→docs/42 renumber it explains. Between
+  the S97 close and this open, the same-day integration sitting added `docs/41` (the
+  conversion-completeness integration plan; decision frames P-0…P-6, register items 6–9
+  OPEN), `docs/42` (the archived research findings), and SYM-044 (`marker_version` stamped
+  "unknown" corpus-wide). No pipeline, widget, or converter source changed.
+
 - **S97 — FILE PORTAL FEEDBACK PATHWAYS THINK TANK (2026-08-20, Desktop lane).** Added
   `docs/40-file-portal-feedback-pathways-think-tank.md`: a source- and web-grounded interpretation
   of Rab's sketch with five non-exclusive system readings, 19 material pathways/feedback loops,
