@@ -8,6 +8,16 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S97 — FILE PORTAL FEEDBACK PATHWAYS THINK TANK (2026-08-20, Desktop lane).** Added
+  `docs/40-file-portal-feedback-pathways-think-tank.md`: a source- and web-grounded interpretation
+  of Rab's sketch with five non-exclusive system readings, 19 material pathways/feedback loops,
+  a current capability/gap map, 2025–2026 accessibility/provenance/AI-governance conditions,
+  seven falsifiable prospect hypotheses, four competing implementation theses, and staged
+  decision gates. The synthesis rejects a generic converter/platform rewrite: the candidate wedge
+  is an evidence-bearing exception/repair layer, tested first through a read-only causal trace and
+  a pre-registered human-review pilot. Two agent lanes completed; one non-convergent lane was
+  interrupted and not counted as consensus. No product source or live pipeline changed.
+
 - **S96 — THE MEMORY LIBRARY REPAIR (2026-08-19, Desktop lane).** Added
   `docs/39-memory-library-inventory.md` (full inventory of the 28-file memory library: paths,
   file tree, per-file volume, link graph, and findings) and this closeout. **Opened on an
