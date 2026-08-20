@@ -135,6 +135,11 @@ recorded choice.
 9. **Generative-SR standing ban** (fabricated glyphs are fluent — invisible to every gate we
    own): record force_ocr-style ban ~or~ deferred-with-criteria (ground-truth set + no-SR
    diff lane) in docs/15 §10. Zero code either way.
+10. **The echo skill** — the prompt-echo protocol mechanized: full-context sweep + append-only
+    terminology lexicon + readings/preview/deltas before interpreting a deep commission, stop
+    for his word. **SIGNED Reading B (Rab, 2026-08-20, in-chat: "YES YES YES YES IT IS
+    READING B, GO DO THAT SHIT CLAUDE!") — built S98** (`.claude/skills/echo/`, selftest 5/5,
+    live sweep stepped on; lexicon in from day one per the recommendation his GO landed on).
 
 ## §4 Stage 0 pre-mortem — deviations solved ahead of the curve (S92)
 
