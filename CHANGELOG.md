@@ -8,6 +8,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S101 — P-0, THE WIRING SLICE (2026-08-20, Desktop lane, Fable).** Rab's GO on the
+  conversion-completeness slate ("lets do items 6-9, start with P-0"). The **asset ledger now
+  reaches a human**: `asset_delta` / `embedded_images` have been computed on every book since
+  2026-07-20 and rendered nowhere; they are now projected by `assay.rs` and rendered on the
+  Assay card in **both** surfaces (`room.js` `assetLedger`, `main.js` `assetLedgerLine`).
+  **Both sides of the count always travel and the caption says "count", not "coverage"** — a
+  465-page scan reads −416 because OCR worked, and a vector-figure book reads +92 against zero
+  image XObjects; the delta feeds no verdict, and real coverage semantics are P-1 (unsigned).
+  An unmeasured ledger renders **blank, never zero**. Glass census **64 → 62** with the
+  arithmetic closed: the detector caught this session's own test fixtures introducing a
+  container key (`widget:tripwires`), now **signed INTERNAL with its reason** rather than
+  code-dodged. **docs/15 §5's "a large delta is a flag" clause is WITHDRAWN on evidence.**
+  Also: **SYM-046** — a bare `glass_detector.py` run exits 0 while printing dozens of unsigned
+  glitches, so "glass exit 0" in the S98/S99/S100 closeouts proved nothing; the ritual form is
+  `--since <pin> --enforce`, re-run against all four pins (all clean), and dated corrections
+  were appended to those three closeouts rather than editing the claims away. Proof: widget
+  suite 25/25 (2 new), clippy clean, `p0-asset-ledger.test.mjs` 11/11 on the real corpus
+  shapes incl. Room↔Dock wording parity, browser harness 0 console errors with computed styles
+  checked in both themes. **Release built, SHA-8 `4DCB73E2` — adoption is Rab's hand; the
+  installed exe is still `C3C05D49`.** No pipeline, converter, or Python source changed.
+
 - **S100 — THE CONCORDANCE AMENDMENT, AND THE FIRST TEST (2026-08-20, Desktop lane, Fable).**
   Amended `coordination/relay.md` with the concordance rules (signed by Rab after a two-round
   debate relayed through ChatGPT): carried text is **must-quote**, every carry carries an
