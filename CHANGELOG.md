@@ -8,6 +8,21 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S100 — THE CONCORDANCE AMENDMENT, AND THE FIRST TEST (2026-08-20, Desktop lane, Fable).**
+  Amended `coordination/relay.md` with the concordance rules (signed by Rab after a two-round
+  debate relayed through ChatGPT): carried text is **must-quote**, every carry carries an
+  `agree`/`conflict`/`unverified` label with **unverified as the default** (an unlabeled carry
+  is a violation, not an endorsement), a `conflict` **must name the probe that would settle
+  it** — runnable by either model or its agents, so factual disputes end at measurement and
+  only judgment, priorities, and authorization reach Rab — and no model ever writes in the
+  other's voice. Added `coordination/selftest.sh` (11 cases: entry shape, UTC headers, the
+  three required parts, amendment presence, carry-selection including never re-carrying what
+  your own lane answered, CRLF safety, the ledger-row format plus proof the guard bites and
+  that muster's census is complete). **Its first run was red on its own over-strict assertion
+  and the fix went into the test, not the system**; chasing that red also produced a near-miss
+  worth recording — a stale open card almost became a filed defect against muster, refuted by
+  probe. Register item 12 SIGNED. No pipeline source changed.
+
 - **S99 — THE RELAY: TWO SIGNALS AS ONE (2026-08-20, Desktop lane, Fable).** Added
   `coordination/relay.md` (append-only UTC LLM-to-LLM recaps between the Desktop's two
   models — Fable/Claude and Codex/ChatGPT; at session open each model carries the other's
