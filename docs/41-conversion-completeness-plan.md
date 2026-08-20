@@ -6,7 +6,7 @@
 **Provenance.** Rab's commission, his words: *"Read this against file portal, and see what
 should be planned and integrated, goal is to have a very successful turnout for conversions,
 while specifying options and variability for determining decisions, based on differing
-reasons."* Inputs: the external research artifact (**docs/40**, archived from Downloads) and a
+reasons."* Inputs: the external research artifact (**docs/42**, archived from Downloads) and a
 grounding investigation run by an Opus agent in an isolated worktree against the **installed**
 stack (marker-pdf 1.10.2 · surya-ocr 0.17.1 · pymupdf 1.28.0), full report **Appendix A**.
 Epistemic tags in the appendix (`[O]` Observed / `[V]` Verified / `[I]` Inferred) are the
@@ -34,14 +34,14 @@ well the pipeline serves them today:
    defaults; grounding shows the default is *already clipping* one of our seven books (§2 P-5).
 
 The first property is why the factory works. The second and third are why this plan exists:
-they are the only components of docs/40 with **no prior art anywhere and a documented failure
+they are the only components of docs/42 with **no prior art anywhere and a documented failure
 class live in our own anchor/**.
 
-## §1 What grounding changed — read this before trusting docs/40
+## §1 What grounding changed — read this before trusting docs/42
 
 Confirmed **on our stack** (installed-source citations in Appendix A):
 
-| docs/40 claim | Status |
+| docs/42 claim | Status |
 |---|---|
 | Layout gets `highres=False` unconditionally | CONFIRMED — `marker/builders/layout.py:89` (1.10.2; the doc's `:136` is another version) |
 | surya `IMAGE_DPI 96` / `IMAGE_DPI_HIGHRES 192` | CONFIRMED verbatim, `surya/settings.py:15-16` |
@@ -118,7 +118,7 @@ page+region overlaps it? Coverage by bbox overlap, **never** count equality (`Be
 |---|---|---|
 | **(a) Desktop, in-converter** at the `_audit_convert_safe` seam (`convert_and_ship.py:998`) | Only point where source PDF + markdown + assets are all in scope; zero new plumbing; verdict lands in the same manifest pass | Every audit second extends the card-lock (mutex held for process lifetime) |
 | (b) Desktop, out-of-band re-score over `anchor/<bundle>` × `drop/done/<pdf>` (the `fidelity_audit.main()` shape) | No card-lock cost; the only shape that can also **back-fill the existing corpus**; where a JVM pass could live without punishing conversions | Needs an orchestration trigger + a rule for joining bundle↔source; verdicts arrive after ship |
-| (c) ThinkPad, with a **precomputed source inventory** (small JSON of figure regions, computed desktop-side, carried in the manifest) | Preserves docs/40's zero-desktop-time intent without shipping gigabytes | Changes the bundle contract three modules depend on; ThinkPad deps undeclared; the seam's "exporter copies bytes, does not read them" doctrine bends |
+| (c) ThinkPad, with a **precomputed source inventory** (small JSON of figure regions, computed desktop-side, carried in the manifest) | Preserves docs/42's zero-desktop-time intent without shipping gigabytes | Changes the bundle contract three modules depend on; ThinkPad deps undeclared; the seam's "exporter copies bytes, does not read them" doctrine bends |
 
 **Decision variable 2 — instrument:**
 
@@ -179,7 +179,7 @@ anti-hallucination). RETAS would add an LCS backbone and reading-order tolerance
 
 ### P-4 · LLM as adjudicator — never as searcher
 
-docs/40's own evidence is the constraint: AbsenceBench 69.6 F1 ceiling, MissingBench 44–75 %,
+docs/42's own evidence is the constraint: AbsenceBench 69.6 F1 ceiling, MissingBench 44–75 %,
 deterministic beats VLM-judge by +15.2 F1. The LLM may only *adjudicate spans a deterministic
 locator has already marked*, per-page, layout supplied.
 
@@ -190,7 +190,7 @@ converter is the wrong host (one-process law; the adjudicator competes for the 3
 | Option | Reason to pick it |
 |---|---|
 | **Advisory-only in the Bench** (verdict never touches `fidelity.verdict`) | Honest to the measured ceiling; GPU use is interactive and Rab-present, so the mutex/chat-hold machinery already governs it |
-| Verdict-influencing | Requires everything docs/40 says fails; would need its own signature and calibration |
+| Verdict-influencing | Requires everything docs/42 says fails; would need its own signature and calibration |
 | Local qwen3 vs Gemini | Local: one-process law + no key handling. Gemini: F-13 key rules + link-fence; only if local recall proves insufficient |
 
 *Effort:* M on Bench scaffolding. *Recommendation:* advisory-only, local, after P-1/P-2 give
@@ -205,7 +205,7 @@ the default. `marker_single` accepts `--lowres_image_dpi` today — zero marker-
 
 | Option | Reason to pick it |
 |---|---|
-| **(i) Cheap measured probe** on the clipped book (Beer *DIAGNOSING*, ceiling 87.1 DPI): convert at default vs at-the-budget, score both with the existing audit | One book, bounded GPU time, answers "does clipping cost us anything" — the delta nobody has published; docs/40's own build-order 5 says measuring it on our corpus is the genuinely new thing |
+| **(i) Cheap measured probe** on the clipped book (Beer *DIAGNOSING*, ceiling 87.1 DPI): convert at default vs at-the-budget, score both with the existing audit | One book, bounded GPU time, answers "does clipping cost us anything" — the delta nobody has published; docs/42's own build-order 5 says measuring it on our corpus is the genuinely new thing |
 | (ii) Per-page render-to-the-budget (`dpi = sqrt(budget / page_area_in²)`) | The *correct* lever the measurement points at — but a converter change, and only justified if (i) shows a real delta |
 | (iii) Leave it | If (i) shows nothing, record the null result in docs/15 §9 style and stop |
 
@@ -219,7 +219,7 @@ once P-1 exists? heading recovery?), and (i)→(ii) promotion.
 
 ### P-6 · Generative SR — the standing ban
 
-No SR exists anywhere in the pipeline, and that is the correct state (docs/40: fabricated
+No SR exists anywhere in the pipeline, and that is the correct state (docs/42: fabricated
 glyphs are fluent — the one failure our compression/trigram gate cannot see by design).
 
 | Option | Reason to pick it |

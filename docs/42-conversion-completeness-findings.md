@@ -1,4 +1,4 @@
-# 40 · Conversion-completeness research findings — the S97 external artifact
+# 42 · Conversion-completeness research findings — the S97 external artifact
 
 > **Provenance.** Archived verbatim (below the rule) from
 > `C:\Users\Bndit\Downloads\conversion-completeness-audit-FINDINGS.md`, brought back by Rab on
