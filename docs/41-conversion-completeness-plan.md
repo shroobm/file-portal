@@ -75,7 +75,7 @@ Refuted or materially changed **on our stack**:
    has been measured on every book for a month (`fidelity_audit.py:344,383-384` ✓), stored in
    every manifest, and shown to nobody. Item 1 is partly a *wiring* job.
 
-Bonus defect found on the way, filed as **SYM-043**: both `marker_version` stamp sites do
+Bonus defect found on the way, filed as **SYM-044**: both `marker_version` stamp sites do
 `getattr(marker, "__version__", "unknown")`, and marker-pdf 1.10.2 has no `__version__` (the
 package has no `__init__.py` at all ✓) — so every manifest ever written carries
 `"marker_version": "unknown"`, and one third of the F-02 `.done` identity gate is inert
