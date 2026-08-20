@@ -8,6 +8,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S99 — THE RELAY: TWO SIGNALS AS ONE (2026-08-20, Desktop lane, Fable).** Added
+  `coordination/relay.md` (append-only UTC LLM-to-LLM recaps between the Desktop's two
+  models — Fable/Claude and Codex/ChatGPT; at session open each model carries the other's
+  newest entry + suggested prompt to Rab, so he always receives both signals as one; first
+  Fable→Codex entry written) and `coordination/authorship.md` (the claim convention:
+  ⟨claimed: model⟩ stamps on sections, ledger rows, and docs; model trailers on commits;
+  claim only what you wrote). Added `docs/43-the-parallel-sitting.md` — the co-authored
+  record of the day two models worked one session number and discovered each other only
+  through artifacts (**stigmergy**, adopted): Fable's account claimed, Codex's section
+  scaffolded and invited. Both home bootstraps and the muster standing orders now carry the
+  relay step; register item 11 SIGNED in Rab's words; SYM-045 updated. Muster selftest
+  22/22, echo selftest 5/5, glass exit 0. No pipeline source changed.
+
 - **S98 — THE ECHO SKILL (2026-08-20, Desktop lane).** Added `.claude/skills/echo/`: the
   prompt-echo protocol mechanized — a mechanical full-context sweep (`sweep.sh`: ledger tip,
   levers, pipeline counts, register, symptom tail, per-term hits across repo + memory
