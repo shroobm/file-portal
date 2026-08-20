@@ -110,6 +110,31 @@ recorded choice.
 4. Stage 2 GO · Stage 3 GO.
 5. Standing from before tonight: docs/26 signature sheet (5) · stale-hold reap countersign ·
    docs/34 rule 8 · GLM second-reader · wrapper · SPOT_CHECK_EVERY 10→3–5.
+6. **Conversion-completeness slate** (filed S97, 2026-08-20; full decision frames = docs/41;
+   expands item 3's Stage 2 asset posture — docs/37 §1 line 50 already queues the asset
+   tripwire there). P-0 wiring: render `asset_delta`+`embedded_images` on the Assay card ~or~
+   sign them REPORT-silent (they are 2 of the glass detector's 64 live glitches). P-1
+   figure/vector coverage audit: host in-converter at :998 (zero plumbing, extends card-lock)
+   ~or~ out-of-band desktop re-score (no lock cost, can back-fill anchor/) ~or~
+   ThinkPad-with-shipped-inventory (bundle-contract change); instrument PyMuPDF-only ~or~
+   admit a JVM for PDFFigures 2.0; coverage-by-bbox-overlap semantics; report-only first
+   (`audit-mode.txt` is LIVE at `enforce` — a gate parks books day one). Fable recommends:
+   P-0 render now; P-1 in-converter, PyMuPDF-only, report-only.
+7. **#598 tripwire** (figure transmuted to prose; live specimen `bojieli` 105 rasters → 4
+   assets, degeneration clean, verdict `flag`): join docs/15 §12's fail list (a signature
+   event — §12 is SIGNED at exactly two fail signals) ~or~ flag-only localizer ~or~
+   receipt-note-only if a prose'd chart is acceptable for a text-first vault. Fable
+   recommends flag-only until §9 calibration shows the false-alarm rate. Depends on item 6's
+   P-1.
+8. **DPI operating point**: measured probe on the already-clipped book (Beer DIAGNOSING —
+   layout ceiling 87.1 DPI vs the 96 default; grounding measured corpus headroom −9 %…+228 %,
+   geometry-determined) ~or~ per-page render-to-the-budget (the real lever, a converter
+   change) ~or~ leave it and record why. A global DPI bump is the wrong shape. Fable
+   recommends the one-book probe first; SYM-039's derived `ocr_dpi` stamp must be reworked in
+   the same commit as any override.
+9. **Generative-SR standing ban** (fabricated glyphs are fluent — invisible to every gate we
+   own): record force_ocr-style ban ~or~ deferred-with-criteria (ground-truth set + no-SR
+   diff lane) in docs/15 §10. Zero code either way.
 
 ## §4 Stage 0 pre-mortem — deviations solved ahead of the curve (S92)
 
