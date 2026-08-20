@@ -760,6 +760,21 @@ function escHtml(s) {
   return String(s ?? "").replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 }
+
+// P-0, the wiring slice (docs/41 §2 P-0, signed 2026-08-20) — the Dock's half; the Room's twin
+// is `assetLedger` in room.js and the two must agree in wording, because the same operator
+// reads both surfaces. Both sides of the count travel, never the bare delta: a 465-page scan
+// reads −416 and that means "OCR worked", not "figures lost". Marker crops the rendered page
+// rather than extracting XObjects, so these are different kinds of object and never match —
+// hence "count", not "coverage" (coverage is P-1, unsigned). Null stays blank: not a zero.
+function assetLedgerLine(st) {
+  if (st.asset_delta == null || st.embedded_images == null) return "";
+  const out = Number(st.assets_out), emb = Number(st.embedded_images), d = Number(st.asset_delta);
+  const tip = `assets written ${out} vs ${emb} distinct image objects in the source PDF. ` +
+    `A count, not a coverage check — informational only; the verdict does not read it.`;
+  return `<div class="ac-caption ac-assets" title="${escHtml(tip)}">figures <b>${out}</b> out / ` +
+    `<b>${emb}</b> in source <span class="dim">(Δ${d > 0 ? "+" : ""}${d}, count only)</span></div>`;
+}
 function firstWords(s, n) {
   return String(s ?? "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
 }
@@ -867,6 +882,7 @@ function assayRender(st) {
     `<div class="ac-body"><div class="ac-verdict">` +
     `<span class="nm">survival ${st.doc_survival != null ? Number(st.doc_survival).toFixed(3) : "—"}</span>` +
     `<span class="meter"><i class="${cls}" style="width:${pct}%"></i></span>${badge}</div>` +
+    assetLedgerLine(st) +
     map + list + foot + `</div>` + heldHtml;
 
   document.getElementById("audit-toggle")?.addEventListener("click", assayToggleMode);

@@ -683,6 +683,9 @@ body.surface-wall #algedonic-chip { display: none; }
 .ac-map .z.run { background: #e0b34c; opacity: 0.75; }
 .ac-caption { font-size: 9px; color: #9a938d; margin: 2px 0 4px; }
 .ac-caption b { color: #e8e2dd; font-weight: 400; }
+/* P-0 (docs/41): the asset ledger. Deliberately quiet — it is an informational count, not a
+   verdict signal, and must never read like the survival number beside it. */
+.ac-assets .dim { opacity: .7; font-weight: 400; }
 
 .ac-runs { list-style: none; font-size: 9.5px; color: #9a938d; margin-top: 4px; }
 .ac-runs li { padding: 2px 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }

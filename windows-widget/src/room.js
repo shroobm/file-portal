@@ -384,6 +384,27 @@ function convertPanel(d) {
     `</div></div>`;
 }
 
+// P-0, the wiring slice (docs/41 §2 P-0, signed 2026-08-20). The asset ledger reaches a human
+// for the first time since it started being computed on 2026-07-20.
+//
+// It renders BOTH SIDES and never the bare delta, because the delta alone lies in a specific,
+// reproducible way: a 465-page scan whose every page is one image reads −416, and that means
+// "OCR worked", not "figures lost". The two counts are different KINDS of object — files
+// Marker wrote by cropping the rendered page, versus distinct image XObjects in the source —
+// so they never match by construction, and the caption says "count" rather than "coverage" for
+// exactly that reason. Coverage semantics are P-1's job and need Rab's signature first.
+// Renders nothing at all when the audit stored no asset numbers (a null is not a zero).
+function assetLedger(a) {
+  if (a.asset_delta == null || a.embedded_images == null) return "";
+  const out = Number(a.assets_out), emb = Number(a.embedded_images), d = Number(a.asset_delta);
+  const sign = d > 0 ? `+${d}` : `${d}`;
+  const tip = `assets written ${out} vs ${emb} distinct image objects in the source PDF. ` +
+    `A count, not a coverage check: Marker crops the rendered page, so these are different ` +
+    `kinds of object and never match. Informational only — the verdict does not read it.`;
+  return `<span class="ac-assets" title="${esc(tip)}"> · figures <b>${out}</b> out / ` +
+    `<b>${emb}</b> in source <span class="dim">(Δ${sign}, count only)</span></span>`;
+}
+
 function assayPanel(d) {
   const a = d.assay;
   if (!a || !a.available) return `<div class="rp"><div class="rp-head"><span class="rp-title">◎ Survival Audit</span></div><div class="rp-body"><div class="rp-note">no audit yet</div></div></div>`;
@@ -449,7 +470,7 @@ function assayPanel(d) {
     `<div class="rp-body"><div class="ac-verdict"><span class="nm">${esc(shortName(a.bundle) || "last convert")}</span>` +
     `<span class="meter"><i style="width:${pct}%;background:${col}"></i></span>` +
     `<span class="badge" style="color:${col}">${av} ${VSYM[av] || ""}</span></div>` +
-    `<div class="ac-caption">survival <b>${a.doc_survival != null ? Number(a.doc_survival).toFixed(3) : "—"}</b></div>` +
+    `<div class="ac-caption">survival <b>${a.doc_survival != null ? Number(a.doc_survival).toFixed(3) : "—"}</b>${assetLedger(a)}</div>` +
     map + list + foot + `</div>${heldHtml}</div>`;
 }
 

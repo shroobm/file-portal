@@ -125,6 +125,23 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
     }
     let conv = &fid["convert"];
     let degen = &conv["tripwires"]["degeneration_detail"];
+    // P-0, the wiring slice (docs/41 §2 P-0, signed 2026-08-20): the asset ledger has been
+    // computed on every book since 2026-07-20 (`fidelity_audit.py` §audit_convert) and rendered
+    // NOWHERE — two of the glass detector's unsigned glitches, docs/29's exact disease. Nothing
+    // new is measured here; Python still owns the numbers and the widget only projects them.
+    //
+    // BOTH SIDES travel, never the bare delta (docs/34): `assets_out` is the file count in the
+    // bundle's assets/, `embedded_images` is the count of DISTINCT image XObject xrefs in the
+    // source PDF. They are different KINDS of object — Marker crops the rendered page at layout
+    // bboxes, it does not extract XObjects — so they will never match, and the delta is a
+    // count difference, never a coverage measure. A 465-page scan reads −416 because OCR
+    // worked. That is why this can only ever be informational: `compute_verdict` does not read
+    // it, and P-1 is where real coverage semantics get designed.
+    let tw = &conv["tripwires"];
+    let assets_out = match (tw["asset_delta"].as_i64(), tw["embedded_images"].as_i64()) {
+        (Some(d), Some(e)) => json!(d + e),
+        _ => Value::Null,
+    };
     Ok(json!({
         "available": true,
         "mode": mode,
@@ -138,6 +155,9 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "zones": degen["worst"],
         "runs": conv["runs"],
         "analyst": fid["analyst"],
+        "assets_out": assets_out,
+        "embedded_images": tw["embedded_images"],
+        "asset_delta": tw["asset_delta"],
         "held": held,
     }))
 }
@@ -638,5 +658,76 @@ mod tests {
         );
         reconvert(base.to_str().unwrap(), source).unwrap();
         println!("SEAM ARTIFACT: {}", marker_of(&base, source).display());
+    }
+
+    /// P-0 (docs/41 §2, signed 2026-08-20): the asset ledger reaches the card, both sides.
+    ///
+    /// The shapes are the REAL ones measured on the anchor corpus 2026-08-20, including the
+    /// two that would mislead if the delta travelled alone: the 465-page scan whose every page
+    /// is one image (-416, meaning OCR worked) and the vector-figure book with zero image
+    /// XObjects (+92, the raster enumerator's blind spot P-1 exists to address).
+    #[test]
+    fn projects_both_sides_of_the_asset_ledger() {
+        for (bundle, embedded, delta, want_out) in [
+            ("scan-every-page-an-image", 465i64, -416i64, 49i64),
+            ("vector-figures-no-xobjects", 0, 92, 92),
+            ("born-digital", 232, 81, 313),
+        ] {
+            let source = format!("{bundle}.pdf");
+            let base = fixture(&source);
+            write_manifest(
+                &base,
+                "anchor",
+                bundle,
+                json!({
+                    "source": source,
+                    "fidelity": {
+                        "verdict": "flag",
+                        "convert": {
+                            "doc_survival": 0.99,
+                            "tripwires": {
+                                "degeneration": false,
+                                "embedded_images": embedded,
+                                "asset_delta": delta,
+                            },
+                        },
+                    },
+                }),
+            );
+            let st = status(base.to_str().unwrap()).unwrap();
+            assert_eq!(st["embedded_images"], json!(embedded), "{bundle}: source side");
+            assert_eq!(st["asset_delta"], json!(delta), "{bundle}: delta");
+            // assets_out is DERIVED (delta + embedded) — the manifest stores only two of the
+            // three, and the card must never print a number it did not reconstruct correctly.
+            assert_eq!(st["assets_out"], json!(want_out), "{bundle}: output side");
+            let _ = fs::remove_dir_all(&base);
+        }
+    }
+
+    /// A missing asset ledger renders as ABSENT, never as zero. Three anchored bundles carry
+    /// `fidelity: null` (pre-audit) and older audits may lack the keys entirely; a `0 out / 0
+    /// in source` caption would assert a measurement nobody made (docs/34: a duration nobody
+    /// reported renders UNREAD, never 0.0 — same law, different number).
+    #[test]
+    fn absent_asset_ledger_stays_null_never_zero() {
+        let source = "no-asset-keys.pdf";
+        let base = fixture(source);
+        write_manifest(
+            &base,
+            "anchor",
+            "no-asset-keys",
+            json!({
+                "source": source,
+                "fidelity": {
+                    "verdict": "pass",
+                    "convert": { "doc_survival": 1.0, "tripwires": { "degeneration": false } },
+                },
+            }),
+        );
+        let st = status(base.to_str().unwrap()).unwrap();
+        assert!(st["assets_out"].is_null(), "assets_out must be null, got {}", st["assets_out"]);
+        assert!(st["asset_delta"].is_null(), "asset_delta must be null");
+        assert!(st["embedded_images"].is_null(), "embedded_images must be null");
+        let _ = fs::remove_dir_all(&base);
     }
 }
