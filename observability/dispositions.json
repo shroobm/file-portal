@@ -1,97 +1,101 @@
 {
-  "_README": [
-    "docs/29 §5.2 — the signed-silence record. A key the glass detector cannot find in any",
-    "renderer is reported as a GLITCH until it appears here with a disposition AND a reason.",
-    "That is the whole mechanism: silence signed, never defaulted. Adding a line here is a",
-    "judgment you are putting your name to, not a way to quiet the tool.",
-    "",
-    "Disposition is one of GLASS / EVIDENCE / REPORT / INTERNAL / DEAD (§5.2). Reason answers",
-    "docs/29 §5.3 step 4 — 'does this already have a home, anywhere, live or archival?' — and",
-    "names that home. DEAD means the producer should be deleted; a DEAD entry that outlives",
-    "the session that wrote it is itself a defect.",
-    "",
-    "Keys are `<lane>:<key>`. Run: python observability/glass_detector.py"
-  ],
-  "lanes": [
-    {
-      "name": "bench",
-      "_note": "The Repair Bench serves its own UI. This is the lane SYM-026 was found in: state() projected `runs` (18 omission runs on the S76 Beer) and bench.html referenced it zero times.",
-      "producers": [
-        "prototypes/repair-bench/bench.py"
-      ],
-      "renderers": [
-        "prototypes/repair-bench/bench.html"
-      ]
-    },
-    {
-      "name": "widget",
-      "_note": "Rust computes, JS renders. The `chunks_resumed` / `resumed` / `eta_s` heartbeat died on this wire (docs/29 §7.5).",
-      "producers": [
-        "windows-widget/src-tauri/src/*.rs"
-      ],
-      "renderers": [
-        "windows-widget/src/main.js",
-        "windows-widget/src/room.js",
-        "windows-widget/src/index.html"
-      ]
-    },
-    {
-      "name": "converter",
-      "_note": "The converter writes the manifest and the receipts. Its readers are downstream CODE rather than a surface, so a hit here means 'something consumes it', which is weaker than 'a human sees it' — the bench and widget lanes then re-check whether the consumer projects it onward. `manifest.chunking.seams[]` (docs/29 §7.3) is the case this two-hop shape is built to catch.",
-      "producers": [
-        "windows-converter/convert_and_ship.py",
-        "windows-converter/fidelity_audit.py",
-        "windows-converter/analyst.py"
-      ],
-      "renderers": [
-        "prototypes/repair-bench/bench.py",
-        "prototypes/repair-bench/bench.html",
-        "windows-widget/src-tauri/src/*.rs",
-        "windows-widget/src/*.js",
-        "linux-converter/converter/*.py"
-      ]
-    }
-  ],
-  "dispositions": {
-    "bench:stream": {
-      "disposition": "INTERNAL",
-      "reason": "An outbound request parameter on the bench's ✦ assist call (bench.py:1134) — it tells Ollama not to stream. docs/29 §5.3 step 1: it exists only to feed another computation, so it is correctly silent and no human ever wants it on a surface. SCOPE NOTE, and it is the point of this entry: bench.py was NOT touched this session. This key entered the --since scope from `analyst.py`'s request body, which S79 edited for the residency fix, because the filter harvests key NAMES across the whole *.py diff and then attributes them to whichever lane has a producer using that name. That is the identical mis-scoping S79 diagnosed in the `bench:reason` entry below at 21:00 and then reproduced at its own close six hours later. docs/31 §5.2 item 7 — whether outbound request bodies are 'measured, stored values' at all — is UNSIGNED, and this is the second piece of evidence that they are not."
-    },
-    "bench:keep_alive": {
-      "disposition": "INTERNAL",
-      "reason": "Outbound request parameter (bench.py:1134): the bench's assist deliberately sends keep_alive 0 so the model leaves VRAM after a single interactive call — correct there, unlike the analyst, whose calls are back-to-back (S79 residency fix). Control flow, never a surface. Same scope note as bench:stream: it arrived from analyst.py's diff, not from any change to the bench."
-    },
-    "bench:prompt": {
-      "disposition": "INTERNAL",
-      "reason": "Outbound request parameter (bench.py:1135) — the text sent to the model. Its content is already visible to the operator: they typed it into the AI bar and the proposal comes back on the glass. Showing the assembled prompt would be chrome nobody asked for (docs/29 §5.3 step 5). Same scope note as bench:stream."
-    },
-    "bench:reason": {
-      "disposition": "EVIDENCE",
-      "reason": "The five-outcome triage's free-text reason (bench.py:667 triage, :678/:682 coverage). Its home is the opened zone/run card, not the chip row — docs/29 §5.3 step 3: a localizer is EVIDENCE, revealed when the card is open, never promoted to ambient chrome. NOTE ON SCOPE: this key surfaced under `--since 60acd77` only because dispositions.json's own `reason` fields entered the diff as added `\"reason\":` lines — a false positive of name-based scoping (the key was not added to a producer this session). Recorded as the honest disposition anyway rather than waved away, since the question it forces is the right one. The scoping weakness itself belongs on docs/31 §5.2's sheet."
-    },
-    "bench:options": {
-      "disposition": "INTERNAL",
-      "reason": "Outbound request parameter on the bench's assist call (bench.py:1135) - the ollama options envelope. docs/29 §5.3 step 1: it exists only to configure another process, and carries nothing a human would act on. Same class as bench:stream and bench:keep_alive. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
-    },
-    "bench:num_ctx": {
-      "disposition": "INTERNAL",
-      "reason": "Outbound request parameter (bench.py:1135) - the context window handed to ollama for the assist call. A knob sent OUT, not a value computed for a reader; when its size matters to a human it reaches them as a failure (a truncated answer), not as a number. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
-    },
-    "bench:think": {
-      "disposition": "INTERNAL",
-      "reason": "Outbound request parameter (bench.py:1135) - tells qwen3 not to emit a reasoning block. Correct there: the operator wants the answer, not the deliberation. S80/S81 measured what this flag is worth (thinking ON costs 6.5x the tokens on the analyst's workload), and that measurement has its home in docs/34 and the CHANGELOG, not on the bench surface. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
-    },
-    "widget:source_sha256": {
-      "disposition": "INTERNAL",
-      "reason": "The widget's outbound intent-marker payloads carry the source's full sha256 as an identity GUARD, not a display value: the remedy marker (assay.rs:219 - its own comment: the converter drops the intent if the file it hashes isn't this one, docs/15 SS14.2 consume-once) and the bless marker (assay.rs:358). A downstream process VERIFIES these fields; the human-facing identity everywhere is the sha16 that names bundle folders. The two remaining sites (assay.rs:458, :622) are test fixtures. SCOPE NOTE: assay.rs was NOT touched in S93 - the key name entered --since scope from T3's .done record and the session's prose. docs/31 SS5.2 item 7, name-based mis-scoping, fourth recorded recurrence (S78, S79, S81, S93), still unsigned."
-    },
-    "converter:engine_args": {
-      "disposition": "INTERNAL",
-      "reason": "Resume-admission identity input, born S93 (T3/F-02): written into .chunk-work/<sha16>/slice-*/.done and read back ONLY by _done_identity_mismatch to decide whether a finished slice may be resumed under the current job. Control flow by design (docs/29 SS5.3 step 1). When it matters to a human - a mismatch - the field NAME reaches the operator through the STALE print and the slice_stale event's mismatch list in events.jsonl, whose raw tail the widget's events surface renders. The .done record itself is transient: the whole slice tree is deleted once the merge succeeds."
-    },
-    "converter:marker_version": {
-      "disposition": "REPORT",
-      "reason": "Two homes, both real: (1) the manifest stamp (convert_and_ship.py convert()) - the bundle's papers, an end-of-run artifact documented for the operator in docs/35 SS4, riding every anchor/ship/held copy of the book forever; that durable copy is why this is REPORT rather than INTERNAL. (2) Since S93 also a .done resume-admission identity input with the same gate role as converter:engine_args - a Marker upgrade mid-book now re-converts stale slices loudly instead of silently splicing mixed-version output into one book."
-    }
+ "_README": [
+  "docs/29 §5.2 — the signed-silence record. A key the glass detector cannot find in any",
+  "renderer is reported as a GLITCH until it appears here with a disposition AND a reason.",
+  "That is the whole mechanism: silence signed, never defaulted. Adding a line here is a",
+  "judgment you are putting your name to, not a way to quiet the tool.",
+  "",
+  "Disposition is one of GLASS / EVIDENCE / REPORT / INTERNAL / DEAD (§5.2). Reason answers",
+  "docs/29 §5.3 step 4 — 'does this already have a home, anywhere, live or archival?' — and",
+  "names that home. DEAD means the producer should be deleted; a DEAD entry that outlives",
+  "the session that wrote it is itself a defect.",
+  "",
+  "Keys are `<lane>:<key>`. Run: python observability/glass_detector.py"
+ ],
+ "lanes": [
+  {
+   "name": "bench",
+   "_note": "The Repair Bench serves its own UI. This is the lane SYM-026 was found in: state() projected `runs` (18 omission runs on the S76 Beer) and bench.html referenced it zero times.",
+   "producers": [
+    "prototypes/repair-bench/bench.py"
+   ],
+   "renderers": [
+    "prototypes/repair-bench/bench.html"
+   ]
+  },
+  {
+   "name": "widget",
+   "_note": "Rust computes, JS renders. The `chunks_resumed` / `resumed` / `eta_s` heartbeat died on this wire (docs/29 §7.5).",
+   "producers": [
+    "windows-widget/src-tauri/src/*.rs"
+   ],
+   "renderers": [
+    "windows-widget/src/main.js",
+    "windows-widget/src/room.js",
+    "windows-widget/src/index.html"
+   ]
+  },
+  {
+   "name": "converter",
+   "_note": "The converter writes the manifest and the receipts. Its readers are downstream CODE rather than a surface, so a hit here means 'something consumes it', which is weaker than 'a human sees it' — the bench and widget lanes then re-check whether the consumer projects it onward. `manifest.chunking.seams[]` (docs/29 §7.3) is the case this two-hop shape is built to catch.",
+   "producers": [
+    "windows-converter/convert_and_ship.py",
+    "windows-converter/fidelity_audit.py",
+    "windows-converter/analyst.py"
+   ],
+   "renderers": [
+    "prototypes/repair-bench/bench.py",
+    "prototypes/repair-bench/bench.html",
+    "windows-widget/src-tauri/src/*.rs",
+    "windows-widget/src/*.js",
+    "linux-converter/converter/*.py"
+   ]
   }
+ ],
+ "dispositions": {
+  "bench:stream": {
+   "disposition": "INTERNAL",
+   "reason": "An outbound request parameter on the bench's ✦ assist call (bench.py:1134) — it tells Ollama not to stream. docs/29 §5.3 step 1: it exists only to feed another computation, so it is correctly silent and no human ever wants it on a surface. SCOPE NOTE, and it is the point of this entry: bench.py was NOT touched this session. This key entered the --since scope from `analyst.py`'s request body, which S79 edited for the residency fix, because the filter harvests key NAMES across the whole *.py diff and then attributes them to whichever lane has a producer using that name. That is the identical mis-scoping S79 diagnosed in the `bench:reason` entry below at 21:00 and then reproduced at its own close six hours later. docs/31 §5.2 item 7 — whether outbound request bodies are 'measured, stored values' at all — is UNSIGNED, and this is the second piece of evidence that they are not."
+  },
+  "bench:keep_alive": {
+   "disposition": "INTERNAL",
+   "reason": "Outbound request parameter (bench.py:1134): the bench's assist deliberately sends keep_alive 0 so the model leaves VRAM after a single interactive call — correct there, unlike the analyst, whose calls are back-to-back (S79 residency fix). Control flow, never a surface. Same scope note as bench:stream: it arrived from analyst.py's diff, not from any change to the bench."
+  },
+  "bench:prompt": {
+   "disposition": "INTERNAL",
+   "reason": "Outbound request parameter (bench.py:1135) — the text sent to the model. Its content is already visible to the operator: they typed it into the AI bar and the proposal comes back on the glass. Showing the assembled prompt would be chrome nobody asked for (docs/29 §5.3 step 5). Same scope note as bench:stream."
+  },
+  "bench:reason": {
+   "disposition": "EVIDENCE",
+   "reason": "The five-outcome triage's free-text reason (bench.py:667 triage, :678/:682 coverage). Its home is the opened zone/run card, not the chip row — docs/29 §5.3 step 3: a localizer is EVIDENCE, revealed when the card is open, never promoted to ambient chrome. NOTE ON SCOPE: this key surfaced under `--since 60acd77` only because dispositions.json's own `reason` fields entered the diff as added `\"reason\":` lines — a false positive of name-based scoping (the key was not added to a producer this session). Recorded as the honest disposition anyway rather than waved away, since the question it forces is the right one. The scoping weakness itself belongs on docs/31 §5.2's sheet."
+  },
+  "bench:options": {
+   "disposition": "INTERNAL",
+   "reason": "Outbound request parameter on the bench's assist call (bench.py:1135) - the ollama options envelope. docs/29 §5.3 step 1: it exists only to configure another process, and carries nothing a human would act on. Same class as bench:stream and bench:keep_alive. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
+  },
+  "bench:num_ctx": {
+   "disposition": "INTERNAL",
+   "reason": "Outbound request parameter (bench.py:1135) - the context window handed to ollama for the assist call. A knob sent OUT, not a value computed for a reader; when its size matters to a human it reaches them as a failure (a truncated answer), not as a number. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
+  },
+  "bench:think": {
+   "disposition": "INTERNAL",
+   "reason": "Outbound request parameter (bench.py:1135) - tells qwen3 not to emit a reasoning block. Correct there: the operator wants the answer, not the deliberation. S80/S81 measured what this flag is worth (thinking ON costs 6.5x the tokens on the analyst's workload), and that measurement has its home in docs/34 and the CHANGELOG, not on the bench surface. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
+  },
+  "widget:source_sha256": {
+   "disposition": "INTERNAL",
+   "reason": "The widget's outbound intent-marker payloads carry the source's full sha256 as an identity GUARD, not a display value: the remedy marker (assay.rs:219 - its own comment: the converter drops the intent if the file it hashes isn't this one, docs/15 SS14.2 consume-once) and the bless marker (assay.rs:358). A downstream process VERIFIES these fields; the human-facing identity everywhere is the sha16 that names bundle folders. The two remaining sites (assay.rs:458, :622) are test fixtures. SCOPE NOTE: assay.rs was NOT touched in S93 - the key name entered --since scope from T3's .done record and the session's prose. docs/31 SS5.2 item 7, name-based mis-scoping, fourth recorded recurrence (S78, S79, S81, S93), still unsigned."
+  },
+  "converter:engine_args": {
+   "disposition": "INTERNAL",
+   "reason": "Resume-admission identity input, born S93 (T3/F-02): written into .chunk-work/<sha16>/slice-*/.done and read back ONLY by _done_identity_mismatch to decide whether a finished slice may be resumed under the current job. Control flow by design (docs/29 SS5.3 step 1). When it matters to a human - a mismatch - the field NAME reaches the operator through the STALE print and the slice_stale event's mismatch list in events.jsonl, whose raw tail the widget's events surface renders. The .done record itself is transient: the whole slice tree is deleted once the merge succeeds."
+  },
+  "converter:marker_version": {
+   "disposition": "REPORT",
+   "reason": "Two homes, both real: (1) the manifest stamp (convert_and_ship.py convert()) - the bundle's papers, an end-of-run artifact documented for the operator in docs/35 SS4, riding every anchor/ship/held copy of the book forever; that durable copy is why this is REPORT rather than INTERNAL. (2) Since S93 also a .done resume-admission identity input with the same gate role as converter:engine_args - a Marker upgrade mid-book now re-converts stale slices loudly instead of silently splicing mixed-version output into one book."
+  },
+  "widget:tripwires": {
+   "disposition": "INTERNAL",
+   "reason": "Not a measurement and not production code: `tripwires` appears as a CONTAINER key inside two test fixtures in assay.rs (:695, :730 — the P-0 asset-ledger tests, S101), where it holds the manifest shape the projection reads. Its children are the measurements and they are rendered: asset_delta/embedded_images/assets_out on the Assay card (room.js assetLedger, main.js assetLedgerLine, S101) and degeneration on the same card since S31. Nothing computes a value called `tripwires`, so there is nothing to surface. Recorded rather than repaired: the first repair attempted was inlining the Rust index, which did not move the count because the detector was reading the test data, not the binding — the honest classification is INTERNAL, not a code change that games the scan. If the P-0 tests are ever deleted this entry becomes DEAD and must go with them."
+  }
+ }
 }

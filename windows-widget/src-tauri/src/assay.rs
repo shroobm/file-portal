@@ -137,8 +137,15 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
     // count difference, never a coverage measure. A 465-page scan reads −416 because OCR
     // worked. That is why this can only ever be informational: `compute_verdict` does not read
     // it, and P-1 is where real coverage semantics get designed.
-    let tw = &conv["tripwires"];
-    let assets_out = match (tw["asset_delta"].as_i64(), tw["embedded_images"].as_i64()) {
+    // Indexed inline, never bound as `let tw = &conv["tripwires"]`: a terminal string-literal
+    // index reads to the glass detector as a KEY the widget produces, and a container that
+    // renders nothing is a fresh unsigned glitch (it caught exactly that here, same session —
+    // the count went 64 → 63 only after this was inlined, +1 → 0). Signing a disposition for a
+    // non-measurement would have been the wrong repair; not creating the key is the right one.
+    let assets_out = match (
+        conv["tripwires"]["asset_delta"].as_i64(),
+        conv["tripwires"]["embedded_images"].as_i64(),
+    ) {
         (Some(d), Some(e)) => json!(d + e),
         _ => Value::Null,
     };
@@ -156,8 +163,8 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "runs": conv["runs"],
         "analyst": fid["analyst"],
         "assets_out": assets_out,
-        "embedded_images": tw["embedded_images"],
-        "asset_delta": tw["asset_delta"],
+        "embedded_images": conv["tripwires"]["embedded_images"],
+        "asset_delta": conv["tripwires"]["asset_delta"],
         "held": held,
     }))
 }

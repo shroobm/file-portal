@@ -102,6 +102,17 @@ special alignment algorithm is needed.
   with ≥ 1 surviving window. A page with text and zero survivors is a dropped page.
 - **Asset ledger:** embedded raster count (pymupdf) vs. files in `assets/`. Report
   delta; images are out of scope for text survival but a large delta is a flag.
+  **Amended 2026-08-20 (S101, P-0 — docs/41 §2):** the last clause is WRONG as written and is
+  withdrawn. A large delta is *not* a flag: `Best Practices` (465-page scan, one image per
+  page) reads **−416** and that means OCR worked; `Cybernetics` reads **+92** against **zero**
+  image XObjects because its figures are vector drawings Marker cropped from the rendered page.
+  The two counts are different KINDS of object and never match by construction, so the delta is
+  a **count, not a coverage measure**, and it feeds no verdict — `compute_verdict` does not read
+  it, correctly. What P-0 changed is only that the number now **reaches a human**: rendered on
+  the Assay card in both surfaces (`room.js` `assetLedger`, `main.js` `assetLedgerLine`), both
+  sides always shown, labelled "count only", absent rather than zero when unmeasured. Real
+  figure **coverage** — does each source figure region have an output image overlapping it —
+  is **P-1**, unsigned, and needs its own semantics (docs/41 §2 P-1).
 - **Reverse-containment sample (anti-hallucination):** 200 random *output* windows
   sought in the witness (same matching rules). Low score = invented text. Sampled
   because precision is a tripwire, not a gate.
