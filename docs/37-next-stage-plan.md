@@ -110,7 +110,14 @@ recorded choice.
 4. Stage 2 GO · Stage 3 GO.
 5. Standing from before tonight: docs/26 signature sheet (5) · stale-hold reap countersign ·
    docs/34 rule 8 · GLM second-reader · wrapper · SPOT_CHECK_EVERY 10→3–5.
-6. **Conversion-completeness slate** (filed S97, 2026-08-20; full decision frames = docs/41;
+6. **Conversion-completeness slate** — **GO on the slate (Rab, 2026-08-20, in-chat: "lets do
+   items 6-9, start with P-0"). P-0 BUILT S101** (option (a), the render: Assay card in both
+   surfaces, `asset_delta`/`embedded_images` off the glitch list, 64→62; docs/15 §5's
+   "large delta is a flag" clause withdrawn on evidence). **P-1's four decision variables
+   remain UNSIGNED** and are the next thing his word decides — host (in-converter vs
+   out-of-band vs ThinkPad-with-inventory) · instrument (PyMuPDF-only vs admit a JVM) ·
+   coverage semantics · report-vs-gate (note `audit-mode.txt` is LIVE at `enforce`).
+   *(original framing follows)* (filed S97, 2026-08-20; full decision frames = docs/41;
    expands item 3's Stage 2 asset posture — docs/37 §1 line 50 already queues the asset
    tripwire there). P-0 wiring: render `asset_delta`+`embedded_images` on the Assay card ~or~
    sign them REPORT-silent (they are 2 of the glass detector's 64 live glitches). P-1

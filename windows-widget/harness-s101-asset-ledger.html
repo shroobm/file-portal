@@ -1,0 +1,36 @@
+<!doctype html><html><head><meta charset="utf-8"><title>S101 · P-0 asset ledger</title>
+<link rel="stylesheet" href="src/styles.css">
+<style>
+  body{background:#1a1613;color:#e8e2dd;font:12px/1.5 system-ui;padding:18px;margin:0}
+  .case{background:#221d19;border:1px solid #3a322c;border-radius:8px;padding:10px 12px;margin:10px 0;max-width:520px}
+  .lbl{font-size:10px;color:#8a807a;text-transform:uppercase;letter-spacing:.06em;margin-bottom:6px}
+  h2{font-size:13px;font-weight:500;margin:18px 0 6px;color:#c9c0b8}
+  .light{background:#f4f1ee;color:#2a2422}
+  .light .case{background:#fff;border-color:#ddd6cf}
+  .light .ac-caption{color:#6b625c}.light .ac-caption b{color:#2a2422}
+</style></head><body>
+<h2>P-0 · the asset ledger, real corpus values (dark)</h2><div id="dark"></div>
+<h2>same, light surface</h2><div id="light" class="light"></div>
+<script type="module">
+const esc=(s)=>String(s??"").replace(/[&<>"]/g,(c)=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const escHtml=esc;
+const src=await (await fetch("src/room.js")).text();
+const msrc=await (await fetch("src/main.js")).text();
+const grab=(s,n)=>{const i=s.indexOf(`function ${n}(`);let d=0,j=s.indexOf("{",i);
+  for(let k=j;k<s.length;k++){if(s[k]==="{")d++;else if(s[k]==="}"&&--d===0)return s.slice(i,k+1);}};
+const assetLedger=eval(`(${grab(src,"assetLedger")})`);
+const assetLedgerLine=eval(`(${grab(msrc,"assetLedgerLine")})`);
+const cases=[
+ ["Cybernetics — vector figures, ZERO image XObjects",{assets_out:92,embedded_images:0,asset_delta:92}],
+ ["Best Practices — 465-page scan (delta means OCR worked)",{assets_out:49,embedded_images:465,asset_delta:-416}],
+ ["Investment Valuation — born-digital",{assets_out:313,embedded_images:232,asset_delta:81}],
+ ["pre-audit bundle — no asset keys (must render NOTHING)",{assets_out:null,embedded_images:null,asset_delta:null}],
+];
+for(const id of ["dark","light"]){
+  document.getElementById(id).innerHTML=cases.map(([n,d])=>
+   `<div class="case"><div class="lbl">${esc(n)}</div>`+
+   `<div class="ac-caption">survival <b>0.688</b>${assetLedger(d)}</div>`+
+   `<div class="lbl" style="margin:8px 0 4px">dock variant</div>${assetLedgerLine(d)}</div>`).join("");
+}
+document.title="ready";
+</script></body></html>
