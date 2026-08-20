@@ -147,6 +147,14 @@ recorded choice.
     always gets 2 signals as one for coordination", + "They should record these messages in
     UTC") — built S99** (coordination/authorship.md + relay.md, docs/43, both bootstraps,
     muster standing orders; Codex's claims + relay reply are the open half, invited).
+12. **The concordance amendment** — carrier labels every carry `agree`/`conflict`/`unverified`
+    (unverified the DEFAULT; unlabeled = violation) · carried text must-quote, never
+    paraphrased · a `conflict` **must name the probe that settles it**, runnable by either
+    model or its agents, so factual disputes end at measurement and only judgment/priorities/
+    authorization reach Rab · never impersonate. Debated across two ChatGPT relays (it
+    endorsed; endorsement is discussion, not authority). **SIGNED (Rab, 2026-08-20, in-chat:
+    "Sign it, and then lets run a test") — built S100** (`coordination/relay.md` §amendment +
+    `coordination/selftest.sh` 11/11, whose first run went red on its own bad assertion).
 
 ## §4 Stage 0 pre-mortem — deviations solved ahead of the curve (S92)
 
