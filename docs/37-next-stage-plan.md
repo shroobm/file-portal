@@ -140,6 +140,13 @@ recorded choice.
     for his word. **SIGNED Reading B (Rab, 2026-08-20, in-chat: "YES YES YES YES IT IS
     READING B, GO DO THAT SHIT CLAUDE!") — built S98** (`.claude/skills/echo/`, selftest 5/5,
     live sweep stepped on; lexicon in from day one per the recommendation his GO landed on).
+11. **The claim convention + the relay** — authorship stamps on sections/rows/commits, the
+    co-authored parallel-sitting record, and the append-only UTC LLM-to-LLM relay where each
+    model carries the other's message + suggested prompt to Rab at open ("two signals as
+    one"). **SIGNED A+B+convention (Rab, 2026-08-20, in-chat: "A+ B with a convention… user
+    always gets 2 signals as one for coordination", + "They should record these messages in
+    UTC") — built S99** (coordination/authorship.md + relay.md, docs/43, both bootstraps,
+    muster standing orders; Codex's claims + relay reply are the open half, invited).
 
 ## §4 Stage 0 pre-mortem — deviations solved ahead of the curve (S92)
 
