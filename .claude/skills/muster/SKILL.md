@@ -134,6 +134,13 @@ State these as in force, each with its trigger, because they bind *after* the op
   a number needs both. *(S79's "+27 %" was unusable at S80's open not because it was wrong but
   because the sentence never said what had been counted.)*
 - **Cookies get logged before other work** — header, ledger entry, and the TIME-STATE mirror.
+- **The relay is carried at open, answered before close** (S99, Rab's convention: "two signals
+  as one") — read `coordination/relay.md`'s newest entry addressed to your model and carry its
+  FOR RAB text + SUGGESTED PROMPT to Rab in the first reply, attributed to the other model;
+  write your own entry back (**UTC**) before the close, and claim what you write per
+  `coordination/authorship.md`. Carry only what your lane has not carried before.
+- **On any deep or ambiguous commission, `/echo` before interpretation** (item 10, S98) — and
+  what his word confirms joins the lexicon.
 
 ## Phase 6 — Commission, and pin it before you know the outcome
 
