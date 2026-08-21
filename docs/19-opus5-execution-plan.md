@@ -66,6 +66,11 @@ doc and reality disagree, reality wins — measure, then update this doc.*
   convert — python-side changes need no widget rebuild.
 - **Widget**: source `windows-widget/`; installed exe `C:\Users\Bndit\AppData\Local\File
   Portal\file-portal-widget.exe` (currently `7D403BD6`). Rebuild ritual: `cargo fmt --check`
+  **Enforced since S103**: `.claude/skills/muster/close.sh` now runs fmt/clippy/test
+  automatically whenever a session touched `windows-widget/` — this ritual was already
+  correct and was skipped anyway (S101 ran clippy and tests, never fmt; CI went red on
+  Format check and stayed red for three closes). Prose that is right and unfollowed is
+  not a guard.
   FIRST (SYM-020 — clippy never catches formatting, so without this step it rots invisibly) →
   `cargo clippy --all-targets -- -D warnings` → `node --check` on touched JS → `cargo test` → `npm run
   build` (in `windows-widget/`) → hash `target\release\file-portal-widget.exe` → RAB adopts
