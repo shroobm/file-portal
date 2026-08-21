@@ -418,7 +418,7 @@
       <button id="aigo" class="primary" title="rewrite the visible passage with local AI">✦ fix</button>
       <button id="aiundo" hidden title="restore the markdown exactly as before the last AI change">↩ undo AI</button>
     </div>
-    <div id="ctx"></div>
+    <div id="ctx" spellcheck="false"></div>
     <!-- the textarea is retired: editing now happens IN the numbered surface (#ctx), so the
          gutter cannot be lost by switching modes. Route 1, signed Rab S106. -->
   </section>
@@ -493,6 +493,9 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) => ({ "&":"&amp;","<":
 let st = null, zone = null, page = 1, mdText = "", crop = null, hlQuery = null, toc = [], thumbsBuilt = false;
 let runIdx = null;   // S76 (SYM-026): the selected omission run, if any — zone and runIdx are exclusive
 let ctxRange = { from: 1, to: 1 };
+// set the moment the operator types into #ctx, cleared on save or on a deliberate discard.
+// It is what stops load() silently replacing unsaved work with the file on disk.
+let ctxDirty = false;
 
 try { const t = localStorage.getItem("fp-bench-theme"); if (t) document.documentElement.setAttribute("data-theme", t); } catch {}
 $("theme").onclick = () => {
@@ -522,6 +525,14 @@ $("help-btn").onclick = () => { $("help").hidden = false; };
 
 /* ---- boot / reload for the current (or freshly opened) patient ---- */
 async function load() {
+  // The one path that re-reads the file from disk. Everything else re-renders from the
+  // mdText the operator has been editing; this replaces it, so it is the only place a
+  // discard can happen and the only place that has to ask.
+  if (ctxDirty && !confirm("You have unsaved edits in the markdown pane. Reloading will discard them. Continue?")) {
+    status("↩ reload cancelled — your edits are still in the pane");
+    return;
+  }
+  ctxDirty = false;
   st = await api("/api/state");
   mdText = st.pdf_only ? "" : (await api("/api/md")).text;
   zone = null; hlQuery = null; thumbsBuilt = false; toc = [];
@@ -720,7 +731,13 @@ $("pprev").onclick = () => goto(page - 1);
 $("pnext").onclick = () => goto(page + 1);
 $("pin").onkeydown = (e) => { if (e.key === "Enter") goto($("pin").value); };
 addEventListener("keydown", (e) => {
-  if (["INPUT","TEXTAREA","SELECT"].includes(document.activeElement.tagName)) return;
+  // `isContentEditable` is the load-bearing half. The tag list was written when the only text
+  // field was <textarea id="editor">; S106 replaced it with an editable DIV and left the guard,
+  // so ArrowLeft/Right — the commonest gesture in text — turned the PDF page, refetched the
+  // raster and clearCrop()'d a crop the operator had already drawn. A grep for "editor" cannot
+  // find that break, which is exactly why it survived the rewrite.
+  const a = document.activeElement;
+  if (!a || a.isContentEditable || ["INPUT","TEXTAREA","SELECT"].includes(a.tagName)) return;
   if (e.key === "ArrowLeft") goto(page - 1);
   if (e.key === "ArrowRight") goto(page + 1);
 });
@@ -860,7 +877,11 @@ function renderLines(highlight) {
    offset. `plaintext-only` (Baseline since 2025-03) stops the browser injecting rich markup on
    paste, so the text read back is always plain.                                            */
 function ctxText() {
-  return $("ctx").innerText.replace(/​/g, "").replace(/\n$/, "");
+  // NO trailing-newline strip. It used to end `.replace(/\n$/, "")`, which was pure damage:
+  // the ZWSP strip already yields the correct text, and the held Valentine ends 0D 0A — so
+  // "edit, change nothing, save" deleted one trailing blank line PER SAVE, under a green
+  // "✓ saved", filing a removal event to the append-only ledger each time. Measured S106.
+  return $("ctx").innerText.replace(/​/g, "");
 }
 // The caret is measured in LINE/COLUMN and only then flattened, because the obvious way is
 // wrong: Range.toString() silently omits the break BETWEEN block elements while innerText
@@ -1142,27 +1163,88 @@ $("edit").onclick = () => {
 // (one → two → "" → "" → three), identically for insertParagraph, insertLineBreak, insertText
 // "\n" and the real key path, so it is the block splitting and not the probe. Owning the split
 // makes it deterministic: put one "\n" in at the caret offset, rebuild, restore at offset+1.
+// Blank lines carry a U+200B so the caret has somewhere to sit. It must never leave this
+// pane: the Bench produces evidence that gets pasted elsewhere, and an invisible character
+// on every blank line breaks grep, diffs and markdown parsers downstream (measured S106).
+$("ctx").addEventListener("copy", (e) => {
+  const t = (getSelection() || "").toString();
+  if (!t.includes("​")) return;
+  e.clipboardData.setData("text/plain", t.replace(/​/g, ""));
+  e.preventDefault();
+});
 $("ctx").addEventListener("beforeinput", (e) => {
   const ctx = $("ctx");
   if (!ctx.hasAttribute("contenteditable")) return;
   if (e.inputType !== "insertParagraph" && e.inputType !== "insertLineBreak") return;
+  if (e.isComposing) return;               // never cut across an IME composition
+  // Compute FIRST, and only preventDefault once we know we can actually do the job. The first
+  // build called preventDefault() before the null check, so in two reachable states (caret on
+  // #ctx itself, selection anchored outside it) Enter was swallowed with no status line.
+  const sel = getSelection();
+  const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
+  const collapsed = !range || range.collapsed;
+  // A selection must be REPLACED by the newline, the way every editor behaves. The first build
+  // read only rng.endContainer and let the selection stand, so selecting a garbage OCR
+  // paragraph and pressing Enter left the garbage and added a blank line after it.
+  const start = collapsed ? caretOffset() : offsetOfPoint(range.startContainer, range.startOffset);
+  const end   = collapsed ? start          : offsetOfPoint(range.endContainer,   range.endOffset);
+  if (start === null || end === null) return;   // let the browser have it rather than eat it
   e.preventDefault();
-  const off = caretOffset();
-  if (off === null) return;
   const text = ctxText();
-  ctx.innerHTML = linesHtml(text.slice(0, off) + "\n" + text.slice(off), ctxHighlight);
-  setCaretOffset(off + 1);
+  // insertText keeps Blink's own undo stack intact where it can; a full innerHTML rebuild
+  // orphans it (measured: Ctrl+Z after an Enter restored NOTHING, not even the typing before
+  // it, while document.queryCommandEnabled("undo") still reported true). So try the native
+  // path first and only rebuild when the engine's own split would drift the structure.
+  if (collapsed && document.queryCommandSupported && document.queryCommandSupported("insertText")) {
+    if (document.execCommand("insertText", false, "\n")) {
+      normalizeCtx();
+      if (ctxText() === text.slice(0, start) + "\n" + text.slice(start)) {
+        mdText = ctxText(); ctxDirty = true;
+        return;                                  // native path worked: undo stack preserved
+      }
+    }
+  }
+  ctx.innerHTML = linesHtml(text.slice(0, start) + "\n" + text.slice(end), ctxHighlight);
+  setCaretOffset(start + 1);
+  mdText = ctxText(); ctxDirty = true;
 });
+// Character offset of an arbitrary DOM point, in ctxText()'s coordinate system.
+function offsetOfPoint(node, nodeOffset) {
+  const el = $("ctx");
+  if (!el.contains(node)) return null;
+  let span = node;
+  while (span && span.parentNode !== el) span = span.parentNode;
+  if (!span) return null;
+  const line = [...el.children].indexOf(span);
+  if (line < 0) return null;
+  const r = document.createRange();
+  r.selectNodeContents(span);
+  r.setEnd(node, nodeOffset);
+  const col = r.toString().replace(/​/g, "").length;
+  const lines = ctxText().split("\n");
+  let off = 0;
+  for (let i = 0; i < line && i < lines.length; i++) off += lines[i].length + 1;
+  return off + col;
+}
 // The normalise pass for every OTHER edit. `input` fires for typing, paste, drag, undo and IME
 // alike, which is why it is the hook rather than keydown — keydown misses every non-keyboard
 // edit path, and paste is the one that matters most here.
-$("ctx").addEventListener("input", () => { normalizeCtx(); });
+// UNSAVED EDITS MUST SURVIVE A RE-RENDER. `mdText` is the buffer every renderer reads, and
+// nothing used to write the operator's typing back into it — so clicking a zone chip, an
+// omission run, ✦ fix, ✂ crop or Ctrl+V an image silently restored the pane to the file on
+// disk, with #save still showing and the button still reading "✎ editing". Six paths, no
+// warning. Mirroring here makes a pure re-render lossless; `load()` guards the rest.
+$("ctx").addEventListener("input", () => {
+  normalizeCtx();
+  if ($("ctx").hasAttribute("contenteditable")) { mdText = ctxText(); ctxDirty = true; }
+});
 $("save").onclick = async () => {
   try {
     // ctxText(), never innerHTML and never a per-line join: the gutter is generated content,
     // so it is invisible here by construction. An explicit number element would have been read
     // back INTO the file (measured, S106) — the reason the gutter is a CSS counter.
     await api("/api/md", { text: ctxText() });
+    ctxDirty = false;                       // saved: load() may now replace the buffer freely
     status("✓ saved (backup kept as .bench-bak)");
     coachMark("textFixed");
     $("edit").click();

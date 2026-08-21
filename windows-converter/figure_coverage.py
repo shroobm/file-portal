@@ -196,10 +196,33 @@ def levers(path: Path | None = None, text: str | None = None) -> dict:
     if text is None:
         p = path or LEVER_FILE
         try:
-            text = p.read_text(encoding="utf-8")
-            source = str(p)
+            raw = p.read_bytes()
         except OSError:
             return {"values": eff, "rejected": [], "source": "defaults (no lever file)"}
+        # Decode defensively. UnicodeDecodeError is a ValueError, NOT an OSError, so
+        # `except OSError` was a promise this docstring could not keep: the shipped lever file
+        # carries an em-dash, and one Notepad "Save As -> ANSI" or a PowerShell 5.1 `>`
+        # redirect (which writes UTF-16 on this machine) turned the next run into a traceback
+        # instead of the documented fallback. Caught by S106's own Circle, Lane C.
+        source = str(p)
+        text = None
+        # Order matters, and it is BOM-first on purpose: a cp1252 file can decode as UTF-16 by
+        # accident (measured — it did, and only produced the right values by luck of the
+        # content), so UTF-16 is accepted ONLY on its byte-order mark. Everything else is
+        # tried widest-last, and any non-UTF-8 read is named in `rejected`.
+        order = (("utf-16", True),) if raw[:2] in (b"\xff\xfe", b"\xfe\xff") else ()
+        for enc, _bom in order + (("utf-8-sig", False), ("utf-8", False), ("cp1252", False)):
+            try:
+                text = raw.decode(enc)
+                if enc not in ("utf-8", "utf-8-sig"):
+                    rejected.append(f"lever file was not UTF-8 — read as {enc}")
+                break
+            except (UnicodeDecodeError, UnicodeError):
+                continue
+        if text is None:
+            return {"values": eff,
+                    "rejected": ["lever file is not readable as text — signed defaults used"],
+                    "source": f"defaults (undecodable {p})"}
     else:
         source = "explicit"
     for lineno, raw in enumerate(text.splitlines(), 1):
@@ -636,6 +659,13 @@ def main() -> int:
             rest = rep["uncovered_other"][:8]
         else:
             rest = rep["uncovered_other"][:12]
+            # MARK the cut. "Triage orders, it never hides" was true of the JSON payload and
+            # FALSE here: mode=off printed 12 of 239 with no count and no ellipsis — SYM-052's
+            # own defect class, on the surface an operator reads, shipped by the session that
+            # filed SYM-052. Caught by S106's Circle, Lane C.
+            if len(rep["uncovered_other"]) > len(rest):
+                print(f"  {len(rep['uncovered_other'])} uncovered pages · showing the first "
+                      f"{len(rest)} — --json lists them all:")
         for p in rest:
             d = det.get(p)
             if d:

@@ -143,14 +143,22 @@ if git -C "$FP_REPO" rev-parse --verify -q "$PIN" >/dev/null 2>&1; then
     esac
     body="${line#+}"
     case "$body" in
-      *lever-waiver:*) continue ;;
+      # docs/18 §2 step 5 requires a waiver to NAME who may change it and what evidence would
+      # move it. A bare `# lever-waiver:` silenced the gate — the half of the law that gives it
+      # meaning. Require substance after the colon (S106 Circle, Lane C).
+      *lever-waiver:*[!\ ]*) continue ;;
       \#*|" "*\#*) ;;
     esac
-    # a module-level CONSTANT bound to a bare number: NAME = 1.23 / NAME = 45
-    if printf '%s' "$body" | grep -Eq '^_?[A-Z][A-Z0-9_]{2,}[[:space:]]*=[[:space:]]*-?[0-9]+(\.[0-9]+)?[[:space:]]*(#.*)?$'; then
-      name="$(printf '%s' "$body" | sed -E 's/^(_?[A-Z][A-Z0-9_]*).*/\1/')"
+    # THREE declaration forms, because the glob claims three languages. The first build matched
+    # only Python's, so it saw 0 of 5 Rust and 0 of 10 JS constants in this repo while the
+    # closeout claimed it "sees NAME = <number> in Python/Rust/JS" — the documented blind spot
+    # was a strict subset of the real one (S106 Circle, Lane C census: 53 of 72 = 74 %).
+    #   py:  NAME = 0.42            rs:  (pub) const|static NAME: f64 = 0.42;
+    #   js:  const|let|var NAME = 0.42;      also 1e-3 / .35 exponent+bare-dot forms
+    if printf '%s' "$body" | grep -Eq '^[[:space:]]*(pub[[:space:]]+)?(const|static|let|var)?[[:space:]]*_?[A-Z][A-Z0-9_]{2,}[[:space:]]*(:[[:space:]]*[A-Za-z0-9_]+)?[[:space:]]*=[[:space:]]*-?([0-9]+(\.[0-9]*)?|\.[0-9]+)([eE][-+]?[0-9]+)?[[:space:]]*;?[[:space:]]*((//|#).*)?$'; then
+      name="$(printf '%s' "$body" | sed -E 's/^[[:space:]]*(pub[[:space:]]+)?(const|static|let|var)?[[:space:]]*(_?[A-Z][A-Z0-9_]*).*/\3/')"
       case "$name" in
-        *_RE|*_FILE|*_DIR|*_PATH|*_NAME|*_DEFAULT|*_ALLOWED) continue ;;
+        *_RE|*_FILE|*_DIR|*_PATH|*_ALLOWED) continue ;;
       esac
       lev_n=$((lev_n + 1))
       [ "$lev_n" -le 4 ] && lev_added="${lev_added}${lev_added:+ · }${name}"
