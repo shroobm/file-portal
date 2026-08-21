@@ -838,7 +838,11 @@ function linesHtml(text, highlight) {
 function renderLines(highlight) {
   ctxHighlight = highlight || 0;
   const lines = mdText.split("\n");
-  ctxRange = { from: 1, to: lines.length };
+  // ctxRange is NOT the render range. It is the slice the AI-assist endpoint rewrites and
+  // splices back (`bench.py:1108`: "the UI's visible slice"; `bench.py:1161`:
+  // `lines[start-1:end] = new_lines`). S106 briefly set it to the whole file here, which
+  // would have sent a 3.4 MB book to a model running num_ctx 8192 and then overwritten every
+  // line of it with the few hundred that came back. Callers set it; renderLines must not.
   const t0 = performance.now();
   $("ctx").innerHTML = linesHtml(mdText, ctxHighlight);
   return { lines: lines.length, ms: Math.round(performance.now() - t0) };
@@ -917,7 +921,9 @@ function scrollToLine(n) {
 }
 function renderCtxPlain() {
   const r = renderLines(0);
-  $("md-title").textContent = `markdown — ${r.lines} lines (no audit zones)`;
+  // The AI slice stays the first 40 lines, exactly as before the whole-file render landed.
+  ctxRange = { from: 1, to: Math.min(r.lines, 40) };
+  $("md-title").textContent = `markdown — ${r.lines} lines (no audit zones) · ✦ acts on lines ${ctxRange.from}–${ctxRange.to}`;
   if (!st.manifest_present) status("folder mode: no manifest — no audit zones; AI fixes + repairs still work");
 }
 function renderCtx() {
@@ -925,8 +931,11 @@ function renderCtx() {
   if (!z) { renderCtxPlain(); return; }
   const at = z.adjusted_line;
   const r = renderLines(at);
+  // The AI slice stays the ~21-line window around the zone that it has always been — the whole
+  // file is now VISIBLE, but "visible" was never what this range meant to bench.py.
+  ctxRange = { from: Math.max(1, at - 8), to: Math.min(r.lines, at + 12) };
   $("md-title").textContent = `markdown — ${r.lines} lines, at zone ${zone + 1}`;
-  $("zonehint").textContent = `zone ${zone + 1} of ${st.zones.length} · ${(z.chars/1000).toFixed(1)}k damaged chars at line ${z.line}`;
+  $("zonehint").textContent = `zone ${zone + 1} of ${st.zones.length} · ${(z.chars/1000).toFixed(1)}k damaged chars at line ${z.line} · ✦ acts on lines ${ctxRange.from}–${ctxRange.to}`;
   // The whole file is rendered, so the zone has to be brought INTO view rather than being the
   // only thing in it. Scrolling, not slicing — the operator keeps the rest of the document.
   scrollToLine(at);
