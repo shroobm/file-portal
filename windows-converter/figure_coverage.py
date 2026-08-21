@@ -91,12 +91,13 @@ def _cluster(rects, gap: float):
     return boxes
 
 
-def source_figure_regions(pdf_path: Path) -> dict:
+def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
     """Per 1-based page: the figure-like regions, raster and vector, with why each qualified.
 
-    Rasters come from `get_image_info(hashes=True, xrefs=True)` — DISPLAYED images including
-    inline ones, with a bbox and an md5 digest. The digest is what collapses the
-    repeated-header-logo case that a bare xref count gets wrong.
+    Rasters come from `get_image_info(hashes=...)` — DISPLAYED images including inline ones,
+    with a bbox and an md5 digest. The digest collapses the repeated-header-logo case that a
+    bare count gets wrong. `xrefs=True` is deliberately NOT requested (see the timing note in
+    the loop: it costs 34.6 s/page on a large scan).
     Vectors come from `get_drawings()` clustered by proximity: a chart drawn with path
     operators has no image object at all and is invisible to every raster enumerator.
     """
@@ -109,7 +110,38 @@ def source_figure_regions(pdf_path: Path) -> dict:
             parea = _rect_area(tuple(page.rect))
             regions = []
 
-            for info in page.get_image_info(hashes=True, xrefs=True):
+            # `xrefs=True` IS OMITTED, and that one flag is the whole performance story.
+            # Measured S102 on DIAGNOSING (184pp scan, 12.5-megapixel pages), fresh document
+            # per case so no warm cache could lie:
+            #     plain          0.00 s/page
+            #     hashes=True    0.16 s/page
+            #     xrefs=True    34.60 s/page   <-- ~104 min for this one book
+            #     both          34.96 s/page
+            # MuPDF resolves each displayed image back through the xref table, and on a large
+            # scanned PDF that search dominates everything else by four orders of magnitude.
+            # It burned 28 CPU-minutes before Rab noticed the machine was busy.
+            # RECORDED HONESTLY: the first diagnosis blamed `hashes=True` and was WRONG -- the
+            # measurement that produced it timed the flags in one process, where the earlier
+            # call had already warmed MuPDF's cache and made hashing look free. Fresh-document
+            # timing reversed the verdict. We keep hashes (md5 is the correct furniture-dedup
+            # identity and costs 0.16 s/page) and drop xrefs, which nothing here needed.
+            # Two-pass, cheapest-first. The PLAIN call is free (0.00 s/page) and gives the
+            # bboxes; hashing is only worth paying for if some image actually SURVIVES the
+            # size filters and could therefore need furniture-dedup. On a scan every image is
+            # full-page and is dropped as "the scan itself", so the hash was computed and
+            # thrown away 184 times -- that is the 191 ms/page this avoids.
+            probe = page.get_image_info()
+            candidate = any(
+                _rect_area(tuple(i.get("bbox") or (0, 0, 0, 0))) >= MIN_AREA_PT2
+                and min(
+                    (i.get("bbox") or (0, 0, 0, 0))[2] - (i.get("bbox") or (0, 0, 0, 0))[0],
+                    (i.get("bbox") or (0, 0, 0, 0))[3] - (i.get("bbox") or (0, 0, 0, 0))[1],
+                ) >= MIN_SIDE_PT
+                and not (parea and _rect_area(tuple(i.get("bbox") or (0, 0, 0, 0))) / parea > MAX_PAGE_FRACTION)
+                for i in probe
+            )
+            infos = page.get_image_info(hashes=True) if (use_hashes and candidate) else probe
+            for info in infos:
                 bbox = tuple(info.get("bbox") or (0, 0, 0, 0))
                 area = _rect_area(bbox)
                 if area < MIN_AREA_PT2:
@@ -119,11 +151,14 @@ def source_figure_regions(pdf_path: Path) -> dict:
                 if parea and area / parea > MAX_PAGE_FRACTION:
                     continue  # full-page image = the scan itself
                 digest = (info.get("digest") or b"").hex() if info.get("digest") else ""
+                # Identity key for furniture-dedup: the md5 when hashing was paid for,
+                # otherwise the xref. Both answer "is this the SAME image again?".
+                ident = digest or (f"xref:{info.get('xref')}" if info.get("xref") else "")
                 regions.append({"kind": "raster", "bbox": [round(v, 1) for v in bbox],
                                 "area": round(area, 1), "digest": digest,
-                                "xref": info.get("xref")})
-                if digest:
-                    digest_pages.setdefault(digest, set()).add(pno + 1)
+                                "ident": ident, "xref": info.get("xref")})
+                if ident:
+                    digest_pages.setdefault(ident, set()).add(pno + 1)
 
             rects = []
             for d in page.get_drawings():
@@ -155,7 +190,7 @@ def source_figure_regions(pdf_path: Path) -> dict:
         furniture = {d for d, ps in digest_pages.items() if len(ps) > limit}
         if furniture:
             for pno in list(pages):
-                kept = [r for r in pages[pno] if r.get("digest") not in furniture]
+                kept = [r for r in pages[pno] if r.get("ident") not in furniture]
                 if kept:
                     pages[pno] = kept
                 else:
@@ -186,8 +221,8 @@ def output_asset_pages(bundle_dir: Path) -> dict:
     return {"per_page": per_page, "unparsed": unparsed}
 
 
-def coverage(pdf_path: Path, bundle_dir: Path) -> dict:
-    src = source_figure_regions(pdf_path)
+def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True) -> dict:
+    src = source_figure_regions(pdf_path, use_hashes=use_hashes)
     out = output_asset_pages(bundle_dir)
     figure_pages = sorted(src["pages"])
     uncovered = [p for p in figure_pages if out["per_page"].get(p, 0) == 0]
@@ -231,6 +266,7 @@ def coverage(pdf_path: Path, bundle_dir: Path) -> dict:
             "max_page_fraction": MAX_PAGE_FRACTION,
             "vector_min_paths": VECTOR_MIN_PATHS,
             "vector_cluster_gap_pt": VECTOR_CLUSTER_GAP_PT,
+            "image_identity": "md5" if use_hashes else "none (furniture-dedup disabled)",
             "verdict_effect": "NONE — report-only by docs/15 §6; writes nothing",
         },
     }
@@ -241,6 +277,9 @@ def main() -> int:
     ap.add_argument("--pdf", required=True, type=Path)
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--json", action="store_true")
+    ap.add_argument("--no-hashes", action="store_true",
+                    help="skip md5 furniture-dedup (saves ~0.16 s/page; the expensive flag was "
+                         "never hashing -- see the module comment on xrefs)")
     a = ap.parse_args()
     if not a.pdf.exists():
         print(f"no such pdf: {a.pdf}", file=sys.stderr)
@@ -248,7 +287,7 @@ def main() -> int:
     if not a.bundle.is_dir():
         print(f"no such bundle dir: {a.bundle}", file=sys.stderr)
         return 2
-    rep = coverage(a.pdf, a.bundle)
+    rep = coverage(a.pdf, a.bundle, use_hashes=not a.no_hashes)
     if a.json:
         print(json.dumps(rep, indent=1))
     else:
