@@ -86,7 +86,7 @@ The cheap battery, by what is in scope:
 
 | In scope | Promote with |
 |---|---|
-| observability / any closeout claim | `observability/acceptance.py`, then `glass_detector.py --since <pinned SHA>` |
+| observability / any closeout claim | `observability/acceptance.py`, then `glass_detector.py --since <pinned SHA> --enforce` (**`--enforce` or the exit code means nothing** — SYM-046) |
 | the widget | `cargo fmt --check` → `cargo clippy --all-targets -- -D warnings` → `cargo test`; the installed exe hash is on the card |
 | a held bundle / the bench | the body sha and `undo_depth` from the bundle, before the first zone is opened |
 | the pipeline | the card's live rows; `.gpu-lock` and `query user` before ANY GPU work (law 8 — the seat may be his brother's) |
@@ -168,15 +168,28 @@ it is the phase that does the most work:
 
 ## The close — the other end of the same contract
 
+**Run the mechanical half first:**
+
+```bash
+bash .claude/skills/muster/close.sh <pinned SHA>
+```
+
+It prints values for the pin, the diff, glass (`--enforce`), the widget's fmt/clippy/test when
+`windows-widget/` was touched, **CI's conclusion for HEAD**, and the push state. Exit 1 = a
+MEASURED red; UNREAD never blocks and never claims clean. Everything below is the judgment
+half — the script cannot write your closeout or decide what a finding means.
+
 Not this skill's job to perform, but the open sets its terms, so state them at open:
 
 1. The closeout's remaining core sections (§7, §8, §10, §15, §18) — six core sections, always,
    including for an aborted session, where one honest line is a valid closeout.
 2. `git diff --name-only <pinned SHA>..HEAD` — every changed file accounted for in CHANGELOG or
    the ledger row.
-3. `glass_detector.py --since <pinned SHA>` — every key it names leaves the session either
-   rendered or dispositioned. Use the uv interpreter; bare `python` is the Store stub and exits
-   49.
+3. `glass_detector.py --since <pinned SHA> **--enforce**` — every key it names leaves the
+   session either rendered or dispositioned. **`--enforce` is not optional**: without it the
+   detector prints its unsigned glitches and exits **0 regardless**, so three closeouts cited
+   "glass exit 0" as evidence of nothing at all (SYM-046). Use the uv interpreter; bare
+   `python` is the Store stub and exits 49.
 4. Ledger row (≤80 words) as a **separate follow-up commit** — never `--amend`, which orphans
    the SHA you just wrote.
 5. Both clocks advanced together; §1 unedited; **no artifact carries a session number other
@@ -184,6 +197,13 @@ Not this skill's job to perform, but the open sets its terms, so state them at o
 6. **The close pushes** (`git push`, after the ledger row). An unpushed close is how the
    2026-08-16 fork grew 52 commits deep: the ThinkPad numbered its sessions from the last row
    it could SEE. The open's origin row shows the backlog; the close is where it goes to zero.
+7. **CI is green, OBSERVED — or the close says out loud that it is not.** Added S103 after
+   S101 turned CI red on `cargo fmt --check` and **S101 and S102 both closed reporting clean
+   on top of it**; three closes ran red before Rab saw it. `close.sh` reads the conclusion for
+   HEAD through the stored git credential (docs/37 §4's route). A run still in progress is not
+   a green — check it after the push. And if the session touched `windows-widget/`, **`cargo
+   fmt --check` LEADS** the rebuild ritual (docs/19:68, SYM-020): clippy never sees formatting,
+   so skipping fmt rots the build invisibly, which is exactly what S101 did.
 
 ## What this cannot see
 

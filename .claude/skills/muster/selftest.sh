@@ -249,6 +249,44 @@ out=$(PATH="$WORK/fakebin:$PATH" MEMORY_LIB="$WORK/l13" FP_REPO="$D13" PIPE_ROOT
       VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" bash "$OPEN" 2>&1); rc=$?
 assert "ORIGIN: ahead-only is an advisory (the close must push), not an incident" 0 'ahead 1 — unpushed local work' "$rc" "$out"
 
+# ── CASES 15-18: close.sh, the mechanical close (S103) ──────────────────────────────────────
+# The close is where two sessions reported clean on top of a red CI build, so its guard gets
+# the same treatment as the open's: every case VIOLATES the property and asserts the fire.
+CLOSE="$HERE/close.sh"
+
+# CASE 15 - no pin at all. A guard that shrugs at a missing argument is how a close silently
+# checks nothing at all.
+out=$(bash "$CLOSE" 2>&1); rc=$?
+assert "CLOSE: a missing pin is a red, not a shrug" 1 'MISSING' "$rc" "$out"
+
+# CASE 16 - a pin that does not resolve. The dangerous failure is reading it as "nothing changed
+# since"; the row must say UNRESOLVABLE and must never read as clean.
+out=$(bash "$CLOSE" deadbeefdeadbeef 2>&1); rc=$?
+assert "CLOSE: an unresolvable pin fails loud and never reads clean" 1 'UNRESOLVABLE' "$rc" "$out"
+
+# CASE 17 - THE ONE THIS SCRIPT EXISTS FOR: a red CI must stop the close. Pointed at a REAL
+# historical red run (534a6c0, red on Format check) rather than a mock, so the network path,
+# the parse and the verdict mapping are all exercised on genuine data. Skipped honestly when
+# GitHub is unreachable - an offline machine must not fail this suite, nor silently pass it.
+probe=$(FP_CI_SHA=534a6c01 bash "$CLOSE" HEAD 2>&1)
+if printf '%s' "$probe" | grep -q 'CI               UNREAD'; then
+  printf 'SKIP - CI red-path case: GitHub unreachable (this is not a pass)
+'
+else
+  rc=$(FP_CI_SHA=534a6c01 bash "$CLOSE" HEAD >/dev/null 2>&1; echo $?)
+  assert "CLOSE: a RED CI run stops the close (real historical red 534a6c0)" 1 'CI               RED' "$rc" "$probe"
+fi
+
+# CASE 18 - the UNREAD discipline: an unreachable checker prints UNREAD and is NOT counted red.
+# A close that dies because a tool is missing teaches people to skip the close.
+CLEAN18="$WORK/clean18"; mkdir -p "$CLEAN18"
+git -C "$CLEAN18" init -q 2>/dev/null; printf 'x
+' > "$CLEAN18/f.txt"
+git -C "$CLEAN18" add -A >/dev/null 2>&1
+git -C "$CLEAN18" -c user.email=t@t -c user.name=t commit -qm base >/dev/null 2>&1
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$CLEAN18" bash "$CLOSE" HEAD 2>&1); rc=$?
+assert "CLOSE: a missing checker is UNREAD, never a red and never a green" 0 'GLASS            UNREAD' "$rc" "$out"
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
