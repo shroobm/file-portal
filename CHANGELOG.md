@@ -8,6 +8,19 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S103 — THE CLOSE GROWS TEETH (2026-08-20, Desktop lane, Fable).** Added
+  `.claude/skills/muster/close.sh`, the mechanical half of the session close: pin, diff,
+  glass with **`--enforce`**, the widget's fmt→clippy→test when `windows-widget/` was touched,
+  **CI's conclusion for HEAD** read through the stored git credential, and the push state.
+  UNREAD never blocks and never claims clean; only a measured red exits 1. Built because both
+  halves of Rab's instruction were **already doctrine that had failed as doctrine**: `cargo fmt
+  --check` was prescribed FIRST in docs/19 with SYM-020's reasoning attached and S101 skipped
+  it, turning CI red — and CI was never in the close at all, so S101 and S102 both closed
+  reporting clean on top of a red build, three closes deep. Also corrected: the close contract
+  and the Phase 3 promotion table both prescribed `glass_detector.py --since <SHA>` **without**
+  `--enforce`, the exact form SYM-046 proved meaningless. Muster tripwires **26/26**, including
+  a CI red path fired against the real historical red `534a6c0`.
+
 - **S102 — THE ADOPTION, AND P-1: FIGURE COVERAGE (2026-08-20, Desktop lane, Fable).** Rab
   waived the adoption-is-his-hand law for this instance ("adopt it for me"); the waiver was
   honored **with the ghost checks the law exists to enforce** — MSIX mirror census (none),
