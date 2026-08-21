@@ -107,6 +107,22 @@ docstring at `fidelity_audit.py:152-156` already says this correctly).
 
 ### P-1 · The figure/vector completeness audit — the unserved survivor
 
+> **AMENDED S102 (2026-08-20), on measurement — read before the frame below.**
+> **The coverage unit is PER PAGE, not bbox overlap.** This frame specified *"does each source
+> figure region have some output image whose bbox overlaps it?"* — **not computable on our
+> stack**: a shipped bundle is `.md` + `assets/` + `manifest.json` (verified), and marker's
+> markdown-mode `_meta.json` carries only `table_of_contents` + `page_stats`
+> (`renderers/__init__.py:117-125`) — **no block bboxes anywhere in the convert path**. Output
+> bboxes would need a different `--output_format` or the Python API, i.e. a converter rewrite.
+> Built instead: *does each source page bearing figure regions have ≥1 output figure asset
+> attributed to that page*, which the asset filenames support today. A page with three source
+> figures and one output asset counts as covered — a real sensitivity ceiling, printed in every
+> report. **This also sharpens decision variable 1**: region-level coverage is only ever
+> reachable *in-converter* (option a), where marker's richer output still exists; out-of-band
+> (option b) is permanently page-level but free and can back-fill the whole corpus.
+> Built S102 as `windows-converter/figure_coverage.py` (report-only, selftest 12/12), CLI-driven
+> and **deliberately not wired** — variable 1 remains Rab's.
+
 *What:* per-book coverage check — does each source figure region have some output asset whose
 page+region overlaps it? Coverage by bbox overlap, **never** count equality (`Best Practices`:
 465-page scan, delta −416 means "OCR worked", not "figures lost"). Vector figures need

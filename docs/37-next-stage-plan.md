@@ -113,10 +113,18 @@ recorded choice.
 6. **Conversion-completeness slate** — **GO on the slate (Rab, 2026-08-20, in-chat: "lets do
    items 6-9, start with P-0"). P-0 BUILT S101** (option (a), the render: Assay card in both
    surfaces, `asset_delta`/`embedded_images` off the glitch list, 64→62; docs/15 §5's
-   "large delta is a flag" clause withdrawn on evidence). **P-1's four decision variables
-   remain UNSIGNED** and are the next thing his word decides — host (in-converter vs
-   out-of-band vs ThinkPad-with-inventory) · instrument (PyMuPDF-only vs admit a JVM) ·
-   coverage semantics · report-vs-gate (note `audit-mode.txt` is LIVE at `enforce`).
+   "large delta is a flag" clause withdrawn on evidence). **P-1 BUILT S102** —
+   `windows-converter/figure_coverage.py`, report-only, CPU-only, selftest 12/12, calibrated on
+   the anchored corpus. Three of its four variables resolved without needing his signature:
+   **report-vs-gate = report-only** (docs/15 §6 is signed doctrine — all thresholds ship
+   report-only until calibrated); **instrument = PyMuPDF-only** (a JVM is a platform
+   dependency needing its own signature; PDFFigures stays a later upgrade); **semantics =
+   per-page, NOT bbox-overlap** (changed by measurement — no block bboxes exist anywhere in
+   our convert path; docs/41 §2 P-1 amended). **Variable 1, HOST, remains HIS and is now
+   better informed**: region-level coverage is reachable only in-converter (a), where marker's
+   richer output still exists; out-of-band (b) is permanently page-level but costs zero
+   card-lock and can back-fill the whole corpus. The module is deliberately **not wired** —
+   wiring is that signature.
    *(original framing follows)* (filed S97, 2026-08-20; full decision frames = docs/41;
    expands item 3's Stage 2 asset posture — docs/37 §1 line 50 already queues the asset
    tripwire there). P-0 wiring: render `asset_delta`+`embedded_images` on the Assay card ~or~
