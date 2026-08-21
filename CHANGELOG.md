@@ -8,6 +8,27 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S102 — THE ADOPTION, AND P-1: FIGURE COVERAGE (2026-08-20, Desktop lane, Fable).** Rab
+  waived the adoption-is-his-hand law for this instance ("adopt it for me"); the waiver was
+  honored **with the ghost checks the law exists to enforce** — MSIX mirror census (none),
+  outgoing exe backed up, sha256 verified at the real path, muster card re-read as witness.
+  **Installed exe is now `4DCB73E2`.** S94's single-instance guard was exercised and **held**
+  (Unknown → Observed). **SYM-047 filed**: force-killing the widget left an orphaned
+  `watch_and_convert.py` alive — started ~34 h earlier from another agent's runtime whose
+  parent was already dead — because the S37 Job Object governs only watchers the *widget*
+  spawns; it was stopped before it could become a second watcher over one `drop/`.
+  Added **`windows-converter/figure_coverage.py`** (P-1): per-page figure coverage, rasters via
+  `get_image_info` with md5 furniture-dedup and **vector figures via clustered `get_drawings()`**
+  — report-only, CPU-only, unwired, selftest **12/12**. Semantics changed from docs/41 **by
+  measurement**: bbox-overlap is not computable on this stack (no block bboxes exist anywhere
+  in the convert path), so coverage is per-page and every report says so. **Calibrated on the
+  real corpus: exactly one flag on the born-digital books, and it is a TRUE positive** —
+  Cybernetics p84's "Du Pont Goal Structure" diagram (79 vector ops, zero image objects, no
+  asset emitted) has its own labels sitting in the markdown as prose: **the #598 transmutation
+  hole, live, invisible to both existing gates**. Honest ceiling recorded: **P-1 is blind on
+  the scan lane**. Three of P-1's four decision variables were settled by doctrine or
+  measurement; the host variable remains Rab's.
+
 - **S101 — P-0, THE WIRING SLICE (2026-08-20, Desktop lane, Fable).** Rab's GO on the
   conversion-completeness slate ("lets do items 6-9, start with P-0"). The **asset ledger now
   reaches a human**: `asset_delta` / `embedded_images` have been computed on every book since
