@@ -120,8 +120,12 @@ docstring at `fidelity_audit.py:152-156` already says this correctly).
 > report. **This also sharpens decision variable 1**: region-level coverage is only ever
 > reachable *in-converter* (option a), where marker's richer output still exists; out-of-band
 > (option b) is permanently page-level but free and can back-fill the whole corpus.
-> Built S102 as `windows-converter/figure_coverage.py` (report-only, selftest 12/12), CLI-driven
-> and **deliberately not wired** — variable 1 remains Rab's.
+> Built S102 as `windows-converter/figure_coverage.py` (report-only, selftest 17/17), CLI-driven
+> and **deliberately not wired** — variable 1 remains Rab's. **S104 added three vetoes**
+> (prose · table · accounted-for-frame), cutting false positives 706 → 269 on Investment
+> Valuation with the Cybernetics p84 true positive preserved at every stage. Remaining limits
+> are in the module header: 309 pages there still unverified, blind on the scan lane, and
+> zero-area connectors can fragment a diagram.
 
 *What:* per-book coverage check — does each source figure region have some output asset whose
 page+region overlaps it? Coverage by bbox overlap, **never** count equality (`Best Practices`:

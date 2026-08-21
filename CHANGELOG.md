@@ -8,6 +8,23 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S104 — THE TEXT-DENSITY VETO, AND THE HANDOFF (2026-08-20, Desktop lane, Fable).** P-1's
+  number now means something: three vetoes, each calibrated on measured specimens with the
+  acceptance fixed in advance (a shaded prose sidebar must veto, the Du Pont flow diagram must
+  survive). **Prose veto** — text coverage >= 0.35 AND >= 6 words/line (sidebar 0.731/9.25 vs
+  diagram 0.050/3.38; line count does *not* discriminate, 32 vs 29). **Table veto** — MuPDF
+  `find_tables()`, because on text metrics a table is indistinguishable from a diagram but on
+  structure it is not (1 table on p63/p73, 0 on p84). **Frame veto** — a region whose area is
+  accounted for by text plus tables holds no picture, added because "ILLUSTRATION N.N" boxes
+  defeat the other two by being the wrong *region* rather than the wrong classification.
+  Investment Valuation 706 → **269** figure pages, uncovered 625 → 309, true positive intact,
+  5.6 ms/page. Stopped short of catching two known survivors rather than tune a threshold to a
+  sample of two. Limitations recorded in the module header, including one found while building
+  a fixture: zero-area connector lines are dropped before clustering, so a spread-out diagram
+  can fragment and be missed. Selftest 12 → **17/17**. Added **`docs/44`**, the S105 handoff
+  carrying the arc's context and a written-out Circle commission — Rab's instruction: *"muster
+  then circle as the session start."*
+
 - **S103 — THE CLOSE GROWS TEETH (2026-08-20, Desktop lane, Fable).** Added
   `.claude/skills/muster/close.sh`, the mechanical half of the session close: pin, diff,
   glass with **`--enforce`**, the widget's fmt→clippy→test when `windows-widget/` was touched,
