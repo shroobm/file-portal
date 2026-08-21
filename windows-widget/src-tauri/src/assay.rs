@@ -702,7 +702,11 @@ mod tests {
                 }),
             );
             let st = status(base.to_str().unwrap()).unwrap();
-            assert_eq!(st["embedded_images"], json!(embedded), "{bundle}: source side");
+            assert_eq!(
+                st["embedded_images"],
+                json!(embedded),
+                "{bundle}: source side"
+            );
             assert_eq!(st["asset_delta"], json!(delta), "{bundle}: delta");
             // assets_out is DERIVED (delta + embedded) — the manifest stores only two of the
             // three, and the card must never print a number it did not reconstruct correctly.
@@ -732,9 +736,16 @@ mod tests {
             }),
         );
         let st = status(base.to_str().unwrap()).unwrap();
-        assert!(st["assets_out"].is_null(), "assets_out must be null, got {}", st["assets_out"]);
+        assert!(
+            st["assets_out"].is_null(),
+            "assets_out must be null, got {}",
+            st["assets_out"]
+        );
         assert!(st["asset_delta"].is_null(), "asset_delta must be null");
-        assert!(st["embedded_images"].is_null(), "embedded_images must be null");
+        assert!(
+            st["embedded_images"].is_null(),
+            "embedded_images must be null"
+        );
         let _ = fs::remove_dir_all(&base);
     }
 }
