@@ -234,20 +234,29 @@
   /* One source line = one visual row, never wrapped. Wrapping broke the 1:1 mapping between a
      line number and a row, and destroyed the column alignment of a grid the operator is trying
      to COUNT. Long rows scroll horizontally instead (SYM-052). */
-  #ctx { flex:1; overflow:auto; padding:10px 0; white-space:normal;
-         font-family:var(--mono); font-size:11px; line-height:1.6; color:var(--text-2); }
+  /* THE GUTTER IS A CSS COUNTER, and that is a correctness requirement, not a style choice.
+     Measured S106 in this engine: with an explicit <i class="ln">1</i> element the numbers land
+     in `innerText` ("1alpha\n2beta") even with user-select:none — so the moment this pane became
+     editable and was read back to save, the LINE NUMBERS WOULD BE WRITTEN INTO THE MARKDOWN.
+     Generated content is invisible to innerText, so a counter cannot leak. It also regenerates
+     itself as lines are added or removed, which is what makes the numbering native to the
+     surface rather than something a render pass has to remember to do. */
+  #ctx { flex:1; overflow:auto; padding:10px 0; white-space:normal; counter-reset:ln;
+         font-family:var(--mono); font-size:11px; line-height:1.6; color:var(--text-2);
+         outline:0; }
   #ctx .cl { display:block; white-space:pre; width:max-content; min-width:100%;
-             padding:1px 14px 1px 0; }
-  /* the gutter: not selectable, so copying a region yields the text and not the numbers */
-  #ctx .ln { display:inline-block; width:5ch; margin-right:12px; padding-right:8px;
-             text-align:right; color:var(--text-3); user-select:none; -webkit-user-select:none;
+             padding:1px 14px 1px 0; counter-increment:ln; }
+  #ctx .cl::before { content:counter(ln); display:inline-block; width:5ch; margin-right:12px;
+             padding-right:8px; text-align:right; color:var(--text-3);
              border-right:1px solid var(--line); position:sticky; left:0;
              background:var(--card); }
   #ctx .zl { background:var(--clay-bg); color:var(--clay); border-radius:5px; }
-  #ctx .zl .ln { background:var(--clay-bg); color:var(--clay); }
+  #ctx .zl::before { background:var(--clay-bg); color:var(--clay); }
   #ctx .rl { color:var(--ok); }
-  #editor { flex:1; display:none; background:var(--card-2); color:var(--text); border:0; outline:0;
-            padding:12px 14px; font-family:var(--mono); font-size:11px; line-height:1.6; resize:none; }
+  #ctx[contenteditable] { background:var(--card-2); }
+  #ctx[contenteditable] .cl::before { background:var(--card-2); }
+  /* #editor (the textarea) is gone — a textarea has no per-line DOM and therefore cannot carry
+     a gutter, which is why the numbers used to vanish the moment you clicked edit. */
 
   /* footer: repairs + one calm source line (the instructions live in ? help) */
   footer { display:flex; gap:12px; padding:8px 16px; border-top:1px solid var(--sep); align-items:center;
@@ -410,7 +419,8 @@
       <button id="aiundo" hidden title="restore the markdown exactly as before the last AI change">↩ undo AI</button>
     </div>
     <div id="ctx"></div>
-    <textarea id="editor" spellcheck="false"></textarea>
+    <!-- the textarea is retired: editing now happens IN the numbered surface (#ctx), so the
+         gutter cannot be lost by switching modes. Route 1, signed Rab S106. -->
   </section>
 </main>
 
@@ -812,18 +822,94 @@ function scrollThumbToCurrent() {
 // last line, like in vscode." Previously the zone path showed a 21-line window and the plain
 // path the first 40, so a line number was only ever true inside a slice.
 // NO TRUNCATION anywhere (SYM-052).
-function renderLines(highlight) {
-  const lines = mdText.split("\n");
-  ctxRange = { from: 1, to: lines.length };
+let ctxHighlight = 0;          // 1-based line the current zone sits on, 0 = none
+function linesHtml(text, highlight) {
+  const lines = text.split("\n");
   const parts = new Array(lines.length);
   for (let i = 0; i < lines.length; i++) {
-    const isZone = i === highlight - 1;
-    const cls = isZone ? "cl zl" : lines[i].startsWith("![[assets/_repair") ? "cl rl" : "cl";
-    parts[i] = `<span class="${cls}" id="L${i + 1}"><i class="ln">${i + 1}</i>${isZone ? "▶ " : ""}${esc(lines[i]) || " "}</span>`;
+    const cls = i === highlight - 1 ? "cl zl"
+              : lines[i].startsWith("![[assets/_repair") ? "cl rl" : "cl";
+    // A zero-width space keeps an empty line selectable and give the caret somewhere to sit.
+    // It is stripped again in ctxText(), so it never reaches the file.
+    parts[i] = `<span class="${cls}" id="L${i + 1}">${esc(lines[i]) || "​"}</span>`;
   }
+  return parts.join("");
+}
+function renderLines(highlight) {
+  ctxHighlight = highlight || 0;
+  const lines = mdText.split("\n");
+  ctxRange = { from: 1, to: lines.length };
   const t0 = performance.now();
-  $("ctx").innerHTML = parts.join("");
+  $("ctx").innerHTML = linesHtml(mdText, ctxHighlight);
   return { lines: lines.length, ms: Math.round(performance.now() - t0) };
+}
+
+/* ---- editing IN the numbered surface (route 1, S106) ----------------------------------
+   One surface. The numbered view IS the editor, so the gutter cannot be lost by switching
+   modes — which was the whole point of Rab's question about VS Code.
+
+   MEASURED in this engine before building: pressing Enter does NOT create a new line element.
+   Chromium injects raw "\n" characters INSIDE the existing span, so after two Enters you have
+   3 elements and 5 visible lines and the counter numbers 3 of them. The gutter would drift
+   from the text it labels — the same proxy failure this project keeps filing. So every edit is
+   normalised: read the text back, rebuild one span per line, restore the caret by character
+   offset. `plaintext-only` (Baseline since 2025-03) stops the browser injecting rich markup on
+   paste, so the text read back is always plain.                                            */
+function ctxText() {
+  return $("ctx").innerText.replace(/​/g, "").replace(/\n$/, "");
+}
+// The caret is measured in LINE/COLUMN and only then flattened, because the obvious way is
+// wrong: Range.toString() silently omits the break BETWEEN block elements while innerText
+// includes it, so the two disagree by one character per line and the split lands early
+// ("two" split as "tw"/"o"). Measured S106. Counting lines explicitly keeps caretOffset() and
+// ctxText() in one coordinate system by construction.
+function caretLineCol() {
+  const el = $("ctx"), s = getSelection();
+  if (!s.rangeCount || !el.contains(s.anchorNode)) return null;
+  const rng = s.getRangeAt(0);
+  let node = rng.endContainer;
+  while (node && node.parentNode !== el) node = node.parentNode;   // climb to the .cl span
+  if (!node) return null;
+  const line = [...el.children].indexOf(node);
+  if (line < 0) return null;
+  const r = document.createRange();
+  r.selectNodeContents(node);
+  r.setEnd(rng.endContainer, rng.endOffset);
+  return { line, col: r.toString().replace(/​/g, "").length };
+}
+function caretOffset() {
+  const lc = caretLineCol();
+  if (!lc) return null;
+  const lines = ctxText().split("\n");
+  let off = 0;
+  for (let i = 0; i < lc.line && i < lines.length; i++) off += lines[i].length + 1;  // +1 = the \n
+  return off + lc.col;
+}
+function setCaretOffset(off) {
+  const el = $("ctx");
+  const lines = ctxText().split("\n");
+  let i = 0, remaining = off;
+  while (i < lines.length && remaining > lines[i].length) { remaining -= lines[i].length + 1; i++; }
+  const span = el.children[Math.min(i, el.children.length - 1)];
+  if (!span) return false;
+  const t = span.firstChild;
+  const r = document.createRange();
+  if (t && t.nodeType === 3) r.setStart(t, Math.max(0, Math.min(remaining, t.length)));
+  else r.setStart(span, 0);
+  r.collapse(true);
+  const s = getSelection(); s.removeAllRanges(); s.addRange(r);
+  return true;
+}
+function normalizeCtx() {
+  const el = $("ctx");
+  const off = caretOffset();
+  const text = ctxText();
+  // Only rebuild when the structure actually drifted — a no-op rebuild would move the caret
+  // and fight the browser's own undo stack on every keystroke.
+  if (el.children.length === text.split("\n").length &&
+      ![...el.children].some(c => c.textContent.includes("\n"))) return;
+  el.innerHTML = linesHtml(text, ctxHighlight);
+  if (off !== null) setCaretOffset(off);
 }
 function scrollToLine(n) {
   const el = document.getElementById("L" + n);
@@ -1030,15 +1116,44 @@ $("aiundo").onclick = async () => {
 
 /* ---- editor ---- */
 $("edit").onclick = () => {
-  const on = $("editor").style.display !== "block";
-  $("editor").style.display = on ? "block" : "none";
-  $("ctx").style.display = on ? "none" : "block";
+  const ctx = $("ctx");
+  const on = !ctx.hasAttribute("contenteditable");
+  if (on) {
+    // plaintext-only, so a paste arrives as text and the browser never injects <b>/<font>/spans
+    ctx.setAttribute("contenteditable", "plaintext-only");
+    ctx.focus();
+  } else {
+    ctx.removeAttribute("contenteditable");
+  }
   $("save").hidden = !on;
-  if (on) $("editor").value = mdText;
+  $("edit").textContent = on ? "✎ editing" : "✎ edit";
 };
+// ENTER IS HANDLED EXPLICITLY, and that is not premature cleverness — it was measured.
+// Letting Chromium split the block inserts TWO line breaks for one Enter on this structure
+// (one → two → "" → "" → three), identically for insertParagraph, insertLineBreak, insertText
+// "\n" and the real key path, so it is the block splitting and not the probe. Owning the split
+// makes it deterministic: put one "\n" in at the caret offset, rebuild, restore at offset+1.
+$("ctx").addEventListener("beforeinput", (e) => {
+  const ctx = $("ctx");
+  if (!ctx.hasAttribute("contenteditable")) return;
+  if (e.inputType !== "insertParagraph" && e.inputType !== "insertLineBreak") return;
+  e.preventDefault();
+  const off = caretOffset();
+  if (off === null) return;
+  const text = ctxText();
+  ctx.innerHTML = linesHtml(text.slice(0, off) + "\n" + text.slice(off), ctxHighlight);
+  setCaretOffset(off + 1);
+});
+// The normalise pass for every OTHER edit. `input` fires for typing, paste, drag, undo and IME
+// alike, which is why it is the hook rather than keydown — keydown misses every non-keyboard
+// edit path, and paste is the one that matters most here.
+$("ctx").addEventListener("input", () => { normalizeCtx(); });
 $("save").onclick = async () => {
   try {
-    await api("/api/md", { text: $("editor").value });
+    // ctxText(), never innerHTML and never a per-line join: the gutter is generated content,
+    // so it is invisible here by construction. An explicit number element would have been read
+    // back INTO the file (measured, S106) — the reason the gutter is a CSS counter.
+    await api("/api/md", { text: ctxText() });
     status("✓ saved (backup kept as .bench-bak)");
     coachMark("textFixed");
     $("edit").click();
