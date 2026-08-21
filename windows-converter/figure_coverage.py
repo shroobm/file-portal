@@ -137,6 +137,92 @@ VETO_TABLE_OVERLAP = 0.5    # a region at least half-covered by a detected table
 #   IV p63: text .319 + table .209 = .528   IV p73: .336 + .186 = .522   Cyb p84: .050 + 0 = .050
 VETO_ACCOUNTED_FOR = 0.60
 
+# ---------- the levers (signed Rab, S106, 2026-08-21; docs/18 §2 modularity law) ----------
+#
+# His words: "determine if it's a feature deep work, or it should have the capability to be
+# modular, and change in numbers from an operator."
+#
+# Every number above decides what a human is shown, so by docs/18 §2 every one of them is a
+# LEVER, not a constant. They keep their values as DEFAULTS; the operator's file overrides.
+# Same contract as `convert_and_ship.chunk_batch()`: anything unparseable or out of range
+# falls back to the default rather than running on a number nobody chose — and the EFFECTIVE
+# values are reported in the report's `conditions`, so a number never travels without its
+# configuration attached (docs/34, and S105's Family-1 finding: the sentence must name the probe).
+#
+# The TRIAGE lever is the one Rab signed by name. Measured S106 on Investment Valuation with a
+# repaired page map: unfiltered precision 2/12 sampled = 16.7 %; restricted to pages carrying a
+# FIGURE N.N caption, 5/6 adjudicated = 83 %. It changes what is REPORTED FIRST, never what is
+# detected — the full list is always present, so triage can never hide a page.
+LEVER_FILE = Path(r"C:\Users\Bndit\ml\library\figure-triage.txt")
+TRIAGE_ALLOWED = ("caption", "off")
+LEVER_SPEC: dict[str, tuple[type, object, object]] = {
+    #  key                  type    default                 admissible range (inclusive)
+    "mode":               (str,   "caption",              TRIAGE_ALLOWED),
+    "min_area_pt2":       (float, MIN_AREA_PT2,           (100.0, 100_000.0)),
+    "vector_min_paths":   (int,   VECTOR_MIN_PATHS,       (1, 200)),
+    "cluster_gap_pt":     (float, VECTOR_CLUSTER_GAP_PT,  (0.0, 200.0)),
+    "text_coverage":      (float, VETO_TEXT_COVERAGE,     (0.0, 1.0)),
+    "words_per_line":     (float, VETO_WORDS_PER_LINE,    (0.0, 100.0)),
+    "table_overlap":      (float, VETO_TABLE_OVERLAP,     (0.0, 1.0)),
+    "accounted_for":      (float, VETO_ACCOUNTED_FOR,     (0.0, 1.0)),
+}
+_FIG_CAPTION_RE = re.compile(r"\bFIGURE\s+\d+\.\d+", re.I)
+# ...but NOT when the page opens as an "ILLUSTRATION N.N" worked example. Those pages routinely
+# cross-REFERENCE a figure in their prose while containing none, and they are the dominant false
+# alarm on this corpus (30 of 49 uncovered pages, S106). The precedence is load-bearing and was
+# measured: with it the triage promotes 8 pages of 49 and 5 of the 6 adjudicated are real losses;
+# without it, 16 of 49, and pages already adjudicated as figure-less frames (p682, p1111) are
+# promoted. CORRECTED S106 — the first build shipped the rule WITHOUT this precedence while the
+# 83 % was measured WITH it: the claim described the neighbour of the probe (docs/45 §1 Family 1),
+# caught by re-measuring the shipped code against the ad-hoc classifier rather than assuming.
+_ILLUSTRATION_RE = re.compile(r"\bILLUSTRATION\s+\d+\.\d+", re.I)
+_CAPTION_HEAD_CHARS = 900   # the "opens as" window, measured against the S106 classifier
+
+
+def levers(path: Path | None = None, text: str | None = None) -> dict:
+    """Read the operator's lever file. Returns EFFECTIVE values plus, per key, why.
+
+    Never raises and never returns a value nobody chose: a missing file, an unparseable line,
+    an unknown key or an out-of-range number all fall back to the default and are NAMED in
+    `rejected` so the report can say what was ignored rather than silently ignoring it.
+    """
+    eff = {k: spec[1] for k, spec in LEVER_SPEC.items()}
+    rejected: list[str] = []
+    if text is None:
+        p = path or LEVER_FILE
+        try:
+            text = p.read_text(encoding="utf-8")
+            source = str(p)
+        except OSError:
+            return {"values": eff, "rejected": [], "source": "defaults (no lever file)"}
+    else:
+        source = "explicit"
+    for lineno, raw in enumerate(text.splitlines(), 1):
+        line = raw.split("#", 1)[0].strip()
+        if not line:
+            continue
+        if "=" not in line:
+            rejected.append(f"line {lineno}: not key=value"); continue
+        key, _, val = line.partition("=")
+        key, val = key.strip().lower(), val.strip()
+        if key not in LEVER_SPEC:
+            rejected.append(f"line {lineno}: unknown key {key!r}"); continue
+        typ, default, rng = LEVER_SPEC[key]
+        if typ is str:
+            if val.lower() not in rng:
+                rejected.append(f"{key}={val!r} not in {rng}"); continue
+            eff[key] = val.lower()
+        else:
+            try:
+                num = typ(val)
+            except ValueError:
+                rejected.append(f"{key}={val!r} not a {typ.__name__}"); continue
+            if not (rng[0] <= num <= rng[1]):
+                rejected.append(f"{key}={num} outside {rng}"); continue
+            eff[key] = num
+    return {"values": eff, "rejected": rejected, "source": source}
+
+
 _ASSET_RE = re.compile(r"_page_(\d+)_(Figure|Picture)_(\d+)\.(?:jpe?g|png)$", re.I)
 
 
@@ -245,13 +331,18 @@ def _covered_by(bbox, others, frac: float) -> bool:
     return False
 
 
-def is_prose_block(stats: dict) -> bool:
-    """True = this region is a text container (sidebar, callout, table), not a figure."""
-    return (stats["text_coverage"] >= VETO_TEXT_COVERAGE
-            and stats["mean_words_per_line"] >= VETO_WORDS_PER_LINE)
+def is_prose_block(stats: dict, lv: dict | None = None) -> bool:
+    """True = this region is a text container (sidebar, callout, table), not a figure.
+
+    `lv` is a lever VALUES dict; omitted, the signed defaults apply. Callers that already
+    hold levers pass them so one run cannot mix two configurations.
+    """
+    lv = lv or {k: s[1] for k, s in LEVER_SPEC.items()}
+    return (stats["text_coverage"] >= lv["text_coverage"]
+            and stats["mean_words_per_line"] >= lv["words_per_line"])
 
 
-def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
+def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | None = None) -> dict:
     """Per 1-based page: the figure-like regions, raster and vector, with why each qualified.
 
     Rasters come from `get_image_info(hashes=...)` — DISPLAYED images including inline ones,
@@ -261,9 +352,11 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
     Vectors come from `get_drawings()` clustered by proximity: a chart drawn with path
     operators has no image object at all and is invisible to every raster enumerator.
     """
+    lv = lv or levers()["values"]
     doc = pymupdf.open(pdf_path)
     pages: dict[int, list] = {}
     digest_pages: dict[str, set] = {}
+    captioned: set[int] = set()      # pages carrying a FIGURE N.N caption — the triage key
     vetoed = 0
     vetoed_tables = 0
     vetoed_frames = 0
@@ -295,7 +388,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
             # thrown away 184 times -- that is the 191 ms/page this avoids.
             probe = page.get_image_info()
             candidate = any(
-                _rect_area(tuple(i.get("bbox") or (0, 0, 0, 0))) >= MIN_AREA_PT2
+                _rect_area(tuple(i.get("bbox") or (0, 0, 0, 0))) >= lv["min_area_pt2"]
                 and min(
                     (i.get("bbox") or (0, 0, 0, 0))[2] - (i.get("bbox") or (0, 0, 0, 0))[0],
                     (i.get("bbox") or (0, 0, 0, 0))[3] - (i.get("bbox") or (0, 0, 0, 0))[1],
@@ -307,7 +400,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
             for info in infos:
                 bbox = tuple(info.get("bbox") or (0, 0, 0, 0))
                 area = _rect_area(bbox)
-                if area < MIN_AREA_PT2:
+                if area < lv["min_area_pt2"]:
                     continue
                 if min(bbox[2] - bbox[0], bbox[3] - bbox[1]) < MIN_SIDE_PT:
                     continue
@@ -330,9 +423,9 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
                 if _rect_area(r) <= 0:
                     continue
                 rects.append(r)
-            for bbox, npaths in _cluster(rects, VECTOR_CLUSTER_GAP_PT):
+            for bbox, npaths in _cluster(rects, lv["cluster_gap_pt"]):
                 area = _rect_area(bbox)
-                if npaths < VECTOR_MIN_PATHS or area < MIN_AREA_PT2:
+                if npaths < lv["vector_min_paths"] or area < lv["min_area_pt2"]:
                     continue
                 if min(bbox[2] - bbox[0], bbox[3] - bbox[1]) < MIN_SIDE_PT:
                     continue
@@ -343,17 +436,17 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
                 # lost figure. The false-positive class this exists for — shaded callouts and
                 # table grids — is entirely vector.
                 stats = region_text_stats(page, bbox)
-                if is_prose_block(stats):
+                if is_prose_block(stats, lv):
                     vetoed += 1
                     continue
                 # Second veto: structure, not text shape. A table survives the prose test
                 # because its cells are short — see the note on VETO_TABLE_OVERLAP.
                 tabs = _table_rects(page, tcache)
-                if _covered_by(bbox, tabs, VETO_TABLE_OVERLAP):
+                if _covered_by(bbox, tabs, lv["table_overlap"]):
                     vetoed_tables += 1
                     continue
                 # The frame case: nothing here is a picture if text + tables account for it.
-                if min(1.0, stats["text_coverage"] + _covered_frac(bbox, tabs)) >= VETO_ACCOUNTED_FOR:
+                if min(1.0, stats["text_coverage"] + _covered_frac(bbox, tabs)) >= lv["accounted_for"]:
                     vetoed_frames += 1
                     continue
                 regions.append({"kind": "vector", "bbox": [round(v, 1) for v in bbox],
@@ -362,6 +455,16 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
 
             if regions:
                 pages[pno + 1] = regions
+                # The triage key, computed only for pages that already qualify so it costs
+                # nothing on the other 1,087. A page whose own text names "FIGURE N.N" is
+                # asserting a figure belongs here; measured S106, that assertion is right
+                # 5 times in 6 adjudicated, against 2-in-12 for the unrestricted list.
+                # An ILLUSTRATION worked example is excluded even when it names a figure —
+                # see the note on _ILLUSTRATION_RE; that precedence IS the measured rule.
+                txt = page.get_text()
+                if (_FIG_CAPTION_RE.search(txt)
+                        and not _ILLUSTRATION_RE.search(txt[:_CAPTION_HEAD_CHARS])):
+                    captioned.add(pno + 1)
         n_pages = doc.page_count
     finally:
         doc.close()
@@ -379,6 +482,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
                 else:
                     del pages[pno]
     return {"pages": pages, "page_count": n_pages, "vetoed_prose_regions": vetoed,
+            "captioned_pages": sorted(captioned & set(pages)),
             "vetoed_table_regions": vetoed_tables,
             "vetoed_framed_text_regions": vetoed_frames,
             "furniture_digests": len(
@@ -406,11 +510,24 @@ def output_asset_pages(bundle_dir: Path) -> dict:
     return {"per_page": per_page, "unparsed": unparsed}
 
 
-def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True) -> dict:
-    src = source_figure_regions(pdf_path, use_hashes=use_hashes)
+def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
+             lv: dict | None = None) -> dict:
+    lever = levers() if lv is None else {"values": lv, "rejected": [], "source": "explicit"}
+    lv = lever["values"]
+    src = source_figure_regions(pdf_path, use_hashes=use_hashes, lv=lv)
     out = output_asset_pages(bundle_dir)
     figure_pages = sorted(src["pages"])
     uncovered = [p for p in figure_pages if out["per_page"].get(p, 0) == 0]
+
+    # THE TRIAGE (signed Rab, S106). It partitions the SAME uncovered list; it never shortens
+    # it. `uncovered_captioned` is the list a human should read first: measured on Investment
+    # Valuation with a repaired page map, 5 of 6 adjudicated captioned pages were real losses,
+    # against 2 of 12 unrestricted. `mode=off` reports the partition as empty and changes
+    # nothing, so turning triage off can never surface fewer pages than leaving it on.
+    captioned = set(src.get("captioned_pages", ()))
+    triage_on = lv["mode"] == "caption"
+    unc_capt = [p for p in uncovered if p in captioned] if triage_on else []
+    unc_rest = [p for p in uncovered if p not in captioned] if triage_on else list(uncovered)
 
     # Assets attributed to a page beyond the source's page count are the doubled-offset
     # signature of pre-S60 bundles (assets numbered to _page_2553_ on a 1,356-page book).
@@ -436,6 +553,9 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True) -> dict:
         "coverage": (
             round(1 - len(uncovered) / len(figure_pages), 4) if figure_pages else None
         ),
+        "triage_mode": lv["mode"],
+        "uncovered_captioned": unc_capt,
+        "uncovered_other": unc_rest,
         "output_asset_pages": len(out["per_page"]),
         "output_assets_total": sum(out["per_page"].values()),
         "assets_out_of_range": out_of_range,
@@ -449,15 +569,19 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True) -> dict:
             "unit": "PER PAGE — a page with N source figures and >=1 output asset counts as "
                     "covered; bbox-overlap is not computable from a bundle (see module head)",
             "pymupdf": pymupdf.__doc__.strip() if pymupdf.__doc__ else pymupdf.version[0],
-            "min_area_pt2": MIN_AREA_PT2,
+            # EFFECTIVE values, not the defaults — a number never travels without the
+            # configuration that produced it (docs/34; docs/18 §2 modularity law).
+            "levers_source": lever["source"],
+            "levers_rejected": lever["rejected"],
+            "min_area_pt2": lv["min_area_pt2"],
             "min_side_pt": MIN_SIDE_PT,
             "max_page_fraction": MAX_PAGE_FRACTION,
-            "vector_min_paths": VECTOR_MIN_PATHS,
-            "vector_cluster_gap_pt": VECTOR_CLUSTER_GAP_PT,
-            "veto_text_coverage": VETO_TEXT_COVERAGE,
-            "veto_words_per_line": VETO_WORDS_PER_LINE,
-            "veto_table_overlap": VETO_TABLE_OVERLAP,
-            "veto_accounted_for": VETO_ACCOUNTED_FOR,
+            "vector_min_paths": lv["vector_min_paths"],
+            "vector_cluster_gap_pt": lv["cluster_gap_pt"],
+            "veto_text_coverage": lv["text_coverage"],
+            "veto_words_per_line": lv["words_per_line"],
+            "veto_table_overlap": lv["table_overlap"],
+            "veto_accounted_for": lv["accounted_for"],
             "image_identity": "md5" if use_hashes else "none (furniture-dedup disabled)",
             "verdict_effect": "NONE — report-only by docs/15 §6; writes nothing",
         },
@@ -489,10 +613,29 @@ def main() -> int:
               f"· coverage {rep['coverage']}")
         if rep["assets_out_of_range"]:
             print(f"  ! assets attributed beyond page count: {rep['assets_out_of_range'][:6]}"
-                  " — pre-S60 doubled-offset bundle, report not trustworthy")
-        for d in rep["uncovered_detail"][:12]:
-            print(f"    p{d['page']:>4}  {d['regions']} region(s) {','.join(d['kinds'])}"
-                  f"  largest {d['largest_area_pt2']}pt²")
+                  " — pre-S60 doubled-offset bundle, report not trustworthy (SYM-050)")
+        c = rep["conditions"]
+        print(f"  levers: mode={rep['triage_mode']} · from {c['levers_source']}"
+              + (f" · IGNORED {c['levers_rejected']}" if c["levers_rejected"] else ""))
+        det = {d["page"]: d for d in rep["uncovered_detail"]}
+        if rep["triage_mode"] == "caption":
+            # READ THESE FIRST: the page's own text names a FIGURE, so it asserts one belongs
+            # here. Both lists are always printed — triage orders, it never hides.
+            print(f"  READ FIRST — uncovered pages whose text names a FIGURE "
+                  f"({len(rep['uncovered_captioned'])} of {rep['pages_uncovered']}):")
+            for p in rep["uncovered_captioned"][:12] or ["(none)"]:
+                d = det.get(p)
+                print(f"    p{p:>4}  {d['regions']} region(s) {','.join(d['kinds'])}"
+                      f"  largest {d['largest_area_pt2']}pt²" if d else f"    {p}")
+            print(f"  the rest ({len(rep['uncovered_other'])}), unranked:")
+            rest = rep["uncovered_other"][:8]
+        else:
+            rest = rep["uncovered_other"][:12]
+        for p in rest:
+            d = det.get(p)
+            if d:
+                print(f"    p{p:>4}  {d['regions']} region(s) {','.join(d['kinds'])}"
+                      f"  largest {d['largest_area_pt2']}pt²")
     return 0
 
 

@@ -287,6 +287,29 @@ git -C "$CLEAN18" -c user.email=t@t -c user.name=t commit -qm base >/dev/null 2>
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$CLEAN18" bash "$CLOSE" HEAD 2>&1); rc=$?
 assert "CLOSE: a missing checker is UNREAD, never a red and never a green" 0 'GLASS            UNREAD' "$rc" "$out"
 
+
+# CASE 27 - the MODULARITY GATE (docs/18 SS2, signed Rab S106). A number that decides
+# something is a lever, not a constant. Both directions, on a fixture the case builds:
+# a bare threshold constant is NAMED, and the same constant with a waiver is not.
+GATE="$WORK/gate"; mkdir -p "$GATE"
+git -C "$GATE" init -q 2>/dev/null
+printf 'x = 1\n' > "$GATE/m.py"
+git -C "$GATE" add -A >/dev/null 2>&1
+git -C "$GATE" -c user.email=t@t -c user.name=t commit -qm base >/dev/null 2>&1
+base=$(git -C "$GATE" rev-parse HEAD)
+printf 'x = 1\nVETO_SOMETHING = 0.42\n' > "$GATE/m.py"
+git -C "$GATE" add -A >/dev/null 2>&1
+git -C "$GATE" -c user.email=t@t -c user.name=t commit -qm add >/dev/null 2>&1
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE: the modularity gate NAMES a bare threshold constant added since the pin" 0 'VETO_SOMETHING' "$rc" "$out"
+
+# ...and the waiver silences it. Without this half the gate could be a constant that always
+# fires, which is the shape S105 Lane B caught in coordination/selftest.sh case 6.
+printf 'x = 1\nVETO_SOMETHING = 0.42  # lever-waiver: Rab only; move it if a 3rd corpus disagrees\n' > "$GATE/m.py"
+git -C "$GATE" add -A >/dev/null 2>&1
+git -C "$GATE" -c user.email=t@t -c user.name=t commit -qm waive >/dev/null 2>&1
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE: a written lever-waiver silences the gate (it is not a constant that always fires)" 0 'LEVERS           no unlevered' "$rc" "$out"
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

@@ -56,6 +56,29 @@ terminal. This brief merges the S48 observability survey with the control-surfac
   in a doc the operator has to remember.
 - **The projection law stands.** All new UI is read-only projection; levers write only the
   backend's own config/marker files, exactly as the existing gate/audit toggles do.
+- **A number that decides something is a LEVER, not a constant.** *(Signed Rab, S106,
+  2026-08-21: "determine if it's a feature deep work, or it should have the capability to be
+  modular, and change in numbers from an operator. This should also be a framework when
+  creating features or new implementation.")* **This is the modularity gate, and every new
+  feature passes it at design time**, before the first line is written:
+
+  1. **Does it carry a number or a policy choice that changes what a human is shown or what
+     the system does?** If no — it is deep work, hard-code it, done. If yes, continue.
+  2. **Then it ships as a lever**, not a constant: a single-writer file the operator edits,
+     a documented menu or numeric range, and a fallback to the signed default for anything
+     unparseable or out of range — *named in the output, never silently ignored* (the
+     `chunk_batch()` contract).
+  3. **The report states the EFFECTIVE values it ran on**, not the defaults. A number that
+     travels without its configuration is the failure `docs/45` §1 names Family 1.
+  4. **Report-only until calibrated** (`docs/15` §6), and **every lever gets a surface** —
+     the row above. A lever with no surface is half a law; if the surface is blocked on an
+     unsigned decision, say so in the inventory rather than pretending it is done.
+  5. **A constant is still admissible — with a written waiver** naming who may change it and
+     what evidence would move it. The gate forces the choice to be *made*, not to go one way.
+
+  Enforced mechanically: `close.sh` reports threshold-shaped constants added since the pin
+  that have no lever and no waiver. It reports VALUES and never blocks — the judgment is the
+  author's, but it can no longer be silent.
 
 ## 3. The lever inventory
 
@@ -70,6 +93,7 @@ terminal. This brief merges the S48 observability survey with the control-surfac
 | Queue order / priority | ❌ (queue is FIFO mtime) | — | queue panel actions (§7) — needs design care: the watcher's sorted-iterdir IS the queue |
 | `keep_alive` middle (analyst VRAM courtesy vs speed) | ❌ (hardcoded 0) | — | policy row, default unchanged |
 | Sunshine remote-origin (`csrf_allowed_origins`) | ❌ (deferred, docs/17) | — | out of widget scope; runbook item |
+| **P-1 figure triage + its 7 thresholds** (`figure-triage.txt`) | ✅ S106 | **file only — no surface yet** | assay policy row **when P-1's host is signed** (docs/41 §2 variable 4, still OPEN). First feature built under the modularity gate above; `mode=caption\|off` plus seven numeric thresholds, ranges enforced, effective values printed in `conditions`. **Blocked on the host decision, and said so rather than claimed done.** |
 
 ## 4. Observability stages (build order)
 

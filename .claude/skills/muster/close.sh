@@ -128,7 +128,47 @@ else: print('NO-RUN')
   fi
 fi
 
-# ── [5] PUSH — an unpushed close is how the 2026-08-16 fork grew 52 commits deep ────────────
+# ── [5] LEVERS — the modularity gate (docs/18 §2, signed Rab S106 2026-08-21) ───────────────
+#
+# "A number that decides something is a LEVER, not a constant." This reports threshold-shaped
+# constants ADDED since the pin that carry no lever and no waiver. It prints VALUES and never
+# blocks: the judgment stays the author's, but it can no longer be silent. Waive in-line with
+# a trailing `# lever-waiver: <who may change it, what evidence would move it>`.
+lev_added=""
+lev_n=0
+if git -C "$FP_REPO" rev-parse --verify -q "$PIN" >/dev/null 2>&1; then
+  while IFS= read -r line; do
+    case "$line" in
+      +++*|---*) continue ;;
+    esac
+    body="${line#+}"
+    case "$body" in
+      *lever-waiver:*) continue ;;
+      \#*|" "*\#*) ;;
+    esac
+    # a module-level CONSTANT bound to a bare number: NAME = 1.23 / NAME = 45
+    if printf '%s' "$body" | grep -Eq '^[A-Z][A-Z0-9_]{2,}[[:space:]]*=[[:space:]]*-?[0-9]+(\.[0-9]+)?[[:space:]]*(#.*)?$'; then
+      name="$(printf '%s' "$body" | sed -E 's/^([A-Z][A-Z0-9_]*).*/\1/')"
+      case "$name" in
+        *_RE|*_FILE|*_DIR|*_PATH|*_NAME|*_DEFAULT|*_ALLOWED) continue ;;
+      esac
+      lev_n=$((lev_n + 1))
+      [ "$lev_n" -le 4 ] && lev_added="${lev_added}${lev_added:+ · }${name}"
+    fi
+  done <<EOF
+$(git -C "$FP_REPO" diff "$PIN..HEAD" -- '*.py' '*.rs' '*.js' 2>/dev/null | grep '^+' || true)
+EOF
+  if [ "$lev_n" -gt 0 ]; then
+    row "LEVERS" "$lev_n threshold-shaped constant(s) added since $PIN with no lever, no waiver: $lev_added$([ "$lev_n" -gt 4 ] && echo ' …')"
+    row "" "docs/18 §2: a number that decides something is a lever. Convert, or add '# lever-waiver: <who/what evidence>'"
+  else
+    row "LEVERS" "no unlevered threshold constants added since $PIN"
+  fi
+else
+  row "LEVERS" "UNREAD — pin $PIN unresolvable; NOT a statement that none were added"
+fi
+
+# ── [6] PUSH — an unpushed close is how the 2026-08-16 fork grew 52 commits deep ────────────
 row "PUSH" "ahead of upstream: $ahead (the close pushes; 0 after)"
 
 printf '════════ close exit %d — values only; the judgment half is SKILL.md ════════\n' "$red"

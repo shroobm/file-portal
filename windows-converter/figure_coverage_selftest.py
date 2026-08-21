@@ -187,10 +187,86 @@ def main() -> int:
               SIDEBAR["text_coverage"] > fc.VETO_TEXT_COVERAGE * 1.5
               and DIAGRAM["text_coverage"] < fc.VETO_TEXT_COVERAGE * 0.5,
               f"threshold={fc.VETO_TEXT_COVERAGE}")
-        # the accounted-for veto: a frame whose area is text+table is not a picture
-        check("FRAME veto arithmetic: text+table >= threshold vetoes, diagram stays far below",
-              min(1.0, 0.319 + 0.40) >= fc.VETO_ACCOUNTED_FOR
-              and min(1.0, 0.050 + 0.0) < fc.VETO_ACCOUNTED_FOR)
+        # the accounted-for veto. CORRECTED S106: this case used to assert on the literals
+        # `0.319 + 0.40`, which (a) was arithmetic on constants that invoked NO code under
+        # test — S105 Lane B's finding — and (b) used a table fraction of 0.40 that Lane C
+        # re-measured at 0.209. It now drives the REAL `_covered_frac` over real rects.
+        frame = (100.0, 100.0, 400.0, 400.0)                  # 300x300 = 90,000 pt²
+        tab = [(100.0, 100.0, 400.0, 162.7)]                  # 300x62.7 ~= 0.209 of the frame
+        frac = fc._covered_frac(frame, tab)
+        check("FRAME veto: the real coverage helper reproduces the MEASURED p63 fraction",
+              abs(frac - 0.209) < 0.01, f"_covered_frac returned {frac:.3f}, expected ~0.209")
+        check("FRAME veto: p63's measured text+table (0.319+0.209) stays BELOW the threshold "
+              "— which is why p63 survives, and why this class is unfixed",
+              min(1.0, 0.319 + frac) < fc.VETO_ACCOUNTED_FOR,
+              f"{0.319 + frac:.3f} vs {fc.VETO_ACCOUNTED_FOR}")
+        check("FRAME veto still FIRES when text+table genuinely accounts for the region",
+              min(1.0, 0.45 + fc._covered_frac(frame, [(100.0, 100.0, 400.0, 250.0)]))
+              >= fc.VETO_ACCOUNTED_FOR)
+
+        # ---- the levers (signed Rab S106; docs/18 §2 modularity law) ----
+        # Every case below drives fc.levers() or fc.coverage() for real. None asserts on a
+        # literal it just defined — S105 Lane B proved that shape stays green while the guard
+        # it claims to test goes red.
+        d = fc.levers(text="")["values"]
+        check("LEVER: an empty/absent lever file yields the signed DEFAULTS, never a crash",
+              d["mode"] == "caption" and d["accounted_for"] == fc.VETO_ACCOUNTED_FOR)
+        r = fc.levers(text="accounted_for=0.50\nmode=off\n")
+        check("LEVER: an operator's in-range number actually TAKES EFFECT",
+              r["values"]["accounted_for"] == 0.50 and r["values"]["mode"] == "off",
+              str(r))
+        r = fc.levers(text="accounted_for=7.5\n")
+        check("LEVER BITES: an out-of-range number is REFUSED, falls back, and is NAMED",
+              r["values"]["accounted_for"] == fc.VETO_ACCOUNTED_FOR and r["rejected"],
+              f"rejected={r['rejected']}")
+        r = fc.levers(text="mode=banana\nwibble=3\nnot a pair\n")
+        check("LEVER BITES: bad enum, unknown key and malformed line are each refused and named",
+              r["values"]["mode"] == "caption" and len(r["rejected"]) == 3, str(r["rejected"]))
+
+        # ---- the triage: it ORDERS, it must never HIDE ----
+        doc = pymupdf.open()
+        p1 = doc.new_page()
+        p1.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200))
+        p1.insert_text(pymupdf.Point(72, 400), "FIGURE 1.1 A Captioned Thing")
+        p2 = doc.new_page()
+        p2.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200, 90))
+        tri = tmp / "triage.pdf"
+        doc.save(tri); doc.close()
+        empty = _bundle(tmp, [], name="tri")             # nothing shipped: both pages uncovered
+        on  = fc.coverage(tri, empty, lv=fc.levers(text="mode=caption")["values"])
+        off = fc.coverage(tri, empty, lv=fc.levers(text="mode=off")["values"])
+        check("TRIAGE: the captioned page is the one promoted to READ FIRST",
+              on["uncovered_captioned"] == [1], str(on["uncovered_captioned"]))
+        check("TRIAGE BITES: the partition is EXHAUSTIVE — captioned + other == uncovered",
+              sorted(on["uncovered_captioned"] + on["uncovered_other"])
+              == [d["page"] for d in on["uncovered_detail"]])
+        check("TRIAGE CANNOT HIDE: mode=off surfaces exactly as many pages as mode=caption",
+              on["pages_uncovered"] == off["pages_uncovered"] == 2
+              and off["uncovered_captioned"] == [] and len(off["uncovered_other"]) == 2,
+              f"on={on['pages_uncovered']} off={off['pages_uncovered']}")
+        check("LEVER: the report states the EFFECTIVE values it ran on, not the defaults",
+              fc.coverage(tri, empty, lv=fc.levers(text="accounted_for=0.42")["values"]
+                          )["conditions"]["veto_accounted_for"] == 0.42)
+
+        # The ILLUSTRATION precedence. This exact rule was measured but NOT shipped in the
+        # first S106 build: the code promoted 16 of 49 pages while the 83 % had been measured
+        # on the 8 the precedence leaves. Caught by re-measuring shipped-vs-measured. The case
+        # below drives source_figure_regions on a page that names a FIGURE *inside* an
+        # ILLUSTRATION worked example — the shape that was wrongly promoted (IV p682, p1111).
+        doc = pymupdf.open()
+        pg = doc.new_page()
+        pg.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200))
+        pg.insert_text(pymupdf.Point(72, 60), "ILLUSTRATION 18.15: Analyzing Value")
+        pg.insert_text(pymupdf.Point(72, 400), "as evidenced in FIGURE 18.14 above")
+        pg2 = doc.new_page()
+        pg2.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200, 60))
+        pg2.insert_text(pymupdf.Point(72, 400), "FIGURE 18.14 A Real Caption")
+        prec = tmp / "prec.pdf"
+        doc.save(prec); doc.close()
+        capt = fc.source_figure_regions(prec)["captioned_pages"]
+        check("TRIAGE BITES: an ILLUSTRATION worked example that merely CITES a figure is NOT "
+              "promoted, while a genuine caption on the next page is",
+              capt == [2], f"captioned_pages={capt}, expected [2]")
 
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
