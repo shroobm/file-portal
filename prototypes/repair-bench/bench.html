@@ -149,7 +149,7 @@
   .cstep.done .cn { color:var(--ok); }
   .cstep.done .ct { color:var(--text-3); }
 
-  main { flex:1; display:grid; grid-template-columns:236px 1fr minmax(340px, 37%); gap:12px;
+  main { flex:1; display:grid; grid-template-columns:236px minmax(0,1fr) minmax(0,1fr); gap:12px;
          padding:12px 16px; min-height:0; }
   .pane { display:flex; flex-direction:column; background:var(--card);
           border-radius:14px; overflow:hidden; min-height:0;
@@ -231,10 +231,21 @@
            background:var(--card-2); }
   #aibar input { flex:1; min-width:0; }
   #aiundo { color:var(--warn); background:var(--warn-bg); }
-  #ctx { flex:1; overflow:auto; padding:10px 14px; white-space:pre-wrap; word-break:break-word;
+  /* One source line = one visual row, never wrapped. Wrapping broke the 1:1 mapping between a
+     line number and a row, and destroyed the column alignment of a grid the operator is trying
+     to COUNT. Long rows scroll horizontally instead (SYM-052). */
+  #ctx { flex:1; overflow:auto; padding:10px 0; white-space:normal;
          font-family:var(--mono); font-size:11px; line-height:1.6; color:var(--text-2); }
-  #ctx .zl { background:var(--clay-bg); color:var(--clay); display:block; border-radius:5px; padding:1px 5px; }
-  #ctx .rl { color:var(--ok); display:block; }
+  #ctx .cl { display:block; white-space:pre; width:max-content; min-width:100%;
+             padding:1px 14px 1px 0; }
+  /* the gutter: not selectable, so copying a region yields the text and not the numbers */
+  #ctx .ln { display:inline-block; width:5ch; margin-right:12px; padding-right:8px;
+             text-align:right; color:var(--text-3); user-select:none; -webkit-user-select:none;
+             border-right:1px solid var(--line); position:sticky; left:0;
+             background:var(--card); }
+  #ctx .zl { background:var(--clay-bg); color:var(--clay); border-radius:5px; }
+  #ctx .zl .ln { background:var(--clay-bg); color:var(--clay); }
+  #ctx .rl { color:var(--ok); }
   #editor { flex:1; display:none; background:var(--card-2); color:var(--text); border:0; outline:0;
             padding:12px 14px; font-family:var(--mono); font-size:11px; line-height:1.6; resize:none; }
 
@@ -517,7 +528,7 @@ async function load() {
   $("nopdf").hidden = st.pdf_available;
   $("pagebox").style.display = st.pdf_available ? "" : "none";
   $("md-pane").style.display = st.pdf_only ? "none" : "";
-  document.querySelector("main").style.gridTemplateColumns = st.pdf_only ? "236px 1fr" : "236px 1fr minmax(340px, 37%)";
+  document.querySelector("main").style.gridTemplateColumns = st.pdf_only ? "236px minmax(0,1fr)" : "236px minmax(0,1fr) minmax(0,1fr)";
   $("srcline").textContent = st.pdf || st.dir || "—";
   $("srcline").title = $("srcline").textContent;
   renderZones(); renderRepairs(); loadToc();
@@ -691,7 +702,7 @@ function goto(n) {
 }
 function applyZoom() {
   const z = $("zoom").value, img = $("pageimg");
-  if (z === "fit") img.style.width = Math.min(900, $("pagewrap").clientWidth - 40) + "px";
+  if (z === "fit") img.style.width = Math.max(200, $("pagewrap").clientWidth - 24) + "px";
   else img.style.width = (760 * Number(z)) + "px";
 }
 $("zoom").onchange = () => goto(page);
@@ -795,31 +806,44 @@ function scrollThumbToCurrent() {
 }
 
 /* ---- markdown context ---- */
-function renderCtxPlain() {
+// ONE renderer for both paths, and it renders the WHOLE FILE — every line from the first to
+// the last, numbered, like an editor. Rab, S106: "the whole markdown file is accessible for me
+// to edit, there should be an itemized list per line ... starting from the first line to the
+// last line, like in vscode." Previously the zone path showed a 21-line window and the plain
+// path the first 40, so a line number was only ever true inside a slice.
+// NO TRUNCATION anywhere (SYM-052).
+function renderLines(highlight) {
   const lines = mdText.split("\n");
-  ctxRange = { from: 1, to: Math.min(lines.length, 40) };
-  $("md-title").textContent = "markdown (head of file — no audit zones)";
-  $("ctx").innerHTML = lines.slice(0, ctxRange.to).map((l) =>
-    l.startsWith("![[assets/_repair") ? `<span class="rl">${esc(l).slice(0, 400)}</span>` : (esc(l).slice(0, 400) || " ") + "\n").join("");
+  ctxRange = { from: 1, to: lines.length };
+  const parts = new Array(lines.length);
+  for (let i = 0; i < lines.length; i++) {
+    const isZone = i === highlight - 1;
+    const cls = isZone ? "cl zl" : lines[i].startsWith("![[assets/_repair") ? "cl rl" : "cl";
+    parts[i] = `<span class="${cls}" id="L${i + 1}"><i class="ln">${i + 1}</i>${isZone ? "▶ " : ""}${esc(lines[i]) || " "}</span>`;
+  }
+  const t0 = performance.now();
+  $("ctx").innerHTML = parts.join("");
+  return { lines: lines.length, ms: Math.round(performance.now() - t0) };
+}
+function scrollToLine(n) {
+  const el = document.getElementById("L" + n);
+  if (el) el.scrollIntoView({ block: "center" });
+}
+function renderCtxPlain() {
+  const r = renderLines(0);
+  $("md-title").textContent = `markdown — ${r.lines} lines (no audit zones)`;
   if (!st.manifest_present) status("folder mode: no manifest — no audit zones; AI fixes + repairs still work");
 }
 function renderCtx() {
   const z = st.zones[zone];
   if (!z) { renderCtxPlain(); return; }
-  $("md-title").textContent = `markdown at zone ${zone + 1}`;
-  $("zonehint").textContent = `zone ${zone + 1} of ${st.zones.length} · ${(z.chars/1000).toFixed(1)}k damaged chars at line ${z.line}`;
-  const lines = mdText.split("\n");
   const at = z.adjusted_line;
-  const from = Math.max(0, at - 9), to = Math.min(lines.length, at + 12);
-  ctxRange = { from: from + 1, to };
-  let html = "";
-  for (let i = from; i < to; i++) {
-    const text = esc(lines[i]).slice(0, 400) || " ";
-    if (i === at - 1) html += `<span class="zl">▶ ${text}</span>`;
-    else if (lines[i].startsWith("![[assets/_repair")) html += `<span class="rl">${text}</span>`;
-    else html += text + "\n";
-  }
-  $("ctx").innerHTML = html;
+  const r = renderLines(at);
+  $("md-title").textContent = `markdown — ${r.lines} lines, at zone ${zone + 1}`;
+  $("zonehint").textContent = `zone ${zone + 1} of ${st.zones.length} · ${(z.chars/1000).toFixed(1)}k damaged chars at line ${z.line}`;
+  // The whole file is rendered, so the zone has to be brought INTO view rather than being the
+  // only thing in it. Scrolling, not slicing — the operator keeps the rest of the document.
+  scrollToLine(at);
 }
 
 /* ---- crop gesture (the button narrates its own state) ---- */
