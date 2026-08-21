@@ -176,7 +176,12 @@ _FIG_CAPTION_RE = re.compile(r"\bFIGURE\s+\d+\.\d+", re.I)
 # 83 % was measured WITH it: the claim described the neighbour of the probe (docs/45 §1 Family 1),
 # caught by re-measuring the shipped code against the ad-hoc classifier rather than assuming.
 _ILLUSTRATION_RE = re.compile(r"\bILLUSTRATION\s+\d+\.\d+", re.I)
-_CAPTION_HEAD_CHARS = 900   # the "opens as" window, measured against the S106 classifier
+_CAPTION_HEAD_CHARS = 900  # lever-waiver: Fable/Rab at the bench only. This is a text-shape
+# constant, not a policy: 900 chars is "the top of the page" for this page geometry, and it was
+# fixed by reproducing the S106 classifier exactly. It becomes a lever the moment a second
+# publisher's layout disagrees with it — that is the evidence that would move it. Recorded
+# because the gate's first run MISSED it (the regex skipped leading underscores, now fixed):
+# the feature that prompted the framework also found the framework's first blind spot.
 
 
 def levers(path: Path | None = None, text: str | None = None) -> dict:

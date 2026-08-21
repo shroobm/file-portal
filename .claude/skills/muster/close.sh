@@ -147,8 +147,8 @@ if git -C "$FP_REPO" rev-parse --verify -q "$PIN" >/dev/null 2>&1; then
       \#*|" "*\#*) ;;
     esac
     # a module-level CONSTANT bound to a bare number: NAME = 1.23 / NAME = 45
-    if printf '%s' "$body" | grep -Eq '^[A-Z][A-Z0-9_]{2,}[[:space:]]*=[[:space:]]*-?[0-9]+(\.[0-9]+)?[[:space:]]*(#.*)?$'; then
-      name="$(printf '%s' "$body" | sed -E 's/^([A-Z][A-Z0-9_]*).*/\1/')"
+    if printf '%s' "$body" | grep -Eq '^_?[A-Z][A-Z0-9_]{2,}[[:space:]]*=[[:space:]]*-?[0-9]+(\.[0-9]+)?[[:space:]]*(#.*)?$'; then
+      name="$(printf '%s' "$body" | sed -E 's/^(_?[A-Z][A-Z0-9_]*).*/\1/')"
       case "$name" in
         *_RE|*_FILE|*_DIR|*_PATH|*_NAME|*_DEFAULT|*_ALLOWED) continue ;;
       esac
