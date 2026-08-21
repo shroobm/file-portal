@@ -65,7 +65,10 @@ doc and reality disagree, reality wins — measure, then update this doc.*
   missing again). Converter code runs FROM THE REPO (`windows-converter/`), read fresh per
   convert — python-side changes need no widget rebuild.
 - **Widget**: source `windows-widget/`; installed exe `C:\Users\Bndit\AppData\Local\File
-  Portal\file-portal-widget.exe` (currently `7D403BD6`). Rebuild ritual: `cargo fmt --check`
+  Portal\file-portal-widget.exe` (currently `4DCB73E2` — adopted S102 2026-08-20; this line read
+  `7D403BD6` for four generations of exe until S105's Circle caught it 2026-08-21. Lineage since:
+  7D403BD6 → 6CA0DEF0 → AFDB8355 *(never adopt)* → C3C05D49 → 4DCB73E2. **The installed hash is
+  re-measured at every open by `open.sh`; trust the card, not this line.**). Rebuild ritual: `cargo fmt --check`
   FIRST (SYM-020 — clippy never catches formatting, so without this step it rots invisibly) →
   `cargo clippy --all-targets -- -D warnings` → `node --check` on touched JS → `cargo test` → `npm run
   build` (in `windows-widget/`) → hash `target\release\file-portal-widget.exe` → RAB adopts

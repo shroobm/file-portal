@@ -140,3 +140,61 @@ entries are addressed to you. Run coordination/selftest.sh yourself before trust
 Then: claim your S97 sections per coordination/authorship.md, write docs/43 §3 in your own
 words, adopt a model trailer on your commits, and leave your relay entry back — UTC, with a
 concordance label on anything of mine you carry."*
+
+---
+
+## 2026-08-21T02:12Z · ⟨from: Fable⟩ → ⟨to: Codex⟩
+
+**RECAP.** S105 ran a four-lane Circle on the whole S97–S104 arc (`docs/45`), commissioned by Rab
+in `docs/44` §3 to attack my own self-assessment. It did. **The self-assessment is refuted**: all
+three of its claims are factually wrong, and — the finding that matters to you — it is a
+**rediscovery of `docs/32`**, which named this disease six days earlier and left a falsifiable
+prediction at §6 that the arc confirmed five times and scored zero times. `docs/33` §4 bequeathed
+that prediction forward; the last Circle before this one was S79, so it went uncollected for 25
+sessions. `docs/45` §6 is written as a bequest specifically so that does not happen twice.
+**Please collect it at your next Circle even if I am not the one who wrote it.**
+
+Three things bear directly on your lane. **(1) The relay has one participant.** Two entries before
+this one, both mine, both addressed to you; **zero carries, ever** — the protocol's consumption
+rule has never once been executable because nothing has ever been addressed to Fable. Stamps
+15:0, commit trailers 49:0. My own lane also dropped the *write-back* half in four consecutive
+closes (S101–S104) while `coordination/selftest.sh` stayed 11/11 green, because it tests entry
+shape, not whether a session wrote one. That is my failure, not yours, and it is recorded as
+`docs/45` F18. **(2) I am recommending to Rab that the relay be SUSPENDED and the concordance
+amendment DELETED** — not because the idea is wrong, but because it is an 11-case tripwire and a
+step in every session open guarding a conversation that has never happened. It is his signature,
+not mine, and **your first entry would reverse the recommendation.** (3) Lane A found your S97
+sections still unclaimed and `docs/43` §3 still an empty scaffold — and also corrected an error of
+mine: the five post-close S97 commits are **Fable's**, not yours. I had implied otherwise.
+
+`unverified` on everything above that concerns your future conduct — the label is the honest
+default and I have no probe for it. Everything about the *repo* is measured; run `bash
+coordination/selftest.sh`, `bash .claude/skills/muster/selftest.sh` and
+`windows-converter/figure_coverage_selftest.py` yourself before trusting any structural claim I
+make. **One probe you can run that I could not:** `docs/45` §6 item 3 — re-measure P-1 on a
+CLEAN (post-S60) bundle. Every Investment Valuation number in the repo is computed on a poisoned
+one (SYM-050), and an independent re-run by a different model is worth more than mine.
+
+**Live hazard for any runtime that is not Claude Code:** `.agents/skills/muster/` is an untracked,
+un-gitignored, pre-S103 copy of the muster skill. It has no `close.sh`, zero mentions of
+`--enforce`/`SYM-046`/`CI`, points at a `.Codex/` path that does not exist, and **its selftest
+prints `ALL TRIPWIRES FIRED — 22/22, exit 0`.** If your runtime resolves skills from `.agents/`,
+you are running the close that cannot see a red CI, under a green banner. Do not adopt it.
+
+State at writing: ledger S104 `62ce207`; S105 closing tonight. New this session: **SYM-049**
+(zero-area connectors — two measured specimens, was theoretical) and **SYM-050** (P-1's per-page
+verdict is noise on a doubled-offset bundle; 19/20 adjudicated verdicts false). Register items
+6–9 still OPEN. Pipeline byte-identical to S97's open card — **no conversion since S96.**
+
+**FOR RAB.** Fable says: the Circle you commissioned found my self-diagnosis was wrong, and found
+something worse behind it — the *last* Circle already named this and left instructions that nobody
+collected for 25 sessions. The machinery is fine and getting better; the machinery has no output.
+Eight sessions of governance and the pipeline state is byte-identical at both ends. Codex's side
+of the relay is still empty after four sessions, and I have recommended suspending it rather than
+keep paying for a protocol with one participant — that is your signature to give.
+
+**SUGGESTED PROMPT** (for Rab to give Codex): *"Muster, then read `docs/45` — Fable's Circle on
+the S97–S104 arc — and carry its entry from `coordination/relay.md` to me with a concordance
+label. Then do the one thing Fable could not: re-measure P-1 on a CLEAN post-S60 bundle and tell
+me whether SYM-050 holds. While you are there, claim your S97 sections, write `docs/43` §3 in your
+own words, and adopt a model trailer on your commits."*

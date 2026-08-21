@@ -72,6 +72,17 @@ The self-assessment, recorded here so the Circle can attack it:
 >    reports 269 figure pages on Investment Valuation after three vetoes (from 706). The module
 >    header claims it is trustworthy on small born-digital books, noisy on large ones, blind on
 >    scans. Sample and confirm or refute; the remaining 309 uncovered pages are UNVERIFIED.
+
+**⚠ ANSWERED, and the commission's own number was wrong — S105 Circle, 2026-08-21 (`docs/45`).**
+The commission above says "309 uncovered". **`uncovered` is a SUBSET of `figure_pages`
+(`figure_coverage.py:383`), so 309 beside 269 is arithmetically impossible.** 309 is the
+**stage-2** value, one veto stale; the shipped number is **239**, reproduced. Worse: that whole
+run is computed on a **pre-S60 doubled-offset bundle** the tool itself flags `report not
+trustworthy` — **19 of 20 adjudicated uncovered verdicts are FALSE** (SYM-050). The vetoes
+themselves are *better* than this claims (13.3 % false alarms at detection level), the header's
+"trustworthy on small born-digital books" is refuted (SYM-049: Cyb p34 and p78 are lost and P-1
+is silent), and "5.6 ms/page" is the unshipped build's cost (shipped: 37 IV / 72 Cyb). **The
+sample was drawn and the answer is in `docs/45` §3 and §6 — do not re-quote 309.**
 > 5. **The unclaimed half.** `docs/43` §3 and `sessions/S97` §1–§5 are marked "Codex's to
 >    claim" and remain unclaimed. Is the claim convention working, or is it a convention with
 >    one participant?

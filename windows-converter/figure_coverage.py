@@ -34,22 +34,48 @@ REPORT-ONLY BY DOCTRINE
     into convert_and_ship.py — placement is Rab's open decision (docs/41 §2 P-1, variable 4).
 
 KNOWN LIMITATIONS, measured rather than guessed (S104)
-    · **Zero-area paths are dropped before clustering.** A pure horizontal or vertical
-      connector line has no area, so it never joins the boxes it connects. A flow diagram whose
-      boxes sit further apart than VECTOR_CLUSTER_GAP_PT can therefore fragment into several
-      sub-threshold regions and be MISSED entirely. Found while building a test fixture, which
-      is the only reason it was found at all. Not fixed: the fix is clustering that follows
-      stroke geometry, not bounding boxes.
+    · **Zero-area paths are dropped before clustering** (`:300`, `if _rect_area(r) <= 0`). A pure
+      horizontal or vertical connector line has no area, so it never joins the boxes it connects.
+      A flow diagram whose boxes sit further apart than VECTOR_CLUSTER_GAP_PT can therefore
+      fragment into several sub-threshold regions and be MISSED entirely. **S105: no longer
+      theoretical — two MEASURED specimens, SYM-049.** Cyb p34 (54 drawings, 27 of them zero-area,
+      12 fragments, largest 541 pt² vs MIN_AREA_PT2 4900) and Cyb p78 (2 clusters of 2 paths vs
+      VECTOR_MIN_PATHS 4). Neither shipped an asset; P-1 is silent on both. Control that proves
+      the mechanism: p35's visually-similar diagram DOES flag, because it contains one curved
+      path with non-zero area. Not fixed: the fix is clustering that follows stroke geometry.
     · **A regular grid of labelled boxes reads as a table** to `find_tables()` and is vetoed.
-      Org charts and matrix diagrams are the risk class.
+      ~~Org charts and matrix diagrams are the risk class.~~ **S105 CORRECTION: this class was
+      called "not measured on a real specimen" and it had in fact already fired 15 times in the
+      S104 corpus run. On Cybernetics the table veto is 0-for-11 — it removed a Watt steam-engine
+      illustration (p26), a time-series line chart (p44) and a Pask conversation diagram (p74),
+      each reported by find_tables() at 99.5-100 % table coverage. ZERO real tables among them.
+      The class is broader than "grids of boxes": any axis-tick chart or shaded technical drawing
+      can trip it. No loss resulted (all 11 shipped anyway) — this costs SENSITIVITY, and it is
+      the same page-class as the p34/p78 losses above.**
     · **Damodaran's "ILLUSTRATION N.N" frames still survive all three vetoes** (p63, p73): the
       frame is clustered as one region, the table inside covers ~21 % of it and the prose ~32 %,
       totalling 0.53 against a 0.60 threshold. Catching them needs 0.50 — which would be
       tuning to a sample of two with no held-out set — or the real fix, which is clustering
       that does not let a frame border swallow its contents.
-    So: this instrument is TRUSTWORTHY on small born-digital books, IMPROVED but still noisy on
-    a large textbook (Investment Valuation reports 269 figure pages, down from 706, and the
-    remainder is not verified), and BLIND on the scan lane by construction.
+    · **THE VERDICT IS ONLY AS GOOD AS THE BUNDLE'S PAGE MAP (S105, SYM-050).** On a pre-S60
+      doubled-offset bundle every per-page verdict is noise: the figures ARE in the bundle,
+      filed under doubled ids. Measured on Investment Valuation — **19 of 20 adjudicated
+      "uncovered" verdicts FALSE**. `assets_out_of_range` catches the gross case and is NOT
+      sufficient: IV p191's asset id 189 is in range and still misattributed by one.
+      **Refuse to quote a per-page number from any bundle that trips that flag.**
+    So: this instrument's DETECTION is good — 13.3 % false alarms at the region level (2/15
+    sampled on IV, S105) — and its per-page VERDICT is only as trustworthy as the bundle. It is
+    NOT "trustworthy on small born-digital books": Cybernetics is exactly that and it is missing
+    at least two figures P-1 cannot see. It is BLIND on the scan lane by construction — and that
+    blindness renders as `with source figures 0 · UNCOVERED 0`, indistinguishable from a clean
+    bill of health, on a book whose bundle carries 63 assets across 62 pages.
+
+COST, per docs/34 (numerator: wall seconds; denominator: pages_total; conditions named)
+    Measured S105 on the SHIPPED build, PyMuPDF 1.28.0, warm FS, CPU-only, one process per book:
+    Investment Valuation 1356 pp -> **37 ms/page** · Cybernetics 91 pp -> **72 ms/page** ·
+    BRAIN OF THE FIRM (scan) 439 pp -> 4.6 ms/page. `find_tables()` is 7-10x of that total.
+    **S104's "5.6 ms/page" was the PRE-TABLE-VETO build** (ablation: 5.21 ms/page on IV with
+    `_table_rects` stubbed) — i.e. the cost of the configuration that was NOT shipped.
 
 CPU-only. Never touches the GPU; safe to run beside a conversion.
 """
@@ -104,7 +130,11 @@ VETO_TABLE_OVERLAP = 0.5    # a region at least half-covered by a detected table
 # REGION is wrong — it is a frame, not an object. Rather than re-tune either threshold, ask
 # the question that actually decides it: is this region's area ACCOUNTED FOR by text and
 # tables? If almost all of it is, there is no picture in there.
-#   IV p63: text .319 + table ~.40 = .72   IV p73: .336 + ~.38 = .72   Cyb p84: .05 + 0 = .05
+# CORRECTED S105 2026-08-21 (re-measured; the line below previously read ".40 = .72" / ".38 = .72",
+# which contradicted this file's own KNOWN LIMITATIONS block and overstated the table fraction by
+# ~0.19. Anyone tuning this constant off the old numbers would conclude 0.60 already catches the
+# frame class. It does not — that is why p63/p73 survive):
+#   IV p63: text .319 + table .209 = .528   IV p73: .336 + .186 = .522   Cyb p84: .050 + 0 = .050
 VETO_ACCOUNTED_FOR = 0.60
 
 _ASSET_RE = re.compile(r"_page_(\d+)_(Figure|Picture)_(\d+)\.(?:jpe?g|png)$", re.I)

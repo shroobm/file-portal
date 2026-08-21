@@ -124,8 +124,15 @@ docstring at `fidelity_audit.py:152-156` already says this correctly).
 > and **deliberately not wired** — variable 1 remains Rab's. **S104 added three vetoes**
 > (prose · table · accounted-for-frame), cutting false positives 706 → 269 on Investment
 > Valuation with the Cybernetics p84 true positive preserved at every stage. Remaining limits
-> are in the module header: 309 pages there still unverified, blind on the scan lane, and
+> are in the module header: ~~309 pages there still unverified~~, blind on the scan lane, and
 > zero-area connectors can fragment a diagram.
+>
+> **CORRECTED S105 2026-08-21 (`docs/45`): 309 is impossible** — `uncovered` ⊆ `figure_pages`,
+> so it cannot exceed 269; it is the stage-2 value, one veto stale. Shipped is **239**. And that
+> whole run is on a **pre-S60 doubled-offset bundle — the hazard THIS DOCUMENT named at §468 one
+> session before the run** — so **19 of 20 adjudicated uncovered verdicts are FALSE** (SYM-050).
+> The connector limitation is no longer theoretical: **SYM-049**, two measured specimens.
+> **P-1's large-book behaviour is UNREAD until it is re-measured on a clean bundle.**
 
 *What:* per-book coverage check — does each source figure region have some output asset whose
 page+region overlaps it? Coverage by bbox overlap, **never** count equality (`Best Practices`:
