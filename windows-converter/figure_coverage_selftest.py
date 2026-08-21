@@ -163,6 +163,35 @@ def main() -> int:
         check("no source figures -> coverage None (a ratio with no denominator is not 1.0)",
               rep5["coverage"] is None and rep5["pages_with_source_figures"] == 0,
               f"cov={rep5['coverage']}")
+
+        # ── the vetoes (S104), tested on REAL measured statistics ──────────────────────────
+        # Synthetic PDFs were tried first and abandoned: reproducing a textbook sidebar or a
+        # flow diagram well enough to exercise the vetoes end-to-end takes a fixture more
+        # delicate than the thing under test, and the first two attempts failed for reasons
+        # that had nothing to do with vetoing (single-path shapes filtered before the veto ran;
+        # then boxes that never clustered because their connectors are ZERO-AREA lines and are
+        # dropped before clustering — a real finding about the module, recorded in its header).
+        # The discriminator is therefore unit-tested against the numbers actually measured on
+        # the corpus, and its end-to-end behaviour is verified by the calibration run in the
+        # S104 closeout: p45/p63/p73 (sidebars and framed tables) and p84 (the Du Pont diagram).
+        SIDEBAR = {"lines": 32, "mean_words_per_line": 9.25, "text_coverage": 0.731}   # IV p45
+        DIAGRAM = {"lines": 29, "mean_words_per_line": 3.38, "text_coverage": 0.050}   # Cyb p84
+        TABLE_IN_FRAME = {"lines": 51, "mean_words_per_line": 4.76, "text_coverage": 0.319}  # p63
+
+        check("VETO fires on the measured prose sidebar (IV p45)", fc.is_prose_block(SIDEBAR))
+        check("VETO does NOT fire on the measured diagram (Cyb p84) — the true positive lives",
+              not fc.is_prose_block(DIAGRAM))
+        check("VETO does not mistake a framed TABLE for prose (that is the table veto's job)",
+              not fc.is_prose_block(TABLE_IN_FRAME), "p63 is 4.76 words/line: label-shaped")
+        check("VETO thresholds keep real margin on both specimens, not tuned to the edge",
+              SIDEBAR["text_coverage"] > fc.VETO_TEXT_COVERAGE * 1.5
+              and DIAGRAM["text_coverage"] < fc.VETO_TEXT_COVERAGE * 0.5,
+              f"threshold={fc.VETO_TEXT_COVERAGE}")
+        # the accounted-for veto: a frame whose area is text+table is not a picture
+        check("FRAME veto arithmetic: text+table >= threshold vetoes, diagram stays far below",
+              min(1.0, 0.319 + 0.40) >= fc.VETO_ACCOUNTED_FOR
+              and min(1.0, 0.050 + 0.0) < fc.VETO_ACCOUNTED_FOR)
+
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 

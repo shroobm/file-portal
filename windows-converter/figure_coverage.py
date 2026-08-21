@@ -33,6 +33,24 @@ REPORT-ONLY BY DOCTRINE
     NOTHING ELSE. It writes no manifest key, sets no verdict, and is deliberately not wired
     into convert_and_ship.py — placement is Rab's open decision (docs/41 §2 P-1, variable 4).
 
+KNOWN LIMITATIONS, measured rather than guessed (S104)
+    · **Zero-area paths are dropped before clustering.** A pure horizontal or vertical
+      connector line has no area, so it never joins the boxes it connects. A flow diagram whose
+      boxes sit further apart than VECTOR_CLUSTER_GAP_PT can therefore fragment into several
+      sub-threshold regions and be MISSED entirely. Found while building a test fixture, which
+      is the only reason it was found at all. Not fixed: the fix is clustering that follows
+      stroke geometry, not bounding boxes.
+    · **A regular grid of labelled boxes reads as a table** to `find_tables()` and is vetoed.
+      Org charts and matrix diagrams are the risk class.
+    · **Damodaran's "ILLUSTRATION N.N" frames still survive all three vetoes** (p63, p73): the
+      frame is clustered as one region, the table inside covers ~21 % of it and the prose ~32 %,
+      totalling 0.53 against a 0.60 threshold. Catching them needs 0.50 — which would be
+      tuning to a sample of two with no held-out set — or the real fix, which is clustering
+      that does not let a frame border swallow its contents.
+    So: this instrument is TRUSTWORTHY on small born-digital books, IMPROVED but still noisy on
+    a large textbook (Investment Valuation reports 269 figure pages, down from 706, and the
+    remainder is not verified), and BLIND on the scan lane by construction.
+
 CPU-only. Never touches the GPU; safe to run beside a conversion.
 """
 
@@ -54,6 +72,40 @@ MIN_SIDE_PT = 40.0  # a figure is not 3pt tall; kills rules, underlines, table b
 MAX_PAGE_FRACTION = 0.92  # a region covering ~the whole page is the SCAN ITSELF, not a figure
 VECTOR_MIN_PATHS = 4  # a cluster needs real drawing activity, not one stray line
 VECTOR_CLUSTER_GAP_PT = 18.0  # paths closer than this merge into one figure region
+
+# ── the text-density veto (S104) ──────────────────────────────────────────────
+# A shaded callout box and a flow diagram both cluster into a big vector region. The box is
+# PROSE in a frame; the diagram is a picture with sparse labels. Thresholds were chosen AFTER
+# measuring the two known specimens, not before:
+#
+#   Investment Valuation p45 (sidebar, FALSE positive): coverage 0.731 · 9.25 words/line
+#   Cybernetics p84 (Du Pont diagram, TRUE positive)  : coverage 0.050 · 3.38 words/line
+#
+# Note what does NOT discriminate: line count (32 vs 29). The obvious metric is useless here.
+# Both conditions must hold to veto, which biases toward KEEPING regions — a missed veto costs
+# one false alarm, a wrong veto hides a real lost figure, and those are not symmetrical.
+VETO_TEXT_COVERAGE = 0.35   # sidebar 0.731 (2.1x above) · diagram 0.050 (7x below)
+VETO_WORDS_PER_LINE = 6.0   # sidebar 9.25 · diagram 3.38
+
+# The prose veto alone was not enough, measured S104: it cut Investment Valuation's flagged
+# pages 706 -> 477, and the survivors were dominated by TABLES ("ILLUSTRATION 2.1" boxes
+# wrapping shaded tables). A table is not prose and not a figure — on both prose metrics it
+# looks exactly like a diagram (p63: 4.76 words/line, coverage 0.319; the Du Pont diagram:
+# 3.38 and 0.050). So the discriminator cannot be text shape at all; it has to be structure.
+# MuPDF's own table finder separates them cleanly and cheaply:
+#   IV p63 -> 1 table · IV p73 -> 1 table · Cybernetics p84 (the diagram) -> 0 tables
+# It costs ~0.1 s/page and is therefore computed ONCE per page and only when a vector region
+# has already survived every cheaper filter.
+VETO_TABLE_OVERLAP = 0.5    # a region at least half-covered by a detected table is a table
+# And the case both of the above still missed, measured S104: Damodaran's "ILLUSTRATION N.N"
+# boxes. The clustering merges the outer FRAME with everything inside it into one region, so
+# the table sits at ~40 % of that region and never trips VETO_TABLE_OVERLAP, while the prose
+# test sees short table cells (4.5 words/line) and lets it through. Neither veto is wrong; the
+# REGION is wrong — it is a frame, not an object. Rather than re-tune either threshold, ask
+# the question that actually decides it: is this region's area ACCOUNTED FOR by text and
+# tables? If almost all of it is, there is no picture in there.
+#   IV p63: text .319 + table ~.40 = .72   IV p73: .336 + ~.38 = .72   Cyb p84: .05 + 0 = .05
+VETO_ACCOUNTED_FOR = 0.60
 
 _ASSET_RE = re.compile(r"_page_(\d+)_(Figure|Picture)_(\d+)\.(?:jpe?g|png)$", re.I)
 
@@ -91,6 +143,84 @@ def _cluster(rects, gap: float):
     return boxes
 
 
+def region_text_stats(page, bbox) -> dict:
+    """Is the text inside this region PROSE, or scattered labels?
+
+    Counts only lines whose bbox lies mostly INSIDE the region (>= half their area), so a
+    paragraph beside a figure does not get charged to it. Returns the two measures that
+    separated the specimens, plus the line count that did NOT.
+    """
+    r = pymupdf.Rect(bbox)
+    area = r.get_area()
+    if not area:
+        return {"lines": 0, "mean_words_per_line": 0.0, "text_coverage": 0.0}
+    lines, wpl, text_area = 0, [], 0.0
+    for blk in page.get_text("dict")["blocks"]:
+        if blk.get("type") != 0:          # 0 = text block; 1 = image
+            continue
+        for ln in blk.get("lines", []):
+            lr = pymupdf.Rect(ln["bbox"])
+            inter = lr & r
+            if inter.is_empty or inter.get_area() < 0.5 * lr.get_area():
+                continue
+            txt = "".join(s.get("text", "") for s in ln.get("spans", [])).strip()
+            if not txt:
+                continue
+            lines += 1
+            wpl.append(len(txt.split()))
+            text_area += lr.get_area()
+    return {"lines": lines,
+            "mean_words_per_line": round(sum(wpl) / len(wpl), 2) if wpl else 0.0,
+            "text_coverage": round(text_area / area, 3)}
+
+
+def _table_rects(page, cache: dict):
+    """Detected table bboxes for this page, computed at most once. Never fatal: a page whose
+    table finder raises is treated as having no tables, which biases toward reporting."""
+    if "t" not in cache:
+        try:
+            cache["t"] = [tuple(tb.bbox) for tb in page.find_tables().tables]
+        except Exception:
+            cache["t"] = []
+    return cache["t"]
+
+
+def _covered_frac(bbox, others) -> float:
+    """Fraction of bbox covered by `others`, summed. Overlapping others can over-count, which
+    is acceptable here: the number is only ever compared against a veto threshold, and
+    over-counting biases toward vetoing a frame, never toward hiding a figure... except that it
+    could. Hence it is summed with text coverage and capped at 1.0 by the caller, and the
+    threshold sits far from both specimens rather than tuned to the margin."""
+    r = pymupdf.Rect(bbox)
+    a = r.get_area()
+    if not a:
+        return 0.0
+    tot = 0.0
+    for o in others:
+        inter = r & pymupdf.Rect(o)
+        if not inter.is_empty:
+            tot += inter.get_area() / a
+    return tot
+
+
+def _covered_by(bbox, others, frac: float) -> bool:
+    r = pymupdf.Rect(bbox)
+    a = r.get_area()
+    if not a:
+        return False
+    for o in others:
+        inter = r & pymupdf.Rect(o)
+        if not inter.is_empty and inter.get_area() / a >= frac:
+            return True
+    return False
+
+
+def is_prose_block(stats: dict) -> bool:
+    """True = this region is a text container (sidebar, callout, table), not a figure."""
+    return (stats["text_coverage"] >= VETO_TEXT_COVERAGE
+            and stats["mean_words_per_line"] >= VETO_WORDS_PER_LINE)
+
+
 def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
     """Per 1-based page: the figure-like regions, raster and vector, with why each qualified.
 
@@ -104,6 +234,9 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
     doc = pymupdf.open(pdf_path)
     pages: dict[int, list] = {}
     digest_pages: dict[str, set] = {}
+    vetoed = 0
+    vetoed_tables = 0
+    vetoed_frames = 0
     try:
         for pno in range(doc.page_count):
             page = doc[pno]
@@ -160,6 +293,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
                 if ident:
                     digest_pages.setdefault(ident, set()).add(pno + 1)
 
+            tcache: dict = {}
             rects = []
             for d in page.get_drawings():
                 r = tuple(d.get("rect") or (0, 0, 0, 0))
@@ -174,8 +308,27 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
                     continue
                 if parea and area / parea > MAX_PAGE_FRACTION:
                     continue
+                # THE VETO, vector-only and deliberately so: a raster region is a real embedded
+                # image object, and vetoing one because prose overlaps it could hide an actual
+                # lost figure. The false-positive class this exists for — shaded callouts and
+                # table grids — is entirely vector.
+                stats = region_text_stats(page, bbox)
+                if is_prose_block(stats):
+                    vetoed += 1
+                    continue
+                # Second veto: structure, not text shape. A table survives the prose test
+                # because its cells are short — see the note on VETO_TABLE_OVERLAP.
+                tabs = _table_rects(page, tcache)
+                if _covered_by(bbox, tabs, VETO_TABLE_OVERLAP):
+                    vetoed_tables += 1
+                    continue
+                # The frame case: nothing here is a picture if text + tables account for it.
+                if min(1.0, stats["text_coverage"] + _covered_frac(bbox, tabs)) >= VETO_ACCOUNTED_FOR:
+                    vetoed_frames += 1
+                    continue
                 regions.append({"kind": "vector", "bbox": [round(v, 1) for v in bbox],
-                                "area": round(area, 1), "paths": npaths})
+                                "area": round(area, 1), "paths": npaths,
+                                "text": stats})
 
             if regions:
                 pages[pno + 1] = regions
@@ -195,7 +348,9 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True) -> dict:
                     pages[pno] = kept
                 else:
                     del pages[pno]
-    return {"pages": pages, "page_count": n_pages,
+    return {"pages": pages, "page_count": n_pages, "vetoed_prose_regions": vetoed,
+            "vetoed_table_regions": vetoed_tables,
+            "vetoed_framed_text_regions": vetoed_frames,
             "furniture_digests": len(
                 {d for d, ps in digest_pages.items() if len(ps) > max(3, int(0.25 * n_pages))}
             )}
@@ -256,6 +411,9 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True) -> dict:
         "assets_out_of_range": out_of_range,
         "unparsed_asset_names": out["unparsed"][:5],
         "furniture_digests_dropped": src["furniture_digests"],
+        "vetoed_prose_regions": src.get("vetoed_prose_regions", 0),
+        "vetoed_table_regions": src.get("vetoed_table_regions", 0),
+        "vetoed_framed_text_regions": src.get("vetoed_framed_text_regions", 0),
         "uncovered_detail": detail,
         "conditions": {
             "unit": "PER PAGE — a page with N source figures and >=1 output asset counts as "
@@ -266,6 +424,10 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True) -> dict:
             "max_page_fraction": MAX_PAGE_FRACTION,
             "vector_min_paths": VECTOR_MIN_PATHS,
             "vector_cluster_gap_pt": VECTOR_CLUSTER_GAP_PT,
+            "veto_text_coverage": VETO_TEXT_COVERAGE,
+            "veto_words_per_line": VETO_WORDS_PER_LINE,
+            "veto_table_overlap": VETO_TABLE_OVERLAP,
+            "veto_accounted_for": VETO_ACCOUNTED_FOR,
             "image_identity": "md5" if use_hashes else "none (furniture-dedup disabled)",
             "verdict_effect": "NONE — report-only by docs/15 §6; writes nothing",
         },
