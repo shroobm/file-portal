@@ -25,19 +25,20 @@ import sys
 import time
 from pathlib import Path
 
+import fp_paths
 from events import emit
 
 # FP_PIPELINE / FP_CONVERT exist for the deferral-gate tripwire, which runs THIS file for real
 # against an isolated root and a stub converter (SYM-010: never the live dirs, never Marker).
-# Unset - the production case - nothing changes.
-BASE = Path(os.environ.get("FP_PIPELINE", r"C:\Users\Bndit\ml\library"))
-DROP_DIR = BASE / "drop"
-DONE_DIR = DROP_DIR / "done"
-FAILED_DIR = DROP_DIR / "failed"
-MODE_FILE = BASE / "analyst-mode.txt"  # off | local | gemini | ask
-LOCK_FILE = BASE / ".gpu-lock"  # busy signal for the future control-room card
-HOLD_FILE = BASE / "chat-hold.json"  # the assistant's claim on the card - written by room_chat.py ONLY
-LOG_FILE = BASE / "watcher.log"
+# Unset - the production case - nothing changes. Roots resolve through fp_paths (S108).
+BASE = fp_paths.pipeline_root()
+DROP_DIR = fp_paths.root("drop")
+DONE_DIR = fp_paths.root("drop_done")
+FAILED_DIR = fp_paths.root("drop_failed")
+MODE_FILE = fp_paths.root("analyst_mode")  # off | local | gemini | ask
+LOCK_FILE = fp_paths.root("gpu_lock")  # busy signal for the future control-room card
+HOLD_FILE = fp_paths.root("chat_hold")  # the assistant's claim on the card - written by room_chat.py ONLY
+LOG_FILE = fp_paths.root("watcher_log")
 CONVERT = Path(os.environ.get("FP_CONVERT", str(Path(__file__).parent / "convert_and_ship.py")))
 PYTHON = sys.executable
 PATTERNS = {".pdf"}

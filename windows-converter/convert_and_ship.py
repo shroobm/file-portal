@@ -30,6 +30,7 @@ from pathlib import Path
 
 import pymupdf
 
+import fp_paths
 from events import emit
 
 # ---------- Survival Audit hooks (docs/15) — report-only, never raise ----------
@@ -80,10 +81,10 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
 
 
 MARKER = Path(r"C:\Users\Bndit\ml\marker-env\Scripts\marker_single.exe")
-ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
-PENDING = Path(r"C:\Users\Bndit\ml\library\pending")  # deferred-analyst queue (widget card)
-HELD = Path(r"C:\Users\Bndit\ml\library\held")  # audit-failed bundles (enforce mode; assay card)
-AUDIT_MODE_FILE = Path(r"C:\Users\Bndit\ml\library\audit-mode.txt")  # report | enforce (docs/15 §12)
+ANCHOR = fp_paths.root("anchor")
+PENDING = fp_paths.root("pending")  # deferred-analyst queue (widget card)
+HELD = fp_paths.root("held")  # audit-failed bundles (enforce mode; assay card)
+AUDIT_MODE_FILE = fp_paths.root("audit_mode")  # report | enforce (docs/15 §12)
 REMOTE = "rab@archlinux"
 REMOTE_STAGING = "~/file-portal/library/staging"
 MIN_CHARS_PER_PAGE = 100  # provisional, same value + revisit-note as the ThinkPad's
@@ -97,7 +98,7 @@ STALL_FROZEN_S = 900
 # S42: live convert progress (docs/16 §8 #3). The widget's line.rs reads this file while a
 # convert holds the .gpu-lock; the Room shows the real Marker/surya stage + per-page count.
 # ENTIRELY best-effort: writing/parsing this must never affect the conversion (see convert()).
-PROGRESS_FILE = Path(r"C:\Users\Bndit\ml\library\.convert-progress.json")
+PROGRESS_FILE = fp_paths.root("convert_progress")
 # surya/tqdm bar, e.g. "Recognizing Layout:  33%|###3      | 1/3 [00:04<00:09, 4.67s/it]".
 # Indeterminate bars ("Detecting bboxes: 0it [...]") simply don't match and are skipped.
 _TQDM_RE = re.compile(r"([A-Za-z][\w ()/-]*?):\s*(\d{1,3})%\|[^|]*\|\s*(\d+)\s*/\s*(\d+)")
@@ -123,7 +124,7 @@ def _clear_progress() -> None:
 # Stage E (docs/19 §5): the ledger-fed promise, written ONCE at convert start so the widget can
 # project it verbatim. Python is the only authority on the estimate (blind spot #1: never derive
 # the same number twice in two languages); line.rs reads this file, it never recomputes it.
-ESTIMATE_FILE = Path(r"C:\Users\Bndit\ml\library\.convert-estimate.json")
+ESTIMATE_FILE = fp_paths.root("convert_estimate")
 
 
 def _write_estimate_safe(source: str, pages: int, lane: str, chars: float) -> dict | None:
@@ -174,12 +175,12 @@ SLICE_PAGES = 200
 # The slice recognition batch is a USER LEVER (Rab's framing: 8 "keeps it actually useful",
 # 16 the go-faster default, 32 "if I really want to"). Backend truth is this file, re-read per
 # slice so an edit mid-book takes effect at the next slice. Unchunked books keep RECOGNITION_BATCH.
-CHUNK_BATCH_FILE = Path(r"C:\Users\Bndit\ml\library\chunk-batch.txt")
+CHUNK_BATCH_FILE = fp_paths.root("chunk_batch")
 CHUNK_BATCH_ALLOWED = (8, 16, 32)
 CHUNK_BATCH_DEFAULT = 16
 # Completed slices live HERE, not in the run's temp dir, because resume must survive the process
 # that made them: keyed by (source_sha16, page_range) exactly as the spec requires.
-CHUNK_WORK = Path(r"C:\Users\Bndit\ml\library\.chunk-work")
+CHUNK_WORK = fp_paths.root("chunk_work")
 
 
 def chunk_batch() -> int:
@@ -568,7 +569,7 @@ def route(chars: float, ocr_fonts: bool) -> tuple[list[str], str, str]:
 # facts, but scattered across lines and stages; this is the shape the estimator reads, so a new
 # book's promise comes from SIMILAR past works (same lane, nearest chars/pp) instead of one
 # global median. Append-only, single writer (this converter), same discipline as events.jsonl.
-LEDGER_FILE = Path(r"C:\Users\Bndit\ml\library\conversion-ledger.jsonl")
+LEDGER_FILE = fp_paths.root("conversion_ledger")
 
 
 def _ledger_record(manifest: dict, cost_s: float, peak_mib: int,

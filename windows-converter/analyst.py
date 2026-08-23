@@ -21,6 +21,8 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import fp_paths
+
 MODEL = "qwen3:8b"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 # S79 — RESIDENCY. Measured on the S76 Beer with this module's own program and chunker:
@@ -48,7 +50,7 @@ CHUNK_TARGET = 4000  # chars; well inside an 8k context with prompt + thinking r
 NUM_CTX = 8192
 # Stage C (docs/18 §4C): per-chunk liveness, the S42 progress-file pattern — overwritten every
 # chunk (zero flight-recorder growth); the file's mtime is the heartbeat the widget ages.
-ANALYST_PROGRESS = Path(r"C:\Users\Bndit\ml\library\.analyst-progress.json")
+ANALYST_PROGRESS = fp_paths.root("analyst_progress")
 
 # Measured end-to-end throughput (chars of input markdown per second, all-in:
 # chunking + model load/reload + generation + fence checks). Sources: local =
@@ -222,7 +224,7 @@ def _tokens_of(text: str) -> list[str]:
 # the markdown only at the end. Marker got slice resume in Stage D; this is the same discipline
 # one stage over: each finished chunk is journalled to disk the moment it exists, so an outage
 # costs one chunk (~16 s) instead of an afternoon.
-ANALYST_WORK = Path(r"C:\Users\Bndit\ml\library\.analyst-work")
+ANALYST_WORK = fp_paths.root("analyst_work")
 
 
 def _resume_key(fenced: str, backend: str, program: str) -> str:
@@ -410,8 +412,8 @@ def gpu_busy(threshold_mib: int = 2000) -> tuple[bool, int]:
 # above this chunk count will throttle even with pacing — recommend local.
 FREE_TIER_WINDOW_CHUNKS = 18
 
-EVENTS_FILE = Path(r"C:\Users\Bndit\ml\library\events.jsonl")
-RULES_FILE = Path(r"C:\Users\Bndit\ml\library\rules.json")
+EVENTS_FILE = fp_paths.root("events")
+RULES_FILE = fp_paths.root("rules")
 
 
 def measured_rates(backend: str, max_samples: int = 12) -> list[float]:

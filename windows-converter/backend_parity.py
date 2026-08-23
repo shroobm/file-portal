@@ -93,14 +93,15 @@ import urllib.request
 from pathlib import Path
 
 import analyst
+import fp_paths
 
 LLAMA_EXE = Path(r"C:\Users\Bndit\ml\llama\llama-server.exe")
 # The Ollama blob IS the gguf - same bytes, so the comparison cannot drift on weights.
 # Verified S80: this sha resolves to exactly one manifest, registry.ollama.ai/library/qwen3/8b.
 MODEL_GGUF = Path(r"C:\Users\Bndit\.ollama\models\blobs"
                   r"\sha256-a3de86cd1c132c822487ededd47a324c50491393e6565cd14bafa40d0b8e686f")
-DEFAULT_BOOK = Path(r"C:\Users\Bndit\ml\library\held\b6fbdd75f6242f53"
-                    r"\Best Practices for Equity Research Analysts - James J Valentine (2011).md")
+DEFAULT_BOOK = (fp_paths.root("held") / "b6fbdd75f6242f53"
+                / "Best Practices for Equity Research Analysts - James J Valentine (2011).md")
 # S83: this was 7117 - INSIDE room-chat's range, directly under this do-not-borrow comment. It
 # never bit only because room-chat was down. A do-not-borrow comment that borrows is SYM-032's
 # shape in miniature: the words carried no mechanism.
@@ -261,8 +262,8 @@ def vram_mib() -> int:
     return int(out.stdout.strip().splitlines()[0])
 
 
-PIPE_ROOT = Path(os.environ.get("FP_PIPELINE", r"C:\Users\Bndit\ml\library"))
-GPU_LOCK = PIPE_ROOT / ".gpu-lock"
+PIPE_ROOT = fp_paths.pipeline_root()
+GPU_LOCK = fp_paths.root("gpu_lock")
 
 
 def convert_running() -> str | None:

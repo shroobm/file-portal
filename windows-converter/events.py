@@ -6,12 +6,13 @@ writer at a time per process, newline-delimited — reconstructible truth on dis
 import json
 import os
 from datetime import datetime, timezone
-from pathlib import Path
 
-# FP_PIPELINE override matches watch_and_convert.py's: the deferral-gate tripwire runs the real
-# watcher against an isolated root, and its telemetry must land THERE - a test event in the live
-# stream would render on the widget as a phantom arrival (SYM-010's class).
-EVENTS_FILE = Path(os.environ.get("FP_PIPELINE", r"C:\Users\Bndit\ml\library")) / "events.jsonl"
+import fp_paths
+
+# FP_PIPELINE override (via the fp_paths resolver, S108): the deferral-gate tripwire runs the
+# real watcher against an isolated root, and its telemetry must land THERE - a test event in the
+# live stream would render on the widget as a phantom arrival (SYM-010's class).
+EVENTS_FILE = fp_paths.root("events")
 
 
 def emit(stage: str, event: str, **fields) -> None:

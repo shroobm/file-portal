@@ -1,0 +1,118 @@
+{
+  "about": "The pipeline roots registry (S108 Lane E). Every filesystem root the desktop converter lane touches under the pipeline tree is NAMED here once and resolved only through fp_paths.py. `path` is relative to the resolved pipeline root ('.' = the root itself); `env` names the override that relocates it - FP_PIPELINE moves the whole tree, which is how the deferral-gate tripwire runs real code against an isolated scratch root instead of the live library (SYM-010's class). Names are File Portal's own vocabulary.",
+  "version": 1,
+  "root_env": "FP_PIPELINE",
+  "default_root": "C:\\Users\\Bndit\\ml\\library",
+  "roots": {
+    "library": {
+      "path": ".",
+      "env": "FP_PIPELINE",
+      "role": "the pipeline root itself - every other root lives under it; FP_PIPELINE relocates the whole tree"
+    },
+    "anchor": {
+      "path": "anchor",
+      "env": "FP_PIPELINE",
+      "role": "converted-bundle library - dot-then-atomic delivery lands finished bundles here; the exporter ships from it"
+    },
+    "pending": {
+      "path": "pending",
+      "env": "FP_PIPELINE",
+      "role": "deferred-analyst queue - conversions parked for the widget's pre-flight card (analyst-mode 'ask')"
+    },
+    "held": {
+      "path": "held",
+      "env": "FP_PIPELINE",
+      "role": "audit-failed bundles (enforce mode; the assay card reads these)"
+    },
+    "drop": {
+      "path": "drop",
+      "env": "FP_PIPELINE",
+      "role": "watched arrivals folder - drop a PDF here and the conveyor converts it"
+    },
+    "drop_done": {
+      "path": "drop/done",
+      "env": "FP_PIPELINE",
+      "role": "successful conversions archived out of drop/ (also read by prototypes/repair-bench and docling-calibration, not yet on this registry)"
+    },
+    "drop_failed": {
+      "path": "drop/failed",
+      "env": "FP_PIPELINE",
+      "role": "failed conversions archived out of drop/ with the error logged"
+    },
+    "events": {
+      "path": "events.jsonl",
+      "env": "FP_PIPELINE",
+      "role": "append-only pipeline event stream the widget tails - reconstructible truth on disk (docs/13)"
+    },
+    "rules": {
+      "path": "rules.json",
+      "env": "FP_PIPELINE",
+      "role": "analyst pre-flight rules the Tauri card folds into its JSON"
+    },
+    "analyst_mode": {
+      "path": "analyst-mode.txt",
+      "env": "FP_PIPELINE",
+      "role": "analyst routing lever: off | local | gemini | ask - re-read before every conversion"
+    },
+    "analyst_progress": {
+      "path": ".analyst-progress.json",
+      "env": "FP_PIPELINE",
+      "role": "per-chunk analyst heartbeat - overwritten every chunk; the file's mtime is the liveness the widget ages"
+    },
+    "analyst_work": {
+      "path": ".analyst-work",
+      "env": "FP_PIPELINE",
+      "role": "chunk-level resume journal (S61) - each finished chunk lands here the moment it exists"
+    },
+    "audit_mode": {
+      "path": "audit-mode.txt",
+      "env": "FP_PIPELINE",
+      "role": "survival-audit mode lever: report | enforce (docs/15 s12)"
+    },
+    "gpu_lock": {
+      "path": ".gpu-lock",
+      "env": "FP_PIPELINE",
+      "role": "converter busy SIGNAL, not a lock (SYM-032) - written by the watcher, read by room-chat and the parity bench"
+    },
+    "chat_hold": {
+      "path": "chat-hold.json",
+      "env": "FP_PIPELINE",
+      "role": "the assistant's claim on the card - written by room_chat.py ONLY; the watcher's deferral gate reads it"
+    },
+    "watcher_log": {
+      "path": "watcher.log",
+      "env": "FP_PIPELINE",
+      "role": "the conveyor watcher's log file"
+    },
+    "convert_progress": {
+      "path": ".convert-progress.json",
+      "env": "FP_PIPELINE",
+      "role": "live convert progress the widget's line.rs reads while .gpu-lock is held (S42; entirely best-effort)"
+    },
+    "convert_estimate": {
+      "path": ".convert-estimate.json",
+      "env": "FP_PIPELINE",
+      "role": "the conversion's ledger-fed promise - Python is the only authority; line.rs projects it verbatim (docs/19 s5)"
+    },
+    "chunk_batch": {
+      "path": "chunk-batch.txt",
+      "env": "FP_PIPELINE",
+      "role": "slice recognition-batch USER LEVER: 8 | 16 | 32 - re-read per slice"
+    },
+    "chunk_work": {
+      "path": ".chunk-work",
+      "env": "FP_PIPELINE",
+      "role": "completed chunked-convert slices keyed (source_sha16, page_range) - resume survives the process that made them"
+    },
+    "conversion_ledger": {
+      "path": "conversion-ledger.jsonl",
+      "env": "FP_PIPELINE",
+      "role": "one learning record per successful conversion - the estimator reads SIMILAR past works from it (docs/18 s5.2)"
+    },
+    "figure_triage": {
+      "path": "figure-triage.txt",
+      "env": "FP_PIPELINE",
+      "role": "figure-coverage triage lever file: mode + thresholds (consumer figure_coverage.py, not yet on this registry)"
+    }
+  }
+}
