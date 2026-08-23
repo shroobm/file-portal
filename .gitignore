@@ -48,3 +48,10 @@ prototypes/glm-ocr-probe/*.png
 observability/__pycache__/
 prototypes/__pycache__/
 prototypes/**/__pycache__/
+
+# --- Wiki profiles: the private layer (S107) ---
+# The repo is PUBLIC on GitHub. A profile's personal content lives only in the
+# gitignored *.private.md layer; the tracked layer carries role + working agreements.
+# Enforced mechanically by `.claude/skills/wiki/wiki.sh check` (a tracked private
+# file is a measured red).
+wiki/profiles/*.private.md
