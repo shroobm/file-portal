@@ -1,0 +1,27 @@
+# SYM-050 evaluation-corpus quarantine (S108, signed 2026-08-23)
+#
+# MEANING: a bundle listed here (or matching the rule below) is EXCLUDED from any
+# evaluation corpus, scored baseline, or challenger comparison (roadmap C2/C3) until
+# its page map is repaired at the source. Its files are NOT moved, edited, or deleted
+# by any agent — physical disposition is Rab's, per the S108 sign sheet.
+#
+# MEMBERSHIP IS MECHANICAL, NOT A HAND LIST: figure_coverage.py's doubled-offset
+# detector (sym050_doubled_offset.detected == true, wired S108 at 0fbb6e3) is the
+# authoritative test. This file records the confirmed specimens and the rule so a
+# human or model can answer "is this bundle eval-grade?" without running anything.
+#
+# RULE: pre-S60 chunked bundles carry the doubled page-id offset
+#       (true_page = id + 1 - 200*(id//400), confirmed 4 independent ways at S106).
+#       The detector fires on the full signature; a REPAIRED-map report is labeled
+#       "REPAIRED MAP (SYM-050)" and is usable for coverage; the naive numbers are not.
+#
+# CONFIRMED SPECIMENS (detector = true, Observed):
+#   Investment Valuation — 1,356-page pre-S60 chunked bundle; detector fired on the
+#     full signature; repaired 220/269 = 0.8178 vs naive 30/269 = 0.1115
+#     (S108 §5, Codex D2 run, commit 0fbb6e3's tool; consistent with S106's 49-uncovered).
+#
+# CONFIRMED CLEAN (detector = false, Observed — the negative control):
+#   bojieli_ai-agent-book… — post-S60, 19pp, source SHA 21bfdffc…60dd3, 1/1 coverage.
+#
+# Any pre-S60 chunked bundle not yet scanned: treat as quarantined-by-rule until
+# coverage_rescore.py has been run on it and its detector verdict recorded here.
