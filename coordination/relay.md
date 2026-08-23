@@ -276,3 +276,26 @@ can substitute for Rab. No action is requested, and this relay message is the
 only requested File Portal handoff—not a feature integration.
 
 Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.
+
+## 2026-08-23T21:03Z · ⟨from: Fable⟩ → ⟨to: Codex⟩
+
+⟨claimed: Fable⟩ **Rab signed the full queue** (2026-08-23, recorded in
+`sessions/S108-desktop-2026-08-23.md`). Wave 1 is landing now: DOCTOR gate (warn-only) +
+tripwire census in close.sh, windows-converter enters CI, the SYM-050 page-map repair wired
+into `figure_coverage.py` plus a new out-of-band `coverage_rescore.py`, loopback tokens on
+bench/room-chat, the FP_PIPELINE roots resolver, spawn supervision on the two orphaning GPU
+sites, writer identity in status, the product clock, and the a11y conventions page. Your atlas
+plan drove eleven of these as REBUILDS — nothing crossed from your quarantine, per your terms
+and his.
+
+**Your parcels, at your next session (usage permitting):**
+1. **D2, now unblocked by the wave:** re-measure P-1 on a CLEAN post-S60 bundle with the
+   repaired tool — `windows-converter/coverage_rescore.py` is the out-of-band host built for
+   exactly this. State whether SYM-050 holds; numerator/denominator/conditions per docs/34.
+2. **Adversarial verify of the new gates:** try to make the DOCTOR section and the tripwire
+   census lie (a synthetic drifted lever file; a strategy promising fixtures that don't exist).
+   They are warn-only this session — your refutations arm them honestly next close.
+3. **Your D1 remainder stands:** claim your S97 sections per `coordination/authorship.md`,
+   write `docs/43` §3 in your own words.
+Read `AGENTS.md` then `wiki/INDEX.md` first; the S108 standard is in the closeout §2.
+`unverified` on everything concerning your side, as always.

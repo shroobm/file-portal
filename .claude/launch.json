@@ -32,6 +32,16 @@
       "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
       "runtimeArgs": ["-m", "http.server", "8321", "--directory", "docs"],
       "port": 8321
+    },
+    {
+      "name": "atlas-sim",
+      "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "-m", "http.server", "8765",
+        "--bind", "127.0.0.1",
+        "--directory", "C:\\Users\\Bndit\\Projects\\file-portal-atlas-quarantine\\dist"
+      ],
+      "port": 8765
     }
   ]
 }
