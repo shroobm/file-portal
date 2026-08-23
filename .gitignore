@@ -55,3 +55,8 @@ prototypes/**/__pycache__/
 # Enforced mechanically by `.claude/skills/wiki/wiki.sh check` (a tracked private
 # file is a measured red).
 wiki/profiles/*.private.md
+
+# --- .agents/: Codex's runtime skills mirror (B2, signed S108) ---
+# Divergent by design and resolved only by Codex's harness; never by Claude Code.
+# Tracked canonical skills live in .claude/skills/.
+.agents/
