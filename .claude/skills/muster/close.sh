@@ -176,7 +176,118 @@ else
   row "LEVERS" "UNREAD — pin $PIN unresolvable; NOT a statement that none were added"
 fi
 
-# ── [6] PUSH — an unpushed close is how the 2026-08-16 fork grew 52 commits deep ────────────
+# ── [6] DOCTOR — the artifact vs the measurement that justified it (S108, atlas rank 1) ─────
+# S108: warn-only for one session, arm next close.
+#
+# S106's own words: "the one check the governance layer still lacks is comparing the
+# artifact to the measurement" — that session shipped a triage rule its code did not
+# implement, and every tripwire stayed honestly green while the record was wrong. Wave 1,
+# signed scope:
+#   (a) lever-name parity: every threshold the operator file NAMES must actually be read
+#       by the consumer. Grep-level and READ-ONLY — runs nothing, writes nothing.
+#   (b) closeout-headline re-runs: not yet mechanized — reported UNREAD, never green.
+DOC_LEVERS="${FP_DOCTOR_LEVERS:-$HOME/ml/library/figure-triage.txt}"
+DOC_CODE="${FP_DOCTOR_CODE:-$FP_REPO/windows-converter/figure_coverage.py}"
+DOC_GREP="${FP_DOCTOR_GREP:-grep}"
+if [ ! -f "$DOC_LEVERS" ]; then
+  row "DOCTOR" "UNREAD — lever file absent at $DOC_LEVERS; NOT a statement of parity"
+elif [ ! -f "$DOC_CODE" ]; then
+  row "DOCTOR" "UNREAD — consumer absent at $DOC_CODE; NOT a statement of parity"
+else
+  # Parse completeness is part of the measurement. Dropping one declaration line and then
+  # shrinking the denominator to the successfully parsed subset is a false green.
+  doc_source=$(tr -d '\r' < "$DOC_LEVERS" | sed -E 's/[[:space:]]*#.*$//' | sed '/^[[:space:]]*$/d')
+  doc_rows=$(printf '%s\n' "$doc_source" | awk 'NF { n++ } END { print n+0 }')
+  doc_names=$(printf '%s\n' "$doc_source" | sed -nE 's/^[[:space:]]*([a-z][a-z0-9_]*)[[:space:]]*=.*/\1/p')
+  doc_parsed=$(printf '%s\n' "$doc_names" | awk 'NF { n++ } END { print n+0 }')
+  doc_unique=$(printf '%s\n' "$doc_names" | sed '/^$/d' | sort -u | awk 'NF { n++ } END { print n+0 }')
+  if [ "$doc_rows" -eq 0 ]; then
+    row "DOCTOR" "UNREAD — 0 lever names parsed from $DOC_LEVERS; NOT a statement of parity"
+  elif [ "$doc_rows" -ne "$doc_parsed" ] || [ "$doc_parsed" -ne "$doc_unique" ]; then
+    row "DOCTOR" "UNREAD — lever parse incomplete/ambiguous: non-comment rows $doc_rows · parsed $doc_parsed · unique $doc_unique"
+    row "" "every declaration must be one unique lower_snake_case key=value row; denominator was NOT shrunk"
+  else
+    doc_match=""; doc_miss=""; doc_m=0; doc_x=0; doc_probe_bad=0
+    while IFS= read -r lname; do
+      [ -z "$lname" ] && continue
+      if "$DOC_GREP" -Fq "\"$lname\"" "$DOC_CODE"; then
+        doc_m=$((doc_m + 1)); doc_match="${doc_match}${doc_match:+ · }${lname}"
+      else
+        doc_rc=$?
+        if [ "$doc_rc" -eq 1 ]; then
+          doc_x=$((doc_x + 1)); doc_miss="${doc_miss}${doc_miss:+ · }${lname}"
+        else
+          doc_probe_bad=$doc_rc
+          break
+        fi
+      fi
+    done <<EOF
+$doc_names
+EOF
+    if [ "$doc_probe_bad" -ne 0 ]; then
+      row "DOCTOR" "UNREAD — consumer reference probe exited $doc_probe_bad; NOT a statement that names are absent"
+    else
+      row "DOCTOR" "lever lexical parity: $(basename "$DOC_LEVERS") names $doc_parsed · quoted refs $doc_m · MISSING $doc_x"
+      [ -n "$doc_match" ] && row "" "LEXICAL REF: $doc_match"
+      row "" "UNREAD — a quoted lexical occurrence does NOT prove the consumer reads the lever; gate remains unarmed"
+    fi
+    if [ "$doc_probe_bad" -eq 0 ] && [ "$doc_x" -gt 0 ]; then
+      row "" "MISSING: $doc_miss — named in the operator file, never read by $(basename "$DOC_CODE")"
+      row "" "the operator can turn a knob no code is holding — S108: warn-only for one session, arm next close"
+    fi
+  fi
+fi
+row "DOCTOR-HEAD" "UNREAD — closeout-headline probe re-run not yet mechanized; NOT a statement the numbers reproduce"
+
+# ── [7] CENSUS — promised tripwires vs executed (S108, atlas rank 2) ────────────────────────
+# S108: warn-only for one session, arm next close.
+#
+# docs/32 §5 rule 2: a guard nobody watched fire is a proxy with a reputation. The census
+# checks that a suite EXECUTES every tripwire it declares — a planted red that never runs
+# protects nothing while its banner stays green. Wave 1, signed: the wiki suite, which
+# declares fixtures as `# ---- T<n>` headers and prints its own `ALL TRIPWIRES FIRED — N/N`.
+# Broader census over *TEST-STRATEGY* docs: not yet mechanized — UNREAD, never assumed whole.
+CEN_SUITE="${FP_CENSUS_SUITE:-$FP_REPO/.claude/skills/wiki/selftest.sh}"
+if [ ! -f "$CEN_SUITE" ]; then
+  row "CENSUS" "UNREAD — suite absent at $CEN_SUITE; NOT a statement its tripwires are whole"
+else
+  cen_decl_ids=$(tr -d '\r' < "$CEN_SUITE" | sed -nE 's/^# ---- (T[0-9]+):.*/\1/p')
+  cen_decl=$(printf '%s\n' "$cen_decl_ids" | awk 'NF { n++ } END { print n+0 }')
+  cen_decl_unique=$(printf '%s\n' "$cen_decl_ids" | sed '/^$/d' | sort -u | awk 'NF { n++ } END { print n+0 }')
+  cen_out=$(bash "$CEN_SUITE" 2>&1); cen_rc=$?
+  cen_frac_lines=$(printf '%s\n' "$cen_out" | sed -nE 's/^ALL TRIPWIRES FIRED — ([0-9]+\/[0-9]+)(, exit 0)?$/\1/p')
+  cen_banner_n=$(printf '%s\n' "$cen_frac_lines" | awk 'NF { n++ } END { print n+0 }')
+  cen_frac=$(printf '%s\n' "$cen_frac_lines" | sed -n '1p')
+  cen_pass="${cen_frac%/*}"; cen_total="${cen_frac#*/}"
+  cen_fired_ids=$(printf '%s\n' "$cen_out" | sed -nE 's/^TRIPWIRE (T[0-9]+) FIRED$/\1/p')
+  cen_fired=$(printf '%s\n' "$cen_fired_ids" | awk 'NF { n++ } END { print n+0 }')
+  cen_fired_unique=$(printf '%s\n' "$cen_fired_ids" | sed '/^$/d' | sort -u | awk 'NF { n++ } END { print n+0 }')
+  cen_missing=$(comm -23 <(printf '%s\n' "$cen_decl_ids" | sed '/^$/d' | sort -u) <(printf '%s\n' "$cen_fired_ids" | sed '/^$/d' | sort -u) | tr '\n' ' ')
+  cen_extra=$(comm -13 <(printf '%s\n' "$cen_decl_ids" | sed '/^$/d' | sort -u) <(printf '%s\n' "$cen_fired_ids" | sed '/^$/d' | sort -u) | tr '\n' ' ')
+  if [ "$cen_rc" -ne 0 ]; then
+    row "CENSUS" "RED-WARN — $(basename "$CEN_SUITE") itself exited $cen_rc; its last line: $(printf '%s' "$cen_out" | tail -1)"
+    row "" "S108: warn-only for one session, arm next close"
+  elif [ "$cen_decl" -eq 0 ] || [ "$cen_decl" -ne "$cen_decl_unique" ]; then
+    row "CENSUS" "UNREAD — declaration IDs absent/duplicated: rows $cen_decl · unique $cen_decl_unique"
+  elif [ "$cen_banner_n" -ne 1 ] || [ -z "$cen_frac" ]; then
+    row "CENSUS" "UNREAD — expected exactly one anchored 'ALL TRIPWIRES FIRED — N/N' banner; observed $cen_banner_n"
+  elif [ "${#cen_pass}" -gt 9 ] || [ "${#cen_total}" -gt 9 ]; then
+    row "CENSUS" "UNREAD — banner integers exceed the bounded parser; NOT a green"
+  elif [ "$cen_fired" -ne "$cen_fired_unique" ] || [ "$cen_fired_unique" -ne "$cen_decl_unique" ] || [ -n "$cen_missing$cen_extra" ]; then
+    row "CENSUS" "RED-WARN — declaration/flight mismatch: declared $cen_decl_unique · unique FIRED markers $cen_fired_unique"
+    [ -n "$cen_missing" ] && row "" "MISSING FIRED: $cen_missing"
+    [ -n "$cen_extra" ] && row "" "UNDECLARED FIRED: $cen_extra"
+    row "" "S108: warn-only for one session, arm next close"
+  elif [ "$cen_pass" -le 0 ] || [ "$cen_pass" -ne "$cen_total" ] || [ "$cen_total" -ne "$cen_decl_unique" ]; then
+    row "CENSUS" "RED-WARN — declared $cen_decl_unique · FIRED $cen_fired_unique · banner $cen_frac; require positive numerator = denominator = declarations"
+    row "" "S108: warn-only for one session, arm next close"
+  else
+    row "CENSUS" "$(basename "$CEN_SUITE"): declared $cen_decl_unique = FIRED $cen_fired_unique = banner $cen_frac (exit 0)"
+  fi
+fi
+row "CENSUS-SCOPE" "UNREAD — broader TEST-STRATEGY fixture census not yet mechanized; NOT a statement all promised tripwires ran"
+
+# ── [8] PUSH — an unpushed close is how the 2026-08-16 fork grew 52 commits deep ────────────
 row "PUSH" "ahead of upstream: $ahead (the close pushes; 0 after)"
 
 printf '════════ close exit %d — values only; the judgment half is SKILL.md ════════\n' "$red"

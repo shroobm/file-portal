@@ -310,6 +310,85 @@ git -C "$GATE" add -A >/dev/null 2>&1
 git -C "$GATE" -c user.email=t@t -c user.name=t commit -qm waive >/dev/null 2>&1
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" bash "$CLOSE" "$base" 2>&1); rc=$?
 assert "CLOSE: a written lever-waiver silences the gate (it is not a constant that always fires)" 0 'LEVERS           no unlevered' "$rc" "$out"
+
+# CASE 28 - DOCTOR parse and epistemic scope. Comments and inert strings are deliberately
+# planted with quoted lever names: lexical grep will see them, but the card must never upgrade
+# that occurrence to "consumed" or "read". A second declaration shape that the parser cannot
+# understand must make the whole denominator UNREAD rather than disappear.
+DOC28="$WORK/doctor28"; mkdir -p "$DOC28"
+printf 'actually_read=10\ncomment_only=20\ndead_text=30\n' > "$DOC28/levers.txt"
+cat > "$DOC28/consumer.py" <<'DOC'
+value = settings.get("actually_read")
+# "comment_only"
+"""dead_text"""
+DOC
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_DOCTOR_LEVERS="$DOC28/levers.txt" \
+      FP_DOCTOR_CODE="$DOC28/consumer.py" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE DOCTOR: lexical hits are labelled lexical and actual consumption stays UNREAD" 0 'lever lexical parity:.*quoted refs 3.*MISSING 0' "$rc" "$out"
+if printf '%s' "$out" | grep -q 'consumed'; then
+  bad "CLOSE DOCTOR: never calls a lexical occurrence consumed" "got: $(printf '%s' "$out" | grep DOCTOR)"
+else ok "CLOSE DOCTOR: never calls a lexical occurrence consumed"; fi
+assert "CLOSE DOCTOR: the card states lexical occurrence does not prove a read" 0 'lexical occurrence does NOT prove' "$rc" "$out"
+
+printf 'actually_read=10\nexport silently_unparsed=40\n' > "$DOC28/levers.txt"
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_DOCTOR_LEVERS="$DOC28/levers.txt" \
+      FP_DOCTOR_CODE="$DOC28/consumer.py" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE DOCTOR: one unparsed declaration makes the whole denominator UNREAD" 0 'lever parse incomplete/ambiguous:.*rows 2.*parsed 1' "$rc" "$out"
+
+printf '#!/bin/sh\nexit 2\n' > "$DOC28/grep-fails"; chmod +x "$DOC28/grep-fails"
+printf 'actually_read=10\n' > "$DOC28/levers.txt"
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_DOCTOR_LEVERS="$DOC28/levers.txt" \
+      FP_DOCTOR_CODE="$DOC28/consumer.py" FP_DOCTOR_GREP="$DOC28/grep-fails" \
+      bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE DOCTOR: a failed reference probe is UNREAD, never 'missing'" 0 'consumer reference probe exited 2' "$rc" "$out"
+
+# CASE 29 - CENSUS must reconcile three independent-looking surfaces: declared IDs, actual
+# control-flow markers, and the suite's banner numerator/denominator. Each fixture is disposable;
+# close remains warn-only and the fixture suites write nowhere.
+CEN29="$WORK/census29"; mkdir -p "$CEN29"
+cat > "$CEN29/good.sh" <<'CEN'
+#!/usr/bin/env bash
+# ---- T1: first
+# ---- T2: second
+echo 'TRIPWIRE T1 FIRED'
+echo 'TRIPWIRE T2 FIRED'
+echo 'ALL TRIPWIRES FIRED — 2/2, exit 0'
+CEN
+cat > "$CEN29/zero-two.sh" <<'CEN'
+#!/usr/bin/env bash
+# ---- T1: first
+# ---- T2: second
+echo 'TRIPWIRE T1 FIRED'
+echo 'TRIPWIRE T2 FIRED'
+echo 'ALL TRIPWIRES FIRED — 0/2, exit 0'
+CEN
+cat > "$CEN29/shared-lie.sh" <<'CEN'
+#!/usr/bin/env bash
+# ---- T1: first
+# ---- T2: declared but never reached
+echo 'TRIPWIRE T1 FIRED'
+echo 'ALL TRIPWIRES FIRED — 2/2, exit 0'
+CEN
+cat > "$CEN29/huge.sh" <<'CEN'
+#!/usr/bin/env bash
+# ---- T1: first
+# ---- T2: second
+echo 'TRIPWIRE T1 FIRED'
+echo 'TRIPWIRE T2 FIRED'
+echo 'ALL TRIPWIRES FIRED — 2/999999999999999999999999999999, exit 0'
+CEN
+chmod +x "$CEN29"/*.sh
+
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/good.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE CENSUS control: declared = FIRED = banner passes" 0 'declared 2 = FIRED 2 = banner 2/2' "$rc" "$out"
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/zero-two.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE CENSUS: 0/2 can never green a two-tripwire suite" 0 'RED-WARN.*banner 0/2' "$rc" "$out"
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/shared-lie.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE CENSUS: a declared-but-unreached tripwire is named missing" 0 'RED-WARN.*declaration/flight mismatch' "$rc" "$out"
+assert "CLOSE CENSUS: the missing tripwire ID is visible" 0 'MISSING FIRED: T2' "$rc" "$out"
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/huge.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE CENSUS: an oversized integer is UNREAD, never a numeric false green" 0 'banner integers exceed the bounded parser' "$rc" "$out"
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
