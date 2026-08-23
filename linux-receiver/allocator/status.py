@@ -16,11 +16,17 @@ logger = logging.getLogger("file-portal-allocator")
 
 MAX_EVENTS = 200
 
+# S108 writer identity: two services append to the SAME status.json (this allocator and the
+# converter), so every record names its writer. The widget renders records without the field
+# (pre-S108 history) as "unknown" -- old files are never rewritten to claim an identity.
+SOURCE_COMPONENT = "allocator"
+
 
 class StatusWriter:
     """Maintains a bounded, newest-last list of per-file outcome records.
 
-    Records use ``action`` values ``"allocated"``, ``"skipped"``, or ``"rejected"``. A status
+    Records use ``action`` values ``"allocated"``, ``"skipped"``, or ``"rejected"``, and each
+    carries ``source_component`` naming its writer (here always ``"allocator"``). A status
     write must never break allocation itself, so failures are logged and swallowed.
     """
 
@@ -38,6 +44,7 @@ class StatusWriter:
     ) -> None:
         event: dict[str, str] = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "source_component": SOURCE_COMPONENT,
             "action": action,
             "file": filename,
             "category": category,

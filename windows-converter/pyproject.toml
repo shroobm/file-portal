@@ -1,0 +1,41 @@
+# Pinned manifest for the windows-converter lane — the LIVE converter (S108, lane B).
+#
+# This lane has never had a manifest: it runs inside marker-env on the desktop, and its real
+# dependency set existed only as import lines. This file declares what the code actually
+# imports (grepped across windows-converter/*.py, 2026-08-23), with versions probed from the
+# live interpreter (C:\Users\Bndit\ml\marker-env\Scripts\python.exe, Python 3.12.13):
+#
+#   pymupdf   1.28.0   convert_and_ship.py, fidelity_audit.py, figure_coverage.py (+ selftest)
+#   rapidfuzz 3.14.5   fidelity_audit.py
+#
+# Everything else in the lane is stdlib or a sibling module in this directory (events, analyst,
+# backend_parity, corpus_schema, ...). This manifest is a RECORD, not an
+# installer: the live env is marker-env, and nothing here should be pip-installed into it
+# casually — marker's own resolver pinned that env.
+
+[project]
+name = "file-portal-windows-converter"
+version = "0.1.0"
+description = "The live Windows converter lane: Marker orchestration, figure coverage (P-1), fidelity audit, events, room chat"
+# Live env is Python 3.12.13; CI's python job runs 3.11 and the lane's hermetic selftest passes
+# there path-agnostically, so the floor matches the other lanes rather than the live env.
+requires-python = ">=3.11"
+dependencies = [
+    "pymupdf>=1.28,<2",    # live pin 1.28.0 (marker-env, probed 2026-08-23)
+    "rapidfuzz>=3.14,<4",  # live pin 3.14.5 (marker-env, probed 2026-08-23)
+]
+
+[project.optional-dependencies]
+# `import marker` happens INSIDE the conversion paths only (convert_and_ship.py:779, :968 —
+# "marker-env only; version for provenance"). The selftests and every non-converting tool run
+# without it, so it is an extra, not a dependency. UNREAD beyond the version: marker-pdf's own
+# transitive pins (torch etc.) are owned by marker-env's resolver, not this file.
+marker = [
+    "marker-pdf>=1.10,<2",  # live pin 1.10.2 (marker-env, probed 2026-08-23)
+]
+
+[tool.ruff]
+# Mirrors linux-receiver/linux-converter so the pinned ruff (==0.15.20, the linux lanes'
+# requirements-dev pin) lints all four python lanes under one convention.
+line-length = 100
+target-version = "py311"
