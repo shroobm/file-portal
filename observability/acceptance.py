@@ -3,8 +3,8 @@
 
 The detector's only real claim is that it reproduces mechanically what the S77 lanes found by
 hand. So the harness IS that claim, pinned: docs/29 §7's ranked findings become an answer key
-the detector must agree with, row for row. Four were fixed by S76/S77 and must now read
-`glass`; five are open and must read `GLITCH`. A detector that stops finding the open ones has
+the detector must agree with, row for row. Five were fixed by S76/S77/S94 and must now read
+`glass`; four are open and must read `GLITCH`. A detector that stops finding the open ones has
 regressed; one that starts flagging the fixed ones has gone blind to a repair.
 
 Deliberately END-TO-END against the REAL trees, never fixtures. A fixture would share the
@@ -39,7 +39,11 @@ ANSWER_KEY = [
     ("runs", "glass", "SYM-026 — omission runs, wired S76 as amber ◍ chips"),
     ("seams", "GLITCH", "§7.3 — recorded FOR the Bench (docs/18 §5.2); the Bench never reads it"),
     ("chunks_resumed", "GLITCH", "§7.5 — the power-cut recovery, silenced on two channels"),
-    ("recent_audits", "GLITCH", "§7.6 — a ready-made 'last 6 books' digest, rendered nowhere"),
+    # S108 (2026-08-23): expectation corrected GLITCH → glass. S94's Stage 1 slice (b65ef0c,
+    # 2026-08-17, "the missing renders") wired the digest: room.rs builds `recent_audits`
+    # (take(6)) and room.js:505 renders it in the Room. The row predates that fix; the detector
+    # reporting `glass` here is the repair being seen, not a regression.
+    ("recent_audits", "glass", "§7.6 — the 'last 6 books' digest, rendered by room.js since S94"),
     ("reverse_sample", "GLITCH", "§7.8 — the promised precision tripwire, read by nothing"),
     ("dict_hit", "GLITCH", "a signed threshold (docs/15) whose input is hardcoded None"),
 ]
