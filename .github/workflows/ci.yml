@@ -2,7 +2,9 @@
 #
 # python: ruff lint + format check for all three Linux subprojects, pytest for the allocator and
 #         the converter (the converter writes the vault — it is the last code that should be
-#         unverified).
+#         unverified). S108 (lane B2): the LIVE windows-converter lane joins, warn-only — ruff
+#         check + its one CI-safe hermetic selftest; the inline comments name what is excluded
+#         and why.
 # rust:   cargo fmt + clippy for the Tauri widget, run on windows-latest because that is the
 #         widget's actual target and Tauri compiles there without extra system libraries
 #         (Linux runners would need the whole webkit2gtk stack just to type-check).
@@ -32,6 +34,12 @@ jobs:
         run: |
           pip install -r linux-receiver/requirements-dev.txt
           pip install -r linux-converter/requirements-dev.txt
+          # S108 (lane B2): figure_coverage_selftest synthesises every fixture PDF with pymupdf.
+          # Pinned directly, mirroring windows-converter/pyproject.toml's own pin, rather than
+          # pip-installing that pyproject: its header declares it "a RECORD, not an installer",
+          # and it carries no build-backend/packages config — one mirrored line is the smaller
+          # diff and cannot fail a wheel build.
+          pip install "pymupdf>=1.28,<2"
       - name: Lint (linux-receiver)
         working-directory: linux-receiver
         run: |
@@ -47,12 +55,35 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+      # S108 (lane B2): the LIVE Windows lane joins CI, warn-only — the S108 standard makes
+      # every new gate warn-only until observed. ruff has never run on this lane anywhere (the
+      # desktop has no ruff installed), so the first-ever lint outcome is UNREAD until this
+      # step reports. Same pinned ruff (==0.15.20) as the linux lanes — it arrives via their
+      # requirements-dev installs above; `ruff check` only, no format gate on an unformatted lane.
+      - name: Lint (windows-converter, warn-only)
+        working-directory: windows-converter
+        continue-on-error: true
+        run: ruff check .
       - name: Test (linux-receiver)
         working-directory: linux-receiver
         run: pytest tests/ -v
       - name: Test (linux-converter)
         working-directory: linux-converter
         run: pytest tests/ -v
+      # S108 (lane B2): the one windows-converter selftest that is safe here. It is hermetic —
+      # every fixture PDF is synthesised with pymupdf in a temp dir; no corpus, no GPU, no live
+      # dirs. Desktop run 2026-08-23 (marker-env, py3.12):
+      # "==== figure_coverage selftest: 30/30 ====", exit 0. Warn-only per the S108 standard
+      # until the ubuntu/py3.11/fresh-pymupdf triple is observed green.
+      # EXCLUDED, deliberately:
+      #   deferral_gate_selftest.py  — launches the REAL watch_and_convert.py as live
+      #     subprocesses and drives watcher lifecycle (~40 s of real process orchestration).
+      #   card_mutex_selftest.py     — exercises a Windows OS mutex (Local\file-portal-card)
+      #     across real processes; no such object exists on a Linux runner.
+      - name: Selftest (windows-converter figure_coverage, warn-only)
+        working-directory: windows-converter
+        continue-on-error: true
+        run: python figure_coverage_selftest.py
 
   rust:
     # SYM-020 (found S67, cleared S68 2026-08-10): fmt drift across 8 files had accumulated while
