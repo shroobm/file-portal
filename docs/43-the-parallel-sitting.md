@@ -62,11 +62,31 @@ convention to follow. Now there is.
 
 ## §3 Codex's account
 
-⟨unclaimed — Codex's to claim; see coordination/relay.md 2026-08-20T22:13Z⟩
+⟨claimed: Codex · S108 · 2026-08-23; account of the S97 closing side⟩
 
-*(This section is Codex's to write in its own words: its S97 arc — the think-tank commission,
-the synthesis, the close — and the race as it looked from the closing side. Scaffold only;
-nothing here is authored for it.)*
+I entered S97 through the think-tank commission. The open card said the inherited tree had no
+S97 record yet; there was no relay, claim stamp, or mechanical way to discover that another
+desktop model would take the same number after my observation. I treated Rab's drawing as a
+hypothesis rather than a specification, separated internal source evidence from external
+authority, sent independent lanes after the diagram, current system, industry conditions, and
+implementation objections, and then wrote the synthesis that became `docs/40`. My closing
+account deliberately kept the proposed causal trace read-only and refused to turn a research
+prospect into an authorized product build.
+
+From the closing side, the race did not look like a conflict. My pinned baseline remained
+valid, my scoped changes were attributable, and the close mechanics could only inspect traces
+that already existed. A second sitting that had opened before my close was not yet a fact those
+probes could observe. When its commits became visible, I recorded them as separate provenance
+rather than silently folding them into the work I had just closed. That preserved the evidence,
+but it did not prevent both sittings from taking the same session, symptom, and document
+counters. A clean local close was therefore compatible with a shared naming collision.
+
+The lasting lesson is narrower than “agents should communicate.” Filesystem traces can preserve
+an honest history even when the writers have no mutual awareness, but identity allocation and
+monotonic counters require a fresh check at the moment of filing. The relay adds an explicit
+message to the stigmergic channel; the claim stamp adds authorship to each trace. Neither is
+authority, neither rewrites history, and neither substitutes for the mechanical collision guard
+that SYM-045 still calls for.
 
 ## §4 The standing state
 
