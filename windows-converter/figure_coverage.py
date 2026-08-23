@@ -63,6 +63,12 @@ KNOWN LIMITATIONS, measured rather than guessed (S104)
       "uncovered" verdicts FALSE**. `assets_out_of_range` catches the gross case and is NOT
       sufficient: IV p191's asset id 189 is in range and still misattributed by one.
       **Refuse to quote a per-page number from any bundle that trips that flag.**
+      **S108 (A18): the S106 map repair is now WIRED.** When the FULL doubled-offset signature
+      matches (`sym050_signature` — not bare out-of-range), the map is repaired IN MEMORY
+      (`true_page = id + 1 - 200*(id//400)`, confirmed four independent ways at S106) and the
+      report leads with the repaired numbers, the unrepaired numbers printed beside for
+      continuity. Bundle files are never modified. Bare out-of-range without the signature
+      still only warns — in the JSON payload too, which S104's harvest never saw.
     So: this instrument's DETECTION is good — 13.3 % false alarms at the region level (2/15
     sampled on IV, S105) — and its per-page VERDICT is only as trustworthy as the bundle. It is
     NOT "trustworthy on small born-digital books": Cybernetics is exactly that and it is missing
@@ -252,6 +258,62 @@ def levers(path: Path | None = None, text: str | None = None) -> dict:
 
 
 _ASSET_RE = re.compile(r"_page_(\d+)_(Figure|Picture)_(\d+)\.(?:jpe?g|png)$", re.I)
+
+# ── SYM-050: the pre-S60 doubled-offset map, its signature, and the S106 repair ───────────────
+# Pre-S60 chunked conversions added the slice offset to asset ids that were ALREADY absolute
+# (convert_and_ship.py's asset-naming comment): with slice_size 200, chunk k's assets landed in
+# the even 200-band [400k, 400k+199] — ids to _page_2553_ on a 1,356-page book (docs/41:475).
+# The figures are IN the bundle; only the ATTRIBUTION lies. S106 derived the inverse from the
+# manifest (`slice_size: 200`) and SYM-002:
+#     true_page = id + 1 - 200 * (id // 400)
+# and confirmed it FOUR independent ways before use: 13/13 against a text-correlation table
+# built with no formula · 23 repaired / 0 naive / 2 tied on a fresh seed and different method ·
+# an offset sweep peaking sharply at 0 · assets-beyond-page-count 116 -> 0. Wired S108 (A18).
+SYM050_SLICE = 200  # the pre-S60 chunk size; the doubling stride is 2x this. MEASURED, not
+# generic: the only recorded poisoned population (S106 census: n=1, Investment Valuation) was
+# converted at slice_size 200, and the formula was confirmed only on that shape.
+
+
+def sym050_true_page(p: int) -> int:
+    """The S106 repair on a NAIVE 1-based page (asset id + 1). In-memory arithmetic only."""
+    i = p - 1  # back to marker's 0-based asset id
+    return i + 1 - SYM050_SLICE * (i // (2 * SYM050_SLICE))
+
+
+def sym050_signature(per_page: dict, page_count: int, slice_size: int | None = None) -> bool:
+    """Does the asset-id distribution carry the pre-S60 doubled-offset signature?
+
+    Deliberately NARROWER than the out-of-range tripwire. Bare out-of-range says "this map is
+    not trustworthy"; the signature says "and the S106 formula is the repair". All three must
+    hold — (a) at least one asset attributed beyond the page count, (b) at least one id in a
+    doubled band (>= 400), (c) EVERY id in an even 200-band — because the formula was confirmed
+    only on that shape. A bundle that is out-of-range without (b)+(c) is still warned about,
+    never "repaired" with arithmetic that would be noise on it. A manifest slice_size other
+    than 200 also refuses: the formula's 200 is measured, not generic. And a book of <= 200
+    pages is single-slice — its doubled offset is zero, so there is nothing to repair.
+    """
+    if slice_size is not None and slice_size != SYM050_SLICE:
+        return False
+    if page_count <= SYM050_SLICE:
+        return False
+    ids = [p - 1 for p in per_page]
+    if not ids:
+        return False
+    return (any(i + 1 > page_count for i in ids)
+            and any(i >= 2 * SYM050_SLICE for i in ids)
+            and all((i // SYM050_SLICE) % 2 == 0 for i in ids))
+
+
+def _manifest_slice_size(bundle_dir: Path) -> int | None:
+    """`chunking.slice_size` from the bundle manifest, READ-ONLY; None when absent/unreadable.
+    Never fatal: a bundle without a readable manifest is judged on the id distribution alone."""
+    try:
+        man = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+    except (OSError, ValueError):
+        return None
+    chunking = man.get("chunking") if isinstance(man, dict) else None
+    v = chunking.get("slice_size") if isinstance(chunking, dict) else None
+    return v if isinstance(v, int) and v > 0 else None
 
 
 def _rect_area(r) -> float:
@@ -544,8 +606,29 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
     lv = lever["values"]
     src = source_figure_regions(pdf_path, use_hashes=use_hashes, lv=lv)
     out = output_asset_pages(bundle_dir)
+    naive_per_page = out["per_page"]
+
+    # Assets attributed to a page beyond the source's page count are the gross tripwire for
+    # pre-S60 doubled-offset bundles. Computed on the NAIVE map always — this key is the
+    # DETECTOR and keeps its shipped meaning regardless of any repair below.
+    out_of_range = sorted(p for p in naive_per_page if p > src["page_count"])
+
+    # THE REPAIR (S106, wired S108 A18). When the FULL doubled-offset signature matches — not
+    # on bare out-of-range — the naive map is repaired IN MEMORY and coverage is computed on
+    # the repaired map. The unrepaired numbers stay in the report beside it for continuity.
+    # Nothing on disk is ever read for writing or touched: the bundle is never modified.
+    map_repaired = sym050_signature(naive_per_page, src["page_count"],
+                                    _manifest_slice_size(bundle_dir))
+    if map_repaired:
+        per_page: dict[int, int] = {}
+        for p, n in naive_per_page.items():
+            tp = sym050_true_page(p)
+            per_page[tp] = per_page.get(tp, 0) + n
+    else:
+        per_page = naive_per_page
+
     figure_pages = sorted(src["pages"])
-    uncovered = [p for p in figure_pages if out["per_page"].get(p, 0) == 0]
+    uncovered = [p for p in figure_pages if per_page.get(p, 0) == 0]
 
     # THE TRIAGE (signed Rab, S106). It partitions the SAME uncovered list; it never shortens
     # it. `uncovered_captioned` is the list a human should read first: measured on Investment
@@ -557,10 +640,30 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
     unc_capt = [p for p in uncovered if p in captioned] if triage_on else []
     unc_rest = [p for p in uncovered if p not in captioned] if triage_on else list(uncovered)
 
-    # Assets attributed to a page beyond the source's page count are the doubled-offset
-    # signature of pre-S60 bundles (assets numbered to _page_2553_ on a 1,356-page book).
-    # A report computed against those is poisoned, so it is named rather than averaged in.
-    out_of_range = sorted(p for p in out["per_page"] if p > src["page_count"])
+    # The SYM-050 block travels in BOTH output forms. S104 harvested its poisoned headline in
+    # `--json`, where the human branch's warning never appeared — carrying the map's state into
+    # the payload is the fix candidate SYM-050 named. It is a condition, not a verdict.
+    if map_repaired:
+        naive_uncovered = [p for p in figure_pages if naive_per_page.get(p, 0) == 0]
+        sym050 = {
+            "detected": True,
+            "formula": "true_page = id + 1 - 200*(id//400) (S106, confirmed 4 independent ways)",
+            "repair_scope": "in-memory only — bundle files are never modified",
+            "assets_out_of_range_after_repair":
+                sorted(p for p in per_page if p > src["page_count"]),
+            "unrepaired": {
+                "pages_uncovered": len(naive_uncovered),
+                "coverage": (round(1 - len(naive_uncovered) / len(figure_pages), 4)
+                             if figure_pages else None),
+                "output_asset_pages": len(naive_per_page),
+            },
+        }
+    else:
+        sym050 = {"detected": False}
+        if out_of_range:
+            sym050["note"] = ("assets sit beyond the page count but the doubled-offset "
+                              "signature does not match — page map untrustworthy (SYM-050) "
+                              "and the S106 formula does NOT apply")
 
     detail = []
     for p in uncovered:
@@ -581,11 +684,13 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
         "coverage": (
             round(1 - len(uncovered) / len(figure_pages), 4) if figure_pages else None
         ),
+        "page_map": ("REPAIRED (SYM-050 doubled-offset)" if map_repaired else "as-shipped"),
+        "sym050_doubled_offset": sym050,
         "triage_mode": lv["mode"],
         "uncovered_captioned": unc_capt,
         "uncovered_other": unc_rest,
-        "output_asset_pages": len(out["per_page"]),
-        "output_assets_total": sum(out["per_page"].values()),
+        "output_asset_pages": len(per_page),
+        "output_assets_total": sum(per_page.values()),
         "assets_out_of_range": out_of_range,
         "unparsed_asset_names": out["unparsed"][:5],
         "furniture_digests_dropped": src["furniture_digests"],

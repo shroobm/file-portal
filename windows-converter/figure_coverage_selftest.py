@@ -13,6 +13,7 @@ Run: python windows-converter/figure_coverage_selftest.py
 
 from __future__ import annotations
 
+import json
 import shutil
 import sys
 import tempfile
@@ -140,6 +141,32 @@ def main() -> int:
         rep3 = fc.coverage(tmp / "cov.pdf", _bundle(tmp, [0, 2, 40], "offset"))
         check("assets beyond the page count are reported as out-of-range (poisoned bundle)",
               rep3["assets_out_of_range"] == [41], f"got {rep3['assets_out_of_range']}")
+
+        # 8b — A18's repair must bite end to end, not merely have the formula in source. Build
+        # a 401-page, slice-size-200 specimen with the only figure on true page 301. The old
+        # converter would file its zero-based asset id 300 as 500; naive page 501 is out of
+        # range and misses the figure, while the signed inverse maps it back to page 301.
+        doc = pymupdf.open()
+        for page_index in range(401):
+            pg = doc.new_page()
+            if page_index == 300:
+                pg.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200, 110))
+        poison_pdf = tmp / "sym050.pdf"
+        doc.save(poison_pdf); doc.close()
+        poison_bundle = _bundle(tmp, [500], "sym050")
+        (poison_bundle / "manifest.json").write_text(
+            json.dumps({"chunking": {"slice_size": 200}}), encoding="utf-8"
+        )
+        repaired = fc.coverage(poison_pdf, poison_bundle)
+        check("SYM-050 REPAIR BITES: naive page 501 maps to true page 301 and covers it",
+              repaired["page_map"] == "REPAIRED (SYM-050 doubled-offset)"
+              and repaired["pages_uncovered"] == 0
+              and repaired["sym050_doubled_offset"]["unrepaired"]["pages_uncovered"] == 1
+              and repaired["sym050_doubled_offset"]["assets_out_of_range_after_repair"] == [],
+              str(repaired["sym050_doubled_offset"]))
+        check("SYM-050 scope refuses a different slice size and a mixed odd band",
+              not fc.sym050_signature({501: 1}, 401, slice_size=100)
+              and not fc.sym050_signature({501: 1, 601: 1}, 401, slice_size=200))
 
         # 9 — the module NEVER emits a verdict (report-only is doctrine, docs/15 §6)
         check("the report carries no verdict/flag key — report-only by construction",
