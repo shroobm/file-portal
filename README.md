@@ -31,7 +31,8 @@ or trusting a third-party cloud relay. This project avoids all three:
 
 | Path                | What it is                                                              |
 |---------------------|--------------------------------------------------------------------------|
-| `docs/`             | The knowledge base. **Start with [`docs/20-file-portal-manual.md`](docs/20-file-portal-manual.md)** — the current system, end to end. `docs/00`–`docs/09` describe the original file-routing tool only (see Status). |
+| `wiki/`             | **The map. Start at [`wiki/INDEX.md`](wiki/INDEX.md)** — the LLM-navigable index of the whole project: architecture, pipelines, operations, roadmap, profiles. Every claim cited, every page stamped. Maintained by the `/wiki` skill. |
+| `docs/`             | The knowledge base. [`docs/20-file-portal-manual.md`](docs/20-file-portal-manual.md) is the operator textbook — the current system, end to end. `docs/00`–`docs/09` describe the original file-routing tool only (see Status). |
 | `windows-widget/`   | The Tauri desktop app: portal tiles plus the Dock · Room · Wall · Bench surfaces. |
 | `windows-converter/`| Desktop-side document conversion — Marker/GPU lanes, the analyst pass, the survival audit, shipping bundles to the Linux staging area. |
 | `windows-remote/`   | Remote-access setup and lockdown scripts for the desktop (see [`docs/17-remote-access-runbook.md`](docs/17-remote-access-runbook.md)). |

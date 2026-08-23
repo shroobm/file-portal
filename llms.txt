@@ -1,0 +1,31 @@
+# File Portal
+
+> A two-machine document factory: drag-and-drop Windows portal widgets push files over a
+> private Tailscale tailnet to a Linux receiver — no sudo, no open ports, no cloud relay —
+> and a GPU conversion pipeline (Marker on an RTX 3080) turns dropped PDFs into an audited,
+> deduplicated, git-versioned library. Single-operator, heavily self-documented: measured
+> numbers name their numerator, denominator, and conditions; recorded claims are tagged
+> Observed (re-measured) or Historical (transcribed).
+
+Notes for agents:
+
+- Start at the wiki index below; read at most two cited pages before acting.
+- Two record surfaces are first-class: OPEN-TASKS.md answers "what was promised and never
+  delivered"; SYMPTOM-INDEX.md answers "what is going wrong, its root cause, and where the
+  guard lives". Read the relevant one before assuming.
+- When a document and reality disagree, reality wins — measure, then fix the document.
+
+## Docs
+
+- [Wiki index](wiki/INDEX.md): Start here — the one-page map of the whole repo in reading order
+- [README](README.md): What File Portal is, why it exists, layout, security model in brief
+- [Manual](docs/20-file-portal-manual.md): The operator textbook — surfaces, levers, developer reference
+- [Open task register](OPEN-TASKS.md): What has NOT been done — semantic vs mechanical, every line cited
+- [Symptom index](SYMPTOM-INDEX.md): Retrieve by what the system is doing wrong — symptom, cause, guard
+
+## Optional
+
+- [Change ledger & session protocol](CLAUDE_README.md): The full session record (very large — enter via the wiki, never read whole)
+- [Design records](docs/): Numbered decision/finding records docs/00–45; docs/45 names the documentation-failure families
+- [Session closeouts](sessions/): One record per working session, both machine lanes
+- [Changelog](CHANGELOG.md): Commit-level history (large)
