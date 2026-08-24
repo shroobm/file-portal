@@ -260,7 +260,22 @@ def cmd_post(a):
     if a.ticket and not a.override:
         # FULL STOP first: no NEW work crosses the bus while a question sits with Rab.
         stops, unread = open_escalations()
-        if stops or unread:
+        # THE CARVE-OUT (S109, Rab signed): "a full stop still permits work that SERVES resolving
+        # the open escalation." Without it the stop is self-locking - it blocks the very work that
+        # would lift it. Deliberately narrow: --serves must name a ticket that ACTUALLY has an open
+        # escalation right now, so it cannot become a general bypass, and the claim is RECORDED on
+        # the row. A model asserting "this serves the escalation" is making a claim, and a claim
+        # goes on the record or it is not a claim.
+        if a.serves and stops and not unread:
+            if any(str(e.get("ticket")) == a.serves for _, e in stops):
+                pass                                   # permitted, and recorded below
+            else:
+                print(f"REFUSED: --serves {a.serves} names no OPEN escalation. The carve-out only "
+                      f"covers work serving a question actually before Rab.\n"
+                      f"  Open now: {', '.join(str(e.get('ticket')) for _, e in stops) or '(none)'}",
+                      file=sys.stderr)
+                return 1
+        elif stops or unread:
             if stops:
                 for lane, e in stops:
                     print(f"REFUSED — FULL STOP: {lane} has an open escalation to Rab "
@@ -306,6 +321,8 @@ def cmd_post(a):
     }
     if a.override:
         row["override_reason"] = a.override      # a bypass is always on the record
+    if a.serves:
+        row["serves_escalation"] = a.serves      # the carve-out is a claim, so it is recorded
     data["sent"].append(row)
     # Keep current_ticket TRUE (S109). Only `ticket` used to write this field, so `post --ticket`
     # never advanced it: this lane read T-003 through T-004, T-005 and T-006, and the board
@@ -466,6 +483,11 @@ def cmd_ticket(a):
     # move to blocked-on-* or idle - stopping is always allowed, starting is not.
     if a.state == "working":
         stops, unread = open_escalations()
+        # Same carve-out as post: a lane may enter `working` during a stop ONLY to serve the
+        # open escalation, and only when --serves names one that is actually open.
+        if getattr(a, "serves", None) and stops and not unread \
+                and any(str(e.get("ticket")) == a.serves for _, e in stops):
+            stops, unread = [], []
         if stops or unread:
             for lane, e in stops:
                 print(f"REFUSED — FULL STOP: {lane} has an open escalation to Rab "
@@ -596,6 +618,7 @@ def main() -> int:
     sp.add_argument("--no-ack", action="store_true")
     sp.add_argument("--override", default=None,
                     help="bypass GUARD A (recipient is working) - the reason is RECORDED")
+    sp.add_argument("--serves", default=None, help="the FULL STOP carve-out (Rab, S109): this work SERVES resolving that open escalation. Must name a ticket whose escalation is open NOW; the claim is recorded.")
     sp.set_defaults(fn=cmd_post)
     sp = add_as(sub.add_parser("escalate"))
     sp.add_argument("--asking", required=True, help="what Rab must decide")
@@ -620,6 +643,7 @@ def main() -> int:
     sp = add_as(sub.add_parser("ticket"))
     sp.add_argument("--id", required=True)
     sp.add_argument("--state", default="working", choices=STATES)
+    sp.add_argument("--serves", default=None, help="the FULL STOP carve-out (Rab, S109): this work SERVES resolving that open escalation. Must name a ticket whose escalation is open NOW; the claim is recorded.")
     sp.set_defaults(fn=cmd_ticket)
     sp = add_as(sub.add_parser("watch"))
     sp.add_argument("--interval", type=float, default=10.0)

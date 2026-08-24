@@ -322,6 +322,48 @@ def main():
         d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
         t("post --ticket advances the sender's current_ticket", d["current_ticket"] == "T-037")
 
+        # ---- THE CARVE-OUT (S109, Rab signed): a full stop still permits work that SERVES
+        # resolving the open escalation. Without it the stop is self-locking - it blocks the very
+        # work that would lift it. It must stay NARROW or it is just a bypass with a nicer name.
+        run(["escalate", "--as", "Fable", "--ticket", "T-050",
+             "--asking", "a decision the carve-out must be able to serve"], coord)
+
+        # T38 negative: the stop still bites without --serves (else T39 proves nothing)
+        r = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "unrelated",
+                 "--body", bf5, "--ticket", "T-051"], coord)
+        t("the stop still refuses ordinary ticketed work", r.returncode == 1 and "FULL STOP" in r.stderr)
+
+        # T39 negative: --serves naming a ticket with NO open escalation is refused - the
+        # carve-out may not become a general bypass
+        r = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "sneaky",
+                 "--body", bf5, "--ticket", "T-051", "--serves", "T-999"], coord)
+        t("--serves naming no open escalation is refused",
+          r.returncode == 1 and "names no OPEN escalation" in r.stderr)
+
+        # T40 positive: --serves naming the genuinely open escalation passes
+        r = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "the freshness card",
+                 "--body", bf5, "--ticket", "T-050", "--serves", "T-050"], coord)
+        t("--serves the OPEN escalation passes during a full stop", r.returncode == 0)
+
+        # T41 positive: the carve-out is a CLAIM, so it is recorded - never silent
+        d = json.loads(io.open(coord / "ack-codex.json", encoding="utf-8").read())
+        # Indexed defensively: against a gate with no --serves at all the post never lands, and a
+        # test that RAISES aborts the suite and hides every case after it. A missing guard must
+        # read as FAIL, not as a stack trace.
+        last = d["sent"][-1] if d.get("sent") else {}
+        t("the carve-out claim is recorded on the row",
+          last.get("serves_escalation") == "T-050")
+
+        # T42 negative: an UNREAD board fails closed even WITH --serves. A lane that cannot be
+        # read cannot be shown clear, and the carve-out must not become the hole in that.
+        codex_backup = io.open(coord / "ack-codex.json", encoding="utf-8").read()
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write("{ not json")
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "during unread",
+                 "--body", bf5, "--ticket", "T-050", "--serves", "T-050"], coord)
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(codex_backup)
+        t("the carve-out still fails closed on an UNREAD board",
+          r.returncode == 1 and "FULL STOP" in r.stderr)
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
