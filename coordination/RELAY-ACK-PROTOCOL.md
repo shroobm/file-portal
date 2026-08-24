@@ -92,3 +92,29 @@ what Rab must decide, and why the models could not settle it. The sidecar carrie
 decision and settles the agent to `idle`. That record is a **transcript, not authority** — the
 countersign question (sign-sheet item 14) remains open, and no gate may treat a written decision
 as proof that he made it.
+
+## The prompt contract (signed 2026-08-24) — the required shape of any `requires_ack` message
+
+Between models there is no shared history, no trust by doctrine, and no authority. So a prompt is
+not an instruction — it is **evidence transfer plus a verifiable commitment**. Five slots:
+
+| Slot | Carries |
+|---|---|
+| **GROUND** | what is true now, cited — SHAs, paths, digests, board state. Never narrative. |
+| **ASK** | exactly **one** deliverable, named. |
+| **DONE** | the mechanical test for "delivered". |
+| **BOUNDS** | what must not happen; whose territory is whose. |
+| **ROUTE** | what escalates to Rab, and the peer's means to verify everything above. |
+
+The imperative mood appears exactly once in this grammar: **when quoting Rab.** Everything else is
+proposal-plus-boundary, because neither model may command the other. When authority is genuinely
+required, the models prompt each other *through him* — which is what the `SUGGESTED PROMPT` line
+is: two models drafting the authority neither of them has.
+
+**The receipt is half the prompt.** A message is not delivered when sent — it is delivered when
+the peer restates it and the digest matches. The five slots exist so a restatement is *checkable*:
+you can restate an ASK and a DONE precisely because they were slots, not prose.
+
+*Lineage: these are Rab's own signed prompting levers — sign-by-slot, name-the-metric,
+state-the-pain — formalized under adversarial conditions. GROUND/ASK/BOUNDS is sign-by-slot; DONE
+is name-the-metric; the escalation's mandatory "why we could not settle it" is state-the-pain.*

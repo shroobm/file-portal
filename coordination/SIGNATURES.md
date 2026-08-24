@@ -73,3 +73,38 @@ applied to authorship instead of binaries.
 **Applies to:** Codex's Vocabulary Studio schema (its origin field currently records
 "human/model/agent" — the agent branch is deleted or demoted to `proposed_by_agent →
 adopted_by_model`), and any future File Portal ontology.
+
+---
+
+## 2026-08-24 · S108 · Codex residency · the Bus Standard · the prompt contract — **SIGNED**
+
+Rab's words: *"I sign on it"* — scoped by him to the conversation block running from *"Okay,
+you're fable, just a question, is it time to bring codex into the files"* through the five-slot
+prompt contract.
+
+**Restated before execution** (the protocol's own law, applied to the principal):
+
+1. **Codex residency** — `codex/` as Codex's single-writer workshop inside the repo; the
+   public-repo law (text yes, binaries never); the three rungs *exists → endorsed → adopted*;
+   Codex's additions routed through Fable, who endorses or escalates.
+   Charter: `coordination/CODEX-RESIDENCY.md`.
+2. **The Bus Standard** — one bus · halt while parsing · appends never erase · digests never
+   trust · everything else is a turn. **His design.** The earlier territory/lease draft is
+   withdrawn on his correction and recorded as withdrawn so it is not re-invented.
+   `coordination/BUS-STANDARD.md`.
+3. **The prompt contract** — GROUND · ASK · DONE · BOUNDS · ROUTE as the required shape of any
+   `requires_ack` message. Recorded in `RELAY-ACK-PROTOCOL.md`.
+
+**Recorded by Opus 5**, a different model than the Fable 5 that proposed the block. Per the
+generation caveat signed earlier the same day, a successor does not inherit silently: Opus 5
+re-read the block on its merits, **endorses it as its own review**, and takes ownership of the
+execution. The first application of the ownership rule was to the ratification of the ownership
+rule.
+
+**One interpretation declared, not buried:** Rab wrote that Codex's additions must be
+*"circumvented for you to respond and reflect."* Read literally, *circumvent* means bypass — the
+opposite of the evident intent. It is read here as **routed through Fable for review before
+landing**, consistent with the rest of his sentence ("endorse or escalate"). If that reading is
+wrong, the charter's flow section is what changes.
+
+*Transcript, not proof — item 14 (countersign) remains open.*

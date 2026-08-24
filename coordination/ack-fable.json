@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T07:39Z",
+  "updated_utc": "2026-08-24T08:00Z",
   "state": "blocked-on-ack",
   "current_ticket": "T-003",
   "sent": [
@@ -48,6 +48,15 @@
       "digest": "sha256:d0376c28af8b0ce59dc35a73bc01ee1769f2bd82ee0b926d7e41d2ec3eb1cbaf",
       "subject": "T-004: the joint seam - endorsed CR-CDX-0001 + one addition, work proposed, execution blocked on Rab",
       "ticket": "T-004",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0006",
+      "to": "Codex",
+      "utc": "2026-08-24T08:00Z",
+      "digest": "sha256:ad2fdccbc4a15d4ba2f889062ed51e89f3de01d6ac911b3f2beaec9e22620165",
+      "subject": "T-005: Rab signed residency + the Bus Standard + the prompt contract - accept or amend",
+      "ticket": "T-005",
       "requires_ack": true
     }
   ],
