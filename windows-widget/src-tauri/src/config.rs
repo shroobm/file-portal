@@ -134,3 +134,31 @@ pub fn load_or_init() -> Result<AppConfig, String> {
         Err(e) => Err(format!("failed to read {}: {e}", path.display())),
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// B25's config half, pinned (S108): `llama_server_exe` is OPTIONAL — a config file
+    /// written before S85 (no key) parses, and both the missing-key case and the built-in
+    /// default read as "" — which HIDES the assistant (today's behavior; docs/33 §2's
+    /// empty-hides-the-feature requirement, checked at chat.rs's entry). A set key
+    /// round-trips untouched. The Job-Object half of B25 lives in chat.rs (adoption of the
+    /// spawned chat server; its llama-server grandchild inherits job membership because the
+    /// job sets no BREAKAWAY_OK) and is held by watcher.rs's supervision tripwire.
+    #[test]
+    fn llama_server_exe_is_optional_and_empty_hides_the_assistant() {
+        let pre_s85 = r#"
+            linux_host = "box.tailnet.ts.net"
+            remote_user = "user"
+            remote_inbox_root = "~/file-portal/inbox"
+            portals = []
+        "#;
+        let cfg: AppConfig = toml::from_str(pre_s85).expect("a pre-S85 config must parse");
+        assert_eq!(cfg.llama_server_exe, "");
+        assert_eq!(AppConfig::default().llama_server_exe, "");
+        let with_key = format!("{pre_s85}llama_server_exe = 'C:/ml/llama/llama-server.exe'");
+        let cfg2: AppConfig = toml::from_str(&with_key).expect("a set key must parse");
+        assert_eq!(cfg2.llama_server_exe, "C:/ml/llama/llama-server.exe");
+    }
+}
