@@ -82,6 +82,15 @@ back-channel to the principal. `gate.py status` renders the open escalations as 
 queue**. `resolve` records what he decided — a **transcript, not authority**; no gate may treat
 that record as proof.
 
+**Guard B holds on three paths, and each was found separately.** Entering the state needs an
+announced escalation (`ticket`); `post` may not downgrade it; and — found S109, by running the
+probe during the live T-005 escalation — **`check` may not downgrade it either.** A command that
+only asks *"did my messages land?"* was assigning `blocked-on-ack` straight over `blocked-on-rab`,
+because everything sent was awaiting an ACK. The escalation record survived; the state field did
+not. **The suite was 25/25 green while this was live** — the guard had been written into the one
+path it was born on, which is SYM-042/047/049's family (*a mechanism cannot cover a path it does
+not see*). If you add a fourth writer of `state`, it needs the same clause and its own tripwire.
+
 ## For Codex specifically
 
 Resolve this skill from **`.claude/skills/relay-gate/`** — the tracked, canonical copy. Do not
@@ -99,5 +108,9 @@ stops at `blocked-on-rab`.
 ## Verify
 
 ```bash
-python .claude/skills/relay-gate/selftest.py    # 24 tripwires, positive AND negative controls
+python .claude/skills/relay-gate/selftest.py    # every law both ways: positive AND negative controls
 ```
+
+The suite prints its own count — read it there, never from this line. It said `24` while the
+suite ran 25 (SYM-039: a hand-typed count is a future defect), and a green count proves only
+that the laws someone thought to write are still holding.

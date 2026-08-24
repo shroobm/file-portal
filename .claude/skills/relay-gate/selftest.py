@@ -196,6 +196,26 @@ def main():
         d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
         t("posting during an escalation does not clear blocked-on-rab", d["state"] == "blocked-on-rab")
 
+        # T25 negative: CHECK while blocked-on-rab must NOT clear it either (Guard B, third
+        # path, S109). The second half covered `post` alone, so merely asking "did mine land?"
+        # cleared his gate - every sent message was awaiting an ACK, so check assigned
+        # blocked-on-ack straight over blocked-on-rab. Found live during the T-005 escalation.
+        r = run(["check", "--as", "Fable"], coord)
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        t("check during an escalation does not clear blocked-on-rab",
+          r.returncode == 0 and d["state"] == "blocked-on-rab")
+
+        # T26 positive control: the guard freezes ONLY blocked-on-rab. With his gate released,
+        # check must still move the state - without this, T25 cannot tell a working guard from
+        # a check that quietly stopped writing state at all.
+        esc2 = [e for e in d["escalations"] if e["state"] == "open"][0]
+        run(["resolve", "--as", "Fable", "--id", esc2["msg_id"],
+             "--decision", "he ruled and released the gate"], coord)
+        r = run(["check", "--as", "Fable"], coord)
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        t("check still sets blocked-on-ack when Rab's gate is not held",
+          d["state"] == "blocked-on-ack")
+
         # T23 negative: resolving an id with no open escalation is refused
         r = run(["resolve", "--as", "Fable", "--id", "MSG-FAB-9999", "--decision", "made this up"], coord)
         t("resolving a non-existent escalation is refused", r.returncode == 1)

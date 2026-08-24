@@ -295,7 +295,16 @@ def cmd_check(a):
             return 1
         else:
             print(f"  CONFIRMED {s['id']}  \"{c['restatement'][:70]}\"")
-    new_state = "blocked-on-ack" if waiting else ("idle" if mine["state"] == "blocked-on-ack" else mine["state"])
+    # GUARD B, third path (S109): a QUERY may not change what only Rab may change. The second
+    # half was patched into `post` alone; `check` still assigned blocked-on-ack over
+    # blocked-on-rab whenever anything awaited an ACK - so merely asking "did mine land?"
+    # cleared his gate. Found by running it during the live T-005 escalation: the decision
+    # queue survived, the state field did not. Same family as SYM-042/047/049 - a guard
+    # cannot cover a path it was not born on.
+    if mine["state"] == "blocked-on-rab":
+        new_state = "blocked-on-rab"
+    else:
+        new_state = "blocked-on-ack" if waiting else ("idle" if mine["state"] == "blocked-on-ack" else mine["state"])
     if new_state != mine["state"]:
         mine["state"] = new_state
         save(a.as_model, mine, a.as_model)
