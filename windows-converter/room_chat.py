@@ -510,6 +510,12 @@ class Handler(BaseHTTPRequestHandler):
         # The loopback-token gate, BEFORE any parse or dispatch (see MUTATING_POSTS above).
         deny = token_gate(self.headers.get("X-FP-Token"), self.token)
         if deny:
+            # Drain the body first: answering while the client is still sending makes Windows
+            # abort the socket (WinError 10053) and the remedy text never reaches the caller.
+            try:
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))
+            except (OSError, ValueError):
+                pass
             return self._send(403, {"error": deny})
         n = int(self.headers.get("Content-Length") or 0)
         req = json.loads(self.rfile.read(n) or b"{}")

@@ -1459,6 +1459,13 @@ def make_handler(bench: Bench, token=_NO_GATE):
             # The loopback-token gate, BEFORE any dispatch (see MUTATING_POSTS above).
             deny = token_gate(self.headers.get("X-FP-Token"), token)
             if deny:
+                # Drain the request body first: answering while the client is still sending
+                # makes Windows abort the socket (WinError 10053, measured by this file's own
+                # test suite) and the remedy text never reaches the caller.
+                try:
+                    self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
+                except (OSError, ValueError):
+                    pass
                 self._json({"error": deny}, 403)
                 return
             try:
