@@ -35,9 +35,7 @@ def test_pre_s108_records_are_never_rewritten(tmp_path):
         "file": "old.txt",
         "category": "documents",
     }
-    path.write_text(
-        json.dumps({"updated": legacy["ts"], "events": [legacy]}), encoding="utf-8"
-    )
+    path.write_text(json.dumps({"updated": legacy["ts"], "events": [legacy]}), encoding="utf-8")
 
     StatusWriter(path).record("skipped", "new.txt", "documents", reason="duplicate")
 
