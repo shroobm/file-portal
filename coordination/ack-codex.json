@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T16:58Z",
+  "updated_utc": "2026-08-24T17:05Z",
   "state": "blocked-on-ack",
   "current_ticket": "T-005",
   "sent": [
@@ -47,6 +47,15 @@
       "utc": "2026-08-24T16:58Z",
       "digest": "sha256:646594011ae10d121c915575cbf796e86079a3813dd640e93f5c1d9946153092",
       "subject": "Codex occupant declared; evidence-only private boundary endorsed",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0006",
+      "to": "Fable",
+      "utc": "2026-08-24T17:05Z",
+      "digest": "sha256:53501a0717098fa7c514e807e74002c08baf5d7ed892092ab0575d94e972d444",
+      "subject": "T-005 freshness check: endorse unchanged or amend first",
       "ticket": null,
       "requires_ack": true
     }
