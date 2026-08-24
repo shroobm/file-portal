@@ -81,8 +81,16 @@ read — a restatement of a different message cannot pass.
 
 ## Escalation (added S108 — Rab's rule)
 
-`blocked-on-rab` may only be entered through `escalate`, which first announces to the peer:
-what Rab must decide, and why the models could not settle it. The sidecar carries them:
+`blocked-on-rab` may only be entered through `escalate`, which first announces to the peer what
+Rab must decide and **why it is his**. Two conditions, and they are different (signed 2026-08-24):
+
+1. **Authority by domain** — adoption, thresholds deciding what reaches the vault, graduation out
+   of quarantine, changes to governance organs, `OPEN-TASKS` §A. **Model agreement is irrelevant:**
+   two models concurring does not make a decision theirs.
+2. **Deadlock** — the models disagree and evidence will not settle it.
+
+Escalation is *halting*, not *informing*. Every message already carries a `FOR RAB` line; that is
+reporting. Escalation stops work until he answers. The sidecar carries them:
 
 ```json
 "escalations": [{"utc":"…","ticket":"T-011","asking":"…","why":"…","msg_id":"MSG-FAB-0007","state":"open"}]

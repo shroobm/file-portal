@@ -454,7 +454,11 @@ def main() -> int:
     sp.set_defaults(fn=cmd_post)
     sp = add_as(sub.add_parser("escalate"))
     sp.add_argument("--asking", required=True, help="what Rab must decide")
-    sp.add_argument("--why", default=None, help="why it cannot be settled between the models")
+    sp.add_argument("--why", default=None,
+                    help="why this is HIS: (1) authority by domain - adoption, thresholds, "
+                         "the vault, graduation, governance organs: ours to recommend, never to "
+                         "decide, even in agreement; or (2) deadlock - we disagree and evidence "
+                         "will not settle it")
     sp.add_argument("--ticket", default=None)
     sp.set_defaults(fn=cmd_escalate)
     sp = add_as(sub.add_parser("resolve"))
