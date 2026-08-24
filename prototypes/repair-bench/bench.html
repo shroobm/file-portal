@@ -859,6 +859,13 @@ function linesHtml(text, highlight) {
   }
   return parts.join("");
 }
+// B22: the exact text the #ctx DOM currently displays. Kept equal to mdText by every path
+// that writes the DOM (full rebuild below, the editor's input mirror), so renderLines can
+// tell "the text changed" from "only the highlight moved" and skip the whole-file rebuild.
+let renderedText = null;
+function clsFor(text, isHl) {
+  return isHl ? "cl zl" : text.startsWith("![[assets/_repair") ? "cl rl" : "cl";
+}
 function renderLines(highlight) {
   ctxHighlight = highlight || 0;
   const lines = mdText.split("\n");
@@ -867,9 +874,34 @@ function renderLines(highlight) {
   // `lines[start-1:end] = new_lines`). S106 briefly set it to the whole file here, which
   // would have sent a 3.4 MB book to a model running num_ctx 8192 and then overwritten every
   // line of it with the few hundred that came back. Callers set it; renderLines must not.
+  const el = $("ctx");
   const t0 = performance.now();
-  $("ctx").innerHTML = linesHtml(mdText, ctxHighlight);
-  return { lines: lines.length, ms: Math.round(performance.now() - t0) };
+  // B22: a zone click changes WHICH LINE IS HIGHLIGHTED, not the text — yet it paid for a
+  // whole-file innerHTML rebuild, ~1 s per click at IV's size (the quoted "105 ms" timed
+  // only the lazy innerHTML assignment and excluded the forced layout). When the DOM already
+  // displays exactly this text, move the highlight class between spans and leave the other
+  // N−1 lines alone. This also keeps an open editing session's DOM — and, with it, Blink's
+  // undo stack (A30) — intact across zone clicks.
+  if (renderedText === mdText && el.children.length === lines.length) {
+    el.querySelectorAll(".zl").forEach((sp) => {
+      const i = [...el.children].indexOf(sp);
+      sp.className = clsFor(lines[i] ?? "", false);
+    });
+    if (ctxHighlight && el.children[ctxHighlight - 1])
+      el.children[ctxHighlight - 1].className = "cl zl";
+    void el.offsetHeight;   // force layout so the number below is the real cost
+    const ms = performance.now() - t0;
+    console.log(`[bench] renderLines highlight-only: ${lines.length} lines in ${ms.toFixed(1)} ms incl. forced layout`);
+    return { lines: lines.length, ms: Math.round(ms) };
+  }
+  el.innerHTML = linesHtml(mdText, ctxHighlight);
+  renderedText = mdText;
+  // The forced layout is INCLUDED in the measurement on purpose — S106's "105 ms" excluded
+  // it and understated the real cost by ~10x (register B22). offsetHeight flushes it.
+  void el.offsetHeight;
+  const ms = performance.now() - t0;
+  console.log(`[bench] renderLines full rebuild: ${lines.length} lines in ${ms.toFixed(1)} ms incl. forced layout`);
+  return { lines: lines.length, ms: Math.round(ms) };
 }
 
 /* ---- editing IN the numbered surface (route 1, S106; undo repaired S108/A30) -----------
@@ -1251,7 +1283,11 @@ $("ctx").addEventListener("beforeinput", (e) => {
 // warning. Mirroring here makes a pure re-render lossless; `load()` guards the rest.
 $("ctx").addEventListener("input", () => {
   normalizeCtx();
-  if ($("ctx").hasAttribute("contenteditable")) { mdText = ctxText(); ctxDirty = true; }
+  if ($("ctx").hasAttribute("contenteditable")) {
+    mdText = ctxText(); ctxDirty = true;
+    renderedText = mdText;   // B22: the DOM now displays exactly this text — a zone click
+                             // mid-edit takes the highlight-only path and cannot lose the DOM
+  }
 });
 $("save").onclick = async () => {
   try {
