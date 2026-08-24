@@ -709,9 +709,25 @@ def cmd_watch(a):
     """One stdout line per state change. Unbounded by design - run it under a monitor."""
     seen_conf, seen_in = set(), set()
     first = True
+    warned_unread = False
     while True:
         theirs, st = load(other(a.as_model))
         mine, st_mine = load(a.as_model)
+        # UNREAD IS NEVER SILENCE (S109, found while arming this as a monitor). The loop below
+        # ran only when BOTH sidecars read ok; when either was missing or malformed it looped
+        # forever printing nothing, and to a monitor that is indistinguishable from "a quiet
+        # bus". This is the gate agent's own sleep signal rendering a FAILED PROBE as calm -
+        # SYM-031, in the one place a lane trusts to wake it.
+        if st != "ok" or st_mine != "ok":
+            if not warned_unread:
+                warned_unread = True
+                bad = [m for m, s in ((other(a.as_model), st), (a.as_model, st_mine)) if s != "ok"]
+                print(f"UNREAD {', '.join(bad)} — the board cannot be read, so this watch is "
+                      f"BLIND, not quiet. Run `gate.py status`; if a sidecar is missing run "
+                      f"`init`.", flush=True)
+        elif warned_unread:
+            warned_unread = False
+            print("board readable again — watch resumed", flush=True)
         if st == "ok" and st_mine == "ok":
             mine_ids = {s["id"] for s in mine["sent"]}
             for c in theirs["confirmed"]:

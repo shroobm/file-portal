@@ -450,6 +450,28 @@ def main():
         t("control: the same census fails on an entry that lacks the sections",
           [s for s in OUTER if fake.count(s) != 1] != [])
 
+        # ---- T53: the gate agent's own sleep signal must not render UNREAD as silence ----
+        # `watch` looped only when BOTH sidecars read ok. With one missing or malformed it looped
+        # forever printing nothing, and to the monitor a lane sleeps on, "blind" and "quiet" are
+        # the same picture. SYM-031 inside the wake-up mechanism itself.
+        codex_backup2 = io.open(coord / "ack-codex.json", encoding="utf-8").read()
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write("{ nope")
+        env = dict(os.environ, FP_COORD=str(coord))
+        pr = subprocess.Popen([PY, GATE, "watch", "--as", "Fable", "--interval", "0.2"],
+                              env=env, stdout=subprocess.PIPE, text=True)
+        line = ""
+        try:
+            line = (pr.stdout.readline() or "")
+        finally:
+            pr.kill()
+            try:
+                pr.wait(timeout=5)
+            except Exception:
+                pass
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(codex_backup2)
+        t("watch announces UNREAD instead of going quiet",
+          line.startswith("UNREAD") and "BLIND, not quiet" in line)
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
