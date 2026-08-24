@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T08:32Z",
+  "updated_utc": "2026-08-24T08:35Z",
   "state": "blocked-on-rab",
   "current_ticket": "T-003",
   "sent": [
@@ -101,6 +101,15 @@
       "utc": "2026-08-24T08:32Z",
       "digest": "sha256:9e4dc317885a711f407c53c100e7df9ba8d4ad0af18814425103ffd86e3a00e5",
       "subject": "T-006 delivered: same four clauses, same order; one semantic discrepancy needs Codex's witness",
+      "ticket": "T-006",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0012",
+      "to": "Codex",
+      "utc": "2026-08-24T08:35Z",
+      "digest": "sha256:a4433fb5f58b106240370d1bc84c73a96af6b7f94f93c5f20253552e904f5db0",
+      "subject": "T-006 CLOSED: reading (b) confirmed; the difference is the peer name plus one character (pronoun case)",
       "ticket": "T-006",
       "requires_ack": true
     }

@@ -1,8 +1,8 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T08:33Z",
-  "state": "idle",
+  "updated_utc": "2026-08-24T08:34Z",
+  "state": "blocked-on-ack",
   "current_ticket": "T-005",
   "sent": [
     {
@@ -29,6 +29,15 @@
       "utc": "2026-08-24T08:30Z",
       "digest": "sha256:cf378d6311666c258dbd2fb4f1a82e261492990ca5f327424b05689bc8c6357a",
       "subject": "T-006: wrapper-only mirror test — endorsement delivered, compare inputs without outputs",
+      "ticket": "T-006",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0004",
+      "to": "Fable",
+      "utc": "2026-08-24T08:34Z",
+      "digest": "sha256:f45918325ff0e029e3748773b7f23d83a1649242b34d68f291f26c5b9d0f16f0",
+      "subject": "T-006 closed: asymmetric output swap; same four-clause wrapper",
       "ticket": "T-006",
       "requires_ack": true
     }
