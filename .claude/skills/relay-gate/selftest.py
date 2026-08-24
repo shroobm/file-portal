@@ -495,6 +495,193 @@ def main():
         t("a lane running a different revision is flagged on the board",
           "deadbeef" in r.stdout and "this shell runs" in r.stdout)
 
+        # ---- ID REUSE: the counter's floor is the APPEND-ONLY LOG, not the mutable sidecar
+        # (S109). next_id took max() over the sidecar's sent[] alone. Restoring ack-fable.json
+        # with `git checkout` during the 2026-08-24 repair dropped the sent row for MSG-FAB-0018,
+        # the counter went BACKWARDS, and the next post minted MSG-FAB-0018 a second time -
+        # relay.md permanently names two different entries by that id (relay.md:2111, :2125).
+        #
+        # S109 SINGLE-LANE DISCLOSURE: T56/T57 and the gate.py repair they cover were written and
+        # checked by Claude agents ONLY - the Codex lane was out of budget, so there is NO
+        # cross-vendor check on either. Discount the evidence accordingly.
+        idr = Path(tmp) / "idreuse"
+        idr.mkdir()
+
+        def _lane(path, writer, sent):
+            io.open(path, "w", encoding="utf-8", newline="\n").write(json.dumps(
+                {"writer": writer, "protocol": "fp-relay-ack/v1", "updated_utc": "x",
+                 "state": "idle", "occupant": "fixture", "current_ticket": None,
+                 "sent": sent, "confirmed": [], "escalations": []}, indent=2))
+
+        def _row(mid):
+            return {"id": mid, "to": "Codex", "utc": "x", "digest": "sha256:x",
+                    "subject": "fixture", "ticket": None, "requires_ack": True}
+
+        def _log(path, ids):
+            io.open(path, "w", encoding="utf-8", newline="\n").write(
+                "# relay (fixture)\n" + "".join(
+                    f"\n## 2026-08-24T17:2{i}Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: {m}⟩\n\n"
+                    f"**RECAP.** fixture entry {m}\n"
+                    for i, m in enumerate(ids)))
+
+        bf6 = body_file(idr, "**RECAP.** a post after the sidecar was restored backwards\n")
+
+        # T56 negative: THE INCIDENT, exactly. The log holds MSG-FAB-0018; the sidecar's sent[]
+        # tops out at 0017 - the post-`git checkout` state. The next id must be 0019, and the
+        # log must still name 0018 exactly once.
+        _log(idr / "relay.md", ["MSG-FAB-0017", "MSG-FAB-0018"])
+        _lane(idr / "ack-fable.json", "Fable", [_row("MSG-FAB-0017")])
+        _lane(idr / "ack-codex.json", "Codex", [])
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "after the restore",
+                 "--body", bf6], idr)
+        relay = io.open(idr / "relay.md", encoding="utf-8").read()
+        t("a restored sidecar cannot regress the counter into a live id",
+          r.returncode == 0 and "MSG-FAB-0019" in r.stdout
+          and relay.count("⟨msg: MSG-FAB-0018⟩") == 1
+          and relay.count("⟨msg: MSG-FAB-0019⟩") == 1)
+
+        # T57 positive control: the log is a FLOOR, not a replacement. Here the sidecar is AHEAD
+        # of the log (0018 sent, its entry never appended) and the next id must still be 0019 -
+        # so T56 cannot be satisfied by a fix that reads the log INSTEAD of sent[].
+        _log(idr / "relay.md", ["MSG-FAB-0017"])
+        _lane(idr / "ack-fable.json", "Fable", [_row("MSG-FAB-0017"), _row("MSG-FAB-0018")])
+        _lane(idr / "ack-codex.json", "Codex", [])
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "sidecar ahead of log",
+                 "--body", bf6], idr)
+        t("the log is a floor, not a replacement: a sidecar ahead of it still wins",
+          r.returncode == 0 and "MSG-FAB-0019" in r.stdout)
+
+        # ---- D2 MADE MECHANICAL: `owed` / `discharge` (S109) ----
+        # The Disclosure Standard states its own ceiling: "the triggers are enforced by
+        # discipline, not by code." D2 - a DONE stated on the bus whose outcome was never
+        # reported - is the one trigger that could be lifted out of discipline, because
+        # `**DONE.**` is a DECLARED SLOT of the transaction contract rather than prose.
+        # The specimen these fixtures reproduce is real: MSG-FAB-0020 announced a deliverable,
+        # the peer CONFIRMED the message, and the deliverable was never produced.
+        #
+        # S109 SINGLE-LANE DISCLOSURE: T58-T68 and the gate.py commands they cover were written
+        # and checked by Claude agents ONLY - the Codex lane was out of budget, so there is NO
+        # cross-vendor check on any of it. Discount the evidence accordingly.
+        owd = Path(tmp) / "owed"
+        owd.mkdir()
+
+        def _side(path, writer, sent, confirmed=()):
+            io.open(path, "w", encoding="utf-8", newline="\n").write(json.dumps(
+                {"writer": writer, "protocol": "fp-relay-ack/v1", "updated_utc": "x",
+                 "state": "idle", "occupant": "fixture", "current_ticket": None,
+                 "sent": sent, "confirmed": list(confirmed), "escalations": []}, indent=2))
+
+        def _srow(mid, utc, ack=True):
+            return {"id": mid, "to": "Codex", "utc": utc, "digest": "sha256:x",
+                    "subject": "fixture", "ticket": None, "requires_ack": ack}
+
+        def _dlog(path, entries):
+            """entries: (from_lane, msg_id, done_clause_or_None)"""
+            out = ["# relay (fixture)\n"]
+            for n, (frm, mid, done) in enumerate(entries):
+                to = "Codex" if frm == "Fable" else "Fable"
+                out.append(f"\n## 2026-08-24T17:0{n}Z · ⟨from: {frm}⟩ → ⟨to: {to}⟩ · "
+                           f"⟨msg: {mid}⟩\n\n**RECAP.** fixture {mid}\n")
+                if done:
+                    out.append(f"\n**DONE.** {done}\n")
+            io.open(path, "w", encoding="utf-8", newline="\n").write("".join(out))
+
+        def _fixture():
+            _dlog(owd / "relay.md", [
+                ("Fable", "MSG-FAB-0001", "I am now producing the freshness card you asked for."),
+                ("Fable", "MSG-FAB-0002", None),          # a message that promises nothing
+                ("Fable", "MSG-FAB-0003", "Complete when the harness is green."),
+                ("Codex", "MSG-CDX-0001", "Complete when Fable confirms this entry."),
+            ])
+            _side(owd / "ack-fable.json", "Fable",
+                  [_srow("MSG-FAB-0001", "2026-08-24T17:00Z"),
+                   _srow("MSG-FAB-0002", "2026-08-24T17:01Z"),
+                   _srow("MSG-FAB-0003", "2026-08-24T17:02Z")])
+            # The peer CONFIRMED the promise. That is the whole trap.
+            _side(owd / "ack-codex.json", "Codex", [],
+                  [{"id": "MSG-FAB-0001", "from": "Fable", "confirmed_utc": "2026-08-24T17:05Z",
+                    "digest": "sha256:x", "restatement": "read it"}])
+
+        _fixture()
+        r = run(["owed", "--as", "Fable"], owd)
+
+        # T58 positive: a stated DONE with no discharge record reads OWED
+        t("a DONE stated on the bus with no reported outcome reads OWED",
+          r.returncode == 0 and "MSG-FAB-0001" in r.stdout and "OWED" in r.stdout)
+
+        # T59 THE BITE: an ACK IS NOT A DISCHARGE. The tool SEES the confirmation - it prints
+        # ack=CONFIRMED on the same row - and still refuses to call the outcome reported. A
+        # version that collapsed the two columns would render MSG-FAB-0020 clean, which is the
+        # exact failure the Disclosure Standard was written from.
+        line1 = [ln for ln in r.stdout.splitlines() if "MSG-FAB-0001" in ln]
+        t("a CONFIRMED message with an undischarged DONE is still OWED (an ack is not a discharge)",
+          len(line1) == 1 and "OWED" in line1[0] and "ack=CONFIRMED" in line1[0])
+
+        # T60 control: it parses the DECLARED SLOT, not "every message". Without this, T58 would
+        # pass for a tool that simply listed the sent set and proved nothing about D2.
+        # Both controls assert a POSITIVE alongside the absence. Written as a bare "X not in
+        # stdout" they passed against the pre-change gate.py too - where `owed` is not a
+        # subcommand at all, stdout is empty and every absence is trivially true. That is the
+        # tautology S3 names, caught by running these against `git show HEAD:` before shipping.
+        t("a message carrying no DONE slot is not reported as a commitment",
+          r.returncode == 0 and "MSG-FAB-0001" in r.stdout and "MSG-FAB-0002" not in r.stdout)
+
+        # T61 control: lane scoping - the PEER's DONE is not this lane's debt
+        t("owed reports only this lane's own commitments",
+          r.returncode == 0 and "MSG-FAB-0001" in r.stdout and "MSG-CDX-0001" not in r.stdout)
+
+        # T62: --enforce is a MEASURED red, exit 1
+        r = run(["owed", "--as", "Fable", "--enforce"], owd)
+        t("owed --enforce exits 1 on a measured OWED", r.returncode == 1 and "MEASURED" in r.stderr)
+
+        # T63 negative: an outcome cannot be reported before the promise that produced it
+        r = run(["discharge", "--as", "Fable", "--id", "MSG-FAB-0003", "--in", "MSG-FAB-0001",
+                 "--outcome", "reported in an earlier message somehow"], owd)
+        t("discharge refuses an --in that predates the commitment",
+          r.returncode == 1 and "predates" in r.stderr)
+
+        # T64 negative: nothing to discharge on a message that promised nothing
+        r = run(["discharge", "--as", "Fable", "--id", "MSG-FAB-0002", "--in", "MSG-FAB-0003",
+                 "--outcome", "pretending this one carried a commitment"], owd)
+        t("discharge refuses a message carrying no DONE slot",
+          r.returncode == 1 and "no **DONE** slot" in r.stderr)
+
+        # T65 negative: a lane discharges only its OWN commitments
+        r = run(["discharge", "--as", "Fable", "--id", "MSG-CDX-0001", "--in", "MSG-FAB-0003",
+                 "--outcome", "clearing the peer's commitment for it"], owd)
+        t("discharge refuses another lane's commitment",
+          r.returncode == 1 and "own commitments" in r.stderr.lower())
+
+        # T66 positive: a real discharge lands and the board flips
+        r = run(["discharge", "--as", "Fable", "--id", "MSG-FAB-0001", "--in", "MSG-FAB-0003",
+                 "--outcome", "the card was never produced; T-005 was withdrawn instead"], owd)
+        rs = run(["owed", "--as", "Fable"], owd)
+        line1 = [ln for ln in rs.stdout.splitlines() if "MSG-FAB-0001" in ln]
+        t("a discharge reported in a later bus entry clears the commitment",
+          r.returncode == 0 and len(line1) == 1 and "DISCHARGED" in line1[0]
+          and "OWED" not in line1[0])
+
+        # T67 negative: appends never erase - a second discharge is refused, not overwritten
+        r = run(["discharge", "--as", "Fable", "--id", "MSG-FAB-0001", "--in", "MSG-FAB-0003",
+                 "--outcome", "a different story about the same commitment"], owd)
+        t("a second discharge is refused rather than overwriting the first",
+          r.returncode == 1 and "already discharged" in r.stderr)
+
+        # T68 negative: UNREAD IS NOT A SKIP. With relay.md gone the command must fail loudly;
+        # rendering "none owed" from a probe that could not run is the S4 defect.
+        os.replace(str(owd / "relay.md"), str(owd / "relay.hidden"))
+        r = run(["owed", "--as", "Fable"], owd)
+        t("owed renders UNREAD, never a clean bill, when the log cannot be read",
+          r.returncode == 1 and "UNREAD" in r.stderr and "none" not in r.stdout.lower())
+        os.replace(str(owd / "relay.hidden"), str(owd / "relay.md"))
+
+        # T69 negative: an unreadable PEER sidecar renders ack=UNREAD, never ack=awaiting -
+        # a failed probe is not a negative observation.
+        io.open(owd / "ack-codex.json", "w", encoding="utf-8", newline="\n").write("{ broken")
+        r = run(["owed", "--as", "Fable"], owd)
+        t("an unreadable peer sidecar renders ack=UNREAD, not ack=awaiting",
+          r.returncode == 0 and "ack=UNREAD" in r.stdout and "ack=awaiting" not in r.stdout)
+
     total = PASS + FAIL
     print()
     if FAIL == 0:

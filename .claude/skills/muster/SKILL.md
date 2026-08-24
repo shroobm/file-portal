@@ -234,3 +234,28 @@ of the tautology S78 shipped in this exact position.
 
 Run it when `muster.sh` or `open.sh` changes, and whenever a clean card is about to be trusted
 with something expensive.
+
+### Appended 2026-08-24 (S109) — the descendant rule, cases 30-32
+
+PROVENANCE: written SINGLE-LANE by Claude agents with NO cross-vendor check — the Codex lane
+was out of budget. No second model has read this change.
+
+The "Fifteen cases" sentence above is left standing per appends-never-erase; it was already
+stale before this entry. `selftest.sh` now makes **43 assertions**.
+
+Three of them are new. `muster.sh` [3] used to compare the two clocks for BYTE-EQUALITY, which
+they can never have: the ledger row is written AFTER the closing commit, so any commit the
+close's own gates force afterwards lands below the row and the row cannot reach back to name
+it. S108 is the specimen (S109 §3). The rule is now **the ledger SHA must be an ANCESTOR of the
+TIME-STATE SHA** — not equal, ancestor — and the card prints the GAP, never a bare checkmark.
+
+- **30** the descendant case RECONCILES (exit 0) and names `2 commit(s) AHEAD of ledger`.
+- **31** a GENUINE FORK — ledger SHA not an ancestor — **still exits 1**. This negative is what
+  stops the rule from degenerating into a blanket green, and it is the case to run first if
+  anyone ever suspects the clock has gone permissive.
+- **32** an out-of-repo ledger SHA is CONFIG and still exits 1, never rewind, never green.
+
+DEPLOY STEP, still outstanding at the time of writing: `open.sh` [1] GROUND compares the repo
+copy against `~/.claude/muster.sh` and will report DRIFT until that mirror is re-stamped. That
+is the guard working, not a defect — but until it is done, `open.sh` exits 1 for a second
+reason and selftest cases 14a/14b (which assert open.sh's exit code) go red.

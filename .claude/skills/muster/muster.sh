@@ -2,6 +2,11 @@
 # ~/.claude/muster.sh — the Session Muster, executable form.
 # Verifies memory is loaded and the two timekeeping clocks reconcile.
 #   exit 0 = CLEAN ; exit 1 = INCIDENT (a SessionStart hook can gate on this).
+#
+# PROVENANCE — the S109 descendant rule in [3] was written SINGLE-LANE by Claude agents, with NO
+# cross-vendor check: the Codex lane was out of budget when it landed, so no second model read
+# this change. That is a discount on the evidence, not a disclaimer. The tripwires below it
+# (selftest.sh cases 30-32) are the only independent witness it has.
 # Paths use forward slashes (safe in Git Bash / MinTTY / WSL). Override via env:
 #   MEMORY_LIB=/path/to/memory  FP_REPO=/path/to/file-portal
 set -uo pipefail
@@ -189,19 +194,101 @@ if [[ ! -d "$FP_REPO" ]]; then
   printf '[3] HARD clock ... ✗ CONFIG — FP_REPO does not exist: %s (NOT a rewind)\n' "$FP_REPO"; fail=1
 elif [[ "$repo_git" -eq 0 ]]; then
   printf '[3] HARD clock ... ✗ CONFIG — not a git repo: %s (NOT a rewind)\n' "$FP_REPO"; fail=1
+# S109 — THE DESCENDANT RULE. PROPOSED by Claude Opus 5 (Fable lane) and covered by Rab's
+# blanket authorisation "I sign on everything that needs work that we've discussed".
+#
+# ⚠ ATTRIBUTION CORRECTED. This line first read "(Rab's, signed 2026-08-24)" — an authority
+# claim the record does not support, written into a durable guard by an agent whose brief
+# (mine) told it "Rab has signed the fix". He authorised the WORK; he did not author the rule
+# and he did not ratify this clause by clause. `coordination/SIGNATURES.md` has no entry for
+# it and the sign sheet has no clock item. Its sibling lane got this right in the same hours:
+# DISCLOSURE-STANDARD.md says a blanket sentence "does not establish that he read this
+# document clause by clause." Same signature, two renderings, and this was the wrong one.
+# An inference dressed as an observation is this project's most expensive defect; one dressed
+# as the PRINCIPAL'S OWN WORDS is worse, because it cannot be checked by re-reading the code.
+# Found by an adversarial verifier in the same fleet that wrote it. This block compared the two SHAs for
+# BYTE-EQUALITY, and the two clocks can never have it. The ledger row is written AFTER the
+# closing commit, so it names the SHA that existed WHEN THE ROW WAS WRITTEN; any commit the
+# close's own gates force afterwards lands BELOW the row and the row cannot reach back to name
+# it. S108 is the specimen and declared it in its §6a rather than leaving it to be found:
+#
+#   a652781  20:35:10  close: S108 §6 + the 15-item sign sheet        ← the ledger row's SHA
+#   7a1e9f4  20:35:25  docs: Change Ledger row — Desktop S108          ← the row itself, 15s later
+#   307e491            coverage: lever-waiver on SYM050_SLICE          ← the LEVERS gate fired
+#   e4d731e  20:46:28  close-phase: writer identity + slice_size       ← the GLASS gate fired
+#                                                                     ← TIME-STATE names THIS
+#
+# TIME-STATE is right about reality; the row is right about what it could see. Byte-equality
+# therefore reported an INCIDENT at every single open — a structural gap wearing a rewind's
+# clothing, the fourth instance of that pattern in this file and the same FAMILY as SYM-028
+# (row ordering) though not the same cause (row write-order).
+#
+# THE RULE: the clocks RECONCILE when the ledger SHA is an ANCESTOR of the TIME-STATE SHA on
+# the same lane. Not equal — ancestor. `merge-base --is-ancestor X X` is true, so a byte-equal
+# pair still reconciles and nothing that passed before starts failing.
+#
+# AND THE TEETH, which are the whole reason this is not a blanket green: if the ledger SHA is
+# NOT an ancestor of TIME-STATE, the clocks are on different lines of history — that is a
+# genuine fork or rewind and it still exits 1. If either SHA is not in the repo, that is still
+# an incident too, reported as CONFIG so it cannot be misread as a rewind. Both directions are
+# tripwired in selftest.sh (cases 30–32); the negative half is what stops the descendant rule
+# from degenerating into "always green".
 elif [[ -z "$exp_sha" || -z "$led_sha" ]]; then
   printf '[3] HARD clock ... ✗ could not read a SHA (TIME-STATE=%s ledger=%s)\n' "$exp_sha" "$led_sha"; fail=1
-elif [[ "$exp_sha" != "$led_sha"* && "$led_sha" != "$exp_sha"* ]]; then
-  printf '[3] HARD clock ... ✗ SHA mismatch: TIME-STATE %s vs ledger %s\n' "$exp_sha" "$led_sha"; fail=1
+elif ! git -C "$FP_REPO" cat-file -e "$exp_sha^{commit}" 2>/dev/null; then
+  printf '[3] HARD clock ... ✗ CONFIG — TIME-STATE %s is not a commit in %s (wrong clone / unfetched — NOT a rewind)\n' \
+    "$exp_sha" "$FP_REPO"; fail=1
+elif ! git -C "$FP_REPO" cat-file -e "$led_sha^{commit}" 2>/dev/null; then
+  printf '[3] HARD clock ... ✗ CONFIG — ledger %s is not a commit in %s (wrong clone / unfetched — NOT a rewind)\n' \
+    "$led_sha" "$FP_REPO"; fail=1
 elif [[ -n "$exp_sess" && "$exp_sess" != "$led_sess" ]]; then
   printf '[3] HARD clock ... ✗ session mismatch: TIME-STATE %s vs ledger %s\n' "$exp_sess" "$led_sess"; fail=1
-elif ! git -C "$FP_REPO" cat-file -e "$exp_sha^{commit}" 2>/dev/null; then
-  printf '[3] HARD clock ... ✗ CONFIG — %s is not a commit in %s (wrong clone / unfetched — NOT a rewind)\n' \
-    "$exp_sha" "$FP_REPO"; fail=1
-elif git -C "$FP_REPO" merge-base --is-ancestor "$exp_sha" HEAD 2>/dev/null; then
-  printf '[3] HARD clock ... ✓ %s (%s) mirrors ledger, ancestor of HEAD\n' "$exp_sha" "$exp_sess"
-else
+elif ! git -C "$FP_REPO" merge-base --is-ancestor "$led_sha" "$exp_sha" 2>/dev/null; then
+  # D3, found by this fleet's OWN adversarial verifier: the first cut printed FORK/REWIND for
+  # BOTH ways of failing the ancestor test, and git contradicted the sentence — a TIME-STATE that
+  # merely LAGS the ledger row sits on the SAME line of history. A wrong diagnosis sends the
+  # reader to the wrong remedy, and the comment above congratulated itself on closing "the fourth
+  # instance of a config fault wearing a rewind's clothing" while introducing a fifth.
+  # Three-way, because there are three cases and not two.
+  if git -C "$FP_REPO" merge-base --is-ancestor "$exp_sha" "$led_sha" 2>/dev/null; then
+    lag=$(git -C "$FP_REPO" rev-list --count "$exp_sha..$led_sha" 2>/dev/null)
+    printf '[3] HARD clock ... ✗ TIME-STATE LAGS — ledger %s is %s commit(s) AHEAD of TIME-STATE %s\n' \
+      "$led_sha" "${lag:-UNREAD}" "$exp_sha"
+    printf '                     on the SAME line of history. NOT a fork: a close wrote its ledger\n'
+    printf '                     row and never advanced the memory clock. Advance TIME-STATE.\n'; fail=1
+  else
+    printf '[3] HARD clock ... ✗ FORK/REWIND — ledger %s and TIME-STATE %s share no ancestry in\n' \
+      "$led_sha" "$exp_sha"
+    printf '                     either direction: the clocks stand on different lines of history.\n'
+    printf '                     Reconcile before work.\n'; fail=1
+  fi
+elif ! git -C "$FP_REPO" merge-base --is-ancestor "$exp_sha" HEAD 2>/dev/null; then
   printf '[3] HARD clock ... ✗ %s not an ancestor of HEAD (rewind/fork?)\n' "$exp_sha"; fail=1
+else
+  # A VALUE, never a checkmark alone (open.sh's output discipline): the gap is the number of
+  # commits the close's own gates forced after the row, and a reader who sees it grow to
+  # something absurd learns something a ✓ would have hidden.
+  gap=$(git -C "$FP_REPO" rev-list --count "$led_sha..$exp_sha" 2>/dev/null)
+  # D2, found by this fleet's OWN adversarial verifier: the descendant rule as first written was
+  # UNBOUNDED. A ledger row 61 commits stale rendered ✓ CLEAN at exit 0 — a green the OLD
+  # byte-equality caught. The legitimate gap is only the commits a close's own gates force AFTER
+  # its row (S108's real gap was 3). Past the lever below, a row that far behind means a close
+  # never wrote one at all, which is a DIFFERENT fault and must not ride in on this exemption.
+  # MUSTER_CLOCK_GAP_MAX is an operator LEVER, named where it is read, not a bare constant
+  # (docs/18 §2's modularity gate exists precisely to catch the bare-constant version).
+  gap_max="${MUSTER_CLOCK_GAP_MAX:-10}"
+  if [[ -n "$gap" && "$gap" -gt "$gap_max" ]]; then
+    printf '[3] HARD clock ... ✗ LEDGER STALE — TIME-STATE %s is %s commit(s) ahead of ledger %s,\n' \
+      "$exp_sha" "$gap" "$led_sha"
+    printf '                     past the %s this rule allows. A close forces a few commits after\n' "$gap_max"
+    printf '                     its row; it does not force %s. Did a close skip its ledger row?\n' "$gap"
+    printf '                     (raise MUSTER_CLOCK_GAP_MAX only if you mean it.)\n'; fail=1
+  elif [[ "$gap" == "0" ]]; then
+    printf '[3] HARD clock ... ✓ %s (%s) == ledger %s, ancestor of HEAD\n' "$exp_sha" "$exp_sess" "$led_sha"
+  else
+    printf '[3] HARD clock ... ✓ %s (%s) is %s commit(s) AHEAD of ledger %s and contains it; ancestor of HEAD\n' \
+      "$exp_sha" "$exp_sess" "${gap:-?}" "$led_sha"
+  fi
 fi
 
 # working tree context

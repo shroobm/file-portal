@@ -389,6 +389,129 @@ assert "CLOSE CENSUS: the missing tripwire ID is visible" 0 'MISSING FIRED: T2' 
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/huge.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
 assert "CLOSE CENSUS: an oversized integer is UNREAD, never a numeric false green" 0 'banner integers exceed the bounded parser' "$rc" "$out"
 
+
+# ── CASES 30-32: THE DESCENDANT RULE (S109 — proposed by Claude Opus 5, work authorised by
+# Rab's blanket "I sign on everything..."; he did NOT author it. The earlier "Rab's, signed"
+# attribution here was a fabricated signature, corrected — see muster.sh's block) ────────────
+#
+# PROVENANCE: these three cases were written SINGLE-LANE by Claude agents with NO cross-vendor
+# check — the Codex lane was out of budget. Nothing here has been read by a second model.
+#
+# The property: the two clocks agree when the LEDGER SHA IS AN ANCESTOR OF THE TIME-STATE SHA.
+# The old proxy was byte-equality, and the row-vs-final gap makes that unreachable by
+# construction (muster.sh [3] carries the S108 specimen). Three cases, because a rule with only
+# its happy path is a blanket green: 30 asserts the descendant case now RECONCILES, 31 asserts a
+# GENUINE FORK still fires, 32 asserts an out-of-repo ledger SHA still fires as CONFIG.
+
+# CASE 30 — the S108 shape, built commit by commit: the closing commit (which the row names),
+# then the row itself, then a gate-forced commit AFTER the row (which TIME-STATE names), then
+# later work. Under byte-equality this fixture is an INCIDENT; under the rule it reconciles, and
+# the card must print the GAP rather than a bare checkmark.
+R="$WORK/c30"
+sha_row=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-02 | Desktop | S42: the closing commit | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha_row/" "$R/CLAUDE_README.md"
+git -C "$R" commit -qam 'docs: the ledger row, naming the SHA it could see' >/dev/null 2>&1
+printf 'a lever waiver the close forced\n' > "$R/gate.txt"
+git -C "$R" add -A >/dev/null 2>&1
+git -C "$R" commit -qm 'close-phase: a gate fired AFTER the row was written' >/dev/null 2>&1
+sha_final=$(git -C "$R" rev-parse --short HEAD)
+printf 'post-close work\n' > "$R/later.txt"
+git -C "$R" add -A >/dev/null 2>&1
+git -C "$R" commit -qm 'work landing after the close, same line' >/dev/null 2>&1
+mklib "$WORK/l30" 12 S42 "$sha_final"
+out=$(run "$WORK/l30" "$R"); rc=$?
+assert "S109 DESCENDANT: a TIME-STATE AHEAD of its ledger row reconciles (exit 0)" 0 'HARD clock.*✓.*2 commit\(s\) AHEAD of ledger' "$rc" "$out"
+if printf '%s' "$out" | grep -qE 'SHA mismatch'; then
+  bad "…and the old byte-equality verdict is gone" "still reporting 'SHA mismatch' on a descendant"
+else ok "…and the old byte-equality verdict is gone"; fi
+
+# CASE 31 — THE NEGATIVE HALF, and the reason case 30 is not a blanket green. Two commits off a
+# shared base, on divergent lines: the ledger names one, TIME-STATE names the other, neither
+# contains the other. This is what an actual fork or rewind looks like and it must still exit 1 —
+# and it must fire on the ANCESTRY verdict, not on some leftover equality test, or the new rule
+# is untested and the old one is doing the work.
+R="$WORK/c31"; mkdir -p "$R"
+git -C "$R" init -q 2>/dev/null
+git -C "$R" config user.email t@t; git -C "$R" config user.name t
+printf 'base\n' > "$R/f.txt"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm base >/dev/null 2>&1
+main31=$(git -C "$R" rev-parse --abbrev-ref HEAD)
+git -C "$R" checkout -q -b forklane
+printf 'the other line\n' > "$R/a.txt"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm 'the commit the ledger row names' >/dev/null 2>&1
+sha_fork=$(git -C "$R" rev-parse --short HEAD)
+git -C "$R" checkout -q "$main31"
+printf 'this line\n' > "$R/b.txt"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm 'the commit TIME-STATE names' >/dev/null 2>&1
+sha_ts=$(git -C "$R" rev-parse --short HEAD)
+{ printf '# CLAUDE_README\n\n## Change Ledger\n\n| Date | Machine | Milestone | SHA |\n|---|---|---|---|\n'
+  printf '| 2026-01-01 | Desktop | S41: first | 1111111 |\n'
+  printf '| 2026-01-02 | Desktop | S42: closed on the other line | %s |\n' "$sha_fork"; } > "$R/CLAUDE_README.md"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm ledger >/dev/null 2>&1
+mklib "$WORK/l31" 12 S42 "$sha_ts"
+out=$(run "$WORK/l31" "$R"); rc=$?
+# The reason string changed when D3 split this branch three ways (a LAGGING clock is on the SAME
+# line and must not be called a fork). This fixture IS a genuine fork - two divergent lines - so
+# the CODE was right and this regex was stale. Re-anchored on the new wording, and deliberately
+# still anchored on a REASON rather than the exit code: matching only rc==1 would pass on any
+# failure at all and turn the case into a tautology.
+assert "S109 NEGATIVE: a genuine fork (ledger NOT an ancestor) STILL exits 1" 1 'HARD clock.*✗ FORK/REWIND — ledger .* and TIME-STATE .* share no ancestry' "$rc" "$out"
+# …and the mirror of case 34: a real fork must NOT be softened into "your clock is merely behind".
+if printf '%s' "$out" | grep -q 'TIME-STATE LAGS'; then
+  bad "S109 NEGATIVE: …and a fork is NOT softened into a lag" "divergent history reported as a lag"
+else ok "S109 NEGATIVE: …and a fork is NOT softened into a lag"; fi
+
+# CASE 32 — the other way the rule can be handed a question it cannot answer: a ledger SHA that
+# is not in this repo at all. Ancestry on a missing object is unanswerable, and an unanswerable
+# ancestry check must never fall through to green. CONFIG, not rewind — the distinction this
+# file has had to relearn four times.
+R="$WORK/c32"; sha=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-02 | Desktop | S42: second | deadbee |')
+mklib "$WORK/l32" 12 S42 "$sha"
+out=$(run "$WORK/l32" "$R"); rc=$?
+assert "S109: an out-of-repo LEDGER SHA is CONFIG and still exits 1, never green" 1 'HARD clock.*✗ CONFIG — ledger deadbee is not a commit' "$rc" "$out"
+if printf '%s' "$out" | grep -q 'rewind/fork'; then
+  bad "…and does not say rewind" "a missing object misdiagnosed as a rewind"; else ok "…and does not say rewind"; fi
+# ── CASES 33-35: THE TWO HOLES THIS FLEET'S OWN VERIFIER FOUND IN CASES 30-32 ────────────────
+# Both were shipped by the lane that wrote the descendant rule and neither was disclosed in its
+# report. They are tripwired here because a rule that loosened a guard without a test to bound it
+# is exactly the shape this file exists to refuse.
+
+# CASE 33 — D2, THE UNBOUNDED GREEN. The descendant rule as first written had no ceiling: a ledger
+# row 61 commits stale rendered ✓ CLEAN at exit 0, a green the OLD byte-equality caught. The
+# legitimate gap is the handful of commits a close's own gates force after its row (S108's was 3);
+# a row hundreds behind means a close never wrote one, which is a different fault and must not ride
+# in on this exemption.
+R="$WORK/c33"; base=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$base/" "$R/CLAUDE_README.md"; git -C "$R" commit -qam rows >/dev/null 2>&1
+for i in $(seq 1 15); do printf 'c%s\n' "$i" > "$R/f$i.txt"; git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm "c$i" >/dev/null 2>&1; done
+mklib "$WORK/l33" 12 S42 "$(git -C "$R" rev-parse --short HEAD)"
+out=$(run "$WORK/l33" "$R"); rc=$?
+assert "S109 D2: a ledger row far past the gap lever is STALE, not a green" 1 'LEDGER STALE' "$rc" "$out"
+
+# CASE 33b — THE CONTROL, and without it case 33 is satisfied by a rule that refuses every gap.
+# A gap inside the lever must still RECONCILE, because that gap is the whole reason the rule exists.
+mklib "$WORK/l33b" 12 S42 "$(git -C "$R" rev-parse --short HEAD~12)"
+sed -i "s/| 2026-01-02 | Desktop | S42: second | [0-9a-f]* |/| 2026-01-02 | Desktop | S42: second | $(git -C "$R" rev-parse --short HEAD~15) |/" "$R/CLAUDE_README.md"
+git -C "$R" commit -qam ctl >/dev/null 2>&1
+out=$(run "$WORK/l33b" "$R"); rc=$?
+assert "S109 D2 control: a gap INSIDE the lever still reconciles" 0 'AHEAD of ledger' "$rc" "$out"
+
+# CASE 34 — D3, THE FALSE DIAGNOSIS. The first cut printed FORK/REWIND for both directions of a
+# failed ancestry test. Git contradicts that: a TIME-STATE that merely LAGS its ledger row is on
+# the SAME line of history, and the remedy is "advance the clock", not "reconcile a fork". The
+# comment above claimed to close the fourth instance of a config fault wearing a rewind's clothing
+# while shipping a fifth.
+R="$WORK/c34"; base=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+for i in 1 2 3 4 5; do printf 'c%s\n' "$i" > "$R/g$i.txt"; git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm "g$i" >/dev/null 2>&1; done
+newer=$(git -C "$R" rev-parse --short HEAD)
+sed -i "s/SHAPLACEHOLDER/$newer/" "$R/CLAUDE_README.md"; git -C "$R" commit -qam rows >/dev/null 2>&1
+mklib "$WORK/l34" 12 S42 "$base"
+out=$(run "$WORK/l34" "$R"); rc=$?
+assert "S109 D3: a LAGGING TIME-STATE is named as lagging, and still exits 1" 1 'TIME-STATE LAGS' "$rc" "$out"
+if printf '%s' "$out" | grep -q 'FORK/REWIND'; then
+  bad "S109 D3: …and is NOT called a fork" "same line of history reported as a fork — git says otherwise"
+else ok "S109 D3: …and is NOT called a fork"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

@@ -190,6 +190,52 @@ def save(model: str, data: dict, as_model: str) -> None:
 MSG_RE = re.compile(r"MSG-(FAB|CDX)-(\d{4})")
 
 
+# THE COUNTER'S FLOOR IS THE LOG, NOT THE SIDECAR (S109, after a live id collision).
+#
+# next_id used to take max() over the sidecar's sent[] alone. The sidecar is MUTABLE and can be
+# restored BACKWARDS: on 2026-08-24 a repair of the fabricated-escalation incident restored
+# ack-fable.json with `git checkout`, the sent row for MSG-FAB-0018 vanished with it, the counter
+# regressed, and the next post minted MSG-FAB-0018 a SECOND time. relay.md now permanently names
+# two different entries MSG-FAB-0018 (relay.md:2111 and relay.md:2125) - appends never erase, so
+# that collision is in the record forever.
+#
+# The asymmetry is the fix: relay.md is APPEND-ONLY and cannot lose an entry, so the log is the
+# one clock that never runs backwards. The floor is now max(sidecar sent[], ids stamped in the
+# log). A restored sidecar can no longer regress the counter, because the log still holds the
+# evidence of the mint. Format unchanged; nothing is renumbered; the max() INPUT SET is the whole
+# change.
+#
+# S109 SINGLE-LANE DISCLOSURE: this repair and its tripwires (T56/T57 in selftest.py) were
+# designed, written and checked by Claude agents ONLY. The Codex lane was out of budget, so there
+# is NO cross-vendor check on this code. Discount the evidence accordingly.
+def log_max_id(prefix: str):
+    """Highest nnnn for `prefix` stamped in the APPEND-ONLY log. Returns (n, status).
+
+    status is 'ok' or 'UNREAD'. A log that cannot be read returns UNREAD and is NEVER rendered
+    as "no ids found" - a 0 from a failed probe is exactly the lie the restored sidecar told.
+    """
+    p = relay_path()
+    if not p.exists():
+        return 0, "UNREAD"
+    try:
+        text = io.open(p, encoding="utf-8", errors="replace").read()
+    except Exception:
+        return 0, "UNREAD"
+    n = 0
+    for ln in text.replace("\r\n", "\n").replace("\r", "\n").split("\n"):
+        # Only a MINTING STAMP counts: an entry header, or any line carrying the ⟨msg: …⟩ marker
+        # that `post` and `escalate` write. Prose that merely NAMES an id - a void notice, a
+        # correction, this very incident's write-up - is not a mint, and counting it would let
+        # commentary move the counter. (Measured on the live log 2026-08-24: stamps-only and
+        # whole-file scans both give FAB 27 / CDX 9, so the narrower rule loses nothing today.)
+        if not (ln.startswith("## ") or "⟨msg:" in ln):
+            continue
+        for m in MSG_RE.finditer(ln):
+            if m.group(1) == prefix:
+                n = max(n, int(m.group(2)))
+    return n, "ok"
+
+
 def next_id(model: str, data: dict) -> str:
     prefix = "FAB" if model == "Fable" else "CDX"
     n = 0
@@ -197,6 +243,16 @@ def next_id(model: str, data: dict) -> str:
         m = MSG_RE.search(row.get("id", ""))
         if m and m.group(1) == prefix:
             n = max(n, int(m.group(2)))
+    log_n, log_status = log_max_id(prefix)
+    if log_status == "ok":
+        n = max(n, log_n)
+    elif n:
+        # The sidecar remembers sends but the append-only witness cannot be read, so for THIS
+        # mint the regression guard is absent. Say it out loud rather than mint silently on one
+        # clock. (A brand-new bus with no sends yet is not this case and stays quiet.)
+        print(f"[gate] WARNING: {relay_path()} is UNREAD - minting MSG-{prefix}-{n + 1:04d} from "
+              "the MUTABLE sidecar alone; a restored sidecar cannot be caught without the log.",
+              file=sys.stderr)
     return f"MSG-{prefix}-{n + 1:04d}"
 
 
@@ -228,6 +284,66 @@ def extract_entry(msg_id: str):
             end = i
             break
     return "\n".join(lines[start:end])
+
+
+# ---------- D2: commitments (a DONE stated on the bus) ----------
+#
+# PRODUCED SINGLE-LANE by Claude agents (S109). No cross-vendor check: the Codex lane ran out of
+# budget, so nothing here was re-derived by a second model. That is a discount on the evidence.
+#
+# The Disclosure Standard names its own ceiling: "the triggers are enforced by discipline, not by
+# code. Only the beat's shape is mechanical." This closes exactly ONE of the six - D2, a broken
+# commitment - and only because `**DONE.**` is not prose. It is a DECLARED SLOT of the five-slot
+# transaction contract: `escalate` emits it, CR-CDX-0002 clause 2 requires it, and selftest's
+# clause-2 census already asserts it appears exactly once in order. Reading it is reading a
+# FIELD, not inferring an intent. The other five triggers stay discipline-only, because deciding
+# whether a paragraph "is a record-damage disclosure" would be a guesser wearing a guard's badge.
+#
+# WHAT THIS DOES NOT DO, stated here rather than discovered later:
+#   - It never reads the DONE's prose to decide whether it "counts". It prints the clause and
+#     lets a human judge. A tool that scored commitments by their wording would be the guesser
+#     this design refused to ship.
+#   - It never treats an ACK as a discharge. `MSG-FAB-0020` was confirmed by the peer and its
+#     deliverable was never produced - that is the specimen the standard was written from. The
+#     two columns are computed from different sources and are never collapsed.
+#   - It over-reports rather than under-reports. Anything with no explicit discharge record reads
+#     OWED, including the 25 entries that predate this ledger. A false OWED costs one command; a
+#     false clear costs what MSG-FAB-0020 cost.
+
+ENTRY_HDR_RE = re.compile(r"^## .*⟨from:\s*(\w+)\s*⟩.*⟨msg:\s*(MSG-(?:FAB|CDX)-\d{4})\s*⟩")
+DONE_SLOT_RE = re.compile(r"^\*\*DONE\b[^\n]*", re.M)
+_DONE_LEAD_RE = re.compile(r"^\*\*DONE\b[\s.:;—–-]*\*{0,2}[\s.:—–-]*")
+
+
+def lane_commitments(lane: str):
+    """Every entry `lane` posted that carries a DONE slot, oldest first.
+
+    Returns (rows, status). status 'UNREAD' NEVER comes back with a plausible empty list: a log
+    that cannot be read is not a lane that owes nothing (S4, and this file's own fail-closed law
+    at `open_escalations`)."""
+    p = relay_path()
+    if not p.exists():
+        return [], "UNREAD"
+    try:
+        text = io.open(p, encoding="utf-8", errors="replace").read()
+    except Exception:
+        return [], "UNREAD"
+    lines = text.replace("\r\n", "\n").replace("\r", "\n").split("\n")
+    heads = []
+    for i, ln in enumerate(lines):
+        m = ENTRY_HDR_RE.match(ln)
+        if m:
+            heads.append((i, m.group(1), m.group(2)))
+    rows = []
+    for k, (i, frm, mid) in enumerate(heads):
+        end = heads[k + 1][0] if k + 1 < len(heads) else len(lines)
+        if frm != lane:
+            continue
+        m = DONE_SLOT_RE.search("\n".join(lines[i:end]))
+        if not m:
+            continue
+        rows.append({"id": mid, "done": _DONE_LEAD_RE.sub("", m.group(0)).strip()})
+    return rows, "ok"
 
 
 # ---------- commands ----------
@@ -726,6 +842,139 @@ def cmd_resolve(a):
     return 0
 
 
+OWED_CEILING = (
+    "  This is D2 only. The other five triggers remain enforced by discipline, not by code.\n"
+    "  OWED means THE RECORD CONTAINS NO REPORT OF THE OUTCOME. It does not mean the work was\n"
+    "  not done - it means the bus cannot show that it was, which is the disclosure D2 names.\n"
+    "  Discharge is an ACT, never an inference: gate.py discharge --as <lane> --id <msg>\n"
+    "    --in <a LATER message of yours that reports it> --outcome \"<what actually happened>\"\n"
+    "  PRODUCED SINGLE-LANE by Claude agents - no cross-vendor check (the Codex lane is out of\n"
+    "  budget). Discount the evidence accordingly."
+)
+
+
+def cmd_owed(a):
+    """D2 made mechanical: every DONE this lane stated on the bus, and whether the record
+    reports its outcome.
+
+    The two columns come from DIFFERENT sources and are never collapsed into one verdict:
+      ack     - did the PEER confirm reading the entry (peer sidecar `confirmed`)
+      outcome - does MY sidecar carry an explicit discharge record for it
+    Conflating them is the exact defect this exists to surface. `MSG-FAB-0020` was confirmed by
+    the peer and its deliverable was never produced; a tool that read the ACK as the discharge
+    would have rendered that specimen CLEAN.
+    """
+    lane = a.as_model
+    commits, cst = lane_commitments(lane)
+    mine, mst = load(lane)
+    if cst == "UNREAD" or mst == "UNREAD":
+        bad = ["relay.md"] if cst == "UNREAD" else []
+        if mst == "UNREAD":
+            bad.append(ack_path(lane).name)
+        print(f"UNREAD: cannot read {', '.join(bad)} — this lane CANNOT be shown to owe nothing. "
+              f"A failed probe is not a clean bill (S4).", file=sys.stderr)
+        return 1
+    theirs, tst = load(other(lane))
+    acked = {c["id"] for c in theirs.get("confirmed", [])} if tst == "ok" else None
+    rows = {s.get("id"): s for s in mine.get("sent", [])}
+
+    owed = unread = discharged = 0
+    print(f"{lane}: commitments stated on the bus (entries carrying a **DONE** slot)")
+    if not commits:
+        print("  none — this lane has posted no entry with a DONE slot")
+    for c in commits:
+        row = rows.get(c["id"])
+        if row is None:
+            # The entry is in the log but this lane's sidecar has no row for it. We cannot read
+            # a discharge that may or may not exist, so this is UNREAD - never "not owed".
+            state, unread = "UNREAD ", unread + 1
+            extra = "no sidecar row for this id"
+        elif row.get("discharged"):
+            d = row["discharged"]
+            state, discharged = ("DISCH(self)" if d.get("self_reported") else "DISCHARGED"), discharged + 1
+            extra = f"in {d.get('in')} · {str(d.get('outcome'))[:60]}"
+        else:
+            state, owed = "OWED   ", owed + 1
+            extra = ""
+        if acked is None:
+            ack = "ack=UNREAD"          # peer sidecar unreadable: never render that as "no ack"
+        elif row is not None and not row.get("requires_ack", True):
+            ack = "ack=n/a   "
+        elif c["id"] in acked:
+            ack = "ack=CONFIRMED"
+        else:
+            ack = "ack=awaiting "
+        print(f"  {c['id']}  {state}  {ack}  DONE: \"{c['done'][:88]}\"")
+        if extra:
+            print(f"                             {extra}")
+    print(f"\n  {owed} OWED · {discharged} discharged · {unread} UNREAD · {len(commits)} stated")
+    print(OWED_CEILING)
+    if a.enforce and (owed or unread):
+        # Fail closed, the same law as the FULL STOP's unread branch: a commitment that cannot
+        # be shown reported is not a commitment that was reported.
+        print(f"MEASURED: {owed} owed, {unread} unread — D2 is not discharged.", file=sys.stderr)
+        return 1
+    return 0
+
+
+def cmd_discharge(a):
+    """Report the outcome of a DONE you stated. The report must be ON THE BUS, not just in your
+    own ledger: `--in` names a message of yours that the peer can read. A lane that could clear
+    its own commitments privately would have a back-channel, which is GUARD B's defect one level
+    down."""
+    announce_bus("discharge")
+    lane = a.as_model
+    d, st = load(lane)
+    if st == "UNREAD":
+        print("UNREAD: run `init` first", file=sys.stderr)
+        return 1
+    commits, cst = lane_commitments(lane)
+    if cst == "UNREAD":
+        print("UNREAD: relay.md cannot be read — nothing may be discharged against a log that "
+              "cannot be checked.", file=sys.stderr)
+        return 1
+    by_id = {c["id"]: c for c in commits}
+    rows = {s.get("id"): s for s in d.get("sent", [])}
+    if a.id not in rows:
+        print(f"REFUSED: {a.id} is not one of {lane}'s sent messages. A lane discharges only its "
+              f"OWN commitments — the single-writer law, applied to outcomes.", file=sys.stderr)
+        return 1
+    if a.id not in by_id:
+        print(f"REFUSED: {a.id} carries no **DONE** slot in relay.md — there is no stated "
+              f"commitment to discharge.", file=sys.stderr)
+        return 1
+    if len(a.outcome.strip()) < 20:
+        print("REFUSED: state what ACTUALLY happened (>=20 chars). \"done\" is not an outcome.",
+              file=sys.stderr)
+        return 1
+    if a.in_id not in rows or extract_entry(a.in_id) is None:
+        print(f"REFUSED: --in {a.in_id} is not a message of yours present in relay.md. The "
+              f"outcome must be reportable BY THE PEER, from the bus.", file=sys.stderr)
+        return 1
+    if str(rows[a.in_id].get("utc", "")) < str(rows[a.id].get("utc", "")):
+        print(f"REFUSED: {a.in_id} predates {a.id} — an outcome cannot be reported before the "
+              f"commitment that produced it.", file=sys.stderr)
+        return 1
+    if rows[a.id].get("discharged"):
+        prev = rows[a.id]["discharged"]
+        print(f"REFUSED: {a.id} was already discharged {prev.get('utc')} in {prev.get('in')}: "
+              f"\"{str(prev.get('outcome'))[:70]}\". Appends never erase — post a correction "
+              f"entry instead of overwriting this one.", file=sys.stderr)
+        return 1
+    rows[a.id]["discharged"] = {
+        "utc": utc_now(), "in": a.in_id, "outcome": a.outcome.strip(),
+        # A self-report is PERMITTED (a DONE can be true when written, e.g. "already done") but
+        # it is RECORDED as one, the same way --override records its reason. Never silent.
+        "self_reported": a.in_id == a.id,
+    }
+    save(lane, d, lane)
+    print(f"discharged {a.id} — reported in {a.in_id}"
+          f"{'  (SELF-REPORTED)' if a.in_id == a.id else ''}")
+    print(f"  DONE was: \"{by_id[a.id]['done'][:80]}\"")
+    print(f"  outcome : \"{a.outcome.strip()[:80]}\"")
+    return 0
+
+
 def cmd_watch(a):
     """One stdout line per state change. Unbounded by design - run it under a monitor."""
     seen_conf, seen_in = set(), set()
@@ -818,6 +1067,19 @@ def main() -> int:
     sp.add_argument("--id", required=True)
     sp.add_argument("--restatement", required=True)
     sp.set_defaults(fn=cmd_confirm)
+    sp = add_as(sub.add_parser("owed"))
+    sp.add_argument("--enforce", action="store_true",
+                    help="exit 1 if anything is OWED or UNREAD (fail closed). Without it this is "
+                         "a report and always exits 0.")
+    sp.set_defaults(fn=cmd_owed)
+    sp = add_as(sub.add_parser("discharge"))
+    sp.add_argument("--id", required=True, help="the message whose DONE you are discharging")
+    sp.add_argument("--in", dest="in_id", required=True,
+                    help="a message of yours, present in relay.md and not older than --id, that "
+                         "reports the outcome. May be --id itself for a DONE that was already "
+                         "true when written; that is RECORDED as self-reported.")
+    sp.add_argument("--outcome", required=True, help="what ACTUALLY happened (>=20 chars)")
+    sp.set_defaults(fn=cmd_discharge)
     add_as(sub.add_parser("check")).set_defaults(fn=cmd_check)
     sub.add_parser("status").set_defaults(fn=cmd_status, as_model=None)
     sp = add_as(sub.add_parser("ticket"))

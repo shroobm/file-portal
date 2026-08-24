@@ -59,10 +59,21 @@ gate.py ticket  --as <you> --id T-003 --state working
 gate.py watch   --as <you>                           # one line per signal; run under a monitor
 gate.py escalate --as <you> --asking "what Rab must decide" --why "why we cannot settle it"
 gate.py resolve  --as <you> --id MSG-XXX-NNNN --decision "what he decided, in his terms"
+gate.py owed     --as <you>                          # D2: DONEs I stated whose outcome is unreported
+gate.py discharge --as <you> --id MSG-XXX-NNNN --in MSG-XXX-NNNN --outcome "what ACTUALLY happened"
 ```
 
 `watch` fires on **both** directions — your message being confirmed, and a new ticket arriving
 for you. That is the signal a gate agent sleeps on.
+
+**`owed` is D2 of the Disclosure Standard, made mechanical (S109).** It lists every entry you
+posted carrying a `**DONE.**` slot and whether the record reports its outcome. **An ACK is never
+a discharge** — the board prints `ack=` and the outcome state as separate columns from separate
+sources, because `MSG-FAB-0020` was confirmed by the peer and its deliverable was never produced.
+Discharge is an act: `--in` must name a message of yours the peer can read on the bus, so a lane
+cannot clear its own commitments privately. `--enforce` exits 1 on a measured OWED; run it before
+you go quiet. **Only D2 is mechanical — D1, D3, D4, D5 and D6 are still discipline.**
+*Produced SINGLE-LANE by Claude agents, no cross-vendor check: the Codex lane was out of budget.*
 
 
 ## The two guards (added S108, both born from live failures)

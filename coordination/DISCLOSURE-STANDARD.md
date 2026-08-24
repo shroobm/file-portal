@@ -103,3 +103,100 @@ the misattribution class the lane/occupant split closed, one level up.
 - It cannot tell a *true* beat from a *plausible* one. `--probe` raises the cost of a false
   `verified`; it does not eliminate it. The peer re-deriving the probe is what closes that gap, and
   the peer must actually do it.
+
+---
+
+## SIGNED — 2026-08-24 (S109)
+
+**The `Status: DRAFT, unsigned` header at the top of this file is SUPERSEDED by this block.**
+It is left standing rather than corrected: appends never erase, and the draft header is the
+honest record of what this document was for the hours it was unsigned. Read the two together —
+the header states the origin, this block states the current status.
+
+⟨claimed: Fable lane · occupant: Claude Opus 5 · S109 · 2026-08-24⟩
+
+### Rab's words, verbatim
+
+> *"I want you to just do the rest of the work that's planned. orchestrate an agent fleet.
+> Because codex is out of usage, everything is going to be done by you and your agents. Make
+> sure to make that apparent. Use a standard to orchestrate. **I sign on everything that needs
+> work that we've discussed.**"*
+
+### What that signature establishes, and what it does not
+
+D5 forbids paraphrasing his authority, so the scope is stated plainly rather than flattered:
+
+- **It establishes** that this standard is no longer a draft awaiting a decision. It was in the
+  queue of discussed-and-pending work when he said it, and the sentence covers that queue. The
+  six triggers, the beat, the symmetry clause and the stated ceiling are **in force**.
+- **It does not establish** that he read this document clause by clause and endorsed each one.
+  It is a blanket signature over a discussed queue, not a line-by-line ratification. Anyone
+  citing this block should cite it as what it is.
+- **It does not close the door.** The document remains his to strike or amend, exactly as the
+  original header said. A signature is a starting gun, not a lock.
+
+### What has changed under the signature
+
+The **"What this cannot do"** section above stated this standard's ceiling:
+
+> *"The triggers are enforced by discipline, not by code. Only the beat's shape is mechanical.
+> If a trigger is missed, nothing errors."*
+
+**That bullet is now AMENDED — not rewritten, and not withdrawn. One of the six triggers has
+been lifted out of discipline. Five have not.**
+
+**D2 (broken commitment) is now mechanical.** `gate.py` gained two commands:
+
+```bash
+gate.py owed --as <lane>            # every DONE this lane stated, and whether the record
+                                    # reports its outcome. --enforce exits 1 on a measured OWED.
+gate.py discharge --as <lane> --id <msg> --in <a later message of yours> \
+                  --outcome "<what ACTUALLY happened>"
+```
+
+**Why D2 and not the others.** `**DONE.**` is not prose this tool is guessing at. It is a
+**declared slot** of the five-slot transaction contract — `escalate` emits it, `CR-CDX-0002`
+clause 2 requires it, and the selftest's clause-2 census already asserts it appears exactly once
+in order. Reading it is reading a *field*. Deciding whether a paragraph "is a record-damage
+disclosure" (D3) or "is a hazard that could bite the peer" (D6) would be a guesser wearing a
+guard's badge, and shipping one would be worse than the honest ceiling this section already
+stated. **D1, D3, D4, D5 and D6 remain enforced by discipline, and that is not a temporary
+state pending more code.**
+
+**The design refuses one inference in particular: an ACK is never a discharge.** The board
+prints both columns from different sources and never collapses them. That is the whole point.
+Measured on the live bus on the day this was signed, read-only from a copy:
+
+```
+MSG-FAB-0020  OWED  ack=CONFIRMED  DONE: "I am now producing the T-005 freshness card…"
+19 OWED · 0 discharged · 0 UNREAD · 19 stated
+```
+
+That row is **the specimen this standard was written from** — the paragraph above headed
+*"Measured on the night it was written"* names it as the worst of the night's failures. The peer
+confirmed the message; the deliverable was never produced. A tool that read the confirmation as
+the outcome would have rendered it clean. This one does not, and a tripwire holds it to that:
+*"a CONFIRMED message with an undischarged DONE is still OWED (an ack is not a discharge)."*
+
+**A residual ceiling, stated here rather than discovered later.** `owed` over-reports. Every
+commitment predating this ledger reads OWED, including ones whose outcome really was reported in
+prose, because discharge is an explicit act and never an inference. A false OWED costs one
+command. A false clear costs what `MSG-FAB-0020` cost. The direction of the error is chosen, not
+accidental.
+
+**Evidence:** `.claude/skills/relay-gate/selftest.py` → `ALL TRIPWIRES FIRED — 73/73, exit 0`.
+The twelve new tripwires were run against `git show HEAD:.claude/skills/relay-gate/gate.py` in a
+scratch copy and **all twelve FAILED**, so none of them is a tautology. Two of them passed
+vacuously on the first attempt — against a `gate.py` with no `owed` subcommand, stdout is empty
+and every "X is absent" assertion is trivially true — and were strengthened to assert a positive
+alongside the absence before shipping.
+
+### Single-lane disclosure
+
+**This block, and the D2 mechanism it records, were produced SINGLE-LANE by Claude agents with
+NO cross-vendor check.** The Codex lane ran out of budget mid-session, so nothing here was
+re-derived, re-measured or contested by a second model. Every two-model check this bus normally
+applies — independent re-digest, restatement, the peer re-deriving the probe — is **absent from
+this work**. That is a discount on the evidence, not a formality: this standard's own closing
+line says *"the peer re-deriving the probe is what closes that gap, and the peer must actually
+do it."* **The peer did not. The gap is open.**

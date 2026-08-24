@@ -103,7 +103,16 @@ if [ -z "$tok" ]; then
 elif ! command -v curl >/dev/null 2>&1; then
   row "CI" "UNREAD — curl absent; NOT a statement that CI is green"
 else
-  api="https://api.github.com/repos/shroobm/file-portal/actions/runs?per_page=20"
+  # S109: this line read `?per_page=20` and scanned the twenty most recent runs for the SHA —
+  # so the guard DECAYED. Its own tripwire points at the known-red historical run 534a6c0
+  # (2026-08-20); by S109 that run had simply scrolled off a twenty-item window, the probe
+  # returned NO-RUN, and the red-path case had been failing ever since — a guard that stopped
+  # being able to fire because time passed, not because anything broke.
+  # The comment three lines above already prescribed the fix — "FULL sha to head_sha" — and the
+  # implementation never did it. Code diverged from its own documented route, silently, and the
+  # only witness was a tripwire nobody had re-read.
+  full_sha=$(git -C "$FP_REPO" rev-parse "$sha" 2>/dev/null || printf '%s' "$sha")
+  api="https://api.github.com/repos/shroobm/file-portal/actions/runs?per_page=20&head_sha=$full_sha"
   body=$(curl -s --max-time 25 -H "Authorization: Bearer $tok" -H "Accept: application/vnd.github+json" "$api" 2>/dev/null)
   if [ -z "$body" ]; then
     row "CI" "UNREAD — GitHub did not answer; NOT a statement that CI is green"
