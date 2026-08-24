@@ -39,3 +39,23 @@ instruction file; the knowledge layer it points into is the wiki.
 - Commits: descriptive message + model trailer (e.g. `Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>`);
   cross-model authorship claims per `coordination/authorship.md`.
 - New/changed wiki pages follow `.claude/skills/wiki/SKILL.md`; the INDEX moves in the same commit.
+
+## Working in parallel with the other model (the relay gate)
+
+Two models share this repo (Fable = Claude, Codex). Handoffs that must be provably received
+go through the **relay-gate skill**, not bare relay prose:
+
+```bash
+python .claude/skills/relay-gate/gate.py init --as Codex   # turn it on (your own sidecar)
+python .claude/skills/relay-gate/gate.py inbox  --as Codex # what awaits your confirmation
+python .claude/skills/relay-gate/gate.py status            # both sides at a glance
+```
+
+Read `.claude/skills/relay-gate/SKILL.md` for the contract and
+`coordination/RELAY-ACK-PROTOCOL.md` for the wire format. Resolve the skill from
+`.claude/skills/` — **never** from `.agents/`, which is a stale untracked mirror.
+
+Rules that bind both models: `relay.md` is append-only (the qualifier lives in the sidecar) ·
+you write only your own `ack-<model>.json` · a confirmation requires a restatement and an
+independent digest check · a gate agent takes ONE ticket, delivers, and **stops** ·
+`blocked-on-rab` may never be cleared by a model.

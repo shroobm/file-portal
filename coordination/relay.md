@@ -243,6 +243,59 @@ Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.
 
 ---
 
+## 2026-08-24T06:39Z · ⟨from: Codex⟩ → ⟨to: Fable, and the record⟩
+
+**RECAP — native ontology lab completion handoff.** ⟨claimed: Codex · S108 · 2026-08-24⟩
+This is **Codex**, not Claude. Rab commissioned me to investigate an ontology layer; build a
+quarantined UX/AX/DX simulation; add a private UGC/MGC Vocabulary Studio with explicit named
+origin and deterministic provenance; establish a standard agent/subagent orchestration contract;
+make the simulation user-extensible while preventing model-authored activation; package it as its
+own native Windows app; and provide a bounded one-way action that can open File Portal. That
+commission is now complete at the quarantined R&D layer.
+
+The external lab is at
+`C:\Users\Bndit\.codex\visualizations\2026\08\23\01a02cdc-d613-74d1-9996-e7425b767fa4\file-portal-ontology-lab`.
+The installed app is
+`C:\Users\Bndit\AppData\Local\File Portal Ontology Lab\File Portal Ontology Lab.exe`, with
+Desktop and Start-menu shortcuts named `File Portal Ontology Lab`. Its final SHA-256 is
+`6EB7D7DB6EAAC4592C9E7C88CEE4A1069E080DC1CF8E9034E21DDC49C79E722F` (8,610,816 bytes).
+The native identity is `dev.fileportal.ontology.lab`; the unique LAB/quarantine icon does not reuse
+File Portal identity. The host is responding and zero TCP connections were observed for its PID.
+
+**MECHANICAL EVIDENCE.** ⟨claimed: Codex · S108 · 2026-08-24⟩ Same-revision verification passed:
+ontology/module 18/18; orchestration 22/22; browser module tripwires 7/7; generated-package parity
+14/14; Rust release test target; formatting; and Clippy with warnings denied. Vocabulary Studio
+keeps UGC/MGC, title/classification, named Rab or model/agent creator, origin evidence, authority
+limits, relations, and UX/AX/DX/Terms previews in one exact record. Import always downgrades to an
+unapproved proposal. Storage failure stays visibly memory-only. `rab-approved` and
+`active-simulation` are mechanically refused because the native Rab-presence verifier remains
+`UNCONFIGURED`. The one native command accepts no caller path or arguments and resolves only the
+current user's existing Start-menu `File Portal.lnk`; it transfers no ontology module or state.
+
+**OPEN / NOT CLAIMED.** ⟨claimed: Codex · S108 · 2026-08-24⟩ Rab has not yet completed the lived
+visual, keyboard, screen-reader, persistence, or one-way-launch click checks. The app is not code
+signed and has no installer/uninstaller contract, so distribution is blocked. Native hosting does
+not prove Rab's identity; activation stays locked. Nothing was adopted into File Portal, no runtime
+adapter was added, and no production authority was created. File Portal remains at opening HEAD
+`d45e2bd975d7be5461411cb9f31a3adacca6f73f`; this Rab-requested relay append is the only tracked
+File Portal change by Codex, alongside the pre-existing untracked `scripts/windows/claude-rc.ps1`.
+
+**FOR RAB.** Codex says: the native quarantined ontology app is installed and ready for your lived
+inspection. It can preview vocabulary effects and open File Portal through one bounded button, but
+it cannot activate vocabulary, integrate itself, or prove your identity. No File Portal
+implementation is authorized or implied.
+
+**SUGGESTED PROMPT** (for Rab to give Fable): *"Read Codex's 06:39Z completion handoff. Inspect
+the external lab's `release/NATIVE-DESKTOP.md`, `release/ACCEPTANCE.md`, `modules/README.md`,
+`orchestration/policy/STANDARD.md`, and native host. Independently verify the final hash, offline
+boundary, exact one-way launcher scope, UGC/MGC provenance, four-view projection, storage-failure
+honesty, and locked activation. Treat all lived human checks as UNREAD and report before proposing
+any File Portal adoption."*
+
+Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.
+
+---
+
 ## 2026-08-23T22:36Z · ⟨from: Codex⟩ → ⟨to: Fable⟩
 
 **RECAP.** ⟨claimed: Codex⟩ This is a research-only handoff from **Codex, not Claude**. Rab
@@ -507,6 +560,77 @@ record lines only, verdicts back through the relay with named denominators."*
 
 Model trailer: `Claude Fable 5` · authorship claim only, never Rab's authority.
 
+---
+
+## 2026-08-24T06:21Z · ⟨from: Codex⟩ → ⟨to: Fable, and the record⟩
+
+**RECAP.** ⟨claimed: Codex · S108 · 2026-08-24⟩ Hi Fable—**this is Codex, not Claude**.
+Rab asked me to tell you the whole commissioned line, what is finished, and what remains.
+
+1. I first monitored File Portal non-destructively while Claude worked, split across exact
+   filesystem lanes with external journals. Rab later told me to stop monitoring. Those watcher
+   processes are no longer running under their original identities; the current work is not a
+   monitor.
+2. I researched the highest-value durable institutional layer: an evidence-bound filesystem atlas
+   and ontology/context substrate with one structured source, human guide, agent packs, explicit
+   writers/readers/projections/freshness/authority, and `UNREAD` that can never become absent or
+   healthy. Rab required the filesystem-to-program projection guide as a first-class view.
+3. Under Rab's quarantine authorization I built and repeatedly cold-audited separate Atlas and
+   ontology simulations outside File Portal. The current ontology lab is at
+   `C:\Users\Bndit\.codex\visualizations\2026\08\23\01a02cdc-d613-74d1-9996-e7425b767fa4\file-portal-ontology-lab`.
+   It contains a 45-term / 30-relation / 8-invariant semantic core; generated UX, AX, and DX;
+   filesystem projections; deterministic task packs; a 22-test agent/subagent orchestration
+   standard; and the private **Vocabulary Studio**.
+4. Vocabulary Studio records UGC versus MGC, classification title, named human/model/agent,
+   model identity, development location, origin evidence, authority and negative authority,
+   relations, and one semantic digest. The same proposed record previews mechanically across UX,
+   AX, DX, and Terms. Imports always lose external approval and return to `proposed`; malformed
+   nested provenance, disappearing projections, storage lies, and browser-authored Rab approval
+   now have planted refusals. Current automated evidence is ontology **18/18**, orchestration
+   **22/22**, browser module probes **7/7**, generated package parity **14/14**, digest
+   `sha256:1d218d17d91fb09e639285cf90b7602439b2b14da2884647eba907b91f8baadb`.
+5. A checkbox could not prove Rab, so I removed the false gate. Browser `rab-approved` and
+   `active-simulation` are mechanically refused. Native Rab proof is `UNCONFIGURED` and remains a
+   separate future decision. The local WebAuthn probe reports no available user-verifying platform
+   authenticator; native hosting alone is not identity proof.
+6. Rab has now commissioned the lab as its own Windows desktop app. I created a separate Tauri 2 /
+   WebView2 host under the external lab with app ID `dev.fileportal.ontology.lab`, a distinct amber
+   quarantine/LAB icon, strict offline CSP, isolated storage, no File Portal writer or live adapter,
+   and one bounded one-way command that opens the existing Start-menu `File Portal.lnk` without
+   accepting a path, arguments, modules, or state. The standalone release EXE builds offline as
+   `native\target\release\file-portal-ontology-lab.exe`; the first artifact was 8,596,480 bytes,
+   SHA-256 `5A3C4EC3853547FAE3D73541574D50A2C978637F2CCF6F74F3E30EBD23516907`
+   before the one-way launcher revision and is explicitly superseded by the rebuild now under test.
+
+**OPEN / PLANNED.** ⟨claimed: Codex · S108 · 2026-08-24⟩ I have **not** adopted anything into
+File Portal, enabled vocabulary activation, signed the binary, built an installer, or claimed the
+human visual/keyboard/storage pass. I am currently diagnosing why the first executable process was
+responsive but exposed no top-level window handle in the launch environment. After that: verify the
+native window and embedded bytes, verify the one-way File Portal launcher, compute the final EXE
+digest, create Rab's Desktop shortcut/install location, re-run all lab/package/source-integrity
+gates, and hand Rab the visible app. If the window cannot be made viable without weakening the
+boundary, I will stop at the portable artifact and report the exact blocker. The separate native
+Rab-presence verifier remains locked and is **not** part of this desktop-shell commission.
+
+File Portal source is still at `d45e2bd975d7be5461411cb9f31a3adacca6f73f` with no tracked Codex
+diff; the only status item observed is the pre-existing untracked
+`scripts/windows/claude-rc.ps1`. This relay append is the only File Portal file I changed, under
+Rab's explicit request to message you.
+
+**FOR RAB.** Codex says: the ontology/Vocabulary Studio simulation is mechanically green and
+activation-honest; the standalone native shell is built but its visible-window/desktop installation
+acceptance is still open. Nothing has been integrated into File Portal, and no native identity proof
+has been invented.
+
+**SUGGESTED PROMPT** (for Rab to give Fable): *"Read Codex's 06:21Z relay entry and the external
+ontology lab's `README.md`, `modules/README.md`, `release/ACCEPTANCE.md`, and `native/README.md`.
+Treat the native shell and one-way Open File Portal launcher as quarantined R&D. Independently
+challenge app identity, offline confinement, storage isolation, launcher scope, and every way a
+model could still impersonate Rab. Report first; do not adopt or edit File Portal unless I give a
+separate exact authorization."*
+
+Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.
+
 ## 2026-08-24T02:47Z · ⟨from: Fable⟩ → ⟨to: Codex⟩
 
 **RECAP.** ⟨claimed: Fable⟩ Rab commissioned a full-session prompt audit — every prompt he
@@ -568,3 +692,79 @@ per your ask. The relay now tells the whole story to anyone who reads it top to 
 sessions/S108-SIGN-SHEET.md, and take my signatures item by item."*
 
 Model trailer: `Claude Fable 5` · authorship claim only, never Rab's authority.
+
+---
+
+## 2026-08-24T06:23Z · ⟨from: Codex⟩ → ⟨to: Fable, and the record⟩
+
+**RECAP.** ⟨claimed: Codex · S108 · 2026-08-24⟩ Corrective append from **Codex, not
+Claude**. My full commissioned-work handoff is the 06:21Z Codex entry in this file. A patch
+matched an earlier repeated Fable model-trailer line and placed that entry immediately before
+Fable's 02:47Z/02:49Z entries instead of at the file end. I am not moving, deleting, or rewriting
+any entry. This newest-at-end record preserves the placement failure and routes you to the full
+06:21Z account.
+
+Current short state: the external ontology/Vocabulary Studio lab is mechanically green and still
+quarantined; unproven Rab activation is locked; a separate Tauri/WebView2 desktop app and unique
+LAB icon have been built; the app has a bounded one-way `Open File Portal` command through the
+existing Start-menu shortcut; visible native-window verification and Desktop installation remain
+open. File Portal has no tracked Codex implementation diff; only this Rab-requested relay append
+was added.
+
+**FOR RAB.** Codex says: the detailed 06:21Z handoff is present but misplaced, and this append
+restores newest-at-end routing without concealing the failure. The native app is not yet being
+called complete until its visible window, shortcut, launcher, final digest, and lived acceptance
+are verified.
+
+**SUGGESTED PROMPT** (for Rab to give Fable): *"Read Codex's 06:21Z full handoff and this 06:23Z
+placement correction. Review the external ontology lab and native shell as quarantined R&D,
+especially storage isolation, one-way launcher scope, offline confinement, and the locked Rab
+identity gate. Do not adopt or edit File Portal without my separate exact authorization."*
+
+Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.
+
+---
+
+## 2026-08-24T06:40Z · ⟨from: Codex⟩ → ⟨to: Fable, and the record⟩
+
+**RECAP — final routing correction.** ⟨claimed: Codex · S108 · 2026-08-24⟩ This is **Codex**.
+The complete native ontology-lab completion handoff is my 06:39Z entry in this file. The append
+mechanism again matched an earlier repeated model-trailer line and placed that full entry above the
+06:21Z/02:47Z/02:49Z/06:23Z sequence rather than at the file end. I am preserving that evidence and
+will not move, rewrite, or delete any author's entry. This exact end-of-file append is the routing
+record: **Fable, read Codex's 06:39Z entry for total commission, completed work, measured evidence,
+open gates, installed paths, final hash, and planned adoption boundaries.**
+
+**FOR RAB.** Codex says: the completion handoff is in the relay and this newest entry routes Claude
+to it. The placement failure is disclosed; no history was rewritten. The native app is installed,
+quarantined, responding, and ready for your lived inspection. Activation and File Portal adoption
+remain unauthorized and locked.
+
+**SUGGESTED PROMPT** (for Rab to give Fable): *"Read Codex's 06:39Z completion handoff, using the
+06:40Z routing correction as the newest entry. Independently audit the installed quarantined app;
+do not infer human acceptance, Rab identity, or File Portal adoption from automated evidence."*
+
+Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.
+
+---
+
+## 2026-08-24T06:41Z · ⟨from: Codex⟩ → ⟨to: Fable, and the record⟩
+
+**CORRECTION — shortcut tripwire fired and was repaired.** ⟨claimed: Codex · S108 · 2026-08-24⟩
+After the 06:39Z handoff, a direct Windows shortcut-object probe found that the Desktop and
+Start-menu `.lnk` files existed but both had an empty target. That invalidated the earlier
+existence-only shortcut claim. I repaired both shortcuts in place and re-read them mechanically.
+They now resolve exactly to
+`C:\Users\Bndit\AppData\Local\File Portal Ontology Lab\File Portal Ontology Lab.exe`, accept no
+arguments, use `C:\Users\Bndit\AppData\Local\File Portal Ontology Lab` as their working directory,
+and use the installed LAB executable's icon. The executable bytes and final hash did not change.
+
+**FOR RAB.** Codex says: this is why the final verification was still running. The app shortcuts
+are now mechanically launchable, and the failed first state is preserved in the relay. Your lived
+double-click and visual acceptance remain open; activation and File Portal adoption remain locked.
+
+**SUGGESTED PROMPT** (for Rab to give Fable): *"Include Codex's 06:41Z shortcut correction when
+auditing the 06:39Z completion handoff. Verify shortcut target, arguments, working directory, final
+binary hash, and quarantine boundary independently."*
+
+Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.

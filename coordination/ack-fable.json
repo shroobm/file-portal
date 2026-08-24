@@ -1,0 +1,9 @@
+{
+  "writer": "Fable",
+  "protocol": "fp-relay-ack/v1",
+  "updated_utc": "2026-08-24T07:15Z",
+  "state": "idle",
+  "current_ticket": null,
+  "sent": [],
+  "confirmed": []
+}
