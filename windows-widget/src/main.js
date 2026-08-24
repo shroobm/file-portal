@@ -532,6 +532,19 @@ async function lineInit() {
 const watcherBtn = document.getElementById("watcher-btn");
 const shiftEl = document.getElementById("shift");
 
+// A20 (S108): the product clock — one always-rendered line under the shift report answering
+// "when did the factory last DO anything?". Built here rather than in index.html so the whole
+// feature lives in this file (index.html and styles.css are other lanes' surfaces); the inline
+// dress copies #shift's rule from styles.css for the same reason. #shift itself can't host it:
+// two writers (the ticker at lineLoop and shiftLoop) each overwrite its textContent wholesale.
+const clockEl = document.createElement("div");
+clockEl.id = "product-clock";
+clockEl.style.cssText =
+  "padding:0 12px 8px;font-family:Consolas,'Cascadia Mono',monospace;font-size:10px;" +
+  "color:#9a938d;min-height:12px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;";
+clockEl.textContent = "last pipeline event: UNREAD"; // honest until the first measurement lands
+shiftEl.insertAdjacentElement("afterend", clockEl);
+
 function watcherRender(st) {
   if (st.state === "unconfigured") {
     watcherBtn.hidden = true;
@@ -597,10 +610,11 @@ async function watcherAutostart() {
 }
 
 async function shiftLoop() {
+  let summary = null;
   try {
-    const s = await invoke("shift_summary");
-    if (s.available) {
-      const t = s.today;
+    summary = await invoke("shift_summary");
+    if (summary.available) {
+      const t = summary.today;
       const parts = [];
       if (t.converted) parts.push(`${t.converted} converted`);
       if (t.analyzed) parts.push(`${t.analyzed} analyzed` +
@@ -612,7 +626,47 @@ async function shiftLoop() {
   } catch (err) {
     console.warn("shift_summary failed", err);
   }
+  productClock(summary); // renders EVERY cycle; a failed invoke hands it null → UNREAD
   setTimeout(shiftLoop, 30000);
+}
+
+// A20 (S108): render the product clock from the shift_summary response the loop above already
+// polls — its `tail` is the newest-first raw events.jsonl records (events.rs reverses before
+// returning), so deriving from it adds ZERO file reads. The PURE tail-read (open events.jsonl,
+// seek to EOF, read the one last line — algedonic.rs's whole-file read is the named
+// anti-pattern) is not reachable from this frontend: capabilities/default.json grants no fs
+// permission, and the command surface (main.rs) is another lane's file. The seam, when a lane
+// owns it: an `events_last` command that seeks to the end and returns the final line alone.
+// Until then this projection of an already-flowing response is the honest fallback.
+//
+// Three states, and a null NEVER renders healthy: a failed invoke, available:false (stream
+// unreadable or lane unconfigured), an empty tail, or an unparseable stamp all render UNREAD —
+// never "fresh", never silently blank.
+function productClock(summary) {
+  let text = "last pipeline event: UNREAD";
+  let tone = "var(--warn, #e0b34c)";
+  let title = "events.jsonl unreadable, lane unconfigured, or no event ever recorded — " +
+    "refusing to guess an age";
+  const ev = summary && summary.available && Array.isArray(summary.tail) ? summary.tail[0] : null;
+  const stamp = ev && typeof ev.ts === "string" ? Date.parse(ev.ts) : NaN;
+  if (Number.isFinite(stamp)) {
+    // Clamp: a stamp seconds ahead of this clock is writer/reader skew, not a time traveler.
+    const hours = Math.max(0, Date.now() - stamp) / 3_600_000;
+    if (hours < 24) {
+      const label = hours < 1 ? `${Math.floor(hours * 60)}m ago` : `${Math.floor(hours)}h ago`;
+      text = `last pipeline event: ${label}`;
+      tone = "var(--ok, #6fbf73)";
+      title = `fresh — ${ev.stage ?? "?"}/${ev.event ?? "?"} at ${ev.ts}`;
+    } else {
+      const days = Math.floor(hours / 24);
+      text = `last pipeline event: idle ${days} day${days === 1 ? "" : "s"}`;
+      tone = "#9a938d"; // #shift's own resting gray — idle is honest, not alarming
+      title = `idle — last was ${ev.stage ?? "?"}/${ev.event ?? "?"} at ${ev.ts}`;
+    }
+  }
+  clockEl.textContent = text;
+  clockEl.style.color = tone;
+  clockEl.title = title;
 }
 
 // ---- W8: Add-to-Library button -------------------------------------------------------
@@ -1009,6 +1063,9 @@ function enterSurface(name) {
     b.classList.toggle("active", b.dataset.surface === name));
   document.body.classList.toggle("surface-room", name === "room");
   document.body.classList.toggle("surface-wall", name === "wall");
+  // S75 discipline: the Dock's status furniture must not paint over Room/Wall. styles.css
+  // hides #shift by selector; the JS-built product clock hides itself here instead.
+  clockEl.hidden = name !== "dock";
   if (name === "dock") {
     setActiveSurface("off");
     // restore the user's Dock size if they set one, else content-fit
