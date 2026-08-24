@@ -872,23 +872,38 @@ function renderLines(highlight) {
   return { lines: lines.length, ms: Math.round(performance.now() - t0) };
 }
 
-/* ---- editing IN the numbered surface (route 1, S106) ----------------------------------
+/* ---- editing IN the numbered surface (route 1, S106; undo repaired S108/A30) -----------
    One surface. The numbered view IS the editor, so the gutter cannot be lost by switching
    modes — which was the whole point of Rab's question about VS Code.
 
-   MEASURED in this engine before building: pressing Enter does NOT create a new line element.
-   Chromium injects raw "\n" characters INSIDE the existing span, so after two Enters you have
-   3 elements and 5 visible lines and the counter numbers 3 of them. The gutter would drift
-   from the text it labels — the same proxy failure this project keeps filing. So every edit is
-   normalised: read the text back, rebuild one span per line, restore the caret by character
-   offset. `plaintext-only` (Baseline since 2025-03) stops the browser injecting rich markup on
-   paste, so the text read back is always plain.                                            */
+   S106 measured "pressing Enter does NOT create a new line element — Chromium injects raw
+   \n INSIDE the existing span" and built a normalise-by-rebuild around it. That measurement
+   was true of contenteditable="plaintext-only", which never splits blocks; it is NOT true of
+   contenteditable="true", where the engine's own insertParagraph splits the display:block
+   .cl span into two .cl spans (measured, S108 harness). The rebuild the plaintext-only mode
+   forced is what killed Ctrl+Z (register A30), so the editor now runs contenteditable="true"
+   with native splits, and normalizeCtx below is a SAFETY NET that fires only when the
+   structure genuinely drifts — not a per-Enter step.                                       */
 function ctxText() {
   // NO trailing-newline strip. It used to end `.replace(/\n$/, "")`, which was pure damage:
   // the ZWSP strip already yields the correct text, and the held Valentine ends 0D 0A — so
   // "edit, change nothing, save" deleted one trailing blank line PER SAVE, under a green
   // "✓ saved", filing a removal event to the append-only ledger each time. Measured S106.
-  return $("ctx").innerText.replace(/​/g, "");
+  //
+  // A30: when the structure is clean (every host child an element, no "\n" inside one, no
+  // <br> sharing a span with text), read DOM truth per line element. innerText over-counts
+  // by one "\n" when Chromium's native Enter leaves a trailing <br>-only span (measured: a
+  // 4-child DOM renders innerText with 5 lines) — a save would then ADD a phantom blank
+  // line, the mirror image of the strip this comment already bans. The innerText fallback
+  // covers drifted states until normalizeCtx rebuilds them.
+  const el = $("ctx");
+  const kids = [...el.childNodes];
+  if (kids.length && kids.every((n) => n.nodeType === 1) &&
+      !kids.some((c) => c.textContent.includes("\n")) &&
+      !kids.some((c) => c.querySelector("br") && c.textContent)) {
+    return kids.map((c) => c.textContent.replace(/​/g, "")).join("\n");
+  }
+  return el.innerText.replace(/​/g, "");
 }
 // The caret is measured in LINE/COLUMN and only then flattened, because the obvious way is
 // wrong: Range.toString() silently omits the break BETWEEN block elements while innerText
@@ -934,12 +949,19 @@ function setCaretOffset(off) {
 }
 function normalizeCtx() {
   const el = $("ctx");
+  // A30: the drift check is STRUCTURAL, not an innerText line count. Chromium's native
+  // Enter leaves a <br>-only span for an empty line, and innerText counts that trailing
+  // span as two lines (measured) — the old `children.length === lines.length` compare would
+  // rebuild innerHTML on a perfectly per-line DOM, and the rebuild is exactly what orphans
+  // Blink's undo stack (every undo step anchors to nodes the rebuild detaches). Rebuild
+  // only when the structure has genuinely drifted: a stray non-element node at the host
+  // level, a "\n" inside a line element, or a <br> sharing a span with text.
+  const kids = [...el.childNodes];
+  if (kids.length && kids.every((n) => n.nodeType === 1) &&
+      !kids.some((c) => c.textContent.includes("\n")) &&
+      !kids.some((c) => c.querySelector("br") && c.textContent)) return;
   const off = caretOffset();
   const text = ctxText();
-  // Only rebuild when the structure actually drifted — a no-op rebuild would move the caret
-  // and fight the browser's own undo stack on every keystroke.
-  if (el.children.length === text.split("\n").length &&
-      ![...el.children].some(c => c.textContent.includes("\n"))) return;
   el.innerHTML = linesHtml(text, ctxHighlight);
   if (off !== null) setCaretOffset(off);
 }
@@ -1156,8 +1178,13 @@ $("edit").onclick = () => {
   const ctx = $("ctx");
   const on = !ctx.hasAttribute("contenteditable");
   if (on) {
-    // plaintext-only, so a paste arrives as text and the browser never injects <b>/<font>/spans
-    ctx.setAttribute("contenteditable", "plaintext-only");
+    // A30: "true", NOT "plaintext-only". Plaintext-only never splits blocks — every Enter
+    // injects a raw "\n" into the current span, which forced the innerHTML rebuild that
+    // orphans Blink's undo stack (the dead Ctrl+Z). Regular contenteditable splits the
+    // display:block .cl span natively — one element per line, undo intact (measured, S108).
+    // The plain-text guarantee plaintext-only used to give (paste arrives as text, no rich
+    // markup ever) is re-established mechanically in the beforeinput handler below.
+    ctx.setAttribute("contenteditable", "true");
     ctx.focus();
   } else {
     ctx.removeAttribute("contenteditable");
@@ -1165,11 +1192,27 @@ $("edit").onclick = () => {
   $("save").hidden = !on;
   $("edit").textContent = on ? "✎ editing" : "✎ edit";
 };
-// ENTER IS HANDLED EXPLICITLY, and that is not premature cleverness — it was measured.
-// Letting Chromium split the block inserts TWO line breaks for one Enter on this structure
-// (one → two → "" → "" → three), identically for insertParagraph, insertLineBreak, insertText
-// "\n" and the real key path, so it is the block splitting and not the probe. Owning the split
-// makes it deterministic: put one "\n" in at the caret offset, rebuild, restore at offset+1.
+// A30 (S108) — ENTER IS NATIVE NOW, and the change was measured before it was made.
+// S106 owned Enter here: preventDefault, execCommand("insertText","\n"), then a normalize
+// whose innerHTML rebuild was supposed to be the fallback. MEASURED in this engine (S108
+// harness): the rebuild ran on EVERY Enter — the raw "\n" always drifts the span structure,
+// so the "native path worked: undo stack preserved" return could never be reached with the
+// stack intact — and an innerHTML rebuild detaches every node Blink's undo steps anchor to.
+// Undo then applies to orphaned nodes and restores NOTHING while
+// queryCommandEnabled("undo") still reports true. That was the dead Ctrl+Z.
+// (S106's own measurement — "Chromium injects raw \n INSIDE the existing span" — was true,
+// but only OF plaintext-only mode, which never splits blocks. It was read as a property of
+// the engine; it was a property of the mode.)
+// In contenteditable="true", Chromium's insertParagraph splits the display:block .cl span
+// into TWO .cl spans — one element per line, class cloned, no style attributes, no strays;
+// an empty line arrives as a <br>-only span; the CSS-counter gutter renumbers itself; and
+// typing, Enter, merges and their undos all restore byte-exact (measured, S108 harness).
+// So Enter is left to the engine, and the handler below re-establishes what plaintext-only
+// used to guarantee — through execCommand, which is itself undo-recorded:
+//   insertLineBreak      → insertParagraph  (Shift+Enter must not put a <br> inside a line)
+//   insertFromPaste/Drop → insertText of the plain text (multi-line text splits into
+//                          per-line spans natively, one undo step — measured)
+//   format* / links / hr → blocked (no rich markup can enter the pane)
 // Blank lines carry a U+200B so the caret has somewhere to sit. It must never leave this
 // pane: the Bench produces evidence that gets pasted elsewhere, and an invisible character
 // on every blank line breaks grep, diffs and markdown parsers downstream (measured S106).
@@ -1182,57 +1225,22 @@ $("ctx").addEventListener("copy", (e) => {
 $("ctx").addEventListener("beforeinput", (e) => {
   const ctx = $("ctx");
   if (!ctx.hasAttribute("contenteditable")) return;
-  if (e.inputType !== "insertParagraph" && e.inputType !== "insertLineBreak") return;
   if (e.isComposing) return;               // never cut across an IME composition
-  // Compute FIRST, and only preventDefault once we know we can actually do the job. The first
-  // build called preventDefault() before the null check, so in two reachable states (caret on
-  // #ctx itself, selection anchored outside it) Enter was swallowed with no status line.
-  const sel = getSelection();
-  const range = sel && sel.rangeCount ? sel.getRangeAt(0) : null;
-  const collapsed = !range || range.collapsed;
-  // A selection must be REPLACED by the newline, the way every editor behaves. The first build
-  // read only rng.endContainer and let the selection stand, so selecting a garbage OCR
-  // paragraph and pressing Enter left the garbage and added a blank line after it.
-  const start = collapsed ? caretOffset() : offsetOfPoint(range.startContainer, range.startOffset);
-  const end   = collapsed ? start          : offsetOfPoint(range.endContainer,   range.endOffset);
-  if (start === null || end === null) return;   // let the browser have it rather than eat it
-  e.preventDefault();
-  const text = ctxText();
-  // insertText keeps Blink's own undo stack intact where it can; a full innerHTML rebuild
-  // orphans it (measured: Ctrl+Z after an Enter restored NOTHING, not even the typing before
-  // it, while document.queryCommandEnabled("undo") still reported true). So try the native
-  // path first and only rebuild when the engine's own split would drift the structure.
-  if (collapsed && document.queryCommandSupported && document.queryCommandSupported("insertText")) {
-    if (document.execCommand("insertText", false, "\n")) {
-      normalizeCtx();
-      if (ctxText() === text.slice(0, start) + "\n" + text.slice(start)) {
-        mdText = ctxText(); ctxDirty = true;
-        return;                                  // native path worked: undo stack preserved
-      }
-    }
+  const t = e.inputType || "";
+  if (t === "insertLineBreak") {
+    e.preventDefault();                    // Shift+Enter: a <br> inside a line would be
+    document.execCommand("insertParagraph");  // invisible to per-line reads — make it a real line
+  } else if (t === "insertFromPaste" || t === "insertFromDrop") {
+    e.preventDefault();
+    const text = e.dataTransfer && e.dataTransfer.getData("text/plain");
+    if (text) document.execCommand("insertText", false, text);
+    // no text/plain (an image, rich-only content): nothing enters the pane — same outcome
+    // plaintext-only gave; the window-level paste listener still catches images for ✂ repair.
+  } else if (t.startsWith("format") || t === "insertLink" || t === "insertHorizontalRule") {
+    e.preventDefault();                    // plain text only — same guarantee, new mechanism
   }
-  ctx.innerHTML = linesHtml(text.slice(0, start) + "\n" + text.slice(end), ctxHighlight);
-  setCaretOffset(start + 1);
-  mdText = ctxText(); ctxDirty = true;
+  // insertParagraph and every other edit: NATIVE. No preventDefault, no rebuild, undo lives.
 });
-// Character offset of an arbitrary DOM point, in ctxText()'s coordinate system.
-function offsetOfPoint(node, nodeOffset) {
-  const el = $("ctx");
-  if (!el.contains(node)) return null;
-  let span = node;
-  while (span && span.parentNode !== el) span = span.parentNode;
-  if (!span) return null;
-  const line = [...el.children].indexOf(span);
-  if (line < 0) return null;
-  const r = document.createRange();
-  r.selectNodeContents(span);
-  r.setEnd(node, nodeOffset);
-  const col = r.toString().replace(/​/g, "").length;
-  const lines = ctxText().split("\n");
-  let off = 0;
-  for (let i = 0; i < line && i < lines.length; i++) off += lines[i].length + 1;
-  return off + col;
-}
 // The normalise pass for every OTHER edit. `input` fires for typing, paste, drag, undo and IME
 // alike, which is why it is the hook rather than keydown — keydown misses every non-keyboard
 // edit path, and paste is the one that matters most here.
