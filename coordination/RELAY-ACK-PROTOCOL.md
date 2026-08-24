@@ -78,3 +78,17 @@ read — a restatement of a different message cannot pass.
 - **Digest mismatch** → the confirmation is refused and the mismatch is posted to the log.
 - **A malformed or missing sidecar** → `UNREAD`, never `idle` and never `confirmed`.
   A failed probe may not render as a healthy state.
+
+## Escalation (added S108 — Rab's rule)
+
+`blocked-on-rab` may only be entered through `escalate`, which first announces to the peer:
+what Rab must decide, and why the models could not settle it. The sidecar carries them:
+
+```json
+"escalations": [{"utc":"…","ticket":"T-011","asking":"…","why":"…","msg_id":"MSG-FAB-0007","state":"open"}]
+```
+
+`status` renders every open escalation as **Rab's decision queue**. `resolve` records his
+decision and settles the agent to `idle`. That record is a **transcript, not authority** — the
+countersign question (sign-sheet item 14) remains open, and no gate may treat a written decision
+as proof that he made it.

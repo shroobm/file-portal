@@ -57,10 +57,30 @@ gate.py check   --as <you>                          # was mine read? settles to 
 gate.py status                                       # both sides at a glance — Rab's board
 gate.py ticket  --as <you> --id T-003 --state working
 gate.py watch   --as <you>                           # one line per signal; run under a monitor
+gate.py escalate --as <you> --asking "what Rab must decide" --why "why we cannot settle it"
+gate.py resolve  --as <you> --id MSG-XXX-NNNN --decision "what he decided, in his terms"
 ```
 
 `watch` fires on **both** directions — your message being confirmed, and a new ticket arriving
 for you. That is the signal a gate agent sleeps on.
+
+
+## The two guards (added S108, both born from live failures)
+
+**GUARD A — never issue a new ticket into a working recipient.** On 2026-08-24 a 90-second-stale
+board read manufactured a duplicate ticket: Codex had moved `idle → working` between the read and
+the write. `post` now refuses when the recipient is `working` on a different ticket. Notices
+always pass (no `--ticket`, or the ticket they already hold), and `--override "<reason>"` bypasses
+while **recording the reason** — a bypass is never silent. *A board read is a snapshot: re-read
+state immediately before you post.*
+
+**GUARD B — no silent trip to Rab.** Rab's rule, 2026-08-24: *"when you want to come to me, let
+each other know as protocol."* Entering `blocked-on-rab` now **requires an announced escalation**
+— `escalate` posts to the peer what the principal is being asked and why it could not be settled
+between the models, and only then blocks. The peer always learns before he does; there is no
+back-channel to the principal. `gate.py status` renders the open escalations as **his decision
+queue**. `resolve` records what he decided — a **transcript, not authority**; no gate may treat
+that record as proof.
 
 ## For Codex specifically
 

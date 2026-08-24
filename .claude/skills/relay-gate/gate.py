@@ -80,6 +80,7 @@ def blank(model: str) -> dict:
         "current_ticket": None,
         "sent": [],
         "confirmed": [],
+        "escalations": [],
     }
 
 
@@ -98,6 +99,9 @@ def load(model: str):
     for key in ("sent", "confirmed"):
         if not isinstance(d.get(key), list):
             return None, "UNREAD"
+    if not isinstance(d.get("escalations", []), list):   # added S108; absent is fine (back-compat)
+        return None, "UNREAD"
+    d.setdefault("escalations", [])
     return d, "ok"
 
 
@@ -178,6 +182,19 @@ def cmd_post(a):
     if st == "UNREAD":
         print(f"UNREAD: {ack_path(a.as_model).name} missing or malformed - run `init` first", file=sys.stderr)
         return 1
+    # GUARD A (S108): never issue a NEW ticket into a recipient that is already working.
+    # On 2026-08-24 a 90-second-stale board read manufactured a duplicate ticket; the tool now
+    # refuses what care did not. Notices always pass (no --ticket, or the ticket they already
+    # hold). --override "<reason>" bypasses and RECORDS the reason - never silently.
+    if a.ticket and not a.override:
+        theirs, st_theirs = load(a.to)
+        if st_theirs == "ok" and theirs.get("state") == "working" and theirs.get("current_ticket") != a.ticket:
+            print(f"REFUSED: {a.to} is working on {theirs.get('current_ticket')} — issuing {a.ticket} "
+                  f"now would duplicate or interrupt.\n"
+                  f"  Wait for its delivery · post without --ticket (a notice always passes) · "
+                  f"or re-issue with --override \"<reason>\".", file=sys.stderr)
+            return 1
+
     body = io.open(a.body, encoding="utf-8").read() if a.body != "-" else sys.stdin.read()
     mid = next_id(a.as_model, data)
     header = f"## {utc_now()} · ⟨from: {a.as_model}⟩ → ⟨to: {a.to}⟩ · ⟨msg: {mid}⟩"
@@ -185,10 +202,13 @@ def cmd_post(a):
     with io.open(relay_path(), "a", encoding="utf-8", newline="") as fh:
         fh.write("\n" + entry)              # APPEND ONLY
     dg = digest(extract_entry(mid) or entry)
-    data["sent"].append({
+    row = {
         "id": mid, "to": a.to, "utc": utc_now(), "digest": dg,
         "subject": a.subject, "ticket": a.ticket, "requires_ack": not a.no_ack,
-    })
+    }
+    if a.override:
+        row["override_reason"] = a.override      # a bypass is always on the record
+    data["sent"].append(row)
     if not a.no_ack:
         data["state"] = "blocked-on-ack"
     save(a.as_model, data, a.as_model)
@@ -289,6 +309,17 @@ def cmd_status(a):
             continue
         print(f"  {m:<6} state={d['state']:<15} ticket={d.get('current_ticket')}  "
               f"sent={len(d['sent'])} confirmed={len(d['confirmed'])}  updated={d['updated_utc']}")
+    pending = []
+    for m in MODELS:
+        d, st = load(m)
+        if st == "ok":
+            pending += [(m, e) for e in d.get("escalations", []) if e.get("state") == "open"]
+    if pending:
+        print("\n  AWAITING RAB — his decision queue:")
+        for m, e in pending:
+            print(f"    [{e.get('ticket')}] from {m}: {e['asking']}")
+            if e.get("why"):
+                print(f"       why not settled between us: {e['why']}")
     return 0
 
 
@@ -297,10 +328,85 @@ def cmd_ticket(a):
     if st == "UNREAD":
         print("UNREAD: run `init` first", file=sys.stderr)
         return 1
+    # GUARD B (S108, Rab's rule): you may not go to Rab silently. Entering blocked-on-rab
+    # requires an ANNOUNCED escalation - the peer learns what he is being asked, and why,
+    # before he is asked. No back-channel to the principal.
+    if a.state == "blocked-on-rab":
+        if not [e for e in d.get("escalations", []) if e.get("state") == "open"]:
+            print("REFUSED: blocked-on-rab requires an announced escalation.\n"
+                  "  run: gate.py escalate --as <you> --asking \"<what Rab must decide>\" "
+                  "[--why \"<why we cannot settle it>\"]", file=sys.stderr)
+            return 1
     d["current_ticket"] = None if a.id.lower() in ("none", "-", "clear") else a.id
     d["state"] = a.state
     save(a.as_model, d, a.as_model)
     print(f"{a.as_model}: ticket={d['current_ticket']} state={d['state']}")
+    return 0
+
+
+def cmd_escalate(a):
+    """Announce to the peer that you are going to Rab, THEN block on him.
+
+    Rab's rule, 2026-08-24: 'when you want to come to me, let each other know as protocol.'
+    The peer always learns what the principal is being asked, and why, before he is asked."""
+    d, st = load(a.as_model)
+    if st == "UNREAD":
+        print("UNREAD: run `init` first", file=sys.stderr)
+        return 1
+    if len(a.asking.strip()) < 15:
+        print("REFUSED: name what Rab must decide, in a sentence (>=15 chars).", file=sys.stderr)
+        return 1
+    peer = other(a.as_model)
+    ticket = a.ticket or d.get("current_ticket")
+    mid = next_id(a.as_model, d)
+    trailer = "Claude Fable 5" if a.as_model == "Fable" else "OpenAI Codex"
+    body = (
+        f"**RECAP.** ⟨claimed: {a.as_model}⟩ **ESCALATION — going to Rab.**\n\n"
+        f"- **Ticket:** {ticket}\n"
+        f"- **What he must decide:** {a.asking.strip()}\n"
+        f"- **Why it cannot be settled between us:** {a.why.strip() if a.why else '(not stated)'}\n\n"
+        f"Announced to {peer} **before** he is asked — no back-channel to the principal. My state "
+        f"is now `blocked-on-rab`, which no model may clear.\n\n"
+        f"**FOR RAB.** {a.as_model} says: a decision is queued for you — `gate.py status` shows it.\n\n"
+        f"Model trailer: `{trailer}` · authorship claim only, never Rab's authority.\n"
+    )
+    header = f"## {utc_now()} · ⟨from: {a.as_model}⟩ → ⟨to: {peer}⟩ · ⟨msg: {mid}⟩"
+    entry = header + "\n\n" + body
+    with io.open(relay_path(), "a", encoding="utf-8", newline="") as fh:
+        fh.write("\n" + entry)
+    dg = digest(extract_entry(mid) or entry)
+    d["sent"].append({"id": mid, "to": peer, "utc": utc_now(), "digest": dg,
+                      "subject": "ESCALATION: " + a.asking.strip()[:60], "ticket": ticket,
+                      "requires_ack": True})
+    d["escalations"].append({"utc": utc_now(), "ticket": ticket, "asking": a.asking.strip(),
+                             "why": (a.why or "").strip() or None, "msg_id": mid, "state": "open"})
+    d["state"] = "blocked-on-rab"
+    save(a.as_model, d, a.as_model)
+    print(f"escalated {mid} -> {peer}   state=blocked-on-rab")
+    print(f"  asking Rab: {a.asking.strip()}")
+    return 0
+
+
+def cmd_resolve(a):
+    """Record Rab's decision on an open escalation. This is a TRANSCRIPT, not authority:
+    writing it here does not make it his, and no gate may treat it as proof."""
+    d, st = load(a.as_model)
+    if st == "UNREAD":
+        print("UNREAD: run `init` first", file=sys.stderr)
+        return 1
+    hit = [e for e in d["escalations"] if e.get("msg_id") == a.id and e.get("state") == "open"]
+    if not hit:
+        print(f"REFUSED: no OPEN escalation with msg id {a.id}", file=sys.stderr)
+        return 1
+    if len(a.decision.strip()) < 10:
+        print("REFUSED: record what he decided, in his terms (>=10 chars).", file=sys.stderr)
+        return 1
+    hit[0]["state"] = "resolved"
+    hit[0]["decision"] = a.decision.strip()
+    hit[0]["resolved_utc"] = utc_now()
+    d["state"] = "idle"
+    save(a.as_model, d, a.as_model)
+    print(f"resolved {a.id} — recorded: \"{a.decision.strip()[:70]}\"   state=idle")
     return 0
 
 
@@ -343,7 +449,18 @@ def main() -> int:
     sp.add_argument("--body", required=True, help="file with the entry body, or - for stdin")
     sp.add_argument("--ticket", default=None)
     sp.add_argument("--no-ack", action="store_true")
+    sp.add_argument("--override", default=None,
+                    help="bypass GUARD A (recipient is working) - the reason is RECORDED")
     sp.set_defaults(fn=cmd_post)
+    sp = add_as(sub.add_parser("escalate"))
+    sp.add_argument("--asking", required=True, help="what Rab must decide")
+    sp.add_argument("--why", default=None, help="why it cannot be settled between the models")
+    sp.add_argument("--ticket", default=None)
+    sp.set_defaults(fn=cmd_escalate)
+    sp = add_as(sub.add_parser("resolve"))
+    sp.add_argument("--id", required=True, help="the escalation's msg id")
+    sp.add_argument("--decision", required=True, help="what Rab decided, in his terms")
+    sp.set_defaults(fn=cmd_resolve)
     add_as(sub.add_parser("inbox")).set_defaults(fn=cmd_inbox)
     sp = add_as(sub.add_parser("confirm"))
     sp.add_argument("--id", required=True)
