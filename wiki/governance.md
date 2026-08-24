@@ -2,7 +2,7 @@
 title: Governance & Records
 section: Governance
 last-verified: 2026-08-23
-verified-against: 1790554
+verified-against: c56d486
 sources: [CLAUDE_README.md, SYMPTOM-INDEX.md, OPEN-TASKS.md, .claude/skills/muster/close.sh, .claude/skills/muster/SKILL.md, .claude/skills/wiki/SKILL.md, .agents/skills/muster/SKILL.md, observability/glass_detector.py, observability/dispositions.json, coordination/authorship.md, coordination/relay.md, coordination/selftest.sh, docs/45-s105-circle-findings.md]
 ---
 
@@ -16,6 +16,9 @@ layer (relay + ⟨claimed⟩ authorship stamps). The teeth are unevenly distribu
 no parser or validator, the symptom index's status column can contradict its own update clauses,
 and docs/45's Family 1 — the sentence describes the *neighbour* of the probe — is the standing
 failure mode that no gate yet checks. Trust exit codes and cited probes; never a status cell.
+
+
+> **S108 update (2026-08-23):** close.sh gained two sections this session, both warn-only until armed: DOCTOR (artifact-vs-measurement parity — the check docs/45 §6.2 named as missing) and CENSUS (promised tripwires vs fixtures on disk). The register was committed to git and struck per §H rule 1; the relay is now bidirectional (Codex returned four entries 2026-08-23).
 
 ## 1 · The Change Ledger — the HARD clock
 

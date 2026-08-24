@@ -2,7 +2,7 @@
 title: Repair Bench
 section: Product
 last-verified: 2026-08-23
-verified-against: 1790554
+verified-against: c56d486
 sources:
   - prototypes/repair-bench/bench.py
   - prototypes/repair-bench/bench.html
@@ -31,6 +31,9 @@ web app — `bench.py`, a 1,504-line stdlib+pymupdf server (`wc -l`), plus `benc
 page beside the markdown, navigated by the audit's flagged zones, where the operator crops,
 collapses, transcribes, and repairs. It lives in `prototypes/` under the quarantine convention,
 yet the widget spawns it directly — a contradiction the record only half-acknowledges (below).
+
+
+> **S108 update (2026-08-23):** three open defects closed this session — Ctrl+Z restored (native-undo path, `0f0e83f`; plaintext-only MODE was the killer), zone-click render is highlight-only when text is unchanged (`f9585b3`, perf log includes forced layout), and the bench gained a 19-test stdlib harness (`abe4830`) with both S106 regressions as named fixtures. Mutating routes now require the launch token (`fb2a919`).
 
 ## What it is
 

@@ -2,7 +2,7 @@
 title: Control Room (Widget)
 section: Product
 last-verified: 2026-08-23
-verified-against: 1790554
+verified-against: c56d486
 sources: [windows-widget/src-tauri/src/main.rs, windows-widget/src-tauri/src/bench.rs, windows-widget/src-tauri/src/chat.rs, windows-widget/src-tauri/src/watcher.rs, windows-widget/src-tauri/src/preflight.rs, windows-widget/src-tauri/src/assay.rs, windows-widget/src-tauri/src/line.rs, windows-widget/src-tauri/src/config.rs, windows-widget/src/main.js, windows-widget/src/room.js, windows-widget/src/index.html, windows-widget/src/styles.css, windows-widget/src-tauri/tauri.conf.json, windows-widget/src-tauri/capabilities/default.json, .claude/skills/muster/open.sh, SYMPTOM-INDEX.md, OPEN-TASKS.md]
 ---
 
@@ -16,6 +16,9 @@ zero tests; boot fires nine loop/init calls in one synchronous burst beside an u
 Object that only 3 of the 10 spawn sites adopt into — the two click-launched GPU conversions
 do not. The frontend is four framework-free files, effectively untested. Design briefs:
 docs/13 (control-room design), docs/16 (the Room face).**
+
+
+> **S108 update (2026-08-23):** the two unadopted GPU spawns (preflight `--resume`, assay `--reanalyze`) are now supervised via `spawn_supervised` with an in-crate census tripwire; SEMANTIC TRADE for Rab's eye: force-killing the widget now ENDS an in-flight resume/reanalyze instead of orphaning it. The Dock renders the product clock (`last pipeline event: <age>`, UNREAD-honest). Cargo suite 31/31.
 
 ## Surfaces: one webview, plus two external windows
 

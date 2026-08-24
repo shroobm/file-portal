@@ -2,7 +2,7 @@
 title: Testing & CI
 section: Governance
 last-verified: 2026-08-23
-verified-against: "1790554"
+verified-against: c56d486
 sources:
   - .github/workflows/ci.yml
   - .claude/skills/muster/close.sh
@@ -30,6 +30,9 @@ glass layer — and CI runs none of it: grepping ci.yml for `selftest`, `observa
 from this machine: `command -v pytest` and `command -v ruff` both fail here, so Python-lane
 verification exists only inside GitHub's runner, and close.sh's CI check structurally cannot
 see the runs its own push triggers (docs/45-s105-circle-findings.md:141, F16).**
+
+
+> **S108 update (2026-08-23):** windows-converter entered CI (ruff + figure_coverage_selftest, warn-only until first green is observed) with its first dependency manifest; observability/acceptance.py (41/41) runs in CI; the bench gained test_bench_page.py (19 tests); status writers gained tests (UNREAD locally, CI observes). close.sh gained DOCTOR + tripwire-census sections, warn-only this session.
 
 ## World A — `.github/workflows/ci.yml`
 

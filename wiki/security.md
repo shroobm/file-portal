@@ -2,13 +2,16 @@
 title: Security Posture
 section: Governance
 last-verified: 2026-08-23
-verified-against: "1790554"
+verified-against: c56d486
 sources: [docs/06-security-model.md, docs/37-next-stage-plan.md, docs/38-file-portal-full-system-scope.md, windows-widget/src-tauri/tauri.conf.json, windows-widget/src-tauri/capabilities/default.json, windows-widget/src-tauri/src/assay.rs, windows-widget/src-tauri/src/line.rs, windows-widget/src-tauri/src/watcher.rs, windows-converter/analyst.py, windows-converter/room_chat.py, windows-converter/watch_and_convert.py, windows-converter/convert_and_ship.py, prototypes/repair-bench/bench.py, linux-converter/systemd/file-portal-converter.service, linux-converter/systemd/file-portal-vault-fixity.service, linux-receiver/systemd/file-portal-allocator.service, .gitignore, wiki/profiles/README.md, wiki/roadmap.md, OPEN-TASKS.md]
 ---
 
 # Security Posture
 
 **If you read nothing else: THE REPO IS PUBLIC on GitHub** (`curl -s https://api.github.com/repos/shroobm/file-portal` → `"private": false, "visibility": "public"`, run 2026-08-23; remote per `git remote -v`). Everything tracked here is world-readable: no personal data in tracked files, no secrets ever, and profile personal content lives only in the gitignored private layer (wiki/profiles/README.md:11-15, .gitignore:57). The trust perimeter is the Tailscale tailnet — no public listening ports anywhere (docs/06-security-model.md:15-16). The core is genuinely sound: a strict widget CSP, an 8-permission capability grant, path-validated IPC, and a tracked-file secret sweep that comes back clean. The honest gaps: two loopback HTTP servers mutate files with zero request authentication — against the repo's own written rule (docs/38:756-758) — the lane that parses untrusted PDFs has no dependency manifest, `Cargo.lock` is gitignored, all three systemd units carry zero hardening directives, and there is no SECURITY.md. None of the gaps is internet-reachable; remediation is owned by roadmap catalysts C4 (the bench auth token, wiki/roadmap.md:33) and C5 (the standards slate, :34).
+
+
+> **S108 update (2026-08-23):** the loopback gap below is now GATED: bench.py and room_chat.py require `X-FP-Token` on every mutating route (403 fail-closed, `fb2a919`), and the widget passes a per-launch token (`?token=`, lane G). The 'zero Origin/token checks' lines below describe the PRE-S108 state; severity notes still apply to hand-started servers run without `--token` (which now refuse mutations).
 
 ## 1. Trust model: the tailnet is the perimeter
 

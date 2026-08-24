@@ -2,7 +2,7 @@
 title: Desktop Pipeline
 section: Pipeline
 last-verified: 2026-08-23
-verified-against: 1790554
+verified-against: c56d486
 sources:
   - windows-converter/watch_and_convert.py
   - windows-converter/convert_and_ship.py
@@ -16,6 +16,9 @@ sources:
 # Desktop Pipeline
 
 **The Windows GPU conversion lane turns a PDF dropped into `drop/` into a shipped bundle on the ThinkPad: a 5-second polling watcher (`watch_and_convert.py`) runs one conversion at a time; `convert_and_ship.py` probes the PDF's text layer, routes it to one of three Marker lanes, launches `marker_single.exe` (the repo's ONLY engine launch site) under a stall monitor, optionally runs the link-fenced analyst (`analyst.py`, local qwen3:8b or Gemini Flash), audits fidelity, assembles the bundle, and ships it `tar | tailscale ssh` into an atomically-renamed staging dir. Concurrency is kernel-enforced: every converter entry serializes on the OS mutex `Local\file-portal-card`, because the GPU is an RTX 3080 with 10 GB — Marker (~5 GB peak) or an 8B model fit alone, "never both at once" (docs/11:12).**
+
+
+> **S108 update (2026-08-23):** the five core modules now resolve every pipeline path through `fp_paths.py` + `roots.json` (`90dcf86`) — zero `ml\library` literals remain in them; `FP_PIPELINE` relocates the whole tree, proven by the scratch-root tripwire (22/22 roots, 25/25 constants). The SYM-050 page-map repair is WIRED (`0fbb6e3`): poisoned bundles are detected and reported on a repaired map (IV: 220/269 = 0.8178 vs naive 0.1115); `sym050-quarantine.txt` records eval-corpus membership.
 
 ## 1. The watcher loop — `watch_and_convert.py`
 
