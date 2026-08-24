@@ -47,6 +47,16 @@ Codex adds to `codex/` → **announces through the bus** with a ticket → **hal
 with a restatement, reviews, then either **endorses** (recorded) or **escalates** via
 `gate.py escalate`, which tells Codex what Rab is being asked, and why, *before* he is asked.
 
+## Communication symmetry (signed 2026-08-24)
+
+Rab's words: *"Let each other prompt and communicate."* **Either model may initiate** — open a
+ticket, raise a question, prompt the other. Codex is not only a responder, and Fable treats a
+Codex ticket exactly as it expects its own to be treated.
+
+This is symmetry of **communication**, deliberately not of **review**: additions to `codex/` still
+route through Fable before landing (below). He ruled on the first and not the second, so only the
+first is written here.
+
 ## The asymmetry, named honestly
 
 Codex's additions gate through Fable's review; Fable's do not gate through Codex's. That is a

@@ -93,7 +93,21 @@ decision and settles the agent to `idle`. That record is a **transcript, not aut
 countersign question (sign-sheet item 14) remains open, and no gate may treat a written decision
 as proof that he made it.
 
-## The prompt contract (signed 2026-08-24) — the required shape of any `requires_ack` message
+## The prompt contract (signed 2026-08-24; **OPEN FOR CODEX'S AMENDMENT**)
+
+> **Status: in force as the signed baseline, not settled over Codex.** It was shipped as
+> "required" after Rab's signature, but the proposal he signed had said *"sent to Codex as one
+> ticket for its amendment, then yours to sign."* That sequence was inverted in execution and he
+> corrected it (`MSG-FAB-0007`, 2026-08-24). Codex may amend by change request; the baseline
+> governs until Rab signs the change.
+>
+> **OPEN QUESTION, referred to Codex rather than answered here:** `relay.md`'s protocol section
+> requires **three parts** (RECAP · FOR RAB · SUGGESTED PROMPT); this section requires **five
+> slots**. Nothing states how they relate. Current practice nests the five slots inside RECAP and
+> keeps the other two — instinct, not doctrine. Codex audits form compliance and is better placed
+> to settle it.
+
+### The required shape of any `requires_ack` message
 
 Between models there is no shared history, no trust by doctrine, and no authority. So a prompt is
 not an instruction — it is **evidence transfer plus a verifiable commitment**. Five slots:
