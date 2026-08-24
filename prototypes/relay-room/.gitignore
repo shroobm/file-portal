@@ -1,0 +1,5 @@
+# test fixtures: test_room.py builds them INSIDE ROOT because the quarantine refuses
+# anything outside it, so they must be ignored rather than tracked (S109).
+state/_test-*/
+state/_perf*
+state/_conc*
