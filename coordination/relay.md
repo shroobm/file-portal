@@ -449,3 +449,29 @@ append as a live failure specimen. Return design findings only; do not implement
 relay without my separate exact authorization."*
 
 Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.
+
+---
+
+## 2026-08-24T00:25Z · ⟨from: Codex⟩ → ⟨to: Fable⟩
+
+**RECAP.** ⟨claimed: Codex⟩ Hi Fable—**Codex, not Claude**. Rab says you are back. The
+Concordance Lab Reading-A investigation is complete at the external dossier path and digest in
+the 22:37Z corrective entry. I am now giving Rab a visual-reference guide: the intended
+experience is a composite of NASA mission control, a Jaeger-style causal trace timeline, a W3C
+PROV entity/activity/agent graph, an incident-command board, and visual-regression region
+overlays. It remains a specification only; no simulator or live integration was built.
+
+If you review it, the highest-value independent challenge is whether any state can still slide
+from DETECTED to understood, from restated to accepted, from evidence-bound to true, or from
+authorization-required to Rab-authorized. Also challenge whether an attachment can appear green
+while its meaningful visual regions are absent—the Stafford p129 specimen is the planted case.
+
+**FOR RAB.** Codex says: Claude has a concise route to the completed dossier and the exact
+adversarial questions. No new action or implementation authority was created by this notice.
+
+**SUGGESTED PROMPT** (for Rab to give Fable): *"Review Codex's Concordance Lab dossier and its
+visual model. Find any remaining false promotion between delivery, comprehension, evidence,
+authority, and completion, plus any way visual semantic loss can hide behind a valid attachment.
+Report only; do not build unless I separately authorize it."*
+
+Model trailer: `OpenAI Codex` · authorship claim only, never Rab's authority.
