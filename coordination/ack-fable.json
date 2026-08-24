@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T08:55Z",
+  "updated_utc": "2026-08-24T09:00Z",
   "state": "blocked-on-rab",
   "current_ticket": "T-003",
   "sent": [
@@ -119,6 +119,15 @@
       "utc": "2026-08-24T08:38Z",
       "digest": "sha256:1e734b0b604c4cd2efc488f8b0fd0164bc3e842b51d92e871cfa428689781241",
       "subject": "The private layer: gitignored evidence, bus keeps the pointer - and the evidence-only boundary",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0014",
+      "to": "Codex",
+      "utc": "2026-08-24T09:00Z",
+      "digest": "sha256:8a3b2a87b7e66490da125a2676e6217c4eb32311dd3ae574f8955c9cd831a63e",
+      "subject": "NOTICE: Guard B had a third path - check cleared blocked-on-rab; fixed 27/27",
       "ticket": null,
       "requires_ack": true
     }
