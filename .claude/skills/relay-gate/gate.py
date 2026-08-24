@@ -324,7 +324,14 @@ def extract_entry(msg_id: str):
 #     false clear costs what MSG-FAB-0020 cost.
 
 ENTRY_HDR_RE = re.compile(r"^## .*⟨from:\s*(\w+)\s*⟩.*⟨msg:\s*(MSG-(?:FAB|CDX)-\d{4})\s*⟩")
-DONE_SLOT_RE = re.compile(r"^\*\*DONE\b[^\n]*", re.M)
+# S109 Circle: this was anchored at column 0 (`^\*\*DONE`, re.M), so a DONE inside a list item
+# (`- **DONE.** …`) or mid-line (`**GROUND.** … **DONE.** …`) was INVISIBLE. Measured: three
+# commitments stated, one seen, `--enforce` exit 0 — while the docstring below claimed the
+# function "over-reports rather than under-reports". It did the opposite, and the sentence
+# asserting the safe direction was the reason nobody checked.
+# Unanchored now, which over-reports (prose mentioning **DONE** counts) — and over-reporting is
+# the stated, and correct, bias for a commitment tracker.
+DONE_SLOT_RE = re.compile(r"\*\*DONE\b[^\n]*")
 _DONE_LEAD_RE = re.compile(r"^\*\*DONE\b[\s.:;—–-]*\*{0,2}[\s.:—–-]*")
 
 
@@ -923,6 +930,8 @@ def cmd_owed(a):
     rows = {s.get("id"): s for s in mine.get("sent", [])}
 
     owed = unread = discharged = 0
+
+    self_disch = 0
     print(f"{lane}: commitments stated on the bus (entries carrying a **DONE** slot)")
     if not commits:
         print("  none — this lane has posted no entry with a DONE slot")
@@ -935,7 +944,9 @@ def cmd_owed(a):
             extra = "no sidecar row for this id"
         elif row.get("discharged"):
             d = row["discharged"]
-            state, discharged = ("DISCH(self)" if d.get("self_reported") else "DISCHARGED"), discharged + 1
+            sr = bool(d.get("self_reported"))
+            state, discharged = ("DISCH(self)" if sr else "DISCHARGED"), discharged + 1
+            self_disch += 1 if sr else 0
             extra = f"in {d.get('in')} · {str(d.get('outcome'))[:60]}"
         else:
             state, owed = "OWED   ", owed + 1
@@ -953,10 +964,25 @@ def cmd_owed(a):
             print(f"                             {extra}")
     print(f"\n  {owed} OWED · {discharged} discharged · {unread} UNREAD · {len(commits)} stated")
     print(OWED_CEILING)
-    if a.enforce and (owed or unread):
+    if a.enforce and (owed or unread or self_disch):
         # Fail closed, the same law as the FULL STOP's unread branch: a commitment that cannot
         # be shown reported is not a commitment that was reported.
-        print(f"MEASURED: {owed} owed, {unread} unread — D2 is not discharged.", file=sys.stderr)
+        #
+        # SELF-REPORTED discharges count as NOT DISCHARGED here (S109 Circle). SKILL.md says
+        # "--in must name a message of yours THE PEER CAN READ ON THE BUS, so a lane cannot clear
+        # its own commitments privately" - and `--enforce` was passing a self-report at exit 0,
+        # which refutes that sentence verbatim. Measured on a forward-looking DONE ("I WILL
+        # produce the converted bundle"): discharged in one command, enforce green, ZERO bytes on
+        # the bus for the peer to read. Exactly MSG-FAB-0020's shape, the case this command was
+        # built for. The self-report stays PERMITTED and RECORDED for `owed`'s own readout - a
+        # DONE can be true when written - but it is not evidence a peer can check, so it may not
+        # satisfy an enforcement gate.
+        print(f"MEASURED: {owed} owed, {unread} unread, {self_disch} self-reported — "
+              f"D2 is not discharged.", file=sys.stderr)
+        if self_disch:
+            print(f"  {self_disch} discharge(s) cite only the lane's OWN entry. A self-report is "
+                  f"recorded, not verifiable:\n  the peer has nothing on the bus to read. Report "
+                  f"the outcome in a LATER entry and discharge against that.", file=sys.stderr)
         return 1
     return 0
 

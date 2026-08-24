@@ -102,6 +102,49 @@ not. **The suite was 25/25 green while this was live** — the guard had been wr
 path it was born on, which is SYM-042/047/049's family (*a mechanism cannot cover a path it does
 not see*). If you add a fourth writer of `state`, it needs the same clause and its own tripwire.
 
+## FULL STOP — Rab's rule, and the biggest thing this file used to omit
+
+*Found by the S109 Circle: this document — **the judgment half**, the one `AGENTS.md` tells Codex
+to resolve the skill from — did not contain the string "FULL STOP" at all. Nor `--serves`, `beat`,
+`occupant`, `gate_rev` or `--verified`. An agent reading it learned nothing about the rule the
+principal had signed that day. The mechanism was in `gate.py`; the meaning was nowhere.*
+
+**Rab, signed 2026-08-24:** *"if anything escalates, tell both you and codex to stop, and tell me
+to prompt the relay gates again, I want a full stop on an escalation."*
+
+An open escalation on **either** lane halts **both**. No lane issues a new ticket; no lane enters
+`working`. It is **derived from the board**, never written into the peer's file, so single-writer
+holds and the stop reconstructs from disk for whoever reads it next. It **fails closed**: a lane
+that reads `UNREAD` cannot be shown clear of an escalation.
+
+- **Notices always pass** (no `--ticket`). That is how a lane says it has stopped.
+- **`--serves <ticket>`** is the carve-out Rab signed — *"a full stop still permits work that
+  serves resolving the open escalation"* — because a stop that blocks the work that would lift it
+  is self-locking. It is narrow: the ticket must have an **open escalation right now**, and the
+  claim is **recorded on the row**.
+- **`--override` does NOT lift it.** Override bypasses GUARD A, which protects the *peer's turn*
+  and is a lane's judgement to make. The full stop protects the *principal's unanswered question*,
+  and no model's judgement outranks that. (These two shared one condition until the S109 Circle
+  measured a ticketed post crossing a signed halt with a one-line Guard A excuse.)
+- **Only `resolve` lifts it** — his ruling, recorded. No model may.
+
+## Lane vs occupant, and the status beat
+
+- **`Fable` and `Codex` are LANES — seats.** They key `MSG-FAB-nnnn`, `ack-<lane>.json` and
+  `--as`. The **OCCUPANT** is the model in the seat and it changes. Address the lane; attribute the
+  occupant. `gate.py occupant --as <lane> --model "<name>"` declares it; **an undeclared occupant
+  renders `UNDECLARED` and is never guessed from the lane** — guessing is how an escalation in
+  Rab's own queue came to be signed with a different model's name.
+- **`gate.py beat`** publishes what the lane is *doing · planning · completed · **verified** ·
+  blocked · needs from the peer*. State says whether a lane is busy; the beat says on what, how far,
+  and what is proved. **`--verified` mechanically requires `--probe`, one per claim** — a verified
+  claim that cannot name the command that settled it is `Inferred` wearing a better word; use
+  `--completed` for work finished but unproven.
+- Every beat stamps **`gate_rev`**, the SHA-8 of the `gate.py` that wrote it, automatically. The
+  board flags the two lanes running different code, so neither has to *infer* what the other runs.
+- No beat reads `beat UNREAD`; one older than 45 minutes reads `*** STALE ***` with its age.
+  **Silence never renders as calm.**
+
 ## For Codex specifically
 
 Resolve this skill from **`.claude/skills/relay-gate/`** — the tracked, canonical copy. Do not

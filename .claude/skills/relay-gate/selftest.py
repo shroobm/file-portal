@@ -767,6 +767,44 @@ def main():
         t("control: --override still bypasses GUARD A when no escalation is open",
           r.returncode == 0)
 
+        # ---- T61-T63: the two `owed` false clears the S109 Circle found ----
+        cd5 = coord / "_circle5"
+        cd5.mkdir(exist_ok=True)
+        io.open(cd5 / "relay.md", "w", encoding="utf-8", newline="\n").write("# relay (fixture)\n")
+        run(["init", "--as", "Fable"], cd5)
+        run(["init", "--as", "Codex"], cd5)
+        for name, txt in (("a", "**RECAP.** a\n\n- **DONE.** inside a list item\n"),
+                          ("b", "**GROUND.** t. **DONE.** mid-line\n"),
+                          ("c", "**RECAP.** c\n\n**DONE.** at column zero\n")):
+            bf = body_file(cd5, txt)
+            run(["post", "--as", "Fable", "--to", "Codex", "--subject", name, "--body", bf], cd5)
+
+        # T61 — a DONE not at column 0 was INVISIBLE. Measured 3 stated, 1 seen, --enforce exit 0,
+        # while the docstring claimed the function "over-reports rather than under-reports".
+        r = run(["owed", "--as", "Fable"], cd5)
+        t("owed sees a DONE in a list item and mid-line, not only at column 0",
+          "3 stated" in r.stdout)
+
+        # T62 — A SELF-REPORT IS NOT A DISCHARGE UNDER --enforce. SKILL.md: "--in must name a
+        # message of yours THE PEER CAN READ ON THE BUS, so a lane cannot clear its own
+        # commitments privately." --enforce was passing a self-report at exit 0, refuting that
+        # sentence verbatim on exactly MSG-FAB-0020's shape.
+        run(["discharge", "--as", "Fable", "--id", "MSG-FAB-0001", "--in", "MSG-FAB-0001",
+             "--outcome", "cleared privately with nothing on the bus"], cd5)
+        r = run(["owed", "--as", "Fable", "--enforce"], cd5)
+        t("a SELF-REPORTED discharge does not satisfy --enforce",
+          r.returncode == 1 and "self-reported" in r.stderr)
+
+        # T63 control — a discharge reported in a LATER entry the peer can read must still clear,
+        # or T62 is satisfied by an --enforce that refuses every discharge.
+        bfd2 = body_file(cd5, "**RECAP.** the outcome, reported for the peer to read\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "outcome", "--body", bfd2], cd5)
+        run(["discharge", "--as", "Fable", "--id", "MSG-FAB-0002", "--in", "MSG-FAB-0004",
+             "--outcome", "reported in a later entry on the bus"], cd5)
+        r = run(["owed", "--as", "Fable"], cd5)
+        t("control: a peer-readable discharge is recorded as DISCHARGED, not self-reported",
+          "DISCHARGED" in r.stdout)
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
