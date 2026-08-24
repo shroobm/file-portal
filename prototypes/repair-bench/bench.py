@@ -27,6 +27,7 @@ import io
 import json
 import difflib
 import hashlib
+import hmac
 import os
 import re
 import shutil
@@ -1343,8 +1344,53 @@ def open_target(path_str: str) -> Bench:
     return Bench(p)
 
 
+# ---- the loopback token (S108 Lane D) --------------------------------------------------------
+#
+# docs/38 §9.4: "Loopback is a network boundary, not authentication; another local process may
+# still be hostile. Any future route that mutates files requires the same path/authority
+# scrutiny as a native command." Until now NOTHING here checked who was POSTing — any local
+# process, or a hostile web page firing a preflight-free cross-origin POST at 127.0.0.1:7077,
+# could rewrite the bundle body (the security wiki measured the absence: zero Origin/token/CSRF
+# checks in this file). Every POST route below either writes (body / assets / manifest /
+# REPAIRS.md), swaps server state (/api/open), or spends the GPU (/api/transcribe, /api/assist),
+# so the WHOLE POST verb sits behind one gate — a route added later cannot forget it.
+MUTATING_POSTS = (
+    "/api/repair",            # writes assets/ + body + manifest
+    "/api/md",                # rewrites the body (manual ✎ save)
+    "/api/open",              # swaps the served bundle (server state)
+    "/api/transcribe",        # spawns the docling worker (GPU + temp files)
+    "/api/transcribe_apply",  # writes body + manifest
+    "/api/collapse_preview",  # computes only, but the POST verb keeps one uniform gate
+    "/api/collapse",          # writes body + manifest
+    "/api/assist",            # ships body text to the local model, then writes the body
+    "/api/undo",              # writes the body (and may pop a manifest record)
+    "/api/triage",            # writes the manifest
+    "/api/report",            # writes REPAIRS.md when {"write": true}
+)
+
+# In-process harnesses (acceptance.py) construct the handler directly and are already on the
+# trusted side of the process boundary — the gate exists for NETWORK callers, and every
+# network-reachable server goes through main(), which always passes the operator's choice.
+_NO_GATE = object()
+
+
+def token_gate(presented: str | None, expected) -> str | None:
+    """None = admitted. A string = the honest 403 reason. Constant-time compare."""
+    if expected is _NO_GATE:
+        return None
+    if expected is None:
+        return ("mutating routes are disabled: bench.py was started without --token. "
+                "Restart it as `bench.py <bundle> --token <secret>` (the widget does this "
+                "itself) and open the page as /?token=<secret>.")
+    if not presented or not hmac.compare_digest(
+            presented.encode("utf-8"), str(expected).encode("utf-8")):
+        return ("X-FP-Token missing or wrong — reload the page with ?token=<the value passed "
+                "to --token> so the UI attaches it to every mutating request.")
+    return None
+
+
 # ---- the thin HTTP layer ---------------------------------------------------------------------
-def make_handler(bench: Bench):
+def make_handler(bench: Bench, token=_NO_GATE):
     bench0 = bench
 
     class Handler(BaseHTTPRequestHandler):
@@ -1410,6 +1456,11 @@ def make_handler(bench: Bench):
 
         def do_POST(self):
             bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
+            # The loopback-token gate, BEFORE any dispatch (see MUTATING_POSTS above).
+            deny = token_gate(self.headers.get("X-FP-Token"), token)
+            if deny:
+                self._json({"error": deny}, 403)
+                return
             try:
                 n = int(self.headers.get("Content-Length", "0"))
                 payload = json.loads(self.rfile.read(n) or b"{}")
@@ -1490,14 +1541,25 @@ def main():
     ap.add_argument("--sandbox", action="store_true",
                     help="repair a COPY under .sandbox/ — trial mode, originals untouched")
     ap.add_argument("--port", type=int, default=7077)
+    # CONTRACT (the widget half is Lane G, windows-widget/src-tauri/src/bench.rs): the widget
+    # generates a random secret per spawn, passes it here as `--token <secret>`, and appends
+    # `?token=<secret>` to the WebviewUrl so bench.html can read it at load and attach it as
+    # X-FP-Token on every mutating request. Without --token the mutating routes FAIL CLOSED
+    # (403 with the remedy in the body) — see token_gate above.
+    ap.add_argument("--token", default=None,
+                    help="shared secret; every POST route requires a matching X-FP-Token "
+                         "header (no --token = mutating routes answer 403)")
     args = ap.parse_args()
     bench = Bench(args.bundle, pdf=args.pdf, sandbox=args.sandbox)
     st = bench.state()
     print(f"REPAIR BENCH · {st['bundle']}{'  [SANDBOX]' if st['sandbox'] else ''}")
     print(f"  verdict {st['verdict']} · {len(st['zones'])} zone(s) · {st['pages']} pp · "
           f"pdf {'✓ ' + str(bench.pdf) if st['pdf_available'] else 'NOT FOUND (markdown-only)'}")
+    print("  mutating routes: " + ("token-gated (--token)" if args.token else
+                                   "DISABLED — started without --token, POSTs answer 403"))
     print(f"  → http://127.0.0.1:{args.port}/   (Ctrl+C to close)")
-    ThreadingHTTPServer(("127.0.0.1", args.port), make_handler(bench)).serve_forever()
+    ThreadingHTTPServer(("127.0.0.1", args.port),
+                        make_handler(bench, token=args.token)).serve_forever()
 
 
 if __name__ == "__main__":

@@ -26,6 +26,7 @@ coupling except two marker files whose ownership is spelled out in `_hold` below
 from __future__ import annotations
 
 import argparse
+import hmac
 import json
 import os
 import re
@@ -422,10 +423,46 @@ def pipeline_state() -> dict:
             "analyst_mode": read("analyst-mode.txt"), "convert_running": convert_running()}
 
 
+# ---- the loopback token (S108 Lane D) -------------------------------------------------------
+#
+# docs/38 §9.4: "Loopback is a network boundary, not authentication; another local process may
+# still be hostile." Until now an unauthenticated local POST could spawn a llama-server and
+# write chat-hold.json — deferring every pipeline convert (/api/load), kill the model
+# (/api/unload), or spend GPU decode (/api/ask). Those three ARE the mutating routes, and the
+# whole POST verb sits behind one gate so a route added later cannot forget it. GETs stay
+# read-only and ungated.
+MUTATING_POSTS = ("/api/load", "/api/unload", "/api/ask")
+
+
+def token_gate(presented: str | None, expected: str | None) -> str | None:
+    """None = admitted. A string = the honest 403 reason. Constant-time compare."""
+    if expected is None:
+        return ("mutating routes are disabled: room_chat.py was started without --token. "
+                "Restart it as `room_chat.py --token <secret>` (the widget does this itself) "
+                "and open the page as /?token=<secret>.")
+    if not presented or not hmac.compare_digest(
+            presented.encode("utf-8"), expected.encode("utf-8")):
+        return ("X-FP-Token missing or wrong — reload the page with ?token=<the value passed "
+                "to --token> so the UI attaches it to every mutating request.")
+    return None
+
+
+# The client half, injected into the SERVED page rather than written into room_chat.html (that
+# file stays token-agnostic; this lane owns only the .py): read ?token= once, then attach it to
+# every fetch. The page's CSP allows 'unsafe-inline' script, and the shim precedes every other
+# script on the page, so no API call can fire before the wrap is in place.
+TOKEN_SHIM = (
+    b'<script>(()=>{const t=new URLSearchParams(location.search).get("token");if(!t)return;'
+    b'const f=window.fetch.bind(window);window.fetch=(u,o)=>{o=o||{};'
+    b'o.headers=Object.assign({"X-FP-Token":t},o.headers||{});return f(u,o);};})();</script>'
+)
+
+
 class Handler(BaseHTTPRequestHandler):
     llama: Llama
     context: str
     index: dict
+    token: str | None = None
 
     def log_message(self, *a):    # quiet; last words go to the stderr file
         pass
@@ -450,8 +487,13 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
-        if self.path in ("/", "/index.html"):
-            return self._send(200, (HERE / "room_chat.html").read_bytes(), "text/html; charset=utf-8")
+        if self.path.split("?")[0] in ("/", "/index.html"):
+            page = (HERE / "room_chat.html").read_bytes()
+            # Inject the token shim before the first element so it runs ahead of the page's
+            # own script (see TOKEN_SHIM). Falls back to plain prepend if <title> ever moves.
+            page = (page.replace(b"<title>", TOKEN_SHIM + b"<title>", 1)
+                    if b"<title>" in page else TOKEN_SHIM + page)
+            return self._send(200, page, "text/html; charset=utf-8")
         if self.path == "/api/status":
             return self._send(200, self.llama.status())
         if self.path == "/api/state":
@@ -465,6 +507,10 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        # The loopback-token gate, BEFORE any parse or dispatch (see MUTATING_POSTS above).
+        deny = token_gate(self.headers.get("X-FP-Token"), self.token)
+        if deny:
+            return self._send(403, {"error": deny})
         n = int(self.headers.get("Content-Length") or 0)
         req = json.loads(self.rfile.read(n) or b"{}")
         try:
@@ -499,6 +545,13 @@ def main() -> None:
     ap.add_argument("--port", type=int, default=UI_PORT_DEFAULT)
     ap.add_argument("--llama", default=os.environ.get("FP_LLAMA_SERVER", r"C:\Users\Bndit\ml\llama\llama-server.exe"))
     ap.add_argument("--model", default=str(MODEL_GGUF))
+    # CONTRACT (the widget half is Lane G): the widget generates a random secret per spawn,
+    # passes it here as `--token <secret>`, and appends `?token=<secret>` to the WebviewUrl;
+    # the served page's injected shim (TOKEN_SHIM) reads it and attaches X-FP-Token on every
+    # fetch. Without --token the mutating routes FAIL CLOSED (403) — see token_gate.
+    ap.add_argument("--token", default=None,
+                    help="shared secret; every POST route requires a matching X-FP-Token "
+                         "header (no --token = mutating routes answer 403)")
     a = ap.parse_args()
 
     context, index = load_corpus()
@@ -529,8 +582,12 @@ def main() -> None:
         print("reaped a malformed chat-hold — unreadable JSON cannot hold a card", flush=True)
     Handler.llama = Llama(Path(a.llama), Path(a.model))
     Handler.context, Handler.index = context, index
+    Handler.token = a.token
     print(f"room-chat on http://127.0.0.1:{a.port}  ·  corpus {list(index)} "
           f"({len(context):,} chars)  ·  llama {a.llama}", flush=True)
+    print("mutating routes: " + ("token-gated (--token)" if a.token else
+                                 "DISABLED — started without --token, POSTs answer 403"),
+          flush=True)
     try:
         ThreadingHTTPServer(("127.0.0.1", a.port), Handler).serve_forever()
     except KeyboardInterrupt:
