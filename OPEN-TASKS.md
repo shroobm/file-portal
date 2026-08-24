@@ -91,22 +91,22 @@ map — but *the repair is not wired*, so it moves to A18 below rather than clos
 |---|---|---|
 | A18 | **Wire the SYM-050 repair.** `true_page = id + 1 − 200×(id÷400)`, confirmed four independent ways at S106 | **BUILT S108 (`0fbb6e3`)** — narrow full-signature repair in memory; JSON names repaired/as-shipped map; clean control detector false at 1/1, poisoned IV detector true at 220/269 versus naive 30/269; SYM-050 resolved in source |
 | A19 | **#1 Stop opening a session per work item** — 8.7 min of committed work per session, each carrying a full closeout + ledger row + CHANGELOG + memory digest + two clock advances. *The arc's single largest cost* | `Historical` (S105) |
-| A20 | **#3 A product clock on the open card** — last-conversion timestamp, amber when idle N sessions. Today the card **cannot tell a healthy idle pipeline from a dead one** | `Observed 2026-08-22` — the card still shows no timestamp |
+| A20 | **#3 A product clock on the open card** — last-conversion timestamp, amber when idle N sessions. Today the card **cannot tell a healthy idle pipeline from a dead one** | `Observed 2026-08-22` — the card still shows no timestamp **RESOLVED S108 (lane F)** — the Dock renders 'last pipeline event: <age>' with fresh/idle-N-days/UNREAD states, tail-read only. |
 | A21 | **#4 A debt gate in `close.sh`** — refuse a new governance artifact while the OPEN SYM count exceeds its value at the last close. ~3 lines | `Observed 2026-08-22` — grep for debt / OPEN SYM in `close.sh` → no hits |
-| A22 | **#5 Suspend the relay, delete the concordance amendment**; reinstate on Codex's first entry | `Observed 2026-08-22` — `relay.md` has **3 entries, all `⟨from: Fable⟩`, zero from Codex** |
+| A22 | **#5 Suspend the relay, delete the concordance amendment**; reinstate on Codex's first entry | `Observed 2026-08-22` — `relay.md` has **3 entries, all `⟨from: Fable⟩`, zero from Codex** **SIGNED S108: KEPT.** The founding premise (one participant) died 2026-08-23 — Codex returned four entries in one day. |
 | A23 | **#6 Delete `/echo` the skill, keep the lexicon** — 1 commission in 7; the triviality carve-out invoked 6/6 | `Observed 2026-08-22` — `.claude/skills/` = `echo`, `muster`. Still there |
 | A24 | **#7 Cut the closeout contract to 6 core sections + Evidence**, and mechanize `docs/21`'s own 80-word check | `Historical` (S105) |
 | A25 | **#8 Narrow the tag law** to §Known Failures, §Evidence and status sentences — it is at zero compliance | `Historical` (S105) |
 | A26 | **#9 Invert glass's default** — `--enforce` on, explicit `--report` to print. Removes SYM-046's whole class instead of ruling against it | `Observed 2026-08-22` — `--enforce` is still `action="store_true"`, opt-in (`glass_detector.py:338`) |
 | A27 | **#12 Correct the S102/S103 ledger rows and CHANGELOG**, or rule that newer rows supersede older ones | `Historical` (S105) |
 | A28 | **#13 Sign `docs/32` §5's three rules** — obeyed as law in 8 places; the doc itself says otherwise | `Observed 2026-08-22` — `docs/32:134` reads **"Not signed."** |
-| A29 | **#14 Put the governance suites in CI** — muster, echo, coordination, figure-coverage, glass acceptance. *Today nothing checks the layer that checks everything* | `Observed 2026-08-22` — `ci.yml` runs python lint/test for the **three linux dirs only** + the rust job. Zero governance suites, zero windows-converter |
+| A29 | **#14 Put the governance suites in CI** — muster, echo, coordination, figure-coverage, glass acceptance. *Today nothing checks the layer that checks everything* | `Observed 2026-08-22` — `ci.yml` runs python lint/test for the **three linux dirs only** + the rust job. Zero governance suites, zero windows-converter **SMALLEST SLICE S108** — observability/acceptance.py runs in CI (warn-only); the remaining governance suites stay queued. |
 
 ### A.4 New from S106
 
 | # | Item | Why it is his |
 |---|---|---|
-| A30 | **Ctrl+Z is dead in the Bench after any Enter.** The `innerHTML` rebuild orphans Blink's undo stack and the browser still reports undo as available | the fix is either a real custom undo model or reverting to a textarea — a product-shape choice |
+| A30 | **Ctrl+Z is dead in the Bench after any Enter.** The `innerHTML` rebuild orphans Blink's undo stack and the browser still reports undo as available | the fix is either a real custom undo model or reverting to a textarea — a product-shape choice **BUILT S108 (`0f0e83f`) — ratification on the sign sheet**: native-undo path (contenteditable='true' + beforeinput), plaintext-only MODE was the killer; Ctrl+Z measured alive through Enter. |
 | A31 | **Post-close continuation: new session number, or a ledger continuation form?** The two-clock protocol has **no representation for work performed after a session's ledgered close.** S106 tried to file a second row; both muster guards correctly refused it (`S106b:` → parse fail; a second `S106:` → order fail), and the row was reverted | repo-structural; the guards are working as designed, the protocol has the hole |
 | A32 | **The assay surface for the operator lever** — blocked behind A4 (P-1's host) | depends on a signature |
 
@@ -136,11 +136,11 @@ map — but *the repair is not wired*, so it moves to A18 below rather than clos
 
 | # | Item | Evidence |
 |---|---|---|
-| B1 | **`observability/acceptance.py` is RED: 40/41.** The failing row expects `recent_audits: GLITCH` but S94 rendered it, so it is now `glass`. One line, turns a standing red green | ran it today: `FAIL — 40/41 checks · failed: recent_audits: GLITCH (glass)` |
+| B1 | **`observability/acceptance.py` is RED: 40/41.** The failing row expects `recent_audits: GLITCH` but S94 rendered it, so it is now `glass`. One line, turns a standing red green | ran it today: `FAIL — 40/41 checks · failed: recent_audits: GLITCH (glass)` **RESOLVED S108 (`57abcd9`)** — the answer key caught up to S94: 41/41. |
 | B2 | **`.agents/` — delete it or gitignore it.** It is a pre-S103 copy of the muster skill: **no `close.sh`**, zero mentions of `--enforce`/SYM-046/CI, points at a `.Codex/` path that does not exist, and its selftest prints `ALL TRIPWIRES FIRED — 22/22, exit 0`. **Any runtime that resolves skills from `.agents/` is running a blind close under a green banner** | `ls .agents` → `skills/{echo,muster}`; `git check-ignore .agents` → **NOT ignored**; untracked in `git status` |
 | B3 | **The observability standing debt: 57 unsigned glitches at 60 sites across 3 lanes.** SYM-027's criterion (3) has never been met | the acceptance run today printed the census |
-| B4 | **`windows-converter/` is outside CI's lint set** — SYM-018's exact shape. `backend_parity.py`, `figure_coverage.py` and `convert_and_ship.py` ship unlinted | `ci.yml` lints `linux-receiver`, `linux-dashboard`, `linux-converter` only |
-| B5 | **Nothing in this repo tests `bench.html`.** "Bench acceptance 85/85" was cited in a commit whose entire diff is that file; the suite has not changed since 2026-08-14 and never loads the DOM | S106, and SYM-052's own row says no tripwire guards the regression |
+| B4 | **`windows-converter/` is outside CI's lint set** — SYM-018's exact shape. `backend_parity.py`, `figure_coverage.py` and `convert_and_ship.py` ship unlinted | `ci.yml` lints `linux-receiver`, `linux-dashboard`, `linux-converter` only **RESOLVED S108 (wave 1b)** — windows-converter joined the CI python job (ruff + hermetic selftests, warn-only until CI observed green; deferral/card-mutex selftests excluded by name). |
+| B5 | **Nothing in this repo tests `bench.html`.** "Bench acceptance 85/85" was cited in a commit whose entire diff is that file; the suite has not changed since 2026-08-14 and never loads the DOM | S106, and SYM-052's own row says no tripwire guards the regression **PARTIAL S108 (`abe4830`)** — 19-test stdlib headless harness with positive+negative controls (both S106 regressions are named fixtures); in-browser DOM run remains open. |
 
 ### B.2 Symptom fixes that are designed but unbuilt
 
@@ -175,7 +175,7 @@ committed again five times since.*
 | B19 | **The analyst has no llama.cpp call path.** It speaks Ollama `/api/generate` with a raw prompt; parity was measured against `/v1/chat/completions`. **Whatever is built must carry `enable_thinking:false`** or it silently reverts to the 6.5× arm — and a truncated rewrite drops trailing `⟦IMG-n⟧` and ships the un-analyzed original | S80 §18.4, S81 §18.3, S82 §18.5 |
 | B20 | **Vary `-ub` on the one engine** before concluding anything about two products — Ollama runs `llama-server` internally, so this is one engine under two invocations | S82 §18.4 |
 | B21 | **Test the table-loop deliberately**: map a degeneration zone's lines to its page, render, probe. One page answers what the S84 GLM probe did not | S84 §18.3 |
-| B22 | **The whole-file Bench render costs ~1 s per zone click and ~1.2 s per newline** at IV's size. The "105 ms" timed the lazy `innerHTML` assignment and excluded the forced layout | S106 |
+| B22 | **The whole-file Bench render costs ~1 s per zone click and ~1.2 s per newline** at IV's size. The "105 ms" timed the lazy `innerHTML` assignment and excluded the forced layout | S106 **RESOLVED S108 (`f9585b3`)** — zone click is highlight-only when text is unchanged; the perf log now INCLUDES forced layout so the S106 measurement substitution cannot recur. |
 | B23 | **219 of the 239 IV uncovered pages were never adjudicated**; the other four anchors were never measured at all; SYM-049's fragmentation class is verified for Cybernetics only | `docs/45` §6.5 |
 
 ### B.5 Long-standing build candidates
@@ -183,7 +183,7 @@ committed again five times since.*
 | # | Item | Source |
 |---|---|---|
 | B24 | **Events rotation + `verified_from` stamps**; **cross-day event-row date stamp** — build candidates carried in §18 from S68 through S70, never picked up | S68/S69/S70 §18 |
-| B25 | **`room-chat` graduation**: `llama_server_exe` config key + **adopt the llama-server spawn into the watcher's Job Object** (a hard kill currently orphans it — the S37 lesson, un-applied here) | S79 §18.3 |
+| B25 | **`room-chat` graduation**: `llama_server_exe` config key + **adopt the llama-server spawn into the watcher's Job Object** (a hard kill currently orphans it — the S37 lesson, un-applied here) | S79 §18.3 **ROW WAS STALE — corrected S108**: the graduation shipped at S85 (config.rs llama_server_exe + adopted spawn, verified at HEAD by lane G); the orphan claim was false when this register was built. |
 | B26 | **Remove the wrong-page embed in Valentine** | S79 §18.5 |
 | B27 | **`resume auto-detect-analyzed`** (Desktop one-liner) — ⚠ this line exists **nowhere else on this machine** than the memory open queue | memory `file-portal-project` |
 | B28 | **Windows half of the v2 feedback loop**: the widget polls `status.json` and shows delivered → sorted → failed per transfer; **toast/notification** on complete or fail | `docs/08` v2 |
@@ -253,7 +253,7 @@ every Investment Valuation figure computed before the map repair.
 |---|---|---|
 | F1 | **The Change Ledger table is physically split.** Header at `CLAUDE_README.md:1126`; the S79+ rows sit at EOF (from ~line 1972) with **no table header**, after S43's narrative prose. The newest rows do not render as a table | `Observed 2026-08-22`, unrepaired since S96 §18.1 flagged it |
 | F2 | **The protocol has no form for post-close work** (A31). S106's four post-close commits — `4d06588`, `c7e3812`, `d7ffd11`, `3659ec7` — **reach no permanent surface**; they are recorded only in the S106 closeout's addendum because the ledger physically refused them | `Observed 2026-08-22`; CI observed green on `c3e1f8b` |
-| F3 | **Four false `OPEN`s** in the SYMPTOM-INDEX status column (§C) | `Observed 2026-08-22`, unrepaired since S96 §18.2 |
+| F3 | **Four false `OPEN`s** in the SYMPTOM-INDEX status column (§C) | `Observed 2026-08-22`, unrepaired since S96 §18.2 **RESOLVED S108 (`ffc7b8a` + `97906a3`)** — three verdicts folded, SYM-032 gained the verdict its cell never had; trails preserved. |
 | F4 | **`S82`'s ledger row is dated 2026-08-16; its closeout file is `S82-desktop-2026-08-15.md`** | `Historical` (S96 §18.5) |
 | F5 | **Correct the S102/S103 ledger rows and CHANGELOG**, or rule that newer rows supersede (A27) | open |
 | F6 | **`MEMORY.md` is at ~200 lines — the read limit** — and has silently dropped pointers before. Compaction is Rab's call (S96 ruled the block must not be relocated). *That growth IS `docs/45`'s M5 finding, live* | `Historical` (S105) |
