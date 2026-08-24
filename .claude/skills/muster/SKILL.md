@@ -92,6 +92,40 @@ The cheap battery, by what is in scope:
 | the pipeline | the card's live rows; `.gpu-lock` and `query user` before ANY GPU work (law 8 — the seat may be his brother's) |
 | the receiver | the card's thinkpad row; anything deeper needs the ssh channel, and `UNREAD` is the honest answer when it is asleep |
 
+## Phase 3b — THE THREE REGISTERS (Rab's rule, signed S109)
+
+His words: *"Muster is getting an upgrade. It also includes checking relay, the symp file, the
+task list."*
+
+`open.sh` `[2b]` now prints all three, as **counts and ages, never checkmarks**:
+
+```
+open-tasks       92 item(s) · last written 21 hours ago
+symptoms         54 row(s), 4 open · last written 41 minutes ago
+relay            58 entries · run `gate.py status` for the board
+```
+
+**Read them, and name what today will touch.** This is Phase 3's promotion rule applied to the
+registers: an item you intend to act on gets re-measured now; everything else stays `Historical`
+and **is not actionable**.
+
+Why it had to be mechanical: `OPEN-TASKS.md` was built at S107 and the protocol referenced it
+**zero times** — measured across `SKILL.md`, `open.sh` and `close.sh` on 2026-08-24. A register
+nothing forces you through is a shrine, not a spine, and its own header already warned it "should
+either earn its keep by being worked down or be deleted."
+
+- A register **untouched for 2+ days** prints `*** not written in Nd — is it still true? ***`.
+  Staleness is a reading. A task list that stopped being written is worse than none, because it
+  still reads authoritative.
+- A **missing** register is `UNREAD` and exits 1. It is never "nothing open".
+- The relay row is a pointer, not a verdict — `gate.py status` is the board, and a lane that has
+  gone quiet is a **question**, not a fault, unless the record says why (see `MSG-FAB-0029`).
+
+**The close is the other half** (`close.sh` `[8]`/`[8b]`): every session either **strikes an item
+or adds one**, and a session that did neither must say so out loud rather than imply it. The DEBT
+gate prints the open-SYM count against the pin, so a number that only rises is visible as a number
+that only rises. On its first run it convicted the session that built it: `open SYM 3 -> 4 (+1)`.
+
 ## Phase 4 — Sweep the index, then step on the guards
 
 Name the `SYMPTOM-INDEX.md` rows that intersect today's intent. **A defect rediscovered is a

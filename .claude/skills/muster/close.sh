@@ -296,7 +296,54 @@ else
 fi
 row "CENSUS-SCOPE" "UNREAD — broader TEST-STRATEGY fixture census not yet mechanized; NOT a statement all promised tripwires ran"
 
-# ── [8] PUSH — an unpushed close is how the 2026-08-16 fork grew 52 commits deep ────────────
+# ── [8] REGISTERS — Rab's rule, signed S109: "closing sessions adds upon it" ────────────────
+#
+# OPEN-TASKS.md existed from S107 and NOTHING in the protocol referenced it — 0 hits across
+# SKILL.md, open.sh and close.sh, measured. A session could add ten items' worth of debt and
+# close green without writing one of them down, which is how a register becomes a museum.
+#
+# WARN-ONLY for one session (the S108 convention for a new gate), then arm.
+TASKS_MD="$FP_REPO/OPEN-TASKS.md"
+if [ ! -f "$TASKS_MD" ]; then
+  row "REGISTER" "UNREAD — OPEN-TASKS.md is missing; that is not 'nothing open'"
+elif git -C "$FP_REPO" diff --quiet "$PIN"..HEAD -- OPEN-TASKS.md 2>/dev/null; then
+  row "REGISTER" "WARN — OPEN-TASKS.md UNTOUCHED since $PIN. Every session either strikes an item"
+  row "" "or adds one; a session that did neither must SAY SO in its closeout, not imply it."
+  row "" "S109: warn-only for one session, arm next close"
+else
+  reg_add=$(git -C "$FP_REPO" diff --numstat "$PIN"..HEAD -- OPEN-TASKS.md 2>/dev/null | awk '{print $1}')
+  reg_del=$(git -C "$FP_REPO" diff --numstat "$PIN"..HEAD -- OPEN-TASKS.md 2>/dev/null | awk '{print $2}')
+  row "REGISTER" "OPEN-TASKS.md written this session: +${reg_add:-?} / -${reg_del:-?} lines"
+fi
+
+# ── [8b] DEBT GATE — OPEN-TASKS.md §A21, proposed 2026-08-22 and never built until now ──────
+#
+# Its own words: "refuse a new governance artifact while the OPEN SYM count exceeds its value at
+# the last close. ~3 lines". docs/45's M5 finding is that this project produces governance faster
+# than output, and the register that records that is itself a governance artifact. This is the
+# only mechanism anyone proposed to bound it, and it sat unbuilt in the list it would bound.
+#
+# It PRINTS, it does not block: a threshold that stops a close on its first run would be tuned
+# away by the second. The number is the point — an OPEN count that only rises is visible here.
+SYMS_MD="$FP_REPO/SYMPTOM-INDEX.md"
+if [ -f "$SYMS_MD" ]; then
+  sym_open=$(grep -oU '| `open`' "$SYMS_MD" 2>/dev/null | grep -c . || echo 0)
+  sym_open_pin=$(git -C "$FP_REPO" show "$PIN:SYMPTOM-INDEX.md" 2>/dev/null | grep -oU '| `open`' | grep -c . || echo "?")
+  if [ "$sym_open_pin" = "?" ]; then
+    row "DEBT" "open SYM now $sym_open · at $PIN UNREAD — no verdict on the trend"
+  elif [ "$sym_open" -gt "$sym_open_pin" ]; then
+    row "DEBT" "open SYM $sym_open_pin -> $sym_open (+$((sym_open - sym_open_pin))) — this session"
+    row "" "ADDED net debt. §A21: justify a new governance artifact or work one down."
+  elif [ "$sym_open" -lt "$sym_open_pin" ]; then
+    row "DEBT" "open SYM $sym_open_pin -> $sym_open (-$((sym_open_pin - sym_open))) — debt fell"
+  else
+    row "DEBT" "open SYM $sym_open, unchanged since $PIN"
+  fi
+else
+  row "DEBT" "UNREAD — no SYMPTOM-INDEX.md; NOT a statement that debt is flat"
+fi
+
+# ── [9] PUSH — an unpushed close is how the 2026-08-16 fork grew 52 commits deep ────────────
 row "PUSH" "ahead of upstream: $ahead (the close pushes; 0 after)"
 
 printf '════════ close exit %d — values only; the judgment half is SKILL.md ════════\n' "$red"

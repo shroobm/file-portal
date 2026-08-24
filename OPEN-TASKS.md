@@ -92,7 +92,7 @@ map — but *the repair is not wired*, so it moves to A18 below rather than clos
 | A18 | **Wire the SYM-050 repair.** `true_page = id + 1 − 200×(id÷400)`, confirmed four independent ways at S106 | **BUILT S108 (`0fbb6e3`)** — narrow full-signature repair in memory; JSON names repaired/as-shipped map; clean control detector false at 1/1, poisoned IV detector true at 220/269 versus naive 30/269; SYM-050 resolved in source |
 | A19 | **#1 Stop opening a session per work item** — 8.7 min of committed work per session, each carrying a full closeout + ledger row + CHANGELOG + memory digest + two clock advances. *The arc's single largest cost* | `Historical` (S105) |
 | A20 | **#3 A product clock on the open card** — last-conversion timestamp, amber when idle N sessions. Today the card **cannot tell a healthy idle pipeline from a dead one** | `Observed 2026-08-22` — the card still shows no timestamp **RESOLVED S108 (lane F)** — the Dock renders 'last pipeline event: <age>' with fresh/idle-N-days/UNREAD states, tail-read only. |
-| A21 | **#4 A debt gate in `close.sh`** — refuse a new governance artifact while the OPEN SYM count exceeds its value at the last close. ~3 lines | `Observed 2026-08-22` — grep for debt / OPEN SYM in `close.sh` → no hits |
+| ~~A21~~ **STRUCK S109 — BUILT** | **#4 A debt gate in `close.sh`** — refuse a new governance artifact while the OPEN SYM count exceeds its value at the last close. ~3 lines | `Observed 2026-08-22` — grep for debt / OPEN SYM in `close.sh` → no hits |
 | A22 | **#5 Suspend the relay, delete the concordance amendment**; reinstate on Codex's first entry | `Observed 2026-08-22` — `relay.md` has **3 entries, all `⟨from: Fable⟩`, zero from Codex** **SIGNED S108: KEPT.** The founding premise (one participant) died 2026-08-23 — Codex returned four entries in one day. |
 | A23 | **#6 Delete `/echo` the skill, keep the lexicon** — 1 commission in 7; the triviality carve-out invoked 6/6 | `Observed 2026-08-22` — `.claude/skills/` = `echo`, `muster`. Still there |
 | A24 | **#7 Cut the closeout contract to 6 core sections + Evidence**, and mechanize `docs/21`'s own 80-word check | `Historical` (S105) |
@@ -290,3 +290,52 @@ It will rot. `docs/45` Family 1 predicts exactly how: a line here will keep desc
    `docs/29` §5.4 applies to measurements.
 2. **Never quote a status from this file into a claim.** Open the cited source. That is
    `docs/45` §6.2's open question in its smallest useful form.
+
+---
+
+## §I THE MAINTENANCE PROTOCOL — signed by Rab, S109 (2026-08-24)
+
+His words: *"I need a task list that is dated, and that is updated in every session as part of
+protocol, opening session checks it, closing sessions adds upon it, muster makes it mandatory to
+check it."*
+
+**Why it needed saying.** This register was built at S107 and **the protocol had never once
+referenced it** — measured 2026-08-24: `OPEN-TASKS` appeared **0 times** in `muster/SKILL.md`,
+`open.sh` and `close.sh`. It was a register nothing forced you through, which is a shrine, not a
+spine. Its own header (line 26) already warned it "should either earn its keep by being worked
+down or be deleted."
+
+**Now mechanical, in three places:**
+
+| where | what it does |
+|---|---|
+| `open.sh` `[2b]` | prints **counts, never a checkmark** — open items, symptom rows and open symptoms, relay entries — each with **when it was last written**. A register untouched for 2+ days prints `*** not written in Nd — is it still true? ***`. A tick would say the file exists; a count says how much is open, and **a count that never falls is visible as a count that never falls.** |
+| `close.sh` `[8]` REGISTER | reports whether this file was written since the pin. **Every session either strikes an item or adds one; a session that did neither must SAY SO in its closeout rather than imply it.** Warn-only for one session, then armed. |
+| `close.sh` `[8b]` DEBT | **§A21, finally built** — the open-SYM count now vs at the pin, with the direction named. It PRINTS, it does not block: a threshold that stopped a close on its first run would be tuned away by the second. |
+
+**DATING RULE.** Every item carries the date it was **last verified**, not the date it was
+written. `Observed <date>` means a command was run that day and its result quoted. `Historical`
+means transcribed and **not** re-measured. An undated item is an item nobody has looked at.
+
+**§A21 is now struck** — it proposed the debt gate on 2026-08-22 and sat unbuilt in the very list
+it was designed to bound. Built S109.
+
+---
+
+## §J OPENED IN S109 (2026-08-24) — from the session's own gates, on their first run
+
+*The register's first entries under its own protocol are the debts that protocol found. All
+`Observed 2026-08-24` — each was printed by a gate, not recalled.*
+
+| # | Item | Class | Source |
+|---|---|---|---|
+| J1 | **3 threshold-shaped constants added with no lever and no waiver**: `BEAT_STALE_MIN`, `GATE_TIMEOUT_S`, `MIRROR_MAX_ATTEMPTS`. docs/18 §2: a number that decides something is a LEVER, not a constant | MECHANICAL | `close.sh` LEVERS, `Observed 2026-08-24` |
+| J2 | **1 unsigned observability glitch since `4862be1`** — GLASS RED at close | MECHANICAL | `close.sh` GLASS `--enforce`, `Observed 2026-08-24` |
+| J3 | **SYM-054**: an agent fleet leaks live servers and a file-digest audit cannot see them. A fleet law needs a PROCESS census the way it already has a digest census | MECHANICAL | `SYMPTOM-INDEX.md`, `Observed 2026-08-24` |
+| J4 | **`close.sh` now takes 8m37s** (measured, `time`). It runs three suites that have grown from 22→83, 38→48, and 0→43 cases. A close nobody can afford to run is a close nobody runs | MECHANICAL | `Observed 2026-08-24` |
+| J5 | **relay-room's `NOT_YET` list**: the live-server suite (T3/T4/T20/T21/T12), the catcher-cycle suite (T24-T27) and the end-to-end T28 are unbuilt. Declared, not hidden — but declared is not done | MECHANICAL | `prototypes/relay-room/test_room.py`, `Observed 2026-08-24` |
+| J6 | **`T-004`'s joint half** is blocked on the Codex lane's usage — **not on Rab**. Its EXTRACTED schema half is published for review | SEMANTIC (blocked) | `coordination/T-004-EXTRACTED-SCHEMA.md`, `Observed 2026-08-24` |
+| J7 | **The disclosure standard and the private-layer doctrine** remain drafts. Only D2 of six triggers is mechanical; D1/D3/D4/D5/D6 are discipline | SEMANTIC | `coordination/DISCLOSURE-STANDARD.md`, `Observed 2026-08-24` |
+| J8 | **`MSG-FAB-0018` names two entries on the bus, permanently** — the residue of the 17:25Z live-bus incident. Appends never erase; it is declared, not repairable | RECORD (closed by declaration) | `coordination/relay.md`, `Observed 2026-08-24` |
+| J9 | **The bus is DORMANT** — Codex out of usage. Its lane will read STALE indefinitely; `MSG-FAB-0029` records why so the silence is not read as a fault | RECORD | `Observed 2026-08-24` |
+| J10 | **C0 HAS STILL NOT BREATHED.** `drop/` empty, watcher not running, widget down. Recommended first book: Ashby, *An Introduction to Cybernetics* — the ancestor of every Beer volume already in the corpus | **THE ONLY ONE THAT MOVES THE SENTENCE** | `Observed 2026-08-24` |

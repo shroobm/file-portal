@@ -188,6 +188,47 @@ else
   row "pipeline" "UNREAD — no $PIPE_ROOT on this machine (say unread, never fine)"
 fi
 
+# [2b] THE THREE REGISTERS — Rab's rule, signed S109: "muster makes it mandatory to check it."
+#
+# OPEN-TASKS.md existed from S107 and the protocol had NEVER referenced it: 0 hits in SKILL.md,
+# open.sh and close.sh, measured. A register nothing forces you through is a shrine, not a spine,
+# and its own header says it "should either earn its keep by being worked down or be deleted."
+#
+# So the card PRINTS COUNTS, never a checkmark. A tick would say "the register exists"; a count
+# says how much is open, and a count that never falls is visible as a count that never falls.
+# STALENESS IS A READING: a register untouched since before the last close is named as such,
+# because a task list that stopped being written is worse than none - it reads authoritative.
+reg_row() {  # reg_row <label> <path> <count-cmd>
+  local label="$1" path="$2"
+  if [[ ! -f "$path" ]]; then
+    row "$label" "UNREAD — $path is missing; this is not 'nothing open'"; fail=1; return
+  fi
+  local age days
+  age=$(git -C "$FP_REPO" log -1 --format=%cr -- "${path#$FP_REPO/}" 2>/dev/null)
+  days=$(git -C "$FP_REPO" log -1 --format=%ct -- "${path#$FP_REPO/}" 2>/dev/null)
+  if [[ -n "$days" ]]; then
+    days=$(( ( $(date +%s) - days ) / 86400 ))
+  else
+    age="UNREAD"; days=0
+  fi
+  local stale=""
+  [[ "$days" -ge 2 ]] && stale="  *** not written in ${days}d — is it still true? ***"
+  row "$label" "$3 · last written ${age:-UNREAD}$stale"
+}
+if [[ -f "$README" ]]; then
+  TASKS="$FP_REPO/OPEN-TASKS.md"
+  SYMS="$FP_REPO/SYMPTOM-INDEX.md"
+  reg_row "open-tasks" "$TASKS" \
+    "$(grep -cU '^| [A-F][0-9]' "$TASKS" 2>/dev/null || echo '?') item(s)"
+  reg_row "symptoms" "$SYMS" \
+    "$(grep -cU '^| SYM-' "$SYMS" 2>/dev/null || echo '?') row(s), $(grep -oU '| `open`' "$SYMS" 2>/dev/null | grep -c . || echo '?') open"
+  if [[ -f "$FP_REPO/coordination/relay.md" ]]; then
+    row "relay" "$(grep -cU '^## 20' "$FP_REPO/coordination/relay.md" 2>/dev/null || echo '?') entries · run \`gate.py status\` for the board"
+  else
+    row "relay" "UNREAD — no coordination/relay.md (say unread, never 'quiet')"; fail=1
+  fi
+fi
+
 # THE FAILED-PROBE RULE, paid for during this script's own first run:
 #
 #   A probe that FAILED must never render as a NEGATIVE OBSERVATION.
