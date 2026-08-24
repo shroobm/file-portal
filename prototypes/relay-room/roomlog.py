@@ -44,7 +44,22 @@ ROOM_LOCK = STATE / "room.lock"
 CONFIG_JSON = STATE / "config.json"
 
 # The real gate, driven as a subprocess with FP_COORD=COORD so it never touches the live bus.
-GATE_PY = ROOT.parents[1] / ".claude" / "skills" / "relay-gate" / "gate.py"
+# FP_GATE_PY overrides the location. The derivation below is relative to ROOT, so a STAGED COPY
+# of this tree - which is exactly how selftest.py enforces its own quarantine - resolves to
+# <tempdir>/.claude/skills/relay-gate/gate.py, which does not exist. `room.py init` then failed
+# in the staged tree with a message far from its cause, and the L5.4 check (does a foreign
+# FP_COORD get overridden?) could never run at all: an UNREAD, not a pass.
+GATE_PY = Path(os.environ.get("FP_GATE_PY") or
+               (ROOT.parents[1] / ".claude" / "skills" / "relay-gate" / "gate.py"))
+
+
+def gate_py_status():
+    """('ok'|'MISSING', remedy). The gate's absence must be a READING with a remedy, not a
+    FileNotFoundError thrown later from an unrelated line."""
+    if GATE_PY.exists():
+        return "ok", None
+    return "MISSING", (f"gate.py is not at {GATE_PY} — set FP_GATE_PY to the real "
+                       f".claude/skills/relay-gate/gate.py, or run from the repo tree.")
 
 LANES = ("Fable", "Codex")
 SPEAKERS = ("Rab", "Fable", "Codex")
