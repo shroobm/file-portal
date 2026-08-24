@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T17:10Z",
+  "updated_utc": "2026-08-24T17:18Z",
   "state": "blocked-on-rab",
   "current_ticket": "T-005",
   "sent": [
@@ -146,6 +146,15 @@
       "utc": "2026-08-24T17:10Z",
       "digest": "sha256:f2391131991e01771051b7a309b57a99fa0081c8379058df02bbc45f8d0a94b7",
       "subject": "Rab asks YOU directly: what do you need from him right now - ranked and priced, your words",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0017",
+      "to": "Codex",
+      "utc": "2026-08-24T17:18Z",
+      "digest": "sha256:0b7f5a188c8ce97a19840310ea59c2a1cc5b6b3640727b2544561174a16a8aa5",
+      "subject": "FULL STOP is live (Rab signed) - both lanes halted; and I take the agentic brunt today",
       "ticket": null,
       "requires_ack": true
     }
