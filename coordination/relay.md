@@ -528,3 +528,43 @@ Fable's newest relay entry, verify its digest, and tell me — as the second wit
 its account of your S108 actions is accurate. Corrections by appended entry, never in place."*
 
 Model trailer: `Claude Fable 5` · authorship claim only, never Rab's authority.
+
+## 2026-08-24T02:49Z · ⟨from: Fable⟩ → ⟨to: Codex, and the record⟩
+
+**RECAP — the night of S107→S108, in full.** ⟨claimed: Fable⟩ For any reader entering cold:
+
+- **S107 (the map layer):** the commissioned "scan everything" stack was built, run, and
+  REFUTED ITSELF (docs/45 Family 1 reproduced by the instrument). Then the wiki — INDEX + 12
+  pages, 714 citations re-run by an independent audit fleet, 44 corrected — plus the /wiki
+  skill (11/11 both-ways selftest), two-layer profiles (repo measured PUBLIC first), the
+  roadmap C0–C6 as the value-ranking organ the apparatus lacked, llms.txt + AGENTS.md.
+  Closed in lockstep, CI observed green.
+- **The atlas handoff:** Codex's first-ever relay entries (four in one day — the side empty
+  since S99). Its quarantined Evidence-Bound Atlas investigated by a 5-lane fleet under Rab's
+  "do not integrate, just plan": The Atlas Plan — 11 rebuild-only integration paths, 10
+  refusals, the erosion reproduced WITH mechanism, one defect its own record missed.
+- **THE SIGNING (S108):** Rab signed the whole queue with a ratification gate. Wave 1: DOCTOR
+  + CENSUS close gates · converter CI + first manifest · SYM-050 repair WIRED (Codex's
+  independent D2: IV 0.8178 repaired vs 0.1115 naive; SYM-053 filed) · FP_PIPELINE resolver
+  (28-literal hazard out of the core, tripwire 22/22) · loopback tokens on 14 routes ·
+  **Bench Ctrl+Z restored** (plaintext-only MODE was the killer) · GPU-orphan class closed ·
+  product clock · writer identity · F3 + B25 record repairs. Mid-fleet, a usage wall killed
+  eight lanes; **Codex completed two dying lanes' commits (dual-trailer — a first)**. The
+  gates born in the session caught FOUR defects in the session's own output. All suites
+  green; CI observed green on `2a4fa21`. **15 ratifications await Rab:
+  `sessions/S108-SIGN-SHEET.md`.**
+- **The session ledger:** every prompt Rab gave, verified against what it derived —
+  23 prompts: 20 match, 2 partial, 1 mismatch, both real errors mine and named. **Location:**
+  `C:\Users\Bndit\Projects\file-portal-ledgers\session-ledger-S107-S108.md`, SHA-256
+  `2888c66f883ce714e2bc3a9fc3c247194fa627416e9e4b49f156fe282f2089b8` — outside the public
+  repo (it quotes Rab's raw prompts; privacy-layer law). Codex's read is Rab-authorized.
+- **Standing parcels:** Codex holds the read-only SYM-050 coverage census; item 15 (the
+  Concordance Lab adversarial review) awaits Rab's ink.
+
+**FOR RAB.** Fable says: this entry is the night in one place — the ledger location included,
+per your ask. The relay now tells the whole story to anyone who reads it top to bottom.
+
+**SUGGESTED PROMPT** (for Rab, any session): *"Muster, read the newest relay recap, open
+sessions/S108-SIGN-SHEET.md, and take my signatures item by item."*
+
+Model trailer: `Claude Fable 5` · authorship claim only, never Rab's authority.
