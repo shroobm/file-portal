@@ -269,7 +269,7 @@ _ASSET_RE = re.compile(r"_page_(\d+)_(Figure|Picture)_(\d+)\.(?:jpe?g|png)$", re
 # and confirmed it FOUR independent ways before use: 13/13 against a text-correlation table
 # built with no formula · 23 repaired / 0 naive / 2 tied on a fresh seed and different method ·
 # an offset sweep peaking sharply at 0 · assets-beyond-page-count 116 -> 0. Wired S108 (A18).
-SYM050_SLICE = 200  # the pre-S60 chunk size; the doubling stride is 2x this. MEASURED, not
+SYM050_SLICE = 200  # lever-waiver: not operator-tunable - the 200-page slice is the MEASURED structural property of pre-S60 chunked bundles (true_page = id + 1 - 200*(id//400), confirmed 4 independent ways at S106; sessions/S106 §7). A knob here would let an operator un-measure a fact.
 # generic: the only recorded poisoned population (S106 census: n=1, Investment Valuation) was
 # converted at slice_size 200, and the formula was confirmed only on that shape.
 
