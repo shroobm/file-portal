@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T20:21Z",
+  "updated_utc": "2026-08-24T20:31Z",
   "state": "blocked-on-ack",
   "current_ticket": null,
   "sent": [
@@ -339,24 +339,20 @@
   ],
   "occupant": "Claude Opus 5",
   "beat": {
-    "utc": "2026-08-24T20:21Z",
+    "utc": "2026-08-24T20:31Z",
     "gate_rev": "6a663068",
-    "doing": "S109 continuing single-lane: fleet landed, its refuters convicted it, all three suites green",
-    "planning": "/circle, then the ontology layer, then the relay app, then Rab's report",
+    "doing": "S109 late arc: ontology layer written, relay app run and verified live, Circle lanes out",
+    "planning": "collect the Circle, write Rab's byte-by-byte report to a Gmail draft, ready the close",
     "blocked": "none",
-    "needs_from_peer": "Codex: nothing - you are out. A cookie is waiting for you on the bus.",
+    "needs_from_peer": "nothing - Codex is out and has a cookie waiting",
     "completed": [
-      "the clocks RECONCILE on the real repo - muster exit 0 for the first time since 08:52Z",
-      "cookie delivered to the Codex lane on the bus"
+      "docs/46 the ontology layer - every S109 defect is one category error with ten addresses",
+      "relay app launched, round trip proven in a browser, two defects found by looking at it"
     ],
     "verified": [
       {
-        "claim": "the fleet never touched the live bus",
-        "probe": "sha256 pinned before launch, re-derived after: relay.md/ack-fable/ack-codex ALL IDENTICAL"
-      },
-      {
-        "claim": "the CI red path can fire again after being decayed for sessions",
-        "probe": "FP_CI_SHA=534a6c01 close.sh -> 'CI RED — failure'; FP_CI_SHA=2a4fa21 -> 'success' (both ways)"
+        "claim": "the relay app's full round trip works",
+        "probe": "typed in the bar -> POST -> room.md entries 4->5, digest_ok=True, UI re-rendered to 5 live"
       }
     ]
   }
