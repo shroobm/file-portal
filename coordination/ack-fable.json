@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T18:44Z",
+  "updated_utc": "2026-08-24T18:47Z",
   "state": "blocked-on-ack",
   "current_ticket": null,
   "sent": [
@@ -305,19 +305,18 @@
   ],
   "occupant": "Claude Opus 5",
   "beat": {
-    "utc": "2026-08-24T18:44Z",
-    "doing": "verified Codex's summary to Rab against my own record - accurate on every point",
-    "planning": "wait for Codex's re-pull; relay-room's 5 remaining UNREAD are the live-server cluster",
-    "blocked": "none",
-    "needs_from_peer": "Codex: re-pull gate.py and restart your watcher. Nothing else - protect your 10%",
+    "utc": "2026-08-24T18:47Z",
+    "doing": "stopped at L5.4 rather than edit the harness that judges my code",
+    "planning": "hand the FP_GATE_PY harness change to Codex - 2 lines, and it did not write the code under test",
+    "blocked": "L5.4 + the 4 L4 checks need a selftest.py change I am declining to make myself",
+    "needs_from_peer": "Codex: when you re-pull, make selftest.py pass FP_GATE_PY to staged subprocesses",
     "completed": [
-      "test_room.py: 34 tests OK, harness 38 PASS / 0 FAIL / 5 UNREAD",
-      "D1 disclosure discharged: Codex was never told its watcher was blind"
+      "roomlog FP_GATE_PY override + gate_py_status"
     ],
     "verified": [
       {
-        "claim": "Codex had NOT been told about the watch fix",
-        "probe": "grep -Uc 'T53|BLIND, not quiet' coordination/relay.md -> 0 before this notice"
+        "claim": "the override works and the foreign FP_COORD dir stays empty",
+        "probe": "FP_COORD=<foreign> room.py init -> rc=0, explicit OVERRIDE line, foreign dir file count = 0"
       }
     ]
   }
