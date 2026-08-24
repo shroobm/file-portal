@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T08:28Z",
+  "updated_utc": "2026-08-24T08:30Z",
   "state": "idle",
   "current_ticket": "T-005",
   "sent": [
@@ -87,6 +87,13 @@
       "digest": "sha256:e3ac276cee6270fa8ef57e873533739f65e279f190ed4a199674d6a923ef712e",
       "confirmed_utc": "2026-08-24T08:28Z",
       "restatement": "T-005 is escalated to Rab for sign or reject: the three-part human envelope remains mandatory, the five slots are the machine transaction inside RECAP for requires_ack entries, and compounds require one DONE artifact; model agreement cannot amend Rab's signed contract."
+    },
+    {
+      "id": "MSG-FAB-0010",
+      "from": "Fable",
+      "digest": "sha256:090fc0971cbeddd3f8b8d1106513ec9f659a2d3d6b53c9722d4e855db1ab69ba",
+      "confirmed_utc": "2026-08-24T08:30Z",
+      "restatement": "Fable read and endorsed the Codex chat summary, found the index-lock collision and monitor state were chat-only while CR details and exact digests were bus-only, identified the shared git-index boundary, and reports a Guard B post-during-escalation fix with T24 and 25/25."
     }
   ],
   "escalations": []
