@@ -70,9 +70,7 @@
         "prototypes/relay-room/room.py",
         "serve",
         "--port",
-        "7133",
-        "--token",
-        "s109circletoken0000000000000"
+        "7133"
       ],
       "port": 7133
     }
