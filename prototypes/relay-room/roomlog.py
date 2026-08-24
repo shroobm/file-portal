@@ -361,7 +361,8 @@ def read_log(path=ROOM_MD) -> LogRead:
                        f"{path.name} does not exist — run `room.py init`.",
                        "", [], [], 0, 0, read_at)
     try:
-        raw = io.open(path, encoding="utf-8", errors="replace").read()
+        with io.open(path, encoding="utf-8", errors="replace") as fh:
+            raw = fh.read()
         size = path.stat().st_size
     except Exception as exc:                        # a failed probe is UNREAD, never empty-ok
         return LogRead("UNREAD",
@@ -501,7 +502,8 @@ def _read_flight(mid):
     if not p.exists():
         return "MISSING", [], 0, 0
     try:
-        raw = io.open(p, encoding="utf-8", errors="replace").read()
+        with io.open(p, encoding="utf-8", errors="replace") as fh:
+            raw = fh.read()
     except Exception as exc:
         return f"UNREAD: {type(exc).__name__}: {exc}", [], 0, 0
     rows, torn, invalid = [], 0, 0
