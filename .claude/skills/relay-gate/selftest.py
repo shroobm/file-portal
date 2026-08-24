@@ -682,6 +682,91 @@ def main():
         t("an unreadable peer sidecar renders ack=UNREAD, not ack=awaiting",
           r.returncode == 0 and "ack=UNREAD" in r.stdout and "ack=awaiting" not in r.stdout)
 
+        # ---- T56-T60: THE THREE VIOLATIONS THE S109 CIRCLE FOUND, each reproduced ----
+        # All three were live while this suite read 73/73 green. That is the point of writing
+        # them down here: the suite could not see any of them, because none of their properties
+        # had ever been stated as a test.
+        cd = coord / "_circle"
+        cd.mkdir(exist_ok=True)
+        io.open(cd / "relay.md", "w", encoding="utf-8", newline="\n").write("# relay (fixture)\n")
+        run(["init", "--as", "Fable"], cd)
+        run(["init", "--as", "Codex"], cd)
+
+        # T56 — THE SEAL MUST COVER THE WHOLE ENTRY. extract_entry ended the body at ANY "## "
+        # line, so a markdown heading in a body truncated what the digest covers: 451 of 1861
+        # chars sealed, with BOUNDS / ROUTE / FOR RAB / SUGGESTED PROMPT all OUTSIDE it. The FOR
+        # RAB block is the part that tells the principal what he is being asked.
+        run(["escalate", "--as", "Fable", "--asking",
+             "Decide this\n## a heading inside the ask\nthat is the point"], cd)
+        sys.path.insert(0, str(Path(GATE).parent))
+        import importlib
+        g2 = importlib.import_module("gate")
+        os.environ["FP_COORD"] = str(cd)
+        sealed = g2.extract_entry("MSG-FAB-0001") or ""
+        full = io.open(cd / "relay.md", encoding="utf-8").read()
+        whole = full[full.index("## 2026"):]
+        t("the digest seals the WHOLE entry, not up to the first '## ' in a body",
+          len(sealed) >= len(whole) - 3)
+        t("…so FOR RAB and SUGGESTED PROMPT are inside the seal",
+          "**FOR RAB.**" in sealed and "**SUGGESTED PROMPT**" in sealed)
+
+        # T57 — NO CLAIM IS NOT A MATCH. With the sender's sidecar UNREAD there is no digest to
+        # compare, and `confirm` fell through to printing "digest verified" - on a body that had
+        # been rewritten from "convert the bundle" to "DELETE the bundle".
+        cd2 = coord / "_circle2"
+        cd2.mkdir(exist_ok=True)
+        io.open(cd2 / "relay.md", "w", encoding="utf-8", newline="\n").write("# relay (fixture)\n")
+        run(["init", "--as", "Fable"], cd2)
+        run(["init", "--as", "Codex"], cd2)
+        bfc = body_file(cd2, "**RECAP.** convert the bundle\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "t", "--body", bfc], cd2)
+        io.open(cd2 / "ack-fable.json", "w", encoding="utf-8", newline="\n").write("{ corrupted")
+        r = run(["confirm", "--as", "Codex", "--id", "MSG-FAB-0001",
+                 "--restatement", "you asked me to convert the bundle"], cd2)
+        t("a confirmation with NO counter-claim is refused, never 'verified'",
+          r.returncode == 1 and "NOTHING TO COMPARE" in r.stderr)
+
+        # T58 control — and a REAL claim must still confirm, or T57 is satisfied by a confirm
+        # that refuses everything.
+        cd3 = coord / "_circle3"
+        cd3.mkdir(exist_ok=True)
+        io.open(cd3 / "relay.md", "w", encoding="utf-8", newline="\n").write("# relay (fixture)\n")
+        run(["init", "--as", "Fable"], cd3)
+        run(["init", "--as", "Codex"], cd3)
+        bfd = body_file(cd3, "**RECAP.** an honest ticket\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "t", "--body", bfd], cd3)
+        r = run(["confirm", "--as", "Codex", "--id", "MSG-FAB-0001",
+                 "--restatement", "understood: an honest ticket, nothing tampered"], cd3)
+        t("control: a genuine claim still confirms", r.returncode == 0)
+
+        # T59 — THE FULL STOP IS NOT OVERRIDABLE. --override is documented as a GUARD A bypass and
+        # was silently crossing a halt Rab SIGNED, including its fail-closed branch.
+        cd4 = coord / "_circle4"
+        cd4.mkdir(exist_ok=True)
+        io.open(cd4 / "relay.md", "w", encoding="utf-8", newline="\n").write("# relay (fixture)\n")
+        run(["init", "--as", "Fable"], cd4)
+        run(["init", "--as", "Codex"], cd4)
+        run(["escalate", "--as", "Fable", "--ticket", "T-100",
+             "--asking", "a decision only Rab may make here"], cd4)
+        bfe = body_file(cd4, "**RECAP.** work\n")
+        r = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "w", "--body", bfe,
+                 "--ticket", "T-101", "--override", "recipient looked idle to me"], cd4)
+        t("--override does NOT lift a FULL STOP",
+          r.returncode == 1 and "FULL STOP" in r.stderr)
+        t("…and it says so, rather than refusing without a reason",
+          "does NOT lift a FULL STOP" in r.stderr)
+
+        # T60 control — GUARD A must STILL be overridable, or T59 is satisfied by an --override
+        # that does nothing at all. Peer working, no escalation anywhere.
+        io.open(cd3 / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps({"writer": "Codex", "protocol": "fp-relay-ack/v1", "updated_utc": "x",
+                        "state": "working", "occupant": "OpenAI Codex", "current_ticket": "T-9",
+                        "sent": [], "confirmed": [], "escalations": []}, indent=2))
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "urgent", "--body", bfd,
+                 "--ticket", "T-777", "--override", "hardware on fire"], cd3)
+        t("control: --override still bypasses GUARD A when no escalation is open",
+          r.returncode == 0)
+
     total = PASS + FAIL
     print()
     if FAIL == 0:

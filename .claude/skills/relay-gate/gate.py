@@ -189,6 +189,11 @@ def save(model: str, data: dict, as_model: str) -> None:
 
 MSG_RE = re.compile(r"MSG-(FAB|CDX)-(\d{4})")
 
+# An entry boundary in relay.md, by the log's OWN grammar. Used to bound what a digest seals -
+# see extract_entry. Deliberately anchored on the ⟨msg:⟩ stamp: a "## " line inside a body is
+# prose, and treating it as a boundary is how 76% of an escalation escaped its own seal.
+ENTRY_HEADER_RE = re.compile(r"^## .*⟨msg:\s*MSG-(?:FAB|CDX)-\d{4}⟩")
+
 
 # THE COUNTER'S FLOOR IS THE LOG, NOT THE SIDECAR (S109, after a live id collision).
 #
@@ -278,9 +283,17 @@ def extract_entry(msg_id: str):
                 break
     if start is None:
         return None
+    # THE SEAL MUST COVER THE WHOLE ENTRY. This loop ended the body at ANY line starting with
+    # "## " - so a markdown H2 anywhere in a body truncated what the digest covers. Measured
+    # S109 by the Circle and reproduced independently: an escalation whose `--asking` contained a
+    # heading sealed 451 of 1861 chars. BOUNDS, ROUTE, **FOR RAB** and SUGGESTED PROMPT all fell
+    # OUTSIDE the seal - the entire block that tells Rab what he is being asked - and rewriting
+    # the FOR RAB sentence still confirmed as "digest verified".
+    # The trigger is not adversarial: any entry quoting a heading does it by accident.
+    # An ENTRY BOUNDARY is a header matching the log's own grammar, not any "## " line.
     end = len(lines)
     for i in range(start + 1, len(lines)):
-        if lines[i].startswith("## "):
+        if ENTRY_HEADER_RE.match(lines[i]):
             end = i
             break
     return "\n".join(lines[start:end])
@@ -500,7 +513,17 @@ def cmd_post(a):
     # On 2026-08-24 a 90-second-stale board read manufactured a duplicate ticket; the tool now
     # refuses what care did not. Notices always pass (no --ticket, or the ticket they already
     # hold). --override "<reason>" bypasses and RECORDS the reason - never silently.
-    if a.ticket and not a.override:
+    # THE FULL STOP IS NOT OVERRIDABLE. This block used to open `if a.ticket and not a.override`,
+    # so `--override` - documented in its own help text as "bypass GUARD A (recipient is working)"
+    # - silently crossed a halt Rab SIGNED, including its fail-closed UNREAD branch. Measured
+    # S109 by the Circle and reproduced: a ticketed post refused by FULL STOP was posted at exit 0
+    # with `--override "recipient looked idle to me"`, and the recorded row said only
+    # `override_reason`, so nothing on disk showed a signed halt had been crossed.
+    # Two different guards were sharing one condition. Guard A protects the PEER'S TURN and a lane
+    # may reasonably judge its way past it, on the record. The full stop protects the PRINCIPAL'S
+    # UNANSWERED QUESTION, and no model's judgement outranks that - the only ways past it are
+    # `--serves` (the narrow carve-out he signed) and `resolve` (his ruling, recorded).
+    if a.ticket:
         # FULL STOP first: no NEW work crosses the bus while a question sits with Rab.
         stops, unread = open_escalations()
         # THE CARVE-OUT (S109, Rab signed): "a full stop still permits work that SERVES resolving
@@ -528,8 +551,14 @@ def cmd_post(a):
                 # this is the same law as "UNREAD is never idle", applied to the halt itself.
                 print(f"REFUSED — FULL STOP (fail closed): cannot read {', '.join(unread)}, so no "
                       f"lane can be shown clear of an escalation.", file=sys.stderr)
+            if a.override:
+                print("  NOTE: --override does NOT lift a FULL STOP. It bypasses GUARD A (the "
+                      "peer's turn),\n  which is a lane's judgement to make. This halt is Rab's "
+                      "signed rule and is not.", file=sys.stderr)
             print(FULL_STOP_REMEDY, file=sys.stderr)
             return 1
+    # GUARD A stays overridable - it protects the peer's turn, not the principal's question.
+    if a.ticket and not a.override:
         theirs, st_theirs = load(a.to)
         if st_theirs == "ok" and theirs.get("state") == "working":
             held = theirs.get("current_ticket")
@@ -620,7 +649,22 @@ def cmd_confirm(a):
         for s in theirs["sent"]:
             if s["id"] == a.id:
                 claimed = s.get("digest")
-    if claimed and claimed != mine_dg:
+    # NO CLAIM IS NOT A MATCH. `claimed` is None when the peer's sidecar is UNREAD or carries no
+    # row for this id, and the comparison below used to be guarded by `if claimed and ...` - so a
+    # missing claim SKIPPED the check and fell through to printing "digest verified".
+    # Measured S109 by the Circle and reproduced: with the sender's sidecar corrupted, an entry
+    # rewritten from "convert the bundle" to "DELETE the bundle" confirmed at exit 0 as VERIFIED.
+    # That is the exact condition law 4 exists to catch, rendering as a healthy state - and this
+    # command refuses an unprobed `--verified` on the beat while doing it here itself.
+    if claimed is None:
+        print(f"REFUSED: no digest claim for {a.id} — {other(a.as_model)}'s sidecar reads "
+              f"{st_theirs.upper() if st_theirs != 'ok' else 'ok but has no row for it'}, so "
+              f"there is NOTHING TO COMPARE.\n"
+              f"  A confirmation with no counter-claim is not a verification; it is a bit flip.\n"
+              f"  Re-read the board (`gate.py status`); if the peer's sidecar is broken that is "
+              f"the finding, not this entry.", file=sys.stderr)
+        return 1
+    if claimed != mine_dg:
         print(f"RED: digest mismatch on {a.id}\n  sender claimed {claimed}\n  log reads      {mine_dg}\n"
               "  the entry changed after posting, or the wrong bytes were read. Post the mismatch "
               "to the log; do not confirm.", file=sys.stderr)
