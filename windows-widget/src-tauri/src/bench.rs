@@ -22,6 +22,7 @@ use std::net::{TcpListener, TcpStream};
 use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
+use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -34,6 +35,10 @@ pub struct BenchRun {
     pub dir: PathBuf,
     pub port: u16,
     pub child: Child,
+    /// The per-launch loopback token this server was started with (S108; None when the
+    /// server predates the token contract). The reuse path must re-send THIS token, not a
+    /// fresh one - the server only knows the one it was born with.
+    pub token: Option<String>,
 }
 
 /// Which held bundle goes on the bench. `source` is the manifest's `source` filename — the
@@ -83,6 +88,40 @@ pub fn free_port() -> Result<u16, String> {
         .ok_or_else(|| "no free port in 7077..7097".into())
 }
 
+static TOKEN_COUNTER: AtomicU64 = AtomicU64::new(0);
+
+/// Per-launch loopback token for the spawned local servers (bench + chat), S108. THREAT
+/// MODEL: both servers bind 127.0.0.1 only, so the adversary is not the network - it is any
+/// web page in any local browser firing cross-origin requests at localhost ports (drive-by
+/// CSRF against the repair endpoints / the model). A secret carried only in the child's argv
+/// and in the widget-built window URL defeats that page: it has no way to read either. This
+/// is NOT an authentication boundary against local processes (argv is readable by same-user
+/// processes) and therefore needs no CSPRNG - a SystemTime + pid + counter mix is
+/// unguessable enough for a remote page with no local read access, and adds no dependency.
+pub(crate) fn launch_token() -> String {
+    let now = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .unwrap_or_default();
+    let n = TOKEN_COUNTER.fetch_add(1, Ordering::Relaxed);
+    format!(
+        "{:016x}{:08x}{:04x}",
+        now.as_secs() ^ ((u64::from(std::process::id())) << 24),
+        now.subsec_nanos(),
+        n & 0xffff
+    )
+}
+
+/// Transition detect (S108): pass --token only to a server whose script parses it (lane D
+/// owns that half of the contract: `--token <value>` in, `?token=` checked on requests).
+/// Feature-detected from the script text so THIS half lands first without breaking today's
+/// launches on an argparse unrecognized-arguments death; delete the detect once both server
+/// halves carry the flag.
+pub(crate) fn server_takes_token(script: &Path) -> bool {
+    fs::read_to_string(script)
+        .map(|t| t.contains("--token"))
+        .unwrap_or(false)
+}
+
 /// prototypes/repair-bench/bench.py, derived from the converter dir — both live in the same
 /// repo checkout, so no new config key is needed (and a moved repo moves both together).
 pub fn bench_script(gpu_converter_dir: &str) -> Result<PathBuf, String> {
@@ -122,8 +161,9 @@ pub fn open(
         let alive = matches!(run.child.try_wait(), Ok(None));
         if alive && run.dir == dir {
             let port = run.port;
+            let token = run.token.clone();
             drop(guard);
-            show_window(app, port, &dir);
+            show_window(app, port, &dir, token.as_deref());
             return Ok(port);
         }
         // A different patient (or a dead server): replace it. wait() reaps — no zombie row.
@@ -133,19 +173,27 @@ pub fn open(
     }
     let script = bench_script(gpu_converter_dir)?;
     let port = free_port()?;
+    // S108 loopback-CSRF fence: a fresh token per launch, carried on argv and re-sent on the
+    // window URL as ?token= (threat model at launch_token). Feature-detected until lane D's
+    // server half lands.
+    let token = server_takes_token(&script).then(launch_token);
     // Last words to a file (the watcher-stderr idiom): a silent death must leave a note.
     let stderr = fs::File::create(Path::new(gpu_pipeline_dir).join("bench-stderr.log"))
         .map(Stdio::from)
         .unwrap_or_else(|_| Stdio::null());
-    let child = Command::new(gpu_python_exe)
-        .arg(&script)
+    let mut cmd = Command::new(gpu_python_exe);
+    cmd.arg(&script)
         .arg(&dir)
         .args(["--port", &port.to_string()])
         .env("PYTHONIOENCODING", "utf-8")
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(stderr)
-        .creation_flags(CREATE_NO_WINDOW)
+        .creation_flags(CREATE_NO_WINDOW);
+    if let Some(tok) = token.as_deref() {
+        cmd.args(["--token", tok]);
+    }
+    let child = cmd
         .spawn()
         .map_err(|e| format!("failed to spawn bench: {e}"))?;
     adopt_into_job(&child); // no orphaned bench servers, by any widget exit (S37)
@@ -169,22 +217,26 @@ pub fn open(
         dir: dir.clone(),
         port,
         child,
+        token: token.clone(),
     });
     drop(guard);
-    show_window(app, port, &dir);
+    show_window(app, port, &dir, token.as_deref());
     Ok(port)
 }
 
 /// Open (or refocus/renavigate) the dedicated bench window. Window creation MUST happen on the
 /// main thread; errors land in widget-boot.log via the debug channel rather than being lost.
-fn show_window(app: tauri::AppHandle, port: u16, dir: &Path) {
+fn show_window(app: tauri::AppHandle, port: u16, dir: &Path, token: Option<&str>) {
     let title = format!(
         "Repair Bench — {}",
         dir.file_name()
             .map(|s| s.to_string_lossy().to_string())
             .unwrap_or_default()
     );
-    let url = format!("http://127.0.0.1:{port}/");
+    let url = match token {
+        Some(tok) => format!("http://127.0.0.1:{port}/?token={tok}"),
+        None => format!("http://127.0.0.1:{port}/"),
+    };
     let _ = app.clone().run_on_main_thread(move || {
         use tauri::Manager;
         if let Some(w) = app.get_webview_window("repair-bench") {
@@ -295,6 +347,30 @@ mod tests {
             assert_ne!(p, 7077);
         }
         assert!((7077..7097).contains(&p));
+    }
+
+    #[test]
+    fn launch_tokens_are_nonempty_and_never_repeat_within_a_process() {
+        let a = launch_token();
+        let b = launch_token();
+        assert_eq!(a.len(), 28); // 16 + 8 + 4 hex digits, fixed width
+        assert!(a.chars().all(|c| c.is_ascii_hexdigit()));
+        // The counter field alone guarantees this even inside one clock tick.
+        assert_ne!(a, b);
+    }
+
+    #[test]
+    fn token_flag_is_feature_detected_from_the_server_script() {
+        let base = tmp("fp-bench-tokendetect");
+        let with = base.join("with.py");
+        fs::write(&with, "ap.add_argument('--token', default='')").unwrap();
+        let without = base.join("without.py");
+        fs::write(&without, "ap.add_argument('--port', type=int)").unwrap();
+        assert!(server_takes_token(&with));
+        assert!(!server_takes_token(&without));
+        // A missing script is a plain no - the spawn path will fail on its own terms.
+        assert!(!server_takes_token(&base.join("absent.py")));
+        let _ = fs::remove_dir_all(&base);
     }
 
     #[test]

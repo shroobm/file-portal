@@ -38,6 +38,9 @@ pub struct ChatState(pub Arc<Mutex<Option<ChatRun>>>, pub Arc<Mutex<Option<i32>>
 pub struct ChatRun {
     pub port: u16,
     pub child: Child,
+    /// Per-launch loopback token (S108; threat model at bench::launch_token). None when the
+    /// server predates the token contract - the reuse path re-sends the birth token only.
+    pub token: Option<String>,
 }
 
 /// First free port in the chat UI range, proven by binding. room_chat.py's own llama child uses
@@ -77,8 +80,9 @@ pub fn open(
     if let Some(run) = guard.as_mut() {
         if matches!(run.child.try_wait(), Ok(None)) {
             let port = run.port;
+            let token = run.token.clone();
             drop(guard);
-            show_window(app, port);
+            show_window(app, port, token.as_deref());
             return Ok(port);
         }
         // Died since last time: file the certificate, then replace. wait() reaps — no zombie.
@@ -92,13 +96,16 @@ pub fn open(
         *guard = None;
     }
     let port = free_port()?;
+    // S108 loopback-CSRF fence, the bench's idiom: fresh token per launch, argv in, ?token=
+    // on the window URL. Feature-detected until lane D's server half lands.
+    let token = crate::bench::server_takes_token(&script).then(crate::bench::launch_token);
     // Last words to a file (the watcher-stderr idiom). room_chat.py's own llama child writes
     // chat-stderr.log; this is the UI server's, kept separate so one death cannot mask the other.
     let stderr = fs::File::create(Path::new(gpu_pipeline_dir).join("room-chat-stderr.log"))
         .map(Stdio::from)
         .unwrap_or_else(|_| Stdio::null());
-    let child = Command::new(gpu_python_exe)
-        .arg(&script)
+    let mut cmd = Command::new(gpu_python_exe);
+    cmd.arg(&script)
         .args(["--port", &port.to_string()])
         .args(["--llama", llama_server_exe])
         // The server derives its hold file, event stream and tree snapshot from FP_PIPELINE;
@@ -109,7 +116,11 @@ pub fn open(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(stderr)
-        .creation_flags(CREATE_NO_WINDOW)
+        .creation_flags(CREATE_NO_WINDOW);
+    if let Some(tok) = token.as_deref() {
+        cmd.args(["--token", tok]);
+    }
+    let child = cmd
         .spawn()
         .map_err(|e| format!("failed to spawn chat server: {e}"))?;
     adopt_into_job(&child); // dies with the widget, by ANY exit (S37)
@@ -130,9 +141,13 @@ pub fn open(
     if !up {
         return Err("chat server did not come up — see room-chat-stderr.log".into());
     }
-    *guard = Some(ChatRun { port, child });
+    *guard = Some(ChatRun {
+        port,
+        child,
+        token: token.clone(),
+    });
     drop(guard);
-    show_window(app, port);
+    show_window(app, port, token.as_deref());
     Ok(port)
 }
 
@@ -182,8 +197,11 @@ pub fn status(state: &ChatState) -> Result<serde_json::Value, String> {
 }
 
 /// Open (or refocus) the assistant window — bench.rs's main-thread pattern verbatim.
-fn show_window(app: tauri::AppHandle, port: u16) {
-    let url = format!("http://127.0.0.1:{port}/");
+fn show_window(app: tauri::AppHandle, port: u16, token: Option<&str>) {
+    let url = match token {
+        Some(tok) => format!("http://127.0.0.1:{port}/?token={tok}"),
+        None => format!("http://127.0.0.1:{port}/"),
+    };
     let _ = app.clone().run_on_main_thread(move || {
         use tauri::Manager;
         if let Some(w) = app.get_webview_window("room-chat") {
