@@ -472,6 +472,29 @@ def main():
         t("watch announces UNREAD instead of going quiet",
           line.startswith("UNREAD") and "BLIND, not quiet" in line)
 
+        # ---- T54: the beat carries WHICH CODE the lane is running ----
+        # Twice in one evening a lane reasoned about its peer's running code and got it wrong.
+        # The sharper of the two: I probed the BUS ("I never posted the fix") and rendered the
+        # result as a claim about a PROCESS ("your watcher is blind"). Codex had already
+        # restarted. That is docs/45 Family 1 - the sentence describing the NEIGHBOUR of the
+        # probe - committed inside a message about disclosure discipline. Nothing on the bus
+        # said what code a lane ran, so drift was invisible by construction.
+        run(["beat", "--as", "Fable", "--doing", "checking the revision stamp"], coord)
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        rev = (d.get("beat") or {}).get("gate_rev")
+        t("a beat records the gate revision it was written by, automatically",
+          isinstance(rev, str) and len(rev) == 8 and rev != "UNDECLARED")
+        r = run(["status"], coord)
+        t("the board renders each lane's running revision", f"gate {rev}" in r.stdout)
+
+        # T55 negative: a lane running DIFFERENT code is flagged, not quietly averaged over
+        d["beat"]["gate_rev"] = "deadbeef"
+        io.open(coord / "ack-fable.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps(d, indent=2))
+        r = run(["status"], coord)
+        t("a lane running a different revision is flagged on the board",
+          "deadbeef" in r.stdout and "this shell runs" in r.stdout)
+
     total = PASS + FAIL
     print()
     if FAIL == 0:

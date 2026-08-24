@@ -274,7 +274,10 @@ def render_beat(d) -> list:
     if age < 0:
         return ["         beat UNREAD - beat present but its timestamp is unreadable"]
     stamp = f"{age}m ago" + ("  *** STALE ***" if age > BEAT_STALE_MIN else "")
-    out = [f"         beat {stamp}"]
+    rev = b.get("gate_rev") or UNDECLARED
+    mine = gate_rev()
+    drift = "" if rev in (mine, UNDECLARED) else f"  *** running {rev}, this shell runs {mine} ***"
+    out = [f"         beat {stamp} · gate {rev}{drift}"]
     for k in ("doing", "planning", "blocked", "needs_from_peer"):
         v = b.get(k)
         if v:
@@ -313,6 +316,8 @@ def cmd_beat(a):
     prev = d.get("beat") if isinstance(d.get("beat"), dict) else {}
     d["beat"] = {
         "utc": utc_now(),
+        "gate_rev": gate_rev(),          # automatic: a lane cannot forget to declare it
+
         "doing": a.doing if a.doing is not None else prev.get("doing"),
         "planning": a.planning if a.planning is not None else prev.get("planning"),
         "blocked": a.blocked if a.blocked is not None else prev.get("blocked"),
@@ -325,6 +330,22 @@ def cmd_beat(a):
     for ln in render_beat(d):
         print(ln)
     return 0
+
+
+def gate_rev() -> str:
+    """SHA-8 of the gate.py this process is actually running.
+
+    S109: twice in one evening a lane reasoned about which code its PEER was running and got it
+    wrong - once by inferring "your watcher is blind" from "I never posted the fix" (a probe of
+    the BUS, rendered as a claim about a PROCESS), and once by a fix landing with no notice at
+    all. Nothing on this bus said what code a lane was running, so drift between the lanes was
+    invisible by construction. Recorded automatically: a lane cannot forget to declare it, and
+    the board shows the two lanes disagreeing without either having to notice.
+    """
+    try:
+        return hashlib.sha256(Path(__file__).read_bytes()).hexdigest()[:8]
+    except Exception:
+        return UNDECLARED
 
 
 def cmd_occupant(a):
