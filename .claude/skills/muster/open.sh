@@ -201,7 +201,17 @@ fi
 reg_row() {  # reg_row <label> <path> <count-cmd>
   local label="$1" path="$2"
   if [[ ! -f "$path" ]]; then
-    row "$label" "UNREAD — $path is missing; this is not 'nothing open'"; fail=1; return
+    # A register that is TRACKED and missing from the tree was DELETED — an incident.
+    # A register that was never tracked is a repo that does not have one — UNREAD, not a fault.
+    # The first cut failed on both, which conflated "this file is absent" with "the clocks
+    # disagree", and turned two ORIGIN advisories into incidents in fixtures that are bare temp
+    # repos by design. Caught by this file's own suite, after I had already pushed it red.
+    if git -C "$FP_REPO" ls-files --error-unmatch "${path#$FP_REPO/}" >/dev/null 2>&1; then
+      row "$label" "UNREAD — tracked but MISSING from the tree; it was deleted, not empty"; fail=1
+    else
+      row "$label" "UNREAD — no ${path##*/} in this repo (not tracked; not a statement of 'nothing open')"
+    fi
+    return
   fi
   local age days
   age=$(git -C "$FP_REPO" log -1 --format=%cr -- "${path#$FP_REPO/}" 2>/dev/null)
@@ -225,7 +235,13 @@ if [[ -f "$README" ]]; then
   if [[ -f "$FP_REPO/coordination/relay.md" ]]; then
     row "relay" "$(grep -cU '^## 20' "$FP_REPO/coordination/relay.md" 2>/dev/null || echo '?') entries · run \`gate.py status\` for the board"
   else
-    row "relay" "UNREAD — no coordination/relay.md (say unread, never 'quiet')"; fail=1
+    # Same distinction as the registers above: tracked-and-missing is a deletion and an incident;
+    # never-tracked is a repo without a bus. Both read UNREAD; only one is a fault.
+    if git -C "$FP_REPO" ls-files --error-unmatch coordination/relay.md >/dev/null 2>&1; then
+      row "relay" "UNREAD — tracked but MISSING; the bus was deleted, never 'quiet'"; fail=1
+    else
+      row "relay" "UNREAD — no coordination/relay.md in this repo (not tracked)"
+    fi
   fi
 fi
 
