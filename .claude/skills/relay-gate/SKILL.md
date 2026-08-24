@@ -99,5 +99,5 @@ stops at `blocked-on-rab`.
 ## Verify
 
 ```bash
-python .claude/skills/relay-gate/selftest.py    # 13 tripwires, positive AND negative controls
+python .claude/skills/relay-gate/selftest.py    # 24 tripwires, positive AND negative controls
 ```
