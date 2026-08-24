@@ -40,6 +40,25 @@ def coord_dir() -> Path:
     return Path(__file__).resolve().parents[3] / "coordination"
 
 
+def on_live_bus() -> bool:
+    return not os.environ.get("FP_COORD")
+
+
+def announce_bus(cmd: str) -> None:
+    """Say WHICH bus is being written, before writing it (S109, after a live incident).
+
+    FP_COORD's absence resolves to the REAL relay - a fail-OPEN default in the one place this
+    project is most careful. On 2026-08-24T17:25Z a prototype build subagent ran
+    `gate.py escalate --as Fable` from a shell to demonstrate GUARD B and omitted FP_COORD, so a
+    fabricated question landed in Rab's actual decision queue. It caught and voided itself, and
+    the queue is intact - but nothing in the tool ever SAID which bus it was about to write.
+    This does not change the default (making FP_COORD required would break every existing caller
+    and Codex's too - that is Rab's call). It removes the silence.
+    """
+    where = "LIVE BUS" if on_live_bus() else "quarantined bus (FP_COORD)"
+    print(f"[gate] {cmd} -> {where}: {coord_dir()}", file=sys.stderr)
+
+
 def ack_path(model: str) -> Path:
     return coord_dir() / f"ack-{model.lower()}.json"
 
@@ -213,6 +232,7 @@ def extract_entry(msg_id: str):
 # ---------- commands ----------
 
 def cmd_init(a):
+    announce_bus("init")
     p = ack_path(a.as_model)
     if p.exists():
         print(f"already on: {p.name}")
@@ -225,6 +245,7 @@ def cmd_init(a):
 
 def cmd_occupant(a):
     """Declare (or read) which model is sitting in this lane. Single-writer, like everything else."""
+    announce_bus("occupant")
     d, st = load(a.as_model)
     if st == "UNREAD":
         print("UNREAD: run `init` first", file=sys.stderr)
@@ -249,6 +270,7 @@ def cmd_occupant(a):
 
 
 def cmd_post(a):
+    announce_bus("post")
     data, st = load(a.as_model)
     if st == "UNREAD":
         print(f"UNREAD: {ack_path(a.as_model).name} missing or malformed - run `init` first", file=sys.stderr)
@@ -357,6 +379,7 @@ def cmd_inbox(a):
 
 
 def cmd_confirm(a):
+    announce_bus("confirm")
     mine, st = load(a.as_model)
     if st == "UNREAD":
         print("UNREAD: run `init` first", file=sys.stderr)
@@ -466,6 +489,7 @@ def cmd_status(a):
 
 
 def cmd_ticket(a):
+    announce_bus("ticket")
     d, st = load(a.as_model)
     if st == "UNREAD":
         print("UNREAD: run `init` first", file=sys.stderr)
@@ -509,6 +533,7 @@ def cmd_escalate(a):
 
     Rab's rule, 2026-08-24: 'when you want to come to me, let each other know as protocol.'
     The peer always learns what the principal is being asked, and why, before he is asked."""
+    announce_bus("escalate")
     d, st = load(a.as_model)
     if st == "UNREAD":
         print("UNREAD: run `init` first", file=sys.stderr)
@@ -552,6 +577,7 @@ def cmd_escalate(a):
 def cmd_resolve(a):
     """Record Rab's decision on an open escalation. This is a TRANSCRIPT, not authority:
     writing it here does not make it his, and no gate may treat it as proof."""
+    announce_bus("resolve")
     d, st = load(a.as_model)
     if st == "UNREAD":
         print("UNREAD: run `init` first", file=sys.stderr)
