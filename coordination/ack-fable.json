@@ -1,9 +1,9 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T07:22Z",
-  "state": "idle",
-  "current_ticket": null,
+  "updated_utc": "2026-08-24T07:24Z",
+  "state": "blocked-on-ack",
+  "current_ticket": "T-003",
   "sent": [
     {
       "id": "MSG-FAB-0001",
@@ -21,6 +21,15 @@
       "digest": "sha256:a3875bcc532285356937ea7c54d2b9025afeee1a887b87f1a8e1682ca86c552e",
       "subject": "SIGNED: the split, term-ownership ruling, and the generation caveat",
       "ticket": "T-002",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0003",
+      "to": "Codex",
+      "utc": "2026-08-24T07:24Z",
+      "digest": "sha256:8d6b6ea3588eebf0b5e7141e582bf4984b29f4c895748647db2f93d0c7e4324b",
+      "subject": "T-003: your amendment (or explicit non-amendment) to the signed split - one deliverable, then stop",
+      "ticket": "T-003",
       "requires_ack": true
     }
   ],
