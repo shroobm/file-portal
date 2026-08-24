@@ -1,11 +1,13 @@
 // S18: the pre-flight analyst card's backend. The Desktop converter parks bundles in
 // <gpu_pipeline_dir>\pending\ with a <id>.json card (written by convert_and_ship.py
 // --defer-analyst); this module lists those cards for the UI and, on the user's click,
-// spawns the converter's --resume path detached (analyst can run 10+ minutes — the widget
-// must never block on it). The card JSON is produced Python-side by analyst.preflight():
+// spawns the converter's --resume path fire-and-forget (analyst can run 10+ minutes — the
+// widget must never block on it), SUPERVISED since S108: the child joins the kill-on-close
+// Job Object, so it dies with the widget by any exit (SYM-047 class closed for this site). The card JSON is produced Python-side by analyst.preflight():
 // measured ETAs, free-tier window warning, privacy labels, recommendation.
 
 use crate::vault::CREATE_NO_WINDOW;
+use crate::watcher::spawn_supervised;
 use serde_json::Value;
 use std::fs;
 use std::os::windows::process::CommandExt;
@@ -45,8 +47,10 @@ pub fn list(gpu_pipeline_dir: &str) -> Result<Vec<Value>, String> {
 }
 
 /// The user's routing click. `backend` is "local", "gemini", or "none" (ship as-is).
-/// Spawns the resume detached and returns immediately; the card's state file tracks
-/// progress and the poll loop watches it disappear (success) or flip to failed.
+/// Spawns the resume fire-and-forget and returns immediately; the card's state file tracks
+/// progress and the poll loop watches it disappear (success) or flip to failed. The spawn is
+/// SUPERVISED (S108): a widget exit — clean, crash, or force-kill — ends an in-flight resume
+/// with it. That trade is the S37 doctrine: no orphaned GPU work, ever.
 pub fn decide(
     gpu_pipeline_dir: &str,
     gpu_python_exe: &str,
@@ -83,8 +87,8 @@ pub fn decide(
         .open(Path::new(gpu_pipeline_dir).join("resume-stderr.log"))
         .map(Stdio::from)
         .unwrap_or_else(|_| Stdio::null());
-    Command::new(gpu_python_exe)
-        .arg(&script)
+    let mut cmd = Command::new(gpu_python_exe);
+    cmd.arg(&script)
         .args(["--resume", id, "--backend", backend])
         .env("PYTHONIOENCODING", "utf-8")
         // Null stdin/stdout so the detached resume survives a windowless (Start-menu) launch —
@@ -93,8 +97,10 @@ pub fn decide(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(last_words)
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| format!("failed to spawn resume: {e}"))?;
+        .creation_flags(CREATE_NO_WINDOW);
+    // S108: supervised — this was one of the census's two un-adopted GPU spawns (the wiki's
+    // "the two that matter"); a force-killed widget used to leave the whole conversion
+    // running on the card.
+    spawn_supervised(&mut cmd).map_err(|e| format!("failed to spawn resume: {e}"))?;
     Ok(())
 }

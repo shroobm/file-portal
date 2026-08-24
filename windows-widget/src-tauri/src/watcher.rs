@@ -61,6 +61,20 @@ pub(crate) fn adopt_into_job(child: &Child) {
     }
 }
 
+/// Spawn `cmd` and immediately adopt the child into the kill-on-close Job Object — one call,
+/// so a spawn site cannot carry the launch half and forget the supervision half. S108: the
+/// census found 3 of 10 spawn sites adopting, and the two that did NOT were both full GPU
+/// conversions (`--resume` in preflight.rs, `--reanalyze` in assay.rs) — the SYM-047 orphan
+/// class: a force-killed widget left a conversion running on the card. Those two now come
+/// through here. Best-effort like the adoption itself: a failed job assignment never blocks
+/// the launch. The tripwire test below holds the census; amend its allowlist ONLY with a
+/// comment naming why a site is exempt.
+pub(crate) fn spawn_supervised(cmd: &mut Command) -> std::io::Result<Child> {
+    let child = cmd.spawn()?;
+    adopt_into_job(&child);
+    Ok(child)
+}
+
 // Stage A (docs/18 §4A): the second mutex REMEMBERS the last death's exit code after the
 // child is reaped — a status flag alone is a claim; the certificate is the evidence. Cleared
 // on a fresh start and on a deliberate stop (a stop is not a death).
@@ -178,5 +192,81 @@ pub fn stop(state: &WatcherState) -> WatcherStatus {
         state: "stopped".into(),
         pid: None,
         exit_code: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::fs;
+    use std::path::Path;
+
+    /// THE SPAWN-SUPERVISION TRIPWIRE (S108). Every process spawn site in this crate is named
+    /// here with its supervision census: how many raw spawn calls, how many supervised ones,
+    /// how many explicit adoptions. A new spawn site, a deleted one, or — the case this exists
+    /// for — an adoption quietly REMOVED (the SYM-047 orphan class coming back) changes a count
+    /// and fails this test. Exemptions are rows, each with a reason:
+    ///   * line.rs — four launches of the USER'S apps (reader/editor/uri/Explorer); killing
+    ///     those with the widget would be wrong, so they must never be adopted;
+    ///   * transfer.rs — a piped tailscale-ssh the code waits on inline; short-lived by
+    ///     construction.
+    ///
+    /// The needles are assembled at runtime so this file's own strings never match them.
+    #[test]
+    fn every_spawn_site_is_named_on_the_supervision_allowlist() {
+        let raw_needle = format!(".{}{}", "spawn", "()");
+        let sup_needle = format!("{}{}", "spawn_supervised", "(&");
+        let adopt_needle = format!("{}{}", "adopt_into_job", "(&");
+        // (file, raw spawn calls, supervised calls, explicit adoptions)
+        let allow: &[(&str, usize, usize, usize)] = &[
+            ("assay.rs", 0, 1, 0),     // --reanalyze GPU conversion: supervised (S108)
+            ("bench.rs", 1, 0, 1),     // bench server: spawn + adopt (S63)
+            ("chat.rs", 1, 0, 1),      // chat server: spawn + adopt (S85)
+            ("line.rs", 4, 0, 0),      // EXEMPT: user's own apps — must outlive the widget
+            ("preflight.rs", 0, 1, 0), // --resume GPU conversion: supervised (S108)
+            ("transfer.rs", 1, 0, 0),  // EXEMPT: inline-waited ssh, short-lived
+            ("watcher.rs", 2, 0, 2),   // helper's own spawn + the watcher start, both adopted
+        ];
+        let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
+        let mut seen: Vec<String> = vec![];
+        for entry in fs::read_dir(&src).expect("src dir readable").flatten() {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("rs") {
+                continue;
+            }
+            let name = path
+                .file_name()
+                .expect("file has a name")
+                .to_string_lossy()
+                .to_string();
+            let text = fs::read_to_string(&path).expect("source file readable");
+            let counts = (
+                text.matches(&raw_needle).count(),
+                text.matches(&sup_needle).count(),
+                text.matches(&adopt_needle).count(),
+            );
+            match allow.iter().find(|(f, ..)| *f == name.as_str()) {
+                Some((_, raw, sup, adopt)) => {
+                    assert_eq!(
+                        counts,
+                        (*raw, *sup, *adopt),
+                        "{name}: spawn census (raw, supervised, adopted) = {counts:?},                          allowlist says ({raw}, {sup}, {adopt}) — a spawn site was added,                          removed, or LOST ITS ADOPTION (SYM-047 class). Supervise it via                          watcher::spawn_supervised, or amend the allowlist row WITH a                          comment naming why the site is exempt."
+                    );
+                    seen.push(name);
+                }
+                None => {
+                    assert_eq!(
+                        counts,
+                        (0, 0, 0),
+                        "{name}: has spawn/supervision call sites but no allowlist row —                          add one, with its supervision story."
+                    );
+                }
+            }
+        }
+        for (f, ..) in allow {
+            assert!(
+                seen.iter().any(|s| s == f),
+                "allowlisted file {f} not found in src/ — stale allowlist row"
+            );
+        }
     }
 }

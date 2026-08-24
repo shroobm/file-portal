@@ -5,6 +5,7 @@
 // evidence card. Read-only, no state. Terracotta is the UI's to spend — this only reports.
 
 use crate::vault::CREATE_NO_WINDOW;
+use crate::watcher::spawn_supervised;
 use serde_json::{json, Value};
 use std::fs;
 use std::os::windows::process::CommandExt;
@@ -263,9 +264,11 @@ pub fn reconvert(gpu_pipeline_dir: &str, source: &str) -> Result<(), String> {
 }
 
 /// Stage C2 (docs/19 §3.1): the ⟲ analyst-only re-run. Spawns the converter's `--reanalyze`
-/// path detached, exactly as `preflight::decide` spawns `--resume` — the analyst can run 15+
-/// minutes and the widget must never block on it (the card's own state, here the event stream
-/// and the analyst heartbeat, is how progress is tracked).
+/// path fire-and-forget, exactly as `preflight::decide` spawns `--resume` — the analyst can
+/// run 15+ minutes and the widget must never block on it (the card's own state, here the
+/// event stream and the analyst heartbeat, is how progress is tracked). SUPERVISED since
+/// S108: the child joins the kill-on-close Job Object and dies with the widget by any exit
+/// (this was the second of the census's two un-adopted GPU spawns — SYM-047 class).
 ///
 /// This side validates ONLY what belongs to its own action: a legal source name, configured
 /// paths, a script that exists, and a free GPU. **Eligibility — is there a pre-analyst bundle
@@ -305,8 +308,8 @@ pub fn reanalyze(
             "conveyor busy — a convert holds the GPU; re-run when the line is clear".into(),
         );
     }
-    Command::new(gpu_python_exe)
-        .arg(&script)
+    let mut cmd = Command::new(gpu_python_exe);
+    cmd.arg(&script)
         .args(["--reanalyze", source, "--backend", backend])
         // Without this the refusal messages (and any traceback) die on a cp1252 console.
         .env("PYTHONIOENCODING", "utf-8")
@@ -314,9 +317,9 @@ pub fn reanalyze(
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null())
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| format!("failed to spawn re-analyze: {e}"))?;
+        .creation_flags(CREATE_NO_WINDOW);
+    // S108: supervised — no orphaned re-analyze on a force-killed widget (SYM-047 class).
+    spawn_supervised(&mut cmd).map_err(|e| format!("failed to spawn re-analyze: {e}"))?;
     Ok(())
 }
 
