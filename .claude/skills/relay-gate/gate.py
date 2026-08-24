@@ -142,6 +142,7 @@ def blank(model: str) -> dict:
         "updated_utc": utc_now(),
         "state": "idle",
         "occupant": None,          # the model in this seat; None -> UNDECLARED, never guessed
+        "beat": None,              # the status beat; None -> UNREAD, never "idle"
         "current_ticket": None,
         "sent": [],
         "confirmed": [],
@@ -240,6 +241,89 @@ def cmd_init(a):
     save(a.as_model, blank(a.as_model), a.as_model)
     print(f"relay-gate ON for {a.as_model}: {p.name} created (state idle)")
     print(f"the protocol is LIVE only when BOTH ack files exist and Rab has signed it")
+    return 0
+
+
+# THE STATUS BEAT (S109, Rab: "tell Codex to prompt you as well, in regards of info, status, what
+# its doing, planning, completed, verified"). The gate had STATE but no NARRATIVE: `working` never
+# said working on WHAT, how far, or what had been PROVED. A peer could see that you were busy and
+# nothing else, so it could not plan around you - which is most of what a teammate needs.
+#
+# `verified` is mechanically expensive on purpose: it REQUIRES --probe. This is the tag law
+# (docs/21 §1) made structural rather than aspirational - a verified claim that cannot name the
+# command that settled it is not verified, it is inferred wearing a better word.
+BEAT_STALE_MIN = 45
+
+
+def _beat_age_min(beat) -> int:
+    if not isinstance(beat, dict) or not beat.get("utc"):
+        return -1
+    try:
+        then = datetime.strptime(beat["utc"], "%Y-%m-%dT%H:%MZ").replace(tzinfo=timezone.utc)
+    except Exception:
+        return -1
+    return int((datetime.now(timezone.utc) - then).total_seconds() // 60)
+
+
+def render_beat(d) -> list:
+    """Lines for the board. A missing or unparseable beat is UNREAD - never silence, never idle."""
+    b = (d or {}).get("beat")
+    if not isinstance(b, dict):
+        return ["         beat UNREAD - this lane has published no status beat"]
+    age = _beat_age_min(b)
+    if age < 0:
+        return ["         beat UNREAD - beat present but its timestamp is unreadable"]
+    stamp = f"{age}m ago" + ("  *** STALE ***" if age > BEAT_STALE_MIN else "")
+    out = [f"         beat {stamp}"]
+    for k in ("doing", "planning", "blocked", "needs_from_peer"):
+        v = b.get(k)
+        if v:
+            out.append(f"           {k:<16} {v}")
+    for c in b.get("completed") or []:
+        out.append(f"           completed        {c}")
+    for v in b.get("verified") or []:
+        out.append(f"           VERIFIED         {v.get('claim')}")
+        out.append(f"             probe          {v.get('probe')}")
+    return out
+
+
+def cmd_beat(a):
+    announce_bus("beat")
+    d, st = load(a.as_model)
+    if st == "UNREAD":
+        print("UNREAD: run `init` first", file=sys.stderr)
+        return 1
+    if not a.show and not any([a.doing, a.planning, a.completed, a.verified, a.blocked, a.needs]):
+        print("REFUSED: a beat with no content is noise. Say at least what you are DOING.",
+              file=sys.stderr)
+        return 1
+    if a.show:
+        for ln in render_beat(d):
+            print(ln)
+        return 0
+    if a.verified and not a.probe:
+        print("REFUSED: --verified requires --probe. A verified claim that cannot name the "
+              "command that settled it is INFERRED wearing a better word (docs/21 §1, the tag "
+              "law). Use --completed for work you finished but did not prove.", file=sys.stderr)
+        return 1
+    if a.verified and len(a.verified) != len(a.probe):
+        print(f"REFUSED: {len(a.verified)} --verified claim(s) but {len(a.probe)} --probe(s). "
+              f"Each verified claim names its own probe.", file=sys.stderr)
+        return 1
+    prev = d.get("beat") if isinstance(d.get("beat"), dict) else {}
+    d["beat"] = {
+        "utc": utc_now(),
+        "doing": a.doing if a.doing is not None else prev.get("doing"),
+        "planning": a.planning if a.planning is not None else prev.get("planning"),
+        "blocked": a.blocked if a.blocked is not None else prev.get("blocked"),
+        "needs_from_peer": a.needs if a.needs is not None else prev.get("needs_from_peer"),
+        "completed": a.completed or [],
+        "verified": [{"claim": c, "probe": pr} for c, pr in zip(a.verified or [], a.probe or [])],
+    }
+    save(a.as_model, d, a.as_model)
+    print(f"{a.as_model}: beat published")
+    for ln in render_beat(d):
+        print(ln)
     return 0
 
 
@@ -466,6 +550,8 @@ def cmd_status(a):
         print(f"  {m:<6} state={d['state']:<15} ticket={d.get('current_ticket')}  "
               f"sent={len(d['sent'])} confirmed={len(d['confirmed'])}  updated={d['updated_utc']}")
         print(f"         lane {m} · occupant {occupant_of(d)}")
+        for ln in render_beat(d):
+            print(ln)
     pending = []
     for m in MODELS:
         d, st = load(m)
@@ -631,6 +717,16 @@ def main() -> int:
         return sp
 
     add_as(sub.add_parser("init")).set_defaults(fn=cmd_init)
+    sp = add_as(sub.add_parser("beat"))
+    sp.add_argument("--doing", default=None, help="what you are doing RIGHT NOW")
+    sp.add_argument("--planning", default=None, help="what you intend to do next")
+    sp.add_argument("--completed", action="append", default=None, help="finished since the last beat (repeatable)")
+    sp.add_argument("--verified", action="append", default=None, help="PROVED (repeatable) - each one REQUIRES a --probe")
+    sp.add_argument("--probe", action="append", default=None, help="the command/output that settles the matching --verified")
+    sp.add_argument("--blocked", default=None, help="what stops you, or 'none'")
+    sp.add_argument("--needs", dest="needs", default=None, help="what you need FROM THE PEER")
+    sp.add_argument("--show", action="store_true", help="print this lane's beat and exit")
+    sp.set_defaults(fn=cmd_beat)
     sp = add_as(sub.add_parser("occupant"))
     sp.add_argument("--model", default=None,
                     help="the model in this seat, e.g. 'Claude Opus 5'. Omit to read it. "

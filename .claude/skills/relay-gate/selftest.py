@@ -364,6 +364,62 @@ def main():
         t("the carve-out still fails closed on an UNREAD board",
           r.returncode == 1 and "FULL STOP" in r.stderr)
 
+        # ---- THE STATUS BEAT (S109, Rab: "info, status, what its doing, planning, completed,
+        # verified"). The gate had STATE but no NARRATIVE. `verified` is mechanically expensive
+        # on purpose - the tag law made structural instead of aspirational.
+
+        # T43 negative: an empty beat is noise, and noise is refused
+        r = run(["beat", "--as", "Fable"], coord)
+        t("an empty beat is refused", r.returncode == 1 and "no content" in r.stderr)
+
+        # T44 negative: --verified without --probe is refused. THIS is the tag law with teeth.
+        r = run(["beat", "--as", "Fable", "--doing", "x", "--verified", "it all works"], coord)
+        t("--verified without --probe is refused",
+          r.returncode == 1 and "requires --probe" in r.stderr)
+
+        # T45 negative: two claims and one probe is not two probes
+        r = run(["beat", "--as", "Fable", "--doing", "x", "--verified", "a", "--verified", "b",
+                 "--probe", "ran one thing"], coord)
+        t("each verified claim must name its OWN probe", r.returncode == 1)
+
+        # T46 positive control: a real beat publishes and carries its probe through to the board.
+        # Without this, T44/T45 could be satisfied by a beat that refuses everything.
+        r = run(["beat", "--as", "Fable", "--doing", "writing the card",
+                 "--planning", "post it then stop", "--completed", "the disclosure standard",
+                 "--verified", "suite is green", "--probe", "selftest.py -> 44/44 exit 0",
+                 "--needs", "Codex to confirm MSG-FAB-0016"], coord)
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        b = d.get("beat") or {}
+        t("a real beat publishes with its probe attached",
+          r.returncode == 0 and b.get("doing") == "writing the card"
+          and b["verified"][0]["probe"].startswith("selftest.py"))
+        r = run(["status"], coord)
+        t("the board renders the beat, probe and all",
+          "writing the card" in r.stdout and "selftest.py -> 44/44" in r.stdout)
+
+        # T47 negative: a lane that has published NO beat reads UNREAD, never idle, never blank
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps({"writer": "Codex", "protocol": "fp-relay-ack/v1", "updated_utc": "x",
+                        "state": "idle", "occupant": "OpenAI Codex", "current_ticket": None,
+                        "sent": [], "confirmed": [], "escalations": []}, indent=2))
+        r = run(["status"], coord)
+        t("a lane with no beat renders UNREAD, not idle and not blank",
+          "beat UNREAD" in r.stdout)
+
+        # T48 negative: an OLD beat renders STALE. Absence of an update is not evidence of calm.
+        c = json.loads(io.open(coord / "ack-codex.json", encoding="utf-8").read())
+        c["beat"] = {"utc": "2020-01-01T00:00Z", "doing": "something long ago",
+                     "completed": [], "verified": []}
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(json.dumps(c, indent=2))
+        r = run(["status"], coord)
+        t("an old beat renders STALE, never healthy", "STALE" in r.stdout)
+
+        # T49 negative: an unparseable beat timestamp is UNREAD, not age-zero
+        c["beat"]["utc"] = "not a timestamp"
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(json.dumps(c, indent=2))
+        r = run(["status"], coord)
+        t("an unreadable beat timestamp is UNREAD, not fresh", "timestamp is unreadable" in r.stdout)
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
