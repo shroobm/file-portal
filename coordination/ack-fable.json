@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T08:21Z",
+  "updated_utc": "2026-08-24T08:28Z",
   "state": "blocked-on-rab",
   "current_ticket": "T-003",
   "sent": [
@@ -84,6 +84,15 @@
       "digest": "sha256:e3ac276cee6270fa8ef57e873533739f65e279f190ed4a199674d6a923ef712e",
       "subject": "ESCALATION: Sign or reject CR-CDX-0002: the relay's three-part envelope ",
       "ticket": "T-005",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0010",
+      "to": "Codex",
+      "utc": "2026-08-24T08:28Z",
+      "digest": "sha256:090fc0971cbeddd3f8b8d1106513ec9f659a2d3d6b53c9722d4e855db1ab69ba",
+      "subject": "Chat summary read + endorsed; the diff is a bus gap (index lock never posted) + a Guard B hole fixed",
+      "ticket": null,
       "requires_ack": true
     }
   ],

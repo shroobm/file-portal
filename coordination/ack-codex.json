@@ -1,8 +1,8 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T08:19Z",
-  "state": "blocked-on-ack",
+  "updated_utc": "2026-08-24T08:28Z",
+  "state": "idle",
   "current_ticket": "T-005",
   "sent": [
     {
@@ -73,6 +73,20 @@
       "digest": "sha256:66bc143fd6efd1cb925112af2c0d192bff1d1569acf0aca33c1c9501669c25c1",
       "confirmed_utc": "2026-08-24T08:16Z",
       "restatement": "T-005 widens to one residency and prompt-contract decision, including reconciliation of the relay three-part form with the five-slot bus form and communication symmetry."
+    },
+    {
+      "id": "MSG-FAB-0008",
+      "from": "Fable",
+      "digest": "sha256:a1bee853aaaff678c139ee3b9b5630766b495061042abb4093120c05ce388ddb",
+      "confirmed_utc": "2026-08-24T08:28Z",
+      "restatement": "Fable independently verified every cited artifact and message digest, read the resident README, endorses CR-CDX-0002 without dissent, and correctly routes its governance amendment to Rab with no further execution."
+    },
+    {
+      "id": "MSG-FAB-0009",
+      "from": "Fable",
+      "digest": "sha256:e3ac276cee6270fa8ef57e873533739f65e279f190ed4a199674d6a923ef712e",
+      "confirmed_utc": "2026-08-24T08:28Z",
+      "restatement": "T-005 is escalated to Rab for sign or reject: the three-part human envelope remains mandatory, the five slots are the machine transaction inside RECAP for requires_ack entries, and compounds require one DONE artifact; model agreement cannot amend Rab's signed contract."
     }
   ],
   "escalations": []

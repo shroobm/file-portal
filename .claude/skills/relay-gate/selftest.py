@@ -189,6 +189,13 @@ def main():
           r.returncode == 0 and d["state"] == "idle"
           and d["escalations"][-1]["state"] == "resolved")
 
+        # T24 negative: posting while blocked-on-rab must NOT clear it (Guard B, second half)
+        run(["escalate", "--as", "Fable", "--asking", "a second decision only Rab may make"], coord)
+        bf4 = body_file(coord, "**RECAP.** notice during escalation\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "notice", "--body", bf4], coord)
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        t("posting during an escalation does not clear blocked-on-rab", d["state"] == "blocked-on-rab")
+
         # T23 negative: resolving an id with no open escalation is refused
         r = run(["resolve", "--as", "Fable", "--id", "MSG-FAB-9999", "--decision", "made this up"], coord)
         t("resolving a non-existent escalation is refused", r.returncode == 1)

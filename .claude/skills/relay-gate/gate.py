@@ -209,7 +209,10 @@ def cmd_post(a):
     if a.override:
         row["override_reason"] = a.override      # a bypass is always on the record
     data["sent"].append(row)
-    if not a.no_ack:
+    # GUARD B, second half (S108): posting must never DOWNGRADE blocked-on-rab. The original
+    # guard stopped a model ENTERING that state silently; nothing stopped it LEAVING by side
+    # effect. Found 2026-08-24 while about to post during a live escalation.
+    if not a.no_ack and data.get("state") != "blocked-on-rab":
         data["state"] = "blocked-on-ack"
     save(a.as_model, data, a.as_model)
     print(f"posted {mid} -> {a.to}  digest {dg[:19]}…  state={data['state']}")
