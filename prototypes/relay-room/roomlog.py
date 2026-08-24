@@ -410,25 +410,36 @@ def read_log(path=ROOM_MD) -> LogRead:
             elif seen_header:
                 pending_debris.append(line)
             else:
-                # Before the first header. Only the lines that ARE the canonical preamble count
-                # as preamble; anything else here is debris. A torn remnant left by a crashed
-                # write lands in exactly this position, and the first cut of this parser swallowed
-                # it into the preamble - i.e. silently discarded it, which §2.8 rule 5 forbids and
-                # which is the whole point of SYM-037. Preamble is what init wrote; the rest got
-                # here some other way, and "some other way" is what debris means.
-                k = len(preamble_lines)
-                if k < len(_PREAMBLE_LINES) and line.rstrip() == _PREAMBLE_LINES[k].rstrip():
-                    preamble_lines.append(line)
-                elif line.strip():
-                    debris.append({"after_id": None, "lines": 1,
-                                   "sample": line[:120] + ("…" if len(line) > 120 else ""),
-                                   "reason": "text before the first entry that is not part of "
-                                             "the preamble — a torn remnant or a stray write"})
-                else:
-                    preamble_lines.append(line)
+                # Before the first header: collect, and decide preamble-vs-debris ONCE, when the
+                # first header arrives (below). Deciding per line needs a rule that can tell a
+                # legitimate preamble from a torn remnant, and the first cut used "does it match
+                # roomlog.PREAMBLE byte for byte" - which was far too strict. `room.py init`
+                # writes its OWN preamble text, so every line of a perfectly healthy log read as
+                # debris and the UI showed "7 block(s) of DEBRIS" on a 5-entry file with nothing
+                # wrong with it. A FALSE ALARM IN THE HONESTY LAYER is worse than most bugs here:
+                # a warning that cries wolf trains the reader to ignore the warning. Found by
+                # running the app and looking at it, which no test had done.
+                preamble_lines.append(line)
             i += 1
             continue
 
+        if not seen_header:
+            # THE PREAMBLE/DEBRIS SPLIT, decided here because only here do we know where the
+            # preamble ENDS. §2.2 fixes the file's shape: an entry is preceded by a blank line.
+            # So a legitimate preamble ends with a blank line before the first header, while a
+            # TORN REMNANT - the tail of a crashed write - sits directly against the header it
+            # precedes, because `append_entry`'s last-byte check inserted exactly one newline
+            # and no more. That adjacency is the discriminator, and it needs no knowledge of what
+            # the preamble is supposed to SAY.
+            cut = len(preamble_lines)
+            while cut > 0 and preamble_lines[cut - 1].strip():
+                cut -= 1
+            for stray in preamble_lines[cut:]:
+                debris.append({"after_id": None, "lines": 1,
+                               "sample": stray[:120] + ("…" if len(stray) > 120 else ""),
+                               "reason": "text pressed directly against the first entry with no "
+                                         "blank line — a torn remnant or a stray write, not preamble"})
+            preamble_lines = preamble_lines[:cut]
         seen_header = True
         flush_debris()
         start_line = i + 1

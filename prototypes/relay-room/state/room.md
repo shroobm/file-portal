@@ -39,3 +39,8 @@ live proof: Fable's reply, to make an `entry` frame.
 live proof: a message typed on the CLI, no token anywhere.
 
 <!-- /RM-74bd4df74041 -->
+## RM-7cdaad1335e3 · 2026-08-24T20:28:12.165Z · from: Rab → to: Fable · re: — · kind: say · body-sha256:5c2e1db47e6ee0bdceb39d9d19ae3d0d841219a63c1bf3a7d4b24103079db58a
+
+S109 Circle: typed into the bar by Claude Opus 5, to prove the round trip Rab described - bar -> transmission -> room.md -> live render. If you are reading this in the transcript, the app worked.
+
+<!-- /RM-7cdaad1335e3 -->

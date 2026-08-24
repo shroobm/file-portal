@@ -7,41 +7,74 @@
       "runtimeArgs": [
         "prototypes/repair-bench/bench.py",
         "C:\\Users\\Bndit\\ml\\library\\held\\b7b711d4d9e7234f",
-        "--port", "7077", "--sandbox"
+        "--port",
+        "7077",
+        "--sandbox"
       ],
       "port": 7077
     },
     {
       "name": "room-chat",
       "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
-      "runtimeArgs": ["prototypes/room-chat/chat.py", "--port", "7100"],
+      "runtimeArgs": [
+        "prototypes/room-chat/chat.py",
+        "--port",
+        "7100"
+      ],
       "port": 7100
     },
     {
       "name": "room-harness",
       "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
       "runtimeArgs": [
-        "-m", "http.server", "7080",
-        "--bind", "127.0.0.1",
-        "--directory", "windows-widget"
+        "-m",
+        "http.server",
+        "7080",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "windows-widget"
       ],
       "port": 7080
     },
     {
       "name": "docs",
       "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
-      "runtimeArgs": ["-m", "http.server", "8321", "--directory", "docs"],
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "8321",
+        "--directory",
+        "docs"
+      ],
       "port": 8321
     },
     {
       "name": "atlas-sim",
       "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
       "runtimeArgs": [
-        "-m", "http.server", "8765",
-        "--bind", "127.0.0.1",
-        "--directory", "C:\\Users\\Bndit\\Projects\\file-portal-atlas-quarantine\\dist"
+        "-m",
+        "http.server",
+        "8765",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        "C:\\Users\\Bndit\\Projects\\file-portal-atlas-quarantine\\dist"
       ],
       "port": 8765
+    },
+    {
+      "name": "relay-room",
+      "runtimeExecutable": "C:/Users/Bndit/ml/marker-env/Scripts/python.exe",
+      "runtimeArgs": [
+        "prototypes/relay-room/room.py",
+        "serve",
+        "--port",
+        "7133",
+        "--token",
+        "s109circletoken0000000000000"
+      ],
+      "port": 7133
     }
   ]
 }
