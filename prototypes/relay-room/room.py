@@ -533,11 +533,27 @@ class RoomHandler(BaseHTTPRequestHandler):
         self._send(json.dumps(payload, ensure_ascii=False).encode("utf-8"), code)
 
     def _fail(self, exc):
+        # A DEAD SOCKET IS NOT A DEFECT, and must not be reported as one. Observed while running
+        # the app for the first time: the browser aborted a request mid-response (WinError 10053,
+        # ConnectionAbortedError), which raised in _send, which called _fail, which tried to write
+        # a 500 to the SAME dead socket and raised AGAIN - two full tracebacks in the log, both
+        # describing a client that simply navigated away. Noise in a log is not free: it is the
+        # same failure as a permanently-red status line, which teaches the reader to skim.
+        if isinstance(exc, (ConnectionAbortedError, ConnectionResetError, BrokenPipeError)):
+            sys.stderr.write(f"[room] client went away mid-response ({type(exc).__name__}) — "
+                             f"not a defect, nothing to report\n")
+            return
         tb = traceback.format_exc(limit=4).strip().splitlines()[-3:]
-        self._json({"error": f"unexpected server error ({type(exc).__name__}: {exc}) - this is a "
-                             f"defect, not a usage mistake; the traceback tail is included so it "
-                             f"can be reported rather than guessed.",
-                    "traceback": tb}, 500)
+        try:
+            self._json({"error": f"unexpected server error ({type(exc).__name__}: {exc}) - this "
+                                 f"is a defect, not a usage mistake; the traceback tail is "
+                                 f"included so it can be reported rather than guessed.",
+                        "traceback": tb}, 500)
+        except (ConnectionAbortedError, ConnectionResetError, BrokenPipeError):
+            # The report could not be delivered. Say so ONCE, on stderr, rather than raising a
+            # second traceback that buries the first - the original exception is the finding.
+            sys.stderr.write(f"[room] {type(exc).__name__} and the 500 could not be delivered "
+                             f"(client gone); original: {exc}\n")
 
     def _health(self) -> dict:
         srv = self.server
