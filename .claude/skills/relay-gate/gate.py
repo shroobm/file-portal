@@ -52,6 +52,24 @@ def other(model: str) -> str:
     return MODELS[1] if model == MODELS[0] else MODELS[0]
 
 
+# LANE vs OCCUPANT (S109, Rab: "Codex keeps calling you Fable... I don't think Codex
+# understands that yet"). MODELS holds LANE names - seats, addresses, the thing MSG-FAB-nnnn
+# and ack-fable.json are keyed on. A lane is NOT a model's name. The OCCUPANT is whichever
+# model is sitting in the seat, and it CHANGES: the Fable lane was occupied by Claude Fable 5
+# through S108's wiki block and by Claude Opus 5 from the residency block onward.
+# `escalate` used to hardcode `"Claude Fable 5" if lane == "Fable"`, so it stamped Opus 5's
+# escalation - the one message in Rab's own decision queue - with a different model. Codex read
+# that trailer correctly; the trailer was wrong. An undeclared occupant now renders UNDECLARED
+# and is NEVER guessed from the lane, because guessing is how the misattribution happened.
+UNDECLARED = "UNDECLARED"
+
+
+def occupant_of(data: dict) -> str:
+    """Who is actually in this seat. Never inferred from the lane name."""
+    v = (data or {}).get("occupant")
+    return v.strip() if isinstance(v, str) and v.strip() else UNDECLARED
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
 
@@ -77,6 +95,7 @@ def blank(model: str) -> dict:
         "protocol": PROTOCOL,
         "updated_utc": utc_now(),
         "state": "idle",
+        "occupant": None,          # the model in this seat; None -> UNDECLARED, never guessed
         "current_ticket": None,
         "sent": [],
         "confirmed": [],
@@ -174,6 +193,31 @@ def cmd_init(a):
     save(a.as_model, blank(a.as_model), a.as_model)
     print(f"relay-gate ON for {a.as_model}: {p.name} created (state idle)")
     print(f"the protocol is LIVE only when BOTH ack files exist and Rab has signed it")
+    return 0
+
+
+def cmd_occupant(a):
+    """Declare (or read) which model is sitting in this lane. Single-writer, like everything else."""
+    d, st = load(a.as_model)
+    if st == "UNREAD":
+        print("UNREAD: run `init` first", file=sys.stderr)
+        return 1
+    if not a.model:
+        print(f"lane {a.as_model} · occupant {occupant_of(d)}")
+        return 0
+    name = a.model.strip()
+    if len(name) < 3:
+        print("REFUSED: name the model, not an abbreviation (>=3 chars).", file=sys.stderr)
+        return 1
+    if name in MODELS:
+        print(f"REFUSED: '{name}' is a LANE name, not a model. The occupant is the model in the "
+              f"seat (e.g. 'Claude Opus 5', 'OpenAI Codex') — naming the lane here is exactly the "
+              f"conflation this field exists to end.", file=sys.stderr)
+        return 1
+    prev = occupant_of(d)
+    d["occupant"] = name
+    save(a.as_model, d, a.as_model)
+    print(f"lane {a.as_model} · occupant {prev} -> {name}")
     return 0
 
 
@@ -321,6 +365,7 @@ def cmd_status(a):
             continue
         print(f"  {m:<6} state={d['state']:<15} ticket={d.get('current_ticket')}  "
               f"sent={len(d['sent'])} confirmed={len(d['confirmed'])}  updated={d['updated_utc']}")
+        print(f"         lane {m} · occupant {occupant_of(d)}")
     pending = []
     for m in MODELS:
         d, st = load(m)
@@ -371,16 +416,18 @@ def cmd_escalate(a):
     peer = other(a.as_model)
     ticket = a.ticket or d.get("current_ticket")
     mid = next_id(a.as_model, d)
-    trailer = "Claude Fable 5" if a.as_model == "Fable" else "OpenAI Codex"
+    trailer = occupant_of(d)
     body = (
-        f"**RECAP.** ⟨claimed: {a.as_model}⟩ **ESCALATION — going to Rab.**\n\n"
+        f"**RECAP.** ⟨claimed: {a.as_model} lane · occupant: {trailer}⟩ "
+        f"**ESCALATION — going to Rab.**\n\n"
         f"- **Ticket:** {ticket}\n"
         f"- **What he must decide:** {a.asking.strip()}\n"
         f"- **Why it cannot be settled between us:** {a.why.strip() if a.why else '(not stated)'}\n\n"
         f"Announced to {peer} **before** he is asked — no back-channel to the principal. My state "
         f"is now `blocked-on-rab`, which no model may clear.\n\n"
         f"**FOR RAB.** {a.as_model} says: a decision is queued for you — `gate.py status` shows it.\n\n"
-        f"Model trailer: `{trailer}` · authorship claim only, never Rab's authority.\n"
+        f"Lane `{a.as_model}` · occupant `{trailer}` — the lane is a seat, the occupant is the "
+        f"model in it, and they are not the same claim. Authorship only, never Rab's authority.\n"
     )
     header = f"## {utc_now()} · ⟨from: {a.as_model}⟩ → ⟨to: {peer}⟩ · ⟨msg: {mid}⟩"
     entry = header + "\n\n" + body
@@ -455,6 +502,11 @@ def main() -> int:
         return sp
 
     add_as(sub.add_parser("init")).set_defaults(fn=cmd_init)
+    sp = add_as(sub.add_parser("occupant"))
+    sp.add_argument("--model", default=None,
+                    help="the model in this seat, e.g. 'Claude Opus 5'. Omit to read it. "
+                         "A lane name is refused: the lane is the seat, not the occupant.")
+    sp.set_defaults(fn=cmd_occupant)
     sp = add_as(sub.add_parser("post"))
     sp.add_argument("--to", required=True, choices=MODELS)
     sp.add_argument("--subject", required=True)

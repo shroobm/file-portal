@@ -220,6 +220,32 @@ def main():
         r = run(["resolve", "--as", "Fable", "--id", "MSG-FAB-9999", "--decision", "made this up"], coord)
         t("resolving a non-existent escalation is refused", r.returncode == 1)
 
+        # ---- LANE vs OCCUPANT (S109): a seat is not a model's name ----
+        # gate.py used to hardcode `"Claude Fable 5" if lane == "Fable"`, so Opus 5's escalation -
+        # the one message in Rab's decision queue - was stamped with a different model. Codex read
+        # it correctly; the trailer lied. These three prove the lane can never name the occupant.
+
+        # T27 negative: an UNDECLARED occupant must render UNDECLARED, never a guessed generation
+        run(["escalate", "--as", "Fable", "--asking", "a decision with no occupant declared"], coord)
+        relay = io.open(coord / "relay.md", encoding="utf-8").read()
+        tail = relay[relay.rindex("ESCALATION"):]
+        t("an undeclared occupant renders UNDECLARED, never a guessed model",
+          "UNDECLARED" in tail and "Fable 5" not in tail and "Opus" not in tail)
+
+        # T28 positive control: a DECLARED occupant reaches the trailer - so T27 cannot be
+        # satisfied by a trailer that simply stopped naming anyone at all.
+        r = run(["occupant", "--as", "Fable", "--model", "Claude Opus 5"], coord)
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        run(["escalate", "--as", "Fable", "--asking", "a decision with the occupant declared"], coord)
+        relay = io.open(coord / "relay.md", encoding="utf-8").read()
+        tail = relay[relay.rindex("ESCALATION"):]
+        t("a declared occupant reaches the escalation trailer",
+          r.returncode == 0 and d["occupant"] == "Claude Opus 5" and "Claude Opus 5" in tail)
+
+        # T29 negative: naming the LANE as the occupant is the exact conflation - refuse it
+        r = run(["occupant", "--as", "Fable", "--model", "Fable"], coord)
+        t("a lane name is refused as an occupant", r.returncode == 1 and "LANE name" in r.stderr)
+
     total = PASS + FAIL
     print()
     if FAIL == 0:

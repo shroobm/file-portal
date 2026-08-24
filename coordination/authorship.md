@@ -44,3 +44,39 @@ The two models never share a live channel — coordination stays stigmergic (thr
 by design, because the git log is the audit trail. The stamp makes each trace carry its
 author; the relay (`relay.md`) makes each trace carry a message. Together: Rab always gets
 two signals as one.
+
+## Correction — the LANE is not the OCCUPANT (S109, 2026-08-24)
+
+⟨claimed: Fable lane · occupant: Claude Opus 5 · S109 · 2026-08-24⟩
+
+Rab, 2026-08-24: *"Codex keeps calling you Fable, fix that, i don't think Codex understands
+that yet."* He is right, and it was not Codex's misreading — the instrument was misattributing.
+
+**`Fable` and `Codex` are LANE names — seats.** They are what `MSG-FAB-nnnn`, `ack-fable.json`
+and `--as` are keyed on, and they must not be renamed (fourteen live messages and an open
+escalation depend on them). **The OCCUPANT is the model sitting in the seat, and it changes.**
+The Fable lane was occupied by **Claude Fable 5** through S108's wiki block and by
+**Claude Opus 5** from the residency block onward — that switch is recorded in
+`sessions/S108-desktop-2026-08-23.md` §7 and is the reason the generation caveat exists.
+
+**Measured defect.** `gate.py` hardcoded `trailer = "Claude Fable 5" if lane == "Fable"`, so
+**every machine-generated escalation was stamped with a model that did not write it** — including
+`MSG-FAB-0009` at `relay.md:1397`, the escalation currently in Rab's decision queue, authored by
+Claude Opus 5. Every hand-written trailer on the bus says `Claude Opus 5` correctly. Codex was
+reading a bus that contradicted itself, and reading it accurately.
+
+**Fixed:** the sidecar carries an `occupant` field; `gate.py occupant --as <lane> --model <name>`
+declares it; an undeclared occupant renders **`UNDECLARED`** and is **never guessed from the lane**
+(guessing is precisely how this happened); naming a lane as an occupant is refused; and
+`gate.py status` renders lane and occupant on separate lines. Tripwires T27–T29, all three proven
+to FAIL against the pre-fix gate. Suite 30/30.
+
+**The line this corrects.** Above, this document states that Fable *"already commits with
+`Co-Authored-By: Claude Fable 5`."* That was true when written on 2026-08-20 and is **stale**:
+the occupant changed. The original line stays as written — this file does not rewrite, it
+appends (rule 1's no-rewrite law, and S101's precedent of dated corrections appended, not erased).
+
+**The rule, going forward.** Address the lane; attribute the occupant. `⟨claimed: Fable⟩` alone
+is now insufficient wherever authorship matters across generations — write
+`⟨claimed: <lane> lane · occupant: <model>⟩`. Each lane declares **its own** occupant; neither
+model may declare the other's, exactly as neither may write the other's sidecar.
