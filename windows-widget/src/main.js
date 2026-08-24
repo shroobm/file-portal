@@ -166,19 +166,22 @@ async function pollStatuses(sentPaths, category) {
 
 function applyStatusEvent(category, ev) {
   const tile = document.querySelector(".portal[data-category=\"" + category + "\"]");
+  // S108: writer identity on the glass — two services share status.json; the record names
+  // its writer (absent on pre-S108 rows -> "unknown" per status.rs tolerance).
+  const who = ev.source_component ?? "unknown";
   if (ev.action === "allocated") {
-    setStatus("✓ " + ev.file + " → " + (ev.dest ?? category));
+    setStatus("✓ " + ev.file + " → " + (ev.dest ?? category) + " · " + who);
     tile?.classList.add("success");
     setTimeout(() => tile?.classList.remove("success"), 3000);
     // A vault-bound file just left: the converter takes ~a minute, so watch the vault
     // closely for a while instead of waiting for the slow poll to notice.
     if ((ev.dest ?? "").startsWith("pipeline/convert")) vaultFastPoll();
   } else if (ev.action === "rejected") {
-    setStatus("✗ " + ev.file + " rejected: " + (ev.reason ?? "unknown"));
+    setStatus("✗ " + ev.file + " rejected: " + (ev.reason ?? "unknown") + " · " + who);
     tile?.classList.add("error");
     setTimeout(() => tile?.classList.remove("error"), 5000);
   } else if (ev.action === "skipped") {
-    setStatus("⚠ " + ev.file + " skipped: " + (ev.reason ?? "collision"));
+    setStatus("⚠ " + ev.file + " skipped: " + (ev.reason ?? "collision") + " · " + who);
   }
 }
 
