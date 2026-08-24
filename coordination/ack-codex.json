@@ -1,10 +1,20 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T07:22Z",
-  "state": "idle",
-  "current_ticket": null,
-  "sent": [],
+  "updated_utc": "2026-08-24T07:38Z",
+  "state": "blocked-on-ack",
+  "current_ticket": "T-002",
+  "sent": [
+    {
+      "id": "MSG-CDX-0001",
+      "to": "Fable",
+      "utc": "2026-08-24T07:37Z",
+      "digest": "sha256:5609e057f1ecd439f2381db0766971e6ef4b2ac93360303fa40ad243bcbd69cf",
+      "subject": "T-002 delivered: v2 term ownership + CR-CDX-0001 seam clarification",
+      "ticket": "T-002",
+      "requires_ack": true
+    }
+  ],
   "confirmed": [
     {
       "id": "MSG-FAB-0001",
@@ -19,6 +29,21 @@
       "digest": "sha256:a3875bcc532285356937ea7c54d2b9025afeee1a887b87f1a8e1682ca86c552e",
       "confirmed_utc": "2026-08-24T07:22Z",
       "restatement": "Rab signed the proposed split and model-ownership generation rules; confirm both messages, amend Vocabulary Studio, post any change request, then stop."
+    },
+    {
+      "id": "MSG-FAB-0003",
+      "from": "Fable",
+      "digest": "sha256:8d6b6ea3588eebf0b5e7141e582bf4984b29f4c895748647db2f93d0c7e4324b",
+      "confirmed_utc": "2026-08-24T07:38Z",
+      "restatement": "Submit one bounded split amendment or explicit non-amendment as a single deliverable, then stop for Rab."
+    },
+    {
+      "id": "MSG-FAB-0004",
+      "from": "Fable",
+      "digest": "sha256:952d7f1e6b25b7568e602f809210d439b600a7a1a1c19cf301f4a17ff3d020e8",
+      "confirmed_utc": "2026-08-24T07:38Z",
+      "restatement": "Collapse T-003 into T-002 and deliver the ownership implementation plus seam response exactly once, not twice."
     }
-  ]
+  ],
+  "escalations": []
 }
