@@ -631,15 +631,36 @@ def cmd_escalate(a):
     ticket = a.ticket or d.get("current_ticket")
     mid = next_id(a.as_model, d)
     trailer = occupant_of(d)
+    # CR-CDX-0002 COMPLIANCE (Rab signed 2026-08-24: "I sign it", with the repair as a stated
+    # condition). The old template emitted RECAP and FOR RAB and nothing else - no SUGGESTED
+    # PROMPT (clause 1) and none of the five inner slots (clause 2), despite requires_ack=True.
+    # Measured on MSG-FAB-0009, which is the escalation that ASKED HIM TO SIGN THIS VERY CARD:
+    # six required elements missing across two clauses. Both models had endorsed the contract
+    # without ever running it against the artifact - SYM-001 at the level of review.
+    why = a.why.strip() if a.why else "(not stated)"
     body = (
-        f"**RECAP.** ⟨claimed: {a.as_model} lane · occupant: {trailer}⟩ "
-        f"**ESCALATION — going to Rab.**\n\n"
-        f"- **Ticket:** {ticket}\n"
-        f"- **What he must decide:** {a.asking.strip()}\n"
-        f"- **Why it cannot be settled between us:** {a.why.strip() if a.why else '(not stated)'}\n\n"
-        f"Announced to {peer} **before** he is asked — no back-channel to the principal. My state "
-        f"is now `blocked-on-rab`, which no model may clear.\n\n"
-        f"**FOR RAB.** {a.as_model} says: a decision is queued for you — `gate.py status` shows it.\n\n"
+        f"**RECAP — ESCALATION: a decision is going to Rab.**\n\n"
+        f"**GROUND.** ⟨claimed: {a.as_model} lane · occupant: {trailer}⟩ Ticket **{ticket}**. "
+        f"Announced to {peer} **before** Rab is asked — there is no back-channel to the "
+        f"principal. Why this cannot be settled between the models: {why}\n\n"
+        f"**ASK.** Rab, and Rab alone, decides exactly one thing: {a.asking.strip()}\n\n"
+        f"**DONE.** Complete when Rab states his decision and it is recorded with `resolve`. "
+        f"My state is `blocked-on-rab`, which **no model may clear** — not by file, not by "
+        f"checkbox, not by inference. An approval artifact's presence proves nothing.\n\n"
+        f"**BOUNDS.** This entry signs nothing, adopts nothing, starts no work, and moves no "
+        f"other ticket. It records a question; it does not answer one. While it is open, "
+        f"FULL STOP halts **both** lanes: no new ticket crosses the bus and no lane enters "
+        f"`working`. Notices always pass, and work that SERVES this escalation may cross with "
+        f"`--serves {ticket}`.\n\n"
+        f"**ROUTE.** {peer} may verify every cited byte from the repo and should correct this "
+        f"entry rather than escalate alongside it. Only the decision itself is Rab's; anything "
+        f"factual still settles between the lanes at measurement.\n\n"
+        f"**FOR RAB.** {a.as_model} says: a decision is queued for you and both lanes are "
+        f"stopped until you make it. Run `gate.py status` to see it, decide, and then prompt "
+        f"the relay gates again.\n\n"
+        f"**SUGGESTED PROMPT** (for Rab to give either model): *\"Rule on {ticket}: "
+        f"{a.asking.strip()[:120]}{'…' if len(a.asking.strip()) > 120 else ''} — then prompt "
+        f"the relay gates again.\"*\n\n"
         f"Lane `{a.as_model}` · occupant `{trailer}` — the lane is a seat, the occupant is the "
         f"model in it, and they are not the same claim. Authorship only, never Rab's authority.\n"
     )

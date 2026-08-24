@@ -420,6 +420,36 @@ def main():
         r = run(["status"], coord)
         t("an unreadable beat timestamp is UNREAD, not fresh", "timestamp is unreadable" in r.stdout)
 
+        # ---- CR-CDX-0002 COMPLIANCE (Rab signed 2026-08-24, with this repair as the condition) ----
+        # The card was endorsed by BOTH models and neither had run it against the artifact. When
+        # one of us finally did, `escalate` failed it in six places - in the very message that
+        # asked Rab to sign it. This census is that check, mechanised, so no generated entry can
+        # drift out of the contract again without the suite saying so.
+        run(["escalate", "--as", "Fable", "--ticket", "T-060",
+             "--asking", "a decision that must be carried in the signed envelope",
+             "--why", "authority by domain, not deadlock"], coord)
+        relay = io.open(coord / "relay.md", encoding="utf-8").read()
+        entry = relay[relay.rindex("## ") :]
+        OUTER = ["**RECAP", "**FOR RAB.**", "**SUGGESTED PROMPT**"]
+        INNER = ["**GROUND.**", "**ASK.**", "**DONE.**", "**BOUNDS.**", "**ROUTE.**"]
+
+        # T50 negative: clause 1 - the three-part outer envelope on EVERY entry
+        missing_outer = [s for s in OUTER if entry.count(s) != 1]
+        t("clause 1: a generated escalation carries the three-part envelope exactly once",
+          not missing_outer)
+
+        # T51 negative: clause 2 - the five inner slots, exactly once each, IN ORDER
+        missing_inner = [s for s in INNER if entry.count(s) != 1]
+        positions = [entry.find(s) for s in INNER]
+        t("clause 2: the five inner slots appear exactly once, in order",
+          not missing_inner and positions == sorted(positions))
+
+        # T52 positive control: the census can actually FAIL. Without this, T50/T51 could be
+        # satisfied by a census that finds every marker in any text handed to it.
+        fake = "**RECAP** only, with nothing else in it at all"
+        t("control: the same census fails on an entry that lacks the sections",
+          [s for s in OUTER if fake.count(s) != 1] != [])
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
