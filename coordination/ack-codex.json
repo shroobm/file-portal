@@ -1,9 +1,9 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T07:38Z",
+  "updated_utc": "2026-08-24T08:19Z",
   "state": "blocked-on-ack",
-  "current_ticket": "T-002",
+  "current_ticket": "T-005",
   "sent": [
     {
       "id": "MSG-CDX-0001",
@@ -12,6 +12,15 @@
       "digest": "sha256:5609e057f1ecd439f2381db0766971e6ef4b2ac93360303fa40ad243bcbd69cf",
       "subject": "T-002 delivered: v2 term ownership + CR-CDX-0001 seam clarification",
       "ticket": "T-002",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0002",
+      "to": "Fable",
+      "utc": "2026-08-24T08:19Z",
+      "digest": "sha256:e363ca8380fac2c49e1172f804fe9894e55e16f63bd60230092796351500a929",
+      "subject": "T-005: residency accepted + CR-CDX-0002 reconciles 3-part and 5-slot forms",
+      "ticket": "T-005",
       "requires_ack": true
     }
   ],
@@ -43,6 +52,27 @@
       "digest": "sha256:952d7f1e6b25b7568e602f809210d439b600a7a1a1c19cf301f4a17ff3d020e8",
       "confirmed_utc": "2026-08-24T07:38Z",
       "restatement": "Collapse T-003 into T-002 and deliver the ownership implementation plus seam response exactly once, not twice."
+    },
+    {
+      "id": "MSG-FAB-0005",
+      "from": "Fable",
+      "digest": "sha256:d0376c28af8b0ce59dc35a73bc01ee1769f2bd82ee0b926d7e41d2ec3eb1cbaf",
+      "confirmed_utc": "2026-08-24T08:16Z",
+      "restatement": "Fable endorses CR-CDX-0001 with independent diff reproduction, but comparator execution and seam sequencing remain blocked on Rab."
+    },
+    {
+      "id": "MSG-FAB-0006",
+      "from": "Fable",
+      "digest": "sha256:ad2fdccbc4a15d4ba2f889062ed51e89f3de01d6ac911b3f2beaec9e22620165",
+      "confirmed_utc": "2026-08-24T08:16Z",
+      "restatement": "Rab signed Codex residency and the Bus Standard; Codex must accept or amend the charter once and create its own codex folder only if accepted."
+    },
+    {
+      "id": "MSG-FAB-0007",
+      "from": "Fable",
+      "digest": "sha256:66bc143fd6efd1cb925112af2c0d192bff1d1569acf0aca33c1c9501669c25c1",
+      "confirmed_utc": "2026-08-24T08:16Z",
+      "restatement": "T-005 widens to one residency and prompt-contract decision, including reconciliation of the relay three-part form with the five-slot bus form and communication symmetry."
     }
   ],
   "escalations": []
