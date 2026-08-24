@@ -181,15 +181,29 @@ class L3AppendsNeverErase(unittest.TestCase):
         barrier = threading.Barrier(2)
 
         def unlocked(tag):
-            barrier.wait()
+            # DETERMINISTIC, not probabilistic. The first cut appended in "a" mode with an
+            # injected sleep and was FLAKY: O_APPEND is atomic for small writes here, so the two
+            # writers usually did NOT corrupt each other and this control passed clean about half
+            # the time. A control that fires only sometimes is a coin-flip dressed as evidence,
+            # and CONTRACT.md §8 T6b names this exact hazard and says PREFER THE INJECTED SLEEP
+            # over probability. (An earlier attempt to add flush()/fsync() here silently failed
+            # to apply and I did not check - so the flake survived a fix that reported success.)
+            #
+            # So: model the failure the lock actually prevents - a read-modify-write. Both
+            # writers capture the SAME end-of-file offset, both sleep, both write THERE. The
+            # second clobbers the first and a whole record is lost. That is unlocked file
+            # writing's real failure mode, and it fires every time.
             mid = "RM-" + hashlib.sha256(tag.encode()).hexdigest()[:12]
             dg = roomlog.digest(tag).split(":", 1)[1]
             hdr = (f"## {mid} · {roomlog.utc_now()} · from: Rab → to: Fable · re: — "
                    f"· kind: say · body-sha256:{dg}")
-            with io.open(p, "a", encoding="utf-8", newline="") as fh:
-                fh.write(hdr + "\n\n")
-                time.sleep(0.05)                     # the injected interleave point
-                fh.write(tag + "\n\n" + roomlog.terminator(mid) + "\n")
+            entry = hdr + "\n\n" + tag + "\n\n" + roomlog.terminator(mid) + "\n"
+            offset = p.stat().st_size                # captured BEFORE the barrier releases
+            barrier.wait()
+            time.sleep(0.05)                         # both threads now hold the SAME offset
+            with io.open(p, "r+", encoding="utf-8", newline="") as fh:
+                fh.seek(offset)
+                fh.write(entry)
 
         ths = [threading.Thread(target=unlocked, args=(t,)) for t in ("aaa", "bbb")]
         for t_ in ths:
