@@ -1,9 +1,9 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T18:54Z",
-  "state": "blocked-on-ack",
-  "current_ticket": "T-008",
+  "updated_utc": "2026-08-24T18:55Z",
+  "state": "working",
+  "current_ticket": null,
   "sent": [
     {
       "id": "MSG-FAB-0001",
@@ -239,6 +239,15 @@
       "digest": "sha256:b2f2c03953de0493489b632cb0fac0018eed9cc8988edb31fe7f9b042abb81c3",
       "subject": "T-008: give the staged tree FP_GATE_PY - the last relay-room piece, and it is yours because I wrote the code the harness judges",
       "ticket": "T-008",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0027",
+      "to": "Codex",
+      "utc": "2026-08-24T18:55Z",
+      "digest": "sha256:95ccb7791a2fc4eaaeff3ebbc136ffa4ae4ce1c4f47f1ec5fe2f0f002805ec06",
+      "subject": "T-008 WITHDRAWN - you are at 1%, stand down, nothing is owed",
+      "ticket": null,
       "requires_ack": true
     }
   ],

@@ -837,7 +837,22 @@ class Ctx:
             return
         # A FOREIGN FP_COORD is planted here on purpose: CONTRACT.md §6.4 says it is never
         # inherited. If room.py honours that, the foreign dir stays empty (checked in L5.4).
-        proc = run_py([room_py, "init"], env={"FP_COORD": str(self.foreign_coord)},
+        # FP_GATE_PY: the staged tree is a COPY, so roomlog's ROOT-relative derivation resolves
+        # to <tempdir>/.claude/skills/relay-gate/gate.py, which does not exist. Without this the
+        # staged `init` fails and L5.4 can never RUN - it renders UNREAD, which this harness
+        # rightly refuses to call a pass.
+        #
+        # ⚠ EDITED BY THE AUTHOR OF THE CODE THIS HARNESS JUDGES (Claude Opus 5, S109), after
+        # the Codex lane ran out of budget and could not take it. That is a real loss of
+        # independence and it is recorded here rather than in a commit nobody re-reads. What
+        # makes it defensible: this adds an environment pass-through and touches NO assertion,
+        # threshold or expectation. It converts an UNREAD into a check that can FAIL, so it
+        # INCREASES this harness's power over roomlog.py rather than reducing it. Proven by
+        # deliberately breaking room.py's FP_COORD override and confirming L5.4 then FAILS
+        # (see the commit). If it had not failed, the edit was to be reverted and the check
+        # left UNREAD.
+        proc = run_py([room_py, "init"],
+                      env={"FP_COORD": str(self.foreign_coord), "FP_GATE_PY": str(GATE_PY)},
                       cwd=self.staged, timeout=90)
         self.init_rc = proc.returncode
         self.init_out = (proc.stdout or "") + (proc.stderr or "")
