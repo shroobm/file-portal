@@ -1,3 +1,12 @@
+# --- Python bytecode, everywhere (S109) ---
+# This was enumerated per-directory SEVEN times and never globally, which is a whitelist
+# wearing an ignore rule's clothes: .claude/ was the eighth Python directory and fell
+# through, so gate.py's cache landed in git and re-dirtied the muster card on every run.
+# Note *.py[cod] also matches .pyd (a Windows extension module) - none are tracked today;
+# if one is ever vendored it needs an explicit un-ignore.
+__pycache__/
+*.py[cod]
+
 # --- Windows widget (Tauri / Node / Rust) ---
 windows-widget/node_modules/
 windows-widget/dist/

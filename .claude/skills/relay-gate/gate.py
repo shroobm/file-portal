@@ -70,6 +70,33 @@ def occupant_of(data: dict) -> str:
     return v.strip() if isinstance(v, str) and v.strip() else UNDECLARED
 
 
+# FULL STOP (S109, Rab signed): "if anything escalates, tell both you and codex to stop, and
+# tell me to prompt the relay gates again. I want a full stop on an escalation."
+# Before this, `escalate` halted only the ESCALATING lane; the peer kept taking tickets, so work
+# continued past a question the principal had not answered. An escalation now halts BOTH lanes.
+# It is DERIVED from the board, never written into the peer's file - the single-writer law holds,
+# and the stop reconstructs from disk for whoever reads it next.
+def open_escalations():
+    """[(lane, escalation)] across BOTH lanes. A lane that reads UNREAD cannot be cleared of
+    holding one, so an unreadable board is not a quiet board - the caller must fail closed."""
+    out, unread = [], []
+    for m in MODELS:
+        d, st = load(m)
+        if st != "ok":
+            unread.append(m)
+            continue
+        out += [(m, e) for e in d.get("escalations", []) if e.get("state") == "open"]
+    return out, unread
+
+
+FULL_STOP_REMEDY = (
+    "  FULL STOP is Rab's rule: an open escalation halts BOTH lanes, not just the escalator's.\n"
+    "  Nothing resumes on a model's judgement. Ask Rab to rule, then to PROMPT THE RELAY GATES\n"
+    "  AGAIN - and only `resolve` (his decision, recorded) lifts the stop.\n"
+    "  A notice (no --ticket) always passes: that is how you tell the other lane you have stopped."
+)
+
+
 def utc_now() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%MZ")
 
@@ -231,13 +258,40 @@ def cmd_post(a):
     # refuses what care did not. Notices always pass (no --ticket, or the ticket they already
     # hold). --override "<reason>" bypasses and RECORDS the reason - never silently.
     if a.ticket and not a.override:
-        theirs, st_theirs = load(a.to)
-        if st_theirs == "ok" and theirs.get("state") == "working" and theirs.get("current_ticket") != a.ticket:
-            print(f"REFUSED: {a.to} is working on {theirs.get('current_ticket')} — issuing {a.ticket} "
-                  f"now would duplicate or interrupt.\n"
-                  f"  Wait for its delivery · post without --ticket (a notice always passes) · "
-                  f"or re-issue with --override \"<reason>\".", file=sys.stderr)
+        # FULL STOP first: no NEW work crosses the bus while a question sits with Rab.
+        stops, unread = open_escalations()
+        if stops or unread:
+            if stops:
+                for lane, e in stops:
+                    print(f"REFUSED — FULL STOP: {lane} has an open escalation to Rab "
+                          f"({e.get('ticket')}): {str(e.get('asking'))[:90]}…", file=sys.stderr)
+            if unread:
+                # A lane we cannot read cannot be shown to be free of an escalation. Fail closed:
+                # this is the same law as "UNREAD is never idle", applied to the halt itself.
+                print(f"REFUSED — FULL STOP (fail closed): cannot read {', '.join(unread)}, so no "
+                      f"lane can be shown clear of an escalation.", file=sys.stderr)
+            print(FULL_STOP_REMEDY, file=sys.stderr)
             return 1
+        theirs, st_theirs = load(a.to)
+        if st_theirs == "ok" and theirs.get("state") == "working":
+            held = theirs.get("current_ticket")
+            if held is None:
+                # GUARD A used to compare against a field NOTHING automatically maintained, so a
+                # stale or empty current_ticket made it both false-refuse and false-allow (found
+                # S109, when Rab asked "t-005 you mean?" and this lane had read T-003 for three
+                # tickets running). A working lane that will not say what it holds is UNREAD.
+                print(f"REFUSED: {a.to} is working but names no current ticket — its state cannot "
+                      f"be compared to {a.ticket}, so this fails closed.\n"
+                      f"  Ask it to run `gate.py ticket --as {a.to} --id <id> --state working`, "
+                      f"post without --ticket, or re-issue with --override \"<reason>\".",
+                      file=sys.stderr)
+                return 1
+            if held != a.ticket:
+                print(f"REFUSED: {a.to} is working on {held} — issuing {a.ticket} "
+                      f"now would duplicate or interrupt.\n"
+                      f"  Wait for its delivery · post without --ticket (a notice always passes) · "
+                      f"or re-issue with --override \"<reason>\".", file=sys.stderr)
+                return 1
 
     body = io.open(a.body, encoding="utf-8").read() if a.body != "-" else sys.stdin.read()
     mid = next_id(a.as_model, data)
@@ -253,6 +307,12 @@ def cmd_post(a):
     if a.override:
         row["override_reason"] = a.override      # a bypass is always on the record
     data["sent"].append(row)
+    # Keep current_ticket TRUE (S109). Only `ticket` used to write this field, so `post --ticket`
+    # never advanced it: this lane read T-003 through T-004, T-005 and T-006, and the board
+    # printed that stale value to Rab with confidence. Guard A compares against it, so the
+    # staleness was not cosmetic - it made the guard misfire both ways.
+    if a.ticket:
+        data["current_ticket"] = a.ticket
     # GUARD B, second half (S108): posting must never DOWNGRADE blocked-on-rab. The original
     # guard stopped a model ENTERING that state silently; nothing stopped it LEAVING by side
     # effect. Found 2026-08-24 while about to post during a live escalation.
@@ -372,6 +432,14 @@ def cmd_status(a):
         if st == "ok":
             pending += [(m, e) for e in d.get("escalations", []) if e.get("state") == "open"]
     if pending:
+        # ASCII only on this line. `status` is piped, and on Windows a pipe decodes as cp1252:
+        # an emoji here raised UnicodeEncodeError and took the WHOLE BOARD down - the banner
+        # announcing the halt was the thing that crashed the halt's own display. Caught by T34.
+        print("\n  *** FULL STOP - BOTH LANES HALTED (Rab's rule, S109) ***")
+        print("     An open escalation halts every lane, not just the escalator's. No lane may")
+        print("     start work or issue a new ticket. Notices still pass, so each lane can say")
+        print("     that it has stopped. Only Rab's ruling, recorded with `resolve`, lifts this.")
+        print("     RAB: rule on the item(s) below, then PROMPT THE RELAY GATES AGAIN.")
         print("\n  AWAITING RAB — his decision queue:")
         for m, e in pending:
             print(f"    [{e.get('ticket')}] from {m}: {e['asking']}")
@@ -393,6 +461,19 @@ def cmd_ticket(a):
             print("REFUSED: blocked-on-rab requires an announced escalation.\n"
                   "  run: gate.py escalate --as <you> --asking \"<what Rab must decide>\" "
                   "[--why \"<why we cannot settle it>\"]", file=sys.stderr)
+            return 1
+    # FULL STOP (S109): a lane may not pick up WORK while a question sits with Rab. It may still
+    # move to blocked-on-* or idle - stopping is always allowed, starting is not.
+    if a.state == "working":
+        stops, unread = open_escalations()
+        if stops or unread:
+            for lane, e in stops:
+                print(f"REFUSED — FULL STOP: {lane} has an open escalation to Rab "
+                      f"({e.get('ticket')}). No lane starts work while it is open.", file=sys.stderr)
+            if unread:
+                print(f"REFUSED — FULL STOP (fail closed): cannot read {', '.join(unread)}.",
+                      file=sys.stderr)
+            print(FULL_STOP_REMEDY, file=sys.stderr)
             return 1
     d["current_ticket"] = None if a.id.lower() in ("none", "-", "clear") else a.id
     d["state"] = a.state

@@ -246,6 +246,82 @@ def main():
         r = run(["occupant", "--as", "Fable", "--model", "Fable"], coord)
         t("a lane name is refused as an occupant", r.returncode == 1 and "LANE name" in r.stderr)
 
+        # ---- FULL STOP + Guard A's stale field (S109, Rab signed) ----
+        # "if anything escalates, tell both you and codex to stop... I want a full stop on an
+        # escalation." Before this, escalate halted only the escalating lane and the peer kept
+        # taking tickets - work continued past a question Rab had not answered.
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps({"writer": "Codex", "protocol": "fp-relay-ack/v1", "updated_utc": "x",
+                        "state": "idle", "occupant": "OpenAI Codex", "current_ticket": None,
+                        "sent": [], "confirmed": [], "escalations": []}, indent=2))
+        # Fixture reset: the occupant cases above left escalations open, which the brand-new FULL
+        # STOP correctly refuses to work through. Clear them Rab's way - by recording a decision -
+        # rather than by editing state, so the reset itself obeys the law it is setting up.
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        for e in [x for x in d["escalations"] if x["state"] == "open"]:
+            run(["resolve", "--as", "Fable", "--id", e["msg_id"], "--decision", "fixture reset"], coord)
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        open_before = [e for e in d["escalations"] if e["state"] == "open"]
+        bf5 = body_file(coord, "**RECAP.** work during a full stop\n")
+
+        # T30 positive control: with NO escalation open, a ticketed post passes. Without this,
+        # T31 cannot tell a working FULL STOP from a post that refuses everything.
+        t("fixture has no open escalation before the full-stop cases", len(open_before) == 0)
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "work",
+                 "--body", bf5, "--ticket", "T-030"], coord)
+        t("a ticketed post passes while NO escalation is open", r.returncode == 0)
+
+        # T31 negative: an open escalation halts the OTHER lane too - the whole point
+        run(["escalate", "--as", "Fable", "--asking", "a decision that must halt both lanes"], coord)
+        r = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "work",
+                 "--body", bf5, "--ticket", "T-031"], coord)
+        t("FULL STOP halts the PEER lane, not just the escalator",
+          r.returncode == 1 and "FULL STOP" in r.stderr)
+
+        # T32 negative: a lane may not START work during a full stop
+        r = run(["ticket", "--as", "Codex", "--id", "T-031", "--state", "working"], coord)
+        t("FULL STOP refuses a lane starting work", r.returncode == 1 and "FULL STOP" in r.stderr)
+
+        # T33 positive: a NOTICE still passes - it is how a lane says it has stopped
+        r = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "I have stopped",
+                 "--body", bf5], coord)
+        t("a notice still passes during a full stop", r.returncode == 0)
+
+        # T34 positive: the board tells RAB what to do, in his own instruction's terms
+        r = run(["status"], coord)
+        t("the board renders FULL STOP and tells Rab to prompt the gates again",
+          "FULL STOP" in r.stdout and "PROMPT THE RELAY GATES AGAIN" in r.stdout)
+
+        # T35 positive: only Rab's recorded ruling lifts it
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        esc3 = [e for e in d["escalations"] if e["state"] == "open"][0]
+        run(["resolve", "--as", "Fable", "--id", esc3["msg_id"], "--decision", "he ruled on it and released the gate"], coord)
+        r = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "resumed",
+                 "--body", bf5, "--ticket", "T-035"], coord)
+        t("resolving Rab's escalation lifts the full stop", r.returncode == 0)
+
+        # T36 negative: GUARD A must FAIL CLOSED on a working lane that names no ticket.
+        # It used to compare against current_ticket, a field nothing maintained, so a stale or
+        # empty value made it both false-refuse and false-allow.
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps({"writer": "Codex", "protocol": "fp-relay-ack/v1", "updated_utc": "x",
+                        "state": "working", "occupant": "OpenAI Codex", "current_ticket": None,
+                        "sent": [], "confirmed": [], "escalations": []}, indent=2))
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "dup",
+                 "--body", bf5, "--ticket", "T-036"], coord)
+        t("GUARD A fails closed when a working lane names no ticket",
+          r.returncode == 1 and "names no current ticket" in r.stderr)
+
+        # T37 positive: `post --ticket` now ADVANCES current_ticket, so the board stops lying
+        io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps({"writer": "Codex", "protocol": "fp-relay-ack/v1", "updated_utc": "x",
+                        "state": "idle", "occupant": "OpenAI Codex", "current_ticket": None,
+                        "sent": [], "confirmed": [], "escalations": []}, indent=2))
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "advance",
+             "--body", bf5, "--ticket", "T-037"], coord)
+        d = json.loads(io.open(coord / "ack-fable.json", encoding="utf-8").read())
+        t("post --ticket advances the sender's current_ticket", d["current_ticket"] == "T-037")
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
