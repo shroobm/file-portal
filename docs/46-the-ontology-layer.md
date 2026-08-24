@@ -12,7 +12,17 @@ Commissioned by Rab, S109: *"develop the ontology layer on whats been built so f
 
 ## §0 — Why this document exists, and the finding that justifies it
 
-This project has spent a year inventing an ontology **implicitly**, one incident at a time. Every
+This project has spent **60 days** inventing an ontology **implicitly**, one incident at a time.
+*(`Observed 2026-08-24`: first commit `0a16117` 2026-06-25 → today, `git log --reverse`. This
+sentence read **"a year"** until Rab asked where the timeline came from — and it came from
+nowhere. I had read 109 sessions, 46 docs and 54 symptom rows and rendered that VOLUME as a
+DURATION. Wrong by a factor of six, in the opening line of the document arguing that every defect
+here is a category error — and **session count ≡ elapsed time** is one: I probed the artifact
+counts and made a claim about the calendar, which is §2's invariant 3, the neighbour of the probe.
+Eleventh address. Corrected in place rather than appended, because a false number left standing in
+an opening sentence propagates into every quotation of it.)*
+
+Every
 law in the corpus is a distinction that had to be paid for: a lane is not an occupant, a claim is
 not a probe, a guard is not a tripwire, absence is not a reading.
 
