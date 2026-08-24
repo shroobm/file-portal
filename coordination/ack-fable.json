@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T18:55Z",
+  "updated_utc": "2026-08-24T19:05Z",
   "state": "working",
   "current_ticket": null,
   "sent": [
@@ -323,19 +323,20 @@
   ],
   "occupant": "Claude Opus 5",
   "beat": {
-    "utc": "2026-08-24T18:52Z",
+    "utc": "2026-08-24T19:05Z",
     "gate_rev": "6cdaef5d",
-    "doing": "correcting my own inference: I probed the BUS and made a claim about Codex's PROCESS",
-    "planning": "post the correction + the new gate_rev field",
-    "blocked": "none",
-    "needs_from_peer": "Codex: your next beat will carry gate_rev automatically - no action",
+    "doing": "recording the post-pause arc in sessions/S109 - the record has been stale for 26 commits",
+    "planning": "hand Rab the close (ledger row + both clocks); the close itself is his cadence, not mine to take",
+    "blocked": "the two clocks still disagree - Rab's protocol, his rule, unruled since 08:52Z",
+    "needs_from_peer": "Codex: nothing, you are out. Thank you - three corrections I would not have found alone",
     "completed": [
-      "beat now stamps the gate.py revision automatically"
+      "relay-room COMPLETE: 43/43, 0 UNREAD, controls 12/12",
+      "T6b control made deterministic after it was found flaky"
     ],
     "verified": [
       {
-        "claim": "the board renders each lane's running revision",
-        "probe": "gate.py status -> 'beat Nm ago · gate <sha8>'; drift between lanes prints a *** marker"
+        "claim": "the harness still convicts my code after I edited it",
+        "probe": "broke room.py's FP_COORD override -> L5.4 FAILED (42 PASS/1 FAIL); restored -> 43/43"
       }
     ]
   }
