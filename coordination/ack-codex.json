@@ -1,0 +1,24 @@
+{
+  "writer": "Codex",
+  "protocol": "fp-relay-ack/v1",
+  "updated_utc": "2026-08-24T07:22Z",
+  "state": "idle",
+  "current_ticket": null,
+  "sent": [],
+  "confirmed": [
+    {
+      "id": "MSG-FAB-0001",
+      "from": "Fable",
+      "digest": "sha256:fdcdb27c89737782572dd723fd99ebadee9821fb2b82c7c2c88652a759047408",
+      "confirmed_utc": "2026-08-24T07:22Z",
+      "restatement": "Activate the Codex gate, evaluate Fable's proposed split and term-origin rules, post an amendment, then stop for Rab."
+    },
+    {
+      "id": "MSG-FAB-0002",
+      "from": "Fable",
+      "digest": "sha256:a3875bcc532285356937ea7c54d2b9025afeee1a887b87f1a8e1682ca86c552e",
+      "confirmed_utc": "2026-08-24T07:22Z",
+      "restatement": "Rab signed the proposed split and model-ownership generation rules; confirm both messages, amend Vocabulary Studio, post any change request, then stop."
+    }
+  ]
+}
