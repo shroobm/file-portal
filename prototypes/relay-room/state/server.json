@@ -1,0 +1,17 @@
+{
+  "protocol": "fp-relay-room/v1",
+  "writer": "room.py",
+  "pid": 5420,
+  "port": 7135,
+  "token_mode": "token",
+  "started_utc": "2026-08-24T17:20:05.467Z",
+  "heartbeat_utc": "2026-08-24T17:20:15.562Z",
+  "cycle": 5,
+  "heartbeat_interval_s": 2.0,
+  "stale_after_s": 15.0,
+  "sse_clients": 1,
+  "last_say_utc": null,
+  "root": "C:\\Users\\Bndit\\Projects\\file-portal\\prototypes\\relay-room",
+  "coord_dir": "C:\\Users\\Bndit\\Projects\\file-portal\\prototypes\\relay-room\\state\\coord",
+  "fp_coord_override": null
+}

@@ -1,0 +1,1686 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>relay-room</title>
+<style>
+/* =====================================================================
+   relay-room UI — one self-contained file (CONTRACT.md L7 / §7).
+   No CDN, no external font, no remote anything. Styles are inline.
+
+   THEME (§7.5): the FULL palette is defined on bare :root. The two dark
+   blocks redefine the SAME token names and nothing else — no colour has
+   its only definition inside a media query.
+   ===================================================================== */
+
+:root {
+  color-scheme: light dark;
+
+  --sans: system-ui, "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Courier New", monospace;
+
+  --bg:          #f4f2ef;
+  --bg-2:        #e9e5e0;
+  --panel:       #ffffff;
+  --panel-2:     #faf8f6;
+  --ink:         #1d1a17;
+  --ink-2:       #4a443e;
+  --ink-3:       #7c736a;
+  --rule:        #ded7cf;
+  --rule-2:      #c2b8ac;
+
+  --accent:      #a8462a;
+  --accent-ink:  #ffffff;
+
+  --rab:         #2f6f8f;
+  --fable:       #a8462a;
+  --codex:       #4b5f2a;
+
+  --ok:          #2f6d3f;
+  --ok-bg:       #e6f2e6;
+  --warn:        #8a5a00;
+  --warn-bg:     #fbf0d8;
+  --bad:         #a01c1c;
+  --bad-bg:      #fbe6e4;
+  --unread:      #7b1668;
+  --unread-bg:   #f7e6f4;
+  --unread-hatch:#e3bcdc;
+
+  --agent:       #3a4750;
+  --agent-bg:    #e6eaed;
+
+  --dim:         #9b938a;
+  --shadow:      0 1px 2px rgba(29,26,23,.10), 0 6px 18px rgba(29,26,23,.06);
+  --focus:       #2f6f8f;
+  --sel:         #fdf3d0;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --sans: system-ui, "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+    --mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Courier New", monospace;
+
+    --bg:          #16181a;
+    --bg-2:        #1d2023;
+    --panel:       #212528;
+    --panel-2:     #1a1d20;
+    --ink:         #ece7e1;
+    --ink-2:       #bdb6ae;
+    --ink-3:       #8d857c;
+    --rule:        #343a3f;
+    --rule-2:      #4b535a;
+
+    --accent:      #e0764f;
+    --accent-ink:  #16181a;
+
+    --rab:         #79bcd9;
+    --fable:       #e0764f;
+    --codex:       #a3c46a;
+
+    --ok:          #7fc98d;
+    --ok-bg:       #1b2c1f;
+    --warn:        #e0b054;
+    --warn-bg:     #302713;
+    --bad:         #f08a80;
+    --bad-bg:      #331a19;
+    --unread:      #ef8ada;
+    --unread-bg:   #2e1a2b;
+    --unread-hatch:#59355230;
+
+    --agent:       #9fb3c0;
+    --agent-bg:    #232b31;
+
+    --dim:         #6f6862;
+    --shadow:      0 1px 2px rgba(0,0,0,.40), 0 6px 18px rgba(0,0,0,.28);
+    --focus:       #79bcd9;
+    --sel:         #3a3216;
+  }
+}
+
+:root[data-theme="dark"] {
+  --sans: system-ui, "Segoe UI", -apple-system, Roboto, Helvetica, Arial, sans-serif;
+  --mono: ui-monospace, "Cascadia Mono", Consolas, "DejaVu Sans Mono", "Courier New", monospace;
+
+  --bg:          #16181a;
+  --bg-2:        #1d2023;
+  --panel:       #212528;
+  --panel-2:     #1a1d20;
+  --ink:         #ece7e1;
+  --ink-2:       #bdb6ae;
+  --ink-3:       #8d857c;
+  --rule:        #343a3f;
+  --rule-2:      #4b535a;
+
+  --accent:      #e0764f;
+  --accent-ink:  #16181a;
+
+  --rab:         #79bcd9;
+  --fable:       #e0764f;
+  --codex:       #a3c46a;
+
+  --ok:          #7fc98d;
+  --ok-bg:       #1b2c1f;
+  --warn:        #e0b054;
+  --warn-bg:     #302713;
+  --bad:         #f08a80;
+  --bad-bg:      #331a19;
+  --unread:      #ef8ada;
+  --unread-bg:   #2e1a2b;
+  --unread-hatch:#593552;
+
+  --agent:       #9fb3c0;
+  --agent-bg:    #232b31;
+
+  --dim:         #6f6862;
+  --shadow:      0 1px 2px rgba(0,0,0,.40), 0 6px 18px rgba(0,0,0,.28);
+  --focus:       #79bcd9;
+  --sel:         #3a3216;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  margin: 0;
+  padding: 0;
+  background: var(--bg);
+  color: var(--ink);
+}
+body {
+  font-family: var(--sans);
+  font-size: 14px;
+  line-height: 1.45;
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+}
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 1px; }
+
+.mono { font-family: var(--mono); font-size: 12px; }
+.sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); }
+.scroll-x { overflow-x: auto; max-width: 100%; }
+
+/* ---------- header bar ---------- */
+header.bar {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  padding: 8px 12px;
+  background: var(--panel);
+  border-bottom: 1px solid var(--rule);
+  position: sticky; top: 0; z-index: 20;
+}
+.brand { font-weight: 700; letter-spacing: .02em; margin-right: 4px; }
+.brand .dot { color: var(--accent); }
+.spacer { flex: 1 1 auto; min-width: 0; }
+
+.chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 2px 8px; border-radius: 999px;
+  border: 1px solid var(--rule-2);
+  background: var(--panel-2); color: var(--ink-2);
+  font-family: var(--mono); font-size: 11.5px; white-space: nowrap;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis;
+}
+.chip .glyph { font-size: 11px; }
+.chip.live   { border-color: var(--ok);   background: var(--ok-bg);   color: var(--ok); }
+.chip.poll   { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+.chip.none   { border-color: var(--bad);  background: var(--bad-bg);  color: var(--bad); font-weight: 700; }
+.chip.probe  { border-color: var(--rule-2); background: var(--bg-2); color: var(--ink-3); }
+.chip.bad    { border-color: var(--bad);  background: var(--bad-bg);  color: var(--bad); }
+.chip.unread {
+  border-color: var(--unread); color: var(--unread); font-weight: 700;
+  background: repeating-linear-gradient(135deg, var(--unread-bg) 0 6px, var(--unread-hatch) 6px 12px);
+}
+.chip.reading { animation: breathe 1.1s ease-in-out infinite; }
+
+@keyframes breathe { 0%,100% { opacity: 1 } 50% { opacity: .55 } }
+@keyframes march   { to { background-position: 24px 0 } }
+@keyframes glow    { 0%,100% { box-shadow: 0 0 0 0 rgba(168,70,42,.0) } 50% { box-shadow: 0 0 0 3px rgba(168,70,42,.22) } }
+
+button {
+  font: inherit; color: var(--ink); background: var(--panel-2);
+  border: 1px solid var(--rule-2); border-radius: 6px;
+  padding: 3px 9px; cursor: pointer;
+}
+button:hover { background: var(--bg-2); }
+button:disabled { opacity: .5; cursor: not-allowed; }
+button.primary { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 600; }
+button.tiny { padding: 1px 6px; font-size: 11.5px; font-family: var(--mono); }
+
+/* ---------- layout ---------- */
+main {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 400px);
+  gap: 12px;
+  padding: 12px;
+  align-items: start;
+  min-width: 0;
+}
+@media (max-width: 940px) { main { grid-template-columns: minmax(0, 1fr); } }
+.col { min-width: 0; }
+
+section.panel {
+  background: var(--panel);
+  border: 1px solid var(--rule);
+  border-radius: 10px;
+  box-shadow: var(--shadow);
+  min-width: 0;
+  overflow: hidden;
+}
+.panel > h2 {
+  margin: 0; padding: 7px 10px;
+  font-size: 11px; letter-spacing: .14em; text-transform: uppercase;
+  color: var(--ink-3); background: var(--panel-2);
+  border-bottom: 1px solid var(--rule);
+  display: flex; align-items: center; gap: 8px;
+}
+.panel > h2 .sub { font-family: var(--mono); letter-spacing: 0; text-transform: none; font-size: 11px; }
+
+/* ---------- conversation ---------- */
+#log { padding: 10px; display: flex; flex-direction: column; gap: 10px; }
+.entry {
+  border: 1px solid var(--rule);
+  border-left: 4px solid var(--rule-2);
+  border-radius: 8px;
+  background: var(--panel-2);
+  padding: 7px 9px;
+  min-width: 0;
+}
+.entry.from-Rab   { border-left-color: var(--rab); }
+.entry.from-Fable { border-left-color: var(--fable); }
+.entry.from-Codex { border-left-color: var(--codex); }
+.entry.self { background: var(--panel); }
+.entry.flash { background: var(--sel); }
+.entry.bad-digest { border-color: var(--bad); border-width: 2px; }
+.entry.torn {
+  border-color: var(--unread); border-width: 2px; border-style: dashed;
+  background: repeating-linear-gradient(135deg, var(--panel-2) 0 8px, var(--unread-hatch) 8px 16px);
+}
+.e-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px; min-width: 0; }
+.speaker { font-weight: 700; }
+.speaker.Rab { color: var(--rab); } .speaker.Fable { color: var(--fable); } .speaker.Codex { color: var(--codex); }
+.arrow { color: var(--ink-3); }
+.stamp { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+.mid   { font-family: var(--mono); font-size: 11.5px; color: var(--ink-3); }
+.e-actions { margin-left: auto; display: flex; gap: 4px; }
+pre.body {
+  margin: 6px 0 0; padding: 0;
+  font-family: var(--mono); font-size: 12.5px;
+  white-space: pre-wrap; overflow-wrap: anywhere; word-break: break-word;
+  color: var(--ink);
+}
+.flag {
+  margin-top: 6px; padding: 4px 6px; border-radius: 5px;
+  font-family: var(--mono); font-size: 11.5px;
+}
+.flag.bad    { background: var(--bad-bg);    color: var(--bad);    border: 1px solid var(--bad); }
+.flag.warn   { background: var(--warn-bg);   color: var(--warn);   border: 1px solid var(--warn); }
+.flag.unread { background: var(--unread-bg); color: var(--unread); border: 1px solid var(--unread); font-weight: 700; }
+.empty { color: var(--ink-3); font-style: italic; padding: 6px 2px; }
+
+/* ---------- board (the status rail) ---------- */
+#board { display: flex; flex-direction: column; gap: 10px; position: relative; }
+.card {
+  border: 1px solid var(--rule); border-radius: 10px; background: var(--panel);
+  box-shadow: var(--shadow); overflow: hidden; min-width: 0;
+}
+.card > .card-h {
+  display: flex; align-items: center; gap: 8px;
+  padding: 6px 9px; border-bottom: 1px solid var(--rule); background: var(--panel-2);
+  min-width: 0;
+}
+.card .lane-name { font-weight: 700; letter-spacing: .02em; }
+.card.lane-Rab   .lane-name { color: var(--rab); }
+.card.lane-Fable .lane-name { color: var(--fable); }
+.card.lane-Codex .lane-name { color: var(--codex); }
+.card .doc-age { margin-left: auto; font-family: var(--mono); font-size: 11px; color: var(--ink-3); }
+
+/* --- TIER 1: the AGENT layer. Monospace. SQUARE badge. Steel hue. --- */
+.tier-agent {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 7px 9px 3px;
+  font-family: var(--mono); font-size: 12px; color: var(--agent);
+  min-width: 0;
+}
+.badge-sq {
+  display: inline-flex; align-items: center; justify-content: center;
+  min-width: 92px; padding: 2px 8px;
+  border: 2px solid var(--agent); border-radius: 0;         /* SQUARE */
+  background: var(--agent-bg); color: var(--agent);
+  font-family: var(--mono); font-size: 11.5px; font-weight: 700;
+  letter-spacing: .04em; text-transform: uppercase; white-space: nowrap;
+}
+.badge-sq.st-error  { border-color: var(--bad);  color: var(--bad);  background: var(--bad-bg); }
+.badge-sq.st-stale  { border-color: var(--warn); color: var(--warn);
+  background: repeating-linear-gradient(135deg, var(--warn-bg) 0 5px, transparent 5px 10px); }
+.badge-sq.st-unread { border-color: var(--unread); color: var(--unread);
+  background: repeating-linear-gradient(135deg, var(--unread-bg) 0 5px, var(--unread-hatch) 5px 10px); }
+.badge-sq.st-move   { border-color: var(--accent); color: var(--accent); background: transparent; }
+
+/* --- TIER 2: the MODEL layer. Proportional. ROUND pill. Lane colour, filled. --- */
+.tier-model {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+  padding: 3px 9px 7px;
+  font-family: var(--sans); font-size: 13px; color: var(--ink-2);
+  min-width: 0;
+}
+.badge-pill {
+  display: inline-flex; align-items: center; gap: 5px;
+  min-width: 92px; justify-content: center;
+  padding: 2px 12px;
+  border-radius: 999px;                                      /* ROUND */
+  border: 1px solid transparent;
+  background: var(--ink-3); color: var(--panel);
+  font-family: var(--sans); font-size: 12px; font-weight: 600; white-space: nowrap;
+}
+.card.lane-Fable .badge-pill.st-live { background: var(--fable); color: var(--accent-ink); }
+.card.lane-Codex .badge-pill.st-live { background: var(--codex); color: var(--accent-ink); }
+.badge-pill.st-stale {
+  background: repeating-linear-gradient(135deg, var(--warn-bg) 0 5px, transparent 5px 10px);
+  color: var(--warn); border-color: var(--warn); font-weight: 700;
+}
+.badge-pill.st-unread {
+  background: repeating-linear-gradient(135deg, var(--unread-bg) 0 5px, var(--unread-hatch) 5px 10px);
+  color: var(--unread); border-color: var(--unread); font-weight: 800;
+}
+.badge-pill.st-block { background: var(--warn-bg); color: var(--warn); border-color: var(--warn); }
+.tier-label {
+  font-family: var(--mono); font-size: 10px; letter-spacing: .18em;
+  color: var(--ink-3); text-transform: uppercase;
+}
+.meta { color: var(--ink-3); min-width: 0; overflow-wrap: anywhere; }
+.meta.mono { font-family: var(--mono); font-size: 11.5px; }
+.note-q { color: var(--ink-2); font-style: italic; }
+
+.remedy {
+  margin: 0 9px 7px; padding: 5px 7px; border-radius: 5px;
+  font-size: 12px; line-height: 1.35;
+  border-left: 3px solid var(--unread);
+  background: var(--unread-bg); color: var(--unread);
+  overflow-wrap: anywhere;
+}
+.remedy.warn { border-left-color: var(--warn); background: var(--warn-bg); color: var(--warn); }
+.remedy .lead { font-weight: 800; letter-spacing: .04em; }
+.tier-sep { height: 1px; background: var(--rule); margin: 0 9px; }
+.card-foot {
+  padding: 5px 9px; border-top: 1px dashed var(--rule);
+  font-family: var(--mono); font-size: 11px; color: var(--ink-3);
+  overflow-wrap: anywhere;
+}
+
+/* NO CONTACT overlay — the board must never look healthy while nothing is read */
+#board.no-contact .card { filter: grayscale(.55) opacity(.55); }
+.overlay {
+  border: 2px solid var(--bad); background: var(--bad-bg); color: var(--bad);
+  border-radius: 10px; padding: 8px 10px; font-weight: 700;
+}
+.overlay .small { display: block; font-weight: 400; font-size: 12px; margin-top: 3px; }
+
+/* ---------- agent strip ---------- */
+#strip { padding: 6px 8px; display: flex; flex-direction: column; gap: 4px; max-height: 260px; overflow-y: auto; }
+.strip-row {
+  font-family: var(--mono); font-size: 11.5px; color: var(--ink-3);
+  border-left: 3px solid var(--rule-2); padding: 2px 6px; min-width: 0;
+}
+.strip-row.kind-error { border-left-color: var(--bad); color: var(--bad); background: var(--bad-bg); }
+.strip-row summary { cursor: pointer; overflow-wrap: anywhere; }
+.strip-row pre { margin: 4px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font-size: 11.5px; }
+
+/* ---------- composer + trail ---------- */
+footer.composer {
+  position: sticky; bottom: 0; z-index: 15;
+  background: var(--panel); border-top: 1px solid var(--rule);
+  padding: 8px 12px 10px;
+  box-shadow: 0 -4px 14px rgba(0,0,0,.06);
+}
+.c-row { display: flex; gap: 8px; align-items: flex-end; flex-wrap: wrap; min-width: 0; }
+textarea#say {
+  flex: 1 1 320px; min-width: 0; min-height: 54px; max-height: 30vh; resize: vertical;
+  font-family: var(--mono); font-size: 13px;
+  color: var(--ink); background: var(--panel-2);
+  border: 1px solid var(--rule-2); border-radius: 8px; padding: 7px 9px;
+}
+select#to {
+  font: inherit; color: var(--ink); background: var(--panel-2);
+  border: 1px solid var(--rule-2); border-radius: 6px; padding: 4px 6px;
+}
+.c-status { margin-top: 6px; font-size: 12px; min-height: 1.2em; overflow-wrap: anywhere; }
+.c-status.err { color: var(--bad); font-weight: 600; }
+.c-status.ok  { color: var(--ok); }
+.re-chip {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-family: var(--mono); font-size: 11.5px;
+  border: 1px dashed var(--rule-2); border-radius: 999px; padding: 1px 8px; color: var(--ink-2);
+}
+
+/* the flight trail */
+.flight { margin-top: 8px; border-top: 1px dashed var(--rule); padding-top: 7px; }
+.flight-h { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; font-size: 12px; min-width: 0; }
+.flight-h .subj { color: var(--ink-2); overflow-wrap: anywhere; }
+.lane-trail { margin-top: 6px; }
+.lane-trail.hatched {
+  border: 2px dashed var(--unread); border-radius: 8px; padding: 5px;
+  background: repeating-linear-gradient(135deg, transparent 0 8px, var(--unread-hatch) 8px 16px);
+}
+.trail-lane-name { font-family: var(--mono); font-size: 11px; letter-spacing: .1em; color: var(--ink-3); text-transform: uppercase; }
+.trail { display: flex; gap: 6px; padding: 4px 1px 6px; min-width: 0; }
+.stg {
+  flex: 0 0 auto; min-width: 96px;
+  border: 1px solid var(--rule-2); border-radius: 7px;
+  background: var(--panel-2); color: var(--ink-3);
+  padding: 3px 7px; font-size: 11.5px; line-height: 1.25;
+}
+.stg .n { font-family: var(--mono); font-size: 10px; color: var(--dim); }
+.stg .nm { display: block; font-family: var(--mono); font-size: 12px; font-weight: 700; overflow-wrap: anywhere; }
+.stg .mt { display: block; font-family: var(--mono); font-size: 10.5px; color: var(--ink-3); overflow-wrap: anywhere; }
+.stg .tag { display: block; font-size: 10px; letter-spacing: .06em; text-transform: uppercase; }
+.stg.s-dim   { opacity: .45; border-style: dotted; }
+.stg.s-client{
+  border-style: dashed; border-color: var(--rab); color: var(--rab);
+  background: transparent;
+}
+.stg.s-client .tag { color: var(--rab); }
+.stg.s-ok    { border-color: var(--ok); background: var(--ok-bg); color: var(--ok); }
+.stg.s-bad   { border-color: var(--bad); background: var(--bad-bg); color: var(--bad); font-weight: 700; }
+.stg.s-warn  { border-color: var(--warn); background: var(--warn-bg); color: var(--warn); font-weight: 700; }
+.stg.s-cur {
+  border-width: 2px; border-color: var(--accent); color: var(--accent);
+  background-image: repeating-linear-gradient(90deg, var(--panel-2) 0 12px, var(--bg-2) 12px 24px);
+  background-size: 24px 100%;
+  animation: march 1.1s linear infinite, glow 1.8s ease-in-out infinite;
+}
+.ticker {
+  margin-top: 4px; font-family: var(--mono); font-size: 12px;
+  color: var(--ink-2); overflow-wrap: anywhere;
+}
+.ticker.bad { color: var(--bad); font-weight: 700; }
+.ticker.warn { color: var(--warn); font-weight: 700; }
+.ticker.unread { color: var(--unread); font-weight: 700; }
+.ticker.done { color: var(--ok); }
+
+@media (prefers-reduced-motion: reduce) {
+  .stg.s-cur, .chip.reading { animation: none; }
+}
+</style>
+</head>
+<body>
+
+<header class="bar">
+  <span class="brand">relay<span class="dot">&middot;</span>room</span>
+  <span id="chip-transport" class="chip probe">transport: connecting&hellip;</span>
+  <span id="chip-log" class="chip probe">log: not read yet</span>
+  <span id="chip-cursor" class="chip" hidden></span>
+  <span id="chip-coord" class="chip probe">coord: not read yet</span>
+  <span id="chip-token" class="chip" hidden></span>
+  <span class="spacer"></span>
+  <button id="theme" class="tiny" title="theme: system / light / dark">theme: system</button>
+</header>
+
+<main>
+  <div class="col">
+    <section class="panel">
+      <h2>the conversation <span id="log-sub" class="sub"></span></h2>
+      <div id="log" role="log" aria-live="polite" aria-relevant="additions"></div>
+    </section>
+  </div>
+
+  <div class="col">
+    <div id="board"></div>
+    <section class="panel" style="margin-top:10px">
+      <h2>agent strip <span class="sub">— the machinery narrating itself (kind: note / error)</span></h2>
+      <div id="strip"></div>
+    </section>
+  </div>
+</main>
+
+<footer class="composer">
+  <div class="c-row">
+    <textarea id="say" placeholder="type to the room&hellip;  (Ctrl+Enter sends)" spellcheck="true"></textarea>
+    <div style="display:flex;flex-direction:column;gap:6px">
+      <label class="mono" style="color:var(--ink-3)">to:
+        <select id="to">
+          <option value="Fable">Fable</option>
+          <option value="Codex">Codex</option>
+          <option value="all">all</option>
+        </select>
+      </label>
+      <span id="re-wrap" hidden><span class="re-chip">re: <span id="re-id" class="mono"></span>
+        <button id="re-clear" class="tiny" title="drop the reply target">&#10005;</button></span></span>
+      <button id="send" class="primary">Send</button>
+    </div>
+  </div>
+  <div id="c-status" class="c-status" aria-live="polite"></div>
+  <div id="flight" class="flight"></div>
+</footer>
+
+<script>
+"use strict";
+/* =====================================================================
+   relay-room UI. CONTRACT.md §7.
+
+   THREE LAWS THIS FILE IS ACCOUNTABLE FOR:
+     L1  UNREAD IS NEVER IDLE — a failed or absent probe renders UNREAD,
+         hatched and alarming. Nothing here invents a healthy state.
+     L2  STALENESS IS NOT HEALTH — a lane past its threshold renders
+         STALE with its age in plain words, never green.
+     L1b NO UNREAD WITHOUT A REMEDY — every UNREAD/STALE/FAILED carries
+         the server's remedy sentence, rendered verbatim.
+
+   Every node in this file is built with createElement + textContent.
+   Model output and human text are inserted as TEXT, never as markup.
+   ===================================================================== */
+
+/* ---------- frozen vocabulary (CONTRACT §5.1, §4.3, §4.4) ---------- */
+const STAGES = ["typed", "transmitted", "landed", "caught", "handed", "delivered", "model-working", "replied"];
+const CLIENT_STAGES  = ["typed", "transmitted"];
+const DERIVED_STAGES = ["landed", "replied"];
+const AGENT_STATES = ["watching", "catching", "handing", "awaiting-model", "mirroring", "error"];
+const MODEL_STATES = ["idle", "working", "composing", "blocked-on-ack", "blocked-on-rab"];
+const UNREAD = "UNREAD";
+const STALE  = "STALE";
+
+const STAGE_MEANING = {
+  "typed":         "the browser has the text; nothing has left the tab",
+  "transmitted":   "the POST is in flight; the server has not answered",
+  "landed":        "the entry is in room.md — the log is its own witness",
+  "caught":        "the catcher read it out of the log and checked its digest",
+  "handed":        "the catcher wrote the envelope; the model has not claimed it yet",
+  "delivered":     "the model itself says it has the message",
+  "model-working": "the model is acting on it",
+  "replied":       "a reply naming this message is in the log"
+};
+
+const AGENT_MEANING = {
+  "watching":       "loop healthy; nothing in flight for this lane",
+  "catching":       "a new entry addressed to this lane is being read and digest-verified",
+  "handing":        "writing the handoff envelope and invoking relay-gate",
+  "awaiting-model": "handed off; waiting for the model to claim it",
+  "mirroring":      "pushing a model-authored entry into the quarantined relay-gate",
+  "error":          "the last cycle raised — see last_error"
+};
+const MODEL_MEANING = {
+  "idle":           "nothing in hand",
+  "working":        "acting on a ticket",
+  "composing":      "actively writing a reply into room.md",
+  "blocked-on-ack": "waiting for the peer model to confirm",
+  "blocked-on-rab": "waiting for Rab — no model may clear it"
+};
+
+/* ---------- defaults; overwritten by the board's thresholds ---------- */
+const D = {
+  sse_dead_s: 25.0,
+  poll_fallback_ms: 2000,
+  no_contact_s: 12.0,
+  stale_after_s: 15.0,
+  model_stale_after_s: 300.0,
+  flight_stall_after_s: 90.0
+};
+
+const TOKEN = new URLSearchParams(location.search).get("token");
+
+/* ---------- state ---------- */
+const S = {
+  entries: new Map(),          // id -> entry
+  order: [],                   // ids, sorted by (utc, id)
+  logMeta: null,               // {log_status, reason, count, torn, debris, bytes, read_utc}
+  logReason: "no reading yet — the first probe is in flight.",
+  sinceResolved: true,
+  cursor: null,
+  board: null,                 // GET /api/status document
+  boardAt: 0,                  // ms when it was received (ages are advanced from it)
+  boardReason: "no reading yet — the first probe of state/status-*.json is in flight. " +
+               "If this does not clear, room.py serve is not answering: check its terminal.",
+  health: null,
+  flights: new Map(),          // id -> trail object
+  flightsAt: 0,
+  flightReason: null,
+  pending: null,               // the client-only half of a send in progress
+  focusId: null,               // which message's trail is on screen
+  transport: "probe",          // probe | live | poll | none
+  lastFrameMs: 0,              // last SSE frame of any kind
+  lastGoodReadMs: 0,           // last successful HTTP read of any kind
+  lastPollMs: 0,
+  reading: 0,                  // in-flight fetch count
+  entriesRev: 0,               // bumped whenever the conversation changed
+  drawnRev: -1,
+  es: null,
+  bye: null
+};
+
+/* ---------- tiny DOM helpers (createElement + textContent only) ---------- */
+function el(tag, cls, text) {
+  const n = document.createElement(tag);
+  if (cls) n.className = cls;
+  if (text !== undefined && text !== null) n.textContent = String(text);
+  return n;
+}
+function clear(node) { while (node.firstChild) node.removeChild(node.firstChild); }
+function put(parent, child) { parent.appendChild(child); return child; }
+const $ = (id) => document.getElementById(id);
+
+/* ---------- time, ages, truncation ---------- */
+function parseUtcMs(s) {
+  if (typeof s !== "string" || !s) return null;
+  const t = Date.parse(s);
+  return isNaN(t) ? null : t;
+}
+function fmtDur(sec) {
+  if (sec === null || sec === undefined || !isFinite(sec)) return null;
+  let s = Math.max(0, sec);
+  if (s < 10) return s.toFixed(1) + "s";
+  s = Math.floor(s);
+  if (s < 60) return s + "s";
+  const m = Math.floor(s / 60), r = s % 60;
+  if (m < 60) return m + "m" + String(r).padStart(2, "0") + "s";
+  const h = Math.floor(m / 60), rm = m % 60;
+  return h + "h" + String(rm).padStart(2, "0") + "m";
+}
+function ageWords(sec) { const d = fmtDur(sec); return d === null ? "age UNREAD" : d + " ago"; }
+function clockOf(sec) {
+  const s = Math.max(0, Math.floor(sec || 0));
+  return String(Math.floor(s / 60)).padStart(2, "0") + ":" + String(s % 60).padStart(2, "0");
+}
+function ageOfUtc(utc) {
+  const t = parseUtcMs(utc);
+  return t === null ? null : (Date.now() - t) / 1000;
+}
+/* a reported age advanced by the wall time since the reading arrived — this
+   never invents a fresher number than the server actually gave us. */
+function aged(reportedS, receivedMs) {
+  if (reportedS === null || reportedS === undefined || !isFinite(reportedS)) return null;
+  return reportedS + (Date.now() - receivedMs) / 1000;
+}
+function localStamp(utc) {
+  const t = parseUtcMs(utc);
+  if (t === null) return "utc UNREADABLE";
+  const d = new Date(t);
+  const p = (n, w) => String(n).padStart(w || 2, "0");
+  return p(d.getHours()) + ":" + p(d.getMinutes()) + ":" + p(d.getSeconds()) + "." + p(d.getMilliseconds(), 3);
+}
+/* L3a — TRUNCATION IS ALWAYS MARKED, and the full text stays reachable. */
+function cut(text, n) {
+  const one = String(text === null || text === undefined ? "" : text).replace(/\s+/g, " ").trim();
+  return one.length > n ? one.slice(0, n) + "…" : one;
+}
+
+/* ---------- classification (never invent a state) ---------- */
+function isUnread(v) { return v === UNREAD; }
+function isStale(v)  { return typeof v === "string" && v.indexOf(STALE) === 0; }
+
+/* =====================================================================
+   HEADER CHIPS
+   ===================================================================== */
+function renderChips() {
+  /* transport — its own state is ALWAYS rendered (§3.4) */
+  const c = $("chip-transport");
+  clear(c); c.className = "chip";
+  if (S.reading > 0) c.classList.add("reading");
+  if (S.transport === "live") {
+    c.classList.add("live");
+    c.appendChild(el("span", "glyph", "●"));
+    c.appendChild(el("span", null, "LIVE"));
+    const a = fmtDur((Date.now() - S.lastFrameMs) / 1000);
+    c.appendChild(el("span", null, "· frame " + (a || "?") + " ago"));
+  } else if (S.transport === "poll") {
+    c.classList.add("poll");
+    c.appendChild(el("span", "glyph", "↻"));
+    c.appendChild(el("span", null, "POLLING (" + (D.poll_fallback_ms / 1000) + "s)"));
+    c.appendChild(el("span", null, "· the live stream is not delivering"));
+  } else if (S.transport === "none") {
+    c.classList.add("none");
+    c.appendChild(el("span", "glyph", "⚠"));
+    c.appendChild(el("span", null, "NO CONTACT — readings " +
+      (S.lastGoodReadMs ? fmtDur((Date.now() - S.lastGoodReadMs) / 1000) : "never taken") + " old"));
+  } else {
+    c.classList.add("probe");
+    c.appendChild(el("span", "glyph", "◌"));
+    c.appendChild(el("span", null, "connecting… no reading yet"));
+  }
+
+  /* log integrity */
+  const lc = $("chip-log");
+  clear(lc); lc.className = "chip";
+  const m = S.logMeta;
+  if (!m || m.log_status !== "ok") {
+    lc.classList.add("unread");
+    const st = m ? String(m.log_status) : UNREAD;
+    lc.appendChild(el("span", null, "log: " + (st === "MISSING" ? "MISSING" : UNREAD)));
+    lc.title = (m && m.reason) || S.logReason || "the log has not been read.";
+  } else {
+    const dirty = (m.torn || 0) > 0 || (m.debris || 0) > 0;
+    lc.classList.add(dirty ? "bad" : "probe");
+    lc.appendChild(el("span", null,
+      m.count + " entries · " + (m.torn || 0) + " torn · " + (m.debris || 0) + " debris · " +
+      (m.bytes || 0) + " B · read " + ageWords(ageOfUtc(m.read_utc))));
+    lc.title = "read_utc " + m.read_utc + (dirty ? " — torn or debris present: open the agent strip" : "");
+  }
+  const sub = $("log-sub");
+  clear(sub);
+  if (m && m.log_status === "ok") sub.textContent = "— " + m.count + " entries, read " + ageWords(ageOfUtc(m.read_utc));
+  else sub.textContent = "— " + UNREAD;
+
+  /* an unresolved cursor is surfaced, never silently swallowed (§3.3 / T21) */
+  const cc = $("chip-cursor");
+  if (S.sinceResolved) { cc.hidden = true; }
+  else {
+    cc.hidden = false; cc.className = "chip bad"; clear(cc);
+    cc.appendChild(el("span", null, "cursor unresolved — showing the FULL log"));
+    cc.title = "the id this tab asked to continue from is not in the log; the server returned everything " +
+               "rather than an empty list.";
+  }
+
+  /* quarantine */
+  const qc = $("chip-coord");
+  clear(qc); qc.className = "chip";
+  if (S.health && S.health.coord_dir) {
+    qc.classList.add("probe");
+    const parts = String(S.health.coord_dir).split(/[\\/]/);
+    qc.appendChild(el("span", null, "coord: " + parts.slice(-2).join("/") + " (FP_COORD)"));
+    qc.title = "quarantined relay-gate instance: " + S.health.coord_dir +
+               "\nthe real coordination/ is not touched by this process.";
+  } else {
+    qc.classList.add("unread");
+    qc.appendChild(el("span", null, "coord: " + UNREAD));
+    qc.title = "GET /api/health has not answered, so the quarantine target is unverified. " +
+               "Is room.py serve running?";
+  }
+
+  /* token posture */
+  const tc = $("chip-token");
+  const mode = S.health ? S.health.token_mode : null;
+  if (mode === "no-token") {
+    tc.hidden = false; tc.className = "chip bad"; clear(tc);
+    tc.appendChild(el("span", null, "read-only room (--no-token)"));
+    tc.title = "the server was started with --no-token: mutating routes are disabled entirely.";
+  } else if (!TOKEN) {
+    tc.hidden = false; tc.className = "chip bad"; clear(tc);
+    tc.appendChild(el("span", null, "no ?token= in this URL — sends will fail closed"));
+    tc.title = "reload with the URL room.py printed at launch; it carries ?token=<secret>.";
+  } else {
+    tc.hidden = true;
+  }
+}
+
+/* =====================================================================
+   THE CONVERSATION
+   ===================================================================== */
+function sortOrder() {
+  S.order = Array.from(S.entries.keys()).sort((a, b) => {
+    const A = S.entries.get(a), B = S.entries.get(b);
+    const ua = A.utc || "", ub = B.utc || "";
+    if (ua < ub) return -1;
+    if (ua > ub) return 1;
+    return a < b ? -1 : (a > b ? 1 : 0);
+  });
+  S.cursor = S.order.length ? S.order[S.order.length - 1] : null;
+}
+function addEntry(e) {
+  if (!e || typeof e.id !== "string") return false;
+  const had = S.entries.has(e.id);
+  S.entries.set(e.id, e);
+  if (!had) { sortOrder(); S.entriesRev++; return true; }
+  S.entriesRev++;
+  return false;
+}
+function copyId(id, btn) {
+  const done = (msg) => { const t = btn.textContent; btn.textContent = msg; setTimeout(() => { btn.textContent = t; }, 900); };
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(id).then(() => done("copied"), () => done("copy failed"));
+      return;
+    }
+  } catch (err) { /* fall through to the honest failure */ }
+  done("select it by hand");
+}
+function flashEntry(id) {
+  const n = document.querySelector('[data-entry="' + id + '"]');
+  if (!n) return;
+  n.scrollIntoView({ block: "center", behavior: "smooth" });
+  n.classList.add("flash");
+  setTimeout(() => n.classList.remove("flash"), 1400);
+}
+function renderConversation() {
+  const box = $("log");
+  const nearBottom = (box.scrollHeight - box.scrollTop - box.clientHeight) < 80;
+  clear(box);
+
+  if (!S.logMeta || S.logMeta.log_status !== "ok") {
+    const f = el("div", "flag unread");
+    f.appendChild(el("div", null, (S.logMeta ? String(S.logMeta.log_status) : UNREAD) +
+      " — the conversation below is NOT a reading of the log."));
+    f.appendChild(el("div", null, (S.logMeta && S.logMeta.reason) || S.logReason ||
+      "the log probe has not succeeded."));
+    box.appendChild(f);
+  }
+
+  const says = S.order.map((id) => S.entries.get(id)).filter((e) => e.kind === "say");
+  if (!says.length) {
+    box.appendChild(el("div", "empty",
+      S.logMeta && S.logMeta.log_status === "ok"
+        ? "no messages yet — this is a reading, not a guess (the log parsed cleanly and holds 0 say entries)."
+        : "nothing readable yet."));
+  }
+
+  for (const e of says) {
+    const wrap = el("article", "entry from-" + (e.from || "unknown"));
+    wrap.setAttribute("data-entry", e.id);
+    if (e.digest_ok === false) wrap.classList.add("bad-digest");
+    if (e.torn) wrap.classList.add("torn");
+
+    const h = put(wrap, el("div", "e-head"));
+    h.appendChild(el("span", "speaker " + (e.from || ""), e.from || "?"));
+    h.appendChild(el("span", "arrow", "→"));
+    h.appendChild(el("span", "speaker " + (e.to || ""), e.to || "?"));
+    const st = el("span", "stamp", localStamp(e.utc));
+    st.title = "UTC " + e.utc;
+    h.appendChild(st);
+    const idn = el("span", "mid", e.id);
+    idn.title = "digest " + (e.digest || "UNREAD");
+    h.appendChild(idn);
+
+    if (e.re) {
+      const rb = el("button", "tiny", "re: " + e.re + (S.entries.has(e.re) ? "" : " (UNRESOLVED)"));
+      rb.title = S.entries.has(e.re)
+        ? "jump to the message this answers"
+        : "that id is not in the log this tab has read — it may arrive later, or it was lost.";
+      rb.addEventListener("click", () => { if (S.entries.has(e.re)) flashEntry(e.re); });
+      h.appendChild(rb);
+    }
+
+    const acts = put(h, el("div", "e-actions"));
+    const rp = el("button", "tiny", "reply");
+    rp.addEventListener("click", () => {
+      setReplyTarget(e.id);
+      if (e.from === "Fable" || e.from === "Codex") $("to").value = e.from;
+      $("say").focus();
+    });
+    acts.appendChild(rp);
+    const tr = el("button", "tiny", "trail");
+    tr.title = "show this message's in-flight trail";
+    tr.addEventListener("click", () => { S.focusId = e.id; S.pending = null; renderFlight(); });
+    acts.appendChild(tr);
+    const cp = el("button", "tiny", "copy id");
+    cp.addEventListener("click", () => copyId(e.id, cp));
+    acts.appendChild(cp);
+
+    if (e.torn) {
+      wrap.appendChild(el("div", "flag unread",
+        "TORN — the terminator is missing; the text below may be incomplete. " +
+        "The entry is shown as read, never merged with its neighbour and never dropped."));
+    }
+    if (e.digest_ok === false) {
+      wrap.appendChild(el("div", "flag bad",
+        "DIGEST MISMATCH — " + (e.digest_note || "the header's digest does not match the body") +
+        ". This is a measured RED: the entry was edited after it was written."));
+    }
+
+    const pre = el("pre", "body");
+    pre.textContent = (e.body === null || e.body === undefined) ? "" : String(e.body);
+    wrap.appendChild(pre);
+    box.appendChild(wrap);
+  }
+
+  /* debris is never silently discarded */
+  const deb = S.logMeta && S.logMeta.debris;
+  if (deb && deb > 0) {
+    box.appendChild(el("div", "flag warn",
+      deb + " block(s) of DEBRIS in room.md — text that is not an entry. It is recorded, not parsed as a " +
+      "message. Open state/room.md to see it; nothing here deleted it."));
+  }
+  if (nearBottom) box.scrollTop = box.scrollHeight;
+}
+
+/* the agent strip: kind note + error, newest first, never in the conversation */
+function renderStrip() {
+  const box = $("strip");
+  clear(box);
+  const rows = S.order.map((id) => S.entries.get(id)).filter((e) => e.kind === "note" || e.kind === "error").reverse();
+  if (!rows.length) {
+    box.appendChild(el("div", "empty",
+      S.logMeta && S.logMeta.log_status === "ok"
+        ? "the machinery has said nothing (a reading: 0 note/error entries in a log that parsed)."
+        : "nothing readable yet."));
+    return;
+  }
+  for (const e of rows) {
+    const d = el("details", "strip-row kind-" + e.kind);
+    const sm = el("summary", null,
+      localStamp(e.utc) + "  " + (e.from || "?") + "→" + (e.to || "?") + "  [" + e.kind + "]  " + cut(e.body, 110));
+    sm.title = String(e.body || "");
+    d.appendChild(sm);
+    const pre = el("pre", null);
+    pre.textContent = String(e.body || "");
+    d.appendChild(pre);
+    box.appendChild(d);
+  }
+}
+
+/* =====================================================================
+   THE BOARD — TWO TIERS, NEVER CONFLATED (§7.3)
+   ===================================================================== */
+function agentBadgeClass(v) {
+  if (isUnread(v)) return "st-unread";
+  if (isStale(v)) return "st-stale";
+  if (v === "error") return "st-error";
+  if (v === "watching") return "";
+  if (AGENT_STATES.indexOf(v) >= 0) return "st-move";
+  return "st-unread";
+}
+function modelBadgeClass(v) {
+  if (isUnread(v)) return "st-unread";
+  if (isStale(v)) return "st-stale";
+  if (v === "blocked-on-ack" || v === "blocked-on-rab") return "st-block";
+  if (MODEL_STATES.indexOf(v) >= 0) return "st-live";
+  return "st-unread";
+}
+function remedyNode(text, warn) {
+  const r = el("div", "remedy" + (warn ? " warn" : ""));
+  r.appendChild(el("span", "lead", warn ? "STALE — " : "UNREAD — "));
+  r.appendChild(el("span", null, text || "no remedy sentence was supplied with this reading, which is " +
+    "itself a defect (L1b: no UNREAD without a remedy)."));
+  return r;
+}
+function laneCard(lane, L) {
+  const card = el("section", "card lane-" + lane);
+  const h = put(card, el("div", "card-h"));
+  h.appendChild(el("span", "lane-name", lane));
+
+  const ra = L ? L.rendered_agent : UNREAD;
+  const rm = L ? L.rendered_model : UNREAD;
+  const docAge = L ? aged(L.age_s, S.boardAt) : null;
+  const ageChip = el("span", "doc-age", L && docAge !== null ? "doc " + ageWords(docAge) : "doc " + UNREAD);
+  ageChip.title = L && L.doc_utc ? "status-" + lane.toLowerCase() + ".json heartbeat " + L.doc_utc
+                                 : "no readable status document for this lane";
+  h.appendChild(ageChip);
+
+  /* ---- TIER 1 — AGENT: monospace, SQUARE badge, steel. Mechanical. ---- */
+  const t1 = put(card, el("div", "tier-agent"));
+  t1.appendChild(el("span", "tier-label", "agent"));
+  const b1 = el("span", "badge-sq " + agentBadgeClass(ra), ra || UNREAD);
+  b1.title = AGENT_MEANING[ra] || "not one of the six agent states — rendered UNREAD.";
+  t1.appendChild(b1);
+  const ag = L && L.agent ? L.agent : null;
+  const meta1 = el("span", "meta mono");
+  if (ag) {
+    const hb = docAge;
+    meta1.textContent = "hb " + (hb === null ? UNREAD : fmtDur(hb)) +
+      " · cycle " + (ag.cycle === undefined || ag.cycle === null ? UNREAD : ag.cycle) +
+      (ag.consecutive_errors ? " · errors " + ag.consecutive_errors : "");
+  } else {
+    meta1.textContent = "no heartbeat, no cycle — nothing was read";
+  }
+  t1.appendChild(meta1);
+
+  if (ag && ag.detail) {
+    const dd = el("div", "card-foot", cut(ag.detail, 150));
+    dd.title = String(ag.detail);
+    card.appendChild(dd);
+  }
+  if (ag && ag.last_error) {
+    card.appendChild(el("div", "remedy", "last_error — " + cut(ag.last_error, 220)));
+  }
+  if (isUnread(ra)) card.appendChild(remedyNode(L ? L.agent_reason : S.boardReason, false));
+  else if (isStale(ra)) card.appendChild(remedyNode(L ? L.agent_reason : null, true));
+
+  card.appendChild(el("div", "tier-sep"));
+
+  /* ---- TIER 2 — MODEL: proportional, ROUND pill, lane colour. Judgment. ---- */
+  const t2 = put(card, el("div", "tier-model"));
+  t2.appendChild(el("span", "tier-label", "model"));
+  const b2 = el("span", "badge-pill " + modelBadgeClass(rm), rm || UNREAD);
+  b2.title = MODEL_MEANING[rm] || "not one of the five model states — rendered UNREAD.";
+  t2.appendChild(b2);
+  const md = L && L.model ? L.model : null;
+  const meta2 = el("span", "meta");
+  if (md) {
+    const inState = ageOfUtc(md.since_utc);
+    const bits = [];
+    bits.push(inState === null ? "in this state for " + UNREAD : "for " + fmtDur(inState));
+    if (md.source) bits.push("source: " + md.source);
+    meta2.textContent = bits.join(" · ");
+  } else {
+    meta2.textContent = "no model reading";
+  }
+  t2.appendChild(meta2);
+  if (md && md.note) {
+    const q = el("span", "note-q", "“" + cut(md.note, 70) + "”");
+    q.title = String(md.note);
+    t2.appendChild(q);
+  }
+  if (isUnread(rm)) card.appendChild(remedyNode(L ? L.model_reason : S.boardReason, false));
+  else if (isStale(rm)) card.appendChild(remedyNode(L ? L.model_reason : null, true));
+
+  /* sidecar reading — the model tier's own evidence */
+  if (md && md.sidecar) {
+    const sc = md.sidecar;
+    const f = el("div", "card-foot");
+    if (sc.status !== "ok") {
+      f.textContent = "sidecar " + UNREAD + " · " + cut(sc.reason || "no reason given", 150);
+      f.title = String(sc.reason || "");
+    } else {
+      f.textContent = "sidecar " + sc.state + " · ticket " + (sc.ticket || "—") +
+        " · sent " + (sc.sent === undefined ? UNREAD : sc.sent) +
+        " · confirmed " + (sc.confirmed === undefined ? UNREAD : sc.confirmed) +
+        " · " + (sc.updated_utc || UNREAD) +
+        (sc.occupant ? " · occupant " + sc.occupant : "");
+      f.title = "ack sidecar: " + (sc.path || "");
+    }
+    card.appendChild(f);
+  }
+
+  /* gate reading — mechanical, so it stays in the agent's typographic register */
+  if (L && L.gate) {
+    const g = L.gate;
+    const f = el("div", "card-foot");
+    const cmd = Array.isArray(g.last_cmd) ? g.last_cmd.slice(1).join(" ") : null;
+    f.textContent = "gate " + (g.status === "ok" ? "ok" : UNREAD) +
+      " · rc " + (g.last_rc === undefined || g.last_rc === null ? UNREAD : g.last_rc) +
+      (cmd ? " · " + cut(cmd, 90) : "") +
+      (g.last_utc ? " · " + ageWords(ageOfUtc(g.last_utc)) : "");
+    f.title = (g.coord_dir ? "FP_COORD " + g.coord_dir + "\n" : "") +
+              (g.last_stdout ? "stdout: " + g.last_stdout + "\n" : "") +
+              (g.last_stderr ? "stderr: " + g.last_stderr : "");
+    if (g.status !== "ok") f.style.color = "var(--unread)";
+    card.appendChild(f);
+  }
+
+  /* what this lane says it has in flight */
+  if (ag) {
+    const f = el("div", "card-foot");
+    const inf = L.in_flight;
+    if (inf) {
+      const a = aged(inf.age_s, S.boardAt);
+      f.textContent = "in flight: " + inf.id + " · " + inf.stage + " (" + (inf.stage_index || "?") + "/8) · " +
+        (a === null ? UNREAD : fmtDur(a)) + (inf.stalled ? " · STALLED" : "");
+      f.title = inf.subject ? String(inf.subject) : "";
+      if (inf.stalled) f.style.color = "var(--warn)";
+      f.style.cursor = "pointer";
+      f.addEventListener("click", () => { S.focusId = inf.id; S.pending = null; renderFlight(); });
+    } else {
+      f.textContent = "in flight: none — measured " + ageWords(docAge) + " by the catcher itself";
+    }
+    card.appendChild(f);
+  }
+  return card;
+}
+function rabCard() {
+  const card = el("section", "card lane-Rab");
+  const h = put(card, el("div", "card-h"));
+  h.appendChild(el("span", "lane-name", "Rab"));
+  h.appendChild(el("span", "doc-age", "the human lane"));
+  const r = S.board ? S.board.rab : null;
+  const t = put(card, el("div", "tier-model"));
+  t.appendChild(el("span", "tier-label", "human"));
+  const b = el("span", "badge-pill" + (r ? "" : " st-unread"), r ? "present" : UNREAD);
+  t.appendChild(b);
+  t.appendChild(el("span", "meta", r
+    ? (r.sse_clients === undefined ? "live clients " + UNREAD : r.sse_clients + " live client(s)") +
+      " · last said " + (r.last_say_utc ? ageWords(ageOfUtc(r.last_say_utc)) : "never in this log")
+    : "the board has not been read"));
+  card.appendChild(el("div", "card-foot", "no probe exists for a human's attention — " +
+    "whether Rab has read anything below is UNREAD, permanently, by construction."));
+  return card;
+}
+function renderBoard() {
+  const box = $("board");
+  clear(box);
+  box.classList.toggle("no-contact", S.transport === "none");
+
+  if (S.transport === "none") {
+    const o = el("div", "overlay", "NO CONTACT — nothing below is a current reading.");
+    o.appendChild(el("span", "small", "the newest reading is " +
+      (S.lastGoodReadMs ? fmtDur((Date.now() - S.lastGoodReadMs) / 1000) + " old" : "not taken at all") +
+      ". Neither the live stream nor the 2s poll is answering. Remedy: check the terminal running " +
+      "room.py serve, then reload this page with its ?token= URL."));
+    box.appendChild(o);
+  }
+
+  /* server chip card */
+  const sv = S.board ? S.board.server : null;
+  const svc = el("section", "card");
+  const svh = put(svc, el("div", "card-h"));
+  svh.appendChild(el("span", "lane-name", "server"));
+  const svAge = sv ? aged(sv.age_s, S.boardAt) : null;
+  svh.appendChild(el("span", "doc-age", sv ? "hb " + ageWords(svAge) : "hb " + UNREAD));
+  const svt = put(svc, el("div", "tier-agent"));
+  svt.appendChild(el("span", "tier-label", "agent"));
+  const svr = sv ? sv.rendered : UNREAD;
+  svt.appendChild(el("span", "badge-sq " + agentBadgeClass(svr === "ok" ? "watching" : svr), svr || UNREAD));
+  svt.appendChild(el("span", "meta mono", sv
+    ? "pid " + sv.pid + " · port " + sv.port + " · " + sv.token_mode
+    : "room.py serve has not been read"));
+  if (sv && sv.reason) svc.appendChild(remedyNode(sv.reason, isStale(svr)));
+  else if (!sv) svc.appendChild(remedyNode(S.boardReason, false));
+  box.appendChild(svc);
+
+  box.appendChild(rabCard());
+  const lanes = S.board ? S.board.lanes : null;
+  for (const lane of ["Fable", "Codex"]) {
+    box.appendChild(laneCard(lane, lanes ? lanes[lane] : null));
+  }
+
+  if (S.board && S.board.thresholds) {
+    const th = S.board.thresholds;
+    const f = el("section", "card");
+    const b = put(f, el("div", "card-foot"));
+    b.textContent = "thresholds in force · agent stale " + th.stale_after_s + "s · model stale " +
+      th.model_stale_after_s + "s · flight stall " + th.flight_stall_after_s + "s · declared fresh " +
+      th.declared_fresh_s + "s";
+    b.title = "these come from the server's config.json; each lane is judged by the thresholds its own " +
+              "document echoes, and an out-of-range echo renders UNREAD.";
+    box.appendChild(f);
+  }
+}
+
+/* =====================================================================
+   THE FLIGHT TRAIL — the "loading" Rab asked for (§7.4)
+   ===================================================================== */
+function stageChip(i, name, st, opts) {
+  const o = opts || {};
+  const c = el("div", "stg");
+  const head = put(c, el("span", "n", (i + 1) + "/8"));
+  head.textContent = (i + 1) + "/8";
+  c.appendChild(el("span", "nm", name));
+  const mt = el("span", "mt");
+
+  const isClient = CLIENT_STAGES.indexOf(name) >= 0;
+  const reached = !!(st && st.reached);
+  const failed = !!(st && st.ok === false);
+
+  if (o.blocked) {
+    c.classList.add("s-dim");
+    mt.textContent = "held — nothing renders reached above a failure";
+  } else if (failed) {
+    c.classList.add("s-bad");
+    mt.textContent = "FAILED · " + (st.by || "?");
+  } else if (reached && isClient) {
+    c.classList.add("s-client");
+    mt.textContent = st.utc ? fmtDur(ageOfUtc(st.utc)) + " ago" : "";
+    c.appendChild(mt);
+    c.appendChild(el("span", "tag", "client-asserted"));
+    c.title = STAGE_MEANING[name] + " — this claim exists only in this tab; it has no witness on disk " +
+              "and a reload legitimately loses it.";
+    if (o.current) c.classList.add("s-cur");
+    return c;
+  } else if (reached) {
+    c.classList.add(o.stalled && o.current ? "s-warn" : "s-ok");
+    const a = st.utc ? ageOfUtc(st.utc) : null;
+    mt.textContent = (st.by || (DERIVED_STAGES.indexOf(name) >= 0 ? "log" : "?")) +
+      (a === null ? "" : " · " + fmtDur(a));
+    if (o.stalled && o.current) {
+      c.appendChild(mt);
+      c.appendChild(el("span", "tag", "STALLED at " + name + " · " + (a === null ? UNREAD : fmtDur(a))));
+      return c;
+    }
+  } else if (isClient) {
+    c.classList.add("s-dim");
+    mt.textContent = "not asserted by this tab";
+  } else {
+    c.classList.add("s-dim");
+    mt.textContent = "not reached";
+  }
+  if (o.current && !c.classList.contains("s-bad") && !o.blocked) c.classList.add("s-cur");
+  c.appendChild(mt);
+  if (DERIVED_STAGES.indexOf(name) >= 0) c.appendChild(el("span", "tag", "derived from room.md"));
+  if (isClient && !reached) c.appendChild(el("span", "tag", "client-only"));
+  c.title = STAGE_MEANING[name] + (st && st.note ? "\n" + st.note : "");
+  return c;
+}
+
+function clientStagesFor(id) {
+  const p = S.pending;
+  if (p && p.id === id) return p;
+  return null;
+}
+
+function laneTrailNode(id, lane, T, laneBoard) {
+  const wrap = el("div", "lane-trail");
+  const head = put(wrap, el("div"));
+  head.appendChild(el("span", "trail-lane-name", "lane " + lane));
+
+  const rendered = T ? T.rendered : UNREAD;
+  const reason = T ? T.reason : null;
+  const unread = isUnread(rendered);
+  const failed = rendered === "FAILED";
+  const stalled = rendered === "STALLED";
+  if (unread) wrap.classList.add("hatched");
+
+  const stages = (T && Array.isArray(T.stages)) ? T.stages : [];
+  const byName = new Map();
+  for (const s of stages) if (s && s.name) byName.set(s.name, s);
+
+  /* client-only stages 1-2 live in this tab, not on disk */
+  const cs = clientStagesFor(id);
+  if (cs) {
+    if (cs.typed_utc) byName.set("typed", { name: "typed", reached: true, client_only: true, utc: cs.typed_utc, by: "browser" });
+    if (cs.transmitted_utc) byName.set("transmitted", {
+      name: "transmitted", reached: true, client_only: true, utc: cs.transmitted_utc, by: "browser",
+      ok: cs.failed ? false : true, note: cs.error || null
+    });
+  }
+
+  /* find the failure and the current stage */
+  let failIdx = -1, maxReached = -1;
+  for (let i = 0; i < STAGES.length; i++) {
+    const s = byName.get(STAGES[i]);
+    if (!s) continue;
+    if (s.ok === false && failIdx < 0) failIdx = i;
+    if (s.reached) maxReached = i;
+  }
+  if (failIdx >= 0 && maxReached > failIdx) maxReached = failIdx;
+  const currentIdx = failIdx >= 0 ? failIdx : Math.min(maxReached + 1, STAGES.length - 1);
+
+  const trail = put(wrap, el("div", "trail scroll-x"));
+  for (let i = 0; i < STAGES.length; i++) {
+    const name = STAGES[i];
+    const s = byName.get(name);
+    const blocked = failIdx >= 0 && i > failIdx;
+    const current = !unread && i === currentIdx && maxReached < STAGES.length - 1;
+    trail.appendChild(stageChip(i, name, blocked ? null : s, { blocked: blocked, current: current, stalled: stalled }));
+  }
+
+  /* the ticker: who is working, on what, for how long — not a spinner */
+  const tick = el("div", "ticker");
+  const stageName = STAGES[Math.max(0, maxReached)];
+  const stAge = T && T.age_s !== undefined && T.age_s !== null ? aged(T.age_s, S.flightsAt) : null;
+  if (unread) {
+    tick.className = "ticker unread";
+    tick.textContent = "⚠ " + lane + " · " + UNREAD + " · " +
+      (reason || "there is no flight record for this message and no reason was supplied.");
+  } else if (failed) {
+    tick.className = "ticker bad";
+    const f = byName.get(STAGES[failIdx]);
+    tick.textContent = "✕ " + lane + " · " + STAGES[failIdx] + " FAILED · " +
+      ((f && f.note) || reason || "no note was recorded, which is itself a defect.");
+  } else if (stalled) {
+    tick.className = "ticker warn";
+    tick.textContent = "⏸ " + lane + " · STALLED at " + stageName + " " +
+      (stAge === null ? "(age " + UNREAD + ")" : clockOf(stAge)) + " · " +
+      (reason || "no reason supplied.");
+  } else if (maxReached === STAGES.length - 1) {
+    tick.className = "ticker done";
+    tick.textContent = "✓ " + lane + " · replied · the round trip is complete on disk.";
+  } else {
+    tick.textContent = "⌛ " + lane + " · " + stageName + " " +
+      (stAge === null ? "(age " + UNREAD + ")" : clockOf(stAge)) + " · " + (STAGE_MEANING[stageName] || "");
+  }
+  wrap.appendChild(tick);
+
+  if (reason && !unread) {
+    wrap.appendChild(el("div", "remedy" + (stalled ? " warn" : ""), reason));
+  }
+  /* L1a on the trail: a blocked lane says so, in the lane's own words */
+  if (laneBoard && (isUnread(laneBoard.rendered_agent) || isStale(laneBoard.rendered_agent)) &&
+      maxReached < STAGES.length - 1) {
+    wrap.appendChild(el("div", "remedy",
+      "the " + lane + " agent renders " + laneBoard.rendered_agent + ", so this trail is not merely slow: " +
+      (laneBoard.agent_reason || "no remedy sentence was supplied with that reading.")));
+  }
+  return wrap;
+}
+
+function pendingTrailNode(p) {
+  const wrap = el("div", "lane-trail");
+  wrap.appendChild(el("div", null)).appendChild(el("span", "trail-lane-name", "this tab · no id yet"));
+  const trail = put(wrap, el("div", "trail scroll-x"));
+  for (let i = 0; i < STAGES.length; i++) {
+    const name = STAGES[i];
+    let s = null;
+    if (name === "typed" && p.typed_utc) s = { reached: true, utc: p.typed_utc, by: "browser" };
+    if (name === "transmitted" && p.transmitted_utc) {
+      s = { reached: true, utc: p.transmitted_utc, by: "browser", ok: p.failed ? false : true, note: p.error || null };
+    }
+    const blocked = p.failed && i > 1;
+    const current = !p.failed && ((p.transmitted_utc && i === 1) || (!p.transmitted_utc && i === 0));
+    trail.appendChild(stageChip(i, name, blocked ? null : s, { blocked: blocked, current: current }));
+  }
+  const t = el("div", "ticker" + (p.failed ? " bad" : ""));
+  t.textContent = p.failed
+    ? "✕ the send FAILED before it reached the log · " + (p.error || "no reason returned")
+    : "⌛ this tab · transmitted " + clockOf(ageOfUtc(p.transmitted_utc || p.typed_utc)) +
+      " · " + STAGE_MEANING["transmitted"] + " — stages 1-2 are client-asserted and have no witness on disk.";
+  wrap.appendChild(t);
+  return wrap;
+}
+
+function pickFlightId() {
+  if (S.focusId && (S.flights.has(S.focusId) || S.entries.has(S.focusId))) return S.focusId;
+  let best = null, bestUtc = "";
+  for (const [id, f] of S.flights) {
+    const complete = f.lanes && f.lanes.length
+      ? f.lanes.every((L) => f.trails && f.trails[L] && f.trails[L].stage === "replied")
+      : false;
+    if (complete) continue;
+    if (!best || (f.utc || "") > bestUtc) { best = id; bestUtc = f.utc || ""; }
+  }
+  if (best) return best;
+  for (const [id, f] of S.flights) if (!best || (f.utc || "") > bestUtc) { best = id; bestUtc = f.utc || ""; }
+  return best;
+}
+
+function renderFlight() {
+  const box = $("flight");
+  clear(box);
+
+  if (S.pending && !S.pending.id) {
+    const h = put(box, el("div", "flight-h"));
+    h.appendChild(el("span", "mono", "IN FLIGHT"));
+    h.appendChild(el("span", "subj", cut(S.pending.body, 90))).title = S.pending.body;
+    box.appendChild(pendingTrailNode(S.pending));
+    return;
+  }
+
+  const id = (S.pending && S.pending.id) ? S.pending.id : pickFlightId();
+  if (!id) {
+    box.appendChild(el("div", "ticker", "no message in flight — nothing has been sent in this room yet, " +
+      "or every trail is complete. (This is a reading of " +
+      (S.flightReason ? "a FAILED probe: " + S.flightReason : "GET /api/flight, which answered.") + ")"));
+    if (S.flightReason) box.lastChild.className = "ticker unread";
+    return;
+  }
+
+  const f = S.flights.get(id);
+  const e = S.entries.get(id);
+  const h = put(box, el("div", "flight-h"));
+  const idn = el("span", "mono", id);
+  h.appendChild(idn);
+  const frm = (f && f.from) || (e && e.from) || "?";
+  const to  = (f && f.to)  || (e && e.to)  || "?";
+  h.appendChild(el("span", "mono", frm + " → " + to));
+  const subj = el("span", "subj", cut((f && f.subject) || (e && e.body) || "", 90));
+  subj.title = (e && e.body) ? String(e.body) : ((f && f.subject) || "");
+  h.appendChild(subj);
+  const btn = el("button", "tiny", "newest");
+  btn.title = "stop pinning this trail and follow the newest message in flight";
+  btn.addEventListener("click", () => { S.focusId = null; renderFlight(); });
+  h.appendChild(btn);
+
+  if (!f) {
+    /* No trail object for a message we can see. NEVER an empty trail and never `typed`:
+       all eight chips render, hatched, with the client-asserted half still visible and
+       this tab's own UNREAD verdict spelled out. (§5.5) */
+    const synth = {
+      rendered: UNREAD,
+      reason: "GET /api/flight returned no trail for " + id + ". " +
+        (S.flightReason || "Either the flight reading has not caught up with this message yet, or " +
+         "room.py serve is not answering — a missing trail is not an idle trail."),
+      stages: [], age_s: null, torn: 0, invalid: 0
+    };
+    const guess = (to === "all") ? ["Fable", "Codex"] : ((to === "Fable" || to === "Codex") ? [to] : ["unknown lane"]);
+    const lb = S.board ? S.board.lanes : null;
+    for (const lane of guess) box.appendChild(laneTrailNode(id, lane, synth, lb ? lb[lane] : null));
+    return;
+  }
+
+  if (f.file_status && f.file_status !== "ok" && (!f.lanes || !f.lanes.length)) {
+    box.appendChild(el("div", "remedy", "flight file " + f.file_status + " — " +
+      (f.read_utc ? "read " + ageWords(ageOfUtc(f.read_utc)) : "read time " + UNREAD)));
+  }
+
+  /* to: Rab — three stages, then the honest sentence (§5.5) */
+  if (!f.lanes || f.lanes.length === 0) {
+    const wrap = el("div", "lane-trail");
+    wrap.appendChild(el("div", null)).appendChild(el("span", "trail-lane-name", "to Rab · no lane trail exists"));
+    const trail = put(wrap, el("div", "trail scroll-x"));
+    const cs = clientStagesFor(id);
+    for (let i = 0; i < 3; i++) {
+      const name = STAGES[i];
+      let s = null;
+      if (name === "typed" && cs && cs.typed_utc) s = { reached: true, utc: cs.typed_utc, by: "browser" };
+      if (name === "transmitted" && cs && cs.transmitted_utc) s = { reached: true, utc: cs.transmitted_utc, by: "browser" };
+      if (name === "landed") s = { reached: !!(e || f.utc), utc: f.utc || (e && e.utc), by: "log" };
+      trail.appendChild(stageChip(i, name, s, { current: i === 2 }));
+    }
+    wrap.appendChild(el("div", "ticker", "landed · DELIVERED TO THE ROOM — whether Rab has read it is " +
+      UNREAD + " (there is no probe for a human's attention)."));
+    box.appendChild(wrap);
+    return;
+  }
+
+  const lanes = S.board ? S.board.lanes : null;
+  for (const lane of f.lanes) {
+    box.appendChild(laneTrailNode(id, lane, f.trails ? f.trails[lane] : null, lanes ? lanes[lane] : null));
+  }
+  const bad = (f.torn || 0);
+  if (bad) box.appendChild(el("div", "remedy warn", bad + " unparseable line(s) in the flight file — " +
+    "counted, never dropped from the reading."));
+}
+
+/* =====================================================================
+   THE COMPOSER
+   ===================================================================== */
+function setReplyTarget(id) {
+  S.replyTo = id || null;
+  $("re-wrap").hidden = !id;
+  $("re-id").textContent = id || "";
+}
+function cstatus(text, cls) {
+  const n = $("c-status");
+  n.className = "c-status" + (cls ? " " + cls : "");
+  n.textContent = text || "";
+}
+async function send() {
+  const ta = $("say");
+  const body = ta.value;
+  if (!body.trim()) { cstatus("nothing to send — the body is blank.", "err"); return; }
+
+  const now = new Date().toISOString();
+  S.pending = { id: null, body: body, typed_utc: now, transmitted_utc: null, failed: false, error: null };
+  S.focusId = null;
+  renderFlight();
+
+  const payload = {
+    from: "Rab",
+    to: $("to").value,
+    re: S.replyTo || null,
+    kind: "say",
+    body: body
+  };
+  $("send").disabled = true;
+  S.pending.transmitted_utc = new Date().toISOString();
+  cstatus("transmitting… (stage 2 of 8; nothing is on disk yet)");
+  renderFlight();
+
+  let res = null, j = null;
+  try {
+    res = await fetch("/api/say", {
+      method: "POST",
+      headers: { "Content-Type": "application/json", "X-FP-Token": TOKEN || "" },
+      body: JSON.stringify(payload)
+    });
+    const text = await res.text();
+    try { j = JSON.parse(text); } catch (err) { j = { error: "the server answered with something that is not JSON: " + cut(text, 200) }; }
+  } catch (err) {
+    S.pending.failed = true;
+    S.pending.error = "the POST never completed: " + String(err && err.message ? err.message : err) +
+      " — is room.py serve still running in its terminal?";
+    cstatus(S.pending.error, "err");
+    $("send").disabled = false;
+    renderFlight();
+    return;
+  }
+  $("send").disabled = false;
+
+  if (!res.ok || !j || !j.id) {
+    S.pending.failed = true;
+    /* the server's remedy is rendered VERBATIM (§3.2) */
+    S.pending.error = (j && j.error) ? String(j.error) : ("HTTP " + res.status + " with no remedy text.");
+    cstatus(S.pending.error, "err");
+    renderFlight();
+    return;
+  }
+
+  S.pending.id = j.id;
+  S.focusId = j.id;
+  ta.value = "";
+  setReplyTarget(null);
+  let msg = "landed as " + j.id + " · stage " + (j.stage || "landed") +
+    " · lanes: " + ((j.lanes && j.lanes.length) ? j.lanes.join(", ") : "none (to Rab)");
+  if (j.re_resolved === false) msg += " · re: " + payload.re + " (UNRESOLVED — that id is not in the log)";
+  cstatus(msg, "ok");
+  renderFlight();
+  refreshAll(false);
+}
+
+/* =====================================================================
+   TRANSPORT — SSE first, mandatory polling fallback, both states shown
+   ===================================================================== */
+async function getJSON(path) {
+  S.reading++;
+  try {
+    const res = await fetch(path, { headers: { "Accept": "application/json" } });
+    const text = await res.text();
+    const j = JSON.parse(text);
+    S.lastGoodReadMs = Date.now();
+    return j;
+  } finally {
+    S.reading--;
+  }
+}
+function applyLog(j) {
+  if (!j) return;
+  S.sinceResolved = j.since_resolved !== false;
+  S.logMeta = {
+    log_status: j.log_status, reason: j.reason, count: j.count,
+    torn: j.torn, debris: Array.isArray(j.debris) ? j.debris.length : (j.debris || 0),
+    bytes: j.bytes, read_utc: j.read_utc
+  };
+  S.logReason = j.reason || S.logReason;
+  if (Array.isArray(j.entries)) for (const e of j.entries) addEntry(e);
+  else sortOrder();
+}
+function applyFlights(j) {
+  if (!j) return;
+  S.flightsAt = Date.now();
+  S.flightReason = null;
+  if (j.flights && typeof j.flights === "object") {
+    for (const k of Object.keys(j.flights)) S.flights.set(k, j.flights[k]);
+  }
+  if (j.flight && j.flight.id) S.flights.set(j.flight.id, j.flight);
+}
+function applyBoard(j) {
+  if (!j) return;
+  S.board = j;
+  S.boardAt = Date.now();
+  if (j.thresholds) {
+    for (const k of Object.keys(D)) if (j.thresholds[k] !== undefined) D[k] = j.thresholds[k];
+  }
+}
+async function refreshAll(full) {
+  const since = (!full && S.cursor) ? ("?since=" + encodeURIComponent(S.cursor)) : "";
+  const tasks = [
+    getJSON("/api/log" + since).then(applyLog, (e) => {
+      S.logMeta = { log_status: UNREAD, reason: "GET /api/log failed: " + String(e && e.message ? e.message : e) +
+        " — the server is not answering. Check the terminal running room.py serve.", count: 0, torn: 0, debris: 0, bytes: 0, read_utc: null };
+    }),
+    getJSON("/api/status").then(applyBoard, (e) => {
+      S.board = null;
+      S.boardReason = "GET /api/status failed: " + String(e && e.message ? e.message : e) +
+        " — every lane below is UNREAD because no probe succeeded, not because the lanes are quiet.";
+    }),
+    getJSON("/api/flight").then(applyFlights, (e) => {
+      S.flightReason = "GET /api/flight failed: " + String(e && e.message ? e.message : e);
+    })
+  ];
+  await Promise.all(tasks);
+  draw();
+}
+async function refreshHealth() {
+  try { S.health = await getJSON("/api/health"); } catch (e) { S.health = null; }
+}
+
+function openStream() {
+  if (typeof EventSource === "undefined") { S.transport = "poll"; return; }
+  try { if (S.es) S.es.close(); } catch (e) { /* nothing to close */ }
+  let es;
+  try { es = new EventSource("/api/events"); } catch (e) { S.transport = "poll"; return; }
+  S.es = es;
+  const frame = () => { S.lastFrameMs = Date.now(); S.lastGoodReadMs = Date.now(); S.transport = "live"; };
+  es.addEventListener("hello", (ev) => {
+    frame();
+    try { const j = JSON.parse(ev.data); if (j.health) S.health = j.health; } catch (e) { /* keep the old health reading */ }
+    /* the stream is a change notifier, not a backlog — fetch it explicitly */
+    refreshAll(true);
+  });
+  es.addEventListener("entry", (ev) => {
+    frame();
+    try { addEntry(JSON.parse(ev.data)); } catch (e) { /* a malformed frame is not a new entry */ }
+    draw();
+  });
+  es.addEventListener("log", (ev) => {
+    frame();
+    try {
+      const j = JSON.parse(ev.data);
+      S.logMeta = { log_status: j.log_status, reason: j.reason, count: j.count, torn: j.torn,
+                    debris: j.debris, bytes: j.bytes, read_utc: j.read_utc };
+    } catch (e) { /* keep the previous reading */ }
+    draw();
+  });
+  es.addEventListener("flight", (ev) => {
+    frame();
+    try { const j = JSON.parse(ev.data); if (j && j.id) { S.flights.set(j.id, j); S.flightsAt = Date.now(); } } catch (e) { /* ignore */ }
+    draw();
+  });
+  es.addEventListener("status", (ev) => {
+    frame();
+    try { applyBoard(JSON.parse(ev.data)); } catch (e) { /* ignore */ }
+    draw();
+  });
+  es.addEventListener("ping", () => { frame(); renderChips(); });
+  es.addEventListener("bye", (ev) => {
+    frame();
+    S.bye = "the server said it is stopping";
+    try { const j = JSON.parse(ev.data); if (j.reason) S.bye = j.reason; } catch (e) { /* ignore */ }
+    S.transport = "poll";
+    draw();
+  });
+  es.onmessage = frame;
+  es.onerror = () => {
+    /* EventSource reconnects on its own; the watchdog decides what to render */
+    if (Date.now() - S.lastFrameMs > D.sse_dead_s * 1000) S.transport = "poll";
+    renderChips();
+  };
+}
+
+function watchdog() {
+  const now = Date.now();
+  const frameAge = (now - S.lastFrameMs) / 1000;
+  const readAge = S.lastGoodReadMs ? (now - S.lastGoodReadMs) / 1000 : Infinity;
+
+  if (S.lastFrameMs && frameAge <= D.sse_dead_s) S.transport = "live";
+  else if (S.lastGoodReadMs && readAge <= D.no_contact_s) S.transport = "poll";
+  else if (S.lastGoodReadMs || S.startedLongAgo) S.transport = "none";
+
+  if (S.transport !== "live" && (now - S.lastPollMs) >= D.poll_fallback_ms) {
+    S.lastPollMs = now;
+    refreshAll(false);
+    if (!S.health) refreshHealth();
+    if (S.transport === "none" && (now - (S.reopenedAt || 0)) > 10000) {
+      S.reopenedAt = now;
+      openStream();           /* keep trying to get back to LIVE */
+    }
+  }
+  draw();
+}
+
+/* =====================================================================
+   DRAW
+   ===================================================================== */
+function draw() {
+  renderChips();
+  if (S.entriesRev !== S.drawnRev) {
+    S.drawnRev = S.entriesRev;
+    renderConversation();
+    renderStrip();
+  }
+  renderBoard();
+  renderFlight();
+}
+
+/* ---------- theme ---------- */
+function themeCycle() {
+  const cur = document.documentElement.getAttribute("data-theme");
+  const next = cur === null ? "light" : (cur === "light" ? "dark" : null);
+  if (next === null) document.documentElement.removeAttribute("data-theme");
+  else document.documentElement.setAttribute("data-theme", next);
+  $("theme").textContent = "theme: " + (next === null ? "system" : next);
+  try { if (next === null) localStorage.removeItem("rr-theme"); else localStorage.setItem("rr-theme", next); }
+  catch (e) { /* storage is a convenience, never a requirement */ }
+}
+function themeBoot() {
+  let t = null;
+  try { t = localStorage.getItem("rr-theme"); } catch (e) { t = null; }
+  if (t === "light" || t === "dark") {
+    document.documentElement.setAttribute("data-theme", t);
+    $("theme").textContent = "theme: " + t;
+  }
+}
+
+/* ---------- boot ---------- */
+function boot() {
+  themeBoot();
+  $("theme").addEventListener("click", themeCycle);
+  $("send").addEventListener("click", send);
+  $("re-clear").addEventListener("click", () => setReplyTarget(null));
+  $("say").addEventListener("keydown", (ev) => {
+    if (ev.key === "Enter" && (ev.ctrlKey || ev.metaKey)) { ev.preventDefault(); send(); }
+  });
+  setReplyTarget(null);
+
+  if (!TOKEN) {
+    cstatus("no ?token= in this URL. Mutating routes fail closed: a send will be refused with the " +
+            "server's remedy. Reload with the URL room.py printed at launch.", "err");
+  }
+
+  draw();
+  refreshHealth().then(() => draw());
+  refreshAll(true);
+  openStream();
+  setTimeout(() => { S.startedLongAgo = true; }, 6000);
+  setInterval(watchdog, 1000);
+}
+if (document.readyState === "loading") document.addEventListener("DOMContentLoaded", boot);
+else boot();
+</script>
+</body>
+</html>

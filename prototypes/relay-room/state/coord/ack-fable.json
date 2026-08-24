@@ -1,0 +1,11 @@
+{
+  "writer": "Fable",
+  "protocol": "fp-relay-ack/v1",
+  "updated_utc": "2026-08-24T17:15Z",
+  "state": "idle",
+  "occupant": null,
+  "current_ticket": null,
+  "sent": [],
+  "confirmed": [],
+  "escalations": []
+}

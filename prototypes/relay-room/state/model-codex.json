@@ -1,0 +1,9 @@
+{
+  "protocol": "fp-relay-room/v1",
+  "writer": "room.py",
+  "lane": "Codex",
+  "state": "composing",
+  "ticket": null,
+  "note": "drafting",
+  "utc": "2026-08-24T17:18:27.027Z"
+}

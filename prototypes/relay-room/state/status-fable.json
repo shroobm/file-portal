@@ -1,0 +1,74 @@
+{
+  "protocol": "fp-relay-room/v1",
+  "writer": "catcher:Fable",
+  "lane": "Fable",
+  "pid": 32456,
+  "started_utc": "2026-08-24T17:15:53.553Z",
+  "heartbeat_utc": "2026-08-24T17:15:53.574Z",
+  "cycle": 1,
+  "heartbeat_interval_s": 2.0,
+  "stale_after_s": 15.0,
+  "model_stale_after_s": 300.0,
+  "agent": {
+    "state": "watching",
+    "since_utc": "2026-08-24T17:15:53.553Z",
+    "detail": "polling state/room.md (1 entries, 1312 B) + state/coord/ack-fable.json · nothing in flight",
+    "last_error": null,
+    "consecutive_errors": 0,
+    "log_read": {
+      "status": "ok",
+      "reason": null,
+      "count": 1,
+      "torn": 0,
+      "debris": 0,
+      "bytes": 1312,
+      "read_utc": "2026-08-24T17:15:53.567Z"
+    },
+    "journal": {
+      "path": "state/handled-fable.json",
+      "status": "new",
+      "mirrored": 0
+    }
+  },
+  "model": {
+    "state": "idle",
+    "source": "sidecar",
+    "since_utc": "2026-08-24T17:15:53.574Z",
+    "note": null,
+    "sidecar": {
+      "status": "ok",
+      "state": "idle",
+      "state_note": null,
+      "ticket": null,
+      "sent": 0,
+      "confirmed": 0,
+      "escalations_open": 0,
+      "occupant": "UNDECLARED",
+      "updated_utc": "2026-08-24T17:15Z",
+      "age_s": 53.574651,
+      "path": "state/coord/ack-fable.json",
+      "reason": null
+    },
+    "declared": {
+      "status": "UNREAD",
+      "state": null,
+      "utc": null,
+      "age_s": null,
+      "ticket": null,
+      "note": null,
+      "path": "state/model-fable.json",
+      "reason": "state/model-fable.json does not exist - the Fable model has not declared its layer state. It is optional: `python room.py state --lane Fable --state working --note \"...\"` writes it. Without it the sidecar is the only reading."
+    }
+  },
+  "in_flight": null,
+  "gate": {
+    "status": "ok",
+    "reason": null,
+    "coord_dir": "C:\\Users\\Bndit\\Projects\\file-portal\\prototypes\\relay-room\\state\\coord",
+    "last_cmd": null,
+    "last_rc": null,
+    "last_utc": null,
+    "last_stdout": null,
+    "last_stderr": null
+  }
+}
