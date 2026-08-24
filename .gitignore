@@ -60,3 +60,12 @@ wiki/profiles/*.private.md
 # Divergent by design and resolved only by Codex's harness; never by Claude Code.
 # Tracked canonical skills live in .claude/skills/.
 .agents/
+
+# --- The private layer (S108, Rab's correction 2026-08-24) ---
+# Both models share this filesystem; the only boundary that ever mattered is the PUSH.
+# Evidence that must be readable locally but never world-readable lives here. The bus
+# carries the pointer + digest; these bytes never leave the machine.
+# The ignore boundary follows the OWNERSHIP boundary that single-writer already sets.
+coordination/private/*
+!coordination/private/README.md
+codex/private/
