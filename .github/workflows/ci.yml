@@ -4,7 +4,7 @@
 #         the converter (the converter writes the vault — it is the last code that should be
 #         unverified). S108 (lane B2): the LIVE windows-converter lane joins, warn-only — ruff
 #         check + its one CI-safe hermetic selftest; the inline comments name what is excluded
-#         and why.
+#         and why. Also warn-only: observability/acceptance.py, the governance suite (A29).
 # rust:   cargo fmt + clippy for the Tauri widget, run on windows-latest because that is the
 #         widget's actual target and Tauri compiles there without extra system libraries
 #         (Linux runners would need the whole webkit2gtk stack just to type-check).
@@ -27,6 +27,12 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+        with:
+          # S108 (lane B2): observability/acceptance.py §5/§6 probe HEAD~1..HEAD~39 for a real
+          # exercising diff, and its stale-signature check returns False — a FAIL about the
+          # clone, not the code — when no such ref exists. The default shallow clone (depth 1)
+          # has none; 40 commits cover the probe's whole range.
+          fetch-depth: 40
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -84,6 +90,13 @@ jobs:
         working-directory: windows-converter
         continue-on-error: true
         run: python figure_coverage_selftest.py
+      # S108 (lane B2), register A29's smallest slice: the governance acceptance suite runs
+      # where a human will see it. stdlib+ast only — no installs. Desktop run 2026-08-23
+      # (py3.12): "PASS — 41/41 checks", exit 0. Needs the deepened checkout above for its
+      # §5/§6 --since probes. Warn-only per the S108 standard until observed on ubuntu/py3.11.
+      - name: Governance acceptance (observability, warn-only)
+        continue-on-error: true
+        run: python observability/acceptance.py
 
   rust:
     # SYM-020 (found S67, cleared S68 2026-08-10): fmt drift across 8 files had accumulated while
