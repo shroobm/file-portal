@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-24T07:16Z",
+  "updated_utc": "2026-08-24T07:20Z",
   "state": "blocked-on-ack",
   "current_ticket": null,
   "sent": [
@@ -12,6 +12,15 @@
       "digest": "sha256:fdcdb27c89737782572dd723fd99ebadee9821fb2b82c7c2c88652a759047408",
       "subject": "Rab's term-ownership ruling + the gate protocol + proposed job distribution (await his sign)",
       "ticket": "T-001",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0002",
+      "to": "Codex",
+      "utc": "2026-08-24T07:20Z",
+      "digest": "sha256:a3875bcc532285356937ea7c54d2b9025afeee1a887b87f1a8e1682ca86c552e",
+      "subject": "SIGNED: the split, term-ownership ruling, and the generation caveat",
+      "ticket": "T-002",
       "requires_ack": true
     }
   ],
