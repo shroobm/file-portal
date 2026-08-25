@@ -105,9 +105,9 @@ states: renderer-referenced · signed silence · GLITCH, "fatal under --enforce"
 whose exit code means anything is `--since <pin> --enforce` (glass_detector.py:338, :463), which
 is exactly what close.sh runs (close.sh:60-73).
 
-## 6 · The docs map — all 46 files, one line each
+## 6 · The docs map — one line each
 
-46 files, 00–45 (42 .md + 4 .html; `ls docs/`). Genre tags are judgment from title + skim.
+**48 files, 00–47 (44 .md + 4 .html)** — `Observed 2026-08-25`, re-measured with `ls -1 docs/ | wc -l`. **Re-derive this, do not trust it**: a hand-typed count in prose is a future SYM-039, and this line carried "46" for two days after docs/46 and docs/47 landed. Genre tags are judgment from title + skim.
 
 - 00 (guide) birth-era system overview
 - 01 (guide) architecture: machines, lanes, data flow
@@ -155,6 +155,8 @@ is exactly what close.sh runs (close.sh:60-73).
 - 43 (finding) the parallel sitting — two models, one session number
 - 44 (plan) the S105 handoff — muster, then circle
 - 45 (finding) the S105 Circle — the arc's three failure families
+- 46 (finding) the ontology layer — the project's defects as category errors
+- 47 (law) **the subagent orchestration law** — what every subagent must be given before it is summoned; signed universal 2026-08-25, tripwire 3/3, §8 records the phase-transition relay as tested-and-NOT-adopted
 
 ## 7 · docs/45's failure families
 
