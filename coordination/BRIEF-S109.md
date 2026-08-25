@@ -106,6 +106,11 @@ permissive.
 A register untouched for 2+ days prints a staleness warning; a *missing* register is `UNREAD` and
 exits 1, never "nothing open". None was stale at this open.
 
+⚠ **These are OPENING counts and this sitting moved two of them.** By its end: **55 symptom rows**
+(SYM-055 filed) and **14 `§J` items** (J12–J14), plus **F12** and **A44**. §2 records each. The
+counts above are `Historical` by the time you read them — **re-measure before acting on any of
+them**, which is what the muster card exists to do.
+
 **Register composition** (`Historical 2026-08-24`, from `OPEN-TASKS.md` §0): 43 open semantic
 decisions · 31 mechanical items · 14 genuinely open symptom rows + 4 falsely-open · 8 delegations
 never collected · 7 of 7 completeness-slate items unfinished · 11 record-integrity repairs.
