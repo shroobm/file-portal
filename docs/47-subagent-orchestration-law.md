@@ -128,6 +128,25 @@ are genuine module-level definitions" is `Inferred`, and it named the command th
   case, and until it has one it is a proxy with a birth certificate.
 - **It cannot catch a lane that lies.** It raises the cost of silent divergence; it does not
   eliminate it.
+- **IT BINDS THE AGENTS AND NOT THE ORCHESTRATOR — and that is not a hypothetical gap.** §3 requires
+  every lane to build a NEGATIVE CONTROL before trusting its instrument. Nothing in this law binds
+  the orchestrator's OWN probes, and in the single sitting that wrote it the orchestrator shipped
+  **three defective instruments**:
+
+  | # | the probe | the defect | the rule it broke |
+  |---|---|---|---|
+  | 1 | mutation-fleet schema | a `notes` field on the control lane and none on the five lanes that needed it | §3 "a provenance field in EVERY schema" |
+  | 2 | analyst monitor, v1 | `ps -W \| grep -c convert_and_ship` returned `0` for a process that was alive — Git Bash cannot see full command lines | rule 4: **a failed probe rendering as a negative observation** |
+  | 3 | analyst monitor, v2 | GPU utilisation placed in the change-detection key, so `93% → 92%` counted as a state change and the watch fired on jitter | a noisy field in a comparison key is a broken signal |
+
+  Every one would have been caught by thirty seconds of the discipline this document demands of
+  subagents: **run the probe against a state whose answer you already know.** #2 in particular is the
+  exact defect that `open.sh` was once bitten by — MSYS rewrote `/FI`, `tasklist` errored to stderr,
+  the error was swallowed, and the card printed `widget down` while PID 10048 was alive.
+
+  **The rule that follows, and it is not yet tripwired:** an orchestrator's monitor, census or probe
+  is an instrument under this law exactly as a lane is. It gets a negative control before its output
+  is believed, and a field whose value is noise never enters a comparison key.
 
 ## §8 THE PHASE-TRANSITION RELAY — TESTED 2026-08-25, **NOT ADOPTED**
 
