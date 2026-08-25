@@ -389,7 +389,7 @@ the other 115 chunks   1627 s   =  14.1 s/chunk
 own original estimate of **13.9 s/chunk** — **the estimate was never wrong.** The entire overrun is
 timeouts. The machine is exactly as fast as it said it was; three chunks are eating the afternoon.
 
-That reframes SYM-056's proposed guard: balancing every `\\begin{X}` against its `\\end{X}` on
+That reframes SYM-056's proposed guard: balancing every `\begin{X}` against its `\end{X}` on
 converter output is not a tidiness fix — **on this book it is most of the runtime.**
 
 ⚠ **The causal link is still `Inferred` and cannot be closed from here.** That the unterminated
