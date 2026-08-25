@@ -496,10 +496,18 @@ validator — which on this book would have saved **half the analyst lane**.
 pipeline can take a 2-up, table-dense book **without shipping 60 broken math environments** — and
 Ashby is now the fifth book in `held/` because the audit correctly refused it.
 
-### 3.7 CI
+### 3.7 CI — **GREEN, observed by hand after the push**
 
-*Filled after the push, by hand — `close.sh`'s CI check cannot fire in this cadence (`docs/45` F16),
-and a run still in progress is not a green.*
+`Observed 2026-08-25T05:54:27Z`. Workflow **CI**, `status=completed conclusion=success`, for HEAD
+**`a1c40d2`** — queried through the stored git credential against
+`api.github.com/repos/shroobm/file-portal/actions/runs?head_sha=<full>`.
+
+**It was `in_progress` at the moment of the close and was NOT called a green then.** That distinction
+is the entire reason this section exists: `close.sh`'s own CI check cannot fire in this cadence
+(`docs/45` F16), and **S101, S102 and S103 all closed reporting clean on top of a red** because
+nobody looked after the push. A watch was armed that emits on *every* terminal state — success,
+failure, cancelled, timed_out — rather than only on the happy path, so silence could not have been
+mistaken for health.
 
 ---
 
