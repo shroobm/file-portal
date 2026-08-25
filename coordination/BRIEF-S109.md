@@ -380,14 +380,20 @@ read and a live predictive test whose answer was recorded before it was known.
 **What is actually wrong is narrower, and larger than it looks:**
 
 ```
-analyst wall           4327 s over 118 chunks
-3 timeouts x 900 s     2700 s   ->  PRODUCED NOTHING
-the other 115 chunks   1627 s   =  14.1 s/chunk
+analyst duration_s     5413.3 s over 182 chunks   (frontmatter, final)
+3 timeouts x 900 s     2700.0 s  ->  PRODUCED NOTHING
+the other 179 chunks   2713.3 s  =   15.2 s/chunk
 ```
 
-**62 % of the analyst lane went to 2.5 % of the chunks.** And 14.1 s/chunk against the pipeline's
+**49.9 % of the analyst lane went to 1.6 % of the chunks.** And 15.2 s/chunk against the pipeline's
 own original estimate of **13.9 s/chunk** — **the estimate was never wrong.** The entire overrun is
-timeouts. The machine is exactly as fast as it said it was; three chunks are eating the afternoon.
+timeouts. The machine is as fast as it said it was; three chunks ate half the lane.
+
+⚠ **Mid-run this section read *40 unterminated* and *62 %*. Both were computed on a partial run and
+are superseded** — the true figures are **60** and **49.9 %**. The percentage fell because the tail
+ran clean; the array count rose because 27 chunks had not yet been written when I first measured.
+Neither error would have been visible from inside the moment it was made, which is the whole reason
+a number gets re-measured at the end rather than quoted from the middle.
 
 That reframes SYM-056's proposed guard: balancing every `\begin{X}` against its `\end{X}` on
 converter output is not a tidiness fix — **on this book it is most of the runtime.**
