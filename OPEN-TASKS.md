@@ -262,6 +262,7 @@ every Investment Valuation figure computed before the map repair.
 | F9 | **S96's untouched next-entry list** was inherited `Historical` by S97 and **still requires explicit prioritization rather than silent displacement** | S97 §18.4 |
 | F10 | **The stale pre-rewind `survival-audit-spec.md`** in the working dir — superseded by `docs/15`, deletable, Rab's call | memory `file-portal-project` |
 | F11 | **This register** — work it down or delete it (see the header warning) | new today |
+| F12 | **`SYM-051(b)` cites "RAM 15.9 GB total"; the machine measures 31.9 GB.** Its whole memory-exhaustion argument rests on `0.7 GB free, 95.6 pct used` against a 15.9 GB total. Measured `2026-08-25T03:5xZ`: `Win32_OperatingSystem` reports **32,698 MB total, 11,121 MB free, 66.0 pct used**. Either RAM was added since 2026-08-21 or the original reading was wrong — **from here those are indistinguishable and a session may not guess.** SYM-039's class: a hardcoded number in prose contradicting a live probe. If it is an upgrade, it partially CLOSES SYM-051(b) and that row must say so | `Observed 2026-08-25` (S109 second sitting, process census). **Resolve by asking Rab whether RAM was added**, then correct the row in place with the date — do not silently overwrite evidence |
 
 ---
 
