@@ -193,6 +193,48 @@ sittings; S108 ran a post-close arc.
 `Observed`. Recorded the sitting's commission as **§18** of the S109 closeout *before* any work —
 `docs/28`'s chokepoint, recording precedes action. §1 left byte-identical, as its contract requires.
 
+### 2.2 The context dump, and what verifying it changed (03:0x–03:2xZ)
+
+Rab pasted the tail of the first sitting's transcript. **A transcript is not proof**
+(`coordination/SIGNATURES.md`), so its six checkable claims were checked rather than inherited.
+
+| the dump claimed | probe | verdict |
+|---|---|---|
+| tree 0 modified, 0 ahead of origin | `git status --porcelain`, `git rev-list --left-right --count` | `Observed` — tree clean; **ahead 1**, not 0, because this sitting committed `acb3686` |
+| "nothing running except the atlas sim on 8765" | `Get-CimInstance Win32_Process -Filter "Name='python.exe'"` + `Get-NetTCPConnection -State Listen` | **`Verified`** — two python procs, both the atlas sim (parent+child). **All seven SYM-054 orphans are gone**: 7199/7211/7222/7223/7224 absent. Port 7680 is `svchost`, not ours |
+| two Gmail drafts waiting | `list_drafts` | `Observed` — both present: *"C0 conversion steps for tonight + the full report (48 commits)"* (22:08Z) and *"Research directions — the groundedness lane"* (23:35Z) |
+| `events.jsonl` at 137 | `wc -l ~/ml/library/events.jsonl` | `Observed` — **137**, last line `2026-08-14T03:32:13Z`, a `gate resolved` event. Unmoved for 11 days |
+| muster exit 0, clocks reconcile | `open.sh` | `Observed` — reproduced independently at this sitting's open |
+| widget down, `.gpu-lock` absent | card + `nvidia-smi` | `Observed` — widget down; GPU **2755/10240 MiB, 11 %**, ollama resident. `query user`: one session, `bndit`, console, active. **Law 8 clear** |
+
+**The one correction:** *"0 ahead of origin"* was true when written and is not true now. Nothing else
+in the dump failed verification, and the SYM-054 orphan check came back clean — that symptom's
+specimen processes are dead.
+
+`Observed`. **C0 is blocked on a book.** `drop/` holds no PDF. The recipe in the Gmail draft §1
+names **Ashby, *An Introduction to Cybernetics*** — and it is **not on this machine** (34 PDFs in
+`Downloads`, none Ashby). Acquiring it is a download, which needs Rab's explicit word. Candidates
+already on disk and not yet in `anchor/`: Kleppmann *Designing Data Intensive Applications* (23 MB,
+born-digital), *The Unicode Standard v13.0* (13 MB), Bulgakov *Master and Margarita* (1 MB, prose
+only). **Unresolved at the time of writing.**
+
+`Observed`. **Mutation testing launched on `gate.py`** (`wrwrlajds`) — the recommendation from the
+research draft's §7. Five lanes over digest / guards / lifecycle / sidecar / thresholds, each in its
+own git worktree, gated behind a positive-control baseline that stops the run if the suite is not
+green on unmutated code. **Pre-checked for SYM-054**: `selftest.py` imports only
+`io/json/os/subprocess/sys/tempfile/pathlib` and binds no port, so this fleet cannot leak a server
+the way the relay-room lane did. A process census follows the run regardless — the symptom's whole
+lesson is that a fleet's file audit cannot see what it left running.
+
+`Observed`. **Ruled against re-opening the first sitting to take the close.** It is alive and
+addressable (`file-portal-76 [6cf02a]`, 18 h). Two instances closing one session number is SYM-045's
+exact shape one level up — that row is OPEN with no mechanical guard and its cause line reads *"the
+open probe cannot see a close that has not happened yet."* The first sitting had itself declined
+the close and handed it forward. **Rab's counter-proposal, adopted:** after this sitting finishes,
+he asks that session to audit this record from the outside — free recall FIRST, comparison second,
+report-not-edit, everything it says tagged `Inferred` unless it re-runs a probe. That is an
+uncorrelated check, which is the one thing this apparatus has almost none of.
+
 <!-- APPEND FURTHER 2.x ENTRIES HERE AS THE SITTING RUNS -->
 
 ---
@@ -361,5 +403,43 @@ renders `UNREAD`, never `0.0`.** The tag says what *kind* of claim it is; `docs/
 *counts*; a number needs both.
 
 ---
+
+---
+
+## §6 WHAT THIS BRIEF DOES NOT KNOW — the seams, named on purpose
+
+*A record that lists only what it knows invites a reader to treat its silence as coverage. These
+are the places where this document is thin, stated so an auditor has somewhere to aim. If you are
+the session being asked to check this record from the outside, **start here.***
+
+1. **Everything after ~19:00Z on 2026-08-24 is SINGLE-LANE.** No second vendor read it. Codex asked
+   to have it held as **reported evidence until independently re-observed**, and that request stands
+   unmet. This covers the Circle's three fixes, the muster upgrade, SYM-054 and `docs/46`.
+2. **§1.5 cites the first sitting's account of itself; it does not re-derive it.** The Circle's
+   three violations, the 73/73 green they were live inside, and the "three catches from Rab's
+   questions" pattern are all `Historical` — read from `sessions/S109-*.md`, not re-measured here.
+   If that closeout is wrong, this brief is wrong in the same places.
+3. **The per-page conversion cost on this machine is `UNREAD`.** Not slow, not fast — never
+   measured at the current state. The draft's own recipe says so. Any number anyone quotes for it
+   today came from an older run on older hardware state.
+4. **What the first sitting *considered and rejected* is not on disk anywhere.** The closeout
+   records what was done. Near-misses, discarded hypotheses, and things noticed but not filed exist
+   only in that session's context. **This is the one gap no amount of reading can close** — it has
+   to be asked for, and it decays.
+5. **The mutation score was in flight when this section was written.** Whether the 83-case suite's
+   green means anything was an open question at the time of writing. See §3 for the answer, and if
+   §3 is empty, the question is still open.
+6. **`figure_coverage` has known blind spots that a clean report will not disclose.** SYM-049:
+   zero-area connectors are dropped before clustering, so a spread-out diagram can fragment and be
+   missed. SYM-053: an asset can be present and be the *wrong crop* — blank paper where a hand-drawn
+   callout was. **A silent absence there is a known blind spot, not a clean bill.**
+7. **The S94 guard exercises have never been logged by anyone.** Minimize+relaunch (expect
+   restore-and-front, no twin), Room styling under CSP, the Recent-audits panel, the chat page, the
+   boot log, one PID. `Intended`, not `Observed`, for over a dozen sessions.
+8. **`marker_version` is `"unknown"` corpus-wide** (SYM-044), so the `.done` identity gate is
+   one-third inert. Any claim that a resume spliced same-engine slices is unverifiable today.
+9. **This brief has one author and one lane.** It was written by the session it describes. That is
+   precisely the conflict of interest the project's own Circle methodology exists to break, and
+   nothing here has been through a Circle.
 
 *Ends. The knock on the door is the relay entry pointing here. This is the paper.*
