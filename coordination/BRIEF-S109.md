@@ -343,6 +343,63 @@ scales with math density.
 This needs its own guard — a structural validator on converter output, *before* the analyst, balancing
 every `\begin{X}` against its `\end{X}`. The diagnostic is one line and has never been run.
 
+### 2.8 The finding that came from waiting — and the one that got killed on the way
+
+*The best work in this sitting happened while a book converted, and its most useful moment is the
+hypothesis that did **not** survive.*
+
+`Observed`. Chasing the *cause* of the 15-minute chunks rather than a label for them, the analyst's
+own journal (`.analyst-work/<key>/chunks.jsonl`) showed two indices — **103 and 106 — absent
+entirely**, neither `passed` nor `rejected`. Those were exactly the two chunks measured at ~15
+minutes. Two for two.
+
+**The reading was: degenerate chunks are silently DROPPED from the analyst's output.** Data loss
+outranks any slowness, so it needed testing rather than reporting. A falsifiable prediction was
+written down **before** the outcome (`docs/28`): *the chunk timing out right now will also be absent
+when `n` advances.*
+
+**Then the source killed it in ninety seconds.** `analyst.py:185` calls ollama through
+`urllib.request.urlopen(req, timeout=900)` — **900 s, exactly the 15 minutes measured** (specimens
+918 s and 882 s). The chunk never completes; the call **raises**. `analyst.py:341`'s exception path
+then does three things *by design, with a written rationale in the code*:
+
+| | |
+|---|---|
+| `out.append(chunk)` | the **original un-analyzed text is kept in the book** |
+| `failed += 1` | counted, and `chunks_failed` **does reach the frontmatter meta** |
+| not journalled | **deliberate** — a transient backend error must not be baked in, so a resume retries it |
+
+**No data loss. No observability gap.** The absence that looked like a smoking gun is a documented
+design decision. The hypothesis died before it ever reached Rab, which is the entire reason for
+writing a prediction down instead of a conclusion.
+
+`Verified`. **The prediction still held, for the corrected reason** — `MISSING i: [103, 106, **115**]`,
+three for three, the third having run exactly 900 s. Two differently-shaped methods agree: a source
+read and a live predictive test whose answer was recorded before it was known.
+
+**What is actually wrong is narrower, and larger than it looks:**
+
+```
+analyst wall           4327 s over 118 chunks
+3 timeouts x 900 s     2700 s   ->  PRODUCED NOTHING
+the other 115 chunks   1627 s   =  14.1 s/chunk
+```
+
+**62 % of the analyst lane went to 2.5 % of the chunks.** And 14.1 s/chunk against the pipeline's
+own original estimate of **13.9 s/chunk** — **the estimate was never wrong.** The entire overrun is
+timeouts. The machine is exactly as fast as it said it was; three chunks are eating the afternoon.
+
+That reframes SYM-056's proposed guard: balancing every `\\begin{X}` against its `\\end{X}` on
+converter output is not a tidiness fix — **on this book it is most of the runtime.**
+
+⚠ **The causal link is still `Inferred` and cannot be closed from here.** That the unterminated
+arrays and the timeouts sit in the *same* chunks is unproven, and it is unprovable from the journal
+**by construction**: the timed-out chunks are precisely the ones never written to it. SYM-056 names
+what would close it — re-derive the chunking from the finished bundle and inspect 103, 106, 115.
+
+⚠ **The evidence is temporary.** `analyst.py:393` runs `shutil.rmtree(work_dir)` on completion — the
+journal all of this was read from is deleted when the book finishes. A snapshot was taken first.
+
 <!-- APPEND FURTHER 2.x ENTRIES HERE AS THE SITTING RUNS -->
 
 ---
