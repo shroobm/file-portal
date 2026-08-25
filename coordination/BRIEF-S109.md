@@ -322,11 +322,26 @@ printed pages *292 and 293*. **156 PDF pages = 295 printed pages.** Any `s/page`
 ⚠ **That per-page cost is CONTAMINATED and must not be quoted clean**: a 24-agent fleet ran across the
 conversion's first half — SYM-035's exact hazard. Treat it as an **upper bound**. Filed **J14**.
 
-`Verified`. A **live SYM-003 specimen** then appeared in the analyst lane: one chunk generated for
-~15 minutes against a 13.9 s/chunk mean — 39× — at 93 % GPU and 286 W, before returning. Diagnosed as
-generating rather than stalled by three independent readings (ollama CPU climbing, `expires_at` pinned
-to the request start, power draw at near-full), and **explicitly ruled NOT SYM-024**, whose signature
-requires a cold ollama and no process. Neither held.
+`Verified`. The analyst lane then produced chunks running **~15 minutes against a 13.9 s/chunk mean —
+60×** — at 93 % GPU and 286 W. Diagnosed as *generating rather than stalled* by three independent
+readings (ollama CPU climbing, `expires_at` pinned to the request's start, power draw near full), and
+**explicitly ruled NOT SYM-024**, whose signature requires a cold ollama and no process. Neither held.
+
+⚠ **First attributed to SYM-003 (table-loop disease). That attribution is WITHDRAWN** — one of the two
+measured specimens contains **zero pipe characters**. The root cause was found by reading the analyst's
+own chunk file and is filed as **SYM-056**: the converter emits **structurally invalid LaTeX at scale** —
+`\begin{array}` opened and never closed, with 36-character runaway column specs. In this book:
+**79 `begin` vs 39 `end`, 40 unterminated, across 28 of 112 chunks (25 %)**. A structure with no valid
+completion is what the model loops on, until the 8192 context cap returns it.
+
+**Every one of those 28 chunks carries `status: passed`** — the audit scores content, not structural
+validity. And it is **not Ashby-only**: the *shipped* `Investment Valuation` bundle in `anchor/` reads
+`begin=43 end=40` — **delta 3, already vaulted**. `Cybernetics_Book_of_Models` reads 0/0. The rate
+scales with math density.
+
+**Note for A44: hOCR would NOT fix this.** hOCR supplies text and bounding boxes, not LaTeX validity.
+This needs its own guard — a structural validator on converter output, *before* the analyst, balancing
+every `\begin{X}` against its `\end{X}`. The diagnostic is one line and has never been run.
 
 <!-- APPEND FURTHER 2.x ENTRIES HERE AS THE SITTING RUNS -->
 
