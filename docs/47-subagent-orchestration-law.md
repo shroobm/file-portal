@@ -131,16 +131,21 @@ are genuine module-level definitions" is `Inferred`, and it named the command th
 - **IT BINDS THE AGENTS AND NOT THE ORCHESTRATOR — and that is not a hypothetical gap.** §3 requires
   every lane to build a NEGATIVE CONTROL before trusting its instrument. Nothing in this law binds
   the orchestrator's OWN probes, and in the single sitting that wrote it the orchestrator shipped
-  **three defective instruments**:
+  **five defective instruments** (this count was itself written as *three* and had to be corrected an hour later -- the defects kept arriving after the section naming them was committed):
 
   | # | the probe | the defect | the rule it broke |
   |---|---|---|---|
   | 1 | mutation-fleet schema | a `notes` field on the control lane and none on the five lanes that needed it | §3 "a provenance field in EVERY schema" |
   | 2 | analyst monitor, v1 | `ps -W \| grep -c convert_and_ship` returned `0` for a process that was alive — Git Bash cannot see full command lines | rule 4: **a failed probe rendering as a negative observation** |
   | 3 | analyst monitor, v2 | GPU utilisation placed in the change-detection key, so `93% → 92%` counted as a state change and the watch fired on jitter | a noisy field in a comparison key is a broken signal |
+  | 4 | `cargo fmt --check` pre-flight, v1 | piped into `head -20`, then read `$?` -- which is **`head`'s** exit code, always 0. A FALSE GREEN on the formatting gate | rule 4, and it is the gate whose failure turned CI red for three consecutive sessions (S101-S103) |
+  | 5 | `cargo fmt --check` pre-flight, v2 | the fix used a relative `cd` while the shell was ALREADY in that directory. The `cd` failed, cargo never ran, and the script printed **`VERDICT: fmt RED`** | **rule 4's worst form** -- a failed probe rendering not as UNREAD but as a confident negative VERDICT |
 
   Every one would have been caught by thirty seconds of the discipline this document demands of
-  subagents: **run the probe against a state whose answer you already know.** #2 in particular is the
+  subagents: **run the probe against a state whose answer you already know.** #2 in particular is the #4 and #5 are the sharpest pair, because they are the same check
+  written twice and they failed in OPPOSITE DIRECTIONS -- a false green, then a false red -- so
+  believing either one would have been luck. The true reading, third attempt, absolute path and no
+  pipe: exit 0, zero output bytes.
   exact defect that `open.sh` was once bitten by — MSYS rewrote `/FI`, `tasklist` errored to stderr,
   the error was swallowed, and the card printed `widget down` while PID 10048 was alive.
 
