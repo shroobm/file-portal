@@ -412,13 +412,94 @@ journal all of this was read from is deleted when the book finishes. A snapshot 
 
 ## §3 CLOSING — filled at the close
 
-<!-- TO BE COMPLETED AT CLOSE: close.sh card verbatim · what was struck or added in the registers ·
-     the ledger row · both clocks · glass --since a652781 --enforce verdict · CI conclusion for HEAD
-     observed after the push · what is left open and for whom -->
+### 3.1 The close card, verbatim
 
-*Not yet written. If you are reading this section empty, the sitting did not reach its close and
-**nothing in §2 should be treated as landed** — check `git log` against the pin `a652781` and
-believe the commits, not this document.*
+```
+════════ MUSTER · CLOSE · 2026-08-25T05:32:10Z ════════
+    PIN              a652781
+    DIFF             59 file(s) since a652781 · 0 uncommitted · 0 untracked
+    GLASS            RED — 1 UNSIGNED GLITCH since a652781: render them or sign them
+    RUST fmt         clean
+    RUST clippy      clean
+    RUST test        clean
+    CI               no run for c7c9f403 yet (unpushed? ahead=1) — NOT a green
+    LEVERS           3 threshold-shaped constant(s) added since a652781 with no lever, no waiver:
+                     BEAT_STALE_MIN · GATE_TIMEOUT_S · MIRROR_MAX_ATTEMPTS
+    DOCTOR           lever lexical parity: figure-triage.txt names 8 · quoted refs 8 · MISSING 0
+                     UNREAD — a quoted lexical occurrence does NOT prove the consumer reads the lever
+    DOCTOR-HEAD      UNREAD — closeout-headline probe re-run not yet mechanized
+    CENSUS           selftest.sh: declared 11 = FIRED 11 = banner 11/11 (exit 0)
+    CENSUS-SCOPE     UNREAD — broader TEST-STRATEGY fixture census not yet mechanized
+    REGISTER         OPEN-TASKS.md written this session: +347 / -292 lines
+    DEBT             open SYM 3 -> 4 (+1) — this session
+                     ADDED net debt. §A21: justify a new governance artifact or work one down.
+    PUSH             ahead of upstream: 1 (the close pushes; 0 after)
+════════ close exit 1 — values only; the judgment half is SKILL.md ════════
+```
+
+**`close exit 1` was correct and was acted on.** The red was GLASS, a measured red, not an UNREAD.
+
+### 3.2 The glass red, and how it was dispositioned
+
+`Verified`. `widget:age_s` at `windows-widget/src-tauri/src/line.rs:106` — per PDF queued in `drop/`,
+seconds since its mtime. Grepped every renderer: `main.js`, `room.js`, `index.html` reference it
+**zero** times.
+
+**It was NOT classed INTERNAL or DEAD to quiet the tool**, whose own README warns that a line here is
+*"a judgment you are putting your name to."* It is classed **GLASS, because GLASS is what it should
+be** — *"this PDF has sat in `drop/` for three hours"* is SYM-024's scenario, and the readout that
+would have shortened tonight's own diagnosis. The reason field states plainly that it is unrendered,
+why it was not wired (a product change; adoption is Rab's hand), and that the debt is filed as
+**J16**. After the disposition: `glass --since a652781 --enforce` → **exit 0, no unsigned glitches.**
+
+### 3.3 A defect found IN the close itself
+
+`Verified`. The card reads `open SYM 3 -> 4 (+1)`. **The true figure is +3.** `close.sh:330` counts
+open symptoms with ``grep -oU '| `open`'`` — one literal rendering — while `SYMPTOM-INDEX.md` uses at
+least three. Measured: `` `open` `` **4x**, `**OPEN**` **12x**, `**OPEN.**` **1x**. The gate sees 4 of
+~17 markers, so SYM-055 and SYM-056 are invisible to it.
+
+**The debt gate convicted this session for adding debt while under-reporting that debt by two-thirds,
+in the same line.** It is one day old. Filed **J15**, with an explicit instruction *not* to fix it by
+reformatting the rows to suit the grep — that adapts the evidence to the instrument.
+
+### 3.4 The registers, at close
+
+| | at open | at close |
+|---|---|---|
+| symptom rows | 54 (4 open) | **56** — SYM-055, SYM-056 |
+| `§J` items | 11 | **16** — J12…J16 |
+| `§F` record repairs | 11 | **12** — F12 |
+| `§A` signature items | 43 | **44** — A44 (hOCR side-input) |
+
+**This session both struck and added** — it did not merely accumulate: J11 closed by correction, the
+SYM-003 attribution withdrawn, the wiki docs map re-measured, and F3's class caught again in J15.
+
+### 3.5 Both clocks, in lockstep
+
+- **SOFT** — cookies **80 → 82** (#81 mid-flight, #82 at handover), tally header + `MEMORY.md`
+  TIME-STATE both advanced, `tally == hook` verified by `open.sh`.
+- **HARD** — the ledger row lands as a **separate follow-up commit**, never `--amend`, which would
+  orphan the SHA just written.
+
+### 3.6 What is left, and for whom
+
+**Rab's alone:** the S108 sign sheet (15 items) · **A44**, the hOCR side-input · **F12**, whether the
+RAM was upgraded or SYM-051(b) misread · **J13**, whether the phase-transition relay is adopted.
+
+**Mechanical, anyone:** **J15** the debt gate's grep · **J16** wire `age_s` · **J12** the four
+unexercised clauses of `docs/47` · **SYM-055**'s one missing assertion · **SYM-056**'s structural
+validator — which on this book would have saved **half the analyst lane**.
+
+**The sentence that changed tonight:** C0 was the only item that moved it, and **it moved.**
+`events.jsonl` is off 137 for the first time in eleven days. The new sentence is whether this
+pipeline can take a 2-up, table-dense book **without shipping 60 broken math environments** — and
+Ashby is now the fifth book in `held/` because the audit correctly refused it.
+
+### 3.7 CI
+
+*Filled after the push, by hand — `close.sh`'s CI check cannot fire in this cadence (`docs/45` F16),
+and a run still in progress is not a green.*
 
 ---
 
