@@ -235,6 +235,94 @@ he asks that session to audit this record from the outside — free recall FIRST
 report-not-edit, everything it says tagged `Inferred` unless it re-runs a probe. That is an
 uncorrelated check, which is the one thing this apparatus has almost none of.
 
+### 2.3 The mutation fleet, and what it found in itself (03:2x–04:0xZ)
+
+`Observed`. Ran a 24-agent mutation-testing fleet against `gate.py`'s 83-case selftest — the
+recommendation from the research Gmail draft's §7. **21 mutants, 3 killed, 18 survived.**
+
+**One survivor is `Verified` and it is severe.** `gate.py:133` `digest()` can be switched
+**sha256 → md5**, keep labelling its output `"sha256:"`, and the suite still reads
+`ALL TRIPWIRES FIRED — 83/83, exit 0`. Reproduced **by hand** in a scratch copy, not taken from a
+subagent: mutant `digest("hello relay")` = `sha256:acc77fb37d3a408f8e23caa793e65dfa` (**32 hex**) vs
+true `…1844692b` (**64**). Non-equivalence is not arguable. Filed **SYM-055**.
+
+Cause: **every digest assertion in the suite is self-referential** — it compares gate.py's output to
+gate.py's output, so any algorithm agrees with itself. The suite tests that digests MATCH; it never
+tests that they ARE the digest they name.
+
+**The 14.3 % score stays `Inferred`** and carries a named methodology defect: worktrees created at
+master tip (564 commits back, `.claude/` absent — four of six lanes had no target files and worked
+around it silently), no provenance field on the five lanes that needed one, and two mutants stacked
+on disk in one worktree against the orchestrator's own instruction. Live tree verified byte-identical
+throughout (`ab26a4f1…`); 21 MB of worktree litter removed afterward.
+
+### 2.4 The process census (04:1xZ)
+
+`Verified`. 8 python processes: 6 are the conversion chain (parentage intact — a force-kill would
+actually end it), 2 are the atlas sim on `:8765`, 38 h old, parented to the *other* Claude session.
+**No fleet residue** — zero stray node/bash/git, zero orphaned servers. The SYM-054 pre-check held.
+
+`Observed`. Memory **32,698 MB total, 11,121 free, 66 % used** — nowhere near pressure. But
+**SYM-051(b) cites "RAM 15.9 GB total."** Filed **F12**: either RAM was added or the reading was
+wrong, and from here those are indistinguishable, so the row says ask Rab rather than guess.
+
+### 2.5 The subagent orchestration law — signed, and tripwired (04:2xZ)
+
+`Observed`. Rab signed it as universal: *"Thats for any sub agent now... take ownership of it."*
+Written to **`docs/47`** and bound in the memory library so it governs every project.
+
+The frame: **a fleet is a measuring instrument**, and this project already has law for instruments —
+it had simply never been applied to fleets. The one sentence: *I may not ask an agent for a conclusion
+I have not given it the means to be honest about.*
+
+**Tripwire `wf_72b1dfce-055`: 3/3**, both directions — a true ground (positive control, without which
+the suite cannot tell "the guard fired" from "everything always fires"), a false digest, and an absent
+near-miss filename. Both negatives halted. **And it fired on its author**: two lanes spontaneously
+reported a deviation nobody planted — the tree was dirty and HEAD had moved — which was the
+orchestrator's own uncommitted work. Only the GROUND clause is exercised; the other four are `Intended`
+and filed as **J12**.
+
+### 2.6 The phase-transition relay — TESTED, NOT ADOPTED (04:3xZ)
+
+`Verified`. Rab's design, and his instruction was *"Don't implement that, just test it."* **It works:
+live, bidirectional, from a background agent AND a workflow lane.** 7 relays, 7 accepted; a steer from
+`main` redirected an agent's task at wait-round 2.
+
+The workflow lane **refused to claim its own result** — *"queued for the next turn is an
+acknowledgement from the messaging layer, not a delivery receipt… that failure mode would look exactly
+like success from where I sit"* — and named the discriminator it could not measure. The orchestrator
+held that evidence: the messages landed **before** the lane's completion. Delivery is live.
+
+Six constraints in `docs/47` §8. Two matter most: **`SendMessage` is a DEFERRED tool** (a lane that
+does not load it first reports a FALSE NEGATIVE — "no relay channel exists"), and **`to:"main"` is
+documented "background subagents only" yet workflow lanes accept it** — unenforced, and could start
+being enforced. **N concurrent lanes untested.** Filed **J13**.
+
+### 2.7 C0 BREATHED (03:41–04:0xZ, analyst lane still running at time of writing)
+
+`Observed`. **`events.jsonl` moved off 137 for the first time since 2026-08-14 — eleven days.**
+
+Book: **Ashby, *An Introduction to Cybernetics*** — not on the machine, downloaded on Rab's explicit
+word from `pespmc1.vub.ac.be` (Principia Cybernetica, VUB), 2,023,477 bytes, `sha256 26bd434d…`.
+Born-digital confirmed before dropping it (median 3,504 chars/page, producer `Acrobat Distiller 3.0`).
+
+**A finding the recipe did not have: the PDF is 2-up landscape.** 842×595 pt, and PDF p154 carries
+printed pages *292 and 293*. **156 PDF pages = 295 printed pages.** Any `s/page` must name which page.
+
+| | |
+|---|---|
+| convert | **1088.7 s wall · 6.98 s/PDF-page** (promised 4.719, `basis: similar, n=2`) · peak VRAM 9427 MiB |
+| audit | `doc_survival 0.8582` · runs 25 · **`degeneration: True`** · **verdict `fail`** |
+
+⚠ **That per-page cost is CONTAMINATED and must not be quoted clean**: a 24-agent fleet ran across the
+conversion's first half — SYM-035's exact hazard. Treat it as an **upper bound**. Filed **J14**.
+
+`Verified`. A **live SYM-003 specimen** then appeared in the analyst lane: one chunk generated for
+~15 minutes against a 13.9 s/chunk mean — 39× — at 93 % GPU and 286 W, before returning. Diagnosed as
+generating rather than stalled by three independent readings (ollama CPU climbing, `expires_at` pinned
+to the request start, power draw at near-full), and **explicitly ruled NOT SYM-024**, whose signature
+requires a cold ollama and no process. Neither held.
+
 <!-- APPEND FURTHER 2.x ENTRIES HERE AS THE SITTING RUNS -->
 
 ---
@@ -305,10 +393,16 @@ expensive on purpose: two checks that share an assumption are one check (SYM-001
 
 ### 4.3 Terms this brief introduces
 
+*These are NOT lexicon rows. `.claude/skills/echo/lexicon.md` has one writer — `/echo` Phase 7, after
+Rab's word commits the reading that used the mapping — and no other surface may append to it. These
+are this document's own glosses, recorded here precisely so they do not leak into that file.*
+
 | term | meaning |
 |---|---|
 | **the door brief** | this document — a session recap + lexicon + navigation index left for a dormant lane to find on waking. Rab's image: *"slipping papers under someones door."* |
 | **dormant (a lane)** | the peer model is out of usage, its silence is **declared in the record**, and its STALE beat is therefore expected. Distinct from a missed beat, which is a fault. |
+| **the phase-transition relay** | Rab's design, 2026-08-25: a subagent reports defined information to the orchestrator **at each phase boundary, mid-run**, so the orchestrator can steer instead of learning everything after the run. Tested (`docs/47` §8) and deliberately **not adopted** — his instruction was *"Don't implement that, just test it."* |
+| **the subagent orchestration law** | `docs/47` — what every subagent must be given before it is summoned. Signed universal, 2026-08-25. |
 
 ---
 
