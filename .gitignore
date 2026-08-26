@@ -78,3 +78,13 @@ wiki/profiles/*.private.md
 coordination/private/*
 !coordination/private/README.md
 codex/private/
+
+# dumps/ — Rab bought the disk so evidence stops evaporating (2026-08-26).
+# The BYTES are local and heavy; the LEDGER is tracked and light. Git history therefore
+# preserves the RECORD of every dump even after the dump itself is gone — which is the
+# whole reason the split is exactly here. Tracked bytes would also leave the tree
+# permanently dirty and break close.sh's '0 uncommitted'.
+dumps/*
+!dumps/README.md
+!dumps/LEDGER.md
+!dumps/dump.sh
