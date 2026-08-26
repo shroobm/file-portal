@@ -1,4 +1,4 @@
-# THE DOOR BRIEF — S109 · Desktop · 2026-08-24/25 · ⟨claimed: Fable⟩
+# THE DOOR BRIEF — S109 · Desktop · 2026-08-24/25 · ⟨claimed: Fable lane · occupant: Claude Opus 5⟩
 
 *Slipped under the door. Codex is out of usage and the bus is dormant (`MSG-FAB-0029`, OPEN-TASKS
 J9), so there is no handshake to run — but there is still a handover to make. This is it: one
@@ -557,7 +557,7 @@ expensive on purpose: two checks that share an assumption are one check (SYM-001
 | **full context search** (in a prompt) | the echo sweep: `sweep.sh` + term hits + lexicon lookup | `.claude/skills/echo/` |
 | **what I think I may mean** | the echo's readings (Phase 3) + preview (Phase 4) | `.claude/skills/echo/SKILL.md` |
 | **stigmergy** | coordination through traces left in a shared environment — how concurrent instances discover each other | `docs/43`; SYM-045 |
-| **claiming (its) sections** | authorship stamps ⟨claimed: Fable⟩ / ⟨claimed: Codex⟩ on prose, ledger rows, docs | `coordination/authorship.md` |
+| **claiming (its) sections** | authorship stamps on prose, ledger rows, docs. ⚠ **CORRECTED 2026-08-24: the LANE is not the OCCUPANT.** `Fable`/`Codex` are SEATS — what `--as`, `MSG-FAB-nnnn` and `ack-fable.json` key on. The occupant is the model in the seat and it changes. Correct form: `⟨claimed: Fable lane · occupant: Claude Opus 5⟩`. A bare `⟨claimed: Fable⟩` misattributes | `coordination/authorship.md` §Correction |
 | **2 signals as one** | the relay: each model carries the other's newest message + suggested prompt to Rab at session open (UTC entries) | `coordination/relay.md` |
 | **the parallel sitting** | 2026-08-20's concurrent Fable+Codex work under one session number, stigmergically discovered | `docs/43`; S97 §4a |
 | **production first layer** (for Claude–Codex cooperation R&D) | a production-ready *specification* layer — evidence, boundaries, interfaces, failure model, negative tests, staged adoption gates. **No executable protocol, no runtime integration, no implementation authority** | `docs/21` §2; `docs/40` §§10–11 |

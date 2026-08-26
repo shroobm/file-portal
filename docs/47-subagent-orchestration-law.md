@@ -2,7 +2,7 @@
 
 *Signed by Rab, 2026-08-25 (S109 second sitting): "Thats for any sub agent now... It's a universal
 principle you're establishing, and take ownership of it." Authored and claimed by the Fable lane.*
-⟨claimed: Fable⟩
+⟨claimed: Fable lane · occupant: Claude Opus 5 · S109 · 2026-08-25⟩
 
 ## §0 The frame
 

@@ -1506,4 +1506,4 @@ duplicate the three lines rather than widen the seam.
 
 ---
 
-*Contract authored 2026-08-24. ⟨claimed: Fable⟩ — authorship claim only, never Rab's authority.*
+*Contract authored 2026-08-24. ⟨claimed: Fable lane · occupant: Claude Opus 5⟩ — authorship claim only, never Rab's authority.*

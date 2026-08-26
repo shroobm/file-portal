@@ -234,5 +234,5 @@ part of the README most likely to save someone.
 
 ---
 
-*`prototypes/relay-room/README.md` · authored 2026-08-24 · ⟨claimed: Fable⟩ — an authorship
+*`prototypes/relay-room/README.md` · authored 2026-08-24 · ⟨claimed: Fable lane · occupant: Claude Opus 5⟩ — an authorship
 claim only, never Rab's authority.*
