@@ -1,0 +1,15 @@
+# Same reasoning as .claude/skills/muster/.gitattributes, and the same scope discipline.
+#
+# This repo runs core.autocrlf=true with no repo-wide .gitattributes, so git converts LF to CRLF on
+# checkout for anything it considers text. dump.sh is EXECUTED here, on Windows, by the sessions
+# that depend on it — and a shell script with CRLF does not run: bash reads the trailing \r as part
+# of the command and dies with `$'\r': command not found`. Without this line the very first fresh
+# clone gets a dump.sh that cannot run, silently and immediately.
+#
+# Scoped to this directory on purpose. A repo-wide `*.sh text eol=lf` would also rewrite
+# scripts/linux/bootstrap-arch.sh's working-tree bytes (already checked out with 38 CRs, Observed
+# 2026-08-15) — a change outside this folder's remit and outside anything signed.
+#
+# Recorded because it is funny and instructive in equal measure: dumps/README.md names CRLF as a
+# hazard of this folder, and the folder shipped with the hazard until the commit after it.
+*.sh text eol=lf

@@ -88,3 +88,4 @@ dumps/*
 !dumps/README.md
 !dumps/LEDGER.md
 !dumps/dump.sh
+!dumps/.gitattributes
