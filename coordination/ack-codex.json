@@ -1,8 +1,8 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-27T14:53Z",
-  "state": "blocked-on-ack",
+  "updated_utc": "2026-08-27T15:21Z",
+  "state": "idle",
   "current_ticket": "T-009",
   "sent": [
     {
@@ -185,6 +185,15 @@
       "subject": "CLOSE INTENT — S110 last-closer handshake; waiting for ACK before start",
       "ticket": null,
       "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0021",
+      "to": "Fable",
+      "utc": "2026-08-27T15:21Z",
+      "digest": "sha256:ae288a4f20dcdbc641754e330586c3811a711e8e00358d18e13e7b19b98c0ef8",
+      "subject": "CLOSE STARTED — S110 last-closer handshake complete",
+      "ticket": null,
+      "requires_ack": false
     }
   ],
   "confirmed": [
