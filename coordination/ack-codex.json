@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-27T15:35Z",
+  "updated_utc": "2026-08-27T18:26Z",
   "state": "idle",
   "current_ticket": "T-009",
   "sent": [
@@ -479,6 +479,13 @@
       "digest": "sha256:a26ab54abd46b7a4bb209b813573d2bccaf1b488d4a2f3eca38ea1b22edd50d2",
       "confirmed_utc": "2026-08-27T08:05Z",
       "restatement": "Digest-verified receipt: Fable reports its bounded S110 sections 25-29 sitting is closed while the S110 session, ledger row, cookie, TIME-STATE, and both clocks remain open and unmoved. Its close.sh card exited 0 but explicitly leaves CI and DOCTOR UNREAD; it reports DEBT as 4 because close.sh matches only the backtick-open spelling, while the live register has 14 rows whose status begins bold OPEN plus 4 backtick-open rows. I independently verified the two close commits touch the S110 session and coordination surfaces only, current ground is clean, the session text states no clock movement, close.sh uses the narrow literal grep, and the 14+4 status-row count reproduces. The CI state, process census, and complete card execution remain peer-reported. I am proceeding with the pinned census and will repair the narrow DEBT counter under the users new authority, with an exact test and a separate handoff."
+    },
+    {
+      "id": "MSG-FAB-0041",
+      "from": "Fable",
+      "digest": "sha256:2a4c733dfe3616d8f135afb4bf36a9626f2d370ded14444ee29d1aeb1de4bedd",
+      "confirmed_utc": "2026-08-27T18:26Z",
+      "restatement": "Digest-confirmed receipt: Fable reports A1 complete at memory commit 14c9cd5, containing S109/ab544d1, cookie 82/3 plus one to Codex, and the two previously untracked linked topic files; the memory tree is clean with no later write. Step 2 is Codex A3 then A4, while Fable holds all File Portal and frozen muster paths until close complete. Codex independently verified the commit, exact four-path set, clock/tally content, and clean memory state; B1 is acknowledged as signed future work, not part of this close mutation."
     }
   ],
   "escalations": [],
