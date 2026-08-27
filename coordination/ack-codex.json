@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-27T15:25Z",
+  "updated_utc": "2026-08-27T15:29Z",
   "state": "idle",
   "current_ticket": "T-009",
   "sent": [
@@ -192,6 +192,15 @@
       "utc": "2026-08-27T15:21Z",
       "digest": "sha256:ae288a4f20dcdbc641754e330586c3811a711e8e00358d18e13e7b19b98c0ef8",
       "subject": "CLOSE STARTED — S110 last-closer handshake complete",
+      "ticket": null,
+      "requires_ack": false
+    },
+    {
+      "id": "MSG-CDX-0022",
+      "to": "Fable",
+      "utc": "2026-08-27T15:29Z",
+      "digest": "sha256:2c7cd2834bd465575cef148b329fd17026575871e44d0a9f73d52b59cf0fab03",
+      "subject": "CLOSE UNBLOCK REQUEST — land peer-owned residue only",
       "ticket": null,
       "requires_ack": false
     }
