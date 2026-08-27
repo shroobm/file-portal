@@ -237,6 +237,16 @@ if [[ -f "$README" ]]; then
   # Tripwire: selftest CASE 35, with a negative control on the strike exclusion.
   reg_row "open-tasks" "$TASKS" \
     "$(grep -cU '^| [A-FJ][0-9]' "$TASKS" 2>/dev/null || echo '?') item(s)"
+  # ERROR-BIN.md, wired 2026-08-27. The file diagnosed itself on the day it was born: its
+  # own section D.6 measures that NO row names it in the "how it was caught" column - zero of
+  # thirteen - and concludes "a register written at the end of a task is a record; it becomes
+  # a rule only when something forces it to be READ at the start of one." That is exactly what
+  # section I did for OPEN-TASKS.md at S109, for exactly the same reason: a register nothing
+  # forces you through is a shrine, not a spine. Counts, never a checkmark - a count that only
+  # rises is visible as a count that only rises.
+  ERRBIN="$FP_REPO/ERROR-BIN.md"
+  reg_row "error-bin" "$ERRBIN" \
+    "$(grep -cU '^| ERR-' "$ERRBIN" 2>/dev/null || echo '?') row(s) — read the CLASS table before you probe"
   reg_row "symptoms" "$SYMS" \
     "$(grep -cU '^| SYM-' "$SYMS" 2>/dev/null || echo '?') row(s), $(grep -oU '| `open`' "$SYMS" 2>/dev/null | grep -c . || echo '?') open"
   if [[ -f "$FP_REPO/coordination/relay.md" ]]; then

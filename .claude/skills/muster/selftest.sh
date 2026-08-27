@@ -537,6 +537,34 @@ fi
 if printf '%s' "$out" | grep -qE 'open-tasks +6 item\(s\)'; then
   bad "REGISTER COUNT negative control: a struck row was counted" "read 6, so ~~A3~~ was counted"
 else ok "…and a struck row is never counted (never reads 6)"; fi
+
+# CASE 36 - the ERROR BIN must be READ AT THE OPEN, 2026-08-27. The property: [2b] surfaces
+# ERROR-BIN.md with a COUNT, and a MISSING one reads UNREAD rather than silence. The file's own
+# section D.6 is the reason: zero of its thirteen rows name it in the 'how it was caught'
+# column, so it was a diary. A register nothing forces you through is a shrine, not a spine -
+# the same finding section I made about OPEN-TASKS.md at S109.
+R="$WORK/c36"; sha=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"
+printf '%s\r\n' '| A1 | a | x |' > "$R/OPEN-TASKS.md"
+printf '%s\r\n' '| SYM-001 | s | c | S1 | `open` | g |' > "$R/SYMPTOM-INDEX.md"
+printf '%s\r\n' '# ERROR BIN' '' '| ERR-2026-01-01-001 | X | a | b | c | d |' '| ERR-2026-01-01-002 | Y | a | b | c | d |' > "$R/ERROR-BIN.md"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm reg >/dev/null 2>&1
+mklib "$WORK/l36" 12 S42 "$sha"
+out=$(MEMORY_LIB="$WORK/l36" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'error-bin +2 row\(s\)'; then
+  ok "ERROR BIN: the open surfaces it with a count, so it is read at the START of a task"
+else
+  bad "ERROR BIN: [2b] must print 'error-bin 2 row(s)'" "got: $(printf '%s' "$out" | grep -E 'error-bin' | head -1)"
+fi
+# NEGATIVE CONTROL: delete it. An ABSENT register is UNREAD - never silence, and never a
+# statement that nothing is open. Violating this is how a missing file reads as a clean one.
+rm -f "$R/ERROR-BIN.md"; git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm rm >/dev/null 2>&1
+out=$(MEMORY_LIB="$WORK/l36" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'error-bin +UNREAD'; then
+  ok "…and a DELETED error bin reads UNREAD, never silence"
+else
+  bad "a deleted error bin must read UNREAD" "got: $(printf '%s' "$out" | grep -E 'error-bin' | head -1)"
+fi
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
