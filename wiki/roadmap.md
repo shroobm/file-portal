@@ -1,8 +1,8 @@
 ---
 title: Roadmap — catalysts to a production system
 section: Roadmap
-last-verified: 2026-08-23
-verified-against: 1790554
+last-verified: 2026-08-27
+verified-against: 3cc7679
 sources: [OPEN-TASKS.md, docs/08-roadmap.md, docs/37-next-stage-plan.md, docs/40-file-portal-feedback-pathways-think-tank.md, docs/41-conversion-completeness-plan.md, docs/45-s105-circle-findings.md]
 ---
 
@@ -18,15 +18,31 @@ sources: [OPEN-TASKS.md, docs/08-roadmap.md, docs/37-next-stage-plan.md, docs/40
 
 **A book dropped on the desktop reliably becomes a vaulted, faithful, searchable bundle —
 with every loss named.** The metric is **vaulted books per week, with audit verdicts**.
-Current value: **0/week over the last ~10 sessions** — events.jsonl's last event is
-2026-08-14 (137 events total; verify: tail of `C:\Users\Bndit\ml\library\events.jsonl`).
+Current value: **0/week — still zero, but NOT for the reason this page used to give.**
+*(Re-measured `Observed` 2026-08-27. The superseded sentence read: "0/week over the last ~10
+sessions — events.jsonl's last event is 2026-08-14 (137 events total)". Both of those figures
+are now false.)*
+
+- **The metric's VALUE is unchanged and correct: 0 vaulted books per week.** The vault holds
+  **6** notes and the newest was written **2026-07-31** — 27 days ago.
+  *(`find "$HOME/Documents/Obsidian/Obsidian and Zennotes Vault/Library" -name '*.md'` → 6,
+  newest mtime 2026-07-31. Note the denominator: the notes live in SUBDIRECTORIES, so a
+  `-maxdepth 1` count returns 0 and reads as an empty vault. It is not empty.)*
+- **The evidence it cited is stale.** `events.jsonl` is at **147** events, not 137, and its
+  last event is **2026-08-25T05:29:46Z**, not 2026-08-14.
+- ⚠ **DO NOT READ THE ADVANCE AS PROGRESS ON THIS METRIC.** Ashby converted end to end and the
+  auditor then **HELD** it on `verdict: fail`. The last event is literally `"event": "held"`.
+  **`events.jsonl` advancing is not vaulting**, and treating `held` / `anchor` / `delivered` /
+  `shipped` / `vaulted` as interchangeable phase claims is a named hazard on this project
+  (Codex lane, `MSG-CDX-0014`, 2026-08-27). A future reader who "fixes" this number upward
+  because the event count moved will have made exactly that error.
 Every catalyst below exists to move that number or to make its quality claims true.
 
 ## The catalysts
 
 | # | Catalyst | Done-when (measurable) | Register anchors |
 |---|---|---|---|
-| C0 | **The pipeline breathes** | one PDF converts end-to-end this week; events.jsonl advances; the held/ 4 get a disposition | §A38, §B (product clock) |
+| C0 | **The pipeline breathes** | one PDF converts end-to-end this week; events.jsonl advances; the held/ **5** (`Observed` 2026-08-27 — it was 4 when this row was written) get a disposition | §A38, §B (product clock) |
 | C1 | **Reproducible ground** | `FP_PIPELINE` resolver replaces the 28 root literals; windows-converter gains a pinned manifest + joins CI; a documented venv makes local pytest possible | B-items: CI + literals |
 | C2 | **A measured quality baseline** | poisoned bundles quarantined (SYM-050); figure_coverage wired (A4/A18 signed); a scored baseline published, every number with named denominators | §E slate 6–9, A4, A18 |
 | C3 | **The challenger** (custom-OCR side project) | an alternative engine runs at the `_run_marker()` seam and is scored against C2's baseline; win or lose, deltas published | side-projects.md |
@@ -91,7 +107,7 @@ cadence at ~8.7 minutes of product work per session against whole sessions of go
 ## Signatures this page needs from Rab
 
 - Adopt this roadmap as the standing value-ranking organ (or amend the catalysts).
-- C0 scope: which book breathes first, and the held/ 4's disposition.
+- C0 scope: the held/ **5**'s disposition. *(`Observed` 2026-08-27: "which book breathes first" is answered — Ashby breathed 2026-08-25 and was held on a fail verdict. The disposition is what remains.)*
 - A4/A18 (figure-coverage wiring + map repair) to unlock C2.
 - The C6 date-trigger: what evidence forces the viability decision.
 
