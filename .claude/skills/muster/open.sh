@@ -228,8 +228,15 @@ reg_row() {  # reg_row <label> <path> <count-cmd>
 if [[ -f "$README" ]]; then
   TASKS="$FP_REPO/OPEN-TASKS.md"
   SYMS="$FP_REPO/SYMPTOM-INDEX.md"
+  # 2026-08-27: this class was [A-F], and OPEN-TASKS.md section J holds ids J1..J18 -
+  # OUTSIDE it. The card printed `94 item(s)` against a file holding 112, for three
+  # sessions. That is J15's shape - a counter that reads ONE spelling of a marker -
+  # applied to the register instead of the symptom index, and it under-reported in the
+  # direction that flatters. Struck rows begin `| ~~A18~~` and correctly do NOT match,
+  # so this counts OPEN rows, which is the point.
+  # Tripwire: selftest CASE 35, with a negative control on the strike exclusion.
   reg_row "open-tasks" "$TASKS" \
-    "$(grep -cU '^| [A-F][0-9]' "$TASKS" 2>/dev/null || echo '?') item(s)"
+    "$(grep -cU '^| [A-FJ][0-9]' "$TASKS" 2>/dev/null || echo '?') item(s)"
   reg_row "symptoms" "$SYMS" \
     "$(grep -cU '^| SYM-' "$SYMS" 2>/dev/null || echo '?') row(s), $(grep -oU '| `open`' "$SYMS" 2>/dev/null | grep -c . || echo '?') open"
   if [[ -f "$FP_REPO/coordination/relay.md" ]]; then

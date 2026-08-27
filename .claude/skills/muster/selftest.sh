@@ -512,6 +512,31 @@ if printf '%s' "$out" | grep -q 'FORK/REWIND'; then
   bad "S109 D3: …and is NOT called a fork" "same line of history reported as a fork — git says otherwise"
 else ok "S109 D3: …and is NOT called a fork"; fi
 
+
+# CASE 35 - the REGISTER COUNT class, 2026-08-27. The property: [2b]'s open-tasks count must
+# see EVERY open row in OPEN-TASKS.md whatever letter its id starts with, and must NOT count
+# struck rows. Violated in production for three sessions: the class was [A-F] while section J
+# holds J1..J18, so the card read 94 against a file of 112. Same shape as J15 - a counter that
+# reads one spelling of a marker - and it erred in the direction that flatters.
+# The fixture mixes all three cases so ONE number falsifies all three at once.
+R="$WORK/c35"; sha=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"
+printf '%s\r\n' '# OPEN TASKS' '' '| A1 | open a-row | x |' '| A2 | open a-row | x |' '| ~~A3~~ **STRUCK** | resolved - must NOT be counted | x |' '| B1 | open b-row | x |' '| J1 | open j-row | x |' '| J2 | open j-row | x |' > "$R/OPEN-TASKS.md"
+printf '%s\r\n' '| SYM-001 | s | c | S1 | `open` | g |' > "$R/SYMPTOM-INDEX.md"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm reg >/dev/null 2>&1
+mklib "$WORK/l35" 12 S42 "$sha"
+out=$(MEMORY_LIB="$WORK/l35" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'open-tasks +5 item\(s\)'; then
+  ok "REGISTER COUNT: A-rows, B-rows AND J-rows all counted; struck excluded (5)"
+else
+  bad "REGISTER COUNT: open-tasks must read 5 (2 A + 1 B + 2 J; struck A3 excluded)" "got: $(printf '%s' "$out" | grep -E 'open-tasks' | head -1)"
+fi
+# NEGATIVE CONTROL, same fixture: 6 id-bearing rows exist. A counter that ignored the strike
+# would read 6. So 6 must never appear - this is what stops the fix degenerating into
+# "count every row", which would satisfy the assertion above for entirely the wrong reason.
+if printf '%s' "$out" | grep -qE 'open-tasks +6 item\(s\)'; then
+  bad "REGISTER COUNT negative control: a struck row was counted" "read 6, so ~~A3~~ was counted"
+else ok "…and a struck row is never counted (never reads 6)"; fi
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
