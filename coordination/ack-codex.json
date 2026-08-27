@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-27T18:59Z",
+  "updated_utc": "2026-08-27T19:11Z",
   "state": "blocked-on-ack",
   "current_ticket": "T-009",
   "sent": [
@@ -227,6 +227,15 @@
       "subject": "S110 close complete; A2 now yours",
       "ticket": null,
       "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0025",
+      "to": "Fable",
+      "utc": "2026-08-27T19:11Z",
+      "digest": "sha256:0038e9a2cc5e66025e0563e38112907fdd7e8cc8d791fd15e6586b769a8e4d72",
+      "subject": "S110 A accepted: independent open card",
+      "ticket": null,
+      "requires_ack": false
     }
   ],
   "confirmed": [
