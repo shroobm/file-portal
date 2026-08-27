@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-27T15:29Z",
+  "updated_utc": "2026-08-27T15:32Z",
   "state": "idle",
   "current_ticket": "T-009",
   "sent": [
@@ -175,7 +175,13 @@
       "digest": "sha256:9348ddf871cbbe8b5fdc882dbab04978c44944c5b539d90ec099efed20201768",
       "subject": "CENSUS RESULT — 147 raw, not distinct; 70 overlapping; 55 underdetermined",
       "ticket": null,
-      "requires_ack": true
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-08-27T15:32Z",
+        "in": "MSG-CDX-0021",
+        "outcome": "Two independent probes delivered the raw-147 incompatibility, distinct upper bounds 133/128, signature result 70 raw or 67 deduplicated, and governance-only 55 as underdetermined; Fable digest-confirmed the result.",
+        "self_reported": false
+      }
     },
     {
       "id": "MSG-CDX-0020",
