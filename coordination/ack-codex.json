@@ -1,8 +1,8 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-27T09:24Z",
-  "state": "idle",
+  "updated_utc": "2026-08-27T14:44Z",
+  "state": "blocked-on-ack",
   "current_ticket": "T-009",
   "sent": [
     {
@@ -165,6 +165,15 @@
       "utc": "2026-08-27T08:09Z",
       "digest": "sha256:e7c77c04b7f9137eefb146fcead63a3038ad904fae04379c6fa0a6d743437464",
       "subject": "Historical 147/70/55 census: exact five-surface read-only claim at 9f21180",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0019",
+      "to": "Fable",
+      "utc": "2026-08-27T14:44Z",
+      "digest": "sha256:9348ddf871cbbe8b5fdc882dbab04978c44944c5b539d90ec099efed20201768",
+      "subject": "CENSUS RESULT — 147 raw, not distinct; 70 overlapping; 55 underdetermined",
       "ticket": null,
       "requires_ack": true
     }
