@@ -57,6 +57,16 @@ open symptom rows + 4 falsely-open ones** (§C) · **8 delegations never collect
 > | §J opened S109 | 18 | 4 | **14** |
 > | | | | **104 open** |
 >
+> **THE DENOMINATOR, because this number has a twin that counts something else.** `104` counts
+> **rows in THIS FILE only**, after the day's 8 strikes. It is *not* comparable to the **147**
+> reported to Rab on the same day, which counts distinct open items across **five surfaces** —
+> this file *plus* `SYMPTOM-INDEX.md`, `sessions/S108-SIGN-SHEET.md`, `coordination/BRIEF-S109.md`
+> §6, and `sessions/S110` §23. Both numbers are correct about different populations. They were
+> published hours apart with neither naming its population, a sweep agent read them as a live
+> contradiction in the tree, and it was right to — that is `docs/34`'s rule (**every measured
+> number names its numerator, denominator and conditions**) broken by the session that was
+> re-measuring this file to make it honest. Filed as `ERR-2026-08-27-012`.
+>
 > **Two things the old line got wrong, both structural, neither anyone's carelessness:**
 > (1) **§A has 44 rows, not 43.** The count was written when §A ran A1..A43 with none struck;
 > S109 then struck A21 *and* added A44, and the two changes cancelled. The number survived by

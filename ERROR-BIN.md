@@ -19,6 +19,11 @@ prompt error bin, send it as a line of error code, to a sub agent that digests i
 bin markdown."* Rows are the session's own words, restructured; the class table, the commonality
 section and the append protocol are this digest's work and are tagged accordingly.
 
+**Extended 2026-08-27**, same day, same session: rows **011–013**, two new classes, and every
+derived count re-run. Rows 001–010 are byte-identical to the seeding pass — this file appends, it
+does not rewrite. **Row 013 was produced by the verification run of this file's own first pass**,
+and is filed rather than quietly fixed.
+
 | tag | meaning |
 |---|---|
 | `Observed` | a command was run or a row was counted; the result is quoted |
@@ -40,17 +45,21 @@ the input lines; the "from the inside" column is the digest's characterisation, 
 | **METER-CONFUSION** | A number is on the panel, it has plausible units, and it is the only number in view. You report it. It measures the neighbour of what was asked | When reporting a number the user asked for, confirm the meter measures **the thing they named** | 005 |
 | **PREMATURE-ALARM** | The evidence is not where you looked, so you conclude it does not exist — and you say so before the probe has finished running | Finish the probe before narrating its verdict. A truncated read is **UNREAD**, not absent | 006 |
 | **HARNESS-MISUSE** | The command returns 0. The tooling reports success. The work never happened, or happened somewhere else, and the silence afterwards reads as calm | A backgrounded command must be the whole job, not a launcher for another background job. Never restore from a path whose write you did not confirm — verify the backup exists before destroying the original | 007, 008 |
-| **QUOTING** | A script dies on its own delimiters: backslashes, nested quotes, a trailing `\'`, a regex mangled in transit. Cheap when it crashes; expensive when it half-writes | Anything containing backslashes or nested quotes goes in a FILE via `Write`, never a heredoc | 009 |
+| **QUOTING** | A script dies on its own delimiters: backslashes, nested quotes, a trailing `\'`, a regex mangled in transit. Cheap when it crashes; expensive when it half-writes | Anything containing backslashes or nested quotes goes in a FILE via `Write`, never a heredoc | 009, 013 |
 | **OVER-CLAIM** | A list of candidates is reported as a list of findings. Most of it is right, which is what makes the rest of it dangerous | A delegated list is a list of **candidates**; every item that will produce a recorded change gets its own probe | 010 |
+| **STALE-GROUND** *(added 2026-08-27, row 011)* | You are writing the GROUND block for a fleet. The framing numbers came from an earlier report and feel like settled background rather than claims, so they get stated instead of probed — and then every downstream agent inherits them as given | GROUND is a claim like any other and gets a probe **before** it is handed to anyone. A **residue** section is the least-verified part of a report, not the most | 011 |
+| **DENOMINATOR** *(added 2026-08-27, row 012)* | Two totals appear in one session. Both were honestly obtained; neither is wrong. Nothing states what either one counts, so the reader has no choice but to assume they are comparable | `docs/34`: every measured number names its **numerator, denominator and conditions**. Two totals of different populations must never appear in one session without their populations stated | 012 |
 
-**8 classes, 10 rows.**
+**10 classes, 13 rows.**
 
 ---
 
 ## §B THE ROWS
 
-*All ten `Observed 2026-08-27` by the session that made them — self-reported, not re-verified by
-this digest. Surfaces and file citations are the reporting session's.*
+*All thirteen `Observed 2026-08-27` by the session that made them — self-reported, not re-verified
+by this digest. Surfaces and file citations are the reporting session's. Row 013 is the one
+exception to "self-reported by the session": it was observed by the digest run and filed by the
+session, which says so in the cell.*
 
 | ID | Class | Surface | What I claimed | What was true | How it was caught | The rule that would have prevented it |
 |---|---|---|---|---|---|---|
@@ -64,15 +73,19 @@ this digest. Surfaces and file citations are the reporting session's.*
 | ERR-2026-08-27-008 | HARNESS-MISUSE | `open.sh` backup/restore | Wrote `cp X /tmp/f \|\| cp X <scratchpad>/f` then restored from the SCRATCHPAD path; the `\|\|` short-circuited, so the backup only ever existed in `/tmp` | The restore silently failed and left `open.sh` carrying the reintroduced bug | The restore's own `No such file`, plus a follow-up grep | Never restore from a path whose write you did not confirm; verify the backup exists before destroying the original |
 | ERR-2026-08-27-009 | QUOTING | bash heredoc → python → regex | Three separate failures in one sitting: a `print f""` syntax error, an unterminated string from a trailing `\'`, and `(?<!\\)\|` mangled to `(?<!\)\|` | Each aborted the script; twice nothing was written, once I had to verify no partial write had occurred | Tracebacks | Anything containing backslashes or nested quotes goes in a FILE via `Write`, never a heredoc |
 | ERR-2026-08-27-010 | OVER-CLAIM | report to Rab | Reported the census's **"13 items already done"** as a finding without re-probing | At least **3 were not done** — B17, B18 still open; J10 only half-moved, and striking it would have claimed **C0 closed** | Re-probing each myself before striking | A delegated list is a list of CANDIDATES; every item that will produce a recorded change gets its own probe |
+| ERR-2026-08-27-011 | STALE-GROUND | GROUND handed to a **7-agent fleet** | Asserted in the GROUND block that `sessions/` holds **"~110 closeout files"** and that **"every other session's own left-open section is UNREAD"** — and dispatched 7 agents on it | **Both halves false.** Measured after the fact by me: `ls -1 sessions/ \| wc -l` → **48**, closeout-shaped → **46**, earliest is S67. And `OPEN-TASKS.md:7` says in its own header that it was built "by sweeping **all 42 closeouts** in `sessions/` (S67→S106)" — 46 minus S107/S108/S109/S110 = **exactly 42**. The files were swept **five sessions ago** | **By the fleet itself** — multiple agents refused the premise and reported the refutation as their headline, which is the behaviour the orchestration law's *"deviation is the report"* clause exists to buy | I inherited the "~110 / all unread" figure from a census subagent's **RESIDUE** section and passed it on as GROUND without one `ls`. GROUND is a claim like any other and gets a probe before it is handed to anyone; a residue is the least-verified part of a report, not the most |
+| ERR-2026-08-27-012 | DENOMINATOR | numbers reported to Rab | Quoted **"147 open items"** to Rab and wrote **"104 open"** into `OPEN-TASKS.md` §0 in the same session, without ever naming that they count different things | Not a contradiction, but presented as if comparable: **147** spans FIVE surfaces (`OPEN-TASKS` + `SYMPTOM-INDEX` + the sign sheet + BRIEF seams + S110 §23); **104** is `OPEN-TASKS.md` alone, after the day's 8 strikes. A sweep agent flagged the pair as a **live conflict in the tree** and could not tell which denominator was right | A subagent raising it as a deviation — not by me | `docs/34`: every measured number names its numerator, denominator and conditions. Two totals of different populations must never appear in one session without their populations stated |
+| ERR-2026-08-27-013 | QUOTING | **this error bin's own verification run** | *(Reported by the digester; filed because it is real.)* **ERR-009's exact failure reproduced live** while the bin was being verified: `(?<!\\)\|` mangled through the shell into `re.error: missing ), unterminated subpattern` | The rule ERR-009 states was correct, and applying it — script in a file, not a heredoc — fixed it immediately | The traceback | **A rule filed in this bin is not a rule followed.** ERR-009 recurred inside the very run that documented it, which is the single best evidence that this file must be **READ at the start of a task**, not only written at the end |
 
 ---
 
 ## §C WHAT THESE HAVE IN COMMON
 
-### 1. Seven of the ten are one failure in eight costumes
+### 1. Eight of the thirteen are one failure in eight costumes
 
-`Observed` — counted from §B, not recalled. **001, 002, 003, 004, 005, 006, 010** are the same
-move: *a stand-in for a measurement was quoted as the measurement.* Only the stand-in changes.
+`Observed` — counted from §B, not recalled. **001, 002, 003, 004, 005, 006, 010, 011** are the
+same move: *a stand-in for a measurement was quoted as the measurement.* Only the stand-in
+changes.
 
 | row | the proxy that was quoted | the thing it stood in for |
 |---|---|---|
@@ -83,48 +96,94 @@ move: *a stand-in for a measurement was quoted as the measurement.* Only the sta
 | 005 | the harness token counter | the context window |
 | 006 | a print truncated at 2600 chars | the file |
 | 010 | a delegated list of 13 | thirteen probes |
+| 011 | a census subagent's **residue** section | `ls -1 sessions/` |
 
 Two more (**007**, **008**) present as harness mechanics but land in the same place: silence read
 as calm, and a backup assumed to exist because the command that would have written it ran.
 `Inferred` — the proximate cause in both is shell semantics, so they are classed HARNESS-MISUSE,
-but the escape route is identical. **009 is the only purely mechanical row in the file.**
+but the escape route is identical. **012** is the one genuinely different epistemic failure in
+the file: not a proxy quoted as a measurement, but two real measurements of different populations
+laid side by side with neither population named.
 
-### 2. Two of the ten were caught by method
+**009 and 013 are the only purely mechanical rows — and they are the same defect, filed twice.**
+`Observed`: 013's cell states it reproduced 009 exactly. Four rows apart, hours apart, one file
+apart. See §C.5.
 
-`Inferred` from the "how it was caught" column of §B:
+### 2. Two of the thirteen were caught by method
+
+`Inferred` from the "how it was caught" column of §B. **The numerator did not move when three
+rows were added** — 011 and 012 introduced a new catch mode rather than joining the old one:
 
 | catch mode | rows | n |
 |---|---|---|
 | A method chosen **because the claim mattered** — a second differently-shaped count; a re-probe before striking | 004, 010 | **2** |
-| The machine failing **loudly** — traceback, `No such file`, a completion notice at ~2 s | 007, 008, 009 | 3 |
+| The machine failing **loudly** — traceback, `No such file`, a completion notice at ~2 s | 007, 008, 009, 013 | 4 |
 | An **unrelated read** of `bench.py` / the resolver's source | 001, 002, 003 | 3 |
+| **A delegated agent refusing the premise** and reporting the deviation | 011, 012 | 2 |
 | **Rab**, with a screenshot | 005 | 1 |
 | Continuing the probe after the alarm had already been sounded | 006 | 1 |
 
 `Inferred`, and load-bearing: **001, 002 and 003 all name the same source read.** The input does
-not state they were one act (`Unknown`), but three of the ten — including the single most
+not state they were one act (`Unknown`), but three of the thirteen — including the single most
 consequential row in the file — were caught in the neighbourhood of one read that happened for a
 different reason. That is luck with a good alibi.
 
 ### 3. The catches anti-correlate with the damage
 
-`Observed` — four rows record the claim reaching a human or another vendor **before** it was
-checked: **001** (Rab *and* the Codex bus), **005** (Rab), **006** (Rab, plus a correction drafted
-on the false premise), **010** (Rab). Of those four, exactly one (010) was caught by a method of
-mine, and only after it had already been reported.
+`Observed` — **six** rows record the claim reaching a human, another vendor, a fleet, or a tracked
+register **before** it was checked: **001** (Rab *and* the Codex bus), **005** (Rab), **006** (Rab,
+plus a correction drafted on the false premise), **010** (Rab), **011** (**seven agents**, as their
+GROUND), **012** (Rab *and* written into `OPEN-TASKS.md` §0, where it persists). Of those six,
+exactly one (010) was caught by a method of mine, and only after it had already been reported.
 
-`Inferred`, and the reason to keep this file: **the three that crashed cost minutes and reached
-nobody.** The four that escaped ran silently to completion — no traceback, no non-zero exit,
+`Observed`, and it is the trajectory that matters: **001's wrong claim reached two audiences;
+011's reached seven** — and 011 happened *after* 001 was filed, with the same rule already written
+down. The blast radius grew by 3.5× while the rule sat in the register.
+
+`Inferred`, and the reason to keep this file: **the four that crashed cost minutes and reached
+nobody.** The six that escaped ran silently to completion — no traceback, no non-zero exit,
 plausible numbers. A failure that announces itself is not the class this bin exists for. Every
 row here that mattered was quiet.
 
-### 4. Three of the ten sit on a delegation boundary
+### 4. Delegation causes four of the thirteen — and now catches as many as method does
 
-`Observed` — **001, 002 (its verdict), 010** all originate in work done by a subagent or a
-census and then carried forward without an independent probe. `Inferred`: this is the same
-property `docs/47` (the subagent orchestration law) governs from the *commissioning* side; these
-rows are its failure mode on the *receiving* side. **The law says what to give an agent; nothing
-here says what to do with what it returns.**
+`Observed` — **001, 002 (its verdict), 010, 011** all originate in work done by a subagent or a
+census and then carried forward without an independent probe. 011 is the deepest of them: the
+inherited claim was not a subagent's *finding* but a subagent's **residue**, the section of a
+report explicitly reserved for what it could not establish.
+
+`Observed` — and in the same file, **delegated agents caught 2 of the 13** (011, 012), which is
+exactly as many as every deliberate method of my own caught (004, 010). `Inferred`: this is the
+property `docs/47` (the subagent orchestration law) governs from the *commissioning* side, now
+visible from both ends at once — **the law's "deviation is the report" clause is doing more
+verification work in this file than my own probes are.** The law says what to give an agent;
+nothing in it says what to do with what an agent returns, and every one of these four rows is a
+failure on the return leg.
+
+### 5. Are this file's rules propagating, or only being restated?
+
+**Only being restated.** `Observed`, on the two rows that test it directly:
+
+- **013 is a rule from this file failing during the writing of this file.** ERR-009's rule —
+  *backslashes and nested quotes go in a FILE, never a heredoc* — was already written, already in
+  the register, and physically on screen. The very next command that needed it was a heredoc'd
+  regex, and it died on the same construct. The rule did not fire. **The traceback did.**
+- **011 is 001 one level up.** 001 was a subagent's `Verified` carried to Rab and the Codex bus
+  with my authority attached. 011 is a subagent's **residue** — the least-established part of a
+  report — carried to *seven agents* as their GROUND, with my authority attached. Same class,
+  same move, one layer higher in the stack, and **001 was already filed when it happened.**
+
+So the honest reading, `Inferred` but hard to escape: **writing a rule into this register changed
+nothing about the behaviour it names, inside the same session, on the same day.** Both recurrences
+were caught by something outside me — a traceback, and a fleet refusing its own GROUND. `Observed`:
+**no row in §B names this file as how it was caught. Zero of thirteen.**
+
+What *is* propagating is the thing with teeth: `docs/47`'s "deviation is the report" clause, signed
+before this file existed, is what caught 011 and 012. A register that is written at the end of a
+task is a record. It becomes a rule only when something forces it to be **read at the start of
+one** — which is precisely what row 013's own rule says, filed by the run that proved it.
+
+**This section is the file arguing against its own sufficiency.** Leave it in.
 
 ---
 
@@ -145,11 +204,16 @@ regex tripped on.
 
 **The honest caveat, which is structural and not fixable by discipline.** A self-reported error
 log contains only the errors its author **noticed**. It is a biased sample by construction, and
-§C.2 measures the bias directly: 3 of these 10 are here because the machine crashed, 1 because
-Rab looked at a screenshot, and 3 because of an unrelated read. **The errors that were quiet AND
-that nothing happened to bump into are not in this file, and there is no reason to believe the
-noticed set resembles the whole.** The file's own §C.3 finding — that the quiet ones are the
-expensive ones — implies the unsampled remainder is worse than the sample, not better.
+§C.2 measures the bias directly: of these 13, **4** are here because the machine crashed, **3**
+because of an unrelated read, **2** because a delegated agent refused the premise, **1** because
+Rab looked at a screenshot, **1** because a probe was allowed to finish — and **2** because I
+chose a method. **The errors that were quiet AND that nothing happened to bump into are not in
+this file, and there is no reason to believe the noticed set resembles the whole.** The file's own
+§C.3 finding — that the quiet ones are the expensive ones — implies the unsampled remainder is
+worse than the sample, not better.
+
+`Observed`, from the append of rows 011–013: **adding three rows did not move the method count.**
+It stayed at 2. Every added row entered through a channel outside my own intent.
 
 **What would make it less biased** (proposals, unsigned, `Inferred`):
 
@@ -165,3 +229,9 @@ expensive ones — implies the unsampled remainder is worse than the sample, not
    count that never rises should be as visible as a count that never falls.
 5. **Never quote a class from this file as absolution.** Having a class named here does not mean
    the class is guarded. Nothing in this file has teeth; it is a mirror, not a gate.
+6. **Read it at the START of a task, not only at the end** — row 013's rule, appended
+   2026-08-27 because ERR-009 recurred during this file's own verification run, hours after being
+   filed. A register consulted only at close is a record of what was already lost. `Inferred`, and
+   the cheapest test of whether that ever changes: **the day a §B row can name ERROR-BIN.md in its
+   "how it was caught" column is the day this file starts being a rule instead of a diary.**
+   Today that column names it zero times out of thirteen.
