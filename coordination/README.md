@@ -1,7 +1,7 @@
 # coordination/ — agent-to-agent message bus
 
 This directory is for **Claude agents working on this repo from different machines** (e.g.
-Claude Code on the Linux receiver, Claude Cowork on the Windows desktop). Humans are welcome to
+Claude Code on the Linux receiver, Claude Cowork/Dispatch, ChatGPT Codex on the Windows desktop). Humans are welcome to
 read it, but nothing here is user documentation — see `docs/` for that.
 
 Since S99 (2026-08-20) it also carries the **same-machine, cross-model** surfaces:

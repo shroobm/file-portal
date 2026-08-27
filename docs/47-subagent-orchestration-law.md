@@ -131,7 +131,7 @@ are genuine module-level definitions" is `Inferred`, and it named the command th
 - **IT BINDS THE AGENTS AND NOT THE ORCHESTRATOR — and that is not a hypothetical gap.** §3 requires
   every lane to build a NEGATIVE CONTROL before trusting its instrument. Nothing in this law binds
   the orchestrator's OWN probes, and in the single sitting that wrote it the orchestrator shipped
-  **five defective instruments** (this count was itself written as *three* and had to be corrected an hour later -- the defects kept arriving after the section naming them was committed):
+  **seven defective instruments** (this count has now been corrected TWICE -- written as *three*, raised to *five*, and raised again to *seven*. The defects kept arriving after each revision of the section naming them, which is the most honest thing this document says about its author):
 
   | # | the probe | the defect | the rule it broke |
   |---|---|---|---|
@@ -140,12 +140,19 @@ are genuine module-level definitions" is `Inferred`, and it named the command th
   | 3 | analyst monitor, v2 | GPU utilisation placed in the change-detection key, so `93% → 92%` counted as a state change and the watch fired on jitter | a noisy field in a comparison key is a broken signal |
   | 4 | `cargo fmt --check` pre-flight, v1 | piped into `head -20`, then read `$?` -- which is **`head`'s** exit code, always 0. A FALSE GREEN on the formatting gate | rule 4, and it is the gate whose failure turned CI red for three consecutive sessions (S101-S103) |
   | 5 | `cargo fmt --check` pre-flight, v2 | the fix used a relative `cd` while the shell was ALREADY in that directory. The `cd` failed, cargo never ran, and the script printed **`VERDICT: fmt RED`** | **rule 4's worst form** -- a failed probe rendering not as UNREAD but as a confident negative VERDICT |
+  | 6 | mechanism-bakeoff audit | counted a LOG VERB (`SAW`) instead of disk state, and reported **8 LOST** for a mechanism that was sitting on disk complete 8/8 | measured the proxy, not the property -- the same substitution `docs/32` is about |
+  | 7 | SSH gate check | `Get-Content` on `administrators_authorized_keys` was **ACL-DENIED**, and the script rendered that denial as **`0 key(s)`** | rule 4, inside a SECURITY check. The denial was the system working correctly; the probe turned it into a false count |
 
   Every one would have been caught by thirty seconds of the discipline this document demands of
   subagents: **run the probe against a state whose answer you already know.** #2 in particular is the #4 and #5 are the sharpest pair, because they are the same check
   written twice and they failed in OPPOSITE DIRECTIONS -- a false green, then a false red -- so
   believing either one would have been luck. The true reading, third attempt, absolute path and no
-  pipe: exit 0, zero output bytes.
+  pipe: exit 0, zero output bytes. #6 and #7 landed AFTER the five-row version of this table was committed, which is why the
+  intro above admits the count has moved twice. **The pattern is not that any one probe was careless.**
+  It is that a probe gets written in the same breath as the claim it is meant to support, and is therefore
+  never itself tested. Every one of the seven would have died in thirty seconds against a state whose
+  answer was already known -- which is precisely the NEGATIVE CONTROL this document demands of subagents
+  and has never demanded of the orchestrator.
   exact defect that `open.sh` was once bitten by — MSYS rewrote `/FI`, `tasklist` errored to stderr,
   the error was swallowed, and the card printed `widget down` while PID 10048 was alive.
 
