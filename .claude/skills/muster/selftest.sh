@@ -565,6 +565,32 @@ if printf '%s' "$out" | grep -qE 'error-bin +UNREAD'; then
 else
   bad "a deleted error bin must read UNREAD" "got: $(printf '%s' "$out" | grep -E 'error-bin' | head -1)"
 fi
+
+# CASE 37 - J15, THE SYMPTOM COUNTER, 2026-08-27. The property: [2b]'s open-symptom count must
+# see EVERY spelling of the open marker in the STATUS COLUMN, and must NOT count a marker that
+# merely appears inside another row's prose. Violated in production: the counter read only
+# `` | `open` `` while the index carries 4 of those and 12 bold **OPEN**, so the card printed
+# 4 against 14 - under-reporting by 3.5x, in the flattering direction, on every open for days.
+# The fixture's 4th row is the control: `fixed` in the status column but **OPEN** later in the
+# SAME row. A whole-line grep counts it and reads 4; a status-column-anchored one reads 3.
+R="$WORK/c37"; sha=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"
+printf '%s\r\n' '| A1 | a | x |' > "$R/OPEN-TASKS.md"
+printf '%s\r\n' '| SYM-001 | s | c | S1 | `open` | g |' '| SYM-002 | s | c | S1 | **OPEN** | g |' '| SYM-003 | s | c | S1 | **OPEN.** more text | g |' '| SYM-004 | s | c | S1 | `fixed` — see SYM-002 which is **OPEN** | g |' > "$R/SYMPTOM-INDEX.md"
+printf '%s\r\n' '# ERROR BIN' '| ERR-2026-01-01-001 | X | a | b | c | d |' > "$R/ERROR-BIN.md"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm sym >/dev/null 2>&1
+mklib "$WORK/l37" 12 S42 "$sha"
+out=$(MEMORY_LIB="$WORK/l37" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'symptoms +4 row\(s\), 3 open'; then
+  ok "J15: both `open` and **OPEN** counted, and a prose mention is NOT (3 of 4)"
+else
+  bad "J15: symptoms must read '4 row(s), 3 open'" "got: $(printf '%s' "$out" | grep -E 'symptoms' | head -1)"
+fi
+# NEGATIVE CONTROL: reading 1 means only the backtick spelling was seen - the original bug.
+# Reading 4 means a prose mention was counted - the bug a careless fix would introduce.
+if printf '%s' "$out" | grep -qE 'symptoms +4 row\(s\), (1|4) open'; then
+  bad "J15 negative control" "read 1 (only backticks) or 4 (counted prose) - both wrong"
+else ok "…and it reads neither 1 (backticks only) nor 4 (prose counted)"; fi
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

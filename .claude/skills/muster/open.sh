@@ -247,8 +247,18 @@ if [[ -f "$README" ]]; then
   ERRBIN="$FP_REPO/ERROR-BIN.md"
   reg_row "error-bin" "$ERRBIN" \
     "$(grep -cU '^| ERR-' "$ERRBIN" 2>/dev/null || echo '?') row(s) — read the CLASS table before you probe"
+  # J15, live here until 2026-08-27. This counted ONE spelling — `` | `open` `` — and the
+  # index legitimately uses two: 4 rows carry `open` and 12 carry **OPEN**, so the card
+  # printed "4 open" against 14 and UNDER-REPORTED BY 3.5x, in the direction that flatters.
+  # J15's own warning was not to fix this by reformatting the evidence: normalising
+  # SYMPTOM-INDEX.md to suit the counter would be editing the data to satisfy the probe.
+  # So the COUNTER learns both spellings and the register is untouched. Anchored on the
+  # STATUS COLUMN (`| ` then the marker) so a cross-reference inside another row's prose is
+  # not counted — the failure mode a naive whole-line grep would introduce.
+  # NOTE: close.sh's DEBT gate has the SAME defect and is B3's business, not this line's.
+  # Tripwire: selftest CASE 37, with a both-spellings fixture and a prose-mention control.
   reg_row "symptoms" "$SYMS" \
-    "$(grep -cU '^| SYM-' "$SYMS" 2>/dev/null || echo '?') row(s), $(grep -oU '| `open`' "$SYMS" 2>/dev/null | grep -c . || echo '?') open"
+    "$(grep -cU '^| SYM-' "$SYMS" 2>/dev/null || echo '?') row(s), $(grep -coU '| \(`open`\|\*\*OPEN\)' "$SYMS" 2>/dev/null || echo '?') open"
   if [[ -f "$FP_REPO/coordination/relay.md" ]]; then
     row "relay" "$(grep -cU '^## 20' "$FP_REPO/coordination/relay.md" 2>/dev/null || echo '?') entries · run \`gate.py status\` for the board"
   else
