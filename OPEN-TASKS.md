@@ -82,6 +82,17 @@ open symptom rows + 4 falsely-open ones** (§C) · **8 delegations never collect
 > struck** — a finished n=30 A-B-A run exists on disk, gitignored and unnoticed, but its one
 > named condition (idle card) is unrecorded, so it stays `Unknown`.
 
+> **RE-MEASURED 2026-08-28 — current row population after the S111 filings below:** §A has
+> 48 rows / 2 struck / **46 open**; §B 32 / 2 / **30**; §D 8 / 1 / **7**; §F 12 / 0 / **12**;
+> §J 18 / 4 / **14**. Numerator: open rows in this file. Denominator: those five sections only.
+> **109 open.** This does not revise the historical 147-item, five-surface census.
+
+**Current signable surface outside that historical five-surface denominator:**
+[`sessions/S110-SIGN-SHEET.md`](sessions/S110-SIGN-SHEET.md). Blocks A and B are signed; C1,
+C2 and D1 remain open. Do not fold this sheet retroactively into the 147 census. A MUSTER card
+field was considered and deliberately not added in S111: it would change the open/close gate for
+a reachability repair that this primary register already supplies.
+
 ---
 
 ## §A AWAITING RAB'S SIGNATURE — semantic, a session may not decide these
@@ -165,6 +176,14 @@ map — but *the repair is not wired*, so it moves to A18 below rather than clos
 | A43 | **Give the memory library's git a remote, or fold it into the Drive mirror.** It is local-only; a disk loss takes it | S96 §18.7 |
 | A44 | **hOCR AS A SUPPLIED SIDE-INPUT** (Rab's design, 2026-08-25). An hOCR file is obtained externally and paired with the PDF at intake; the Analyst gains an INDEPENDENT expectation of what should be on the page, turning it from a reader into a comparator — which is the hole `docs/45` named (*nothing compares a claim to the probe that produced it*). Closes, if built: **SYM-053 becomes mechanical** (hOCR words inside a bbox that marker exported as a degenerate blank crop = a contradiction a machine can see, where it currently takes a human visual pass) · **per-REGION text survival** instead of a document-level score · **SYM-049** gets positive evidence for a fragmented diagram · and the 2-up gutter question becomes a reading-order check rather than 295 pages of human reading. **ACCEPTANCE CRITERION #1, and nothing is trusted before it: THE ALIGNMENT GATE.** hOCR bboxes live in the coordinate space of whatever produced them, often a DIFFERENT scan with its own crop, skew and offset. Align on high-confidence anchors per page, measure the residual, and **mark the pairing `UNREAD` rather than comparing when the residual is bad.** Silent misalignment producing confident garbage is **SYM-050** — the doubled-offset bundle that made 19 of 20 adjudicated verdicts FALSE. **#2: provenance is load-bearing** — `hocr_source` + `hocr_sha256` + the residual into the manifest. An hOCR from a Surya-family engine is CORRELATED and worth little (SYM-001). Unsourced hOCR is `Unknown`, not "reference". **#3: a disagreement is a FLAG WITH A LOCATION, never a verdict** — hOCR is a reference, not ground truth, and is often WORSE than Surya on hard text. Note the precedent: `docs/15` §5's "a large delta is a flag" was **WITHDRAWN at S101**; what makes this different is that the delta is bbox-anchored and `x_wconf`-weighted — a pointer to a place, not a score. That distinction decides whether this fixes that finding or repeats it. **UI (Rab's design):** hOCR is OPTIONAL in the drop box; dropping a PDF offers "confirm" or "supply hOCR", and an hOCR drop zone appears. ⚠ **It must not block intake** — today intake is fire-and-forget, and a modal turns a forgotten confirmation into a pipeline that looks alive and does nothing (`events.jsonl` frozen 11 days is what that looks like from outside). Land it in **`pending`**, a counter ALREADY on the muster card, so a forgotten pairing surfaces at every open; or give the dialog a countdown default. **Validate the pairing AT THE BOX** (page counts + a one-page text-overlap sample) and refuse with a reason, rather than failing deep in the run. **Blast radius:** changes the INTAKE CONTRACT, the most load-bearing surface in the pipeline, and touches both renderers where **SYM-043** is already open for copy lagging mechanism. Stage 2, signature required, not a tonight item | Rab in conversation 2026-08-25 (S109 second sitting); design notes in `sessions/S109` §19 and `coordination/BRIEF-S109.md` |
 
+| A45 | **Finish `docs/30`'s still-open algedonic choices and decide whether to run its deferred research day:** silence/liveness, morning-note versus Gmail ownership, died versus stalled, and M/ack. Do not reopen §5.4, already signed; §5.2 remains deferred and the research day remains queued ahead of the guided Valentine | `docs/30` §5.2, §5.4, §6 |
+| A46 | **Choose the Room queue-order contract:** retain the current read-only filename order, or authorize operator reordering with durable persistence and an explicit fairness rule. The watcher (`watch_and_convert.py`) and Rust projection already sort; the glass says steering awaits signature | `windows-converter/watch_and_convert.py:196`; `windows-widget/src-tauri/src/line.rs:82-98`; `windows-widget/src/room.js:155-172` |
+| A47 | **Commission an independent adversarial challenge of all four `docs/40` theses A–D.** Each thesis already carries its author's own objections; what is missing is a differently-prioritized reader and a falsifying probe. This is not A33, which chooses a §10 decision gate | `docs/40:270,300,312,324`; A33 above |
+| A48 | **Resolve the two `docs/36` §8 questions that no other row mirrors:** where the briefing should live, and what the ThinkPad's untracked `CLAUDE.md` counts mean. Six of the eight questions are already represented by A8, A9, A10, A11, A12 and A42; do not duplicate them | `docs/36` §8; cross-check against A8–A12 and A42 |
+
+**Negative control for this filing:** `docs/27` and `docs/28` were inspected and deliberately not
+refiled; their work is already represented in the symptom/register record.
+
 ---
 
 ## §B MECHANICAL — no signature needed, a session may simply do these
@@ -235,13 +254,16 @@ committed again five times since.*
 
 ## §C OPEN SYMPTOM ROWS — `SYMPTOM-INDEX.md`
 
-**14 genuinely open.** Retrieval keys are in the index; this is the roll call.
+**23 genuinely open after the S111 Dock filings.** Retrieval keys are in the index; this is the
+roll call. The prior 14-row sentence omitted SYM-053–SYM-057; S111 adds SYM-058–SYM-061.
 
 `SYM-003` (Repair Bench is the response, not a fix) · `SYM-024` (resume stderr hardened, not
 root-caused) · `SYM-027` (glass debt — criteria 2 and 3 NOT MET) · `SYM-034` (cause unknown,
 exposure bounded) · `SYM-035` (bounded and measured, not eliminated) · `SYM-039` (fixes
 assigned to Desktop by the ThinkPad handoff §2.6) · `SYM-043` · `SYM-044` · `SYM-045` ·
-`SYM-046` · `SYM-047` · `SYM-049` · `SYM-050` · `SYM-051` (environmental).
+`SYM-046` · `SYM-047` · `SYM-049` · `SYM-050` · `SYM-051` (environmental) · `SYM-053` ·
+`SYM-054` · `SYM-055` · `SYM-056` · `SYM-057` · `SYM-058` · `SYM-059` · `SYM-060` ·
+`SYM-061`.
 
 **⚠ 4 FALSELY open — `Observed 2026-08-22`, unchanged since S96 flagged it.** `SYM-032`,
 `SYM-033`, `SYM-041`, `SYM-042` all still read `open`/`OPEN` in the status column while their
@@ -296,7 +318,7 @@ every Investment Valuation figure computed before the map repair.
 | F3 | **Four false `OPEN`s** in the SYMPTOM-INDEX status column (§C) | `Observed 2026-08-22`, unrepaired since S96 §18.2 **RESOLVED S108 (`ffc7b8a` + `97906a3`)** — three verdicts folded, SYM-032 gained the verdict its cell never had; trails preserved. |
 | F4 | **`S82`'s ledger row is dated 2026-08-16; its closeout file is `S82-desktop-2026-08-15.md`** | `Historical` (S96 §18.5) |
 | F5 | **Correct the S102/S103 ledger rows and CHANGELOG**, or rule that newer rows supersede (A27) | open |
-| F6 | **`MEMORY.md` is at ~200 lines — the read limit** — and has silently dropped pointers before. Compaction is Rab's call (S96 ruled the block must not be relocated). *That growth IS `docs/45`'s M5 finding, live* | `Historical` (S105) |
+| F6 | **`MEMORY.md` is at ~200 lines — the read limit** — and has silently dropped pointers before. Compaction is Rab's call (S96 ruled the block must not be relocated). *That growth IS `docs/45`'s M5 finding, live* | `Historical` (S105). **Observed 2026-08-28:** canonical `MEMORY.md` is **220 physical lines / 25,237 bytes**, SHA-256 `958296A202D878D46577213A5B4DECCD3C58686FBF7CE71A93CCE9036FB9880F` — 20 lines beyond its ~200-line read limit. No compaction was performed; the disposition remains Rab's decision and the protected block was not moved. |
 | F7 | **Reconcile the `.Codex` vs `.claude` canonical memory namespace** before migrating or duplicating memory data | S95 §18.5 |
 | F8 | **SYM-046's own account is wrong**: "three closeouts cited it" — S100 never cited glass; its hollow claim is in its **ledger row**, which nobody corrected, and the correction appended to S100 corrects a claim that closeout never made. S97's glass line was also hollow and got no correction at all | `docs/45` F4 |
 | F9 | **S96's untouched next-entry list** was inherited `Historical` by S97 and **still requires explicit prioritization rather than silent displacement** | S97 §18.4 |
