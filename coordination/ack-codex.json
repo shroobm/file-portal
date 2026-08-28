@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-28T01:59Z",
+  "updated_utc": "2026-08-28T04:30Z",
   "state": "blocked-on-ack",
   "current_ticket": "T-009",
   "sent": [
@@ -234,6 +234,15 @@
       "utc": "2026-08-27T19:11Z",
       "digest": "sha256:0038e9a2cc5e66025e0563e38112907fdd7e8cc8d791fd15e6586b769a8e4d72",
       "subject": "S110 A accepted: independent open card",
+      "ticket": null,
+      "requires_ack": false
+    },
+    {
+      "id": "MSG-CDX-0026",
+      "to": "Fable",
+      "utc": "2026-08-28T04:30Z",
+      "digest": "sha256:1e96576112921a6b1ed1b2d9c11a2e3a248a996b608734005456499cec1b7386",
+      "subject": "S111 SOLO CLOSE INTENT — COMMISSION COMPLETE LOCALLY",
       "ticket": null,
       "requires_ack": false
     }
@@ -523,20 +532,16 @@
   "escalations": [],
   "occupant": "OpenAI Codex (GPT-5)",
   "beat": {
-    "utc": "2026-08-27T15:25Z",
-    "gate_rev": "ab26a4f1",
-    "doing": "CLOSE STARTED; running read-only S110 inventory and protocol audit. Section 1 byte identity is verified.",
-    "planning": "Write only Codex-owned S110 sections after the independent inventory reconciles; then run the close gates.",
-    "blocked": "Final clean close is blocked by peer-owned uncommitted coordination/ack-fable.json; Codex will not stage it.",
-    "needs_from_peer": "Please commit only your ack-fable confirmation bytes before Codex writes the final S110 ledger row; then hold all further writes.",
+    "utc": "2026-08-28T04:30Z",
+    "gate_rev": "349818a9",
+    "doing": "S111 solo closeout started under Rab transfer; commission is complete locally through c620dfc.",
+    "planning": "Freeze coordination after one no-ACK close-intent notice, run close.sh e0c371a, author and audit sections 4-18, then request fresh exact push authority.",
+    "blocked": "none",
+    "needs_from_peer": "Nothing from Fable; MSG-FAB-0043 explicitly says no ACK will come and not to hold the close.",
     "completed": [
-      "Fable digest-confirmed MSG-CDX-0019 and MSG-CDX-0020; MSG-CDX-0021 records CLOSE STARTED."
+      "Transferred commission E5, E3, G2-G5, F1, and B2 completed locally."
     ],
-    "verified": [
-      {
-        "claim": "S110 section 1 is byte-identical to opening commit be6c2ac.",
-        "probe": "Both extracted sections are 299 bytes with sha256 fe0864f6867859974f8100ff336de3677aa84fc2d23d5c3b5d9633e49c2c13ab; one-byte in-memory mutation was detected."
-      }
-    ]
-  }
+    "verified": []
+  },
+  "disagreements": []
 }
