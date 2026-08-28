@@ -314,6 +314,60 @@ else
   reg_add=$(git -C "$FP_REPO" diff --numstat "$PIN"..HEAD -- OPEN-TASKS.md 2>/dev/null | awk '{print $1}')
   reg_del=$(git -C "$FP_REPO" diff --numstat "$PIN"..HEAD -- OPEN-TASKS.md 2>/dev/null | awk '{print $2}')
   row "REGISTER" "OPEN-TASKS.md written this session: +${reg_add:-?} / -${reg_del:-?} lines"
+  # B3, signed 2026-08-27. Lines are not items. A session that ADDS ten rows and strikes none
+  # shows "+56 / -16" and reads like work. §I says a session "either strikes an item OR ADDS
+  # ONE" — so the gate meant to force progress is satisfied by producing more governance,
+  # which is exactly how a day that shipped 55 governance items and zero product passed clean.
+  # Count the ACTS, not the diff: a strike is an id gaining ~~strikethrough~~; an add is an id
+  # that did not exist at the pin. Print the delta with its direction named.
+  # PREDICATE, stated because the first draft of this gate got it wrong and the wrong number
+  # looked right. A diff line `+| D7 |` matches a row that was EDITED, not only one that is
+  # NEW — so counting diff lines printed 'ADDED 8' for a session that added none. That is
+  # ERR-014's shape inside the gate built to measure whether governance is growing.
+  # ADDED and STRUCK are therefore CENSUSES OF THE FILE AT EACH END, never reads of the diff
+  # between them: two states, two counts. `sort | uniq -u` over the doubled pin list yields
+  # ids present now and absent at the pin, without process substitution.
+  ids_now=$(grep -oU '^| *~*~*[A-FJ][0-9]*' "$TASKS_MD" 2>/dev/null | tr -d '| ~' | sort -u)
+  ids_pin=$(git -C "$FP_REPO" show "$PIN:OPEN-TASKS.md" 2>/dev/null | grep -oU '^| *~*~*[A-FJ][0-9]*' | tr -d '| ~' | sort -u)
+  struck_now=$(grep -coU '^| *~~[A-FJ][0-9]' "$TASKS_MD" 2>/dev/null || echo 0)
+  struck_pin=$(git -C "$FP_REPO" show "$PIN:OPEN-TASKS.md" 2>/dev/null | grep -coU '^| *~~[A-FJ][0-9]' || echo 0)
+  struck=$(( ${struck_now:-0} - ${struck_pin:-0} ))
+  added=$(printf '%s\n%s\n%s\n' "$ids_now" "$ids_pin" "$ids_pin" | sort | uniq -u | grep -c . || true)
+  row "" "STRUCK ${struck:-0} · ADDED ${added:-0} — $(
+      if   [ "${struck:-0}" -gt "${added:-0}" ]; then printf 'net -%s, the register moved DOWN' "$(( struck - added ))"
+      elif [ "${added:-0}" -gt "${struck:-0}" ]; then printf 'net +%s, GOVERNANCE GREW. §I: justify it or work one down' "$(( added - struck ))"
+      else printf 'net 0 — nothing was worked down; say so in the closeout rather than imply it'
+      fi)"
+fi
+
+# ── [8a] MEMORY LIBRARY — B1, signed 2026-08-27 ─────────────────────────────────────────────
+#
+# NOTHING in this protocol committed the memory library. Measured 2026-08-27: no step in
+# close.sh, open.sh or muster/SKILL.md mentioned it. The cost was exact — S109's ENTIRE
+# soft-clock move (TIME-STATE S108->S109, cookies 79->82, three ledger entries, two topic
+# files the index already linked) sat UNCOMMITTED FOR TWO DAYS, while open.sh's `[2] SOFT
+# clock ✓` read those very bytes off disk and called them green.
+#
+# The muster validated the clock's VALUE and never its DURABILITY. A soft clock that is
+# correct and uncommitted is one `git checkout` from being a soft clock that is wrong, and no
+# guard would have said a word.
+#
+# Reports, never blocks: the library is outside this repo and a close must not be held hostage
+# to another repository's state. But UNREAD is never rendered as clean.
+MEM_LIB="${MEMORY_LIB:-$HOME/.claude/projects/C--Users-Bndit-Documents-Claude-Code-Memory-Backup/memory}"
+if [ ! -d "$MEM_LIB" ]; then
+  row "MEMORY" "UNREAD — no memory library at $MEM_LIB; NOT a statement that it is committed"
+elif ! git -C "$MEM_LIB" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
+  row "MEMORY" "UNREAD — memory library is not a git repo; nothing can vouch for its durability"
+else
+  mem_dirty=$(git -C "$MEM_LIB" status --porcelain 2>/dev/null | grep -c . || true)
+  if [ "${mem_dirty:-0}" -eq 0 ]; then
+    row "MEMORY" "clean — soft clock is DURABLE at $(git -C "$MEM_LIB" log --format=%h -1 2>/dev/null)"
+  else
+    row "MEMORY" "⚠ ${mem_dirty} UNCOMMITTED — the SOFT CLOCK IS NOT DURABLE. open.sh reads these"
+    row "" "bytes and calls them green; a checkout would erase them silently. Commit before closing."
+    git -C "$MEM_LIB" status --porcelain 2>/dev/null | head -5 | while read -r l; do row "" "  $l"; done
+  fi
 fi
 
 # ── [8b] DEBT GATE — OPEN-TASKS.md §A21, proposed 2026-08-22 and never built until now ──────
@@ -327,8 +381,8 @@ fi
 # away by the second. The number is the point — an OPEN count that only rises is visible here.
 SYMS_MD="$FP_REPO/SYMPTOM-INDEX.md"
 if [ -f "$SYMS_MD" ]; then
-  sym_open=$(grep -oU '| `open`' "$SYMS_MD" 2>/dev/null | grep -c . || echo 0)
-  sym_open_pin=$(git -C "$FP_REPO" show "$PIN:SYMPTOM-INDEX.md" 2>/dev/null | grep -oU '| `open`' | grep -c . || echo "?")
+  sym_open=$(grep -coU '| \(`open`\|\*\*OPEN\)' "$SYMS_MD" 2>/dev/null || echo 0)
+  sym_open_pin=$(git -C "$FP_REPO" show "$PIN:SYMPTOM-INDEX.md" 2>/dev/null | grep -coU '| \(`open`\|\*\*OPEN\)' || echo "?")
   if [ "$sym_open_pin" = "?" ]; then
     row "DEBT" "open SYM now $sym_open · at $PIN UNREAD — no verdict on the trend"
   elif [ "$sym_open" -gt "$sym_open_pin" ]; then
