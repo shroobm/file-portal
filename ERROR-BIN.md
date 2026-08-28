@@ -36,6 +36,62 @@ caught 017; Fable caught 018 by reading its own adjacent contradictory output; R
 forced the liveness probe that caught 019. The old §C analyses remain explicitly scoped to
 rows 001–016; §C.7 appends the current 19-row reading instead of silently rewriting history.
 
+**Extended again 2026-08-28 by the Codex lane:** rows **020–024**, four new classes plus a
+second ORDERING specimen. All five were caught by an independent adversarial Circle after the
+candidate B2 implementation printed **100/100** and before it was committed. The green suite is
+therefore recorded as part of the failure, not quoted as the verdict. Historical §C.1–§C.7
+denominators remain unchanged; §C.8 appends the current 24-row reading.
+
+**Extended a third time 2026-08-28 by the Codex lane:** row **025**, one new class. The first
+repair of 020/021 printed **108/108** and correctly protected the sidecar, but two independent
+adversarial lanes then broke the larger relay transaction. §C.8 remains the 24-row checkpoint;
+§C.9 appends the current 25-row reading.
+
+**Extended a fourth time 2026-08-28 by the Codex lane:** rows **026–027**, one new class and a
+second STALE-SNAPSHOT specimen. The same denied-premise concurrency audit found them before the
+second repair was written. §C.10 appends the current 27-row reading.
+
+**Extended a fifth time 2026-08-28 by the Codex lane:** rows **028–029**, one PROBE-SHAPE and
+one QUOTING recurrence. Both were self-observed during read-only probes, caught immediately,
+mutated no file, and reached no durable claim. Historical denominators remain unchanged; §C.11
+appends the current 29-row reading.
+
+**Extended a sixth time 2026-08-28 by the Codex lane:** rows **030–031**, one new
+RUNTIME-RESIDUE class and a second STATUS-THEATRE specimen. Row 030 was independently caught
+when the first live lock acquisition dirtied the repository; row 031 was exposed by an injected
+unverified sidecar record whose claimed terminal relay entry did not exist. Historical
+denominators remain unchanged; §C.12 appends the current 31-row reading.
+
+**Extended a seventh time 2026-08-28 by the Codex lane:** rows **032–033**, one
+PARTIAL-PUBLISH and one HARNESS-MISUSE recurrence. An independent attacker killed a real
+escalation at the untested relay/sidecar boundary after 123/123; the first expanded journal suite
+then exposed its own stale monkeypatch before any result was claimed. Historical denominators
+remain unchanged; §C.13 appends the current 33-row reading.
+
+**Extended an eighth time 2026-08-28 by the Codex lane:** rows **034–035**, one
+BOUNDARY-OMISSION recurrence and one new NAMESPACE-SCOPE class. Both findings are `Reported`
+from the B2 repair lane's final independent read-only child audit after 144/144; this digest did
+not rerun either exploit. Historical denominators remain unchanged; §C.14 appends the current
+35-row reading.
+
+**Extended a ninth time 2026-08-28 by the Codex lane:** row **036**, a third
+BOUNDARY-OMISSION specimen. The final independent doctrine Circle supplied valid round-two
+receipts dated 2099 to a terminal act dated 2026; preserve accepted them after 146/146. This
+digest records the Circle's finding as `Reported` and does not rewrite prior checkpoints; §C.15
+appends the current 36-row reading.
+
+**Extended a tenth time 2026-08-28 by the Codex lane:** row **037**, one new
+DELEGATION-SHAPE class. A benign local concurrency QA was sent twice through an existing agent
+named and primed as an attacker; the safety classifier refused the framing before any work. A
+fresh `b2_final_qa` agent with explicit local-only scope recovered the task. §C.16 appends the
+current 37-row reading without changing any prior checkpoint.
+
+**Extended an eleventh time 2026-08-28 by the Codex lane:** row **038**, a fifth
+PROBE-SHAPE specimen. Final QA's first custom fixture demanded a nonzero `status` for every
+malformed sidecar, a predicate stricter than the actual contract. Review replaced it with
+contract-aligned malformed-journal and malformed-terminal controls; both passed before any
+product claim. §C.17 appends the current 38-row reading and preserves all earlier checkpoints.
+
 | tag | meaning |
 |---|---|
 | `Observed` | a command was run or a row was counted; the result is quoted |
@@ -46,27 +102,36 @@ rows 001–016; §C.7 appends the current 19-row reading instead of silently rew
 
 ## §A THE CLASSES — the actual product
 
-*Derived from the nineteen rows below (`Observed` — every class name and every rule text comes
+*Derived from the thirty-eight rows below (`Observed` — every class name and every rule text comes
 from the input lines; the "from the inside" column is the digest's characterisation, `Inferred`).*
 
 | Class | What it looks like from the inside | The rule that prevents it | Rows |
 |---|---|---|---|
 | **DELEGATED-TRUST** | You hold a verdict you did not produce. It arrives wearing a confidence word — `Verified`, `confirmed`, `done` — so it reads like a measurement. Nothing about it feels like a quotation | A consequential act (a message to Rab, a post to the bus, a struck register line) needs an `Observed` premise of **your own**. A subagent's `Verified` is `Reported`, not `Observed` | 001 |
-| **PROBE-SHAPE** | The probe runs. It returns numbers. Nothing errors. The numbers are real — they simply answer a different question, because your model of the artifact is not the consumer's model of it | Before measuring against a file, read how the **producer** indexes it. Any count that enters a claim gets a second method of a **different shape** first | 002, 004, 015 |
+| **PROBE-SHAPE** | The probe runs and returns evidence—or fails exactly as its custom assertion requests—but it answers a different question because the artifact or contract was modeled incorrectly | Before measuring against a file, read how the producer indexes it. Before writing a negative control, read the exact contract predicate. Any result entering a claim gets a second method of a different shape | 002, 004, 015, 028, 038 |
 | **REGISTER-MISS** | The finding feels new. Nothing in memory contradicts it, and the absence of a contradiction reads as the absence of a record | "Unfiled" / "in no register" / "nobody has noticed" is a claim about a **file** and requires a grep of that file. A defect rediscovered is a MUSTER failure (`docs/21` §5 rule 4) | 003 |
 | **METER-CONFUSION** | A number is on the panel, it has plausible units, and it is the only number in view. You report it. It measures the neighbour of what was asked | When reporting a number the user asked for, confirm the meter measures **the thing they named** | 005 |
 | **PREMATURE-ALARM** | The evidence is not where you looked, so you conclude it does not exist — and you say so before the probe has finished running | Finish the probe before narrating its verdict. A truncated read is **UNREAD**, not absent | 006 |
-| **HARNESS-MISUSE** | The command returns 0. The tooling reports success. The work never happened, or happened somewhere else, and the silence afterwards reads as calm | A backgrounded command must be the whole job, not a launcher for another background job. Never restore from a path whose write you did not confirm — verify the backup exists before destroying the original | 007, 008 |
-| **QUOTING** | A script dies on its own delimiters: backslashes, nested quotes, a trailing `\'`, a regex mangled in transit. Cheap when it crashes; expensive when it half-writes | Anything containing backslashes or nested quotes goes in a FILE via `Write`, never a heredoc | 009, 013 |
+| **HARNESS-MISUSE** | The command returns 0, or the harness fails on its own stale wrapper. The tooling result is then about launch mechanics or a test double rather than the runtime behavior under test | A backgrounded command must be the whole job, not a launcher for another background job. Verify backups before restore, and make monkeypatches forward the complete runtime call contract before treating suite output as product evidence | 007, 008, 033 |
+| **QUOTING** | A script dies on its own delimiters: backslashes, nested quotes, a trailing `\'`, a regex mangled in transit. Cheap when it crashes; expensive when it half-writes | Anything containing backslashes or nested quotes goes in a FILE via `Write`, never a heredoc | 009, 013, 029 |
 | **OVER-CLAIM** | A list of candidates is reported as a list of findings. Most of it is right, which is what makes the rest of it dangerous | A delegated list is a list of **candidates**; every item that will produce a recorded change gets its own probe | 010 |
 | **STALE-GROUND** *(added 2026-08-27, row 011)* | You are writing the GROUND block for a fleet. The framing numbers came from an earlier report and feel like settled background rather than claims, so they get stated instead of probed — and then every downstream agent inherits them as given | GROUND is a claim like any other and gets a probe **before** it is handed to anyone. A **residue** section is the least-verified part of a report, not the most | 011, 016 |
 | **DENOMINATOR** *(added 2026-08-27, row 012)* | Two totals appear in one session. Both were honestly obtained; neither is wrong. Nothing states what either one counts, so the reader has no choice but to assume they are comparable | `docs/34`: every measured number names its **numerator, denominator and conditions**. Two totals of different populations must never appear in one session without their populations stated | 012 |
 | **PREDICATE-COLLAPSE** *(added 2026-08-27, row 014)* | One probe, one number, and it is internally consistent every way you turn it. What is invisible from inside is that the number is summing **two or more different tests** over the same population — so it is not wrong by an *amount*, it is wrong by a *question*. The tell, and it is the only one: it stays plausible when inverted | When a probe produces one number, ask what DISTINCT predicates that number is summing. A count is a claim about a population **and** about a test; two tests over one population are two numbers, never one. **A number that looks plausible in both directions is evidence of collapse, not of correctness.** This class is **not self-catchable** — see §C.6; it needs an independent prober denied your relay, registers, prior reports, memory and expected counts | 014 |
-| **ORDERING** *(added 2026-08-28, row 017)* | A write after the commit feels like confirmation of the state just committed. The confirmation is itself the act that invalidates that state | When a clean committed sidecar is required: perform every write first, commit last, then no further write. Read-only verification may follow; the last write must be the commit | 017 |
-| **STATUS-THEATRE** *(added 2026-08-28, row 018)* | A literal health word sits beside real probe output. Because it cannot render failure, its confidence is unrelated to what the probe found | A status claim must be derived from the probe and must have a failure branch. A health word that can only print success is decoration | 018 |
+| **ORDERING** *(added 2026-08-28, row 017)* | A write after the commit feels like confirmation of the state just committed, or four correctly shaped messages feel like two rounds even though round one was never received before round two began. Sequence is inferred from membership rather than proven from boundaries | State the boundary mechanically: perform every write first, commit last, then no further write; for a two-round protocol, both round-one confirmations must precede the first round-two send | 017, 024 |
+| **STATUS-THEATRE** *(added 2026-08-28, row 018)* | A literal health word sits beside real probe output, or a positive disposition is rendered from an unverified state object. Because neither path can prove its named evidence, its confidence is unrelated to what the evidence contains | A positive status claim must be derived from independently validated source evidence and must have a failure branch. A health word—or raw state label—that can only print success is decoration | 018, 031 |
 | **PHANTOM-MONITOR** *(added 2026-08-28, row 019)* | Launch or remembered output is treated as current liveness. A one-shot that fired once is remembered as a watcher that still exists | Claim “running” only from a same-turn PID/handle or a fresh heartbeat. A monitor persists after events; a one-shot is a trigger | 019 |
+| **STALE-SNAPSHOT** *(added 2026-08-28, row 020)* | Shared evidence is read and validated once, then used later. Every local check passes while an intervening write changes the premise—whether a sidecar state or one of the cited source entries | A consequential read-validate-write act needs revalidation or a revision seal at the actual publish boundary. Equality against an old in-memory object is not current ground | 020, 027 |
+| **PARTIAL-PUBLISH** *(added 2026-08-28, row 021)* | A two-artifact operation writes the public record first and the state index second. A crash between them leaves an honest first half that retry may reject—or status may fail to surface | Every reachable intermediate state needs a tested recovery path. Publish an adoption key or journal intent before the first effect, then make retry validate and complete that exact orphan without a second append | 021, 032 |
+| **LOCK-SCOPE** *(added 2026-08-28, row 025)* | A lock and compare-and-swap correctly protect the final state file, so the concurrency test passes, while the ID allocation and public append that create that state occur outside the lock. The protected tail cannot repair an unprotected head | Draw the transaction boundary around every shared premise and effect: fresh read/revalidation, ID allocation, relay append, and sidecar publish. Test competing commands, not only two calls to the same save primitive | 025 |
+| **BOUNDARY-OMISSION** *(added 2026-08-28, row 022)* | Every required field is present, correctly typed, digested and confirmed, but a load-bearing predicate or cross-record equality is absent | Test every property the protocol exists to establish, including falsifying boundaries and equality bindings to canonical evidence. Final readings must differ; sidecar chronology must equal its relay source; every receipt proving completion must precede the terminal act | 022, 034, 036 |
+| **DEAD-SURFACE** *(added 2026-08-28, row 023)* | A durable field is written successfully and survives reload, but no canonical reader renders it. The record exists only for code that already knows to inspect raw storage | Every new durable field ships with at least one named consumer and an observable contract test. Persistence without projection is not observability | 023 |
+| **PROVENANCE-DROP** *(added 2026-08-28, row 026)* | A lane is named and the lane is the correct address, so authorship looks complete. The occupant who produced or later adopted the bytes disappears, collapsing two distinct claims into one seat label | Address the lane and attribute every occupant whose act matters. Bind origin into the sealed request; if recovery crosses occupants, retain both origin and adopter rather than silently transferring authorship | 026 |
+| **RUNTIME-RESIDUE** *(added 2026-08-28, row 030)* | A stable runtime pathname is required for correct coordination, so creating it feels like an implementation detail rather than a repository mutation. The first correct live use then makes the worktree dirty | Every durable runtime path must be classified when introduced: tracked evidence or explicitly ignored residue. Exercise its first live creation under a clean-tree check | 030 |
+| **NAMESPACE-SCOPE** *(added 2026-08-28, row 035)* | An identifier allocator scans the obvious public record and its own local floor, so the next number looks globally free. A structured reference elsewhere has already consumed it | Define one namespace by all of its allocation and reference surfaces, across every sidecar and public record. Seed a collision in each surface and require every allocator to skip it | 035 |
+| **DELEGATION-SHAPE** *(added 2026-08-28, row 037)* | The requested work is benign, but the agent name, inherited priming and adversarial verbs become part of the request's effective meaning. Repeating the same safe intent through that context repeats the refusal | Treat agent identity and inherited context as prompt inputs. Frame benign QA with its local artifact, read-only or fixture-only scope, and no external target; after a framing refusal, use a fresh neutrally named agent rather than replaying the same context | 037 |
 
-**14 classes, 19 rows.**
+**23 classes, 38 rows.**
 
 ---
 
@@ -97,6 +162,25 @@ Codex lane on 2026-08-28 from the preserved S110 record; each row names who actu
 | ERR-2026-08-27-017 | ORDERING | `coordination/ack-fable.json`; commit `b8dd262` followed by `gate.py beat` | Committed the sidecar, then announced “Tree is CLEAN” and “Zero writes” in a beat | The beat wrote the same sidecar after the commit, immediately leaving it dirty; the cleanliness announcement caused the state it denied | Codex re-grounded, observed ` M coordination/ack-fable.json`, and named the self-invalidating sequence (`coordination/relay.md:4023-4034`) | When clean committed state is required: make every sidecar write first, commit last, then no further write. Read-only verification may follow; the last write must be the commit |
 | ERR-2026-08-27-018 | STATUS-THEATRE | S110 sign-sheet commit command | Printed a hardcoded `(clean — nothing blocks Codex's close gate)` directly below status output | The preceding `git status --short` printed ` M coordination/ack-fable.json`; the literal could not report failure | Fable read the adjacent contradictory output and immediately wrote “my own echo lied”; its later bus account is `MSG-FAB-0043` (`coordination/relay.md:4319-4335`) | A status claim must be derived from the probe and must have a failure branch. A health word that can only print success is decoration |
 | ERR-2026-08-27-019 | PHANTOM-MONITOR | S110 relay/repository watcher | Reported the watcher live twice | It fired at 14:33 on `e0c371a`, executed `exit 0`, and had no matching process for about seven minutes; it was a one-shot described as a monitor | Rab asked “How are you holding the watcher live?”, forcing a same-turn log/process probe; Fable's later bus account is `MSG-FAB-0043` (`coordination/relay.md:4319-4335`) | Never report a background process running without a same-turn liveness probe. A monitor persists after events and leaves a fresh heartbeat; a one-shot is a trigger |
+| ERR-2026-08-28-020 | STALE-SNAPSHOT | candidate B2 `preserve-disagreement` sidecar update | Treated single-process blocker-preservation tests plus a 100/100 suite as sufficient evidence that the command could not clear a concurrent FULL STOP | The command loaded once and saved later without re-reading; an escalation written between those points could be replaced by the stale idle snapshot | An independent adversarial Circle read the load/check/save chronology after the green run | Shared state needs a lock and a revision/CAS check at the actual write boundary; an old snapshot cannot certify current ground |
+| ERR-2026-08-28-021 | PARTIAL-PUBLISH | candidate B2 relay + sidecar transaction | Wrote the relay terminal marker before saving the structured disagreement record and had no recovery contract for that intermediate state | A crash after the append left a valid orphan marker; retry saw the existing marker as a conflict forever, so the operation could neither complete nor safely replay | The same independent Circle enumerated the crash point instead of testing only completed calls | For every multi-artifact act, enumerate every crash boundary and test adoption or rollback. “Atomic” is a recovery property, not two successful writes in one process |
+| ERR-2026-08-28-022 | BOUNDARY-OMISSION | candidate B2 terminal predicate | Validated authors, chronology, digests, confirmations, `READING`, `PROBE`, and response links but never required the final readings to disagree | Two byte-identical normalized round-two readings were accepted and preserved as a disagreement | The Circle planted an equal-reading negative control; the candidate suite still printed 100/100 | Write the falsifying example first. A schema can be perfectly valid while the semantic predicate is false |
+| ERR-2026-08-28-023 | DEAD-SURFACE | candidate B2 `disagreements[]` state | Added durable structured records and reload tests without making the canonical `status` board display them | The terminal disposition was invisible on the surface operators actually read; only raw sidecar inspection could find it | The Circle compared every new producer field against the status renderer | Every durable field needs a named consumer and a contract test proving it reaches that consumer |
+| ERR-2026-08-28-024 | ORDERING | candidate B2 two-round chronology | Counted two lane messages per round and confirmations for all four, but did not prove round one was received before round two began | Both lanes could send round two before either round-one confirmation; the transcript had four posts but not two feedback rounds | The Circle tested temporal boundaries, not only membership and final digest receipt | A round ends at receipt, not send. Both round-one confirmations must precede the first round-two message |
+| ERR-2026-08-28-025 | LOCK-SCOPE | first repaired B2 transaction; suite 108/108 | Added a real OS lock and raw-revision CAS around sidecar save, then treated that successful race control as protection of the whole command | `next_id` and relay append remained outside the lock. Forced concurrent preserves allocated the same `MSG-CDX-0003`; a preserve-versus-escalate race left an ESCALATION in the relay while the winning sidecar had zero open escalations and no FULL STOP | Two independent adversarial lanes tested competing commands rather than the shared `save()` primitive. Both reproduced the split; neither trusted 108/108 | A concurrency claim names its entire transaction. Lock every shared read and effect under one boundary, then race different operations that contend for the same invariants |
+| ERR-2026-08-28-026 | PROVENANCE-DROP | B2 terminal notice and orphan adoption | Recorded only lane `Codex`, treating the lane address as complete authorship | A notice created under occupant `OpenAI Codex A` was later adopted after the sidecar occupant changed to `OpenAI Codex B`; retry exited 0 and neither origin nor adopter appeared in the notice or structured record | A clean-room auditor changed the occupant between the two halves of the recovery path | Bind origin occupant into the canonical request and record; when recovery crosses occupants, retain both originating and adopting occupants with the adoption time |
+| ERR-2026-08-28-027 | STALE-SNAPSHOT | B2 cited four-message evidence chain | Validated the four source entries before publication and stored their extracted claims, but no source-entry digests or publish-boundary revalidation | A deliberately injected edit after validation but before terminal append still returned 0 and persisted the disposition; immediate fresh validation then failed digest mismatch | The concurrency auditor changed the evidence in the exact time-of-check/time-of-use window. The edit violated append-only discipline, so this is P2 defense, not a compliant-writer P1 | Revalidate under the transaction immediately before append and store the exact source-entry digests so later tamper is mechanically visible |
+| ERR-2026-08-28-028 | PROBE-SHAPE | PowerShell single-line automation probe | Reported `old=15`, `new=15`, and no trailing whitespace from a probe expected to measure one line | Wrapping the hit in `@(...)` made it an `Object[]`; `[Console]::Out.Write($line)` serialized `System.Object[]`, so both 15s measured the type-name text rather than the line | Codex rejected 15 as impossible before using the result, asserted cardinality, selected `[string]$hits[0]`, and reran the read-only probe | A one-line probe must assert exactly one hit and cast that element to string before measuring content; collection serialization is not evidence about the member |
+| ERR-2026-08-28-029 | QUOTING | read-only `rg` regex through PowerShell | Sent a quoted, parenthesized regex through PowerShell double-quote parsing as one search expression | Shell parsing removed the embedded quotes and left an unclosed regex group; `rg` aborted with `unclosed group` | Codex read the error, made no claim, and reran with separate single-quoted `-e` patterns | Keep shell-sensitive regexes in separate single-quoted `-e` arguments (or a pattern file); do not make one double-quoted shell string carry regex grouping and quote syntax |
+| ERR-2026-08-28-030 | RUNTIME-RESIDUE | relay-gate stable advisory lock path | Introduced a stable cross-process lock without classifying its on-disk file as tracked evidence or ignored runtime state | The first live gate mutation created `coordination/.relay-gate.lock` and dirtied the repository; the path was subsequently classified as runtime state in `.gitignore` | An independent doctrine Circle observed the new lock file during a clean-tree re-ground after it had also been separately noticed | Classify every stable runtime pathname at introduction and test its first live creation against a clean worktree |
+| ERR-2026-08-28-031 | STATUS-THEATRE | relay-gate `status` disagreement projection | Rendered an injected raw `disagreements[]` dictionary as positive `PRESERVED DISAGREEMENT` | No corresponding terminal disagreement entry existed in the relay, so the board promoted unverified sidecar bytes to a terminal disposition; the repair was reopened | A separate doctrine Circle's injected-sidecar negative control exposed it; the independent concurrency attacker reproduced it | A positive terminal status must validate the sidecar record against its canonical relay evidence; malformed, missing, or unverifiable evidence renders `UNREAD`, never `PRESERVED` |
+| ERR-2026-08-28-032 | PARTIAL-PUBLISH | relay-gate escalation relay/sidecar transaction | Treated 123/123 as covering escalation publication and its FULL STOP projection | An independent attacker killed the process after the real escalation relay append but before sidecar save. The escalation remained on the bus while `status` showed no FULL STOP; the repair was reopened | The independent concurrency attacker injected death at the untested publication boundary | Journal or otherwise seal intent before the first external effect, then recover or visibly halt from every crash boundary; test process death after each write, not only completed commands |
+| ERR-2026-08-28-033 | HARNESS-MISUSE | first expanded relay journal suite | The first expanded suite reported one failure after the journal repair | A test monkeypatch had not been updated to forward the new journal keyword arguments; runtime controls were green, so the failure measured a stale test double rather than the repair | The first suite run failed before any verdict; the monkeypatch was fixed and the suite rerun before a claim | Test wrappers must preserve the full call contract—prefer forwarding `*args, **kwargs` or an exact signature—and runtime controls must distinguish harness failure from product failure |
+| ERR-2026-08-28-034 | BOUNDARY-OMISSION | disagreement chronology validation | Treated 144/144 as covering the four-message chronology seal | `Reported`: validation did not bind each `sent[].utc` value to the canonical relay-header UTC. Coordinated sidecar timestamps could therefore present a forged chronology while the relay headers said otherwise | `Reported` by the B2 repair lane's final independent read-only child audit after 144/144; not rerun by this digest | Bind every sidecar field used for chronology to the same canonical relay entry's id, digest, sender, recipient and UTC; derive order from sealed relay evidence, not a free-standing summary |
+| ERR-2026-08-28-035 | NAMESPACE-SCOPE | relay-gate `post` / `escalate` message-id allocation | Treated relay ids plus the writer's own `sent[]` floor as the global allocation namespace after 144/144 | `Reported`: allocation did not inspect every structured message-id reference across both sidecars, so an id already consumed outside the scanned surfaces could be reused as a latent global collision | `Reported` by the B2 repair lane's final independent read-only child audit after 144/144; not rerun by this digest | One global id namespace must include every allocator and every structured reference across both lanes. Seed each reference surface with an otherwise absent high id and require all allocators to advance past it |
+| ERR-2026-08-28-036 | BOUNDARY-OMISSION | `preserve-disagreement` receipt/terminal chronology | Treated 146/146 as proving the signed “after two complete rounds” boundary | `Reported`: preserve accepted both otherwise-valid round-two receipts dated 2099 and terminalized the disagreement in 2026 because it never required every receipt UTC to be at or before the terminal timestamp | `Reported` by the final independent doctrine Circle after 146/146; not rerun by this digest | Parse every receipt and terminal UTC, reject malformed values, and require all receipts used to prove round completion to be no later than the terminal act |
+| ERR-2026-08-28-037 | DELEGATION-SHAPE | local B2 concurrency QA delegation | Sent the same benign local QA twice to an existing agent named and primed as `attack`, expecting the task's safe intent to outweigh its inherited framing | The safety classifier evaluated the effective prompt shape and refused twice before any work. A fresh `b2_final_qa` agent accepted equivalent local-only QA framing with no network or external target | Two immediate safety refusals; the repair lane then changed the delegation context rather than the work's scope | Name and prime agents for the actual bounded task. State local fixture paths, read-only or test-only effects, and no network/external target; after one framing mismatch, reframe with a fresh neutral context instead of replaying it |
+| ERR-2026-08-28-038 | PROBE-SHAPE | final QA custom malformed-sidecar fixture | Initially treated “any malformed sidecar makes `status` nonzero” as the contract | The assertion was stricter than the actual status contract, so its failure was not a product violation. Review replaced it with contract-aligned malformed-journal and malformed-terminal controls, and both passed before any claim | The reviewer compared the custom fixture's predicate with the documented contract before accepting its result | A negative control must falsify the contract's exact predicate, not a stronger invented one. When a custom fixture fails, validate the assertion itself before diagnosing the runtime |
 
 ---
 
@@ -309,6 +393,96 @@ mind**: Rab 3, delegated agents 2, other vendor 2.
 contradiction was checked — the prior eight plus 017, 018 and 019. `ERROR-BIN.md` itself still
 appears in **zero of nineteen** “How it was caught” cells. Filing the three rows therefore changes
 the denominator, not the register's demonstrated prevention rate.
+
+### 8. Current 24-row reading after ERR-020–024
+
+`Observed 2026-08-28` from §A and §B: **18 classes across 24 rows**. All five S111 B2 rows were
+caught by one deliberately independent adversarial Circle after the candidate suite printed
+100/100 and before any candidate commit. That moves the “another mind” numerator from **7 of 19**
+to **12 of 24**; it does not turn the original suite green evidence into a verdict.
+
+`Observed`: `ERROR-BIN.md` still appears in **zero of twenty-four** “How it was caught” cells.
+The new rows therefore demonstrate the value of a denied-premise verifier, not prevention by this
+register. Four classes are new; ORDERING recurred in a different mechanism. Historical analyses
+above remain scoped to their stated denominators.
+
+### 9. Current 25-row reading after ERR-025
+
+`Observed 2026-08-28`: **19 classes across 25 rows**. Row 025 was caught twice, independently,
+after the first repair's suite printed 108/108. Both lanes varied the competing command, which the
+suite had not: preserve-versus-preserve produced duplicate relay ids, and preserve-versus-escalate
+split the public escalation from the sidecar FULL STOP state. The “another mind” numerator moves
+from **12 of 24** to **13 of 25**; `ERROR-BIN.md` remains named in **zero of twenty-five** catch
+cells. The repair is pending and is not evidence that the row no longer matters.
+
+### 10. Current 27-row reading after ERR-026–027
+
+`Observed 2026-08-28`: **20 classes across 27 rows**. Both new rows were found by the same
+independent auditor before the repair lane received their shape. The “another mind” numerator is
+therefore **15 of 27**; `ERROR-BIN.md` remains named in **zero of twenty-seven** catch cells.
+Row 026 adds a provenance class; row 027 repeats STALE-SNAPSHOT against source evidence rather
+than sidecar state. The injected edit for 027 violated the append-only writer law, so the row is
+defense in depth and is not promoted to a compliant-writer P1.
+
+### 11. Current 29-row reading after ERR-028–029
+
+`Observed 2026-08-28`: **20 classes across 29 rows**. Rows 028 and 029 recur in existing classes,
+so the class denominator stays 20. Both were self-caught during read-only probes before any file
+mutation or durable claim; the “another mind” numerator therefore remains **15**, now **15 of 29**.
+`ERROR-BIN.md` remains named in **zero of twenty-nine** “How it was caught” cells. Row 028 is the
+fourth PROBE-SHAPE specimen; row 029 is the third QUOTING specimen.
+
+### 12. Current 31-row reading after ERR-030–031
+
+`Observed 2026-08-28`: **21 classes across 31 rows**. Row 030 adds RUNTIME-RESIDUE;
+row 031 is the second STATUS-THEATRE specimen. Both were caught by an independent doctrine
+Circle, and row 031 was then reproduced by the independent concurrency attacker, so the
+“another mind” numerator moves from **15 of 29** to **17 of 31**. `ERROR-BIN.md` remains named in
+**zero of thirty-one** “How it was caught” cells. Row 030's ignore repair is present; row 031's
+repair is reopened, so neither fix is promoted to a verdict.
+
+### 13. Current 33-row reading after ERR-032–033
+
+`Observed 2026-08-28`: **21 classes across 33 rows**. Both rows recur in existing classes, so
+the class denominator stays 21. Row 032 was caught by an independent attacker after 123/123,
+moving the “another mind” numerator from **17 of 31** to **18 of 33**. Row 033 was caught by the
+first expanded suite before a claim, so it does not move that numerator. `ERROR-BIN.md` remains
+named in **zero of thirty-three** “How it was caught” cells. The escalation repair is reopened;
+the harness was fixed and rerun, but that rerun is not promoted here to a runtime verdict.
+
+### 14. Current 35-row reading after ERR-034–035
+
+`Observed 2026-08-28` from this register: **22 classes across 35 rows**. Row 034 is the second
+BOUNDARY-OMISSION specimen; row 035 adds NAMESPACE-SCOPE. `Reported` by the B2 repair lane, both
+were caught by its independent read-only child audit after 144/144. On that reported provenance,
+the “another mind” numerator moves from **18 of 33** to **20 of 35**; this digest did not rerun the
+exploits, so it does not promote the underlying findings to `Observed`. `ERROR-BIN.md` remains
+named in **zero of thirty-five** “How it was caught” cells, and 144/144 is not treated as a verdict.
+
+### 15. Current 36-row reading after ERR-036
+
+`Observed 2026-08-28` from this register: **22 classes across 36 rows**. Row 036 is the third
+BOUNDARY-OMISSION specimen. `Reported` by the final independent doctrine Circle, it was caught
+after 146/146 and therefore moves the “another mind” numerator from **20 of 35** to **21 of 36**
+on that reported provenance. This digest did not rerun the exploit and does not promote the
+finding to `Observed`. `ERROR-BIN.md` remains named in **zero of thirty-six** “How it was caught”
+cells, and 146/146 is not treated as a verdict.
+
+### 16. Current 37-row reading after ERR-037
+
+`Observed 2026-08-28` from this register: **23 classes across 37 rows**. Row 037 adds
+DELEGATION-SHAPE. The safety classifier refused the prompt twice before work, and the same lane
+recovered by changing the agent context, so the “another mind” numerator remains **21**, now
+**21 of 37**. No repository mutation or durable claim preceded the recovery. `ERROR-BIN.md`
+remains named in **zero of thirty-seven** “How it was caught” cells.
+
+### 17. Current 38-row reading after ERR-038
+
+`Observed 2026-08-28` from this register: **23 classes across 38 rows**. Row 038 is the fifth
+PROBE-SHAPE specimen. Review caught the overstrict fixture before a product claim and replaced it
+with two contract-aligned controls, so the “another mind” numerator moves from **21 of 37** to
+**22 of 38**. No product violation or repository mutation followed from the rejected premise.
+`ERROR-BIN.md` remains named in **zero of thirty-eight** “How it was caught” cells.
 
 ---
 

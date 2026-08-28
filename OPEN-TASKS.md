@@ -248,14 +248,15 @@ committed again five times since.*
 | B29 | **Package the widget** (`cargo tauri build`) and document install steps for a second machine | `docs/08` v1 |
 | B30 | **Screenshot/demo GIF for the README**; decide public vs private repo and finalize `CONTRIBUTING.md` | `docs/08` v3 |
 | B31 | **End-to-end manual test on real hardware** — open in `docs/08` v0 *and* v1.5 (dashboard with the allocator actively sorting) | `docs/08` |
-| B32 | **Codex's completion audit exists, names seven source-cited product defects, and reached NO register and NO relay entry.** `C:/Users/Bndit/Documents/Codex/2026-08-27/sca/outputs/file-portal-completion-audit-2026-08-27.md`, 37,957 bytes, 420 lines. Its three sibling reports were each announced on the bus; this one was not. **U01** receiver startup backlog sweep — a restart with pre-existing inbox files must allocate exactly once (`linux-receiver/allocator/main.py:169-202`) · **U02** malformed widget config panics with no operator-visible remedy (`config.rs:112-120`, `main.rs:609-612`) · **U03** the vault-fixity service and timer exist but `linux-converter/scripts/install.sh:17-26` never installs them, so a fresh machine silently has no fixity checking · **U04** Room/Wall latest-event ordering is inverted — Rust returns newest-first while `room.js:952-953` takes the OLDEST of the bounded tail · **U05** receiver rule/config failure logs an exception and writes no terminal state, so the widget waits forever on a job that already died · **U06** the observability stale-signature control is history-dependent and fails when no exercising diff exists in 39 ancestors — a control that stops being able to fire, the same decay class as `close.sh`'s CI check. **U07 is filed separately as SYM-057.** | Filed as ONE row, not six: the detail lives in the audit and duplicating it here would grow the register by six for one document — exactly what B3 now measures. `Observed 2026-08-27` — the file was read by the Fable lane and U07 was independently verified at source; **U01–U06 are Reported, not Verified**, and each needs its own probe before it is acted on |
+| B32 | **Codex's completion audit exists, names seven source-cited product defects, and had reached NO register and NO relay entry before its S111 recovery.** `C:/Users/Bndit/Documents/Codex/2026-08-27/sca/outputs/file-portal-completion-audit-2026-08-27.md`, 37,957 bytes, 420 lines. Its three sibling reports were each announced on the bus; this one had not been. **U01** receiver startup backlog sweep — a restart with pre-existing inbox files must allocate exactly once (`linux-receiver/allocator/main.py:169-202`) · **U02** malformed widget config panics with no operator-visible remedy (`config.rs:112-120`, `main.rs:609-612`) · **U03** the vault-fixity service and timer exist but `linux-converter/scripts/install.sh:17-26` never installs them, so a fresh machine silently has no fixity checking · **U04** Room/Wall latest-event ordering is inverted — Rust returns newest-first while `room.js:952-953` takes the OLDEST of the bounded tail · **U05** receiver rule/config failure logs an exception and writes no terminal state, so the widget waits forever on a job that already died · **U06** the observability stale-signature control is history-dependent and fails when no exercising diff exists in 39 ancestors — a control that stops being able to fire, the same decay class as `close.sh`'s CI check. **U07 is filed separately as SYM-057.** | Filed as ONE row, not six: the detail lives in the audit and duplicating it here would grow the register by six for one document — exactly what B3 now measures. `Observed 2026-08-27` — the file was read by the Fable lane and U07 was independently verified at source; **U01–U06 are Reported, not Verified**, and each needs an independent probe before it is acted on |
 
 ---
 
 ## §C OPEN SYMPTOM ROWS — `SYMPTOM-INDEX.md`
 
-**22 genuinely open after the S111 Dock filings.** Retrieval keys are in the index; this is the
-roll call. The prior 14-row sentence omitted SYM-053–SYM-057; S111 adds SYM-058–SYM-061.
+**23 genuinely open after the S111 Dock and relay-authority filings.** Retrieval keys are in the
+index; this is the roll call. The prior 14-row sentence omitted SYM-053–SYM-057; S111 adds
+SYM-058–SYM-062.
 
 `SYM-003` (Repair Bench is the response, not a fix) · `SYM-024` (resume stderr hardened, not
 root-caused) · `SYM-027` (glass debt — criteria 2 and 3 NOT MET) · `SYM-034` (cause unknown,
@@ -263,12 +264,11 @@ exposure bounded) · `SYM-035` (bounded and measured, not eliminated) · `SYM-03
 assigned to Desktop by the ThinkPad handoff §2.6) · `SYM-043` · `SYM-044` · `SYM-045` ·
 `SYM-046` · `SYM-047` · `SYM-049` · `SYM-051` (environmental) · `SYM-053` ·
 `SYM-054` · `SYM-055` · `SYM-056` · `SYM-057` · `SYM-058` · `SYM-059` · `SYM-060` ·
-`SYM-061`.
+`SYM-061` · `SYM-062`.
 
-**⚠ 4 FALSELY open — `Observed 2026-08-22`, unchanged since S96 flagged it.** `SYM-032`,
-`SYM-033`, `SYM-041`, `SYM-042` all still read `open`/`OPEN` in the status column while their
-own bodies record S94 signing and building them. *Anyone reading the column without reading
-the row's update clause gets four wrong answers.* (Repair listed as F3 below.)
+**⚠ 1 FALSELY open — `Observed 2026-08-28`.** `SYM-032` still reads `open` in the status
+column while its own body records S94 signing and building it. `SYM-033`, `SYM-041`, and
+`SYM-042` were repaired to `FIXED-S94` in S108; F3 below records that completed repair.
 
 ---
 
