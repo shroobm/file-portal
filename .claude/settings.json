@@ -1,0 +1,29 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/warn_heredoc.py\" 2>/dev/null || true",
+            "timeout": 10,
+            "statusMessage": "checking for ERR-009 quoting hazard"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"C:/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/check_coordination.py\" 2>/dev/null || true",
+            "timeout": 20,
+            "statusMessage": "checking coordination/ is committed"
+          }
+        ]
+      }
+    ]
+  }
+}
