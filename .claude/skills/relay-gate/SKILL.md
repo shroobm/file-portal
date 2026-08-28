@@ -48,9 +48,74 @@ evidence or Rab's instruction.
 
 This never authorizes a signature, adoption, threshold, vault, pipeline, or other Rab-owned
 choice; never clears `blocked-on-rab`; and never lifts an open escalation or **FULL STOP**. If one
-reading or probe was never supplied, record it `UNREAD` rather than inventing it. Agreement cannot
-be a close requirement: that makes concession the cheapest route to closing precisely when both
-lanes are under the most pressure.
+reading, probe, round, receipt, or response link was never supplied, the command refuses without
+writing; leave that evidence `UNREAD` rather than inventing it. **Silence is not disagreement.**
+Closing around an unresponsive lane needs separate human authority; this command has no timeout
+or silence bypass. Agreement cannot be a close requirement: that makes concession the cheapest
+route to closing precisely when both lanes are under the most pressure.
+
+The smallest runtime mechanism is a backward-compatible `disagreements: []` ledger in each
+sidecar and one command:
+
+```bash
+gate.py preserve-disagreement --as Codex --id DIS-001 \
+  --round1 MSG-FAB-0001 MSG-CDX-0001 \
+  --round2 MSG-FAB-0002 MSG-CDX-0002 \
+  --consequence "what remains unresolved" \
+  --prohibits "an action still forbidden"
+```
+
+The four ids must already occur in exact alternating log order. Every entry needs one nonempty
+`**READING.**` and `**PROBE.**` slot and a sender digest claim confirmed by the peer; each
+round-two entry must name the peer's round-one id in `**RESPONDS-TO.**`, and **both round-one
+confirmations must precede the first round-two send**. Every required confirmation must also be no
+later than the terminal disposition time generated and revalidated under the transaction; a
+disposition cannot precede completion. Exact whitespace-normalized equality of the two final
+`READING` values is convergence and is refused; semantic equivalence under different wording
+remains a human judgment.
+
+The command appends one canonical notice plus one structured sidecar record and prints
+`DISAGREEMENT TERMINAL; OTHER BLOCKERS UNCHANGED`. The notice carries a `REQUEST DIGEST` and the
+JSON-encoded `ORIGIN OCCUPANT`; the request digest and structured record bind that occupant and the
+source entry digests of all four cited messages. If a process dies after the bus append but before
+its sidecar publish, an exact retry requires a globally unique terminal message id, no allocation
+of that id in any sent/escalation/disagreement record, the original occupant, the request digest,
+and the whole canonical notice. It then adopts the orphan into a freshly loaded caller sidecar
+**without a second append**. If the current occupant differs, the record retains the origin and
+adds the adopter occupant plus adoption UTC; it never rewrites the notice. Missing provenance or a
+malformed/conflicting orphan is refused. Exact replay is byte-idempotent; reuse of the id for
+different content is refused. `status` does not trust a dictionary merely because it appears in
+`disagreements`: it re-verifies the exact schema, globally unique terminal id and minting stamp,
+canonical notice bytes/digest/request/origin, four source-entry digests and chain, and matching
+`sent` plus `disagreements` references. Any absent, forged, duplicated, or malformed terminal is
+rendered `RED`/`UNREAD` with a nonzero exit, never `PRESERVED`. A verified record is rendered with
+its remaining prohibitions. `state` and `escalations` are preserved, so this is deliberately not
+another route to `resolve`.
+
+Relay and sidecar timestamps are minute-granular. Therefore the chronology check conservatively
+refuses a round-one confirmation whose timestamp is equal to the first round-two send: that may
+reject a genuinely ordered within-minute exchange, but it must remain refused until finer-grained
+evidence or separate human authority exists.
+
+Every sidecar save is an optimistic compare-and-replace under an OS advisory lock. More strongly,
+each append producer (`post`, `escalate`, and `preserve-disagreement`) holds one stable dedicated
+lock across its fresh sidecar/relay reads, guard or chain revalidation, message-id allocation,
+append/readback, and sidecar publication. The lock-held writer uses a non-relocking CAS primitive,
+so the transaction cannot deadlock by calling `save`. `load` keeps the raw-byte revision privately;
+the wire never serializes it. This serializes cooperating gate processes and refuses direct stale
+whole-sidecar saves. The stable ignored lock file is created atomically and also carries one strict,
+fsynced pending-append intent. An exact same-command retry resumes an intent before append, adopts
+an already-appended canonical entry under its original id, or clears an intent left after verified
+sidecar publication; a conflicting retry refuses. The journal is cleared only after the relay and
+the exact `sent` plus command-specific structured rows are verified. While an intent is pending,
+ordinary mutations refuse. A malformed journal, an orphan `post`, or any unverified publication is
+`RED`/`UNREAD`; delivery, current-ticket, and `blocked-on-ack` are not inferred. A pending or orphan
+`escalate` also imposes **FULL STOP** until exact recovery.
+
+This is **bounded exact-retry recovery for cooperating process crashes, not power-loss
+durability**. The relay append and sidecar replace remain two filesystem publications. Filesystem
+or hardware loss may invalidate either publication, and a non-gate writer can ignore the advisory
+lock; the mechanism promises neither rollback nor recovery from those cases.
 
 ## The gate-agent contract — this is the behavioral half
 
@@ -74,6 +139,7 @@ gate.py status                                       # both sides at a glance �
 gate.py ticket  --as <you> --id T-003 --state working
 gate.py watch   --as <you>                           # one line per signal; run under a monitor
 gate.py escalate --as <you> --asking "what Rab must decide" --why "why we cannot settle it"
+gate.py preserve-disagreement --as <you> --id DIS-001 --round1 <id> <id> --round2 <id> <id> --consequence "…" --prohibits "…"
 gate.py resolve  --as <you> --id MSG-XXX-NNNN --decision "what he decided, in his terms"
 gate.py owed     --as <you>                          # D2: DONEs I stated whose outcome is unreported
 gate.py discharge --as <you> --id MSG-XXX-NNNN --in MSG-XXX-NNNN --outcome "what ACTUALLY happened"
@@ -156,7 +222,8 @@ that reads `UNREAD` cannot be shown clear of an escalation.
 
 - **`Fable` and `Codex` are LANES — seats.** They key `MSG-FAB-nnnn`, `ack-<lane>.json` and
   `--as`. The **OCCUPANT** is the model in the seat and it changes. Address the lane; attribute the
-  occupant. `gate.py occupant --as <lane> --model "<name>"` declares it; **an undeclared occupant
+  occupant. `gate.py occupant --as <lane> --model "<name>"` declares a normalized 3–200-character
+  provenance value; the same bound is enforced when loading a sidecar. **An undeclared occupant
   renders `UNDECLARED` and is never guessed from the lane** — guessing is how an escalation in
   Rab's own queue came to be signed with a different model's name.
 - **`gate.py beat`** publishes what the lane is *doing · planning · completed · **verified** ·

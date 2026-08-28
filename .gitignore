@@ -79,6 +79,10 @@ coordination/private/*
 !coordination/private/README.md
 codex/private/
 
+# relay-gate's stable cross-process advisory lock. It must persist by pathname while waiters
+# may still hold the same file, but it is runtime state rather than relay evidence.
+coordination/.relay-gate.lock
+
 # dumps/ — Rab bought the disk so evidence stops evaporating (2026-08-26).
 # The BYTES are local and heavy; the LEDGER is tracked and light. Git history therefore
 # preserves the RECORD of every dump even after the dump itself is gone — which is the
