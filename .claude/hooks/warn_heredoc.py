@@ -10,6 +10,17 @@ half a machine can hold.
 It WARNS. It never blocks — most heredocs are fine, and a gate that fires on
 every one would be tuned away within a day (close.sh's own DEBT comment says so).
 
+⚠ THE OVER-SENSITIVITY IS SIGNED, NOT A DEFAULT. Rab, 2026-08-27: "I like the
+over-sensitivity, I sign." It deliberately warns on \" and \' inside a QUOTED
+heredoc, where the shell would not have interfered — because ERR-009's SECOND
+instance was exactly that: a quoted heredoc that broke anyway, on Python string
+termination rather than on the shell. Narrowing this to unquoted delimiters would
+look like a tidy improvement and would silence the case that already bit.
+
+So: do NOT tune this down to reduce noise without his word. A guard loosened
+because it was annoying is the shape of every decayed tripwire in this project —
+close.sh's own CI check decayed exactly that way and nobody noticed for a session.
+
 Reads the hook payload on stdin, writes JSON on stdout. No jq on this machine,
 and no shell layer, deliberately: a guard against quoting bugs must not be one.
 """
