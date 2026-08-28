@@ -12,6 +12,8 @@ import tempfile
 from pathlib import Path
 
 GATE = str(Path(__file__).resolve().parent / "gate.py")
+SKILL = Path(__file__).resolve().parent / "SKILL.md"
+BUS = Path(__file__).resolve().parents[3] / "coordination" / "BUS-STANDARD.md"
 PY = sys.executable
 PASS = FAIL = 0
 
@@ -30,6 +32,35 @@ def t(name, cond):
     else:
         print(f"  FAIL  {name}")
         FAIL += 1
+
+
+def disagreement_doctrine(skill_text, bus_text):
+    """Documentation tripwire for signed S110 B2; this is not a runtime state."""
+    skill = " ".join(skill_text.replace("*", "").replace("`", "").split()).lower()
+    bus = " ".join(bus_text.replace("*", "").replace("`", "").split()).lower()
+    return all(phrase in skill for phrase in (
+        "two complete rounds",
+        "both readings, both probes",
+        "session close proceeds",
+        "no forced alignment",
+        "never clears blocked-on-rab",
+        "full stop",
+    )) and all(phrase in bus for phrase in (
+        "disagreement terminates without forced alignment",
+        "both readings and both probes",
+        "blocked-on-rab",
+        "full stop",
+    ))
+
+
+def commit_last_doctrine(skill_text):
+    skill = " ".join(skill_text.replace("*", "").replace("`", "").split()).lower()
+    return all(phrase in skill for phrase in (
+        "commit-last ordering for sidecars",
+        "commit last, then make no further",
+        "write → commit → nothing",
+        "the last write must be the commit",
+    ))
 
 
 def body_file(coord, text):
@@ -804,6 +835,31 @@ def main():
         r = run(["owed", "--as", "Fable"], cd5)
         t("control: a peer-readable discharge is recorded as DISCHARGED, not self-reported",
           "DISCHARGED" in r.stdout)
+
+        # ---- S111 signed doctrine: terminal disagreement + commit-last ordering ----
+        # These are record-survival tripwires. B2 deliberately does not add a new gate.py
+        # sidecar state; runtime enforcement would be a separate commission.
+        skill_text = SKILL.read_text(encoding="utf-8")
+        bus_text = BUS.read_text(encoding="utf-8")
+        t("B2 records two-round disagreement without forced alignment and preserves FULL STOP",
+          disagreement_doctrine(skill_text, bus_text))
+
+        # Negative control: an agreement-gated close is the exact incentive failure B2 forbids.
+        waits_for_agreement = skill_text.replace(
+            "session close proceeds", "session close waits for agreement", 1)
+        t("B2 refuses an agreement-gated close",
+          not disagreement_doctrine(waits_for_agreement, bus_text))
+
+        # Boundary negative: preserved disagreement may never clear Rab's held authority.
+        clears_rab = skill_text.replace("never clears `blocked-on-rab`;", "", 1)
+        t("B2 cannot erase blocked-on-rab or FULL STOP",
+          not disagreement_doctrine(clears_rab, bus_text))
+
+        t("ERR-017 commit-last ordering is present in the canonical relay skill",
+          commit_last_doctrine(skill_text))
+        ordering_removed = skill_text.replace("write → commit → NOTHING", "write then commit", 1)
+        t("ERR-017 ordering tripwire fails when NOTHING is removed",
+          not commit_last_doctrine(ordering_removed))
 
     total = PASS + FAIL
     print()

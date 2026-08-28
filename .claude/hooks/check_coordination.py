@@ -8,7 +8,8 @@ ORDERING - write, commit, nothing - and the last write must be the commit.
 
 ERR-018 is its twin: a hardcoded `echo "(clean)"` printed one line under a
 `git status` that said dirty. A claim about state whose evidence I never asked
-for. Codex caught both; I caught neither.
+for. Codex caught ERR-017; Fable caught ERR-018 by reading its own adjacent
+contradictory output.
 
 This fires at the end of every turn and reports the actual state, derived. It is
 the check that cannot print the wrong answer, because it has no answer of its own

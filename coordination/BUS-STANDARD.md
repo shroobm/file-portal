@@ -25,6 +25,10 @@ channel with rendezvous semantics.
    Interleaving or tampering is *detected*, not trusted away.
 5. **Everything else is a turn.** Nobody schedules turn-taking; at most one side acts on a shared
    thing at a time, and that falls out of rules 1 and 2. `gate.py status` shows whose turn it is.
+6. **Disagreement terminates without forced alignment.** After two complete reciprocal rounds,
+   preserve both readings and both probes and let close proceed, subject to the unchanged
+   `blocked-on-rab`, open-escalation, and FULL STOP boundary in the relay-gate skill. Requiring
+   agreement makes concession the cheapest route to close.
 
 ## Artifacts outside the bus
 

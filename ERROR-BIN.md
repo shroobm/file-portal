@@ -30,6 +30,12 @@ number that was numerically identical to its own inverse, which reached Rab, the
 a permanent `SYMPTOM-INDEX.md` row before another vendor falsified it. Read §C.6 before trusting
 any count in this repo, including the ones in this file.
 
+**Extended 2026-08-28 by the Codex lane under Rab's transferred S111 commission:** rows
+**017–019**, three distinct classes. Provenance is intentionally split: Codex independently
+caught 017; Fable caught 018 by reading its own adjacent contradictory output; Rab's question
+forced the liveness probe that caught 019. The old §C analyses remain explicitly scoped to
+rows 001–016; §C.7 appends the current 19-row reading instead of silently rewriting history.
+
 | tag | meaning |
 |---|---|
 | `Observed` | a command was run or a row was counted; the result is quoted |
@@ -40,7 +46,7 @@ any count in this repo, including the ones in this file.
 
 ## §A THE CLASSES — the actual product
 
-*Derived from the sixteen rows below (`Observed` — every class name and every rule text comes
+*Derived from the nineteen rows below (`Observed` — every class name and every rule text comes
 from the input lines; the "from the inside" column is the digest's characterisation, `Inferred`).*
 
 | Class | What it looks like from the inside | The rule that prevents it | Rows |
@@ -56,18 +62,19 @@ from the input lines; the "from the inside" column is the digest's characterisat
 | **STALE-GROUND** *(added 2026-08-27, row 011)* | You are writing the GROUND block for a fleet. The framing numbers came from an earlier report and feel like settled background rather than claims, so they get stated instead of probed — and then every downstream agent inherits them as given | GROUND is a claim like any other and gets a probe **before** it is handed to anyone. A **residue** section is the least-verified part of a report, not the most | 011, 016 |
 | **DENOMINATOR** *(added 2026-08-27, row 012)* | Two totals appear in one session. Both were honestly obtained; neither is wrong. Nothing states what either one counts, so the reader has no choice but to assume they are comparable | `docs/34`: every measured number names its **numerator, denominator and conditions**. Two totals of different populations must never appear in one session without their populations stated | 012 |
 | **PREDICATE-COLLAPSE** *(added 2026-08-27, row 014)* | One probe, one number, and it is internally consistent every way you turn it. What is invisible from inside is that the number is summing **two or more different tests** over the same population — so it is not wrong by an *amount*, it is wrong by a *question*. The tell, and it is the only one: it stays plausible when inverted | When a probe produces one number, ask what DISTINCT predicates that number is summing. A count is a claim about a population **and** about a test; two tests over one population are two numbers, never one. **A number that looks plausible in both directions is evidence of collapse, not of correctness.** This class is **not self-catchable** — see §C.6; it needs an independent prober denied your relay, registers, prior reports, memory and expected counts | 014 |
+| **ORDERING** *(added 2026-08-28, row 017)* | A write after the commit feels like confirmation of the state just committed. The confirmation is itself the act that invalidates that state | When a clean committed sidecar is required: perform every write first, commit last, then no further write. Read-only verification may follow; the last write must be the commit | 017 |
+| **STATUS-THEATRE** *(added 2026-08-28, row 018)* | A literal health word sits beside real probe output. Because it cannot render failure, its confidence is unrelated to what the probe found | A status claim must be derived from the probe and must have a failure branch. A health word that can only print success is decoration | 018 |
+| **PHANTOM-MONITOR** *(added 2026-08-28, row 019)* | Launch or remembered output is treated as current liveness. A one-shot that fired once is remembered as a watcher that still exists | Claim “running” only from a same-turn PID/handle or a fresh heartbeat. A monitor persists after events; a one-shot is a trigger | 019 |
 
-**11 classes, 16 rows.**
+**14 classes, 19 rows.**
 
 ---
 
 ## §B THE ROWS
 
-*All sixteen `Observed 2026-08-27` by the session that made them — self-reported, not re-verified
-by this digest. Surfaces and file citations are the reporting session's. Two exceptions to
-"self-reported by the session": row **013** was observed by the digest run and filed by the
-session, and row **014** was established by the **other vendor**, not by this lane at all. Both
-cells say so.*
+*Rows 001–016 were `Observed 2026-08-27` by the session that made them — self-reported, not
+re-verified by this digest, with the exceptions their cells name. Rows 017–019 were filed by the
+Codex lane on 2026-08-28 from the preserved S110 record; each row names who actually caught it.*
 
 | ID | Class | Surface | What I claimed | What was true | How it was caught | The rule that would have prevented it |
 |---|---|---|---|---|---|---|
@@ -87,10 +94,17 @@ cells say so.*
 | ERR-2026-08-27-014 | **PREDICATE-COLLAPSE** | five held bundles; `SYMPTOM-INDEX.md` **SYM-025** | Measured **"21 of 23 stored pointers fail to resolve on their own excerpt"**, tagged it `Verified`, **sent it to Rab, wrote it into SYM-025 as a corpus-wide upgrade, and relayed it to the Codex bus** | **FALSIFIED cross-vendor** (`MSG-CDX-0017`) by two independent probes, one a **CLEAN-ROOM probe denied the relay, the registers, prior reports, memory and expected counts.** I had **collapsed three predicates into one**: exact physical BODY line at the stored coordinate = **18/23 miss**; producer-faithful paragraph start = **17/23 miss**; the ACTUAL Bench resolver = **21/23 `anchor=excerpt`** — i.e. **21 SUCCESSES**. **The 21 I reported as misses is the count of production resolver SUCCESSES; my claim was numerically identical to its own inverse.** My load-bearing **negative control was also dead**: `c5afd9ed` #2 is producer-faithfully **CORRECT** at body line 2400, and its eight-token excerpt merely SPANS lines 2400–2401, so a one-line check returns drift — **a schema/resolver mismatch at ZERO line delta, not a stale pointer** — while `b7b711d4` #1 is a **distinct defect class** my single number had merged with it | **ONLY by the other vendor.** Nothing in my own method could have caught it: a wrong number that equals its own inverse survives every internal consistency check I ran | When a probe produces one number, ask what **DISTINCT predicates** that number is summing. A count is a claim about a population **and** about a test; two tests over one population are two numbers, never one. **And a number that looks plausible in both directions is evidence of collapse, not of correctness** |
 | ERR-2026-08-27-015 | PROBE-SHAPE | `wiki/roadmap.md`, the value-ranking page | Was **one line from writing "0 vaulted books"** into the page that ranks all project value, off `ls ~/ml/vault` returning 0 | **`~/ml/vault` IS NOT THE VAULT.** `open.sh:24` resolves `VAULT_DIR` to `$HOME/Documents/Obsidian/Obsidian and Zennotes Vault/Library`. On the correct path a `-maxdepth 1` count **also** returns 0, because the six notes live in subdirectories and the muster counts `*.md` at any depth. **Two independent ways to read a populated vault as empty, inside one measurement** | Checking how `open.sh` resolves the path before trusting my own, then reconciling my 0 against the muster card's **6** | Two readings that disagree are a **finding**, not a tie to be broken by whichever ran last — reconcile them before either enters a claim. **The 0/week figure I was checking turned out CORRECT for an unrelated reason**, which would have made the wrong probe look confirmed |
 | ERR-2026-08-27-016 | STALE-GROUND | the relay bus | Let my own `gate.py` **beat go 89 minutes stale** while completing two full work units, on a bus whose peer heartbeats every **30 seconds** | The peer could not see what I was doing or whether I was live; I had also **posted a conflict and then done two work units without checking for its reply** | **By Rab, not by me:** *"make sure to address relay consistently"* | This is ERR-011's stale-GROUND class pointed at the **bus** instead of at a fleet. A beat is a claim about **NOW** and it decays; the fix adopted is that **a relay check is the FIRST step of every work unit**, not a thing done when remembered |
+| ERR-2026-08-27-017 | ORDERING | `coordination/ack-fable.json`; commit `b8dd262` followed by `gate.py beat` | Committed the sidecar, then announced “Tree is CLEAN” and “Zero writes” in a beat | The beat wrote the same sidecar after the commit, immediately leaving it dirty; the cleanliness announcement caused the state it denied | Codex re-grounded, observed ` M coordination/ack-fable.json`, and named the self-invalidating sequence (`coordination/relay.md:4023-4034`) | When clean committed state is required: make every sidecar write first, commit last, then no further write. Read-only verification may follow; the last write must be the commit |
+| ERR-2026-08-27-018 | STATUS-THEATRE | S110 sign-sheet commit command | Printed a hardcoded `(clean — nothing blocks Codex's close gate)` directly below status output | The preceding `git status --short` printed ` M coordination/ack-fable.json`; the literal could not report failure | Fable read the adjacent contradictory output and immediately wrote “my own echo lied”; its later bus account is `MSG-FAB-0043` (`coordination/relay.md:4319-4335`) | A status claim must be derived from the probe and must have a failure branch. A health word that can only print success is decoration |
+| ERR-2026-08-27-019 | PHANTOM-MONITOR | S110 relay/repository watcher | Reported the watcher live twice | It fired at 14:33 on `e0c371a`, executed `exit 0`, and had no matching process for about seven minutes; it was a one-shot described as a monitor | Rab asked “How are you holding the watcher live?”, forcing a same-turn log/process probe; Fable's later bus account is `MSG-FAB-0043` (`coordination/relay.md:4319-4335`) | Never report a background process running without a same-turn liveness probe. A monitor persists after events and leaves a fresh heartbeat; a one-shot is a trigger |
 
 ---
 
 ## §C WHAT THESE HAVE IN COMMON
+
+**Historical denominator boundary.** §C.1–§C.6 below analyze rows 001–016 as the file stood on
+2026-08-27. Their sixteen-row denominators are preserved rather than silently restated as current.
+§C.7 adds the three S110 rows and names only the conclusions re-derived over all 19.
 
 ### 1. Ten of the sixteen are one failure in ten costumes
 
@@ -281,6 +295,20 @@ That is not a proof, it is a smell — but it is the only inside-the-frame detec
 claim about a population **and** about a test. `Observed`: none of the count tables in §C names its
 predicate. That is a live instance of this class in the very document that describes it, and it is
 recorded here rather than quietly fixed.
+
+### 7. Current 19-row reading after ERR-017–019
+
+`Observed 2026-08-28` from §B's class and catch columns: **12 of 19** rows now share §C.1's
+proxy-substitution shape — the prior ten plus 018 (typed “clean” stood in for derived status) and
+019 (launch history stood in for current liveness). The deliberate-method numerator remains
+**3 of 19**. The catches now include **2 by the other vendor** (014, 017), **3 by Rab** (005,
+016, 019), and Fable's adjacent-output self-catch of 018. **Seven of nineteen required another
+mind**: Rab 3, delegated agents 2, other vendor 2.
+
+`Observed`: **11 of 19** claims reached a human, peer, fleet, register, or close record before the
+contradiction was checked — the prior eight plus 017, 018 and 019. `ERROR-BIN.md` itself still
+appears in **zero of nineteen** “How it was caught” cells. Filing the three rows therefore changes
+the denominator, not the register's demonstrated prevention rate.
 
 ---
 

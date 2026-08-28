@@ -36,6 +36,22 @@ sidecars exist AND Rab has signed it** — one side alone is a monologue with ex
 5. **UNREAD is never idle.** A missing or malformed sidecar reads UNREAD. A failed probe may not
    render as a healthy state.
 
+## Disagreement has a terminal disposition
+
+A disagreement round is complete only when both lanes have appended and digest-confirmed one
+substantive message naming their reading and the probe or artifact supporting it. After **two
+complete rounds** without convergence, append a `PRESERVED DISAGREEMENT` disposition naming
+**both readings, both probes, the unresolved consequence, and every action still prohibited**.
+The lane-to-lane argument ends and session close proceeds. There is **no forced alignment**:
+neither reading is promoted, averaged, merged, or described as agreement. Reopen only for new
+evidence or Rab's instruction.
+
+This never authorizes a signature, adoption, threshold, vault, pipeline, or other Rab-owned
+choice; never clears `blocked-on-rab`; and never lifts an open escalation or **FULL STOP**. If one
+reading or probe was never supplied, record it `UNREAD` rather than inventing it. Agreement cannot
+be a close requirement: that makes concession the cheapest route to closing precisely when both
+lanes are under the most pressure.
+
 ## The gate-agent contract — this is the behavioral half
 
 - Take **one ticket**. Work it. Deliver. **Stop.**
@@ -101,6 +117,14 @@ because everything sent was awaiting an ACK. The escalation record survived; the
 not. **The suite was 25/25 green while this was live** — the guard had been written into the one
 path it was born on, which is SYM-042/047/049's family (*a mechanism cannot cover a path it does
 not see*). If you add a fourth writer of `state`, it needs the same clause and its own tripwire.
+
+### Commit-last ordering for sidecars
+
+A beat, confirmation, post, or ticket update writes the lane's sidecar. When a clean committed
+repository is required, perform every sidecar write first, **commit last, then make no further
+sidecar write**. Read-only verification may follow. A post-commit beat announcing cleanliness
+invalidates the cleanliness it reports. In shorthand: **write → commit → NOTHING**; the last
+write must be the commit.
 
 ## FULL STOP — Rab's rule, and the biggest thing this file used to omit
 
