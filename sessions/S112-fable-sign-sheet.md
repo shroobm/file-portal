@@ -43,11 +43,23 @@ OK-13 is the strategic one and deserves its own echo/commission when you're read
 
 ## Signature slots
 
-- OK-0: **SIGNED (Rab, 2026-08-30)** · OK-1: **SIGNED (Rab, 2026-08-30)** ·
-  OK-2: **SIGNED (Rab, 2026-08-30)** · OK-3: _____ · OK-4: _____ · OK-5: _____
-- OK-6: _____ · OK-7: **SIGNED (Rab, 2026-08-30)** · OK-8: _____ · OK-9: _____ ·
-  OK-10: _____ · OK-11: _____
+- OK-0: **SIGNED (Rab, 2026-08-30) · BUILT same day** · OK-1: **SIGNED (Rab, 2026-08-30) ·
+  BUILT same day** · OK-2: **SIGNED (Rab, 2026-08-30) · BUILT same day** · OK-3: _____ ·
+  OK-4: _____ · OK-5: _____
+- OK-6: _____ · OK-7: **SIGNED (Rab, 2026-08-30) · BUILT same day** · OK-8: _____ ·
+  OK-9: _____ · OK-10: _____ · OK-11: _____
 - OK-12: _____ · OK-13: _____ · OK-14: _____ · OK-15: _____
+
+**Build record (2026-08-30):** the four signed tickets landed in the live bench
+(`prototypes/repair-bench/bench.py`, `bench.html`, `test_bench_page.py`; docs/22 schema
+updated). Harness **45/45** (19 pre-existing + 26 added, every family with positive AND
+negative controls). A 3-lens Opus 5 adversarial review of the diff filed 32 findings — 2
+CRITICAL (a CSS-cascade bug that would have permanently stuck the placeholder over the page;
+a restored view leaving zone context unbound so crops would land at body line 40) — all
+confirmed findings fixed and pinned by new tripwires before commit. **Not yet exercised in a
+live browser session** (the JS layer is source-verified + reviewed, not runtime-observed —
+starting the real bench on a held bundle is your hand): first live run is the honest
+remaining gate, `Intended`, exercised the next time the bench opens.
 
 **The signature, verbatim (Rab, 2026-08-30):** *"Do do quarantine only, just implement it.
 Signing on OK-0, OK-1, OK-2, OK-7, use opus 5 models if you need / No just implmenet, no

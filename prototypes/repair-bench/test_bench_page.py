@@ -31,6 +31,7 @@ this file and honestly so.
 """
 from __future__ import annotations
 
+import base64
 import http.client
 import json
 import os
@@ -377,6 +378,269 @@ class TestFailClosed403Live(unittest.TestCase):
             if httpd:
                 httpd.shutdown()
                 httpd.server_close()
+
+
+# ---- OK-0 / OK-1 / OK-2 / OK-7 (docs/49, signed by Rab 2026-08-30) — the tripwires land in
+# the same commit as the guards they watch (docs/32 §6), same idiom as above: every family
+# carries a positive control against the real artifact and a negative control that the same
+# check REJECTS.
+class TestOK0RepairIdentity(unittest.TestCase):
+    """OK-0: every NEW repair record carries a UUID identity; old records are never rewritten."""
+
+    ID_RE = re.compile(r"^fpr-[0-9a-f]{32}$")
+
+    def test_new_records_get_unique_ids_and_legacy_records_stay_untouched(self):
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-ok0-"))
+        try:
+            (tmp / "book.md").write_text("---\nt: 1\n---\nalpha\nbeta\ngamma",
+                                         encoding="utf-8")
+            legacy = {"ts": "2026-08-01T00:00:00+00:00", "zone_line": 1, "mode": "paste"}
+            (tmp / "manifest.json").write_text(json.dumps({"repairs": [legacy]}),
+                                               encoding="utf-8")
+            b = bench.Bench(tmp)
+            png_b64 = base64.b64encode(b"\x89PNG\r\n\x1a\n" + b"x" * 24).decode()
+            r1 = b.repair(zone_line=1, page=1, image_b64=png_b64)
+            r2 = b.repair(zone_line=2, page=1, image_b64=png_b64)
+            self.assertRegex(r1["record"]["id"], self.ID_RE)
+            self.assertRegex(r2["record"]["id"], self.ID_RE)
+            self.assertNotEqual(r1["record"]["id"], r2["record"]["id"],
+                                "two repairs share one id — identity is not identity")
+            reps = json.loads((tmp / "manifest.json").read_text(encoding="utf-8"))["repairs"]
+            self.assertEqual(len(reps), 3)
+            self.assertNotIn("id", reps[0],
+                             "a legacy record grew an id — append-only means old records "
+                             "are never rewritten, not even helpfully")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_negative_control_the_predicate_rejects_non_ids(self):
+        for bad in ("", "fpr-nothex", "fpr-" + "a" * 31, "okular-123"):
+            self.assertIsNone(self.ID_RE.match(bad),
+                              f"the id predicate admitted {bad!r}")
+
+
+class TestOK7TrimBox(unittest.TestCase):
+    """OK-7: the trim measurement, pure and stdlib-only — Okular's 4%-pad and half-page-floor
+    constants, exercised both ways."""
+
+    @staticmethod
+    def raster(w, h, paper=(250, 250, 248), content_rect=None):
+        buf = bytearray()
+        for y in range(h):
+            for x in range(w):
+                inside = content_rect and (content_rect[0] <= x < content_rect[2]
+                                           and content_rect[1] <= y < content_rect[3])
+                buf.extend((20, 20, 20) if inside else paper)
+        return bytes(buf), w * 3
+
+    def test_blank_page_yields_none_not_a_phantom_box(self):
+        s, stride = self.raster(60, 90)
+        self.assertIsNone(bench.Bench.bbox_from_samples(s, 60, 90, stride))
+
+    def test_content_box_found_then_padded_and_capped(self):
+        s, stride = self.raster(100, 100, content_rect=(30, 40, 70, 80))
+        tight = bench.Bench.bbox_from_samples(s, 100, 100, stride)
+        self.assertAlmostEqual(tight[0], 0.30, places=2)
+        self.assertAlmostEqual(tight[2], 0.70, places=2)
+        self.assertAlmostEqual(tight[3], 0.80, places=2)
+        padded = bench.Bench.pad_and_cap(tight)
+        self.assertLess(padded[0], tight[0], "the 4% pad must expand the box, not shrink it")
+        self.assertGreater(padded[2], tight[2])
+        # the half-page floor: a tiny stamp must not crop the page down to itself
+        capped = bench.Bench.pad_and_cap([0.48, 0.48, 0.52, 0.52])
+        self.assertGreaterEqual(capped[2] - capped[0], bench.Bench.TRIM_MIN_KEEP - 1e-9)
+        self.assertGreaterEqual(capped[3] - capped[1], bench.Bench.TRIM_MIN_KEEP - 1e-9)
+        for v in capped:
+            self.assertGreaterEqual(v, 0.0)
+            self.assertLessEqual(v, 1.0)
+
+    def test_negative_control_content_at_the_edge_defeats_the_crop_honestly(self):
+        # content touching row 0 (a header bleed, a scanner border): top must be 0 — the
+        # measurement reports what is there rather than inventing a margin
+        s, stride = self.raster(60, 60, content_rect=(0, 0, 60, 2))
+        box = bench.Bench.bbox_from_samples(s, 60, 60, stride)
+        self.assertLessEqual(box[1], 0.01)
+
+    def test_paper_estimate_survives_one_dark_corner(self):
+        # a photo block covering the top-left corner must not poison the paper estimate
+        s, stride = self.raster(80, 80, content_rect=(0, 0, 20, 20))
+        box = bench.Bench.bbox_from_samples(s, 80, 80, stride)
+        self.assertIsNotNone(box, "one dark corner made the whole page read as paper")
+        self.assertLessEqual(box[0], 0.01)
+        self.assertLessEqual(box[1], 0.01)
+
+    def test_trimbox_route_is_read_only_get_never_a_mutating_post(self):
+        self.assertIn('"/api/trimbox"', BENCH_PY)
+        self.assertNotIn("/api/trimbox", bench.MUTATING_POSTS,
+                         "trimbox computes and caches — it must never join the mutating census")
+
+
+class TestOK1ViewportSource(unittest.TestCase):
+    """OK-1 source truths in bench.html: stable-id keying, the overwrite-on-same-page history
+    rule, and restore winning over the zone-0 auto-jump."""
+
+    def test_view_store_keys_on_the_stable_source_id_first(self):
+        body = js_function_body(BENCH_HTML, "viewStoreKey")
+        self.assertIn("source_sha16", body,
+                      "the view store no longer keys on the stable source id — a pipeline "
+                      "rewrite would orphan the reader's position (the audited size-key hazard)")
+        # review 2026-08-30: in pdf_only mode s.bundle is the containing FOLDER — the PDF
+        # name must outrank it or every bare PDF in done/ shares one store
+        self.assertIn("pdf_only", body,
+                      "viewStoreKey lost its pdf_only branch — every bare PDF in one folder "
+                      "would share a single view store (marks/position/trim cross-pollution)")
+
+    def test_reader_mode_gets_a_real_identity_from_the_pdf_bytes(self):
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-viewid-"))
+        try:
+            a, b = tmp / "bookA.pdf", tmp / "bookB.pdf"
+            a.write_bytes(b"%PDF-1.4 fake A " + b"a" * 100)
+            b.write_bytes(b"%PDF-1.4 fake B " + b"b" * 100)
+            ida = bench.Bench(a).state()["source_sha16"]
+            idb = bench.Bench(b).state()["source_sha16"]
+            self.assertRegex(ida, r"^[0-9a-f]{16}$")
+            self.assertNotEqual(ida, idb,
+                                "two different PDFs share one view identity — the exact "
+                                "cross-book pollution the review reproduced")
+            self.assertEqual(ida, bench.Bench(a).state()["source_sha16"],
+                             "the identity is not stable across re-opens")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_history_overwrites_same_page_and_caps_at_100(self):
+        body = js_function_body(BENCH_HTML, "histRecord")
+        self.assertIn(".page === vp.page", body, "the same-page overwrite branch is gone — "
+                      "plain scrolling would spam the history")
+        self.assertIn("100", body, "the in-RAM history cap is gone")
+        self.assertIn("splice", body, "a page change no longer erases the forward tail")
+
+    def test_persisted_history_is_the_last_ten(self):
+        body = js_function_body(BENCH_HTML, "saveViewStore")
+        self.assertIn("slice(-10)", body, "the persisted history is no longer capped at 10")
+
+    def test_load_prefers_the_saved_place_over_the_zone_autojump(self):
+        body = js_function_body(BENCH_HTML, "load")
+        self.assertIn("restoreView(store)", body)
+        self.assertLess(body.index("if (restoreView(store))"),
+                        body.index("else if (st.zones.length) selectZone(0);"),
+                        "load() auto-jumps to zone 0 before consulting the saved viewport")
+
+    def test_negative_control_a_push_only_history_fails_the_same_checks(self):
+        bad = "{ vhist.push(vp); vidx = vhist.length - 1; }"
+        self.assertNotIn(".page === vp.page", bad)
+        self.assertNotIn("100", bad)
+
+
+class TestOK2PlaceholderSource(unittest.TestCase):
+    """OK-2 source truths: goto routes through setPageImage, and the placeholder is DELAYED
+    so fast loads never flash it."""
+
+    def test_goto_routes_through_the_placeholder_path(self):
+        body = js_function_body(BENCH_HTML, "goto")
+        self.assertIn("setPageImage(", body)
+        self.assertNotIn('pageimg").src', body,
+                         "goto sets img.src directly — the placeholder path is bypassed")
+
+    def test_placeholder_only_appears_inside_the_delay_callback(self):
+        body = js_function_body(BENCH_HTML, "setPageImage")
+        self.assertIn("setTimeout", body)
+        at_timer = body.index("setTimeout")
+        self.assertIn("hidden = false", body[at_timer:],
+                      "nothing un-hides the placeholder inside the delay callback")
+        self.assertNotIn("hidden = false", body[:at_timer],
+                         "the placeholder shows before the delay — fast pages pay the flash")
+
+    def test_negative_control_an_immediate_placeholder_fails_the_same_check(self):
+        bad = '{ ph.hidden = false; setTimeout(() => {}, 120); img.src = url; }'
+        at_timer = bad.index("setTimeout")
+        self.assertIn("hidden = false", bad[:at_timer])
+
+    def test_overlays_ride_the_image_inside_pageinner(self):
+        # OK-7's CSS crop shifts #pageinner; highlights must live there or trim would strand them
+        self.assertIn('id="pageinner"', BENCH_HTML)
+        self.assertIn('$("pageinner").appendChild', BENCH_HTML,
+                      "highlight boxes no longer land in #pageinner — a trim crop would "
+                      "leave them anchored to the clipped container instead of the image")
+
+
+def css_hidden_override_present(css: str, ident: str) -> bool:
+    """True = the stylesheet carries a `#ident[hidden]` display:none override. Required for
+    any id that BOTH declares an author `display` AND is toggled via .hidden from JS — the
+    author declaration beats the UA [hidden] rule in the cascade (review CRITICAL 2026-08-30;
+    .modal[hidden] at the top of the file is the in-file precedent)."""
+    return bool(re.search(rf"#{ident}\[hidden\][^{{]*{{[^}}]*display\s*:\s*none", css))
+
+
+class TestReviewFixes(unittest.TestCase):
+    """The 2026-08-30 three-lens review's confirmed findings, pinned so they cannot return."""
+
+    def test_pagephold_hidden_override_exists(self):
+        self.assertTrue(css_hidden_override_present(BENCH_HTML, "pagephold"),
+                        "#pagephold[hidden]{display:none} is gone — with an author "
+                        "display:block, ph.hidden=true is a NO-OP and the dpi-30 placeholder "
+                        "stays painted over every subsequent page (review CRITICAL)")
+
+    def test_pagephold_hidden_override_negative_control(self):
+        bad = "#pagephold { position:absolute; display:block; }"
+        self.assertFalse(css_hidden_override_present(bad, "pagephold"))
+
+    def test_restored_load_still_binds_the_zone_context(self):
+        body = js_function_body(BENCH_HTML, "load")
+        self.assertIn("selectZone(0, true)", body,
+                      "a restored view no longer binds zone context — zone stays null, "
+                      "ctxRange falls to lines 1..40, and the next crop/✦ fix writes to the "
+                      "front matter with note 'folder mode' (review CRITICAL)")
+        sig = BENCH_HTML.index("function selectZone(")
+        self.assertIn("keepView", BENCH_HTML[sig:sig + 60],
+                      "selectZone lost its keepView parameter")
+
+    def test_history_walk_never_overwrites_the_destination_entry(self):
+        body = js_function_body(BENCH_HTML, "histRecord")
+        self.assertRegex(body,
+                         r"if \(navFromHist\) \{ navFromHist = false; saveViewStore\(\); "
+                         r"histButtons\(\); return; \}",
+                         "the navFromHist branch drifted — during a history walk the stored "
+                         "entry is the authority; writing viewportNow() there destroys the "
+                         "destination's scroll offset")
+
+    def test_marks_key_on_identity_not_render_index(self):
+        body = js_function_body(BENCH_HTML, "renderMarks")
+        self.assertIn("findIndex", body)
+        self.assertIn("dataset.ts", body,
+                      "mark rows no longer resolve by ts identity — index-keyed deletion "
+                      "made a double-click on ✕ delete TWO marks")
+        self.assertNotIn("ondblclick", BENCH_HTML,
+                         "dblclick is back — it always fires two clicks first, so rename "
+                         "must stay on its own ✎ control")
+
+    def test_trim_select_arms_with_a_clean_crop(self):
+        at = BENCH_HTML.index('$("trimbtn").onclick')
+        handler = BENCH_HTML[at:at + 700]
+        self.assertIn("clearCrop()", handler,
+                      "Shift+⛶ no longer clears the stale repair rect — a bare click after "
+                      "arming would commit the previous crop as the global trim box")
+
+    def test_alt_history_prevents_browser_back(self):
+        handler = js_handler_around(BENCH_HTML, 'e.key === "ArrowLeft"')
+        alt_at = handler.index("altKey")
+        self.assertIn("preventDefault", handler[alt_at:alt_at + 120],
+                      "Alt+←/→ no longer preventDefault — Alt+Left is the browser's Back")
+        self.assertIn("beforeunload", BENCH_HTML,
+                      "the beforeunload guard is gone — unsaved markdown edits die silently "
+                      "on any navigation")
+
+    def test_pad_and_cap_rejects_garbage_boxes(self):
+        for bad in ([0.6, 0.6, 0.4, 0.4], [0.5, 0.5, 0.5, 0.5], [-0.1, 0, 0.5, 0.5]):
+            with self.assertRaises(ValueError,
+                                   msg=f"pad_and_cap answered confidently on garbage {bad}"):
+                bench.Bench.pad_and_cap(bad)
+
+    def test_trim_constants_are_live_at_their_call_sites(self):
+        self.assertIn("self.pad_and_cap(box, self.TRIM_PAD, self.TRIM_MIN_KEEP)", BENCH_PY,
+                      "pad_and_cap is called on frozen defaults — tuning Bench.TRIM_PAD "
+                      "or TRIM_MIN_KEEP would silently do nothing")
+        self.assertIn("self.TRIM_THRESHOLD)", BENCH_PY,
+                      "bbox_from_samples is called on a frozen threshold")
 
 
 if __name__ == "__main__":

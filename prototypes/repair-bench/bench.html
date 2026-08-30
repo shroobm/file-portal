@@ -204,12 +204,32 @@
   #locbadge.ratio { color:var(--text-3); }
   #pagewrap { flex:1; overflow:auto; background:var(--stage); display:flex; justify-content:center; }
   #pagebox { position:relative; margin:18px auto; height:fit-content; box-shadow:var(--shadow-page);
-             border-radius:3px; overflow:hidden; }
-  #pageimg { display:block; background:#fff; }
+             border-radius:3px; overflow:hidden; flex:none; }
+  /* OK-7: the trim crop is pure CSS — #pageinner shifts the full-size img inside the clipped
+     #pagebox, so every overlay (highlights, crop drag) keeps its coordinate system: they ride
+     the img, whose bounding rect never lies about where the page really is. */
+  #pageinner { position:relative; }
+  #pageimg { display:block; background:#fff; position:relative; z-index:0; }
+  /* OK-2: the dpi-30 raster of the SAME page, painted while the real one renders.
+     The [hidden] override is LOAD-BEARING: an author display declaration beats the UA's
+     [hidden]{display:none} in the cascade, so without it the placeholder could never be
+     hidden again — the same trap .modal[hidden] below already guards against (review
+     CRITICAL, 2026-08-30). */
+  #pagephold { position:absolute; left:0; top:0; z-index:1; pointer-events:none; display:block; }
+  #pagephold[hidden] { display:none !important; }
   #cropbox { position:absolute; border:2px solid var(--accent); background:rgba(0,122,255,.12);
-             border-radius:3px; display:none; pointer-events:none;
+             border-radius:3px; display:none; pointer-events:none; z-index:3;
              box-shadow:0 0 0 4000px rgba(0,0,0,.14); }
-  .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; }
+  .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; z-index:2; }
+  #histback:disabled, #histfwd:disabled { opacity:.35; }
+  #trimbtn.on { background:var(--accent-bg); color:var(--accent); }
+  .mark-row { display:flex; gap:8px; padding:5px 12px; font-size:11.5px; color:var(--text-2);
+              cursor:pointer; align-items:center; border-radius:6px; margin:0 4px; }
+  .mark-row:hover { background:var(--fill); }
+  .mark-row .t { flex:1; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+  .mark-row .p { color:var(--text-3); font-family:var(--mono); font-size:10.5px; }
+  .mark-row .x { color:var(--text-3); }
+  #markbtn { margin:10px; }
   #nopdf { padding:36px; color:var(--text-3); }
   /* S71 — the transcribe proposal panel: side-by-side, human is the final gate */
   #tpanel, #cpanel { border:1px solid var(--accent); border-radius:10px; margin:8px 10px; padding:10px 12px; background:var(--fill); }
@@ -352,6 +372,7 @@
       <div class="stab on" data-tab="toc">Contents</div>
       <div class="stab" data-tab="search" id="search-tab">Search</div>
       <div class="stab" data-tab="pages">Pages</div>
+      <div class="stab" data-tab="marks">Marks</div>
     </div>
     <div class="sbody" id="sb-toc"><div class="side-note">reading outline…</div></div>
     <div class="sbody" id="sb-search" hidden>
@@ -359,10 +380,16 @@
       <div id="qres"><div class="side-note">Results list here — click one to jump; hits highlight on the page. Your place is never stolen: no auto-jump.</div></div>
     </div>
     <div class="sbody" id="sb-pages" hidden><div id="thumbs"></div></div>
+    <div class="sbody" id="sb-marks" hidden>
+      <button id="markbtn" title="save this exact place — page AND scroll position">★ mark this view</button>
+      <div id="marklist"></div>
+    </div>
   </section>
 
   <section class="pane">
     <div id="stage-tools">
+      <button id="histback" title="back — where you jumped from (Alt+←)" disabled>↶</button>
+      <button id="histfwd" title="forward (Alt+→)" disabled>↷</button>
       <button id="pprev" title="previous page (←)">◂</button>
       <input id="pin" value="1" title="page number — type and press Enter" />
       <span id="ptotal">/ —</span>
@@ -372,6 +399,7 @@
         <option value="0.75">75%</option><option value="1">100%</option>
         <option value="1.5">150%</option><option value="2">200%</option>
       </select>
+      <button id="trimbtn" title="trim margins — click: auto (measured from the raster, +4% pad, never past half) · Shift+click then drag: your own trim box for ALL pages · click again: off">⛶</button>
       <button id="locate" title="find this zone's true page from the prose around it (text-layer books)">⌖ locate</button>
       <span class="grow"></span>
       <button id="collapsebtn" hidden
@@ -403,7 +431,7 @@
       </div>
     </div>
     <div id="stage-info"><span id="locbadge"></span><span class="grow"></span><span id="zonehint"></span></div>
-    <div id="pagewrap"><div id="pagebox"><img id="pageimg" alt="" /><div id="cropbox"></div></div>
+    <div id="pagewrap"><div id="pagebox"><div id="pageinner"><img id="pageimg" alt="" /><img id="pagephold" alt="" hidden /><div id="cropbox"></div></div></div>
       <div id="nopdf" hidden>source PDF not found — markdown-only repairs (paste a screenshot: Ctrl+V)</div>
     </div>
   </section>
@@ -478,6 +506,15 @@
       <p>Local qwen3 only; sees only the visible passage; every image embed is fenced into an
       opaque token first and a damaged fence means the change is <b>refused</b>; "nothing to
       fix" is honest and costs no undo; <b>↩ undo AI</b> is byte-identical, twenty deep.</p>
+      <h3>Reading aids (S112, from the Okular digest)</h3>
+      <p><b>Your place is saved</b> per book — under the source's own id, so a pipeline
+      rewrite can't lose it — and restored when the book returns to the bench. <b>↶ ↷</b>
+      (Alt+←/→) walk your jump history: page changes push an entry, plain scrolling never
+      does. <b>Marks</b> (sidebar): ★ saves the exact page + scroll; double-click renames;
+      ✕ deletes. <b>⛶ trim</b> cuts the margins, measured from the page raster (+4% pad,
+      never past half the page); <b>Shift+⛶ then drag</b> sets your own trim box for every
+      page; Esc cancels. Page turns paint the low-dpi raster after 120&nbsp;ms instead of
+      leaving you a blank wait — fast pages skip it entirely.</p>
       <h3>Your safety net</h3>
       <p><code>.md.bench-bak</code> before the first write · append-only provenance in
       <code>manifest["repairs"]</code> · the SANDBOX badge means you're on a copy · the READING
@@ -527,7 +564,11 @@ async function api(path, body) {
 
 /* ---- modals (one system) ---- */
 document.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => { $(b.dataset.close).hidden = true; });
-addEventListener("keydown", (e) => { if (e.key === "Escape") ["help","picker","info"].forEach((id) => $(id).hidden = true); });
+addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  ["help","picker","info"].forEach((id) => $(id).hidden = true);
+  if (trimSelecting) { trimSelecting = false; status("⛶ trim-select cancelled — nothing changed"); }
+});
 $("help-btn").onclick = () => { $("help").hidden = false; };
 
 /* ---- boot / reload for the current (or freshly opened) patient ---- */
@@ -542,7 +583,11 @@ async function load() {
   ctxDirty = false;
   st = await api("/api/state");
   mdText = st.pdf_only ? "" : (await api("/api/md")).text;
-  zone = null; hlQuery = null; thumbsBuilt = false; toc = [];
+  zone = null; runIdx = null; hlQuery = null; thumbsBuilt = false; toc = [];
+  // review 2026-08-30: a book switch must not carry the previous book's selection chrome —
+  // these used to be reset as a side effect of the unconditional selectZone(0)
+  renderDiagnosis(null); setLocBadge(null);
+  $("zonehint").textContent = ""; $("collapsebtn").hidden = true; $("cpanel").hidden = true;
   $("bname").textContent = st.pdf_only ? (st.pdf || "").split("\\").pop() : st.bundle;
   $("bname").title = st.dir;
   $("bverdict").hidden = !st.verdict; $("bverdict").textContent = "audit: " + st.verdict;
@@ -561,7 +606,29 @@ async function load() {
   $("srcline").title = $("srcline").textContent;
   renderZones(); renderRepairs(); loadToc();
   $("aiundo").hidden = !(st.undo_depth > 0);
-  if (st.zones.length) selectZone(0);
+  // OK-1 (docs/49 §1 c1, signed): per-book view state under a STABLE id. A saved place wins
+  // over the zone-0 auto-jump — the chips are one click away; your reading position is not.
+  viewKey = viewStoreKey(st);
+  const store = loadViewStore();
+  marks = (store && Array.isArray(store.marks)) ? store.marks : [];
+  trim = (store && store.trim && store.trim.mode)
+       ? { mode: store.trim.mode, rect: store.trim.rect || null }
+       : { mode: "off", rect: null };
+  trimBoxes = {}; trimSelecting = false;
+  $("trimbtn").classList.toggle("on", trim.mode !== "off");
+  $("trimbtn").disabled = !st.pdf_available;
+  $("markbtn").disabled = !st.pdf_available;
+  renderMarks();
+  vhist = []; vidx = -1; histButtons();
+  if (restoreView(store)) {
+    // review CRITICAL 2026-08-30: the restored view must still BIND the zone context —
+    // with zone left null, every write path fell back to ctxRange (lines 1..40): a crop
+    // would land at body line 40 with the note "folder mode", and ✦ fix would rewrite the
+    // front matter. keepView=true binds zone 0 without moving the page.
+    if (st.zones.length) selectZone(0, true);
+    else if (!st.pdf_only) renderCtxPlain();
+  }
+  else if (st.zones.length) selectZone(0);
   else { page = 1; goto(1); if (!st.pdf_only) renderCtxPlain(); }
   coachRender();
 }
@@ -683,12 +750,14 @@ function selectRun(i) {
     : "◍ no anchor in the text for this run — read the page and use a zone if it fits better");
 }
 
-function selectZone(i) {
+function selectZone(i, keepView = false) {
   zone = i;
   runIdx = null;          // S76: zone and omission-run selection are exclusive
   coachMark("zone");
   const z = st.zones[i];
-  goto(z.located_page || z.page_guess);
+  // keepView (OK-1): bind the zone CONTEXT (ctxRange, diagnosis, badge) without moving the
+  // restored reading position — used by load() after a viewport restore.
+  if (!keepView) goto(z.located_page || z.page_guess);
   setLocBadge(z);
   renderDiagnosis(z);
   renderZones(); renderCtx();
@@ -696,7 +765,7 @@ function selectZone(i) {
   // on whether the paragraph is really a loop (it refuses anything that reads as language).
   $("collapsebtn").hidden = !!z.collapsed;
   $("cpanel").hidden = true; cprop = null;
-  if (!z.located_page && st.pdf_available && !st.pdf_only) autoLocate(i);
+  if (!keepView && !z.located_page && st.pdf_available && !st.pdf_only) autoLocate(i);
 }
 function setLocBadge(z) {
   const el = $("locbadge");
@@ -722,16 +791,47 @@ $("locate").onclick = () => { if (zone != null) { delete st.zones[zone].located_
 
 /* ---- the stage ---- */
 function dpiForZoom(z) { return (z === "fit" || Number(z) <= 1) ? 140 : 220; }
+/* OK-2 (docs/49 §1 c2, signed): never show a blank page. The dpi-30 raster of the SAME page
+   paints as a scaled placeholder while the real one renders — but only after 120 ms, so fast
+   loads never flash it (Okular's suppression rule, generator_pdf.cpp:1026, scaled from its
+   500 ms render world down to loopback-PNG latency). The dpi-30 fetch is the thumbnail
+   raster, so a page you have thumbed is a browser-cache hit. */
+let phTimer = 0, phNav = 0;
+function setPageImage(url) {
+  const img = $("pageimg"), ph = $("pagephold");
+  clearTimeout(phTimer); ph.hidden = true;
+  const nav = ++phNav;   // stale settles and timers from an abandoned flip must be inert
+  // Same URL, already decoded: re-assigning .src may fire NO load event at all — without
+  // this guard the timer below would show a placeholder that nothing ever hides.
+  if (img.src && img.src.endsWith(url) && img.complete && img.naturalWidth) { applyZoom(); return; }
+  const settle = () => {
+    if (nav !== phNav) return;
+    ph.hidden = true; clearTimeout(phTimer); applyZoom();
+  };
+  img.addEventListener("load", settle, { once: true });
+  img.addEventListener("error", settle, { once: true });
+  phTimer = setTimeout(() => {
+    if (nav !== phNav) return;
+    ph.src = `/api/page?n=${page}&dpi=30`;
+    ph.style.width = img.style.width;   // same box the real raster will fill
+    ph.hidden = false;
+  }, 120);
+  img.src = url;
+}
 function goto(n) {
   page = Math.max(1, Math.min(st.pages, Number(n) || 1));
-  $("pageimg").src = `/api/page?n=${page}&dpi=${dpiForZoom($("zoom").value)}`;
+  setPageImage(`/api/page?n=${page}&dpi=${dpiForZoom($("zoom").value)}`);
   $("pin").value = page;
   applyZoom(); clearCrop(); drawHighlights(); markTocCurrent(); markThumbCurrent();
+  histRecord();
 }
 function applyZoom() {
-  const z = $("zoom").value, img = $("pageimg");
-  if (z === "fit") img.style.width = Math.max(200, $("pagewrap").clientWidth - 24) + "px";
-  else img.style.width = (760 * Number(z)) + "px";
+  const z = $("zoom").value;
+  const wTarget = z === "fit" ? Math.max(200, $("pagewrap").clientWidth - 24)
+                              : 760 * Number(z);
+  if (trim.mode === "auto" && st?.pdf_available && trimBoxes[page] === undefined)
+    fetchTrimbox(page);
+  applyTrim(wTarget);
 }
 $("zoom").onchange = () => goto(page);
 $("pprev").onclick = () => goto(page - 1);
@@ -745,6 +845,10 @@ addEventListener("keydown", (e) => {
   // find that break, which is exactly why it survived the rewrite.
   const a = document.activeElement;
   if (!a || a.isContentEditable || ["INPUT","TEXTAREA","SELECT"].includes(a.tagName)) return;
+  // OK-1: Alt+arrows walk the jump history — checked FIRST, or the plain-arrow lines
+  // below would also fire on the same keystroke and flip a page mid-history-walk.
+  if (e.altKey && e.key === "ArrowLeft") { e.preventDefault(); histGo(-1); return; }
+  if (e.altKey && e.key === "ArrowRight") { e.preventDefault(); histGo(1); return; }
   if (e.key === "ArrowLeft") goto(page - 1);
   if (e.key === "ArrowRight") goto(page + 1);
 });
@@ -762,16 +866,21 @@ async function drawHighlights() {
       d.style.top = (r[1] * img.clientHeight) + "px";
       d.style.width = ((r[2] - r[0]) * img.clientWidth) + "px";
       d.style.height = ((r[3] - r[1]) * img.clientHeight) + "px";
-      $("pagebox").appendChild(d);
+      // OK-7: overlays live in #pageinner so a trim crop moves them WITH the image
+      $("pageinner").appendChild(d);
     });
-    if (img.complete) place(); else img.onload = place;
+    // review MAJOR 2026-08-30: addEventListener, never the onload PROPERTY — the property
+    // slot keeps its first-assignment position in the listener list, so `place` would run
+    // BEFORE applyTrim's width application and lay every box out at the previous scale.
+    if (img.complete && img.naturalWidth) place();
+    else img.addEventListener("load", place, { once: true });
   } catch { /* highlights are decoration */ }
 }
 
 /* ---- sidebar ---- */
 document.querySelectorAll(".stab").forEach((t) => t.onclick = () => {
   document.querySelectorAll(".stab").forEach((x) => x.classList.toggle("on", x === t));
-  for (const id of ["toc","search","pages"]) $("sb-" + id).hidden = (t.dataset.tab !== id);
+  for (const id of ["toc","search","pages","marks"]) $("sb-" + id).hidden = (t.dataset.tab !== id);
   if (t.dataset.tab === "pages") { if (!thumbsBuilt) buildThumbs(); scrollThumbToCurrent(); }
 });
 async function loadToc() {
@@ -1028,7 +1137,10 @@ const box = $("pagebox"), cb = $("cropbox");
 let drag = null;
 function clearCrop() { crop = null; cb.style.display = "none"; $("cropbtn").disabled = true; $("cropbtn").textContent = "✂ drag a region first"; $("readbtn").disabled = true; $("readbtn").textContent = "⌨ drag a region first"; }
 box.addEventListener("mousedown", (e) => {
-  if (!st?.pdf_available || st.pdf_only) return;
+  if (!st?.pdf_available) return;
+  // reading mode blocks REPAIR drags, but a trim-select drag writes nothing — and trimming
+  // margins is exactly what a reading-mode user wants (review 2026-08-30)
+  if (st.pdf_only && !trimSelecting) return;
   const r = $("pageimg").getBoundingClientRect();
   drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, r };
   e.preventDefault();
@@ -1043,6 +1155,15 @@ addEventListener("mousemove", (e) => {
   crop = [a / drag.r.width, c / drag.r.height, b2 / drag.r.width, d / drag.r.height];
 });
 addEventListener("mouseup", () => {
+  // OK-7: an armed trim-select consumes the drag — the rect (already normalized to the FULL
+  // page image, exactly what the crop math produces) becomes the trim box for every page.
+  if (drag && crop && trimSelecting && (crop[2]-crop[0]) > 0.05 && (crop[3]-crop[1]) > 0.05) {
+    trim.rect = crop; trim.mode = "rect"; trimSelecting = false;
+    $("trimbtn").classList.add("on");
+    clearCrop(); applyZoom(); drawHighlights(); saveViewStore();
+    status("⛶ trimmed to your region — applied to every page; ⛶ turns it off");
+    drag = null; return;
+  }
   if (drag && crop && (crop[2]-crop[0]) > 0.02 && (crop[3]-crop[1]) > 0.02) {
     $("cropbtn").disabled = false;
     $("cropbtn").textContent = `✂ insert crop at zone ${zone != null ? zone + 1 : ""}`;
@@ -1310,7 +1431,7 @@ function renderRepairs() {
   st.repairs.forEach((r) => {
     const d = document.createElement("div");
     d.className = "rep";
-    d.title = `${r.ts} · ${r.note || r.mode}`;
+    d.title = `${r.ts} · ${r.note || r.mode}` + (r.id ? ` · ${r.id}` : "");  // OK-0 identity
     // S71: transcribe records carry no asset — a ⌨ text chip, not a broken <img>
     // S76: nor does a collapse — its own ⌫ chip, so it can't borrow transcribe's face
     const face = r.asset
@@ -1423,6 +1544,221 @@ $("guide-btn").onclick = () => { $("coach").hidden = false; coachRender(); };
 $("coach-close").onclick = () => { $("coach").hidden = true; };
 try { if (!localStorage.getItem("fp-bench-coached")) $("coach").hidden = false; } catch {}
 
+/* ---- OK-1 (docs/49 §1 c1, signed 2026-08-30): the viewport as the one address type -------
+   {page, x, y}: x/y are #pagewrap's scroll offsets as fractions of the page image, so one
+   address survives every zoom and dpi change. Persisted per BOOK under a STABLE id — the
+   source sha16 when the bundle carries one: the Okular audit flagged size-keying as a hazard
+   for exactly this bench, whose pipeline re-emits files (docs/49 §2). History follows
+   Okular's one rule (document.cpp:3480): same-page scrolls OVERWRITE the top entry; only a
+   page CHANGE pushes — no history spam. 100 in RAM, last 10 persisted (document.cpp:167). */
+let vhist = [], vidx = -1, viewKey = null, navFromHist = false;
+let viewSaveTimer = 0, scrollSaveTimer = 0, marks = [];
+function viewportNow() {
+  const img = $("pageimg"), wrap = $("pagewrap");
+  const w = img.clientWidth || 1, h = img.clientHeight || 1;
+  return { page, x: +(wrap.scrollLeft / w).toFixed(4), y: +(wrap.scrollTop / h).toFixed(4) };
+}
+function viewStoreKey(s) {
+  // the STABLE id first — source_sha16 survives markdown rewrites (the server now derives
+  // one from the PDF bytes in reader mode too). In pdf_only the PDF FILENAME must outrank
+  // s.bundle, which is just the containing folder — review MAJOR 2026-08-30: every bare PDF
+  // in done/ shared one store, cross-polluting marks, trim, and position between books.
+  const pdfName = (s.pdf || "").split("\\").pop();
+  const id = s.source_sha16 || (s.pdf_only ? pdfName : s.bundle) || s.bundle || pdfName || "unknown";
+  return "fp-bench-view:" + id;
+}
+function loadViewStore() {
+  try { const raw = localStorage.getItem(viewKey); if (raw) return JSON.parse(raw); } catch {}
+  return null;
+}
+function saveViewStore() {
+  if (!viewKey) return;
+  clearTimeout(viewSaveTimer);
+  viewSaveTimer = setTimeout(() => {
+    const store = { v: 1, current: vhist[vidx] || viewportNow(), hist: vhist.slice(-10),
+                    marks, trim: { mode: trim.mode, rect: trim.rect }, updated: Date.now() };
+    try { localStorage.setItem(viewKey, JSON.stringify(store)); } catch {}
+  }, 250);
+}
+function histRecord() {                 // every goto() lands here
+  // review 2026-08-30: during a history walk the STORED entry is the authority — writing
+  // viewportNow() here would overwrite the destination's scroll with the origin's.
+  if (navFromHist) { navFromHist = false; saveViewStore(); histButtons(); return; }
+  const vp = viewportNow();
+  if (vidx >= 0 && vhist[vidx] && vhist[vidx].page === vp.page) {
+    vhist[vidx] = vp;                   // same page: overwrite in place
+  } else {
+    vhist.splice(vidx + 1);             // a page change erases the forward tail…
+    vhist.push(vp);
+    if (vhist.length > 100) vhist.shift();   // …and the RAM cap holds at 100
+    vidx = vhist.length - 1;
+  }
+  saveViewStore(); histButtons();
+}
+function histGo(d) {
+  const to = vidx + d;
+  if (to < 0 || to >= vhist.length) return;
+  vhist[vidx] = viewportNow();          // bank the exact spot being left
+  vidx = to; navFromHist = true;
+  const vp = vhist[vidx];
+  goto(vp.page); restoreScroll(vp);
+}
+function histButtons() {
+  $("histback").disabled = vidx <= 0;
+  $("histfwd").disabled = vidx >= vhist.length - 1;
+}
+function restoreScroll(vp) {
+  const img = $("pageimg"), wrap = $("pagewrap");
+  const nav = phNav;                    // a newer goto strands this scroll harmlessly
+  const place = () => {
+    if (nav !== phNav) return;
+    wrap.scrollLeft = (vp.x || 0) * img.clientWidth;
+    wrap.scrollTop = (vp.y || 0) * img.clientHeight;
+  };
+  if (img.complete && img.clientHeight) place();
+  else img.addEventListener("load", place, { once: true });
+}
+function restoreView(store) {
+  if (!store || !store.current || !store.current.page) return false;
+  vhist = (Array.isArray(store.hist) && store.hist.length) ? store.hist.slice() : [store.current];
+  vidx = vhist.length - 1;
+  navFromHist = true;                   // restoring is not a new history entry
+  goto(store.current.page);
+  restoreScroll(store.current);
+  histButtons();
+  return true;
+}
+$("histback").onclick = () => histGo(-1);
+$("histfwd").onclick = () => histGo(1);
+$("pagewrap").addEventListener("scroll", () => {
+  clearTimeout(scrollSaveTimer);
+  scrollSaveTimer = setTimeout(() => {
+    if (vidx >= 0) { vhist[vidx] = viewportNow(); saveViewStore(); }
+  }, 200);
+});
+
+/* marks — per-viewport bookmarks (Okular bookmarkmanager.cpp:436: the PLACE, not the page).
+   Deletion keys on the mark's ts IDENTITY, never the render-time index — review MAJOR
+   2026-08-30: index-keyed deletion made a double-click on ✕ delete TWO marks (the second
+   click landed on the freshly re-rendered row occupying the same pixels). Rename got its own
+   ✎ control for the same reason: dblclick always fires two clicks first. */
+function renderMarks() {
+  const el = $("marklist");
+  if (!marks.length) {
+    el.innerHTML = `<div class="side-note">no marks yet — ★ saves your exact place (page + scroll)</div>`;
+    return;
+  }
+  el.innerHTML = marks.map((m) =>
+    `<div class="mark-row" data-ts="${Number(m.ts) || 0}"><span class="t">${esc(m.title)}</span>` +
+    `<span class="p">p${Number(m.page) || 1}</span>` +
+    `<span class="x e" title="rename">✎</span><span class="x" title="delete this mark">✕</span></div>`).join("");
+  el.querySelectorAll(".mark-row").forEach((row) => {
+    const at = () => marks.findIndex((m) => (Number(m.ts) || 0) === Number(row.dataset.ts));
+    row.onclick = (e) => {
+      const i = at();
+      if (i < 0) return;                 // a stray second click after a delete finds nothing
+      if (e.target.classList.contains("e")) {
+        const t = prompt("rename this mark", marks[i].title);
+        if (t != null && t.trim()) { marks[i].title = t.trim().slice(0, 60); renderMarks(); saveViewStore(); }
+        return;
+      }
+      if (e.target.classList.contains("x")) {
+        marks.splice(i, 1); renderMarks(); saveViewStore();
+        status("mark deleted"); return;
+      }
+      const m = marks[i]; goto(Number(m.page) || 1); restoreScroll(m);
+    };
+  });
+}
+$("markbtn").onclick = () => {
+  const vp = viewportNow();
+  const n = marks.filter((m) => m.page === vp.page).length + 1;
+  let ts = Date.now();
+  while (marks.some((m) => Number(m.ts) === ts)) ts++;   // identity must be unique
+  marks.push({ ...vp, title: `#p${vp.page}-${n}`, ts });
+  renderMarks(); saveViewStore();
+  status(`★ marked “#p${vp.page}-${n}” — ✎ on its row renames`);
+};
+
+/* ---- OK-7 (docs/49 §1 c7, signed 2026-08-30): trim margins ------------------------------
+   The auto box is measured server-side from the raster (+4% pad, never past half — Okular's
+   utils.cpp:90 / pageview.cpp:3385/3396 constants); Shift+⛶ then drag sets ONE rect for all
+   pages (scan books have uniform geometry, scannav-07). The crop is pure CSS: #pageinner
+   shifts the full-size img inside the clipped #pagebox, so highlight and crop coordinates —
+   all computed from the img's own bounding rect — stay valid untouched. */
+let trim = { mode: "off", rect: null }, trimBoxes = {}, trimSelecting = false;
+function trimBoxFor(p) {
+  if (trim.mode === "rect") return trim.rect;
+  if (trim.mode === "auto") {
+    const b = trimBoxes[p];
+    return (b && (b[2] - b[0] < 0.98 || b[3] - b[1] < 0.98)) ? b : null;
+  }
+  return null;
+}
+async function fetchTrimbox(p) {
+  if (trimBoxes[p] !== undefined) return;
+  trimBoxes[p] = null;                            // in flight — one fetch per page
+  const key = viewKey;                            // a book switch must not adopt this answer
+  try {
+    const r = await api(`/api/trimbox?n=${p}`);
+    if (key !== viewKey) return;
+    trimBoxes[p] = r.cropped ? r.box : [0, 0, 1, 1];
+    if (p === page) applyZoom();
+  } catch (e) {
+    if (key !== viewKey) return;
+    // poison-as-no-crop: a failing page must not refetch on every resize tick
+    trimBoxes[p] = [0, 0, 1, 1];
+    status(`⛶ ${e.message}`);
+  }
+}
+function applyTrim(wTarget) {
+  const img = $("pageimg"), inner = $("pageinner"), pb = $("pagebox");
+  const box = trimBoxFor(page);
+  const bw = box ? (box[2] - box[0]) : 1, bh = box ? (box[3] - box[1]) : 1;
+  const w = wTarget / bw;
+  // width and horizontal shift are known NOW — set them synchronously so overlays and the
+  // OK-2 placeholder read a live width (review: the deferred width starved both)
+  img.style.width = w + "px";
+  inner.style.marginLeft = box ? (-box[0] * w) + "px" : "0px";
+  if (!box) {
+    inner.style.marginTop = "0px";
+    pb.style.width = pb.style.height = "";
+    return;
+  }
+  pb.style.width = wTarget + "px";
+  const nav = phNav;                    // a newer goto makes this vertical fit stale
+  const vert = () => {
+    if (nav !== phNav) return;
+    const ih = img.clientHeight || (img.naturalHeight / Math.max(1, img.naturalWidth)) * w;
+    inner.style.marginTop = (-box[1] * ih) + "px";
+    pb.style.height = (ih * bh) + "px";
+  };
+  if (img.complete && img.naturalWidth) vert();
+  else img.addEventListener("load", vert, { once: true });
+}
+$("trimbtn").onclick = (e) => {
+  if (!st?.pdf_available) return;
+  if (e.shiftKey) {
+    trimSelecting = true;
+    clearCrop();   // a stale repair rect must never become the trim box on a bare click
+    status("⛶ drag a region on the page — it becomes the trim box for ALL pages (Esc cancels)", true);
+    return;
+  }
+  // off → (your rect, if you drew one) → off. The hand-drawn rect survives toggling.
+  trim.mode = trim.mode === "off" ? (trim.rect ? "rect" : "auto") : "off";
+  $("trimbtn").classList.toggle("on", trim.mode !== "off");
+  applyZoom(); drawHighlights(); saveViewStore();
+  status(trim.mode === "rect" ? "⛶ your trim box is back on — Shift+⛶ redraws it"
+       : trim.mode === "auto"
+         ? "⛶ auto-trim on — margins measured from the raster (+4% pad, never past half the page)"
+         : "⛶ trim off — full pages");
+};
+
+// review 2026-08-30: Alt+← is also the browser's Back — with no unload guard, unsaved
+// markdown edits died silently. The guard fires only while edits are actually unsaved.
+addEventListener("beforeunload", (e) => {
+  if (ctxDirty) { e.preventDefault(); e.returnValue = ""; }
+});
 addEventListener("resize", () => { if ($("zoom").value === "fit") applyZoom(); });
 load().catch((e) => status(`load failed: ${e.message}`, true));
 </script>

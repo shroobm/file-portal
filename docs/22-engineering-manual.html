@@ -635,8 +635,12 @@ Desktop: Obsidian vault/Library   clone of the bare repo over tailscale ssh (rea
                  "analyst":{doc_survival,runs[]}, "verdict":"pass|flag|fail" },
   "supersede": { "reason","from_verdict","requested_at_epoch_s" },     // opt-in; widget-authored only
   "blessed":   { "by","ts","reason","from_verdict":"flag" },           // folded in by the exporter
-  "repairs":   [ { "ts","zone_line","page","asset","mode":"crop|paste|transcribe","note","by","dpi","rect",
-                   "model","gates","secs" } ] }   // transcribe (S71): asset null, model+gates+secs carried</code></pre>
+  "repairs":   [ { "id":"fpr-&lt;uuid4hex&gt;",   // OK-0 (S112): on records written from S112 on;
+                                            // ABSENT on legacy records, which are never rewritten
+                   "ts","zone_line","page","asset","mode":"crop|paste|transcribe|collapse","note","by","dpi","rect",
+                   "model","gates","secs",  // transcribe (S71): asset null, model+gates+secs carried
+                   "delta","chars_removed","period_tokens","repeats","cycle","anchor" } ] }
+                                            // collapse (S76): page/asset null, delta = signed line shift</code></pre>
   <div class="tw"><table>
     <tr><th>file</th><th>writer</th><th>one line means</th></tr>
     <tr><td><code>events.jsonl</code></td><td>every desktop pipeline stage</td><td><code>{ts, pid, stage, event, …}</code> — stages intake/convert/gate/analyst/audit/ship; notable events: probe, estimate, chunking, slice, converted (carries the promise beside the actual), stalled (+GPU signature), scored, flagged, held, supersede, pending, resolved, shipped, rerun_refused</td></tr>

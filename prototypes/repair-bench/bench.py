@@ -33,6 +33,7 @@ import re
 import shutil
 import sys
 import urllib.parse
+import uuid
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -191,6 +192,10 @@ class Bench:
         self._texts: list[str] | None = None
         self._toc: list | None = None
         self._zone_loc: dict[int, dict] = {}
+        # OK-7 (docs/49 §1 c7, signed 2026-08-30): per-page trim boxes, measured lazily.
+        self._trim: dict[int, dict] = {}
+        # OK-1 review fix (2026-08-30): a bare PDF's view identity, hashed once on demand.
+        self._pdf_view_sha: str | None = None
         # S64: the AI assist's undo stack (body snapshots, newest last) + line-drift ledger so
         # zone anchors stay honest after an edit changes the line count below them.
         self._undo: list[str] = []
@@ -400,12 +405,29 @@ class Bench:
             # S66 accuracy pass — everything the info popover states, straight from source:
             "pdf_only": self.pdf_only,
             "md_name": self.md_path.name if self.md_path else None,
-            "source_sha16": (self.manifest.get("source_sha256") or "")[:16] or None,
+            # OK-1: the client keys per-book view state on this. Reader mode derives one
+            # from the PDF bytes — review 2026-08-30: without it every bare PDF in one
+            # folder shared a single view store (marks/position/trim cross-pollution).
+            "source_sha16": (self.manifest.get("source_sha256") or "")[:16]
+                            or self._pdf_view_id(),
             "doc_survival": (self.manifest.get("fidelity", {}).get("convert", {})
                              .get("doc_survival")),
             "audit_kind": self.manifest.get("fidelity", {}).get("convert", {}).get("kind"),
             "converted_at": self.manifest.get("converted_at"),
         }
+
+    def _pdf_view_id(self) -> str | None:
+        """OK-1 (review fix): a stable identity for reader-mode books — sha256 of the PDF
+        bytes, first 16 hex, computed once per open and cached. None outside pdf_only."""
+        if not (self.pdf_only and self.pdf and self.pdf.is_file()):
+            return None
+        if self._pdf_view_sha is None:
+            h = hashlib.sha256()
+            with self.pdf.open("rb") as fh:
+                for chunk in iter(lambda: fh.read(1 << 20), b""):
+                    h.update(chunk)
+            self._pdf_view_sha = h.hexdigest()[:16]
+        return self._pdf_view_sha
 
     def _require_md(self) -> None:
         if self.md_path is None:
@@ -422,6 +444,102 @@ class Bench:
     def page_png(self, n: int, dpi: int = RASTER_DPI) -> bytes:
         page = self.doc().load_page(max(0, min(self.doc().page_count - 1, n - 1)))
         return page.get_pixmap(dpi=dpi).tobytes("png")
+
+    # ---- OK-7 (docs/49 §1 c7, signed by Rab 2026-08-30): trim margins ----------------------
+    # Okular's recipe, ported: the content box is MEASURED from the rendered raster (no PDF
+    # metadata — works on scans; core/utils.cpp:90 isPaperColor), expanded 4% of the box's
+    # mean dimension (ui/pageview.cpp:3385 cropExpandRatio) and never allowed to crop either
+    # dimension below half the page (ui/pageview.cpp:3396 minCropRatio).
+    TRIM_DPI = 30          # the sidebar-thumb raster — cheap, and plenty for margins
+    TRIM_THRESHOLD = 40    # per-channel distance from paper before a pixel counts as content
+    TRIM_PAD = 0.04
+    TRIM_MIN_KEEP = 0.5
+
+    @staticmethod
+    def bbox_from_samples(samples: bytes, w: int, h: int, stride: int, ncomp: int = 3,
+                          threshold: int = TRIM_THRESHOLD) -> list[float] | None:
+        """Normalized [x0,y0,x1,y1] content box of an RGB(A) raster, or None for a blank
+        page. Paper color is estimated as the per-channel median of the four 3x3 corner
+        patches — Okular compares against a CONFIGURED paper color; the corner median
+        survives one dark corner and off-white scans. Pure function so the stdlib-only
+        harness can feed it synthetic rasters (test_bench_page.py — its tripwire)."""
+        if w < 8 or h < 8:
+            return None
+
+        def px(x: int, y: int) -> tuple[int, int, int]:
+            o = y * stride + x * ncomp
+            return samples[o], samples[o + 1], samples[o + 2]
+
+        corners = [px(cx + dx, cy + dy)
+                   for cx, cy in ((0, 0), (w - 3, 0), (0, h - 3), (w - 3, h - 3))
+                   for dx in range(3) for dy in range(3)]
+        paper = tuple(sorted(c[i] for c in corners)[len(corners) // 2] for i in range(3))
+
+        def content(x: int, y: int) -> bool:
+            p = px(x, y)
+            return (abs(p[0] - paper[0]) > threshold or abs(p[1] - paper[1]) > threshold
+                    or abs(p[2] - paper[2]) > threshold)
+
+        top = next((y for y in range(h) if any(content(x, y) for x in range(w))), None)
+        if top is None:
+            return None
+        bottom = next(y for y in range(h - 1, -1, -1) if any(content(x, y) for x in range(w)))
+        left = next(x for x in range(w)
+                    if any(content(x, y) for y in range(top, bottom + 1)))
+        right = next(x for x in range(w - 1, -1, -1)
+                     if any(content(x, y) for y in range(top, bottom + 1)))
+        return [left / w, top / h, (right + 1) / w, (bottom + 1) / h]
+
+    @staticmethod
+    def pad_and_cap(box: list[float], pad: float = TRIM_PAD,
+                    min_keep: float = TRIM_MIN_KEEP) -> list[float]:
+        """Expand the tight box by pad x its mean dimension, clamp to the page, and refuse
+        to crop either dimension below min_keep (expanding around the box center) — the two
+        tuned constants that stop over-crop on noisy scans."""
+        x0, y0, x1, y1 = box
+        # review 2026-08-30: garbage in must raise, not center a plausible half-page —
+        # the same rect discipline repair() applies to crop rects
+        if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):
+            raise ValueError(f"bad trim box {box} (fractions, x0<x1, y0<y1)")
+        m = pad * ((x1 - x0) + (y1 - y0)) / 2
+        x0, y0 = max(0.0, x0 - m), max(0.0, y0 - m)
+        x1, y1 = min(1.0, x1 + m), min(1.0, y1 + m)
+
+        def cap(lo: float, hi: float) -> tuple[float, float]:
+            if hi - lo >= min_keep:
+                return lo, hi
+            c = (lo + hi) / 2
+            lo, hi = c - min_keep / 2, c + min_keep / 2
+            if lo < 0:
+                return 0.0, min_keep
+            if hi > 1:
+                return 1 - min_keep, 1.0
+            return lo, hi
+
+        x0, x1 = cap(x0, x1)
+        y0, y1 = cap(y0, y1)
+        return [round(x0, 4), round(y0, 4), round(x1, 4), round(y1, 4)]
+
+    def trimbox(self, n: int) -> dict:
+        """The page's content box for margin-trimming, normalized to the page, cached per
+        page. `cropped` False means the box is (near) the whole page — the client then
+        applies no crop rather than a cosmetic sliver."""
+        n = max(1, min(self.doc().page_count, n))
+        if n in self._trim:
+            return self._trim[n]
+        pm = self.doc().load_page(n - 1).get_pixmap(dpi=self.TRIM_DPI)
+        # constants passed EXPLICITLY: bound as defaults they freeze at class-definition
+        # time and tuning Bench.TRIM_* would silently do nothing (review, 2026-08-30)
+        box = self.bbox_from_samples(pm.samples, pm.width, pm.height,
+                                     pm.stride, pm.n, self.TRIM_THRESHOLD)
+        out = {"n": n, "box": [0.0, 0.0, 1.0, 1.0], "cropped": False}
+        if box:
+            padded = self.pad_and_cap(box, self.TRIM_PAD, self.TRIM_MIN_KEEP)
+            bw, bh = padded[2] - padded[0], padded[3] - padded[1]
+            if bw < 0.98 or bh < 0.98:
+                out["box"], out["cropped"] = padded, True
+        self._trim[n] = out
+        return out
 
     # ---- the reader side (S62b, the Okular pass: contents, search, locate) ------------------
     def toc(self) -> list:
@@ -897,7 +1015,11 @@ class Bench:
         self._write_body("\n".join(lines), gesture=mode, zone_line=zone_line, note=note,
                          extra={"asset": asset, "page": page})
 
-        rec = {"ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": asset,
+        # OK-0 (docs/49 §1 c0, signed 2026-08-30): every NEW record gets a UUID at creation —
+        # line numbers shift under edits; the id is the durable key later features (review
+        # index, undo re-binding) resolve against. Existing records are never rewritten.
+        rec = {"id": "fpr-" + uuid.uuid4().hex,
+               "ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": asset,
                "mode": mode, "note": note, "by": "repair-bench",
                "dpi": CROP_DPI if mode == "crop" else None,
                "rect": rect}
@@ -995,7 +1117,8 @@ class Bench:
                          note=f"granite-docling p{page}", extra={"page": page})
         # NO drift-ledger entry: the shift travels in the record's `lines` (restart-safe),
         # and undo_ai pairs the snapshot with the record so provenance can never desync.
-        rec = {"ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": None,
+        rec = {"id": "fpr-" + uuid.uuid4().hex,   # OK-0: identity at creation
+               "ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": None,
                "mode": "transcribe", "model": "granite-docling-258M", "lines": len(inserted),
                "gates": gates or {}, "secs": secs, "by": "repair-bench",
                "dpi": CROP_DPI, "rect": rect}
@@ -1076,7 +1199,8 @@ class Bench:
                          note=f"{p}-token loop x{repeats}",
                          extra={"period_tokens": p, "repeats": repeats})
 
-        rec = {"ts": _now_iso(), "zone_line": zone_line, "page": None, "asset": None,
+        rec = {"id": "fpr-" + uuid.uuid4().hex,   # OK-0: identity at creation
+               "ts": _now_iso(), "zone_line": zone_line, "page": None, "asset": None,
                "mode": "collapse", "by": "repair-bench", "delta": delta,
                "chars_removed": removed, "period_tokens": p, "repeats": repeats,
                "cycle": one[:80], "anchor": anchor}
@@ -1447,6 +1571,8 @@ def make_handler(bench: Bench, token=_NO_GATE):
                                                      q.get("q", [""])[0])})
                 elif url.path == "/api/locate":
                     self._json(bench.locate_zone(int(q.get("i", ["0"])[0])))
+                elif url.path == "/api/trimbox":   # OK-7 — read-only, computes + caches
+                    self._json(bench.trimbox(int(q.get("n", ["1"])[0])))
                 elif url.path == "/api/library":
                     self._json(library_listing())
                 else:

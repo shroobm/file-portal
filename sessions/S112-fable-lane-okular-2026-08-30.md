@@ -174,3 +174,31 @@ only — existing manifest entries are never rewritten. Every new behavior lands
 tripwire in the same commit (docs/32 §6); the page harness (`test_bench_page.py`) and
 `acceptance.py` must stay green. Opus 5 subagents authorized for verification lanes. Recorded
 before the first code edit.
+
+### §7.1 Build outcome (same sitting)
+
+- **Shipped into the live bench:** OK-0 — `fpr-<uuid4hex>` identity on every NEW
+  `manifest["repairs"]` record (three creation sites; legacy records untouched, enforced by
+  test). OK-1 — per-book viewport store under a STABLE id (bundle `source_sha256[:16]`, or a
+  sha16 of the PDF bytes in reader mode), jump history (page-change pushes, same-page
+  overwrites, 100 RAM/10 persisted), ↶↷ + Alt+←/→, per-viewport Marks tab (★ / ✎ rename / ✕,
+  identity-keyed), restore-on-open that still binds zone context (`selectZone(0, keepView)`).
+  OK-2 — 120 ms-delayed dpi-30 placeholder with nav-token staleness guards. OK-7 —
+  `/api/trimbox` GET (raster-measured box, corner-median paper estimate, +4% pad, 50% floor,
+  cached; constants live at call sites) + CSS crop via `#pageinner` (overlay coordinates
+  proven invariant), auto/manual-rect modes, reader-mode trim drags allowed.
+- **Verification:** harness 45/45 (was 19; +26 tripwires, positive+negative controls each).
+  3-lens Opus 5 adversarial review (run `wf_e9a94a09-a08`): 32 findings, 2 CRITICAL — the
+  `#pagephold` author-`display` beating `[hidden]` (would have stuck the placeholder over
+  every page; the in-file `.modal[hidden]` precedent corroborated it), and restore leaving
+  `zone=null` so writes fell to `ctxRange` lines 1–40 ("folder mode" provenance, ✦ fix
+  rewriting front matter). All confirmed findings fixed; the review also REFUTED my own
+  same-URL-no-load-event theory with a spec citation (the cascade was the real mechanism —
+  the phNav guard stays as hardening). Accepted-not-fixed, named: a benign extra history
+  entry after a repair when saved page ≠ zone page; listener accumulation only on a
+  permanently erroring raster.
+- **Not done, said out loud:** no live-browser exercise (server not started — held bundles
+  are Rab's hand; the JS layer is source-verified and reviewed, `Intended` until the bench
+  next opens). `acceptance.py` not run this sitting (needs marker-env fitz + the sandbox
+  copy of the real Valentine; the stdlib harness's live-wire tests cover the route layer).
+- docs/22 §repairs schema updated (id field + the pre-existing collapse-mode drift).
