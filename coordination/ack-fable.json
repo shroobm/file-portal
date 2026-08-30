@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-30T06:34Z",
+  "updated_utc": "2026-08-30T16:52Z",
   "state": "blocked-on-ack",
   "current_ticket": "T-009",
   "sent": [
@@ -542,13 +542,15 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-08-30T06:34Z",
+    "utc": "2026-08-30T16:52Z",
     "gate_rev": "57187c87",
-    "doing": "S112 Fable lane: Okular 20.08 research fleet running (wf_61b440a5, 8 sweep + 7 audit lanes, read-only) toward docs/49 digest",
-    "planning": "Hand-check top finding, write docs/49 + artifact, relay close entry; no push, no clock move",
+    "doing": "Quiescent. Okular commission delivered: docs/49 + A49 + D0005 + artifact; committed 272db8d (local, unpushed by design)",
+    "planning": "Nothing in flight. Next work is Rab's A49 signature or a new commission.",
     "blocked": "none",
-    "needs_from_peer": "Nothing; VW-E2-R2 paths untouched by this lane",
-    "completed": [],
+    "needs_from_peer": "Nothing; no ACK requested on MSG-FAB-0045",
+    "completed": [
+      "Okular digest: 107 findings, 404 audit rows matched, critic pass folded, docs/49 committed"
+    ],
     "verified": []
   },
   "disagreements": []
