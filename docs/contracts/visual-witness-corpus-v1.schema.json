@@ -1,0 +1,239 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/shroobm/file-portal/docs/contracts/visual-witness-corpus-v1.schema.json",
+  "title": "File Portal private visual-witness corpus manifest v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "contract_id",
+    "event_id",
+    "created_at_utc",
+    "private",
+    "public_repository_safe",
+    "root",
+    "selection_locked",
+    "selection_rule",
+    "asset_inventory_hash_algorithm",
+    "privacy",
+    "cases"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "visual-witness-corpus-v1"
+    },
+    "contract_id": {
+      "const": "VW-R1"
+    },
+    "event_id": {
+      "const": "VW-E1"
+    },
+    "created_at_utc": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "private": {
+      "const": true
+    },
+    "public_repository_safe": {
+      "const": false
+    },
+    "root": {
+      "type": "string",
+      "minLength": 1
+    },
+    "selection_locked": {
+      "const": true
+    },
+    "selection_rule": {
+      "type": "string",
+      "minLength": 1
+    },
+    "asset_inventory_hash_algorithm": {
+      "type": "string",
+      "minLength": 1
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "publish_paths",
+        "publish_titles",
+        "publish_source_bytes",
+        "publish_ocr_text",
+        "cloud_processing_allowed",
+        "full_witness_text_storage"
+      ],
+      "properties": {
+        "publish_paths": {"const": false},
+        "publish_titles": {"const": false},
+        "publish_source_bytes": {"const": false},
+        "publish_ocr_text": {"const": false},
+        "cloud_processing_allowed": {"const": false},
+        "full_witness_text_storage": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "cases": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "uniqueItems": true,
+      "allOf": [
+        {"contains": {"type": "object", "properties": {"id": {"const": "VW-T01"}, "split": {"const": "calibration"}}, "required": ["id", "split"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "VW-T02"}, "split": {"const": "calibration"}}, "required": ["id", "split"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "VW-T03"}, "split": {"const": "calibration"}}, "required": ["id", "split"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "VW-H01"}, "split": {"const": "held-out"}}, "required": ["id", "split"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "VW-H02"}, "split": {"const": "held-out"}}, "required": ["id", "split"]}, "minContains": 1, "maxContains": 1},
+        {"contains": {"type": "object", "properties": {"id": {"const": "VW-H03"}, "split": {"const": "held-out"}}, "required": ["id", "split"]}, "minContains": 1, "maxContains": 1}
+      ],
+      "items": {
+        "$ref": "#/$defs/case"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "split",
+        "title",
+        "classes",
+        "bundle_path",
+        "source_path",
+        "source_bytes",
+        "source_sha256_manifest",
+        "source_sha256_actual",
+        "source_hash_match",
+        "markdown_path",
+        "markdown_bytes",
+        "markdown_sha256",
+        "analyst_markdown",
+        "asset_count",
+        "asset_inventory_sha256",
+        "pages",
+        "lane",
+        "fidelity_verdict",
+        "converted_at"
+      ],
+      "properties": {
+        "id": {
+          "enum": ["VW-T01", "VW-T02", "VW-T03", "VW-H01", "VW-H02", "VW-H03"]
+        },
+        "split": {
+          "enum": [
+            "calibration",
+            "held-out"
+          ]
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "classes": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "bundle_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "source_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "source_sha256_manifest": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_sha256_actual": {
+          "$ref": "#/$defs/sha256"
+        },
+        "source_hash_match": {
+          "const": true
+        },
+        "markdown_path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "markdown_bytes": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "markdown_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "analyst_markdown": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["label", "path", "bytes", "sha256"],
+            "properties": {
+              "label": {
+                "type": "string",
+                "minLength": 1
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1
+              },
+              "bytes": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "sha256": {
+                "$ref": "#/$defs/sha256"
+              }
+            }
+          }
+        },
+        "asset_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "asset_inventory_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pages": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "lane": {
+          "enum": [
+            "clean",
+            "scan"
+          ]
+        },
+        "fidelity_verdict": {
+          "enum": [
+            "pass",
+            "flag",
+            "fail",
+            null
+          ]
+        },
+        "converted_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    }
+  }
+}

@@ -1,0 +1,1118 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/shroobm/file-portal/docs/contracts/visual-witness-e2-capture-v1.schema.json",
+  "title": "File Portal VW-E2 deterministic structural-capture report v1",
+  "$comment": "Produced-report schema only; an early STOPPED event has no capture report and is represented by the separate event receipt. Canonical identity JSON is UTF-8 without BOM or terminal newline; persisted report bytes are those canonical bytes followed by exactly one LF. Object keys are sorted, separators compact, ensure_ascii=false, duplicate members/NaN/infinity rejected, fixed decimals rounded ROUND_HALF_EVEN, and negative zero normalized to positive zero. Every identity hash is SHA-256 over its packet-frozen UTF-8 domain followed by one 0x00 byte and the canonical projection. report_id uses domain file-portal/vw-e2-report/r2 and the complete report with report_id omitted; capture_payload_sha256 uses domain file-portal/vw-e2-capture-core/r2 and capture_payload with capture_payload_sha256 omitted; config_sha256 uses domain file-portal/vw-e2-config/r2 and the complete frozen_configuration. primitive_id projects exactly {source_sha256,page_1based,kind,method,bbox_pdf_pt,bbox_px_half_open,identity_attributes}; candidate_id projects exactly {source_sha256,page_1based,bbox_pdf_pt,bbox_px_half_open,classes,config_sha256,source_primitive_ids}; relationship_id projects exactly {source_candidate_id,target_candidate_id,kind}. A primitive's engine ordinal, raw unrotated geometry, coordinate-derivation evidence, relationship measurements, crop hashes, tile IDs, timestamps, and resource observations are provenance and never identity. capture_schema_sha256 is the bare lowercase SHA-256 of these exact schema-file bytes and is not a const here because the packet binds the schema hash. All identity arrays use packet order and are checked for reference closure. JSON Schema validation alone does not prove sibling arithmetic, equality, references, hashes, ordering, protected-tree identity, privacy, or semantic provenance; every required semantic_checks entry must be produced by the separately hashed validator and independently sampled before an event receipt may claim COMPLETE.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["format_id", "report_id", "capture_payload", "run_observations", "semantic_checks"],
+  "properties": {
+    "format_id": {"const": "visual-witness-e2-operational-report-v1"},
+    "report_id": {"$ref": "#/$defs/tagged_sha256"},
+    "capture_payload": {"$ref": "#/$defs/capture_payload"},
+    "run_observations": {"$ref": "#/$defs/run_observations"},
+    "semantic_checks": {"$ref": "#/$defs/semantic_checks"}
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"run_observations": {"properties": {"status": {"const": "record-produced"}}, "required": ["status"]}}, "required": ["run_observations"]},
+      "then": {"properties": {"semantic_checks": {"items": {"properties": {"status": {"const": "pass"}}, "required": ["status"]}}}}
+    },
+    {
+      "if": {"properties": {"run_observations": {"properties": {"status": {"const": "record-produced-with-unreads"}}, "required": ["status"]}}, "required": ["run_observations"]},
+      "then": {"properties": {"semantic_checks": {"contains": {"type": "object", "properties": {"status": {"enum": ["fail", "UNREAD"]}}, "required": ["status"]}}}}
+    }
+  ],
+  "$defs": {
+    "sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "tagged_sha256": {"type": "string", "pattern": "^sha256:[0-9a-f]{64}$"},
+    "opaque_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$"},
+    "decimal6": {"type": "string", "pattern": "^(0\\.000000|-?(0\\.(?!000000)[0-9]{6}|[1-9][0-9]*\\.[0-9]{6}))$"},
+    "decimal9": {"type": "string", "pattern": "^(0\\.000000000|-?(0\\.(?!000000000)[0-9]{9}|[1-9][0-9]*\\.[0-9]{9}))$"},
+    "fraction9": {"type": "string", "pattern": "^(0\\.[0-9]{9}|1\\.000000000)$"},
+    "point2": {
+      "type": "array",
+      "prefixItems": [{"$ref": "#/$defs/decimal6"}, {"$ref": "#/$defs/decimal6"}],
+      "minItems": 2,
+      "maxItems": 2
+    },
+    "affine_matrix6": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/decimal6"}, {"$ref": "#/$defs/decimal6"},
+        {"$ref": "#/$defs/decimal6"}, {"$ref": "#/$defs/decimal6"},
+        {"$ref": "#/$defs/decimal6"}, {"$ref": "#/$defs/decimal6"}
+      ],
+      "minItems": 6,
+      "maxItems": 6
+    },
+    "coordinate_derivation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "pdf_user_formula_id", "cropbox_position_mupdf_pt", "mediabox_y1_mupdf_pt", "render_transform_method", "rotation_matrix", "derotation_matrix", "transformation_matrix_used", "input_claim_status", "derived_claim_status", "reason_codes"],
+      "properties": {
+        "status": {"enum": ["measured", "UNREAD"]},
+        "pdf_user_formula_id": {"enum": ["cropbox-position-plus-x-mediabox-y1-minus-cropbox-y-minus-y-v1", null]},
+        "cropbox_position_mupdf_pt": {"anyOf": [{"$ref": "#/$defs/point2"}, {"type": "null"}]},
+        "mediabox_y1_mupdf_pt": {"anyOf": [{"$ref": "#/$defs/decimal6"}, {"type": "null"}]},
+        "render_transform_method": {"enum": ["page.rotation_matrix", null]},
+        "rotation_matrix": {"anyOf": [{"$ref": "#/$defs/affine_matrix6"}, {"type": "null"}]},
+        "derotation_matrix": {"anyOf": [{"$ref": "#/$defs/affine_matrix6"}, {"type": "null"}]},
+        "transformation_matrix_used": {"enum": [false, null]},
+        "input_claim_status": {"enum": ["Observed", "UNREAD"]},
+        "derived_claim_status": {"enum": ["Verified-self", "UNREAD"]},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"pdf_user_formula_id": {"const": "cropbox-position-plus-x-mediabox-y1-minus-cropbox-y-minus-y-v1"}, "cropbox_position_mupdf_pt": {"$ref": "#/$defs/point2"}, "mediabox_y1_mupdf_pt": {"$ref": "#/$defs/decimal6"}, "render_transform_method": {"const": "page.rotation_matrix"}, "rotation_matrix": {"$ref": "#/$defs/affine_matrix6"}, "derotation_matrix": {"$ref": "#/$defs/affine_matrix6"}, "transformation_matrix_used": {"const": false}, "input_claim_status": {"const": "Observed"}, "derived_claim_status": {"const": "Verified-self"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"pdf_user_formula_id": {"type": "null"}, "cropbox_position_mupdf_pt": {"type": "null"}, "mediabox_y1_mupdf_pt": {"type": "null"}, "render_transform_method": {"type": "null"}, "rotation_matrix": {"type": "null"}, "derotation_matrix": {"type": "null"}, "transformation_matrix_used": {"type": "null"}, "input_claim_status": {"const": "UNREAD"}, "derived_claim_status": {"const": "UNREAD"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "bbox_point": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/decimal6"}, {"$ref": "#/$defs/decimal6"},
+        {"$ref": "#/$defs/decimal6"}, {"$ref": "#/$defs/decimal6"}
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "bbox_normalized": {
+      "type": "array",
+      "prefixItems": [
+        {"$ref": "#/$defs/decimal9"}, {"$ref": "#/$defs/decimal9"},
+        {"$ref": "#/$defs/decimal9"}, {"$ref": "#/$defs/decimal9"}
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "bbox_px": {
+      "type": "array",
+      "prefixItems": [
+        {"type": "integer", "minimum": 0}, {"type": "integer", "minimum": 0},
+        {"type": "integer", "minimum": 1}, {"type": "integer", "minimum": 1}
+      ],
+      "minItems": 4,
+      "maxItems": 4
+    },
+    "reason_code": {
+      "enum": [
+        "GROUND-DRIFT", "AUTHORITY-MISSING", "VW-SOURCE-HASH", "VW-BODY-HASH",
+        "VW-ASSET-HASH", "VW-CONFIG-HASH", "VW-PAGE-MAP-UNREAD", "VW-RENDER-UNREAD",
+        "VW-TILE-GAP", "VW-CROP-BOUNDS", "VW-COORDINATE-UNREAD", "VW-RASTER-DIGEST-UNREAD",
+        "VW-VECTOR-GEOMETRY-UNREAD", "VW-DEPENDENCY-DRIFT", "VW-HELDOUT-CONTAMINATION",
+        "VW-PROTECTED-TREE", "VW-PRIVACY", "VW-CLEANUP", "VW-IDENTITY", "VW-NEGATIVE-CONTROL",
+        "VW-UNAUTHORIZED-THRESHOLD", "UNREAD"
+      ]
+    },
+    "unread": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reason_code", "scope", "blocking", "detail_code", "evidence_sha256"],
+      "properties": {
+        "reason_code": {"$ref": "#/$defs/reason_code"},
+        "scope": {"$ref": "#/$defs/opaque_id"},
+        "blocking": {"type": "boolean"},
+        "detail_code": {"$ref": "#/$defs/opaque_id"},
+        "evidence_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]}
+      }
+    },
+    "conflict": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["scope", "detail_code", "blocking", "evidence_sha256"],
+      "properties": {
+        "scope": {"$ref": "#/$defs/opaque_id"},
+        "detail_code": {"$ref": "#/$defs/opaque_id"},
+        "blocking": {"type": "boolean"},
+        "evidence_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "hash_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["expected_sha256", "observed_sha256", "bytes", "match"],
+      "properties": {
+        "expected_sha256": {"$ref": "#/$defs/sha256"},
+        "observed_sha256": {"$ref": "#/$defs/sha256"},
+        "bytes": {"type": "integer", "minimum": 0},
+        "match": {"type": "boolean"}
+      }
+    },
+    "markdown_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["phase", "variant_ordinal", "status", "expected_sha256", "observed_sha256", "bytes", "match", "reason_codes"],
+      "properties": {
+        "phase": {"enum": ["raw-marker", "analyst"]},
+        "variant_ordinal": {"type": "integer", "minimum": 0},
+        "status": {"enum": ["measured", "UNREAD"]},
+        "expected_sha256": {"$ref": "#/$defs/sha256"},
+        "observed_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "bytes": {"type": ["integer", "null"], "minimum": 0},
+        "match": {"type": ["boolean", "null"]},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"observed_sha256": {"$ref": "#/$defs/sha256"}, "bytes": {"type": "integer"}, "match": {"type": "boolean"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"observed_sha256": {"type": "null"}, "bytes": {"type": "null"}, "match": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "source_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "manifest_sha256", "recorded_actual_sha256", "observed_sha256", "bytes", "pages", "all_hashes_match", "reason_codes"],
+      "properties": {
+        "status": {"enum": ["measured", "UNREAD"]},
+        "manifest_sha256": {"$ref": "#/$defs/sha256"},
+        "recorded_actual_sha256": {"$ref": "#/$defs/sha256"},
+        "observed_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "bytes": {"type": ["integer", "null"], "minimum": 1},
+        "pages": {"type": ["integer", "null"], "minimum": 1},
+        "all_hashes_match": {"type": ["boolean", "null"]},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"observed_sha256": {"$ref": "#/$defs/sha256"}, "bytes": {"type": "integer"}, "pages": {"type": "integer"}, "all_hashes_match": {"type": "boolean"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"observed_sha256": {"type": "null"}, "bytes": {"type": "null"}, "pages": {"type": "null"}, "all_hashes_match": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "bundle_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "manifest_sha256_expected", "manifest_sha256_observed", "manifest_source_sha256_expected", "manifest_source_sha256_observed", "markdown", "asset_inventory", "asset_filename_page_ids_0based", "page_map", "reason_codes"],
+      "properties": {
+        "status": {"enum": ["measured", "UNREAD"]},
+        "manifest_sha256_expected": {"$ref": "#/$defs/sha256"},
+        "manifest_sha256_observed": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "manifest_source_sha256_expected": {"$ref": "#/$defs/sha256"},
+        "manifest_source_sha256_observed": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "markdown": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/markdown_observation"}
+        },
+        "asset_inventory": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "expected_sha256", "observed_sha256", "count", "match", "reason_codes"],
+          "properties": {
+            "status": {"enum": ["measured", "UNREAD"]},
+            "expected_sha256": {"$ref": "#/$defs/sha256"},
+            "observed_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+            "count": {"type": ["integer", "null"], "minimum": 0},
+            "match": {"type": ["boolean", "null"]},
+            "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+          },
+          "allOf": [
+            {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"observed_sha256": {"$ref": "#/$defs/sha256"}, "count": {"type": "integer"}, "match": {"type": "boolean"}, "reason_codes": {"maxItems": 0}}}},
+            {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"observed_sha256": {"type": "null"}, "count": {"type": "null"}, "match": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+          ]
+        },
+        "asset_filename_page_ids_0based": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["asset_ordinal", "page_id_0based", "claim_status", "source_page_relation"],
+            "properties": {
+              "asset_ordinal": {"type": "integer", "minimum": 0},
+              "page_id_0based": {"type": "integer", "minimum": 0},
+              "claim_status": {"const": "Observed"},
+              "source_page_relation": {"const": "UNREAD"}
+            }
+          }
+        },
+        "page_map": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["state", "formula", "claim_status", "reason_codes"],
+          "properties": {
+            "state": {"enum": ["as-shipped-verified", "repaired-sym050", "untrustworthy", "unread"]},
+            "formula": {"type": ["string", "null"]},
+            "claim_status": {"enum": ["Inferred", "UNREAD"]},
+            "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+          },
+          "allOf": [
+            {"if": {"properties": {"state": {"const": "unread"}}, "required": ["state"]}, "then": {"properties": {"formula": {"type": "null"}, "claim_status": {"const": "UNREAD"}, "reason_codes": {"minItems": 1}}}},
+            {"if": {"properties": {"state": {"enum": ["as-shipped-verified", "repaired-sym050", "untrustworthy"]}}, "required": ["state"]}, "then": {"properties": {"claim_status": {"const": "Inferred"}}}}
+          ]
+        },
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"manifest_sha256_observed": {"$ref": "#/$defs/sha256"}, "manifest_source_sha256_observed": {"$ref": "#/$defs/sha256"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "tile": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tile_id", "bbox_px_half_open", "rgb_bytes", "rgb_sha256"],
+      "properties": {
+        "tile_id": {"type": "string", "pattern": "^p[0-9]{6}-x[0-9]{6}-y[0-9]{6}$"},
+        "bbox_px_half_open": {"$ref": "#/$defs/bbox_px"},
+        "rgb_bytes": {"type": "integer", "minimum": 3},
+        "rgb_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "coverage_metric": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "numerator_name", "numerator", "denominator_name", "denominator", "value", "conditions", "reason_codes"],
+      "properties": {
+        "status": {"enum": ["measured", "UNREAD"]},
+        "numerator_name": {"const": "valid rendered page pixels covered by at least one declared base tile"},
+        "numerator": {"type": ["integer", "null"], "minimum": 0},
+        "denominator_name": {"const": "valid rendered page pixels on attempted readable pages"},
+        "denominator": {"type": ["integer", "null"], "minimum": 0},
+        "value": {"type": ["number", "null"], "minimum": 0, "maximum": 1},
+        "conditions": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["render_dpi", "tile_size_px", "stride_px", "readable_pages", "unread_pages"],
+          "properties": {
+            "render_dpi": {"const": 192},
+            "tile_size_px": {"const": 1024},
+            "stride_px": {"const": 819},
+            "readable_pages": {"type": "integer", "minimum": 0},
+            "unread_pages": {"type": "integer", "minimum": 0}
+          }
+        },
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"numerator": {"type": "integer"}, "denominator": {"type": "integer", "minimum": 1}, "value": {"type": "number"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"numerator": {"type": "null"}, "denominator": {"type": "null"}, "value": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "primitive_geometry": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind"],
+          "properties": {"kind": {"const": "bbox-only"}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "p0", "p1"],
+          "properties": {"kind": {"const": "line"}, "p0": {"$ref": "#/$defs/point2"}, "p1": {"$ref": "#/$defs/point2"}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "p0", "p1", "parent_bbox", "edge_index"],
+          "properties": {"kind": {"const": "rectangle-edge"}, "p0": {"$ref": "#/$defs/point2"}, "p1": {"$ref": "#/$defs/point2"}, "parent_bbox": {"$ref": "#/$defs/bbox_point"}, "edge_index": {"type": "integer", "minimum": 0, "maximum": 3}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "p0", "p1", "parent_vertices", "edge_index"],
+          "properties": {"kind": {"const": "quad-edge"}, "p0": {"$ref": "#/$defs/point2"}, "p1": {"$ref": "#/$defs/point2"}, "parent_vertices": {"type": "array", "prefixItems": [{"$ref": "#/$defs/point2"}, {"$ref": "#/$defs/point2"}, {"$ref": "#/$defs/point2"}, {"$ref": "#/$defs/point2"}], "minItems": 4, "maxItems": 4}, "edge_index": {"type": "integer", "minimum": 0, "maximum": 3}}
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["kind", "p0", "c1", "c2", "p1"],
+          "properties": {"kind": {"const": "cubic-curve"}, "p0": {"$ref": "#/$defs/point2"}, "c1": {"$ref": "#/$defs/point2"}, "c2": {"$ref": "#/$defs/point2"}, "p1": {"$ref": "#/$defs/point2"}}
+        }
+      ]
+    },
+    "identity_edge_geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["endpoints"],
+      "properties": {
+        "endpoints": {
+          "type": "array",
+          "prefixItems": [{"$ref": "#/$defs/point2"}, {"$ref": "#/$defs/point2"}],
+          "minItems": 2,
+          "maxItems": 2
+        }
+      }
+    },
+    "identity_curve_geometry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["points"],
+      "properties": {
+        "points": {
+          "type": "array",
+          "prefixItems": [{"$ref": "#/$defs/point2"}, {"$ref": "#/$defs/point2"}, {"$ref": "#/$defs/point2"}, {"$ref": "#/$defs/point2"}],
+          "minItems": 4,
+          "maxItems": 4
+        }
+      }
+    },
+    "primitive_identity_attributes": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["digest_algorithm", "digest_hex", "height_px", "width_px"],
+          "properties": {
+            "digest_algorithm": {"const": "md5"},
+            "digest_hex": {"type": "string", "pattern": "^[0-9a-f]{32}$"},
+            "height_px": {"type": "integer", "minimum": 1},
+            "width_px": {"type": "integer", "minimum": 1}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["utf8_sha256", "utf8_bytes", "unicode_codepoints"],
+          "properties": {
+            "utf8_sha256": {"$ref": "#/$defs/sha256"},
+            "utf8_bytes": {"type": "integer", "minimum": 1},
+            "unicode_codepoints": {"type": "integer", "minimum": 1}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["effective_stroke_width_pdf_pt", "fill_only", "geometry", "item_type", "observed_stroke_width_pdf_pt"],
+          "properties": {
+            "item_type": {"enum": ["l", "re", "qu", "c"]},
+            "effective_stroke_width_pdf_pt": {"$ref": "#/$defs/decimal6"},
+            "observed_stroke_width_pdf_pt": {"anyOf": [{"$ref": "#/$defs/decimal6"}, {"type": "null"}]},
+            "fill_only": {"type": "boolean"},
+            "geometry": {"oneOf": [{"$ref": "#/$defs/identity_edge_geometry"}, {"$ref": "#/$defs/identity_curve_geometry"}]}
+          },
+          "allOf": [
+            {"if": {"properties": {"item_type": {"enum": ["l", "re", "qu"]}}, "required": ["item_type"]}, "then": {"properties": {"geometry": {"$ref": "#/$defs/identity_edge_geometry"}}}},
+            {"if": {"properties": {"item_type": {"const": "c"}}, "required": ["item_type"]}, "then": {"properties": {"geometry": {"$ref": "#/$defs/identity_curve_geometry"}}}}
+          ]
+        }
+      ]
+    },
+    "primitive_provenance_record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["drawing_list_index_0based", "drawing_seqno_observed", "emitted_edge_index_0based", "engine_list_index_0based", "engine_number_observed", "item_list_index_0based"],
+      "properties": {
+        "drawing_list_index_0based": {"type": ["integer", "null"], "minimum": 0},
+        "drawing_seqno_observed": {"type": ["integer", "null"], "minimum": 0},
+        "emitted_edge_index_0based": {"type": ["integer", "null"], "minimum": 0, "maximum": 3},
+        "engine_list_index_0based": {"type": "integer", "minimum": 0},
+        "engine_number_observed": {"type": ["integer", "null"], "minimum": 0},
+        "item_list_index_0based": {"type": ["integer", "null"], "minimum": 0}
+      }
+    },
+    "primitive_source_evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["provenance_records", "digest_algorithm", "observed_stroke_width_pdf_pt", "stroke_width_disposition", "text_extraction_method", "engine_version", "claim_status"],
+      "properties": {
+        "provenance_records": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/primitive_provenance_record"}},
+        "digest_algorithm": {"enum": ["md5", null]},
+        "observed_stroke_width_pdf_pt": {"anyOf": [{"$ref": "#/$defs/decimal6"}, {"type": "null"}]},
+        "stroke_width_disposition": {"enum": ["observed-positive", "fallback-missing", "fallback-zero", "fill-only-fallback", null]},
+        "text_extraction_method": {"enum": ["page.get_text('dict',flags=199,sort=false)", null]},
+        "engine_version": {"type": ["string", "null"], "minLength": 1},
+        "claim_status": {"const": "Observed"}
+      }
+    },
+    "primitive": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["primitive_id", "kind", "method", "geometry", "bbox_mupdf_unrotated_pt", "bbox_pdf_pt", "bbox_px_half_open", "source_claim_status", "derived_geometry_claim_status", "identity_attributes", "source_evidence"],
+      "properties": {
+        "primitive_id": {"$ref": "#/$defs/tagged_sha256"},
+        "kind": {"enum": ["raster", "vector", "text"]},
+        "method": {"enum": ["page.get_image_info(hashes=true,xrefs=false)", "page.get_drawings(extended=false)", "page.get_text('dict',flags=199,sort=false)"]},
+        "geometry": {"$ref": "#/$defs/primitive_geometry"},
+        "bbox_mupdf_unrotated_pt": {"$ref": "#/$defs/bbox_point"},
+        "bbox_pdf_pt": {"$ref": "#/$defs/bbox_point"},
+        "bbox_px_half_open": {"$ref": "#/$defs/bbox_px"},
+        "source_claim_status": {"const": "Observed"},
+        "derived_geometry_claim_status": {"const": "Verified-self"},
+        "identity_attributes": {"$ref": "#/$defs/primitive_identity_attributes"},
+        "source_evidence": {"$ref": "#/$defs/primitive_source_evidence"}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"kind": {"const": "raster"}}, "required": ["kind"]},
+          "then": {
+            "properties": {
+              "method": {"const": "page.get_image_info(hashes=true,xrefs=false)"},
+              "geometry": {"properties": {"kind": {"const": "bbox-only"}}},
+               "identity_attributes": {"required": ["digest_algorithm", "digest_hex", "height_px", "width_px"]},
+               "source_evidence": {"properties": {"digest_algorithm": {"const": "md5"}, "observed_stroke_width_pdf_pt": {"type": "null"}, "stroke_width_disposition": {"type": "null"}, "text_extraction_method": {"type": "null"}, "engine_version": {"type": "null"}}}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "text"}}, "required": ["kind"]},
+          "then": {
+            "properties": {
+              "method": {"const": "page.get_text('dict',flags=199,sort=false)"},
+              "geometry": {"properties": {"kind": {"const": "bbox-only"}}},
+              "identity_attributes": {"required": ["utf8_sha256", "utf8_bytes", "unicode_codepoints"]},
+               "source_evidence": {"properties": {"digest_algorithm": {"type": "null"}, "observed_stroke_width_pdf_pt": {"type": "null"}, "stroke_width_disposition": {"type": "null"}, "text_extraction_method": {"const": "page.get_text('dict',flags=199,sort=false)"}, "engine_version": {"type": "string"}}}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"kind": {"const": "vector"}}, "required": ["kind"]},
+          "then": {
+            "properties": {
+              "method": {"const": "page.get_drawings(extended=false)"},
+              "geometry": {"not": {"properties": {"kind": {"const": "bbox-only"}}, "required": ["kind"]}},
+               "identity_attributes": {"required": ["effective_stroke_width_pdf_pt", "fill_only", "geometry", "item_type", "observed_stroke_width_pdf_pt"]},
+               "source_evidence": {"properties": {"digest_algorithm": {"type": "null"}, "stroke_width_disposition": {"type": "string"}, "text_extraction_method": {"type": "null"}, "engine_version": {"type": "null"}}}
+            }
+          }
+        }
+      ]
+    },
+    "class_procedure": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "status", "candidate_count", "blocking", "reason_codes", "semantic_truth_status"],
+      "properties": {
+        "class": {"enum": ["raster", "vector", "stroke-cluster", "scan-component", "text-block", "table"]},
+        "status": {"enum": ["measured", "UNREAD"]},
+        "candidate_count": {"type": ["integer", "null"], "minimum": 0},
+        "blocking": {"type": "boolean"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true},
+        "semantic_truth_status": {"const": "UNREAD"}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"candidate_count": {"type": "integer"}, "blocking": {"const": false}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"candidate_count": {"type": "null"}, "blocking": {"const": true}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "edge_touch": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis", "coordinate_px", "relation", "neighbor_direction"],
+      "properties": {
+        "axis": {"enum": ["x", "y"]},
+        "coordinate_px": {"type": "integer", "minimum": 1},
+        "relation": {"enum": ["equals-min-boundary", "equals-max-boundary", "straddles"]},
+        "neighbor_direction": {"enum": ["negative", "positive", "both"]}
+      }
+    },
+    "edge_recovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "touched_internal_edges", "recovery_tile_ids", "recovery_bbox_px_half_open", "recovery_rgb_bytes", "recovery_rgb_sha256", "candidate_strictly_contained", "physical_page_edge_exception", "boundary_resolution", "claim_status", "reason_codes"],
+      "properties": {
+        "status": {"enum": ["measured", "UNREAD"]},
+        "touched_internal_edges": {"type": "array", "items": {"$ref": "#/$defs/edge_touch"}, "uniqueItems": true},
+        "recovery_tile_ids": {"type": "array", "items": {"type": "string", "pattern": "^p[0-9]{6}-x[0-9]{6}-y[0-9]{6}$"}, "uniqueItems": true},
+        "recovery_bbox_px_half_open": {"anyOf": [{"$ref": "#/$defs/bbox_px"}, {"type": "null"}]},
+        "recovery_rgb_bytes": {"type": ["integer", "null"], "minimum": 3},
+        "recovery_rgb_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "candidate_strictly_contained": {"type": ["boolean", "null"]},
+        "physical_page_edge_exception": {"type": ["boolean", "null"]},
+        "boundary_resolution": {"enum": ["whole-page-recrop", "not-required", "UNREAD"]},
+        "claim_status": {"enum": ["Verified-self", "UNREAD"]},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"candidate_strictly_contained": {"type": "boolean"}, "physical_page_edge_exception": {"type": "boolean"}, "boundary_resolution": {"enum": ["whole-page-recrop", "not-required"]}, "claim_status": {"const": "Verified-self"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "measured"}, "boundary_resolution": {"const": "whole-page-recrop"}}, "required": ["status", "boundary_resolution"]}, "then": {"properties": {"touched_internal_edges": {"minItems": 1}, "recovery_tile_ids": {"minItems": 1}, "recovery_bbox_px_half_open": {"$ref": "#/$defs/bbox_px"}, "recovery_rgb_bytes": {"type": "integer", "minimum": 3}, "recovery_rgb_sha256": {"$ref": "#/$defs/sha256"}}, "anyOf": [{"properties": {"candidate_strictly_contained": {"const": true}}}, {"properties": {"physical_page_edge_exception": {"const": true}}}]}},
+        {"if": {"properties": {"status": {"const": "measured"}, "boundary_resolution": {"const": "not-required"}}, "required": ["status", "boundary_resolution"]}, "then": {"properties": {"touched_internal_edges": {"maxItems": 0}, "recovery_tile_ids": {"maxItems": 0}, "recovery_bbox_px_half_open": {"type": "null"}, "recovery_rgb_bytes": {"type": "null"}, "recovery_rgb_sha256": {"type": "null"}, "candidate_strictly_contained": {"const": false}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"touched_internal_edges": {"maxItems": 0}, "recovery_tile_ids": {"maxItems": 0}, "recovery_bbox_px_half_open": {"type": "null"}, "recovery_rgb_bytes": {"type": "null"}, "recovery_rgb_sha256": {"type": "null"}, "candidate_strictly_contained": {"type": "null"}, "physical_page_edge_exception": {"type": "null"}, "boundary_resolution": {"const": "UNREAD"}, "claim_status": {"const": "UNREAD"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "crop": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "encoding", "width_px", "height_px", "rgb_bytes", "rgb_sha256", "persistence", "reason_codes"],
+      "properties": {
+        "status": {"enum": ["measured", "UNREAD"]},
+        "encoding": {"const": "RGB8-row-major-no-padding"},
+        "width_px": {"type": ["integer", "null"], "minimum": 1},
+        "height_px": {"type": ["integer", "null"], "minimum": 1},
+        "rgb_bytes": {"type": ["integer", "null"], "minimum": 3},
+        "rgb_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "persistence": {"const": "ephemeral-regenerate-from-source"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"width_px": {"type": "integer"}, "height_px": {"type": "integer"}, "rgb_bytes": {"type": "integer"}, "rgb_sha256": {"$ref": "#/$defs/sha256"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"width_px": {"type": "null"}, "height_px": {"type": "null"}, "rgb_bytes": {"type": "null"}, "rgb_sha256": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "captured_text": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "kind", "method", "source_text_primitive_ids", "utf8_sha256", "utf8_bytes", "unicode_codepoints", "persistence", "claim_status", "semantic_truth_status", "reason_codes"],
+      "properties": {
+        "status": {"enum": ["measured", "UNREAD"]},
+        "kind": {"enum": ["native", "empty", "UNREAD"]},
+        "method": {"enum": ["native-overlap-block-concat-v1", "not-attempted"]},
+        "source_text_primitive_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}},
+        "utf8_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "utf8_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "unicode_codepoints": {"type": ["integer", "null"], "minimum": 0},
+        "persistence": {"const": "ephemeral-regenerate-from-source"},
+        "claim_status": {"enum": ["Verified-self", "UNREAD"]},
+        "semantic_truth_status": {"const": "UNREAD"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}, "kind": {"const": "native"}}, "required": ["status", "kind"]}, "then": {"properties": {"method": {"const": "native-overlap-block-concat-v1"}, "source_text_primitive_ids": {"minItems": 1}, "utf8_sha256": {"$ref": "#/$defs/sha256"}, "utf8_bytes": {"type": "integer", "minimum": 1}, "unicode_codepoints": {"type": "integer", "minimum": 1}, "claim_status": {"const": "Verified-self"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "measured"}, "kind": {"const": "empty"}}, "required": ["status", "kind"]}, "then": {"properties": {"method": {"const": "native-overlap-block-concat-v1"}, "source_text_primitive_ids": {"maxItems": 0}, "utf8_sha256": {"const": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"}, "utf8_bytes": {"const": 0}, "unicode_codepoints": {"const": 0}, "claim_status": {"const": "Verified-self"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"kind": {"const": "UNREAD"}, "method": {"const": "not-attempted"}, "source_text_primitive_ids": {"maxItems": 0}, "utf8_sha256": {"type": "null"}, "utf8_bytes": {"type": "null"}, "unicode_codepoints": {"type": "null"}, "claim_status": {"const": "UNREAD"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "table_track": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["axis_px", "extent_end_px", "extent_start_px", "member_primitive_ids"],
+      "properties": {
+        "axis_px": {"type": "integer", "minimum": 0},
+        "extent_end_px": {"type": "integer", "minimum": 1},
+        "extent_start_px": {"type": "integer", "minimum": 0},
+        "member_primitive_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}}
+      }
+    },
+    "table_cell": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bbox_px_half_open", "cell_id", "column_index_0based", "occupied", "row_index_0based", "text_primitive_ids"],
+      "properties": {
+        "bbox_px_half_open": {"$ref": "#/$defs/bbox_px"},
+        "cell_id": {"$ref": "#/$defs/opaque_id"},
+        "column_index_0based": {"type": "integer", "minimum": 0},
+        "occupied": {"type": "boolean"},
+        "row_index_0based": {"type": "integer", "minimum": 0},
+        "text_primitive_ids": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}}
+      }
+    },
+    "class_evidence": {
+      "oneOf": [
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["rule_id", "source_primitive_ids", "claim_status", "semantic_truth_status", "measurements"],
+          "properties": {
+            "rule_id": {"const": "VW2-R2-RASTER-1"}, "source_primitive_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}}, "claim_status": {"const": "Inferred"}, "semantic_truth_status": {"const": "UNREAD"},
+            "measurements": {"type": "object", "additionalProperties": false, "required": ["image_occurrence_count"], "properties": {"image_occurrence_count": {"type": "integer", "minimum": 1}}}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["rule_id", "source_primitive_ids", "claim_status", "semantic_truth_status", "measurements"],
+          "properties": {
+            "rule_id": {"const": "VW2-R2-VECTOR-1"}, "source_primitive_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}}, "claim_status": {"const": "Inferred"}, "semantic_truth_status": {"const": "UNREAD"},
+            "measurements": {"type": "object", "additionalProperties": false, "required": ["supported_primitive_count", "unknown_item_count"], "properties": {"supported_primitive_count": {"type": "integer", "minimum": 1}, "unknown_item_count": {"const": 0}}}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["rule_id", "source_primitive_ids", "claim_status", "semantic_truth_status", "measurements"],
+          "properties": {
+            "rule_id": {"const": "VW2-R2-STROKE-1"}, "source_primitive_ids": {"type": "array", "minItems": 2, "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}}, "claim_status": {"const": "Inferred"}, "semantic_truth_status": {"const": "UNREAD"},
+            "measurements": {"type": "object", "additionalProperties": false, "required": ["component_size", "graph_edge_count", "maximum_undilated_gap_px"], "properties": {"component_size": {"type": "integer", "minimum": 2}, "graph_edge_count": {"type": "integer", "minimum": 1}, "maximum_undilated_gap_px": {"const": 2}}}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["rule_id", "source_primitive_ids", "claim_status", "semantic_truth_status", "measurements"],
+          "properties": {
+            "rule_id": {"const": "VW2-R2-SCAN-1"}, "source_primitive_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}}, "claim_status": {"const": "Inferred"}, "semantic_truth_status": {"const": "UNREAD"},
+            "measurements": {"type": "object", "additionalProperties": false, "required": ["raster_union_pixels", "valid_page_pixels", "page_union_fraction", "edge_insets_normalized"], "properties": {"raster_union_pixels": {"type": "integer", "minimum": 1}, "valid_page_pixels": {"type": "integer", "minimum": 1}, "page_union_fraction": {"$ref": "#/$defs/fraction9"}, "edge_insets_normalized": {"type": "array", "prefixItems": [{"$ref": "#/$defs/fraction9"}, {"$ref": "#/$defs/fraction9"}, {"$ref": "#/$defs/fraction9"}, {"$ref": "#/$defs/fraction9"}], "minItems": 4, "maxItems": 4}}}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["rule_id", "source_primitive_ids", "claim_status", "semantic_truth_status", "measurements"],
+          "properties": {
+            "rule_id": {"const": "VW2-R2-TEXT-1"}, "source_primitive_ids": {"type": "array", "minItems": 1, "maxItems": 1, "items": {"$ref": "#/$defs/tagged_sha256"}}, "claim_status": {"const": "Inferred"}, "semantic_truth_status": {"const": "UNREAD"},
+            "measurements": {"type": "object", "additionalProperties": false, "required": ["nonwhitespace_codepoints"], "properties": {"nonwhitespace_codepoints": {"type": "integer", "minimum": 1}}}
+          }
+        },
+        {
+          "type": "object", "additionalProperties": false,
+          "required": ["rule_id", "source_primitive_ids", "claim_status", "semantic_truth_status", "measurements"],
+          "properties": {
+            "rule_id": {"const": "VW2-R2-TABLE-1"}, "source_primitive_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}}, "claim_status": {"const": "Inferred"}, "semantic_truth_status": {"const": "UNREAD"},
+            "measurements": {
+              "type": "object", "additionalProperties": false,
+              "required": ["parent_stroke_cluster_id", "eligible_segment_ids", "horizontal_tracks", "vertical_tracks", "possible_intersections", "observed_intersections", "intersection_fraction", "extreme_support_intersection_counts", "closed_cell_count", "closed_cells", "occupied_cell_ids", "occupied_text_cells", "occupied_text_rows", "occupied_text_columns", "grid_bbox_px_half_open"],
+              "properties": {
+                "parent_stroke_cluster_id": {"$ref": "#/$defs/tagged_sha256"},
+                "eligible_segment_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}},
+                "horizontal_tracks": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/table_track"}},
+                "vertical_tracks": {"type": "array", "minItems": 3, "items": {"$ref": "#/$defs/table_track"}},
+                "possible_intersections": {"type": "integer", "minimum": 9},
+                "observed_intersections": {"type": "integer", "minimum": 1},
+                "intersection_fraction": {"$ref": "#/$defs/fraction9"},
+                "extreme_support_intersection_counts": {
+                  "type": "object", "additionalProperties": false,
+                  "required": ["horizontal_max", "horizontal_min", "vertical_max", "vertical_min"],
+                  "properties": {
+                    "horizontal_max": {"type": "integer", "minimum": 2},
+                    "horizontal_min": {"type": "integer", "minimum": 2},
+                    "vertical_max": {"type": "integer", "minimum": 2},
+                    "vertical_min": {"type": "integer", "minimum": 2}
+                  }
+                },
+                "closed_cell_count": {"type": "integer", "minimum": 4},
+                "closed_cells": {"type": "array", "minItems": 4, "items": {"$ref": "#/$defs/table_cell"}},
+                "occupied_cell_ids": {"type": "array", "minItems": 4, "uniqueItems": true, "items": {"$ref": "#/$defs/opaque_id"}},
+                "occupied_text_cells": {"type": "integer", "minimum": 4},
+                "occupied_text_rows": {"type": "integer", "minimum": 2},
+                "occupied_text_columns": {"type": "integer", "minimum": 2},
+                "grid_bbox_px_half_open": {"$ref": "#/$defs/bbox_px"}
+              }
+            }
+          }
+        }
+      ]
+    },
+    "candidate": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["candidate_id", "classes", "class_basis", "class_evidence", "claim_status", "semantic_truth_status", "bbox_mupdf_unrotated_pt", "bbox_pdf_pt", "bbox_px_half_open", "bbox_normalized", "source_primitive_ids", "intersecting_tile_ids", "edge_recovery", "crop", "captured_text"],
+      "properties": {
+        "candidate_id": {"$ref": "#/$defs/tagged_sha256"},
+        "classes": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["raster", "vector", "stroke-cluster", "scan-component", "text-block", "table"]}},
+        "class_basis": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"enum": ["VW2-R2-RASTER-1", "VW2-R2-VECTOR-1", "VW2-R2-STROKE-1", "VW2-R2-SCAN-1", "VW2-R2-TEXT-1", "VW2-R2-TABLE-1"]}},
+        "class_evidence": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/class_evidence"}},
+        "claim_status": {"const": "Inferred"},
+        "semantic_truth_status": {"const": "UNREAD"},
+        "bbox_mupdf_unrotated_pt": {"$ref": "#/$defs/bbox_point"},
+        "bbox_pdf_pt": {"$ref": "#/$defs/bbox_point"},
+        "bbox_px_half_open": {"$ref": "#/$defs/bbox_px"},
+        "bbox_normalized": {"$ref": "#/$defs/bbox_normalized"},
+        "source_primitive_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"$ref": "#/$defs/tagged_sha256"}},
+        "intersecting_tile_ids": {"type": "array", "minItems": 1, "uniqueItems": true, "items": {"type": "string", "pattern": "^p[0-9]{6}-x[0-9]{6}-y[0-9]{6}$"}},
+        "edge_recovery": {"$ref": "#/$defs/edge_recovery"},
+        "crop": {"$ref": "#/$defs/crop"},
+        "captured_text": {"$ref": "#/$defs/captured_text"}
+      },
+      "allOf": [
+        {"if": {"properties": {"classes": {"contains": {"const": "raster"}}}, "required": ["classes"]}, "then": {"properties": {"class_basis": {"contains": {"const": "VW2-R2-RASTER-1"}}, "class_evidence": {"contains": {"type": "object", "properties": {"rule_id": {"const": "VW2-R2-RASTER-1"}}, "required": ["rule_id"]}}}}},
+        {"if": {"properties": {"classes": {"contains": {"const": "vector"}}}, "required": ["classes"]}, "then": {"properties": {"class_basis": {"contains": {"const": "VW2-R2-VECTOR-1"}}, "class_evidence": {"contains": {"type": "object", "properties": {"rule_id": {"const": "VW2-R2-VECTOR-1"}}, "required": ["rule_id"]}}}}},
+        {"if": {"properties": {"classes": {"contains": {"const": "stroke-cluster"}}}, "required": ["classes"]}, "then": {"properties": {"classes": {"contains": {"const": "vector"}}, "class_basis": {"contains": {"const": "VW2-R2-STROKE-1"}}, "class_evidence": {"contains": {"type": "object", "properties": {"rule_id": {"const": "VW2-R2-STROKE-1"}}, "required": ["rule_id"]}}}}},
+        {"if": {"properties": {"classes": {"contains": {"const": "scan-component"}}}, "required": ["classes"]}, "then": {"properties": {"classes": {"contains": {"const": "raster"}}, "class_basis": {"contains": {"const": "VW2-R2-SCAN-1"}}, "class_evidence": {"contains": {"type": "object", "properties": {"rule_id": {"const": "VW2-R2-SCAN-1"}}, "required": ["rule_id"]}}}}},
+        {"if": {"properties": {"classes": {"contains": {"const": "text-block"}}}, "required": ["classes"]}, "then": {"properties": {"class_basis": {"contains": {"const": "VW2-R2-TEXT-1"}}, "class_evidence": {"contains": {"type": "object", "properties": {"rule_id": {"const": "VW2-R2-TEXT-1"}}, "required": ["rule_id"]}}}}},
+        {"if": {"properties": {"classes": {"contains": {"const": "table"}}}, "required": ["classes"]}, "then": {"properties": {"classes": {"allOf": [{"contains": {"const": "vector"}}, {"contains": {"const": "stroke-cluster"}}]}, "class_basis": {"contains": {"const": "VW2-R2-TABLE-1"}}, "class_evidence": {"contains": {"type": "object", "properties": {"rule_id": {"const": "VW2-R2-TABLE-1"}}, "required": ["rule_id"]}}}}}
+      ]
+    },
+    "relationship": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["relationship_id", "source_candidate_id", "target_candidate_id", "kind", "intersection_area_px", "source_overlap_fraction", "target_overlap_fraction", "claim_status"],
+      "properties": {
+        "relationship_id": {"$ref": "#/$defs/tagged_sha256"},
+        "source_candidate_id": {"$ref": "#/$defs/tagged_sha256"},
+        "target_candidate_id": {"$ref": "#/$defs/tagged_sha256"},
+        "kind": {"enum": ["contains", "coincident", "intersects"]},
+        "intersection_area_px": {"type": "integer", "minimum": 1},
+        "source_overlap_fraction": {"$ref": "#/$defs/fraction9"},
+        "target_overlap_fraction": {"$ref": "#/$defs/fraction9"},
+        "claim_status": {"const": "Verified-self"}
+      }
+    },
+    "render": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status", "width_px", "height_px", "valid_page_pixels", "rgb_bytes", "rgb_sha256", "encoding", "reason_codes"],
+      "properties": {
+        "status": {"enum": ["measured", "UNREAD"]},
+        "width_px": {"type": ["integer", "null"], "minimum": 1},
+        "height_px": {"type": ["integer", "null"], "minimum": 1},
+        "valid_page_pixels": {"type": ["integer", "null"], "minimum": 1},
+        "rgb_bytes": {"type": ["integer", "null"], "minimum": 3},
+        "rgb_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "encoding": {"const": "RGB8-row-major-no-padding"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"width_px": {"type": "integer"}, "height_px": {"type": "integer"}, "valid_page_pixels": {"type": "integer"}, "rgb_bytes": {"type": "integer"}, "rgb_sha256": {"$ref": "#/$defs/sha256"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"width_px": {"type": "null"}, "height_px": {"type": "null"}, "valid_page_pixels": {"type": "null"}, "rgb_bytes": {"type": "null"}, "rgb_sha256": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page_1based", "status", "media_box_mupdf_pt", "crop_box_mupdf_pt", "media_box_pdf_user_space_pt", "crop_box_pdf_user_space_pt", "rotation_degrees", "render", "tiles", "tile_union", "primitive_facts", "primitive_census", "region_candidates", "relationships", "class_procedures", "unreads"],
+      "properties": {
+        "page_1based": {"type": "integer", "minimum": 1},
+        "status": {"enum": ["measured", "UNREAD"]},
+        "media_box_mupdf_pt": {"anyOf": [{"$ref": "#/$defs/bbox_point"}, {"type": "null"}]},
+        "crop_box_mupdf_pt": {"anyOf": [{"$ref": "#/$defs/bbox_point"}, {"type": "null"}]},
+        "media_box_pdf_user_space_pt": {"anyOf": [{"$ref": "#/$defs/bbox_point"}, {"type": "null"}]},
+        "crop_box_pdf_user_space_pt": {"anyOf": [{"$ref": "#/$defs/bbox_point"}, {"type": "null"}]},
+        "rotation_degrees": {"enum": [0, 90, 180, 270, null]},
+        "render": {"$ref": "#/$defs/render"},
+        "tiles": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/tile"}},
+        "tile_union": {"$ref": "#/$defs/coverage_metric"},
+        "primitive_facts": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/primitive"}},
+        "primitive_census": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "image_occurrences", "text_blocks", "vector_primitives", "reason_codes"],
+          "properties": {
+            "status": {"enum": ["measured", "UNREAD"]},
+            "image_occurrences": {"type": ["integer", "null"], "minimum": 0},
+            "text_blocks": {"type": ["integer", "null"], "minimum": 0},
+            "vector_primitives": {"type": ["integer", "null"], "minimum": 0},
+            "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+          },
+          "allOf": [
+            {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"image_occurrences": {"type": "integer"}, "text_blocks": {"type": "integer"}, "vector_primitives": {"type": "integer"}, "reason_codes": {"maxItems": 0}}}},
+            {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"image_occurrences": {"type": "null"}, "text_blocks": {"type": "null"}, "vector_primitives": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+          ]
+        },
+        "region_candidates": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/candidate"}},
+        "relationships": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/relationship"}},
+        "class_procedures": {
+          "type": "array", "minItems": 6, "maxItems": 6,
+          "prefixItems": [
+            {"allOf": [{"$ref": "#/$defs/class_procedure"}, {"properties": {"class": {"const": "raster"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_procedure"}, {"properties": {"class": {"const": "vector"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_procedure"}, {"properties": {"class": {"const": "stroke-cluster"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_procedure"}, {"properties": {"class": {"const": "scan-component"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_procedure"}, {"properties": {"class": {"const": "text-block"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_procedure"}, {"properties": {"class": {"const": "table"}}}]}
+          ]
+        },
+        "unreads": {"type": "array", "items": {"$ref": "#/$defs/unread"}}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"media_box_mupdf_pt": {"$ref": "#/$defs/bbox_point"}, "crop_box_mupdf_pt": {"$ref": "#/$defs/bbox_point"}, "media_box_pdf_user_space_pt": {"$ref": "#/$defs/bbox_point"}, "crop_box_pdf_user_space_pt": {"$ref": "#/$defs/bbox_point"}, "rotation_degrees": {"enum": [0, 90, 180, 270]}, "render": {"properties": {"status": {"const": "measured"}}}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"unreads": {"minItems": 1, "contains": {"type": "object", "properties": {"blocking": {"const": true}}, "required": ["blocking"]}}}}}
+      ]
+    },
+    "class_census": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["class", "procedure_status", "candidate_count", "blocking", "semantic_truth_status", "reason_codes"],
+      "properties": {
+        "class": {"enum": ["raster", "vector", "stroke-cluster", "scan-component", "text-block", "table"]},
+        "procedure_status": {"enum": ["measured", "UNREAD"]},
+        "candidate_count": {"type": ["integer", "null"], "minimum": 0},
+        "blocking": {"type": "boolean"},
+        "semantic_truth_status": {"const": "UNREAD"},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"procedure_status": {"const": "measured"}}, "required": ["procedure_status"]}, "then": {"properties": {"candidate_count": {"type": "integer"}, "blocking": {"const": false}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"procedure_status": {"const": "UNREAD"}}, "required": ["procedure_status"]}, "then": {"properties": {"candidate_count": {"type": "null"}, "blocking": {"const": true}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "split", "source", "bundle", "procedure_status", "blocking", "pages", "class_census", "conflicts", "unreads"],
+      "properties": {
+        "case_id": {"enum": ["VW-T01", "VW-T02", "VW-T03"]},
+        "split": {"const": "calibration"},
+        "source": {"$ref": "#/$defs/source_observation"},
+        "bundle": {"$ref": "#/$defs/bundle_observation"},
+        "procedure_status": {"enum": ["measured", "UNREAD"]},
+        "blocking": {"type": "boolean"},
+        "pages": {"type": "array", "minItems": 1, "items": {"$ref": "#/$defs/page"}},
+        "class_census": {
+          "type": "array", "minItems": 6, "maxItems": 6,
+          "prefixItems": [
+            {"allOf": [{"$ref": "#/$defs/class_census"}, {"properties": {"class": {"const": "raster"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_census"}, {"properties": {"class": {"const": "vector"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_census"}, {"properties": {"class": {"const": "stroke-cluster"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_census"}, {"properties": {"class": {"const": "scan-component"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_census"}, {"properties": {"class": {"const": "text-block"}}}]},
+            {"allOf": [{"$ref": "#/$defs/class_census"}, {"properties": {"class": {"const": "table"}}}]}
+          ]
+        },
+        "conflicts": {"type": "array", "items": {"$ref": "#/$defs/conflict"}},
+        "unreads": {"type": "array", "items": {"$ref": "#/$defs/unread"}}
+      },
+      "allOf": [
+        {"if": {"properties": {"procedure_status": {"const": "measured"}}, "required": ["procedure_status"]}, "then": {"properties": {"blocking": {"const": false}}}},
+        {"if": {"properties": {"procedure_status": {"const": "UNREAD"}}, "required": ["procedure_status"]}, "then": {"properties": {"blocking": {"const": true}, "unreads": {"minItems": 1, "contains": {"type": "object", "properties": {"blocking": {"const": true}}, "required": ["blocking"]}}}}},
+        {"if": {"properties": {"case_id": {"const": "VW-T01"}}, "required": ["case_id"]}, "then": {"properties": {"pages": {"minItems": 104, "maxItems": 104}}}},
+        {"if": {"properties": {"case_id": {"const": "VW-T02"}}, "required": ["case_id"]}, "then": {"properties": {"pages": {"minItems": 184, "maxItems": 184}}}},
+        {"if": {"properties": {"case_id": {"const": "VW-T03"}}, "required": ["case_id"]}, "then": {"properties": {"pages": {"minItems": 465, "maxItems": 465}}}}
+      ]
+    },
+    "case_census": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["declared", "attempted", "completed", "unread", "case_ids"],
+      "properties": {
+        "declared": {"const": 3},
+        "attempted": {"const": 3},
+        "completed": {"type": "integer", "minimum": 0, "maximum": 3},
+        "unread": {"type": "integer", "minimum": 0, "maximum": 3},
+        "case_ids": {"type": "array", "minItems": 3, "maxItems": 3, "prefixItems": [{"const": "VW-T01"}, {"const": "VW-T02"}, {"const": "VW-T03"}]}
+      }
+    },
+    "capture_payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["event_id", "event_revision", "packet_sha256", "parent_contract_sha256", "capture_schema_sha256", "config_sha256", "case_census", "cases", "metrics", "capture_payload_sha256", "next_event_authority"],
+      "properties": {
+        "event_id": {"const": "VW-E2"},
+        "event_revision": {"const": "VW-E2-R2"},
+        "packet_sha256": {"$ref": "#/$defs/sha256"},
+        "parent_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "capture_schema_sha256": {"$ref": "#/$defs/sha256"},
+        "config_sha256": {"$ref": "#/$defs/sha256"},
+        "case_census": {"$ref": "#/$defs/case_census"},
+        "cases": {
+          "type": "array", "minItems": 3, "maxItems": 3,
+          "prefixItems": [
+            {"allOf": [{"$ref": "#/$defs/case"}, {"properties": {"case_id": {"const": "VW-T01"}}}]},
+            {"allOf": [{"$ref": "#/$defs/case"}, {"properties": {"case_id": {"const": "VW-T02"}}}]},
+            {"allOf": [{"$ref": "#/$defs/case"}, {"properties": {"case_id": {"const": "VW-T03"}}}]}
+          ]
+        },
+        "metrics": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["declared_page_pixel_coverage"],
+          "properties": {"declared_page_pixel_coverage": {"$ref": "#/$defs/coverage_metric"}}
+        },
+        "capture_payload_sha256": {"$ref": "#/$defs/sha256"},
+        "next_event_authority": {"const": "UNSIGNED"}
+      }
+    },
+    "case_resource": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "status", "wall_seconds", "cpu_seconds", "peak_working_set_bytes", "scratch_peak_bytes", "reason_codes"],
+      "properties": {
+        "case_id": {"enum": ["VW-T01", "VW-T02", "VW-T03"]},
+        "status": {"enum": ["measured", "UNREAD"]},
+        "wall_seconds": {"type": ["number", "null"], "minimum": 0},
+        "cpu_seconds": {"type": ["number", "null"], "minimum": 0},
+        "peak_working_set_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "scratch_peak_bytes": {"type": ["integer", "null"], "minimum": 0},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"wall_seconds": {"type": "number"}, "cpu_seconds": {"type": "number"}, "peak_working_set_bytes": {"type": "integer"}, "scratch_peak_bytes": {"type": "integer"}, "reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"wall_seconds": {"type": "null"}, "cpu_seconds": {"type": "null"}, "peak_working_set_bytes": {"type": "null"}, "scratch_peak_bytes": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+      ]
+    },
+    "runtime_module": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["bytes", "logical_name", "sha256"],
+      "properties": {
+        "bytes": {"type": "integer", "minimum": 1},
+        "logical_name": {"type": "string", "pattern": "^[A-Za-z0-9_.:-][A-Za-z0-9_.:-]{0,127}$"},
+        "sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "run_observations": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["created_at_utc", "producer", "resources", "privacy", "protected_tree", "cleanup", "residue", "independent_verification", "conflicts", "unreads", "status"],
+      "properties": {
+        "created_at_utc": {"type": "string", "format": "date-time"},
+        "producer": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["python_version", "pymupdf_version", "mupdf_version", "runtime_modules", "capture_code_sha256", "semantic_validator_code_sha256", "capture_schema_sha256", "packet_sha256", "config_sha256"],
+          "properties": {
+            "python_version": {"type": "string", "minLength": 1},
+            "pymupdf_version": {"type": "string", "minLength": 1},
+            "mupdf_version": {"type": "string", "minLength": 1},
+            "runtime_modules": {"type": "array", "minItems": 7, "uniqueItems": true, "items": {"$ref": "#/$defs/runtime_module"}},
+            "capture_code_sha256": {"$ref": "#/$defs/sha256"},
+            "semantic_validator_code_sha256": {"$ref": "#/$defs/sha256"},
+            "capture_schema_sha256": {"$ref": "#/$defs/sha256"},
+            "packet_sha256": {"$ref": "#/$defs/sha256"},
+            "config_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "resources": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["status", "wall_seconds", "cpu_seconds", "scratch_free_bytes_before", "scratch_peak_bytes", "gpu_used", "network_used", "isolation_evidence_sha256", "case_workers", "reason_codes"],
+          "properties": {
+            "status": {"enum": ["measured", "UNREAD"]},
+            "wall_seconds": {"type": ["number", "null"], "minimum": 0},
+            "cpu_seconds": {"type": ["number", "null"], "minimum": 0},
+            "scratch_free_bytes_before": {"type": ["integer", "null"], "minimum": 0},
+            "scratch_peak_bytes": {"type": ["integer", "null"], "minimum": 0},
+            "gpu_used": {"enum": [false, null]},
+            "network_used": {"enum": [false, null]},
+            "isolation_evidence_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+            "case_workers": {
+              "type": "array", "minItems": 3, "maxItems": 3,
+              "prefixItems": [
+                {"allOf": [{"$ref": "#/$defs/case_resource"}, {"properties": {"case_id": {"const": "VW-T01"}}}]},
+                {"allOf": [{"$ref": "#/$defs/case_resource"}, {"properties": {"case_id": {"const": "VW-T02"}}}]},
+                {"allOf": [{"$ref": "#/$defs/case_resource"}, {"properties": {"case_id": {"const": "VW-T03"}}}]}
+              ]
+            },
+            "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+          },
+          "allOf": [
+            {"if": {"properties": {"status": {"const": "measured"}}, "required": ["status"]}, "then": {"properties": {"wall_seconds": {"type": "number"}, "cpu_seconds": {"type": "number"}, "scratch_free_bytes_before": {"type": "integer"}, "scratch_peak_bytes": {"type": "integer"}, "gpu_used": {"const": false}, "network_used": {"const": false}, "isolation_evidence_sha256": {"$ref": "#/$defs/sha256"}, "reason_codes": {"maxItems": 0}}}},
+            {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"wall_seconds": {"type": "null"}, "cpu_seconds": {"type": "null"}, "scratch_free_bytes_before": {"type": "null"}, "scratch_peak_bytes": {"type": "null"}, "gpu_used": {"type": "null"}, "network_used": {"type": "null"}, "isolation_evidence_sha256": {"type": "null"}, "reason_codes": {"minItems": 1}}}}
+          ]
+        },
+        "privacy": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["private_inputs", "held_out_paths_resolved", "persisted_raw_renders", "persisted_raw_tiles", "persisted_raw_crops", "persisted_raw_text", "private_identifiers_exposed", "held_out_access_probe_sha256", "cleanup_probe_sha256", "redaction_probe_sha256"],
+          "properties": {
+            "private_inputs": {"const": true},
+            "held_out_paths_resolved": {"const": 0},
+            "persisted_raw_renders": {"const": 0},
+            "persisted_raw_tiles": {"const": 0},
+            "persisted_raw_crops": {"const": 0},
+            "persisted_raw_text": {"const": 0},
+            "private_identifiers_exposed": {"const": 0},
+            "held_out_access_probe_sha256": {"$ref": "#/$defs/sha256"},
+            "cleanup_probe_sha256": {"$ref": "#/$defs/sha256"},
+            "redaction_probe_sha256": {"$ref": "#/$defs/sha256"}
+          }
+        },
+        "protected_tree": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["algorithm", "domain", "record_encoding", "inventory_entry_count", "probe_code_sha256", "before_sha256", "after_sha256", "identical"],
+          "properties": {
+            "algorithm": {"const": "sha256-domain-canonical-logical-inventory-v1"},
+            "domain": {"const": "file-portal/vw-e2-protected-tree/r2\u0000"},
+            "record_encoding": {"const": "canonical JSON array of logical_id,bytes,sha256 sorted by logical_id; absolute paths, titles, and basenames omitted"},
+            "inventory_entry_count": {"type": "integer", "minimum": 1},
+            "probe_code_sha256": {"$ref": "#/$defs/sha256"},
+            "before_sha256": {"$ref": "#/$defs/sha256"},
+            "after_sha256": {"$ref": "#/$defs/sha256"},
+            "identical": {"type": "boolean"}
+          }
+        },
+        "cleanup": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["event_scratch_removed", "part_files_remaining", "probe_code_sha256", "evidence_sha256", "verified"],
+          "properties": {
+            "event_scratch_removed": {"type": "boolean"},
+            "part_files_remaining": {"type": "integer", "minimum": 0},
+            "probe_code_sha256": {"$ref": "#/$defs/sha256"},
+            "evidence_sha256": {"$ref": "#/$defs/sha256"},
+            "verified": {"type": "boolean"}
+          }
+        },
+        "residue": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["files", "processes", "ports", "gpu_owners", "inaccessible"],
+          "properties": {
+            "files": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/opaque_id"}},
+            "processes": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/opaque_id"}},
+            "ports": {"type": "array", "items": {"type": "integer", "minimum": 1, "maximum": 65535}},
+            "gpu_owners": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/opaque_id"}},
+            "inaccessible": {"type": "array", "uniqueItems": true, "items": {"$ref": "#/$defs/unread"}}
+          }
+        },
+        "independent_verification": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["verifier", "status", "probe_id", "verifier_code_sha256", "packet_sha256", "capture_schema_sha256", "capture_payload_sha256", "semantic_checks_sha256", "evidence_sha256", "reason_codes"],
+          "properties": {
+            "verifier": {"$ref": "#/$defs/opaque_id"},
+            "status": {"enum": ["Verified-independent", "CONFLICT", "UNREAD"]},
+            "probe_id": {"const": "vw-e2-r2-independent-sample-v1"},
+            "verifier_code_sha256": {"$ref": "#/$defs/sha256"},
+            "packet_sha256": {"$ref": "#/$defs/sha256"},
+            "capture_schema_sha256": {"$ref": "#/$defs/sha256"},
+            "capture_payload_sha256": {"$ref": "#/$defs/sha256"},
+            "semantic_checks_sha256": {"$ref": "#/$defs/sha256"},
+            "evidence_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+            "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+          }
+        },
+        "conflicts": {"type": "array", "items": {"$ref": "#/$defs/conflict"}},
+        "unreads": {"type": "array", "items": {"$ref": "#/$defs/unread"}},
+        "status": {"enum": ["record-produced", "record-produced-with-unreads"]}
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "record-produced"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "resources": {"properties": {"status": {"const": "measured"}}},
+              "protected_tree": {"properties": {"identical": {"const": true}}},
+              "cleanup": {"properties": {"event_scratch_removed": {"const": true}, "part_files_remaining": {"const": 0}, "verified": {"const": true}}},
+              "independent_verification": {"properties": {"status": {"const": "Verified-independent"}, "evidence_sha256": {"$ref": "#/$defs/sha256"}, "reason_codes": {"maxItems": 0}}},
+              "conflicts": {"not": {"contains": {"type": "object", "properties": {"blocking": {"const": true}}, "required": ["blocking"]}}},
+              "unreads": {"maxItems": 0}
+            }
+          }
+        },
+        {"if": {"properties": {"status": {"const": "record-produced-with-unreads"}}, "required": ["status"]}, "then": {"properties": {"unreads": {"minItems": 1}}}}
+      ]
+    },
+    "semantic_check": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "status", "blocking", "claim_status", "evidence_sha256", "reason_codes"],
+      "properties": {
+        "name": {
+          "enum": [
+            "canonical-json-and-array-order", "report-id", "capture-payload-hash",
+            "packet-parent-schema-config-binding", "case-order-uniqueness", "case-census-arithmetic",
+            "page-count-contiguity", "status-null-reason-coherence", "source-bundle-hashes",
+            "page-map-coherence", "bbox-order-range-transform", "render-rgb-arithmetic",
+            "tile-id-bbox-reference", "tile-rgb-arithmetic", "tile-union-coverage",
+            "primitive-kind-attributes-geometry", "primitive-id", "candidate-class-basis-evidence",
+            "candidate-source-references", "candidate-id", "class-procedure-completeness",
+            "class-census-reconciliation", "relationship-reference-geometry-id",
+            "edge-recovery-reference-containment", "crop-rgb-arithmetic", "captured-text-state-hash",
+            "metric-arithmetic", "resource-worker-reconciliation", "protected-tree-digest",
+            "privacy-heldout-cleanup-redaction", "independent-verification-binding",
+            "semantic-unread-boundary", "output-root-realpath-containment", "residue-privacy-census"
+          ]
+        },
+        "status": {"enum": ["pass", "fail", "UNREAD"]},
+        "blocking": {"const": true},
+        "claim_status": {"enum": ["Verified-self", "UNREAD"]},
+        "evidence_sha256": {"anyOf": [{"$ref": "#/$defs/sha256"}, {"type": "null"}]},
+        "reason_codes": {"type": "array", "items": {"$ref": "#/$defs/reason_code"}, "uniqueItems": true}
+      },
+      "allOf": [
+        {"if": {"properties": {"status": {"enum": ["pass", "fail"]}}, "required": ["status"]}, "then": {"properties": {"claim_status": {"const": "Verified-self"}, "evidence_sha256": {"$ref": "#/$defs/sha256"}}}},
+        {"if": {"properties": {"status": {"const": "pass"}}, "required": ["status"]}, "then": {"properties": {"reason_codes": {"maxItems": 0}}}},
+        {"if": {"properties": {"status": {"enum": ["fail", "UNREAD"]}}, "required": ["status"]}, "then": {"properties": {"reason_codes": {"minItems": 1}}}},
+        {"if": {"properties": {"status": {"const": "UNREAD"}}, "required": ["status"]}, "then": {"properties": {"claim_status": {"const": "UNREAD"}, "evidence_sha256": {"type": "null"}}}}
+      ]
+    },
+    "semantic_checks": {
+      "type": "array",
+      "minItems": 34,
+      "maxItems": 34,
+      "prefixItems": [
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "canonical-json-and-array-order"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "report-id"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "capture-payload-hash"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "packet-parent-schema-config-binding"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "case-order-uniqueness"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "case-census-arithmetic"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "page-count-contiguity"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "status-null-reason-coherence"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "source-bundle-hashes"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "page-map-coherence"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "bbox-order-range-transform"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "render-rgb-arithmetic"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "tile-id-bbox-reference"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "tile-rgb-arithmetic"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "tile-union-coverage"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "primitive-kind-attributes-geometry"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "primitive-id"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "candidate-class-basis-evidence"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "candidate-source-references"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "candidate-id"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "class-procedure-completeness"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "class-census-reconciliation"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "relationship-reference-geometry-id"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "edge-recovery-reference-containment"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "crop-rgb-arithmetic"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "captured-text-state-hash"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "metric-arithmetic"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "resource-worker-reconciliation"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "protected-tree-digest"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "privacy-heldout-cleanup-redaction"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "independent-verification-binding"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "semantic-unread-boundary"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "output-root-realpath-containment"}}}]},
+        {"allOf": [{"$ref": "#/$defs/semantic_check"}, {"properties": {"name": {"const": "residue-privacy-census"}}}]}
+      ]
+    }
+  }
+}

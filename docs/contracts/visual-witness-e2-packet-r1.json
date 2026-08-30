@@ -1,0 +1,145 @@
+{
+  "packet_schema_version": "visual-witness-event-packet-v1",
+  "packet_id": "VW-E2-R1",
+  "event_id": "VW-E2",
+  "title": "Detect and capture source regions",
+  "status": "PROPOSED-UNSIGNED",
+  "authority": "BLOCKED-ON-RAB",
+  "created_at_utc": "2026-08-28T20:25:56.572Z",
+  "parent_contract": {
+    "id": "VW-E1-R1",
+    "sha256": "3c2144d33079f7868e0bd3a8c1e4328a4797a1ac9fdb7b2d34ab32412a5fcfd1"
+  },
+  "repository_anchor": {
+    "repository": "shroobm/file-portal",
+    "branch": "feat/library-pipeline",
+    "git_sha": "a29d703d981ebcef3994711be9d4ad3205446edf",
+    "rule": "Re-measure HEAD, residue, processes, clocks, and private-manifest hash immediately before execution. Any drift produces GROUND-DRIFT and a revised unsigned packet."
+  },
+  "private_corpus_manifest_sha256": "e7299b50dd0d8ae5498ca13eb18c9a37c6bce5c38d24dd73351609e0c91a5c46",
+  "objective": "Implement an out-of-band, CPU-only, report-only source-page renderer and deterministic region-capture instrument over calibration cases only.",
+  "token_ceiling_aggregate": 45000,
+  "entry_requirements": [
+    "The user signs this exact VW-E2-R1 packet.",
+    "The VW-E1 contract, schemas, corpus manifest, and packet hashes still match.",
+    "The three held-out cases remain unopened by the builder.",
+    "At least 8 GiB scratch free space is measured.",
+    "No live converter, model, browser, or GPU process is started by this event."
+  ],
+  "write_scope": {
+    "single_writer": "root integrator or one designated builder; never concurrent file writers",
+    "new_files": [
+      "windows-converter/visual_witness_capture.py",
+      "windows-converter/visual_witness_capture_selftest.py"
+    ],
+    "allowed_updates": [
+      "docs/48-visual-witness-evidence-contract.md",
+      "wiki/conversion-quality.md",
+      "the VW-E2 exit receipt and observability artifact"
+    ],
+    "private_runtime_outputs": [
+      "<private-evidence-root>/VW-E2/<run-id>/report.json",
+      "an event-scoped temporary directory for renders and tiles"
+    ]
+  },
+  "read_scope": {
+    "calibration_case_ids": [
+      "VW-T01",
+      "VW-T02",
+      "VW-T03"
+    ],
+    "held_out_case_ids_forbidden": [
+      "VW-H01",
+      "VW-H02",
+      "VW-H03"
+    ],
+    "operational_roots": "Read-only source PDFs, raw Markdown, manifests, and assets named by the private corpus manifest."
+  },
+  "frozen_configuration": {
+    "render_dpi": 192,
+    "base_tile_size_px": 1024,
+    "tile_overlap_fraction": 0.2,
+    "whole_page_overview": true,
+    "page_concurrency": 1,
+    "coordinate_system": "canonical PDF points plus normalized page fractions",
+    "page_numbering": "source pages 1-based; asset filename page IDs retained separately as 0-based",
+    "declared_region_classes": [
+      "raster",
+      "vector",
+      "stroke-cluster",
+      "scan-component",
+      "text-block",
+      "table"
+    ],
+    "boundary_rule": "Any candidate touching an internal tile edge is re-centered in a larger crop or becomes VW-TILE-GAP/UNREAD.",
+    "fusion_rule": "Fuse by containment, intersection, and stroke connectivity after mapping every proposal to page coordinates.",
+    "xrefs_true": false,
+    "model_calls": false,
+    "network": false,
+    "gpu": false
+  },
+  "outputs": [
+    "A deterministic page/render/tile/region metadata report conforming to the VW-E1 identity and reason-code contract.",
+    "Hash-bound crop metadata; raw full-page renders, tiles, crops, and extracted text remain ephemeral and are deleted at event close.",
+    "Per-case timing, peak RSS, scratch peak, page-readability, tile-union, region-class, conflict, and UNREAD receipts.",
+    "A schema-conforming VW-E2 exit receipt with next_event_authority=UNSIGNED."
+  ],
+  "test_matrix": {
+    "unit_and_property": [
+      "Half-open tile arithmetic over odd and even page dimensions.",
+      "The union of base tiles covers every valid rendered page pixel or the page is UNREAD.",
+      "Rotation 0, 90, 180, and 270 degrees.",
+      "Non-zero CropBox offset and MediaBox/CropBox distinction.",
+      "Coordinate round-trip between pixel, normalized, and PDF-point spaces.",
+      "Deterministic fusion and canonical serialization."
+    ],
+    "integration": [
+      "Synthetic PDF to render to tiles/regions to report twice with byte-identical canonical output.",
+      "Before/after protected-tree digest proves source PDF, bundle, Markdown, assets, and manifest remained identical.",
+      "Calibration case source SHA and raw-Markdown/asset inventory hashes are reverified."
+    ],
+    "negative_controls": [
+      "A one-pixel object crossing a four-tile corner.",
+      "Blank page, corrupt/unrenderable page, and full-page scan.",
+      "Zero-area connectors and a table-like technical drawing.",
+      "Wrong source SHA.",
+      "Gross out-of-range and plausible in-range poisoned page maps.",
+      "Forced render failure and forced truncation/edge failure.",
+      "The same-check control deliberately removes one pixel from the declared tile union and must fail."
+    ]
+  },
+  "exit_criteria": [
+    "Every declared calibration page is accounted for as measured or reason-coded UNREAD.",
+    "For readable pages, covered_valid_pixels / valid_page_pixels equals 1.0 under the frozen base-tile configuration.",
+    "All geometry, identity, page-map, render-failure, and same-check negative controls bite.",
+    "No held-out case is opened.",
+    "No model, network, GPU, bundle, gate, repair, ship, publication, vault, or session-clock effect occurs.",
+    "An independent verifier reruns a consequential sample and the planted negative control.",
+    "Ephemeral scratch is removed and residue/process/port/GPU census is reported.",
+    "The complete receipt sets next_event_authority to UNSIGNED and agent progression stops."
+  ],
+  "effect_boundary": "New out-of-band report-only detector files and local metadata only. Default converter, analyst, Repair Bench, bundles, manifests, assets, shipping, gates, and vault behavior remain unchanged.",
+  "user_experience": "After completion, the user receives an inspectable calibration report of page regions and explicit UNREADs. No converted document or visible product behavior changes.",
+  "escalation_reason_codes": [
+    "GROUND-DRIFT",
+    "AUTHORITY-MISSING",
+    "VW-SOURCE-HASH",
+    "VW-BODY-HASH",
+    "VW-ASSET-HASH",
+    "VW-PAGE-MAP-UNREAD",
+    "VW-RENDER-UNREAD",
+    "VW-TILE-GAP",
+    "VW-CROP-BOUNDS",
+    "VW-DEPENDENCY-DRIFT",
+    "VW-HELDOUT-CONTAMINATION",
+    "VW-NEGATIVE-CONTROL",
+    "UNREAD"
+  ],
+  "decision_phrases": {
+    "sign": "SIGN VW-E2 VW-E2-R1",
+    "revise": "REVISE VW-E2: <instruction>",
+    "defer": "DEFER VW-E2",
+    "stop": "STOP VW-E2"
+  },
+  "next_event_authority": "UNSIGNED"
+}

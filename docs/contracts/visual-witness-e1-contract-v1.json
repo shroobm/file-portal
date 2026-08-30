@@ -1,0 +1,346 @@
+{
+  "schema_version": "visual-witness-e1-contract-v1",
+  "contract_id": "VW-E1-R1",
+  "event_plan_id": "VW-R1",
+  "status": "accepted-for-vw-e1",
+  "created_at_utc": "2026-08-28T20:25:56.572Z",
+  "planning_anchor": {
+    "repository": "shroobm/file-portal",
+    "branch": "feat/library-pipeline",
+    "git_sha": "a29d703d981ebcef3994711be9d4ad3205446edf",
+    "event_plan_sha256": "191d8f3627e02dc5bb18d8582e871df4d4fe4d6ea3cfffb0468695e58f656bc3"
+  },
+  "authority": {
+    "actor": "Rab",
+    "verbatim_decision": "I sign on E1",
+    "decision_source": "Codex task 01a0496a-6b64-72b2-88b2-3c5b3d151855",
+    "interpretation": "Authorizes VW-E1 under the uniquely displayed VW-R1 contract only. VW-E2 and all later events remain unsigned.",
+    "recorded_at_utc": "2026-08-28T20:25:56.572Z"
+  },
+  "artifacts": {
+    "region_sidecar_schema": {
+      "path": "docs/contracts/visual-witness-region-v1.schema.json",
+      "bytes": 19530,
+      "sha256": "531b9ac22b302792ee66e1cecd1f94dd8385f5ca7904f26c0f31ee96c1d78d73"
+    },
+    "corpus_schema": {
+      "path": "docs/contracts/visual-witness-corpus-v1.schema.json",
+      "bytes": 6441,
+      "sha256": "0639e232311d7e0ee155c83806781010b6b437f6a80fec659c7493409df1b940"
+    },
+    "event_receipt_schema": {
+      "path": "docs/contracts/visual-witness-event-receipt-v1.schema.json",
+      "bytes": 12483,
+      "sha256": "ae057c25216cbbe64c551752faa7ae603137343746dbacb46f990d69736e7b4f"
+    },
+    "private_corpus_manifest": {
+      "path_hint": "codex/private/visual-witness/VW-E1-corpus-v1.local.json",
+      "bytes": 11294,
+      "sha256": "e7299b50dd0d8ae5498ca13eb18c9a37c6bce5c38d24dd73351609e0c91a5c46",
+      "tracked": false,
+      "public_repository_safe": false
+    }
+  },
+  "corpus": {
+    "declared_cases": 6,
+    "calibration_cases": 3,
+    "held_out_cases": 3,
+    "held_out_rule": "Held-out bytes and labels may not tune thresholds, prompts, models, or rules. Their first scored use is VW-E7 after code, contract, configuration, dependency, and prompt hashes are sealed.",
+    "cases": [
+      {
+        "id": "VW-T01",
+        "split": "calibration",
+        "lane": "clean",
+        "pages": 104,
+        "classes": [
+          "formatting-baseline",
+          "analyst-variants",
+          "embedded-figures"
+        ]
+      },
+      {
+        "id": "VW-T02",
+        "split": "calibration",
+        "lane": "scan",
+        "pages": 184,
+        "classes": [
+          "ocr",
+          "blank-asset",
+          "analyst-structure-failure",
+          "tables"
+        ]
+      },
+      {
+        "id": "VW-T03",
+        "split": "calibration",
+        "lane": "scan",
+        "pages": 465,
+        "classes": [
+          "ocr",
+          "large-table",
+          "repair-bench-known-site",
+          "formatting-baseline"
+        ]
+      },
+      {
+        "id": "VW-H01",
+        "split": "held-out",
+        "lane": "clean",
+        "pages": 1356,
+        "classes": [
+          "large-book",
+          "legacy-page-map-poison",
+          "tables",
+          "negative-control"
+        ]
+      },
+      {
+        "id": "VW-H02",
+        "split": "held-out",
+        "lane": "scan",
+        "pages": 439,
+        "classes": [
+          "embedded-ocr",
+          "figures",
+          "formatting-held-out",
+          "historical-verdict-unread"
+        ]
+      },
+      {
+        "id": "VW-H03",
+        "split": "held-out",
+        "lane": "clean",
+        "pages": 91,
+        "classes": [
+          "vector-connectors",
+          "diagram-fragmentation",
+          "raw-only"
+        ]
+      }
+    ],
+    "known_exclusions": [
+      "A challenge-only specimen lacks raw pre-analyst Markdown and cannot score formatting improvement.",
+      "No second independent real page-map-poison family is available.",
+      "VW-H03 has no analyst output and is visual/raw-only.",
+      "VW-H02 has no current fidelity verdict; that field remains UNREAD until measured.",
+      "Held bundles with human repair state are not training inputs."
+    ]
+  },
+  "identity_and_invalidation": {
+    "hash": "full lowercase SHA-256",
+    "page_namespace": "Source PDF pages are 1-based. Asset filename page IDs remain separately recorded as 0-based.",
+    "coordinates": "Canonical PDF points plus normalized page fractions. Tiles are compute windows, never region identity.",
+    "report_id": "SHA-256 over canonical UTF-8 JSON with report_id omitted; keys sorted and compact separators.",
+    "rules": [
+      "Unreadable or mismatched source SHA invalidates the entire report as UNREAD.",
+      "Manifest or manifest-source SHA change invalidates the source/bundle/page-map join.",
+      "Markdown SHA change invalidates spans, text results, pair results, and phase metrics that consume it.",
+      "Asset-inventory SHA change invalidates visual and pair results.",
+      "Contract, configuration, code, dependency, engine, or prompt-byte hash change invalidates every inferred result that consumed it.",
+      "A stale human disposition remains historical and never transfers to a descendant region or report."
+    ]
+  },
+  "result_contract": {
+    "visual_states": [
+      "matched",
+      "partial",
+      "wrong-or-blank-asset",
+      "omitted-candidate",
+      "ambiguous",
+      "unread",
+      "not-applicable"
+    ],
+    "text_states": [
+      "matched",
+      "partial",
+      "substituted-candidate",
+      "omitted-candidate",
+      "ambiguous",
+      "unread",
+      "not-applicable"
+    ],
+    "pair_states": [
+      "both-supported",
+      "visual-only",
+      "text-only",
+      "neither-supported-candidate",
+      "conflict",
+      "ambiguous",
+      "unread"
+    ],
+    "human_disposition_actions": [
+      "accept",
+      "edit",
+      "reject",
+      "defer"
+    ],
+    "rule": "Machine evidence is immutable. Human disposition is a separate append-only record bound to report_id, region_id, and base_result_sha256. A disposition does not edit a document, apply a repair, change fidelity, or authorize a gate."
+  },
+  "witness_truth": {
+    "native_pdf_text": "fidelity witness when the source hash, page, rectangle, extraction method, and text hash are recorded",
+    "independent_ocr": "agreement witness, never source truth",
+    "embedded_or_correlated_ocr": "untrusted agreement; correlation must be recorded",
+    "empty_extraction": "Observed empty extraction only; it does not prove that the region contains no text",
+    "omission": "always omitted-candidate until a human disposition; never machine-confirmed omitted",
+    "unread_conditions": [
+      "source or manifest identity failure",
+      "untrustworthy page map",
+      "failed page render",
+      "tile gap or edge truncation",
+      "model output length/truncation without complete coverage",
+      "zero eligible text windows",
+      "no usable native text and OCR not run",
+      "ambiguous or correlated evidence that cannot be bounded"
+    ]
+  },
+  "metric_contract": [
+    {
+      "name": "declared_page_pixel_coverage",
+      "phase": "capture",
+      "numerator": "valid rendered page pixels covered by at least one declared base tile",
+      "denominator": "valid rendered page pixels on attempted readable pages",
+      "conditions": "Frozen render DPI, CropBox, rotation, tiling, overlap, and fusion configuration. Any unread page is counted separately, never clean."
+    },
+    {
+      "name": "region_visual_support",
+      "phase": "visual",
+      "numerator": "evaluable source regions with source-conditioned output-asset support",
+      "denominator": "evaluable declared source regions",
+      "conditions": "Stratify by region class and relationship cardinality; report ambiguity and UNREAD separately."
+    },
+    {
+      "name": "native_text_survival",
+      "phase": "text-native",
+      "numerator": "eligible native-source text windows found in the exact raw-Marker span",
+      "denominator": "eligible native-source text windows in the source region",
+      "conditions": "Clean/native witness only; denominator zero means UNREAD."
+    },
+    {
+      "name": "ocr_text_agreement",
+      "phase": "text-ocr-agreement",
+      "numerator": "eligible independent-OCR windows agreeing with the exact raw-Marker span",
+      "denominator": "eligible independent-OCR windows in the source region",
+      "conditions": "Agreement, not fidelity; record engine lineage and alignment residual."
+    },
+    {
+      "name": "convert_text_survival",
+      "phase": "convert",
+      "numerator": "source-PDF witness windows surviving into raw Marker Markdown",
+      "denominator": "eligible source-PDF witness windows",
+      "conditions": "Never combined with analyst survival. Images receive zero text-survival credit."
+    },
+    {
+      "name": "analyst_text_survival",
+      "phase": "analyst",
+      "numerator": "raw-Marker windows surviving into analyst Markdown",
+      "denominator": "eligible raw-Marker windows",
+      "conditions": "Never referenced to source PDF. Denominator zero means UNREAD, not 1.0."
+    },
+    {
+      "name": "format_contract_admission",
+      "phase": "analyst",
+      "numerator": "admitted proposals with protected spans, ordered assets, balanced structure, and content equivalence all intact",
+      "denominator": "admitted proposals",
+      "conditions": "Report rejected raw fallbacks separately; a false admission is a red negative control."
+    },
+    {
+      "name": "bench_task_success",
+      "phase": "bench",
+      "numerator": "declared evidence-review tasks completed without hidden context or accessibility blocker",
+      "denominator": "declared evidence-review tasks attempted",
+      "conditions": "Stratify keyboard, zoom, viewport, theme, long-label, CJK, conflict, and UNREAD cases."
+    }
+  ],
+  "semantic_validation_law": {
+    "schema_limit": "JSON Schema validation is necessary but cannot prove sibling equality, exact arithmetic ratios, computed hashes, duplicate raw JSON keys after a permissive parse, or cross-split byte identity.",
+    "required_probe": "Before COMPLETE, reject duplicate raw members, recompute every ratio and hash, require numerator <= denominator, verify exact event/revision binding, and prove no source or bundle binding crosses the sealed split.",
+    "self_attestation_rule": "A boolean such as identical, equal, corresponds, or source_hash_match is evidence only after the same probe recomputes its predicate and a negative control is rejected."
+  },
+  "privacy_and_retention": {
+    "public_repository": "Schemas, redacted case census, hashes of private manifests, and contract prose only.",
+    "private_manifest": "Local gitignored metadata; no source copies, crops, or OCR text.",
+    "full_page_rasters": "Ephemeral; one page at a time; delete on success or failure at event close.",
+    "detector_tiles": "Ephemeral; never persisted.",
+    "region_crops": "Ephemeral by default; persist zero raw crops through VW-E4.",
+    "captured_native_or_ocr_text": "Ephemeral by default; sidecars retain hash, method, engine/version, geometry, and counts only.",
+    "metadata_sidecars": "Create-once, local-only, outside source, bundle, repository, anchor, held, pending, and vault.",
+    "cloud": "Denied by default. A later per-run human consent must name exact case IDs, bytes/fields leaving the machine, endpoint, resolved model/version, retention, cost, and expiry.",
+    "logs": "No absolute private paths, raw crop bytes, inline base64, source text, OCR text, credentials, or provider keys.",
+    "purge": "Every event exit proves ephemeral scratch deletion. Existing source PDFs and bundles are never purge targets."
+  },
+  "resource_contract": {
+    "concurrency": 1,
+    "page_working_set": "one rendered page at a time",
+    "scratch_hard_cap_bytes": 4294967296,
+    "scratch_free_space_preflight_bytes": 8589934592,
+    "network_default": "deny",
+    "cpu_only_events": [
+      "VW-E2",
+      "VW-E4",
+      "VW-E5-validator",
+      "VW-E6-read-only"
+    ],
+    "gpu_events_requiring_separate_signature": [
+      "VW-E3",
+      "VW-E7-model-samples"
+    ],
+    "gpu_mutex": "Local\\file-portal-card",
+    "gpu_process_limit": 1,
+    "gpu_vram_hard_cap_bytes": 9663676416,
+    "gpu_rule": "Fail closed if the named mutex cannot be acquired or measured. Record wait time, hold time, engine PID, pre/peak/post VRAM, and unload result.",
+    "dependency_rule": "Every worker and browser runner uses an isolated pinned environment. Never install into marker-env. Record interpreter, package-lock, native-library, model-weight, prompt, and configuration hashes.",
+    "render_rule": "Do not request xrefs=True. Render once at the event-packet DPI; page/readability failure is UNREAD.",
+    "model_completion_rule": "Record finish reason. A length/token ceiling or missing finish reason is truncated/UNREAD."
+  },
+  "reason_codes": [
+    "VW-SOURCE-HASH",
+    "VW-BODY-HASH",
+    "VW-ASSET-HASH",
+    "VW-CONFIG-HASH",
+    "VW-PAGE-MAP-UNREAD",
+    "VW-RENDER-UNREAD",
+    "VW-TILE-GAP",
+    "VW-CROP-BOUNDS",
+    "VW-OCR-MISALIGNED",
+    "VW-OCR-PROVENANCE",
+    "VW-WITNESS-CORRELATED",
+    "VW-VISUAL-NO-UNIQUE-MATCH",
+    "VW-EVIDENCE-CONFLICT",
+    "VW-PAIR-AMBIGUOUS",
+    "VW-PROTECTED-SPAN",
+    "VW-ASSET-ORDER",
+    "VW-STRUCTURE",
+    "VW-CONTENT-EQUIVALENCE",
+    "VW-RAW-FALLBACK",
+    "VW-STALE-INTENT",
+    "VW-OVERLAP-INTENT",
+    "VW-A11Y",
+    "VW-VISUAL-REGRESSION",
+    "VW-GPU-BUSY",
+    "VW-GPU-MUTEX-UNAVAILABLE",
+    "VW-DEPENDENCY-DRIFT",
+    "VW-CLOUD-CONSENT",
+    "VW-NETWORK-FORBIDDEN",
+    "VW-HELDOUT-CONTAMINATION",
+    "VW-METRIC-PHASE",
+    "VW-NEGATIVE-CONTROL",
+    "VW-INDEPENDENCE",
+    "VW-UNAUTHORIZED-THRESHOLD"
+  ],
+  "no_mutation_boundary": {
+    "allowed": [
+      "Read source, manifest, raw Markdown, analyst variants, and asset bytes.",
+      "Create contract/schema files in this event.",
+      "Create private hash-only corpus metadata.",
+      "In later signed events, write report-only scratch outputs and create-once metadata sidecars outside operational roots."
+    ],
+    "forbidden_through_vw_e8": [
+      "Modify source PDF, bundle Markdown, assets, manifest, repair ledger, analyst journal, event stream, lever files, audit mode, anchor, held, pending, staging, vault, or session clocks.",
+      "Call a mutating Repair Bench POST endpoint.",
+      "Apply a repair, change a fidelity verdict, hold, ship, publish, reconvert, reanalyze, or promote a threshold into a gate.",
+      "Upload document, crop, OCR, or Markdown bytes without a separate exact per-run human consent."
+    ]
+  },
+  "event_exit_rule": "Every VW-E1 through VW-E8 receipt conforms to visual-witness-event-receipt-v1.schema.json, includes a same-check negative control and independent verifier, and ends with next_event_authority=UNSIGNED.",
+  "next_event_authority": "UNSIGNED"
+}

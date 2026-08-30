@@ -1,0 +1,260 @@
+{
+  "schema": "file-portal.visual-witness.event-receipt",
+  "schema_version": 1,
+  "event_id": "VW-E1",
+  "event_revision": "VW-E1-R1",
+  "contract_sha256": "3c2144d33079f7868e0bd3a8c1e4328a4797a1ac9fdb7b2d34ab32412a5fcfd1",
+  "repo_head_before": "a29d703d981ebcef3994711be9d4ad3205446edf",
+  "repo_head_after": "a29d703d981ebcef3994711be9d4ad3205446edf",
+  "authority": {
+    "actor": "Rab",
+    "verbatim_decision": "I sign on E1",
+    "decision_source": "Codex task 01a0496a-6b64-72b2-88b2-3c5b3d151855",
+    "scope": "VW-E1 under the uniquely displayed VW-R1 event plan only; VW-E2 through VW-E8 remain unsigned.",
+    "recorded_at_utc": "2026-08-28T20:25:56.572Z"
+  },
+  "case_census": {
+    "declared": 6,
+    "attempted": 6,
+    "completed": 6,
+    "unread": 0,
+    "case_ids": [
+      "VW-T01",
+      "VW-T02",
+      "VW-T03",
+      "VW-H01",
+      "VW-H02",
+      "VW-H03"
+    ]
+  },
+  "tests": [
+    {
+      "family": "session-ground",
+      "command_or_probe": "Compare newest CLAUDE_README ledger close, canonical TIME-STATE, and merge-base ancestry at the planning anchor.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": false,
+      "evidence": "HARD and SOFT both name S111 close 4e613696; close and ledger-row commits are ancestors of a29d703d981ebcef3994711be9d4ad3205446edf."
+    },
+    {
+      "family": "source-identity",
+      "command_or_probe": "Re-hash each declared source PDF and compare with the private manifest.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": false,
+      "evidence": "6 matching source SHA-256 values / 6 declared cases."
+    },
+    {
+      "family": "asset-identity",
+      "command_or_probe": "Recompute direct assets-directory inventories using ordinal leaf-name order and the frozen NUL-delimited record algorithm.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": false,
+      "evidence": "620 matching asset file records / 620 declared assets; all six inventory digests match after rejecting locale-sensitive ordering."
+    },
+    {
+      "family": "corpus-schema",
+      "command_or_probe": "PowerShell Test-Json against visual-witness-corpus-v1.schema.json.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": false,
+      "evidence": "The private manifest validates as exactly three calibration and three held-out bound IDs."
+    },
+    {
+      "family": "source-hash-negative",
+      "command_or_probe": "Set source_hash_match=false in memory and re-run the same corpus schema check.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": true,
+      "evidence": "The altered manifest was rejected."
+    },
+    {
+      "family": "split-negative",
+      "command_or_probe": "Move VW-T01 to held-out in memory and re-run the same corpus schema check.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": true,
+      "evidence": "The 2 calibration / 4 held-out manifest was rejected."
+    },
+    {
+      "family": "metric-truth-negative",
+      "command_or_probe": "Validate measured numerator=0, denominator=0, value=1.0 against the frozen metric definition.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": true,
+      "evidence": "Measured 0/0 was rejected; UNREAD 0/0 with value=null was accepted."
+    },
+    {
+      "family": "modality-vocabulary-negative",
+      "command_or_probe": "Inject text-only, visual-only, and pair-invalid states into the other modality schemas.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": true,
+      "evidence": "visual=substituted-candidate, text=wrong-or-blank-asset, and pair=matched were all rejected."
+    },
+    {
+      "family": "false-complete-negative",
+      "command_or_probe": "Mutate a schema-valid E1 receipt with failed blocking control, mismatched revision, unauthorized network, false cleanup, or a second protected-tree digest representation.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": true,
+      "evidence": "A synthetic COMPLETE baseline validated; failed blocking control, mismatched revision, network without consent, false cleanup, raw residue, GPU without receipt, nonblocking negative, and a second digest field were each rejected."
+    },
+    {
+      "family": "no-mutation",
+      "command_or_probe": "Recompute canonical protected-case identity digest before and after the E1 proof work.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": false,
+      "evidence": "Common canonical digest e11cb3b9b47a68742728ccef823b4cb83e27002cb5260b24da6a1fa90aac52b3; operational source, Markdown, analyst, and asset bytes were not changed."
+    },
+    {
+      "family": "wiki-integrity",
+      "command_or_probe": ".claude/skills/wiki/wiki.sh check under Git Bash login.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": false,
+      "evidence": "Wiki gate reported CLEAN."
+    },
+    {
+      "family": "repository-diff",
+      "command_or_probe": "git diff --check plus scoped public-leak and implementation-file probes.",
+      "status": "pass",
+      "blocking": true,
+      "negative_control": false,
+      "evidence": "No whitespace error; new VW-E1 public artifacts expose no private title or absolute path; both VW-E2 implementation files are absent."
+    },
+    {
+      "family": "python-jsonschema",
+      "command_or_probe": "Import jsonschema using both available isolated Python runtimes.",
+      "status": "UNREAD",
+      "blocking": false,
+      "negative_control": false,
+      "evidence": "Dependency unavailable; PowerShell Test-Json supplied the actual schema check."
+    },
+    {
+      "family": "live-owner-attribution",
+      "command_or_probe": "Attribute running processes and GPU consumers to roles without mutating them.",
+      "status": "UNREAD",
+      "blocking": false,
+      "negative_control": false,
+      "evidence": "Win32_Process access and some nvidia-smi process details were denied; aggregate observation is not owner identity."
+    }
+  ],
+  "metrics": [
+    {
+      "name": "source_hash_match",
+      "phase": "capture",
+      "numerator_name": "source files whose actual SHA-256 equals the manifest SHA-256",
+      "numerator": 6,
+      "denominator_name": "declared corpus source files",
+      "denominator": 6,
+      "value": 1.0,
+      "conditions": {
+        "location": "local private library",
+        "event": "VW-E1",
+        "converter_run": false
+      }
+    },
+    {
+      "name": "asset_inventory_hash_match",
+      "phase": "visual",
+      "numerator_name": "direct asset files represented by matching ordinal inventory digests",
+      "numerator": 620,
+      "denominator_name": "declared direct asset files across six cases",
+      "denominator": 620,
+      "value": 1.0,
+      "conditions": {
+        "sort": "StringComparer.Ordinal over leaf filenames",
+        "record": "UTF-8 filename NUL decimal-byte-length NUL lowercase-SHA256 LF",
+        "recursive": false
+      }
+    },
+    {
+      "name": "blocking_negative_control_rejection",
+      "phase": "resource",
+      "numerator_name": "blocking planted-failure families rejected by the same check",
+      "numerator": 5,
+      "denominator_name": "blocking planted-failure families attempted",
+      "denominator": 5,
+      "value": 1.0,
+      "conditions": {
+        "families": ["source hash", "split", "metric truth", "modality vocabulary", "false COMPLETE receipt"],
+        "receipt_negative_pending": false
+      }
+    }
+  ],
+  "outputs": [
+    {"path": "docs/48-visual-witness-evidence-contract.md", "sha256": "0bd55bbf24ff01004a8f7a1a677b5c20f559c395bb94494455e2e3c487348d17", "bytes": 16985, "claim_status": "Verified-self"},
+    {"path": "docs/contracts/visual-witness-region-v1.schema.json", "sha256": "531b9ac22b302792ee66e1cecd1f94dd8385f5ca7904f26c0f31ee96c1d78d73", "bytes": 19530, "claim_status": "Verified-independent"},
+    {"path": "docs/contracts/visual-witness-corpus-v1.schema.json", "sha256": "0639e232311d7e0ee155c83806781010b6b437f6a80fec659c7493409df1b940", "bytes": 6441, "claim_status": "Verified-independent"},
+    {"path": "docs/contracts/visual-witness-event-receipt-v1.schema.json", "sha256": "ae057c25216cbbe64c551752faa7ae603137343746dbacb46f990d69736e7b4f", "bytes": 12483, "claim_status": "Verified-independent"},
+    {"path": "docs/contracts/visual-witness-e1-contract-v1.json", "sha256": "3c2144d33079f7868e0bd3a8c1e4328a4797a1ac9fdb7b2d34ab32412a5fcfd1", "bytes": 14760, "claim_status": "Verified-independent"},
+    {"path": "docs/contracts/visual-witness-e2-packet-r1.json", "sha256": "0bcabaf843ea54416f4111af8e1e3dbb88ef33d053e0829fcecc9162593832f0", "bytes": 6712, "claim_status": "Verified-independent"},
+    {"path": "coordination/SIGNATURES.md", "sha256": "33795672c624011a52bea87ad69edd298f753fb25d2f37373d8e53a00269e4df", "bytes": 7227, "claim_status": "Observed"},
+    {"path": "wiki/conversion-quality.md", "sha256": "1c3c2de84cfb0164fae3b8f2a910407cc370459222294a76c9ab5213d18a0332", "bytes": 13969, "claim_status": "Verified-self"},
+    {"path": "codex/private/visual-witness/VW-E1-corpus-v1.local.json", "sha256": "e7299b50dd0d8ae5498ca13eb18c9a37c6bce5c38d24dd73351609e0c91a5c46", "bytes": 11294, "claim_status": "Verified-independent"}
+  ],
+  "resources": {
+    "cpu_seconds": null,
+    "wall_seconds": null,
+    "peak_rss_bytes": null,
+    "scratch_peak_bytes": null,
+    "gpu_used": false,
+    "gpu_receipt": null
+  },
+  "network": {
+    "used": false,
+    "consent_receipt": null
+  },
+  "privacy": {
+    "private_inputs": true,
+    "persisted_raw_crops": 0,
+    "persisted_raw_text": 0,
+    "ephemeral_cleanup_verified": true
+  },
+  "mutation_receipt": {
+    "protected_tree_digest_before_and_after": "e11cb3b9b47a68742728ccef823b4cb83e27002cb5260b24da6a1fa90aac52b3",
+    "comparison_probe": "SHA-256 over compact canonical JSON ordered by ordinal case ID and analyst label, binding source, raw Markdown, analyst Markdown, and ordinal asset-inventory SHA-256 values; recomputed at close.",
+    "identical": true
+  },
+  "residue": {
+    "files": [
+      "Expected E1: coordination/SIGNATURES.md",
+      "Expected E1: docs/48-visual-witness-evidence-contract.md",
+      "Expected E1: docs/contracts/visual-witness-*.json",
+      "Expected E1: wiki/conversion-quality.md",
+      "Expected private ignored E1: codex/private/visual-witness/VW-E1-corpus-v1.local.json",
+      "Pre-existing outside E1: .claude/skills/echo/lexicon.md",
+      "Pre-existing outside E1: .codex/"
+    ],
+    "processes": [
+      "Observed: VW-E1 started no converter, model, browser, GPU, mutex, network, or process-control workload.",
+      "UNREAD: system-wide process role attribution was denied."
+    ],
+    "ports": [],
+    "gpu_owners": [
+      "Observed aggregate: 28 percent utilization and 1769 MiB of 10240 MiB at one bounded probe.",
+      "UNREAD: GPU owner identity due insufficient process-query permission."
+    ]
+  },
+  "independent_verification": {
+    "verifier": "Helmholtz plus independent dissent lane",
+    "status": "Verified-independent",
+    "probe": "Cold repaired-byte matrix verified 3/3 corpus binding, 2/4 and source-hash negatives, metric and modality negatives, 6/6 ordinal inventories covering 620/620 assets, valid COMPLETE baseline, nine false-COMPLETE rejections, public privacy boundary, unsigned E2 state, and absent E2 implementation files.",
+    "dissent": "Initial dissent found weak conditional schemas and locale-sensitive asset hashes. Those defects were repaired and the same failure families were independently rejected; no unresolved E1 defect remains."
+  },
+  "conflicts": [],
+  "unreads": [
+    "Python jsonschema dependency probe unavailable; PowerShell Test-Json used instead.",
+    "System-wide process role attribution unavailable.",
+    "GPU owner identity unavailable.",
+    "One held-out scan fidelity verdict remains UNREAD by contract.",
+    "One held-out clean case has no analyst Markdown and remains raw-only.",
+    "One challenge-only specimen lacks raw pre-analyst Markdown and is excluded from scored formatting survival.",
+    "Port ownership census was not run because E1 started no listener or runtime service."
+  ],
+  "blast_radius": "Local public contract/schema/wiki/transcript files plus one gitignored hash-only private manifest; no converter, analyst, Repair Bench, bundle, operational manifest, asset, gate, ship, publication, vault, process, network, GPU, or session-clock effect.",
+  "status": "COMPLETE",
+  "next_event_authority": "UNSIGNED"
+}

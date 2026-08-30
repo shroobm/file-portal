@@ -1,0 +1,872 @@
+{
+  "packet_schema_version": "visual-witness-event-packet-v1",
+  "packet_id": "VW-E2-R2",
+  "event_id": "VW-E2",
+  "title": "Detect and capture structural source-region candidates",
+  "status": "AUTHORIZED-DIRECT-INSTRUCTION",
+  "created_at_utc": "2026-08-30T05:15:59.7516134Z",
+  "authority": {
+    "actor": "Rab",
+    "kind": "direct-user-instruction",
+    "verbatim_decision": "Verify that R1 became R2 based on these added aspects, and thats enough, then work on R2, once you have successfully finished development and testing for R2, then escalate the same ticket artifact updated, and ask for signature on E3.",
+    "interpretation": "Authorizes construction, development, calibration-only testing, and verification of the corrective VW-E2-R2 revision. The revision is limited to the verified R1 gaps: operational report vocabulary, structural candidate discriminators including tables, proposal generation, typed fusion and precedence, tile-boundary recovery, end-to-end negative controls, and honest completion rules. It does not authorize VW-E3 execution.",
+    "exact_packet_bytes_signed": false,
+    "packet_hash_computed_after_instruction": true,
+    "session_disposition": "Continue the existing sessions/S112-desktop-2026-08-28.md record after the disclosed 2026-08-30 Muster collision. This chooses the operational record without erasing the historical date collision, creating a duplicate S112, or advancing session clocks.",
+    "supplemental_instruction": {
+      "verbatim": "If you need to you can run File Portal, and test a digital born damoradan",
+      "interpretation": "Permits—but does not require—a live File Portal run if the out-of-band detector cannot reproduce the needed path, and requests a real digital-born test. R2 will first use the authorized calibration case VW-T01, which was observed to contain native text and vector drawing primitives. The live portal remains forbidden unless necessity is demonstrated and recorded before startup."
+    },
+    "calibration_handoff_instruction": {
+      "verbatim": "When you're running the test, escalate to me, I'll have File Portal Run it, so you can wait until it's done when I confirm it.",
+      "interpretation": "Codex may complete implementation and hermetic synthetic self-tests but must not launch the real File Portal or 753-page calibration run. Before that run, Codex updates the same E2 ticket with an exact hash-bound test packet and stops for Rab. Rab runs File Portal and confirms completion/evidence; only then may Codex independently verify the result, decide E2 completion, and prepare—but not execute—the unsigned E3 proposal."
+    }
+  },
+  "revision_of": {
+    "packet_id": "VW-E2-R1",
+    "bytes": 6712,
+    "sha256": "0bcabaf843ea54416f4111af8e1e3dbb88ef33d053e0829fcecc9162593832f0",
+    "disposition": "STOPPED",
+    "immutable": true,
+    "supersession_scope": "Prospective VW-E2 execution only",
+    "revision_reasons": [
+      "R1 named six classes without freezing their structural discriminators or proposal generators.",
+      "R1 did not define a conservative table-candidate rule or table-specific positive and negative controls.",
+      "R1 left cross-class fusion, precedence, tile-boundary recovery, and report vocabulary ambiguous.",
+      "R1 could not truthfully distinguish observed PDF primitives, inferred structural candidates, and semantic truth.",
+      "R1 could not truthfully complete without a packet-defined operational report and end-to-end same-check controls."
+    ]
+  },
+  "construction_history": {
+    "superseded_before_implementation": {
+      "bytes": 23862,
+      "sha256": "1e72612f46a534813635ac26e2e4ac3139d566bf3319edab24167c765726d55f",
+      "disposition": "SUPERSEDED-BEFORE-IMPLEMENTATION",
+      "quarantined_partial_code": {"bytes": 15193, "sha256": "2e1307951d5662f0664568caaacddf262ffa215960276569358a9a9e0110592d", "executed": false, "selftest_present": false},
+      "reason": "Independent packet audit found unresolved byte recipes and procedural choices. A 15,193-byte untracked partial code draft was then quarantined before it had an entry point or self-test; it was never executed and is not evidence. No calibration run or completion claim was authorized from those packet bytes."
+    },
+    "pre_run_verifier_correction": {
+      "bytes": 57070,
+      "sha256": "b2c9df50c350d247334198bead75d83b0a364af7fe55e51681c24ba0899af0b0",
+      "disposition": "SUPERSEDED-BEFORE-EXECUTION",
+      "reason": "A differently shaped verifier-preparation lane found four blocking under-specifications before any self-test or calibration run: contextual source-hash identity input, the exact one-pixel-gap fixture, protected-tree logical-ID grammar, and page-local coverage semantics. This same-R2 packet was mechanically clarified without changing thresholds, event scope, schema bytes, or authority boundaries."
+    },
+    "page_map_and_concurrent_ground_correction": {
+      "bytes": 60751,
+      "sha256": "1486a7c84813b0c2e2264b87ee71b39d4bcd36c117e91f36eb7d8b1b192eff0d",
+      "disposition": "SUPERSEDED-BEFORE-EXECUTION",
+      "transient_page_map_candidate": {"bytes": 65613, "sha256": "bf007d728c29042b443be10d11ae3354537c07756c68bd8746ffe528c52e939c", "disposition": "SUPERSEDED-DURING-PRE-RUN-AUDIT"},
+      "reason": "The code writer found that the schema enumerated page-map states without a licensed classifier, and the repository HEAD concurrently advanced through a disjoint Fable-lane commit. Before producer tests, the packet froze mechanical filename-map coherence and its limits, then re-anchored the descendant ground and explicitly isolated concurrent/pre-existing dirty paths. Read-only packet/classifier audit probes were run and are preserved; no producer self-test, event execution, calibration render/capture run, semantic page-map truth, threshold change, or reset occurred under the superseded bytes."
+    },
+    "bundle_expectation_correction": {
+      "bytes": 70616,
+      "sha256": "a50f8bc9e70c3c8a6aae28399eed09a3f0153590e50d3a1b5dc113cecea4fbe4",
+      "disposition": "SUPERSEDED-BEFORE-EXECUTION",
+      "reason": "The bundle schema required an expected bundle-manifest digest but the private corpus manifest contained no such field. Before tests, the packet bound that expected value to the independently measured protected-tree BEFORE logical entry and froze the already-reproduced E1 ordinal asset-inventory record bytes. Setting expected equal to the later observed open was explicitly rejected."
+    },
+    "recovery_schema_correction": {
+      "bytes": 73837,
+      "sha256": "60782930b926ad5c3c11463639c39780d925bd6d02d7a99d44a2b8dbbd151cce",
+      "capture_schema_bytes": 78265,
+      "capture_schema_sha256": "dfbabbb6fef4b3ec164273ffca0af72dd9de1ddfcbcca9d32de3b374a80e7bfc",
+      "disposition": "SUPERSEDED-BEFORE-PRODUCER-TEST",
+      "reason": "The code writer found that the packet required retention of boundary-recovery crop byte counts and hashes but the bound report schema exposed no such fields, and its not-required branch did not freeze the required booleans. Before producer tests, the schema was corrected to carry the promised recovery evidence and exact whole-page-recrop/not-required/UNREAD shapes."
+    },
+    "static_seam_freeze": {
+      "packet_bytes_before_freeze": 75655,
+      "packet_sha256_before_freeze": "7a1658fc3e80230f0e7e824910b59dbebe208afa4e70519721f4501e6609353f",
+      "capture_schema_bytes": 79747,
+      "capture_schema_sha256": "569335ddfec3fa44588a277a17982838b6921df411e63116e1df5784233c63b7",
+      "disposition": "SUPERSEDED-BEFORE-PRODUCER-TEST",
+      "reason": "The consolidated code/schema crosswalk found the remaining semantic-evidence assembly, independent-verifier binding, anti-fabrication vocabulary, privacy/residue probe, deterministic ordering, and minimal-attempt-exit seams before execution. This same-R2 freeze resolves those seams without changing the six structural classes, thresholds, calibration corpus, held-out boundary, report-only posture, or Rab-run calibration handoff. No producer self-test, real PDF capture, File Portal run, or calibration run occurred under the superseded packet bytes."
+    },
+    "post_hermetic_verifier_transport_correction": {
+      "bytes": 108627,
+      "sha256": "4dd3f9a88d574287b0d2ddc05e97afc3faf6f8694ffd23de84852aedd79c341f",
+      "disposition": "SUPERSEDED-BEFORE-CALIBRATION",
+      "reason": "A static Circle after the 41/41 hermetic suite found that the prior event-scratch verifier transport contradicted the requirement to assemble the pre-verifier subject only after actual scratch cleanup. Before any private input or calibration run, this same-R2 packet mechanically replaces only that transport with authenticated anonymous parent-child stdin/stdout bytes. The frozen configuration, schemas, thresholds, corpus boundary, authority, and report semantics are unchanged; only hermetic synthetic tests and read-only audits occurred under the superseded bytes."
+    }
+  },
+  "parent_contract": {
+    "id": "VW-E1-R1",
+    "sha256": "3c2144d33079f7868e0bd3a8c1e4328a4797a1ac9fdb7b2d34ab32412a5fcfd1"
+  },
+  "bound_schemas": {
+    "corpus": {
+      "path": "docs/contracts/visual-witness-corpus-v1.schema.json",
+      "sha256": "0639e232311d7e0ee155c83806781010b6b437f6a80fec659c7493409df1b940"
+    },
+    "region_sidecar": {
+      "path": "docs/contracts/visual-witness-region-v1.schema.json",
+      "sha256": "531b9ac22b302792ee66e1cecd1f94dd8385f5ca7904f26c0f31ee96c1d78d73",
+      "use_in_event": "The E2 operational report records source candidates only. Full region sidecars remain later-event artifacts because output matches and pair results do not exist in E2."
+    },
+    "event_receipt": {
+      "path": "docs/contracts/visual-witness-event-receipt-v1.schema.json",
+      "sha256": "ae057c25216cbbe64c551752faa7ae603137343746dbacb46f990d69736e7b4f"
+    },
+    "capture_report": {
+      "path": "docs/contracts/visual-witness-e2-capture-v1.schema.json",
+      "sha256": "569335ddfec3fa44588a277a17982838b6921df411e63116e1df5784233c63b7",
+      "use_in_event": "Every retained operational report must validate against these exact schema bytes and the additional semantic rules in this packet."
+    }
+  },
+  "repository_anchor": {
+    "repository": "shroobm/file-portal",
+    "branch": "feat/library-pipeline",
+    "git_sha": "9ff3e5d81df781a4dd686263a93af9de091fbb86",
+    "anchor_transition": {
+      "previous_git_sha": "a29d703d981ebcef3994711be9d4ad3205446edf",
+      "relation": "previous anchor is an ancestor of current anchor",
+      "changed_paths": ["coordination/relay.md", "sessions/S112-fable-lane-okular-2026-08-30.md"],
+      "overlap_with_r2_paths": false,
+      "disposition": "Accepted as independently authored concurrent-lane ground before R2 execution; no reset, rewrite, or authorship claim."
+    },
+    "concurrent_lane": {
+      "relay_message": "MSG-FAB-0044",
+      "declared_scope": "Fable owns read-only Okular research and its own relay/sidecar/lane record/docs-49 output; it declared every VW-E2-R2 path untouched and no push or clock move.",
+      "mutable_path_rules": ["coordination/relay.md", "coordination/ack-fable.json", "sessions/S112-fable-lane-okular-2026-08-30.md", "docs/49-*.md"],
+      "head_change_rule": "If HEAD changes after this packet, require this git_sha to remain an ancestor and require every changed path from this git_sha to the observed HEAD to match a concurrent-lane mutable path rule. Any R2 contract, implementation, receipt, documentation, signature/session record, artifact, protected input, or other path change is GROUND-DRIFT. Record actual repo_head_before and repo_head_after in the receipt.",
+      "dirty_change_rule": "Concurrent-lane mutable paths are excluded from R2 authorship and mutation claims. They may change without blocking only when no R2 process opened them for writing and their changed path set remains within the declared concurrent scope."
+    },
+    "pre_existing_dirty_ground": [
+      {"path": ".claude/skills/echo/lexicon.md", "bytes": 9706, "sha256": "ca6f216b0d651069585e41f0a4ddc0fe714e5abd726751e09c1a5beaf93efc5c", "disposition": "R2 grounding vocabulary append; freeze during execution"},
+      {"path": ".codex/hooks.json", "bytes": 913, "sha256": "3a8edceebbd9268e2fe31267353993412a412147c7bfbe571bedf277712d2e7a", "disposition": "pre-existing untracked operator/Codex residue; outside R2; freeze during execution"},
+      {"path": ".codex/hooks/check_coordination.py", "bytes": 2164, "sha256": "383b830ff68f9e5f80266cdaad35515e05efc583488d275ea87ee4b3cd781d5b", "disposition": "pre-existing untracked operator/Codex residue; outside R2; freeze during execution"},
+      {"path": ".codex/hooks/warn_heredoc.py", "bytes": 2899, "sha256": "f2d2ee27f5da77af54988a08342791b7a8c726a321c87b566fb298b302e97bc8", "disposition": "pre-existing untracked operator/Codex residue; outside R2; freeze during execution"},
+      {"path": "docs/contracts/visual-witness-corpus-v1.schema.json", "bytes": 6441, "sha256": "0639e232311d7e0ee155c83806781010b6b437f6a80fec659c7493409df1b940", "disposition": "pre-existing untracked bound E1 ground; read-only in R2"},
+      {"path": "docs/contracts/visual-witness-e1-contract-v1.json", "bytes": 14760, "sha256": "3c2144d33079f7868e0bd3a8c1e4328a4797a1ac9fdb7b2d34ab32412a5fcfd1", "disposition": "pre-existing untracked parent contract; read-only in R2"},
+      {"path": "docs/contracts/visual-witness-e1-receipt-r1.json", "bytes": 12564, "sha256": "3e19b937aace3294a8011eaf345bcde9340ea26f671200612d10e2aef88334d6", "disposition": "pre-existing untracked E1 receipt; outside R2 writes"},
+      {"path": "docs/contracts/visual-witness-e2-packet-r1.json", "bytes": 6712, "sha256": "0bcabaf843ea54416f4111af8e1e3dbb88ef33d053e0829fcecc9162593832f0", "disposition": "immutable stopped R1"},
+      {"path": "docs/contracts/visual-witness-event-receipt-v1.schema.json", "bytes": 12483, "sha256": "ae057c25216cbbe64c551752faa7ae603137343746dbacb46f990d69736e7b4f", "disposition": "pre-existing untracked bound event-receipt schema; read-only in R2"},
+      {"path": "docs/contracts/visual-witness-region-v1.schema.json", "bytes": 19530, "sha256": "531b9ac22b302792ee66e1cecd1f94dd8385f5ca7904f26c0f31ee96c1d78d73", "disposition": "pre-existing untracked bound later-event schema; read-only in R2"}
+    ],
+    "rule": "Before execution, re-measure permitted HEAD ancestry/path disjointness, packet and contract hashes, every fixed pre-existing dirty-ground hash, manifest hash, scratch capacity, protected-tree digest, residue, and resource ground. Dirty paths must be either the declared R2 write scope, an exact fixed pre-existing dirty-ground path, or a concurrent-lane mutable path. Any other drift is GROUND-DRIFT and stops the event."
+  },
+  "private_corpus_manifest_sha256": "e7299b50dd0d8ae5498ca13eb18c9a37c6bce5c38d24dd73351609e0c91a5c46",
+  "objective": "Implement and exercise an out-of-band, CPU-only, report-only instrument that renders calibration pages and captures deterministic structural source-region candidates without claiming semantic truth.",
+  "token_ceiling_aggregate": 45000,
+  "semantic_boundary": "Observed PDF primitives may support Inferred structural candidate labels. A candidate label never asserts that the region is semantically a figure, scan, text passage, table, omission, fidelity result, or output match. Semantic truth remains UNREAD throughout VW-E2.",
+  "entry_requirements": [
+    "Rab's direct corrective instruction is recorded verbatim; it is not represented as an exact-byte packet signature.",
+    "The VW-E1 contract, four bound schemas, R1 packet, R2 packet, repository anchor, and private-manifest hashes match.",
+    "The builder rejects every case ID outside VW-T01, VW-T02, and VW-T03 before resolving, normalizing, statting, globbing, listing, or opening a manifest-supplied path.",
+    "At least 8 GiB scratch free space is measured.",
+    "PyMuPDF binding version is exactly 1.28.0.",
+    "No model, network, GPU, live converter, or browser process is started by this event."
+  ],
+  "write_scope": {
+    "single_writer": "One designated code writer; documentation and receipt integration remain with the root integrator. No concurrent writers touch the same path.",
+    "new_repository_files": [
+      "docs/contracts/visual-witness-e2-packet-r2.json",
+      "docs/contracts/visual-witness-e2-capture-v1.schema.json",
+      "windows-converter/visual_witness_capture.py",
+      "windows-converter/visual_witness_capture_selftest.py",
+      "windows-converter/visual_witness_verify.py",
+      "docs/contracts/visual-witness-e2-receipt-r2.json"
+    ],
+    "allowed_repository_updates": [
+      "coordination/SIGNATURES.md",
+      "sessions/S112-desktop-2026-08-28.md",
+      "docs/48-visual-witness-evidence-contract.md",
+      "wiki/conversion-quality.md"
+    ],
+    "allowed_external_updates": [
+      "The thread-scoped visual-witness event artifact and state ledger",
+      "One per-run evidence directory beneath an explicitly supplied evidence root outside the repository: success contains the private operational report plus COMPLETE receipt; a pre-report failure contains one minimal attempt-exit; a post-report receipt/final-reopen failure preserves the immutable report plus one minimal attempt-exit and does not unlock E3"
+    ],
+    "ephemeral_outputs": [
+      "An event-scoped temporary directory beneath an explicitly supplied scratch root",
+      "Whole-page RGB renders, tiles, recovery crops, and extracted text bytes that are deleted before event close"
+    ],
+    "post_completion_phase_gate": "docs/contracts/visual-witness-e3-packet-r1.json may be created only after a schema-valid VW-E2-R2 COMPLETE receipt has independently verified evidence. It is not part of R2 implementation scope."
+  },
+  "read_scope": {
+    "manifest": "The hash-bound private corpus manifest may be read. Private paths and titles are never published.",
+    "calibration_case_ids": ["VW-T01", "VW-T02", "VW-T03"],
+    "calibration_pages_declared": 753,
+    "held_out_case_ids_forbidden": ["VW-H01", "VW-H02", "VW-H03"],
+    "held_out_rule": "Held-out case IDs may be compared lexically against the sealed allow/deny lists, but no held-out manifest object, source, bundle, Markdown, asset, title, basename, or manifest-supplied path may be read, resolved, normalized, statted, globbed, listed, or opened. Their first scored use remains VW-E7.",
+    "page_numbering": "source page_1based is an integer beginning at 1; any asset filename page ID is a separate 0-based integer and must never be substituted for source page_1based"
+  },
+  "frozen_configuration": {
+    "engine": {
+      "package": "PyMuPDF",
+      "python_version": "3.12.13",
+      "binding_version": "1.28.0",
+      "mupdf_native_version": "1.29.0",
+      "record_runtime_binary_hashes": true,
+      "dependency_mismatch_reason": "VW-DEPENDENCY-DRIFT"
+    },
+    "page_render": {
+      "dpi": 192,
+      "pixels_per_pdf_point_numerator": 8,
+      "pixels_per_pdf_point_denominator": 3,
+      "box": "CropBox",
+      "colorspace": "RGB",
+      "alpha": false,
+      "annotations": true,
+      "page_concurrency": 1,
+      "max_render_pixels": 60000000,
+      "max_render_axis_px": 1001023,
+      "pixmap_resolution_metadata": "When rendered with Matrix(8/3,8/3), PyMuPDF 1.28.0 may report pixmap.xres=yres=96. These values are an ephemeral diagnostic only and are not retained because effective sampling is fixed by matrix scale and the report schema intentionally omits them.",
+      "oversize_disposition": "VW-RENDER-UNREAD"
+    },
+    "text_extraction": {
+      "method": "page.get_text('dict',flags=199,sort=false)",
+      "flags": 199,
+      "sort": false,
+      "raw_text_persistence": "ephemeral",
+      "block_bytes": "For each type-0 block in API order, for each line in its API order concatenate span['text'] values in API order with no separator; join line strings with one LF character; UTF-8 encode without normalization and without a final LF.",
+      "text_provenance": "Each emitted text primitive retains engine_list_index_0based (the index in the root blocks array) and engine_number_observed (the block's integer number); drawing_list_index_0based, drawing_seqno_observed, item_list_index_0based, and emitted_edge_index_0based are null. Provenance is excluded from identity.",
+      "non_text_blocks": "Discard every non-type-0 text-dict block immediately after recording only its integer type census. In particular, flags=199 type-1 image blocks contain raw image bytes that must never enter identity, strings, logs, or the retained report; raster observations come only from get_image_info.",
+      "non_whitespace_predicate": "At least one Python 3.12 str.isspace()==false code point.",
+      "empty_digest": "SHA-256 of zero UTF-8 bytes is e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855.",
+      "candidate_overlap_capture": "Method ID native-overlap-block-concat-v1: select text-block primitives having positive-area intersection with the candidate bbox_px_half_open; sort by primitive_id. For each selected block append primitive_id UTF-8 bytes, one NUL byte, an unsigned eight-byte big-endian block-byte length, then exact ephemeral block bytes. Retain only selected primitive IDs, aggregate SHA-256, total block-byte length, Unicode codepoint count, and status. Zero selected blocks is a measured empty extraction with the frozen empty digest.",
+      "claim_boundary": "This is native source-text overlap evidence only. It is not OCR, semantic text truth, output pairing, or omission evidence.",
+      "retained_fields": ["utf8_sha256", "utf8_bytes", "unicode_codepoints", "bbox", "source_text_primitive_ids"]
+    },
+    "drawing_extraction": {
+      "method": "page.get_drawings(extended=false)",
+      "extended": false,
+      "path_type_values": "Accept drawing dictionary type values s, f, and fs only. fill_only is true exactly for f; stroke is present for s and fs. Any other path type is unknown.",
+      "item_shapes": {
+        "l": "exact tuple ('l', Point start, Point end)",
+        "re": "exact tuple ('re', Rect rectangle, int orientation_observed); type-check orientation_observed as an integer, then omit it from identity and retained provenance because canonical emitted edges carry the complete geometry",
+        "qu": "exact tuple ('qu', Quad)",
+        "c": "exact tuple ('c', Point start, Point control1, Point control2, Point end)"
+      },
+      "shape_failure": "Wrong tuple length/type, nonfinite coordinate, or unknown path/item type makes the full page vector, stroke-cluster, and table procedures blocking VW-VECTOR-GEOMETRY-UNREAD.",
+      "unknown_item_disposition": "reason-coded procedural UNREAD"
+    },
+    "coordinates": {
+      "mupdf_unrotated_space": "Raw PyMuPDF primitive coordinates in PDF points, top-left origin",
+      "pdf_user_space": "Do not use page.transformation_matrix because PyMuPDF 1.28.0 changes it after page rotation on a non-zero CropBox. For each unrotated CropBox-local MuPDF point (x,y), compute PDF user x = page.cropbox_position.x + x and PDF user y = page.mediabox.y1 - page.cropbox_position.y - y. Apply to all four corners and retain the axis-aligned min/max rectangle separately.",
+      "pixel_space": "Rendered CropBox-local page pixels after applying page.rotation_matrix; top-left origin; half-open integer rectangles.",
+      "normalized_space": "Fractions of the rendered page width and height",
+      "render_invocation": "page.get_pixmap(matrix=PyMuPDF.Matrix(8/3,8/3), colorspace=PyMuPDF.csRGB, clip=page.rect, alpha=false, annots=true); page.rect is used because it is the zero-origin, rotation-aware visible CropBox rectangle, while page.cropbox may retain a non-zero MediaBox-relative offset.",
+      "render_origin": "Require pixmap.x==0 and pixmap.y==0. Any other origin is VW-COORDINATE-UNREAD; do not silently subtract an implementation-dependent origin.",
+      "mupdf_to_pixel_operation_order": "Clip the unrotated primitive rectangle to the unrotated visible rectangle Rect(0,0,page.cropbox.width,page.cropbox.height); transform all four clipped corners by page.rotation_matrix; multiply each coordinate by Decimal(8)/Decimal(3); floor minima, ceil maxima; clip integer results to [0,pixmap.width] and [0,pixmap.height].",
+      "pixel_to_normalized": "Divide x coordinates by pixmap.width and y coordinates by pixmap.height using Decimal arithmetic, then apply normalized_decimal serialization.",
+      "pixel_to_mupdf_round_trip": "Apply inverse scale 3/8 to pixel-edge coordinates and then page.derotation_matrix; compare reconstructed unrotated CropBox-local MuPDF bounds to pre-rounded bounds with tolerance 0.375 PDF points per edge. Separately verify the explicit PDF-user formula is invariant for equivalent synthetic content at rotations 0,90,180,270.",
+      "point_serialization": "Fixed six-decimal strings",
+      "normalized_serialization": "Fixed nine-decimal strings",
+      "round_trip_tolerance_pdf_points": 0.375,
+      "rotation_values": [0, 90, 180, 270],
+      "tie_and_zero_rule": "All fixed-decimal ties use ROUND_HALF_EVEN and negative zero is normalized according to frozen_configuration.canonicalization.",
+      "zero_area_disposition": "VW-CROP-BOUNDS"
+    },
+    "tiling": {
+      "tile_size_px": 1024,
+      "stride_px": 819,
+      "nominal_overlap_px": 205,
+      "axis_rule": "Use starts 0,819,... while start+1024<length; append max(0,length-1024), then sort and deduplicate",
+      "tile_bbox_rule": "For every canonical x start set x1=min(x0+1024,page_width); for every canonical y start set y1=min(y0+1024,page_height). A base-tile rectangle is exactly [x0,y0,x1,y1] and must be positive-area and inside the rendered page.",
+      "tile_id_format": "p{page_1based:06d}-x{left:06d}-y{top:06d}",
+      "tile_hash_encoding": "RGB8-row-major-no-padding",
+      "coverage_rule": "The exact union of half-open base-tile rectangles must cover every valid rendered page pixel exactly as a set, or the page is VW-TILE-GAP/UNREAD",
+      "per_page_coverage_projection": "The schema coverage_metric is used both per page and in aggregate. For a measured page, tile_union.conditions.readable_pages=1 and unread_pages=0 and numerator/denominator are that page's covered/valid pixels. For a page whose tile union is UNREAD, readable_pages=0 and unread_pages=1 and numerator, denominator, and value are null. The schema's fixed plural numerator_name and denominator_name literals remain unchanged. The aggregate metric sums the page numerators and denominators and sums the page condition counts."
+    },
+    "render_tile_crop_bytes": {
+      "encoding": "RGB8, row-major, exactly width*height*3 bytes, no row padding, no image container header.",
+      "whole_page": "Require len(pixmap.samples)==pixmap.width*pixmap.height*3; hash exact samples bytes with bare lowercase SHA-256.",
+      "base_tile": "Slice rows from whole-page samples using the base tile half-open rectangle, concatenate without padding, verify byte count, and hash exact bytes.",
+      "candidate_tight_crop": "Slice the candidate bbox_px_half_open from whole-page samples even when edge recovery is required; retain bbox, byte count, and exact SHA-256.",
+      "boundary_recovery_crop": "When internal edges are touched, separately slice the packet-defined recovery bbox from whole-page samples; retain recovery_bbox_px_half_open, recovery_tile_ids, recovery_rgb_bytes, and recovery_rgb_sha256. If no internal edge is touched, edge_recovery remains status=measured with boundary_resolution=not-required, empty touched_internal_edges and recovery_tile_ids, null recovery bbox/byte/hash fields, candidate_strictly_contained=false, and physical_page_edge_exception equal to whether the candidate touches a physical page edge. UNREAD uses empty edge/tile arrays and null bbox/byte/hash/boolean fields.",
+      "failure": "Any length mismatch, out-of-bounds slice, non-RGB pixmap, or crop that fails the containment rule is blocking VW-CROP-BOUNDS or VW-TILE-GAP; do not retain a partial hash as measured."
+    },
+    "resources": {
+      "minimum_scratch_free_bytes": 8589934592,
+      "scratch_hard_cap_bytes": 2147483648,
+      "case_worker_concurrency": 1,
+      "page_concurrency_per_worker": 1,
+      "working_set_measurement": "Each case runs in a fresh child process; record that worker's process-lifetime PeakWorkingSetSize on Windows",
+      "scratch_measurement": "High-water total bytes beneath the event-scoped scratch root"
+    },
+    "output_policy": {
+      "evidence_root": "Required explicit path outside the repository and all operational roots",
+      "create_once": true,
+      "overwrite": false,
+      "run_id_pattern": "^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$",
+      "record_kind": "visual-witness-capture-intermediate",
+      "implementation_format_revision": 1,
+      "evidence_run_directory": "{run_id}",
+      "scratch_run_directory": "{run_id}",
+      "success_report_filename": "vw-e2-r2-{run_id}-operational-report.json",
+      "event_receipt_filename": "vw-e2-r2-{run_id}-receipt.json",
+      "attempt_exit_filename": "vw-e2-r2-{run_id}-attempt-exit.json",
+      "filename_rule": "Substitute the validated run_id literally. After every root relation/reparse/capacity check passes, create exactly one evidence_run_directory beneath the evidence root and one scratch_run_directory beneath the scratch root, both with exclusive directory-create semantics. Each named output is a direct child of the validated evidence run directory and is created with exclusive create-new semantics; an existing directory or target stops the attempt and is never opened for update, truncated, replaced, or deleted.",
+      "capture_content_id_domain": "file-portal/vw-e2-capture-core/r2\u0000",
+      "capture_content_id_domain_bytes": "UTF-8 bytes ending with one NUL byte 0x00; the parsed string is not the six literal characters backslash-u-0-0-0-0",
+      "privacy_allowlist": "No title, basename, absolute path, raw source text, OCR text, image bytes, PDF bytes, base64, or case-ID pseudonym standing in for a basename may enter the retained report. Actual titles and basenames are omitted entirely.",
+      "path_containment": {
+        "precondition": "Evidence root and scratch root must already exist before this event examines them.",
+        "canonicalization": "Resolve each root strictly to its final Windows path; compare case-insensitively after normalizing separators and removing only non-root trailing separators.",
+        "reparse_rule": "Walk the root and every existing ancestor with lstat/GetFileAttributes. Any symlink, junction, mount point, or other reparse-point attribute rejects the root before any event child is created.",
+        "protected_relation_rule": "Reject equality, ancestor, or descendant relation between either supplied root and the repository root, operational source roots, private manifest parent, or each other.",
+        "creation_rule": "Only after every comparison passes may the producer create exactly one run-id child beneath each supplied root."
+      }
+    },
+    "canonicalization": {
+      "json_encoder": "json.dumps(value, sort_keys=true, separators=(',', ':'), ensure_ascii=false, allow_nan=false).encode('utf-8')",
+      "identity_bytes": "The encoder output only: UTF-8, no BOM, no trailing LF.",
+      "persisted_file_bytes": "The encoder output followed by exactly one LF byte 0x0A; no BOM.",
+      "duplicate_members": "Reject duplicate object member names while parsing every JSON input.",
+      "point_decimal": "Decimal(str(value)).quantize(Decimal('0.000001'), rounding=ROUND_HALF_EVEN), serialized as a fixed six-decimal JSON string.",
+      "normalized_decimal": "Decimal(str(value)).quantize(Decimal('0.000000001'), rounding=ROUND_HALF_EVEN), serialized as a fixed nine-decimal JSON string.",
+      "integer_rounding": "ROUND_HALF_EVEN to the nearest integer wherever this packet calls for integer track coordinates.",
+      "negative_zero": "After quantization, serialize any signed zero as unsigned 0.000000 or 0.000000000.",
+      "array_order": {
+        "cases": "packet order VW-T01, VW-T02, VW-T03",
+        "pages": "ascending page_1based",
+        "tiles": "ascending y0, x0, tile_id",
+        "primitives": "ascending kind rank raster, vector, text; then bbox_px_half_open x0,y0,x1,y1; then primitive_id",
+        "primitive_provenance": "ascending six-field tuple engine_list_index_0based,drawing_list_index_0based,drawing_seqno_observed,item_list_index_0based,emitted_edge_index_0based,engine_number_observed with null before integers; exact duplicates removed",
+        "region_candidates": "ascending candidate_id",
+        "classes": "frozen class_order",
+        "class_basis_and_class_evidence": "ascending frozen class_order by associated rule: RASTER,VECTOR,STROKE,SCAN,TEXT,TABLE; class_basis contains the rule IDs and class_evidence contains the matching evidence objects in that order",
+        "class_procedures_and_census": "ascending frozen class_order",
+        "relationships": "ascending source_candidate_id, target_candidate_id, kind",
+        "conflicts_and_unreads": "ascending scope, reason_code when present, blocking, detail_code, evidence_sha256 with null before strings",
+        "reason_codes": "ascending code-point order with duplicates removed",
+        "source_primitive_ids_and_general_tile_ids": "ascending code-point order with duplicates removed; recovery_tile_ids is the explicit exception below",
+        "touched_internal_edges": "ascending axis rank x,y; coordinate_px; relation rank equals-min-boundary,equals-max-boundary,straddles; neighbor_direction rank negative,positive,both",
+        "recovery_tile_ids": "ascending recovery-tile rectangle y0,x0,tile_id, with duplicates removed; this specific geometric order overrides general tile-ID code-point order",
+        "table_tracks_cells_and_members": "horizontal and vertical tracks use the frozen table track_order; cells ascend row_index_0based,column_index_0based,cell_id; every member/text/occupied-cell ID set is code-point sorted unique",
+        "runtime_modules": "ascending logical component name",
+        "residue": "files,processes,gpu_owners code-point sorted unique; ports ascending numeric unique; inaccessible uses conflicts_and_unreads order",
+        "semantic_checks": "the exact 34-name schema prefix order",
+        "set_like_fallback": "Any packet-declared set-like or deduplicated array lacking a more specific rule is sorted by canonical JSON identity bytes with duplicates removed. Semantic sequences such as coordinates, parent vertices, cases, pages, Markdown variants, and fixed schema prefix arrays retain their explicit order."
+      }
+    },
+    "identity_recipes": {
+      "config_sha256": {
+        "domain_utf8_nul": "file-portal/vw-e2-config/r2\u0000",
+        "projection": "the canonical JSON identity bytes of the complete frozen_configuration object with no config_sha256 member",
+        "representation": "64 lowercase hexadecimal characters without a sha256: prefix"
+      },
+      "primitive_id": {
+        "domain_utf8_nul": "file-portal/vw-e2-primitive/r2\u0000",
+        "projection_fields": ["source_sha256", "page_1based", "kind", "method", "bbox_pdf_pt", "bbox_px_half_open", "identity_attributes"],
+        "projection_rule": "Canonical JSON object containing exactly the named fields. source_sha256 is copied from the enclosing case.source.observed_sha256 measured from the exact source PDF bytes, and an identity may be emitted only when source.status=measured, source.all_hashes_match=true, and source.manifest_sha256, source.recorded_actual_sha256, and source.observed_sha256 are equal. source_sha256 is contextual identity input and is not duplicated inside the retained primitive object. identity_attributes has the exact per-kind shape frozen by primitive_construction.identity_attribute_shapes. Every other API field and every provenance ordinal is omitted.",
+        "representation": "sha256: followed by 64 lowercase hexadecimal characters"
+      },
+      "candidate_id": {
+        "domain_utf8_nul": "file-portal/vw-e2-candidate/r2\u0000",
+        "projection_fields": ["source_sha256", "page_1based", "bbox_pdf_pt", "bbox_px_half_open", "classes", "config_sha256", "source_primitive_ids"],
+        "projection_rule": "Canonical JSON object containing exactly the named fields after canonical array ordering. source_sha256 is copied from the enclosing case.source.observed_sha256 measured from the exact source PDF bytes, and an identity may be emitted only when source.status=measured, source.all_hashes_match=true, and source.manifest_sha256, source.recorded_actual_sha256, and source.observed_sha256 are equal. source_sha256 is contextual identity input and is not duplicated inside the retained candidate object. No engine ordinal, timestamps, resource observations, crop hash, or tile IDs enter the projection.",
+        "representation": "sha256: followed by 64 lowercase hexadecimal characters"
+      },
+      "relationship_id": {
+        "domain_utf8_nul": "file-portal/vw-e2-relationship/r2\u0000",
+        "projection_fields": ["source_candidate_id", "target_candidate_id", "kind"],
+        "projection_rule": "Canonical JSON object containing exactly the ordered directional fields; source and target are never swapped for sorting.",
+        "representation": "sha256: followed by 64 lowercase hexadecimal characters"
+      },
+      "capture_payload_sha256": {
+        "domain_utf8_nul": "file-portal/vw-e2-capture-core/r2\u0000",
+        "projection": "canonical JSON identity bytes of capture_payload with capture_payload_sha256 omitted",
+        "representation": "64 lowercase hexadecimal characters without a sha256: prefix"
+      },
+      "report_id": {
+        "domain_utf8_nul": "file-portal/vw-e2-report/r2\u0000",
+        "projection": "canonical JSON identity bytes of the complete report with report_id omitted",
+        "representation": "sha256: followed by 64 lowercase hexadecimal characters"
+      }
+    },
+    "class_order": ["raster", "vector", "stroke-cluster", "scan-component", "text-block", "table"],
+    "candidate_rules": {
+      "raster": {
+        "rule_id": "VW2-R2-RASTER-1",
+        "source": "page.get_image_info(hashes=true,xrefs=false)",
+        "predicate": "Finite positive-area bbox after CropBox clipping; exact primitive identities deduplicated",
+        "identity_inputs": ["source_sha256", "page_1based", "bbox_pdf_pt", "bbox_px_half_open", "width", "height", "observed_digest"],
+        "engine_ordinal_role": "Retain both engine_list_index_0based (enumerate index of get_image_info return order) and engine_number_observed (the returned dictionary's number value) as separate provenance fields. Both are excluded from primitive and candidate identities.",
+        "digest_representation": "PyMuPDF's digest bytes are retained as digest_algorithm='md5' and digest_hex=32 lowercase hexadecimal characters without a prefix.",
+        "missing_digest_rule": "A null, non-bytes, or bytes-length-not-equal-to-16 digest is reason-coded VW-RASTER-DIGEST-UNREAD and blocks the raster procedure for that page; no raster primitive or identity is emitted from it.",
+        "meaning": "PDF image-object candidate"
+      },
+      "vector": {
+        "rule_id": "VW2-R2-VECTOR-1",
+        "supported_drawing_items": ["l", "re", "qu", "c"],
+        "predicate": "Decompose rectangles and quads into canonical directed edges; retain cubic curves with every endpoint and control point; expand ink by half max(observed positive stroke width,0.375pt); unknown item types make the whole page vector, stroke-cluster, and table procedures blocking UNREAD",
+        "meaning": "Supported PDF drawing-primitive candidate"
+      },
+      "stroke_cluster": {
+        "rule_id": "VW2-R2-STROKE-1",
+        "predicate": "In render-pixel space, connect vector ink bboxes whose Chebyshev half-open-box gap is at most two pixels; compute undirected transitive components after sorting nodes by primitive_id; components with at least two primitive IDs receive stroke-cluster",
+        "maximum_undilated_gap_px": 2,
+        "meaning": "Connected supported drawing-primitives candidate"
+      },
+      "scan_component": {
+        "rule_id": "VW2-R2-SCAN-1",
+        "predicate": "Connect raster bboxes whose Chebyshev half-open-box gap is at most one pixel; require exact union area of member half-open rectangles divided by page pixel area >=0.90 and component outer normalized edges x0<=0.05,y0<=0.05,x1>=0.95,y1>=0.95",
+        "minimum_page_union_fraction": 0.9,
+        "maximum_edge_inset_fraction": 0.05,
+        "meaning": "Dominant page-spanning raster component candidate; not a claim that the page is a scan"
+      },
+      "text_block": {
+        "rule_id": "VW2-R2-TEXT-1",
+        "source": "page.get_text('dict') block type 0",
+        "predicate": "At least one non-whitespace Unicode code point and a finite positive-area bbox",
+        "retained_text_evidence": ["method", "engine_version", "utf8_bytes", "unicode_codepoints", "sha256"],
+        "raw_text_persistence": "ephemeral",
+        "meaning": "Native PDF text-block candidate"
+      },
+      "table": {
+        "rule_id": "VW2-R2-TABLE-1",
+        "meaning": "Conservative ruled-grid-with-native-text structural candidate; never semantic table truth",
+        "axis_tolerance_px": 1,
+        "minimum_segment_extent_px": 4,
+        "collinear_merge_axis_tolerance_px": 1,
+        "collinear_merge_gap_px": 2,
+        "minimum_horizontal_tracks": 3,
+        "minimum_vertical_tracks": 3,
+        "minimum_intersection_fraction": 0.8,
+        "minimum_closed_cells": 4,
+        "minimum_text_cells": 4,
+        "minimum_text_rows": 2,
+        "minimum_text_columns": 2,
+        "predicate": "Use supported line, rectangle, and quad edges only under exact table_procedure; require observed_intersection_pairs/(H*V)>=0.80, all four extreme-track support checks, at least four closed adjacent-track cells, and native text centroids assigned to four cells spanning two rows and two columns; attach the label to the parent stroke cluster",
+        "known_false_negative_boundary": ["borderless tables", "single-row tables", "single-column tables", "rasterized tables", "tables without native text"],
+        "known_ambiguity": "A technical drawing with the same ruled-grid-and-text topology can satisfy this predicate; semantic truth therefore remains UNREAD"
+      }
+    },
+    "primitive_construction": {
+      "vector_item_scope": "Each drawing item becomes one or more primitives. Supported item codes are l, re, qu, c. A clip item is not a candidate; get_drawings(extended=false) is required, and any returned unrecognized code makes the entire page vector/stroke-cluster/table procedures blocking UNREAD rather than emitting partial candidates.",
+      "stroke_width": "Finite width >0 is observed. Missing or exactly zero width uses fallback 0.375 PDF points. Negative, NaN, or infinite width is VW-VECTOR-GEOMETRY-UNREAD and blocks the dependent procedures.",
+      "fill_only": "A supported fill-only path is retained. Its boundary uses fallback width 0.375 PDF points and fill_only=true in identity_attributes.",
+      "line": "Emit one line-segment primitive. Canonicalize both identity and retained geometry by sorting the fixed-six endpoint arrays lexicographically; reversing an engine line therefore changes neither identity nor retained geometry. Engine order is not retained.",
+      "rectangle": "Emit four separate rectangle-edge primitives from corners (x0,y0)->(x1,y0)->(x1,y1)->(x0,y1)->close, with emitted_edge_index_0based 0,1,2,3 in that order. Canonicalize each edge endpoint pair lexicographically for identity.",
+      "quad": "PyMuPDF Quad iteration order is not perimeter order. Emit four separate quad-edge primitives from quad.ul->quad.ur->quad.lr->quad.ll->close, with emitted_edge_index_0based 0,1,2,3 in that order. Canonicalize each edge endpoint pair lexicographically for identity.",
+      "cubic_curve": "Retain start point, both control points, and end point. The conservative primitive bbox is the axis-aligned hull of all four points, expanded by half the effective stroke width; no analytic Bezier-extrema contraction is used.",
+      "ink_bbox": "Take the supported geometry hull in unrotated MuPDF space, expand all four sides by half effective stroke width, clip to the unrotated visible rectangle, then transform by the frozen coordinate procedure.",
+      "vector_provenance": "Every emitted vector primitive retains engine_list_index_0based equal to drawing_list_index_0based, drawing_seqno_observed, item_list_index_0based, emitted_edge_index_0based (null for l and c; 0..3 for re and qu), and engine_number_observed=null. On primitive-ID deduplication, retain sorted unique provenance records ordered by engine_list_index_0based,drawing_list_index_0based,drawing_seqno_observed,item_list_index_0based,emitted_edge_index_0based,engine_number_observed with null before integers. Provenance is excluded from identity.",
+      "identity_attribute_shapes": {
+        "image-occurrence": {"exact_keys": ["digest_algorithm", "digest_hex", "height_px", "width_px"], "values": "digest_algorithm is md5; digest_hex is bare 32 lowercase hex; dimensions are positive integers"},
+        "text-block": {"exact_keys": ["unicode_codepoints", "utf8_bytes", "utf8_sha256"], "values": "counts are nonnegative integers; hash is bare 64 lowercase hex"},
+        "line-segment": {"exact_keys": ["effective_stroke_width_pdf_pt", "fill_only", "geometry", "item_type", "observed_stroke_width_pdf_pt"], "values": "item_type is l; geometry is exactly {'endpoints':[[x0,y0],[x1,y1]]} with each coordinate fixed-six string and endpoint arrays lexicographically sorted; width strings fixed-six, observed may be null"},
+        "rectangle-edge": {"exact_keys": ["effective_stroke_width_pdf_pt", "fill_only", "geometry", "item_type", "observed_stroke_width_pdf_pt"], "values": "item_type is re; geometry has the exact canonical endpoints shape; orientation and emitted-edge ordinal are provenance only"},
+        "quad-edge": {"exact_keys": ["effective_stroke_width_pdf_pt", "fill_only", "geometry", "item_type", "observed_stroke_width_pdf_pt"], "values": "item_type is qu; geometry has the exact canonical endpoints shape; emitted-edge ordinal is provenance only"},
+        "curve": {"exact_keys": ["effective_stroke_width_pdf_pt", "fill_only", "geometry", "item_type", "observed_stroke_width_pdf_pt"], "values": "item_type is c; geometry is exactly {'points':[[start_x,start_y],[control1_x,control1_y],[control2_x,control2_y],[end_x,end_y]]} in API curve order with fixed-six coordinate strings"}
+      },
+      "deduplication": "Deduplicate only identical primitive_id values after canonical identity projection. For every duplicate, canonicalize line/edge endpoints first, choose the lexicographically smallest canonical-JSON primitive geometry as the single retained geometry, and combine distinct exact provenance tuples sorted by engine_list_index_0based,drawing_list_index_0based,drawing_seqno_observed,item_list_index_0based,emitted_edge_index_0based,engine_number_observed with null before integers. Never deduplicate merely by bbox. Provenance remains in capture_payload, so a changed raw engine ordinal may change capture_payload_sha256 even though primitive_id and candidate_id remain invariant."
+    },
+    "gap_metric": {
+      "box_model": "Integer half-open rectangles [x0,x1) by [y0,y1). Touching boundaries have axis gap zero.",
+      "axis_gap": "max(0, max(a0,b0)-min(a1,b1)) for each axis.",
+      "chebyshev_gap": "max(x_axis_gap,y_axis_gap); diagonal proximity counts.",
+      "stroke_edge": "Connect when Chebyshev gap <=2 pixels.",
+      "raster_edge": "Connect when Chebyshev gap <=1 pixel.",
+      "page_clipping": "Primitive bboxes are clipped to the physical page before gap calculation; no post-graph dilation is used."
+    },
+    "table_procedure": {
+      "input": "Only canonical line edges emitted from l, re, and qu primitives belonging to one parent stroke-cluster; cubic curves and raster content are ineligible.",
+      "quantization": "Transform every endpoint to render-pixel coordinates and ROUND_HALF_EVEN each coordinate to the nearest integer before orientation analysis.",
+      "orientation": "Horizontal when abs(dy)<=1 and abs(dx)>=4; vertical when abs(dx)<=1 and abs(dy)>=4; an edge satisfying both or neither is ineligible.",
+      "raw_track": "For a horizontal edge, axis is ROUND_HALF_EVEN mean(y0,y1) and extent is [min(x0,x1),max(x0,x1)]; vertical is symmetric.",
+      "track_merge": "Within one orientation, build an undirected graph whose edges require axis difference <=1 and interval gap <=2; each transitive component is one track. The representative axis is ROUND_HALF_EVEN mean of every member endpoint axis coordinate; extent is min/max of all member endpoint extents; member primitive IDs are sorted unique.",
+      "track_order": "Sort horizontal tracks by axis, extent start, extent end, member IDs; vertical tracks identically.",
+      "intersection_pair": "A horizontal/vertical pair intersects when vertical.axis lies in [horizontal.start-1,horizontal.end+1] and horizontal.axis lies in [vertical.start-1,vertical.end+1].",
+      "intersection_fraction": "Numerator is the count of intersecting H-by-V track pairs; denominator is len(H)*len(V); require numerator/denominator >= Decimal('0.80') without rounded comparison.",
+      "extreme_support": "Minimum-axis and maximum-axis horizontal tracks must each intersect at least two vertical tracks; minimum-axis and maximum-axis vertical tracks must each intersect at least two horizontal tracks.",
+      "closed_cells": "For every adjacent pair of sorted horizontal tracks and adjacent pair of sorted vertical tracks, create one cell only when all four corner track pairs intersect. Cell bounds are [left.axis,right.axis) by [top.axis,bottom.axis).",
+      "text_assignment": "Transform each eligible native text-block bbox to render pixels; centroid is Decimal(x0+x1)/2, Decimal(y0+y1)/2 before rounding. Assign the block to exactly one cell using left<=x<right and top<=y<bottom. A centroid on an internal boundary belongs to the right or bottom cell; no block can occupy multiple cells. Page rotation is already resolved by the frozen coordinate transform.",
+      "label_requirements": "Require at least 3 horizontal and 3 vertical tracks, intersection fraction >=0.80, all four extreme supports, at least 4 closed cells, at least 4 distinct occupied cells, and occupied cells spanning at least 2 row indices and 2 column indices.",
+      "candidate_attachment": "The table label is added to the parent stroke-cluster candidate; candidate geometry remains the complete parent stroke-cluster bbox. Retain eligible segment IDs, tracks, intersection numerator/denominator, extreme supports, cell bounds, occupied cell IDs, row/column counts, and parent candidate ID as derivation evidence."
+    },
+    "fusion_and_precedence": {
+      "rule_id": "VW2-R2-FUSION-1",
+      "canonical_order": "page, class rank, integer pixel bbox, primitive ID",
+      "same_kind_deduplication": true,
+      "raster_components": "Every connected component under the frozen raster gap graph, including a singleton, becomes exactly one candidate with class raster, bbox equal to the bounding union of member bboxes, and sorted member primitive IDs; add scan-component only when its exact predicate passes.",
+      "vector_components": "Every connected component under VW2-R2-STROKE-1, including a singleton, becomes exactly one candidate with class vector, bbox equal to the bounding union of member ink bboxes, and sorted member primitive IDs; add stroke-cluster only when member count>=2 and add table only when the exact parent-component table procedure passes.",
+      "text_blocks": "Each eligible native text-block primitive becomes exactly one separate candidate with class text-block and its one primitive ID.",
+      "attached_labels": ["scan-component on raster component", "stroke-cluster and table on vector component"],
+      "cross_family_rule": "Never destructively fuse across raster, vector, and text families. For each unordered pair from different base families, evaluate integer half-open bboxes: if one strictly contains the other, record one directional contains relation from container to contained; if equal, record one coincident relation from lexicographically lower candidate_id to higher; otherwise if positive-area intersection exists, record one intersects relation from lower candidate_id to higher. Record no edge for boundary-only contact.",
+      "relationship_measurements": "For contains/coincident/intersects retain integer intersection area and fixed-nine fractions intersection_area/source_area and intersection_area/target_area; verify values are within [0,1].",
+      "multilabel": true
+    },
+    "tile_boundary_recovery": {
+      "rule_id": "VW2-R2-BOUNDARY-1",
+      "touch_rule": "Evaluate integer bbox_px_half_open. A touched internal vertical edge e satisfies x0<=e<=x1 and e is a base-tile x start or x end strictly between 0 and page width; horizontal is symmetric. Equality with 0 or page width/height is a physical-page-edge exception, not an internal edge.",
+      "axis_neighbors": "Use the sorted unique canonical axis-start list. For each touched edge, select the immediately preceding and immediately following start indices when present; for an irregular final tile, adjacency is still defined only by this start-index order.",
+      "recovery_tile_set": "Union every base tile whose half-open rectangle intersects the candidate interior, plus every tile combining the selected x neighbor starts with all intersecting y starts and every tile combining selected y neighbor starts with all intersecting x starts. Deduplicate by tile_id and sort by y0,x0,tile_id.",
+      "recovery_rule": "Take the integer bounding union of the recovery tile set, clip it to page bounds, and crop those bytes from the whole-page render, never by stitching tile bytes.",
+      "success_rule": "The recovery crop strictly contains the candidate unless the candidate touches the physical page boundary",
+      "failure_reason": "VW-TILE-GAP"
+    },
+    "bundle_and_asset_observation": {
+      "ordinal_asset_inventory": "Enumerate only direct regular non-reparse files in the supplied assets directory; sort by leaf filename using Python Unicode code-point order. For each zero-based ordinal append: leaf filename UTF-8 bytes, one NUL byte, base-10 byte length ASCII with no sign or leading zeroes except 0, one NUL byte, lowercase bare file SHA-256 ASCII, and one LF byte. The inventory digest is bare SHA-256 of the concatenated records, including the SHA-256 of empty bytes for an empty inventory. Leaf filenames are ephemeral and forbidden from the retained report.",
+      "asset_inventory_expected": "bundle.asset_inventory.expected_sha256 is the enclosing calibration case asset_inventory_sha256 from the hash-bound private corpus manifest. observed_sha256 is a fresh ordinal_asset_inventory recomputation. count is the number of records and must equal the private case asset_count; match is exact digest equality.",
+      "bundle_manifest_expected": "Before any render, compute the protected-tree BEFORE inventory. bundle.manifest_sha256_expected is copied from the sha256 field of its exact {case_id}/bundle-manifest logical entry. bundle.manifest_sha256_observed comes from a later fresh stable open of that same regular non-reparse file during case observation. Equality is required. Never set expected from the same open used for observed.",
+      "bundle_manifest_source": "bundle.manifest_source_sha256_expected is the enclosing private case source_sha256_manifest, which must also equal the measured source observation. Strictly parse the freshly observed bundle manifest with duplicate-member and nonfinite rejection; bundle.manifest_source_sha256_observed is its exact source_sha256 string. Require 64 lowercase hexadecimal characters and equality with expected.",
+      "markdown_expected": "For raw-marker variant_ordinal=0 use the private case markdown_sha256 and markdown_bytes. For analyst entries use private array order, phase=analyst, zero-based variant_ordinal, and each entry's sha256/bytes. bundle.markdown array order is the raw-marker variant first, followed by analyst variants in ascending private-array ordinal order. Every observed value comes from a separate stable file open; exact hash and byte equality are required.",
+      "status_rule": "bundle.status=measured only when the manifest, manifest-source binding, every declared Markdown observation, and asset inventory are measured and matching. Otherwise emit only truthful nullable fields permitted by the schema, status=UNREAD, a reason code, and a blocking case UNREAD."
+    },
+    "page_map_coherence": {
+      "claim_boundary": "This procedure verifies only the mechanically shipped filename-derived asset map. It does not establish that an in-range filename names the correct visual source page. Every retained asset_filename_page_ids_0based entry therefore keeps source_page_relation=UNREAD, including when page_map.state=as-shipped-verified or repaired-sym050.",
+      "asset_order": "Use the same zero-based ordinal order as the protected E1 asset inventory: direct regular non-reparse asset files sorted by leaf filename in Python Unicode code-point order. Do not retain leaf filenames.",
+      "filename_grammar": "Apply Python re.IGNORECASE fullmatch to the leaf filename with ^.*_page_([0-9]+)_(Figure|Picture)_([0-9]+)\\.(jpe?g|png)$. The first capture converted by int is page_id_0based. Every inventory entry must match exactly once.",
+      "preconditions": "The source observation is measured and all three source hashes agree; the ordinal asset inventory is measured, its digest matches the private manifest, its count equals the manifest asset_count, every entry is stable/regular/non-reparse, and every filename matches filename_grammar. Otherwise page_map.state=unread, formula=null, claim_status=UNREAD, reason_codes=[VW-PAGE-MAP-UNREAD], and the case has a blocking procedural UNREAD.",
+      "as_shipped_rule": "If every observed page_id_0based is in [0,source_pages), emit state=as-shipped-verified, formula='source page_1based = page_id_0based + 1 (mechanical filename map only)', claim_status=Inferred, reason_codes=[]. The empty inventory satisfies this range predicate but proves no visual coverage.",
+      "sym050_rule": "Only when the as-shipped rule fails: require source_pages>200; a nonempty ID list; at least one id>=source_pages; at least one id>=400; every id has (id//200)%2==0; bundle-manifest chunking.slice_size is absent or is the integer 200; and every repaired id=id-200*(id//400) is in [0,source_pages). Then emit state=repaired-sym050, formula='source page_1based = page_id_0based + 1 - 200*(page_id_0based//400) (mechanical SYM-050 repair only)', claim_status=Inferred, reason_codes=[]. The repair is in-memory only.",
+      "untrustworthy_rule": "When all preconditions are measured but neither as_shipped_rule nor sym050_rule holds, emit state=untrustworthy, formula=null, claim_status=Inferred, reason_codes=[VW-PAGE-MAP-UNREAD], and a blocking procedural UNREAD.",
+      "retained_list_check": "The page-map-coherence semantic check freshly reparses the protected ordinal assets and requires exact array equality with retained asset_filename_page_ids_0based after projecting asset_ordinal,page_id_0based,claim_status=Observed,source_page_relation=UNREAD. A duplicate, missing, reordered, or changed retained entry is VW-PAGE-MAP-UNREAD even when every changed ID remains in range.",
+      "markdown_role": "Raw and analyst Markdown hashes are observed separately. Their image references may corroborate asset presence but repeat the same filename IDs, so they never upgrade source_page_relation or select a page-map state."
+    },
+    "protected_tree_digest": {
+      "domain_utf8_nul": "file-portal/vw-e2-protected-tree/r2\u0000",
+      "scope": "The hash-bound private manifest bytes plus every calibration source PDF, bundle manifest/body file, raw Markdown file, declared analyst Markdown variant, and ordinal asset inventory entry named for VW-T01, VW-T02, and VW-T03. Held-out entries remain excluded because their paths may not be resolved.",
+      "logical_ids": "Use exactly these ASCII logical IDs: manifest; {case_id}/source; {case_id}/bundle-body; {case_id}/bundle-manifest; {case_id}/raw-markdown; {case_id}/analyst-markdown/{ordinal}; {case_id}/asset/{ordinal}, where case_id is exactly VW-T01, VW-T02, or VW-T03 and ordinal is the zero-based decimal integer without sign or leading zeroes except the value 0. Do not use, retain, or hash absolute paths, titles, or basenames.",
+      "entry_projection": "For each regular file: logical_id, byte length, lowercase bare SHA-256. Reject missing, non-regular, duplicate logical ID, reparse point, or changing-during-read entries.",
+      "inventory_projection": "Canonical JSON array sorted by logical_id using code-point order; prepend domain bytes; digest is lowercase bare SHA-256.",
+      "comparison": "Compute before any render and after cleanup from fresh opens. Require identical inventory entries and digest, not merely identical aggregate digest.",
+      "exclusions": "No repository write-scope file, evidence output, scratch output, held-out path, cache, or generated artifact is in this protected scope."
+    },
+    "runtime_binary_identity": {
+      "interpreter": "Hash sys.executable bytes as logical component python_executable and the current process main-image module as logical component python_process_image, even when they differ because a virtual-environment launcher delegates to a base interpreter. Retain logical component, bytes, and lowercase bare SHA-256 but omit paths.",
+      "pymupdf": "Hash the imported pymupdf package __init__ file as logical component pymupdf_package_init and every imported compiled PyMuPDF extension module file used by the run as pymupdf_extension.<lowercase_basename>. Retain logical component, bytes, and hash, sorted by logical module name, with paths omitted. Every logical name must match the bound schema grammar ^[A-Za-z0-9_.:-][A-Za-z0-9_.:-]{0,127}$.",
+      "loaded_runtime_modules": "Using the current-process Windows module inventory, require and hash python3*.dll, _mupdf*.pyd, _extra*.pyd when present, and mupdfcpp*.dll. Retain lowercase basename as logical component plus bytes and SHA-256; omit paths. A missing required python or MuPDF native component is VW-DEPENDENCY-DRIFT.",
+      "mupdf_native_version": "Retain PyMuPDF.mupdf_version_tuple joined with periods and require 1.29.0.",
+      "capture_code": "producer.capture_code_sha256 is the bare SHA-256 of exact windows-converter/visual_witness_capture.py bytes. producer.semantic_validator_code_sha256 is the bare SHA-256 of exact windows-converter/visual_witness_capture_selftest.py bytes. run_observations.independent_verification.verifier_code_sha256 is the bare SHA-256 of exact windows-converter/visual_witness_verify.py bytes. The schema field mapping carries only the fixed logical identities frozen by this packet; no absolute path is retained."
+    },
+    "semantic_evidence_and_assembly": {
+      "verifier": "The independent verifier is exact windows-converter/visual_witness_verify.py; run_observations.independent_verification.verifier is the constant codex-independent-verifier-v1 and verifier_code_sha256 is the bare SHA-256 of those exact file bytes.",
+      "ordinary_check_names": ["canonical-json-and-array-order", "capture-payload-hash", "packet-parent-schema-config-binding", "case-order-uniqueness", "case-census-arithmetic", "page-count-contiguity", "status-null-reason-coherence", "source-bundle-hashes", "page-map-coherence", "bbox-order-range-transform", "render-rgb-arithmetic", "tile-id-bbox-reference", "tile-rgb-arithmetic", "tile-union-coverage", "primitive-kind-attributes-geometry", "primitive-id", "candidate-class-basis-evidence", "candidate-source-references", "candidate-id", "class-procedure-completeness", "class-census-reconciliation", "relationship-reference-geometry-id", "edge-recovery-reference-containment", "crop-rgb-arithmetic", "captured-text-state-hash", "metric-arithmetic", "resource-worker-reconciliation", "protected-tree-digest", "privacy-heldout-cleanup-redaction", "semantic-unread-boundary", "output-root-realpath-containment", "residue-privacy-census"],
+      "pre_verifier_subject_sha256": "Bare SHA-256 over domain UTF-8 file-portal/vw-e2-semantic-subject/r2 followed by one NUL byte and canonical JSON of exactly {'capture_payload':capture_payload,'run_observations':run_observations with the independent_verification member omitted}. This subject is assembled only after protected AFTER, cleanup, privacy, residue, and resource observations exist.",
+      "ordinary_check_evidence_sha256": "For each ordinary_check_names entry whose status is pass or fail, bare SHA-256 over domain UTF-8 file-portal/vw-e2-semantic-check/r2 followed by one NUL byte and canonical JSON of exactly {'name', 'status', 'reason_codes', 'subject_sha256', 'validator_code_sha256'}, where subject_sha256 is pre_verifier_subject_sha256 and validator_code_sha256 is producer.semantic_validator_code_sha256. For status UNREAD, evidence_sha256 is exactly null as required by the schema; reason_codes remains nonempty and the complete object, including null, is still bound by pre_verifier_semantic_checks_sha256.",
+      "pre_verifier_semantic_checks_sha256": "Bare SHA-256 over domain UTF-8 file-portal/vw-e2-semantic-checks/r2 followed by one NUL byte and canonical JSON of the 32 complete ordinary semantic-check objects in their relative schema order. This is the exact value stored as independent_verification.semantic_checks_sha256; report-id and independent-verification-binding are intentionally excluded to break the assembly cycle.",
+      "verifier_evidence_sha256": "When independent_verification.status is Verified-independent or CONFLICT, use the bare SHA-256 over domain UTF-8 file-portal/vw-e2-independent-verifier/r2 followed by one NUL byte and canonical JSON of the complete independent_verification object with evidence_sha256 omitted. Its packet, schema, payload, pre-verifier semantic-check hash, verifier code, probe ID, status, and reason codes are therefore bound without self-reference. When status is UNREAD, evidence_sha256 is exactly null and reason_codes is nonempty.",
+      "independent_binding_check_evidence_sha256": "When the check status is pass or fail, use the ordinary semantic-check evidence recipe with name=independent-verification-binding and subject_sha256 equal to independent_verification.evidence_sha256 rather than pre_verifier_subject_sha256. When the check status is UNREAD, evidence_sha256 is exactly null.",
+      "report_id_check_subject_sha256": "Bare SHA-256 over domain UTF-8 file-portal/vw-e2-report-id-subject/r2 followed by one NUL byte and canonical JSON of the complete report with report_id omitted and with only semantic_checks[name=report-id].evidence_sha256 omitted. All other semantic checks, including independent-verification-binding, are present.",
+      "report_id_check_evidence_sha256": "When the check status is pass or fail, use the ordinary semantic-check evidence recipe with name=report-id and subject_sha256 equal to report_id_check_subject_sha256. Insert that evidence hash, then compute report_id using identity_recipes.report_id over the complete report with report_id omitted. When the check status is UNREAD, evidence_sha256 is exactly null and no COMPLETE report may be created.",
+      "check_status_rule": "A check is pass with no reason codes only when every required input is readable and its named predicate holds; it is fail with its mapped reason code when every required input is readable and the predicate is false; it is UNREAD with the same mapped reason code when any required input cannot be read or is procedurally UNREAD. COMPLETE requires all 34 checks pass.",
+      "check_reason_code_map": {
+        "canonical-json-and-array-order": "VW-IDENTITY", "report-id": "VW-IDENTITY", "capture-payload-hash": "VW-IDENTITY", "packet-parent-schema-config-binding": "GROUND-DRIFT", "case-order-uniqueness": "VW-IDENTITY", "case-census-arithmetic": "VW-IDENTITY", "page-count-contiguity": "VW-IDENTITY", "status-null-reason-coherence": "UNREAD", "source-bundle-hashes": "VW-SOURCE-HASH", "page-map-coherence": "VW-PAGE-MAP-UNREAD", "bbox-order-range-transform": "VW-COORDINATE-UNREAD", "render-rgb-arithmetic": "VW-RENDER-UNREAD", "tile-id-bbox-reference": "VW-TILE-GAP", "tile-rgb-arithmetic": "VW-TILE-GAP", "tile-union-coverage": "VW-TILE-GAP", "primitive-kind-attributes-geometry": "VW-IDENTITY", "primitive-id": "VW-IDENTITY", "candidate-class-basis-evidence": "VW-IDENTITY", "candidate-source-references": "VW-IDENTITY", "candidate-id": "VW-IDENTITY", "class-procedure-completeness": "UNREAD", "class-census-reconciliation": "VW-IDENTITY", "relationship-reference-geometry-id": "VW-IDENTITY", "edge-recovery-reference-containment": "VW-TILE-GAP", "crop-rgb-arithmetic": "VW-CROP-BOUNDS", "captured-text-state-hash": "VW-IDENTITY", "metric-arithmetic": "VW-IDENTITY", "resource-worker-reconciliation": "VW-DEPENDENCY-DRIFT", "protected-tree-digest": "VW-PROTECTED-TREE", "privacy-heldout-cleanup-redaction": "VW-PRIVACY", "independent-verification-binding": "VW-NEGATIVE-CONTROL", "semantic-unread-boundary": "UNREAD", "output-root-realpath-containment": "GROUND-DRIFT", "residue-privacy-census": "VW-CLEANUP"
+      },
+      "assembly_order": ["capture_payload", "non-independent run_observations", "32 ordinary semantic checks", "independent verifier object and evidence hash", "independent-verification-binding semantic check", "report-id semantic-check subject and evidence hash", "report_id", "schema and semantic revalidation", "create-new persisted report"]
+    },
+    "privacy_and_residue_probes": {
+      "probe_ids": {
+        "heldout_selector": "heldout-selector-v1",
+        "cleanup": "cleanup-v1",
+        "redaction": "redaction-v1",
+        "isolation": "isolation-v1"
+      },
+      "direct_observation_ids": {"protected_tree": "protected-tree-v1", "residue": "residue-v1"},
+      "independent_verifier_probe_id": "vw-e2-r2-independent-sample-v1",
+      "probe_code_mapping": {
+        "heldout-selector-v1": "windows-converter/visual_witness_capture.py",
+        "cleanup-v1": "windows-converter/visual_witness_capture.py",
+        "redaction-v1": "windows-converter/visual_witness_capture.py",
+        "isolation-v1": "windows-converter/visual_witness_capture.py",
+        "protected-tree-v1": "windows-converter/visual_witness_capture.py",
+        "residue-v1": "windows-converter/visual_witness_capture.py",
+        "vw-e2-r2-independent-sample-v1": "windows-converter/visual_witness_verify.py"
+      },
+      "scope_enum": ["event", "source", "bundle", "page", "raster-procedure", "vector-procedure", "stroke-cluster-procedure", "scan-component-procedure", "text-procedure", "table-procedure", "output-root", "scratch-root", "privacy", "cleanup", "protected-tree", "independent-verifier", "resource-probe", "system-global-census"],
+      "detail_code_enum": ["ground-drift", "authority-missing", "source-hash-mismatch", "body-hash-mismatch", "asset-hash-mismatch", "config-hash-mismatch", "page-map-unread", "render-unread", "tile-gap", "crop-bounds", "coordinate-unread", "raster-digest-unread", "vector-geometry-unread", "dependency-drift", "heldout-contamination", "protected-tree-change", "privacy-rejection", "cleanup-failure", "identity-mismatch", "negative-control-failed", "unauthorized-threshold", "procedural-unread", "outside-event-process-scope", "optional-gpu-probe-unread", "evidence-root-unread", "scratch-root-unread", "root-reparse", "root-overlap", "output-create-failed", "verifier-unread", "event-child-port", "part-file-remains"],
+      "reason_to_default_detail_code": {
+        "GROUND-DRIFT": "ground-drift", "AUTHORITY-MISSING": "authority-missing", "VW-SOURCE-HASH": "source-hash-mismatch", "VW-BODY-HASH": "body-hash-mismatch", "VW-ASSET-HASH": "asset-hash-mismatch", "VW-CONFIG-HASH": "config-hash-mismatch", "VW-PAGE-MAP-UNREAD": "page-map-unread", "VW-RENDER-UNREAD": "render-unread", "VW-TILE-GAP": "tile-gap", "VW-CROP-BOUNDS": "crop-bounds", "VW-COORDINATE-UNREAD": "coordinate-unread", "VW-RASTER-DIGEST-UNREAD": "raster-digest-unread", "VW-VECTOR-GEOMETRY-UNREAD": "vector-geometry-unread", "VW-DEPENDENCY-DRIFT": "dependency-drift", "VW-HELDOUT-CONTAMINATION": "heldout-contamination", "VW-PROTECTED-TREE": "protected-tree-change", "VW-PRIVACY": "privacy-rejection", "VW-CLEANUP": "cleanup-failure", "VW-IDENTITY": "identity-mismatch", "VW-NEGATIVE-CONTROL": "negative-control-failed", "VW-UNAUTHORIZED-THRESHOLD": "unauthorized-threshold", "UNREAD": "procedural-unread"
+      },
+      "residue_id_enum": {
+        "files": ["event-scratch-child", "evidence-part-file"],
+        "processes": ["event-child-process"],
+        "gpu_owners": ["event-child-gpu-owner"],
+        "ports": "Actual event-child port numbers only, ascending numeric unique; event-child-port is the associated detail code."
+      },
+      "probe_subject_recipes": {
+        "heldout-selector-v1": "Bare SHA-256 over domain UTF-8 file-portal/vw-e2-probe-subject/heldout-selector-v1/r2 followed by one NUL byte and canonical JSON of exactly {'requested_case_ids':['VW-T01','VW-T02','VW-T03','VW-H01','VW-H02','VW-H03'],'allowed_case_ids':['VW-T01','VW-T02','VW-T03'],'forbidden_case_ids':['VW-H01','VW-H02','VW-H03']}.",
+        "cleanup-v1": "Bare SHA-256 over domain UTF-8 file-portal/vw-e2-probe-subject/cleanup-v1/r2 followed by one NUL byte and canonical JSON of exactly {'run_id':run_id,'scratch_child_id':'event-scratch-child','part_file_prefix':'vw-e2-r2-'+run_id+'-','part_file_suffix':'.part'}.",
+        "redaction-v1": "First compute redaction_subject_sha256 as bare SHA-256 over domain UTF-8 file-portal/vw-e2-redaction-subject/r2 followed by one NUL byte and canonical JSON of exactly {'capture_payload':capture_payload,'run_observations':run_observations with independent_verification omitted and privacy.redaction_probe_sha256 omitted}. Then compute the probe subject as bare SHA-256 over domain UTF-8 file-portal/vw-e2-probe-subject/redaction-v1/r2 followed by one NUL byte and canonical JSON of exactly {'redaction_subject_sha256':redaction_subject_sha256,'private_dictionary_sha256':private_dictionary_sha256,'packet_sha256':packet_sha256,'capture_schema_sha256':capture_schema_sha256}. private_dictionary_sha256 is bare SHA-256 over domain UTF-8 file-portal/vw-e2-private-dictionary/r2 followed by one NUL byte and canonical JSON of the code-point-sorted unique ordinal-case-insensitive Windows-normalized private titles, basenames, and absolute paths. The dictionary inputs never persist. Omitting the destination field breaks the probe assembly cycle.",
+        "isolation-v1": "Bare SHA-256 over domain UTF-8 file-portal/vw-e2-probe-subject/isolation-v1/r2 followed by one NUL byte and canonical JSON of exactly {'event_pid_set_sha256':event_pid_set_sha256,'event_port_set_sha256':event_port_set_sha256,'network_call_count':network_call_count,'gpu_call_count':gpu_call_count}. Each set digest uses its own literal field name as UTF-8 domain followed by one NUL and canonical JSON of the ascending unique integer set."
+      },
+      "probe_evidence_recipe": "For the four probe_ids values only, use bare SHA-256 over domain UTF-8 file-portal/vw-e2-probe/r2 followed by one NUL byte and canonical JSON of exactly {'probe_id','probe_code_sha256','subject_sha256','status','reason_codes','result_projection'}. probe_code_sha256 is the bare SHA-256 of the exact probe_code_mapping file bytes; subject_sha256 uses the exact matching probe_subject_recipes entry; result_projection is the minimal non-private projection below. The independent verifier, protected tree, and residue are explicitly excluded from this generic recipe and use their direct binding rules. No path, title, basename, raw text, image bytes, or arbitrary prose enters a probe projection.",
+      "probe_result_projections": {
+        "heldout-selector-v1": ["accepted_calibration_case_ids", "rejected_heldout_case_ids", "path_operations_before_rejection"],
+        "cleanup-v1": ["event_scratch_removed", "part_files_remaining"],
+        "redaction-v1": ["private_identifiers_exposed", "persisted_raw_renders", "persisted_raw_tiles", "persisted_raw_crops", "persisted_raw_text", "path_pattern_hits", "base64_pattern_hits", "unlicensed_string_hits"],
+        "isolation-v1": ["event_child_process_count", "event_child_port_count", "gpu_used", "network_used"]
+      },
+      "probe_schema_destinations": {
+        "heldout-selector-v1": ["run_observations.privacy.held_out_access_probe_sha256"],
+        "cleanup-v1": ["run_observations.privacy.cleanup_probe_sha256", "run_observations.cleanup.evidence_sha256"],
+        "redaction-v1": ["run_observations.privacy.redaction_probe_sha256"],
+        "isolation-v1": ["run_observations.resources.isolation_evidence_sha256"]
+      },
+      "cleanup_destination_equality": "run_observations.privacy.cleanup_probe_sha256 and run_observations.cleanup.evidence_sha256 are the same cleanup-v1 evidence hash. run_observations.cleanup.probe_code_sha256 is the bare hash of windows-converter/visual_witness_capture.py.",
+      "direct_observation_binding": "protected-tree-v1 has no generic evidence-hash destination: its exact algorithm/domain/entry count/probe code hash/before hash/after hash/identical fields are bound by the protected-tree-digest semantic check and report_id. residue-v1 has no generic evidence-hash destination: its exact arrays are bound by the residue-privacy-census semantic check and report_id. Do not invent another field or overload a hash domain.",
+      "persisted_disposition_rule": "The bound schema is a superset, but R2 persists an operational report only on the COMPLETE candidate path. Every conflicts array and every procedural unreads array in capture_payload and run_observations must be empty. The only permitted unread object inside a persisted report is one nonblocking run_observations.residue.inaccessible item with reason_code UNREAD, scope system-global-census, detail_code outside-event-process-scope, evidence_sha256 null; it records the deliberately unmeasured global census and does not imply global idleness. An optional GPU-probe failure is not inserted as a second unread object: gpu_used remains the event-call observation and global GPU state is simply outside scope. Any other conflict or UNREAD prevents report creation and takes the minimal-attempt-exit path.",
+      "conflict_and_unread_evidence_rule": "Because no conflict or procedural blocking UNREAD object may enter a persisted R2 report, no generic evidence hash is invented for them. The one licensed nonblocking system-global-census unread has evidence_sha256 exactly null. Readable mismatches are carried by failed semantic checks or the independent verifier and stop before persistence; unread inputs are carried by UNREAD semantic checks with null evidence and stop before persistence.",
+      "independent_verifier_result_projection": ["sample_case_id", "sample_page_1based", "capture_payload_sha256", "semantic_checks_sha256", "status", "reason_codes"],
+      "independent_verifier_evidence_rule": "The verifier recomputes this fixed result projection, but it is not separately hashed into a second schema field. The projection is input to the independent_verification status/reason decision; the complete independent_verification object is then bound once by semantic_evidence_and_assembly.verifier_evidence_sha256.",
+      "independent_verifier_disposition": {
+        "Verified-independent": "All required bytes are readable; packet, capture schema, verifier code, capture payload hash, 32-check hash, fixed VW-T03 page 210 sample identities, and first relationship-chain recomputation match exactly. reason_codes is empty.",
+        "CONFLICT": "All inputs needed for the named predicate are readable and at least one comparison differs. Collect sorted unique codes: packet/schema/verifier-code mismatch -> GROUND-DRIFT; capture-payload or semantic-check hash mismatch -> VW-IDENTITY; sample primitive/candidate/relationship recomputation mismatch -> VW-NEGATIVE-CONTROL. evidence_sha256 uses the verifier domain recipe.",
+        "UNREAD": "At least one required byte set or required API result cannot be read. reason_codes is exactly ['UNREAD']; evidence_sha256 is null. A readable mismatch is never downgraded to UNREAD."
+      },
+      "retained_report_scan": {
+        "order": "Two-phase and acyclic. Phase 1 scans the redaction subject before redaction_probe_sha256, independent_verification, semantic_checks, and report_id exist: recursively visit every present string leaf in JSON-pointer code-point order and license it against the exact schema path plus packet vocabulary without claiming full-report schema validity. Compute redaction-v1 evidence from those zero-hit counts and insert its hash. Phase 2 assembles semantic checks, independent verification, and report_id; validates the complete candidate against the exact bound schema; and scans every final string leaf again. Post-Phase-1 additions are limited to schema/packet constants, hashes, reason codes, timestamp, and fixed verifier IDs. Any Phase-2 hit prevents persistence; no redaction hash is recomputed, so no self-cycle exists.",
+        "licensed_strings": "A string is licensed only when its schema location supplies a matching const, enum, sha256/decimal/timestamp grammar, or this packet supplies the exact opaque-ID, runtime-component, method-ID, candidate-ID, primitive-ID, relationship-ID, tile-ID, cell-ID, reason-code, detail-code, or fixed logical-name grammar. Any other string is VW-PRIVACY.",
+        "path_rejections": ["Python re.search(r'(?i)(?:^|[^A-Za-z0-9])[A-Z]:[\\\\/]', value)", "value.startswith('\\\\\\\\') or value.startswith('//')", "Python re.match(r'(?i)^file:(?:/{2,3})', value)"],
+        "base64_rejection": "Reject len(value)>80 and Python re.fullmatch(r'[A-Za-z0-9+/]+={0,2}', value), except values already licensed as packet/schema constants; 64-character hexadecimal hashes are licensed separately and never enter this branch.",
+        "private_dictionary_rejection": "Using ephemeral inputs only, reject equality with or containment of a manifest title, source/bundle basename, or canonical absolute private path after ordinal case-insensitive Windows normalization. Do not retain the dictionary or the matching value.",
+        "raw_content_rejection": "No raw-content field exists in the schema. Additionally reject any unlicensed string leaf; the producer never promotes extracted source/OCR text into an opaque ID. Record counts and the redaction probe evidence hash only."
+      },
+      "scratch_cleanup": "Delete the event run child, verify it no longer exists without following reparse points, and inventory the supplied scratch root only for the exact run child name. Do not retain unrelated filenames.",
+      "part_file_rule": "A transient evidence file, if used, must be a direct child of the exact evidence run directory whose leaf begins exactly vw-e2-r2-{run_id}- and ends exactly .part. Before any final create and at every exit, enumerate only that exact prefix/suffix class within the event run directory plus the exact scratch run child. Any remaining match is residue ID evidence-part-file with reason VW-CLEANUP/detail part-file-remains. Unrelated evidence-root or scratch-root children are neither opened nor named.",
+      "process_and_port_scope": "Record the producer and verifier child PIDs at spawn, enumerate only those PIDs and their descendants, and attribute only ports whose owning PID is in that event set. A surviving event PID is event-child-process; its port is the numeric port with detail event-child-port. Unrelated system processes and ports are outside-event-process-scope and represented as one nonblocking system-global-census UNREAD, never as guessed zeroes or global idleness.",
+      "gpu_scope": "The event starts no GPU call. Record an optional read-only GPU-owner probe as measured or as one nonblocking resource-probe UNREAD with detail optional-gpu-probe-unread. Absence or failure of that probe never proves global GPU idleness; only event-child ownership can be blocking residue.",
+      "free_form_rule": "Conflict, UNREAD, residue, and verifier fields accept only the enums, IDs, numbers, booleans, nulls, and hashes frozen here and in the schema. Arbitrary detail prose, private paths, titles, basenames, and raw content are forbidden. The semantic validator rejects every out-of-vocabulary value."
+    },
+    "forbidden": {
+      "xrefs_true": true,
+      "model_calls": true,
+      "network": true,
+      "gpu": true,
+      "semantic_truth_claims": true
+    }
+  },
+  "operational_report_contract": {
+    "format_id": "visual-witness-e2-operational-report-v1",
+    "schema_claim": true,
+    "schema_binding": "The report validates against the exact bound_schemas.capture_report bytes and passes every named semantic check required by that schema and this packet.",
+    "canonical_json": "Use frozen_configuration.canonicalization exactly.",
+    "report_id": "Use frozen_configuration.identity_recipes.report_id exactly.",
+    "repeatability_unit": "capture_payload canonical bytes and capture_payload_sha256; timestamps and resource observations are outside this payload",
+    "required_top_level": ["format_id", "report_id", "capture_payload", "run_observations", "semantic_checks"],
+    "capture_payload_required": [
+      "event_id", "event_revision", "packet_sha256", "parent_contract_sha256", "capture_schema_sha256", "config_sha256", "case_census", "cases", "metrics", "capture_payload_sha256", "next_event_authority"
+    ],
+    "case_required": [
+      "case_id", "split", "source", "bundle", "procedure_status", "blocking", "pages", "class_census", "conflicts", "unreads"
+    ],
+    "page_required": [
+      "page_1based", "status", "media_box_mupdf_pt", "crop_box_mupdf_pt", "media_box_pdf_user_space_pt", "crop_box_pdf_user_space_pt", "rotation_degrees", "render", "tiles", "tile_union", "primitive_facts", "primitive_census", "region_candidates", "relationships", "class_procedures", "unreads"
+    ],
+    "candidate_required": [
+      "candidate_id", "classes", "class_basis", "class_evidence", "claim_status", "semantic_truth_status", "bbox_mupdf_unrotated_pt", "bbox_pdf_pt", "bbox_px_half_open", "bbox_normalized", "source_primitive_ids", "intersecting_tile_ids", "edge_recovery", "crop", "captured_text"
+    ],
+    "run_observations_required": [
+      "created_at_utc", "producer", "resources", "privacy", "protected_tree", "cleanup", "residue", "independent_verification", "conflicts", "unreads", "status"
+    ],
+    "claim_rules": [
+      "Raw PDF primitives and measured bytes may be Observed.",
+      "Structural class labels are always Inferred.",
+      "Deterministically recomputed geometry and identities may be Verified-self or Verified-independent.",
+      "Every class semantic_truth_status is UNREAD by design and is not counted as a blocking procedural UNREAD.",
+      "candidate_count may be zero only after the corresponding procedure completed successfully.",
+      "An empty text extraction is only an observed empty extraction."
+    ],
+    "assembly_sequence": [
+      "The producer computes the deterministic capture_payload in event scratch and does not persist a final report yet.",
+      "The producer starts the exact fixed verifier as a waiting child with authenticated anonymous stdin/stdout pipes, records its PID and descendants as transitional event processes, completes actual scratch cleanup, measures protected AFTER, and only then assembles the actual resource/privacy/residue observations and 32-check pre-verifier subject.",
+      "The producer sends exactly one canonical JSON request plus LF over the verifier child stdin pipe. The verifier recomputes the required consequential probes from packet bytes, executed code bytes, source bytes, and deterministic payload, then returns exactly one canonical JSON wrapper plus LF over stdout containing the exact verifier result and event-activity counters. The producer requires exact bytes, identities, evidence hash, empty stderr, reconciled counters, and coherent exit status. No request, result, wrapper, or transport bytes are persisted in evidence or scratch.",
+      "After verifier exit the producer performs final event PID, descendant, port, network-attempt, and GPU-attempt isolation and confirms the protected AFTER digest remains unchanged.",
+      "The finalizer verifies schema, semantic checks, cleanup/protected-tree/privacy evidence, embeds the verifier evidence hash, computes report_id, and creates the one retained report with create-new semantics.",
+      "The final report is never modified after creation."
+    ]
+  },
+  "unread_and_completion_policy": {
+    "blocking_categories": [
+      "source or bound-hash verification",
+      "page open or geometry",
+      "render",
+      "tile coverage or recovery crop",
+      "unknown or invalid primitive geometry",
+      "raster, vector, stroke-cluster, scan-component, text-block, or table procedure",
+      "protected-tree identity",
+      "held-out isolation",
+      "deterministic identity or canonical serialization",
+      "cleanup, privacy, or independent verification"
+    ],
+    "nonblocking_categories": [
+      "semantic_truth_status=UNREAD for every structural class by design",
+      "an optional resource probe that is explicitly status=UNREAD, blocking=false, and not used by a completion threshold"
+    ],
+    "rule": "Every UNREAD object carries blocking boolean and an escalation reason code. COMPLETE requires zero blocking UNREADs, zero conflicts, every required semantic check pass, every negative control bite, cleanup pass, and Verified-independent evidence."
+  },
+  "failure_exit_contract": {
+    "rule": "Every attempted event ends with an exit artifact. The runtime producer emits a schema-valid visual-witness-event-receipt-v1 receipt only on the COMPLETE path after the immutable report is created and reverified. Every runtime STOPPED, FAILED, or UNREAD path emits the packet-defined minimal attempt-exit object with schema_conformance=UNREAD; it never fabricates the receipt schema's free-form fields.",
+    "minimal_attempt_exit_required": ["format_id", "event_id", "event_revision", "packet_sha256", "created_at_utc", "status", "last_completed_gate", "reason_code", "claim_status", "schema_conformance", "next_event_authority"],
+    "minimal_attempt_exit_constants": {"format_id": "visual-witness-e2-attempt-exit-v1", "event_id": "VW-E2", "event_revision": "VW-E2-R2", "claim_status": "Observed", "schema_conformance": "UNREAD", "next_event_authority": "UNSIGNED"},
+    "minimal_attempt_exit_status_enum": ["STOPPED", "FAILED", "UNREAD"],
+    "last_completed_gate_enum": ["START", "GROUND-VERIFIED", "ROOTS-VERIFIED", "PROTECTED-BEFORE", "CASES-CAPTURED", "PROTECTED-AFTER", "CLEANUP-VERIFIED", "INDEPENDENT-VERIFIED", "REPORT-CREATED"],
+    "last_completed_gate_rule": "Use the last gate whose complete packet predicate passed; START means no later gate passed. Never name a gate merely because it began.",
+    "reason_code_enum": ["GROUND-DRIFT", "AUTHORITY-MISSING", "VW-SOURCE-HASH", "VW-BODY-HASH", "VW-ASSET-HASH", "VW-CONFIG-HASH", "VW-PAGE-MAP-UNREAD", "VW-RENDER-UNREAD", "VW-TILE-GAP", "VW-CROP-BOUNDS", "VW-COORDINATE-UNREAD", "VW-RASTER-DIGEST-UNREAD", "VW-VECTOR-GEOMETRY-UNREAD", "VW-DEPENDENCY-DRIFT", "VW-HELDOUT-CONTAMINATION", "VW-PROTECTED-TREE", "VW-PRIVACY", "VW-CLEANUP", "VW-IDENTITY", "VW-NEGATIVE-CONTROL", "VW-UNAUTHORIZED-THRESHOLD", "UNREAD"],
+    "persistence_after_root_validation": "Once ROOTS-VERIFIED has passed and the exclusive run directories exist, persist the minimal object as canonical JSON plus exactly one LF at the exact output_policy.attempt_exit_filename as a direct child of the validated evidence run directory, using exclusive create-new semantics. On success, stdout contains only the same canonical object plus LF; stderr may contain only the single opaque reason_code. If exclusive creation fails, do not claim persistence; emit the object to stdout, the opaque reason_code to stderr, and exit nonzero.",
+    "transport_before_root_validation": "If evidence-root validation has not passed, create no repository, evidence-root, scratch-root, or fallback file. Emit only canonical JSON plus one LF to stdout; stderr may contain only the single opaque reason_code. This stdout object is the attempt's exit record, and no persisted-file claim may be made.",
+    "exit_code_rule": "Exit 0 only after a schema-valid COMPLETE event receipt has been created. Every STOPPED, FAILED, UNREAD, minimal-attempt-exit, report-create failure, schema failure, semantic-check failure, conflict, blocking UNREAD, or uncaught exception exits nonzero after the most truthful permitted exit record is emitted.",
+    "minimal_attempt_exit_privacy": "last_completed_gate and reason_code are packet-enumerated opaque codes; no path, title, basename, or raw private content is permitted.",
+    "event_receipt_construction": {
+      "canonicalization": "Use frozen_configuration.canonicalization exactly: canonical identity JSON bytes plus exactly one LF for the persisted file.",
+      "output_projection": "A COMPLETE receipt outputs array contains exactly one entry for the already-created operational report: path is the safe forward-slash relative path {run_id}/ followed by output_policy.success_report_filename after literal run_id substitution, sha256 is the bare SHA-256 of the exact persisted report bytes including its terminal LF, bytes is the exact persisted byte length, and claim_status is Verified-independent. No absolute path is retained.",
+      "no_self_hash": "The receipt never lists itself in outputs and contains no receipt-file hash or receipt-file byte length. After exclusive persistence, a caller may measure the receipt bytes/hash externally, but those values are not inserted back into the immutable receipt or operational report.",
+      "create_order": ["operational report create-new", "reopen and verify exact report bytes/hash/length", "assemble and schema/semantic-validate receipt", "receipt create-new", "reopen and verify exact receipt bytes without mutating either file"],
+      "contract_binding": "contract_sha256 is the bare SHA-256 of the final R2 packet bytes. The receipt schema itself is bound by bound_schemas.event_receipt; the operational report is bound by its capture_payload.capture_schema_sha256 and packet_sha256.",
+      "failure_rule": "If any receipt field is not measured or schema-valid, do not fabricate a receipt. Use the minimal-attempt-exit transport and exit nonzero; an already-created immutable operational report remains evidence but does not unlock E3."
+    },
+    "complete_receipt_exact_projection": {
+      "schema": "file-portal.visual-witness.event-receipt",
+      "schema_version": 1,
+      "event_id": "VW-E2",
+      "event_revision": "VW-E2-R2",
+      "contract_sha256": "the final R2 packet SHA-256",
+      "repo_heads": "repo_head_before and repo_head_after are the freshly measured 40-hex repository heads and must satisfy repository_anchor.concurrent_lane.head_change_rule",
+      "authority": {"actor": "Rab", "verbatim_decision": "the exact authority.verbatim_decision string in this packet", "decision_source": "direct-user-instruction", "scope": "VW-E2-R2-only", "recorded_at_utc": "the exact top-level created_at_utc string in this packet"},
+      "case_census": "Copy declared, attempted, completed, unread, and case_ids from the verified report; COMPLETE requires 3,3,3,0 and packet-order case IDs.",
+      "tests": [
+        {"family": "capture-semantic-checks", "command_or_probe": "packet-semantic-validator", "status": "pass", "blocking": true, "negative_control": false, "evidence": "the 64-hex pre_verifier_semantic_checks_sha256"},
+        {"family": "independent-sample", "command_or_probe": "vw-e2-r2-independent-sample-v1", "status": "pass", "blocking": true, "negative_control": false, "evidence": "the 64-hex independent_verification.evidence_sha256"},
+        {"family": "same-check-negative-controls", "command_or_probe": "frozen-negative-control-fixtures", "status": "pass", "blocking": true, "negative_control": true, "evidence": "the 64-hex packet_sha256"}
+      ],
+      "metrics": [],
+      "outputs": "Exactly event_receipt_construction.output_projection.",
+      "resources": "Copy measured cpu_seconds, wall_seconds, peak_rss_bytes, and scratch_peak_bytes; gpu_used=false and gpu_receipt=null.",
+      "network": {"used": false, "consent_receipt": null},
+      "privacy": {"private_inputs": true, "persisted_raw_crops": 0, "persisted_raw_text": 0, "ephemeral_cleanup_verified": true},
+      "mutation_receipt": {"protected_tree_digest_before_and_after": "the identical before_sha256/after_sha256 value", "comparison_probe": "protected-tree-v1", "identical": true},
+      "residue": {"files": [], "processes": [], "ports": [], "gpu_owners": []},
+      "independent_verification": {"verifier": "codex-independent-verifier-v1", "status": "Verified-independent", "probe": "vw-e2-r2-independent-sample-v1", "dissent": null},
+      "conflicts": [],
+      "unreads": [],
+      "blast_radius": "report-only-no-converter-analyst-bundle-gate-ship-vault-ui-or-clock-mutation",
+      "status": "COMPLETE",
+      "next_event_authority": "UNSIGNED"
+    },
+    "receipt_privacy_rule": "The retained_report_scan applies independently to both the operational report and COMPLETE receipt. Receipt strings are accepted only when they are exact constants or exact dynamic hash/timestamp/filename/git-SHA values licensed by complete_receipt_exact_projection and event_receipt_construction. The sole authority-quote exception is the exact packet authority.verbatim_decision string; it contains no private corpus value and cannot be replaced by arbitrary prose. The runtime producer emits no FAILED, STOPPED, or UNREAD schema receipt; every non-COMPLETE runtime exit uses the minimal attempt-exit object, eliminating free-form receipt fields from failure paths.",
+    "contract_sha256_binding": "Every VW-E2-R2 receipt contract_sha256 is the SHA-256 of these final R2 packet bytes, never the VW-E1 parent hash, R1 hash, superseded R2 draft hash, or capture-schema hash.",
+    "complete_rule": "Only a receipt with status COMPLETE may cite the retained report as Verified-independent and unlock preparation—not execution—of VW-E3-R1."
+  },
+  "outputs": [
+    "On a successful produced-report path, one private operational report conforming to the bound capture-report schema plus packet semantic checks.",
+    "Hash-bound ephemeral crop metadata and captured native-text hashes; no raw render, tile, crop, or extracted text persists.",
+    "On the COMPLETE path, per-case page, tile-union, structural-candidate, timing, working-set, scratch, and empty conflict/procedural-UNREAD observations.",
+    "Exactly one VW-E2-R2 exit artifact for every attempt: a schema-conforming COMPLETE event receipt after a successful report, or the explicitly nonconforming minimal attempt-exit on every non-COMPLETE runtime path. Status COMPLETE only if every blocking criterion passes; next_event_authority is always UNSIGNED."
+  ],
+  "test_matrix": {
+    "frozen_negative_control_fixtures": {
+      "one_pixel_tile_gap": {
+        "fixture_id": "vw-e2-r2-gap-3x3-center-v1",
+        "page_width_px": 3,
+        "page_height_px": 3,
+        "rectangles_px_half_open": [[0, 0, 3, 1], [0, 2, 3, 3], [0, 1, 1, 2], [2, 1, 3, 2]],
+        "expected_union_area_px": 8,
+        "expected_valid_page_pixels": 9,
+        "required_production_disposition": "VW-TILE-GAP",
+        "rule": "Pass these four rectangles to the same exact half-open union and coverage gate used for production pages. The single uncovered center pixel [1,1,2,2] must make the gate reject; do not substitute another fixture."
+      },
+      "gross_out_of_range_page_map": {
+        "fixture_id": "vw-e2-r2-page-map-gross-v1",
+        "source_pages": 10,
+        "chunking_slice_size": null,
+        "protected_filename_page_ids_0based": [0, 10],
+        "expected_state": "untrustworthy",
+        "required_disposition": "VW-PAGE-MAP-UNREAD"
+      },
+      "plausible_in_range_retained_page_map_poison": {
+        "fixture_id": "vw-e2-r2-page-map-in-range-retained-poison-v1",
+        "source_pages": 10,
+        "freshly_reparsed_protected_records": [[0, 0], [1, 5], [2, 9]],
+        "poisoned_retained_records": [[0, 0], [1, 6], [2, 9]],
+        "expected_state_if_the_poisoned_list_were_trusted": "as-shipped-verified",
+        "required_semantic_check_disposition": "VW-PAGE-MAP-UNREAD",
+        "rule": "The production page-map-coherence semantic check must compare the retained projection to a fresh parse of the protected ordinal assets and reject this changed-but-still-in-range list. This fixture does not claim that R2 can detect an asset whose filename itself carries the wrong but in-range page ID."
+      },
+      "sym050_synthetic_positive": {
+        "fixture_id": "vw-e2-r2-sym050-positive-v1",
+        "source_pages": 450,
+        "chunking_slice_size": 200,
+        "protected_filename_page_ids_0based": [0, 199, 400, 599, 800],
+        "expected_repaired_page_ids_0based": [0, 199, 200, 399, 400],
+        "expected_state": "repaired-sym050"
+      }
+    },
+    "independent_sample_precommit": {
+      "tile_union_case_id": "VW-T03",
+      "tile_union_page_1based": 210,
+      "identity_chain": "Validate canonical ordering globally, then select the first reported relationship in packet case order, page order, and relationship order; select its source candidate on the same page and the code-point-lowest source_primitive_id. If no relationship exists, the required identity sample is blocking UNREAD and no alternate sample is permitted.",
+      "no_substitution": true
+    },
+    "unit_and_property": [
+      "Half-open tile arithmetic over odd, even, sub-tile, exact-tile, and multi-tile dimensions.",
+      "The exact union of base tiles covers every valid rendered pixel; the same production checker rejects a planted one-pixel hole.",
+      "Rotation 0, 90, 180, and 270 degrees, non-zero CropBox offset, MediaBox/CropBox distinction, and coordinate round-trip.",
+      "Zero-area connectors survive ink expansion; two-pixel stroke gaps cluster and three-pixel gaps do not.",
+      "Primitive, candidate, relationship, configuration, report, and capture-payload ID byte recipes independently recompute; primitive and candidate identities are invariant to reversed duplicate line/edge geometry and raw engine ordinals, while capture_payload_sha256 deliberately binds the retained observed provenance ordinals and therefore changes if those observed ordinals change.",
+      "Unknown drawing-item injection makes the vector procedure reason-coded UNREAD.",
+      "Held-out ID injection is rejected before a resolver spy observes any path operation."
+    ],
+    "table_positive": [
+      "A three-by-three-track, four-cell ruled fixture with native text in all four cells yields exactly one Inferred table candidate with semantic truth UNREAD."
+    ],
+    "table_negative": [
+      "One rectangle containing text yields no table candidate.",
+      "A horizontal/vertical crosshair yields no table candidate.",
+      "Four disconnected flowchart boxes with connectors and labels yield no global table candidate.",
+      "A three-by-three technical grid with no native text yields no table candidate.",
+      "A grid below the 80 percent intersection threshold yields no table candidate.",
+      "A two-pixel axis displacement fails the one-pixel axis rule.",
+      "A rasterized table may yield raster or scan-component, never vector table.",
+      "Borderless aligned text columns yield no table candidate and remain a declared false-negative boundary.",
+      "A grid-like technical drawing with cell text may classify only as Inferred with semantic truth UNREAD."
+    ],
+    "integration": [
+      "Synthetic PDF render-to-tiles-to-candidates-to-report runs twice with byte-identical capture_payload bytes.",
+      "The real hash-bound digital-born calibration case VW-T01 is exercised; native text and vector drawing primitives are measured without publishing its title or basename. This does not require a live File Portal process.",
+      "A one-pixel vector candidate crossing a four-tile corner survives page-wide detection and tile-boundary recovery with stable identity.",
+      "A tiled full-page raster can satisfy scan-component through exact raster-union area.",
+      "A blank page produces zero candidates only after all six class procedures complete successfully.",
+      "A corrupt or unrenderable PDF yields a blocking reason-coded minimal attempt-exit without fabricated page geometry or a fabricated non-COMPLETE schema receipt.",
+      "Wrong source hash, forced render failure, forced crop truncation, gross out-of-range page-map poison, a plausible in-range mutation of the retained page-ID list relative to freshly reparsed protected filenames, and duplicate JSON members are rejected or reason-coded blocking UNREAD.",
+      "A planted 0-based asset filename page ID can never substitute for source page_1based; both identifiers remain separately typed.",
+      "A planted protected-tree mutation is rejected by the exact production digest comparison.",
+      "Calibration case source, raw-Markdown, and ordinal asset-inventory hashes are reverified."
+    ],
+    "independent_verification": [
+      "A differently shaped verifier recomputes one consequential page tile union, one candidate identity, VW-CONFIG-HASH, and the planted one-pixel gap using the exact R2 packet, bound schema, and executed code bytes."
+    ]
+  },
+  "exit_criteria": [
+    "Every declared calibration case and all 753 declared pages are accounted for as measured or reason-coded procedural UNREAD.",
+    "Every frozen candidate procedure completes on every readable page; blocking page or class UNREAD count is zero.",
+    "For readable pages, covered_valid_pixels/valid_page_pixels equals 1.0 under the frozen base-tile configuration.",
+    "All unit, property, table, integration, identity, held-out, protected-tree, and same-check negative controls bite.",
+    "Two synthetic runs produce byte-identical canonical capture_payload bytes.",
+    "No held-out source, bundle, Markdown, asset, or manifest-supplied path is resolved or opened.",
+    "No model, network, GPU, production converter, analyst, Repair Bench, bundle, gate, ship, publication, vault, or session-clock effect occurs.",
+    "An independent verifier recomputes a page tile union, candidate identity, and planted gap and returns Verified-independent.",
+    "Protected roots are byte-identical; ephemeral scratch and raw evidence are removed; residue and inaccessible census areas are reported.",
+    "The complete receipt sets next_event_authority to UNSIGNED; the updated event artifact then escalates a separately hashed VW-E3-R1 packet for Rab's signature and stops."
+  ],
+  "limitations": [
+    "No candidate is semantically proven to be a figure, scan, text passage, or table.",
+    "The detector does not establish exhaustive visual-region recall.",
+    "A real table cannot be distinguished from a technical drawing having the same ruled-grid-and-text topology.",
+    "Borderless, single-row, single-column, rasterized, or no-native-text tables are outside the table predicate and remain a measured false-negative boundary.",
+    "No OCR or CV is used to infer text or tables inside raster images.",
+    "Page-map verification is mechanical filename-map coherence only. An asset whose own filename carries a wrong but in-range page ID is indistinguishable without later visual/output evidence; every asset source_page_relation remains UNREAD in E2.",
+    "Output-asset matching, omission classification, paired captured text, formatting repair, and fidelity are later events.",
+    "Held-out generalization is UNREAD because held-out cases remain sealed until VW-E7."
+  ],
+  "effect_boundary": "New out-of-band report-only capture files, local private metadata, a conforming exit receipt, documentation, and the observability artifact only. Default converter, analyst, Repair Bench, bundles, manifests, assets, shipping, gates, vault, network, GPU, and session clocks remain unchanged.",
+  "user_experience": "After successful completion, the user can inspect a calibration-only inventory of structural source candidates, including conservative table candidates, source crop hashes, captured native-text hashes, and explicit procedural UNREADs. Converted documents and default product behavior remain unchanged.",
+  "escalation_reason_codes": [
+    "GROUND-DRIFT", "AUTHORITY-MISSING", "VW-SOURCE-HASH", "VW-BODY-HASH", "VW-ASSET-HASH", "VW-PAGE-MAP-UNREAD", "VW-RENDER-UNREAD", "VW-TILE-GAP", "VW-CROP-BOUNDS", "VW-COORDINATE-UNREAD", "VW-RASTER-DIGEST-UNREAD", "VW-VECTOR-GEOMETRY-UNREAD", "VW-CONFIG-HASH", "VW-DEPENDENCY-DRIFT", "VW-HELDOUT-CONTAMINATION", "VW-PROTECTED-TREE", "VW-PRIVACY", "VW-CLEANUP", "VW-IDENTITY", "VW-NEGATIVE-CONTROL", "VW-UNAUTHORIZED-THRESHOLD", "UNREAD"
+  ],
+  "decision_phrases": {
+    "exact_bytes_signature_if_requested": "SIGN VW-E2 VW-E2-R2",
+    "revise": "REVISE VW-E2: <instruction>",
+    "defer": "DEFER VW-E2",
+    "stop": "STOP VW-E2",
+    "authority_note": "Rab already authorized R2 work by the recorded direct instruction; this phrase set preserves R1 governance controls and does not fabricate an exact-byte signature."
+  },
+  "next_event": {
+    "event_id": "VW-E3",
+    "authority": "UNSIGNED",
+    "evidence": "UNREAD",
+    "rule": "Only after a verified COMPLETE VW-E2-R2 receipt may a separately hashed VW-E3-R1 packet be displayed for Rab's signature. No E3 execution is authorized by this packet."
+  },
+  "next_event_authority": "UNSIGNED"
+}

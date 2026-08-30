@@ -36,3 +36,30 @@ each seed traces to a real prompt in the cookie ledger, a session closeout, or M
 | repair the tables and rows in symptom index | one uninterrupted, numerically ordered six-column `SYMPTOM-INDEX.md` table; retain the SYM-015 evidence row beside its parent; move the row-writing law below the table; preserve every row payload byte-for-byte | `SYMPTOM-INDEX.md`; Echo Reading A aligned in chat | confirmed 2026-08-28 — "A" selected Reading A for "repair the tables and rows in symptom index" |
 
 ⟨claimed: Codex lane · occupant: OpenAI Codex (GPT-5) · S112 · 2026-08-28⟩
+
+## 2026-08-28 — visual-witness commission
+
+| Rab's word / phrase | Project name(s) | Where it lands | Provenance |
+|---|---|---|---|
+| formatting libraries | a versioned formatting contract: protected-span parser, structure-aware chunker, candidate validator, and raw-chunk fallback — not a Markdown prettifier | `windows-converter/analyst.py`; `windows-converter/fidelity_audit.py` | confirmed 2026-08-28 — "A" selected the hybrid visual-witness reading |
+| truncation / image slices | coverage-complete adaptive page tiling followed by fused source-page regions; tiles are a detector mechanism and may not discard pixels, text, or boundary-spanning candidates | proposed Visual Witness Map; `windows-converter/figure_coverage.py` | confirmed 2026-08-28 — "A" selected the hybrid visual-witness reading |
+| pairs it with the converted captured text | a hash-bound regional evidence packet joining the source crop, native PDF text or independent OCR agreement/`UNREAD`, and an exact converted Markdown span | proposed Visual Witness Map; `prototypes/repair-bench/bench.py` | confirmed 2026-08-28 — "A" selected the hybrid visual-witness reading |
+
+⟨claimed: Codex lane · occupant: OpenAI Codex (GPT-5) · S112 · 2026-08-28⟩
+
+## 2026-08-28 — visual-witness commission correction
+
+| Rab's word / phrase | Project name(s) | Where it lands | Provenance |
+|---|---|---|---|
+| truncation / image slices (supersedes the preceding visual-witness row) | deterministic complete tiling of rendered page pixels under a signed configuration, followed by fused declared-region candidates; boundary hits are re-centered and unresolved page readability, model truncation, or semantic coverage remains `UNREAD` — this does **not** claim absolute semantic completeness | proposed Visual Witness Map; `windows-converter/figure_coverage.py` | corrected 2026-08-28 after independent plan review; Reading A remains unchanged |
+
+⟨claimed: Codex lane · occupant: OpenAI Codex (GPT-5) · S112 · 2026-08-28⟩
+
+## 2026-08-30 — visual-witness revision and escalation
+
+| Rab's word / phrase | Project name(s) | Where it lands | Provenance |
+|---|---|---|---|
+| R1 became R2 based on these added aspects | a corrective revision of the same event: preserve `VW-E2-R1` immutable as `STOPPED`, create `VW-E2-R2` with the verified missing report, structural-candidate, table, fusion, boundary, and negative-control rules, then develop and test that revision; it is not a second E2 aspect | `docs/contracts/visual-witness-e2-packet-r1.json`; `docs/contracts/visual-witness-e2-packet-r2.json` | confirmed 2026-08-30 — Rab directed the primary Echo reading after asking whether R2 was revised R1 or a different aspect |
+| escalate the same ticket artifact updated, and ask for signature on E3 | after a verified `COMPLETE` E2-R2 receipt, update the existing nine-event observability artifact with R1/R2 history, display a separately hashed `VW-E3-R1` packet as `PROPOSED-UNSIGNED`, ask Rab for its signature, and stop without E3 execution | Visual Witness event artifact; VW-R1 event-transition law | confirmed 2026-08-30 — Rab's post-Echo corrective direction |
+
+⟨claimed: Codex lane · occupant: OpenAI Codex (GPT-5) · S112 continuation · 2026-08-30⟩

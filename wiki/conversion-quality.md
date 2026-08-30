@@ -1,9 +1,9 @@
 ---
 title: Conversion Quality & OCR
 section: Pipeline
-last-verified: 2026-08-23
-verified-against: 1790554
-sources: [windows-converter/fidelity_audit.py, windows-converter/figure_coverage.py, windows-converter/backend_parity.py, windows-converter/convert_and_ship.py, linux-converter/converter/engines.py, docs/11-gpu-pipeline-revamp.md, docs/34-measurement-language.md, docs/41-conversion-completeness-plan.md, docs/42-conversion-completeness-findings.md, SYMPTOM-INDEX.md, OPEN-TASKS.md, prototypes/docling-calibration/README.md, sessions/S106-desktop-2026-08-20.md]
+last-verified: 2026-08-30
+verified-against: 9ff3e5d
+sources: [windows-converter/fidelity_audit.py, windows-converter/figure_coverage.py, windows-converter/backend_parity.py, windows-converter/convert_and_ship.py, windows-converter/visual_witness_capture.py, windows-converter/visual_witness_capture_selftest.py, windows-converter/visual_witness_verify.py, linux-converter/converter/engines.py, docs/11-gpu-pipeline-revamp.md, docs/34-measurement-language.md, docs/41-conversion-completeness-plan.md, docs/42-conversion-completeness-findings.md, docs/48-visual-witness-evidence-contract.md, docs/contracts/visual-witness-e1-contract-v1.json, docs/contracts/visual-witness-e2-packet-r2.json, SYMPTOM-INDEX.md, OPEN-TASKS.md, prototypes/docling-calibration/README.md, sessions/S106-desktop-2026-08-20.md]
 ---
 
 **Conversion quality is measured by three report-only instruments — `fidelity_audit.py` (did
@@ -159,6 +159,30 @@ specimens: Cybernetics p34 (54 drawings, 27 zero-area, largest cluster 541 pt² 
 `min_area_pt2` 4900) and p78 (clusters of 2 paths vs `vector_min_paths` 4), with p35 as the
 control that DOES flag (SYMPTOM-INDEX.md row SYM-049; figure_coverage.py:37-46). The fix is
 clustering that follows stroke geometry — not a threshold nudge (OPEN-TASKS.md B10).
+
+## Visual Witness Map — E2 implementation verified, operator calibration pending
+
+VW-E1 freezes a six-case 3 calibration / 3 held-out corpus, regional evidence schema,
+phase-correct metrics, retention, resources, negative controls, and immutable-result/separate-
+human-disposition boundaries (`docs/48-visual-witness-evidence-contract.md`; canonical machine
+contract `docs/contracts/visual-witness-e1-contract-v1.json`). Its out-of-band report host may
+read verified inputs and write local evidence metadata, never product or pipeline state.
+
+VW-E2-R1 is immutable and stopped. Rab's corrective instruction authorized R2 development/tests,
+not a fabricated exact-byte signature (`coordination/SIGNATURES.md`, final VW-E2 entry). The
+CPU/network/GPU-free report packet is 110,341 bytes / SHA-256 `ebc047b8d963a8e3b92ebd7479055dbf78121fad93094f38c902ce9f92cc6769`
+(`docs/contracts/visual-witness-e2-packet-r2.json`).
+
+It renders pages, overlaps tiles, derives conservative raster/vector/stroke/text/table candidates,
+hashes crops/native-text witnesses, then deletes raw bytes (`visual_witness_capture.py:6091-6304`;
+packet:817,844-854). Root and an independent lane each passed 54/54 hermetic tests; static Circle
+passed report ordering, helper denial, final HEAD, privacy, cleanup, protected-tree, and verifier
+seams (`visual_witness_capture_selftest.py:828-986`).
+
+Real calibration remains **UNREAD**: runs 0 / reports 0 / COMPLETE receipts 0 at the handoff.
+The implementation does not change converted documents, assets, analyst output, gates, shipping,
+the vault, or UI. E2 is incomplete until Rab runs the operator command and returns its evidence;
+E3 remains `UNSIGNED` (`docs/48-visual-witness-evidence-contract.md`, final section).
 
 ## Open items
 
