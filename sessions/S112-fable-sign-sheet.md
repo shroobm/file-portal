@@ -50,6 +50,13 @@ OK-13 is the strategic one and deserves its own echo/commission when you're read
   OK-9: _____ · OK-10: _____ · OK-11: _____
 - OK-12: _____ · OK-13: _____ · OK-14: _____ · OK-15: _____
 
+**Post-close additions (born of the 4e-Damodaran stall, 2026-08-30 evening):**
+
+| id | ticket | effort | status |
+|---|---|---|---|
+| OK-16 | **Pre-convert ollama unload** — free the ~1.5–2.0 GB the idle analyst residents hold during the convert phase (both stall events read 9.8/10.2 GB; the analyst needs the models only AFTER convert) | S | **SIGNED (Rab, 2026-08-30: "Signed")** — execution deferred until the live convert releases the gpu-lock |
+| OK-17 | **Review + commit the stall-recovery ladder** — the uncommitted +139-line retry/split ladder in `convert_and_ship.py` (live-proving itself on slice retries right now): adversarial review, tripwires in the same commit, attribution resolved on the bus | S–M | **SIGNED (Rab, 2026-08-30: "Signed")** — same deferral; the running process is not disturbed |
+
 **Build record (2026-08-30):** the four signed tickets landed in the live bench
 (`prototypes/repair-bench/bench.py`, `bench.html`, `test_bench_page.py`; docs/22 schema
 updated). Harness **45/45** (19 pre-existing + 26 added, every family with positive AND
