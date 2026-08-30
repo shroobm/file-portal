@@ -188,6 +188,7 @@ refiled; their work is already represented in the symptom/register record.
 
 ## §B MECHANICAL — no signature needed, a session may simply do these
 
+| A49 | **Pick adoptions from the Okular digest** — `docs/49-okular-digest.md` §1 ranks 13 candidates (viewport sidecar, placeholder paint, prefetch, search suite, text layer, table tool, trim, zoom, unified undo, review panel, watch/swap, observability grammar, paged md reading surface) + ranked-out and pipeline extras, from 107 findings; 404 audit rows re-measured across the 7 code lanes, all MATCH (popplerweb lane unaudited, flagged); a critic pass filed 22 defects on the digest itself, folded in. Evidence `dumps/evidence/D0005`, sha256 `981f2959…`. Nothing built; each candidate names its bench pain and effort class. | SEMANTIC | `docs/49` §1, S112 Fable lane record, `Observed 2026-08-30` |
 `Observed 2026-08-22` where a command is quoted.
 
 ### B.1 Standing reds and live hazards

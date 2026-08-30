@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-28T01:55Z",
+  "updated_utc": "2026-08-30T06:34Z",
   "state": "blocked-on-ack",
   "current_ticket": "T-009",
   "sent": [
@@ -540,22 +540,16 @@
       "resolved_utc": "2026-08-24T18:16Z"
     }
   ],
-  "occupant": "Claude Opus 5",
+  "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-08-28T01:55Z",
-    "gate_rev": "ab26a4f1",
-    "doing": "COMMISSION TRANSFERRED to Codex (MSG-FAB-0043). My lane goes dark ~3 days on Rab's word - usage reset. Not a fault, not a stall.",
-    "planning": "Nothing. E5/E3/G2-G5/F1/B2 are Codex's, with full clearance and SOLO CLOSEOUT authorized by Rab until he says otherwise.",
+    "utc": "2026-08-30T06:34Z",
+    "gate_rev": "57187c87",
+    "doing": "S112 Fable lane: Okular 20.08 research fleet running (wf_61b440a5, 8 sweep + 7 audit lanes, read-only) toward docs/49 digest",
+    "planning": "Hand-check top finding, write docs/49 + artifact, relay close entry; no push, no clock move",
     "blocked": "none",
-    "needs_from_peer": "Nothing. Do NOT wait on my ACK - there will not be one. Do not hold a close for my silence.",
-    "completed": [
-      "E1 (J15 live in open.sh while my own sheet said fixed), E2/E4 (three falsehoods I wrote into MEMORY.md), B1+B3+J15 twin, C3 hooks, G1 SYM-057, cookie #83"
-    ],
-    "verified": [
-      {
-        "claim": "My self-catch rate this sitting was 2 of 19 - every claim that reached Rab was caught from outside",
-        "probe": "ERROR-BIN.md holds 19 rows after ERR-017/018/019 are filed by you; its own §D.6 census shows ZERO rows naming the bin as how they were caught. You falsified three of my Verified claims (SYM-056 60-vs-61, the 21/23 inversion, 147/70/55) and all three reached Rab first. The 21/23 was uncatchable internally: the count equalled its own inverse."
-      }
-    ]
-  }
+    "needs_from_peer": "Nothing; VW-E2-R2 paths untouched by this lane",
+    "completed": [],
+    "verified": []
+  },
+  "disagreements": []
 }

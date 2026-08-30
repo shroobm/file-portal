@@ -113,10 +113,49 @@ not a git repo checkout of this project; lanes read in place, read-only.
 The bench ground: `prototypes/repair-bench/bench.html` read in full (1431 lines) this sitting
 by the orchestrator, before the fleet was written.
 
-## §5 Close terms (stated at open)
+## §5 Close terms (stated at open)  ⟵ §6 records how they were met
 
 Digest lands as `docs/49-*`; most consequential finding hand-checked by the orchestrator,
 differently-shaped, before it reaches Rab (docs/47 §4); relay entry written back before close;
 commits touch only this lane's new files; no clock advance (S112 stays open, Codex lane holds
 the close); glass/close.sh belong to the session close, not this lane sitting — said out loud
 here rather than implied clean.
+
+## §6 Outcome — 2026-08-30, second half of the sitting
+
+- **Delivered:** `docs/49-okular-digest.md` (13 ranked candidates + ranked-out + pipeline
+  extras, corrections, nulls, all-107 tables) · artifact "The Okular Digest" (same content,
+  clickable v20.08.0 citations) · evidence dump **D0005** `sha256 981f2959…` (supersedes
+  D0004 — pre-critic downgrade metadata + clumsy subject; noted, not concealed) ·
+  OPEN-TASKS **A49** (SEMANTIC, Rab's) · relay `MSG-FAB-0044/0045`.
+- **Instrument:** run `wf_61b440a5-0c1` — 8 sweep lanes (claude-fable-5; wave one's 7 audits
+  died on the Fable usage cap), 7 audit lanes re-run on **claude-opus-5** (separate pool held),
+  sweeps replayed from cache; then 1 Opus completeness critic over the digest itself.
+  `Observed` totals from run notifications: 1,580,245 + 793,482 + 180,539 subagent tokens.
+- **Audit:** 404 audit rows across the 7 code lanes, 404 MATCH / 0 DRIFTED / 0 NOT_FOUND;
+  **popplerweb lane UNAUDITED** (12 findings / 36 citations, flagged wherever cited); 23 tag
+  downgrades + 3 number corrections; dominant defect class = caller+callee-as-second-method
+  (SYM-001 at fleet scale). Substantive falsifications caught: LAT-12 (swapped debounce
+  labels; thumbnail scroll undebounced), TG-11 geometry (chars+space-rects, not words —
+  port-critical), TG-13 newline placement, AU-01/AU-12 (incl. a stale comment in Okular's own
+  source), S-01 non-streaming, S-06 dropped conjunct, LAT-04/GEN-11 fourth conjunct.
+- **Critic (docs/47 binds the orchestrator too):** 22 defects filed against MY digest — 2
+  CRITICAL (the 404/404 framing concealed the unaudited lane; the fourth-conjunct correction
+  was dropped between my own hand-read and the text), 9 MAJOR (incl. the docdata size-in-key
+  HAZARD my §1 had framed as a feature, and dropped findings OBS-10/tiles/S-03/08/11/14/TG-14),
+  11 MINOR (incl. downgrade count 24→23 and my "differently-shaped" hand-check that was the
+  same instrument). All folded into docs/49 + artifact before commit. My own §5 close-term
+  "hand-checked … differently-shaped" was itself the overclaim — corrected in docs/49 §0, left
+  standing above per appends-never-erase.
+- **Boundary:** Okular tree read-only throughout; VW-E2-R2 paths untouched (Codex's two new
+  selftest/verify files observed landing mid-sitting; distance kept); no push; no clock move;
+  no wiki edit (conversion-quality.md is Codex-dirty — wiki re-stamp deferred to session
+  close); registers: one row ADDED (A49), none struck.
+- **Residue:** OPEN-TASKS.md carries 36 pre-existing lone-LF endings at HEAD (mixed-ending
+  file; observed, not repaired — not this lane's row to fix without a word). Muster SKILL.md's
+  "run close.sh at every close" not run this sitting: not a session close, SYM-064
+  credential-hang hazard, push reserved — stated, not skipped silently.
+
+§1 remains byte-identical.
+
+⟨claimed: Fable lane · Okular digest complete · adoption remains Rab's · 2026-08-30⟩
