@@ -450,10 +450,10 @@ class Bench:
     # metadata — works on scans; core/utils.cpp:90 isPaperColor), expanded 4% of the box's
     # mean dimension (ui/pageview.cpp:3385 cropExpandRatio) and never allowed to crop either
     # dimension below half the page (ui/pageview.cpp:3396 minCropRatio).
-    TRIM_DPI = 30          # the sidebar-thumb raster — cheap, and plenty for margins
-    TRIM_THRESHOLD = 40    # per-channel distance from paper before a pixel counts as content
-    TRIM_PAD = 0.04
-    TRIM_MIN_KEEP = 0.5
+    TRIM_DPI = 30          # lever-waiver: Rab signed OK-7 2026-08-30; the thumb raster the bench already pays for
+    TRIM_THRESHOLD = 40    # lever-waiver: Rab signed OK-7; per-channel paper distance, docs/49 §1 c7
+    TRIM_PAD = 0.04        # lever-waiver: Rab signed OK-7; Okular's field-tuned cropExpandRatio (pageview.cpp:3385)
+    TRIM_MIN_KEEP = 0.5    # lever-waiver: Rab signed OK-7; Okular's minCropRatio (pageview.cpp:3396)
 
     @staticmethod
     def bbox_from_samples(samples: bytes, w: int, h: int, stride: int, ncomp: int = 3,
