@@ -43,9 +43,19 @@ OK-13 is the strategic one and deserves its own echo/commission when you're read
 
 ## Signature slots
 
-- OK-0: _____ · OK-1: _____ · OK-2: _____ · OK-3: _____ · OK-4: _____ · OK-5: _____
-- OK-6: _____ · OK-7: _____ · OK-8: _____ · OK-9: _____ · OK-10: _____ · OK-11: _____
+- OK-0: **SIGNED (Rab, 2026-08-30)** · OK-1: **SIGNED (Rab, 2026-08-30)** ·
+  OK-2: **SIGNED (Rab, 2026-08-30)** · OK-3: _____ · OK-4: _____ · OK-5: _____
+- OK-6: _____ · OK-7: **SIGNED (Rab, 2026-08-30)** · OK-8: _____ · OK-9: _____ ·
+  OK-10: _____ · OK-11: _____
 - OK-12: _____ · OK-13: _____ · OK-14: _____ · OK-15: _____
+
+**The signature, verbatim (Rab, 2026-08-30):** *"Do do quarantine only, just implement it.
+Signing on OK-0, OK-1, OK-2, OK-7, use opus 5 models if you need / No just implmenet, no
+quarantine"*. Reading taken: the four tickets are signed for implementation **directly in the
+live bench** (`prototypes/repair-bench/bench.py` + `bench.html`), not behind a quarantine
+copy — overriding this sheet's quarantine default for these four only. Pipeline, vault,
+widget, and audit-credit boundaries unchanged; the bench's own safety net (`.md.bench-bak`,
+append-only provenance, sandbox/reading modes) stays intact.
 
 *Standing older signature items from earlier sessions (S110 sheet C+D, D1 —
 `ship-with-losses-named` vs `audit-must-be-green`, still the only item that moves the north

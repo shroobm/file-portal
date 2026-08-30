@@ -159,3 +159,18 @@ here rather than implied clean.
 §1 remains byte-identical.
 
 ⟨claimed: Fable lane · Okular digest complete · adoption remains Rab's · 2026-08-30⟩
+
+## §7 Subsequent commission — OK-0/1/2/7 build, signed
+
+Rab's words, verbatim: *"Do do quarantine only, just implement it. Signing on OK-0, OK-1,
+OK-2, OK-7, use opus 5 models if you need"* then *"No just implmenet, no quarantine"*.
+
+Reading: implement the four signed tickets directly in the live bench
+(`prototypes/repair-bench/bench.py` + `bench.html`) — no quarantine copy, no flag-gating.
+Scope stays bench-only: no pipeline, vault, widget, converter, or audit-verdict mutation; the
+bench's existing safety layers (`.md.bench-bak`, append-only `manifest["repairs"]`, sandbox
+and reading modes, loopback token) are preserved, and OK-0's UUIDs apply to NEW repair records
+only — existing manifest entries are never rewritten. Every new behavior lands with its
+tripwire in the same commit (docs/32 §6); the page harness (`test_bench_page.py`) and
+`acceptance.py` must stay green. Opus 5 subagents authorized for verification lanes. Recorded
+before the first code edit.
