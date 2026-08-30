@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-30T16:52Z",
+  "updated_utc": "2026-08-30T17:39Z",
   "state": "blocked-on-ack",
   "current_ticket": "T-009",
   "sent": [
@@ -542,14 +542,14 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-08-30T16:52Z",
+    "utc": "2026-08-30T17:39Z",
     "gate_rev": "57187c87",
-    "doing": "Quiescent. Okular commission delivered: docs/49 + A49 + D0005 + artifact; committed 272db8d (local, unpushed by design)",
-    "planning": "Nothing in flight. Next work is Rab's A49 signature or a new commission.",
+    "doing": "Quiescent. OK-0/1/2/7 built + committed (090190f); bench path claim LIFTED (MSG-FAB-0047)",
+    "planning": "Nothing in flight. Open gate: first live-browser bench run is Rab's; remaining tickets await signature",
     "blocked": "none",
-    "needs_from_peer": "Nothing; no ACK requested on MSG-FAB-0045",
+    "needs_from_peer": "Nothing",
     "completed": [
-      "Okular digest: 107 findings, 404 audit rows matched, critic pass folded, docs/49 committed"
+      "OK-0/1/2/7 in the live bench; harness 45/45; 3-lens Opus review folded (2 CRITICAL fixed)"
     ],
     "verified": []
   },
