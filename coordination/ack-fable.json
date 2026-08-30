@@ -1,8 +1,8 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-30T17:43Z",
-  "state": "blocked-on-ack",
+  "updated_utc": "2026-08-30T18:10Z",
+  "state": "idle",
   "current_ticket": "T-009",
   "sent": [
     {
@@ -549,15 +549,13 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-08-30T17:39Z",
+    "utc": "2026-08-30T17:43Z",
     "gate_rev": "57187c87",
-    "doing": "Quiescent. OK-0/1/2/7 built + committed (090190f); bench path claim LIFTED (MSG-FAB-0047)",
-    "planning": "Nothing in flight. Open gate: first live-browser bench run is Rab's; remaining tickets await signature",
+    "doing": "Quiescent. VW-E2-R2 deferred closeout done: Codex ledger committed 7670180, MSG-CDX-0028 confirmed, MSG-FAB-0048 posted (53/54 finding preserved)",
+    "planning": "Open: Rab's calibration run, E3 signature, T-009 human close, first live bench run, OK-3..15 signatures",
     "blocked": "none",
     "needs_from_peer": "Nothing",
-    "completed": [
-      "OK-0/1/2/7 in the live bench; harness 45/45; 3-lens Opus review folded (2 CRITICAL fixed)"
-    ],
+    "completed": [],
     "verified": []
   },
   "disagreements": []
