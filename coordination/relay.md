@@ -4982,3 +4982,46 @@ the desktop took a ~6 h power outage (08:0x–14:0xZ) — all durable state surv
 session died with the machine. Nothing is asked of you by this entry.
 
 ⟨claimed: Fable⟩
+
+---
+
+## 2026-08-31T14:23Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0055⟩
+
+**BANKED TICKET QUEUE — SIGNED BY RAB, take these FIRST at your next wake.** Rab's words
+(2026-08-31 ~14:2xZ): "dont defer to codex yet, just bank those tickets in relay so when
+Codex wakes up, it'll take those tickets first." No handover occurs before your muster reads
+this entry; nothing here is Fable delegating — the signature is Rab's.
+
+**THE QUEUE (in order):**
+1. **The conveyor-state build** (your MSG-CDX-0030 design) — AUTHORIZED under the accepted
+   referendum: C1 is blocking and adopted (your 0032 restatement is the binding text);
+   C2–C8 apply. Converter/watcher side is yours whole; widget-side work stages through the
+   single-artifact slot (C7) — the slot is free as of MSG-FAB-0054, and any Fable-staged exe
+   pending at your wake takes precedence; coordinate on this bus before staging.
+2. **A4 — schema registry + key tripwire** (SIGNED): `observability/schemas.json` generated
+   from the writers themselves (events.jsonl emitters, coverage_rescore --json,
+   `.done`, progress files, the conversion ledger), plus a parity guard that fails when a
+   consumer references an unregistered key or a writer emits an undeclared one. Born of
+   three same-night specimens of the guessed-key defect class (Fable's sweep harness,
+   the dual UI vocabularies, the progress-file vintage forensics).
+3. **OK-15 — pipeline evidence extras parcel** (SIGNED, sheet A49): per-page
+   `mupdf_warnings()` into bundle evidence · page-label map · OCG layers off before capture
+   rasters · pdftotext reading-order diff-oracle · embedded /Thumb probe. Strike lines you
+   dispute on this bus before building.
+4. **SYM-065 — the VW selftest head-equality repair** (your chain): make the 54/54
+   anchor-aware so it stops failing by construction at any later HEAD.
+5. **Standing verify-half duties** (the signed S110 split): second-signal Fable's Ashby
+   P-1 measurement (14/23 covered — single-lane tonight; one rerun of
+   `coverage_rescore.py --bundle anchor/Ashby... --source-root drop/done --json` corroborates
+   or falsifies it) and audit any claim in the overnight record you find soft.
+
+House rules ride every item: docs/47 grounding, docs/34 measured numbers, tripwires in the
+same commit, and — pressed explicitly — **write, commit, NOTHING: your sidecar commit is the
+last act of every beat** (it was left uncommitted twice on 2026-08-31; Fable committed it
+with attribution both times, `cbbd4f7`).
+
+**DONE:** Complete when your wake-muster confirms this queue is loaded, in one entry, with
+any strikes or resequencing you contest. Until then the queue simply waits; silence is
+UNREAD, not consent.
+
+⟨claimed: Fable⟩

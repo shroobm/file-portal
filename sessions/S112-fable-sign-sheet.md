@@ -45,10 +45,12 @@ OK-13 is the strategic one and deserves its own echo/commission when you're read
 
 - OK-0: **SIGNED (Rab, 2026-08-30) · BUILT same day** · OK-1: **SIGNED (Rab, 2026-08-30) ·
   BUILT same day** · OK-2: **SIGNED (Rab, 2026-08-30) · BUILT same day** · OK-3: _____ ·
-  OK-4: _____ · OK-5: _____
-- OK-6: _____ · OK-7: **SIGNED (Rab, 2026-08-30) · BUILT same day** · OK-8: _____ ·
+  OK-4: **SIGNED (Rab, 2026-08-31, batch)** · OK-5: **SIGNED (Rab, 2026-08-31, batch)**
+- OK-6: **SIGNED (Rab, 2026-08-31, batch)** · OK-7: **SIGNED (Rab, 2026-08-30) · BUILT same
+  day** · OK-8: **SIGNED (Rab, 2026-08-31, batch)** ·
   OK-9: _____ · OK-10: _____ · OK-11: _____
-- OK-12: _____ · OK-13: _____ · OK-14: _____ · OK-15: _____
+- OK-12: **SIGNED (Rab, 2026-08-31, batch)** · OK-13: _____ · OK-14: **SIGNED (Rab,
+  2026-08-31, batch)** · OK-15: **SIGNED (Rab, 2026-08-31, batch) — BANKED FOR CODEX**
 
 **Post-close additions (born of the 4e-Damodaran stall, 2026-08-30 evening):**
 
@@ -56,6 +58,22 @@ OK-13 is the strategic one and deserves its own echo/commission when you're read
 |---|---|---|---|
 | OK-16 | **Pre-convert ollama unload** — free the ~1.5–2.0 GB the idle analyst residents hold during the convert phase (both stall events read 9.8/10.2 GB; the analyst needs the models only AFTER convert) | S | **SIGNED (Rab, 2026-08-30: "Signed")** — execution deferred until the live convert releases the gpu-lock |
 | OK-17 | **Review + commit the stall-recovery ladder** — the uncommitted +139-line retry/split ladder in `convert_and_ship.py` (live-proving itself on slice retries right now): adversarial review, tripwires in the same commit, attribution resolved on the bus | S–M | **SIGNED (Rab, 2026-08-30: "Signed")** — same deferral; the running process is not disturbed |
+
+**Post-close additions round 2 (the batch sheet, 2026-08-31 morning):**
+
+| id | ticket | effort | status |
+|---|---|---|---|
+| A1 | **Keep slices until the vault receipt** — stop consuming `.chunk-work/<sha16>` at merge; clean on receipt/ship, retention bounded to the latest book (the night paid the full convert twice for want of this) | S–M | **SIGNED (Rab, 2026-08-31)** — Fable lane, building now |
+| A2 | **WAT-2: watcher stop kills the TREE** — `watcher::stop` reaches only the venv launcher; the real interpreter survives in the job (measured live 32068/3532). Tree-kill + verify death + symptom row | S | **SIGNED (Rab, 2026-08-31)** — Fable lane; rides the next staged exe |
+| A3 | **Multi-window deferred job-kill** — main-window close defers the job kill while Bench/Chat windows live; row + explicit exit handler | S | **SIGNED (Rab, 2026-08-31)** — Fable lane; same rebuild as A2 |
+| A4 | **Schema registry + key tripwire** — `observability/schemas.json` generated from the writers; consumer/emitter parity guard (the guessed-key class ends mechanically) | M | **SIGNED (Rab, 2026-08-31) — BANKED FOR CODEX** (relay MSG-FAB-0055) |
+
+**The batch signature, verbatim (Rab, 2026-08-31, ~14:2xZ):** *"Signed, except dont defer to
+codex yet, just bank those tickets in relay so when Codex wakes up, it'll take those tickets
+first."* — read with the batch presented in-session: Fable lane builds A1, A2, A3, OK-5, OK-4,
+OK-6, OK-8, OK-12, OK-14 now; the Codex-shaped slate (conveyor-state build under C1–C8, A4,
+OK-15, SYM-065, standing verify-half duties) is BANKED on the relay as a signed queue Codex
+takes first at its next wake — no handover before then.
 
 **Build record (2026-08-30):** the four signed tickets landed in the live bench
 (`prototypes/repair-bench/bench.py`, `bench.html`, `test_bench_page.py`; docs/22 schema
