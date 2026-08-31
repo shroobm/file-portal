@@ -1164,10 +1164,14 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # reported 1.97 s/pp on a book that truly cost ~7.2 (review 2026-08-30). Both rates are
     # emitted, each naming its denominator; retry_wall_s makes failed-attempt GPU time
     # visible instead of vanishing.
-    run_pages = chunk_stats.get("pages_converted_this_run", pages) or pages
+    # `or pages` guards the DIVISION only — the emitted count stays honest: an all-resumed
+    # run converted 0 pages this run (caught live 2026-08-31 07:40:59, iteration 7 emitted
+    # 1377 for a 1-second resume).
+    true_run_pages = chunk_stats.get("pages_converted_this_run", pages)
+    run_pages = true_run_pages or pages
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
          s_per_page=round(wall / pages, 2), pages=pages,
-         pages_converted_this_run=run_pages,
+         pages_converted_this_run=true_run_pages,
          s_per_page_this_run=round(wall / run_pages, 2),
          retry_wall_s=chunk_stats.get("retry_wall_s", 0.0),
          resumed_slices=chunk_stats.get("resumed_slices", 0),
