@@ -339,6 +339,26 @@ check('"convert/ollama_unloaded"' in room, "room.js speaks convert/ollama_unload
 check("ollama_unloaded" in (HERE.parent / "docs" / "22-engineering-manual.html").read_text(
     encoding="utf-8"), "docs/22 names ollama_unloaded")
 
+# ---------- T12: A1 latest-book slice retention ----------
+print("T12 slice retention (A1)")
+rec = with_stub(MarkerStub(assets_per_range={}))
+cas.CHUNK_BATCH_FILE.write_text("8\n", encoding="utf-8")
+work12 = QUARANTINE / "t12-work"
+work12.mkdir(parents=True, exist_ok=True)
+sha_a = "aa" * 32
+cas._convert_chunked("bookA.pdf", QUARANTINE / "a.pdf", "booka", work12,
+                     work12 / "marker-out", ["--recognition_batch_size", "8"], 400, sha_a)
+book_a = cas.CHUNK_WORK / sha_a[:16]
+check(book_a.is_dir() and (book_a / "slice-00000-00199" / ".done").is_file(),
+      "slices SURVIVE their own merge (post-convert deaths resume free)")
+sha_b = "bb" * 32
+work12b = QUARANTINE / "t12-work-b"
+work12b.mkdir(parents=True, exist_ok=True)
+cas._convert_chunked("bookB.pdf", QUARANTINE / "b.pdf", "bookb", work12b,
+                     work12b / "marker-out", ["--recognition_batch_size", "8"], 400, sha_b)
+check(not book_a.is_dir(), "a DIFFERENT book's start sweeps the previous book (disk bounded)")
+check((cas.CHUNK_WORK / sha_b[:16]).is_dir(), "the new book's slices are the ones kept")
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

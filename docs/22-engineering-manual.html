@@ -650,7 +650,7 @@ Desktop: Obsidian vault/Library   clone of the bare repo over tailscale ssh (rea
     <tr><td><code>drop/.supersede/&lt;name&gt;.json</code></td><td>assay.rs ⟳ only</td><td>consume-once remedy intent: reason, from_verdict, source_sha256 guard, epoch</td></tr>
     <tr><td><code>bless.json</code> (in staging bundle)</td><td>assay.rs ✓ only</td><td>sha-bound human bless: source, source_sha256, by, reason, ts — dies with staging after the L12 gate, so a failed export retries still-blessed</td></tr>
     <tr><td><code>.convert-progress.json / .analyst-progress.json / .convert-estimate.json</code></td><td>convert_and_ship / analyst</td><td>heartbeats + the promise; mtime is the liveness signal; deleted on exit</td></tr>
-    <tr><td><code>.chunk-work/&lt;sha16&gt;/slice-*/</code> · <code>.analyst-work/&lt;key16&gt;/chunks.jsonl</code></td><td>converter / analyst</td><td>resume state: published slices (.done last) / fsync'd chunk journal (input-hash validated)</td></tr>
+    <tr><td><code>.chunk-work/&lt;sha16&gt;/slice-*/</code> · <code>.analyst-work/&lt;key16&gt;/chunks.jsonl</code></td><td>converter / analyst</td><td>resume state: published slices (.done last; A1 2026-08-31 — kept until the NEXT book starts chunking, so post-convert deaths resume free; latest-book retention bounds disk) / fsync'd chunk journal (input-hash validated)</td></tr>
     <tr><td><code>.gpu-lock · .receipts-cache.jsonl · algedonic-acks.jsonl · widget-boot.log · watcher-stderr.log · bench-stderr.log</code></td><td>watcher / widget</td><td>busy signal · widget's own receipt cache · ack ledger · boot beacons · last-words files</td></tr>
   </table></div>
 </section>

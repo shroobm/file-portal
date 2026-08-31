@@ -980,8 +980,10 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     `.chunk-work/<sha16>/slice-<start>-<end>/` OUTSIDE the run's temp dir, so a killed slice (or
     a killed process, or a reboot) costs only that slice — a re-run converts the missing ones and
     skips the rest. Publication is dot-dir-then-rename, so a half-written slice can never be
-    mistaken for a finished one. The whole book's slice dir is removed once the merge succeeds:
-    the bundle now holds everything, and these are gigabytes."""
+    mistaken for a finished one. Retention is LATEST-BOOK (A1, signed 2026-08-31): the slice
+    dirs survive the merge and are swept only when a DIFFERENT book starts chunking — so a
+    death in the analyst/audit/ship tail resumes the convert for free, and disk stays bounded
+    to one book."""
     import marker  # marker-env only; version for provenance (the manifest stamp's twin)
 
     marker_version = getattr(marker, "__version__", "unknown")
@@ -989,6 +991,14 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     ranges = slice_ranges(pages)
     total = len(ranges)
     book_work = CHUNK_WORK / source_sha[:16]
+    # A1 (signed Rab 2026-08-31): retention is LATEST-BOOK, swept here — not deleted on merge.
+    # The night of 2026-08-30/31 paid the full 1377-pp convert TWICE because a post-convert
+    # kill found the slices already consumed; keeping them until the next book starts makes
+    # every post-convert death resumable for free, bounded to one book's disk.
+    for sibling in (CHUNK_WORK.iterdir() if CHUNK_WORK.is_dir() else ()):
+        if sibling.is_dir() and sibling.name != source_sha[:16]:
+            shutil.rmtree(sibling, ignore_errors=True)
+            print(f"SLICE CACHE: swept previous book {sibling.name}", flush=True)
     book_work.mkdir(parents=True, exist_ok=True)
     merged_assets = work / "merged-assets"
     merged_assets.mkdir(parents=True, exist_ok=True)
@@ -1103,7 +1113,9 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     # Seams are 1-based absolute page numbers of each slice's first page, after the first.
     chunking = {"slice_size": SLICE_PAGES, "batch": batch,
                 "seams": [start + 1 for start, _ in ranges[1:]]}
-    shutil.rmtree(book_work, ignore_errors=True)
+    # A1: the slice dirs SURVIVE the merge (latest-book retention; swept when the NEXT book
+    # starts). A kill anywhere after this line — analyst, audit, ship — resumes the convert
+    # in seconds instead of re-paying hours.
     # cost_s = every GPU second this book has cost, including failed ladder attempts and
     # prior-run resumed slices — the number the estimator LEARNS from must not flatter itself
     stats = {"cost_s": round(total_wall + retry_wall + resumed_wall, 1),
