@@ -129,6 +129,12 @@ def split_frontmatter(text: str) -> tuple[str, str]:
     return "", text
 
 
+def _last_process_diagnostic(text: str, limit: int = 300) -> str:
+    """Return the useful terminal line, not a clipped traceback middle."""
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return (lines[-1] if lines else "no diagnostic emitted")[:limit]
+
+
 class Bench:
     """The testable core: all state + mutation, no HTTP. The acceptance harness drives this
     directly AND over the wire, so the logic is proven twice."""
@@ -206,6 +212,7 @@ class Bench:
         # OK-15 (signed 2026-08-31): read-only quarantine evidence. The report is held only
         # in this process; it is never written into a bundle or manifest under the S112 gate.
         self._ok15_report: dict | None = None
+        self._ok15_failure: dict | None = None
         self._ok15_lock = threading.Lock()
         self._page_labels: list[str | None] | None = None
         # S64: the AI assist's undo stack (body snapshots, newest last) + line-drift ledger so
@@ -467,8 +474,41 @@ class Bench:
             self._page_labels = labels
         return self._page_labels
 
-    def ok15_evidence(self) -> dict:
-        """Run the signed OK-15 probe once, retaining its report only in process memory."""
+    def _ok15_state_report(self, actual: str, status: str, reason: str) -> dict:
+        """Honest process-memory state for a failed or already-running collection."""
+        return {
+            "schema": "fp-ok15-evidence/v1",
+            "status": status,
+            "collected_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "source": {"name": self.pdf.name if self.pdf else "", "sha256": actual,
+                       "pages": None},
+            "producer": {"pdftotext": {"status": "UNREAD"}},
+            "document": {
+                "collection": {
+                    "status": status,
+                    "reason": reason[:300],
+                    "retryable": status == "UNREAD",
+                }
+            },
+            # Unknown measurements are null, never invented zeroes.
+            "summary": {
+                "pages_total": None,
+                "capture_pages_measured": None,
+                "mupdf_warning_count": None,
+                "mupdf_warning_pages": None,
+                "non_ordinal_label_pages": None,
+                "reading_order_pages_compared": None,
+                "reading_order_order_only_difference_pages": None,
+                "reading_order_content_or_order_difference_pages": None,
+                "ocg_variant_difference_pages": None,
+                "ocg_groups_forced_off_for_capture": None,
+                "embedded_thumb_pages": None,
+            },
+            "pages": [],
+        }
+
+    def ok15_evidence(self, *, retry: bool = False) -> dict:
+        """Collect once; cache failures, and make an intentional retry explicit."""
         if self.pdf is None:
             raise RuntimeError("no source PDF on the bench")
         actual = self._pdf_sha256()
@@ -477,11 +517,35 @@ class Bench:
             raise RuntimeError(
                 f"source identity mismatch: manifest {expected[:16]} != opened PDF {actual[:16]}"
             )
-        if self._ok15_report is None:
-            with self._ok15_lock:
-                if self._ok15_report is None:
-                    self._ok15_report = self._collect_ok15_evidence(actual)
-        return self._ok15_report
+        if self._ok15_report is not None:
+            return self._ok15_report
+        if self._ok15_failure is not None and not retry:
+            return self._ok15_failure
+        if not self._ok15_lock.acquire(blocking=False):
+            return self._ok15_state_report(
+                actual, "IN-PROGRESS",
+                "another admitted request is collecting this PDF; no duplicate child was started",
+            )
+        try:
+            # A waiter may have observed an empty cache just before the first collector
+            # published. Recheck under the lock; only an explicit retry clears a failure.
+            if self._ok15_report is not None:
+                return self._ok15_report
+            if self._ok15_failure is not None and not retry:
+                return self._ok15_failure
+            if retry:
+                self._ok15_failure = None
+            try:
+                self._ok15_report = self._collect_ok15_evidence(actual)
+            except Exception as exc:  # noqa: BLE001 - an evidence failure is an explicit state
+                self._ok15_failure = self._ok15_state_report(
+                    actual, "UNREAD",
+                    f"collection failed: {type(exc).__name__}: {exc}",
+                )
+                return self._ok15_failure
+            return self._ok15_report
+        finally:
+            self._ok15_lock.release()
 
     def _collect_ok15_evidence(self, actual: str) -> dict:
         """Isolated child collector; caller holds _ok15_lock to collapse concurrent GETs."""
@@ -504,7 +568,8 @@ class Bench:
             raise RuntimeError("OK-15 evidence exceeded its 900 s quarantine bound") from exc
         if proc.returncode != 0:
             raise RuntimeError(
-                f"OK-15 evidence exited {proc.returncode}: {(proc.stderr or proc.stdout)[-300:]}"
+                f"OK-15 evidence exited {proc.returncode}: "
+                f"{_last_process_diagnostic(proc.stderr or proc.stdout)}"
             )
         try:
             return json.loads(proc.stdout)
@@ -1874,7 +1939,8 @@ def make_handler(bench: Bench, token=_NO_GATE):
                     if deny:
                         self._json({"error": deny}, 403)
                     else:
-                        self._json(bench.ok15_evidence())
+                        retry = q.get("retry", ["0"])[0] == "1"
+                        self._json(bench.ok15_evidence(retry=retry))
                 # ---- the reader (S62b, Okular pass) -------------------------------------
                 elif url.path == "/api/toc":
                     self._json({"toc": bench.toc()})

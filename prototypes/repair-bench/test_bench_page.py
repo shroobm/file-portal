@@ -40,6 +40,7 @@ import shutil
 import sys
 import tempfile
 import threading
+import time
 import unittest
 from http.server import ThreadingHTTPServer
 from pathlib import Path
@@ -928,7 +929,7 @@ class TestOK15EvidenceWiring(unittest.TestCase):
         self.assertIn("never written into a bundle or manifest", BENCH_PY)
         branch = BENCH_PY[BENCH_PY.index('url.path == "/api/evidence"'):]
         branch = branch[:branch.index('elif url.path == "/api/toc"')]
-        self.assertLess(branch.index("token_gate("), branch.index("ok15_evidence()"),
+        self.assertLess(branch.index("token_gate("), branch.index("ok15_evidence("),
                         "the expensive GET is reachable before its loopback capability gate")
         self.assertIn("_ok15_lock", BENCH_PY,
                       "concurrent evidence GETs can spawn duplicate full-book children")
@@ -943,8 +944,95 @@ class TestOK15EvidenceWiring(unittest.TestCase):
         self.assertIn("audit verdict, and pipeline stay unchanged", body)
         self.assertIn("evidenceUnreadSection(documentUnread, pageUnread)", body,
                       "partial evidence hides its explicit UNREAD reasons")
+        unread = js_function_body(BENCH_HTML, "evidenceUnreadSection")
+        self.assertIn("pageEntries.map", unread)
+        self.assertNotIn("slice(0, 120)", unread,
+                         "large damaged books still hide page-level UNREAD reasons")
+        self.assertIn("ev-unread-list", unread,
+                      "a complete large UNREAD list has no bounded scroll surface")
+        self.assertIn("entry.reasons.length", unread,
+                      "the UNREAD numerator counts pages instead of individual reasons")
+        self.assertIn('id="evidence-retry"', body,
+                      "a cached collection failure has no intentional operator retry")
+        self.assertIn('?? "—"', body,
+                      "an unavailable measurement renders as an invented clean zero")
         self.assertIn("data-page", js_function_body(BENCH_HTML, "evidenceSection"),
                       "suspect evidence pages are no longer navigable")
+
+    def test_collection_failure_is_cached_and_retry_is_explicit(self):
+        self.assertEqual(
+            "RuntimeError: useful terminal reason",
+            bench._last_process_diagnostic(
+                "Traceback (most recent call last):\n  noisy stack frame\n"
+                "RuntimeError: useful terminal reason\n"
+            ),
+        )
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-ok15-failure-"))
+        try:
+            pdf = tmp / "broken.pdf"
+            pdf.write_bytes(b"not a real PDF; identity-only state-machine fixture")
+            patient = bench.Bench(pdf)
+            calls = []
+
+            def fail(actual):
+                calls.append(actual)
+                raise RuntimeError("synthetic permanent failure")
+
+            patient._collect_ok15_evidence = fail
+            first = patient.ok15_evidence()
+            second = patient.ok15_evidence()
+            self.assertEqual("UNREAD", first["status"])
+            self.assertIs(first, second, "the same failure was paid for twice")
+            self.assertEqual(1, len(calls))
+            self.assertIsNone(first["summary"]["pages_total"])
+            self.assertIn("synthetic permanent failure",
+                          first["document"]["collection"]["reason"])
+            self.assertTrue(first["document"]["collection"]["retryable"])
+
+            patient._collect_ok15_evidence = lambda _actual: {"status": "measured"}
+            retried = patient.ok15_evidence(retry=True)
+            self.assertEqual("measured", retried["status"])
+            self.assertIs(retried, patient.ok15_evidence())
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_concurrent_collection_returns_in_progress_without_second_child(self):
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-ok15-concurrent-"))
+        try:
+            pdf = tmp / "slow.pdf"
+            pdf.write_bytes(b"identity-only concurrent state-machine fixture")
+            patient = bench.Bench(pdf)
+            started, release = threading.Event(), threading.Event()
+            calls, result = [], {}
+
+            def slow(actual):
+                calls.append(actual)
+                started.set()
+                if not release.wait(2):
+                    raise RuntimeError("test release never arrived")
+                return {"status": "measured", "probe": "first child"}
+
+            patient._collect_ok15_evidence = slow
+            worker = threading.Thread(
+                target=lambda: result.setdefault("report", patient.ok15_evidence()),
+                daemon=True,
+            )
+            worker.start()
+            self.assertTrue(started.wait(1), "first collector never entered")
+            began = time.monotonic()
+            in_progress = patient.ok15_evidence()
+            elapsed = time.monotonic() - began
+            self.assertEqual("IN-PROGRESS", in_progress["status"])
+            self.assertLess(elapsed, 0.25, "concurrent GET silently blocked on the collector")
+            self.assertEqual(1, len(calls), "a concurrent GET started a duplicate child")
+            release.set()
+            worker.join(2)
+            self.assertFalse(worker.is_alive())
+            self.assertEqual("first child", result["report"]["probe"])
+            self.assertIs(result["report"], patient.ok15_evidence())
+        finally:
+            release.set()
+            shutil.rmtree(tmp, ignore_errors=True)
 
     def test_page_labels_reach_toolbar_and_thumbnail_rail(self):
         goto = js_function_body(BENCH_HTML, "goto")

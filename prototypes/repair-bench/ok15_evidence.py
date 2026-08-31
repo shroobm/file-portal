@@ -260,14 +260,12 @@ def _open_capture_doc(pdf_path: Path, ocg: dict[str, Any], scratch: Path) -> tup
     directory, reopened, and later deleted with that directory.
     """
     if not ocg["groups"]:
-        try:
-            return pymupdf.open(str(pdf_path)), {
-                "status": "measured",
-                "mode": "source view; no optional-content groups exist",
-                "all_groups_off_verified": True,
-            }
-        except Exception as exc:  # noqa: BLE001 - evidence records UNREAD
-            return None, {"status": "UNREAD", "reason": f"capture open failed: {exc}"}
+        return None, {
+            "status": "not-applicable",
+            "mode": "no optional-content groups exist; no counterfactual document opened",
+            "all_groups_off_verified": True,
+            "groups_forced_off": 0,
+        }
     derived = scratch / "ocg-off-evidence-copy.pdf"
     editor = None
     try:

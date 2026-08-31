@@ -24,7 +24,8 @@ and the markdown at the flagged zone side by side and makes the repair one gestu
   reading-order comparison, a disposable all-OCG-off raster counterfactual, and embedded
   `/Thumb` metadata. Affected page buttons jump back to the source page. `partial` and
   `UNREAD` show their exact probe reasons; an absent `/Thumb` is measured absence, not failure.
-  Pixels and extracted text are hashed/count-only in the report and are not retained.
+  Every page-level `UNREAD` reason remains available in a bounded scroll surface. Pixels and
+  extracted text are hashed/count-only in the report and are not retained.
 - **Sandbox mode** (`--sandbox`) copies the bundle under `.sandbox/` and repairs the copy —
   how the acceptance harness runs, and how a first trial should.
 
@@ -47,6 +48,9 @@ The token is required for every mutation and for the expensive evidence GET. The
 generates and supplies its own token. The reading-order probe records the installed
 `pdftotext` implementation and version; this Windows host currently supplies Xpdf 4.06, not
 Poppler. Missing, failed, timed-out, non-UTF-8, or wrong-page-count oracle output is `UNREAD`.
+A failed collection is cached in process as an explicit `UNREAD` report so repeated clicks do
+not repay a 900-second failure; **↻ retry collection** is the deliberate retry. A concurrent
+request returns `IN-PROGRESS` immediately and never starts a duplicate child.
 
 ## Quarantine (prototypes/ convention)
 

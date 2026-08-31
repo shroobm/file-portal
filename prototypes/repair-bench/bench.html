@@ -362,6 +362,7 @@
   .ev-pages { display:flex; flex-wrap:wrap; gap:5px; margin:4px 0 10px; }
   .ev-page { font:11px var(--mono); padding:3px 6px; }
   .ev-detail { font:11px var(--mono); color:var(--text-2); margin:2px 0 8px; word-break:break-word; }
+  .ev-unread-list { max-height:300px; overflow:auto; padding-right:5px; }
   .ev-unread { display:grid; grid-template-columns:auto 1fr; gap:7px; align-items:start; margin:5px 0; }
   .ev-unread span { font:11px var(--mono); color:var(--bad); word-break:break-word; }
 </style>
@@ -568,8 +569,11 @@
       <p><b>◉ evidence</b> measures MuPDF warnings, logical page labels, independent
       reading-order differences, an all-layers-off raster counterfactual, and embedded PDF
       thumbnail metadata. Click any listed page to inspect it here. <b>UNREAD</b> reasons are
-      shown rather than counted as clean zeroes. This report stays in memory: it does not
-      change the PDF, conversion, bundle, audit verdict, or pipeline.</p>
+      shown rather than counted as clean zeroes. Failed collections are remembered so a broken
+      book cannot charge you repeatedly; use <b>↻ retry collection</b> when you deliberately
+      want another attempt. A second request says <b>IN-PROGRESS</b> instead of silently waiting.
+      This report stays in memory: it does not change the PDF, conversion, bundle, audit verdict,
+      or pipeline.</p>
       <h3>Your safety net</h3>
       <p><code>.md.bench-bak</code> before the first write · append-only provenance in
       <code>manifest["repairs"]</code> · the SANDBOX badge means you're on a copy · the READING
@@ -1866,11 +1870,12 @@ function evidenceUnreadSection(documentReasons, pageEntries) {
   }
   const documentRows = documentReasons.map((reason) =>
     `<div class="ev-unread"><span>document</span><span>${esc(reason)}</span></div>`).join("");
-  const pageRows = pageEntries.slice(0, 120).map(({ page, reasons }) =>
+  const pageRows = pageEntries.map(({ page, reasons }) =>
     `<div class="ev-unread"><button class="ev-page" data-page="${page.page}">${esc(evidencePageLabel(page))}</button><span>${esc(reasons.join(" · "))}</span></div>`).join("");
-  const remainder = pageEntries.length > 120
-    ? `<div class="ev-detail">first 120 of ${pageEntries.length} affected pages shown</div>` : "";
-  return `<h3>UNREAD probes · ${documentReasons.length + pageEntries.length}</h3>${documentRows}${pageRows}${remainder}`;
+  const reasonCount = documentReasons.length +
+    pageEntries.reduce((count, entry) => count + entry.reasons.length, 0);
+  return `<h3>UNREAD probes · ${reasonCount}</h3>` +
+    `<div class="ev-unread-list">${documentRows}${pageRows}</div>`;
 }
 function renderEvidence(e) {
   const s = e.summary || {}, pages = e.pages || [];
@@ -1880,24 +1885,29 @@ function renderEvidence(e) {
   const ocg = pages.filter((p) => p.capture_raster?.ocg_off_variant?.differs_from_source_view === true);
   const thumbs = pages.filter((p) => p.embedded_thumb?.status === "present");
   const tool = e.producer?.pdftotext || {};
+  const collection = e.document?.collection || {};
   const oracle = e.document?.reading_order_oracle || {};
   const ocgDoc = e.document?.ocg || {};
   const documentUnread = [];
+  if (collection.status === "UNREAD") documentUnread.push(`collection: ${collection.reason || "unavailable"}`);
   if (oracle.status === "UNREAD") documentUnread.push(`reading-order oracle: ${oracle.reason || tool.reason || "unavailable"}`);
   if (ocgDoc.status === "UNREAD") documentUnread.push(`OCG inventory: ${ocgDoc.reason || "unavailable"}`);
   if (ocgDoc.capture_setup?.status === "UNREAD") documentUnread.push(`OCG capture setup: ${ocgDoc.capture_setup.reason || "unavailable"}`);
   const pageUnread = pages.map((page) => ({ page, reasons: evidenceUnreadReasons(page) }))
     .filter((entry) => entry.reasons.length);
+  const collectionDetail = collection.reason ? ` · ${esc(collection.reason)}` : "";
+  const retryButton = collection.retryable
+    ? ` <button id="evidence-retry">↻ retry collection</button>` : "";
   $("evidence-body").innerHTML =
-    `<div class="ev-note"><b>${esc(e.status)}</b> · report-only quarantine. The normal page view is measured first; the all-OCG-off render is a counterfactual comparison only. Pixels are discarded. Source, bundle, Marker input, audit verdict, and pipeline stay unchanged.</div>` +
+    `<div class="ev-note"><b>${esc(e.status)}</b>${collectionDetail} · report-only quarantine. The normal page view is measured first; the all-OCG-off render is a counterfactual comparison only. Pixels are discarded. Source, bundle, Marker input, audit verdict, and pipeline stay unchanged.${retryButton}</div>` +
     `<div class="ev-grid">` +
-      `<div class="ev-card"><span class="n">${s.capture_pages_measured ?? 0}/${s.pages_total ?? 0}</span><span class="k">pages rendered</span></div>` +
-      `<div class="ev-card"><span class="n">${s.mupdf_warning_count ?? 0}</span><span class="k">per-page MuPDF warnings · ${s.mupdf_warning_pages ?? 0} pages</span></div>` +
-      `<div class="ev-card"><span class="n">${s.non_ordinal_label_pages ?? 0}</span><span class="k">logical labels ≠ ordinal</span></div>` +
-      `<div class="ev-card"><span class="n">${s.reading_order_order_only_difference_pages ?? 0}/${s.reading_order_pages_compared ?? 0}</span><span class="k">order-only differences</span></div>` +
-      `<div class="ev-card"><span class="n">${s.reading_order_content_or_order_difference_pages ?? 0}</span><span class="k">content and/or order differences</span></div>` +
-      `<div class="ev-card"><span class="n">${s.ocg_variant_difference_pages ?? 0}/${s.ocg_groups_forced_off_for_capture ?? "—"}</span><span class="k">changed pages / OCG groups</span></div>` +
-      `<div class="ev-card"><span class="n">${s.embedded_thumb_pages ?? 0}</span><span class="k">embedded /Thumb pages</span></div>` +
+      `<div class="ev-card"><span class="n">${s.capture_pages_measured ?? "—"}/${s.pages_total ?? "—"}</span><span class="k">pages rendered</span></div>` +
+      `<div class="ev-card"><span class="n">${s.mupdf_warning_count ?? "—"}</span><span class="k">per-page MuPDF warnings · ${s.mupdf_warning_pages ?? "—"} pages</span></div>` +
+      `<div class="ev-card"><span class="n">${s.non_ordinal_label_pages ?? "—"}</span><span class="k">logical labels ≠ ordinal</span></div>` +
+      `<div class="ev-card"><span class="n">${s.reading_order_order_only_difference_pages ?? "—"}/${s.reading_order_pages_compared ?? "—"}</span><span class="k">order-only differences</span></div>` +
+      `<div class="ev-card"><span class="n">${s.reading_order_content_or_order_difference_pages ?? "—"}</span><span class="k">content and/or order differences</span></div>` +
+      `<div class="ev-card"><span class="n">${s.ocg_variant_difference_pages ?? "—"}/${s.ocg_groups_forced_off_for_capture ?? "—"}</span><span class="k">changed pages / OCG groups</span></div>` +
+      `<div class="ev-card"><span class="n">${s.embedded_thumb_pages ?? "—"}</span><span class="k">embedded /Thumb pages</span></div>` +
     `</div>` +
     `<div class="ev-detail">reading-order oracle: ${esc(tool.version || tool.status || "UNREAD")} · ${esc(tool.mode || "no independent output")}</div>` +
     evidenceUnreadSection(documentUnread, pageUnread) +
@@ -1909,14 +1919,19 @@ function renderEvidence(e) {
   $("evidence-body").querySelectorAll(".ev-page").forEach((b) => b.onclick = () => {
     goto(Number(b.dataset.page)); $("evidence").hidden = true;
   });
+  const retry = $("evidence-retry");
+  if (retry) retry.onclick = () => requestEvidence("/api/evidence?retry=1");
 }
-$("evidence-btn").onclick = async () => {
-  $("evidence").hidden = false;
+async function requestEvidence(path = "/api/evidence") {
   $("evidence-body").innerHTML = `<div class="ev-note">Measuring each page… this is read-only. Large books can take a little while.</div>`;
   $("evidence-btn").disabled = true;
-  try { renderEvidence(await api("/api/evidence")); }
+  try { renderEvidence(await api(path)); }
   catch (e) { $("evidence-body").innerHTML = `<div class="ev-note"><b>UNREAD</b> · ${esc(e.message)}</div>`; }
   finally { $("evidence-btn").disabled = !st?.pdf_available; }
+}
+$("evidence-btn").onclick = () => {
+  $("evidence").hidden = false;
+  requestEvidence();
 };
 
 /* ---- the ◆ opener: Select a PDF (or bundle) ---- */

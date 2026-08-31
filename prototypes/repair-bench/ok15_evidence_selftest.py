@@ -235,6 +235,24 @@ class OK15EvidenceTests(unittest.TestCase):
             "UNREAD", ev._thumb_evidence(FakeDoc(("xref", "9 0 R"), is_image=False), 0)["status"]
         )
 
+    def test_zero_ocg_path_opens_no_unused_capture_document(self) -> None:
+        original_open = ev.pymupdf.open
+
+        def forbidden_open(*_args, **_kwargs):
+            raise AssertionError("zero OCGs must not open an unused capture document")
+
+        ev.pymupdf.open = forbidden_open
+        try:
+            capture, setup = ev._open_capture_doc(
+                self.root / "never-opened.pdf", {"groups": []}, self.root
+            )
+        finally:
+            ev.pymupdf.open = original_open
+        self.assertIsNone(capture)
+        self.assertEqual("not-applicable", setup["status"])
+        self.assertEqual(0, setup["groups_forced_off"])
+        self.assertTrue(setup["all_groups_off_verified"])
+
     def test_sequence_dispositions_do_not_invent_a_score(self) -> None:
         exact = ev._sequence_evidence("alpha beta", "alpha beta")
         order = ev._sequence_evidence("alpha beta", "beta alpha")
