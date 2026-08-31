@@ -25,6 +25,7 @@ import sys
 import tempfile
 import threading
 import time
+import urllib.request
 from datetime import datetime, timezone
 from pathlib import Path
 
@@ -353,6 +354,34 @@ def _gpu_signature() -> dict:
                 "gpu_mem_total_mib": int(total)}
     except Exception:  # noqa: BLE001
         return {}
+
+
+OLLAMA_URL = os.environ.get("FP_OLLAMA_URL", "http://127.0.0.1:11434")
+
+
+def _ollama_unload() -> None:
+    """OK-16 (signed Rab 2026-08-30): release ollama's VRAM residents before Marker runs.
+
+    Margin hygiene, not a wedge cure — measured 2026-08-31 on the Damodaran 600-799 band:
+    the stall pinned 9,726/10,240 MiB with ZERO residents loaded (analyst dead 57 min,
+    keep-alive long expired), so Marker alone can fill the card at batch 8. But S60 measured
+    batch 16 peaking 9.8/10.2 on its own, so a ~2 GB resident turns ANY batch into that
+    stall. Unloading costs the analyst one model reload later (~seconds against a multi-hour
+    convert). Entirely best-effort: ollama absent, down, or slow must never delay or fail a
+    conversion — silence is the normal case, the event fires only when something was freed."""
+    try:
+        with urllib.request.urlopen(f"{OLLAMA_URL}/api/ps", timeout=3) as r:
+            models = [m.get("name") for m in json.load(r).get("models", []) if m.get("name")]
+        for name in models:
+            req = urllib.request.Request(
+                f"{OLLAMA_URL}/api/generate",
+                data=json.dumps({"model": name, "keep_alive": 0}).encode("utf-8"),
+                headers={"Content-Type": "application/json"})
+            urllib.request.urlopen(req, timeout=10).read()
+        if models:
+            emit("convert", "ollama_unloaded", models=models, count=len(models))
+    except Exception:  # noqa: BLE001 — an unreachable ollama is the normal case, not an anomaly
+        pass
 
 
 # ---------- Survival Audit enforcement lever (docs/15 §12) — default off ----------
@@ -1108,6 +1137,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     shutil.copy2(src, engine_src)
     out_root = work / "marker-out"
     source_sha = sha256_of(src)  # needed up here now: slice resume is keyed by it
+
+    _ollama_unload()  # OK-16: clear VRAM residents before any Marker work (best-effort)
 
     # Stage D (docs/18 §5.2): long books convert in slices. The threshold is lane-aware because
     # the lanes cost different VRAM, and the page count is the probe's, never metadata.

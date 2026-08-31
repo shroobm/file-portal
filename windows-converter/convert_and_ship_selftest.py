@@ -274,6 +274,71 @@ check(len(stub.calls) == 1 and "retry" not in stub.calls[0]["prefix"],
       "one invocation, unlabelled")
 check(kept and kept[0].is_file(), "healthy-path assets also materialized (same contract)")
 
+# ---------- T11: OK-16 ollama unload — best-effort, event only on real work ----------
+print("T11 ollama unload")
+
+
+class FakeResponse:
+    def __init__(self, payload):
+        self.payload = payload
+
+    def read(self):
+        return self.payload
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *a):
+        return False
+
+
+class FakeUrllib:
+    """Scripted urllib.request: records calls; ps_payload drives /api/ps; raises on demand."""
+
+    def __init__(self, ps_payload=None, fail=False):
+        self.ps_payload = ps_payload or {"models": []}
+        self.fail = fail
+        self.calls = []
+        self.Request = _real_urllib.Request
+
+    def urlopen(self, url_or_req, timeout=None):
+        if self.fail:
+            raise OSError("connection refused")
+        url = url_or_req if isinstance(url_or_req, str) else url_or_req.full_url
+        self.calls.append(url)
+        return FakeResponse(json.dumps(self.ps_payload).encode("utf-8"))
+
+
+_real_urllib = cas.urllib.request
+try:
+    rec = EmitRecorder()
+    cas.emit = rec
+    fake = FakeUrllib(ps_payload={"models": [{"name": "qwen3:8b"}, {"name": "nomic-embed"}]})
+    cas.urllib.request = fake
+    cas._ollama_unload()
+    check(len([u for u in fake.calls if u.endswith("/api/generate")]) == 2,
+          "one unload call per resident")
+    ev = rec.named("convert/ollama_unloaded")
+    check(len(ev) == 1 and ev[0]["count"] == 2 and ev[0]["models"] == ["qwen3:8b", "nomic-embed"],
+          "event names what was freed")
+
+    rec = EmitRecorder()
+    cas.emit = rec
+    cas.urllib.request = FakeUrllib(ps_payload={"models": []})
+    cas._ollama_unload()
+    check(not rec.events, "zero residents -> silent no-op, no event")
+
+    rec = EmitRecorder()
+    cas.emit = rec
+    cas.urllib.request = FakeUrllib(fail=True)
+    cas._ollama_unload()  # must not raise
+    check(not rec.events, "unreachable ollama -> swallowed, no event, no raise")
+finally:
+    cas.urllib.request = _real_urllib
+check('"convert/ollama_unloaded"' in room, "room.js speaks convert/ollama_unloaded")
+check("ollama_unloaded" in (HERE.parent / "docs" / "22-engineering-manual.html").read_text(
+    encoding="utf-8"), "docs/22 names ollama_unloaded")
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

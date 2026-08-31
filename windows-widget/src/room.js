@@ -562,6 +562,7 @@ function eventMsg(e) {
     "convert/timeout": `pp ${s(e.page_range)} — Marker timeout ${Math.round(e.elapsed_s || 0)}s`,
     "convert/chunk_batch_invalid": `batch lever invalid (${s(e.value)}) — using ${e.batch ?? 16}`,
     "convert/chunk_batch_unreadable": `batch lever unreadable — using default`,
+    "convert/ollama_unloaded": `ollama released ${e.count ?? "?"} resident(s) — VRAM margin cleared`,
     "convert/asset_range_warning": `pp ${s(e.page_range)} — assets outside slice range`,
     "convert/converted": `converted ${s(e.source)} in ${Math.round(e.wall_s || 0)}s` +
       (e.retry_wall_s ? ` (+${Math.round(e.retry_wall_s)}s retries)` : "") +
