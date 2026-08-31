@@ -29,7 +29,7 @@ its page answers. Pages carry citations to ground truth; the registers stay the 
 ## Product
 
 - [Control Room (Widget)](control-room.md) — what the desktop app is: surfaces, boot order, the IPC contract, process supervision · Observed 2026-08-23
-- [Repair Bench](repair-bench.md) — where failed conversions go for human repair, its seams, and its open defects · Observed 2026-08-23
+- [Repair Bench](repair-bench.md) — where failed conversions go for human repair, its seams, capped-evidence guard, and open defects · Verified 2026-08-31
 - [A11y Conventions](a11y-conventions.md) — the framework-free accessibility conventions both human surfaces build against, and the two measured contrast failures to fix first · Observed 2026-08-23
 
 ## Operations

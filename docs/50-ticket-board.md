@@ -48,8 +48,9 @@ Phases are ordered by dependency and gate, not taste. Rab's three hard gates are
   loss, honest batch/cost records, retry labels, T1–T10 tripwires, watcher tree-kill + derived
   cap). *This doc + the S112 records are OK-17's written home; the review previously lived
   nowhere.*
-- **P1 — Honest instruments (an evening of S-tickets, minimal signature).** **AUD-1** remove
-  the 25-run display cap (SYM-066) · **EST-1** one cost estimator, not two · **CDX-SIG-STALE**
+- **P1 — Honest instruments (an evening of S-tickets, minimal signature).** **M6-R1**
+  fail-closed capped-evidence decisions (**DONE `57a5da6`**) · **EST-1** one cost estimator,
+  not two · **CDX-SIG-STALE**
   correction entry · **FAB-ACK-GAP** receipt the seven unconfirmed Codex messages · register
   repairs F1/F3/J17/J18 · quick symptom builds B6/B7/B8/B9/B13/J16.
 - **P2 — Verdict semantics ⛩ (Rab's signatures; changes what `fail` means).** **AUD-2** gate
@@ -64,7 +65,8 @@ Phases are ordered by dependency and gate, not taste. Rab's three hard gates are
   (frozen verifier) → **VW-E3-PKT** (Codex authors, unsigned display) → ⛩ **VW-E3-SIGN** →
   **VW-HEADEQ** + **VW-LEVERS** (Codex design debts) · board hygiene T-009-BOARD /
   CDX-ACK-GAP / CDX-NEXTID · then the sealed program E4→E8 (XL, sequential by contract).
-- **P4 — Bench wave 2 (A49's remaining signatures).** OK-8 zoom (S) → OK-3 prefetch (M) →
+- **P4 — Bench wave 2 (A49's remaining signatures).** **AUD-1 / M6-R2** pageable or
+  identity-bound full-evidence review (M) → OK-8 zoom (S) → OK-3 prefetch (M) →
   **OK-4 search (M)** → **OK-5 text layer (L)** → OK-6 table tool (M, the SYM-003 weapon) →
   OK-11 watch/swap · OK-12 typed flags · OK-14 · OK-15 · OK-10 reviews panel.
 - **P5 — Program-scale.** OK-13 paged reader · OK-9 unified undo · A44 hOCR side-input (XL) ·
@@ -117,7 +119,6 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 
 | id | ticket | diff | status | depends | source |
 |---|---|---|---|---|---|
-| AUD-1 | Remove the 25-run display cap on omissions | S | open | - | SYMPTOM-INDEX.md:85 (SYM-066); windows-converter/fidelity_audit.py:378 |
 | B13 | Bench UI has no triage/report/ledger buttons | S | open | - | OPEN-TASKS §B B13; S76 §18.4 |
 | B6 | SYM-044 one-line fix: read importlib.metadata.version | S | open | - | OPEN-TASKS §B B6 |
 | B7 | SYM-045 mechanical id preflight against collisions | S | open | - | OPEN-TASKS §B B7 |
@@ -169,6 +170,7 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 
 | id | ticket | diff | status | depends | source |
 |---|---|---|---|---|---|
+| AUD-1 (M6-R2) | Make every hidden run/zone reviewable through pageable evidence or identity-bound uncapped recomputation | M | blocked-on-rab | M6-R1 | SYM-066; MSG-FAB-0062; M6-R1 deliberately stops at fail-closed safety |
 | OK-14 | Widget: forward-instead-of-die single instance | S | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:34,51 (docs/49-okular-digest.md:273-276) |
 | OK-8 | Zoom ladder, fit modes, computed dpi, loupe | S | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:28,49 (docs/49-okular-digest.md:167-177) |
 | OK-10 | Reviews panel over repair sites | M | blocked-on-rab | OK-0 | sessions/S112-fable-sign-sheet.md:30,50 (docs/49-okular-digest.md:193-205) |
@@ -339,6 +341,12 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | E-P1 | P-1 figure completeness built and wired S108 | M | stale | - | OPEN-TASKS §E; `0fbb6e3` |
 | S108-6 | GO: C0, the first conversion; Rab names the book | M | stale | S110-D1 | sessions/S108-SIGN-SHEET.md:21 |
 
+## Delivered by S113 (strike with evidence)
+
+| id | ticket | diff | status | depends | source |
+|---|---|---|---|---|---|
+| M6-R1 | Repair Bench and widget fail closed on capped, missing, or malformed evidence totals; A1-A4 | M | done-by-s113 | NUM-3 | Rab signature; `57a5da6`; SYM-070; 78/78 + 85/85 + widget 35/35 |
+
 ## Delivered by S112 (strike with evidence)
 
 | id | ticket | diff | status | depends | source |
@@ -381,6 +389,7 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | SYM-054 | Agent fleet leaks live servers; digest audit cannot see them | M | open | - | SYMPTOM-INDEX SYM-054 |
 | SYM-056 | 61 unterminated array environments ship with status passed | M | open | - | SYMPTOM-INDEX SYM-056 |
 | SYM-067 | Empty-cell false positive drives convert-stage fail verdicts | M | blocked-on-rab | - | SYMPTOM-INDEX SYM-067 |
+| SYM-070 | Bench recommended bless from a fully triaged capped subset | M | done-by-s113 | - | M6-R1 `57a5da6`; SYMPTOM-INDEX SYM-070 |
 | VW-E3 | Sign and execute VW-E3 | M | blocked-on-rab | VW-E2-CAL | sessions/S112-desktop-2026-08-28.md:153,176,362 |
 | SYM-003 | Table-loop degeneration; the Bench is the response, not a fix | L | open | - | SYMPTOM-INDEX SYM-003 |
 | SYM-027 | Glass debt: criteria 2 and 3 not met | L | open | - | SYMPTOM-INDEX SYM-027 |

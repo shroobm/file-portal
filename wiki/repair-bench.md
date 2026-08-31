@@ -1,17 +1,21 @@
 ---
 title: Repair Bench
 section: Product
-last-verified: 2026-08-23
-verified-against: c56d486
+last-verified: 2026-08-31
+verified-against: "57a5da6f29998b25357d3fd97bd1fcabaa6bd1f4"
 sources:
   - prototypes/repair-bench/bench.py
   - prototypes/repair-bench/bench.html
   - prototypes/repair-bench/signatures.json
   - prototypes/repair-bench/transcribe_worker.py
   - prototypes/repair-bench/acceptance.py
+  - prototypes/repair-bench/test_bench_page.py
   - prototypes/README.md
   - windows-widget/src-tauri/src/bench.rs
   - windows-widget/src-tauri/src/main.rs
+  - windows-widget/src/event-vocab.js
+  - windows-widget/src/main.js
+  - windows-widget/src/room.js
   - windows-converter/convert_and_ship.py
   - docs/38-file-portal-full-system-scope.md
   - prototypes/docling-calibration/README.md
@@ -26,19 +30,21 @@ finds 27 manifests, of which 16 carry a fidelity verdict: **13 `fail`, 3 `flag`,
 (the other 11 are pre-audit anchors the Room skips by design, windows-widget/src-tauri/src/room.rs:76-77).
 `held/` is defined as "audit-failed bundles" (windows-converter/convert_and_ship.py:85) and holds
 4 bundles, 4/4 `fail`. So every audited book ends up in front of a human at the Bench: a local
-web app — `bench.py`, a 1,504-line stdlib+pymupdf server (`wc -l`), plus `bench.html`, a
-1,379-line single-file UI with one inline `<style>` and one `<script>` — that shows the source-PDF
+web app — `bench.py`, a 2,249-line stdlib+pymupdf server, plus `bench.html`, a 2,224-line
+single-file UI with one inline `<style>` and one `<script>` (`Get-Content .Count`, 2026-08-31) —
+that shows the source-PDF
 page beside the markdown, navigated by the audit's flagged zones, where the operator crops,
 collapses, transcribes, and repairs. It lives in `prototypes/` under the quarantine convention,
 yet the widget spawns it directly — a contradiction the record only half-acknowledges (below).
 
 
-> **S108 update (2026-08-23):** three open defects closed this session — Ctrl+Z restored (native-undo path, `0f0e83f`; plaintext-only MODE was the killer), zone-click render is highlight-only when text is unchanged (`f9585b3`, perf log includes forced layout), and the bench gained a 19-test stdlib harness (`abe4830`) with both S106 regressions as named fixtures. Mutating routes now require the launch token (`fb2a919`).
+> **S108 update (2026-08-23):** three open defects closed this session — Ctrl+Z restored (native-undo path, `0f0e83f`; plaintext-only MODE was the killer), zone-click render is highlight-only when text is unchanged (`f9585b3`, perf log includes forced layout), and the bench gained its first 19-test stdlib harness (`abe4830`) with both S106 regressions as named fixtures. That harness now runs 78 tests; mutating routes require the launch token (`fb2a919`).
 
 ## What it is
 
-- `prototypes/repair-bench/` — `bench.py` (1,504 lines), `bench.html` (1,379), `acceptance.py`
-  (408), `transcribe_worker.py` (127), `signatures.json` (108). Counts: `wc -l`, 2026-08-23.
+- `prototypes/repair-bench/` — `bench.py` (2,249 lines), `bench.html` (2,224), plus the
+  acceptance, glass-test, transcription, evidence, and signature artifacts. Counts:
+  `Get-Content .Count`, 2026-08-31.
 - Design intent: docs/19 §7's Stage G — "the human IS the vision model" (prototypes/README.md:29).
   Server binds loopback only and prints its URL (`http://127.0.0.1:7077` default,
   bench.py:1492,1499); `--sandbox` repairs a copy under `.sandbox/` (bench.py:1490-1491).
@@ -58,14 +64,13 @@ it as a child, but production code does not import it" (docs/38-file-portal-full
 The blanket sentence at the top of prototypes/README.md is false at HEAD; the per-row carve-out
 is the real rule.
 
-## The API surface: 22 handlers, 18 reached
+## The API surface: 26 handlers, 22 reached
 
-Route census (probe, 2026-08-23): `grep -c 'url.path == "/api'` → **11 GET** handlers
-(bench.py:1374-1404); `grep -c 'self.path == "/api'` → **11 POST** (bench.py:1416-1469);
-22 handlers over 21 distinct paths (`/api/md` is served under both verbs, bench.py:1376 and 1424).
+Route census (probe, 2026-08-31): `rg -c 'url.path == "/api'` → **15 GET** handlers
+(bench.py:2068-2126); `rg -c 'self.path == "/api'` → **11 POST** (bench.py:2150-2203);
+26 handlers over 25 distinct paths (`/api/md` is served under both verbs).
 The UI funnels every call through one `api(path, body)` wrapper around the file's single `fetch(`
-(bench.html:514-515; `grep -c "fetch("` = 1), and all paths are literals:
-`grep -o '/api/[a-z_-]*' bench.html | sort -u | wc -l` = **18**.
+(bench.html:636-640; `rg -c "fetch\("` = 1), and its literal-path census reaches **22**.
 
 The three defined-but-unreached routes: **`/api/ledger`** (bench.py:1389), **`/api/triage`**
 (bench.py:1465), **`/api/report`** (bench.py:1469) — server-complete, no button on the glass.
@@ -107,43 +112,58 @@ Whole-page transcription is therefore not a Bench gesture today.
 
 ## Security posture
 
-- Binds `127.0.0.1` only (bench.py:1500). Loopback blocks remote hosts — nothing more.
-- **No Origin, Host, token, or CSRF check anywhere in bench.py**: `grep -c "Origin" bench.py` = 0
-  (positive control: `grep -c "Content-Length"` = 2, same file, same probe). `do_POST` parses any
-  body with `json.loads` regardless of Content-Type (bench.py:1414-1415).
-- **No CSP of its own**: `grep -ci "Content-Security" bench.html` = 0. The widget's CSP covers its
-  own webview, not this server's HTTP surface.
-- POST routes mutate real files — `/api/repair`, `/api/collapse`, `/api/undo` edit the bundle
-  body, and `/api/open` swaps the served bundle to an arbitrary caller-supplied path
-  (bench.py:1438-1441).
+- Binds `127.0.0.1` only. Every POST is enumerated in `MUTATING_POSTS` and passes one
+  constant-time `X-FP-Token` gate before dispatch; a server launched without `--token` disables
+  mutations, and the widget launches with a nonempty random token (bench.py:2005-2037,
+  2135-2148,2230-2237; windows-widget/src-tauri/src/bench.rs). The UI reads the launch query
+  token and attaches the header (bench.html:633-640). The expensive evidence GET is gated too
+  (bench.py:2088-2098).
+- The stdlib wire suite refuses missing/wrong tokens, admits the right token, and proves refused
+  writes leave the fixture unchanged (test_bench_page.py:184-241). This is a loopback capability,
+  not user identity or remote authentication.
+- No Origin/Host policy or CSP exists (`rg`, 2026-08-31). The token prevents the old blind
+  cross-origin write shape because hostile pages cannot supply the custom header without a
+  successful preflight; a hostile local process that learns the capability remains in scope.
 
-The repo's own law already names this class: "Loopback is a network boundary, not authentication;
-another local process may still be hostile. Any future route that mutates files requires the same
-path/authority scrutiny as a native command" (docs/38-file-portal-full-system-scope.md:756-758).
-Honest severity: exploitation requires the Bench server to be running (it lives only during a
-repair session) *and* a hostile local process or a hostile web page in some browser firing
-cross-origin POSTs at `127.0.0.1:7077` — the JSON parse accepts a preflight-free `text/plain`
-body. Real, local-only, unmitigated in code. (unverified: no live cross-origin exploit was
-demonstrated; the claim rests on the absent checks cited above.)
+## Capped evidence cannot recommend a false bless
+
+M6-R1 makes evidence-list completeness a typed server record instead of a number inferred from
+the displayed array. Runs and degeneration zones now carry `shown`, `total`, `unseen`, cap,
+`completeness`, a label, and a remedy. A totals-bearing manifest renders `N of M`; a legacy list
+below its historical cap is exact; a legacy list at cap renders `N of at least N — total UNREAD`
+and names `re-convert to measure totals`; malformed or contradictory totals are also UNREAD
+(`prototypes/repair-bench/bench.py:95-155,315-334`).
+
+Coverage calls its tallies `shown`, `addressed_shown`, and `open_shown`. The re-score preview now
+requires clean current degeneration, zero shown-open sites, and complete evidence with zero
+unseen sites before it can recommend the bless rail. Known hidden sites instead name
+`full-evidence review required`; unknown legacy totals name reconversion
+(`prototypes/repair-bench/bench.py:1395-1433,1809-1887`). The Bench chip, status line, and info
+popover render those fields, while the shared widget helper applies the same cap-aware grammar
+(`prototypes/repair-bench/bench.html:685-688,814-824,1817-1845`;
+`windows-widget/src/event-vocab.js:6-20`).
+
+The regression matrix covers future capped, future complete, legacy-at-cap, legacy-under-cap,
+malformed, and live HTTP projection. It reproduces 25 shown of 634 runs plus 10 shown of 37
+zones, with all 35 visible sites addressed, and still requires `eligible=false`; the complete
+Bench suite is 78/78 and real sandbox acceptance is 85/85
+(`prototypes/repair-bench/test_bench_page.py:266-422`; `prototypes/repair-bench/acceptance.py`).
+A 2026-08-31 read-only census found 11 of 33 manifests affected (7 anchor, 4 held); none were
+modified.
 
 ## Defect state at HEAD
 
 Fixed but instructive (details live in the registers, not here): arrow keys no longer flip the
-PDF page while typing — the S106 guard keys on `isContentEditable` (bench.html:733-742); the
-silent 400-char line truncation that could cause a WRONG REPAIR is SYM-052, fixed in `4d06588`
-with no tripwire guarding the regression. Still open and owned by the registers: dead Ctrl+Z, the
-~1 s whole-file render, and the fact that nothing in the repo loads this UI's DOM at all —
-`acceptance.py` drives the server (26/26 on a sandboxed real bundle, prototypes/README.md:29),
-never the glass.
+PDF page while typing, native undo survives Enter, and zone clicks move only the highlight when
+text is unchanged. The source/wire suite now guards the historical line-truncation, navigation,
+token, viewport, search, text-layer, table, trim, OK-15, and M6 failures (78/78); real sandbox
+acceptance is 85/85. The remaining test limit is honest: no tracked harness loads the whole DOM
+in a browser, so pixel/layout behavior still needs a browser smoke.
 
 ## Open items
 
-- **OPEN-TASKS.md A30** — Ctrl+Z dead after any Enter; the `innerHTML` rebuild orphans Blink's
-  undo stack. Fix is a product-shape choice (custom undo model vs textarea) — Rab's call.
-- **OPEN-TASKS.md B22** — whole-file render ~1 s per zone click, ~1.2 s per newline at IV's
-  size; the quoted "105 ms" excluded the forced layout.
-- **OPEN-TASKS.md B5** — nothing in the repo tests `bench.html`; SYM-052's row confirms no
-  tripwire guards its regression.
+- **docs/50 AUD-1 / M6-R2** — the fail-closed decision is built; reviewing the hidden sites
+  still needs separately signed pageable evidence or identity-bound uncapped recomputation.
 - **OPEN-TASKS.md B13** — `/api/triage`, `/api/report`, `/api/ledger` built, proven, unreachable
   from the UI.
 - **OPEN-TASKS.md A35 / A36** — the Bench's operating doctrine is undiscovered; transcribe
