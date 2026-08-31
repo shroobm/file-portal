@@ -49,7 +49,7 @@ OK-13 is the strategic one and deserves its own echo/commission when you're read
 - OK-6: **SIGNED · BUILT (cd5b10e)** · OK-7: **SIGNED (Rab, 2026-08-30) · BUILT same
   day** · OK-8: **SIGNED · BUILT (be191bf)** ·
   OK-9: **SIGNED (Rab, 2026-08-31 15:4xZ)** · OK-10: **SIGNED (Rab, 2026-08-31 15:4xZ)** · OK-11: **SIGNED (Rab, 2026-08-31 15:4xZ)**
-- OK-12: **SIGNED · BUILT (be191bf; change-flag half OPEN)** · OK-13: **SIGNED (Rab, 2026-08-31 15:4xZ) — commission echo owed before build** · OK-14: **SIGNED · BUILT (091ffd7)** · OK-15: **SIGNED · QUARANTINE PROTOTYPE BUILT (77d0361) · REVIEW FINDINGS CLOSED (8da7005); bundle/pipeline graduation remains unsigned**
+- OK-12: **SIGNED · BUILT (be191bf; change-flag half OPEN)** · OK-13: **SIGNED (Rab, 2026-08-31 15:4xZ) — commission echo owed before build** · OK-14: **SIGNED · BUILT (091ffd7)** · OK-15: **SIGNED · QUARANTINE PROTOTYPE BUILT (77d0361) · REVIEW FINDINGS CLOSED (8da7005) · CROSS-VENDOR DELTA PASS (MSG-FAB-0059); bundle/pipeline graduation remains unsigned**
 
 **Post-close additions (born of the 4e-Damodaran stall, 2026-08-30 evening):**
 
