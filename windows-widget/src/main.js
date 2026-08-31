@@ -12,6 +12,7 @@ const { getCurrentWindow } = window.__TAURI__.window;
 // is untouched. Relative import resolves natively in the webview (no bundler needed — only
 // BARE specifiers can't resolve here).
 import { initRoom, setActiveSurface } from "./room.js";
+import { eventPhrase } from "./event-vocab.js";
 
 // Boot diagnostics (S22 debug): any uncaught error or rejection lands in the status
 // line instead of a console nobody can open in release builds.
@@ -410,26 +411,7 @@ function stSet(el, value, cls = "") {
 // S26: the stage ticker — the pipeline's newest event as a human sentence, shown in
 // the shift line while work is fresh (the user's READY→CONVERTING→…→COMPLETE narration).
 function tickerPhrase(ev) {
-  if (!ev) return null;
-  const s = (v) => String(v ?? "").slice(0, 40);
-  const key = `${ev.stage}/${ev.event}`;
-  const map = {
-    "intake/detected": `📥 ${s(ev.source)} — on the belt`,
-    "convert/probe": `⚙ probing ${s(ev.source)} — ${ev.pages}pp, ${ev.lane} lane`,
-    "convert/converted": `⚙ converted ${s(ev.source)} in ${Math.round(ev.wall_s)}s — bundling`,
-    "gate/pending": `✳ ${s(ev.bundle)} — awaiting YOUR routing decision`,
-    "gate/auto_routed": `✳ ${s(ev.bundle)} — rule auto-routed 🔒 local`,
-    "audit/supersede": `◎ ${s(ev.source)} — remedy carried; a passing re-audit REPLACES the vaulted note`,
-    "audit/supersede_ignored": `◎ ${s(ev.source)} — remedy dropped (different file, same name)`,
-    "analyst/start": `🧠 analyzing ${s(ev.bundle)} (${ev.backend})…`,
-    "analyst/done": `🧠 analysis done: ${ev.chunks_passed}✓ ${ev.chunks_rejected || 0}🛡 in ${Math.round(ev.duration_s)}s`,
-    "ship/shipped": `⇈ ${s(ev.bundle)} — shipped to vault ✓`,
-    "gate/resolved": `✓ task complete — check the Library button`,
-    "intake/failed": `✗ ${s(ev.source)} failed — see the drop tray`,
-    "gate/failed": `✗ routing failed: ${s(ev.error)} — pick a route to retry`,
-    "ship/failed": `✗ ship failed: ${s(ev.error)}`,
-  };
-  return map[key] ?? null;
+  return eventPhrase(ev);
 }
 
 async function lineLoop() {
@@ -438,12 +420,21 @@ async function lineLoop() {
     if (ls.available) {
       if (!lineVisible) { lineVisible = true; lineEl.hidden = false; reflow(); }
       const failed = ls.failed_count ?? 0;
-      stSet(stDrop, failed ? `${ls.drop_waiting} (+${failed}✗)` : String(ls.drop_waiting),
+      const phases = (ls.queue || []).reduce((m, row) => {
+        m[row.phase] = (m[row.phase] || 0) + 1; return m;
+      }, {});
+      const phaseNote = ls.intake_state === "fresh"
+        ? (["receiving", "settling", "ready", "deferred"].find((p) => phases[p]) || "")
+        : "UNREAD";
+      const dropText = `${ls.drop_waiting}${phaseNote ? ` ${phaseNote}` : ""}`;
+      stSet(stDrop, failed ? `${dropText} (+${failed}✗)` : dropText,
         failed ? "has-failed" : "");
       stDrop.classList.toggle("has-failed", failed > 0);
       if (ls.converting) {
         const eta = ls.converting_eta_s != null ? ` ~${pfEtaOne(ls.converting_eta_s)} left` : "";
         stSet(stConvert, `${ls.converting}${eta}`, "active");
+      } else if (ls.intake_active) {
+        stSet(stConvert, `${ls.intake_active} · dispatching`, "active");
       } else {
         stSet(stConvert, "idle", "");
       }
@@ -555,8 +546,10 @@ function watcherRender(st) {
   }
   watcherBtn.hidden = false;
   const died = st.state === "stopped" && st.exit_code !== null && st.exit_code !== undefined;
-  watcherBtn.className = st.state === "running" ? "running" : died ? "died" : "";
-  watcherBtn.title = st.state === "running"
+  watcherBtn.className = st.state === "running" ? "running" : st.state === "stop-failed" ? "died" : died ? "died" : "";
+  watcherBtn.title = st.state === "stop-failed"
+    ? `STOP FAILED${st.pid ? ` — real interpreter pid ${st.pid}` : " — descendant death UNREAD"}; click retries stop, never starts a second watcher`
+    : st.state === "running"
     ? `Conveyor running (pid ${st.pid}) — click to pause intake`
     : died
       ? `Conveyor DIED (exit ${st.exit_code}) — last words: watcher-stderr.log — click to restart`
@@ -566,7 +559,8 @@ function watcherRender(st) {
 watcherBtn.addEventListener("click", async () => {
   try {
     const st = await invoke("watcher_status");
-    watcherRender(await invoke(st.state === "running" ? "watcher_stop" : "watcher_start"));
+    const live = st.state === "running" || st.state === "stop-failed";
+    watcherRender(await invoke(live ? "watcher_stop" : "watcher_start"));
   } catch (err) {
     console.error("watcher toggle failed", err);
     setStatus(`Watcher: ${err}`);

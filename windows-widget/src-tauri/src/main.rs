@@ -486,14 +486,17 @@ fn watcher_status(
     state: State<AppState>,
     watcher_state: State<watcher::WatcherState>,
 ) -> Result<watcher::WatcherStatus, String> {
-    let configured = {
+    let (configured, pipe) = {
         let cfg = state
             .config
             .lock()
             .map_err(|_| "lock poisoned".to_string())?;
-        !cfg.gpu_python_exe.is_empty() && !cfg.gpu_converter_dir.is_empty()
+        (
+            !cfg.gpu_python_exe.is_empty() && !cfg.gpu_converter_dir.is_empty(),
+            cfg.gpu_pipeline_dir.clone(),
+        )
     };
-    Ok(watcher::status(&watcher_state, configured))
+    Ok(watcher::status(&watcher_state, configured, Some(&pipe)))
 }
 #[tauri::command]
 fn watcher_start(
@@ -514,8 +517,16 @@ fn watcher_start(
     watcher::start(&watcher_state, &py, &conv, &pipe)
 }
 #[tauri::command]
-fn watcher_stop(watcher_state: State<watcher::WatcherState>) -> watcher::WatcherStatus {
-    watcher::stop(&watcher_state)
+fn watcher_stop(
+    state: State<AppState>,
+    watcher_state: State<watcher::WatcherState>,
+) -> watcher::WatcherStatus {
+    let pipe = state
+        .config
+        .lock()
+        .map(|cfg| cfg.gpu_pipeline_dir.clone())
+        .unwrap_or_default();
+    watcher::stop(&watcher_state, Some(&pipe))
 }
 // vault_check / vault_pull run `git fetch` to the ThinkPad over tailscale ssh, which BLOCKS
 // for the dial timeout when the box is offline. Tauri runs synchronous commands on the main
@@ -654,7 +665,11 @@ fn main() {
         .manage(AppState {
             config: Mutex::new(app_config),
         })
-        .manage(watcher::WatcherState(Mutex::new(None), Mutex::new(None)))
+        .manage(watcher::WatcherState(
+            Mutex::new(None),
+            Mutex::new(None),
+            Mutex::new(None),
+        ))
         .manage(bench::BenchState::default())
         .manage(chat::ChatState::default())
         .invoke_handler(tauri::generate_handler![
@@ -713,7 +728,7 @@ fn main() {
             if let tauri::WindowEvent::Destroyed = event {
                 if window.label() == "main" {
                     let state: State<watcher::WatcherState> = window.app_handle().state();
-                    watcher::stop(&state);
+                    watcher::stop(&state, None);
                     // A3 (signed Rab 2026-08-31): the job's KILL_ON_JOB_CLOSE fires only
                     // when the PROCESS exits, and tauri exits on the LAST window — so a
                     // live Bench or Chat window deferred the kill and left a half-dead

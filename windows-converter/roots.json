@@ -84,6 +84,11 @@
       "env": "FP_PIPELINE",
       "role": "the conveyor watcher's log file"
     },
+    "intake_state": {
+      "path": ".intake-state.json",
+      "env": "FP_PIPELINE",
+      "role": "watcher-only atomic receipt: receiving, settling, ready, deferred, running; widget accepts it only while fresh"
+    },
     "convert_progress": {
       "path": ".convert-progress.json",
       "env": "FP_PIPELINE",

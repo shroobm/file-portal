@@ -67,7 +67,7 @@ class MarkerStub:
         self.seen: dict = {}
 
     def __call__(self, engine_src, engine_stem, out_root, extra, pages, source_name,
-                 page_range=None, progress_prefix=""):
+                 page_range=None, progress_prefix="", progress_context=None):
         batch = None
         args = list(extra)
         for i, a in enumerate(args):
@@ -75,7 +75,8 @@ class MarkerStub:
                 batch = int(args[i + 1])
         n = self.seen[page_range] = self.seen.get(page_range, 0) + 1
         self.calls.append({"page_range": page_range, "batch": batch,
-                           "prefix": progress_prefix, "attempt": n})
+                           "prefix": progress_prefix, "attempt": n,
+                           "context": progress_context})
         if self.plan.get((page_range, n), "ok") == "stall":
             raise stall()
         out_dir = Path(out_root) / engine_stem
@@ -114,6 +115,24 @@ def run_slice(stub, start=0, end=199, batch=8):
         "stub.pdf", QUARANTINE / "stub.pdf", "stub", out_root,
         SLICE_ARGS, end - start + 1, start, end, batch)
     return result, rec, stub
+
+
+# ---------- T0: semantic progress liveness ----------
+print("T0 semantic progress liveness")
+clock = [100.0]
+live = cas._ProgressLiveness(clock=lambda: clock[0])
+check(live.observe("layout", 10, 1, 10), "first valid tuple refreshes liveness")
+clock[0] = 120.0
+check(not live.observe("layout", 10, 1, 10), "identical tuple does not refresh liveness")
+check(live.age() == 20.0, "identical tuple preserves original semantic age")
+check(live.observe("layout", 0, 0, 10), "n regression IS a valid semantic transition")
+clock[0] = 130.0
+check(live.observe("layout", 0, 0, 12), "total change IS a valid semantic transition")
+clock[0] = 140.0
+check(live.observe("recognition", 0, 0, 12), "stage change IS a valid semantic transition")
+record = json.loads(cas.PROGRESS_FILE.read_text(encoding="utf-8"))
+check(record["v"] == 2 and record["writer_pid"] == os.getpid(),
+      "progress receipt carries v2 and writer pid")
 
 
 # ---------- T1: ladder order, dedupe, termination ----------
@@ -223,17 +242,25 @@ stub = MarkerStub(plan={("0-199", 1): "stall"})
 (_, _, _, _, meta), rec, stub = run_slice(stub)
 check("retry" not in stub.calls[0]["prefix"], "attempt 1 carries no 'retry' label")
 check("retry 2/" in stub.calls[1]["prefix"], "attempt 2 says retry 2/N")
+check(stub.calls[1]["context"]["attempt"] == 2
+      and stub.calls[1]["context"]["batch"] == 4
+      and stub.calls[1]["context"]["page_range"] == "0-199",
+      "progress context carries structured attempt, batch, and range")
 
-# ---------- T7: vocabulary parity (converter -> Room -> manual) ----------
+# ---------- T7: vocabulary parity (converter -> shared surfaces -> manual) ----------
 print("T7 vocabulary parity")
+vocab = (HERE.parent / "windows-widget" / "src" / "event-vocab.js").read_text(encoding="utf-8")
 room = (HERE.parent / "windows-widget" / "src" / "room.js").read_text(encoding="utf-8")
+dock = (HERE.parent / "windows-widget" / "src" / "main.js").read_text(encoding="utf-8")
 manual = (HERE.parent / "docs" / "22-engineering-manual.html").read_text(encoding="utf-8")
 LADDER_VOCAB = ["convert/stalled", "convert/slice_retry", "convert/slice_retry_succeeded",
                 "convert/slice_split", "convert/timeout", "convert/chunk_batch_invalid",
                 "convert/chunk_batch_unreadable", "convert/asset_range_warning",
                 "convert/slice", "convert/converted", "intake/failed"]
 for key in LADDER_VOCAB:
-    check(f'"{key}"' in room, f"room.js speaks {key}")
+    check(f'"{key}"' in vocab, f"shared event-vocab.js speaks {key}")
+check('from "./event-vocab.js"' in room and 'from "./event-vocab.js"' in dock,
+      "Room and Dock both import the shared vocabulary")
 for name in ["slice_retry_succeeded", "slice_split", "timeout", "chunk_batch_invalid",
              "chunk_batch_unreadable", "asset_range_warning", "retry_wall_s",
              "pages_converted_this_run"]:
@@ -261,6 +288,15 @@ m = re.search(r'FP_CONVERT_TIMEOUT_S", "(\d+)"', watcher)
 check(m is not None and int(m.group(1)) >= 21600,
       "watcher outer cap >= the old 6 h flat (never silently lowered)")
 check("taskkill" in watcher and "/T" in watcher, "watcher timeout kills the TREE, not the pid")
+
+# ---------- T9: split monitor cadences and drain boundary ----------
+print("T9 monitor cadences + drain boundary")
+src = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+check("proc.wait(timeout=5)" in src, "process completion/stall monitor cadence is 5 s")
+check("next_gpu_sample = time.perf_counter() + 30" in src,
+      "GPU subprocess sampling remains on a separate 30 s cadence")
+check("for line in pipe" in src and "for _ in pipe" in src,
+      "stdout drain and decode-failure drain remain present")
 
 # ---------- T10: zero-stall negative control ----------
 print("T10 zero-stall negative control")
@@ -335,7 +371,8 @@ try:
     check(not rec.events, "unreachable ollama -> swallowed, no event, no raise")
 finally:
     cas.urllib.request = _real_urllib
-check('"convert/ollama_unloaded"' in room, "room.js speaks convert/ollama_unloaded")
+check('"convert/ollama_unloaded"' in vocab,
+      "shared event-vocab.js speaks convert/ollama_unloaded")
 check("ollama_unloaded" in (HERE.parent / "docs" / "22-engineering-manual.html").read_text(
     encoding="utf-8"), "docs/22 names ollama_unloaded")
 

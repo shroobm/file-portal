@@ -140,14 +140,48 @@ PROGRESS_FILE = fp_paths.root("convert_progress")
 _TQDM_RE = re.compile(r"([A-Za-z][\w ()/-]*?):\s*(\d{1,3})%\|[^|]*\|\s*(\d+)\s*/\s*(\d+)")
 
 
-def _write_progress(stage: str, pct: int, n: int, total: int) -> None:
+def _write_progress(stage: str, pct: int, n: int, total: int,
+                    context: dict | None = None) -> None:
     try:
-        PROGRESS_FILE.write_text(json.dumps({
+        record = {
+            "v": 2, "writer_pid": os.getpid(),
             "stage": stage, "pct": pct, "n": n, "total": total,
             "frac": max(0.0, min(1.0, pct / 100.0)),
-        }), encoding="utf-8")
+        }
+        record.update(context or {})
+        PROGRESS_FILE.write_text(json.dumps(record), encoding="utf-8")
     except OSError:
         pass  # progress is cosmetic — a write failure must never matter
+
+
+class _ProgressLiveness:
+    """Thread-safe semantic liveness, independent of the best-effort progress file.
+
+    ANY change to the valid (stage, n, total) tuple refreshes liveness, including an n
+    regression or total change at a stage boundary.  Repeating the identical tuple does not.
+    The stdout reader remains the only observer; the monitor only reads this small state.
+    """
+
+    def __init__(self, clock=time.monotonic):
+        self._clock = clock
+        self._lock = threading.Lock()
+        self._last: tuple[str, int, int] | None = None
+        self._changed_at = clock()
+
+    def observe(self, stage: str, pct: int, n: int, total: int,
+                context: dict | None = None) -> bool:
+        key = (stage, n, total)
+        with self._lock:
+            if key == self._last:
+                return False
+            self._last = key
+            self._changed_at = self._clock()
+        _write_progress(stage, pct, n, total, context)
+        return True
+
+    def age(self) -> float:
+        with self._lock:
+            return max(0.0, self._clock() - self._changed_at)
 
 
 def _clear_progress() -> None:
@@ -720,7 +754,8 @@ def estimate_from_ledger(pages: int, lane: str, chars_per_page: float) -> dict |
 
 def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[str],
                 pages: int, source_name: str, page_range: str | None = None,
-                progress_prefix: str = "") -> tuple[Path, str, float, int]:
+                progress_prefix: str = "", progress_context: dict | None = None
+                ) -> tuple[Path, str, float, int]:
     """Run Marker once under the S52 stall monitor and return (out_dir, markdown, wall, peak MiB).
 
     Extracted at S60 so the whole-book path and every chunked slice share ONE implementation of
@@ -730,6 +765,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
     file so the Room can say which slice is running."""
     _clear_progress()
     captured: list[str] = []
+    liveness = _ProgressLiveness()
 
     def _reader(pipe) -> None:
         try:
@@ -738,8 +774,9 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
                 try:
                     m = _TQDM_RE.search(line)
                     if m:
-                        _write_progress(f"{progress_prefix}{m.group(1).strip()}", int(m.group(2)),
-                                        int(m.group(3)), int(m.group(4)))
+                        liveness.observe(f"{progress_prefix}{m.group(1).strip()}",
+                                         int(m.group(2)), int(m.group(3)), int(m.group(4)),
+                                         progress_context)
                 except Exception:  # noqa: BLE001 — a parse fault must never stop the drain
                     pass
         except Exception:  # noqa: BLE001 — a reader fault must never break the convert — and it
@@ -774,6 +811,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
     # count, so each slice gets its own proportionate bound.
     timeout_s = max(3600, pages * 20)
     peak_mib = 0
+    next_gpu_sample = time.perf_counter()
 
     def _kill_and_clear() -> None:
         _kill_tree(proc.pid)  # /T first — proc.kill() alone would orphan marker's real python
@@ -783,20 +821,21 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
         _clear_progress()
 
     # Stage A (docs/18 §4A; policy §5.1 "kill early", decided 2026-07-31): the wait is a monitor.
-    # PROGRESS_FILE's mtime is the liveness signal Marker already emits; frozen too long while the
-    # process still runs is the stall signature of BOTH wedge species (the S48 pipe-deadlock froze
-    # it at zero CPU, the S45 VRAM-thrash at pinned GPU). Monitoring is best-effort and can never
-    # fail a healthy convert (S42 rule); the scaled hard timeout stays as the outer bound.
+    # The reader's semantic (stage,n,total) tuple is the liveness signal.  File mtime was not:
+    # tqdm can repeat an identical tuple and keep touching the file, hiding a real freeze.  The
+    # in-memory clock also means a cosmetic write failure cannot falsely kill a healthy convert.
+    # The process cadence is 5 s for operator responsiveness; GPU sampling remains 30 s because
+    # nvidia-smi is a subprocess and must not become a new hot loop.
     while True:
         try:
-            proc.wait(timeout=30)
+            proc.wait(timeout=5)
             break
         except subprocess.TimeoutExpired:
             pass
         elapsed = time.perf_counter() - t0
-        # Stage D's conversion ledger wants peak VRAM, and this loop is already the thing that
-        # watches the GPU — sample here rather than adding a second watcher.
-        peak_mib = max(peak_mib, _gpu_signature().get("gpu_mem_used_mib", 0))
+        if time.perf_counter() >= next_gpu_sample:
+            peak_mib = max(peak_mib, _gpu_signature().get("gpu_mem_used_mib", 0))
+            next_gpu_sample = time.perf_counter() + 30
         if elapsed >= timeout_s:
             sig = _gpu_signature()
             _kill_and_clear()
@@ -806,10 +845,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
                  pages=pages, timeout_s=timeout_s, page_range=page_range, **sig)
             raise _MarkerTimeoutError(f"marker timed out after {timeout_s}s ({pages} pages)",
                                      elapsed_s=int(elapsed), pages=pages, timeout_s=timeout_s)
-        try:
-            frozen_s = time.time() - PROGRESS_FILE.stat().st_mtime
-        except OSError:
-            frozen_s = elapsed  # nothing written yet (model load etc.) — measure from start
+        frozen_s = liveness.age()
         if frozen_s > STALL_FROZEN_S:
             sig = _gpu_signature()
             _kill_and_clear()
@@ -862,7 +898,9 @@ def _slice_retry_batches(start_batch: int) -> list[int]:
 def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str,
                            out_root: Path, extra: list[str], pages: int,
                            start: int, end: int, source_batch: int, split_depth: int = 0,
-                           progress_prefix: str = "") -> tuple[str, list[Path], float, int, dict]:
+                           progress_prefix: str = "", slice_index: int | None = None,
+                           slice_total: int | None = None, split_side: str | None = None
+                           ) -> tuple[str, list[Path], float, int, dict]:
     """Run one slice with bounded stall retries and bounded split fallback.
 
     Returns (markdown, assets, wall_s, peak_mib, meta). `wall_s` is the WINNING attempt's
@@ -890,7 +928,17 @@ def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str
             out_dir, md, wall, mib = _run_marker(
                 engine_src, engine_stem, out_root, slice_extra, pages,
                 source_name, page_range=page_range,
-                progress_prefix=f"{progress_prefix}{retry_seg}batch {batch} · "
+                progress_prefix=f"{progress_prefix}{retry_seg}batch {batch} · ",
+                progress_context={
+                    "page_range": page_range,
+                    "slice": slice_index,
+                    "slices": slice_total,
+                    "attempt": attempt,
+                    "attempts": len(attempts),
+                    "batch": batch,
+                    "split_depth": split_depth,
+                    "split_side": split_side,
+                },
             )
             images = [p for p in sorted(out_dir.iterdir())
                       if p.suffix.lower() in (".jpeg", ".jpg", ".png")]
@@ -934,13 +982,15 @@ def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str
         source_name, engine_src, engine_stem, out_root, extra, pages=(mid - start + 1),
         start=start, end=mid, source_batch=STALL_RECOVERY_BATCH,
         split_depth=split_depth + 1,
-        progress_prefix=f"{progress_prefix}split-left depth{split_depth+1}: "
+        progress_prefix=f"{progress_prefix}split-left depth{split_depth+1}: ",
+        slice_index=slice_index, slice_total=slice_total, split_side="left"
     )
     right_md, right_imgs, right_wall, right_mib, right_meta = _run_slice_with_retries(
         source_name, engine_src, engine_stem, out_root, extra, pages=(end - mid),
         start=mid + 1, end=end, source_batch=STALL_RECOVERY_BATCH,
         split_depth=split_depth + 1,
-        progress_prefix=f"{progress_prefix}split-right depth{split_depth+1}: "
+        progress_prefix=f"{progress_prefix}split-right depth{split_depth+1}: ",
+        slice_index=slice_index, slice_total=slice_total, split_side="right"
     )
     return (
         f"{left_md}\n\n{right_md}",
@@ -1050,7 +1100,8 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
             print(f"SLICE {i}/{total} pages {start}-{end} (batch {slice_batch}) …", flush=True)
             md, imgs, wall, mib, meta = _run_slice_with_retries(
                 source_name, engine_src, engine_stem, out_root, extra, end - start + 1,
-                start, end, slice_batch, progress_prefix=f"slice {i}/{total} · ")
+                start, end, slice_batch, progress_prefix=f"slice {i}/{total} · ",
+                slice_index=i, slice_total=total)
             total_wall += wall
             retry_wall += meta["retry_wall_s"]
             converted_pages += end - start + 1
@@ -1164,7 +1215,10 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         # here rather than silently implied; routing it through a 1-slice ladder is future
         # work, not an accident.
         out_dir, markdown, wall, peak_mib = _run_marker(
-            engine_src, engine_stem, out_root, extra, pages, src.name)
+            engine_src, engine_stem, out_root, extra, pages, src.name,
+            progress_context={"page_range": None, "slice": 1, "slices": 1,
+                              "attempt": 1, "attempts": 1, "batch": None,
+                              "split_depth": 0, "split_side": None})
         assets_dir = out_dir
         chunk_stats = {"cost_s": round(wall, 1), "retry_wall_s": 0.0,
                        "resumed_slices": 0, "pages_converted_this_run": pages}

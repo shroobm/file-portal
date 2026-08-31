@@ -73,7 +73,8 @@ def known_roots() -> list[str]:
 _OWNED = {
     "events": ["EVENTS_FILE"],
     "watch_and_convert": ["BASE", "DROP_DIR", "DONE_DIR", "FAILED_DIR",
-                          "MODE_FILE", "LOCK_FILE", "HOLD_FILE", "LOG_FILE"],
+                          "MODE_FILE", "LOCK_FILE", "HOLD_FILE", "LOG_FILE",
+                          "INTAKE_STATE_FILE"],
     "analyst": ["ANALYST_PROGRESS", "ANALYST_WORK", "EVENTS_FILE", "RULES_FILE"],
     "backend_parity": ["PIPE_ROOT", "GPU_LOCK", "DEFAULT_BOOK"],
     "convert_and_ship": ["ANCHOR", "PENDING", "HELD", "AUDIT_MODE_FILE", "PROGRESS_FILE",

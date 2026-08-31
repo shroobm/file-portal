@@ -20,11 +20,16 @@ use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Mutex, OnceLock};
-use windows_sys::Win32::Foundation::HANDLE;
+use std::thread;
+use std::time::Duration;
+use windows_sys::Win32::Foundation::{CloseHandle, HANDLE, STILL_ACTIVE};
 use windows_sys::Win32::System::JobObjects::{
     AssignProcessToJobObject, CreateJobObjectW, JobObjectExtendedLimitInformation,
     SetInformationJobObject, JOBOBJECT_EXTENDED_LIMIT_INFORMATION,
     JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+};
+use windows_sys::Win32::System::Threading::{
+    GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
 // A single process-wide job, created once and held for the widget's whole life (never closed
@@ -78,18 +83,76 @@ pub(crate) fn spawn_supervised(cmd: &mut Command) -> std::io::Result<Child> {
 // Stage A (docs/18 §4A): the second mutex REMEMBERS the last death's exit code after the
 // child is reaped — a status flag alone is a claim; the certificate is the evidence. Cleared
 // on a fresh start and on a deliberate stop (a stop is not a death).
-pub struct WatcherState(pub Mutex<Option<Child>>, pub Mutex<Option<i32>>);
+pub struct WatcherState(
+    pub Mutex<Option<Child>>,
+    pub Mutex<Option<i32>>,
+    /// Real interpreter left after a failed tree stop; 0 means descendant death was UNREAD.
+    pub Mutex<Option<u32>>,
+);
 
 #[derive(Serialize)]
 pub struct WatcherStatus {
-    /// "running" | "stopped" | "unconfigured"
+    /// "running" | "stopped" | "stop-failed" | "unconfigured"
     pub state: String,
     pub pid: Option<u32>,
     /// Stage A death certificate: Some(code) iff the last run DIED (vs was stopped/never ran).
     pub exit_code: Option<i32>,
 }
 
-pub fn status(state: &WatcherState, configured: bool) -> WatcherStatus {
+fn pid_alive(pid: u32) -> bool {
+    if pid == 0 {
+        return false;
+    }
+    unsafe {
+        let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
+        if handle.is_null() {
+            return false;
+        }
+        let mut code = 0u32;
+        let ok = GetExitCodeProcess(handle, &mut code) != 0 && code == STILL_ACTIVE as u32;
+        CloseHandle(handle);
+        ok
+    }
+}
+
+fn intake_writer_pid(gpu_pipeline_dir: Option<&str>) -> Option<u32> {
+    let root = gpu_pipeline_dir.filter(|s| !s.is_empty())?;
+    let path = Path::new(root).join(".intake-state.json");
+    let age = std::fs::metadata(&path)
+        .and_then(|m| m.modified())
+        .ok()?
+        .elapsed()
+        .ok()?
+        .as_secs();
+    if age > 300 {
+        return None;
+    }
+    let text = std::fs::read_to_string(path).ok()?;
+    let value: serde_json::Value = serde_json::from_str(&text).ok()?;
+    (value["v"].as_u64() == Some(1))
+        .then(|| value["writer_pid"].as_u64())
+        .flatten()
+        .and_then(|n| u32::try_from(n).ok())
+}
+
+pub fn status(
+    state: &WatcherState,
+    configured: bool,
+    gpu_pipeline_dir: Option<&str>,
+) -> WatcherStatus {
+    {
+        let mut residue = state.2.lock().unwrap();
+        if let Some(pid) = *residue {
+            if pid == 0 || pid_alive(pid) {
+                return WatcherStatus {
+                    state: "stop-failed".into(),
+                    pid: (pid != 0).then_some(pid),
+                    exit_code: None,
+                };
+            }
+            *residue = None;
+        }
+    }
     if !configured {
         return WatcherStatus {
             state: "unconfigured".into(),
@@ -116,6 +179,15 @@ pub fn status(state: &WatcherState, configured: bool) -> WatcherStatus {
             Err(_) => *guard = None, // unknowable — reflect reality, no certificate to file
         }
     }
+    if let Some(pid) = intake_writer_pid(gpu_pipeline_dir).filter(|pid| pid_alive(*pid)) {
+        // The configured executable may be a launcher that has already exited.  The fresh
+        // watcher-owned receipt identifies the real interpreter; do not call that factory off.
+        return WatcherStatus {
+            state: "running".into(),
+            pid: Some(pid),
+            exit_code: None,
+        };
+    }
     WatcherStatus {
         state: "stopped".into(),
         pid: None,
@@ -131,6 +203,18 @@ pub fn start(
 ) -> Result<WatcherStatus, String> {
     if gpu_python_exe.is_empty() || gpu_converter_dir.is_empty() {
         return Err("gpu_python_exe / gpu_converter_dir not configured".into());
+    }
+    if state.2.lock().unwrap().is_some() {
+        return Err(
+            "previous watcher stop is unverified; refusing to start a second watcher".into(),
+        );
+    }
+    if let Some(pid) = intake_writer_pid(Some(gpu_pipeline_dir)).filter(|pid| pid_alive(*pid)) {
+        return Ok(WatcherStatus {
+            state: "running".into(),
+            pid: Some(pid),
+            exit_code: None,
+        });
     }
     let script = Path::new(gpu_converter_dir).join("watch_and_convert.py");
     if !script.is_file() {
@@ -181,8 +265,10 @@ pub fn start(
     })
 }
 
-pub fn stop(state: &WatcherState) -> WatcherStatus {
+pub fn stop(state: &WatcherState, gpu_pipeline_dir: Option<&str>) -> WatcherStatus {
     let mut guard = state.0.lock().unwrap();
+    let writer_pid = intake_writer_pid(gpu_pipeline_dir);
+    let mut tree_kill_ok = true;
     if let Some(mut child) = guard.take() {
         // WAT-2 (signed Rab 2026-08-31): kill the TREE, not just the direct child. The
         // configured python may be a venv launcher whose real interpreter is a GRANDCHILD;
@@ -190,13 +276,50 @@ pub fn stop(state: &WatcherState) -> WatcherStatus {
         // until widget exit, so the button's "stopped" was a lie. Measured live 2026-08-31:
         // shim 32068 / real interpreter 3532. taskkill /T reaches the descendants; the
         // kill()+wait() pair stays as belt-and-braces (and reaps the handle).
-        let _ = Command::new("taskkill")
+        tree_kill_ok = Command::new("taskkill")
             .args(["/PID", &child.id().to_string(), "/T", "/F"])
             .creation_flags(CREATE_NO_WINDOW)
-            .output();
+            .output()
+            .is_ok_and(|out| out.status.success());
         let _ = child.kill();
         let _ = child.wait();
     }
+    if let Some(pid) = writer_pid.filter(|pid| pid_alive(*pid)) {
+        // The launcher may already be gone while its real interpreter keeps polling.  Kill
+        // the receipt's real writer tree as its own target, then prove it died below.
+        tree_kill_ok = Command::new("taskkill")
+            .args(["/PID", &pid.to_string(), "/T", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output()
+            .is_ok_and(|out| out.status.success())
+            && tree_kill_ok;
+    }
+    if let Some(pid) = writer_pid {
+        for _ in 0..20 {
+            if !pid_alive(pid) {
+                break;
+            }
+            thread::sleep(Duration::from_millis(100));
+        }
+        if pid_alive(pid) {
+            *state.2.lock().unwrap() = Some(pid);
+            return WatcherStatus {
+                state: "stop-failed".into(),
+                pid: Some(pid),
+                exit_code: None,
+            };
+        }
+    } else if !tree_kill_ok {
+        // No watcher receipt means there is no descendant identity to prove.  Never translate
+        // a failed taskkill into the positive claim "stopped"; block restart until inspection.
+        *state.2.lock().unwrap() = Some(0);
+        return WatcherStatus {
+            state: "stop-failed".into(),
+            pid: None,
+            exit_code: None,
+        };
+    }
+    *state.2.lock().unwrap() = None;
     *state.1.lock().unwrap() = None; // a deliberate stop is not a death — no certificate
     WatcherStatus {
         state: "stopped".into(),

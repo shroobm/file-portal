@@ -7,6 +7,8 @@
 // The source object's `renderVals()` computed a view-model from a simulation; this rebuilds
 // the same view-model shape from real commands. The markup below is the lifted Room markup.
 
+import { eventPhrase } from "./event-vocab.js";
+
 const { invoke } = window.__TAURI__.core;
 
 // Verdict → token color, shared with the Dock's assay language (docs/13: terracotta = fail only).
@@ -158,21 +160,24 @@ function algedonicBanner(d) {
 function queuePanel(d) {
   const ls = d.ls || {};
   const q = ls.queue || [];
-  const conv = ls.converting;
+  const conv = ls.intake_active || ls.converting;
   const est = ls.estimate;
   const fmtB = (b) => (b == null ? "—" : b > 1048576 ? `${(b / 1048576).toFixed(1)} MB` : `${Math.max(1, Math.round(b / 1024))} KB`);
   const convRow = conv
     ? `<div class="q-row converting"><span class="q-pos">▶</span><span class="q-name">${esc(conv)}</span>` +
-      `<span class="q-meta">${est && est.eta_s != null ? `promised ${etaText(est.eta_s)} · ${esc(est.basis)}${est.samples ? `×${est.samples}` : ""}` : "converting"}</span></div>`
+      `<span class="q-meta">${est && est.eta_s != null ? `promised ${etaText(est.eta_s)} · ${esc(est.basis)}${est.samples ? `×${est.samples}` : ""}` : ls.converting ? "converting" : "dispatching"}</span></div>`
     : "";
   const rows = q.map((f, i) =>
     `<div class="q-row"><span class="q-pos">${i + 1}</span><span class="q-name">${esc(f.name)}</span>` +
-    `<span class="q-meta">${fmtB(f.bytes)}${i === 0 && !conv ? " · next" : ""}</span></div>`).join("");
+    `<span class="q-meta">${fmtB(f.bytes)} · ${esc(f.phase || "UNREAD")}` +
+    `${f.wait_s != null ? ` · waiting ${etaText(f.wait_s)}` : ""}${i === 0 && !conv && f.phase === "ready" ? " · next" : ""}</span></div>`).join("");
   const note = (q.length || conv)
-    ? `<div class="rp-note">estimates appear at probe (pages are measured, never metadata) · reordering awaits a signed watcher contract</div>`
+    ? `<div class="rp-note">intake receipt: <b>${esc(ls.intake_state || "UNREAD")}</b>` +
+      `${ls.intake_state_age_s != null ? ` · ${ls.intake_state_age_s}s old` : ""}` +
+      ` · active is excluded from waiting · estimates appear after page probe</div>`
     : `<div class="rp-note">queue empty — drop a PDF on the ⚡ tile</div>`;
   return `<div class="rp rp-queue"><div class="rp-head"><span class="rp-title">≡ Queue</span>` +
-    `<span class="rp-grow"></span><span class="rp-file">${q.length + (conv ? 1 : 0)} item(s) · watcher order</span></div>` +
+    `<span class="rp-grow"></span><span class="rp-file">${ls.drop_waiting ?? q.length} waiting${conv ? " · 1 active" : ""} · filename order</span></div>` +
     `<div class="rp-body">${convRow}${rows}${note}</div></div>`;
 }
 
@@ -184,7 +189,8 @@ function stationRail(d) {
   const av = assay.verdict || null;
   const defs = [
     { seg: "intake", glyph: "▚", name: "Intake", count: String(ls.drop_waiting ?? 0),
-      sub: d.watcher?.state === "running" ? "watching" : "paused", st: (ls.drop_waiting > 0) ? "active" : "" },
+      sub: ls.intake_state !== "fresh" ? "state UNREAD" : d.watcher?.state === "running" ? "watching" : "paused",
+      st: (ls.drop_waiting > 0) ? "active" : "" },
     { seg: "convert", glyph: "⚙", name: "Convert", count: converting ? "1" : "0",
       sub: converting ? (ls.converting_eta_s != null ? etaText(ls.converting_eta_s) + " left" : "running") : "idle",
       st: converting ? "active" : "" },
@@ -340,7 +346,12 @@ function convertPanel(d) {
   // S42: the REAL current Marker stage + per-page count, streamed live (docs/16 §8 #3). The bar
   // stays the monotonic elapsed÷ETA estimate (forward-only); the stage row is the true progress.
   const stageTxt = converting && ls.convert_stage
-    ? `${esc(ls.convert_stage)}${ls.convert_total ? ` · ${ls.convert_n}/${ls.convert_total}` : ""}`
+    ? `${esc(ls.convert_stage)}${ls.convert_total ? ` · ${ls.convert_n}/${ls.convert_total}` : ""}` +
+      `${ls.convert_slice ? ` · slice ${ls.convert_slice}/${ls.convert_slices}` : ""}` +
+      `${ls.convert_page_range ? ` · pp ${esc(ls.convert_page_range)}` : ""}` +
+      `${ls.convert_attempt ? ` · attempt ${ls.convert_attempt}/${ls.convert_attempts}` : ""}` +
+      `${ls.convert_batch ? ` · batch ${ls.convert_batch}` : ""}` +
+      `${ls.convert_split_side ? ` · split ${esc(ls.convert_split_side)} d${ls.convert_split_depth}` : ""}`
     : "";
   const note = stageTxt
     ? (promisedTotal != null
@@ -376,7 +387,7 @@ function convertPanel(d) {
     // spec was signed, and a policy row that describes the past is worse than none.
     // Stage E: the batch value graduated from a stated number to a LIVE LEVER — three buttons
     // writing chunk-batch.txt through the backend's validated setter, re-read per slice.
-    `<div class="rp-policy">policy: stall → kill &gt;15 m → retry batch 4 → split range · long books → 200-pp resumable slices ` +
+    `<div class="rp-policy">policy: semantic stage/count unchanged &gt;15 m → kill → retry batch 4 → split range · process checked 5 s · GPU sampled 30 s · long books → 200-pp resumable slices ` +
     `(clean &gt;600 pp · scan &gt;400 pp) · slice batch ` +
     [8, 16, 32].map((n) =>
       `<button class="rp-batch${(ls.chunk_batch ?? 16) === n ? " on" : ""}" data-batch="${n}">${n}</button>`).join("") +
@@ -544,44 +555,14 @@ function receiptMsg(r) {
   return map[r.outcome] || `${s(r.outcome)} ${s(r.bundle)}`;
 }
 
-// turn a raw event line into a human phrase (mirrors main.js tickerPhrase, compacted)
+// Turn a raw event into the same vocabulary the Dock uses, compacted for the Room.
 function eventMsg(e) {
-  const s = (v) => String(v ?? "").slice(0, 34);
-  const k = `${e.stage}/${e.event}`;
-  const map = {
-    "intake/detected": `${s(e.source)} — on the belt`,
-    // OK-17 (2026-08-30): the stall-recovery ladder speaks — before this, a stalled slice
-    // showed the Room a bare "convert stalled" while the ladder fought for it off-glass.
-    "intake/failed": `${s(e.source)} — intake FAILED (${e.exit_code ?? "?"})${e.timeout_s ? ` · outer cap ${Math.round(e.timeout_s / 3600)}h` : ""}`,
-    "convert/probe": `probing ${s(e.source)} — ${e.pages}pp ${e.lane}`,
-    "convert/slice": `slice ${e.slice}/${e.slices} pp ${s(e.page_range)} · ${Math.round(e.wall_s || 0)}s${e.resumed ? " · resumed" : ""}${e.recovered ? ` · recovered @${e.batch}` : ""}`,
-    "convert/stalled": `pp ${s(e.page_range)} STALLED — ladder engaging`,
-    "convert/slice_retry": `pp ${s(e.page_range)} — retrying at batch ${e.batch ?? "?"}`,
-    "convert/slice_retry_succeeded": `pp ${s(e.page_range)} — recovered at batch ${e.batch ?? "?"} ✓`,
-    "convert/slice_split": `pp ${s(e.page_range)} — splitting range (depth ${e.split_depth ?? "?"})`,
-    "convert/timeout": `pp ${s(e.page_range)} — Marker timeout ${Math.round(e.elapsed_s || 0)}s`,
-    "convert/chunk_batch_invalid": `batch lever invalid (${s(e.value)}) — using ${e.batch ?? 16}`,
-    "convert/chunk_batch_unreadable": `batch lever unreadable — using default`,
-    "convert/ollama_unloaded": `ollama released ${e.count ?? "?"} resident(s) — VRAM margin cleared`,
-    "convert/asset_range_warning": `pp ${s(e.page_range)} — assets outside slice range`,
-    "convert/converted": `converted ${s(e.source)} in ${Math.round(e.wall_s || 0)}s` +
-      (e.retry_wall_s ? ` (+${Math.round(e.retry_wall_s)}s retries)` : "") +
-      (e.resumed_slices ? ` · ${e.resumed_slices} resumed` : ""),
-    "audit/scored": `scored ${s(e.source)} · survival ${e.doc_survival != null ? Number(e.doc_survival).toFixed(3) : "?"}`,
-    "audit/flagged": `${s(e.source)} — verdict ${e.verdict}`,
-    "audit/verdict_fail": `${s(e.bundle)} — verdict FAIL · algedonic`,
-    "audit/held": `${s(e.bundle)} — held · enforce`,
-    "audit/supersede": `${s(e.source)} — remedy carried · replaces on pass`,
-    "audit/supersede_ignored": `${s(e.source)} — remedy dropped · sha mismatch`,
-    "gate/pending": `${s(e.bundle)} — awaiting routing`,
-    "analyst/done": `analysis done · ${e.chunks_passed ?? "?"}✓`,
-    "ship/shipped": `${s(e.bundle)} — shipped ✓`,
-  };
-  return map[k] || `${e.stage || ""} ${e.event || ""}`.trim();
+  return eventPhrase(e, { compact: true, unknown: `${e.stage || ""} ${e.event || ""}`.trim() });
 }
 
 function header(d) {
-  const w = d.watcher?.state === "running";
+  const watcherState = d.watcher?.state;
+  const w = watcherState === "running";
   const v = d.vram;
   let gpu = v && v.total ? `${Number(v.used).toFixed(1)}/${v.total} GB` : "GPU —";
   if (v && v.total) { // S38: append utilization + temperature when the probe reports them
@@ -595,7 +576,7 @@ function header(d) {
   return `<div class="room-head">` +
     `<div class="rh-brand"><span class="rh-logo">◆</span><div><div class="rh-title">File Portal</div><div class="rh-sub">OPERATIONS ROOM</div></div></div>` +
     `<div class="rh-stat"><span class="dot" style="background:${sv.color}"></span> System <b style="color:${sv.color}">${sv.word}</b></div>` +
-    `<div class="rh-stat"><span class="dot ${w ? "ok" : "off"}"></span> Watcher <b>${w ? "up" : "off"}</b></div>` +
+    `<div class="rh-stat"><span class="dot ${w ? "ok" : "off"}"></span> Watcher <b>${watcherState === "stop-failed" ? "STOP FAILED" : w ? "up" : "off"}</b></div>` +
     `<div class="rh-stat mono">${gpu}</div>` +
     `<div class="rh-stat mono">${clock} UTC</div>` +
     // S66: engineering quick-access — the important files, one click from the Room.
