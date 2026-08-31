@@ -110,10 +110,10 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | id | ticket | diff | status | depends | source |
 |---|---|---|---|---|---|
 | BEN-1 | First live-browser run of the four built OK tickets | S | blocked-on-rab | OK-0,OK-1,OK-2,OK-7 | sessions/S112-fable-sign-sheet.md:66-69 |
-| OK-16 | Pre-convert ollama unload frees 1.5-2.0 GB VRAM | S | signed | - | sessions/S112-fable-sign-sheet.md:57 |
+| OK-16 | Pre-convert ollama unload frees 1.5-2.0 GB VRAM | S | done-by-s113 | - | sessions/S112-fable-sign-sheet.md:57 · built 46f7a68 |
 | S105-10-2 | Re-measure P-1 on a clean post-S60 bundle | S | open | - | sessions/S105-desktop-2026-08-20.md:183; OPEN-TASKS.md:285 (D3 item 3) |
-| WAT-1 | Watcher 6h cap and single-pid timeout kill | S | open | OK-17 | windows-converter/watch_and_convert.py:167 (timeout=21600, subprocess.run kills only direc |
-| OK-17 | Review, fix, commit stall ladder; CRITICAL split-rung asset loss | M | signed | - | sessions/S112-fable-sign-sheet.md:58; uncommitted +139 lines in windows-converter/convert_ |
+| WAT-1 | Watcher 6h cap and single-pid timeout kill | S | done-by-s113 | OK-17 | watch_and_convert.py:60 FP_CONVERT_TIMEOUT_S lever (default 28800) + :442 taskkill /T /F tree-kill — the row's old source cell described the pre-repair state |
+| OK-17 | Review, fix, commit stall ladder; CRITICAL split-rung asset loss | M | done-by-s113 | - | sessions/S112-fable-sign-sheet.md:58 · built 3d6775b (41-tripwire selftest) + fe2978c |
 
 ### P1 tickets
 
@@ -171,16 +171,16 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | id | ticket | diff | status | depends | source |
 |---|---|---|---|---|---|
 | AUD-1 (M6-R2) | Make every hidden run/zone reviewable through pageable evidence or identity-bound uncapped recomputation | M | blocked-on-rab | M6-R1 | SYM-066; MSG-FAB-0062; M6-R1 deliberately stops at fail-closed safety |
-| OK-14 | Widget: forward-instead-of-die single instance | S | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:34,51 (docs/49-okular-digest.md:273-276) |
-| OK-8 | Zoom ladder, fit modes, computed dpi, loupe | S | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:28,49 (docs/49-okular-digest.md:167-177) |
-| OK-10 | Reviews panel over repair sites | M | blocked-on-rab | OK-0 | sessions/S112-fable-sign-sheet.md:30,50 (docs/49-okular-digest.md:193-205) |
-| OK-11 | Watch, reload, swap under the writing pipeline | M | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:31,50 (docs/49-okular-digest.md:207-222) |
-| OK-12 | Observability grammar: typed flags, severity ladder, toasts | M | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:32,51 (docs/49-okular-digest.md:224-243) |
+| OK-14 | Widget: forward-instead-of-die single instance | S | done-by-s113 | - | sessions/S112-fable-sign-sheet.md:34,51 · signed+built 2026-08-31, 091ffd7 |
+| OK-8 | Zoom ladder, fit modes, computed dpi, loupe | S | done-by-s113 | - | sessions/S112-fable-sign-sheet.md:28,49 · signed+built 2026-08-31, be191bf |
+| OK-10 | Reviews panel over repair sites | M | signed | OK-0 | sessions/S112-fable-sign-sheet.md:30,50 · signed 2026-08-31 (f8e89e7), banked MSG-FAB-0055 |
+| OK-11 | Watch, reload, swap under the writing pipeline | M | signed | - | sessions/S112-fable-sign-sheet.md:31,50 · signed 2026-08-31 (f8e89e7), banked MSG-FAB-0055 |
+| OK-12 | Observability grammar: typed flags, severity ladder, toasts | M | done-by-s113 | - | sessions/S112-fable-sign-sheet.md:32,51 · signed+built 2026-08-31, be191bf |
 | OK-15 | Graduate the completed quarantine evidence parcel into pipeline bundle evidence | M | blocked-on-rab | - | quarantine prototype `77d0361`; review close `8da7005`; peer delta PASS `MSG-FAB-0059`; sessions/S112-fable-sign-sheet.md:5-14,35,52 |
-| OK-3 | Prefetch, priorities, cancellation by request-generation token | M | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:23,47 (docs/49-okular-digest.md:84-98) |
-| OK-4 | The search suite: debounce, traversal, honest feedback | M | blocked-on-rab | OK-5 | sessions/S112-fable-sign-sheet.md:24,48 (docs/49-okular-digest.md:100-128) |
-| OK-6 | Table divider tool over char plus space rects | M | blocked-on-rab | OK-5 | sessions/S112-fable-sign-sheet.md:26,49 (docs/49-okular-digest.md:144-156) |
-| OK-5 | Text layer for the raster pane | L | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:25,48 (docs/49-okular-digest.md:130-142) |
+| OK-3 | Prefetch, priorities, cancellation by request-generation token | M | signed | - | sessions/S112-fable-sign-sheet.md:23,47 · signed 2026-08-31 (f8e89e7), banked MSG-FAB-0055 |
+| OK-4 | The search suite: debounce, traversal, honest feedback | M | done-by-s113 | OK-5 | sessions/S112-fable-sign-sheet.md:24,48 · signed+built 2026-08-31, 0181636 |
+| OK-6 | Table divider tool over char plus space rects | M | done-by-s113 | OK-5 | sessions/S112-fable-sign-sheet.md:26,49 · signed+built 2026-08-31, cd5b10e (shipped inert, caught+fixed 6dae0fb) |
+| OK-5 | Text layer for the raster pane | L | done-by-s113 | - | sessions/S112-fable-sign-sheet.md:25,48 · signed+built 2026-08-31, 80df03b |
 
 ### P5 tickets
 
@@ -197,8 +197,8 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | C0-CADENCE | C0 output cadence; C0's third done-when clause still unmet | L | blocked-on-rab | D1 | S108:210; OPEN-TASKS.md:406,410 (J10/J14) |
 | D3 | The next Circle collects docs/45 §6's five-item bequest | L | open | - | OPEN-TASKS §D D3; `docs/45` §6 |
 | E-P3 | P-3 RETAS text-loss locator — never scheduled | L | open | - | OPEN-TASKS §E; `docs/41` |
-| OK-13 | Paged markdown reading surface, server-paginated | L | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:33,51 (docs/49-okular-digest.md:245-262) |
-| OK-9 | Unified undo command stack replacing three systems | L | blocked-on-rab | OK-0 | sessions/S112-fable-sign-sheet.md:29,50 (docs/49-okular-digest.md:179-191) |
+| OK-13 | Paged markdown reading surface, server-paginated | L | signed | - | sessions/S112-fable-sign-sheet.md:33,51 · signed 2026-08-31 (f8e89e7), banked MSG-FAB-0055 |
+| OK-9 | Unified undo command stack replacing three systems | L | signed | OK-0 | sessions/S112-fable-sign-sheet.md:29,50 · signed 2026-08-31 (f8e89e7), banked MSG-FAB-0055 |
 | A44 | hOCR as a supplied side-input — intake contract change | XL | blocked-on-rab | - | OPEN-TASKS §A A44; `coordination/BRIEF-S109.md` |
 
 
