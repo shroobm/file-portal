@@ -45,12 +45,11 @@ OK-13 is the strategic one and deserves its own echo/commission when you're read
 
 - OK-0: **SIGNED (Rab, 2026-08-30) · BUILT same day** · OK-1: **SIGNED (Rab, 2026-08-30) ·
   BUILT same day** · OK-2: **SIGNED (Rab, 2026-08-30) · BUILT same day** · OK-3: _____ ·
-  OK-4: **SIGNED (Rab, 2026-08-31, batch)** · OK-5: **SIGNED (Rab, 2026-08-31, batch)**
-- OK-6: **SIGNED (Rab, 2026-08-31, batch)** · OK-7: **SIGNED (Rab, 2026-08-30) · BUILT same
-  day** · OK-8: **SIGNED (Rab, 2026-08-31, batch)** ·
+  OK-4: **SIGNED · BUILT (0181636)** · OK-5: **SIGNED · BUILT (80df03b)**
+- OK-6: **SIGNED · BUILT (cd5b10e)** · OK-7: **SIGNED (Rab, 2026-08-30) · BUILT same
+  day** · OK-8: **SIGNED · BUILT (be191bf)** ·
   OK-9: _____ · OK-10: _____ · OK-11: _____
-- OK-12: **SIGNED (Rab, 2026-08-31, batch)** · OK-13: _____ · OK-14: **SIGNED (Rab,
-  2026-08-31, batch)** · OK-15: **SIGNED (Rab, 2026-08-31, batch) — BANKED FOR CODEX**
+- OK-12: **SIGNED · BUILT (be191bf; change-flag half OPEN)** · OK-13: _____ · OK-14: **SIGNED · BUILT (091ffd7)** · OK-15: **SIGNED (Rab, 2026-08-31, batch) — BANKED FOR CODEX**
 
 **Post-close additions (born of the 4e-Damodaran stall, 2026-08-30 evening):**
 
@@ -63,9 +62,9 @@ OK-13 is the strategic one and deserves its own echo/commission when you're read
 
 | id | ticket | effort | status |
 |---|---|---|---|
-| A1 | **Keep slices until the vault receipt** — stop consuming `.chunk-work/<sha16>` at merge; clean on receipt/ship, retention bounded to the latest book (the night paid the full convert twice for want of this) | S–M | **SIGNED (Rab, 2026-08-31)** — Fable lane, building now |
-| A2 | **WAT-2: watcher stop kills the TREE** — `watcher::stop` reaches only the venv launcher; the real interpreter survives in the job (measured live 32068/3532). Tree-kill + verify death + symptom row | S | **SIGNED (Rab, 2026-08-31)** — Fable lane; rides the next staged exe |
-| A3 | **Multi-window deferred job-kill** — main-window close defers the job kill while Bench/Chat windows live; row + explicit exit handler | S | **SIGNED (Rab, 2026-08-31)** — Fable lane; same rebuild as A2 |
+| A1 | **Keep slices until the vault receipt** — stop consuming `.chunk-work/<sha16>` at merge; clean on receipt/ship, retention bounded to the latest book (the night paid the full convert twice for want of this) | S–M | **SIGNED (Rab, 2026-08-31) · BUILT same day (cd93987, T12, selftest 50/50)** |
+| A2 | **WAT-2: watcher stop kills the TREE** — `watcher::stop` reaches only the venv launcher; the real interpreter survives in the job (measured live 32068/3532). Tree-kill + verify death + symptom row | S | **SIGNED (Rab, 2026-08-31) · BUILT same day (091ffd7, SYM-068 filed; staged exe 933AB9C7)** |
+| A3 | **Multi-window deferred job-kill** — main-window close defers the job kill while Bench/Chat windows live; row + explicit exit handler | S | **SIGNED (Rab, 2026-08-31) · BUILT same day (091ffd7, SYM-069 filed; same staged exe)** |
 | A4 | **Schema registry + key tripwire** — `observability/schemas.json` generated from the writers; consumer/emitter parity guard (the guessed-key class ends mechanically) | M | **SIGNED (Rab, 2026-08-31) — BANKED FOR CODEX** (relay MSG-FAB-0055) |
 
 **The batch signature, verbatim (Rab, 2026-08-31, ~14:2xZ):** *"Signed, except dont defer to
