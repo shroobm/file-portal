@@ -2,8 +2,8 @@
 title: Architecture
 section: System
 last-verified: 2026-08-31
-verified-against: "74f0d208bb0b980e3a27a8eba508195e417a310f"
-sources: [docs/01-architecture.md, docs/13-control-room-design.md, docs/36-repository-briefing.md, windows-converter/convert_and_ship.py, windows-converter/events.py, windows-converter/watch_and_convert.py, linux-converter/converter/bundle.py, linux-converter/converter/exporter.py, linux-receiver/allocator/main.py, windows-widget/src-tauri/src/main.rs, windows-widget/src-tauri/src/vault.rs, windows-widget/src-tauri/src/events.rs, observability/schema_registry.py, observability/schemas.json, .github/workflows/ci.yml, OPEN-TASKS.md, SYMPTOM-INDEX.md]
+verified-against: "77d0361da33b496002f25967704c7cd8e0443d19"
+sources: [docs/01-architecture.md, docs/13-control-room-design.md, docs/36-repository-briefing.md, windows-converter/convert_and_ship.py, windows-converter/events.py, windows-converter/watch_and_convert.py, linux-converter/converter/bundle.py, linux-converter/converter/exporter.py, linux-receiver/allocator/main.py, windows-widget/src-tauri/src/main.rs, windows-widget/src-tauri/src/vault.rs, windows-widget/src-tauri/src/events.rs, observability/schema_registry.py, observability/schemas.json, prototypes/repair-bench/bench.py, prototypes/repair-bench/bench.html, prototypes/repair-bench/ok15_evidence.py, sessions/S112-fable-sign-sheet.md, .github/workflows/ci.yml, OPEN-TASKS.md, SYMPTOM-INDEX.md]
 ---
 
 # Architecture
@@ -143,6 +143,21 @@ schema-registry selftest. That hard gate covers `events.jsonl`, `coverage_rescor
 `.done`, both progress files, and `conversion-ledger.jsonl`; it proves key/path parity without
 importing converter dependencies or opening live pipeline files. Runtime behavior remains a
 separate local/operator gate.
+
+### The OK-15 evidence inspector is quarantine, not a fourth pipeline stage
+
+The Repair Bench can now inspect five PDF-source signals on demand: per-page MuPDF warnings,
+logical page labels, a PyMuPDF/Xpdf reading-order comparison, an all-OCG-off raster
+counterfactual made from a disposable copy, and bounded `/Thumb` metadata. The collector runs
+in an isolated child because MuPDF's warning buffer is process-global; one loopback-token-gated
+GET and an in-process lock prevent hostile or duplicate full-book launches. The modal exposes
+physical/logical page pairs, affected-page navigation, and explicit `UNREAD` reasons.
+
+This is deliberately **not** part of the filesystem contract above. The report exists only in
+Bench process memory; pixels and extracted text are not retained. It does not change the source,
+Marker input, bundle/manifest, audit verdict, Visual Witness, pipeline, or vault. S112 signed
+only `prototypes/repair-bench/` with zero pipeline coupling, so persisting this evidence into
+conversion bundles remains a separate operator signature rather than an implied graduation.
 
 ## Open items
 

@@ -174,7 +174,7 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | OK-10 | Reviews panel over repair sites | M | blocked-on-rab | OK-0 | sessions/S112-fable-sign-sheet.md:30,50 (docs/49-okular-digest.md:193-205) |
 | OK-11 | Watch, reload, swap under the writing pipeline | M | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:31,50 (docs/49-okular-digest.md:207-222) |
 | OK-12 | Observability grammar: typed flags, severity ladder, toasts | M | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:32,51 (docs/49-okular-digest.md:224-243) |
-| OK-15 | Pipeline evidence extras parcel, strikeable line by line | M | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:35,51 (docs/49-okular-digest.md:287-303) |
+| OK-15 | Graduate the built quarantine evidence parcel into pipeline bundle evidence | M | blocked-on-rab | - | quarantine prototype `77d0361`; sessions/S112-fable-sign-sheet.md:5-14,35,52 |
 | OK-3 | Prefetch, priorities, cancellation by request-generation token | M | blocked-on-rab | - | sessions/S112-fable-sign-sheet.md:23,47 (docs/49-okular-digest.md:84-98) |
 | OK-4 | The search suite: debounce, traversal, honest feedback | M | blocked-on-rab | OK-5 | sessions/S112-fable-sign-sheet.md:24,48 (docs/49-okular-digest.md:100-128) |
 | OK-6 | Table divider tool over char plus space rects | M | blocked-on-rab | OK-5 | sessions/S112-fable-sign-sheet.md:26,49 (docs/49-okular-digest.md:144-156) |
