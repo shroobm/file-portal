@@ -1,8 +1,8 @@
 ---
 title: Conversion Quality & OCR
 section: Pipeline
-last-verified: 2026-08-30
-verified-against: 9ff3e5d
+last-verified: 2026-08-31
+verified-against: 583f752923c7f557f29de6d20315c91d0d20a308
 sources: [windows-converter/fidelity_audit.py, windows-converter/figure_coverage.py, windows-converter/backend_parity.py, windows-converter/convert_and_ship.py, windows-converter/visual_witness_capture.py, windows-converter/visual_witness_capture_selftest.py, windows-converter/visual_witness_verify.py, linux-converter/converter/engines.py, docs/11-gpu-pipeline-revamp.md, docs/34-measurement-language.md, docs/41-conversion-completeness-plan.md, docs/42-conversion-completeness-findings.md, docs/48-visual-witness-evidence-contract.md, docs/contracts/visual-witness-e1-contract-v1.json, docs/contracts/visual-witness-e2-packet-r2.json, SYMPTOM-INDEX.md, OPEN-TASKS.md, prototypes/docling-calibration/README.md, sessions/S106-desktop-2026-08-20.md]
 ---
 
@@ -173,11 +173,11 @@ not a fabricated exact-byte signature (`coordination/SIGNATURES.md`, final VW-E2
 CPU/network/GPU-free report packet is 110,341 bytes / SHA-256 `ebc047b8d963a8e3b92ebd7479055dbf78121fad93094f38c902ce9f92cc6769`
 (`docs/contracts/visual-witness-e2-packet-r2.json`).
 
-It renders pages, overlaps tiles, derives conservative raster/vector/stroke/text/table candidates,
-hashes crops/native-text witnesses, then deletes raw bytes (`visual_witness_capture.py:6091-6304`;
-packet:817,844-854). Root and an independent lane each passed 54/54 hermetic tests; static Circle
-passed report ordering, helper denial, final HEAD, privacy, cleanup, protected-tree, and verifier
-seams (`visual_witness_capture_selftest.py:828-986`).
+It renders pages, derives conservative source-region candidates, hashes crops/native-text
+witnesses, then deletes raw bytes (`visual_witness_capture.py:6091-6304`; packet:817,844-854).
+The packet's repository SHA is a frozen ancestor anchor, not a forever-equal HEAD (packet:129).
+SYM-065 repaired the contrary equality at `583f752` (`visual_witness_capture_selftest.py:799-839`);
+54/54 passed after HEAD advanced, with producer, packet, runtime gates, and authority unchanged.
 
 Real calibration remains **UNREAD**: runs 0 / reports 0 / COMPLETE receipts 0 at the handoff.
 The implementation does not change converted documents, assets, analyst output, gates, shipping,

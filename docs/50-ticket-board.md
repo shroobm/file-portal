@@ -154,7 +154,7 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | T-009-BOARD | Close T-009 on the board; clear stale Codex blocked-on-ack | S | blocked-on-rab | FAB-ACK-GAP | gate.py status (Codex state=blocked-on-ack ticket=T-009); MSG-CDX-0026; MSG-FAB-0048 |
 | VW-E2-CMD | Recover the E2 operator run command into a durable private-layer home | S | blocked-on-codex | - | census 2026-08-30: docs/48:356 points at a thread-scoped Codex artifact; repo holds no inv |
 | VW-E3-SIGN | Rab signs the exact VW-E3-R1 packet bytes | S | blocked-on-rab | VW-E3-PKT | docs/48:9,358; SIGNATURES.md:190; MSG-FAB-0048 "E3 UNSIGNED" |
-| VW-HEADEQ | Decide head-equality assertion intent: ancestor check vs freeze seal | S | blocked-on-codex | - | MSG-FAB-0048 (relay.md:4659-4667); SYMPTOM-INDEX.md:84 (SYM-065); S112:366 |
+| VW-HEADEQ | Decide head-equality assertion intent: ancestor check vs freeze seal | S | done-by-s113 | - | Ancestor semantics selected from packet rule; repair `583f752`; SYMPTOM-INDEX.md:84 (SYM-065) |
 | VW-E2-CAL | Run the real VW-E2-R2 calibration; runs still zero | M | blocked-on-rab | - | sessions/S112-desktop-2026-08-28.md:212,271 |
 | VW-E2-VER | Independently verify returned calibration evidence, emit COMPLETE receipt | M | blocked-on-rab | VW-E2-CAL | docs/48:357-358; windows-converter/visual_witness_verify.py (25,251 B, b5c5e7b3…) |
 | VW-LEVERS | Convert ~31 frozen VW producer constants to levers next R-revision | M | blocked-on-codex | VW-E3-PKT | S112 §Close-gate dispositions (LEVERS 35, 4 waived); MSG-FAB-0049 |
@@ -369,7 +369,7 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | SYM-057 | Perfect analyst fidelity reported on an unmeasurable book | S | open | - | SYMPTOM-INDEX SYM-057 |
 | SYM-063 | close.sh prints MEMORY UNREAD on a healthy memory repo | S | open | - | SYMPTOM-INDEX SYM-063 |
 | SYM-064 | A close prints through RUST then hangs indefinitely | S | open | - | SYMPTOM-INDEX SYM-064 |
-| SYM-065 | Resolve VW selftest 53/54 by-construction anchor freeze | S | blocked-on-codex | - | SYMPTOM-INDEX.md:84; windows-converter/visual_witness_capture_selftest.py:801 (MSG-FAB-004 |
+| SYM-065 | Resolve VW selftest 53/54 by-construction anchor freeze | S | done-by-s113 | - | Repair `583f752`; 54/54 after source commit; SYMPTOM-INDEX.md:84 |
 | SYM-066 | Every big book reports exactly 25 omission runs | S | open | - | SYMPTOM-INDEX SYM-066 |
 | B18 | Raise n to 20-30 before quoting any ratio | M | open | - | OPEN-TASKS §B B18 |
 | E-P2 | P-2 the #598 tripwire — not built, disposition unsigned | M | blocked-on-rab | A5 | OPEN-TASKS §E; `docs/41` |
