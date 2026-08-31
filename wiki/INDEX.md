@@ -22,7 +22,7 @@ its page answers. Pages carry citations to ground truth; the registers stay the 
 
 ## Pipeline
 
-- [Desktop Pipeline](pipeline-desktop.md) — what happens to a dropped PDF on the Windows GPU lane, stage by stage, and where it can stall · Observed 2026-08-23
+- [Desktop Pipeline](pipeline-desktop.md) — observable intake conveyor, GPU conversion lifecycle, semantic stall monitor, and operator truth surfaces · Verified 2026-08-31
 - [Linux Pipeline & Vault](pipeline-linux.md) — how bundles travel, get allocated, and reach the vault; who may write the vault · Observed 2026-08-23
 - [Conversion Quality & OCR](conversion-quality.md) — how fidelity is measured, what the instruments currently say, and what is banned by measurement · Observed 2026-08-23
 
