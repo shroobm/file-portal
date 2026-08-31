@@ -271,9 +271,10 @@ def _post(port: int, path: str, payload: dict, token: str | None = None):
         return r.status, {"raw": body[:200]}
 
 
-def _get(port: int, path: str):
+def _get(port: int, path: str, token: str | None = None):
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
-    conn.request("GET", path)
+    headers = {"X-FP-Token": token} if token is not None else {}
+    conn.request("GET", path, headers=headers)
     r = conn.getresponse()
     body = r.read()
     conn.close()
@@ -334,6 +335,8 @@ class TestFailClosed403Live(unittest.TestCase):
                              "a 403'd /api/md still changed the file — the gate leaks")
             code, _ = _get(srv.port, "/api/state")
             self.assertEqual(code, 200, "the read side must stay ungated")
+            code, _ = _get(srv.port, "/api/evidence")
+            self.assertEqual(code, 403, "the expensive evidence GET must fail closed")
         finally:
             srv.close()
 
@@ -348,6 +351,10 @@ class TestFailClosed403Live(unittest.TestCase):
                 code, _ = _post(srv.port, route, BENIGN[route], token="lane-d-secret")
                 self.assertNotEqual(code, 403, f"{route}: the right token must be admitted "
                                                "(any non-403 outcome proves the gate opened)")
+            self.assertEqual(403, _get(srv.port, "/api/evidence")[0])
+            self.assertEqual(403, _get(srv.port, "/api/evidence", token="nope")[0])
+            self.assertNotEqual(403, _get(srv.port, "/api/evidence",
+                                          token="lane-d-secret")[0])
         finally:
             srv.close()
 
@@ -909,6 +916,46 @@ class TestReviewFixes(unittest.TestCase):
                       "or TRIM_MIN_KEEP would silently do nothing")
         self.assertIn("self.TRIM_THRESHOLD)", BENCH_PY,
                       "bbox_from_samples is called on a frozen threshold")
+
+
+class TestOK15EvidenceWiring(unittest.TestCase):
+    """The collector has its own PyMuPDF harness; these pin its read-only Bench projection."""
+
+    def test_evidence_route_is_get_only_and_never_mutating(self):
+        self.assertIn('url.path == "/api/evidence"', BENCH_PY)
+        self.assertNotIn("/api/evidence", bench.MUTATING_POSTS,
+                         "OK-15 quarantine evidence must never become a write route")
+        self.assertIn("never written into a bundle or manifest", BENCH_PY)
+        branch = BENCH_PY[BENCH_PY.index('url.path == "/api/evidence"'):]
+        branch = branch[:branch.index('elif url.path == "/api/toc"')]
+        self.assertLess(branch.index("token_gate("), branch.index("ok15_evidence()"),
+                        "the expensive GET is reachable before its loopback capability gate")
+        self.assertIn("_ok15_lock", BENCH_PY,
+                      "concurrent evidence GETs can spawn duplicate full-book children")
+        self.assertIn('options.headers = { "X-FP-Token": TOKEN }',
+                      js_function_body(BENCH_HTML, "api"))
+
+    def test_operator_surface_names_every_probe_and_its_non_gate(self):
+        body = js_function_body(BENCH_HTML, "renderEvidence")
+        for phrase in ["per-page MuPDF warnings", "logical labels", "order-only differences",
+                       "all-OCG-off", "embedded /Thumb"]:
+            self.assertIn(phrase, body, f"OK-15 surface stopped rendering {phrase}")
+        self.assertIn("audit verdict, and pipeline stay unchanged", body)
+        self.assertIn("evidenceUnreadSection(documentUnread, pageUnread)", body,
+                      "partial evidence hides its explicit UNREAD reasons")
+        self.assertIn("data-page", js_function_body(BENCH_HTML, "evidenceSection"),
+                      "suspect evidence pages are no longer navigable")
+
+    def test_page_labels_reach_toolbar_and_thumbnail_rail(self):
+        goto = js_function_body(BENCH_HTML, "goto")
+        thumbs = js_function_body(BENCH_HTML, "buildThumbs")
+        self.assertIn("st.page_labels?.[page - 1]", goto)
+        self.assertIn("label ${logical}", goto)
+        self.assertIn("st.page_labels?.[n - 1]", thumbs)
+        self.assertIn("or str(index + 1)", BENCH_PY,
+                      "a PDF without label rules renders a blank logical label")
+        # Negative control: an ordinal-only rail cannot pass the logical-label check.
+        self.assertNotIn("page_labels", 'd.innerHTML = `<span class="tn">${n}</span>`;')
 
 
 if __name__ == "__main__":

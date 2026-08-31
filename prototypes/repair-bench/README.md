@@ -19,6 +19,12 @@ and the markdown at the flagged zone side by side and makes the repair one gestu
   reports repairs-vs-zones — it writes **no** fidelity block and changes **no** verdict.
   Whether a repair image earns audit credit is an **unsigned policy question**; Rab signs it
   (docs/19 §10) before any such credit exists in the real pipeline.
+- **Inspect source evidence (OK-15 quarantine prototype)**: **◉ evidence** measures five
+  independent PDF signals page by page — MuPDF warnings, logical page labels, a PyMuPDF/Xpdf
+  reading-order comparison, a disposable all-OCG-off raster counterfactual, and embedded
+  `/Thumb` metadata. Affected page buttons jump back to the source page. `partial` and
+  `UNREAD` show their exact probe reasons; an absent `/Thumb` is measured absence, not failure.
+  Pixels and extracted text are hashed/count-only in the report and are not retained.
 - **Sandbox mode** (`--sandbox`) copies the bundle under `.sandbox/` and repairs the copy —
   how the acceptance harness runs, and how a first trial should.
 
@@ -26,8 +32,8 @@ and the markdown at the flagged zone side by side and makes the repair one gestu
 
 ```bash
 # from prototypes/repair-bench, with the marker-env python (pymupdf lives there):
-C:\Users\Bndit\ml\marker-env\Scripts\python.exe bench.py b6fbdd75f6242f53 --sandbox
-# then open http://127.0.0.1:7077/
+C:\Users\Bndit\ml\marker-env\Scripts\python.exe bench.py b6fbdd75f6242f53 --sandbox --token local-only-secret
+# then open http://127.0.0.1:7077/?token=local-only-secret
 ```
 
 The positional argument is a bundle directory or a bare sha16 resolved against
@@ -37,8 +43,16 @@ Drop `--sandbox` to repair the real held bundle — Valentine is the designated 
 `acceptance.py` proves the loop end to end on a sandbox copy of the real Valentine (real
 zones, real rasters, real stamps; the real bundle hash-verified untouched).
 
+The token is required for every mutation and for the expensive evidence GET. The widget
+generates and supplies its own token. The reading-order probe records the installed
+`pdftotext` implementation and version; this Windows host currently supplies Xpdf 4.06, not
+Poppler. Missing, failed, timed-out, non-UTF-8, or wrong-page-count oracle output is `UNREAD`.
+
 ## Quarantine (prototypes/ convention)
 
 Disposable, zero pipeline coupling: nothing in the pipeline imports this; this imports only
 `fidelity_audit` read-only for the preview. Graduation criteria (docs/19 §7): Rab uses it on
 Valentine successfully — then it earns a widget surface and the audit-credit policy discussion.
+OK-15 evidence is likewise held only in Bench process memory. It does not alter the source PDF,
+Marker input, bundle/manifest, audit verdict, pipeline, vault, or frozen Visual Witness path.
+Persisting these signals into conversion bundle evidence is a separate, unsigned graduation.

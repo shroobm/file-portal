@@ -31,7 +31,9 @@ import hmac
 import os
 import re
 import shutil
+import subprocess
 import sys
+import threading
 import unicodedata
 import urllib.parse
 import uuid
@@ -201,6 +203,11 @@ class Bench:
         self._textlayer: OrderedDict[int, dict] = OrderedDict()
         # OK-1 review fix (2026-08-30): a bare PDF's view identity, hashed once on demand.
         self._pdf_view_sha: str | None = None
+        # OK-15 (signed 2026-08-31): read-only quarantine evidence. The report is held only
+        # in this process; it is never written into a bundle or manifest under the S112 gate.
+        self._ok15_report: dict | None = None
+        self._ok15_lock = threading.Lock()
+        self._page_labels: list[str | None] | None = None
         # S64: the AI assist's undo stack (body snapshots, newest last) + line-drift ledger so
         # zone anchors stay honest after an edit changes the line count below them.
         self._undo: list[str] = []
@@ -415,6 +422,7 @@ class Bench:
             # folder shared a single view store (marks/position/trim cross-pollution).
             "source_sha16": (self.manifest.get("source_sha256") or "")[:16]
                             or self._pdf_view_id(),
+            "page_labels": self.page_labels(),
             "doc_survival": (self.manifest.get("fidelity", {}).get("convert", {})
                              .get("doc_survival")),
             "audit_kind": self.manifest.get("fidelity", {}).get("convert", {}).get("kind"),
@@ -426,13 +434,82 @@ class Bench:
         bytes, first 16 hex, computed once per open and cached. None outside pdf_only."""
         if not (self.pdf_only and self.pdf and self.pdf.is_file()):
             return None
+        return self._pdf_sha256()[:16]
+
+    def _pdf_sha256(self) -> str:
+        """Actual opened PDF identity, cached; never trust a bundle name as evidence."""
+        if not (self.pdf and self.pdf.is_file()):
+            raise RuntimeError("no source PDF on the bench")
         if self._pdf_view_sha is None:
             h = hashlib.sha256()
             with self.pdf.open("rb") as fh:
                 for chunk in iter(lambda: fh.read(1 << 20), b""):
                     h.update(chunk)
-            self._pdf_view_sha = h.hexdigest()[:16]
+            self._pdf_view_sha = h.hexdigest()
         return self._pdf_view_sha
+
+    def page_labels(self) -> list[str | None]:
+        """Physical page index -> logical PDF label (i, ii, 1, ...), read-only and cached."""
+        if self.pdf is None:
+            return []
+        if self._page_labels is None:
+            labels: list[str | None] = []
+            try:
+                page_count = self.doc().page_count
+            except Exception:  # noqa: BLE001 - identity-only harnesses may use non-PDF bytes
+                self._page_labels = []
+                return self._page_labels
+            for index in range(page_count):
+                try:
+                    labels.append(self.doc().load_page(index).get_label() or str(index + 1))
+                except Exception:  # noqa: BLE001 - a missing label is UNREAD, not ordinal 0
+                    labels.append(None)
+            self._page_labels = labels
+        return self._page_labels
+
+    def ok15_evidence(self) -> dict:
+        """Run the signed OK-15 probe once, retaining its report only in process memory."""
+        if self.pdf is None:
+            raise RuntimeError("no source PDF on the bench")
+        actual = self._pdf_sha256()
+        expected = str(self.manifest.get("source_sha256") or "").lower()
+        if expected and expected != actual:
+            raise RuntimeError(
+                f"source identity mismatch: manifest {expected[:16]} != opened PDF {actual[:16]}"
+            )
+        if self._ok15_report is None:
+            with self._ok15_lock:
+                if self._ok15_report is None:
+                    self._ok15_report = self._collect_ok15_evidence(actual)
+        return self._ok15_report
+
+    def _collect_ok15_evidence(self, actual: str) -> dict:
+        """Isolated child collector; caller holds _ok15_lock to collapse concurrent GETs."""
+        # MuPDF's warning buffer is process-global while this server is threaded: page
+        # image requests would contaminate per-page attribution if the probe ran here.
+        # One isolated child owns every PDF operation and returns JSON on stdout only.
+        try:
+            proc = subprocess.run(
+                [sys.executable, "-B", str(BENCH_DIR / "ok15_evidence.py"),
+                 "--pdf", str(self.pdf), "--source-sha256", actual],
+                capture_output=True,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=900,
+                check=False,
+                creationflags=getattr(subprocess, "CREATE_NO_WINDOW", 0),
+            )
+        except subprocess.TimeoutExpired as exc:
+            raise RuntimeError("OK-15 evidence exceeded its 900 s quarantine bound") from exc
+        if proc.returncode != 0:
+            raise RuntimeError(
+                f"OK-15 evidence exited {proc.returncode}: {(proc.stderr or proc.stdout)[-300:]}"
+            )
+        try:
+            return json.loads(proc.stdout)
+        except json.JSONDecodeError as exc:
+            raise RuntimeError("OK-15 evidence returned no valid JSON") from exc
 
     def _require_md(self) -> None:
         if self.md_path is None:
@@ -1789,6 +1866,15 @@ def make_handler(bench: Bench, token=_NO_GATE):
                                 "coverage": bench.coverage()})
                 elif url.path == "/api/rescore":
                     self._json(bench.rescore_preview())
+                elif url.path == "/api/evidence":  # OK-15 — read-only, in-memory quarantine
+                    # Expensive GETs still need the loopback capability: a hostile page can
+                    # fire no-CORS localhost requests and otherwise spawn unbounded 900 s
+                    # render/Xpdf children. _ok15_lock collapses concurrent admitted calls.
+                    deny = token_gate(self.headers.get("X-FP-Token"), token)
+                    if deny:
+                        self._json({"error": deny}, 403)
+                    else:
+                        self._json(bench.ok15_evidence())
                 # ---- the reader (S62b, Okular pass) -------------------------------------
                 elif url.path == "/api/toc":
                     self._json({"toc": bench.toc()})

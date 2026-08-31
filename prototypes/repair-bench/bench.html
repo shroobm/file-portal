@@ -353,6 +353,17 @@
   .inforow { display:flex; gap:10px; padding:4px 0; border-bottom:1px solid var(--sep); font-size:12px; }
   .inforow .k { width:130px; flex:none; color:var(--text-3); }
   .inforow .v { color:var(--text); font-family:var(--mono); font-size:11.5px; word-break:break-all; }
+  .ev-sheet { width:min(96vw, 900px); }
+  .ev-note { padding:9px 11px; border:1px solid var(--sep); border-radius:7px; background:var(--fill); }
+  .ev-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(145px,1fr)); gap:8px; margin:10px 0 14px; }
+  .ev-card { border:1px solid var(--sep); border-radius:7px; padding:9px 10px; background:var(--card-2); }
+  .ev-card .n { display:block; color:var(--text); font:600 18px var(--mono); }
+  .ev-card .k { display:block; color:var(--text-3); font-size:10.5px; }
+  .ev-pages { display:flex; flex-wrap:wrap; gap:5px; margin:4px 0 10px; }
+  .ev-page { font:11px var(--mono); padding:3px 6px; }
+  .ev-detail { font:11px var(--mono); color:var(--text-2); margin:2px 0 8px; word-break:break-word; }
+  .ev-unread { display:grid; grid-template-columns:auto 1fr; gap:7px; align-items:start; margin:5px 0; }
+  .ev-unread span { font:11px var(--mono); color:var(--bad); word-break:break-word; }
 </style>
 </head>
 <body>
@@ -370,6 +381,7 @@
   </span>
   <span class="grow"></span>
   <button id="info-btn" title="everything about this patient — source, hashes, audit, repairs">ⓘ</button>
+  <button id="evidence-btn" title="OK-15 read-only source evidence — warnings, labels, reading order, layers, embedded thumbnails">◉ evidence</button>
   <button id="guide-btn" title="the step-by-step repair coach">☰ guide</button>
   <button id="help-btn" title="what everything is and how a repair works">?</button>
   <button id="theme" title="light ⇄ dark">◐</button>
@@ -503,6 +515,14 @@
   </div>
 </div>
 
+<div class="modal" id="evidence" hidden>
+  <div class="backdrop" data-close="evidence"></div>
+  <div class="sheet ev-sheet">
+    <div class="sheet-head">OK-15 · source evidence<span class="grow"></span><button data-close="evidence">✕ close</button></div>
+    <div class="sheet-body" id="evidence-body"></div>
+  </div>
+</div>
+
 <div class="modal" id="help" hidden>
   <div class="backdrop" data-close="help"></div>
   <div class="sheet">
@@ -544,6 +564,12 @@
       never past half the page); <b>Shift+⛶ then drag</b> sets your own trim box for every
       page; Esc cancels. Page turns paint the low-dpi raster after 120&nbsp;ms instead of
       leaving you a blank wait — fast pages skip it entirely.</p>
+      <h3>Source evidence (OK-15 quarantine)</h3>
+      <p><b>◉ evidence</b> measures MuPDF warnings, logical page labels, independent
+      reading-order differences, an all-layers-off raster counterfactual, and embedded PDF
+      thumbnail metadata. Click any listed page to inspect it here. <b>UNREAD</b> reasons are
+      shown rather than counted as clean zeroes. This report stays in memory: it does not
+      change the PDF, conversion, bundle, audit verdict, or pipeline.</p>
       <h3>Your safety net</h3>
       <p><code>.md.bench-bak</code> before the first write · append-only provenance in
       <code>manifest["repairs"]</code> · the SANDBOX badge means you're on a copy · the READING
@@ -599,14 +625,14 @@ function modePin(key, m) {
   el.style.display = live.length ? "block" : "none";
 }
 // Loopback token (S108): the widget appends ?token=<secret> to this page's URL (the same
-// secret it passed to bench.py --token). Every POST — every mutating route — must carry it as
-// X-FP-Token or the server answers 403 with the remedy in the error text, which the status
-// line already renders. GETs stay read-only and ungated.
+// secret it passed to bench.py --token). Every POST and the expensive OK-15 evidence GET
+// carry X-FP-Token. Ordinary read-only GETs remain ungated; evidence is protected because a
+// hostile page can fire no-CORS localhost GETs and otherwise spawn full-book work repeatedly.
 const TOKEN = new URLSearchParams(location.search).get("token");
 async function api(path, body) {
-  const r = await fetch(path, body ? { method:"POST",
-    headers: TOKEN ? { "X-FP-Token": TOKEN } : {},
-    body: JSON.stringify(body) } : undefined);
+  const options = body ? { method:"POST", body:JSON.stringify(body) } : {};
+  if (TOKEN) options.headers = { "X-FP-Token": TOKEN };
+  const r = await fetch(path, options);
   const j = await r.json().catch(() => ({ error: "bad response" }));
   if (!r.ok || j.error) throw new Error(j.error || r.status);
   return j;
@@ -616,7 +642,7 @@ async function api(path, body) {
 document.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => { $(b.dataset.close).hidden = true; });
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  ["help","picker","info"].forEach((id) => $(id).hidden = true);
+  ["help","picker","info","evidence"].forEach((id) => $(id).hidden = true);
   if (trimSelecting) { trimSelecting = false; status("⛶ trim-select cancelled — nothing changed"); }
 });
 $("help-btn").onclick = () => { $("help").hidden = false; };
@@ -659,6 +685,7 @@ async function load() {
   $("bsandbox").hidden = !st.sandbox;
   $("ptotal").textContent = `/ ${st.pages}`;
   $("nopdf").hidden = st.pdf_available;
+  $("evidence-btn").disabled = !st.pdf_available;
   $("pagebox").style.display = st.pdf_available ? "" : "none";
   $("md-pane").style.display = st.pdf_only ? "none" : "";
   document.querySelector("main").style.gridTemplateColumns = st.pdf_only ? "236px minmax(0,1fr)" : "236px minmax(0,1fr) minmax(0,1fr)";
@@ -894,6 +921,9 @@ function goto(n) {
   page = Math.max(1, Math.min(st.pages, Number(n) || 1));
   setPageImage(`/api/page?n=${page}&dpi=${dpiForZoom($("zoom").value)}`);
   $("pin").value = page;
+  const logical = st.page_labels?.[page - 1];
+  $("ptotal").textContent = `/ ${st.pages}` +
+    (logical != null && logical !== String(page) ? ` · label ${logical}` : "");
   applyZoom(); clearCrop();
   // OK-6: the table region is page-anchored — a zoom on the SAME page redraws it at the
   // new scale (after the image settles, the drawHighlights idiom); a page flip clears it.
@@ -1070,7 +1100,8 @@ function buildThumbs() {
   for (let n = 1; n <= st.pages; n++) {
     const d = document.createElement("div");
     d.className = "thumb"; d.dataset.n = n;
-    d.innerHTML = `<span class="tn">${n}</span>`;
+    const logical = st.page_labels?.[n - 1];
+    d.innerHTML = `<span class="tn">${n}${logical != null && logical !== String(n) ? ` · ${esc(logical)}` : ""}</span>`;
     d.onclick = () => goto(n);
     el.appendChild(d); io.observe(d);
   }
@@ -1804,6 +1835,88 @@ $("info-btn").onclick = () => {
     ((st.repairs || []).length ? `<h3>repair log</h3>` + st.repairs.map((r) =>
       `<div class="inforow"><span class="k">${esc(r.ts)}</span><span class="v">${esc(r.asset)} · zone @${r.zone_line} · p${r.page} · ${esc(r.mode)}</span></div>`).join("") : "");
   $("info").hidden = false;
+};
+
+/* ---- OK-15: read-only, process-memory evidence; never writes the patient or verdict ---- */
+function evidencePageLabel(p) {
+  const label = p.page_label?.label;
+  return `p${p.page}` + (label != null && label !== String(p.page) ? ` [${label}]` : "");
+}
+function evidenceSection(title, pages, detail) {
+  if (!pages.length) return `<h3>${esc(title)}</h3><div class="ev-detail">none found among measured pages</div>`;
+  const shown = pages.slice(0, 120);
+  return `<h3>${esc(title)} · ${pages.length}</h3><div class="ev-pages">` +
+    shown.map((p) => `<button class="ev-page" data-page="${p.page}" title="${esc(detail(p))}">${esc(evidencePageLabel(p))}</button>`).join("") +
+    `</div>` + (pages.length > shown.length ? `<div class="ev-detail">first ${shown.length} shown</div>` : "");
+}
+function evidenceUnreadReasons(p) {
+  const probes = [
+    ["page label", p.page_label],
+    ["embedded /Thumb", p.embedded_thumb],
+    ["reading-order comparison", p.reading_order],
+    ["source diagnostic render", p.capture_raster],
+    ["OCG-off counterfactual", p.capture_raster?.ocg_off_variant],
+  ];
+  return probes.filter(([, probe]) => probe?.status === "UNREAD")
+    .map(([name, probe]) => `${name}: ${probe.reason || "reason unavailable"}`);
+}
+function evidenceUnreadSection(documentReasons, pageEntries) {
+  if (!documentReasons.length && !pageEntries.length) {
+    return `<h3>UNREAD probes</h3><div class="ev-detail">none; every requested probe returned a measured or not-applicable disposition</div>`;
+  }
+  const documentRows = documentReasons.map((reason) =>
+    `<div class="ev-unread"><span>document</span><span>${esc(reason)}</span></div>`).join("");
+  const pageRows = pageEntries.slice(0, 120).map(({ page, reasons }) =>
+    `<div class="ev-unread"><button class="ev-page" data-page="${page.page}">${esc(evidencePageLabel(page))}</button><span>${esc(reasons.join(" · "))}</span></div>`).join("");
+  const remainder = pageEntries.length > 120
+    ? `<div class="ev-detail">first 120 of ${pageEntries.length} affected pages shown</div>` : "";
+  return `<h3>UNREAD probes · ${documentReasons.length + pageEntries.length}</h3>${documentRows}${pageRows}${remainder}`;
+}
+function renderEvidence(e) {
+  const s = e.summary || {}, pages = e.pages || [];
+  const warns = pages.filter((p) => (p.mupdf_warnings?.source_page_probes || []).length || (p.mupdf_warnings?.ocg_off_variant || []).length);
+  const labels = pages.filter((p) => p.page_label?.status === "measured" && p.page_label.label !== String(p.page));
+  const order = pages.filter((p) => p.reading_order?.status === "measured" && p.reading_order.disposition !== "exact");
+  const ocg = pages.filter((p) => p.capture_raster?.ocg_off_variant?.differs_from_source_view === true);
+  const thumbs = pages.filter((p) => p.embedded_thumb?.status === "present");
+  const tool = e.producer?.pdftotext || {};
+  const oracle = e.document?.reading_order_oracle || {};
+  const ocgDoc = e.document?.ocg || {};
+  const documentUnread = [];
+  if (oracle.status === "UNREAD") documentUnread.push(`reading-order oracle: ${oracle.reason || tool.reason || "unavailable"}`);
+  if (ocgDoc.status === "UNREAD") documentUnread.push(`OCG inventory: ${ocgDoc.reason || "unavailable"}`);
+  if (ocgDoc.capture_setup?.status === "UNREAD") documentUnread.push(`OCG capture setup: ${ocgDoc.capture_setup.reason || "unavailable"}`);
+  const pageUnread = pages.map((page) => ({ page, reasons: evidenceUnreadReasons(page) }))
+    .filter((entry) => entry.reasons.length);
+  $("evidence-body").innerHTML =
+    `<div class="ev-note"><b>${esc(e.status)}</b> · report-only quarantine. The normal page view is measured first; the all-OCG-off render is a counterfactual comparison only. Pixels are discarded. Source, bundle, Marker input, audit verdict, and pipeline stay unchanged.</div>` +
+    `<div class="ev-grid">` +
+      `<div class="ev-card"><span class="n">${s.capture_pages_measured ?? 0}/${s.pages_total ?? 0}</span><span class="k">pages rendered</span></div>` +
+      `<div class="ev-card"><span class="n">${s.mupdf_warning_count ?? 0}</span><span class="k">per-page MuPDF warnings · ${s.mupdf_warning_pages ?? 0} pages</span></div>` +
+      `<div class="ev-card"><span class="n">${s.non_ordinal_label_pages ?? 0}</span><span class="k">logical labels ≠ ordinal</span></div>` +
+      `<div class="ev-card"><span class="n">${s.reading_order_order_only_difference_pages ?? 0}/${s.reading_order_pages_compared ?? 0}</span><span class="k">order-only differences</span></div>` +
+      `<div class="ev-card"><span class="n">${s.reading_order_content_or_order_difference_pages ?? 0}</span><span class="k">content and/or order differences</span></div>` +
+      `<div class="ev-card"><span class="n">${s.ocg_variant_difference_pages ?? 0}/${s.ocg_groups_forced_off_for_capture ?? "—"}</span><span class="k">changed pages / OCG groups</span></div>` +
+      `<div class="ev-card"><span class="n">${s.embedded_thumb_pages ?? 0}</span><span class="k">embedded /Thumb pages</span></div>` +
+    `</div>` +
+    `<div class="ev-detail">reading-order oracle: ${esc(tool.version || tool.status || "UNREAD")} · ${esc(tool.mode || "no independent output")}</div>` +
+    evidenceUnreadSection(documentUnread, pageUnread) +
+    evidenceSection("per-page MuPDF warnings", warns, (p) => [...(p.mupdf_warnings.source_page_probes || []), ...(p.mupdf_warnings.ocg_off_variant || [])].join(" · ")) +
+    evidenceSection("logical page labels", labels, (p) => `physical ${p.page}; logical ${p.page_label.label}`) +
+    evidenceSection("reading-order differences", order, (p) => p.reading_order.disposition) +
+    evidenceSection("OCG counterfactual changed pixels", ocg, () => "normal view digest differs from all-groups-off digest; no layer is classified as decorative") +
+    evidenceSection("embedded PDF thumbnails", thumbs, (p) => `${p.embedded_thumb.width}×${p.embedded_thumb.height} · ${p.embedded_thumb.filter || "image filter UNREAD"} · bytes not decoded`);
+  $("evidence-body").querySelectorAll(".ev-page").forEach((b) => b.onclick = () => {
+    goto(Number(b.dataset.page)); $("evidence").hidden = true;
+  });
+}
+$("evidence-btn").onclick = async () => {
+  $("evidence").hidden = false;
+  $("evidence-body").innerHTML = `<div class="ev-note">Measuring each page… this is read-only. Large books can take a little while.</div>`;
+  $("evidence-btn").disabled = true;
+  try { renderEvidence(await api("/api/evidence")); }
+  catch (e) { $("evidence-body").innerHTML = `<div class="ev-note"><b>UNREAD</b> · ${esc(e.message)}</div>`; }
+  finally { $("evidence-btn").disabled = !st?.pdf_available; }
 };
 
 /* ---- the ◆ opener: Select a PDF (or bundle) ---- */
