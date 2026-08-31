@@ -140,6 +140,9 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             matches!(
                 (later["stage"].as_str(), later["event"].as_str()),
                 (Some("convert"), Some("converted"))
+                    // OK-17: the stall-recovery ladder won — a recovered stall is not
+                    // standing pain, and `converted` may be 45+ min away on a long book
+                    | (Some("convert"), Some("slice_retry_succeeded"))
                     | (Some("ship"), Some("shipped"))
                     | (Some("gate"), Some("resolved"))
                     | (Some("audit"), Some("held")) // a park is the RESOLUTION of a ship failure
