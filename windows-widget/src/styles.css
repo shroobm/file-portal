@@ -186,11 +186,11 @@ body.surface-wall #algedonic-chip { display: none; }
 .rp-grid b { color: var(--text-2); font-weight: 500; text-align: right; }
 .rp-note { font-size: 8.5px; color: var(--text-3); margin-top: 6px; font-style: italic; }
 /* NUM-2: the live numerations table — mono, register-id first, value right-aligned */
-.num-table { width: 100%; border-collapse: collapse; font: 10.5px var(--mono); }
+.num-table { width: 100%; border-collapse: collapse; font: 10.5px var(--font-mono); }
 .num-table td { padding: 2px 4px; border-bottom: 1px solid color-mix(in srgb, var(--text-3) 18%, transparent); }
 .num-id { color: var(--flow); width: 3.2em; }
 .num-k { color: var(--text-2); }
-.num-v { text-align: right; color: var(--text-1); }
+.num-v { text-align: right; color: var(--text); }
 .rp-lever { font-family: var(--font-mono); font-size: 9px; color: var(--text-3); cursor: pointer;
   border: 1px solid var(--border); border-radius: 6px; padding: 2px 7px; background: var(--surface-2); }
 .rp-lever .on { color: var(--warn); }

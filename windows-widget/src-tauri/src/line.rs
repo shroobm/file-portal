@@ -275,6 +275,13 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
     // S26: honest countdown for the piece in the press — pages from its probe event ×
     // the measured median s/page of past conversions, minus elapsed.
     let converting_eta_s = converting.as_ref().and_then(|name| {
+        // NUM-4 / review M4: PREFER the converter's own filed promise — it is scoped to the
+        // pages THIS run must convert (resume-aware), while the recompute below promises the
+        // full book on a resumed run. The estimate is projected only while the lock names
+        // the same source (the staleness guard above), so this cannot dress another book.
+        if let Some(eta) = estimate.as_ref().and_then(|e| e["eta_s"].as_i64()) {
+            return Some((eta - convert_elapsed_s.unwrap_or(0) as i64).max(0));
+        }
         let pages = events.iter().rev().find_map(|ev| {
             (ev["stage"] == "convert"
                 && ev["event"] == "probe"
@@ -291,7 +298,14 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             return None;
         }
         rates.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        let median = rates[rates.len() / 2];
+        // review m3: TRUE median — the middle-index pick returned the LARGER of an even
+        // pair, the exact bias census N056 repaired in estimate_from_ledger
+        let n = rates.len();
+        let median = if n % 2 == 1 {
+            rates[n / 2]
+        } else {
+            (rates[n / 2 - 1] + rates[n / 2]) / 2.0
+        };
         let total = (pages as f64 * median) as i64;
         Some((total - convert_elapsed_s.unwrap_or(0) as i64).max(0))
     });

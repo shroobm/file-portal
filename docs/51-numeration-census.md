@@ -678,22 +678,6 @@ narrates outcomes and aggregates; the initial increments are computed and discar
   bug eats it). The glass_detector (N309) is the standing enforcement organ; this census is
   its worklist.
 
-## §11 · NUM-7 filing record + errata (2026-08-31 evening)
-
-**Filed:** 69 of the 82 NOWHERE rows carry signed dispositions in
-`observability/dispositions.json` under `census:N-xxx` keys (INTERNAL 22 · EVIDENCE 21 ·
-GLASS 21 · REPORT 10 · REPAIR 6 · DEAD 2, before the contested split). **REPAIR** entered the
-organ's vocabulary with this filing: a number computed correctly whose consumer is broken.
-**13 contested rows are deliberately unfiled and stay loud until Rab signs them:** N-001,
-N-003, N-004, N-012, N-040, N-048, N-096, N-132, N-134, N-142, N-208, N-239, N-308.
-
-**Errata:** (1) N-099 ≡ N-297 (drop-queue age_s) and (2) N-262 ≡ N-332 (witness
-repeated-line strip) are the same quantity censused by two lanes — one disposition each,
-cross-named in the filing; any renderer counting registered rows must merge them. (3) The
-OPEN-TASKS J16 row claims a `widget:age_s` GLASS disposition was written and verified
-2026-08-25 — **the entry is not in dispositions.json today** (corrected on the J16 row; the
-census's N-297 text repeated the claim as fact and is corrected by this erratum).
-
 ## §9 · Standing rules born here
 
 1. **A number reaches the glass only with its census row** — NUM-2 renders registered
@@ -706,3 +690,25 @@ census's N-297 text repeated the claim as fact and is corrected by this erratum)
 
 Provenance: fleet run `wf_36f20480-0be` (8 Opus lanes, 8/8 returned, no empties);
 journal preserved in the session transcript dir. Merged 2026-08-31 by the Fable lane.
+
+## §11 · NUM-7 filing record + errata (2026-08-31 evening)
+
+**Filed:** 69 of the 82 NOWHERE rows carry signed dispositions in
+`observability/dispositions.json` under `census:N-xxx` keys (filed classes: EVIDENCE 19 · INTERNAL 18 ·
+GLASS 17 · REPORT 8 · REPAIR 6 · DEAD 1 = 69; the draft's pre-split tally was
+INTERNAL 22 · EVIDENCE 21 · GLASS 21 · REPORT 10 · REPAIR 6 · DEAD 2 = 82). **REPAIR** entered the
+organ's vocabulary with this filing: a number computed correctly whose consumer is broken.
+**13 contested rows are deliberately unfiled and stay loud until Rab signs them:** N-001,
+N-003, N-004, N-012, N-040, N-048, N-096, N-132, N-134, N-142, N-208, N-239, N-308.
+
+**Errata:** (1) N-099 ≡ N-297 (drop-queue age_s) and (2) N-262 ≡ N-332 (witness
+repeated-line strip) are the same quantity censused by two lanes — filed as SEPARATE cross-named entries
+(so the 69 covers 67 distinct quantities); any renderer counting registered rows must
+merge the pairs. (3) The
+OPEN-TASKS J16 row claims a `widget:age_s` GLASS disposition was written and verified
+2026-08-25 — **the entry is not in dispositions.json today** (corrected on the J16 row; the
+census's N-297 text repeated the claim as fact and is corrected by this erratum).
+
+
+**Review C1 amendment (2026-08-31, later the same evening):** the 69 rows were first filed into the detector-validated `dispositions` dict under `census:` keys no lane harvests — 69 permanent stale signatures that turned the close gate red. They now live in `census_dispositions` (documentation-grade, detector-exempt), and the build's 11 REAL new field keys carry real `converter:` signatures. Wiring the detector to enforce docs/51 rows directly remains named residue.
+

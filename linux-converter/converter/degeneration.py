@@ -84,5 +84,9 @@ def degeneration(markdown: str) -> dict:
         "flagged": flagged,
         "repeated_lines": repeated_lines,
         "md_lines": markdown.count("\n") + 1,
+        # NUM-3 parity (review m6): the true count beside the capped exemplar list,
+        # matching the Windows twin in fidelity_audit.degeneration
         "worst": worst[:10],
+        "blocks_total": len(worst),
+        "worst_capped_at": 10,
     }

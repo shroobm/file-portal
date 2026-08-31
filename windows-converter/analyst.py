@@ -321,6 +321,7 @@ def process(markdown: str, backend: str = "local",
     # NUM-6: backend token accounting (None-safe — a backend that reports no counters
     # yields honest None in the meta, never invented zeros)
     tokens_prompt = tokens_output = tokens_accepted = counted_calls = 0
+    prompt_counted_calls = 0
     if resumed:
         print(f"ANALYST resuming: {resumed}/{len(chunks)} chunks already done "
               f"(journal {journal_path.name})", flush=True)
@@ -377,6 +378,8 @@ def process(markdown: str, backend: str = "local",
                 tokens_output += call_out
             if call_prompt is not None:
                 tokens_prompt += call_prompt
+                prompt_counted_calls += 1  # review M5: its OWN denominator — ollama omits
+                # prompt_eval_count on fully cached prefills, so the prompt sum is partial
             counted_calls += call_out is not None
             if _tokens_of(candidate) == _tokens_of(chunk):
                 out.append(candidate)
@@ -424,13 +427,20 @@ def process(markdown: str, backend: str = "local",
         # NUM-6 (census N026/N286): the backend's own token counters, aggregated instead of
         # discarded, and the docs/34-required rate with its conditions IN the record. None =
         # the backend reported no counters (honest absence, never zero).
-        "tokens_prompt_total": tokens_prompt if counted_calls else None,
+        "tokens_prompt_total": tokens_prompt if prompt_counted_calls else None,
+        "tokens_prompt_counted_calls": prompt_counted_calls if prompt_counted_calls else None,
         "tokens_output_total": tokens_output if counted_calls else None,
+        "tokens_counted_calls": counted_calls if counted_calls else None,
         "tokens_accepted_output": tokens_accepted if counted_calls else None,
         "goodput_accepted_tok_s": (round(tokens_accepted / raw_duration, 2)
                                    if counted_calls and raw_duration > 0 else None),
-        "goodput_conditions": ("accepted-output tokens / whole-phase wall seconds "
-                               "(includes resumed-chunk skips and API pacing)"),
+        # review M5: every partial-sum names its own denominator, and the conditions name
+        # what sits inside the wall (resumed skips, API pacing, the terminal unload) and
+        # the this-run scope of the accepted numerator
+        "goodput_conditions": ("THIS-run accepted-output tokens / whole-phase wall seconds "
+                               "(wall includes resumed-chunk skips, API pacing, and the "
+                               "terminal model unload; prompt totals are partial sums over "
+                               "tokens_prompt_counted_calls — cached prefills report none)"),
     }
     # The book is assembled and about to be written — the journal has done its job.
     shutil.rmtree(work_dir, ignore_errors=True)

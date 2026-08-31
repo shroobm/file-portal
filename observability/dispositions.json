@@ -5,13 +5,13 @@
     "That is the whole mechanism: silence signed, never defaulted. Adding a line here is a",
     "judgment you are putting your name to, not a way to quiet the tool.",
     "",
-    "Disposition is one of GLASS / EVIDENCE / REPORT / INTERNAL / DEAD (§5.2). Reason answers",
+    "Disposition is one of GLASS / EVIDENCE / REPORT / INTERNAL / DEAD / REPAIR (§5.2 + NUM-7). Reason answers",
     "docs/29 §5.3 step 4 — 'does this already have a home, anywhere, live or archival?' — and",
     "names that home. DEAD means the producer should be deleted; a DEAD entry that outlives",
     "the session that wrote it is itself a defect.",
     "",
     "Keys are `<lane>:<key>`. Run: python observability/glass_detector.py",
-    "NUM-7 (signed Rab 2026-08-31): census:N-xxx keys are docs/51 numerations dispositioned row by row. REPAIR = computed correctly, consumer broken — fix the wiring, then retire the entry. The 13 contested census rows are deliberately ABSENT here until Rab signs them (list: docs/51 + sessions sheet); absence is their loudness."
+    "NUM-7 (signed Rab 2026-08-31): `census_dispositions` (below, SEPARATE from this detector-validated dict) holds docs/51's numeration rows — they key on census ids no lane harvests, so they must never sit in `dispositions` (69 of them once did and armed a permanent stale-signature red on the close gate; review C1 2026-08-31). REPAIR = computed correctly, consumer broken — fix the wiring, then retire the entry. The 13 contested census rows are deliberately ABSENT until Rab signs them."
   ],
   "lanes": [
     {
@@ -102,6 +102,61 @@
       "disposition": "REPORT",
       "reason": "Reaches a human via REPORT, indirectly: figure_coverage.py:295 compares it to SYM050_SLICE and the verdict line ('REPAIRED MAP (SYM-050)' + sym050_doubled_offset) renders in every coverage report and sym050-quarantine.txt. The raw integer is machinery for that verdict, not a separate measurement. Signed S108 at the close's first GLASS red; revisit if the detector line is ever removed."
     },
+    "converter:invisible_spans": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-5 (census N-054): the OCR routing vote's numerator — home is manifest.probe_evidence + the convert/probe event (convert_and_ship.py:698-699, :1340); no ambient renderer by design, the Assay drill is the eventual reader."
+    },
+    "converter:total_spans": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-5: the vote's denominator, same home as invisible_spans (manifest.probe_evidence + convert/probe event)."
+    },
+    "converter:invisible_ratio": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-5: the decided ratio itself, manifest.probe_evidence + convert/probe event — auditable routing, not an operator gauge."
+    },
+    "converter:ocr_font_trigger": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-5: which font short-circuited the vote (or absent) — manifest.probe_evidence + convert/probe event."
+    },
+    "converter:probe_evidence": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-5: the container object travelling with the book in manifest.json (convert_and_ship.py:1340)."
+    },
+    "converter:runs_capped_at": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-3: names the [:25] cap beside runs_total in the fidelity block (fidelity_audit.py) — a cap that declares itself, per SYM-066's repair; renderers read runs_total, the cap constant is record-keeping."
+    },
+    "converter:worst_capped_at": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-3: names the [:10] exemplar cap beside blocks_total in degeneration_detail — same declared-cap discipline."
+    },
+    "converter:tokens_prompt_total": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-6 (census N-026): aggregated backend prompt tokens, manifest.analyst — forensic record beside goodput; tokens_prompt_counted_calls names its partial-sum denominator."
+    },
+    "converter:tokens_output_total": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-6: aggregated backend output tokens, manifest.analyst."
+    },
+    "converter:tokens_accepted_output": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-6: goodput's numerator (THIS-run accepted chunks only, per goodput_conditions), manifest.analyst + implicit in the analyst/done goodput field."
+    },
+    "converter:goodput_conditions": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-6: the docs/34 conditions string riding manifest.analyst AND the analyst/done event so the rate never travels bare."
+    },
+    "converter:tokens_counted_calls": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-6 (review M5): the output-counter denominator — how many paid calls actually reported eval_count; manifest.analyst."
+    },
+    "converter:tokens_prompt_counted_calls": {
+      "disposition": "EVIDENCE",
+      "reason": "NUM-6 (review M5): the prompt-counter denominator (ollama omits prompt_eval_count on fully cached prefills, so the prompt sum is a partial total over exactly this many calls); manifest.analyst."
+    }
+  },
+  "census_dispositions": {
+    "_note": "docs/51 numeration rows, signed under NUM-7. Documentation-grade: the glass detector does NOT enforce these (its census is lane-key-based); enforcement wiring from docs/51 rows is named residue. 69 filed; 13 contested absent.",
     "census:N-006": {
       "disposition": "REPORT",
       "reason": "HOMED TODAY by NUM-6 (a524763): the honest per-run rate denominator is now named chunks_generated and rides both the analyst/done event and the manifest. HOME: analyst/done event + manifest.analyst.chunks_generated (convert_and_ship.py:1449-1451)"
@@ -172,7 +227,7 @@
     },
     "census:N-072": {
       "disposition": "REPAIR",
-      "reason": "The number is written correctly to disk and read by nothing: the resume path at convert_and_ship.py:1098-1101 sums only prior wall_s and never retry_wall_s, which is the exact defect by which ledger.cost_s understates every resumed book."
+      "reason": "The number is written correctly to disk and read by nothing: the resume path at convert_and_ship.py:1191-1194 sums only prior wall_s and never retry_wall_s, which is the exact defect by which ledger.cost_s understates every resumed book."
     },
     "census:N-090": {
       "disposition": "INTERNAL",
@@ -236,11 +291,11 @@
     },
     "census:N-207": {
       "disposition": "REPAIR",
-      "reason": "The defect is a name collision, not a missing home: bench.py:1865 answers `len(bench._undo)` — a restart-zeroed stack capped at 20 — under the field name every sibling route answers with the ledger-derived uncapped count."
+      "reason": "The defect is a name collision, not a missing home: bench.py:1951 answers `len(bench._undo)` — a restart-zeroed stack capped at 20 — under the field name every sibling route answers with the ledger-derived uncapped count."
     },
     "census:N-209": {
       "disposition": "REPAIR",
-      "reason": "It exists as a permanent over-count because a defect eats its decrement: undo_ledger (bench.py:1004-1051), the only undo the UI can reach, reverts the body and pops the manifest repair record but never pops the drift entry."
+      "reason": "It exists as a permanent over-count because a defect eats its decrement: undo_ledger (bench.py:1081-1129), the only undo the UI can reach, reverts the body and pops the manifest repair record but never pops the drift entry."
     },
     "census:N-211": {
       "disposition": "GLASS",
@@ -248,7 +303,7 @@
     },
     "census:N-212": {
       "disposition": "REPAIR",
-      "reason": "The number has an archival home in repairs.jsonl but is not a sequence: seq = len(ledger()) counts only READABLE lines (bench.py:909-910 drops torn ones), so one torn append re-issues an already-used ordinal — the fix is max(seq)+1, not a surface."
+      "reason": "The number has an archival home in repairs.jsonl but is not a sequence: seq = len(ledger()) counts only READABLE lines (bench.py:1027 (ledger() at :976) drops torn ones), so one torn append re-issues an already-used ordinal — the fix is max(seq)+1, not a surface."
     },
     "census:N-219": {
       "disposition": "REPAIR",

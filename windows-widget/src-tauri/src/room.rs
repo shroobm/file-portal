@@ -43,7 +43,15 @@ pub fn metrics(gpu_pipeline_dir: &str, vault_library_dir: &str) -> Result<Value,
     } else {
         let mut s = spp.clone();
         s.sort_by(|a, b| a.partial_cmp(b).unwrap());
-        json!(s[s.len() / 2])
+        // review m3 / census N056: TRUE median — the middle-index pick returned the larger
+        // of an even pair, biasing the KPI the operator reads most
+        let n = s.len();
+        let m = if n % 2 == 1 {
+            s[n / 2]
+        } else {
+            (s[n / 2 - 1] + s[n / 2]) / 2.0
+        };
+        json!(m)
     };
     let throughput = if total_wall > 0.0 {
         json!(total_pages / total_wall)

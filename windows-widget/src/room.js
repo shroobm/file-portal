@@ -492,7 +492,9 @@ function assayPanel(d) {
 function numerationsPanel(d) {
   const ls = d.ls || {};
   const tail = d.shift?.tail || [];
-  const latest = (stage, event) => [...tail].reverse().find((e) => e.stage === stage && e.event === event) || {};
+  // review M1: the tail arrives NEWEST-FIRST (events.rs .rev().take(10)) — reversing it made
+  // this panel render the OLDEST match, i.e. the PREVIOUS book's numbers during a live one
+  const latest = (stage, event) => tail.find((e) => e.stage === stage && e.event === event) || {};
   const conv = latest("convert", "converted");
   const an = latest("analyst", "done");
   const sc = latest("audit", "scored");

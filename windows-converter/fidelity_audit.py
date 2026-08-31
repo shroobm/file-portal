@@ -408,11 +408,14 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
     out_search = out.replace(" ", "") if cjk else out
     windows = make_windows(ref, cjk)
     if not windows:
-        return {"doc_survival": 1.0, "runs": []}
+        return {"doc_survival": 1.0, "runs": [], "runs_total": 0, "runs_capped_at": 25}
     failed = [w not in out_search for w in windows]
     doc = round(failed.count(False) / len(windows), 4)
     runs = [r for r in _merge_runs(windows, failed, page=None)]
-    return {"doc_survival": doc, "runs": sorted(runs, key=lambda r: -r["words"])[:25]}
+    # NUM-3, both phases (review M2: repairing only the convert phase left the analyst event
+    # ASSERTING that 25 is the total — strictly worse than the bare capped count)
+    return {"doc_survival": doc, "runs": sorted(runs, key=lambda r: -r["words"])[:25],
+            "runs_total": len(runs), "runs_capped_at": 25}
 
 
 def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:

@@ -263,7 +263,10 @@ check('from "./event-vocab.js"' in room and 'from "./event-vocab.js"' in dock,
       "Room and Dock both import the shared vocabulary")
 for name in ["slice_retry_succeeded", "slice_split", "timeout", "chunk_batch_invalid",
              "chunk_batch_unreadable", "asset_range_warning", "retry_wall_s",
-             "pages_converted_this_run"]:
+             "pages_converted_this_run",
+             # NUM batch (review m4): the manual-parity guard must SEE the new vocabulary
+             "ocr_invisible_ratio", "pages_this_run", "runs_total",
+             "chunks_generated", "goodput_accepted_tok_s"]:
     check(name in manual, f"docs/22 names {name}")
 src = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
 emitted = set(re.findall(r'emit\("convert", "([a-z_]+)"', src))
@@ -412,15 +415,22 @@ cas.LEDGER_FILE.write_text(
     encoding="utf-8")
 est1 = cas.estimate_from_ledger(100, "clean", 1050)
 check(est1["basis"] == "single-sample", "basis names a 1-witness promise honestly")
-# the resumable peek scopes the promise to THIS run's pages
+# the resumable peek scopes the promise to THIS run's pages — and it is IDENTITY-AWARE
+# (review M3: a presence-only peek promised 0 s for a whole book after a Marker upgrade)
 sha13 = "cd" * 32
+extra13 = ["--recognition_batch_size", "8"]
 bw = cas.CHUNK_WORK / sha13[:16]
+good = {"source_sha256": sha13, "engine_args": list(extra13), "marker_version": "test"}
 for rng in ("00000-00199", "00200-00399"):
     d = bw / f"slice-{rng}"
     d.mkdir(parents=True, exist_ok=True)
-    (d / ".done").write_text("{}", encoding="utf-8")
-check(cas._resumable_pages(sha13, 1000) == 400, "presence peek counts .done slice pages")
-check(cas._resumable_pages("ee" * 32, 1000) == 0, "no cache -> zero resumable")
+    (d / ".done").write_text(json.dumps(good), encoding="utf-8")
+stale13 = bw / "slice-00400-00599"
+stale13.mkdir(parents=True, exist_ok=True)
+(stale13 / ".done").write_text(json.dumps({**good, "marker_version": "OLD"}), encoding="utf-8")
+check(cas._resumable_pages(sha13, 1000, extra13) == 400,
+      "identity-matching .done slices count; the version-mismatched one does NOT (M3)")
+check(cas._resumable_pages("ee" * 32, 1000, extra13) == 0, "no cache -> zero resumable")
 rec = with_stub(MarkerStub())
 cas._write_estimate_safe("t13.pdf", 1000, "clean", 1050, resumable_pages=400)
 filed = json.loads(cas.ESTIMATE_FILE.read_text(encoding="utf-8"))
@@ -476,8 +486,11 @@ try:
     check(meta15["tokens_accepted_output"] == 40 * meta15["chunks_passed"],
           "ONLY accepted chunks earn goodput tokens (rejected excluded)")
     check(meta15["goodput_accepted_tok_s"] is not None
-          and meta15["goodput_conditions"].startswith("accepted-output tokens"),
+          and meta15["goodput_conditions"].startswith("THIS-run accepted-output tokens"),
           "goodput present with its docs/34 conditions in the record")
+    check(meta15["tokens_counted_calls"] == meta15["chunks_generated"]
+          and meta15["tokens_prompt_counted_calls"] == meta15["chunks_generated"],
+          "review M5: every token sum names its own denominator")
 
     def counterless_generate(prompt):
         analyst._last_call.clear()

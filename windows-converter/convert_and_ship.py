@@ -52,7 +52,8 @@ def _audit_convert_safe(src, body: str, lane: str, tmp_dir: Path, manifest: dict
         # the truth beside it (SYM-066: the night "25" hid 634)
         emit("audit", "scored", source=name, phase="convert", kind=conv["kind"],
              doc_survival=conv["doc_survival"], runs=len(conv["runs"]),
-             runs_total=conv.get("runs_total", len(conv["runs"])),
+             runs_total=conv.get("runs_total"),  # review M2: an absent total stays None —
+             # a fallback to the SHOWN count asserted the cap was the count
              degeneration=tw["degeneration"], verdict=manifest["fidelity"]["verdict"])
         if manifest["fidelity"]["verdict"] != "pass":
             emit("audit", "flagged", source=name, phase="convert",
@@ -77,7 +78,7 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
             manifest["fidelity"] = {"version": fa.SCHEMA_VERSION, "analyst": an, "verdict": verdict}
         emit("audit", "scored", source=name, phase="analyst",
              doc_survival=an["doc_survival"], runs=len(an["runs"]),
-             runs_total=an.get("runs_total", len(an["runs"])),
+             runs_total=an.get("runs_total"),  # M2: None over a masquerading fallback
              verdict=manifest["fidelity"]["verdict"])
         if manifest["fidelity"]["verdict"] == "fail":
             emit("audit", "flagged", source=name, phase="analyst", verdict="fail")
@@ -201,23 +202,35 @@ def _clear_progress() -> None:
 ESTIMATE_FILE = fp_paths.root("convert_estimate")
 
 
-def _resumable_pages(source_sha: str, pages: int) -> int:
-    """NUM-4: a PRESENCE-level peek at how many pages the slice cache can resume, so the
-    promise is scoped to the work actually in front of this run. Presence-level only — the
-    real resume gate (identity fields) still governs at convert time, so this can only make
-    the promise OPTIMISTIC when a stale .done later fails identity; the estimate file names
-    the assumption so the record can be audited."""
+def _resumable_pages(source_sha: str, pages: int, extra: list[str]) -> int:
+    """NUM-4: how many pages the slice cache will ACTUALLY resume, so the promise is scoped
+    to the work in front of this run. Review M3: the first cut counted `.done` PRESENCE only,
+    so a Marker upgrade or lane change (every cached slice failing identity at convert time)
+    produced a 0-second promise for a multi-hour book — the failure mode that reads as
+    completion. This peek now runs the SAME identity comparison as the resume gate
+    (`_done_identity_mismatch`); a torn or mismatched `.done` simply doesn't count."""
     try:
         book_work = CHUNK_WORK / source_sha[:16]
         if not book_work.is_dir():
             return 0
+        import marker  # marker-env only; the same version stamp the resume gate compares
+        marker_version = getattr(marker, "__version__", "unknown")
         done_pages = 0
         for d in book_work.iterdir():
             m = re.fullmatch(r"slice-(\d{5})-(\d{5})", d.name)
-            if m and (d / ".done").is_file():
-                done_pages += int(m.group(2)) - int(m.group(1)) + 1
+            if not (m and (d / ".done").is_file()):
+                continue
+            try:
+                prior = json.loads((d / ".done").read_text(encoding="utf-8"))
+            except (OSError, ValueError):
+                continue
+            if not isinstance(prior, dict):
+                continue
+            if _done_identity_mismatch(prior, source_sha, extra, marker_version):
+                continue
+            done_pages += int(m.group(2)) - int(m.group(1)) + 1
         return min(done_pages, pages)
-    except OSError:
+    except (OSError, ImportError):
         return 0
 
 
@@ -1252,7 +1265,7 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # how much of the book is already converted — the old order promised the FULL book and made
     # the glass count down hours for a resumed run that finishes in seconds.
     promised = _write_estimate_safe(src.name, pages, lane, chars,
-                                    resumable_pages=_resumable_pages(source_sha, pages))
+                                    resumable_pages=_resumable_pages(source_sha, pages, extra))
 
     _ollama_unload()  # OK-16: clear VRAM residents before any Marker work (best-effort)
 
