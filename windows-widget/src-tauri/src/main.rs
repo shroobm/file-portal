@@ -614,7 +614,7 @@ fn main() {
         // watcher chains on one drop folder, SYM-022's crash precondition a double-click
         // away. First plugin registered, per the plugin's own contract. A second launch
         // now fronts the ONE widget instead of becoming a second factory.
-        .plugin(tauri_plugin_single_instance::init(|app, _argv, _cwd| {
+        .plugin(tauri_plugin_single_instance::init(|app, argv, _cwd| {
             if let Some(w) = app.get_webview_window("main") {
                 // set_focus alone no-ops on a MINIMIZED window (tao skips it) — and the
                 // minimized widget is the ONE state where a user relaunches to bring it
@@ -623,6 +623,32 @@ fn main() {
                 let _ = w.unminimize();
                 let _ = w.show();
                 let _ = w.set_focus();
+            }
+            // OK-14 (signed Rab 2026-08-31): forward-instead-of-die (OBS-10). The losing
+            // launch's open request — its first non-flag argument, e.g. a bundle name on a
+            // shortcut or a path dropped onto the exe — opens the Bench on the WINNER
+            // instead of evaporating with the loser. No argument = S94's front-the-window
+            // behavior alone. Same spawn_blocking chassis as bench_open: the readiness
+            // wait must never sit on the UI thread.
+            if let Some(req) = argv.iter().skip(1).find(|a| !a.starts_with('-')) {
+                let app = app.clone();
+                let req = req.clone();
+                tauri::async_runtime::spawn_blocking(move || {
+                    let (pipe, py, conv) = {
+                        let state: State<AppState> = app.state();
+                        let cfg = match state.config.lock() {
+                            Ok(c) => c,
+                            Err(_) => return,
+                        };
+                        (
+                            cfg.gpu_pipeline_dir.clone(),
+                            cfg.gpu_python_exe.clone(),
+                            cfg.gpu_converter_dir.clone(),
+                        )
+                    };
+                    let bstate = app.state::<bench::BenchState>().inner().clone();
+                    let _ = bench::open(app.clone(), &bstate, &pipe, &py, &conv, &req);
+                });
             }
         }))
         .manage(AppState {
@@ -688,6 +714,16 @@ fn main() {
                 if window.label() == "main" {
                     let state: State<watcher::WatcherState> = window.app_handle().state();
                     watcher::stop(&state);
+                    // A3 (signed Rab 2026-08-31): the job's KILL_ON_JOB_CLOSE fires only
+                    // when the PROCESS exits, and tauri exits on the LAST window — so a
+                    // live Bench or Chat window deferred the kill and left a half-dead
+                    // factory (watcher stopped, servers alive, no control room). The main
+                    // window's death closes the house.
+                    for (label, w) in window.app_handle().webview_windows() {
+                        if label != "main" {
+                            let _ = w.close();
+                        }
+                    }
                 }
             }
         })

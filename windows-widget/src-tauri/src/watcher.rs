@@ -184,6 +184,16 @@ pub fn start(
 pub fn stop(state: &WatcherState) -> WatcherStatus {
     let mut guard = state.0.lock().unwrap();
     if let Some(mut child) = guard.take() {
+        // WAT-2 (signed Rab 2026-08-31): kill the TREE, not just the direct child. The
+        // configured python may be a venv launcher whose real interpreter is a GRANDCHILD;
+        // kill() alone (TerminateProcess on the shim) left the actual watcher polling drop/
+        // until widget exit, so the button's "stopped" was a lie. Measured live 2026-08-31:
+        // shim 32068 / real interpreter 3532. taskkill /T reaches the descendants; the
+        // kill()+wait() pair stays as belt-and-braces (and reaps the handle).
+        let _ = Command::new("taskkill")
+            .args(["/PID", &child.id().to_string(), "/T", "/F"])
+            .creation_flags(CREATE_NO_WINDOW)
+            .output();
         let _ = child.kill();
         let _ = child.wait();
     }
