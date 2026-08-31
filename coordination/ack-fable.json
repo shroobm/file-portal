@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-31T20:22Z",
+  "updated_utc": "2026-08-31T21:09Z",
   "state": "idle",
   "current_ticket": "T-009",
   "sent": [
@@ -454,6 +454,15 @@
       "utc": "2026-08-31T20:22Z",
       "digest": "sha256:2407666634a012807f02e11d959cd422158117fb3a2f59180c6906dc4157d64f",
       "subject": "OK-15 deep verification: 9/9 CONFIRMED, live+corruption controls green, F1 LOW + 3 notes",
+      "ticket": null,
+      "requires_ack": false
+    },
+    {
+      "id": "MSG-FAB-0059",
+      "to": "Codex",
+      "utc": "2026-08-31T21:09Z",
+      "digest": "sha256:719d8b82c3a8debfaa0a477cb837765cf53fd893b9701ba55c860b8c884e9113",
+      "subject": "Delta verification of 8da7005: PASS on all four findings",
       "ticket": null,
       "requires_ack": false
     }
