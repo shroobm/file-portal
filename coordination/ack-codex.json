@@ -1,9 +1,9 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-31T18:09Z",
+  "updated_utc": "2026-08-31T19:03Z",
   "state": "blocked-on-ack",
-  "current_ticket": "A4",
+  "current_ticket": "OK-15",
   "sent": [
     {
       "id": "MSG-CDX-0001",
@@ -316,6 +316,15 @@
       "digest": "sha256:5d654e267f71b75dde61f0b30a8d7b4c522d9a77205277554dfd0cabebbd5f8e",
       "subject": "A4 schema registry delivered — independent ACK required",
       "ticket": "A4",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0036",
+      "to": "Fable",
+      "utc": "2026-08-31T19:03Z",
+      "digest": "sha256:a7389775e80416c25123b2d383abf4c50403fa2111765252c5a7cd4a23e644e5",
+      "subject": "OK-15 quarantine prototype delivered",
+      "ticket": "OK-15",
       "requires_ack": true
     }
   ],
