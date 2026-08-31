@@ -48,8 +48,11 @@ def _audit_convert_safe(src, body: str, lane: str, tmp_dir: Path, manifest: dict
         manifest["fidelity"] = fa.build_fidelity_block(conv, None)
         tw = conv["tripwires"]
         name = getattr(src, "name", str(src))
+        # NUM-3: `runs` stays the SHOWN (capped) count for wire compatibility; runs_total is
+        # the truth beside it (SYM-066: the night "25" hid 634)
         emit("audit", "scored", source=name, phase="convert", kind=conv["kind"],
              doc_survival=conv["doc_survival"], runs=len(conv["runs"]),
+             runs_total=conv.get("runs_total", len(conv["runs"])),
              degeneration=tw["degeneration"], verdict=manifest["fidelity"]["verdict"])
         if manifest["fidelity"]["verdict"] != "pass":
             emit("audit", "flagged", source=name, phase="convert",
@@ -74,6 +77,7 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
             manifest["fidelity"] = {"version": fa.SCHEMA_VERSION, "analyst": an, "verdict": verdict}
         emit("audit", "scored", source=name, phase="analyst",
              doc_survival=an["doc_survival"], runs=len(an["runs"]),
+             runs_total=an.get("runs_total", len(an["runs"])),
              verdict=manifest["fidelity"]["verdict"])
         if manifest["fidelity"]["verdict"] == "fail":
             emit("audit", "flagged", source=name, phase="analyst", verdict="fail")
@@ -197,17 +201,44 @@ def _clear_progress() -> None:
 ESTIMATE_FILE = fp_paths.root("convert_estimate")
 
 
-def _write_estimate_safe(source: str, pages: int, lane: str, chars: float) -> dict | None:
+def _resumable_pages(source_sha: str, pages: int) -> int:
+    """NUM-4: a PRESENCE-level peek at how many pages the slice cache can resume, so the
+    promise is scoped to the work actually in front of this run. Presence-level only — the
+    real resume gate (identity fields) still governs at convert time, so this can only make
+    the promise OPTIMISTIC when a stale .done later fails identity; the estimate file names
+    the assumption so the record can be audited."""
+    try:
+        book_work = CHUNK_WORK / source_sha[:16]
+        if not book_work.is_dir():
+            return 0
+        done_pages = 0
+        for d in book_work.iterdir():
+            m = re.fullmatch(r"slice-(\d{5})-(\d{5})", d.name)
+            if m and (d / ".done").is_file():
+                done_pages += int(m.group(2)) - int(m.group(1)) + 1
+        return min(done_pages, pages)
+    except OSError:
+        return 0
+
+
+def _write_estimate_safe(source: str, pages: int, lane: str, chars: float,
+                         resumable_pages: int = 0) -> dict | None:
     """File the conversion's PROMISE beside its progress: the similarity estimate the ledger can
     back, or an honest absence. Best-effort in every direction — the promise must never cost
-    the conversion (S42 rule)."""
+    the conversion (S42 rule). NUM-4: the ETA covers only the pages THIS run must convert;
+    `resumed_pages_assumed` records the peek so an optimistic promise is auditable."""
     try:
+        pages_this_run = max(0, pages - resumable_pages)
         est = estimate_from_ledger(pages, lane, chars)
-        payload = {"source": source, "pages": pages, "lane": lane}
+        payload = {"source": source, "pages": pages, "lane": lane,
+                   "pages_this_run": pages_this_run,
+                   "resumed_pages_assumed": resumable_pages}
         if est:
+            est["eta_s"] = int(est["s_per_page"] * pages_this_run)
             payload.update(est)
             emit("convert", "estimate", source=source, eta_s=est["eta_s"],
-                 s_per_page=est["s_per_page"], basis=est["basis"], samples=est["samples"])
+                 s_per_page=est["s_per_page"], basis=est["basis"], samples=est["samples"],
+                 pages_this_run=pages_this_run, resumed_pages_assumed=resumable_pages)
         else:
             payload["basis"] = "none"  # no evidence — the glass must say so, not guess
         ESTIMATE_FILE.write_text(json.dumps(payload), encoding="utf-8")
@@ -635,18 +666,22 @@ def render_frontmatter(engine, lane, lane_reason, chars, ocr, ocr_dpi, converted
 _OCR_FONT = re.compile(r"glyphless|invisible|ocr", re.IGNORECASE)
 
 
-def probe(path: Path) -> tuple[float, int, bool]:
-    """chars/page, page count, and whether the text layer is an OCR overlay.
+def probe(path: Path) -> tuple[float, int, bool, dict]:
+    """chars/page, page count, whether the text layer is an OCR overlay, and THE EVIDENCE.
 
     OCR layers paint invisible text over the scan image: text render mode 3
     (`get_texttrace` span type 3). Verified live: the Beer book's 2013 Archive.org
     layer is 100% type-3 "Courier"; a born-digital Chromium print is type 0.
     Majority-of-spans rule so a stray invisible watermark can't flip a real layer;
     the font-name check (tesseract's GlyphLessFont etc.) is kept as a secondary.
-    """
+
+    NUM-5 (signed 2026-08-31, census N054): the vote's numbers now SURVIVE the decision —
+    the returned evidence dict carries invisible/total spans, the ratio, and which font (if
+    any) short-circuited the vote, so the routing of every book is auditable from its record
+    instead of being destroyed at the moment it decides."""
     invisible_spans = 0
     total_spans = 0
-    ocr_font_seen = False
+    ocr_font_trigger: str | None = None
     with pymupdf.open(path) as doc:
         pages = doc.page_count or 1
         total = 0
@@ -656,10 +691,13 @@ def probe(path: Path) -> tuple[float, int, bool]:
                 total_spans += 1
                 if span.get("type") == 3:
                     invisible_spans += 1
-                if not ocr_font_seen and _OCR_FONT.search(str(span.get("font", ""))):
-                    ocr_font_seen = True
-    ocr_layer = ocr_font_seen or (total_spans > 0 and invisible_spans / total_spans > 0.5)
-    return total / pages, pages, ocr_layer
+                if ocr_font_trigger is None and _OCR_FONT.search(str(span.get("font", ""))):
+                    ocr_font_trigger = str(span.get("font", ""))[:60]
+    ratio = (invisible_spans / total_spans) if total_spans else 0.0
+    ocr_layer = ocr_font_trigger is not None or (total_spans > 0 and ratio > 0.5)
+    evidence = {"invisible_spans": invisible_spans, "total_spans": total_spans,
+                "invisible_ratio": round(ratio, 4), "ocr_font_trigger": ocr_font_trigger}
+    return total / pages, pages, ocr_layer, evidence
 
 
 def route(chars: float, ocr_fonts: bool) -> tuple[list[str], str, str]:
@@ -723,9 +761,12 @@ def _ledger_record(manifest: dict, cost_s: float, peak_mib: int,
 
 
 def estimate_from_ledger(pages: int, lane: str, chars_per_page: float) -> dict | None:
-    """The similarity-based estimate (docs/18 §5.2): same lane first, then the nearest chars/pp
-    neighbours, median of their s/page. Falls back to same-lane median, then None — a promise is
-    only made when there is real evidence behind it."""
+    """The similarity-based estimate (docs/18 §5.2): same-lane rows, nearest-≤3 by chars/pp,
+    TRUE median of their s/page (even counts average the middle pair — the old middle-index
+    pick returned the LARGER of two samples, biasing every promise upward; census N056).
+    None when no same-lane evidence exists — a promise is only made when there is real
+    evidence behind it. `basis` is a real discriminator now: "similar" (≥2 neighbours) or
+    "single-sample" (1); the docstring's former phantom fallback branch is gone with it."""
     try:
         rows = [json.loads(l) for l in
                 LEDGER_FILE.read_text(encoding="utf-8").splitlines() if l.strip()]
@@ -740,12 +781,13 @@ def estimate_from_ledger(pages: int, lane: str, chars_per_page: float) -> dict |
     neighbours = sorted(same_lane,
                         key=lambda r: abs((r.get("chars_per_page") or 0) - chars_per_page))[:3]
     rates = sorted(r["s_per_page"] for r in neighbours)
-    median = rates[len(rates) // 2]
+    n = len(rates)
+    median = rates[n // 2] if n % 2 else round((rates[n // 2 - 1] + rates[n // 2]) / 2, 3)
     return {
         "s_per_page": median,
         "eta_s": int(median * pages),
-        "basis": "similar",
-        "samples": len(neighbours),
+        "basis": "similar" if n >= 2 else "single-sample",
+        "samples": n,
         "from_lane": lane,
     }
 
@@ -1184,15 +1226,19 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # work happens, so a marker can never survive this conversion. Stamped into the manifest
     # further down, once the source sha is known and can be checked against it.
     supersede_marker = _take_supersede_marker(src)
-    chars, pages, ocr_fonts = probe(src)
+    chars, pages, ocr_fonts, ocr_evidence = probe(src)
     extra, lane, lane_reason = route(chars, ocr_fonts)
     print(f"PROBE {src.name}: {chars:.1f} chars/page, {pages} pages, ocr_fonts={ocr_fonts}"
           f" -> lane={lane} ({lane_reason})", flush=True)
+    # NUM-5: the routing vote's own numbers ride the probe event — a 50.1 % book and a 100 %
+    # book no longer leave identical records, and a single-font short-circuit names itself.
     emit("convert", "probe", source=src.name, chars_per_page=round(chars, 1),
-         pages=pages, lane=lane, lane_reason=lane_reason)
-    # Stage E: the promise, filed before the work (docs/18 §5.2's promise-vs-actual pairing).
-    promised = _write_estimate_safe(src.name, pages, lane, chars)
-
+         pages=pages, lane=lane, lane_reason=lane_reason,
+         ocr_invisible_ratio=ocr_evidence["invisible_ratio"],
+         ocr_invisible_spans=ocr_evidence["invisible_spans"],
+         ocr_total_spans=ocr_evidence["total_spans"],
+         **({"ocr_font_trigger": ocr_evidence["ocr_font_trigger"]}
+            if ocr_evidence["ocr_font_trigger"] else {}))
     # Convert from a short sanitizer-proof copy (the ThinkPad's L15 idiom): Marker derives
     # its output dir and asset names from the input stem.
     engine_stem = slugify(src.stem)[:40]
@@ -1200,6 +1246,13 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     shutil.copy2(src, engine_src)
     out_root = work / "marker-out"
     source_sha = sha256_of(src)  # needed up here now: slice resume is keyed by it
+
+    # Stage E: the promise, filed before the work (docs/18 §5.2's promise-vs-actual pairing).
+    # NUM-4 (signed 2026-08-31, census N055): the promise is filed AFTER the sha so it can see
+    # how much of the book is already converted — the old order promised the FULL book and made
+    # the glass count down hours for a resumed run that finishes in seconds.
+    promised = _write_estimate_safe(src.name, pages, lane, chars,
+                                    resumable_pages=_resumable_pages(source_sha, pages))
 
     _ollama_unload()  # OK-16: clear VRAM residents before any Marker work (best-effort)
 
@@ -1283,6 +1336,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         "lane": lane,
         "lane_reason": lane_reason,
         "chars_per_page_detected": chars,
+        # NUM-5: the routing vote's evidence travels WITH the book — auditable forever
+        "probe_evidence": ocr_evidence,
         "pages": pages,
         "converter_version": CONVERTER_VERSION,
         "marker_version": getattr(marker, "__version__", "unknown"),

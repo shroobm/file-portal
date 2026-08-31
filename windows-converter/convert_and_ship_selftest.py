@@ -396,6 +396,114 @@ cas._convert_chunked("bookB.pdf", QUARANTINE / "b.pdf", "bookb", work12b,
 check(not book_a.is_dir(), "a DIFFERENT book's start sweeps the previous book (disk bounded)")
 check((cas.CHUNK_WORK / sha_b[:16]).is_dir(), "the new book's slices are the ones kept")
 
+# ---------- T13: NUM-4 promise repairs ----------
+print("T13 promise honesty (NUM-4)")
+rec = with_stub(MarkerStub())
+cas.LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
+cas.LEDGER_FILE.write_text(
+    json.dumps({"lane": "clean", "s_per_page": 2.0, "chars_per_page": 1000}) + "\n"
+    + json.dumps({"lane": "clean", "s_per_page": 4.0, "chars_per_page": 1100}) + "\n",
+    encoding="utf-8")
+est = cas.estimate_from_ledger(100, "clean", 1050)
+check(est["s_per_page"] == 3.0, "TRUE median of 2 samples averages the pair (was: larger)")
+check(est["basis"] == "similar", "basis 'similar' with >=2 neighbours")
+cas.LEDGER_FILE.write_text(
+    json.dumps({"lane": "clean", "s_per_page": 2.0, "chars_per_page": 1000}) + "\n",
+    encoding="utf-8")
+est1 = cas.estimate_from_ledger(100, "clean", 1050)
+check(est1["basis"] == "single-sample", "basis names a 1-witness promise honestly")
+# the resumable peek scopes the promise to THIS run's pages
+sha13 = "cd" * 32
+bw = cas.CHUNK_WORK / sha13[:16]
+for rng in ("00000-00199", "00200-00399"):
+    d = bw / f"slice-{rng}"
+    d.mkdir(parents=True, exist_ok=True)
+    (d / ".done").write_text("{}", encoding="utf-8")
+check(cas._resumable_pages(sha13, 1000) == 400, "presence peek counts .done slice pages")
+check(cas._resumable_pages("ee" * 32, 1000) == 0, "no cache -> zero resumable")
+rec = with_stub(MarkerStub())
+cas._write_estimate_safe("t13.pdf", 1000, "clean", 1050, resumable_pages=400)
+filed = json.loads(cas.ESTIMATE_FILE.read_text(encoding="utf-8"))
+check(filed["pages_this_run"] == 600 and filed["resumed_pages_assumed"] == 400,
+      "the promise names its resume assumption")
+check(filed["eta_s"] == int(filed["s_per_page"] * 600),
+      "ETA covers only the pages THIS run must convert (was: the whole book)")
+ev13 = rec.named("convert/estimate")
+check(ev13 and ev13[0]["pages_this_run"] == 600, "estimate event carries pages_this_run")
+
+# ---------- T14: NUM-5 decision evidence ----------
+print("T14 probe evidence (NUM-5)")
+import pymupdf as _pm  # noqa: E402
+_doc = _pm.open()
+_page = _doc.new_page()
+_page.insert_text((72, 72), "hello numeration census evidence")
+_pdf14 = QUARANTINE / "t14.pdf"
+_doc.save(str(_pdf14))
+_doc.close()
+chars14, pages14, ocr14, evd14 = cas.probe(_pdf14)
+check(pages14 == 1 and not ocr14, "synthetic born-digital page probes clean")
+check(set(evd14) == {"invisible_spans", "total_spans", "invisible_ratio", "ocr_font_trigger"},
+      "probe returns the vote's evidence, not just its verdict")
+check(evd14["invisible_ratio"] == 0.0 and evd14["ocr_font_trigger"] is None,
+      "clean page: ratio 0.0, no font trigger")
+src14 = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+check("ocr_invisible_ratio=" in src14, "the probe event emits the ratio")
+check('"probe_evidence": ocr_evidence' in src14, "the evidence travels in the manifest")
+
+# ---------- T15: NUM-6 analyst goodput ----------
+print("T15 analyst goodput (NUM-6)")
+import analyst  # noqa: E402
+_real_gen, _real_unload = analyst._generate, analyst.unload
+try:
+    calls15 = [0]
+
+    def fake_generate(prompt):
+        calls15[0] += 1
+        analyst._last_call.clear()
+        analyst._last_call.update({"prompt_tokens": 100, "output_tokens": 40})
+        if calls15[0] == 2:
+            return "TAMPERED " + prompt[-20:]  # fence violation -> rejected
+        return prompt.split("\n\n", 1)[-1] if "\n\n" in prompt else prompt
+
+    analyst._generate = fake_generate
+    analyst.unload = lambda: None
+    body15 = "\n\n".join(f"paragraph {i} " + "word " * 40 for i in range(3))
+    out15, meta15 = analyst.process(body15, backend="local")
+    check(meta15["chunks_generated"] == meta15["chunks_passed"] + meta15["chunks_rejected"]
+          + meta15["chunks_failed"], "generated = passed + rejected + failed (no resume here)")
+    check(meta15["tokens_output_total"] == 40 * meta15["chunks_generated"],
+          "output tokens aggregated across every paid call")
+    check(meta15["tokens_accepted_output"] == 40 * meta15["chunks_passed"],
+          "ONLY accepted chunks earn goodput tokens (rejected excluded)")
+    check(meta15["goodput_accepted_tok_s"] is not None
+          and meta15["goodput_conditions"].startswith("accepted-output tokens"),
+          "goodput present with its docs/34 conditions in the record")
+
+    def counterless_generate(prompt):
+        analyst._last_call.clear()
+        return prompt.split("\n\n", 1)[-1] if "\n\n" in prompt else prompt
+
+    analyst._generate = counterless_generate
+    _, meta15b = analyst.process("short body " + "word " * 30, backend="local")
+    check(meta15b["tokens_output_total"] is None
+          and meta15b["goodput_accepted_tok_s"] is None,
+          "a counterless backend yields honest None, never invented zeros")
+finally:
+    analyst._generate, analyst.unload = _real_gen, _real_unload
+
+# ---------- T16: NUM-3 true counts beside caps ----------
+print("T16 true counts beside caps (NUM-3)")
+import fidelity_audit as fa  # noqa: E402
+degen16 = fa.degeneration("para\n\n" + "\n\n".join(
+    ("loop word trigram " * 40) for _ in range(14)))
+check(degen16["blocks_total"] >= len(degen16["worst"]),
+      "degeneration carries the TRUE flagged-block count")
+check(degen16["worst_capped_at"] == 10 and len(degen16["worst"]) <= 10,
+      "the exemplar list stays capped and NAMES its cap")
+src16 = (HERE / "fidelity_audit.py").read_text(encoding="utf-8")
+check('"runs_total": len(runs)' in src16, "the audit block carries runs_total pre-cap")
+check("runs_total=" in src14, "audit/scored events emit runs_total beside the capped runs")
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

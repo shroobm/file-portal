@@ -502,6 +502,7 @@
             "phase",
             "pid",
             "runs",
+            "runs_total",
             "source",
             "stage",
             "ts",
@@ -634,7 +635,9 @@
             "basis",
             "eta_s",
             "event",
+            "pages_this_run",
             "pid",
+            "resumed_pages_assumed",
             "s_per_page",
             "samples",
             "source",
@@ -664,12 +667,17 @@
           ]
         },
         "convert/probe": {
-          "optional_keys": [],
+          "optional_keys": [
+            "ocr_font_trigger"
+          ],
           "required_keys": [
             "chars_per_page",
             "event",
             "lane",
             "lane_reason",
+            "ocr_invisible_ratio",
+            "ocr_invisible_spans",
+            "ocr_total_spans",
             "pages",
             "pid",
             "source",

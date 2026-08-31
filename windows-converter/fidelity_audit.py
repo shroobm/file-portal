@@ -309,8 +309,10 @@ def degeneration(markdown: str) -> dict:
     worst.sort(key=lambda w: (w["zlib"], -w["max_trigram"]))
     # md_lines: the widget's damage-map denominator — places each worst-block band at
     # line/md_lines along a book-length track (docs/15 §13).
+    # NUM-3: the exemplar list stays capped at 10; the TRUE flagged-block count survives it
     return {"flagged": flagged, "repeated_lines": repeated_lines,
-            "md_lines": markdown.count("\n") + 1, "worst": worst[:10]}
+            "md_lines": markdown.count("\n") + 1, "worst": worst[:10],
+            "blocks_total": len(worst), "worst_capped_at": 10}
 
 
 def garbage_rate(output_final: str):
@@ -375,7 +377,12 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         "doc_survival": doc_survival,
         "pages_scored": scored,
         "pages_flagged": pages_flagged,
+        # NUM-3 (signed 2026-08-31, SYM-066's repair at the source): the shown list stays
+        # capped for payload size, but the TRUE count and the cap ride beside it — "25" can
+        # never again masquerade as the count (the night of 2026-08-30 it hid 634).
         "runs": sorted(runs, key=lambda r: -r["words"])[:25],
+        "runs_total": len(runs),
+        "runs_capped_at": 25,
         "tripwires": {
             "degeneration": degen["flagged"],
             "degeneration_detail": degen,

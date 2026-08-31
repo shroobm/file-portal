@@ -106,6 +106,10 @@ def _chunks(text: str) -> list[str]:
 # 13 s spacing ≈ 4.6 RPM keeps a safety margin; 429s additionally retry with backoff.
 _GEMINI_MIN_INTERVAL_S = 13.0
 _gemini_last_call = 0.0
+# NUM-6: the newest backend call's token counters (ollama prompt_eval/eval_count, Gemini
+# usageMetadata) — read by process() right after each generate() so accepted-output tokens
+# can be told apart from rejected ones. Single-threaded by the analyst's own design.
+_last_call: dict = {}
 
 
 def _generate_gemini(prompt: str) -> str:
@@ -162,6 +166,13 @@ def _generate_gemini(prompt: str) -> str:
             raise RuntimeError(last_err)
         parts = reply["candidates"][0]["content"]["parts"]
         text = "".join(p.get("text", "") for p in parts).strip()
+        # NUM-6: Gemini's usage metadata, when present; absent stays None — never invented
+        usage = reply.get("usageMetadata") or {}
+        _last_call.clear()
+        _last_call.update({
+            "prompt_tokens": usage.get("promptTokenCount"),
+            "output_tokens": usage.get("candidatesTokenCount"),
+        })
         # Flash sometimes wraps output in a markdown code fence despite instructions.
         if text.startswith("```"):
             text = re.sub(r"^```[a-z]*\n|\n```$", "", text)
@@ -192,6 +203,13 @@ def _generate(prompt: str) -> str:
         raise RuntimeError(f"ollama: {msg or f'HTTP {e.code}'}") from None
     if reply.get("error"):
         raise RuntimeError(f"ollama: {reply['error']}")
+    # NUM-6 (signed 2026-08-31, census N026): the backend's own token counters stop being
+    # discarded — process() folds them into the run's meta and the goodput rate.
+    _last_call.clear()
+    _last_call.update({
+        "prompt_tokens": reply.get("prompt_eval_count"),
+        "output_tokens": reply.get("eval_count"),
+    })
     return reply["response"].strip()
 
 
@@ -300,6 +318,9 @@ def process(markdown: str, backend: str = "local",
     done = _load_journal(journal_path, chunks)
     resumed = len(done)
     generated = 0  # chunks this run actually paid the GPU for — the honest rate denominator
+    # NUM-6: backend token accounting (None-safe — a backend that reports no counters
+    # yields honest None in the meta, never invented zeros)
+    tokens_prompt = tokens_output = tokens_accepted = counted_calls = 0
     if resumed:
         print(f"ANALYST resuming: {resumed}/{len(chunks)} chunks already done "
               f"(journal {journal_path.name})", flush=True)
@@ -350,10 +371,19 @@ def process(markdown: str, backend: str = "local",
                 # of a completed call (passed / rejected) are worth remembering.
                 _progress(i)
                 continue
+            call_out = _last_call.get("output_tokens")
+            call_prompt = _last_call.get("prompt_tokens")
+            if call_out is not None:
+                tokens_output += call_out
+            if call_prompt is not None:
+                tokens_prompt += call_prompt
+            counted_calls += call_out is not None
             if _tokens_of(candidate) == _tokens_of(chunk):
                 out.append(candidate)
                 passed += 1
                 status, text = "passed", candidate
+                if call_out is not None:
+                    tokens_accepted += call_out  # NUM-6: only ACCEPTED output earns goodput
             else:
                 out.append(chunk)  # fence violated -> ship the un-analyzed original
                 rejected += 1
@@ -379,6 +409,8 @@ def process(markdown: str, backend: str = "local",
         # Gemini holds nothing on this machine.
         if backend == "local":
             unload()
+    raw_duration = time.perf_counter() - t0  # unrounded for the rate — a 0.0 display-round
+    duration = round(raw_duration, 1)        # must not erase a real (fast) run's goodput
     meta = {
         "model": GEMINI_MODEL if backend == "gemini" else MODEL,
         "backend": backend,
@@ -387,7 +419,18 @@ def process(markdown: str, backend: str = "local",
         "chunks_rejected": rejected,  # fence violations only
         "chunks_failed": failed,  # backend/API errors after retries
         "chunks_resumed": resumed,  # carried from an earlier run's journal
-        "duration_s": round(time.perf_counter() - t0, 1),
+        "chunks_generated": generated,  # NUM-6 (census N006): paid backend calls, now named
+        "duration_s": duration,
+        # NUM-6 (census N026/N286): the backend's own token counters, aggregated instead of
+        # discarded, and the docs/34-required rate with its conditions IN the record. None =
+        # the backend reported no counters (honest absence, never zero).
+        "tokens_prompt_total": tokens_prompt if counted_calls else None,
+        "tokens_output_total": tokens_output if counted_calls else None,
+        "tokens_accepted_output": tokens_accepted if counted_calls else None,
+        "goodput_accepted_tok_s": (round(tokens_accepted / raw_duration, 2)
+                                   if counted_calls and raw_duration > 0 else None),
+        "goodput_conditions": ("accepted-output tokens / whole-phase wall seconds "
+                               "(includes resumed-chunk skips and API pacing)"),
     }
     # The book is assembled and about to be written — the journal has done its job.
     shutil.rmtree(work_dir, ignore_errors=True)
