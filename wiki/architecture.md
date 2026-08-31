@@ -1,9 +1,9 @@
 ---
 title: Architecture
 section: System
-last-verified: 2026-08-23
-verified-against: "1790554"
-sources: [docs/01-architecture.md, docs/13-control-room-design.md, docs/36-repository-briefing.md, windows-converter/convert_and_ship.py, windows-converter/events.py, windows-converter/watch_and_convert.py, linux-converter/converter/bundle.py, linux-converter/converter/exporter.py, linux-receiver/allocator/main.py, windows-widget/src-tauri/src/main.rs, windows-widget/src-tauri/src/vault.rs, windows-widget/src-tauri/src/events.rs, .github/workflows/ci.yml, OPEN-TASKS.md, SYMPTOM-INDEX.md]
+last-verified: 2026-08-31
+verified-against: "74f0d208bb0b980e3a27a8eba508195e417a310f"
+sources: [docs/01-architecture.md, docs/13-control-room-design.md, docs/36-repository-briefing.md, windows-converter/convert_and_ship.py, windows-converter/events.py, windows-converter/watch_and_convert.py, linux-converter/converter/bundle.py, linux-converter/converter/exporter.py, linux-receiver/allocator/main.py, windows-widget/src-tauri/src/main.rs, windows-widget/src-tauri/src/vault.rs, windows-widget/src-tauri/src/events.rs, observability/schema_registry.py, observability/schemas.json, .github/workflows/ci.yml, OPEN-TASKS.md, SYMPTOM-INDEX.md]
 ---
 
 # Architecture
@@ -13,10 +13,11 @@ filesystem. The lanes (a Rust/JS desktop widget, a Python GPU converter, two Pyt
 services on the ThinkPad) couple almost exclusively through files under one hardcoded root,
 `C:\Users\Bndit\ml\library`, which appears 28 times across 11 tracked source files — all
 Python. Three filesystem contracts carry the load: the `events.jsonl` stream (widest reach,
-zero enforcement), the bundle/manifest format (implemented twice, zero parity tests), and
-`.part-`-then-rename atomic publish (6 modules, the only contract with tests). The one hard
-code chokepoint is `main.rs`, which holds all 42 IPC commands in 696 untested lines. CI
-protects the lanes that stopped changing and none of the ones that didn't.**
+generated key/variant parity enforced in CI but best-effort at runtime), the bundle/manifest
+format (implemented twice, zero parity tests), and `.part-`-then-rename atomic publish (6
+modules, with runtime tests). The one hard code chokepoint is `main.rs`. CI now statically
+checks the signed filesystem schemas as well as building the Rust widget; it still does not run
+the Windows converter or Marker.**
 
 Era context: docs/01 covers only "the first era — file routing" (docs/01-architecture.md:3);
 the library pipeline grew later. docs/36 §2–§5 is the maintained architecture/flow/contract
@@ -73,18 +74,15 @@ output back through files.
 
 ## 3. The three load-bearing contracts
 
-**events.jsonl — widest reach, zero enforcement.** Writer: windows-converter/events.py, 44
-lines, the "control room's event stream (docs/13 keystone)" (events.py:1-3); it swallows every
-failure by design (events.py:43 `except Exception:`). The literal `events.jsonl` appears in
-19 tracked non-markdown files spanning Python, Rust, JS, HTML, shell and JSON (`git ls-files |
-xargs grep -l -F 'events.jsonl' | grep -v '\.md$'`; 42 including markdown). Python emit sites
-use **36 distinct** `emit("stage", "event")` literal pairs (`git ls-files '*.py' | xargs
-grep -ohE 'emit\("[a-z_]+", ?"[a-z_]+"' | sort -u | wc -l`). No schema, registry, or
-validator exists for them — a grep for `event.*schema` across all tracked files matches only
-prose in docs/40 and Tauri's generated `gen/schemas/acl-manifests.json`, both unrelated (the
-latter doubles as the probe's positive control). The reader skips unparseable lines (events.rs:25 `continue`),
-so schema drift is silent by construction, and a stage that stops emitting is
-indistinguishable from a stage that stopped running.
+**events.jsonl — widest reach, static parity enforced.** Writer: windows-converter/events.py,
+the "control room's event stream (docs/13 keystone)" (events.py:1-3); it swallows every runtime
+failure by design. At `74f0d20`, `observability/schemas.json` contains **40** source-extracted
+`stage/event` variants. `observability/schema_registry.py --check` resolves required/optional
+keys per variant, checks Rust/JS consumer keys against the producing variant, and byte-compares
+the deterministic registry; its hermetic selftest plants writer, consumer, alias, nested-path,
+and unresolved-dynamic failures. CI runs that selftest as a hard gate. This is deliberately
+static: event telemetry still cannot stop a conversion, and the reader still skips malformed
+lines, so event absence and runtime write failure remain operational observability problems.
 
 **The bundle/manifest format — implemented twice, zero parity tests.** Canonical definition:
 "A bundle is a folder — `<name>/<name>.md` + `assets/` + `manifest.json` — never a bare file"
@@ -139,12 +137,12 @@ linux-converter/converter/main.py (349 LOC) is the ThinkPad's own CPU convert la
 exporter's host process — the bundle contract is live on both sides of the mirror in §3. The
 only upstream edge is the widget's read-only vault check/pull.
 
-CI inverts liveness: `.github/workflows/ci.yml` builds exactly four working-directories —
-linux-converter, linux-dashboard, linux-receiver, windows-widget/src-tauri (`grep
-'working-directory:' ci.yml | sort -u`) — and runs pytest only for linux-receiver and
-linux-converter. `grep -c 'windows-converter' .github/workflows/ci.yml` = **0**: the
-second-most-active lane (55 commits, touched 2026-08-21) and its 5,641 LOC run under no CI
-at all, and no JS is tested anywhere in CI.
+CI still does not execute the Windows converter or Marker, and no JS runtime suite runs there.
+It does, however, parse the current Windows converter and widget consumers through the A4
+schema-registry selftest. That hard gate covers `events.jsonl`, `coverage_rescore --json`, slice
+`.done`, both progress files, and `conversion-ledger.jsonl`; it proves key/path parity without
+importing converter dependencies or opening live pipeline files. Runtime behavior remains a
+separate local/operator gate.
 
 ## Open items
 
