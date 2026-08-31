@@ -75,10 +75,88 @@ LEDGER_VERBATIM_MAX = 20000  # chars of changed text stored verbatim before trun
 TTR_LOOP_MAX = 0.10        # type-token ratio below this = a loop, not language
 MIN_CYCLE_REPEATS = 8      # fewer repeats is emphasis or a refrain, not a stuck decoder
 MAX_CYCLE_PERIOD = 12      # tokens; the longest cycle we are willing to call a loop
+LEGACY_RUN_CAP = 25        # pre-NUM-3 manifests omitted totals but used these source caps
+LEGACY_ZONE_CAP = 10
+BENCH_RUN_DISPLAY_CAP = 40
+TOTAL_UNREAD_REMEDY = "re-convert to measure totals"
+FULL_EVIDENCE_REMEDY = "full-evidence review required"
+_MISSING = object()
 
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
+
+
+def _strict_count(value) -> int | None:
+    """A manifest count is an integer claim, never a coercion target (True and "25" lie)."""
+    return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
+
+
+def evidence_count(shown: int, raw_total=_MISSING, raw_cap=_MISSING, *, legacy_cap: int,
+                   display_cap: int | None = None) -> dict:
+    """Describe whether a displayed audit list is the complete review population.
+
+    Legacy manifests are exact only below the historical producer cap. At the cap, absence
+    of a total means UNREAD; a malformed or contradictory declaration also fails closed.
+    The optional display cap accounts for a consumer that shows fewer entries than the
+    producer retained. This record is the one count vocabulary used by state, coverage,
+    preview, report, and the glass.
+    """
+    shown = int(shown)
+    declared_cap = legacy_cap if raw_cap is _MISSING else _strict_count(raw_cap)
+    if declared_cap is None or declared_cap <= 0:
+        return {
+            "shown": shown, "total": None, "capped_at": None,
+            "completeness": "malformed", "complete": False, "unseen": None,
+            "label": f"{shown} of at least {shown} — total UNREAD",
+            "remedy": TOTAL_UNREAD_REMEDY,
+            "reason": "audit list cap is malformed",
+        }
+    effective_cap = min(declared_cap, display_cap) if display_cap else declared_cap
+    if shown > effective_cap:
+        return {
+            "shown": shown, "total": None, "capped_at": declared_cap,
+            "completeness": "malformed", "complete": False, "unseen": None,
+            "label": f"{shown} of at least {shown} — total UNREAD",
+            "remedy": TOTAL_UNREAD_REMEDY,
+            "reason": f"shown count exceeds its cap of {effective_cap}",
+        }
+
+    if raw_total is _MISSING:
+        if shown < effective_cap:
+            return {
+                "shown": shown, "total": shown, "capped_at": declared_cap,
+                "completeness": "complete", "complete": True, "unseen": 0,
+                "label": str(shown), "remedy": "",
+                "reason": "legacy list ended below its cap",
+            }
+        return {
+            "shown": shown, "total": None, "capped_at": declared_cap,
+            "completeness": "unread", "complete": False, "unseen": None,
+            "label": f"{shown} of at least {shown} — total UNREAD",
+            "remedy": TOTAL_UNREAD_REMEDY,
+            "reason": "legacy list reached its cap without a total",
+        }
+
+    total = _strict_count(raw_total)
+    if total is None or total < shown:
+        return {
+            "shown": shown, "total": None, "capped_at": declared_cap,
+            "completeness": "malformed", "complete": False, "unseen": None,
+            "label": f"{shown} of at least {shown} — total UNREAD",
+            "remedy": TOTAL_UNREAD_REMEDY,
+            "reason": "audit total is malformed or smaller than the shown list",
+        }
+    unseen = total - shown
+    return {
+        "shown": shown, "total": total, "capped_at": declared_cap,
+        "completeness": "complete" if unseen == 0 else "partial",
+        "complete": unseen == 0, "unseen": unseen,
+        "label": f"{shown} of {total}",
+        "remedy": "" if unseen == 0 else FULL_EVIDENCE_REMEDY,
+        "reason": "declared total matches the shown list" if unseen == 0
+                  else f"{unseen} located defect(s) are not shown",
+    }
 
 
 def type_token_ratio(text: str) -> float:
@@ -233,6 +311,26 @@ class Bench:
 
     def runs(self) -> list[dict]:
         return list(self.manifest.get("fidelity", {}).get("convert", {}).get("runs") or [])
+
+    def evidence_counts(self, *, runs_shown: int | None = None,
+                        zones_shown: int | None = None) -> dict:
+        """Completeness of the two convert-time evidence lists shown by this Bench."""
+        conv = self.manifest.get("fidelity", {}).get("convert", {})
+        if not isinstance(conv, dict):
+            conv = {}
+        detail = conv.get("tripwires", {}).get("degeneration_detail", {})
+        if not isinstance(detail, dict):
+            detail = {}
+        return {
+            "runs": evidence_count(
+                len(self.runs()) if runs_shown is None else runs_shown,
+                conv.get("runs_total", _MISSING), conv.get("runs_capped_at", _MISSING),
+                legacy_cap=LEGACY_RUN_CAP, display_cap=BENCH_RUN_DISPLAY_CAP),
+            "zones": evidence_count(
+                len(self.zones()) if zones_shown is None else zones_shown,
+                detail.get("blocks_total", _MISSING),
+                detail.get("worst_capped_at", _MISSING), legacy_cap=LEGACY_ZONE_CAP),
+        }
 
     # ── THE SIGNATURE BANK (S78 §8.5, signed by Rab 2026-08-14; built S79) ────────────────
     #
@@ -401,6 +499,7 @@ class Bench:
                           "collapsed": any(r.get("zone_line") == z["line"]
                                            and r.get("mode") == "collapse"
                                            for r in self.manifest.get("repairs", []))})
+        counts = self.evidence_counts(runs_shown=len(runs), zones_shown=len(zones))
         return {
             "bundle": self.dir.name,
             "dir": str(self.dir),
@@ -411,11 +510,14 @@ class Bench:
             "md_lines": md_lines,
             "verdict": self.manifest.get("fidelity", {}).get("verdict"),
             "zones": zones,
+            "zones_total": counts["zones"]["total"],
             # S76 (SYM-026): omission runs are damage too — the audit located 18 on the Beer
             # while the chip row showed 2. Each gets an anchor_line where one can be found, so
             # a crop has somewhere to land; `repaired` uses the same zone_line key the repair
             # records already carry.
             "runs": runs,
+            "runs_total": counts["runs"]["total"],
+            "evidence_counts": counts,
             "repairs": self.manifest.get("repairs", []),
             "pdf_available": self.pdf is not None,
             "pdf": str(self.pdf) if self.pdf else None,
@@ -1292,7 +1394,9 @@ class Bench:
 
     def coverage(self) -> dict:
         """docs/28 §4 question 2: has a human addressed every located defect? Provenance, not
-        measurement — reported BESIDE the metrics and never blended into them."""
+        measurement — reported BESIDE the metrics and never blended into them. `sites` and
+        its tallies are explicitly the SHOWN subset; completeness says whether that subset
+        equals the review population."""
         st = self.state()
         tally: dict[str, int] = {o: 0 for o in OUTCOMES}
         sites = []
@@ -1304,10 +1408,29 @@ class Bench:
             tally[r["outcome"]] = tally.get(r["outcome"], 0) + 1
             sites.append({"kind": "omission", "key": self.run_key(r), "page": r.get("page"),
                           "outcome": r["outcome"], "reason": r.get("outcome_reason", "")})
-        total = len(sites)
-        return {"sites": sites, "total": total, "tally": tally,
-                "open": tally.get("open", 0),
-                "addressed": total - tally.get("open", 0)}
+        counts = st["evidence_counts"]
+        states = [counts["zones"]["completeness"], counts["runs"]["completeness"]]
+        if "malformed" in states:
+            completeness = "malformed"
+        elif "unread" in states:
+            completeness = "unread"
+        elif "partial" in states:
+            completeness = "partial"
+        else:
+            completeness = "complete"
+        shown = len(sites)
+        totals = [counts["zones"]["total"], counts["runs"]["total"]]
+        total = sum(totals) if all(isinstance(n, int) for n in totals) else None
+        unseen = total - shown if total is not None else None
+        open_shown = tally.get("open", 0)
+        remedies = list(dict.fromkeys(
+            count["remedy"] for count in counts.values() if count.get("remedy")))
+        label = (f"{shown} of {total}" if total is not None
+                 else f"{shown} of at least {shown} — total UNREAD")
+        return {"sites": sites, "shown": shown, "total": total, "unseen": unseen,
+                "label": label, "completeness": completeness, "counts": counts,
+                "tally": tally, "open_shown": open_shown,
+                "addressed_shown": shown - open_shown, "remedies": remedies}
 
     def _resolve_run_line(self, run: dict) -> int | None:
         """S76 (SYM-026): an omission run is PAGE-anchored — the audit knows what the witness
@@ -1699,15 +1822,40 @@ class Bench:
         #     clears when a loop goes; an omission does NOT clear because an image was placed
         #     — cropping page 114 restores content to a READER and nothing to a comparison.
         #  2. has a human addressed every located defect?  Provenance, reported beside it.
-        open_sites = cov["open"]
-        eligible = (not det.get("flagged")) and open_sites == 0
+        open_sites = cov["open_shown"]
+        complete = cov["completeness"] == "complete" and cov["unseen"] == 0
+        eligible = (not det.get("flagged")) and open_sites == 0 and complete
+        blockers = []
         if det.get("flagged"):
-            why = "degeneration is still present in the text"
-        elif open_sites:
-            why = f"{open_sites} located defect(s) still open"
+            blockers.append("degeneration is still present in the text")
+        if open_sites:
+            blockers.append(f"{open_sites} shown located defect(s) still open")
+        partial_unseen = sum(
+            count["unseen"] for count in cov["counts"].values()
+            if count["completeness"] == "partial" and count["unseen"] is not None)
+        if partial_unseen:
+            blockers.append(f"{partial_unseen} located defect(s) not shown — "
+                            f"{FULL_EVIDENCE_REMEDY}")
+        unread_counts = {
+            kind: count for kind, count in cov["counts"].items()
+            if count["completeness"] in ("unread", "malformed")}
+        if unread_counts:
+            kinds = "; ".join(
+                f"{kind}: {count['label']}"
+                for kind, count in unread_counts.items())
+            remedy = " · ".join(dict.fromkeys(
+                count["remedy"] for count in unread_counts.values() if count["remedy"]))
+            remedy = remedy or TOTAL_UNREAD_REMEDY
+            blockers.append(f"evidence completeness {cov['completeness']} ({kinds}) — {remedy}")
+        if blockers:
+            why = "; ".join(blockers)
         else:
             why = ("nothing left open — but image-restored and dismissed-noise are HUMAN "
                    "assertions, so this is a recommendation for the bless rail, not a pass")
+        current_zones = (det.get("worst") or [])[:6]
+        current_count = evidence_count(
+            len(current_zones), det.get("blocks_total", _MISSING),
+            det.get("worst_capped_at", _MISSING), legacy_cap=LEGACY_ZONE_CAP, display_cap=6)
         return {
             "preview": True,
             "note": ("PREVIEW ONLY — the shipping audit re-runs in the pipeline, and whether a "
@@ -1717,9 +1865,12 @@ class Bench:
             # --- 1. measurement: recomputed from the current body, meaning unchanged --------
             "degeneration_now": {
                 "flagged": det.get("flagged"),
-                "zones": (det.get("worst") or [])[:6],
+                "zones": current_zones,
+                "zones_total": current_count["total"],
+                "count": current_count,
             },
-            "original_zones": len(orig),
+            "original_zones_shown": len(orig),
+            "original_zones_total": cov["counts"]["zones"]["total"],
             "zones_with_repairs": sum(1 for z in orig if z["line"] in repaired_lines),
             "repairs": len(self.manifest.get("repairs", [])),
             # --- 2. provenance: what a human has actually done about it --------------------
@@ -1773,7 +1924,10 @@ class Bench:
             lines.append(f"| {s['kind']} | {where} | `{s['outcome']}` | {s['reason'] or '—'} |")
         lines += [
             "",
-            f"**{cov['addressed']} of {cov['total']} addressed · {cov['open']} still open.**",
+            f"**{cov['addressed_shown']} of {cov['shown']} shown addressed · "
+            f"{cov['open_shown']} shown still open.**",
+            f"- evidence visible: **{cov['label']}** ({cov['completeness']})",
+            *(f"- remedy: {remedy}" for remedy in cov["remedies"]),
             "",
             "## What this report does and does not claim",
             "",

@@ -3,11 +3,19 @@
 // recovery states.  Keep the literal stage/event keys here: convert_and_ship_selftest T7 reads
 // this shared source as the parity tripwire.
 
-// NUM-3 (signed 2026-08-31): the one way a capped count may reach any glass — beside its
-// true total. "25" can never again masquerade as the count (SYM-066); a legacy record with
-// no total renders the bare shown count unchanged.
-export function countOfTotal(shown, total) {
-  return (total != null && Number(total) > Number(shown)) ? `${shown} of ${total}` : `${shown}`;
+// NUM-3 + M6-R1 (signed 2026-08-31): the one way a capped count may reach any glass.
+// Known totals use N of M even when the list is complete. A legacy list is exact only below
+// its producer cap; at/over the cap (or with a malformed total) it names both UNREAD and the
+// operator's remedy instead of letting the shown count masquerade as the population.
+export function countOfTotal(shown, total, cap = null) {
+  const shownOk = typeof shown === "number" && Number.isInteger(shown) && shown >= 0;
+  const totalOk = shownOk && typeof total === "number" && Number.isInteger(total) && total >= shown;
+  const capOk = typeof cap === "number" && Number.isInteger(cap) && cap > 0;
+  if (shownOk && totalOk) return `${shown} of ${total}`;
+  if ((total != null && !totalOk) || (cap != null && !capOk) || (capOk && shown >= cap)) {
+    return `${shown} of at least ${shown} — total UNREAD · re-convert to measure totals`;
+  }
+  return `${shown}`;
 }
 
 export function eventPhrase(e, { compact = false, unknown = null } = {}) {

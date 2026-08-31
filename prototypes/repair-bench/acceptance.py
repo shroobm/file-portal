@@ -125,7 +125,7 @@ def main() -> int:
                             | {r["zone_line"] for r in base_reps
                                if r.get("zone_line") in zone_lines})
     check("preview counts repairs against the original zones",
-          rs["original_zones"] == 4
+          rs["original_zones_shown"] == 4
           and rs["zones_with_repairs"] == expected_repaired
           and rs["repairs"] == len(base_reps) + 3)
     check("degeneration re-ran on the CURRENT text",
@@ -191,9 +191,13 @@ def main() -> int:
         check("empty transcription refused as a discard", False)
     except ValueError:
         check("empty transcription refused as a discard", True)
-    real_docling_py = B.DOCLING_PY
+    real_docling_py, real_gpu_lock = B.DOCLING_PY, B.GPU_LOCK
     try:
         B.DOCLING_PY = Path(r"C:\nonexistent\python.exe")
+        # Isolate this branch from a real conversion. When .gpu-lock exists, production
+        # correctly refuses at the earlier serialization gate and this setup-message probe
+        # never reaches the condition it claims to test.
+        B.GPU_LOCK = Path(r"C:\nonexistent\file-portal-gpu.lock")
         try:
             bench.transcribe(zone_line=z_first, page=3, rect=[.1, .1, .9, .5])
             check("missing docling-env refused with the setup message", False)
@@ -201,7 +205,7 @@ def main() -> int:
             check("missing docling-env refused with the setup message",
                   "docling-env not found" in str(exc))
     finally:
-        B.DOCLING_PY = real_docling_py
+        B.DOCLING_PY, B.GPU_LOCK = real_docling_py, real_gpu_lock
 
     # ---- 8c. the COLLAPSE gesture (S76, docs/27 — signed) ------------------------------------
     # A synthetic loop is appended to the SANDBOX body + a matching zone to the sandbox
@@ -368,10 +372,10 @@ def main() -> int:
           zz["outcome"] == "dismissed-noise" and "garbage" in zz["outcome_reason"])
 
     cov = bench.coverage()
-    check("coverage counts every located site once",
-          cov["total"] == len(bench.state()["zones"]) + len(bench.state()["runs"]))
-    check("coverage separates addressed from open",
-          cov["addressed"] + cov["open"] == cov["total"])
+    check("coverage counts every shown located site once",
+          cov["shown"] == len(bench.state()["zones"]) + len(bench.state()["runs"]))
+    check("coverage separates shown addressed from shown open",
+          cov["addressed_shown"] + cov["open_shown"] == cov["shown"])
 
     rs2 = bench.rescore_preview()
     check("the rescore reports measurement and coverage side by side, unblended",
@@ -380,7 +384,8 @@ def main() -> int:
           "bless" in rs2["vault_recommendation"]["route"]
           and isinstance(rs2["vault_recommendation"]["eligible"], bool))
     check("open sites block the recommendation",
-          rs2["vault_recommendation"]["eligible"] is False if cov["open"] else True)
+          rs2["vault_recommendation"]["eligible"] is False
+          if cov["open_shown"] or cov["completeness"] != "complete" else True)
 
     rep = bench.repairs_report(write=True)
     check("REPAIRS.md is written beside the bundle",

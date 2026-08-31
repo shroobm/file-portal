@@ -431,11 +431,11 @@ function assayPanel(d) {
       const w = clamp(((z.chars || 0) / (mdLines * 45)) * 100, 2, 8);
       return `<span class="z degen" style="left:${left.toFixed(1)}%;width:${w.toFixed(1)}%"></span>`;
     }).join("");
-    map = `<div class="ac-caption"><b>degeneration</b> — ${countOfTotal(zones.length, a.zones_total)} loop zone(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
+    map = `<div class="ac-caption"><b>degeneration</b> — ${countOfTotal(zones.length, a.zones_total, 10)} loop zone(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
   } else if (runs.length && a.pages_scored) {
     const bands = runs.slice(0, 40).map((r) =>
       `<span class="z run" style="left:${clamp((r.page || 0) / a.pages_scored * 100, 0, 98).toFixed(1)}%;width:1.5%"></span>`).join("");
-    map = `<div class="ac-caption">${countOfTotal(runs.length, a.runs_total)} omission run(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
+    map = `<div class="ac-caption">${countOfTotal(runs.length, a.runs_total, 25)} omission run(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
   }
   let list = "";
   if (a.degeneration && zones.length) {
@@ -526,7 +526,7 @@ function numerationsPanel(d) {
     ["N062", "retry GPU spend", v(conv.retry_wall_s, "s")],
     ["N063", "slices resumed", v(conv.resumed_slices)],
     ["N064", "book true cost", v(conv.cost_s, "s")],
-    ["N316", "omission runs", sc.runs != null ? countOfTotal(sc.runs, sc.runs_total) : "—"],
+    ["N316", "omission runs", sc.runs != null ? countOfTotal(sc.runs, sc.runs_total, 25) : "—"],
     ["N286", "analyst goodput", v(an.goodput_accepted_tok_s, " tok/s")],
     ["N006", "chunks generated", v(an.chunks_generated)],
     ["N055", "promise scope", est.pages_this_run != null ? `${est.pages_this_run}pp this run` : "—"],

@@ -682,9 +682,10 @@ async function load() {
   $("bname").title = st.dir;
   $("bverdict").hidden = !st.verdict; $("bverdict").textContent = "audit: " + st.verdict;
   const rep = st.zones.filter((z) => z.repaired).length;
+  const zcount = st.evidence_counts?.zones || { shown: st.zones.length, label: String(st.zones.length), completeness: "unread" };
   $("bzones").hidden = st.pdf_only || !st.zones.length;
-  $("bzones").textContent = `zones ${rep}/${st.zones.length} repaired`;
-  $("bzones").className = "chip" + (rep === st.zones.length && st.zones.length ? " okc" : "");
+  $("bzones").textContent = `zones ${rep}/${zcount.shown} shown repaired · ${zcount.label} located`;
+  $("bzones").className = "chip" + (zcount.completeness === "complete" && rep === zcount.shown && zcount.shown ? " okc" : "");
   $("breader").hidden = !st.pdf_only;
   $("bsandbox").hidden = !st.sandbox;
   $("ptotal").textContent = `/ ${st.pages}`;
@@ -810,11 +811,14 @@ function renderZones() {
   });
   const done = st.zones.filter((z) => z.repaired).length;
   const rdone = runs.filter((r) => r.repaired).length;
+  const counts = st.evidence_counts || {};
+  const zcount = counts.zones || { shown: st.zones.length, label: String(st.zones.length) };
+  const rcount = counts.runs || { shown: runs.length, label: String(runs.length) };
   const facts = document.createElement("span");
   facts.id = "zonefacts";
   facts.textContent = st.zones.length || runs.length
-    ? `${st.zones.length} wreck site(s) · ${done} repaired`
-      + (runs.length ? ` · ${runs.length} omission(s) · ${rdone} repaired` : "")
+    ? `${zcount.label} wreck site(s) · ${done}/${zcount.shown} shown repaired`
+      + (runs.length ? ` · ${rcount.label} omission(s) · ${rdone}/${rcount.shown} shown repaired` : "")
     : "";
   chips.appendChild(facts);
 }
@@ -1809,14 +1813,16 @@ $("rescore").onclick = async () => {
     // S77 (docs/29 §7.1): this handler used to fetch the vault recommendation and THROW IT
     // AWAY — the button that asks "is this book fit for the vault" discarded the answer.
     // Measurement and coverage stay side by side and unblended, per docs/28 §4.
-    const c = r.coverage || { addressed: 0, total: 0, open: 0, tally: {} };
+    const c = r.coverage || { addressed_shown: 0, shown: 0, open_shown: 0,
+                              label: "0 of at least 0 — total UNREAD", tally: {} };
     const v = r.vault_recommendation || {};
     const kinds = Object.entries(c.tally || {})
       .filter(([k, n]) => n && k !== "open").map(([k, n]) => `${n} ${k}`).join(" · ");
     status(`◎ preview — MEASURED: degeneration ${dn.flagged ? "STILL FLAGGED" : "clean"}` +
-           ` · ${dn.zones.length} zone(s) in the current text.` +
-           `  COVERED: ${c.addressed}/${c.total} site(s) addressed${kinds ? ` (${kinds})` : ""}` +
-           `${c.open ? ` · ${c.open} OPEN` : ""}.` +
+           ` · ${dn.count?.label || dn.zones.length} zone(s) in the current text.` +
+           `  COVERED: ${c.addressed_shown}/${c.shown} shown site(s) addressed` +
+           ` · ${c.label} located${kinds ? ` (${kinds})` : ""}` +
+           `${c.open_shown ? ` · ${c.open_shown} SHOWN OPEN` : ""}.` +
            `  VAULT: ${v.eligible ? "eligible" : "not yet"} — ${v.why || "no recommendation"}`, true);
   } catch (e) { status(`◎ ${e.message}`); }
   $("rescore").disabled = false;
@@ -1824,13 +1830,17 @@ $("rescore").onclick = async () => {
 
 /* ---- ⓘ info: everything about this patient, straight from /api/state ---- */
 $("info-btn").onclick = () => {
+  const zcount = st.evidence_counts?.zones || { label: String(st.zones.length), completeness: "unread" };
+  const rcount = st.evidence_counts?.runs || { label: String((st.runs || []).length), completeness: "unread" };
   const rows = [
     ["opened from", st.dir], ["markdown", st.md_name || "— (bare PDF)"],
     ["source", st.source || "—"], ["source sha16", st.source_sha16 || "—"],
     ["PDF", st.pdf || "not found"], ["pages", st.pages], ["lane", st.lane || "—"],
     ["audit verdict", st.verdict || "—"], ["survival", st.doc_survival ?? "—"],
     ["audit kind", st.audit_kind || "—"], ["converted at", st.converted_at || "—"],
-    ["zones", st.zones.length], ["repairs", (st.repairs || []).length],
+    ["zones", `${zcount.label} · ${zcount.completeness}`],
+    ["omission runs", `${rcount.label} · ${rcount.completeness}`],
+    ["repairs", (st.repairs || []).length],
     ["AI undo depth", st.undo_depth], ["manifest", st.manifest_present ? "present" : "absent"],
     ["mode", st.pdf_only ? "READING (no writes possible)" : st.sandbox ? "SANDBOX copy" : "live bundle"],
   ];

@@ -41,7 +41,9 @@ import sys
 import tempfile
 import threading
 import time
+import types
 import unittest
+from unittest import mock
 from http.server import ThreadingHTTPServer
 from pathlib import Path
 
@@ -60,6 +62,10 @@ import room_chat  # noqa: E402
 BENCH_HTML = (HERE / "bench.html").read_text(encoding="utf-8")
 BENCH_PY = (HERE / "bench.py").read_text(encoding="utf-8")
 ROOM_PY = (REPO / "windows-converter" / "room_chat.py").read_text(encoding="utf-8")
+EVENT_VOCAB = (REPO / "windows-widget" / "src" / "event-vocab.js").read_text(
+    encoding="utf-8")
+WIDGET_MAIN = (REPO / "windows-widget" / "src" / "main.js").read_text(encoding="utf-8")
+WIDGET_ROOM = (REPO / "windows-widget" / "src" / "room.js").read_text(encoding="utf-8")
 
 
 # ---- source-slicing helpers -----------------------------------------------------------------
@@ -237,7 +243,8 @@ class TestClaimDenominators(unittest.TestCase):
     """Counted claims name numerator AND denominator (measurement-language law, docs/34)."""
 
     def test_zone_chip_claim_names_both(self):
-        line = next(ln for ln in BENCH_HTML.splitlines() if "repaired`" in ln and "zones" in ln)
+        line = next(ln for ln in BENCH_HTML.splitlines()
+                    if '$("bzones").textContent' in ln)
         self.assertTrue(claim_names_denominator(line),
                         f"the zones chip claim lost its denominator: {line.strip()!r}")
 
@@ -247,13 +254,172 @@ class TestClaimDenominators(unittest.TestCase):
                         f"the re-score coverage claim lost its denominator: {line.strip()!r}")
 
     def test_report_addressed_claim_names_both(self):
-        line = next(ln for ln in BENCH_PY.splitlines() if "addressed" in ln and "still open" in ln)
+        line = next(ln for ln in BENCH_PY.splitlines() if "shown addressed" in ln)
         self.assertTrue(claim_names_denominator(line),
                         f"the REPAIRS.md addressed claim lost its denominator: {line.strip()!r}")
 
     def test_negative_controls_fail_the_same_check(self):
         self.assertFalse(claim_names_denominator(BAD_CLAIM_JS))
         self.assertFalse(claim_names_denominator(BAD_CLAIM_PY))
+
+
+class TestM6Completeness(unittest.TestCase):
+    """M6-R1: capped evidence is never mistaken for the complete review population."""
+
+    @staticmethod
+    def _runs(count: int) -> list[dict]:
+        return [{"page": i + 1, "words": 20 + i,
+                 "excerpt": f"line {i + 1} alpha beta gamma delta"}
+                for i in range(count)]
+
+    @staticmethod
+    def _zones(count: int) -> list[dict]:
+        return [{"line": i + 1, "chars": 80 + i, "distinct_lines": 2,
+                 "excerpt": f"line {i + 1} alpha beta gamma delta"}
+                for i in range(count)]
+
+    def _bench(self, *, runs: int, zones: int, runs_total=..., zones_total=...,
+               runs_cap=..., zones_cap=...) -> bench.Bench:
+        holder = tempfile.TemporaryDirectory(prefix="fp-test-m6-")
+        self.addCleanup(holder.cleanup)
+        root = Path(holder.name)
+        (root / "book.md").write_text(
+            "---\ntitle: M6 fixture\n---\n" +
+            "\n".join(f"line {i} alpha beta gamma delta epsilon" for i in range(1, 120)),
+            encoding="utf-8")
+        conv = {
+            "kind": "digital",
+            "runs": self._runs(runs),
+            "tripwires": {
+                "degeneration": bool(zones),
+                "degeneration_detail": {
+                    "flagged": bool(zones),
+                    "md_lines": 119,
+                    "worst": self._zones(zones),
+                },
+            },
+        }
+        if runs_total is not ...:
+            conv["runs_total"] = runs_total
+        if runs_cap is not ...:
+            conv["runs_capped_at"] = runs_cap
+        detail = conv["tripwires"]["degeneration_detail"]
+        if zones_total is not ...:
+            detail["blocks_total"] = zones_total
+        if zones_cap is not ...:
+            detail["worst_capped_at"] = zones_cap
+        manifest = {"source": "m6.pdf", "pages": 119,
+                    "fidelity": {"verdict": "fail", "convert": conv}}
+        (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        return bench.Bench(root)
+
+    @staticmethod
+    def _address_every_shown_site(subject: bench.Bench) -> None:
+        st = subject.state()
+        subject.manifest["triage"] = {
+            site["key"]: {"outcome": "dismissed-noise", "reason": "M6 test disposition"}
+            for site in [*st["zones"], *st["runs"]]
+        }
+
+    @staticmethod
+    def _preview(subject: bench.Bench) -> dict:
+        # Keep this glass harness stdlib-only: M6 tests the recommendation join, while the
+        # fidelity module's own suite owns degeneration. The real marker-env pass runs later.
+        fake = types.SimpleNamespace(degeneration=lambda _body: {
+            "flagged": False, "worst": [], "blocks_total": 0, "worst_capped_at": 10})
+        with mock.patch.dict(sys.modules, {"fidelity_audit": fake}):
+            return subject.rescore_preview()
+
+    def test_future_capped_totals_block_false_bless_even_when_shown_sites_are_addressed(self):
+        subject = self._bench(runs=25, zones=10, runs_total=634, zones_total=37,
+                              runs_cap=25, zones_cap=10)
+        self._address_every_shown_site(subject)
+
+        st = subject.state()
+        self.assertEqual("25 of 634", st["evidence_counts"]["runs"]["label"])
+        self.assertEqual("10 of 37", st["evidence_counts"]["zones"]["label"])
+        cov = subject.coverage()
+        self.assertEqual((35, 671, 636), (cov["shown"], cov["total"], cov["unseen"]))
+        self.assertEqual((35, 0), (cov["addressed_shown"], cov["open_shown"]))
+        self.assertEqual("partial", cov["completeness"])
+        preview = self._preview(subject)
+        self.assertFalse(preview["vault_recommendation"]["eligible"])
+        self.assertIn("636 located defect(s) not shown",
+                      preview["vault_recommendation"]["why"])
+        self.assertIn("full-evidence review", preview["vault_recommendation"]["why"])
+
+    def test_legacy_at_cap_is_unread_and_names_reconversion_remedy(self):
+        subject = self._bench(runs=25, zones=10)
+        self._address_every_shown_site(subject)
+        counts = subject.state()["evidence_counts"]
+        for kind, shown in (("runs", 25), ("zones", 10)):
+            self.assertEqual("unread", counts[kind]["completeness"])
+            self.assertEqual(f"{shown} of at least {shown} — total UNREAD",
+                             counts[kind]["label"])
+            self.assertEqual("re-convert to measure totals", counts[kind]["remedy"])
+        preview = self._preview(subject)
+        self.assertFalse(preview["vault_recommendation"]["eligible"])
+        self.assertIn("re-convert to measure totals",
+                      preview["vault_recommendation"]["why"])
+
+    def test_legacy_under_cap_is_exact_not_needlessly_unread(self):
+        subject = self._bench(runs=7, zones=2)
+        counts = subject.state()["evidence_counts"]
+        self.assertEqual(("complete", 7, "7"),
+                         (counts["runs"]["completeness"],
+                          counts["runs"]["total"], counts["runs"]["label"]))
+        self.assertEqual(("complete", 2, "2"),
+                         (counts["zones"]["completeness"],
+                          counts["zones"]["total"], counts["zones"]["label"]))
+
+    def test_future_complete_totals_use_the_shared_n_of_m_grammar(self):
+        subject = self._bench(runs=7, zones=2, runs_total=7, zones_total=2,
+                              runs_cap=25, zones_cap=10)
+        counts = subject.state()["evidence_counts"]
+        self.assertEqual("7 of 7", counts["runs"]["label"])
+        self.assertEqual("2 of 2", counts["zones"]["label"])
+        helper = js_function_body(EVENT_VOCAB, "countOfTotal")
+        self.assertIn("`${shown} of ${total}`", helper)
+        self.assertIn("total UNREAD", helper)
+        self.assertIn("re-convert to measure totals", helper)
+        self.assertIn("countOfTotal(runs.length, st.runs_total, 25)", WIDGET_MAIN)
+        self.assertIn("countOfTotal(zones.length, a.zones_total, 10)", WIDGET_ROOM)
+
+    def test_malformed_or_contradictory_totals_are_unread_and_fail_closed(self):
+        for bad in (True, "634", -1, 6):
+            with self.subTest(total=bad):
+                subject = self._bench(runs=7, zones=0, runs_total=bad, zones_total=0,
+                                      runs_cap=25, zones_cap=10)
+                self._address_every_shown_site(subject)
+                count = subject.state()["evidence_counts"]["runs"]
+                self.assertEqual("malformed", count["completeness"])
+                self.assertIsNone(count["total"])
+                self.assertFalse(self._preview(subject)["vault_recommendation"]["eligible"])
+
+    def test_wire_projects_completeness_and_the_fail_closed_recommendation(self):
+        subject = self._bench(runs=25, zones=10, runs_total=634, zones_total=37,
+                              runs_cap=25, zones_cap=10)
+        self._address_every_shown_site(subject)
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), bench.make_handler(subject))
+        port = httpd.server_address[1]
+        thread = threading.Thread(target=httpd.serve_forever, daemon=True)
+        thread.start()
+        fake = types.SimpleNamespace(degeneration=lambda _body: {
+            "flagged": False, "worst": [], "blocks_total": 0, "worst_capped_at": 10})
+        try:
+            code, raw = _get(port, "/api/state")
+            state = json.loads(raw)
+            self.assertEqual(200, code)
+            self.assertEqual("25 of 634", state["evidence_counts"]["runs"]["label"])
+            with mock.patch.dict(sys.modules, {"fidelity_audit": fake}):
+                code, raw = _get(port, "/api/rescore")
+                preview = json.loads(raw)
+            self.assertEqual(200, code)
+            self.assertFalse(preview["vault_recommendation"]["eligible"])
+            self.assertEqual(636, preview["coverage"]["unseen"])
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
 
 
 # ---- the live wire: fail-closed 403, wrong-token 403, right-token admitted -------------------
