@@ -1136,13 +1136,41 @@ function renderCtx() {
 const box = $("pagebox"), cb = $("cropbox");
 let drag = null;
 function clearCrop() { crop = null; cb.style.display = "none"; $("cropbtn").disabled = true; $("cropbtn").textContent = "✂ drag a region first"; $("readbtn").disabled = true; $("readbtn").textContent = "⌨ drag a region first"; }
+// ---- OK-5 (signed 2026-08-31): the text layer — words as the one address type -------------
+// Per-page word rects from /api/textlayer, fetched lazily, LRU-evicted client-side too so a
+// long reading session never hoards a whole book. Alt+drag on the page selects the words
+// under the band and copies their text — the plain drag stays the crop, untouched.
+const textLayer = {
+  cache: new Map(), MAX: 12,
+  async get(page) {
+    if (this.cache.has(page)) {
+      const v = this.cache.get(page);
+      this.cache.delete(page); this.cache.set(page, v); // LRU refresh
+      return v;
+    }
+    const v = await fetch(`/api/textlayer?n=${page}`).then((r) => r.json()).catch(() => null);
+    if (v && !v.error) {
+      this.cache.set(page, v);
+      while (this.cache.size > this.MAX) this.cache.delete(this.cache.keys().next().value);
+    }
+    return v;
+  },
+  // rect and words share page-fraction coords; filter preserves pymupdf's reading order
+  wordsInRect(layer, rect) {
+    if (!layer?.words) return [];
+    const [rx0, ry0, rx1, ry1] = rect;
+    return layer.words.filter(([x0, y0, x1, y1]) => x1 > rx0 && x0 < rx1 && y1 > ry0 && y0 < ry1);
+  },
+};
+
 box.addEventListener("mousedown", (e) => {
   if (!st?.pdf_available) return;
   // reading mode blocks REPAIR drags, but a trim-select drag writes nothing — and trimming
-  // margins is exactly what a reading-mode user wants (review 2026-08-30)
-  if (st.pdf_only && !trimSelecting) return;
+  // margins is exactly what a reading-mode user wants (review 2026-08-30). An Alt+drag
+  // text-select writes nothing either, so it passes the same gate (OK-5).
+  if (st.pdf_only && !trimSelecting && !e.altKey) return;
   const r = $("pageimg").getBoundingClientRect();
-  drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, r };
+  drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, r, alt: e.altKey };
   e.preventDefault();
 });
 addEventListener("mousemove", (e) => {
@@ -1164,6 +1192,27 @@ addEventListener("mouseup", () => {
     status("⛶ trimmed to your region — applied to every page; ⛶ turns it off");
     drag = null; return;
   }
+  // OK-5: an Alt+drag is a TEXT SELECTION — the words under the band, copied in reading
+  // order. Never arms the crop; a miss (no words / no text layer) says so instead of
+  // silently doing nothing.
+  if (drag && drag.alt && crop) {
+    const rect = crop;
+    const pg = page; // captured — the user may flip pages while the layer fetch is in flight
+    clearCrop(); drag = null;
+    textLayer.get(pg).then((layer) => {
+      if (!layer || layer.error) { status("⚠ text layer unavailable"); return; }
+      if (!layer.searchable) { status("no text layer on this page (raw scan) — Alt+drag needs one"); return; }
+      const words = textLayer.wordsInRect(layer, rect);
+      if (!words.length) { status("no words under the selection"); return; }
+      const text = words.map((w) => w[4]).join(" ");
+      navigator.clipboard?.writeText(text).then(
+        () => status(`⧉ ${words.length} word${words.length === 1 ? "" : "s"} copied`),
+        () => status(`selected ${words.length} words (clipboard blocked — see console)`),
+      );
+      lastTextSelection = { page: pg, rect, words: words.length, text };
+    });
+    return;
+  }
   if (drag && crop && (crop[2]-crop[0]) > 0.02 && (crop[3]-crop[1]) > 0.02) {
     $("cropbtn").disabled = false;
     $("cropbtn").textContent = `✂ insert crop at zone ${zone != null ? zone + 1 : ""}`;
@@ -1173,6 +1222,7 @@ addEventListener("mouseup", () => {
   } else if (drag) clearCrop();
   drag = null;
 });
+let lastTextSelection = null; // OK-5: the newest Alt+drag, an anchor future features key on
 $("cropbtn").onclick = async () => {
   if (crop == null) return;
   try {

@@ -34,6 +34,7 @@ import shutil
 import sys
 import urllib.parse
 import uuid
+from collections import OrderedDict
 from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
@@ -194,6 +195,9 @@ class Bench:
         self._zone_loc: dict[int, dict] = {}
         # OK-7 (docs/49 §1 c7, signed 2026-08-30): per-page trim boxes, measured lazily.
         self._trim: dict[int, dict] = {}
+        # OK-5 (signed 2026-08-31): the raster pane's text layer — per-page word rects,
+        # lazy + LRU-bounded (a 1,377-pp book must never hold 1,377 pages of rects).
+        self._textlayer: OrderedDict[int, dict] = OrderedDict()
         # OK-1 review fix (2026-08-30): a bare PDF's view identity, hashed once on demand.
         self._pdf_view_sha: str | None = None
         # S64: the AI assist's undo stack (body snapshots, newest last) + line-drift ledger so
@@ -595,6 +599,53 @@ class Bench:
         for hit in page.search_for(q)[:60]:
             out.append([hit.x0 / r.width, hit.y0 / r.height,
                         hit.x1 / r.width, hit.y1 / r.height])
+        return out
+
+    TEXTLAYER_LRU = 16  # pages held at once; ~50-200 words each, so tens of KB, never GBs
+
+    @staticmethod
+    def normalize_words(raw_words: list, width: float, height: float) -> list[list]:
+        """OK-5, the pure half: pymupdf `get_text("words")` tuples → page-fraction word boxes
+        `[x0,y0,x1,y1,"text"]`, clamped to 0..1. Separated from the fitz call so the stdlib
+        harness can exercise the math (the OK-7 pattern). Degenerate page geometry returns
+        an empty layer rather than dividing by zero — no text layer is a measured fact here,
+        never an exception."""
+        if width <= 0 or height <= 0:
+            return []
+        out = []
+        for w in raw_words:
+            try:
+                x0, y0, x1, y1, text = w[0], w[1], w[2], w[3], str(w[4])
+            except (IndexError, TypeError):
+                continue  # a malformed tuple loses one word, never the layer
+            if not text.strip():
+                continue
+            out.append([
+                round(min(1.0, max(0.0, x0 / width)), 5),
+                round(min(1.0, max(0.0, y0 / height)), 5),
+                round(min(1.0, max(0.0, x1 / width)), 5),
+                round(min(1.0, max(0.0, y1 / height)), 5),
+                text,
+            ])
+        return out
+
+    def textlayer(self, n: int) -> dict:
+        """OK-5: every word on page n with its normalized rect — the one address type the
+        drag-select, precise highlights, and future zone anchors all share. words-mode now;
+        char rects deliberately deferred (rawdict is ~10× the payload and words carry
+        selection today; OCR boxes later ride the same shape, the DjVu sidecar pattern)."""
+        n = max(1, min(self.doc().page_count, n))
+        if n in self._textlayer:
+            self._textlayer.move_to_end(n)  # LRU refresh
+            return self._textlayer[n]
+        page = self.doc().load_page(n - 1)
+        r = page.rect
+        words = self.normalize_words(page.get_text("words"), r.width, r.height)
+        out = {"page": n, "words": words, "count": len(words),
+               "searchable": bool(words)}
+        self._textlayer[n] = out
+        while len(self._textlayer) > self.TEXTLAYER_LRU:
+            self._textlayer.popitem(last=False)  # evict oldest — lazy stays bounded
         return out
 
     def locate_zone(self, zi: int) -> dict:
@@ -1573,6 +1624,8 @@ def make_handler(bench: Bench, token=_NO_GATE):
                     self._json(bench.locate_zone(int(q.get("i", ["0"])[0])))
                 elif url.path == "/api/trimbox":   # OK-7 — read-only, computes + caches
                     self._json(bench.trimbox(int(q.get("n", ["1"])[0])))
+                elif url.path == "/api/textlayer":  # OK-5 — read-only, lazy + LRU-bounded
+                    self._json(bench.textlayer(int(q.get("n", ["1"])[0])))
                 elif url.path == "/api/library":
                     self._json(library_listing())
                 else:

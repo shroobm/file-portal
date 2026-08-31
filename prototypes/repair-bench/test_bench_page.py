@@ -419,6 +419,98 @@ class TestOK0RepairIdentity(unittest.TestCase):
                               f"the id predicate admitted {bad!r}")
 
 
+class TestOK5TextLayer(unittest.TestCase):
+    """OK-5: the text layer's pure math + its LRU discipline, stdlib-only (the OK-7 pattern —
+    the fitz call is one line; everything testable lives outside it)."""
+
+    def test_normalize_clamps_rounds_and_drops_junk(self):
+        words = bench.Bench.normalize_words(
+            [(10, 20, 110, 40, "alpha", 0, 0, 0),
+             (-5, -5, 700, 900, "overflow"),          # clamps to 0..1, never beyond
+             (10, 10, 20, 20, "   "),                  # whitespace word dropped
+             ("bad",),                                 # malformed tuple dropped, not fatal
+             (50, 50, 60, 60, "beta")],
+            width=500, height=800)
+        self.assertEqual([w[4] for w in words], ["alpha", "overflow", "beta"])
+        self.assertEqual(words[0][:4], [0.02, 0.025, 0.22, 0.05])
+        self.assertEqual(words[1][:4], [0.0, 0.0, 1.0, 1.0])
+        for w in words:
+            for v in w[:4]:
+                self.assertTrue(0.0 <= v <= 1.0, f"{v} escaped the page")
+
+    def test_degenerate_geometry_is_an_empty_layer_not_a_crash(self):
+        self.assertEqual(bench.Bench.normalize_words([(1, 1, 2, 2, "x")], 0, 100), [])
+        self.assertEqual(bench.Bench.normalize_words([(1, 1, 2, 2, "x")], 100, -3), [])
+
+    def _bench_with_fake_doc(self, pages=40):
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-ok5-"))
+        (tmp / "book.md").write_text("---\nt: 1\n---\nalpha", encoding="utf-8")
+        b = bench.Bench(tmp)
+
+        class FakeRect:
+            width, height = 500.0, 800.0
+
+        class FakePage:
+            rect = FakeRect()
+
+            def __init__(self, n):
+                self.n = n
+
+            def get_text(self, kind):
+                return [(10, 10, 90, 30, f"word-p{self.n}")]
+
+        class FakeDoc:
+            page_count = pages
+
+            def load_page(self, i):
+                return FakePage(i + 1)
+
+        b.pdf = tmp / "book.pdf"  # doc()'s no-PDF guard checks presence, not bytes
+        b._doc = FakeDoc()
+        return b, tmp
+
+    def test_lazy_lru_bounded_and_refreshed(self):
+        b, tmp = self._bench_with_fake_doc()
+        try:
+            first = b.textlayer(1)
+            self.assertEqual(first["words"][0][4], "word-p1")
+            self.assertTrue(first["searchable"])
+            for n in range(2, 2 + bench.Bench.TEXTLAYER_LRU):
+                b.textlayer(n)
+            b.textlayer(1)  # refresh page 1 — it must now be the NEWEST, not the oldest
+            b.textlayer(99)  # one past the cap evicts the true oldest (page 2), never page 1
+            self.assertIn(1, b._textlayer, "LRU refresh did not protect the re-read page")
+            self.assertNotIn(2, b._textlayer, "the oldest page was not the one evicted")
+            self.assertLessEqual(len(b._textlayer), bench.Bench.TEXTLAYER_LRU,
+                                 "the layer cache grew past its bound")
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_page_number_is_clamped_to_the_book(self):
+        b, tmp = self._bench_with_fake_doc(pages=3)
+        try:
+            self.assertEqual(b.textlayer(0)["page"], 1)
+            self.assertEqual(b.textlayer(99)["page"], 3)
+        finally:
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_textlayer_route_is_read_only_get_never_a_mutating_post(self):
+        src = (Path(__file__).parent / "bench.py").read_text(encoding="utf-8")
+        self.assertIn('"/api/textlayer"', src)
+        get_part = src[src.index("def do_GET"):src.index("def do_POST")]
+        self.assertIn("/api/textlayer", get_part, "textlayer must be a GET route")
+        self.assertNotIn("/api/textlayer", src[src.index("MUTATING_POSTS"):src.index("def make_handler")],
+                         "textlayer may never join the mutating POST census")
+
+    def test_client_layer_exists_with_eviction_and_alt_gate(self):
+        html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
+        self.assertIn("/api/textlayer?n=", html, "client never fetches the layer")
+        self.assertIn("wordsInRect", html)
+        self.assertIn("this.cache.delete(this.cache.keys().next().value)", html,
+                      "client cache has no eviction — a long session hoards the book")
+        self.assertIn("drag.alt", html, "Alt+drag selection is not gated on the modifier")
+
+
 class TestOK7TrimBox(unittest.TestCase):
     """OK-7: the trim measurement, pure and stdlib-only — Okular's 4%-pad and half-page-floor
     constants, exercised both ways."""
