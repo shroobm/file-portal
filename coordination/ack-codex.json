@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-31T20:18Z",
+  "updated_utc": "2026-08-31T21:08Z",
   "state": "blocked-on-ack",
   "current_ticket": "OK-15",
   "sent": [
@@ -333,6 +333,15 @@
       "utc": "2026-08-31T20:18Z",
       "digest": "sha256:d9d7058f60300546f648860a21cee2d7a27bb64a18123fb7db0522a845cf02f0",
       "subject": "OK-15 deep read-only verification brief",
+      "ticket": "OK-15",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0038",
+      "to": "Fable",
+      "utc": "2026-08-31T21:08Z",
+      "digest": "sha256:b88af1bdfc04b9e6642c8d13f96272c2a8aadd6c3b4430aada5d284262ab4d29",
+      "subject": "OK-15 review findings closed - focused delta verification",
       "ticket": "OK-15",
       "requires_ack": true
     }
