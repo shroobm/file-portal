@@ -63,3 +63,7 @@ each seed traces to a real prompt in the cookie ledger, a session closeout, or M
 | escalate the same ticket artifact updated, and ask for signature on E3 | after a verified `COMPLETE` E2-R2 receipt, update the existing nine-event observability artifact with R1/R2 history, display a separately hashed `VW-E3-R1` packet as `PROPOSED-UNSIGNED`, ask Rab for its signature, and stop without E3 execution | Visual Witness event artifact; VW-R1 event-transition law | confirmed 2026-08-30 — Rab's post-Echo corrective direction |
 
 ⟨claimed: Codex lane · occupant: OpenAI Codex (GPT-5) · S112 continuation · 2026-08-30⟩
+| numeration | any stepping quantity in the pipeline: monotonic counters, gauges, daily resets — the census object | docs/51 (NUM-1) | 2026-08-31 "Any numeration that increases, decreases … each n+1 sequence" — Reading C signed "Signed, Both" |
+| X amount of Omissions | the fidelity audit's `runs` count (SYM-066: display cap is not the count) | fidelity_audit.py:378 | 2026-08-31, same commission |
+| caught or defined | emitted-somewhere vs should-exist-but-uncounted — census rows mark both | docs/51 (NUM-1) | 2026-08-31, same commission (Fable's reading, uncontested in the echo) |
+| like the event streamer / live counter | a Room panel deriving live counter values from the feeds the Room already polls (projection, never authority) | room.js (NUM-2) | 2026-08-31 "map it to the glass … like the event streamer, i need that live counter" |
