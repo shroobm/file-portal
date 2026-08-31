@@ -587,11 +587,16 @@ function status(m, opt = false) {
   if (m && !statusSticky) setTimeout(() => { if (el.textContent === m && !statusSticky) el.style.display = "none"; }, stay);
 }
 // OK-12: pinned mode-instruction toasts — an armed mode explains itself for as long as it
-// is armed, in its own slot so ordinary toasts never evict the instruction.
-function modePin(m) {
+// is armed. Per-mode registry (review: a single slot let one mode's disarm erase another's
+// standing instruction); the newest surviving pin renders.
+const modePins = new Map();
+function modePin(key, m) {
+  if (m) modePins.set(key, m); else modePins.delete(key);
   let el = $("modepin");
   if (!el) { el = document.createElement("div"); el.id = "modepin"; document.body.appendChild(el); }
-  el.textContent = m || ""; el.style.display = m ? "block" : "none";
+  const live = [...modePins.values()];
+  el.textContent = live.length ? live[live.length - 1] : "";
+  el.style.display = live.length ? "block" : "none";
 }
 // Loopback token (S108): the widget appends ?token=<secret> to this page's URL (the same
 // secret it passed to bench.py --token). Every POST — every mutating route — must carry it as
@@ -629,6 +634,16 @@ async function load() {
   st = await api("/api/state");
   mdText = st.pdf_only ? "" : (await api("/api/md")).text;
   zone = null; runIdx = null; hlQuery = null; thumbsBuilt = false; toc = [];
+  // review CRITICAL (2026-08-31): a book switch must ALSO drop every page-number-keyed
+  // cache and every search/table residue — the picker swaps books WITHOUT a page reload,
+  // and page numbers collide across books (the client text layer served the PREVIOUS
+  // book's words to an Alt+drag; the loupe kept its old 300-dpi raster; the old book's
+  // hit list stayed clickable).
+  textLayer.cache.clear(); loupePage = 0; lastTextSelection = null;
+  clearTimeout(searchTimer); searchGen++; hitPages = []; hitPos = -1; railFilter = false;
+  $("search-tab").textContent = "Search"; $("qres").innerHTML = "";
+  $("q").value = ""; $("q").classList.remove("q-busy", "q-miss"); $("hlclear").style.display = "none";
+  tableMode = false; $("tablebtn").classList.remove("on"); tableClear(); modePin("table", null);
   // review 2026-08-30: a book switch must not carry the previous book's selection chrome —
   // these used to be reset as a side effect of the unconditional selectZone(0)
   renderDiagnosis(null); setLocBadge(null);
@@ -925,7 +940,9 @@ async function drawHighlights() {
     const { rects } = await api(`/api/rects?n=${page}&q=${encodeURIComponent(hlQuery)}`);
     if (hlQuery !== asked || page !== askedPage) return;
     const img = $("pageimg");
-    const place = () => rects.forEach((r) => {
+    // review MAJOR: the deferred load-listener needs the SAME staleness guard — without it
+    // a flip while the raster decodes painted the previous page's rects onto the new one
+    const place = () => (hlQuery === asked && page === askedPage) && rects.forEach((r) => {
       const d = document.createElement("div");
       d.className = "hlbox";
       d.style.left = (r[0] * img.clientWidth) + "px";
@@ -1298,8 +1315,9 @@ let tableMode = false, tableState = null;
 $("tablebtn").onclick = () => {
   tableMode = !tableMode;
   $("tablebtn").classList.toggle("on", tableMode);
-  if (!tableMode) { tableClear(); modePin(null); }
-  else modePin("⊞ table tool armed — drag a region · click adds/removes a column line · Shift+click a row line · ⊞ again to disarm");
+  clearCrop(); // review: a crop armed BEFORE ⊞ must not masquerade as the first table drag
+  if (!tableMode) { tableClear(); modePin("table", null); }
+  else modePin("table", "⊞ table tool armed — drag a region · click adds/removes a column line · Shift+click a row line · ⊞ again to disarm");
 };
 
 // ---- OK-8 (signed 2026-08-31): the loupe + night reading ---------------------------------
@@ -1312,17 +1330,26 @@ $("loupebtn").onclick = () => {
   let lens = $("loupe");
   if (!lens) { lens = document.createElement("div"); lens.id = "loupe"; document.body.appendChild(lens); }
   lens.style.display = "none";
-  modePin(loupeOn ? "⌖ loupe — move over the page · ⌖ again to close" : null);
+  modePin("loupe", loupeOn ? "⌖ loupe — move over the page · ⌖ again to close" : null);
 };
 $("pageinner").addEventListener("mousemove", (e) => {
   if (!loupeOn) return;
   const lens = $("loupe"), img = $("pageimg");
   if (!lens || !img.clientWidth) return;
+  if (drag) { lens.style.display = "none"; return; } // never hide the rubber band (review)
+  const scale = 300 / dpiForZoom($("zoom").value);
+  if (scale <= 1.05) { // review: at ~300-dpi display there is nothing left to magnify
+    lens.style.display = "none";
+    status("⌖ the page is already at full dpi at this zoom — the loupe has nothing to add");
+    return;
+  }
+  // night reading: the lens shows the same recolor as the page it magnifies (review)
+  lens.style.filter = $("pageimg").classList.contains("recolor")
+    ? "invert(92%) hue-rotate(180deg)" : "";
   if (loupePage !== page) { loupePage = page; lens.style.backgroundImage = `url(/api/page?n=${page}&dpi=300)`; }
   const r = img.getBoundingClientRect();
   const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
   if (fx < 0 || fx > 1 || fy < 0 || fy > 1) { lens.style.display = "none"; return; }
-  const scale = 300 / dpiForZoom($("zoom").value);
   const bgW = r.width * scale, bgH = r.height * scale;
   lens.style.backgroundSize = `${bgW}px ${bgH}px`;
   lens.style.backgroundPosition = `${110 - fx * bgW}px ${110 - fy * bgH}px`;
@@ -1339,8 +1366,10 @@ $("recolorbtn").onclick = () => {
 async function tableExtract(rect, cols, rows) {
   const pg = page;
   let u = `/api/table?n=${pg}&rect=${rect.map((v) => v.toFixed(5)).join(",")}`;
-  if (cols) u += `&cols=${cols.map((v) => v.toFixed(5)).join(",")}`;
-  if (rows) u += `&rows=${rows.map((v) => v.toFixed(5)).join(",")}`;
+  // "none" carries the EMPTY list (deleting the last divider) — a blank query value never
+  // reaches the server (parse_qs drops it; review MAJOR)
+  if (cols) u += `&cols=${cols.length ? cols.map((v) => v.toFixed(5)).join(",") : "none"}`;
+  if (rows) u += `&rows=${rows.length ? rows.map((v) => v.toFixed(5)).join(",") : "none"}`;
   try {
     const r = await api(u);
     if (page !== pg) return; // flipped away mid-fetch — the overlay would lie
@@ -1385,13 +1414,14 @@ function tableDraw() {
     panel.innerHTML = `<span id="tpdims"></span><button id="tpcopy">⧉ copy table</button><button id="tpdone">✕</button>`;
     $("pageinner").appendChild(panel);
     $("tpcopy").onclick = () => {
-      navigator.clipboard?.writeText(tableState?.markdown || "").then(
+      const md = tableState?.markdown || "";
+      if (!navigator.clipboard) { console.log(md); status("no clipboard API — table markdown logged to the console", { severity: "warn" }); return; }
+      navigator.clipboard.writeText(md).then(
         () => status("⧉ pipe table copied — paste it into the ✎ editor at the zone"),
-        () => status("clipboard blocked — table markdown is in the console"),
+        () => { console.log(md); status("clipboard blocked — table markdown logged to the console", { severity: "warn" }); },
       );
-      if (!navigator.clipboard) console.log(tableState?.markdown);
     };
-    $("tpdone").onclick = () => { tableMode = false; $("tablebtn").classList.remove("on"); tableClear(); };
+    $("tpdone").onclick = () => { tableMode = false; $("tablebtn").classList.remove("on"); tableClear(); modePin("table", null); };
   }
   $("tpdims").textContent = `⊞ ${s.rows}×${s.cols}`;
 }
@@ -1419,13 +1449,16 @@ addEventListener("mouseup", () => {
   // OK-6: an armed table tool consumes the gesture — a real drag extracts the region, a
   // bare click corrects a divider (3 px snap; Shift = row lines). Checked before the crop
   // so the crop button never arms mid-table.
-  if (drag && tableMode) {
-    const wasDrag = crop && (crop[2] - crop[0]) > 0.03 && (crop[3] - crop[1]) > 0.02;
+  if (drag && tableMode && !drag.alt) { // Alt still means text-select, even mid-table (review)
+    // review CRITICAL (2026-08-31): capture the rect BEFORE clearCrop nulls the global —
+    // the shipped first cut passed `crop` after clearing it, and the whole tool was inert
+    const tRect = crop;
+    const wasDrag = tRect && (tRect[2] - tRect[0]) > 0.03 && (tRect[3] - tRect[1]) > 0.02;
     const clickX = drag.x0 / drag.r.width, clickY = drag.y0 / drag.r.height;
-    const shift = drag.shift;
+    const shift = drag.shift, dragR = drag.r;
     clearCrop();
-    if (wasDrag) tableExtract(crop, null, null);
-    else if (tableState) tableCorrect(clickX, clickY, shift, drag.r);
+    if (wasDrag) tableExtract(tRect, null, null);
+    else if (tableState) tableCorrect(clickX, clickY, shift, dragR);
     drag = null; return;
   }
   // OK-5: an Alt+drag is a TEXT SELECTION — the words under the band, copied in reading
@@ -1441,9 +1474,10 @@ addEventListener("mouseup", () => {
       const words = textLayer.wordsInRect(layer, rect);
       if (!words.length) { status("no words under the selection"); return; }
       const text = words.map((w) => w[4]).join(" ");
-      navigator.clipboard?.writeText(text).then(
+      if (!navigator.clipboard) { console.log(text); status(`selected ${words.length} words — no clipboard API, text logged to the console`, { severity: "warn" }); }
+      else navigator.clipboard.writeText(text).then(
         () => status(`⧉ ${words.length} word${words.length === 1 ? "" : "s"} copied`),
-        () => status(`selected ${words.length} words (clipboard blocked — see console)`),
+        () => { console.log(text); status(`selected ${words.length} words (clipboard blocked — text logged to the console)`, { severity: "warn" }); },
       );
       lastTextSelection = { page: pg, rect, words: words.length, text };
     });
@@ -2045,7 +2079,7 @@ $("trimbtn").onclick = (e) => {
 addEventListener("beforeunload", (e) => {
   if (ctxDirty) { e.preventDefault(); e.returnValue = ""; }
 });
-addEventListener("resize", () => { if ($("zoom").value === "fit") applyZoom(); });
+addEventListener("resize", () => { const z = $("zoom").value; if (z === "fit" || z === "fitpage") applyZoom(); }); // review: fit-page refits too
 load().catch((e) => status(`load failed: ${e.message}`, true));
 </script>
 </body>

@@ -617,6 +617,32 @@ class TestOK6TableTool(unittest.TestCase):
                                          [0.0, 0.0, 1.0, 1.0], [], [])
         self.assertEqual(cells[0][0], "a\\|b", "an unescaped pipe eats the table's own syntax")
 
+    def test_review_fixes_2026_08_31(self):
+        """The three-lens review's confirmed findings, pinned so they cannot return."""
+        # CRITICAL: chars at a 5-decimal-rounded word edge must survive containment
+        word = [[round(0.400004, 5), 0.10, round(0.599996, 5), 0.14, "AB12"]]
+        chars = [[0.400004, 0.10, 0.45, 0.14, "A"], [0.45, 0.10, 0.499, 0.14, "B"],
+                 [0.51, 0.10, 0.55, 0.14, "1"], [0.55, 0.10, 0.599996, 0.14, "2"]]
+        cells = bench.Bench.bucket_cells(word, chars, [0.3, 0.05, 0.9, 0.2], [0.5], [])
+        self.assertEqual(cells, [["AB", "12"]],
+                         "rounding ate a boundary char — the epsilon regressed below 5e-6")
+        # overlap advance: a self-overlapping query yields non-overlapping occurrences
+        w = [[i * 0.1, 0.1, i * 0.1 + 0.08, 0.14, "no"] for i in range(3)]
+        self.assertEqual(len(bench.Bench.match_in_words(w, "no no")), 1,
+                         "overlapping matches are back — the scan advances by +1 again")
+        # the divider-delete sentinel + rect arity guard live in the route
+        src = (Path(__file__).parent / "bench.py").read_text(encoding="utf-8")
+        self.assertIn('"none"', src[src.index("/api/table"):src.index("/api/table") + 900],
+                      "deleting the LAST divider has no wire format again")
+        self.assertIn("rect needs 4 numbers", src, "the rect arity guard is gone")
+        html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
+        self.assertIn("const tRect = crop;", html,
+                      "the null-rect CRITICAL: capture the rect BEFORE clearCrop")
+        self.assertIn("textLayer.cache.clear()", html,
+                      "book switch no longer drops the page-keyed text layer cache")
+        self.assertIn("hlQuery === asked && page === askedPage", html,
+                      "the deferred place listener lost its staleness guard")
+
     def test_client_table_census(self):
         html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
         for needle, why in [
@@ -653,7 +679,8 @@ class TestOK8ZoomAndOK12Grammar(unittest.TestCase):
             ('sev === "error"', "the error rung sticks (modal-fallback)"),
             ("sev-warn", "the warn rung's face"),
             ("function modePin", "pinned mode-instruction toasts"),
-            ("modePin(null)", "a disarmed mode clears its pin"),
+            ("const modePins", "per-mode pin registry (one disarm never erases another's pin)"),
+            ('modePin("table", null)', "a disarmed mode clears ITS OWN pin"),
         ]:
             self.assertIn(needle, html, f"OK-12 census missing: {why}")
         # legacy contract: status(m, true) must still read as sticky

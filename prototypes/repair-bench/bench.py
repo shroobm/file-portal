@@ -640,7 +640,9 @@ class Bench:
                         cluster = [w]
                 boxes.append([min(x[0] for x in cluster), min(x[1] for x in cluster),
                               max(x[2] for x in cluster), max(x[3] for x in cluster)])
-            at = stream.find(q, at + 1)
+            # review (2026-08-31): advance past the whole match — at+1 made self-overlapping
+            # queries ("no no") emit duplicate boxes that double-multiplied the blend
+            at = stream.find(q, at + len(q))
         return boxes
 
     # ---- OK-6 (signed 2026-08-31): the table divider tool ---------------------------------
@@ -686,14 +688,19 @@ class Bench:
 
         grid: dict[tuple[int, int], list[list]] = {}
         char_pool = list(chars)
+        # review CRITICAL (2026-08-31): the containment epsilon must DOMINATE the 5-decimal
+        # rounding normalize_words bakes into word boxes (up to 5e-6 per edge) — at 1e-6 a
+        # boundary char failed containment about half the time, silently dropping digits
+        # from the extracted table or silently skipping the char-split entirely.
+        EPS = 2e-5
         for w in words:
             wx0, wy0, wx1, wy1, text = w[0], w[1], w[2], w[3], str(w[4])
             crossed = any(wx0 < d < wx1 for d in col_divs)
             pieces = []
             if crossed:
                 mine = [c for c in char_pool
-                        if c[0] >= wx0 - 1e-6 and c[2] <= wx1 + 1e-6
-                        and c[1] >= wy0 - 1e-6 and c[3] <= wy1 + 1e-6]
+                        if c[0] >= wx0 - EPS and c[2] <= wx1 + EPS
+                        and c[1] >= wy0 - EPS and c[3] <= wy1 + EPS]
                 if mine:
                     part: dict[int, list] = {}
                     for c in sorted(mine, key=lambda c: c[0]):
@@ -1797,12 +1804,19 @@ def make_handler(bench: Bench, token=_NO_GATE):
                 elif url.path == "/api/textlayer":  # OK-5 — read-only, lazy + LRU-bounded
                     self._json(bench.textlayer(int(q.get("n", ["1"])[0])))
                 elif url.path == "/api/table":      # OK-6 — read-only extraction preview
-                    rect = [float(x) for x in q.get("rect", ["0,0,1,1"])[0].split(",")][:4]
-                    cd = ([float(x) for x in q["cols"][0].split(",") if x]
-                          if "cols" in q else None)
-                    rd = ([float(x) for x in q["rows"][0].split(",") if x]
-                          if "rows" in q else None)
-                    self._json(bench.table(int(q.get("n", ["1"])[0]), rect, cd, rd))
+                    rect = [float(x) for x in q.get("rect", ["0,0,1,1"])[0].split(",") if x]
+                    if len(rect) != 4:
+                        self._json({"error": f"rect needs 4 numbers, got {len(rect)}"}, 400)
+                        return
+                    # "none" = the caller DELETED the last divider — an empty list, which a
+                    # blank query value cannot carry (parse_qs drops blanks; review MAJOR)
+                    def _divs(key):
+                        if key not in q:
+                            return None
+                        v = q[key][0]
+                        return [] if v in ("", "none") else [float(x) for x in v.split(",") if x]
+                    self._json(bench.table(int(q.get("n", ["1"])[0]), rect,
+                                           _divs("cols"), _divs("rows")))
                 elif url.path == "/api/library":
                     self._json(library_listing())
                 else:
