@@ -798,7 +798,40 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
 
 class DirectRepositoryHeadSelfTest(unittest.TestCase):
     def test_symbolic_loose_and_worktree_commondir_packed_refs(self) -> None:
-        self.assertEqual(vw.REPOSITORY_SHA, vw.resolve_repository_head_direct(Path(__file__).resolve().parents[1]))
+        repository = Path(__file__).resolve().parents[1]
+        # REPOSITORY_SHA is the packet's frozen ancestor anchor, not a promise that
+        # every later checkout stays at that commit.  The bounded-Git tests above
+        # enforce anchor ancestry; this resolver needs an independent live-HEAD oracle.
+        control_environment = os.environ.copy()
+        for key in ("GIT_CONFIG", "GIT_CONFIG_GLOBAL", "GIT_CONFIG_SYSTEM", "GIT_CONFIG_NOSYSTEM"):
+            control_environment.pop(key, None)
+        control_environment.update(
+            {"GIT_TERMINAL_PROMPT": "0", "GCM_INTERACTIVE": "Never", "GIT_OPTIONAL_LOCKS": "0"}
+        )
+        control_head = subprocess.run(
+            [
+                str(vw.GIT_EXECUTABLE),
+                "--no-pager",
+                "-c",
+                f"safe.directory={repository}",
+                "rev-parse",
+                "--verify",
+                "HEAD^{commit}",
+            ],
+            cwd=repository,
+            env=control_environment,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            timeout=20,
+            check=False,
+        )
+        self.assertEqual(0, control_head.returncode, control_head.stderr.decode("utf-8", "replace"))
+        self.assertRegex(control_head.stdout, rb"^[0-9a-f]{40}\n$")
+        self.assertEqual(
+            control_head.stdout[:-1].decode("ascii"),
+            vw.resolve_repository_head_direct(repository),
+        )
         loose_oid = "1" * 40
         packed_oid = "2" * 40
         with tempfile.TemporaryDirectory() as temporary:
