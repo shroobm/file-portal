@@ -153,6 +153,82 @@
     "converter:tokens_prompt_counted_calls": {
       "disposition": "EVIDENCE",
       "reason": "NUM-6 (review M5): the prompt-counter denominator (ollama omits prompt_eval_count on fully cached prefills, so the prompt sum is a partial total over exactly this many calls); manifest.analyst."
+    },
+    "bench:unseen": {
+      "disposition": "GLASS",
+      "reason": "M6-R1 typed completeness field (57a5da6, Codex lane). RENDERED SERVER-SIDE: bench.py:1826 gates rescore eligibility on it and bench.py:1834-1835 sums partial-count unseen into the refusal text the operator reads. The detector is lexical over renderer files and cannot see producer-side string composition - the sentence this key feeds IS on the surface. Signed by Fable at the S113 close (close-gate catch-up for a peer-lane commit, docs/29 same-commit rule); verification: both consumer sites read the key by name."
+    },
+    "bench:remedy": {
+      "disposition": "GLASS",
+      "reason": "M6-R1 A1 field - the refusal's named door. Folded into rendered operator strings at bench.py:1427 and bench.py:1847 (unread-count remedies joined into the message shown with the refusal). Server-side composition, same lexical-detector blind spot as bench:unseen. Provenance 57a5da6 (Codex lane); signed by Fable at the S113 close."
+    },
+    "bench:capped_at": {
+      "disposition": "EVIDENCE",
+      "reason": "The producer cap that applied when the completeness record was built (25 runs / 10 zones / display caps). No downstream consumer reads it today - measured: only the record constructor writes it, and the *_capped_at reads at bench.py:327/:332/:1858 are the MANIFEST'S input keys feeding the constructor, not this record field. Retained so a later reader of a stored record can tell which cap shaped it: audit-trail semantics. Promote to GLASS if a renderer ever shows caps. Provenance 57a5da6 (Codex lane); signed by Fable at the S113 close."
+    },
+    "bench:zones_total": {
+      "disposition": "INTERNAL",
+      "reason": "Raw total in the bench state dict (bench.py:513). The rendered projection of the same fact is the completeness record's label ('N of M' / the UNREAD phrase) shown by the chips; bench.html reads no zones_total by name (measured, 0 hits). Kept as the machine-readable twin for tests and API consumers (test_bench_page reads it). Provenance 57a5da6 (Codex lane); signed by Fable at the S113 close."
+    },
+    "bench:runs_total": {
+      "disposition": "INTERNAL",
+      "reason": "Raw total in the bench state dict (bench.py:519); same shape as bench:zones_total - rendered via the completeness label, kept raw for machine consumers. Provenance 57a5da6 (Codex lane); signed by Fable at the S113 close."
+    },
+    "bench:schema": {
+      "disposition": "EVIDENCE",
+      "reason": "OK-15 report envelope self-description ('fp-ok15-evidence/v1', bench.py:582): the version stamp a later reader needs to parse a stored evidence report. Provenance 77d0361 (Codex lane, OK-15); signed by Fable at the S113 close."
+    },
+    "bench:collected_at": {
+      "disposition": "EVIDENCE",
+      "reason": "OK-15 report provenance timestamp (bench.py:584): when the evidence collection ran - the audit-trail field of a stored report. Provenance 77d0361 (Codex lane, OK-15); signed by Fable at the S113 close."
+    },
+    "bench:remedies": {
+      "disposition": "INTERNAL",
+      "reason": "Aggregate deduped remedy list in the coverage payload (bench.py:1426-1427,1433). Each remedy ALREADY renders individually via the refusal composition at bench.py:1847; this list is the machine-readable duplicate for API consumers. Promote to GLASS if the UI ever shows the aggregate. Provenance 57a5da6 (M6-R1). Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "bench:original_zones_shown": {
+      "disposition": "EVIDENCE",
+      "reason": "rescore_preview's before-count (bench.py:1872): the shown-zone count at preview time, kept so a reader can verify the preview's delta claim against the current recount beside it. bench.html renders the recommendation, not this raw pair (measured: 0 hits). Provenance 57a5da6 (M6-R1). Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "bench:original_zones_total": {
+      "disposition": "EVIDENCE",
+      "reason": "rescore_preview's before-total twin (bench.py:1873), same audit purpose as bench:original_zones_shown. Provenance 57a5da6 (M6-R1). Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "bench:sha256": {
+      "disposition": "EVIDENCE",
+      "reason": "OK-15 report envelope source binding (bench.py:585): the source PDF sha the collector verified before and after collection - the field that makes a stored evidence report attributable to exact bytes. Provenance 77d0361 (OK-15). Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "widget:mtime_ns": {
+      "disposition": "INTERNAL",
+      "reason": "Queue row ordering key (line.rs:148, conveyor state): filename-head dispatch sorts by it; the RENDERED projection is the row order itself plus wait_s. No JS reads it by name (measured, 0 hits in main.js/room.js). Provenance f045a66 (Conveyor State). Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "widget:intake_card_state": {
+      "disposition": "INTERNAL",
+      "reason": "Conveyor diagnostic in the line payload (line.rs:319): the card-mutex state feeding the positive-convert-claim rule (receipt + mutex busy + matching active). The operator-facing projection is intake_state/phase+age; this raw field stays machine-readable for debugging. Provenance f045a66. Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "widget:convert_progress_schema": {
+      "disposition": "INTERNAL",
+      "reason": "Schema version guard (line.rs:331) so consumers can branch on progress v1 vs v2; a version stamp, never an operator surface. Provenance f045a66. Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "widget:writer_pid": {
+      "disposition": "INTERNAL",
+      "reason": "The stop-targeting key (line.rs:601 in .intake-state.json; :697 in a test fixture): watcher stop kills the REAL receipt-writer PID and verifies descendant death (Codex S113 record). Feeds the stop computation; never a surface. Provenance f045a66. Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "widget:card_state": {
+      "disposition": "INTERNAL",
+      "reason": "Field of .intake-state.json (line.rs:602), declared watcher-only atomic state by its own design (S113 Codex record); malformed/stale reads render as UNREAD upstream. Provenance f045a66. Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "widget:frac": {
+      "disposition": "INTERNAL",
+      "reason": "Hardcoded v2 progress sample in line.rs's test fixture writer (line.rs:698); the LIVE producer is the converter and the live frac renders through convert_frac (line.rs:329 projection). Test scaffolding, not a surface. Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "widget:attempts": {
+      "disposition": "INTERNAL",
+      "reason": "Same test fixture writer (line.rs:698); the live attempts value renders in room.js:352 as 'attempt N/M'. Test scaffolding twin of a rendered live field. Peer-lane key signed by Fable at the S113 close (close-gate catch-up); Codex may re-class next sitting."
+    },
+    "converter:lever_batch": {
+      "disposition": "EVIDENCE",
+      "reason": "OK-17's honesty field in the slice .done record (convert_and_ship.py:1187): the LEVER'S asked batch beside the ACTUAL batch used, recorded because the ladder can run a slice at 4 while the lever said 8 and every record used to say 8. Resume/audit trail; the rendered batch story is the slice event's batch field. Fable lane, 3d6775b."
     }
   },
   "census_dispositions": {
