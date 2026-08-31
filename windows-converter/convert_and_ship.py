@@ -95,6 +95,41 @@ CONVERTER_VERSION = "0.1.0-desktop"
 # (model load ~1-2 min); both wedge species (S48 pipe-deadlock, S45 VRAM-thrash) freeze for hours.
 STALL_FROZEN_S = 900
 
+# Recovery ladder for deterministic stall handling. On a stall we first retry with one lower
+# recognition batch and then split the range in half. Both actions are bounded and observable
+# via `convert` events; when both still fail, the slice fails the job as before.
+STALL_RETRY_SPLIT_MIN_PAGES = 50  # lever-waiver: Rab signed OK-17 2026-08-30; review evidence: stalls are VRAM-state-driven, a split below this cannot help
+STALL_RETRY_MAX_SPLITS = 2        # lever-waiver: Rab signed OK-17; bounds the ladder at 9 Marker invocations per slice
+STALL_RECOVERY_BATCH = 4          # lever-waiver: Rab signed OK-17; recovery-only memory-relief value, deliberately BELOW CHUNK_BATCH_ALLOWED — never a lever choice (review 2026-08-30)
+
+
+class _MarkerRunError(RuntimeError):
+    """Base marker-runtime failure with structured diagnostics."""
+
+
+class _MarkerStallError(_MarkerRunError):
+    """Raised when Marker progress is frozen while still running."""
+
+    def __init__(self, message: str, *, frozen_s: int, elapsed_s: int,
+                 source: str, page_range: str | None, signature: dict) -> None:
+        super().__init__(message)
+        self.frozen_s = frozen_s
+        self.elapsed_s = elapsed_s
+        self.source = source
+        self.page_range = page_range
+        self.signature = signature
+
+
+class _MarkerTimeoutError(_MarkerRunError):
+    """Raised when the outer timeout fires while Marker is still running."""
+
+    def __init__(self, message: str, *, elapsed_s: int, pages: int, timeout_s: int) -> None:
+        super().__init__(message)
+        self.elapsed_s = elapsed_s
+        self.pages = pages
+        self.timeout_s = timeout_s
+
+
 # S42: live convert progress (docs/16 §8 #3). The widget's line.rs reads this file while a
 # convert holds the .gpu-lock; the Room shows the real Marker/surya stage + per-page count.
 # ENTIRELY best-effort: writing/parsing this must never affect the conversion (see convert()).
@@ -183,13 +218,29 @@ CHUNK_BATCH_DEFAULT = 16
 CHUNK_WORK = fp_paths.root("chunk_work")
 
 
+_batch_warned = False  # chunk_batch diagnostics fire once per process, not once per slice
+
+
 def chunk_batch() -> int:
     """The slice recognition batch lever. Anything unparseable or off-menu falls back to the
     default rather than handing Marker a number nobody chose."""
+    global _batch_warned
     try:
         value = int(CHUNK_BATCH_FILE.read_text(encoding="utf-8").strip())
-        return value if value in CHUNK_BATCH_ALLOWED else CHUNK_BATCH_DEFAULT
+        if value in CHUNK_BATCH_ALLOWED:
+            return value
+        if not _batch_warned:   # once per process — re-read per slice by signed design (F-09),
+            _batch_warned = True  # so a bad lever would otherwise spam one event per slice
+            emit("convert", "chunk_batch_invalid", value=value,
+                 allowed=",".join(map(str, CHUNK_BATCH_ALLOWED)),
+                 fallback=CHUNK_BATCH_DEFAULT)
+        return CHUNK_BATCH_DEFAULT
+    except FileNotFoundError:
+        return CHUNK_BATCH_DEFAULT  # no lever file = the normal pre-lever state, not an anomaly
     except (OSError, ValueError):
+        if not _batch_warned:
+            _batch_warned = True
+            emit("convert", "chunk_batch_unreadable", fallback=CHUNK_BATCH_DEFAULT)
         return CHUNK_BATCH_DEFAULT
 
 
@@ -573,7 +624,8 @@ LEDGER_FILE = fp_paths.root("conversion_ledger")
 
 
 def _ledger_record(manifest: dict, cost_s: float, peak_mib: int,
-                   resumed_slices: int = 0, run_wall_s: float | None = None) -> None:
+                   resumed_slices: int = 0, run_wall_s: float | None = None,
+                   retry_wall_s: float = 0.0) -> None:
     """File the learning record. `cost_s` is the book's TOTAL GPU cost including slices that were
     resumed from an earlier run — that is what a future estimate needs. `run_wall_s` keeps this
     run's own elapsed time alongside it, so the two never get confused later.
@@ -592,6 +644,9 @@ def _ledger_record(manifest: dict, cost_s: float, peak_mib: int,
             "s_per_page": round(cost_s / pages, 3),
             "run_wall_s": round(run_wall_s, 1) if run_wall_s is not None else None,
             "resumed_slices": resumed_slices,
+            # OK-17: how much of wall_s was failed ladder attempts — already inside cost_s,
+            # named so a reader can separate healthy rate from recovery spend
+            "retry_wall_s": round(retry_wall_s, 1),
             "chunked": bool(chunking),
             "slices": (len(chunking["seams"]) + 1) if chunking else 1,
             "batch": chunking["batch"] if chunking else RECOGNITION_BATCH,
@@ -714,8 +769,14 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
         # watches the GPU — sample here rather than adding a second watcher.
         peak_mib = max(peak_mib, _gpu_signature().get("gpu_mem_used_mib", 0))
         if elapsed >= timeout_s:
+            sig = _gpu_signature()
             _kill_and_clear()
-            raise RuntimeError(f"marker timed out after {timeout_s}s ({pages} pages)")
+            # review 2026-08-30: the timeout got structured fields and emitted nothing — a
+            # timeout kill was visible only as intake/failed exit 1. Now it names itself.
+            emit("convert", "timeout", source=source_name, elapsed_s=int(elapsed),
+                 pages=pages, timeout_s=timeout_s, page_range=page_range, **sig)
+            raise _MarkerTimeoutError(f"marker timed out after {timeout_s}s ({pages} pages)",
+                                     elapsed_s=int(elapsed), pages=pages, timeout_s=timeout_s)
         try:
             frozen_s = time.time() - PROGRESS_FILE.stat().st_mtime
         except OSError:
@@ -725,9 +786,11 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
             _kill_and_clear()
             emit("convert", "stalled", source=source_name, frozen_s=int(frozen_s),
                  elapsed_s=int(elapsed), page_range=page_range, **sig)
-            raise RuntimeError(
+            raise _MarkerStallError(
                 f"marker stalled: progress frozen {int(frozen_s)}s "
-                f"(kill-early policy, docs/18 §5.1)")
+                f"(kill-early policy, docs/18 §5.1)",
+                frozen_s=int(frozen_s), elapsed_s=int(elapsed), source=source_name,
+                page_range=page_range, signature=sig)
     reader.join(timeout=5)
     _clear_progress()
     wall = time.perf_counter() - t0
@@ -750,6 +813,119 @@ def _with_batch(extra: list[str], size: int) -> list[str]:
     return [*out, "--recognition_batch_size", str(size)]
 
 
+def _slice_retry_batches(start_batch: int) -> list[int]:
+    """Order-preserving retry ladder for stall recovery.
+
+    The user lever controls the first value (8/16/32). On a stall we progressively drop to
+    4 for memory relief; the ladder is bounded and always terminates so the job never loops.
+    """
+    fallback = [start_batch]
+    if start_batch > 8:
+        fallback.append(8)
+    fallback.append(STALL_RECOVERY_BATCH)
+    deduped = []
+    for value in fallback:
+        if value not in deduped:
+            deduped.append(value)
+    return deduped
+
+
+def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str,
+                           out_root: Path, extra: list[str], pages: int,
+                           start: int, end: int, source_batch: int, split_depth: int = 0,
+                           progress_prefix: str = "") -> tuple[str, list[Path], float, int, dict]:
+    """Run one slice with bounded stall retries and bounded split fallback.
+
+    Returns (markdown, assets, wall_s, peak_mib, meta). `wall_s` is the WINNING attempt's
+    wall only; meta = {batch, attempts, retry_wall_s, recovered, split} carries the honest
+    remainder — the batch that actually produced the output, how many attempts it took, and
+    the GPU seconds the failed attempts burned (review 2026-08-30: excluding them recreated
+    the self-flattering estimator the file's own comments forbid). Returned asset paths are
+    MATERIALIZED outside out_root — the split path re-enters with the same out_root and
+    rmtree's it, so live paths into it would be dangling by the time the caller copies
+    (review CRITICAL; tripwire T3). On repeated failure, recursively split the page range.
+    Bounded by STALL_RETRY_MAX_SPLITS and STALL_RETRY_SPLIT_MIN_PAGES.
+    """
+    page_range = f"{start}-{end}"
+    attempts = _slice_retry_batches(source_batch)
+    last: Exception | None = None
+    retry_wall = 0.0
+
+    for attempt, batch in enumerate(attempts, 1):
+        try:
+            shutil.rmtree(out_root, ignore_errors=True)  # fresh output root each attempt
+            slice_extra = _with_batch(extra, batch)
+            # attempt 1 is the NORMAL run — labelling it "retry 1/N" made every healthy
+            # convert read as degraded on the Room's stage row (review; tripwire T6)
+            retry_seg = f"retry {attempt}/{len(attempts)} · " if attempt > 1 else ""
+            out_dir, md, wall, mib = _run_marker(
+                engine_src, engine_stem, out_root, slice_extra, pages,
+                source_name, page_range=page_range,
+                progress_prefix=f"{progress_prefix}{retry_seg}batch {batch} · "
+            )
+            images = [p for p in sorted(out_dir.iterdir())
+                      if p.suffix.lower() in (".jpeg", ".jpg", ".png")]
+            keep = out_root.parent / f".slice-assets-{start:05d}-{end:05d}-d{split_depth}"
+            shutil.rmtree(keep, ignore_errors=True)
+            keep.mkdir(parents=True)
+            kept: list[Path] = []
+            for p in images:
+                q = keep / p.name
+                shutil.copy2(p, q)
+                kept.append(q)
+            if attempt > 1:
+                emit("convert", "slice_retry_succeeded", source=source_name,
+                     page_range=page_range, attempt=attempt, batch=batch)
+            return md, kept, wall, mib, {"batch": batch, "attempts": attempt,
+                                         "retry_wall_s": round(retry_wall, 1),
+                                         "recovered": attempt > 1, "split": False}
+        except _MarkerStallError as exc:
+            last = exc
+            retry_wall += exc.elapsed_s
+            emit("convert", "slice_retry", source=source_name, page_range=page_range,
+                 attempt=attempt, batch=batch, reason="stalled", frozen_s=exc.frozen_s,
+                 elapsed_s=exc.elapsed_s, **exc.signature)
+            continue
+        # _MarkerTimeoutError and everything else propagate: a timeout already blew the
+        # scaled 20 s/page bound, so retrying at a lower batch cannot help (review: the
+        # former explicit re-raise handlers here read as policy while expressing none).
+
+    # If the full slice still stalls after retries, recursively split once and continue.
+    if split_depth >= STALL_RETRY_MAX_SPLITS or (end - start + 1) <= STALL_RETRY_SPLIT_MIN_PAGES:
+        raise last or RuntimeError(f"slice stalled and retries exhausted: {page_range}")
+
+    mid = (start + end) // 2
+    if mid < start or mid >= end:
+        raise last or RuntimeError(f"invalid split point while recovering slice: {page_range}")
+
+    emit("convert", "slice_split", source=source_name, page_range=page_range,
+         split_at=f"{start}-{mid}/{mid+1}-{end}", split_depth=split_depth + 1)
+
+    left_md, left_imgs, left_wall, left_mib, left_meta = _run_slice_with_retries(
+        source_name, engine_src, engine_stem, out_root, extra, pages=(mid - start + 1),
+        start=start, end=mid, source_batch=STALL_RECOVERY_BATCH,
+        split_depth=split_depth + 1,
+        progress_prefix=f"{progress_prefix}split-left depth{split_depth+1}: "
+    )
+    right_md, right_imgs, right_wall, right_mib, right_meta = _run_slice_with_retries(
+        source_name, engine_src, engine_stem, out_root, extra, pages=(end - mid),
+        start=mid + 1, end=end, source_batch=STALL_RECOVERY_BATCH,
+        split_depth=split_depth + 1,
+        progress_prefix=f"{progress_prefix}split-right depth{split_depth+1}: "
+    )
+    return (
+        f"{left_md}\n\n{right_md}",
+        [*left_imgs, *right_imgs],
+        left_wall + right_wall,
+        max(left_mib, right_mib),
+        {"batch": min(left_meta["batch"], right_meta["batch"]),
+         "attempts": left_meta["attempts"] + right_meta["attempts"],
+         "retry_wall_s": round(retry_wall + left_meta["retry_wall_s"]
+                               + right_meta["retry_wall_s"], 1),
+         "recovered": True, "split": True},
+    )
+
+
 def _done_identity_mismatch(prior: dict, source_sha: str, extra: list[str],
                             marker_version: str) -> list[str]:
     """Names every identity field a finished slice's `.done` does NOT match (empty = safe to
@@ -766,7 +942,7 @@ def _done_identity_mismatch(prior: dict, source_sha: str, extra: list[str],
 
 def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work: Path,
                      out_root: Path, extra: list[str], pages: int,
-                     source_sha: str) -> tuple[str, Path, float, int, dict]:
+                     source_sha: str) -> tuple[str, Path, float, int, dict, dict]:
     """Convert a long book in 200-page slices and merge (docs/18 §5.2, signed S57).
 
     Returns (merged markdown, merged assets dir, total wall, peak MiB, chunking manifest block).
@@ -794,9 +970,12 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
          slice_size=SLICE_PAGES, batch=batch)
 
     parts: list[str] = []
-    total_wall = 0.0      # GPU time spent in THIS run (what the convert event reports)
+    total_wall = 0.0      # winning-attempt GPU time in THIS run (what the convert event reports)
+    retry_wall = 0.0      # GPU time failed ladder attempts burned THIS run (review 2026-08-30:
+                          # invisible before — the ledger understated the Damodaran by 46 %)
     resumed_wall = 0.0    # GPU time the resumed slices cost when they ran (the ledger wants it)
     resumed_count = 0
+    converted_pages = 0   # pages actually converted in THIS run — the honest denominator
     peak_mib = 0
     for i, (start, end) in enumerate(ranges, 1):
         slice_dir = book_work / f"slice-{start:05d}-{end:05d}"
@@ -826,15 +1005,16 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
             # its .done carry the value actually used; the CHUNKING banner and the manifest's
             # chunking.batch keep the run-start reading (docs/37 §4 T2a).
             slice_batch = chunk_batch()
-            slice_extra = _with_batch(extra, slice_batch)
             staging = book_work / f".part-{start:05d}-{end:05d}"
             shutil.rmtree(staging, ignore_errors=True)
             shutil.rmtree(out_root, ignore_errors=True)  # Marker reuses <out_root>/<stem>
             print(f"SLICE {i}/{total} pages {start}-{end} (batch {slice_batch}) …", flush=True)
-            out_dir, md, wall, mib = _run_marker(
-                engine_src, engine_stem, out_root, slice_extra, end - start + 1, source_name,
-                page_range=f"{start}-{end}", progress_prefix=f"slice {i}/{total} · ")
+            md, imgs, wall, mib, meta = _run_slice_with_retries(
+                source_name, engine_src, engine_stem, out_root, extra, end - start + 1,
+                start, end, slice_batch, progress_prefix=f"slice {i}/{total} · ")
             total_wall += wall
+            retry_wall += meta["retry_wall_s"]
+            converted_pages += end - start + 1
             peak_mib = max(peak_mib, mib)
             # Assets keep the names Marker gave them: those are already ABSOLUTE page numbers
             # (see the note above — measured on the Damodaran run, not assumed), so slices cannot
@@ -842,8 +1022,6 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
             # stops being true, because silently mislabelled pages are the expensive failure.
             staging.mkdir(parents=True)
             (staging / "slice.md").write_text(md, encoding="utf-8")
-            imgs = [p for p in sorted(out_dir.iterdir())
-                    if p.suffix.lower() in (".jpeg", ".jpg", ".png")]
             stray = out_of_range_assets([p.name for p in imgs], start, end)
             if stray:
                 print(f"  WARNING: {len(stray)} asset(s) outside pages {start}-{end}, "
@@ -854,16 +1032,24 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
                 shutil.copy2(img, staging / img.name)
             # Identity fields (source_sha256, engine_args, marker_version) gate the next
             # resume; wall_s feeds the ledger; batch is FORENSIC only — never an admission
-            # criterion (docs/37 §4 T2c: the lever must stay live mid-book).
+            # criterion (docs/37 §4 T2c: the lever must stay live mid-book). F-09 signed:
+            # "the value actually used" — meta["batch"] is the batch that PRODUCED this
+            # output; the lever reading it started from is lever_batch (review: today's
+            # slice 4 ran at 4 and every record said 8).
             (staging / ".done").write_text(
                 json.dumps({"source_sha256": source_sha, "page_range": f"{start}-{end}",
-                            "wall_s": round(wall, 1), "batch": slice_batch,
+                            "wall_s": round(wall, 1), "batch": meta["batch"],
+                            "lever_batch": slice_batch,
+                            "retry_wall_s": meta["retry_wall_s"],
                             "engine_args": list(extra),
                             "marker_version": marker_version}) + "\n", encoding="utf-8")
             staging.rename(slice_dir)  # atomic publish: .done exists only on a complete slice
             emit("convert", "slice", source=source_name, slice=i, slices=total,
-                 page_range=f"{start}-{end}", wall_s=round(wall, 1), batch=slice_batch,
-                 resumed=False)
+                 page_range=f"{start}-{end}", wall_s=round(wall, 1), batch=meta["batch"],
+                 resumed=False,
+                 **({"attempts": meta["attempts"], "recovered": True,
+                     "retry_wall_s": meta["retry_wall_s"],
+                     "lever_batch": slice_batch} if meta["recovered"] else {}))
         else:
             # A resumed slice costs this run nothing, but it DID cost the GPU when it ran, and
             # the ledger is trying to learn what a book of this shape actually takes. Counting
@@ -889,7 +1075,12 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     chunking = {"slice_size": SLICE_PAGES, "batch": batch,
                 "seams": [start + 1 for start, _ in ranges[1:]]}
     shutil.rmtree(book_work, ignore_errors=True)
-    stats = {"cost_s": total_wall + resumed_wall, "resumed_slices": resumed_count}
+    # cost_s = every GPU second this book has cost, including failed ladder attempts and
+    # prior-run resumed slices — the number the estimator LEARNS from must not flatter itself
+    stats = {"cost_s": round(total_wall + retry_wall + resumed_wall, 1),
+             "retry_wall_s": round(retry_wall, 1),
+             "resumed_slices": resumed_count,
+             "pages_converted_this_run": converted_pages}
     return "\n\n".join(parts), merged_assets, total_wall, peak_mib, chunking, stats
 
 
@@ -925,15 +1116,31 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         markdown, assets_dir, wall, peak_mib, chunking, chunk_stats = _convert_chunked(
             src.name, engine_src, engine_stem, work, out_root, extra, pages, source_sha)
     else:
+        # SCOPE (review 2026-08-30): the unchunked path has NO stall-recovery ladder and no
+        # .done resume — a short book that stalls hard-fails and re-pays everything. Named
+        # here rather than silently implied; routing it through a 1-slice ladder is future
+        # work, not an accident.
         out_dir, markdown, wall, peak_mib = _run_marker(
             engine_src, engine_stem, out_root, extra, pages, src.name)
         assets_dir = out_dir
-        chunk_stats = {"cost_s": wall, "resumed_slices": 0}
+        chunk_stats = {"cost_s": round(wall, 1), "retry_wall_s": 0.0,
+                       "resumed_slices": 0, "pages_converted_this_run": pages}
     print(f"CONVERTED in {wall:.1f}s ({wall / pages:.1f} s/page)", flush=True)
     # Stage E: the promise rides the `converted` event beside the actual, forever — the event
     # stream is where the estimator's honesty can be audited later (docs/19 §6 hygiene).
+    # docs/34: s_per_page's honest denominator is the pages THIS run converted, not the
+    # book's page count — a resumed run divided this-run seconds by all-book pages and
+    # reported 1.97 s/pp on a book that truly cost ~7.2 (review 2026-08-30). Both rates are
+    # emitted, each naming its denominator; retry_wall_s makes failed-attempt GPU time
+    # visible instead of vanishing.
+    run_pages = chunk_stats.get("pages_converted_this_run", pages) or pages
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
          s_per_page=round(wall / pages, 2), pages=pages,
+         pages_converted_this_run=run_pages,
+         s_per_page_this_run=round(wall / run_pages, 2),
+         retry_wall_s=chunk_stats.get("retry_wall_s", 0.0),
+         resumed_slices=chunk_stats.get("resumed_slices", 0),
+         cost_s=chunk_stats.get("cost_s"),
          slices=(len(chunking["seams"]) + 1) if chunking else 1,
          peak_vram_mib=peak_mib or None,
          **({"promised_s_per_page": promised["s_per_page"],
@@ -992,7 +1199,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # rather than re-ran (see _convert_chunked) — otherwise every retry teaches it to promise
     # a little more than the GPU can deliver.
     _ledger_record(manifest, chunk_stats["cost_s"], peak_mib,
-                   resumed_slices=chunk_stats["resumed_slices"], run_wall_s=wall)
+                   resumed_slices=chunk_stats["resumed_slices"], run_wall_s=wall,
+                   retry_wall_s=chunk_stats.get("retry_wall_s", 0.0))
     body = rewrite_image_links(markdown)
     # Survival Audit of the convert stage (docs/15) — before any analyst pass, so the
     # witness is scored against the raw Marker output. Report-only; never fails the line.

@@ -43,6 +43,13 @@ CONVERT = Path(os.environ.get("FP_CONVERT", str(Path(__file__).parent / "convert
 PYTHON = sys.executable
 PATTERNS = {".pdf"}
 POLL_S = 5
+# The outer backstop. Review 2026-08-30: the stall-recovery ladder folded retry time into ONE
+# child, so the inner bound can now exceed a flat 6 h (worst case ~9 Marker invocations per
+# slice) — the Damodaran run came within ~20 min of this cap before a controlled restart.
+# Env-overridable so an operator can raise it for a monster book without editing source.
+# lever-waiver: Rab signed OK-17 2026-08-30; 8 h default = old 6 h + the measured worst
+# ladder spend observed on the 1377-pp Damodaran (3 stalls x ~1600 s).
+TIMEOUT_S = int(os.environ.get("FP_CONVERT_TIMEOUT_S", "28800"))
 
 logger = logging.getLogger("fp-desktop-watcher")
 
@@ -158,26 +165,41 @@ def convert_one(pdf: Path) -> None:
     logger.info("CONVERTING %s (analyst=%s)", pdf.name, mode)
     emit("intake", "detected", source=pdf.name, analyst_mode=mode)
     LOCK_FILE.write_text(pdf.name, encoding="utf-8")
+    timed_out = False
     try:
         # Backstop only — convert_and_ship caps Marker itself, scaled to the page count. This
         # outer cap exists so a wedged child can't block the queue forever, so it must sit ABOVE
         # the inner one or it silently becomes the real limit (a flat 7200 s made long books
         # unconvertible through the drop folder; found S45 on a 1,356-page book).
-        proc = subprocess.run(args, capture_output=True, text=True,
-                              encoding="utf-8", errors="replace", timeout=21600)
+        # Popen + explicit tree-kill, NOT subprocess.run: run's internal timeout kill is
+        # TerminateProcess on the DIRECT child only — the launcher-vs-real-python orphan class.
+        # A timed-out convert used to leave marker's python holding ~9.7 GB of VRAM with no
+        # `failed` event and the PDF still in drop/, so the next poll started a SECOND
+        # converter beside the orphan (review 2026-08-30, the worst path in this file).
+        child = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
+                                 text=True, encoding="utf-8", errors="replace")
+        try:
+            out, err = child.communicate(timeout=TIMEOUT_S)
+        except subprocess.TimeoutExpired:
+            timed_out = True
+            subprocess.run(["taskkill", "/PID", str(child.pid), "/T", "/F"],
+                           capture_output=True)
+            out, err = child.communicate()
     finally:
         LOCK_FILE.unlink(missing_ok=True)
-    if proc.returncode == 0:
+    if child.returncode == 0 and not timed_out:
         dest = DONE_DIR / pdf.name
         shutil.move(str(pdf), str(dest))
         logger.info("DONE %s -> drop/done/ | %s", pdf.name,
-                    (proc.stdout or "").strip().splitlines()[-1] if proc.stdout else "")
+                    (out or "").strip().splitlines()[-1] if out else "")
     else:
         dest = FAILED_DIR / pdf.name
         shutil.move(str(pdf), str(dest))
+        exit_code = "timeout" if timed_out else child.returncode
         logger.error("FAILED %s -> drop/failed/ (exit %s): %s", pdf.name,
-                     proc.returncode, (proc.stderr or "").strip()[-400:])
-        emit("intake", "failed", source=pdf.name, exit_code=proc.returncode)
+                     exit_code, (err or "").strip()[-400:])
+        emit("intake", "failed", source=pdf.name, exit_code=exit_code,
+             **({"timeout_s": TIMEOUT_S} if timed_out else {}))
 
 
 def main() -> None:

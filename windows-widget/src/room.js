@@ -376,7 +376,7 @@ function convertPanel(d) {
     // spec was signed, and a policy row that describes the past is worse than none.
     // Stage E: the batch value graduated from a stated number to a LIVE LEVER — three buttons
     // writing chunk-batch.txt through the backend's validated setter, re-read per slice.
-    `<div class="rp-policy">policy: stall → kill early &gt;15 m · long books → 200-pp resumable slices ` +
+    `<div class="rp-policy">policy: stall → kill &gt;15 m → retry batch 4 → split range · long books → 200-pp resumable slices ` +
     `(clean &gt;600 pp · scan &gt;400 pp) · slice batch ` +
     [8, 16, 32].map((n) =>
       `<button class="rp-batch${(ls.chunk_batch ?? 16) === n ? " on" : ""}" data-batch="${n}">${n}</button>`).join("") +
@@ -550,8 +550,22 @@ function eventMsg(e) {
   const k = `${e.stage}/${e.event}`;
   const map = {
     "intake/detected": `${s(e.source)} — on the belt`,
+    // OK-17 (2026-08-30): the stall-recovery ladder speaks — before this, a stalled slice
+    // showed the Room a bare "convert stalled" while the ladder fought for it off-glass.
+    "intake/failed": `${s(e.source)} — intake FAILED (${e.exit_code ?? "?"})${e.timeout_s ? ` · outer cap ${Math.round(e.timeout_s / 3600)}h` : ""}`,
     "convert/probe": `probing ${s(e.source)} — ${e.pages}pp ${e.lane}`,
-    "convert/converted": `converted ${s(e.source)} in ${Math.round(e.wall_s || 0)}s`,
+    "convert/slice": `slice ${e.slice}/${e.slices} pp ${s(e.page_range)} · ${Math.round(e.wall_s || 0)}s${e.resumed ? " · resumed" : ""}${e.recovered ? ` · recovered @${e.batch}` : ""}`,
+    "convert/stalled": `pp ${s(e.page_range)} STALLED — ladder engaging`,
+    "convert/slice_retry": `pp ${s(e.page_range)} — retrying at batch ${e.batch ?? "?"}`,
+    "convert/slice_retry_succeeded": `pp ${s(e.page_range)} — recovered at batch ${e.batch ?? "?"} ✓`,
+    "convert/slice_split": `pp ${s(e.page_range)} — splitting range (depth ${e.split_depth ?? "?"})`,
+    "convert/timeout": `pp ${s(e.page_range)} — Marker timeout ${Math.round(e.elapsed_s || 0)}s`,
+    "convert/chunk_batch_invalid": `batch lever invalid (${s(e.value)}) — using ${e.batch ?? 16}`,
+    "convert/chunk_batch_unreadable": `batch lever unreadable — using default`,
+    "convert/asset_range_warning": `pp ${s(e.page_range)} — assets outside slice range`,
+    "convert/converted": `converted ${s(e.source)} in ${Math.round(e.wall_s || 0)}s` +
+      (e.retry_wall_s ? ` (+${Math.round(e.retry_wall_s)}s retries)` : "") +
+      (e.resumed_slices ? ` · ${e.resumed_slices} resumed` : ""),
     "audit/scored": `scored ${s(e.source)} · survival ${e.doc_survival != null ? Number(e.doc_survival).toFixed(3) : "?"}`,
     "audit/flagged": `${s(e.source)} — verdict ${e.verdict}`,
     "audit/verdict_fail": `${s(e.bundle)} — verdict FAIL · algedonic`,

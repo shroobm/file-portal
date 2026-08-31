@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-30T18:10Z",
+  "updated_utc": "2026-08-31T00:18Z",
   "state": "idle",
   "current_ticket": "T-009",
   "sent": [
@@ -549,10 +549,10 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-08-30T17:43Z",
+    "utc": "2026-08-31T00:18Z",
     "gate_rev": "57187c87",
-    "doing": "Quiescent. VW-E2-R2 deferred closeout done: Codex ledger committed 7670180, MSG-CDX-0028 confirmed, MSG-FAB-0048 posted (53/54 finding preserved)",
-    "planning": "Open: Rab's calibration run, E3 signature, T-009 human close, first live bench run, OK-3..15 signatures",
+    "doing": "Overnight watch: Damodaran analyst 27%+, margin ~15-20min vs 03:09Z cap; checkpoint 00:45Z armed; Gmail-draft report on landing (Rab away, standing protocol)",
+    "planning": "On landing: draft report + P-1 clean re-measure; then OK-16/OK-17 execution on the idle machine (both signed)",
     "blocked": "none",
     "needs_from_peer": "Nothing",
     "completed": [],
