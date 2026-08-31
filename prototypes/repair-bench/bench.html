@@ -220,7 +220,14 @@
   #cropbox { position:absolute; border:2px solid var(--accent); background:rgba(0,122,255,.12);
              border-radius:3px; display:none; pointer-events:none; z-index:3;
              box-shadow:0 0 0 4000px rgba(0,0,0,.14); }
-  .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; z-index:2; }
+  .hlbox { position:absolute; background:var(--hl); border-radius:2px; pointer-events:none; z-index:2;
+    mix-blend-mode:multiply; } /* OK-4: multiply rides the page ink instead of fogging it */
+  /* OK-4: the search field's three honest states — busy (indexing/fetching), miss (zero
+     hits), and the resting default. The spinner is the field's own border, no extra DOM. */
+  #q.q-busy { border-color:var(--flow); animation:qpulse 0.9s ease-in-out infinite; }
+  #q.q-miss { border-color:var(--clay); background:color-mix(in srgb, var(--clay) 12%, transparent); }
+  @keyframes qpulse { 50% { opacity:0.55; } }
+  .thumb.q-hidden { display:none; } /* OK-4: rail filtered to hit pages */
   #histback:disabled, #histfwd:disabled { opacity:.35; }
   #trimbtn.on { background:var(--accent-bg); color:var(--accent); }
   .mark-row { display:flex; gap:8px; padding:5px 12px; font-size:11.5px; color:var(--text-2);
@@ -376,7 +383,7 @@
     </div>
     <div class="sbody" id="sb-toc"><div class="side-note">reading outline…</div></div>
     <div class="sbody" id="sb-search" hidden>
-      <div id="searchbox"><input id="q" placeholder="search the book's text…" /><button id="qgo" title="search">⌕</button><button id="hlclear" title="clear highlights">✕</button></div>
+      <div id="searchbox"><input id="q" placeholder="search the book's text…" /><button id="qgo" title="search">⌕</button><button id="qprev" title="previous hit (wraps)">↑</button><button id="qnext" title="next hit (wraps)">↓</button><button id="qfilter" title="show only hit pages in the rail">▤</button><button id="hlclear" title="clear highlights">✕</button></div>
       <div id="qres"><div class="side-note">Results list here — click one to jump; hits highlight on the page. Your place is never stolen: no auto-jump.</div></div>
     </div>
     <div class="sbody" id="sb-pages" hidden><div id="thumbs"></div></div>
@@ -856,8 +863,10 @@ addEventListener("keydown", (e) => {
 async function drawHighlights() {
   document.querySelectorAll(".hlbox").forEach((el) => el.remove());
   if (!hlQuery) return;
+  const asked = hlQuery, askedPage = page; // OK-4: a stale response never paints (gen guard)
   try {
     const { rects } = await api(`/api/rects?n=${page}&q=${encodeURIComponent(hlQuery)}`);
+    if (hlQuery !== asked || page !== askedPage) return;
     const img = $("pageimg");
     const place = () => rects.forEach((r) => {
       const d = document.createElement("div");
@@ -901,26 +910,78 @@ function markTocCurrent() {
   document.querySelectorAll(".toc-row").forEach((r) => r.classList.toggle("cur", Number(r.dataset.i) === cur));
   document.querySelector(".toc-row.cur")?.scrollIntoView({ block: "nearest" });
 }
+// ---- OK-4 (signed 2026-08-31): the search suite ------------------------------------------
+// 700 ms typeahead · busy/miss field states · request-generation token (a stale response
+// can never paint over a newer search) · next/prev traversal with wrap toast · the no-jump
+// rule (a hit on the CURRENT page redraws highlights and never yanks the view — this pane
+// shows whole pages, so "within 5%" maps to "same page") · rail filtering to hit pages.
+const SEARCH_DEBOUNCE_MS = 700;
+let searchTimer = null, searchGen = 0, hitPages = [], hitPos = -1, railFilter = false;
 async function runSearch() {
   const q = $("q").value.trim();
+  $("q").classList.remove("q-miss");
   if (q.length < 3) { status("search needs 3+ characters"); return; }
+  const gen = ++searchGen;
+  $("q").classList.add("q-busy");
   $("qres").innerHTML = `<div class="side-note">searching… (the first search indexes the whole book)</div>`;
   try {
     const r = await api(`/api/find?q=${encodeURIComponent(q)}`);
+    if (gen !== searchGen) return; // a newer search owns the surface now
+    $("q").classList.remove("q-busy");
     if (!r.searchable) { $("qres").innerHTML = `<div class="side-note">this book has NO text layer (raw scan) — search cannot see it. Use Contents, Pages, and your eyes.</div>`; return; }
     hlQuery = q; $("hlclear").style.display = "";
+    hitPages = r.pages.map((h) => h.page); hitPos = -1;
     $("search-tab").textContent = `Search (${r.pages.length})`;
+    $("q").classList.toggle("q-miss", !r.pages.length);
     $("qres").innerHTML = r.pages.length
       ? r.pages.map((h) => `<div class="hit" data-p="${h.page}"><span class="hp">p${h.page} · ${h.count}×</span>` +
           `<span class="hx">…${esc(h.excerpt)}…</span></div>`).join("")
       : `<div class="side-note">no hits for “${esc(q)}”</div>`;
-    $("qres").querySelectorAll(".hit").forEach((h) => h.onclick = () => goto(Number(h.dataset.p)));
+    $("qres").querySelectorAll(".hit").forEach((h) => h.onclick = () => { hitPos = hitPages.indexOf(Number(h.dataset.p)); gotoHit(Number(h.dataset.p)); });
+    applyRailFilter();
     drawHighlights(); // your place is NOT stolen — click a result when ready
-  } catch (e) { $("qres").innerHTML = `<div class="side-note">search failed: ${esc(e.message)}</div>`; }
+  } catch (e) {
+    if (gen !== searchGen) return;
+    $("q").classList.remove("q-busy");
+    $("qres").innerHTML = `<div class="side-note">search failed: ${esc(e.message)}</div>`;
+  }
+}
+function gotoHit(p) {
+  // the no-jump rule: a hit on the page you're reading never moves the view
+  if (p === page) { drawHighlights(); status(`hit on this page (p${p})`); return; }
+  goto(p);
+}
+function stepHit(dir) {
+  if (!hitPages.length) { status("no hits to walk — search first"); return; }
+  let next = hitPos + dir;
+  if (next >= hitPages.length) { next = 0; status("↻ wrapped to the first hit"); }
+  else if (next < 0) { next = hitPages.length - 1; status("↻ wrapped to the last hit"); }
+  hitPos = next;
+  gotoHit(hitPages[hitPos]);
+}
+function applyRailFilter() {
+  const hits = new Set(hitPages);
+  $("qfilter").classList.toggle("on", railFilter);
+  document.querySelectorAll(".thumb").forEach((t) =>
+    t.classList.toggle("q-hidden", railFilter && hitPages.length > 0 && !hits.has(Number(t.dataset.n))));
 }
 $("qgo").onclick = runSearch;
-$("q").onkeydown = (e) => { if (e.key === "Enter") runSearch(); };
-$("hlclear").onclick = () => { hlQuery = null; $("hlclear").style.display = "none"; $("search-tab").textContent = "Search"; $("q").value = ""; $("qres").innerHTML = ""; drawHighlights(); };
+$("qnext").onclick = () => stepHit(1);
+$("qprev").onclick = () => stepHit(-1);
+$("qfilter").onclick = () => { railFilter = !railFilter; if (railFilter && !thumbsBuilt) buildThumbs(); applyRailFilter(); };
+$("q").oninput = () => {
+  clearTimeout(searchTimer);
+  $("q").classList.remove("q-miss");
+  if ($("q").value.trim().length >= 3) searchTimer = setTimeout(runSearch, SEARCH_DEBOUNCE_MS);
+};
+$("q").onkeydown = (e) => {
+  if (e.key !== "Enter") return;
+  clearTimeout(searchTimer);
+  // Enter searches; Enter again on the same query walks forward, Shift+Enter back
+  if (hitPages.length && $("q").value.trim() === hlQuery) stepHit(e.shiftKey ? -1 : 1);
+  else runSearch();
+};
+$("hlclear").onclick = () => { clearTimeout(searchTimer); searchGen++; hlQuery = null; hitPages = []; hitPos = -1; $("q").classList.remove("q-busy", "q-miss"); $("hlclear").style.display = "none"; $("search-tab").textContent = "Search"; $("q").value = ""; $("qres").innerHTML = ""; applyRailFilter(); drawHighlights(); };
 
 function buildThumbs() {
   thumbsBuilt = true;

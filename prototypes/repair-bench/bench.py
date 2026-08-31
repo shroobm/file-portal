@@ -32,6 +32,7 @@ import os
 import re
 import shutil
 import sys
+import unicodedata
 import urllib.parse
 import uuid
 from collections import OrderedDict
@@ -566,15 +567,19 @@ class Bench:
             # multi-word needle must match across them (found live on Damodaran — every
             # needle missed until this join). "- " is the linebreak-hyphen artifact after
             # the join ("invest- ment") — removed so needles match rejoined words.
+            # OK-4: NFKC on top — PDFs carry ligatures (ﬁ, ﬂ) and width variants that a
+            # keyboard can never type; the index and the query normalize identically.
             self._texts = [
-                " ".join(self.doc().load_page(i).get_text("text").lower().split())
+                unicodedata.normalize(
+                    "NFKC",
+                    " ".join(self.doc().load_page(i).get_text("text").lower().split()))
                 .replace("- ", "")
                 for i in range(self.doc().page_count)
             ]
         return self._texts
 
     def find(self, q: str, limit: int = 40) -> dict:
-        q = " ".join(q.strip().lower().split())
+        q = unicodedata.normalize("NFKC", " ".join(q.strip().lower().split()))
         if len(q) < 3:
             return {"q": q, "pages": [], "searchable": True, "error": "need 3+ characters"}
         idx = self._index()
@@ -591,14 +596,66 @@ class Bench:
         return {"q": q, "pages": hits, "searchable": searchable,
                 "total_hits": sum(h["count"] for h in hits)}
 
+    @staticmethod
+    def match_in_words(words: list[list], query: str, limit: int = 20) -> list[list[float]]:
+        """OK-4's hyphenation repair, pure: find `query` in the page's WORD STREAM and return
+        one box per text line each occurrence crosses. A token ending in '-' joins the next
+        with no space (the line-break hyphen: "invest-" + "ment" matches "investment");
+        everything is NFKC + lowercase on both sides. Empty = genuinely not present as a
+        word sequence — never a guess."""
+        q = unicodedata.normalize("NFKC", " ".join(query.lower().split()))
+        if not q or not words:
+            return []
+        parts: list[str] = []
+        owner: list[int] = []  # stream char -> word index (-1 for separators)
+        prev_hyphen = False
+        for i, w in enumerate(words):
+            t = unicodedata.normalize("NFKC", str(w[4]).lower())
+            if parts and not prev_hyphen:
+                parts.append(" ")
+                owner.append(-1)
+            if t.endswith("-") and len(t) > 1:
+                core, prev_hyphen = t[:-1], True
+            else:
+                core, prev_hyphen = t, False
+            parts.append(core)
+            owner.extend([i] * len(core))
+        stream = "".join(parts)
+        boxes: list[list[float]] = []
+        at = stream.find(q)
+        while at >= 0 and len(boxes) < limit:
+            idxs = sorted({owner[j] for j in range(at, at + len(q)) if owner[j] >= 0})
+            if idxs:
+                cluster = [words[idxs[0]]]
+                for wi in idxs[1:]:
+                    w, last = words[wi], cluster[-1]
+                    h = max(w[3] - w[1], last[3] - last[1], 1e-6)
+                    # same text line = y-centers within half a word height; a match that
+                    # crosses the line break gets one box PER LINE, never a page-wide slab
+                    if abs((w[1] + w[3]) / 2 - (last[1] + last[3]) / 2) < h / 2:
+                        cluster.append(w)
+                    else:
+                        boxes.append([min(x[0] for x in cluster), min(x[1] for x in cluster),
+                                      max(x[2] for x in cluster), max(x[3] for x in cluster)])
+                        cluster = [w]
+                boxes.append([min(x[0] for x in cluster), min(x[1] for x in cluster),
+                              max(x[2] for x in cluster), max(x[3] for x in cluster)])
+            at = stream.find(q, at + 1)
+        return boxes
+
     def rects(self, n: int, q: str) -> list[list[float]]:
-        """Highlight rectangles for q on page n, as page-fraction boxes the UI overlays."""
+        """Highlight rectangles for q on page n, as page-fraction boxes the UI overlays.
+        OK-4: pymupdf's own matcher first (exact glyph spans); when it finds nothing, the
+        match usually crossed a line-break hyphen or a ligature — rebuilt from the OK-5
+        word stream instead of shrugging, which ends a whole class of false "not found"."""
         page = self.doc().load_page(max(0, min(self.doc().page_count - 1, n - 1)))
         r = page.rect
         out = []
         for hit in page.search_for(q)[:60]:
             out.append([hit.x0 / r.width, hit.y0 / r.height,
                         hit.x1 / r.width, hit.y1 / r.height])
+        if not out:
+            out = self.match_in_words(self.textlayer(n)["words"], q)
         return out
 
     TEXTLAYER_LRU = 16  # pages held at once; ~50-200 words each, so tens of KB, never GBs

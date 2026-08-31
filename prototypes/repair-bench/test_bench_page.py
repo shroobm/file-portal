@@ -511,6 +511,64 @@ class TestOK5TextLayer(unittest.TestCase):
         self.assertIn("drag.alt", html, "Alt+drag selection is not gated on the modifier")
 
 
+class TestOK4SearchSuite(unittest.TestCase):
+    """OK-4: the hyphenation-aware matcher (pure) + the client suite's presence census."""
+
+    W = 0.02  # a word box helper: y row r, x slot c
+
+    def _w(self, c, r, text):
+        return [c * 0.1, r * 0.1, c * 0.1 + 0.08, r * 0.1 + 0.03, text]
+
+    def test_hyphen_split_across_lines_matches_and_boxes_per_line(self):
+        words = [self._w(0, 0, "smart"), self._w(1, 0, "invest-"),
+                 self._w(0, 1, "ment"), self._w(1, 1, "works")]
+        boxes = bench.Bench.match_in_words(words, "investment")
+        self.assertEqual(len(boxes), 2, "a line-crossing match must yield one box PER line")
+        self.assertAlmostEqual(boxes[0][1], 0.0, places=5)
+        self.assertAlmostEqual(boxes[1][1], 0.1, places=5)
+
+    def test_ligature_query_matches_via_nfkc(self):
+        words = [self._w(0, 0, "ﬁnance")]  # PDF's ﬁ ligature
+        self.assertEqual(len(bench.Bench.match_in_words(words, "finance")), 1)
+
+    def test_multiword_and_multiple_occurrences(self):
+        words = [self._w(0, 0, "cash"), self._w(1, 0, "flow"), self._w(2, 0, "and"),
+                 self._w(0, 1, "cash"), self._w(1, 1, "flow")]
+        self.assertEqual(len(bench.Bench.match_in_words(words, "cash flow")), 2)
+
+    def test_negative_control_absent_text_is_an_honest_empty(self):
+        words = [self._w(0, 0, "alpha"), self._w(1, 0, "beta")]
+        self.assertEqual(bench.Bench.match_in_words(words, "gamma"), [])
+        self.assertEqual(bench.Bench.match_in_words([], "gamma"), [])
+        self.assertEqual(bench.Bench.match_in_words(words, "   "), [])
+
+    def test_hyphen_only_word_is_not_a_glue_trap(self):
+        # a bare "-" word must not silently weld its neighbours into one token
+        words = [self._w(0, 0, "a"), self._w(1, 0, "-"), self._w(2, 0, "b")]
+        self.assertEqual(bench.Bench.match_in_words(words, "ab"), [],
+                         "the lone hyphen glued two words that are not one")
+
+    def test_client_suite_census(self):
+        html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
+        for needle, why in [
+            ("SEARCH_DEBOUNCE_MS = 700", "the 700 ms typeahead constant"),
+            ("gen !== searchGen", "the request-generation staleness guard"),
+            ("mix-blend-mode:multiply", "multiply-blend highlights"),
+            ("wrapped to the first hit", "the wrap toast"),
+            ("p === page", "the no-jump rule (same page never yanks the view)"),
+            ("q-miss", "the zero-hit red field"),
+            ("q-busy", "the in-flight spinner state"),
+            ("applyRailFilter", "thumbnail-rail hit filtering"),
+        ]:
+            self.assertIn(needle, html, f"OK-4 client census missing: {why}")
+
+    def test_server_rects_falls_back_to_the_word_stream(self):
+        src = (Path(__file__).parent / "bench.py").read_text(encoding="utf-8")
+        at = src.index("def rects(")
+        self.assertIn("match_in_words", src[at:at + 1400],
+                      "rects() no longer consults the hyphenation-aware fallback")
+
+
 class TestOK7TrimBox(unittest.TestCase):
     """OK-7: the trim measurement, pure and stdlib-only — Okular's 4%-pad and half-page-floor
     constants, exercised both ways."""
