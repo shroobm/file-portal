@@ -647,6 +647,37 @@ step. Census rows cite schema keys and never define them.
 
 **Residue:** I RAN NOTHING. Every 'measured' figure I cite (634 true runs, 19-of-20 false uncovered verdicts, 0-for-11 table veto, 27-of-54 zero-area paths, -416 / +92 asset · Three honesty:false calls have NO measured specimen and rest on code reading alone: the analyst-stage [:25] run cap (fidelity_audit.py:408), the 10-zone degener · The damage-map denominator mismatch (runs[].page over ALL witness pages divided by pages_scored) is a code-reading finding I did not reproduce on a live manifes · The TOTAL omitted words per book is computed nowhere in shipped code. SYM-066's '21,189 words / 4.4 % of witness' exists only in the symptom record; the instrum · asset_delta's numerator (asset_count, convert_and_ship.py:46) is defined outside this lane — the intake/convert lane owns it; I registered only the subtraction  · backend_parity's chunk, embed and fence-token counts are produced by analyst.py (fence, _chunks, _tokens_of) — out of lane; registered only at their consumption · I did not read figure_coverage_selftest.py, coverage_rescore_selftest.py or backend_parity_selftest.py; a selftest may assert on a quantity I have not registere · I traced the audit/scored event only as far as room.js:570 (the ticker, which prints source + survival and NOT runs). Any other consumer of the event stream's `
 
+## §10 · Origins and placement (the study pass, 2026-08-31 evening)
+
+**The origin law found by reading all 374 rows:** in EVERY category, the first stepping number
+of the sequence — the true start of each n+1 chain — is one of the invisible ones. The system
+narrates outcomes and aggregates; the initial increments are computed and discarded:
+
+| category | the FIRST n+1 of the chain (its origin) | visible today? | first VISIBLE step today |
+|---|---|---|---|
+| intake | the arriving file's byte count growing under `stable_size` (N091) | **NOWHERE** | `intake/detected`, whole-file |
+| convert | one page's chars joining the probe sum (N052) | event-level only | `convert/probe`, whole-book |
+| analyst | one paragraph joining the packing accumulator (N003) | **NOWHERE** | chunk n/total heartbeat |
+| audit | one 12-word witness window tested (N255) | **NOWHERE** per-window | `doc_survival`, whole-book |
+| ship/vault | one receipt line appended (N037) / one L12 blob proved (N041, no counter variable exists) | **NOWHERE** as counts | raw receipt tail |
+| bench | one ledger event `seq` filed (N212) | **NOWHERE** | per-gesture toasts |
+| glass itself | one poll tick (uncounted — the glass has no counter of its own looking) | **NOWHERE** | — |
+
+**Placement doctrine (NUM-2 renders by KIND, never by whim):**
+- **gauge / daily-reset / rolling-window** → the Room's live panels (the NUM-2 counter panel).
+- **monotonic-per-run** → events.jsonl + the event-stream line (the narration layer).
+- **monotonic-per-book** → the bundle's manifest + the Assay drill (per-book truth travels
+  WITH the book, not on the ambient glass).
+- **cap** → wherever its capped number shows, AS `N of M (cap K)` — a cap shown without its
+  true count is SYM-066 by construction; a cap with no display at all is a silent lever.
+- **report-only instruments** (backend_parity, figure_coverage, coverage_rescore) → their own
+  reports and docs BY DESIGN; putting lab instruments on the operator glass would be noise —
+  their census rows are dispositioned OFF-GLASS, deliberately.
+- **NOWHERE rows (82)** → each needs one of four dispositions: GLASS (render it), RECEIPT
+  (emit into events/manifest), DEAD (deliberate, documented), or REPAIR (it exists because a
+  bug eats it). The glass_detector (N309) is the standing enforcement organ; this census is
+  its worklist.
+
 ## §9 · Standing rules born here
 
 1. **A number reaches the glass only with its census row** — NUM-2 renders registered
