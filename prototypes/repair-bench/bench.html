@@ -228,6 +228,12 @@
   #q.q-miss { border-color:var(--clay); background:color-mix(in srgb, var(--clay) 12%, transparent); }
   @keyframes qpulse { 50% { opacity:0.55; } }
   .thumb.q-hidden { display:none; } /* OK-4: rail filtered to hit pages */
+  /* OK-6: the table tool's overlays — divider lines ride #pageinner like every overlay */
+  .tdiv { position:absolute; background:var(--flow); opacity:.75; z-index:3; pointer-events:none; }
+  #tablepanel { position:absolute; top:6px; left:6px; z-index:5; background:var(--panel, #222);
+    border:1px solid var(--flow); border-radius:6px; padding:6px 8px; font-size:12px;
+    display:flex; gap:6px; align-items:center; }
+  #tablebtn.on { outline:2px solid var(--flow); }
   #histback:disabled, #histfwd:disabled { opacity:.35; }
   #trimbtn.on { background:var(--accent-bg); color:var(--accent); }
   .mark-row { display:flex; gap:8px; padding:5px 12px; font-size:11.5px; color:var(--text-2);
@@ -407,6 +413,7 @@
         <option value="1.5">150%</option><option value="2">200%</option>
       </select>
       <button id="trimbtn" title="trim margins — click: auto (measured from the raster, +4% pad, never past half) · Shift+click then drag: your own trim box for ALL pages · click again: off">⛶</button>
+      <button id="tablebtn" title="table tool (OK-6) — arm, drag a region over the wrecked table; dividers are guessed from the ink, click to add/remove a column line (Shift+click: row line), then copy the pipe table">⊞</button>
       <button id="locate" title="find this zone's true page from the prose around it (text-layer books)">⌖ locate</button>
       <span class="grow"></span>
       <button id="collapsebtn" hidden
@@ -829,7 +836,15 @@ function goto(n) {
   page = Math.max(1, Math.min(st.pages, Number(n) || 1));
   setPageImage(`/api/page?n=${page}&dpi=${dpiForZoom($("zoom").value)}`);
   $("pin").value = page;
-  applyZoom(); clearCrop(); drawHighlights(); markTocCurrent(); markThumbCurrent();
+  applyZoom(); clearCrop();
+  // OK-6: the table region is page-anchored — a zoom on the SAME page redraws it at the
+  // new scale (after the image settles, the drawHighlights idiom); a page flip clears it.
+  if (tableState && tableState.page === page) {
+    const timg = $("pageimg"), redraw = () => { if (tableState?.page === page) tableDraw(); };
+    if (timg.complete && timg.naturalWidth) redraw();
+    else timg.addEventListener("load", redraw, { once: true });
+  } else tableClear();
+  drawHighlights(); markTocCurrent(); markThumbCurrent();
   histRecord();
 }
 function applyZoom() {
@@ -1228,12 +1243,83 @@ box.addEventListener("mousedown", (e) => {
   if (!st?.pdf_available) return;
   // reading mode blocks REPAIR drags, but a trim-select drag writes nothing — and trimming
   // margins is exactly what a reading-mode user wants (review 2026-08-30). An Alt+drag
-  // text-select writes nothing either, so it passes the same gate (OK-5).
-  if (st.pdf_only && !trimSelecting && !e.altKey) return;
+  // text-select writes nothing either, so it passes the same gate (OK-5); so does the
+  // armed table tool — extraction is read-only until YOU paste its markdown (OK-6).
+  if (st.pdf_only && !trimSelecting && !e.altKey && !tableMode) return;
   const r = $("pageimg").getBoundingClientRect();
-  drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, r, alt: e.altKey };
+  drag = { x0: e.clientX - r.left, y0: e.clientY - r.top, r, alt: e.altKey, shift: e.shiftKey };
   e.preventDefault();
 });
+
+// ---- OK-6 (signed 2026-08-31): the table divider tool ------------------------------------
+let tableMode = false, tableState = null;
+$("tablebtn").onclick = () => {
+  tableMode = !tableMode;
+  $("tablebtn").classList.toggle("on", tableMode);
+  if (!tableMode) tableClear();
+  else status("⊞ table tool armed — drag a region over the wrecked table");
+};
+async function tableExtract(rect, cols, rows) {
+  const pg = page;
+  let u = `/api/table?n=${pg}&rect=${rect.map((v) => v.toFixed(5)).join(",")}`;
+  if (cols) u += `&cols=${cols.map((v) => v.toFixed(5)).join(",")}`;
+  if (rows) u += `&rows=${rows.map((v) => v.toFixed(5)).join(",")}`;
+  try {
+    const r = await api(u);
+    if (page !== pg) return; // flipped away mid-fetch — the overlay would lie
+    tableState = r;
+    tableDraw();
+    status(`⊞ ${r.rows}×${r.cols} from ${r.words} words — click corrects columns, Shift+click rows`);
+  } catch (e) { status(`table extraction failed: ${esc(e.message)}`); }
+}
+function tableCorrect(x, y, isRow, r) {
+  const s = tableState;
+  const snap = 3 / (isRow ? r.height : r.width); // the 3 px snap, in page fractions
+  const divs = isRow ? [...s.row_divs] : [...s.col_divs];
+  const v = isRow ? y : x;
+  const [lo, hi] = isRow ? [s.rect[1], s.rect[3]] : [s.rect[0], s.rect[2]];
+  if (v < lo || v > hi) { status("outside the table region — ✕ on the panel to finish"); return; }
+  const near = divs.findIndex((d) => Math.abs(d - v) <= snap);
+  if (near >= 0) divs.splice(near, 1); else { divs.push(v); divs.sort((a, b) => a - b); }
+  tableExtract(s.rect, isRow ? s.col_divs : divs, isRow ? divs : s.row_divs);
+}
+function tableDraw() {
+  tableClearOverlays();
+  const s = tableState;
+  if (!s) return;
+  const img = $("pageimg"), W = img.clientWidth, H = img.clientHeight;
+  const box = (cls, l, t, w, h) => {
+    const d = document.createElement("div");
+    d.className = "tdiv " + cls;
+    Object.assign(d.style, { left: l + "px", top: t + "px", width: w + "px", height: h + "px" });
+    $("pageinner").appendChild(d);
+  };
+  const [rx0, ry0, rx1, ry1] = s.rect;
+  box("t-edge", rx0 * W, ry0 * H, (rx1 - rx0) * W, 2);
+  box("t-edge", rx0 * W, ry1 * H - 2, (rx1 - rx0) * W, 2);
+  box("t-edge", rx0 * W, ry0 * H, 2, (ry1 - ry0) * H);
+  box("t-edge", rx1 * W - 2, ry0 * H, 2, (ry1 - ry0) * H);
+  s.col_divs.forEach((d) => box("t-col", d * W - 1, ry0 * H, 2, (ry1 - ry0) * H));
+  s.row_divs.forEach((d) => box("t-row", rx0 * W, d * H - 1, (rx1 - rx0) * W, 2));
+  let panel = $("tablepanel");
+  if (!panel) {
+    panel = document.createElement("div");
+    panel.id = "tablepanel";
+    panel.innerHTML = `<span id="tpdims"></span><button id="tpcopy">⧉ copy table</button><button id="tpdone">✕</button>`;
+    $("pageinner").appendChild(panel);
+    $("tpcopy").onclick = () => {
+      navigator.clipboard?.writeText(tableState?.markdown || "").then(
+        () => status("⧉ pipe table copied — paste it into the ✎ editor at the zone"),
+        () => status("clipboard blocked — table markdown is in the console"),
+      );
+      if (!navigator.clipboard) console.log(tableState?.markdown);
+    };
+    $("tpdone").onclick = () => { tableMode = false; $("tablebtn").classList.remove("on"); tableClear(); };
+  }
+  $("tpdims").textContent = `⊞ ${s.rows}×${s.cols}`;
+}
+function tableClearOverlays() { document.querySelectorAll(".tdiv").forEach((el) => el.remove()); }
+function tableClear() { tableState = null; tableClearOverlays(); $("tablepanel")?.remove(); }
 addEventListener("mousemove", (e) => {
   if (!drag) return;
   const x1 = Math.max(0, Math.min(drag.r.width, e.clientX - drag.r.left));
@@ -1251,6 +1337,18 @@ addEventListener("mouseup", () => {
     $("trimbtn").classList.add("on");
     clearCrop(); applyZoom(); drawHighlights(); saveViewStore();
     status("⛶ trimmed to your region — applied to every page; ⛶ turns it off");
+    drag = null; return;
+  }
+  // OK-6: an armed table tool consumes the gesture — a real drag extracts the region, a
+  // bare click corrects a divider (3 px snap; Shift = row lines). Checked before the crop
+  // so the crop button never arms mid-table.
+  if (drag && tableMode) {
+    const wasDrag = crop && (crop[2] - crop[0]) > 0.03 && (crop[3] - crop[1]) > 0.02;
+    const clickX = drag.x0 / drag.r.width, clickY = drag.y0 / drag.r.height;
+    const shift = drag.shift;
+    clearCrop();
+    if (wasDrag) tableExtract(crop, null, null);
+    else if (tableState) tableCorrect(clickX, clickY, shift, drag.r);
     drag = null; return;
   }
   // OK-5: an Alt+drag is a TEXT SELECTION — the words under the band, copied in reading

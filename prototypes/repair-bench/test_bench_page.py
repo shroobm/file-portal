@@ -569,6 +569,66 @@ class TestOK4SearchSuite(unittest.TestCase):
                       "rects() no longer consults the hyphenation-aware fallback")
 
 
+class TestOK6TableTool(unittest.TestCase):
+    """OK-6: divider guessing, central-pixel bucketing, the char-split repair for words that
+    cross a divider (the audit's words-only failure), and pipe-safety — all pure."""
+
+    def test_divider_guessing_finds_the_valleys_and_ignores_noise(self):
+        # two columns of ink: 0.1-0.3 and 0.5-0.8 → one divider at the gap's middle
+        divs = bench.Bench.guess_dividers([(0.1, 0.2), (0.15, 0.3), (0.5, 0.7), (0.6, 0.8)],
+                                          0.05, 0.9)
+        self.assertEqual(divs, [0.4])
+        # a sub-threshold gap is texture, not a column boundary
+        self.assertEqual(bench.Bench.guess_dividers([(0.1, 0.3), (0.302, 0.5)], 0.0, 0.6), [])
+
+    def test_central_pixel_bucketing_builds_the_grid(self):
+        words = [[0.10, 0.10, 0.20, 0.14, "name"], [0.60, 0.10, 0.70, 0.14, "value"],
+                 [0.10, 0.30, 0.22, 0.34, "cash"], [0.60, 0.30, 0.72, 0.34, "42"]]
+        cells = bench.Bench.bucket_cells(words, [], [0.05, 0.05, 0.95, 0.40],
+                                         col_divs=[0.45], row_divs=[0.22])
+        self.assertEqual(cells, [["name", "value"], ["cash", "42"]])
+        md = bench.Bench.table_markdown(cells)
+        self.assertIn("| name | value |", md)
+        self.assertIn("| --- | --- |", md.replace("| --- ", "| --- "))
+        self.assertIn("| cash | 42 |", md)
+
+    def test_word_crossing_a_divider_is_split_by_its_chars(self):
+        # ONE word "AB12" straddles the divider at 0.5 — words-only would dump it whole into
+        # the left cell; the chars pull "AB" left and "12" right (the audit's exact case)
+        word = [[0.40, 0.10, 0.60, 0.14, "AB12"]]
+        chars = [[0.40, 0.10, 0.45, 0.14, "A"], [0.45, 0.10, 0.49, 0.14, "B"],
+                 [0.51, 0.10, 0.55, 0.14, "1"], [0.55, 0.10, 0.60, 0.14, "2"]]
+        cells = bench.Bench.bucket_cells(word, chars, [0.3, 0.05, 0.9, 0.2],
+                                         col_divs=[0.5], row_divs=[])
+        self.assertEqual(cells, [["AB", "12"]])
+
+    def test_words_only_fallback_when_no_chars_supplied(self):
+        # center 0.48 — clearly left of the 0.5 divider (a dead-center tie is degenerate
+        # and may land either side; the contract is center-bucketing, not tie-breaking)
+        word = [[0.40, 0.10, 0.56, 0.14, "AB12"]]
+        cells = bench.Bench.bucket_cells(word, [], [0.3, 0.05, 0.9, 0.2],
+                                         col_divs=[0.5], row_divs=[])
+        self.assertEqual(cells, [["AB12", ""]],
+                         "without chars the whole word lands by its center — degraded, "
+                         "never invented")
+
+    def test_pipes_in_cell_text_are_escaped(self):
+        cells = bench.Bench.bucket_cells([[0.1, 0.1, 0.2, 0.14, "a|b"]], [],
+                                         [0.0, 0.0, 1.0, 1.0], [], [])
+        self.assertEqual(cells[0][0], "a\\|b", "an unescaped pipe eats the table's own syntax")
+
+    def test_client_table_census(self):
+        html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
+        for needle, why in [
+            ('id="tablebtn"', "the arming button"),
+            ("3 / (isRow ? r.height : r.width)", "the 3 px snap in page fractions"),
+            ("tableCorrect", "click-to-correct wiring"),
+            ("tpcopy", "the copy control"),
+            ("!tableMode", "the reading-mode gate pass-through"),
+        ]:
+            self.assertIn(needle, html, f"OK-6 client census missing: {why}")
+
+
 class TestOK7TrimBox(unittest.TestCase):
     """OK-7: the trim measurement, pure and stdlib-only — Okular's 4%-pad and half-page-floor
     constants, exercised both ways."""

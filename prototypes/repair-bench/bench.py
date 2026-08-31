@@ -643,6 +643,119 @@ class Bench:
             at = stream.find(q, at + 1)
         return boxes
 
+    # ---- OK-6 (signed 2026-08-31): the table divider tool ---------------------------------
+    # The humane SYM-003 repair: drag a region over a wrecked table, the tool guesses the
+    # dividers from ink coverage, you correct them by click, and the cells come back as a
+    # pipe table nobody had to hand-type. The guessing and bucketing are pure (harness-
+    # tested); only the char fetch touches fitz.
+
+    @staticmethod
+    def guess_dividers(spans: list[tuple[float, float]], lo: float, hi: float,
+                       min_gap: float = 0.006) -> list[float]:
+        """1-D divider guessing: merge the occupied spans, and every gap wider than min_gap
+        between them is a divider (at the gap's midpoint — the tick-sweep's valley). Bounds
+        lo..hi are the dragged region's edges; returns interior dividers only, sorted."""
+        occ: list[list[float]] = []
+        for a, b in sorted((max(lo, a), min(hi, b)) for a, b in spans if b > lo and a < hi):
+            if occ and a <= occ[-1][1] + 1e-9:
+                occ[-1][1] = max(occ[-1][1], b)
+            else:
+                occ.append([a, b])
+        return [round((occ[i][1] + occ[i + 1][0]) / 2, 5)
+                for i in range(len(occ) - 1)
+                if occ[i + 1][0] - occ[i][1] >= min_gap]
+
+    @staticmethod
+    def bucket_cells(words: list[list], chars: list[list], rect: list[float],
+                     col_divs: list[float], row_divs: list[float]) -> list[list[str]]:
+        """Central-pixel cell extraction: every word lands in the (row, col) whose bounds
+        contain its CENTER. A word that CROSSES a column divider is the words-only failure
+        the audit named — it is split by its chars (synthetic-space rects included) and each
+        char re-bucketed, so kerned columns tighter than a word gap still come apart. Cells
+        join left-to-right in reading order; pipes are escaped so the table can't eat its
+        own syntax."""
+        x0, y0, x1, y1 = rect
+        cbounds = [x0, *sorted(col_divs), x1]
+        rbounds = [y0, *sorted(row_divs), y1]
+
+        def bucket(bounds: list[float], v: float) -> int:
+            for i in range(len(bounds) - 1):
+                if v < bounds[i + 1]:
+                    return i
+            return len(bounds) - 2
+
+        grid: dict[tuple[int, int], list[list]] = {}
+        char_pool = list(chars)
+        for w in words:
+            wx0, wy0, wx1, wy1, text = w[0], w[1], w[2], w[3], str(w[4])
+            crossed = any(wx0 < d < wx1 for d in col_divs)
+            pieces = []
+            if crossed:
+                mine = [c for c in char_pool
+                        if c[0] >= wx0 - 1e-6 and c[2] <= wx1 + 1e-6
+                        and c[1] >= wy0 - 1e-6 and c[3] <= wy1 + 1e-6]
+                if mine:
+                    part: dict[int, list] = {}
+                    for c in sorted(mine, key=lambda c: c[0]):
+                        ci = bucket(cbounds, (c[0] + c[2]) / 2)
+                        part.setdefault(ci, []).append(c)
+                    for ci, cs in part.items():
+                        pieces.append((cs[0][0], (wy0 + wy1) / 2, ci,
+                                       "".join(str(c[4]) for c in cs).strip()))
+            if not pieces:
+                pieces = [(wx0, (wy0 + wy1) / 2, bucket(cbounds, (wx0 + wx1) / 2), text)]
+            for px, py, ci, ptext in pieces:
+                if not ptext:
+                    continue
+                ri = bucket(rbounds, py)
+                grid.setdefault((ri, ci), []).append((px, ptext))
+        rows_n, cols_n = len(rbounds) - 1, len(cbounds) - 1
+        return [[" ".join(t for _, t in sorted(grid.get((r, c), []))).replace("|", "\\|")
+                 for c in range(cols_n)] for r in range(rows_n)]
+
+    @staticmethod
+    def table_markdown(cells: list[list[str]]) -> str:
+        if not cells or not cells[0]:
+            return ""
+        head, *body = cells
+        lines = ["| " + " | ".join(head) + " |",
+                 "|" + "|".join(" --- " for _ in head) + "|"]
+        lines += ["| " + " | ".join(r) + " |" for r in body]
+        return "\n".join(lines)
+
+    def table(self, n: int, rect: list[float],
+              col_divs: list[float] | None = None,
+              row_divs: list[float] | None = None) -> dict:
+        """The table tool's one entry point: words + chars inside the dragged region, guessed
+        (or caller-corrected) dividers, cells, markdown. Row gaps are usually tighter than
+        column gaps, so the row sweep uses a smaller valley threshold."""
+        layer = self.textlayer(n)
+        words = [w for w in layer["words"]
+                 if w[2] > rect[0] and w[0] < rect[2] and w[3] > rect[1] and w[1] < rect[3]]
+        page = self.doc().load_page(max(0, min(self.doc().page_count - 1, n - 1)))
+        r = page.rect
+        chars: list[list] = []
+        try:
+            for block in page.get_text("rawdict")["blocks"]:
+                for line in block.get("lines", []):
+                    for span in line.get("spans", []):
+                        for ch in span.get("chars", []):
+                            bb = ch["bbox"]
+                            chars.append([bb[0] / r.width, bb[1] / r.height,
+                                          bb[2] / r.width, bb[3] / r.height, ch["c"]])
+        except Exception:  # noqa: BLE001 — chars refine, words still stand
+            chars = []
+        if col_divs is None:
+            col_divs = self.guess_dividers([(w[0], w[2]) for w in words],
+                                           rect[0], rect[2], min_gap=0.006)
+        if row_divs is None:
+            row_divs = self.guess_dividers([(w[1], w[3]) for w in words],
+                                           rect[1], rect[3], min_gap=0.003)
+        cells = self.bucket_cells(words, chars, rect, col_divs, row_divs)
+        return {"page": n, "rect": rect, "col_divs": col_divs, "row_divs": row_divs,
+                "rows": len(cells), "cols": len(cells[0]) if cells else 0,
+                "words": len(words), "markdown": self.table_markdown(cells)}
+
     def rects(self, n: int, q: str) -> list[list[float]]:
         """Highlight rectangles for q on page n, as page-fraction boxes the UI overlays.
         OK-4: pymupdf's own matcher first (exact glyph spans); when it finds nothing, the
@@ -1683,6 +1796,13 @@ def make_handler(bench: Bench, token=_NO_GATE):
                     self._json(bench.trimbox(int(q.get("n", ["1"])[0])))
                 elif url.path == "/api/textlayer":  # OK-5 — read-only, lazy + LRU-bounded
                     self._json(bench.textlayer(int(q.get("n", ["1"])[0])))
+                elif url.path == "/api/table":      # OK-6 — read-only extraction preview
+                    rect = [float(x) for x in q.get("rect", ["0,0,1,1"])[0].split(",")][:4]
+                    cd = ([float(x) for x in q["cols"][0].split(",") if x]
+                          if "cols" in q else None)
+                    rd = ([float(x) for x in q["rows"][0].split(",") if x]
+                          if "rows" in q else None)
+                    self._json(bench.table(int(q.get("n", ["1"])[0]), rect, cd, rd))
                 elif url.path == "/api/library":
                     self._json(library_listing())
                 else:
