@@ -58,7 +58,11 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = Path(__file__).resolve().parent / "dispositions.json"
 
-VALID_DISPOSITIONS = {"GLASS", "EVIDENCE", "REPORT", "INTERNAL", "DEAD"}
+# REPAIR joined the vocabulary with NUM-7 (signed Rab 2026-08-31): a number that is computed
+# CORRECTLY but whose consumer is broken — the value is right, the wiring eats it. Neither
+# INTERNAL (it deserves a reader) nor DEAD (the producer is sound): the disposition names a
+# defect to fix, and like DEAD, a REPAIR entry that outlives its follow-up is itself a defect.
+VALID_DISPOSITIONS = {"GLASS", "EVIDENCE", "REPORT", "INTERNAL", "DEAD", "REPAIR"}
 
 # Keys this short are never distinctive enough for a word-boundary search to mean anything.
 MIN_KEY_LEN = 3

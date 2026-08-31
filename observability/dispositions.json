@@ -10,7 +10,8 @@
     "names that home. DEAD means the producer should be deleted; a DEAD entry that outlives",
     "the session that wrote it is itself a defect.",
     "",
-    "Keys are `<lane>:<key>`. Run: python observability/glass_detector.py"
+    "Keys are `<lane>:<key>`. Run: python observability/glass_detector.py",
+    "NUM-7 (signed Rab 2026-08-31): census:N-xxx keys are docs/51 numerations dispositioned row by row. REPAIR = computed correctly, consumer broken — fix the wiring, then retire the entry. The 13 contested census rows are deliberately ABSENT here until Rab signs them (list: docs/51 + sessions sheet); absence is their loudness."
   ],
   "lanes": [
     {
@@ -100,6 +101,282 @@
     "converter:slice_size": {
       "disposition": "REPORT",
       "reason": "Reaches a human via REPORT, indirectly: figure_coverage.py:295 compares it to SYM050_SLICE and the verdict line ('REPAIRED MAP (SYM-050)' + sym050_doubled_offset) renders in every coverage report and sym050-quarantine.txt. The raw integer is machinery for that verdict, not a separate measurement. Signed S108 at the close's first GLASS red; revisit if the detector line is ever removed."
+    },
+    "census:N-006": {
+      "disposition": "REPORT",
+      "reason": "HOMED TODAY by NUM-6 (a524763): the honest per-run rate denominator is now named chunks_generated and rides both the analyst/done event and the manifest. HOME: analyst/done event + manifest.analyst.chunks_generated (convert_and_ship.py:1449-1451)"
+    },
+    "census:N-014": {
+      "disposition": "INTERNAL",
+      "reason": "A process-global pacing clock that exists only to space outbound requests — the same class as the already-signed bench:keep_alive entry — and no human would act on its value."
+    },
+    "census:N-015": {
+      "disposition": "REPORT",
+      "reason": "No home at all (it is folded into a RuntimeError string that is then swallowed at analyst.py:342-345), yet it is the only witness of real API request consumption and the number that falsifies FREE_TIER_WINDOW_CHUNKS, so the run's request total belongs in the analyst's own record. HOME: analyst/done event + manifest.analyst (beside chunks_generated, NUM-6's new fields)"
+    },
+    "census:N-023": {
+      "disposition": "GLASS",
+      "reason": "Its derived boolean already has a home on the Dock pre-flight card (main.js:313) but the MiB value and the -1 unknown sentinel reach no surface, so a failed probe renders as the positive claim 'GPU free'. HOME: Dock pre-flight card (windows-widget/src/main.js:313) — the MiB reading and an explicit UNREAD state for -1"
+    },
+    "census:N-024": {
+      "disposition": "INTERNAL",
+      "reason": "A configured constant, not a measurement — it belongs in source like the signed converter:slice_size entry — and the number that actually needs a home is the measured largest chunk emitted, which nothing computes."
+    },
+    "census:N-025": {
+      "disposition": "INTERNAL",
+      "reason": "An outbound request parameter sent to Ollama, the identical class as the already-signed bench:num_ctx disposition, and when its size matters it reaches the human as a failure rather than a number."
+    },
+    "census:N-026": {
+      "disposition": "EVIDENCE",
+      "reason": "HOMED TODAY by NUM-6 (a524763): prompt_eval_count/eval_count are aggregated instead of discarded and ride the book's manifest, with honest None when a backend reports no counters. HOME: manifest.analyst.tokens_prompt_total / tokens_output_total / tokens_accepted_output (analyst.py:427-430)"
+    },
+    "census:N-038": {
+      "disposition": "GLASS",
+      "reason": "The headline quantity of the vault lane is computed nowhere, while a surface already claims to show it — the widget's vault_count tile, which silently substitutes the local anchor count when the clone is unreachable (N-116/N-180). HOME: widget vault_count tile (vault.rs → Room/Wall), backed by a real walk of the bare repo's Inbox tree"
+    },
+    "census:N-039": {
+      "disposition": "GLASS",
+      "reason": "No home — Exporter.sweep() iterates the directory at exporter.py:147 without ever counting it — yet this is the pipeline's only true backlog signal and the honest denominator the restart-inflated `failed` and `supersede-held` receipt tallies lack. HOME: Room queue/KPI band, as a labelled staging-depth gauge distinct from drop/ queue depth"
+    },
+    "census:N-041": {
+      "disposition": "REPORT",
+      "reason": "It exists only as loop iterations with no counter variable, so a bundle that verified 1 of 40 files and one that verified all 40 emit the identical 'blob-verified' log line — the number belongs on the receipt that records the deletion gate's proof. HOME: the `exported` / `exported-supersede` receipt in receipts.jsonl (exporter.py:376-381, :525-532)"
+    },
+    "census:N-043": {
+      "disposition": "REPORT",
+      "reason": "It is the quantity that decides whether the vault is written at all, and all three branches log only qualitatively — the exported-supersede receipt carries reason and from_verdict but no magnitude, so a reader cannot tell a one-asset supersede from a two-hundred-path rewrite. HOME: the `exported-supersede` receipt in receipts.jsonl (exporter.py:525-532)"
+    },
+    "census:N-044": {
+      "disposition": "INTERNAL",
+      "reason": "It is a first-free-name search index whose only meaningful output — the chosen filename — already reaches the operator through status.json's `dest` field and the ALLOCATED log line, and publishing it as a count would assert a cumulative history it provably does not have."
+    },
+    "census:N-045": {
+      "disposition": "INTERNAL",
+      "reason": "Same first-free-name search index as the allocator's, already legible as the ` (n)` suffix in the published bundle name and the CONVERTED/REROUTED/REJECTED log lines; the defect worth fixing is that this meaningless ordinal becomes a permanent vault slug, not that the number is unrendered."
+    },
+    "census:N-049": {
+      "disposition": "GLASS",
+      "reason": "The lane's only human-facing surface carries no count at all, so a disabled category and an empty one render identically and a date-filtered photo grid reads as 'no photos'. HOME: dashboard sidebar category rows as a badge (linux-dashboard/dashboard/window.py:69-82), with the active filter named"
+    },
+    "census:N-050": {
+      "disposition": "INTERNAL",
+      "reason": "A per-process memory bound that is never presented as a photo count and dies with the process — an LRU occupancy is machinery, and rendering it would invite exactly the misreading (cached ≠ distinct photos) the row warns about."
+    },
+    "census:N-054": {
+      "disposition": "EVIDENCE",
+      "reason": "HOMED TODAY by NUM-5 (a524763): the routing vote's ratio, span counts and short-circuiting font now survive the decision and travel with the book, so a 50.1 % and a 100 % book no longer leave identical records. HOME: manifest.probe_evidence + convert/probe event (ocr_invisible_ratio / ocr_invisible_spans / ocr_total_spans / ocr_font_trigger)"
+    },
+    "census:N-065": {
+      "disposition": "EVIDENCE",
+      "reason": "No home — it lives only inside cost_s at convert_and_ship.py:1121 — yet the split of a book's cost into 'paid today' and 'paid earlier' is a per-book truth that must travel with the book, and its silent-zero fallback currently makes an unparseable .done look like a free slice. HOME: the conversion ledger row + manifest (beside ledger.cost_s / wall_s)"
+    },
+    "census:N-072": {
+      "disposition": "REPAIR",
+      "reason": "The number is written correctly to disk and read by nothing: the resume path at convert_and_ship.py:1098-1101 sums only prior wall_s and never retry_wall_s, which is the exact defect by which ledger.cost_s understates every resumed book."
+    },
+    "census:N-090": {
+      "disposition": "INTERNAL",
+      "reason": "A 1-or-abort correctness gate whose only human-relevant outcome — the RuntimeError — already reaches the operator through the watcher's FAILED log line and the intake/failed event, so the count itself is control flow."
+    },
+    "census:N-091": {
+      "disposition": "REPORT",
+      "reason": "The book's byte size is recorded nowhere in the pipeline and a file that never settles inside 120 s produces no record at all, so the settled size belongs on the intake event and the abandonment needs an event of its own. HOME: intake/detected event (add bytes) + a new intake/stalled event at the 120 s timeout (watch_and_convert.py:66-79,:166)"
+    },
+    "census:N-092": {
+      "disposition": "REPORT",
+      "reason": "One intake/deferred event per PDF per episode is emitted and nothing ever says when the hold cleared, so how long the assistant stalled the conveyor is unrecoverable — the hold's duration belongs on the event stream as per-run narration. HOME: intake/deferred event + a resume event carrying held_s (watch_and_convert.py:152-158)"
+    },
+    "census:N-099": {
+      "disposition": "GLASS",
+      "reason": "No renderer reads it, yet 'this PDF has sat in drop/ for three hours' is SYM-024's scenario exactly and OPEN-TASKS J16 already argues it is neither INTERNAL nor DEAD; note the dispositions.json entry J16 claims was written is NOT in the file today. HOME: Room queue panel rows (windows-widget/src/room.js:167-169, which today renders only name and bytes)"
+    },
+    "census:N-104": {
+      "disposition": "GLASS",
+      "reason": "Zero readers across main.js/room.js/index.html while the Room draws its progress bar from elapsed ÷ ETA instead — the real fraction Marker reports sits unrendered in the payload beneath an estimate. HOME: Room convert progress bar (room.js:329-334), which should read convert_frac rather than the ETA estimate"
+    },
+    "census:N-110": {
+      "disposition": "INTERNAL",
+      "reason": "It is the arithmetic product of two values already rendered side by side in the Dock receipt line ('Npp @ Xs/p', main.js:490), so it carries nothing a reader cannot already see."
+    },
+    "census:N-130": {
+      "disposition": "GLASS",
+      "reason": "Computed every poll on both surfaces' behalf and rendered by neither, so a fresh unacknowledged failure is invisible for M minutes until `escalated` catches up — the count that would surface it exists and is discarded. HOME: algedonic banner and Dock chip, beside `escalated` (room.js:148, main.js:1033)"
+    },
+    "census:N-135": {
+      "disposition": "INTERNAL",
+      "reason": "A uniqueness nonce masked into an opaque 28-hex token — a generation counter by definition — whose only job is non-repetition within a process."
+    },
+    "census:N-143": {
+      "disposition": "DEAD",
+      "reason": "Assigned on every render and read by nothing anywhere in the file — the S22 arithmetic sizing model it fed was replaced by scrollHeight reflow (main.js:281-289) — so it and its dead constants BASE_HEIGHT/CARD_HEIGHT/LINE_HEIGHT should be deleted rather than homed, since a stepping quantity with no reader looks wired and is not."
+    },
+    "census:N-147": {
+      "disposition": "GLASS",
+      "reason": "The operator is asked to consent to a standing routing rule whose number never appears — 'big docs' is the whole label — and the tick state is derived from 'is any rule set' rather than from this card's own estimate. HOME: Dock pre-flight card checkbox label (main.js:333-344) — name the threshold and compare it to THIS card's est_chunks"
+    },
+    "census:N-169": {
+      "disposition": "GLASS",
+      "reason": "The only witness of how long a book has been stuck never becomes a number — it only selects CSS classes — and because it is a max over the capped 12-alert list the glow silently steps DOWN as the pain grows. HOME: Assay card / Wall (room.js:73-77, :224, :964) — print the oldest held age beside the glow"
+    },
+    "census:N-170": {
+      "disposition": "INTERNAL",
+      "reason": "A CSS-tier selector computed from held.length, which is itself rendered honestly at room.js:453, so it must stay unrendered — its '+1' double-count under the enforce lever is a code defect to fix at source, not a number to publish."
+    },
+    "census:N-202": {
+      "disposition": "GLASS",
+      "reason": "Computed, shipped over the wire and dropped by the client — it is the one number that could expose the 40-page search cap, and it belongs on the tab that currently states a capped total as if it were the book's. HOME: bench Search tab label (bench.html) as `N of M (cap 40 pages)`"
+    },
+    "census:N-204": {
+      "disposition": "GLASS",
+      "reason": "A silent cap on evidence the operator is being asked to look at: the sidebar can say 'p12 · 83×' while only 60 boxes ever paint and nothing says which 23 occurrences are unmarked. HOME: bench search sidebar hit rows (bench.py:774 → bench.html:945-953) — disclose painted-of-found"
+    },
+    "census:N-205": {
+      "disposition": "GLASS",
+      "reason": "A second, tighter, undeclared cap on the same surface the primary path caps at 60, and the operator cannot even tell which matcher fired — both the ceiling and the path must be stated where the boxes paint. HOME: bench search sidebar hit rows (bench.py:600,:626) — disclose the cap and name the matcher"
+    },
+    "census:N-207": {
+      "disposition": "REPAIR",
+      "reason": "The defect is a name collision, not a missing home: bench.py:1865 answers `len(bench._undo)` — a restart-zeroed stack capped at 20 — under the field name every sibling route answers with the ledger-derived uncapped count."
+    },
+    "census:N-209": {
+      "disposition": "REPAIR",
+      "reason": "It exists as a permanent over-count because a defect eats its decrement: undo_ledger (bench.py:1004-1051), the only undo the UI can reach, reverts the body and pops the manifest repair record but never pops the drift entry."
+    },
+    "census:N-211": {
+      "disposition": "GLASS",
+      "reason": "Correct as computed and surfaced nowhere: the one gesture that silently rewrites the body reports neither how much it moved nor how many places it touched, while the toast that should carry it prints 'undefined more available'. HOME: the ↩ undo toast (bench.html:1643), reading the keys undo_ledger already returns"
+    },
+    "census:N-212": {
+      "disposition": "REPAIR",
+      "reason": "The number has an archival home in repairs.jsonl but is not a sequence: seq = len(ledger()) counts only READABLE lines (bench.py:909-910 drops torn ones), so one torn append re-issues an already-used ordinal — the fix is max(seq)+1, not a surface."
+    },
+    "census:N-219": {
+      "disposition": "REPAIR",
+      "reason": "One field name carries two incompatible quantities — the frozen convert-time manifest value or the live body count (bench.py:357-359) — while bench.html:1252/1263 prints the live count from the same body, so two disagreeing line totals sit on one screen unlabelled."
+    },
+    "census:N-223": {
+      "disposition": "GLASS",
+      "reason": "The needle count IS the stated denominator of the `confidence` ratio already rendered on the ⌖ locate readout, and docs/34 requires a denominator to travel with its ratio — 0.08 must read as 'one of twelve'. HOME: the ⌖ locate confidence readout on the bench (bench.py:854-870 → bench.html)"
+    },
+    "census:N-225": {
+      "disposition": "EVIDENCE",
+      "reason": "It is the localizer behind the ⌖ verdict — the signed bench:reason precedent puts a localizer on the opened card, never in ambient chrome — but it must first be sorted by vote instead of page number, since today the winning page can be absent from its own vote table. HOME: the opened ⌖ locate card on the bench (payload already ships at bench.py:880)"
+    },
+    "census:N-227": {
+      "disposition": "EVIDENCE",
+      "reason": "It already has a home: it rides manifest.repairs[] with the book and is deliberately kept off the repairs chip, because reusing the `lines` key would let a negative number reach the UI's `r.lines || 0` — a numeration whose name was chosen to prevent a display lie. HOME: manifest.repairs[] (bench.py:1409,:1432; consumed by _record_shift at :1088-1089)"
+    },
+    "census:N-233": {
+      "disposition": "INTERNAL",
+      "reason": "A payload sanity field whose operator-relevant fact — whether the page has a text layer at all — already renders honestly at bench.html:1005 via `searchable`."
+    },
+    "census:N-234": {
+      "disposition": "INTERNAL",
+      "reason": "A deliberately reasoned memory bound ('a 1,377-pp book must never hold 1,377 pages of rects', bench.py:200-201) — an LRU occupancy is machinery and nothing is misstated by its silence."
+    },
+    "census:N-235": {
+      "disposition": "INTERNAL",
+      "reason": "A per-process memoization occupancy that states nothing to anyone; the real issue it exposes is that it is UNBOUNDED where its neighbour _textlayer is deliberately LRU-capped, which is a memory defect to fix rather than a number to render."
+    },
+    "census:N-236": {
+      "disposition": "INTERNAL",
+      "reason": "Its cost is already narrated on the glass ('the first search indexes the whole book', bench.html:1000) and its one load-bearing derived fact — `searchable` — is a MEASURED claim the UI states honestly at bench.html:1005."
+    },
+    "census:N-238": {
+      "disposition": "INTERNAL",
+      "reason": "The marks themselves are rendered as a list (bench.html:1971-1974) so the population is already visible, and the defect worth fixing is the silent localStorage try/catch that loses the trim setting and reading position on a quota failure, not the missing count."
+    },
+    "census:N-240": {
+      "disposition": "GLASS",
+      "reason": "The wrap toast asserts the operator reached the end of the book's hits when it is the end of a 40-page-truncated list, and 'hit 7 of 40' is printed nowhere — so there is no surface on which the truncation could ever become visible. HOME: the bench search bar (bench.html:1028-1035) — print position of total with the cap named"
+    },
+    "census:N-241": {
+      "disposition": "INTERNAL",
+      "reason": "A staleness token used only to strand in-flight responses — a generation counter by definition — and nothing downstream would act on the number of searches a session ran."
+    },
+    "census:N-242": {
+      "disposition": "INTERNAL",
+      "reason": "The same staleness-token shape as searchGen, read only to strand stale placeholder timers, trim fits and scroll restores."
+    },
+    "census:N-247": {
+      "disposition": "INTERNAL",
+      "reason": "A per-assist token index used as an exact multiset gate whose only meaningful outcome already reaches the operator immediately — 'the model damaged an image embed — change REFUSED (link-fence)' at bench.html:1633."
+    },
+    "census:N-249": {
+      "disposition": "REPAIR",
+      "reason": "Its manifest half is sound and its drift half permanently over-counts because of N-209's defect (undo_ledger never pops the drift entry), compounded by two coexisting line arithmetics where repair() takes the shift unconditionally and _resolve_zone_line must not."
+    },
+    "census:N-250": {
+      "disposition": "GLASS",
+      "reason": "Correct as computed and entirely unsurfaced on the one gesture that can delete the most text in a single action — docs/28 built this chokepoint precisely because the manual ✎ save left no trace, and the receipt it now produces still never reaches an eye. HOME: the ✎ save toast (bench.html:1738), which today prints only '✓ saved (backup kept as .bench-bak)'"
+    },
+    "census:N-253": {
+      "disposition": "EVIDENCE",
+      "reason": "It already has a home and is the census's control specimen: it rides repairs.jsonl and the /api/ledger payload declaring the exact characters dropped plus the full-region sha256, and undo REFUSES outright on a truncated write rather than reconstructing approximately. HOME: repairs.jsonl + /api/ledger payload (bench.py:917-932)"
+    },
+    "census:N-260": {
+      "disposition": "EVIDENCE",
+      "reason": "docs/15:87-88 promises the count is kept and nothing keeps it — no manifest key, no event — so normalization noise is indistinguishable from zero noise in every book's audit record. HOME: manifest fidelity.convert block, beside runs and pages_flagged"
+    },
+    "census:N-261": {
+      "disposition": "EVIDENCE",
+      "reason": "Two books scoring 0.98 are not the same book if one passed on exact containment and the other on ≥90 fuzzy throughout, and neither the §7 schema nor the event vocabulary carries the split, so the audit's own strictness cannot be trended per book or across the corpus. HOME: manifest fidelity.convert block (windows matched exact / fuzzy, shipped with doc_survival)"
+    },
+    "census:N-262": {
+      "disposition": "EVIDENCE",
+      "reason": "A correct and deliberate filter whose effect is uncounted anywhere: doc_survival's denominator has already been trimmed by an unreported amount, so books with and without heavy running furniture publish ratios over differently-sized witnesses. HOME: manifest fidelity.convert block (lines and words stripped from the witness) — the doc-side twin of N-332"
+    },
+    "census:N-266": {
+      "disposition": "EVIDENCE",
+      "reason": "It already has an archival home in the manifest fidelity tripwires (docs/15:159) but zero renderers read it (OPEN-TASKS B16) and the 200-window sample size never travels with it, so docs/34 rule 7's 'sampling never promotes' cannot be honoured by any reader. HOME: manifest fidelity.convert.tripwires.reverse_sample (existing) — ship n and scope with it, reveal on the Assay drill"
+    },
+    "census:N-272": {
+      "disposition": "REPORT",
+      "reason": "A doc-promised measurement (docs/15:196) with no emitter anywhere, and it is load-bearing for a signed decision — docs/41:146 argues P-1's host choice on audit seconds extending the card lock, an argument about a quantity nothing has ever stored. HOME: audit/scored event (add wall_s) + the manifest fidelity block"
+    },
+    "census:N-285": {
+      "disposition": "EVIDENCE",
+      "reason": "A real count collapsed to a boolean at the only place it is observed, so the fence can say a chunk was rejected but never how badly — one token lost versus twelve — and the magnitude is a per-book truth that belongs beside chunks_rejected. HOME: manifest.analyst (fence tokens sent/returned aggregated beside chunks_rejected)"
+    },
+    "census:N-286": {
+      "disposition": "REPORT",
+      "reason": "HOMED TODAY by NUM-6 (a524763): goodput_accepted_tok_s is emitted with its docs/34 conditions in the record and rides the analyst/done event, with honest None when the backend reports no counters. HOME: analyst/done event goodput_accepted_tok_s + manifest.analyst.goodput_conditions (analyst.py:430-433)"
+    },
+    "census:N-297": {
+      "disposition": "GLASS",
+      "reason": "Same quantity as N-099 and same answer — OPEN-TASKS J16 argues it is neither INTERNAL nor DEAD because it is SYM-024's readout — and note that the dispositions.json GLASS entry J16 records as written is absent from the file today. HOME: Room queue panel rows (windows-widget/src/room.js:167-169)"
+    },
+    "census:N-312": {
+      "disposition": "EVIDENCE",
+      "reason": "It already has a home in the manifest and is the rare case where numerator and denominator ship in one object; the only gap is that assay.rs:153-170 does not forward it to the Assay drill. HOME: manifest fidelity.convert.tripwires.page_coverage (existing) — forward it through assay.rs to the Assay drill"
+    },
+    "census:N-315": {
+      "disposition": "EVIDENCE",
+      "reason": "No home at all — it never enters the block, manifest, event or surface — while doc_survival is published as a bare ratio, which is docs/34's exact prohibition on a denominator being destroyed at return. HOME: manifest fidelity.convert block, shipped in the same object as doc_survival"
+    },
+    "census:N-317": {
+      "disposition": "EVIDENCE",
+      "reason": "HOMED TODAY by NUM-3 (a524763): SYM-066 is repaired at the source — runs_total and runs_capped_at now ride the audit block in both phases and runs_total rides the audit/scored event, so '25' can no longer masquerade as the count. HOME: manifest fidelity.{convert,analyst}.runs_total / runs_capped_at + audit/scored event runs_total"
+    },
+    "census:N-322": {
+      "disposition": "EVIDENCE",
+      "reason": "HOMED TODAY by NUM-3 (a524763): blocks_total and worst_capped_at now ride degeneration_detail beside the ten-exemplar list, so a 60-zone book no longer reports ten. HOME: manifest fidelity.convert.tripwires.degeneration_detail.blocks_total / worst_capped_at (fidelity_audit.py:312-314)"
+    },
+    "census:N-331": {
+      "disposition": "EVIDENCE",
+      "reason": "It is the denominator of fidelity.analyst.doc_survival and it ships nowhere, so the analyst-stage ratio travels with no way to reconstruct what it was measured over — the same defect as N-315 one stage later. HOME: manifest fidelity.analyst block, shipped with doc_survival"
+    },
+    "census:N-332": {
+      "disposition": "EVIDENCE",
+      "reason": "The code-side twin of N-262: neither the number of stripped lines nor the words removed is ever reported, so on a book with heavy running heads the witness silently shrinks and the published doc_survival has a denominator nobody downstream can reconstruct. HOME: manifest fidelity.convert block (lines and words stripped from the witness; fidelity_audit.py:137-143)"
+    },
+    "census:N-333": {
+      "disposition": "EVIDENCE",
+      "reason": "The cap itself can stay a source constant, but it MANUFACTURES failed windows — lowering doc_survival, raising pages_flagged and creating omission runs — and the count of windows declared missing on cap exhaustion is named in no block, event, surface or report. HOME: manifest fidelity.convert block (windows declared missing by cap exhaustion; fidelity_audit.py:211)"
+    },
+    "census:N-334": {
+      "disposition": "EVIDENCE",
+      "reason": "Nothing records which windowing path a book took, so a misdetection silently changes windowing, matching and the reverse sample for the entire book and the block gives no way to tell — the ratio and the path chosen must travel with the audit. HOME: manifest fidelity.convert block (cjk ratio + windowing path; fidelity_audit.py:172-175)"
     }
   }
 }
