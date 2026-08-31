@@ -51,7 +51,11 @@ pub fn shift_summary(gpu_pipeline_dir: &str) -> Result<Value, String> {
             "shipped": shipped,
             "failed": failed,
         },
-        "tail": tail.into_iter().rev().take(10).collect::<Vec<_>>(),
+        // 40, not 10 (NUM-2 follow-up, Rab live 2026-08-31): a chunked book emits
+        // probe/estimate/chunking + 7 slices + ladder events, so a 10-event window forgot
+        // every end-of-phase numeration mid-convert — the panel showed "—" where it had
+        // shown a value minutes earlier. Newest-first, same as before.
+        "tail": tail.into_iter().rev().take(40).collect::<Vec<_>>(),
     }))
 }
 

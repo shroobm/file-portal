@@ -500,7 +500,25 @@ function numerationsPanel(d) {
   const sc = latest("audit", "scored");
   const est = latest("convert", "estimate");
   const v = (x, suffix = "") => (x == null ? "—" : `${x}${suffix}`);
+  // NUM-2 follow-up (Rab live, 2026-08-31 "Nothing is changing in Numerations"): the panel
+  // was all end-of-phase truths — static for the whole convert. These rows STEP during the
+  // run, aggregated from this run's own events (everything since the newest intake/detected).
+  const runStart = tail.findIndex((e) => e.stage === "intake" && e.event === "detected");
+  const run = runStart >= 0 ? tail.slice(0, runStart + 1) : tail;
+  const slices = run.filter((e) => e.stage === "convert" && e.event === "slice");
+  const newestSlice = slices[0];
+  const runPages = slices.reduce((n, e) => {
+    const m = /^(\d+)-(\d+)$/.exec(e.page_range || "");
+    return m && !e.resumed ? n + (Number(m[2]) - Number(m[1]) + 1) : n;
+  }, 0);
+  const stalls = run.filter((e) => e.stage === "convert" && e.event === "stalled").length;
+  const retrySoFar = run.filter((e) => e.stage === "convert" && e.event === "slice_retry")
+    .reduce((s, e) => s + (e.elapsed_s || 0), 0);
   const rows = [
+    ["N067", "slices done", newestSlice ? `${newestSlice.slice}/${newestSlice.slices}` : "—"],
+    ["N061·live", "pages so far", runPages ? `${runPages}pp` : "—"],
+    ["N076", "stalls this run", stalls ? String(stalls) : conv.wall_s != null || newestSlice ? "0" : "—"],
+    ["N062·live", "retry spend so far", retrySoFar ? `${Math.round(retrySoFar)}s` : stalls ? "…" : newestSlice ? "0s" : "—"],
     ["N094", "drop queue", v(ls.drop_waiting, " waiting")],
     ["N095", "failed tray", v(ls.failed_count)],
     ["N106", "analyst chunks", ls.analyst_n != null ? `${ls.analyst_n}/${ls.analyst_total}` : "idle"],
