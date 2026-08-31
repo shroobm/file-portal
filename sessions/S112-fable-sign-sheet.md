@@ -99,3 +99,7 @@ append-only provenance, sandbox/reading modes) stays intact.
 `ship-with-losses-named` vs `audit-must-be-green`, still the only item that moves the north
 star — S108 sheet, E3 compaction) remain open and are NOT restated here; this sheet is only
 the Okular commission's surface.*
+
+**NUM batch (2026-08-31 ~20:30Z, Rab: "Signed. Work, delibrately plan out."):** NUM-3
+(true counts beside caps) · NUM-4 (promise repairs) · NUM-5 (decision evidence) · NUM-6
+(analyst goodput) · NUM-7 (82-row dispositions) — ALL SIGNED, Fable lane, agent cap 2-3.
