@@ -21,7 +21,7 @@ export function eventPhrase(e, { compact = false, unknown = null } = {}) {
     "convert/slice_retry_succeeded": `${icon("✓")}pp ${s(e.page_range)} — recovered at batch ${e.batch ?? "?"}`,
     "convert/slice_split": `${icon("⑂")}pp ${s(e.page_range)} — splitting range (depth ${e.split_depth ?? "?"})`,
     "convert/timeout": `${icon("✗")}pp ${s(e.page_range)} — Marker timeout ${Math.round(e.elapsed_s || 0)}s`,
-    "convert/chunk_batch_invalid": `batch lever invalid (${s(e.value)}) — using ${e.batch ?? 16}`,
+    "convert/chunk_batch_invalid": `batch lever invalid (${s(e.value)}) — using ${e.fallback ?? "?"}`,
     "convert/chunk_batch_unreadable": "batch lever unreadable — using default",
     "convert/ollama_unloaded": `ollama released ${e.count ?? "?"} resident(s) — VRAM margin cleared`,
     "convert/asset_range_warning": `${icon("⚠")}pp ${s(e.page_range)} — assets outside slice range`,

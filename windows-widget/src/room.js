@@ -491,7 +491,7 @@ function eventsPanel(d) {
   // with one writer each — the single-writer law — and are merged here, at render time, sorted
   // by their own timestamps. Before this, the vault's answer to a shipped book lived only in a
   // journal on another machine.
-  const local = (d.shift?.tail || []).map((e) => ({ ts: e.ts, tag: e.stage || e.tag || "", msg: e.msg || eventMsg(e) }));
+  const local = (d.shift?.tail || []).map((e) => ({ ts: e.ts, tag: e.stage || "", msg: eventMsg(e) }));
   const seam = (d.receipts?.rows || []).map((r) => ({ ts: r.ts, tag: "export", msg: receiptMsg(r) }));
   const rows = local.concat(seam)
     .sort((a, b) => String(a.ts || "").localeCompare(String(b.ts || "")))

@@ -72,6 +72,12 @@ Normally empty; an occupant means a decision is owed.
 - `chat-hold.json` — written by the chat server when a model is loaded on the card; the watcher
   reads it before converting and **defers** until it clears (the signed deferral gate, docs/33
   §2.3). Contains `{port, model, ts}`. Sole writer: the chat server.
+- `.convert-progress.json` — current Marker stage/count plus slice/retry context; one overwritten
+  v2 record, best-effort, read only while the conversion identity signals agree.
+- `.analyst-progress.json` — current analyst chunk count/rate/ETA; overwritten per chunk and
+  projected only while fresh. These two progress shapes are generated into
+  `observability/schemas.json`; legacy convert-progress remains readable but is not current
+  writer output.
 
 ### 3.3 The ledgers and logs (append-only)
 - `events.jsonl` — the factory's event stream. One JSON object per line:
@@ -79,14 +85,28 @@ Normally empty; an occupant means a decision is owed.
   stage-specific fields follow (e.g. `{"stage":"audit","event":"held","bundle":…,"verdict":"fail"}`).
   Emitted from python via `windows-converter/events.py`; the widget's `events.rs` is the
   **read** side — it summarizes the stream and hands the raw tail to the UI, read-only,
-  nothing stored (the single-writer law holds).
+  nothing stored (the single-writer law holds). Event fields are registered per exact
+  `stage/event` pair, not as a stream-wide union (`observability/schemas.json`).
 - `conversion-ledger.jsonl` — one line per conversion with the measured facts:
   `{ts, source, source_sha256, pages, lane, chars_per_page, wall_s, s_per_page, run_wall_s,
-  resumed_slices, chunked, slices, batch, peak_vram_mib}`. This is where ETAs learn from.
+  resumed_slices, retry_wall_s, chunked, slices, batch, peak_vram_mib}`. This is where ETAs
+  learn from; the generated registry is authoritative for the current key set.
 - `watcher.log` / `watcher-stderr.log` — the watcher's narrative and last words.
 - `widget-boot.log` — the widget's startup record, including watcher lifecycle notes.
 - `bench-stderr.log`, `chat-stderr.log` — the Repair Bench's and chat server's last words.
 - `algedonic-acks.jsonl` — acknowledgements on the alarm channel (docs/30).
+
+### 3.4 The generated key registry
+
+`observability/schema_registry.py --check` parses the actual writers and consumers without
+importing them, then byte-compares the result with `observability/schemas.json`. A writer key,
+nested path, or event variant added without regeneration fails; a consumer key that its writer
+does not emit also fails. The signed A4 scope is events, `coverage_rescore --json`, chunk-slice
+`.done`, convert/analyst progress, and the conversion ledger. It registers key names and nesting,
+not what a number means (that remains the numeration/measurement layer). `.intake-state.json`
+and `.convert-estimate.json` are explicitly outside A4 rather than falsely implied as covered.
+The guard is static and runs in CI; runtime telemetry remains best-effort and can never stop a
+conversion.
 
 ## 4. Bundle anatomy (one converted book)
 

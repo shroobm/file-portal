@@ -97,6 +97,12 @@ jobs:
       - name: Governance acceptance (observability, warn-only)
         continue-on-error: true
         run: python observability/acceptance.py
+      # A4 (signed Rab 2026-08-31): unlike the historical warn-only census above, this is a
+      # contract gate. It statically regenerates schemas.json from the real writers, proves
+      # every registered consumer key belongs to that exact contract/variant, and runs planted
+      # negative controls. stdlib only; it never imports converter code or reads live paths.
+      - name: Schema registry parity (A4, hard gate)
+        run: python observability/schema_registry_selftest.py
 
   rust:
     # SYM-020 (found S67, cleared S68 2026-08-10): fmt drift across 8 files had accumulated while

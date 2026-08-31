@@ -100,10 +100,6 @@
     "converter:slice_size": {
       "disposition": "REPORT",
       "reason": "Reaches a human via REPORT, indirectly: figure_coverage.py:295 compares it to SYM050_SLICE and the verdict line ('REPAIRED MAP (SYM-050)' + sym050_doubled_offset) renders in every coverage report and sym050-quarantine.txt. The raw integer is machinery for that verdict, not a separate measurement. Signed S108 at the close's first GLASS red; revisit if the detector line is ever removed."
-    },
-    "widget:age_s": {
-      "disposition": "GLASS",
-      "reason": "windows-widget/src-tauri/src/line.rs:106 — for each PDF queued in drop/, seconds since its mtime. docs/29 §5.3 step 4, does it already have a home anywhere, live or archival? NO. Grepped every renderer: windows-widget/src/main.js, room.js and index.html reference it ZERO times. The only age_s hits in the tree are an unrelated key in prototypes/relay-room/. IT IS NOT INTERNAL AND IT IS NOT DEAD, and I am not calling it either to quiet the tool. It is a value a human would act on: 'this PDF has sat in drop/ for three hours' is the signal that the watcher is not picking it up — SYM-024's scenario exactly, and the readout that would have shortened tonight's diagnosis when a book sat there and events.jsonl did not move. It is classed GLASS because GLASS is what it should be. WHY IT IS UNRENDERED TONIGHT, stated rather than glossed: wiring it is a product change to a renderer, and adoption is Rab's hand (docs/19 §0.3). It was found at 05:32Z on 2026-08-25 with him asleep, having handed over the close and not a build. The change is small and safe — the value is already in the payload; a renderer need only display it — and it cannot affect the running widget, which is the adopted 4DCB73E2 binary, until he rebuilds. SIGNED SILENCE WITH A DEBT ATTACHED: filed as OPEN-TASKS J15 with the exact wiring site. A GLASS entry that outlives the session after next is itself a defect — this one has a name, a site, and a register row, so it can be collected."
     }
   }
 }

@@ -14,6 +14,9 @@ This directory is docs/29 §5 made mechanical.
 | `glass_detector.py` | §5.1 — walks every dict a producer returns or persists, checks each key against the renderers |
 | `dispositions.json` | §5.2 — the lane map, and the signed-silence record |
 | `acceptance.py` | The detector's own acceptance: docs/29 §7 as an answer key |
+| `schema_registry.py` | A4 — regenerates filesystem-contract keys/paths from the real writers and checks consumer parity |
+| `schemas.json` | The deterministic generated registry; evidence, never a second handwritten source of truth |
+| `schema_registry_selftest.py` | Hermetic positive and planted-negative controls for A4 |
 
 ## Run it
 
@@ -24,6 +27,21 @@ python observability/glass_detector.py
 ```bash
 python observability/acceptance.py
 ```
+
+```bash
+python observability/schema_registry.py --check
+python observability/schema_registry_selftest.py
+```
+
+The A4 check is narrower and stronger than the glass census. It covers the signed filesystem
+contracts (`events.jsonl`, `coverage_rescore --json`, slice `.done`, both progress files, and
+the conversion ledger), preserves event variants and nested JSON paths, and exits nonzero if a
+writer changes without regeneration or a consumer names a path that writer does not emit. It
+is static and stdlib-only: no converter module is imported and no live pipeline file is read.
+Dynamic spreads must resolve from source or the check fails `UNREAD`; they never disappear into
+a partial green registry. Run `--write` only when the writer change is intentional, inspect the
+diff, then run the selftest. `.intake-state.json` and `.convert-estimate.json` are named in the
+registry as explicit exclusions from this signed ticket, not silently implied coverage.
 
 `--since <ref>` is **the signed mode** — §5.4's same-commit rule, the census restricted to the
 keys *this change* introduced, which is the only mode that prevents the class rather than

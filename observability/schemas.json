@@ -1,0 +1,973 @@
+{
+  "authority": "generated from writer and consumer source; observability/schema_registry.py --check",
+  "contracts": {
+    "analyst_progress": {
+      "consumer_paths": [
+        "n",
+        "s_per_chunk",
+        "total"
+      ],
+      "consumers": [
+        "windows-widget/src-tauri/src/line.rs:state"
+      ],
+      "format": "json",
+      "optional_paths": [],
+      "required_paths": [
+        "eta_s",
+        "n",
+        "resumed",
+        "s_per_chunk",
+        "total"
+      ],
+      "writers": [
+        "windows-converter/analyst.py:process._progress"
+      ]
+    },
+    "conversion-ledger.jsonl": {
+      "consumer_paths": [
+        "chars_per_page",
+        "lane",
+        "s_per_page"
+      ],
+      "consumers": [
+        "windows-converter/convert_and_ship.py:estimate_from_ledger"
+      ],
+      "format": "jsonl",
+      "optional_paths": [],
+      "required_paths": [
+        "batch",
+        "chars_per_page",
+        "chunked",
+        "lane",
+        "pages",
+        "peak_vram_mib",
+        "resumed_slices",
+        "retry_wall_s",
+        "run_wall_s",
+        "s_per_page",
+        "slices",
+        "source",
+        "source_sha256",
+        "ts",
+        "wall_s"
+      ],
+      "writers": [
+        "windows-converter/convert_and_ship.py:_ledger_record"
+      ]
+    },
+    "convert_progress": {
+      "consumer_paths": [
+        "attempt",
+        "attempts",
+        "batch",
+        "frac",
+        "n",
+        "page_range",
+        "slice",
+        "slices",
+        "split_depth",
+        "split_side",
+        "stage",
+        "total",
+        "v",
+        "writer_pid"
+      ],
+      "consumers": [
+        "windows-widget/src-tauri/src/line.rs:state"
+      ],
+      "format": "json",
+      "optional_paths": [
+        "attempt",
+        "attempts",
+        "batch",
+        "page_range",
+        "slice",
+        "slices",
+        "split_depth",
+        "split_side"
+      ],
+      "required_paths": [
+        "frac",
+        "n",
+        "pct",
+        "stage",
+        "total",
+        "v",
+        "writer_pid"
+      ],
+      "writers": [
+        "windows-converter/convert_and_ship.py:_write_progress"
+      ]
+    },
+    "coverage_rescore.stdout": {
+      "consumer_paths": [
+        "bundle",
+        "final_conversion_inventory",
+        "final_conversion_inventory.bundle_asset_files",
+        "final_conversion_inventory.candidate_partial_asset_page_count",
+        "final_conversion_inventory.candidate_status",
+        "final_conversion_inventory.candidate_zero_asset_page_count",
+        "final_conversion_inventory.conditions",
+        "final_conversion_inventory.conditions.interpretation",
+        "final_conversion_inventory.conditions.scan_lane_rule",
+        "final_conversion_inventory.source_unique_embedded_raster_objects",
+        "p1_page_coverage",
+        "p1_page_coverage.page_map",
+        "p1_page_coverage.pages_uncovered",
+        "p1_page_coverage.pages_with_source_figures"
+      ],
+      "consumers": [
+        "windows-converter/coverage_rescore.py:main text projection"
+      ],
+      "format": "json",
+      "optional_paths": [
+        "p1_page_coverage.sym050_doubled_offset.assets_out_of_range_after_repair",
+        "p1_page_coverage.sym050_doubled_offset.formula",
+        "p1_page_coverage.sym050_doubled_offset.note",
+        "p1_page_coverage.sym050_doubled_offset.repair_scope",
+        "p1_page_coverage.sym050_doubled_offset.unrepaired",
+        "p1_page_coverage.sym050_doubled_offset.unrepaired.coverage",
+        "p1_page_coverage.sym050_doubled_offset.unrepaired.output_asset_pages",
+        "p1_page_coverage.sym050_doubled_offset.unrepaired.pages_uncovered",
+        "p1_page_coverage.uncovered_detail[].bboxes",
+        "p1_page_coverage.uncovered_detail[].kinds",
+        "p1_page_coverage.uncovered_detail[].largest_area_pt2",
+        "p1_page_coverage.uncovered_detail[].page",
+        "p1_page_coverage.uncovered_detail[].regions"
+      ],
+      "required_paths": [
+        "bundle",
+        "final_conversion_inventory",
+        "final_conversion_inventory.asset_files_without_markdown_reference",
+        "final_conversion_inventory.bundle_asset_files",
+        "final_conversion_inventory.bundle_asset_pages",
+        "final_conversion_inventory.candidate_pages_with_fewer_assets_than_source_rasters",
+        "final_conversion_inventory.candidate_pages_with_source_rasters_and_zero_assets",
+        "final_conversion_inventory.candidate_partial_asset_page_count",
+        "final_conversion_inventory.candidate_status",
+        "final_conversion_inventory.candidate_zero_asset_page_count",
+        "final_conversion_inventory.conditions",
+        "final_conversion_inventory.conditions.interpretation",
+        "final_conversion_inventory.conditions.output_unit",
+        "final_conversion_inventory.conditions.p1_sensitivity_ceiling",
+        "final_conversion_inventory.conditions.page_map",
+        "final_conversion_inventory.conditions.page_unit",
+        "final_conversion_inventory.conditions.scan_lane_rule",
+        "final_conversion_inventory.conditions.source_unit",
+        "final_conversion_inventory.conditions.write_effect",
+        "final_conversion_inventory.markdown_asset_references",
+        "final_conversion_inventory.markdown_file",
+        "final_conversion_inventory.markdown_unique_asset_references",
+        "final_conversion_inventory.raw_unique_raster_minus_asset_files",
+        "final_conversion_inventory.references_missing_asset_file",
+        "final_conversion_inventory.source_embedded_raster_occurrences",
+        "final_conversion_inventory.source_pages_with_embedded_rasters",
+        "final_conversion_inventory.source_unique_embedded_raster_objects",
+        "manifest",
+        "manifest.converted_at",
+        "manifest.lane",
+        "manifest.pages",
+        "manifest.slice_size",
+        "p1_page_coverage",
+        "p1_page_coverage.assets_out_of_range",
+        "p1_page_coverage.bundle",
+        "p1_page_coverage.conditions",
+        "p1_page_coverage.conditions.image_identity",
+        "p1_page_coverage.conditions.levers_rejected",
+        "p1_page_coverage.conditions.levers_source",
+        "p1_page_coverage.conditions.max_page_fraction",
+        "p1_page_coverage.conditions.min_area_pt2",
+        "p1_page_coverage.conditions.min_side_pt",
+        "p1_page_coverage.conditions.pymupdf",
+        "p1_page_coverage.conditions.unit",
+        "p1_page_coverage.conditions.vector_cluster_gap_pt",
+        "p1_page_coverage.conditions.vector_min_paths",
+        "p1_page_coverage.conditions.verdict_effect",
+        "p1_page_coverage.conditions.veto_accounted_for",
+        "p1_page_coverage.conditions.veto_table_overlap",
+        "p1_page_coverage.conditions.veto_text_coverage",
+        "p1_page_coverage.conditions.veto_words_per_line",
+        "p1_page_coverage.coverage",
+        "p1_page_coverage.furniture_digests_dropped",
+        "p1_page_coverage.output_asset_pages",
+        "p1_page_coverage.output_assets_total",
+        "p1_page_coverage.page_map",
+        "p1_page_coverage.pages_total",
+        "p1_page_coverage.pages_uncovered",
+        "p1_page_coverage.pages_with_source_figures",
+        "p1_page_coverage.source",
+        "p1_page_coverage.sym050_doubled_offset",
+        "p1_page_coverage.sym050_doubled_offset.detected",
+        "p1_page_coverage.triage_mode",
+        "p1_page_coverage.uncovered_captioned",
+        "p1_page_coverage.uncovered_detail",
+        "p1_page_coverage.uncovered_other",
+        "p1_page_coverage.unparsed_asset_names",
+        "p1_page_coverage.vetoed_framed_text_regions",
+        "p1_page_coverage.vetoed_prose_regions",
+        "p1_page_coverage.vetoed_table_regions",
+        "source",
+        "source_identity",
+        "source_identity.manifest_sha256",
+        "source_identity.match",
+        "source_identity.observed_sha256"
+      ],
+      "writers": [
+        "windows-converter/coverage_rescore.py:run_rescore",
+        "windows-converter/coverage_rescore.py:final_conversion_inventory",
+        "windows-converter/figure_coverage.py:coverage"
+      ]
+    },
+    "events.jsonl": {
+      "consumer_global_keys": [
+        "backend",
+        "bundle",
+        "chunks_failed",
+        "chunks_passed",
+        "chunks_rejected",
+        "duration_s",
+        "error",
+        "event",
+        "id",
+        "pages",
+        "program",
+        "reason",
+        "s_per_page",
+        "sha",
+        "source",
+        "stage",
+        "ts",
+        "verdict",
+        "wall_s"
+      ],
+      "consumer_variant_keys": {
+        "analyst/done": [
+          "backend",
+          "chunks_failed",
+          "chunks_passed",
+          "chunks_rejected",
+          "duration_s",
+          "program"
+        ],
+        "analyst/start": [
+          "backend",
+          "bundle"
+        ],
+        "audit/flagged": [
+          "source",
+          "verdict"
+        ],
+        "audit/held": [
+          "bundle"
+        ],
+        "audit/scored": [
+          "degeneration",
+          "doc_survival",
+          "event",
+          "source",
+          "stage",
+          "ts",
+          "verdict"
+        ],
+        "audit/supersede": [
+          "source"
+        ],
+        "audit/supersede_ignored": [
+          "source"
+        ],
+        "audit/verdict_fail": [
+          "bundle"
+        ],
+        "convert/asset_range_warning": [
+          "page_range"
+        ],
+        "convert/chunk_batch_invalid": [
+          "fallback",
+          "value"
+        ],
+        "convert/chunk_batch_unreadable": [],
+        "convert/converted": [
+          "event",
+          "pages",
+          "resumed_slices",
+          "retry_wall_s",
+          "s_per_page",
+          "source",
+          "stage",
+          "wall_s"
+        ],
+        "convert/ollama_unloaded": [
+          "count"
+        ],
+        "convert/probe": [
+          "event",
+          "lane",
+          "pages",
+          "source",
+          "stage"
+        ],
+        "convert/slice": [
+          "batch",
+          "page_range",
+          "recovered",
+          "resumed",
+          "slice",
+          "slices",
+          "wall_s"
+        ],
+        "convert/slice_retry": [
+          "batch",
+          "page_range"
+        ],
+        "convert/slice_retry_succeeded": [
+          "batch",
+          "page_range"
+        ],
+        "convert/slice_split": [
+          "page_range",
+          "split_depth"
+        ],
+        "convert/stalled": [
+          "page_range"
+        ],
+        "convert/timeout": [
+          "elapsed_s",
+          "page_range"
+        ],
+        "gate/auto_routed": [
+          "bundle"
+        ],
+        "gate/failed": [
+          "error"
+        ],
+        "gate/pending": [
+          "bundle"
+        ],
+        "gate/resolved": [],
+        "intake/deferred": [
+          "source"
+        ],
+        "intake/detected": [
+          "source"
+        ],
+        "intake/failed": [
+          "exit_code",
+          "source",
+          "timeout_s"
+        ],
+        "intake/stale-hold-reaped": [
+          "reason"
+        ],
+        "intake/stale-lock-reaped": [
+          "source"
+        ],
+        "ship/failed": [
+          "error"
+        ],
+        "ship/shipped": [
+          "bundle",
+          "event",
+          "sha",
+          "stage",
+          "ts"
+        ]
+      },
+      "consumers": [
+        "windows-widget/src-tauri/src/events.rs",
+        "windows-widget/src-tauri/src/line.rs",
+        "windows-widget/src-tauri/src/room.rs",
+        "windows-widget/src-tauri/src/algedonic.rs",
+        "windows-widget/src-tauri/src/assay.rs",
+        "windows-widget/src/event-vocab.js",
+        "windows-widget/src/main.js",
+        "windows-widget/src/room.js"
+      ],
+      "envelope_required_keys": [
+        "event",
+        "pid",
+        "stage",
+        "ts"
+      ],
+      "format": "jsonl",
+      "variants": {
+        "analyst/done": {
+          "optional_keys": [],
+          "required_keys": [
+            "backend",
+            "bundle",
+            "chars",
+            "chunks_failed",
+            "chunks_passed",
+            "chunks_rejected",
+            "duration_s",
+            "event",
+            "pid",
+            "program",
+            "stage",
+            "ts"
+          ]
+        },
+        "analyst/rerun": {
+          "optional_keys": [],
+          "required_keys": [
+            "backend",
+            "bundle",
+            "event",
+            "from_verdict",
+            "pid",
+            "sha",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "analyst/rerun_failed": {
+          "optional_keys": [],
+          "required_keys": [
+            "bundle",
+            "error",
+            "event",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "analyst/rerun_refused": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "pid",
+            "reason",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "analyst/start": {
+          "optional_keys": [],
+          "required_keys": [
+            "backend",
+            "bundle",
+            "chars",
+            "event",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "audit/error": {
+          "optional_keys": [],
+          "required_keys": [
+            "error",
+            "event",
+            "phase",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "audit/flagged": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "phase",
+            "pid",
+            "source",
+            "stage",
+            "ts",
+            "verdict"
+          ]
+        },
+        "audit/held": {
+          "optional_keys": [],
+          "required_keys": [
+            "bundle",
+            "event",
+            "pid",
+            "source",
+            "stage",
+            "ts",
+            "verdict"
+          ]
+        },
+        "audit/scored": {
+          "optional_keys": [
+            "degeneration",
+            "kind"
+          ],
+          "required_keys": [
+            "doc_survival",
+            "event",
+            "phase",
+            "pid",
+            "runs",
+            "source",
+            "stage",
+            "ts",
+            "verdict"
+          ]
+        },
+        "audit/supersede": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "from_verdict",
+            "pid",
+            "sha",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "audit/supersede_ignored": {
+          "optional_keys": [],
+          "required_keys": [
+            "actual",
+            "event",
+            "expected",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "audit/verdict_fail": {
+          "optional_keys": [],
+          "required_keys": [
+            "bundle",
+            "event",
+            "pid",
+            "source",
+            "stage",
+            "ts",
+            "verdict"
+          ]
+        },
+        "convert/asset_range_warning": {
+          "optional_keys": [],
+          "required_keys": [
+            "count",
+            "event",
+            "examples",
+            "page_range",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/card_mutex": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "pid",
+            "stage",
+            "state",
+            "ts"
+          ]
+        },
+        "convert/chunk_batch_invalid": {
+          "optional_keys": [],
+          "required_keys": [
+            "allowed",
+            "event",
+            "fallback",
+            "pid",
+            "stage",
+            "ts",
+            "value"
+          ]
+        },
+        "convert/chunk_batch_unreadable": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "fallback",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/chunking": {
+          "optional_keys": [],
+          "required_keys": [
+            "batch",
+            "event",
+            "pages",
+            "pid",
+            "slice_size",
+            "slices",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/converted": {
+          "optional_keys": [
+            "estimate_basis",
+            "estimate_samples",
+            "promised_eta_s",
+            "promised_s_per_page"
+          ],
+          "required_keys": [
+            "cost_s",
+            "event",
+            "pages",
+            "pages_converted_this_run",
+            "peak_vram_mib",
+            "pid",
+            "resumed_slices",
+            "retry_wall_s",
+            "s_per_page",
+            "s_per_page_this_run",
+            "slices",
+            "source",
+            "stage",
+            "ts",
+            "wall_s"
+          ]
+        },
+        "convert/estimate": {
+          "optional_keys": [],
+          "required_keys": [
+            "basis",
+            "eta_s",
+            "event",
+            "pid",
+            "s_per_page",
+            "samples",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/ledger_error": {
+          "optional_keys": [],
+          "required_keys": [
+            "error",
+            "event",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/ollama_unloaded": {
+          "optional_keys": [],
+          "required_keys": [
+            "count",
+            "event",
+            "models",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/probe": {
+          "optional_keys": [],
+          "required_keys": [
+            "chars_per_page",
+            "event",
+            "lane",
+            "lane_reason",
+            "pages",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/slice": {
+          "optional_keys": [
+            "attempts",
+            "batch",
+            "lever_batch",
+            "recovered",
+            "retry_wall_s",
+            "wall_s"
+          ],
+          "required_keys": [
+            "event",
+            "page_range",
+            "pid",
+            "resumed",
+            "slice",
+            "slices",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/slice_retry": {
+          "optional_keys": [
+            "gpu_mem_total_mib",
+            "gpu_mem_used_mib",
+            "gpu_util_pct"
+          ],
+          "required_keys": [
+            "attempt",
+            "batch",
+            "elapsed_s",
+            "event",
+            "frozen_s",
+            "page_range",
+            "pid",
+            "reason",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/slice_retry_succeeded": {
+          "optional_keys": [],
+          "required_keys": [
+            "attempt",
+            "batch",
+            "event",
+            "page_range",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/slice_split": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "page_range",
+            "pid",
+            "source",
+            "split_at",
+            "split_depth",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/slice_stale": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "mismatch",
+            "page_range",
+            "pid",
+            "slice",
+            "slices",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/stalled": {
+          "optional_keys": [
+            "gpu_mem_total_mib",
+            "gpu_mem_used_mib",
+            "gpu_util_pct"
+          ],
+          "required_keys": [
+            "elapsed_s",
+            "event",
+            "frozen_s",
+            "page_range",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/timeout": {
+          "optional_keys": [
+            "gpu_mem_total_mib",
+            "gpu_mem_used_mib",
+            "gpu_util_pct"
+          ],
+          "required_keys": [
+            "elapsed_s",
+            "event",
+            "page_range",
+            "pages",
+            "pid",
+            "source",
+            "stage",
+            "timeout_s",
+            "ts"
+          ]
+        },
+        "gate/auto_routed": {
+          "optional_keys": [],
+          "required_keys": [
+            "backend",
+            "bundle",
+            "est_chunks",
+            "event",
+            "pid",
+            "rule",
+            "stage",
+            "ts"
+          ]
+        },
+        "gate/failed": {
+          "optional_keys": [],
+          "required_keys": [
+            "error",
+            "event",
+            "id",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "gate/pending": {
+          "optional_keys": [],
+          "required_keys": [
+            "bundle",
+            "est_chunks",
+            "event",
+            "id",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "gate/resolved": {
+          "optional_keys": [
+            "held"
+          ],
+          "required_keys": [
+            "backend",
+            "event",
+            "id",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "intake/deferred": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "pid",
+            "reason",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "intake/detected": {
+          "optional_keys": [],
+          "required_keys": [
+            "analyst_mode",
+            "event",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "intake/failed": {
+          "optional_keys": [
+            "timeout_s"
+          ],
+          "required_keys": [
+            "event",
+            "exit_code",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "intake/stale-hold-reaped": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "pid",
+            "reason",
+            "stage",
+            "ts"
+          ]
+        },
+        "intake/stale-lock-reaped": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "ship/failed": {
+          "optional_keys": [],
+          "required_keys": [
+            "bundle",
+            "error",
+            "event",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "ship/shipped": {
+          "optional_keys": [],
+          "required_keys": [
+            "bundle",
+            "event",
+            "pid",
+            "sha",
+            "stage",
+            "ts"
+          ]
+        }
+      },
+      "writers": [
+        "windows-converter/events.py:emit",
+        "windows-converter/convert_and_ship.py:emit call sites",
+        "windows-converter/watch_and_convert.py:emit call sites"
+      ]
+    },
+    "slice.done": {
+      "consumer_paths": [
+        "engine_args",
+        "marker_version",
+        "source_sha256",
+        "wall_s"
+      ],
+      "consumers": [
+        "windows-converter/convert_and_ship.py:_done_identity_mismatch",
+        "windows-converter/convert_and_ship.py:_convert_chunked resume"
+      ],
+      "format": "json",
+      "optional_paths": [],
+      "required_paths": [
+        "batch",
+        "engine_args",
+        "lever_batch",
+        "marker_version",
+        "page_range",
+        "retry_wall_s",
+        "source_sha256",
+        "wall_s"
+      ],
+      "writers": [
+        "windows-converter/convert_and_ship.py:_convert_chunked"
+      ]
+    }
+  },
+  "registry_version": 1,
+  "scope": {
+    "explicit_exclusions": {
+      ".convert-estimate.json": "estimate/promise receipt, not a progress file in signed A4",
+      ".intake-state.json": "Conveyor State receipt created after A4 was banked; separate contract"
+    },
+    "included": [
+      "events.jsonl",
+      "coverage_rescore --json stdout",
+      "chunk slice .done",
+      ".convert-progress.json",
+      ".analyst-progress.json",
+      "conversion-ledger.jsonl"
+    ],
+    "signed_ticket": "A4 schema registry + key tripwire (MSG-FAB-0055; Rab signed 2026-08-31)"
+  }
+}
