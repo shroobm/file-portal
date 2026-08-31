@@ -700,7 +700,14 @@ cargo clippy --all-targets -- -D warnings
 node --check &lt;touched .js&gt;
 cargo test          # mirrored in CI since S68
 npm run build       # then hash the exe, print SHA-8
-# ADOPTION IS RAB'S HAND: he closes the widget, Copy-Item + Get-FileHash in HIS shell, relaunches</code></pre>
+# JS-ONLY CHANGE? cargo clean -p file-portal-widget FIRST. Measured 2026-08-31: build.rs
+# emits rerun-if-changed for tauri.conf.json + capabilities ONLY — ../src is untracked, so
+# an asset-only edit rebuilds NOTHING and the exe silently keeps the old UI. A from-scratch
+# expansion is the only mechanical freshness proof (hash comparison can't give one: the
+# bundler's post-link patch makes back-to-back builds hash differently).
+# ADOPTION IS RAB'S HAND: he closes the widget, Copy-Item + Get-FileHash in HIS shell, relaunches
+#   ...and never while a conversion runs: the S37 job (KILL_ON_JOB_CLOSE) takes the whole
+#   watcher->converter tree with the widget. SYM-047 census first; land the book first.</code></pre>
   <h3>Session protocol</h3>
   <ol>
     <li><b>MUSTER at open</b> (memory keyword): git fetch + status; newest ledger SHA ancestor-verified (<code>git merge-base --is-ancestor</code>); services active; vault tip/staging/receipts as the last close said; read <code>SYMPTOM-INDEX.md</code>; take the first action from the previous closeout's §18.</li>
