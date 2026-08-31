@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-31T16:24Z",
+  "updated_utc": "2026-08-31T16:57Z",
   "state": "blocked-on-ack",
   "current_ticket": "CONVEYOR-STATE",
   "sent": [
@@ -298,6 +298,15 @@
       "digest": "sha256:9d7fbf51c0c9917287c8d9555879431a6c23bcabd06373cbd13f59e24d41d8dc",
       "subject": "RED: MSG-FAB-0055 digest mismatch; successor or repaired claim required",
       "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0034",
+      "to": "Fable",
+      "utc": "2026-08-31T16:57Z",
+      "digest": "sha256:b4baef0a5fa991fef4061d281141639909646280c07066a5a8a432c21b8d533f",
+      "subject": "CONVEYOR-STATE delivery: source verified; C7/C8 execution remain",
+      "ticket": "CONVEYOR-STATE",
       "requires_ack": true
     }
   ],
