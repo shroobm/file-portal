@@ -233,7 +233,18 @@
   #tablepanel { position:absolute; top:6px; left:6px; z-index:5; background:var(--panel, #222);
     border:1px solid var(--flow); border-radius:6px; padding:6px 8px; font-size:12px;
     display:flex; gap:6px; align-items:center; }
-  #tablebtn.on { outline:2px solid var(--flow); }
+  #tablebtn.on, #loupebtn.on, #recolorbtn.on { outline:2px solid var(--flow); }
+  /* OK-12: the severity ladder's faces + the pinned mode-instruction slot */
+  #status.sev-warn { border:1px solid var(--warn, #c90); }
+  #status.sev-error { border:2px solid var(--clay, #c33); font-weight:600; }
+  #modepin { position:fixed; bottom:8px; left:50%; transform:translateX(-50%); z-index:40;
+    display:none; background:var(--panel, #222); border:1px solid var(--flow);
+    border-radius:6px; padding:5px 12px; font-size:12px; opacity:.95; pointer-events:none; }
+  /* OK-8: night reading — pure CSS post-raster; the loupe lens */
+  #pageimg.recolor { filter: invert(92%) hue-rotate(180deg); }
+  #loupe { position:fixed; width:220px; height:220px; border-radius:50%; z-index:50;
+    border:2px solid var(--flow); pointer-events:none; display:none;
+    background-repeat:no-repeat; background-color:#fff; box-shadow:0 4px 18px rgba(0,0,0,.4); }
   #histback:disabled, #histfwd:disabled { opacity:.35; }
   #trimbtn.on { background:var(--accent-bg); color:var(--accent); }
   .mark-row { display:flex; gap:8px; padding:5px 12px; font-size:11.5px; color:var(--text-2);
@@ -409,9 +420,13 @@
       <button id="pnext" title="next page (→)">▸</button>
       <select id="zoom" title="zoom">
         <option value="fit" selected>fit width</option>
+        <option value="fitpage">fit page</option>
         <option value="0.75">75%</option><option value="1">100%</option>
         <option value="1.5">150%</option><option value="2">200%</option>
+        <option value="3">300%</option>
       </select>
+      <button id="loupebtn" title="loupe (OK-8) — a 300-dpi magnifier under your cursor; click again to close">⌖</button>
+      <button id="recolorbtn" title="night reading (OK-8) — recolor the page ink-on-dark; pure CSS, the raster is untouched">◐</button>
       <button id="trimbtn" title="trim margins — click: auto (measured from the raster, +4% pad, never past half) · Shift+click then drag: your own trim box for ALL pages · click again: off">⛶</button>
       <button id="tablebtn" title="table tool (OK-6) — arm, drag a region over the wrecked table; dividers are guessed from the ink, click to add/remove a column line (Shift+click: row line), then copy the pipe table">⊞</button>
       <button id="locate" title="find this zone's true page from the prose around it (text-layer books)">⌖ locate</button>
@@ -557,10 +572,26 @@ $("theme").onclick = () => {
 };
 
 let statusSticky = false;
-function status(m, sticky = false) {
-  const el = $("status"); statusSticky = sticky;
+// OK-12 (signed 2026-08-31): the observability grammar — a severity ladder (info toast /
+// warn banner / error sticks until replaced, the modal-fallback) and length-proportional
+// timeouts (a long sentence gets read; 7000 ms flat starved some and overstayed others).
+// Legacy callers keep working: status(m, true) is still sticky.
+function status(m, opt = false) {
+  const o = typeof opt === "object" ? opt : { sticky: opt };
+  const sev = o.severity || "info";
+  const el = $("status"); statusSticky = !!o.sticky || sev === "error";
   el.textContent = m; el.style.display = m ? "block" : "none";
-  if (m && !sticky) setTimeout(() => { if (el.textContent === m && !statusSticky) el.style.display = "none"; }, 7000);
+  el.classList.remove("sev-warn", "sev-error");
+  if (sev !== "info") el.classList.add("sev-" + sev);
+  const stay = Math.min(9000, Math.max(2500, 2500 + m.length * 35));
+  if (m && !statusSticky) setTimeout(() => { if (el.textContent === m && !statusSticky) el.style.display = "none"; }, stay);
+}
+// OK-12: pinned mode-instruction toasts — an armed mode explains itself for as long as it
+// is armed, in its own slot so ordinary toasts never evict the instruction.
+function modePin(m) {
+  let el = $("modepin");
+  if (!el) { el = document.createElement("div"); el.id = "modepin"; document.body.appendChild(el); }
+  el.textContent = m || ""; el.style.display = m ? "block" : "none";
 }
 // Loopback token (S108): the widget appends ?token=<secret> to this page's URL (the same
 // secret it passed to bench.py --token). Every POST — every mutating route — must carry it as
@@ -804,7 +835,19 @@ async function autoLocate(i) {
 $("locate").onclick = () => { if (zone != null) { delete st.zones[zone].located_page; autoLocate(zone); } };
 
 /* ---- the stage ---- */
-function dpiForZoom(z) { return (z === "fit" || Number(z) <= 1) ? 140 : 220; }
+// OK-8: the target width in CSS pixels for a zoom setting — fit-page derives it from the
+// pane HEIGHT and the page's own aspect (the current render's, 0.72 before one exists).
+function targetWidth(z) {
+  if (z === "fitpage") {
+    const img = $("pageimg");
+    const asp = (img.naturalWidth && img.naturalHeight) ? img.naturalWidth / img.naturalHeight : 0.72;
+    return Math.max(200, ($("pagewrap").clientHeight - 24) * asp);
+  }
+  return z === "fit" ? Math.max(200, $("pagewrap").clientWidth - 24) : 760 * Number(z);
+}
+// OK-8: dpi computed from the pixels actually needed — the one-liner; assumes a page ≥7.5"
+// wide, so narrow books oversample (crisper), never blur. Replaces the two-rung ladder.
+function dpiForZoom(z) { return Math.max(72, Math.min(300, Math.round(targetWidth(z) / 7.5))); }
 /* OK-2 (docs/49 §1 c2, signed): never show a blank page. The dpi-30 raster of the SAME page
    paints as a scaled placeholder while the real one renders — but only after 120 ms, so fast
    loads never flash it (Okular's suppression rule, generator_pdf.cpp:1026, scaled from its
@@ -849,8 +892,7 @@ function goto(n) {
 }
 function applyZoom() {
   const z = $("zoom").value;
-  const wTarget = z === "fit" ? Math.max(200, $("pagewrap").clientWidth - 24)
-                              : 760 * Number(z);
+  const wTarget = targetWidth(z); // OK-8: one width source for layout AND the dpi request
   if (trim.mode === "auto" && st?.pdf_available && trimBoxes[page] === undefined)
     fetchTrimbox(page);
   applyTrim(wTarget);
@@ -1256,8 +1298,43 @@ let tableMode = false, tableState = null;
 $("tablebtn").onclick = () => {
   tableMode = !tableMode;
   $("tablebtn").classList.toggle("on", tableMode);
-  if (!tableMode) tableClear();
-  else status("⊞ table tool armed — drag a region over the wrecked table");
+  if (!tableMode) { tableClear(); modePin(null); }
+  else modePin("⊞ table tool armed — drag a region · click adds/removes a column line · Shift+click a row line · ⊞ again to disarm");
+};
+
+// ---- OK-8 (signed 2026-08-31): the loupe + night reading ---------------------------------
+// The lens carries the page's 300-dpi render (one request, browser-cached) and pans it under
+// the cursor — real high-dpi pixels, not CSS upscaling of the current raster.
+let loupeOn = false, loupePage = 0;
+$("loupebtn").onclick = () => {
+  loupeOn = !loupeOn;
+  $("loupebtn").classList.toggle("on", loupeOn);
+  let lens = $("loupe");
+  if (!lens) { lens = document.createElement("div"); lens.id = "loupe"; document.body.appendChild(lens); }
+  lens.style.display = "none";
+  modePin(loupeOn ? "⌖ loupe — move over the page · ⌖ again to close" : null);
+};
+$("pageinner").addEventListener("mousemove", (e) => {
+  if (!loupeOn) return;
+  const lens = $("loupe"), img = $("pageimg");
+  if (!lens || !img.clientWidth) return;
+  if (loupePage !== page) { loupePage = page; lens.style.backgroundImage = `url(/api/page?n=${page}&dpi=300)`; }
+  const r = img.getBoundingClientRect();
+  const fx = (e.clientX - r.left) / r.width, fy = (e.clientY - r.top) / r.height;
+  if (fx < 0 || fx > 1 || fy < 0 || fy > 1) { lens.style.display = "none"; return; }
+  const scale = 300 / dpiForZoom($("zoom").value);
+  const bgW = r.width * scale, bgH = r.height * scale;
+  lens.style.backgroundSize = `${bgW}px ${bgH}px`;
+  lens.style.backgroundPosition = `${110 - fx * bgW}px ${110 - fy * bgH}px`;
+  lens.style.left = (e.clientX - 110) + "px";
+  lens.style.top = (e.clientY - 110) + "px";
+  lens.style.display = "block";
+});
+$("pageinner").addEventListener("mouseleave", () => { const l = $("loupe"); if (l) l.style.display = "none"; });
+$("recolorbtn").onclick = () => {
+  const on = $("pageimg").classList.toggle("recolor");
+  $("recolorbtn").classList.toggle("on", on);
+  status(on ? "◐ night reading on — the raster is untouched, only its paint" : "◐ off");
 };
 async function tableExtract(rect, cols, rows) {
   const pg = page;

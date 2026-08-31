@@ -629,6 +629,37 @@ class TestOK6TableTool(unittest.TestCase):
             self.assertIn(needle, html, f"OK-6 client census missing: {why}")
 
 
+class TestOK8ZoomAndOK12Grammar(unittest.TestCase):
+    """OK-8 + OK-12: presence census over the client surface (the logic is DOM-bound; the
+    census pins every named behavior so a refactor cannot silently drop one)."""
+
+    def test_ok8_census(self):
+        html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
+        for needle, why in [
+            ('value="fitpage"', "fit-page spliced into the zoom ladder"),
+            ("targetWidth(z) / 7.5", "the computed-dpi one-liner"),
+            ("wTarget = targetWidth(z)", "layout and dpi share one width source"),
+            ("dpi=300", "the loupe's high-dpi request"),
+            ("invert(92%) hue-rotate(180deg)", "night recolor as CSS post-raster"),
+            ('id="loupebtn"', "the loupe control"),
+        ]:
+            self.assertIn(needle, html, f"OK-8 census missing: {why}")
+        self.assertNotIn("? 140 : 220", html, "the old two-rung dpi ladder is still wired")
+
+    def test_ok12_census(self):
+        html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
+        for needle, why in [
+            ("2500 + m.length * 35", "length-proportional toast timeouts"),
+            ('sev === "error"', "the error rung sticks (modal-fallback)"),
+            ("sev-warn", "the warn rung's face"),
+            ("function modePin", "pinned mode-instruction toasts"),
+            ("modePin(null)", "a disarmed mode clears its pin"),
+        ]:
+            self.assertIn(needle, html, f"OK-12 census missing: {why}")
+        # legacy contract: status(m, true) must still read as sticky
+        self.assertIn("{ sticky: opt }", html, "the legacy boolean-sticky caller broke")
+
+
 class TestOK7TrimBox(unittest.TestCase):
     """OK-7: the trim measurement, pure and stdlib-only — Okular's 4%-pad and half-page-floor
     constants, exercised both ways."""
