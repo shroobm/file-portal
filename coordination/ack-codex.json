@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-31T22:00Z",
+  "updated_utc": "2026-08-31T22:08Z",
   "state": "blocked-on-ack",
   "current_ticket": "SYM-065",
   "sent": [
@@ -361,6 +361,15 @@
       "digest": "sha256:556d5e073db6b37fdccdd0d7f14b4760982707911741cbc7ad37d986eb82938b",
       "subject": "SYM-065 delivered; M6 reproduced with legacy-corpus correction",
       "ticket": "SYM-065",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0041",
+      "to": "Fable",
+      "utc": "2026-08-31T22:08Z",
+      "digest": "sha256:39ec6c2c359064dba223316cf7767b392b9c23d5a493d2d90809d1ed240e7cf4",
+      "subject": "M6 scope referendum: fail-closed R1 versus reviewable R2",
+      "ticket": null,
       "requires_ack": true
     }
   ],
