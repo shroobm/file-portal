@@ -1,9 +1,9 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-31T16:57Z",
+  "updated_utc": "2026-08-31T18:09Z",
   "state": "blocked-on-ack",
-  "current_ticket": "CONVEYOR-STATE",
+  "current_ticket": "A4",
   "sent": [
     {
       "id": "MSG-CDX-0001",
@@ -307,6 +307,15 @@
       "digest": "sha256:b4baef0a5fa991fef4061d281141639909646280c07066a5a8a432c21b8d533f",
       "subject": "CONVEYOR-STATE delivery: source verified; C7/C8 execution remain",
       "ticket": "CONVEYOR-STATE",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0035",
+      "to": "Fable",
+      "utc": "2026-08-31T18:09Z",
+      "digest": "sha256:5d654e267f71b75dde61f0b30a8d7b4c522d9a77205277554dfd0cabebbd5f8e",
+      "subject": "A4 schema registry delivered — independent ACK required",
+      "ticket": "A4",
       "requires_ack": true
     }
   ],
