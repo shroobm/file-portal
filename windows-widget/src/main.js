@@ -12,7 +12,7 @@ const { getCurrentWindow } = window.__TAURI__.window;
 // is untouched. Relative import resolves natively in the webview (no bundler needed — only
 // BARE specifiers can't resolve here).
 import { initRoom, setActiveSurface } from "./room.js";
-import { eventPhrase } from "./event-vocab.js";
+import { eventPhrase, countOfTotal } from "./event-vocab.js";
 
 // Boot diagnostics (S22 debug): any uncaught error or rejection lands in the status
 // line instead of a console nobody can open in release builds.
@@ -872,14 +872,14 @@ function assayRender(st) {
     }).join("");
     // S75 (docs/26 F12): kind escaped + null→"" for parity with room.js (it read "null lane"
     // here on a pre-audit manifest). The "<kind> lane" WORDING itself is F6, awaiting Rab.
-    map = `<div class="ac-caption"><b>degeneration</b> — ${zones.length} loop zone(s) · ${escHtml(st.kind)} lane</div>` +
+    map = `<div class="ac-caption"><b>degeneration</b> — ${countOfTotal(zones.length, st.zones_total)} loop zone(s) · ${escHtml(st.kind)} lane</div>` +
       `<div class="ac-map">${bands}</div>`;
   } else if (runs.length && st.pages_scored) {
     const bands = runs.slice(0, 40).map((r) => {
       const left = Math.max(0, Math.min(98, ((r.page || 0) / st.pages_scored) * 100));
       return `<span class="z run" style="left:${left.toFixed(1)}%;width:1.5%"></span>`;
     }).join("");
-    map = `<div class="ac-caption">${runs.length} omission run(s) · ${escHtml(st.kind)} lane</div>` +
+    map = `<div class="ac-caption">${countOfTotal(runs.length, st.runs_total)} omission run(s) · ${escHtml(st.kind)} lane</div>` +
       `<div class="ac-map">${bands}</div>`;
   }
 

@@ -7,7 +7,7 @@
 // The source object's `renderVals()` computed a view-model from a simulation; this rebuilds
 // the same view-model shape from real commands. The markup below is the lifted Room markup.
 
-import { eventPhrase } from "./event-vocab.js";
+import { eventPhrase, countOfTotal } from "./event-vocab.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -431,11 +431,11 @@ function assayPanel(d) {
       const w = clamp(((z.chars || 0) / (mdLines * 45)) * 100, 2, 8);
       return `<span class="z degen" style="left:${left.toFixed(1)}%;width:${w.toFixed(1)}%"></span>`;
     }).join("");
-    map = `<div class="ac-caption"><b>degeneration</b> — ${zones.length} loop zone(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
+    map = `<div class="ac-caption"><b>degeneration</b> — ${countOfTotal(zones.length, a.zones_total)} loop zone(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
   } else if (runs.length && a.pages_scored) {
     const bands = runs.slice(0, 40).map((r) =>
       `<span class="z run" style="left:${clamp((r.page || 0) / a.pages_scored * 100, 0, 98).toFixed(1)}%;width:1.5%"></span>`).join("");
-    map = `<div class="ac-caption">${runs.length} omission run(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
+    map = `<div class="ac-caption">${countOfTotal(runs.length, a.runs_total)} omission run(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
   }
   let list = "";
   if (a.degeneration && zones.length) {
@@ -483,6 +483,40 @@ function assayPanel(d) {
     `<span class="badge" style="color:${col}">${av} ${VSYM[av] || ""}</span></div>` +
     `<div class="ac-caption">survival <b>${a.doc_survival != null ? Number(a.doc_survival).toFixed(3) : "—"}</b>${assetLedger(a)}</div>` +
     map + list + foot + `</div>${heldHtml}</div>`;
+}
+
+// ---- NUM-2 (signed 2026-08-31, "Signed, Both"): the live counter panel ------------------
+// Renders ONLY census-registered numerations (docs/51), each row wearing its N-id — the §9
+// law made visible: a number reaches this glass with its register row or not at all. Pure
+// projection of feeds the Room already polls; no new authority.
+function numerationsPanel(d) {
+  const ls = d.ls || {};
+  const tail = d.shift?.tail || [];
+  const latest = (stage, event) => [...tail].reverse().find((e) => e.stage === stage && e.event === event) || {};
+  const conv = latest("convert", "converted");
+  const an = latest("analyst", "done");
+  const sc = latest("audit", "scored");
+  const est = latest("convert", "estimate");
+  const v = (x, suffix = "") => (x == null ? "—" : `${x}${suffix}`);
+  const rows = [
+    ["N094", "drop queue", v(ls.drop_waiting, " waiting")],
+    ["N095", "failed tray", v(ls.failed_count)],
+    ["N106", "analyst chunks", ls.analyst_n != null ? `${ls.analyst_n}/${ls.analyst_total}` : "idle"],
+    ["N061", "pages this run", v(conv.pages_converted_this_run, "pp")],
+    ["N062", "retry GPU spend", v(conv.retry_wall_s, "s")],
+    ["N063", "slices resumed", v(conv.resumed_slices)],
+    ["N064", "book true cost", v(conv.cost_s, "s")],
+    ["N316", "omission runs", sc.runs != null ? countOfTotal(sc.runs, sc.runs_total) : "—"],
+    ["N286", "analyst goodput", v(an.goodput_accepted_tok_s, " tok/s")],
+    ["N006", "chunks generated", v(an.chunks_generated)],
+    ["N055", "promise scope", est.pages_this_run != null ? `${est.pages_this_run}pp this run` : "—"],
+  ];
+  return `<div class="rp rp-nums"><div class="rp-head"><span class="rp-title">№ Numerations</span>` +
+    `<span class="rp-grow"></span><span class="rp-file">docs/51 census · live</span></div>` +
+    `<div class="rp-body"><table class="num-table">` +
+    rows.map(([id, name, val]) =>
+      `<tr><td class="num-id">${id}</td><td class="num-k">${esc(name)}</td><td class="num-v">${esc(String(val))}</td></tr>`).join("") +
+    `</table><div class="rp-note">every row is a registered numeration — an unregistered counter on any glass is a defect (docs/51 §9)</div></div></div>`;
 }
 
 function eventsPanel(d) {
@@ -627,7 +661,7 @@ function render(vm) {
     header(vm) + algedonicBanner(vm) + stationRail(vm) +
     `<canvas id="room-belt" class="room-belt"></canvas>` +
     kpiTiles(vm) + gpuStrip(vm) +
-    `<div class="room-panels">${convertPanel(vm)}${queuePanel(vm)}${assayPanel(vm)}${auditsPanel(vm)}${eventsPanel(vm)}</div>` +
+    `<div class="room-panels">${convertPanel(vm)}${queuePanel(vm)}${assayPanel(vm)}${auditsPanel(vm)}${numerationsPanel(vm)}${eventsPanel(vm)}</div>` +
     `<div class="room-foot"><span>${esc(shiftLine(vm))}</span><span class="rf-lin">Control Room · projection of the live pipeline · docs/16</span></div>`;
   wire();
   attachBelt(vm); // persistent chips (module state) survive the innerHTML replace

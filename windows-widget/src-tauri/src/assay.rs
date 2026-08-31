@@ -162,6 +162,10 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "md_lines": degen["md_lines"],
         "zones": degen["worst"],
         "runs": conv["runs"],
+        // NUM-3 (2026-08-31): the TRUE pre-cap counts ride beside the capped lists so the
+        // glass can say "25 of 634" instead of SYM-066's bare "25". Null on legacy audits.
+        "runs_total": conv.get("runs_total").cloned().unwrap_or(serde_json::Value::Null),
+        "zones_total": degen.get("blocks_total").cloned().unwrap_or(serde_json::Value::Null),
         "analyst": fid["analyst"],
         "assets_out": assets_out,
         "embedded_images": conv["tripwires"]["embedded_images"],

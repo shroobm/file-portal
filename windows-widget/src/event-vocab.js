@@ -3,6 +3,13 @@
 // recovery states.  Keep the literal stage/event keys here: convert_and_ship_selftest T7 reads
 // this shared source as the parity tripwire.
 
+// NUM-3 (signed 2026-08-31): the one way a capped count may reach any glass — beside its
+// true total. "25" can never again masquerade as the count (SYM-066); a legacy record with
+// no total renders the bare shown count unchanged.
+export function countOfTotal(shown, total) {
+  return (total != null && Number(total) > Number(shown)) ? `${shown} of ${total}` : `${shown}`;
+}
+
 export function eventPhrase(e, { compact = false, unknown = null } = {}) {
   if (!e) return unknown;
   const s = (v) => String(v ?? "").slice(0, compact ? 34 : 40);

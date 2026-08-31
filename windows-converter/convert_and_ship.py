@@ -1446,7 +1446,9 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     new_body, meta = analyst.process(body, backend=backend)
     emit("analyst", "done", bundle=bundle_name, chars=len(body), **{k: meta[k] for k in
          ("backend", "program", "chunks_passed", "chunks_rejected",
-          "chunks_failed", "duration_s")})
+          "chunks_failed", "duration_s",
+          # NUM-6: the paid-call count and the docs/34 rate ride the event to the glass
+          "chunks_generated", "goodput_accepted_tok_s")})
     frontmatter = (
         f"---\nanalyst:\n  model: {meta['model']}\n  backend: {meta['backend']}\n"
         f"  chunks_passed: {meta['chunks_passed']}\n"
