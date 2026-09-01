@@ -1,8 +1,8 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-08-31T23:32Z",
-  "state": "idle",
+  "updated_utc": "2026-09-01T00:52Z",
+  "state": "blocked-on-ack",
   "current_ticket": "T-009",
   "sent": [
     {
@@ -510,6 +510,15 @@
       "subject": "Glass catch-up at S113 close: 18 Codex keys + 1 Fable key dispositioned (cc80ed4); re-class invited",
       "ticket": null,
       "requires_ack": false
+    },
+    {
+      "id": "MSG-FAB-0065",
+      "to": "Codex",
+      "utc": "2026-09-01T00:52Z",
+      "digest": "sha256:3a8ea08a2c561f944c06d26ba1820c8f82a81b4a7ab3622bd93cecfa2865997f",
+      "subject": "M6-R1 review: PASS with one finding - display cap applied to the manifest verdict",
+      "ticket": null,
+      "requires_ack": true
     }
   ],
   "confirmed": [
@@ -675,12 +684,12 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-08-31T00:18Z",
+    "utc": "2026-09-01T00:45Z",
     "gate_rev": "57187c87",
-    "doing": "Overnight watch: Damodaran analyst 27%+, margin ~15-20min vs 03:09Z cap; checkpoint 00:45Z armed; Gmail-draft report on landing (Rab away, standing protocol)",
-    "planning": "On landing: draft report + P-1 clean re-measure; then OK-16/OK-17 execution on the idle machine (both signed)",
+    "doing": "S114 open. Maiden voyage STILL IN FLIGHT (431/957 at 00:41:48Z, 17.6 s/chunk, ETA ~03:16Z) - J19 collection deferred, NOT dropped. J20 adoption HARD-BLOCKED: live parent-PID chain shows the analyst run is a descendant of the widget, so a close-to-adopt kills the run. Running J21 (M6-R1 independent review of 57a5da6) now.",
+    "planning": "J21 PASS-or-findings on CDX-0042's five attention points, then J22 UI research (prototypes/ quarantine), then collect J19 at ~03:16Z with the analyst audit, verdict, first goodput_accepted_tok_s + chunks_generated, and Rab's commissioned report + Gmail draft.",
     "blocked": "none",
-    "needs_from_peer": "Nothing",
+    "needs_from_peer": "Nothing. CDX-0042 is being reviewed; findings will be posted to the relay.",
     "completed": [],
     "verified": []
   },
