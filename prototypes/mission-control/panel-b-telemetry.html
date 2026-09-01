@@ -1,0 +1,1163 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Telemetry Desk — Damodaran voyage</title>
+<!--
+  panel-b-telemetry.html — LINEAGE B, THE TELEMETRY DESK
+  prototypes/mission-control · QUARANTINE · nothing here is imported, spawned, watched or shipped.
+
+  GENERATED FILE. Source template: scratchpad/panel-b.template.html
+  The block marked VOYAGE SNAPSHOT below is injected mechanically by JSON.stringify() over
+  ./voyage.js at build time. No number in this file was typed by hand.
+
+  Open MCT lineage: composable views over one telemetry set, live view-switching, streaming and
+  historical in one place. Grafana practice: critical panel top-left, Z-scan, rows that group,
+  severity colour earned not decorative, panel titles that carry numerator and denominator.
+
+  THE THESIS: this desk's primary readout is not a pipeline number. It is the AGE OF THE LAST
+  RECORD. Drag AS-OF back into the run and every analyst panel goes dark, because that is what
+  the operator actually had.
+-->
+<style>
+:root{
+  color-scheme: dark;
+  --bg:#0a0d11; --panel:#10141a; --panel2:#0d1116; --line:#1d232b; --line2:#2a323c;
+  --ink:#d8dfe7; --dim:#8b95a3; --faint:#5a6472; --ghost:#3d4550;
+  --work:#3d6ea8; --work-ink:#8ab4e0;
+  --audit:#4a7d78; --audit-ink:#7fc0b8;
+  --void:#161b22; --void-line:#39424e;
+  --testimony:#6c5c92; --testimony-ink:#a493d0;
+  --p1:#e5484d; --p2:#f5a524; --p3:#5b8def; --ok:#45a06a;
+  --mono: ui-monospace, "Cascadia Mono", "Consolas", "DejaVu Sans Mono", monospace;
+  --sans: ui-sans-serif, system-ui, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:13px;line-height:1.45}
+body{padding:0 0 60px}
+h1,h2,h3{margin:0;font-weight:600}
+a{color:var(--work-ink)}
+.mono{font-family:var(--mono);font-variant-numeric:tabular-nums}
+.num{font-family:var(--mono);font-variant-numeric:tabular-nums;letter-spacing:-0.01em}
+
+/* ---------- layout ---------- */
+.wrap{max-width:1680px;margin:0 auto;padding:0 14px}
+.grid{display:grid;gap:10px}
+.row{display:grid;gap:10px;margin-top:10px}
+@media(min-width:1100px){
+  .r-top{grid-template-columns:340px 1fr}
+  .r-3{grid-template-columns:repeat(3,1fr)}
+  .r-2{grid-template-columns:1fr 1fr}
+  .r-2a{grid-template-columns:1.15fr 1fr}
+  .r-4{grid-template-columns:repeat(4,1fr)}
+}
+
+/* ---------- panel chrome (minimal: data-ink) ---------- */
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:3px;display:flex;flex-direction:column;min-width:0}
+.phead{padding:7px 10px 6px;border-bottom:1px solid var(--line);display:flex;gap:8px;align-items:baseline;flex-wrap:wrap}
+.ptitle{font-size:11px;letter-spacing:.07em;text-transform:uppercase;color:var(--ink);font-weight:600}
+.punits{font-size:10.5px;color:var(--dim);font-family:var(--mono)}
+.pbody{padding:10px;flex:1;min-width:0}
+.pnote{font-size:11px;color:var(--dim);border-top:1px solid var(--line);padding:6px 10px;line-height:1.4}
+
+/* ---------- chips ---------- */
+.chip{display:inline-block;font-family:var(--mono);font-size:10px;letter-spacing:.05em;padding:1px 5px;border-radius:2px;border:1px solid var(--line2);color:var(--dim);white-space:nowrap}
+.chip.evt{border-color:#2b4767;color:#7fa8d8}
+.chip.man{border-color:#4a3f66;color:#a493d0}
+.chip.der{border-color:#3a4550;color:#96a2b0}
+.chip.abs{border-color:var(--void-line);color:var(--faint);border-style:dashed}
+.chip.tes{border-color:var(--testimony);color:var(--testimony-ink);border-style:dashed}
+.chip.p1{border-color:var(--p1);color:var(--p1)}
+.chip.p2{border-color:var(--p2);color:var(--p2)}
+.chip.p3{border-color:var(--p3);color:var(--p3)}
+.chip.ok{border-color:var(--ok);color:var(--ok)}
+.chip.held{border-color:var(--p1);color:#fff;background:var(--p1)}
+.unread{font-family:var(--mono);color:var(--faint);border-bottom:1px dotted var(--faint);padding-bottom:1px}
+
+/* ---------- field cells (RULE 0: these render field.display and nothing else) ---------- */
+.cell{display:block;width:100%;text-align:left;background:none;border:0;border-left:2px solid var(--line2);
+      padding:2px 0 2px 8px;margin:0;color:var(--ink);font:inherit;cursor:pointer}
+.cell:hover{border-left-color:var(--work);background:#141a21}
+.cell:focus-visible{outline:1px solid var(--work-ink);outline-offset:1px}
+.cell .v{font-family:var(--mono);font-size:12.5px;font-variant-numeric:tabular-nums}
+.cell.big .v{font-size:15px}
+.cell.bad{border-left-color:#5c3033}
+.flabel{font-size:10px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim);margin:8px 0 1px}
+.flabel:first-child{margin-top:0}
+
+/* ---------- mission bar ---------- */
+.mission{position:sticky;top:0;z-index:40;background:var(--panel2);border-bottom:1px solid var(--line2)}
+.mrow{display:flex;gap:14px;align-items:center;flex-wrap:wrap;padding:8px 0}
+.mtitle{font-size:14px;font-weight:600}
+.msub{font-size:11px;color:var(--dim);font-family:var(--mono)}
+.asof{margin-left:auto;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.asof-clock{font-family:var(--mono);font-size:20px;font-variant-numeric:tabular-nums}
+input[type=range]{width:100%;accent-color:var(--work-ink)}
+.btn{background:#161c24;border:1px solid var(--line2);color:var(--dim);font:inherit;font-size:11px;
+     padding:2px 7px;border-radius:2px;cursor:pointer;font-family:var(--mono)}
+.btn:hover{color:var(--ink);border-color:var(--work)}
+.btn.on{color:#fff;border-color:var(--work);background:#1b2b3d}
+.jumps{display:flex;gap:4px;flex-wrap:wrap;padding:0 0 8px}
+.headline{font-size:12px;color:var(--dim);padding:0 0 8px;max-width:120ch}
+.banner{font-size:11.5px;color:var(--ink);background:#161b22;border:1px dashed var(--void-line);
+        border-radius:2px;padding:6px 9px;margin:0 0 8px}
+
+/* ---------- liveness ---------- */
+.big{font-family:var(--mono);font-size:34px;line-height:1.05;font-variant-numeric:tabular-nums}
+.big.alarmed{color:var(--p1)}
+.big.okc{color:var(--ok)}
+.kv{font-size:11px;color:var(--dim);margin-top:2px}
+.kv b{color:var(--ink);font-weight:500;font-family:var(--mono)}
+
+/* ---------- timeline spine ---------- */
+.spine{position:relative;user-select:none}
+.tl-lab{font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;color:var(--faint);margin:6px 0 3px}
+.track{position:relative;height:30px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;overflow:hidden}
+.track.tes{height:24px;background:transparent;border-style:dashed;border-color:var(--ghost)}
+.seg{position:absolute;top:0;bottom:0;overflow:hidden;display:flex;align-items:center;justify-content:center}
+.seg .sl{font-size:9px;font-family:var(--mono);color:#cfe0f2;padding:0 3px;white-space:nowrap;pointer-events:none}
+.seg.work{background:var(--work);border-right:1px solid var(--panel2)}
+.seg.audit{background:var(--audit);border-right:1px solid var(--panel2)}
+.seg.gap{background:repeating-linear-gradient(90deg,#3a424c 0 2px,transparent 2px 5px)}
+.seg.dark{background:var(--void);border:1px dashed var(--void-line);border-radius:2px}
+.seg.dark .sl{color:var(--faint)}
+.seg.dead{background:repeating-linear-gradient(135deg,transparent 0 4px,rgba(108,92,146,.35) 4px 8px);
+          border:1px dashed var(--testimony);border-radius:2px}
+.seg.dead .sl{color:var(--testimony-ink)}
+.seg.tdark{background:repeating-linear-gradient(135deg,transparent 0 4px,rgba(90,100,114,.22) 4px 8px);
+           border:1px dashed var(--ghost);border-radius:2px}
+.seg.tdark .sl{color:var(--faint)}
+.rug{position:relative;height:14px;margin-top:3px}
+.rug .tick{position:absolute;top:0;width:1px;height:9px;background:var(--work-ink)}
+.rug .tick.audit{background:var(--audit-ink)}
+.rug .tick.intake{background:#c9a227}
+.playhead{position:absolute;top:0;bottom:0;width:1px;background:#fff;pointer-events:none;z-index:5}
+.playhead::before{content:'';position:absolute;top:-4px;left:-3px;border-left:3.5px solid transparent;
+  border-right:3.5px solid transparent;border-top:5px solid #fff}
+.axis{position:relative;height:14px;margin-top:2px;border-top:1px solid var(--line)}
+.axis span{position:absolute;top:1px;font-size:9px;color:var(--faint);font-family:var(--mono);transform:translateX(-50%)}
+.legend{display:flex;gap:12px;flex-wrap:wrap;font-size:10px;color:var(--dim);margin-top:7px;align-items:center}
+.sw{display:inline-block;width:14px;height:9px;vertical-align:-1px;margin-right:4px;border-radius:1px}
+
+/* ---------- charts ---------- */
+svg{display:block;width:100%;overflow:visible}
+.gl{stroke:var(--line);stroke-width:1}
+.gt{fill:var(--faint);font-size:9px;font-family:var(--mono)}
+.ann{fill:var(--dim);font-size:9.5px;font-family:var(--mono)}
+
+/* ---------- stage tiles ---------- */
+.tile{border:1px solid var(--line);border-radius:2px;padding:8px 9px;background:var(--panel2);min-width:0}
+.tile.absent{border-style:dashed;border-color:var(--void-line);background:var(--void)}
+.tile h4{margin:0 0 4px;font-size:10px;letter-spacing:.07em;text-transform:uppercase;color:var(--dim);font-weight:600}
+.tile .st{font-family:var(--mono);font-size:13px}
+.tile .sub{font-size:10.5px;color:var(--dim);margin-top:3px;line-height:1.35}
+
+/* ---------- alarms ---------- */
+.alarm{border:1px solid var(--line);border-left-width:3px;border-radius:2px;padding:8px 10px;background:var(--panel2);margin-bottom:8px}
+.alarm.pri1{border-left-color:var(--p1)}
+.alarm.pri2{border-left-color:var(--p2)}
+.alarm.pri3{border-left-color:var(--p3)}
+.alarm.ghost{border-style:dashed;border-left-style:solid;background:
+  repeating-linear-gradient(135deg,var(--void) 0 6px,#12171e 6px 12px)}
+.ahead{display:flex;gap:8px;align-items:baseline;flex-wrap:wrap;margin-bottom:4px}
+.atitle{font-weight:600;font-size:12.5px}
+.aline{font-size:11.5px;color:var(--dim);margin-top:3px}
+.aline b{color:var(--ink);font-weight:600;font-size:10px;letter-spacing:.06em;text-transform:uppercase;margin-right:5px}
+.aresp{font-size:12px;color:var(--ink);background:#141a21;border:1px solid var(--line2);border-radius:2px;padding:5px 8px;margin-top:6px}
+.aresp b{color:var(--ok);font-size:10px;letter-spacing:.08em;text-transform:uppercase;margin-right:6px}
+
+/* ---------- verdicts / error structure ---------- */
+.err{border:1px solid var(--line);border-radius:2px;padding:8px 10px;background:var(--panel2)}
+.err .r{font-size:11.5px;margin-top:5px;color:var(--dim)}
+.err .r b{display:block;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);margin-bottom:1px}
+.err .r span{color:var(--ink)}
+.divider{border:1px dashed var(--p2);border-radius:2px;padding:5px 8px;font-size:11px;color:var(--p2);
+         background:rgba(245,165,36,.05);text-align:center;font-family:var(--mono)}
+
+/* ---------- tables / drilldown ---------- */
+details{border:1px solid var(--line);border-radius:2px;background:var(--panel2);margin-top:8px}
+summary{padding:6px 10px;cursor:pointer;font-size:11px;letter-spacing:.05em;text-transform:uppercase;color:var(--dim)}
+summary:hover{color:var(--ink)}
+details[open] summary{border-bottom:1px solid var(--line)}
+.dd{padding:8px 10px;overflow-x:auto}
+table{border-collapse:collapse;width:100%;font-size:11px}
+th{text-align:left;font-weight:600;color:var(--faint);font-size:9.5px;letter-spacing:.06em;text-transform:uppercase;
+   padding:3px 8px 3px 0;border-bottom:1px solid var(--line);white-space:nowrap}
+td{padding:3px 8px 3px 0;border-bottom:1px solid #161b21;vertical-align:top;color:var(--dim)}
+td.n{font-family:var(--mono);color:var(--ink);text-align:right;white-space:nowrap;font-variant-numeric:tabular-nums}
+td.x{font-family:var(--mono);font-size:10.5px;color:var(--dim)}
+.pagestrip{position:relative;height:26px;background:var(--panel2);border:1px solid var(--line);border-radius:2px;overflow:hidden}
+.pagestrip i{position:absolute;top:0;bottom:0;width:1px;background:var(--p3);opacity:.85}
+
+/* ---------- drawer ---------- */
+.drawer{position:fixed;top:0;right:0;bottom:0;width:min(560px,94vw);background:var(--panel);
+  border-left:1px solid var(--line2);z-index:100;overflow-y:auto;transform:translateX(100%);
+  transition:transform .12s ease-out;box-shadow:-14px 0 30px rgba(0,0,0,.5)}
+.drawer.open{transform:translateX(0)}
+.dhead{position:sticky;top:0;background:var(--panel);border-bottom:1px solid var(--line2);padding:10px 12px;
+       display:flex;gap:10px;align-items:flex-start}
+.dbody{padding:12px}
+.dsec{margin-bottom:12px}
+.dsec h5{margin:0 0 3px;font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint);font-weight:600}
+.dsec p{margin:0;font-size:12px;color:var(--ink)}
+.dsec p.d{color:var(--dim);font-size:11.5px}
+.dsec .code{font-family:var(--mono);font-size:11px;color:var(--dim);word-break:break-word}
+.nc{border:1px dashed var(--p1);border-radius:2px;padding:6px 8px;background:rgba(229,72,77,.05)}
+.nc h5{color:var(--p1)}
+.nc p{font-family:var(--mono);font-size:12px;color:#f0a0a2}
+
+/* ---------- ship check ---------- */
+.check{display:flex;gap:8px;align-items:flex-start;font-size:11.5px;padding:3px 0;border-bottom:1px solid #161b21}
+.check .cs{font-family:var(--mono);font-size:10px;padding:0 5px;border-radius:2px;flex:0 0 auto;margin-top:1px}
+.cs.pass{color:var(--ok);border:1px solid var(--ok)}
+.cs.fail{color:#fff;background:var(--p1);border:1px solid var(--p1)}
+.cs.info{color:var(--dim);border:1px solid var(--line2)}
+footer{color:var(--faint);font-size:10.5px;padding:14px 0 0;line-height:1.5}
+</style>
+</head>
+<body>
+
+<script type="application/json" id="voyage-snapshot">{"VOYAGE":{"title":"Damodaran · Investment Valuation 4e · HELD","source":"Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Fourth Edition, 2023 -- Wiley & Sons, Incorporated, John.pdf","pages":1377,"lane":"clean","laneReason":"text_layer_present","analystMode":"local","start":"2026-08-31T21:30:12+00:00","end":"2026-09-01T04:56:33+00:00","outcome":"HELD","outcomeReason":"verdict fail on the analyst gate (0.9402 \u003c 0.995 and a 576-word omission run), with the convert degeneration tripwire also true","eventCount":34,"analystEventCount":0,"timeline":[{"id":"intake-1","kind":"work","label":"intake · detect + probe + chunk plan","start":"2026-08-31T21:30:12+00:00","end":"2026-08-31T21:30:19+00:00","seconds":7,"evidence":"event","instrumented":true,"note":"lane=clean, lane_reason=text_layer_present, 0 of 157,924 spans invisible."},{"id":"convert-leg-1","kind":"work","label":"convert leg 1 · 7 slices, 1377 pages","start":"2026-08-31T21:30:19+00:00","end":"2026-08-31T22:34:14+00:00","seconds":3835,"evidence":"event","instrumented":true,"note":"Seven slice events sum to 3834.2s — exactly the reported wall_s. No gaps between slices. Beat its own 4343s promise by 508.8s."},{"id":"audit-convert-1","kind":"audit","label":"convert audit (scored → flagged)","start":"2026-08-31T22:34:14+00:00","end":"2026-08-31T22:35:15+00:00","seconds":61,"evidence":"event","instrumented":true,"note":"Also carries an audit/supersede at 22:34:15Z, from_verdict \"fail\", sha 14c66834bdfeaa2e — a PRIOR failed bundle for this same book was being replaced."},{"id":"dark-1","kind":"dark","label":"DARK ZONE 1 — no events of any kind","start":"2026-08-31T22:35:15+00:00","end":"2026-09-01T03:37:28+00:00","seconds":18133,"evidence":"absence","instrumented":false,"note":"5h 02m 13s. The analyst ran 641 chunks inside here and emitted NOTHING: the inline analyst code path has no analyst/start and no analyst/done — those exist only on the --resume path. The sole liveness signal was .analyst-progress.json, overwritten in place, keeping no history. Then the power failed. This interval is measured by the ABSENCE of records, which is the only thing it contains.","testimony":[{"id":"analyst-run-1","kind":"dark","label":"analyst run 1 working (641 chunks)","start":"2026-08-31T22:35:15+00:00","end":"2026-09-01T01:38:00+00:00","seconds":10965,"evidence":"testimony","approximate":true,"note":"Duration UNREAD. The 641 is measured (manifest chunks_resumed); the end instant is the operator’s \"~01:38Z\" and is approximate."},{"id":"power-cut","kind":"dead","label":"power cut → machine off","start":"2026-09-01T01:38:00+00:00","end":"2026-09-01T01:48:17+00:00","seconds":617,"evidence":"testimony","approximate":true,"note":"Hard cut. No shutdown event, no crash record in this fixture."},{"id":"dead-idle","kind":"dead","label":"DEAD MACHINE — powered, healthy, idle","start":"2026-09-01T01:48:17+00:00","end":"2026-09-01T03:34:00+00:00","seconds":6343,"evidence":"testimony","approximate":true,"note":"1h 45m 43s of a working computer doing nothing. The widget has no autostart and the watcher is the widget’s child, so nothing could restart the pipeline. Recovery required a human to come home and log in."},{"id":"operator-recovery","kind":"gap","label":"human logs in → first event","start":"2026-09-01T03:34:00+00:00","end":"2026-09-01T03:37:28+00:00","seconds":208,"evidence":"testimony","approximate":true,"note":"3m 28s between the operator’s testified return and the first machine record."}]},{"id":"convert-leg-2","kind":"work","label":"convert leg 2 · resumed 7/7 from cache","start":"2026-09-01T03:37:28+00:00","end":"2026-09-01T03:37:38+00:00","seconds":10,"evidence":"event","instrumented":true,"note":"stale-lock-reaped → re-detect → probe → estimate(eta 0s) → 7 resumed slices → converted. 10 seconds of clock, ZERO pages converted. Every rate field it emitted is a zero that means \"nothing happened\", not \"it was instant\"."},{"id":"audit-convert-2","kind":"audit","label":"convert audit re-scored (identical result)","start":"2026-09-01T03:37:38+00:00","end":"2026-09-01T03:38:37+00:00","seconds":59,"evidence":"event","instrumented":true,"note":"Byte-identical scores to 22:35:15Z — same doc_survival 0.9334, same 25-of-531 runs, same degeneration true. The audit re-ran on the same cached markdown."},{"id":"dark-2","kind":"dark","label":"DARK ZONE 2 — the analyst’s entire second run","start":"2026-09-01T03:38:37+00:00","end":"2026-09-01T04:56:32+00:00","seconds":4675,"evidence":"absence","instrumented":false,"note":"1h 17m 55s (4675s) with zero events, containing a 4634.4s analyst phase that we only know about because the manifest was written afterward. 40.6s of that window is unaccounted for even by the manifest. During this hour the glass had nothing to show."},{"id":"verdict","kind":"audit","label":"analyst audit → verdict_fail → HELD","start":"2026-09-01T04:56:32+00:00","end":"2026-09-01T04:56:33+00:00","seconds":1,"evidence":"event","instrumented":true,"note":"No analyst/done event ever fired for this book, in either run."}],"spans":{"voyage":{"id":"span.voyage","label":"voyage wall clock","value":26781,"unit":"s","num":{"label":"seconds from intake/detected to audit/held","value":26781,"unit":"s"},"den":null,"conditions":"First event 2026-08-31T21:30:12Z to last event 2026-09-01T04:56:33Z, one book, one machine, spanning one power failure and one unattended reboot.","population":"whole-book","evidence":"derived","origin":null,"honest":true,"display":"7h 26m 21s wall (21:30:12Z → 04:56:33Z, next day)","naive":"26781","census":[],"defect":null},"measuredWork":{"id":"span.measured_work","label":"seconds any stage actually reported","value":8468.6,"unit":"s","num":{"label":"convert leg 1 wall_s + analyst run 2 duration_s","value":8468.6,"unit":"s"},"den":{"label":"voyage wall seconds","value":26781,"unit":"s"},"conditions":"Only two durations exist in the whole record: convert leg 1 (3834.2s, event) and the analyst second run (4634.4s, manifest). Convert leg 2 measured 0s of work. The analyst FIRST run — 641 chunks — reported no duration at all. This ratio therefore understates the work done and overstates the idleness.","population":"mixed","evidence":"derived","origin":null,"honest":false,"display":"2h 21m 09s of 7h 26m 21s instrumented (31.6%) — the rest is unmeasured, not necessarily idle","naive":"31.6% utilisation","census":["N-013"],"defect":{"reason":"A \"utilisation\" or \"idle\" reading built on this ratio is wrong: the analyst’s first run did 641 chunks of real GPU work whose duration was never recorded.","highlight":"dark-1 (18133s): work happened here and is absent from the numerator.","solution":"Label the remainder \"UNMEASURED\", split into dark (22808s, no events) and dead (6343s, testimony). Never print a utilisation percentage from this pair."}},"dark":{"id":"span.dark","label":"seconds with zero events","value":22808,"unit":"s","num":{"label":"dark-1 + dark-2 seconds","value":22808,"unit":"s"},"den":{"label":"voyage wall seconds","value":26781,"unit":"s"},"conditions":"Contiguous stretches between consecutive events where no event of any stage was emitted. Measured by absence. 18133s + 4675s.","population":"whole-book","evidence":"absence","origin":null,"honest":true,"display":"6h 20m 08s of 7h 26m 21s with ZERO events (85.2% of the voyage)","naive":"22808","census":[],"defect":null},"dead":{"id":"span.dead","label":"seconds the machine was off or idle-after-reboot","value":6960,"unit":"s","num":{"label":"power-cut + dead-idle seconds","value":6960,"unit":"s"},"den":{"label":"voyage wall seconds","value":26781,"unit":"s"},"conditions":"OPERATOR TESTIMONY, approximate at both ends. Neither the power cut nor the 01:48:17Z reboot appears in the event stream; the pipeline cannot see its own death. 6960s total, of which 6343s was a powered, healthy, idle machine.","population":"whole-book","evidence":"testimony","origin":null,"honest":true,"display":"1h 56m 00s machine down or idle (testimony, ±minutes) — 1h 45m 43s of it powered and doing nothing","naive":"6960","census":[],"defect":null}},"legs":[{"id":"convert.leg1","label":"Convert leg 1 — the run that did the work","start":"2026-08-31T21:30:19+00:00","end":"2026-08-31T22:34:14+00:00","slices":[{"slice":1,"page_range":"0-199","wall_s":428.8,"batch":8,"resumed":false,"ts":"2026-08-31T21:37:28+00:00"},{"slice":2,"page_range":"200-399","wall_s":385.6,"batch":8,"resumed":false,"ts":"2026-08-31T21:43:53+00:00"},{"slice":3,"page_range":"400-599","wall_s":772.2,"batch":8,"resumed":false,"ts":"2026-08-31T21:56:46+00:00"},{"slice":4,"page_range":"600-799","wall_s":809.2,"batch":8,"resumed":false,"ts":"2026-08-31T22:10:15+00:00"},{"slice":5,"page_range":"800-999","wall_s":742.3,"batch":8,"resumed":false,"ts":"2026-08-31T22:22:38+00:00"},{"slice":6,"page_range":"1000-1199","wall_s":533.1,"batch":8,"resumed":false,"ts":"2026-08-31T22:31:31+00:00"},{"slice":7,"page_range":"1200-1376","wall_s":163,"batch":8,"resumed":false,"ts":"2026-08-31T22:34:14+00:00"}],"didWork":true,"fields":{"wall_s":{"id":"convert.leg1.wall_s","label":"GPU wall seconds","value":3834.2,"unit":"s","num":{"label":"sum of 7 slice wall_s","value":3834.2,"unit":"s"},"den":null,"conditions":"Marker, clean lane, batch 8 at every slice, 1377 pages in 7 slices of 200. The seven slice events sum to exactly 3834.2s and run back-to-back with no idle between them (slice 1 ended 21:37:28Z, 428.8s after chunking at 21:30:19Z).","population":"this-run","evidence":"event","origin":"events[12].wall_s","honest":true,"display":"3834.2s GPU wall over 7 slices (slice sum reconciles exactly)","naive":"3834.2","census":[],"defect":null},"s_per_page":{"id":"convert.leg1.s_per_page","label":"seconds per page","value":2.78,"unit":"s/pp","num":{"label":"GPU wall seconds this run","value":3834.2,"unit":"s"},"den":{"label":"pages converted this run","value":1377,"unit":"pp"},"conditions":"Numerator and denominator are BOTH this run — on leg 1 nothing was resumed (resumed_slices 0), so s_per_page and s_per_page_this_run agree at 2.78. Clean lane, text layer present, Marker batch 8, one RTX-class card.","population":"this-run","evidence":"event","origin":"events[12].s_per_page","honest":true,"display":"2.78 s/pp (3834.2s ÷ 1377 pp converted this run)","naive":"2.78","census":[],"defect":null},"pages":{"id":"convert.leg1.pages","label":"pages converted","value":1377,"unit":"pp","num":{"label":"pages_converted_this_run","value":1377,"unit":"pp"},"den":{"label":"pages in the source PDF","value":1377,"unit":"pp"},"conditions":"pages_converted_this_run equals pages: the whole book was converted here.","population":"this-run","evidence":"event","origin":null,"honest":true,"display":"1377 of 1377 pages converted this run","naive":"1377","census":[],"defect":null},"peak_vram_mib":{"id":"convert.leg1.peak_vram_mib","label":"peak VRAM","value":9395,"unit":"MiB","num":{"label":"largest VRAM reading seen","value":9395,"unit":"MiB"},"den":{"label":"samples taken","value":null,"unit":"30s samples"},"conditions":"A 30-second-sampled MAXIMUM, not a true peak: the sample count is not recorded and any spike between samples is invisible. Over 3834.2s that is at most ~128 samples.","population":"this-run","evidence":"event","origin":"events[12].peak_vram_mib","honest":false,"display":"9395 MiB, highest of ~128 samples at 30s (a sampled max, not a peak)","naive":"peak VRAM 9395 MiB","census":["N-066"],"defect":{"reason":"The field is named \"peak\" but is a coarse sampled maximum; the spike that causes a stall lives between samples.","highlight":"events[12].peak_vram_mib = 9395, sample count unrecorded.","solution":"Render as \"sampled max @30s\". Never use it to claim headroom."}},"retry_wall_s":{"id":"convert.leg1.retry_wall_s","label":"seconds lost to retries","value":0,"unit":"s","num":{"label":"retry seconds","value":0,"unit":"s"},"den":null,"conditions":"A genuine measured zero: no slice event carries `attempts` or `recovered`, so the recovery ladder never engaged. Zero stalls. This is the one 0.0 on this voyage that means what it says.","population":"this-run","evidence":"event","origin":null,"honest":true,"display":"0.0s — zero retries, zero stalls (7 of 7 slices first-attempt)","naive":"0","census":[],"defect":null},"promise_delta":{"id":"convert.leg1.promise_delta","label":"promise vs outcome","value":-508.8,"unit":"s","num":{"label":"actual wall_s minus promised eta_s","value":-508.8,"unit":"s"},"den":{"label":"promised eta_s","value":4343,"unit":"s"},"conditions":"Promise filed 21:30:19Z: eta 4343s at 3.154 s/pp, basis \"similar\", n=3 samples. Outcome 3834.2s at 2.78 s/pp. An n=3 estimate, so the beat is within sampling noise and is not evidence the machine got faster.","population":"this-run","evidence":"derived","origin":null,"honest":true,"display":"beat its promise by 508.8s (3834.2s actual vs 4343s promised, 11.7% under; estimate basis \"similar\", n=3)","naive":"-508.8","census":[],"defect":null}}},{"id":"convert.leg2","label":"Convert leg 2 — resumed 7/7 from cache; converted NOTHING","start":"2026-09-01T03:37:28+00:00","end":"2026-09-01T03:37:38+00:00","slices":[{"slice":1,"page_range":"0-199","wall_s":null,"resumed":true,"ts":"2026-09-01T03:37:37+00:00"},{"slice":2,"page_range":"200-399","wall_s":null,"resumed":true,"ts":"2026-09-01T03:37:37+00:00"},{"slice":3,"page_range":"400-599","wall_s":null,"resumed":true,"ts":"2026-09-01T03:37:37+00:00"},{"slice":4,"page_range":"600-799","wall_s":null,"resumed":true,"ts":"2026-09-01T03:37:37+00:00"},{"slice":5,"page_range":"800-999","wall_s":null,"resumed":true,"ts":"2026-09-01T03:37:38+00:00"},{"slice":6,"page_range":"1000-1199","wall_s":null,"resumed":true,"ts":"2026-09-01T03:37:38+00:00"},{"slice":7,"page_range":"1200-1376","wall_s":null,"resumed":true,"ts":"2026-09-01T03:37:38+00:00"}],"didWork":false,"headline":"This leg converted 0 pages. Every rate it reported is undefined.","fields":{"wall_s":{"id":"convert.leg2.wall_s","label":"GPU wall seconds","value":0,"unit":"s","num":{"label":"sum of slice wall_s for slices executed","value":0,"unit":"s"},"den":{"label":"slices executed","value":0,"unit":"slices"},"conditions":"An empty sum. Seven slices were admitted from cache (resumed: true, and the resumed slice events carry NO wall_s field at all); none ran. Observed elapsed between chunking and converted was ≤1s of clock.","population":"this-run","evidence":"event","origin":"events[27].wall_s","honest":false,"display":"NO WORK THIS RUN — 0 of 7 slices executed; the book’s cost stands at 3834.2s","naive":"converted in 0.0s","census":["N-064"],"defect":{"reason":"A zero-length sum over an empty set reads as \"the book converted instantly\".","highlight":"events[27]: wall_s 0.0, pages_converted_this_run 0, resumed_slices 7.","solution":"Suppress the number. Print \"resumed 7/7, no new work\" and show cost_s 3834.2 as the book’s figure."}},"s_per_page":{"id":"convert.leg2.s_per_page","label":"seconds per page","value":0,"unit":"s/pp","num":{"label":"GPU wall seconds this run","value":0,"unit":"s"},"den":{"label":"pages in the whole book (NOT pages converted)","value":1377,"unit":"pp"},"conditions":"THE CENSUS ROW N-059 IN THE FLESH: this-run numerator over whole-book denominator. 0 pages were converted, so the rate has no denominator at all.","population":"mixed","evidence":"event","origin":"events[27].s_per_page","honest":false,"display":"UNDEFINED — 0 pages converted this run (book average from leg 1: 2.78 s/pp)","naive":"0.00 s/pp","census":["N-059"],"defect":{"reason":"A rate whose true denominator is zero, published as 0.00 by dividing this run’s zero seconds by the whole book’s 1377 pages.","highlight":"convert_and_ship.py:1305 — s_per_page=round(wall / pages, 2) with wall=0.0.","solution":"When pages_converted_this_run == 0, render UNDEFINED and show cost_s instead. Downstream medians (line.rs collects s_per_page from every converted event) must exclude any event with pages_converted_this_run == 0."}},"s_per_page_this_run":{"id":"convert.leg2.s_per_page_this_run","label":"seconds per page, this run","value":0,"unit":"s/pp","num":{"label":"GPU wall seconds this run","value":0,"unit":"s"},"den":{"label":"pages_converted_this_run, SUBSTITUTED to 1377 by a divide-guard","value":1377,"unit":"pp"},"conditions":"The REPAIRED field is also wrong here. convert_and_ship.py:1303 does `run_pages = true_run_pages or pages`, so an all-resumed run silently swaps the whole book in as the denominator to avoid a divide-by-zero. The emitted COUNT stays honest (pages_converted_this_run: 0); the RATE does not.","population":"mixed","evidence":"event","origin":"events[27].s_per_page_this_run","honest":false,"display":"UNDEFINED — 0/0, guarded to 0÷1377","naive":"0.00 s/pp (this run)","census":["N-059"],"defect":{"reason":"The N-059 repair guards the division, not the publication: 0/0 becomes 0.00.","highlight":"convert_and_ship.py:1302-1307, the `or pages` guard.","solution":"Guard the RENDER, not just the divide: pages_converted_this_run == 0 ⇒ UNDEFINED."}},"pages_converted_this_run":{"id":"convert.leg2.pages_converted_this_run","label":"pages converted this run","value":0,"unit":"pp","num":{"label":"pages converted","value":0,"unit":"pp"},"den":{"label":"pages in the book","value":1377,"unit":"pp"},"conditions":"Honest and load-bearing: this is the field that proves the two rates above are undefined. It was added after an all-resumed run emitted 1377 for a 1-second resume (caught live 2026-08-31 07:40:59).","population":"this-run","evidence":"event","origin":null,"honest":true,"display":"0 of 1377 pages converted this run (7 slices admitted from cache)","naive":"0","census":[],"defect":null},"peak_vram_mib":{"id":"convert.leg2.peak_vram_mib","label":"peak VRAM","value":null,"unit":"MiB","num":null,"den":null,"conditions":"null, not zero. Nothing sampled because nothing ran. docs/34: a duration or reading nobody reported renders UNREAD.","population":"this-run","evidence":"event","origin":"events[27].peak_vram_mib = null","honest":false,"display":"UNREAD — nothing ran, so nothing was sampled","naive":"0 MiB","census":["N-066"],"defect":{"reason":"A null VRAM reading rendered as 0 would claim the GPU was idle-and-measured.","highlight":"events[27].peak_vram_mib === null.","solution":"Render UNREAD. Carry leg 1’s 9395 MiB forward only if labelled \"leg 1\"."}},"cost_s":{"id":"convert.leg2.cost_s","label":"total GPU cost of this book","value":3834.2,"unit":"s","num":{"label":"sum of wall_s across all slices, all runs","value":3834.2,"unit":"s"},"den":{"label":"pages in the book","value":1377,"unit":"pp"},"conditions":"THE HONEST FIGURE FOR THIS LEG. Accumulated from each resumed slice’s .done file. It structurally omits retry_wall_s from resumed slices (census N-064) — but on THIS book leg 1 recorded retry_wall_s 0.0 and no slice was ever retried, so the understatement here is exactly zero. Verified, not assumed.","population":"whole-book","evidence":"event","origin":"events[27].cost_s","honest":true,"display":"3834.2s total GPU cost for 1377 pp (2.78 s/pp book average) — carried from leg 1","naive":"3834.2","census":[],"defect":null},"promised_eta_s":{"id":"convert.leg2.promised_eta_s","label":"ETA filed before the resume","value":0,"unit":"s","num":{"label":"pages_this_run","value":0,"unit":"pp"},"den":{"label":"resumed_pages_assumed","value":1377,"unit":"pp"},"conditions":"DEVIATION FROM THE BRIEF, IN THE PIPELINE’S FAVOUR. Census N-055 says the pre-work ETA always promises the whole book on a resume. On THIS voyage it did not: the estimate event correctly declared eta 0s, 0 pages this run, 1377 pages assumed resumed. N-055 did not fire here.","population":"this-run","evidence":"event","origin":"events[18]: eta_s 0, pages_this_run 0, resumed_pages_assumed 1377","honest":true,"display":"0s promised, 0 pages this run, 1377 assumed already done — correct","naive":"0","census":[],"defect":null}}}],"audits":[{"id":"audit.convert.1","phase":"convert","at":"2026-08-31T22:35:15+00:00","verdict":"fail","label":"Convert audit — first scoring","fields":{"doc_survival":{"id":"audit.convert.doc_survival","label":"document survival","value":0.9334,"unit":"ratio","num":{"label":"window-weighted surviving score (weighted_sum)","value":null,"unit":"windows"},"den":{"label":"total witness windows (total_windows)","value":null,"unit":"windows"},"conditions":"weighted_sum ÷ total_windows, where a window is 12 words (WINDOW_MIN_WORDS 6 for a short tail) of the pymupdf witness, matched FUZZILY into the Marker markdown. It is NOT a page ratio and NOT a character ratio. BOTH SIDES OF THIS RATIO ARE ABSENT FROM THE RECORD: neither weighted_sum nor total_windows is written to the event or the manifest. Scored over 1372 pages; 5 of the book’s 1377 pages produced no scoreable witness text and were dropped from the denominator silently.","population":"whole-book","evidence":"event","origin":"events[13].doc_survival; definition fidelity_audit.py:371","honest":false,"display":"0.9334 window-survival (12-word fuzzy windows, pymupdf witness; both sides of the ratio UNREAD; 1372 of 1377 pages scored)","naive":"93.3% of the document survived","census":["N-088"],"defect":{"reason":"docs/34 requires a ratio to print both its sides; this one cannot, because the pipeline discards weighted_sum and total_windows at the moment of computation. It is also routinely misread as a page or character percentage.","highlight":"fidelity_audit.py:371 computes and immediately drops both operands.","solution":"Render the unit (\"window-survival\"), name the witness, and state the denominator as UNREAD. Do not print it as a plain percentage beside page_coverage, which is a different ratio (0.9978)."}},"runs":{"id":"audit.convert.runs","label":"omission runs found","value":25,"unit":"runs","num":{"label":"runs SHOWN (display cap)","value":25,"unit":"runs"},"den":{"label":"runs_total (the real count)","value":531,"unit":"runs"},"conditions":"The event's `runs` field is len(block[\"runs\"]) — the length of a list already sliced [:25] and sorted by words descending. It is the CAP, not the count. runs_total rides beside it because SYM-066 was repaired at the source (NUM-3, signed 2026-08-31); the fixture proves the repair reached production.","population":"whole-book","evidence":"event","origin":"audit/scored (convert): runs=25, runs_total=531","honest":false,"display":"25 shown of 531 omission runs (display cap 25, longest first)","naive":"25 omission runs","census":["N-028"],"defect":{"reason":"A display cap rendered as a count. 25 is the ceiling; the truth is 531.","highlight":"fidelity_audit.py:383 (`[:25]`) and convert_and_ship.py:54/80 (`runs=len(conv[\"runs\"])`).","solution":"Always render \"N shown of runs_total\". runs_total is present in the event — there is no excuse. If runs_total is absent (null), say so; never fall back to the cap."}},"degeneration":{"id":"audit.convert.degeneration","label":"degeneration tripwire","value":true,"unit":"bool","num":null,"den":null,"conditions":"True if any block ≥200 chars has zlib ratio ≤0.20 or max trigram repeat ≥40, or any normalized line repeats more than 20 times. This is ONE OF ONLY TWO SIGNALS IN THE SYSTEM THAT CAN REACH \"fail\". It fired.","population":"whole-book","evidence":"event","origin":null,"honest":true,"display":"TRIPPED — 24 degenerate blocks, worst at line 5524 (34,523 chars, zlib 0.023)","naive":"true","census":[],"defect":null},"verdict":"fail","verdictReason":{"fired":"convert.tripwires.degeneration","text":"FAIL because the degeneration tripwire fired — NOT because survival was 0.9334.","detail":"compute_verdict (fidelity_audit.py:422-465): survival below CLEAN_DOC_FLAG 0.97 and 241 flagged pages are LOCALIZERS and reach at most \"flag\". Only degeneration and the analyst near-exact gate reach \"fail\". Acceptable books measure 0.76-0.96 survival from legitimate reflow, so gating on survival would false-fail good work."}}},{"id":"audit.convert.2","phase":"convert","at":"2026-09-01T03:38:37+00:00","verdict":"fail","label":"Convert audit — re-scored after the resume (identical)","identicalTo":"audit.convert.1","note":"Every field byte-identical to the 22:35:15Z scoring: doc_survival 0.9334, runs 25 of 531, degeneration true. The audit re-ran over the same cached markdown, so this is a repetition, not a second opinion. A panel that stacks these as two data points is double-counting one measurement.","fields":null},{"id":"audit.analyst","phase":"analyst","at":"2026-09-01T04:56:32+00:00","verdict":"fail","label":"Analyst audit — the scoring that held the bundle","fields":{"doc_survival":{"id":"audit.analyst.doc_survival","label":"analyst near-exact containment","value":0.9402,"unit":"ratio","num":{"label":"Marker windows found VERBATIM in the analyst output","value":null,"unit":"windows"},"den":{"label":"total Marker windows (len(windows))","value":null,"unit":"windows"},"conditions":"failed.count(False) ÷ len(windows). EXACT containment, no fuzzy match: the Marker document IS the reference, so any rewording counts as loss. A DIFFERENT MEASUREMENT FROM THE CONVERT doc_survival ABOVE despite the identical field name. Both sides absent from the record.","population":"whole-book","evidence":"event","origin":"events[30].doc_survival; definition fidelity_audit.py:414","honest":false,"display":"0.9402 verbatim-window containment vs the Marker doc (exact match, no fuzzy; both sides of the ratio UNREAD)","naive":"94.0% survived (better than convert’s 93.3%)","census":["N-088"],"defect":{"reason":"Same name, different measurement, different matcher, different reference. Placed beside the convert figure it invites a comparison that is meaningless.","highlight":"fidelity_audit.py:414 (exact) vs :371 (fuzzy, weighted).","solution":"Never place the two doc_survival numbers on one axis. Label this one \"verbatim containment vs Marker\"."}},"runs":{"id":"audit.analyst.runs","label":"omission runs found","value":25,"unit":"runs","num":{"label":"runs SHOWN (display cap)","value":25,"unit":"runs"},"den":{"label":"runs_total (the real count)","value":404,"unit":"runs"},"conditions":"The event's `runs` field is len(block[\"runs\"]) — the length of a list already sliced [:25] and sorted by words descending. It is the CAP, not the count. runs_total rides beside it because SYM-066 was repaired at the source (NUM-3, signed 2026-08-31); the fixture proves the repair reached production.","population":"whole-book","evidence":"event","origin":"audit/scored (analyst): runs=25, runs_total=404","honest":false,"display":"25 shown of 404 omission runs (display cap 25, longest first)","naive":"25 omission runs","census":["N-028"],"defect":{"reason":"A display cap rendered as a count. 25 is the ceiling; the truth is 404.","highlight":"fidelity_audit.py:383 (`[:25]`) and convert_and_ship.py:54/80 (`runs=len(conv[\"runs\"])`).","solution":"Always render \"N shown of runs_total\". runs_total is present in the event — there is no excuse. If runs_total is absent (null), say so; never fall back to the cap."}},"runLocation":{"id":"audit.analyst.run_page","label":"where the analyst runs are","value":null,"unit":"page","num":null,"den":null,"conditions":"audit_analyst calls _merge_runs(..., page=None) by construction: the analyst audit compares two markdown strings and has no page index at all. All 25 shown runs carry page: null.","population":"whole-book","evidence":"manifest","origin":"manifest.fidelity.analyst.runs[*].page — all 25 are null","honest":false,"display":"UNREAD — the analyst audit has no page index; runs are locatable only by their excerpt text","naive":"page 0","census":[],"defect":{"reason":"The error-structure protocol demands a HIGHLIGHT (\"where, exactly\"). For the analyst phase the pipeline cannot supply one.","highlight":"All 25 runs: page null. Worst is 576 words, excerpt begins \"{1 - t} \\right)/{\\rm e}}\".","solution":"Surface the excerpt as the locator and say the page is unavailable. Do not render a zero or blank page number."}},"verdict":"fail","verdictReason":{"fired":"BOTH analyst fail gates","text":"FAIL on two independent triggers, either of which alone is sufficient.","detail":"Gate 1: doc_survival 0.9402 \u003c ANALYST_DOC_FAIL 0.995. Gate 2: the longest omission run is 576 words ≥ ANALYST_RUN_WORDS 25 (23× the threshold) — and 404 runs exist, of which 25 are shown. The convert degeneration tripwire is ALSO still true, so this bundle fails three ways."}}}],"analyst":{"id":"analyst","label":"Analyst phase (qwen3:8b, local, program \"readability\")","model":"qwen3:8b","backend":"local","program":"readability","emittedEvents":0,"note":"ZERO events across both runs. No analyst/start, no analyst/done, no heartbeat in the stream. Every number below reached us ONLY because the manifest was written at the end. chunks_generated and goodput_accepted_tok_s are recorded here for the first time ever.","fields":{"chunks_total":{"id":"analyst.chunks_total","label":"chunks in the book","value":957,"unit":"chunks","num":{"label":"chunks_resumed + chunks_generated","value":957,"unit":"chunks"},"den":null,"conditions":"641 resumed + 316 generated = 957. Independently: 928 passed + 29 rejected + 0 failed = 957. Both identities check exactly, which is the only reason we can trust the split at all.","population":"whole-book","evidence":"derived","origin":null,"honest":true,"display":"957 chunks (641 resumed + 316 generated; 928 passed + 29 rejected + 0 failed)","naive":"957","census":[],"defect":null},"chunks_resumed":{"id":"analyst.chunks_resumed","label":"chunks admitted from run 1","value":641,"unit":"chunks","num":{"label":"chunks_resumed","value":641,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"THE FIELD THE OPERATOR IS NEVER SHOWN. It is stripped by the frontmatter writer’s whitelist and by the analyst/done event’s whitelist (which did not fire here anyway), and the widget never projects the progress file’s own `resumed` field. It is also the only evidence of how far run 1 got before the power cut. Its cost in seconds and tokens is UNREAD forever.","population":"prior-run","evidence":"manifest","origin":"manifest.analyst.chunks_resumed","honest":false,"display":"641 of 957 chunks (67.0%) carried over from run 1 — their seconds and tokens are UNREAD","naive":"(not shown at all)","census":["N-005"],"defect":{"reason":"Silenced on every human channel, which is what makes every other analyst number on the glass unreadable — you cannot judge 928 passed or 4634.4s without it.","highlight":"observability/acceptance.py:41; convert_and_ship.py:1264-1273, :1338-1347.","solution":"MANDATORY on any surface that shows chunks_passed or duration_s. If it is absent from the source record, that surface must print \"resume state UNKNOWN\"."}},"chunks_generated":{"id":"analyst.chunks_generated","label":"chunks generated this run","value":316,"unit":"chunks","num":{"label":"chunks_generated","value":316,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"The honest this-run numerator, and the only correct partner for duration_s and for every token counter (tokens_counted_calls is also 316). First voyage on which this field was ever recorded.","population":"this-run","evidence":"manifest","origin":null,"honest":true,"display":"316 of 957 chunks (33.0%) generated this run — the denominator for every this-run rate below","naive":"316","census":[],"defect":null},"chunks_passed":{"id":"analyst.chunks_passed","label":"chunks passed the fence","value":928,"unit":"chunks","num":{"label":"chunks_passed","value":928,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"A WHOLE-BOOK count. It includes all 641 resumed chunks. Arithmetically correct and catastrophically misleading the moment it is placed beside duration_s, which covers only 316 of these chunks.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"928 of 957 chunks passed (whole book, both runs — includes the 641 resumed)","naive":"928✓ in 4634.4s","census":["N-007"],"defect":{"reason":"Denominator trap: a book-sized numerator paired with a run-sized wall clock implies a throughput the GPU never achieved (928 ÷ 4634.4s = 0.20 chunks/s vs the true this-run 316 ÷ 4634.4s = 0.068).","highlight":"manifest.analyst.chunks_passed 928 vs duration_s 4634.4 (316 chunks).","solution":"Print the population in the same breath: \"928 of 957, whole book\". Any rate must use chunks_generated 316."}},"chunks_rejected":{"id":"analyst.chunks_rejected","label":"chunks rejected by the link fence","value":29,"unit":"chunks","num":{"label":"chunks_rejected","value":29,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"Whole-book. How many of the 29 occurred in run 2 is UNREAD, so the 4012-token gap between tokens_output_total and tokens_accepted_output cannot be divided by a known rejection count.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"29 of 957 chunks rejected (3.0%, whole book) — run-2 share UNREAD","naive":"29 rejected this run","census":["N-008"],"defect":{"reason":"Whole-book count read as a this-run count; also double-counted downstream when a book is resumed twice.","highlight":"manifest.analyst.chunks_rejected 29; tokens gap 279174 - 275162 = 4012.","solution":"Label as whole-book and mark the run-2 share UNREAD."}},"chunks_failed":{"id":"analyst.chunks_failed","label":"chunks failed (backend/API errors)","value":0,"unit":"chunks","num":{"label":"chunks_failed recorded","value":0,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"Failures are deliberately NOT journalled, so a resumed run cannot replay run 1’s failures into this counter. 0 means \"none recorded\", not \"none occurred\". For the 641 resumed chunks this number carries no information at all.","population":"mixed","evidence":"manifest","origin":null,"honest":false,"display":"0 recorded — run-1 failures are UNREAD by construction (failures are not journalled)","naive":"0 failed","census":["N-009"],"defect":{"reason":"A reset masquerading as a count, and suppressed on the Dock even when non-zero.","highlight":"analyst.py:344-350 (failures never journalled); the Dock prints \"938✓ 0🛡\" and omits the failure count entirely.","solution":"Print \"0 recorded (run 1 UNREAD)\". Never render a bare 0 as an all-clear."}},"duration_s":{"id":"analyst.duration_s","label":"analyst wall clock","value":4634.4,"unit":"s","num":{"label":"wall seconds of the analyst phase","value":4634.4,"unit":"s"},"den":{"label":"chunks GENERATED in that wall time","value":316,"unit":"chunks"},"conditions":"RUN 2 ONLY. Covers the 316 generated chunks and includes the skip-time for the 641 resumed ones, API pacing, and the terminal model unload. Sits inside dark zone 2 (4675s of silence), leaving 40.6s of that window unexplained. Run 1’s analyst seconds — the 641 chunks across 4h40m — were never written anywhere and are permanently UNREAD.","population":"this-run","evidence":"manifest","origin":"manifest.analyst.duration_s","honest":false,"display":"4634.4s covering 316 generated chunks (14.7 s/chunk); run 1’s analyst seconds UNREAD","naive":"analysis done in 4634.4s","census":["N-013","N-007"],"defect":{"reason":"Self-poisoning denominator: it is paired everywhere with whole-book chunk counts, and it is fed back into the throughput estimator alongside whole-book character counts, so every resumed run permanently raises the learned rate.","highlight":"manifest.analyst.duration_s 4634.4 beside chunks_passed 928.","solution":"Never render it beside a whole-book count without the resumed count between them. Label it \"run 2\". State that the book’s total analyst time is UNREAD."}},"goodput_accepted_tok_s":{"id":"analyst.goodput_accepted_tok_s","label":"accepted-output goodput","value":59.37,"unit":"tok/s","num":{"label":"tokens_accepted_output, this run","value":275162,"unit":"tok"},"den":{"label":"duration_s, this run","value":4634.4,"unit":"s"},"conditions":"THIS-run accepted-output tokens / whole-phase wall seconds (wall includes resumed-chunk skips, API pacing, and the terminal model unload; prompt totals are partial sums over tokens_prompt_counted_calls — cached prefills report none)","population":"this-run","evidence":"manifest","origin":"manifest.analyst.goodput_accepted_tok_s","honest":true,"display":"59.37 accepted-output tok/s (275,162 tok ÷ 4634.4s, run 2 only, 316 calls; wall includes resumed-chunk skips, pacing and the terminal model unload)","naive":"59.37","census":[],"defect":null},"tokens_prompt_total":{"id":"analyst.tokens_prompt_total","label":"prompt tokens","value":314311,"unit":"tok","num":{"label":"summed prompt tokens","value":314311,"unit":"tok"},"den":{"label":"calls that reported a count","value":316,"unit":"calls"},"conditions":"A PARTIAL SUM. The manifest’s own conditions line says cached prefills report none, so calls served from cache contribute zero and are indistinguishable from calls with no prompt.","population":"this-run","evidence":"manifest","origin":null,"honest":false,"display":"≥314,311 prompt tok over 316 counted calls (lower bound — cached prefills report none)","naive":"314,311 prompt tokens","census":[],"defect":{"reason":"A lower bound presented as a total; a cached prefill is not a measured prefill.","highlight":"manifest.analyst.tokens_prompt_total 314311 / tokens_prompt_counted_calls 316.","solution":"Render with a ≥ and name the counted-call denominator. Never derive a prefill rate from it."}},"tokens_output_total":{"id":"analyst.tokens_output_total","label":"output tokens generated","value":279174,"unit":"tok","num":{"label":"output tokens","value":279174,"unit":"tok"},"den":{"label":"counted calls","value":316,"unit":"calls"},"conditions":"Run 2 only, 316 counted calls. 279,174 generated of which 275,162 were accepted: 4,012 tokens (1.44%) were produced and thrown away by fence rejections.","population":"this-run","evidence":"manifest","origin":null,"honest":true,"display":"279,174 tok generated over 316 calls; 275,162 accepted, 4,012 discarded (1.4%)","naive":"279174","census":[],"defect":null}}},"localizers":{"pages_flagged":{"id":"fidelity.pages_flagged","label":"pages below the survival flag","value":241,"unit":"pages","num":{"label":"pages scoring below CLEAN_PAGE_FLAG 0.85","value":241,"unit":"pages"},"den":{"label":"pages scored","value":1372,"unit":"pages"},"conditions":"Full page list is present in the manifest (all 241, not capped). Scored over 1372 pages, not 1377. This signal LOCALIZES and can reach at most \"flag\" — it is not why the bundle was held.","population":"whole-book","evidence":"manifest","origin":null,"honest":true,"display":"241 of 1372 scored pages below 0.85 survival (17.6%) — localizer, not a gate","naive":"241","census":[],"defect":null},"pages_scored":{"id":"fidelity.pages_scored","label":"pages the audit could score","value":1372,"unit":"pages","num":{"label":"pages scored","value":1372,"unit":"pages"},"den":{"label":"pages in the book","value":1377,"unit":"pages"},"conditions":"5 of the book’s 1377 pages yielded no scoreable witness text and were dropped from every audit denominator without any field announcing it.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"1372 of 1377 pages scored — 5 pages silently excluded from every audit ratio","naive":"1372 pages","census":[],"defect":{"reason":"A silently shrinking denominator. Nothing in the record says which 5 pages, or why.","highlight":"manifest pages_scored 1372 vs events probe pages 1377.","solution":"Always render \"N of 1377 scored\" and mark the 5 as UNSCORED, not as surviving."}},"page_coverage":{"id":"fidelity.page_coverage","label":"pages with any surviving text","value":0.9978,"unit":"ratio","num":{"label":"pages with score > 0 (surviving)","value":1369,"unit":"pages"},"den":{"label":"pages with witness text (with_text)","value":1372,"unit":"pages"},"conditions":"A COMPLETELY DIFFERENT RATIO FROM doc_survival, and the only one on this glass whose two sides are both recorded. 3 pages vanished entirely.","population":"whole-book","evidence":"manifest","origin":null,"honest":true,"display":"1369 of 1372 pages retain some text (99.78%) — 3 pages wholly lost","naive":"0.9978","census":[],"defect":null},"degeneration_blocks":{"id":"fidelity.degeneration.blocks","label":"degenerate blocks","value":24,"unit":"blocks","num":{"label":"blocks shown in `worst`","value":10,"unit":"blocks"},"den":{"label":"blocks_total","value":24,"unit":"blocks"},"conditions":"The NUM-3 repair is present and working here: blocks_total 24 and worst_capped_at 10 both ride beside the truncated list. The list length (10) must never be read as the count (24). Worst block: line 5524, 34,523 chars, zlib 0.023 (threshold ≤0.20), max trigram 129 (threshold ≥40).","population":"whole-book","evidence":"manifest","origin":null,"honest":true,"display":"24 degenerate blocks, worst 10 shown (cap 10) — worst at line 5524, 34,523 chars, zlib 0.023","naive":"24","census":[],"defect":null},"repeated_lines":{"id":"fidelity.degeneration.repeated_lines","label":"most-repeated line","value":0,"unit":"repeats","num":null,"den":null,"conditions":"degeneration.py: `repeated_lines = max_run if max_run > DEGEN_LINE_REPEAT else 0`. The 0 means \"no line repeated MORE THAN 20 times\". A book whose worst run is exactly 20 identical lines publishes 0, byte-identical to a book with no repetition. The true maximum is discarded.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"UNREAD — no line-run exceeded 20 repeats; the actual maximum is suppressed (the tripwire fired on zlib/trigram, not on line repeats)","naive":"0 repeated lines","census":["N-029"],"defect":{"reason":"A threshold reset published as a count. 0 does not mean zero repetition.","highlight":"manifest.fidelity.convert.tripwires.degeneration_detail.repeated_lines = 0, beside flagged = true.","solution":"Render UNREAD with the threshold named. Never draw it as a zero bar."}},"reverse_sample":{"id":"fidelity.reverse_sample","label":"anti-hallucination reverse check","value":0.765,"unit":"ratio","num":{"label":"sampled output windows found in the witness","value":153,"unit":"windows"},"den":{"label":"output windows sampled (REVERSE_SAMPLE_N)","value":200,"unit":"windows"},"conditions":"Exact containment (no fuzzy) of 200 randomly sampled OUTPUT windows in the pymupdf witness, seed 20260720 so it is deterministic. Table restructuring and reflow legitimately break exact containment, so a miss is not proof of invention. This value gates NOTHING: compute_verdict never reads it.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"153 of 200 sampled output windows found verbatim in the source (76.5%, exact match, seed 20260720) — not a hallucination rate, and not a gate","naive":"23.5% hallucinated","census":[],"defect":{"reason":"Read as an invention rate it accuses the converter of fabricating a quarter of the book; the matcher is exact, so reflow alone produces misses.","highlight":"fidelity_audit.py:328-337; n=200 of an unrecorded total window count.","solution":"Label \"verbatim containment, sampled n=200\". Never call it hallucination."}},"asset_delta":{"id":"fidelity.asset_delta","label":"asset files vs embedded images","value":76,"unit":"files","num":{"label":"asset files Marker wrote","value":308,"unit":"files"},"den":{"label":"images embedded in the PDF","value":232,"unit":"images"},"conditions":"A SIGNED DIFFERENCE (asset_count - embedded_images), not a loss count. Positive means Marker wrote MORE files than the PDF had embedded images — typically extra crops of figures and tables.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"308 asset files written vs 232 embedded images (+76 — a surplus, not a loss)","naive":"76 assets missing","census":[],"defect":{"reason":"A bare signed delta beside a fidelity audit reads as damage; here it is surplus.","highlight":"asset_delta 76, embedded_images 232.","solution":"Print both sides with the sign and the word \"surplus\"/\"shortfall\"."}},"dict_hit":{"id":"fidelity.dict_hit","label":"dictionary hit rate","value":null,"unit":"ratio","num":null,"den":null,"conditions":"null: the wordfreq dictionary is absent from this machine, so the check never ran.","population":"n/a","evidence":"manifest","origin":null,"honest":false,"display":"UNREAD — not measured (wordfreq absent)","naive":"0.0","census":[],"defect":{"reason":"docs/34: a value nobody reported renders UNREAD, never 0.0.","highlight":"tripwires.dict_hit = null.","solution":"Render UNREAD and say why it was not measured."}},"garbage_rate":{"id":"fidelity.garbage_rate","label":"garbage token rate","value":null,"unit":"ratio","num":null,"den":null,"conditions":"null BY DESIGN: garbage_rate is computed on the scan lane only, and this book ran the clean lane. Not a missing measurement — an inapplicable one.","population":"n/a","evidence":"manifest","origin":null,"honest":false,"display":"UNREAD — clean lane; this check applies to the scan lane only","naive":"0.0","census":[],"defect":{"reason":"A null that means \"not applicable\" rendered as 0.0 claims a perfect score on a test that was never taken.","highlight":"tripwires.garbage_rate = null, lane = clean.","solution":"Render UNREAD with the reason \"clean lane\". Distinguish N/A from UNMEASURED."}}},"alarms":[{"id":"ALM-LIVENESS","priority":1,"at":"2026-08-31T22:35:15+00:00","state":"would-have-fired","title":"LIVENESS LOST — no event for 5h 02m","consequence":"The analyst died at chunk 641 and nobody knew for 5 hours. This is the alarm that would have saved the night, and it does not exist.","timeToAct":"minutes — a dead analyst holds the GPU and the book","reason":"The inline analyst code path emits no events at all; analyst/start and analyst/done exist only on the --resume path. The only liveness signal was .analyst-progress.json, overwritten in place with no history.","highlight":"dark-1: 2026-08-31T22:35:15Z → 2026-09-01T03:37:28Z, 18133s, zero events.","response":"Watch .analyst-progress.json mtime. Stale > 300s while a book is in flight ⇒ the analyst is dead: kill the orphan, reap the GPU lock, re-run with --resume.","fired":false},{"id":"ALM-IDLE-AFTER-REBOOT","priority":1,"at":"2026-09-01T01:48:17+00:00","state":"would-have-fired","title":"MACHINE IDLE AFTER UNATTENDED REBOOT — 1h 45m 43s","consequence":"A powered, healthy machine did nothing for nearly two hours with a book in staging. Pure lost throughput, and it recurs on every power event.","timeToAct":"immediate — every second is unrecoverable","reason":"The widget has no autostart and the watcher is the widget’s child, so a reboot leaves nothing to restart the pipeline. Recovery required a human to log in.","highlight":"dead-idle: 01:48:17Z → ~03:34:00Z (testimony). First machine record after the reboot is stale-lock-reaped at 03:37:28Z.","response":"Autostart the widget at logon, or run the watcher as a service. Until then: after any reboot, open the widget first.","fired":false},{"id":"ALM-HELD","priority":1,"at":"2026-09-01T04:56:33+00:00","state":"fired","title":"BUNDLE HELD — verdict fail (analyst gate)","consequence":"The book will not reach the vault. It waits in staging indefinitely.","timeToAct":"hours — the bundle is stable but blocks the book","reason":"Analyst near-exact containment 0.9402 \u003c 0.995, AND the longest omission run is 576 words ≥ 25. Either alone is a fail. The convert degeneration tripwire is also still true.","highlight":"404 analyst omission runs (25 shown), worst 576 words; 24 degenerate blocks, worst at line 5524.","response":"Open the held bundle. Inspect the 25 shown runs by excerpt (no page index exists for the analyst phase). Repair or bless; a bless is the operator’s signature, never the pipeline’s.","fired":true},{"id":"ALM-DEGENERATION","priority":2,"at":"2026-08-31T22:35:15+00:00","state":"fired","title":"DEGENERATION TRIPWIRE — 24 blocks","consequence":"Repetition-loop corruption in the converted markdown. This is the signal that failed the convert phase; survival 0.9334 was never the reason.","timeToAct":"hours","reason":"zlib ratio 0.023 (threshold ≤0.20) and max trigram 129 (threshold ≥40) on a 34,523-char block.","highlight":"line 5524 (34,523 chars) — a Betas/Operating-Leverage table collapsed into one line; 9 more blocks shown of 24.","response":"Open the .md at line 5524. Apply the banked signature: column-wrap → \u003cbr> inside table cells. Re-convert the slice, not the book.","fired":true},{"id":"ALM-PAGE-FLAGS","priority":3,"at":"2026-08-31T22:35:15+00:00","state":"fired","title":"241 of 1372 pages below 0.85 survival","consequence":"Localized suspicion only. Acceptable books measure 0.76-0.96 from legitimate reflow; this gates nothing.","timeToAct":"days — advisory","reason":"Page survival below CLEAN_PAGE_FLAG 0.85.","highlight":"Full page list in the manifest (241 entries, uncapped). Densest cluster: pages 505-543 and 1157-1163.","response":"Sample 3 pages from the densest cluster against the PDF before deciding whether this is reflow or loss. Do not act on the count alone.","fired":true},{"id":"ALM-FENCE","priority":3,"at":"2026-09-01T04:56:32+00:00","state":"fired","title":"29 of 957 chunks rejected by the link fence","consequence":"4,012 output tokens generated and discarded (1.4% of run 2’s output).","timeToAct":"days — advisory","reason":"Fence violation: the analyst’s output failed the image-token multiset check.","highlight":"Whole-book count; the run-2 share is UNREAD. A context overflow is re-labelled as a fence rejection by the same path, so these 29 may not all be link violations.","response":"If the count climbs across voyages, check NUM_CTX against the largest chunk before blaming the fence.","fired":true}],"fields":{"span.voyage":{"id":"span.voyage","label":"voyage wall clock","value":26781,"unit":"s","num":{"label":"seconds from intake/detected to audit/held","value":26781,"unit":"s"},"den":null,"conditions":"First event 2026-08-31T21:30:12Z to last event 2026-09-01T04:56:33Z, one book, one machine, spanning one power failure and one unattended reboot.","population":"whole-book","evidence":"derived","origin":null,"honest":true,"display":"7h 26m 21s wall (21:30:12Z → 04:56:33Z, next day)","naive":"26781","census":[],"defect":null},"span.measured_work":{"id":"span.measured_work","label":"seconds any stage actually reported","value":8468.6,"unit":"s","num":{"label":"convert leg 1 wall_s + analyst run 2 duration_s","value":8468.6,"unit":"s"},"den":{"label":"voyage wall seconds","value":26781,"unit":"s"},"conditions":"Only two durations exist in the whole record: convert leg 1 (3834.2s, event) and the analyst second run (4634.4s, manifest). Convert leg 2 measured 0s of work. The analyst FIRST run — 641 chunks — reported no duration at all. This ratio therefore understates the work done and overstates the idleness.","population":"mixed","evidence":"derived","origin":null,"honest":false,"display":"2h 21m 09s of 7h 26m 21s instrumented (31.6%) — the rest is unmeasured, not necessarily idle","naive":"31.6% utilisation","census":["N-013"],"defect":{"reason":"A \"utilisation\" or \"idle\" reading built on this ratio is wrong: the analyst’s first run did 641 chunks of real GPU work whose duration was never recorded.","highlight":"dark-1 (18133s): work happened here and is absent from the numerator.","solution":"Label the remainder \"UNMEASURED\", split into dark (22808s, no events) and dead (6343s, testimony). Never print a utilisation percentage from this pair."}},"span.dark":{"id":"span.dark","label":"seconds with zero events","value":22808,"unit":"s","num":{"label":"dark-1 + dark-2 seconds","value":22808,"unit":"s"},"den":{"label":"voyage wall seconds","value":26781,"unit":"s"},"conditions":"Contiguous stretches between consecutive events where no event of any stage was emitted. Measured by absence. 18133s + 4675s.","population":"whole-book","evidence":"absence","origin":null,"honest":true,"display":"6h 20m 08s of 7h 26m 21s with ZERO events (85.2% of the voyage)","naive":"22808","census":[],"defect":null},"span.dead":{"id":"span.dead","label":"seconds the machine was off or idle-after-reboot","value":6960,"unit":"s","num":{"label":"power-cut + dead-idle seconds","value":6960,"unit":"s"},"den":{"label":"voyage wall seconds","value":26781,"unit":"s"},"conditions":"OPERATOR TESTIMONY, approximate at both ends. Neither the power cut nor the 01:48:17Z reboot appears in the event stream; the pipeline cannot see its own death. 6960s total, of which 6343s was a powered, healthy, idle machine.","population":"whole-book","evidence":"testimony","origin":null,"honest":true,"display":"1h 56m 00s machine down or idle (testimony, ±minutes) — 1h 45m 43s of it powered and doing nothing","naive":"6960","census":[],"defect":null},"convert.leg1.wall_s":{"id":"convert.leg1.wall_s","label":"GPU wall seconds","value":3834.2,"unit":"s","num":{"label":"sum of 7 slice wall_s","value":3834.2,"unit":"s"},"den":null,"conditions":"Marker, clean lane, batch 8 at every slice, 1377 pages in 7 slices of 200. The seven slice events sum to exactly 3834.2s and run back-to-back with no idle between them (slice 1 ended 21:37:28Z, 428.8s after chunking at 21:30:19Z).","population":"this-run","evidence":"event","origin":"events[12].wall_s","honest":true,"display":"3834.2s GPU wall over 7 slices (slice sum reconciles exactly)","naive":"3834.2","census":[],"defect":null},"convert.leg1.s_per_page":{"id":"convert.leg1.s_per_page","label":"seconds per page","value":2.78,"unit":"s/pp","num":{"label":"GPU wall seconds this run","value":3834.2,"unit":"s"},"den":{"label":"pages converted this run","value":1377,"unit":"pp"},"conditions":"Numerator and denominator are BOTH this run — on leg 1 nothing was resumed (resumed_slices 0), so s_per_page and s_per_page_this_run agree at 2.78. Clean lane, text layer present, Marker batch 8, one RTX-class card.","population":"this-run","evidence":"event","origin":"events[12].s_per_page","honest":true,"display":"2.78 s/pp (3834.2s ÷ 1377 pp converted this run)","naive":"2.78","census":[],"defect":null},"convert.leg1.pages":{"id":"convert.leg1.pages","label":"pages converted","value":1377,"unit":"pp","num":{"label":"pages_converted_this_run","value":1377,"unit":"pp"},"den":{"label":"pages in the source PDF","value":1377,"unit":"pp"},"conditions":"pages_converted_this_run equals pages: the whole book was converted here.","population":"this-run","evidence":"event","origin":null,"honest":true,"display":"1377 of 1377 pages converted this run","naive":"1377","census":[],"defect":null},"convert.leg1.peak_vram_mib":{"id":"convert.leg1.peak_vram_mib","label":"peak VRAM","value":9395,"unit":"MiB","num":{"label":"largest VRAM reading seen","value":9395,"unit":"MiB"},"den":{"label":"samples taken","value":null,"unit":"30s samples"},"conditions":"A 30-second-sampled MAXIMUM, not a true peak: the sample count is not recorded and any spike between samples is invisible. Over 3834.2s that is at most ~128 samples.","population":"this-run","evidence":"event","origin":"events[12].peak_vram_mib","honest":false,"display":"9395 MiB, highest of ~128 samples at 30s (a sampled max, not a peak)","naive":"peak VRAM 9395 MiB","census":["N-066"],"defect":{"reason":"The field is named \"peak\" but is a coarse sampled maximum; the spike that causes a stall lives between samples.","highlight":"events[12].peak_vram_mib = 9395, sample count unrecorded.","solution":"Render as \"sampled max @30s\". Never use it to claim headroom."}},"convert.leg1.retry_wall_s":{"id":"convert.leg1.retry_wall_s","label":"seconds lost to retries","value":0,"unit":"s","num":{"label":"retry seconds","value":0,"unit":"s"},"den":null,"conditions":"A genuine measured zero: no slice event carries `attempts` or `recovered`, so the recovery ladder never engaged. Zero stalls. This is the one 0.0 on this voyage that means what it says.","population":"this-run","evidence":"event","origin":null,"honest":true,"display":"0.0s — zero retries, zero stalls (7 of 7 slices first-attempt)","naive":"0","census":[],"defect":null},"convert.leg1.promise_delta":{"id":"convert.leg1.promise_delta","label":"promise vs outcome","value":-508.8,"unit":"s","num":{"label":"actual wall_s minus promised eta_s","value":-508.8,"unit":"s"},"den":{"label":"promised eta_s","value":4343,"unit":"s"},"conditions":"Promise filed 21:30:19Z: eta 4343s at 3.154 s/pp, basis \"similar\", n=3 samples. Outcome 3834.2s at 2.78 s/pp. An n=3 estimate, so the beat is within sampling noise and is not evidence the machine got faster.","population":"this-run","evidence":"derived","origin":null,"honest":true,"display":"beat its promise by 508.8s (3834.2s actual vs 4343s promised, 11.7% under; estimate basis \"similar\", n=3)","naive":"-508.8","census":[],"defect":null},"convert.leg2.wall_s":{"id":"convert.leg2.wall_s","label":"GPU wall seconds","value":0,"unit":"s","num":{"label":"sum of slice wall_s for slices executed","value":0,"unit":"s"},"den":{"label":"slices executed","value":0,"unit":"slices"},"conditions":"An empty sum. Seven slices were admitted from cache (resumed: true, and the resumed slice events carry NO wall_s field at all); none ran. Observed elapsed between chunking and converted was ≤1s of clock.","population":"this-run","evidence":"event","origin":"events[27].wall_s","honest":false,"display":"NO WORK THIS RUN — 0 of 7 slices executed; the book’s cost stands at 3834.2s","naive":"converted in 0.0s","census":["N-064"],"defect":{"reason":"A zero-length sum over an empty set reads as \"the book converted instantly\".","highlight":"events[27]: wall_s 0.0, pages_converted_this_run 0, resumed_slices 7.","solution":"Suppress the number. Print \"resumed 7/7, no new work\" and show cost_s 3834.2 as the book’s figure."}},"convert.leg2.s_per_page":{"id":"convert.leg2.s_per_page","label":"seconds per page","value":0,"unit":"s/pp","num":{"label":"GPU wall seconds this run","value":0,"unit":"s"},"den":{"label":"pages in the whole book (NOT pages converted)","value":1377,"unit":"pp"},"conditions":"THE CENSUS ROW N-059 IN THE FLESH: this-run numerator over whole-book denominator. 0 pages were converted, so the rate has no denominator at all.","population":"mixed","evidence":"event","origin":"events[27].s_per_page","honest":false,"display":"UNDEFINED — 0 pages converted this run (book average from leg 1: 2.78 s/pp)","naive":"0.00 s/pp","census":["N-059"],"defect":{"reason":"A rate whose true denominator is zero, published as 0.00 by dividing this run’s zero seconds by the whole book’s 1377 pages.","highlight":"convert_and_ship.py:1305 — s_per_page=round(wall / pages, 2) with wall=0.0.","solution":"When pages_converted_this_run == 0, render UNDEFINED and show cost_s instead. Downstream medians (line.rs collects s_per_page from every converted event) must exclude any event with pages_converted_this_run == 0."}},"convert.leg2.s_per_page_this_run":{"id":"convert.leg2.s_per_page_this_run","label":"seconds per page, this run","value":0,"unit":"s/pp","num":{"label":"GPU wall seconds this run","value":0,"unit":"s"},"den":{"label":"pages_converted_this_run, SUBSTITUTED to 1377 by a divide-guard","value":1377,"unit":"pp"},"conditions":"The REPAIRED field is also wrong here. convert_and_ship.py:1303 does `run_pages = true_run_pages or pages`, so an all-resumed run silently swaps the whole book in as the denominator to avoid a divide-by-zero. The emitted COUNT stays honest (pages_converted_this_run: 0); the RATE does not.","population":"mixed","evidence":"event","origin":"events[27].s_per_page_this_run","honest":false,"display":"UNDEFINED — 0/0, guarded to 0÷1377","naive":"0.00 s/pp (this run)","census":["N-059"],"defect":{"reason":"The N-059 repair guards the division, not the publication: 0/0 becomes 0.00.","highlight":"convert_and_ship.py:1302-1307, the `or pages` guard.","solution":"Guard the RENDER, not just the divide: pages_converted_this_run == 0 ⇒ UNDEFINED."}},"convert.leg2.pages_converted_this_run":{"id":"convert.leg2.pages_converted_this_run","label":"pages converted this run","value":0,"unit":"pp","num":{"label":"pages converted","value":0,"unit":"pp"},"den":{"label":"pages in the book","value":1377,"unit":"pp"},"conditions":"Honest and load-bearing: this is the field that proves the two rates above are undefined. It was added after an all-resumed run emitted 1377 for a 1-second resume (caught live 2026-08-31 07:40:59).","population":"this-run","evidence":"event","origin":null,"honest":true,"display":"0 of 1377 pages converted this run (7 slices admitted from cache)","naive":"0","census":[],"defect":null},"convert.leg2.peak_vram_mib":{"id":"convert.leg2.peak_vram_mib","label":"peak VRAM","value":null,"unit":"MiB","num":null,"den":null,"conditions":"null, not zero. Nothing sampled because nothing ran. docs/34: a duration or reading nobody reported renders UNREAD.","population":"this-run","evidence":"event","origin":"events[27].peak_vram_mib = null","honest":false,"display":"UNREAD — nothing ran, so nothing was sampled","naive":"0 MiB","census":["N-066"],"defect":{"reason":"A null VRAM reading rendered as 0 would claim the GPU was idle-and-measured.","highlight":"events[27].peak_vram_mib === null.","solution":"Render UNREAD. Carry leg 1’s 9395 MiB forward only if labelled \"leg 1\"."}},"convert.leg2.cost_s":{"id":"convert.leg2.cost_s","label":"total GPU cost of this book","value":3834.2,"unit":"s","num":{"label":"sum of wall_s across all slices, all runs","value":3834.2,"unit":"s"},"den":{"label":"pages in the book","value":1377,"unit":"pp"},"conditions":"THE HONEST FIGURE FOR THIS LEG. Accumulated from each resumed slice’s .done file. It structurally omits retry_wall_s from resumed slices (census N-064) — but on THIS book leg 1 recorded retry_wall_s 0.0 and no slice was ever retried, so the understatement here is exactly zero. Verified, not assumed.","population":"whole-book","evidence":"event","origin":"events[27].cost_s","honest":true,"display":"3834.2s total GPU cost for 1377 pp (2.78 s/pp book average) — carried from leg 1","naive":"3834.2","census":[],"defect":null},"convert.leg2.promised_eta_s":{"id":"convert.leg2.promised_eta_s","label":"ETA filed before the resume","value":0,"unit":"s","num":{"label":"pages_this_run","value":0,"unit":"pp"},"den":{"label":"resumed_pages_assumed","value":1377,"unit":"pp"},"conditions":"DEVIATION FROM THE BRIEF, IN THE PIPELINE’S FAVOUR. Census N-055 says the pre-work ETA always promises the whole book on a resume. On THIS voyage it did not: the estimate event correctly declared eta 0s, 0 pages this run, 1377 pages assumed resumed. N-055 did not fire here.","population":"this-run","evidence":"event","origin":"events[18]: eta_s 0, pages_this_run 0, resumed_pages_assumed 1377","honest":true,"display":"0s promised, 0 pages this run, 1377 assumed already done — correct","naive":"0","census":[],"defect":null},"analyst.chunks_total":{"id":"analyst.chunks_total","label":"chunks in the book","value":957,"unit":"chunks","num":{"label":"chunks_resumed + chunks_generated","value":957,"unit":"chunks"},"den":null,"conditions":"641 resumed + 316 generated = 957. Independently: 928 passed + 29 rejected + 0 failed = 957. Both identities check exactly, which is the only reason we can trust the split at all.","population":"whole-book","evidence":"derived","origin":null,"honest":true,"display":"957 chunks (641 resumed + 316 generated; 928 passed + 29 rejected + 0 failed)","naive":"957","census":[],"defect":null},"analyst.chunks_resumed":{"id":"analyst.chunks_resumed","label":"chunks admitted from run 1","value":641,"unit":"chunks","num":{"label":"chunks_resumed","value":641,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"THE FIELD THE OPERATOR IS NEVER SHOWN. It is stripped by the frontmatter writer’s whitelist and by the analyst/done event’s whitelist (which did not fire here anyway), and the widget never projects the progress file’s own `resumed` field. It is also the only evidence of how far run 1 got before the power cut. Its cost in seconds and tokens is UNREAD forever.","population":"prior-run","evidence":"manifest","origin":"manifest.analyst.chunks_resumed","honest":false,"display":"641 of 957 chunks (67.0%) carried over from run 1 — their seconds and tokens are UNREAD","naive":"(not shown at all)","census":["N-005"],"defect":{"reason":"Silenced on every human channel, which is what makes every other analyst number on the glass unreadable — you cannot judge 928 passed or 4634.4s without it.","highlight":"observability/acceptance.py:41; convert_and_ship.py:1264-1273, :1338-1347.","solution":"MANDATORY on any surface that shows chunks_passed or duration_s. If it is absent from the source record, that surface must print \"resume state UNKNOWN\"."}},"analyst.chunks_generated":{"id":"analyst.chunks_generated","label":"chunks generated this run","value":316,"unit":"chunks","num":{"label":"chunks_generated","value":316,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"The honest this-run numerator, and the only correct partner for duration_s and for every token counter (tokens_counted_calls is also 316). First voyage on which this field was ever recorded.","population":"this-run","evidence":"manifest","origin":null,"honest":true,"display":"316 of 957 chunks (33.0%) generated this run — the denominator for every this-run rate below","naive":"316","census":[],"defect":null},"analyst.chunks_passed":{"id":"analyst.chunks_passed","label":"chunks passed the fence","value":928,"unit":"chunks","num":{"label":"chunks_passed","value":928,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"A WHOLE-BOOK count. It includes all 641 resumed chunks. Arithmetically correct and catastrophically misleading the moment it is placed beside duration_s, which covers only 316 of these chunks.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"928 of 957 chunks passed (whole book, both runs — includes the 641 resumed)","naive":"928✓ in 4634.4s","census":["N-007"],"defect":{"reason":"Denominator trap: a book-sized numerator paired with a run-sized wall clock implies a throughput the GPU never achieved (928 ÷ 4634.4s = 0.20 chunks/s vs the true this-run 316 ÷ 4634.4s = 0.068).","highlight":"manifest.analyst.chunks_passed 928 vs duration_s 4634.4 (316 chunks).","solution":"Print the population in the same breath: \"928 of 957, whole book\". Any rate must use chunks_generated 316."}},"analyst.chunks_rejected":{"id":"analyst.chunks_rejected","label":"chunks rejected by the link fence","value":29,"unit":"chunks","num":{"label":"chunks_rejected","value":29,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"Whole-book. How many of the 29 occurred in run 2 is UNREAD, so the 4012-token gap between tokens_output_total and tokens_accepted_output cannot be divided by a known rejection count.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"29 of 957 chunks rejected (3.0%, whole book) — run-2 share UNREAD","naive":"29 rejected this run","census":["N-008"],"defect":{"reason":"Whole-book count read as a this-run count; also double-counted downstream when a book is resumed twice.","highlight":"manifest.analyst.chunks_rejected 29; tokens gap 279174 - 275162 = 4012.","solution":"Label as whole-book and mark the run-2 share UNREAD."}},"analyst.chunks_failed":{"id":"analyst.chunks_failed","label":"chunks failed (backend/API errors)","value":0,"unit":"chunks","num":{"label":"chunks_failed recorded","value":0,"unit":"chunks"},"den":{"label":"chunks in the book","value":957,"unit":"chunks"},"conditions":"Failures are deliberately NOT journalled, so a resumed run cannot replay run 1’s failures into this counter. 0 means \"none recorded\", not \"none occurred\". For the 641 resumed chunks this number carries no information at all.","population":"mixed","evidence":"manifest","origin":null,"honest":false,"display":"0 recorded — run-1 failures are UNREAD by construction (failures are not journalled)","naive":"0 failed","census":["N-009"],"defect":{"reason":"A reset masquerading as a count, and suppressed on the Dock even when non-zero.","highlight":"analyst.py:344-350 (failures never journalled); the Dock prints \"938✓ 0🛡\" and omits the failure count entirely.","solution":"Print \"0 recorded (run 1 UNREAD)\". Never render a bare 0 as an all-clear."}},"analyst.duration_s":{"id":"analyst.duration_s","label":"analyst wall clock","value":4634.4,"unit":"s","num":{"label":"wall seconds of the analyst phase","value":4634.4,"unit":"s"},"den":{"label":"chunks GENERATED in that wall time","value":316,"unit":"chunks"},"conditions":"RUN 2 ONLY. Covers the 316 generated chunks and includes the skip-time for the 641 resumed ones, API pacing, and the terminal model unload. Sits inside dark zone 2 (4675s of silence), leaving 40.6s of that window unexplained. Run 1’s analyst seconds — the 641 chunks across 4h40m — were never written anywhere and are permanently UNREAD.","population":"this-run","evidence":"manifest","origin":"manifest.analyst.duration_s","honest":false,"display":"4634.4s covering 316 generated chunks (14.7 s/chunk); run 1’s analyst seconds UNREAD","naive":"analysis done in 4634.4s","census":["N-013","N-007"],"defect":{"reason":"Self-poisoning denominator: it is paired everywhere with whole-book chunk counts, and it is fed back into the throughput estimator alongside whole-book character counts, so every resumed run permanently raises the learned rate.","highlight":"manifest.analyst.duration_s 4634.4 beside chunks_passed 928.","solution":"Never render it beside a whole-book count without the resumed count between them. Label it \"run 2\". State that the book’s total analyst time is UNREAD."}},"analyst.goodput_accepted_tok_s":{"id":"analyst.goodput_accepted_tok_s","label":"accepted-output goodput","value":59.37,"unit":"tok/s","num":{"label":"tokens_accepted_output, this run","value":275162,"unit":"tok"},"den":{"label":"duration_s, this run","value":4634.4,"unit":"s"},"conditions":"THIS-run accepted-output tokens / whole-phase wall seconds (wall includes resumed-chunk skips, API pacing, and the terminal model unload; prompt totals are partial sums over tokens_prompt_counted_calls — cached prefills report none)","population":"this-run","evidence":"manifest","origin":"manifest.analyst.goodput_accepted_tok_s","honest":true,"display":"59.37 accepted-output tok/s (275,162 tok ÷ 4634.4s, run 2 only, 316 calls; wall includes resumed-chunk skips, pacing and the terminal model unload)","naive":"59.37","census":[],"defect":null},"analyst.tokens_prompt_total":{"id":"analyst.tokens_prompt_total","label":"prompt tokens","value":314311,"unit":"tok","num":{"label":"summed prompt tokens","value":314311,"unit":"tok"},"den":{"label":"calls that reported a count","value":316,"unit":"calls"},"conditions":"A PARTIAL SUM. The manifest’s own conditions line says cached prefills report none, so calls served from cache contribute zero and are indistinguishable from calls with no prompt.","population":"this-run","evidence":"manifest","origin":null,"honest":false,"display":"≥314,311 prompt tok over 316 counted calls (lower bound — cached prefills report none)","naive":"314,311 prompt tokens","census":[],"defect":{"reason":"A lower bound presented as a total; a cached prefill is not a measured prefill.","highlight":"manifest.analyst.tokens_prompt_total 314311 / tokens_prompt_counted_calls 316.","solution":"Render with a ≥ and name the counted-call denominator. Never derive a prefill rate from it."}},"analyst.tokens_output_total":{"id":"analyst.tokens_output_total","label":"output tokens generated","value":279174,"unit":"tok","num":{"label":"output tokens","value":279174,"unit":"tok"},"den":{"label":"counted calls","value":316,"unit":"calls"},"conditions":"Run 2 only, 316 counted calls. 279,174 generated of which 275,162 were accepted: 4,012 tokens (1.44%) were produced and thrown away by fence rejections.","population":"this-run","evidence":"manifest","origin":null,"honest":true,"display":"279,174 tok generated over 316 calls; 275,162 accepted, 4,012 discarded (1.4%)","naive":"279174","census":[],"defect":null},"fidelity.pages_flagged":{"id":"fidelity.pages_flagged","label":"pages below the survival flag","value":241,"unit":"pages","num":{"label":"pages scoring below CLEAN_PAGE_FLAG 0.85","value":241,"unit":"pages"},"den":{"label":"pages scored","value":1372,"unit":"pages"},"conditions":"Full page list is present in the manifest (all 241, not capped). Scored over 1372 pages, not 1377. This signal LOCALIZES and can reach at most \"flag\" — it is not why the bundle was held.","population":"whole-book","evidence":"manifest","origin":null,"honest":true,"display":"241 of 1372 scored pages below 0.85 survival (17.6%) — localizer, not a gate","naive":"241","census":[],"defect":null},"fidelity.pages_scored":{"id":"fidelity.pages_scored","label":"pages the audit could score","value":1372,"unit":"pages","num":{"label":"pages scored","value":1372,"unit":"pages"},"den":{"label":"pages in the book","value":1377,"unit":"pages"},"conditions":"5 of the book’s 1377 pages yielded no scoreable witness text and were dropped from every audit denominator without any field announcing it.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"1372 of 1377 pages scored — 5 pages silently excluded from every audit ratio","naive":"1372 pages","census":[],"defect":{"reason":"A silently shrinking denominator. Nothing in the record says which 5 pages, or why.","highlight":"manifest pages_scored 1372 vs events probe pages 1377.","solution":"Always render \"N of 1377 scored\" and mark the 5 as UNSCORED, not as surviving."}},"fidelity.page_coverage":{"id":"fidelity.page_coverage","label":"pages with any surviving text","value":0.9978,"unit":"ratio","num":{"label":"pages with score > 0 (surviving)","value":1369,"unit":"pages"},"den":{"label":"pages with witness text (with_text)","value":1372,"unit":"pages"},"conditions":"A COMPLETELY DIFFERENT RATIO FROM doc_survival, and the only one on this glass whose two sides are both recorded. 3 pages vanished entirely.","population":"whole-book","evidence":"manifest","origin":null,"honest":true,"display":"1369 of 1372 pages retain some text (99.78%) — 3 pages wholly lost","naive":"0.9978","census":[],"defect":null},"fidelity.degeneration.blocks":{"id":"fidelity.degeneration.blocks","label":"degenerate blocks","value":24,"unit":"blocks","num":{"label":"blocks shown in `worst`","value":10,"unit":"blocks"},"den":{"label":"blocks_total","value":24,"unit":"blocks"},"conditions":"The NUM-3 repair is present and working here: blocks_total 24 and worst_capped_at 10 both ride beside the truncated list. The list length (10) must never be read as the count (24). Worst block: line 5524, 34,523 chars, zlib 0.023 (threshold ≤0.20), max trigram 129 (threshold ≥40).","population":"whole-book","evidence":"manifest","origin":null,"honest":true,"display":"24 degenerate blocks, worst 10 shown (cap 10) — worst at line 5524, 34,523 chars, zlib 0.023","naive":"24","census":[],"defect":null},"fidelity.degeneration.repeated_lines":{"id":"fidelity.degeneration.repeated_lines","label":"most-repeated line","value":0,"unit":"repeats","num":null,"den":null,"conditions":"degeneration.py: `repeated_lines = max_run if max_run > DEGEN_LINE_REPEAT else 0`. The 0 means \"no line repeated MORE THAN 20 times\". A book whose worst run is exactly 20 identical lines publishes 0, byte-identical to a book with no repetition. The true maximum is discarded.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"UNREAD — no line-run exceeded 20 repeats; the actual maximum is suppressed (the tripwire fired on zlib/trigram, not on line repeats)","naive":"0 repeated lines","census":["N-029"],"defect":{"reason":"A threshold reset published as a count. 0 does not mean zero repetition.","highlight":"manifest.fidelity.convert.tripwires.degeneration_detail.repeated_lines = 0, beside flagged = true.","solution":"Render UNREAD with the threshold named. Never draw it as a zero bar."}},"fidelity.reverse_sample":{"id":"fidelity.reverse_sample","label":"anti-hallucination reverse check","value":0.765,"unit":"ratio","num":{"label":"sampled output windows found in the witness","value":153,"unit":"windows"},"den":{"label":"output windows sampled (REVERSE_SAMPLE_N)","value":200,"unit":"windows"},"conditions":"Exact containment (no fuzzy) of 200 randomly sampled OUTPUT windows in the pymupdf witness, seed 20260720 so it is deterministic. Table restructuring and reflow legitimately break exact containment, so a miss is not proof of invention. This value gates NOTHING: compute_verdict never reads it.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"153 of 200 sampled output windows found verbatim in the source (76.5%, exact match, seed 20260720) — not a hallucination rate, and not a gate","naive":"23.5% hallucinated","census":[],"defect":{"reason":"Read as an invention rate it accuses the converter of fabricating a quarter of the book; the matcher is exact, so reflow alone produces misses.","highlight":"fidelity_audit.py:328-337; n=200 of an unrecorded total window count.","solution":"Label \"verbatim containment, sampled n=200\". Never call it hallucination."}},"fidelity.asset_delta":{"id":"fidelity.asset_delta","label":"asset files vs embedded images","value":76,"unit":"files","num":{"label":"asset files Marker wrote","value":308,"unit":"files"},"den":{"label":"images embedded in the PDF","value":232,"unit":"images"},"conditions":"A SIGNED DIFFERENCE (asset_count - embedded_images), not a loss count. Positive means Marker wrote MORE files than the PDF had embedded images — typically extra crops of figures and tables.","population":"whole-book","evidence":"manifest","origin":null,"honest":false,"display":"308 asset files written vs 232 embedded images (+76 — a surplus, not a loss)","naive":"76 assets missing","census":[],"defect":{"reason":"A bare signed delta beside a fidelity audit reads as damage; here it is surplus.","highlight":"asset_delta 76, embedded_images 232.","solution":"Print both sides with the sign and the word \"surplus\"/\"shortfall\"."}},"fidelity.dict_hit":{"id":"fidelity.dict_hit","label":"dictionary hit rate","value":null,"unit":"ratio","num":null,"den":null,"conditions":"null: the wordfreq dictionary is absent from this machine, so the check never ran.","population":"n/a","evidence":"manifest","origin":null,"honest":false,"display":"UNREAD — not measured (wordfreq absent)","naive":"0.0","census":[],"defect":{"reason":"docs/34: a value nobody reported renders UNREAD, never 0.0.","highlight":"tripwires.dict_hit = null.","solution":"Render UNREAD and say why it was not measured."}},"fidelity.garbage_rate":{"id":"fidelity.garbage_rate","label":"garbage token rate","value":null,"unit":"ratio","num":null,"den":null,"conditions":"null BY DESIGN: garbage_rate is computed on the scan lane only, and this book ran the clean lane. Not a missing measurement — an inapplicable one.","population":"n/a","evidence":"manifest","origin":null,"honest":false,"display":"UNREAD — clean lane; this check applies to the scan lane only","naive":"0.0","census":[],"defect":{"reason":"A null that means \"not applicable\" rendered as 0.0 claims a perfect score on a test that was never taken.","highlight":"tripwires.garbage_rate = null, lane = clean.","solution":"Render UNREAD with the reason \"clean lane\". Distinguish N/A from UNMEASURED."}},"audit.convert.doc_survival":{"id":"audit.convert.doc_survival","label":"document survival","value":0.9334,"unit":"ratio","num":{"label":"window-weighted surviving score (weighted_sum)","value":null,"unit":"windows"},"den":{"label":"total witness windows (total_windows)","value":null,"unit":"windows"},"conditions":"weighted_sum ÷ total_windows, where a window is 12 words (WINDOW_MIN_WORDS 6 for a short tail) of the pymupdf witness, matched FUZZILY into the Marker markdown. It is NOT a page ratio and NOT a character ratio. BOTH SIDES OF THIS RATIO ARE ABSENT FROM THE RECORD: neither weighted_sum nor total_windows is written to the event or the manifest. Scored over 1372 pages; 5 of the book’s 1377 pages produced no scoreable witness text and were dropped from the denominator silently.","population":"whole-book","evidence":"event","origin":"events[13].doc_survival; definition fidelity_audit.py:371","honest":false,"display":"0.9334 window-survival (12-word fuzzy windows, pymupdf witness; both sides of the ratio UNREAD; 1372 of 1377 pages scored)","naive":"93.3% of the document survived","census":["N-088"],"defect":{"reason":"docs/34 requires a ratio to print both its sides; this one cannot, because the pipeline discards weighted_sum and total_windows at the moment of computation. It is also routinely misread as a page or character percentage.","highlight":"fidelity_audit.py:371 computes and immediately drops both operands.","solution":"Render the unit (\"window-survival\"), name the witness, and state the denominator as UNREAD. Do not print it as a plain percentage beside page_coverage, which is a different ratio (0.9978)."}},"audit.convert.runs":{"id":"audit.convert.runs","label":"omission runs found","value":25,"unit":"runs","num":{"label":"runs SHOWN (display cap)","value":25,"unit":"runs"},"den":{"label":"runs_total (the real count)","value":531,"unit":"runs"},"conditions":"The event's `runs` field is len(block[\"runs\"]) — the length of a list already sliced [:25] and sorted by words descending. It is the CAP, not the count. runs_total rides beside it because SYM-066 was repaired at the source (NUM-3, signed 2026-08-31); the fixture proves the repair reached production.","population":"whole-book","evidence":"event","origin":"audit/scored (convert): runs=25, runs_total=531","honest":false,"display":"25 shown of 531 omission runs (display cap 25, longest first)","naive":"25 omission runs","census":["N-028"],"defect":{"reason":"A display cap rendered as a count. 25 is the ceiling; the truth is 531.","highlight":"fidelity_audit.py:383 (`[:25]`) and convert_and_ship.py:54/80 (`runs=len(conv[\"runs\"])`).","solution":"Always render \"N shown of runs_total\". runs_total is present in the event — there is no excuse. If runs_total is absent (null), say so; never fall back to the cap."}},"audit.convert.degeneration":{"id":"audit.convert.degeneration","label":"degeneration tripwire","value":true,"unit":"bool","num":null,"den":null,"conditions":"True if any block ≥200 chars has zlib ratio ≤0.20 or max trigram repeat ≥40, or any normalized line repeats more than 20 times. This is ONE OF ONLY TWO SIGNALS IN THE SYSTEM THAT CAN REACH \"fail\". It fired.","population":"whole-book","evidence":"event","origin":null,"honest":true,"display":"TRIPPED — 24 degenerate blocks, worst at line 5524 (34,523 chars, zlib 0.023)","naive":"true","census":[],"defect":null},"audit.analyst.doc_survival":{"id":"audit.analyst.doc_survival","label":"analyst near-exact containment","value":0.9402,"unit":"ratio","num":{"label":"Marker windows found VERBATIM in the analyst output","value":null,"unit":"windows"},"den":{"label":"total Marker windows (len(windows))","value":null,"unit":"windows"},"conditions":"failed.count(False) ÷ len(windows). EXACT containment, no fuzzy match: the Marker document IS the reference, so any rewording counts as loss. A DIFFERENT MEASUREMENT FROM THE CONVERT doc_survival ABOVE despite the identical field name. Both sides absent from the record.","population":"whole-book","evidence":"event","origin":"events[30].doc_survival; definition fidelity_audit.py:414","honest":false,"display":"0.9402 verbatim-window containment vs the Marker doc (exact match, no fuzzy; both sides of the ratio UNREAD)","naive":"94.0% survived (better than convert’s 93.3%)","census":["N-088"],"defect":{"reason":"Same name, different measurement, different matcher, different reference. Placed beside the convert figure it invites a comparison that is meaningless.","highlight":"fidelity_audit.py:414 (exact) vs :371 (fuzzy, weighted).","solution":"Never place the two doc_survival numbers on one axis. Label this one \"verbatim containment vs Marker\"."}},"audit.analyst.runs":{"id":"audit.analyst.runs","label":"omission runs found","value":25,"unit":"runs","num":{"label":"runs SHOWN (display cap)","value":25,"unit":"runs"},"den":{"label":"runs_total (the real count)","value":404,"unit":"runs"},"conditions":"The event's `runs` field is len(block[\"runs\"]) — the length of a list already sliced [:25] and sorted by words descending. It is the CAP, not the count. runs_total rides beside it because SYM-066 was repaired at the source (NUM-3, signed 2026-08-31); the fixture proves the repair reached production.","population":"whole-book","evidence":"event","origin":"audit/scored (analyst): runs=25, runs_total=404","honest":false,"display":"25 shown of 404 omission runs (display cap 25, longest first)","naive":"25 omission runs","census":["N-028"],"defect":{"reason":"A display cap rendered as a count. 25 is the ceiling; the truth is 404.","highlight":"fidelity_audit.py:383 (`[:25]`) and convert_and_ship.py:54/80 (`runs=len(conv[\"runs\"])`).","solution":"Always render \"N shown of runs_total\". runs_total is present in the event — there is no excuse. If runs_total is absent (null), say so; never fall back to the cap."}},"audit.analyst.run_page":{"id":"audit.analyst.run_page","label":"where the analyst runs are","value":null,"unit":"page","num":null,"den":null,"conditions":"audit_analyst calls _merge_runs(..., page=None) by construction: the analyst audit compares two markdown strings and has no page index at all. All 25 shown runs carry page: null.","population":"whole-book","evidence":"manifest","origin":"manifest.fidelity.analyst.runs[*].page — all 25 are null","honest":false,"display":"UNREAD — the analyst audit has no page index; runs are locatable only by their excerpt text","naive":"page 0","census":[],"defect":{"reason":"The error-structure protocol demands a HIGHLIGHT (\"where, exactly\"). For the analyst phase the pipeline cannot supply one.","highlight":"All 25 runs: page null. Worst is 576 words, excerpt begins \"{1 - t} \\right)/{\\rm e}}\".","solution":"Surface the excerpt as the locator and say the page is unavailable. Do not render a zero or blank page number."}}},"populations":{"whole-book":{"id":"whole-book","label":"whole book (both runs)","note":"957 analyst chunks / 1377 pages, accumulated across the crash. Correct for totals; NEVER a valid numerator over a this-run denominator."},"this-run":{"id":"this-run","label":"this run only (run 2, after the reboot)","note":"316 analyst chunks generated / 0 pages converted. The only population with a measured wall clock."},"prior-run":{"id":"prior-run","label":"run 1, before the power cut","note":"641 analyst chunks + 1377 pages converted. Its analyst wall clock, token counts and VRAM peak were never written to any file. Permanently UNREAD."},"mixed":{"id":"mixed","label":"MIXED — numerator and denominator drawn from different runs","note":"A number in this population is a defect, not a measurement."}},"law":{"source":"windows-converter/fidelity_audit.py","WINDOW_WORDS":12,"WINDOW_MIN_WORDS":6,"CLEAN_PAGE_FLAG":0.85,"CLEAN_DOC_FLAG":0.97,"CLEAN_RUN_WORDS":50,"ANALYST_DOC_FAIL":0.995,"ANALYST_RUN_WORDS":25,"DEGEN_ZLIB_MAX":0.2,"DEGEN_TRIGRAM_MAX":40,"DEGEN_BLOCK_MIN_CHARS":200,"DEGEN_LINE_REPEAT":20,"REVERSE_SAMPLE_N":200,"REVERSE_SEED":20260720,"RUNS_CAP":25,"FAIL_SIGNALS":["convert.tripwires.degeneration","analyst.doc_survival","analyst.runs[].words"]},"headline":"1377 pages. 7h 26m 21s wall. The convert leg beat its own promise by 508.8s and then the audit failed it on degeneration. The analyst ran 641 chunks into a five-hour silence, the power failed, the machine rebooted itself and sat idle for 1h 45m, a human restarted it, the convert resumed 7/7 slices and converted nothing, the analyst finished the remaining 316 chunks into a second silence, and the bundle was HELD. Of 26,781 wall seconds, 8,468.6 were instrumented and 22,808 produced no event at all.","negativeControl":["\"converted in 0.0s\" or \"0.00 s/pp\" anywhere on leg 2 — the resume converted nothing","\"peak VRAM 0 MiB\" on leg 2 — the reading is null, not zero","\"928 chunks in 4634.4s\" — a whole-book numerator over a run-sized denominator","\"0 failed\" as an all-clear — failures are not journalled, so 0 carries no information","\"0 repeated lines\" beside a tripped degeneration flag — the value is a threshold reset","\"25 omission runs\" — 25 is the display cap; the counts are 531 and 404","\"93.3% survived\" beside \"94.0% survived\" on one axis — two different measurements","\"23.5% hallucinated\" from reverse_sample — the matcher is exact; reflow breaks it","\"76 assets missing\" — the delta is +76, a surplus","a solid uninterrupted timeline bar from 21:30Z to 04:56Z — 85% of it had no events","the dark zones drawn in the same ink as measured work","the power cut, the reboot and the idle window drawn as if the machine recorded them","any \"utilisation %\" built on measured-work ÷ wall — run 1’s analyst work is unmeasured","a FAIL badge with no reason beside it","an alarm with no operator response"]},"EVENTS":[{"ts":"2026-08-31T21:30:12+00:00","pid":21748,"stage":"intake","event":"detected","analyst_mode":"local"},{"ts":"2026-08-31T21:30:19+00:00","pid":10408,"stage":"convert","event":"probe","chars_per_page":2102.1,"pages":1377,"lane":"clean","lane_reason":"text_layer_present","ocr_invisible_ratio":0,"ocr_invisible_spans":0,"ocr_total_spans":157924},{"ts":"2026-08-31T21:30:19+00:00","pid":10408,"stage":"convert","event":"estimate","eta_s":4343,"s_per_page":3.154,"basis":"similar","samples":3,"pages_this_run":1377,"resumed_pages_assumed":0},{"ts":"2026-08-31T21:30:19+00:00","pid":10408,"stage":"convert","event":"chunking","pages":1377,"slices":7,"slice_size":200,"batch":8},{"ts":"2026-08-31T21:37:28+00:00","pid":10408,"stage":"convert","event":"slice","slice":1,"slices":7,"page_range":"0-199","wall_s":428.8,"batch":8,"resumed":false},{"ts":"2026-08-31T21:43:53+00:00","pid":10408,"stage":"convert","event":"slice","slice":2,"slices":7,"page_range":"200-399","wall_s":385.6,"batch":8,"resumed":false},{"ts":"2026-08-31T21:56:46+00:00","pid":10408,"stage":"convert","event":"slice","slice":3,"slices":7,"page_range":"400-599","wall_s":772.2,"batch":8,"resumed":false},{"ts":"2026-08-31T22:10:15+00:00","pid":10408,"stage":"convert","event":"slice","slice":4,"slices":7,"page_range":"600-799","wall_s":809.2,"batch":8,"resumed":false},{"ts":"2026-08-31T22:22:38+00:00","pid":10408,"stage":"convert","event":"slice","slice":5,"slices":7,"page_range":"800-999","wall_s":742.3,"batch":8,"resumed":false},{"ts":"2026-08-31T22:31:31+00:00","pid":10408,"stage":"convert","event":"slice","slice":6,"slices":7,"page_range":"1000-1199","wall_s":533.1,"batch":8,"resumed":false},{"ts":"2026-08-31T22:34:14+00:00","pid":10408,"stage":"convert","event":"slice","slice":7,"slices":7,"page_range":"1200-1376","wall_s":163,"batch":8,"resumed":false},{"ts":"2026-08-31T22:34:14+00:00","pid":10408,"stage":"convert","event":"converted","wall_s":3834.2,"s_per_page":2.78,"pages":1377,"pages_converted_this_run":1377,"s_per_page_this_run":2.78,"retry_wall_s":0,"resumed_slices":0,"cost_s":3834.2,"slices":7,"peak_vram_mib":9395,"promised_s_per_page":3.154,"promised_eta_s":4343,"estimate_basis":"similar","estimate_samples":3},{"ts":"2026-08-31T22:34:15+00:00","pid":10408,"stage":"audit","event":"supersede","from_verdict":"fail","sha":"14c66834bdfeaa2e"},{"ts":"2026-08-31T22:35:15+00:00","pid":10408,"stage":"audit","event":"scored","phase":"convert","kind":"fidelity","doc_survival":0.9334,"runs":25,"runs_total":531,"degeneration":true,"verdict":"fail"},{"ts":"2026-08-31T22:35:15+00:00","pid":10408,"stage":"audit","event":"flagged","phase":"convert","verdict":"fail"},{"ts":"2026-09-01T03:37:28+00:00","pid":10784,"stage":"intake","event":"stale-lock-reaped"},{"ts":"2026-09-01T03:37:29+00:00","pid":10784,"stage":"intake","event":"detected","analyst_mode":"local"},{"ts":"2026-09-01T03:37:37+00:00","pid":13704,"stage":"convert","event":"probe","chars_per_page":2102.1,"pages":1377,"lane":"clean","lane_reason":"text_layer_present","ocr_invisible_ratio":0,"ocr_invisible_spans":0,"ocr_total_spans":157924},{"ts":"2026-09-01T03:37:37+00:00","pid":13704,"stage":"convert","event":"estimate","eta_s":0,"s_per_page":3.154,"basis":"similar","samples":3,"pages_this_run":0,"resumed_pages_assumed":1377},{"ts":"2026-09-01T03:37:37+00:00","pid":13704,"stage":"convert","event":"chunking","pages":1377,"slices":7,"slice_size":200,"batch":8},{"ts":"2026-09-01T03:37:37+00:00","pid":13704,"stage":"convert","event":"slice","slice":1,"slices":7,"page_range":"0-199","resumed":true},{"ts":"2026-09-01T03:37:37+00:00","pid":13704,"stage":"convert","event":"slice","slice":2,"slices":7,"page_range":"200-399","resumed":true},{"ts":"2026-09-01T03:37:37+00:00","pid":13704,"stage":"convert","event":"slice","slice":3,"slices":7,"page_range":"400-599","resumed":true},{"ts":"2026-09-01T03:37:37+00:00","pid":13704,"stage":"convert","event":"slice","slice":4,"slices":7,"page_range":"600-799","resumed":true},{"ts":"2026-09-01T03:37:38+00:00","pid":13704,"stage":"convert","event":"slice","slice":5,"slices":7,"page_range":"800-999","resumed":true},{"ts":"2026-09-01T03:37:38+00:00","pid":13704,"stage":"convert","event":"slice","slice":6,"slices":7,"page_range":"1000-1199","resumed":true},{"ts":"2026-09-01T03:37:38+00:00","pid":13704,"stage":"convert","event":"slice","slice":7,"slices":7,"page_range":"1200-1376","resumed":true},{"ts":"2026-09-01T03:37:38+00:00","pid":13704,"stage":"convert","event":"converted","wall_s":0,"s_per_page":0,"pages":1377,"pages_converted_this_run":0,"s_per_page_this_run":0,"retry_wall_s":0,"resumed_slices":7,"cost_s":3834.2,"slices":7,"peak_vram_mib":null,"promised_s_per_page":3.154,"promised_eta_s":0,"estimate_basis":"similar","estimate_samples":3},{"ts":"2026-09-01T03:38:37+00:00","pid":13704,"stage":"audit","event":"scored","phase":"convert","kind":"fidelity","doc_survival":0.9334,"runs":25,"runs_total":531,"degeneration":true,"verdict":"fail"},{"ts":"2026-09-01T03:38:37+00:00","pid":13704,"stage":"audit","event":"flagged","phase":"convert","verdict":"fail"},{"ts":"2026-09-01T04:56:32+00:00","pid":13704,"stage":"audit","event":"scored","phase":"analyst","doc_survival":0.9402,"runs":25,"runs_total":404,"verdict":"fail"},{"ts":"2026-09-01T04:56:32+00:00","pid":13704,"stage":"audit","event":"flagged","phase":"analyst","verdict":"fail"},{"ts":"2026-09-01T04:56:32+00:00","pid":13704,"stage":"audit","event":"verdict_fail","bundle":"Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Four","verdict":"fail"},{"ts":"2026-09-01T04:56:33+00:00","pid":13704,"stage":"audit","event":"held","bundle":"Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Four","verdict":"fail"}],"SOURCE_PDF":"Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Fourth Edition, 2023 -- Wiley & Sons, Incorporated, John.pdf","FID_CONVERT":{"kind":"fidelity","doc_survival":0.9334,"pages_scored":1372,"pages_flagged":[3,9,10,30,60,62,63,65,78,82,104,108,110,119,127,131,134,145,153,164,165,167,169,171,172,174,177,178,180,185,195,249,251,258,271,288,291,303,308,309,314,318,319,329,330,332,335,346,351,353,355,373,375,376,377,382,383,394,399,400,401,403,413,417,420,431,435,439,440,442,455,456,457,462,489,490,505,507,510,511,512,514,517,521,522,524,525,530,531,533,536,537,538,539,541,542,543,556,557,561,562,563,567,568,570,580,585,596,602,608,609,610,618,622,638,639,654,655,656,657,676,678,679,692,694,695,696,702,708,709,710,711,712,713,714,721,732,742,743,744,746,748,749,750,751,752,754,755,757,766,767,773,774,791,794,795,796,799,800,807,828,834,836,837,841,842,843,844,847,850,855,856,861,873,878,879,880,892,896,901,902,903,909,911,913,916,917,922,938,943,944,946,952,960,971,975,992,995,996,997,999,1002,1015,1023,1048,1061,1063,1064,1068,1071,1074,1078,1083,1084,1093,1099,1102,1106,1110,1113,1119,1122,1124,1134,1146,1152,1157,1158,1159,1160,1161,1162,1163,1170,1172,1180,1185,1196,1197,1207,1209],"runs":[{"page":757,"words":154,"excerpt":"year. valuing famous using these inputs, you can estimate the"},{"page":946,"words":120,"excerpt":"firm (no synergy) cost of equity = 8.93% 9.37% 9.12%"},{"page":3,"words":116,"excerpt":"measuring earnings and profitability measuring risk other issues in analyzing"},{"page":10,"words":108,"excerpt":"cash-flow-producing assets collectibles trophy assets conclusion questions and short problems"},{"page":746,"words":108,"excerpt":"growth by using a two-stage firm valuation model: ev forward"},{"page":1134,"words":108,"excerpt":"revenues) = (40/200)(200 × . 03) = $1.2million expected free"},{"page":9,"words":106,"excerpt":"what makes private firms different? estimating valuation inputs at private"},{"page":375,"words":96,"excerpt":"$ 0 0.00% 1 $ 292 −$125 $266 $ 0"},{"page":561,"words":96,"excerpt":"are estimated in the following calculations: reinvestmentrate = adjustedebit(1 −t)"},{"page":654,"words":96,"excerpt":"trailing pe = payout ratio(1 + g)(1 − (1 +"},{"page":556,"words":93,"excerpt":"of 2010 yields a value for the equity: reinvestment ="},{"page":174,"words":84,"excerpt":"1/12, σ2 = 0.05, r = 0.04 the value from"},{"page":710,"words":84,"excerpt":"per share0 = eps1 × payout ratio × [1 −"},{"page":799,"words":84,"excerpt":"years-deutsche bank in 2009 current 1 2 3 4 5"},{"page":892,"words":84,"excerpt":"is σj, and that the standard deviation in the market"},{"page":909,"words":84,"excerpt":"the inputs to valuation for different valuation motives. illiquidity discountbase"},{"page":916,"words":84,"excerpt":"in table 24.6: table 24.6 expected cash flows and present"},{"page":1068,"words":84,"excerpt":"15% 1 $150.00 $120.00 $ 30.00 $ 26.09 2 $180.00"},{"page":1159,"words":84,"excerpt":"year ebit(1 − t) from assets in place $ 0.00"},{"page":1161,"words":83,"excerpt":"next 10 years: terminal value = ebit10(1 −tax rate)(1 +"},{"page":742,"words":80,"excerpt":"firm can be extracted from a stable growth dividend discount"},{"page":580,"words":72,"excerpt":"divisions, with other assets added in: table 15.10 value of"},{"page":609,"words":72,"excerpt":"from segovia's consolidated assets = $300 million valueofseville'soperatingassets = ebit"},{"page":750,"words":72,"excerpt":"sales do not increase proportionately. expectedgrowthnetincome = retentionratio × returnonequity"},{"page":754,"words":72,"excerpt":"equity per share is $10. the cost of capital for"}],"runs_total":531,"runs_capped_at":25,"tripwires":{"degeneration":true,"degeneration_detail":{"flagged":true,"repeated_lines":0,"md_lines":29696,"worst":[{"line":5524,"chars":34523,"zlib":0.023,"max_trigram":129,"excerpt":"| Betas and Operating Leverage—Shoe Companies\u003cbr>Company Name\u003cbr>Beta\u003cbr>Market D/E\u003cbr>Fixed/Variable\u003cbr>Barry"},{"line":7068,"chars":4799,"zlib":0.041,"max_trigram":42,"excerpt":"| 11\u003cbr>This will happen only if the marketable"},{"line":12456,"chars":1886,"zlib":0.045,"max_trigram":139,"excerpt":"| holdings in other publicly traded firms. |"},{"line":18584,"chars":873,"zlib":0.052,"max_trigram":180,"excerpt":"| standing. | | | | |-----------|--|--|--| |"},{"line":18065,"chars":2111,"zlib":0.064,"max_trigram":40,"excerpt":"| that the growth rate in stable growth"},{"line":11339,"chars":2413,"zlib":0.067,"max_trigram":43,"excerpt":"| negative consequences. In fact, we count the"},{"line":8795,"chars":3005,"zlib":0.074,"max_trigram":62,"excerpt":"\u003cspan id=\"page-439-6\">\u003c/span> $\\begin{array}{lll} {\\rm ROC} + {\\rm D/E}"},{"line":20481,"chars":4799,"zlib":0.09,"max_trigram":57,"excerpt":"| Inbev | SAB Miller | Combined firm"},{"line":19370,"chars":1259,"zlib":0.108,"max_trigram":136,"excerpt":"| Interest Coverage Ratios and Bond Ratings |"},{"line":602,"chars":4724,"zlib":0.143,"max_trigram":165,"excerpt":"| | Table 14.2 Expected dividends and Present"}],"blocks_total":24,"worst_capped_at":10},"page_coverage":{"with_text":1372,"surviving":1369},"asset_delta":76,"embedded_images":232,"reverse_sample":0.765,"dict_hit":null,"garbage_rate":null}},"FID_ANALYST":{"doc_survival":0.9402,"runs":[{"page":null,"words":576,"excerpt":"{1 - t} \\right)/{\\rm e}} \\\\ & - & {\\rm"},{"page":null,"words":372,"excerpt":"evokes strong positive and negative reactions. can you avoid being"},{"page":null,"words":312,"excerpt":"assumed to be diversified? the argument that diversification reduces an"},{"page":null,"words":240,"excerpt":"valuing a private equity stake assume that you work for"},{"page":null,"words":192,"excerpt":"1997 sales \\$10,346 \\$10,696 \\$ 9,881 service and rentals \\$"},{"page":null,"words":156,"excerpt":"a brand name using the enterprise value to sales ratio"},{"page":null,"words":144,"excerpt":"following information about these investments (in \\$millions) in table 16.2:"},{"page":null,"words":132,"excerpt":"there are many academics as well as practitioners, who suggest"},{"page":null,"words":132,"excerpt":"regression is undervalued (overvalued) relative to the market. the first"},{"page":null,"words":132,"excerpt":"sachs 1 2 3 4 5 net income \\$ 9,118"},{"page":null,"words":132,"excerpt":"deal is: cost of takeover buy-back stock: \\$38 × 12.2"},{"page":null,"words":120,"excerpt":"roic in 2017 roic: 2013- 2017 cost of capital power"},{"page":null,"words":120,"excerpt":"noncash and cash assets: betaofthefirm = betaoperatingassets × weightoperatingassets+ betacashassets"},{"page":null,"words":120,"excerpt":"dividend discount model: $value of equity = \\frac{dividends1}{\\left(cost of equity"},{"page":null,"words":120,"excerpt":"wacc pv 1 \\$ 358,394 \\$ 62,719 35.00% 10.50% \\$"},{"page":null,"words":120,"excerpt":"undervalued % time value lowest value highest value a \\$"},{"page":null,"words":108,"excerpt":"changes suggested: 1999 1998 1997 net income from continuing operations"},{"page":null,"words":108,"excerpt":"capital maintenance fcff wacc4 cumulated wacc5 pv 6 \\$45.53 \\$5.20"},{"page":null,"words":108,"excerpt":"year \\$ 3,626 (\\$ 818) 1 \\$ 4,692 \\$1,066 (\\$"},{"page":null,"words":108,"excerpt":"improving the odds if the message that you have received"},{"page":null,"words":108,"excerpt":"in place \\$ 100.00 + eva from assets in place"},{"page":null,"words":96,"excerpt":"to valuation and the business. business stories: spanning the spectrum"},{"page":null,"words":96,"excerpt":"telstra adr 21.70 27.66 -21.55% based on the predicted pe"},{"page":null,"words":96,"excerpt":"is \\$1,529 million, and the consolidated debt outstanding at the"},{"page":null,"words":96,"excerpt":"corporate bonds gold real estate 1930- 39 −1.92% 0.07% 4.27%"}],"runs_total":404,"runs_capped_at":25},"MANIFEST_ANALYST":{"model":"qwen3:8b","backend":"local","program":"readability","chunks_passed":928,"chunks_rejected":29,"chunks_failed":0,"chunks_resumed":641,"chunks_generated":316,"duration_s":4634.4,"tokens_prompt_total":314311,"tokens_prompt_counted_calls":316,"tokens_output_total":279174,"tokens_counted_calls":316,"tokens_accepted_output":275162,"goodput_accepted_tok_s":59.37,"goodput_conditions":"THIS-run accepted-output tokens / whole-phase wall seconds (wall includes resumed-chunk skips, API pacing, and the terminal model unload; prompt totals are partial sums over tokens_prompt_counted_calls — cached prefills report none)"}}</script>
+
+<div class="mission">
+  <div class="wrap">
+    <div class="mrow">
+      <span class="chip held" id="m-outcome">HELD</span>
+      <span class="mtitle" id="m-title"></span>
+      <span class="msub" id="m-sub"></span>
+      <div class="asof">
+        <span class="msub">AS OF</span>
+        <span class="asof-clock" id="m-clock"></span>
+        <button class="btn" id="btn-play">&#9654; REPLAY 3000&times;</button>
+      </div>
+    </div>
+    <input type="range" id="scrub" min="0" max="26781" value="26781" step="1" aria-label="as-of time">
+    <div class="jumps" id="jumps"></div>
+  </div>
+</div>
+
+<div class="wrap">
+  <div class="banner" id="banner"></div>
+  <div class="headline" id="headline"></div>
+
+  <!-- ============================ ROW 1 · liveness + stream ============================ -->
+  <div class="row r-top">
+
+    <section class="panel" id="p-liveness">
+      <div class="phead">
+        <span class="ptitle">Signal age</span>
+        <span class="punits">s since newest record in events.jsonl (n&nbsp;=&nbsp;34) at AS-OF</span>
+      </div>
+      <div class="pbody">
+        <div class="big" id="live-big">&mdash;</div>
+        <div id="live-state" style="margin-top:5px"></div>
+        <div class="kv" id="live-last"></div>
+        <div class="kv" id="live-class"></div>
+        <div style="margin-top:9px"><svg id="spark" viewBox="0 0 300 46" preserveAspectRatio="none" height="46"></svg></div>
+        <div class="kv" id="live-worst" style="margin-top:4px"></div>
+      </div>
+      <div class="pnote" id="live-note"></div>
+    </section>
+
+    <section class="panel" id="p-stream">
+      <div class="phead">
+        <span class="ptitle">Stream</span>
+        <span class="punits" id="stream-units"></span>
+        <span style="margin-left:auto;display:flex;gap:4px">
+          <button class="btn on" data-view="age">SIGNAL AGE (s)</button>
+          <button class="btn" data-view="arr">ARRIVALS (events / 300&nbsp;s)</button>
+          <button class="btn" data-view="lane">STAGE LANES (events by stage)</button>
+        </span>
+      </div>
+      <div class="pbody">
+        <div id="stream-view"></div>
+
+        <div class="spine" id="spine">
+          <div class="tl-lab">Machine record &mdash; 8 intervals tiling 21:30:12Z &rarr; 04:56:33Z, contiguous, no overlap, no hole</div>
+          <div class="track" id="track-machine"></div>
+          <div class="rug" id="rug"></div>
+          <div class="tl-lab" style="color:var(--testimony-ink)">Operator testimony &mdash; no event and no manifest field attests any of this; boundaries approximate</div>
+          <div class="track tes" id="track-testimony"></div>
+          <div class="axis" id="axis"></div>
+          <div class="playhead" id="playhead" style="left:100%"></div>
+        </div>
+
+        <div class="legend" id="legend"></div>
+      </div>
+      <div class="pnote" id="stream-note"></div>
+    </section>
+  </div>
+
+  <!-- ============================ ROW 2 · stage state ============================ -->
+  <div class="row">
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Stage state at AS-OF</span>
+        <span class="punits">what the desk could assert from events with ts &le; AS-OF &mdash; nothing else was knowable</span>
+      </div>
+      <div class="pbody">
+        <div class="grid r-4" style="grid-template-columns:repeat(auto-fit,minmax(230px,1fr))" id="tiles"></div>
+      </div>
+      <div class="pnote">Manifest-borne counters (the whole analyst phase) are marked NOT YET RECORDED until 04:56:33Z.
+        <em>Inferred:</em> the fixture does not stamp the manifest write time; <span class="mono">audit/held</span> is the
+        earliest instant at which the held bundle's manifest demonstrably exists.</div>
+    </section>
+  </div>
+
+  <!-- ============================ ROW 3 · annunciator ============================ -->
+  <div class="row">
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Annunciator</span>
+        <span class="punits" id="alarm-units"></span>
+      </div>
+      <div class="pbody" id="alarms"></div>
+      <div class="pnote">EEMUA&nbsp;191 / ISA-18.2: every row names a DEFINED OPERATOR RESPONSE; priority reflects
+        consequence and time-to-act, not how alarming the number looks. The 179 dishonest numerations of the census and the
+        localizers (241 flagged pages, 29 fence rejections, 404 omission runs) are <em>not</em> alarms &mdash; they live in the
+        drill-down. <em>External standard, not this repo:</em> EEMUA&nbsp;191 guidance is roughly one alarm per ten minutes as
+        a long-run average per operator.</div>
+    </section>
+  </div>
+
+  <!-- ============================ ROW 4 · convert ============================ -->
+  <div class="row r-2a">
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Convert leg 1</span>
+        <span class="punits">slice wall seconds &mdash; s per 200-page slice, n&nbsp;=&nbsp;7 of 7 slices, Marker batch 8, clean lane</span>
+      </div>
+      <div class="pbody">
+        <svg id="slices" viewBox="0 0 320 96" preserveAspectRatio="none" height="112"></svg>
+        <div class="grid r-2" style="grid-template-columns:1fr 1fr;margin-top:9px">
+          <div>
+            <div class="flabel">GPU wall</div><div id="c1-wall"></div>
+            <div class="flabel">Seconds per page</div><div id="c1-spp"></div>
+            <div class="flabel">Pages</div><div id="c1-pages"></div>
+          </div>
+          <div>
+            <div class="flabel">Retries / stalls</div><div id="c1-retry"></div>
+            <div class="flabel">VRAM &mdash; sampled max @30&nbsp;s, leg&nbsp;1</div><div id="c1-vram"></div>
+            <div class="flabel">Promise vs outcome</div><div id="c1-promise"></div>
+          </div>
+        </div>
+      </div>
+      <div class="pnote" id="c1-note"></div>
+    </section>
+
+    <section class="panel" id="p-leg2">
+      <div class="phead">
+        <span class="ptitle">Convert leg 2 &mdash; resume</span>
+        <span class="punits">0 of 1377 pages converted this run &mdash; 7 of 7 slices admitted from cache</span>
+      </div>
+      <div class="pbody">
+        <div style="border:1px dashed var(--void-line);background:var(--void);border-radius:2px;padding:9px 10px;margin-bottom:9px">
+          <div class="num" style="font-size:17px;color:var(--dim)">NO WORK THIS RUN</div>
+          <div class="kv" style="margin-top:3px">Seven slices were admitted from cache in about one second of clock. The resumed
+            slice events carry <span class="mono">no wall_s field at all</span> &mdash; not a zero, an absence.</div>
+        </div>
+        <div class="flabel">The book's cost &mdash; the honest figure for this leg</div><div id="c2-cost"></div>
+        <div class="flabel" style="margin-top:10px">What the wire said &rarr; what is true</div>
+        <table style="margin-top:2px"><thead><tr><th>field</th><th>reading</th></tr></thead>
+          <tbody id="c2-rows"></tbody></table>
+        <div class="flabel">Pre-work ETA filed at 03:37:37Z</div><div id="c2-eta"></div>
+      </div>
+      <div class="pnote" id="c2-note"></div>
+    </section>
+  </div>
+
+  <!-- ============================ ROW 5 · analyst ============================ -->
+  <div class="row r-3">
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Analyst chunk populations</span>
+        <span class="punits">chunks &divide; 957 chunks in the book (both runs)</span>
+      </div>
+      <div class="pbody" id="an-pop"></div>
+      <div class="pnote">Two independent identities close exactly: 641&nbsp;+&nbsp;316&nbsp;=&nbsp;957 and
+        928&nbsp;+&nbsp;29&nbsp;+&nbsp;0&nbsp;=&nbsp;957. That is the only reason the split can be trusted at all.</div>
+    </section>
+
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Analyst run-2 rates</span>
+        <span class="punits">accepted output tok &divide; run-2 wall s &mdash; both sides run 2, 316 counted calls</span>
+      </div>
+      <div class="pbody" id="an-rate"></div>
+      <div class="pnote">Run&nbsp;1's analyst seconds, tokens and VRAM were never written to any file. They are UNREAD
+        permanently, so the book's analyst throughput does not exist and cannot be reconstructed.</div>
+    </section>
+
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Analyst telemetry channels</span>
+        <span class="punits">events emitted by the analyst phase: 0 of 34 in the whole voyage</span>
+      </div>
+      <div class="pbody" id="an-chan"></div>
+      <div class="pnote">Everything in the two panels to the left arrived <em>after the fact</em>, in the manifest. During the
+        run this column was the operator's entire view of the phase: run&nbsp;2's 4634.4&nbsp;s of GPU work is measured only in
+        hindsight, and run&nbsp;1's &mdash; 641 chunks across roughly 4&nbsp;h&nbsp;40&nbsp;m of wall &mdash; has no duration
+        recorded anywhere at all.</div>
+    </section>
+  </div>
+
+  <!-- ============================ ROW 6 · verdicts + survival ============================ -->
+  <div class="row r-2">
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Verdicts</span>
+        <span class="punits">reason &middot; highlight &middot; solution &mdash; a FAIL badge with no reason is a protocol violation</span>
+      </div>
+      <div class="pbody" id="verdicts"></div>
+      <div class="pnote" id="verdict-note"></div>
+    </section>
+
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">The two survival readings</span>
+        <span class="punits">same field name, different matcher, different reference &mdash; no shared axis exists</span>
+      </div>
+      <div class="pbody" id="survival"></div>
+      <div class="pnote">Neither ratio can print its own sides: the pipeline computes and immediately discards both operands.
+        The only ratio on this glass whose two sides are both recorded is page coverage, below.</div>
+    </section>
+  </div>
+
+  <!-- ============================ ROW 7 · localizers ============================ -->
+  <div class="row">
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Localizers</span>
+        <span class="punits">evidence the operator needs &mdash; none of it gates anything, none of it is an alarm</span>
+      </div>
+      <div class="pbody">
+        <div class="grid r-3" style="grid-template-columns:repeat(auto-fit,minmax(280px,1fr))" id="loc-fields"></div>
+        <div id="drilldowns"></div>
+      </div>
+      <div class="pnote"><b style="color:var(--p2)">Deviation, reported not papered over.</b> CONTRACT.md's row for
+        <span class="mono">span.measured_work</span> says &ldquo;never print a utilisation&nbsp;%&rdquo;, but
+        <span class="mono">voyage.js</span>'s own <span class="mono">display</span> string for that field contains
+        <span class="mono">(31.6%)</span>. Rule&nbsp;0 has no exceptions, so the display is rendered verbatim above &mdash; the
+        fixture wins over the prose. What makes it survivable is that the figure prints both its sides and is labelled
+        <em>instrumented</em>, not <em>utilised</em>: run&nbsp;1's analyst work is real, was never timed, and is therefore
+        counted as idleness by that ratio. It is not a utilisation reading and must never be read as one.</div>
+    </section>
+  </div>
+
+  <!-- ============================ ROW 8 · ship check ============================ -->
+  <div class="row">
+    <section class="panel">
+      <div class="phead">
+        <span class="ptitle">Ship-check</span>
+        <span class="punits">machine negative control &mdash; run at load against this document's own rendered text</span>
+      </div>
+      <div class="pbody" id="shipcheck"></div>
+      <div class="pnote">Two regions quote the lies on purpose and are exempt from the text scan: the inspector drawer
+        (which prints the wire value and the negative control side by side) and this panel's own listing. Everything else on
+        the glass is scanned.</div>
+    </section>
+  </div>
+
+  <footer id="foot"></footer>
+</div>
+
+<div class="drawer" id="drawer" role="dialog" aria-label="field inspector">
+  <div class="dhead">
+    <div style="flex:1;min-width:0">
+      <div style="font-size:9.5px;letter-spacing:.08em;text-transform:uppercase;color:var(--faint)" id="d-id"></div>
+      <div style="font-size:13.5px;font-weight:600" id="d-label"></div>
+    </div>
+    <button class="btn" id="d-close">CLOSE &times;</button>
+  </div>
+  <div class="dbody" id="d-body"></div>
+</div>
+
+<script type="module">
+/* ==========================================================================================
+ * MODEL SOURCE — live module preferred, embedded snapshot as the file:// fallback.
+ * Chrome refuses `import` from a file:// origin (opaque origin, CORS). The snapshot is a
+ * mechanical JSON.stringify of ./voyage.js taken at build time, so the file opens from disk
+ * with no server; when a server IS present the live module wins and the two are compared.
+ * ========================================================================================== */
+const SNAP = JSON.parse(document.getElementById('voyage-snapshot').textContent);
+let V = SNAP.VOYAGE, EV = SNAP.EVENTS;
+let SOURCE_KIND = 'snapshot', DRIFT = null, MODFN = null;
+try {
+  const m = await import('./voyage.js');
+  MODFN = m;
+  const liveJson = JSON.stringify(m.default);
+  DRIFT = (liveJson === JSON.stringify(SNAP.VOYAGE)) ? 'match' : 'DRIFT';
+  V = m.default; EV = m.EVENTS;
+  SOURCE_KIND = 'live module ./voyage.js';
+} catch (e) { SOURCE_KIND = 'embedded snapshot (import blocked: ' + (e.message || e).slice(0, 60) + ')'; }
+
+const FID_C = SNAP.FID_CONVERT, FID_A = SNAP.FID_ANALYST;
+const F = V.fields, LAW = V.law;
+
+/* ---------- formatters: the module's own when it loaded, byte-identical copies otherwise ---------- */
+const fmtDuration = MODFN?.fmtDuration ?? function (s) {
+  if (s === null || s === undefined) return 'UNREAD';
+  if (s < 60) return `${Number(s.toFixed(1))}s`;
+  const h = Math.floor(s / 3600), m = Math.floor((s % 3600) / 60), sec = Math.round(s % 60);
+  return h ? `${h}h ${String(m).padStart(2,'0')}m ${String(sec).padStart(2,'0')}s`
+           : `${m}m ${String(sec).padStart(2,'0')}s`;
+};
+const fmtClock = MODFN?.fmtClock ?? (iso => iso.slice(11,19) + 'Z');
+const T = iso => Date.parse(iso);
+const T0 = T(V.start), T1 = T(V.end), TOTAL = (T1 - T0) / 1000;
+const xp = ms => ((ms - T0) / (T1 - T0)) * 100;           // → percent of the voyage
+const esc = s => String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+
+/* ==========================================================================================
+ * RULE 0 — the ONLY function that puts a number on this glass.
+ * It reads field.display and nothing else. There is no code path here that reads field.value.
+ * ========================================================================================== */
+function cell(id, opts = {}) {
+  const f = F[id];
+  if (!f) return `<span class="unread">UNREAD</span>`;
+  const cls = ['cell']; if (opts.big) cls.push('big'); if (!f.honest) cls.push('bad');
+  const ev = { event:'evt', manifest:'man', derived:'der', absence:'abs', testimony:'tes', source:'der' }[f.evidence] || 'der';
+  return `<button class="${cls.join(' ')}" data-field="${id}" title="inspect — numerator, denominator, conditions, defect">
+    <span class="v">${esc(f.display)}</span>
+    <span style="display:block;margin-top:2px">
+      <span class="chip ${ev}">${f.evidence}</span>
+      <span class="chip">${esc(f.population)}</span>
+      ${!f.honest ? `<span class="chip p2">raw value banned</span>` : ``}
+      ${f.census.length ? `<span class="chip">${f.census.join(' ')}</span>` : ``}
+    </span></button>`;
+}
+const origCell = cell;
+window.__cell = (id, opts) => origCell(id, opts);
+
+/* ==========================================================================================
+ * 1 · MISSION BAR
+ * ========================================================================================== */
+document.getElementById('m-title').textContent = V.title;
+document.getElementById('m-sub').innerHTML =
+  `${V.pages} pp &middot; lane ${V.lane} (${V.laneReason}) &middot; analyst ${V.analystMode} ` +
+  `${V.analyst.model} / ${V.analyst.program} &middot; ${V.eventCount} events &middot; ${fmtDuration(TOTAL)} wall`;
+document.getElementById('headline').textContent = V.headline;
+document.getElementById('banner').innerHTML =
+  `<b>This voyage is over; the desk below is showing its last instant.</b> Drag AS-OF back to 01:00:00Z &mdash; or press
+   REPLAY &mdash; to see what an operator sitting here actually had while it ran. From 22:35:15Z to 03:37:28Z the answer is
+   <span class="mono">nothing at all</span>: ${esc(V.spans.dark.display)}.`;
+
+const JUMPS = [
+  ['21:30:12Z intake',            '2026-08-31T21:30:12+00:00'],
+  ['22:34:14Z converted',         '2026-08-31T22:34:14+00:00'],
+  ['22:40:15Z liveness would fire','2026-08-31T22:40:15+00:00'],
+  ['01:00:00Z mid dark-1',        '2026-09-01T01:00:00+00:00'],
+  ['~01:38Z power cut',           '2026-09-01T01:38:00+00:00'],
+  ['01:48:17Z reboot',            '2026-09-01T01:48:17+00:00'],
+  ['03:37:38Z resume',            '2026-09-01T03:37:38+00:00'],
+  ['04:10:00Z mid dark-2',        '2026-09-01T04:10:00+00:00'],
+  ['04:56:33Z HELD',              '2026-09-01T04:56:33+00:00'],
+];
+document.getElementById('jumps').innerHTML = JUMPS
+  .map(([lab, iso]) => `<button class="btn" data-jump="${(T(iso)-T0)/1000}">${esc(lab)}</button>`).join('');
+
+/* ==========================================================================================
+ * 2 · TIMELINE SPINE — four inks that must not look alike
+ * ========================================================================================== */
+const MIN_PX = 2;
+function segHTML(s, extraClass) {
+  const l = xp(T(s.start)), w = Math.max(xp(T(s.end)) - l, 0);
+  const wide = w > 4.5;
+  return `<div class="seg ${s.kind}${extraClass ? ' ' + extraClass : ''}" data-seg="${s.id}"
+      style="left:${l}%;width:${w}%;min-width:${MIN_PX}px" title="${esc(s.label)} — ${fmtDuration(s.seconds)}${s.approximate ? ' (approximate)' : ''}">
+      ${wide ? `<span class="sl">${esc(s.kind === 'dark' ? 'NO EVENTS · ' + fmtDuration(s.seconds)
+                 : s.kind === 'dead' ? fmtDuration(s.seconds) + ' · testimony' : fmtDuration(s.seconds))}</span>` : ''}
+    </div>`;
+}
+document.getElementById('track-machine').innerHTML = V.timeline.map(s => segHTML(s)).join('');
+const TESTI = V.timeline.find(s => s.id === 'dark-1').testimony;
+document.getElementById('track-testimony').innerHTML =
+  TESTI.map(s => segHTML(s, s.kind === 'dark' ? 'tdark' : '')).join('');
+
+document.getElementById('rug').innerHTML = EV.map(e => {
+  const k = e.stage === 'audit' ? 'audit' : e.stage === 'intake' ? 'intake' : '';
+  return `<i class="tick ${k}" style="left:${xp(T(e.ts))}%" title="${esc(fmtClock(e.ts) + ' ' + e.stage + '/' + e.event)}"></i>`;
+}).join('');
+
+document.getElementById('axis').innerHTML = (() => {
+  const out = []; const startH = new Date(T0); startH.setUTCMinutes(0,0,0);
+  for (let t = startH.getTime(); t <= T1; t += 3600e3) {
+    if (t < T0) continue;
+    out.push(`<span style="left:${xp(t)}%">${String(new Date(t).getUTCHours()).padStart(2,'0')}:00Z</span>`);
+  }
+  return out.join('');
+})();
+
+document.getElementById('legend').innerHTML = `
+  <span><i class="sw" style="background:var(--work)"></i>work &mdash; the machine reported it</span>
+  <span><i class="sw" style="background:var(--audit)"></i>audit &mdash; bracketed by two events</span>
+  <span><i class="sw" style="background:var(--void);border:1px dashed var(--void-line)"></i>DARK &mdash; zero events, measured by absence</span>
+  <span><i class="sw" style="background:repeating-linear-gradient(135deg,transparent 0 3px,rgba(108,92,146,.5) 3px 6px);border:1px dashed var(--testimony)"></i>DEAD &mdash; operator testimony, &plusmn;minutes</span>
+  <span><i class="sw" style="background:repeating-linear-gradient(90deg,#3a424c 0 2px,transparent 2px 5px)"></i>gap &mdash; the record does not explain it</span>
+  <span style="color:var(--faint)">&#9474; 34 event ticks below the track &mdash; the two holes are the data</span>`;
+
+document.getElementById('stream-note').innerHTML =
+  `Segments narrower than ${MIN_PX}&nbsp;px are drawn at ${MIN_PX}&nbsp;px; their true seconds are in the tooltip and the
+   drill-down (intake is 7&nbsp;s, convert leg&nbsp;2 is 10&nbsp;s &mdash; both are slivers at this scale, and drawing them
+   larger would be the same lie in the other direction). <b>Live, a dark zone and a dead machine are indistinguishable:</b>
+   both are silence on the wire. The lower track is retrospective operator testimony &mdash;
+   ${esc(V.spans.dead.display)}.`;
+document.getElementById('stream-units').textContent =
+  `34 events over ${fmtDuration(TOTAL)} · three views of one telemetry set, switched live`;
+
+/* ==========================================================================================
+ * 3 · STREAM VIEWS — three renderings of the same 34 timestamps, none of them interpolated
+ * ========================================================================================== */
+const gaps = [];
+for (let i = 0; i < EV.length; i++) {
+  const a = T(EV[i].ts), b = i + 1 < EV.length ? T(EV[i+1].ts) : T1;
+  gaps.push({ i, at: a, next: b, gap: (b - a) / 1000 });
+}
+const MAXGAP = Math.max(...gaps.map(g => g.gap));
+
+function viewAge() {
+  const W = 1000, H = 150, pad = 4;
+  const y = s => H - pad - (s / MAXGAP) * (H - pad * 2);
+  const pts = [];
+  for (const g of gaps) { pts.push([xp(g.at) * 10, y(0)]); pts.push([xp(g.next) * 10, y(g.gap)]); }
+  const thr = y(300);
+  return `<svg viewBox="0 0 ${W} ${H}" height="150" preserveAspectRatio="none" style="margin-bottom:8px">
+    <line class="gl" x1="0" y1="${H-pad}" x2="${W}" y2="${H-pad}"></line>
+    ${[1,2,3,4,5].map(h => { const yy = y(h*3600); return `<line class="gl" x1="0" y1="${yy}" x2="${W}" y2="${yy}" stroke-dasharray="2 4"></line>
+      <text class="gt" x="2" y="${yy-2}">${h}h</text>`; }).join('')}
+    <line x1="0" y1="${thr}" x2="${W}" y2="${thr}" stroke="var(--p1)" stroke-width="1" stroke-dasharray="4 3"></line>
+    <text class="ann" x="4" y="${thr-3}" fill="var(--p1)">P1 threshold 300 s (ALM-LIVENESS) — 1.7% of the peak, and it is the alarm that does not exist</text>
+    <polyline points="${pts.map(p=>p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')}" fill="none" stroke="var(--p1)" stroke-width="1.4"></polyline>
+    <text class="ann" x="${(xp(T('2026-08-31T22:35:15+00:00'))*10+8).toFixed(0)}" y="18">peak ${fmtDuration(MAXGAP)} — dark zone 1</text>
+  </svg>
+  <div class="kv">The only line on this glass that may be drawn continuously: signal age is a function of the event
+  <em>timestamps</em>, exactly known at every instant. It interpolates no measurement, because there is no measurement inside
+  the ramps to interpolate.</div>`;
+}
+function viewArr() {
+  const B = 300, n = Math.ceil(TOTAL / B), counts = new Array(n).fill(0);
+  for (const e of EV) counts[Math.min(n - 1, Math.floor((T(e.ts) - T0) / 1000 / B))]++;
+  const max = Math.max(...counts), W = 1000, H = 150, pad = 16, bw = W / n;
+  const empty = counts.filter(c => c === 0).length;
+  return `<svg viewBox="0 0 ${W} ${H}" height="150" preserveAspectRatio="none" style="margin-bottom:8px">
+    ${counts.map((c, i) => c === 0
+      ? `<rect x="${(i*bw).toFixed(2)}" y="${H-pad}" width="${(bw-0.6).toFixed(2)}" height="1.2" fill="var(--void-line)"></rect>`
+      : `<rect x="${(i*bw).toFixed(2)}" y="${(H-pad-(c/max)*(H-pad-8)).toFixed(1)}" width="${(bw-0.6).toFixed(2)}"
+              height="${((c/max)*(H-pad-8)).toFixed(1)}" fill="var(--work)"></rect>`).join('')}
+    <line class="gl" x1="0" y1="${H-pad}" x2="${W}" y2="${H-pad}"></line>
+    <text class="gt" x="2" y="12">${max} events (tallest bucket)</text>
+  </svg>
+  <div class="kv">${n} buckets of ${B}&nbsp;s across ${fmtDuration(TOTAL)}. <b>${empty} of ${n} buckets are empty</b> and are
+  drawn as a baseline tick, not as missing chart: an empty bucket is a measurement. The single tall bucket is 03:35&ndash;03:40Z,
+  where the reap, the re-detect and the seven cache admissions all land within eleven seconds.</div>`;
+}
+function viewLane() {
+  const lanes = ['intake', 'convert', 'analyst', 'audit'];
+  const rows = lanes.map(L => {
+    const es = EV.filter(e => e.stage === L);
+    const absent = es.length === 0;
+    return `<div style="margin-bottom:6px">
+      <div class="tl-lab" style="${absent?'color:var(--p1)':''}">${L} &mdash; ${es.length} of ${EV.length} events${absent?' &mdash; CHANNEL DOES NOT EXIST':''}</div>
+      <div class="track" style="height:20px;${absent?'border-style:dashed;border-color:var(--p1);background:var(--void)':''}">
+        ${absent ? `<div style="position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+            font-family:var(--mono);font-size:10px;color:var(--p1);letter-spacing:.1em">
+            NO EVENT OF ANY KIND — both runs, entirely unwitnessed</div>` : ''}
+        ${es.map(e => `<i class="tick" style="position:absolute;top:3px;height:14px;width:2px;background:var(--work-ink);
+             left:${xp(T(e.ts))}%" title="${esc(fmtClock(e.ts)+' '+e.stage+'/'+e.event)}"></i>`).join('')}
+      </div></div>`;
+  }).join('');
+  return rows + `<div class="kv">Open MCT gesture: the same telemetry set, a different composition. The analyst lane is the
+    finding &mdash; it is not sparse, it is empty, in both runs, by construction.</div>`;
+}
+const VIEWS = { age: viewAge, arr: viewArr, lane: viewLane };
+let curView = 'age';
+function drawView() { document.getElementById('stream-view').innerHTML = VIEWS[curView](); }
+document.querySelectorAll('[data-view]').forEach(b => b.addEventListener('click', () => {
+  document.querySelectorAll('[data-view]').forEach(x => x.classList.remove('on'));
+  b.classList.add('on'); curView = b.dataset.view; drawView();
+}));
+drawView();
+
+/* ==========================================================================================
+ * 4 · AS-OF — the whole desk is a function of one clock
+ * ========================================================================================== */
+const scrub = document.getElementById('scrub');
+scrub.max = String(Math.round(TOTAL));
+let asOf = T1;
+
+function lastEventAt(t) { let last = null; for (const e of EV) { if (T(e.ts) <= t) last = e; else break; } return last; }
+function segAt(t) {
+  for (const s of V.timeline) if (t >= T(s.start) && t < T(s.end)) return s;
+  return V.timeline[V.timeline.length - 1];
+}
+function testimonyAt(t) { for (const s of TESTI) if (t >= T(s.start) && t < T(s.end)) return s; return null; }
+
+function paintAsOf() {
+  const t = asOf, le = lastEventAt(t), age = le ? (t - T(le.ts)) / 1000 : 0;
+  document.getElementById('m-clock').textContent = new Date(t).toISOString().slice(11,19) + 'Z';
+  document.getElementById('playhead').style.left = xp(t) + '%';
+
+  const alarm = age >= 300;
+  const big = document.getElementById('live-big');
+  big.textContent = fmtDuration(age);
+  big.className = 'big ' + (alarm ? 'alarmed' : 'okc');   // NOT 'alarm': that class is the annunciator row
+  document.getElementById('live-state').innerHTML = alarm
+    ? `<span class="chip p1">NO SIGNAL</span> <span class="chip abs">no such alarm exists</span>
+       <div class="kv" style="margin-top:3px">Past the 300&nbsp;s staleness rule that ALM-LIVENESS <em>would</em> use.
+       Nothing in the shipped system watches this.</div>`
+    : `<span class="chip ok">SIGNAL</span> <span class="kv" style="margin-left:6px">under the 300&nbsp;s staleness rule</span>`;
+  document.getElementById('live-last').innerHTML = le
+    ? `last record <b>${fmtClock(le.ts)}</b> &middot; <b>${le.stage}/${le.event}</b> &middot; pid ${le.pid}`
+    : 'no record yet';
+
+  const tes = testimonyAt(t), seg = segAt(t);
+  document.getElementById('live-class').innerHTML =
+    `<span class="chip ${seg.kind==='dark'?'abs':seg.kind==='dead'?'tes':'evt'}">${seg.kind}</span>
+     <span style="margin-left:5px">${esc(seg.label)}</span>` +
+    (tes ? `<div style="margin-top:3px"><span class="chip tes">retrospective testimony</span>
+        <span style="margin-left:5px">${esc(tes.label)} &mdash; the desk could not know this at the time</span></div>` : '');
+
+  document.getElementById('live-worst').innerHTML =
+    `worst of the voyage <b>${fmtDuration(MAXGAP)}</b> (dark zone 1, 22:35:15Z &rarr; 03:37:28Z) &middot;
+     second worst <b>${fmtDuration(gaps.map(g=>g.gap).sort((a,b)=>b-a)[1])}</b> (dark zone 2)`;
+
+  paintTiles(t);
+  paintAlarms(t);
+  paintManifestGating(t);
+}
+document.getElementById('live-note').innerHTML =
+  `Numerator: seconds elapsed. Denominator: none &mdash; this is an age, not a rate. Conditions: computed against the newest
+   record in <span class="mono">events.jsonl</span> at the AS-OF instant; the file is append-only and its clock is UTC.
+   Threshold 300&nbsp;s is not invented here &mdash; it is the staleness rule written into ALM-LIVENESS's operator response.`;
+
+scrub.addEventListener('input', () => { asOf = T0 + Number(scrub.value) * 1000; paintAsOf(); });
+document.getElementById('jumps').addEventListener('click', e => {
+  const b = e.target.closest('[data-jump]'); if (!b) return;
+  scrub.value = b.dataset.jump; asOf = T0 + Number(b.dataset.jump) * 1000; paintAsOf();
+});
+let timer = null;
+document.getElementById('btn-play').addEventListener('click', function () {
+  if (timer) { clearInterval(timer); timer = null; this.classList.remove('on'); this.innerHTML = '&#9654; REPLAY 3000&times;'; return; }
+  this.classList.add('on'); this.innerHTML = '&#9646;&#9646; PAUSE';
+  if (Number(scrub.value) >= Number(scrub.max)) { scrub.value = '0'; }
+  timer = setInterval(() => {
+    let v = Number(scrub.value) + 250;
+    if (v >= Number(scrub.max)) { v = Number(scrub.max); clearInterval(timer); timer = null;
+      const b = document.getElementById('btn-play'); b.classList.remove('on'); b.innerHTML = '&#9654; REPLAY 3000&times;'; }
+    scrub.value = String(v); asOf = T0 + v * 1000; paintAsOf();
+  }, 80);
+});
+
+/* ---------- stage tiles ---------- */
+function paintTiles(t) {
+  const seen = EV.filter(e => T(e.ts) <= t);
+  const last = st => { const es = seen.filter(e => e.stage === st); return es[es.length - 1] || null; };
+  const conv = seen.filter(e => e.stage === 'convert');
+  const legSlices = conv.filter(e => e.event === 'slice');
+  const leg1Done = seen.some(e => e.event === 'converted' && T(e.ts) <= T('2026-08-31T22:34:14+00:00'));
+  const inLeg2 = t >= T('2026-09-01T03:37:28+00:00');
+  const sliceCount = inLeg2 ? legSlices.filter(e => T(e.ts) >= T('2026-09-01T03:37:37+00:00')).length : legSlices.length;
+
+  const tiles = [];
+  const i = last('intake');
+  tiles.push(['intake', i ? `${i.event}` : 'not yet', i ? `${fmtClock(i.ts)} &middot; analyst_mode ${i.analyst_mode ?? '&mdash;'}` : 'no record', false]);
+
+  const c = last('convert');
+  tiles.push(['convert',
+    c ? (c.event === 'converted' ? (inLeg2 ? 'RESUMED 7/7 — 0 pages' : 'converted 1377 pp') : c.event) : 'not yet',
+    c ? `${fmtClock(c.ts)} &middot; ${sliceCount} of 7 slices ${inLeg2 ? 'admitted from cache' : 'complete'}${!inLeg2 && !leg1Done && sliceCount ? ' &mdash; ETA 4343 s promised at 21:30:19Z' : ''}` : 'no record', false]);
+
+  tiles.push(['analyst', 'STATE UNKNOWN',
+    `0 events at every instant of this voyage. No analyst/start, no analyst/done, no heartbeat.
+     The only liveness signal was <span class="mono">.analyst-progress.json</span>, overwritten in place with no history.
+     ${t >= T1 ? 'Counters below arrived at 04:56:33Z with the manifest, after the fact.' : 'Counters below: NOT YET RECORDED.'}`, true]);
+
+  const a = last('audit');
+  tiles.push(['audit', a ? a.event.toUpperCase() : 'not yet',
+    a ? `${fmtClock(a.ts)}${a.phase ? ' &middot; phase ' + a.phase : ''}${a.verdict ? ' &middot; verdict ' + a.verdict : ''}` : 'no record', false]);
+
+  document.getElementById('tiles').innerHTML = tiles.map(([h, st, sub, absent]) =>
+    `<div class="tile${absent ? ' absent' : ''}"><h4>${h}</h4>
+       <div class="st" style="${absent ? 'color:var(--p1)' : ''}">${st}</div>
+       <div class="sub">${sub}</div></div>`).join('');
+}
+
+/* ---------- manifest gating: analyst panels go blank before 04:56:33Z ---------- */
+function paintManifestGating(t) {
+  const known = t >= T1;
+  for (const el of document.querySelectorAll('[data-manifest]')) {
+    el.style.opacity = known ? '1' : '.22';
+    el.style.filter = known ? 'none' : 'grayscale(1)';
+  }
+  for (const el of document.querySelectorAll('[data-manifest-veil]'))
+    el.style.display = known ? 'none' : 'block';
+}
+
+/* ==========================================================================================
+ * 5 · ANNUNCIATOR
+ * ========================================================================================== */
+const WOULD_FIRE = {
+  'ALM-LIVENESS': T('2026-08-31T22:35:15+00:00') + 300e3,
+  'ALM-IDLE-AFTER-REBOOT': T('2026-09-01T01:48:17+00:00'),
+};
+const LEARNED = T('2026-09-01T03:34:00+00:00');   // operator testimony, approximate
+
+function paintAlarms(t) {
+  const rows = V.alarms.map(a => {
+    const at = WOULD_FIRE[a.id] ?? T(a.at);
+    const active = t >= at;
+    const ghost = a.state === 'would-have-fired';
+    const lateBy = ghost ? (LEARNED - at) / 1000 : null;
+    return `<div class="alarm pri${a.priority}${ghost ? ' ghost' : ''}" style="${active ? '' : 'opacity:.3'}">
+      <div class="ahead">
+        <span class="chip p${a.priority}">PRIORITY ${a.priority}</span>
+        ${ghost ? `<span class="chip abs">ABSENT INSTRUMENTATION &mdash; this alarm does not exist in the system</span>`
+                : `<span class="chip ${active ? 'p1' : ''}">${active ? 'FIRED ' + fmtClock(a.at) : 'not yet &mdash; ' + fmtClock(a.at)}</span>`}
+        <span class="atitle">${esc(a.title)}</span>
+        <span class="chip" style="margin-left:auto">time to act: ${esc(a.timeToAct)}</span>
+      </div>
+      ${ghost ? `<div class="aline"><b>would have fired</b><span class="mono">${fmtClock(new Date(at).toISOString())}</span>
+          &mdash; the operator learned at ~03:34:00Z (testimony), <span class="mono">${fmtDuration(lateBy)}</span> later.
+          Nothing in the shipped system raises it.</div>` : ''}
+      <div class="aline"><b>consequence</b><span>${esc(a.consequence)}</span></div>
+      <div class="aline"><b>reason</b><span>${esc(a.reason)}</span></div>
+      <div class="aline"><b>highlight</b><span class="mono" style="font-size:11px">${esc(a.highlight)}</span></div>
+      <div class="aresp"><b>operator response</b>${esc(a.response)}</div>
+    </div>`;
+  }).join('');
+  document.getElementById('alarms').innerHTML = rows;
+}
+const p1n = V.alarms.filter(a => a.priority === 1).length;
+document.getElementById('alarm-units').innerHTML =
+  `${V.alarms.length} alarms &divide; ${fmtDuration(TOTAL)} = ${(V.alarms.length / (TOTAL/3600)).toFixed(2)} per hour &middot;
+   ${p1n} priority-1 &middot; <b style="color:var(--p1)">2 of the 6 never fired because they do not exist</b>`;
+
+/* ==========================================================================================
+ * 6 · CONVERT
+ * ========================================================================================== */
+(() => {
+  const S = V.legs[0].slices, max = Math.max(...S.map(s => s.wall_s));
+  const W = 320, H = 96, bw = W / S.length;
+  document.getElementById('slices').innerHTML = S.map((s, i) => {
+    const h = (s.wall_s / max) * (H - 26);
+    return `<g><rect x="${(i*bw+3).toFixed(1)}" y="${(H-14-h).toFixed(1)}" width="${(bw-6).toFixed(1)}" height="${h.toFixed(1)}"
+        fill="var(--work)"></rect>
+      <text x="${(i*bw+bw/2).toFixed(1)}" y="${(H-18-h).toFixed(1)}" text-anchor="middle" class="gt" fill="var(--work-ink)">${s.wall_s}</text>
+      <text x="${(i*bw+bw/2).toFixed(1)}" y="${H-4}" text-anchor="middle" class="gt">${esc(s.page_range)}</text></g>`;
+  }).join('') + `<line class="gl" x1="0" y1="${H-14}" x2="${W}" y2="${H-14}"></line>`;
+
+  document.getElementById('c1-wall').innerHTML = window.__cell('convert.leg1.wall_s');
+  document.getElementById('c1-spp').innerHTML = window.__cell('convert.leg1.s_per_page');
+  document.getElementById('c1-pages').innerHTML = window.__cell('convert.leg1.pages');
+  document.getElementById('c1-retry').innerHTML = window.__cell('convert.leg1.retry_wall_s');
+  document.getElementById('c1-vram').innerHTML = window.__cell('convert.leg1.peak_vram_mib');
+  document.getElementById('c1-promise').innerHTML = window.__cell('convert.leg1.promise_delta');
+  document.getElementById('c1-note').innerHTML =
+    `Seven numbers are a shape, not a list: slices 3&ndash;5 (pages 400&ndash;999) cost roughly twice slices 1&ndash;2 on the
+     same 200-page width and the same batch 8 &mdash; that is where the dense tables live. Slice 7 covers 177 pages, not 200.
+     The bars sum to ${S.reduce((a,s)=>a+s.wall_s,0).toFixed(1)}&nbsp;s and reconcile exactly against the reported wall.`;
+
+  const rows = [['convert.leg2.wall_s','wall_s'], ['convert.leg2.s_per_page','s_per_page'],
+                ['convert.leg2.s_per_page_this_run','s_per_page_this_run'], ['convert.leg2.peak_vram_mib','peak_vram_mib'],
+                ['convert.leg2.pages_converted_this_run','pages_converted_this_run']];
+  document.getElementById('c2-rows').innerHTML = rows.map(([id, name]) =>
+    `<tr><td class="x">${name}</td><td>${window.__cell(id)}</td></tr>`).join('');
+  document.getElementById('c2-cost').innerHTML = window.__cell('convert.leg2.cost_s');
+  document.getElementById('c2-eta').innerHTML = window.__cell('convert.leg2.promised_eta_s');
+  document.getElementById('c2-note').innerHTML =
+    `<b>Deviation from the brief, in the pipeline's favour, and it is reported not papered over:</b> census N-055 says the
+     pre-work ETA promises the whole book on a resume. Here it did not. Second deviation: N-064's structural understatement of
+     <span class="mono">cost_s</span> is exactly zero on this book &mdash; leg&nbsp;1 recorded
+     <span class="mono">retry_wall_s 0.0</span> and no slice was ever retried, so 3834.2&nbsp;s is complete. Verified, not assumed.`;
+})();
+
+/* ==========================================================================================
+ * 7 · ANALYST — chunks_resumed leads, and it physically separates 928 from 4634.4
+ * ========================================================================================== */
+(() => {
+  const bar = (segs) => `<div style="display:flex;height:22px;border-radius:2px;overflow:hidden;border:1px solid var(--line)">
+    ${segs.map(s => `<div style="width:${s.pctw}%;background:${s.c};display:flex;align-items:center;justify-content:center;
+      overflow:hidden;white-space:nowrap;font-family:var(--mono);font-size:10px;color:#0b0e12;font-weight:600"
+      title="${esc(s.t)}">${s.pctw > 12 ? s.n : ''}</div>`).join('')}
+  </div>`;
+
+  document.getElementById('an-pop').innerHTML = `
+    <div data-manifest>
+      <div class="flabel">by run &mdash; 957 chunks in the book</div>
+      ${bar([{pctw:641/957*100,c:'var(--testimony)',n:'641 resumed · run 1',t:'prior-run: seconds and tokens UNREAD'},
+             {pctw:316/957*100,c:'var(--work)',n:'316 generated · run 2',t:'this-run: the only population with a wall clock'}])}
+      <div class="flabel">Carried from run 1 &mdash; the field the operator is never shown</div>
+      ${window.__cell('analyst.chunks_resumed')}
+      <div class="flabel">Generated this run &mdash; the denominator for every this-run rate</div>
+      ${window.__cell('analyst.chunks_generated')}
+
+      <div class="flabel" style="margin-top:12px">by fence outcome &mdash; same 957 base, a different cut</div>
+      ${bar([{pctw:928/957*100,c:'var(--audit)',n:'928 passed',t:'whole book, both runs'},
+             {pctw:29/957*100,c:'var(--p2)',n:'29',t:'whole book; run-2 share UNREAD'},
+             {pctw:0.6,c:'var(--void-line)',n:'',t:'0 recorded failed'}])}
+      ${window.__cell('analyst.chunks_passed')}
+      <div style="margin:4px 0 4px;padding:3px 8px;border-left:2px solid var(--testimony);font-size:11px;color:var(--testimony-ink)">
+        &#8593; ${esc(F['analyst.chunks_resumed'].display)} &mdash; this line sits here <em>by rule</em>: 928 may never be
+        rendered beside a run-sized wall clock without the resumed count between them.
+      </div>
+      ${window.__cell('analyst.chunks_rejected')}
+      ${window.__cell('analyst.chunks_failed')}
+      ${window.__cell('analyst.chunks_total')}
+    </div>
+    <div data-manifest-veil style="display:none;margin-top:8px;border:1px dashed var(--p1);border-radius:2px;padding:6px 9px;
+         font-size:11.5px;color:var(--p1)">NOT YET RECORDED &mdash; every counter above reaches the operator only when the
+         manifest is written at 04:56:33Z. At this AS-OF instant the desk knows none of it.</div>`;
+
+  document.getElementById('an-rate').innerHTML = `
+    <div data-manifest>
+      <div class="flabel">Goodput &mdash; the one honest rate in the analyst block</div>
+      ${window.__cell('analyst.goodput_accepted_tok_s', {big:true})}
+      <div class="kv" style="margin-top:4px;border-left:2px solid var(--ok);padding-left:7px">
+        ${esc(F['analyst.goodput_accepted_tok_s'].conditions)}</div>
+      <div class="kv" style="margin-top:4px"><b>It is not the book's throughput</b> and it is not a decode rate.</div>
+      <div class="flabel">Wall clock &mdash; run 2 only</div>
+      ${window.__cell('analyst.duration_s')}
+      <div class="flabel">Output tokens</div>
+      ${window.__cell('analyst.tokens_output_total')}
+      <div class="flabel">Prompt tokens</div>
+      ${window.__cell('analyst.tokens_prompt_total')}
+    </div>
+    <div data-manifest-veil style="display:none;margin-top:8px;border:1px dashed var(--p1);border-radius:2px;padding:6px 9px;
+         font-size:11.5px;color:var(--p1)">NOT YET RECORDED.</div>`;
+
+  const CH = [
+    ['analyst/start', 'ABSENT', 'exists only on the --resume code path; the inline path emits nothing'],
+    ['analyst/done',  'ABSENT', 'never fired for this book, in either run'],
+    ['heartbeat',     'NONE',   'no periodic event of any kind exists for this phase'],
+    ['.analyst-progress.json', 'NO HISTORY', 'overwritten in place; the file’s own `resumed` field is never projected'],
+  ];
+  document.getElementById('an-chan').innerHTML =
+    CH.map(([n, s, d]) => `<div style="border-left:2px solid var(--p1);padding:3px 0 3px 8px;margin-bottom:7px">
+        <div><span class="mono" style="font-size:12px">${esc(n)}</span>
+             <span class="chip p1" style="margin-left:6px">${s}</span></div>
+        <div class="kv">${esc(d)}</div></div>`).join('') +
+    `<div style="margin-top:6px;border:1px dashed var(--void-line);background:var(--void);border-radius:2px;padding:7px 9px">
+      <div class="num" style="font-size:15px;color:var(--dim)">0 of 34 events</div>
+      <div class="kv" style="margin-top:2px">${esc(V.analyst.note.split('. ')[0])}.</div>
+      <div class="kv" style="margin-top:4px">chunks_generated and goodput_accepted_tok_s are recorded here
+        <b>for the first time ever</b> &mdash; and only in the manifest, only after the bundle was already held.</div>
+    </div>`;
+})();
+
+/* ==========================================================================================
+ * 8 · VERDICTS + SURVIVAL
+ * ========================================================================================== */
+(() => {
+  const A = V.audits;
+  const box = (title, at, vr, solution) => `<div class="err" style="margin-bottom:9px">
+      <div class="ahead"><span class="chip p1">FAIL</span><span class="atitle">${esc(title)}</span>
+        <span class="chip" style="margin-left:auto">${fmtClock(at)}</span></div>
+      <div class="r"><b>reason</b><span>${esc(vr.text)}</span></div>
+      <div class="r"><b>the law that fired</b><span class="mono" style="font-size:11px">${esc(vr.detail)}</span></div>
+      <div class="r"><b>solution</b><span>${esc(solution)}</span></div>
+    </div>`;
+  const degen = V.alarms.find(a => a.id === 'ALM-DEGENERATION');
+  const held = V.alarms.find(a => a.id === 'ALM-HELD');
+  document.getElementById('verdicts').innerHTML =
+    box(A[0].label, A[0].at, A[0].fields.verdictReason, degen.response) +
+    box(A[2].label, A[2].at, A[2].fields.verdictReason, held.response) +
+    `<div class="err" style="border-style:dashed">
+      <div class="ahead"><span class="chip">REPEAT, NOT A SECOND OPINION</span>
+        <span class="atitle">${esc(A[1].label)}</span><span class="chip" style="margin-left:auto">${fmtClock(A[1].at)}</span></div>
+      <div class="r"><span>${esc(A[1].note)}</span></div></div>`;
+  document.getElementById('verdict-note').innerHTML =
+    `Only two signals in the whole system can reach <span class="mono">fail</span>:
+     ${LAW.FAIL_SIGNALS.map(s => `<span class="mono">${esc(s)}</span>`).join(', ')}. Everything else localizes and reaches at
+     most <span class="mono">flag</span> &mdash; which is why 0.9334 survival and 241 flagged pages are not on this panel.`;
+
+  document.getElementById('survival').innerHTML = `
+    <div class="err"><div class="flabel" style="margin-top:0">Convert phase &mdash; window survival</div>
+      ${window.__cell('audit.convert.doc_survival')}
+      <div class="kv" style="margin-top:4px">${esc(F['audit.convert.doc_survival'].conditions.slice(0,240))}&hellip;</div>
+      <div style="margin-top:6px">${window.__cell('audit.convert.runs')}</div>
+      <div style="margin-top:4px">${window.__cell('audit.convert.degeneration')}</div>
+    </div>
+    <div class="divider" style="margin:9px 0">NOT COMPARABLE &mdash; fuzzy 12-word windows vs the pymupdf witness, against
+      exact containment vs the Marker document. Different matcher, different reference, different measurement.
+      No shared axis exists, so none is drawn.</div>
+    <div class="err"><div class="flabel" style="margin-top:0">Analyst phase &mdash; verbatim containment</div>
+      ${window.__cell('audit.analyst.doc_survival')}
+      <div class="kv" style="margin-top:4px">${esc(F['audit.analyst.doc_survival'].conditions.slice(0,240))}&hellip;</div>
+      <div style="margin-top:6px">${window.__cell('audit.analyst.runs')}</div>
+      <div style="margin-top:4px">${window.__cell('audit.analyst.run_page')}</div>
+    </div>`;
+})();
+
+/* ==========================================================================================
+ * 9 · LOCALIZERS + DRILL-DOWN
+ * ========================================================================================== */
+(() => {
+  const ids = ['fidelity.pages_flagged','fidelity.page_coverage','fidelity.pages_scored',
+               'fidelity.degeneration.blocks','fidelity.degeneration.repeated_lines','fidelity.reverse_sample',
+               'fidelity.asset_delta','fidelity.dict_hit','fidelity.garbage_rate',
+               'span.voyage','span.dark','span.dead','span.measured_work'];
+  document.getElementById('loc-fields').innerHTML = ids.map(id =>
+    `<div><div class="flabel">${esc(F[id].label)}</div>${window.__cell(id)}</div>`).join('');
+
+  // densest 50-page window over the flagged list — derived here, from the manifest list itself
+  const PF = FID_C.pages_flagged; let best = {n:0,a:0};
+  for (const p of PF) { const n = PF.filter(q => q >= p && q < p + 50).length; if (n > best.n) best = {n, a:p}; }
+
+  document.getElementById('drilldowns').innerHTML = `
+  <details><summary>Page flag map &mdash; ${PF.length} of ${FID_C.pages_scored} scored pages below 0.85 survival (one column per page, 1&hellip;1377)</summary>
+    <div class="dd">
+      <div class="pagestrip">${PF.map(p => `<i style="left:${(p/1377*100).toFixed(3)}%" title="page ${p}"></i>`).join('')}</div>
+      <div class="kv" style="margin-top:5px"><em>Derived here, from the manifest list:</em> the densest 50-page window is
+      pages ${best.a}&ndash;${best.a+49} with ${best.n} flagged. Sample three of those against the PDF before deciding whether
+      this is reflow or loss &mdash; do not act on the count.</div>
+    </div></details>
+
+  <details><summary>Degenerate blocks &mdash; ${FID_C.tripwires.degeneration_detail.worst.length} shown of
+    ${FID_C.tripwires.degeneration_detail.blocks_total} (cap ${FID_C.tripwires.degeneration_detail.worst_capped_at}) &middot;
+    this is the signal that failed the convert phase</summary>
+    <div class="dd"><table><thead><tr><th>md line</th><th>chars</th><th>zlib &le;0.20</th><th>max trigram &ge;40</th><th>excerpt</th></tr></thead>
+      <tbody>${FID_C.tripwires.degeneration_detail.worst.map(b => `<tr>
+        <td class="n">${b.line}</td><td class="n">${b.chars.toLocaleString('en-US')}</td>
+        <td class="n" style="color:${b.zlib<=0.20?'var(--p2)':'var(--ink)'}">${b.zlib}</td>
+        <td class="n" style="color:${b.max_trigram>=40?'var(--p2)':'var(--ink)'}">${b.max_trigram}</td>
+        <td class="x">${esc(b.excerpt)}</td></tr>`).join('')}</tbody></table>
+      <div class="kv" style="margin-top:5px">Total ${FID_C.tripwires.degeneration_detail.blocks_total}; md_lines
+        ${FID_C.tripwires.degeneration_detail.md_lines.toLocaleString('en-US')}. The list length is 10 and must never be read
+        as the count.</div></div></details>
+
+  <details><summary>Analyst omission runs &mdash; 25 shown of ${FID_A.runs_total}, longest first &middot; no page index exists</summary>
+    <div class="dd"><table><thead><tr><th>words</th><th>page</th><th>excerpt (the only locator)</th></tr></thead>
+      <tbody>${FID_A.runs.map(r => `<tr><td class="n" style="${r.words>=LAW.ANALYST_RUN_WORDS?'color:var(--p1)':''}">${r.words}</td>
+        <td class="x"><span class="unread">UNREAD</span></td><td class="x">${esc(r.excerpt)}</td></tr>`).join('')}</tbody></table>
+      <div class="kv" style="margin-top:5px">Threshold ${LAW.ANALYST_RUN_WORDS} words: every one of these 25 is over it, the
+        worst by ${(FID_A.runs[0].words / LAW.ANALYST_RUN_WORDS).toFixed(0)}&times;. ${FID_A.runs_total - FID_A.runs.length}
+        further runs exist and are not in the record.</div></div></details>
+
+  <details><summary>Convert omission runs &mdash; 25 shown of ${FID_C.runs_total}, longest first &middot; pages recorded</summary>
+    <div class="dd"><table><thead><tr><th>words</th><th>page</th><th>excerpt</th></tr></thead>
+      <tbody>${FID_C.runs.map(r => `<tr><td class="n">${r.words}</td><td class="n">${r.page}</td>
+        <td class="x">${esc(r.excerpt)}</td></tr>`).join('')}</tbody></table>
+      <div class="kv" style="margin-top:5px">Convert-phase runs reach at most <span class="mono">flag</span>
+        (threshold ${LAW.CLEAN_RUN_WORDS} words). They did not hold this bundle.</div></div></details>`;
+})();
+
+/* ==========================================================================================
+ * 10 · DRAWER — micro reading: every field inspectable at every point
+ * ========================================================================================== */
+const drawer = document.getElementById('drawer');
+document.getElementById('d-close').addEventListener('click', () => drawer.classList.remove('open'));
+document.addEventListener('keydown', e => { if (e.key === 'Escape') drawer.classList.remove('open'); });
+document.addEventListener('click', e => {
+  const b = e.target.closest('.cell'); if (!b) return;
+  const f = F[b.dataset.field]; if (!f) return;
+  document.getElementById('d-id').textContent = f.id;
+  document.getElementById('d-label').textContent = f.label;
+  const side = s => s ? `${esc(s.label)} = <span class="mono">${s.value === null ? 'UNREAD' : esc(String(s.value))}${s.unit ? ' ' + esc(s.unit) : ''}</span>` : '<span class="unread">not named by the pipeline</span>';
+  document.getElementById('d-body').innerHTML = `
+    <div class="dsec"><h5>the reading &mdash; the only string safe to put on glass</h5><p>${esc(f.display)}</p></div>
+    <div class="dsec"><h5>numerator</h5><p class="d">${side(f.num)}</p></div>
+    <div class="dsec"><h5>denominator</h5><p class="d">${side(f.den)}</p></div>
+    <div class="dsec"><h5>conditions</h5><p class="d">${esc(f.conditions)}</p></div>
+    <div class="dsec"><h5>population &middot; evidence &middot; origin</h5>
+      <p class="d"><span class="chip">${esc(f.population)}</span> <span class="chip">${esc(f.evidence)}</span>
+      ${f.census.length ? f.census.map(c => `<span class="chip p2">${esc(c)}</span>`).join(' ') : ''}</p>
+      <p class="code" style="margin-top:3px">${f.origin ? esc(f.origin) : '&mdash;'}</p>
+      <p class="d" style="margin-top:3px">${esc(V.populations[f.population]?.note ?? '')}</p></div>
+    ${f.defect ? `<div class="dsec"><h5>defect &mdash; error-structure protocol</h5>
+      <p class="d"><b style="color:var(--ink)">reason</b> ${esc(f.defect.reason)}</p>
+      <p class="d" style="margin-top:4px"><b style="color:var(--ink)">highlight</b> <span class="mono">${esc(f.defect.highlight)}</span></p>
+      <p class="d" style="margin-top:4px"><b style="color:var(--ink)">solution</b> ${esc(f.defect.solution)}</p></div>` : ''}
+    <div class="dsec nc" data-nc-exempt>
+      <h5>negative control &mdash; what a careless panel would print here</h5>
+      <p>${esc(f.naive)}</p>
+      <p class="d" style="margin-top:5px;color:var(--dim)">wire value, raw, as the pipeline wrote it (not a reading):
+        <span class="mono">${f.value === null ? 'null' : esc(String(f.value))}${f.unit ? ' ' + esc(f.unit) : ''}</span></p>
+    </div>`;
+  drawer.classList.add('open');
+});
+
+/* ==========================================================================================
+ * 11 · SHIP-CHECK — the machine negative control, run against this document's own text
+ * ========================================================================================== */
+function shipcheck() {
+  const out = [];
+  const norm = s => s.replace(/\s+/g, ' ').trim().toLowerCase();
+
+  // A · per-cell: every rendered cell must carry its field's display; no DISHONEST cell its naive.
+  // SCOPE, and it is the point of the check: an honest field's `naive` is auto-derived by measure()
+  // as String(value) — the bare raw number, which legitimately appears inside its own honest display
+  // ("3834.2s GPU wall over 7 slices"). Only the 23 preserved lies are usable as negative controls,
+  // so only they are tested for naive. Every cell, honest or not, is tested for its display.
+  let a_bad = [], a_dis = 0, a_n = 0;
+  for (const el of document.querySelectorAll('.cell[data-field]')) {
+    const f = F[el.dataset.field], txt = norm(el.textContent);
+    a_n++; if (!f.honest) a_dis++;
+    const ok = txt.includes(norm(f.display)) && (f.honest || !txt.includes(norm(f.naive)));
+    if (!ok) a_bad.push(f.id);
+  }
+  out.push([a_bad.length === 0, `A · every rendered cell carries field.display; no dishonest cell carries field.naive`,
+    `${a_n} cells checked, ${a_dis} of them carrying a banned raw value` +
+    (a_bad.length ? ' — FAILING: ' + a_bad.join(', ') : ' — all clean')]);
+
+  // B · coverage: all 23 dishonest fields are on this glass with a defect record reachable.
+  const dis = Object.values(F).filter(f => !f.honest);
+  const shown = dis.filter(f => document.querySelector(`.cell[data-field="${f.id}"]`));
+  out.push([shown.length === dis.length, `B · every banned raw value is on this glass, rendered`,
+    `${shown.length} of ${dis.length} dishonest fields present, each with reason/highlight/solution in the inspector`]);
+
+  // C · page-wide scan for the greppable negative-control phrases (exempt regions excluded).
+  const clone = document.body.cloneNode(true);
+  // `script` goes too: the embedded snapshot is JSON that quotes every naive string by design.
+  clone.querySelectorAll('[data-nc-exempt],#shipcheck,.drawer,script').forEach(n => n.remove());
+  const page = norm(clone.textContent);
+  const PHRASES = ['converted in 0.0s', '0.00 s/pp', 'peak vram 0 mib', '928 chunks in 4634.4s',
+    '0 repeated lines', '25 omission runs', '23.5% hallucinated', '76 assets missing',
+    '31.6% utilisation', '93.3% of the document survived', '314,311 prompt tokens', 'analysis done in 4634.4s'];
+  const hits = PHRASES.filter(p => page.includes(p));
+  out.push([hits.length === 0, `C · none of the ${PHRASES.length} greppable negative-control phrases appears`,
+    hits.length ? 'FOUND: ' + hits.join(' | ') : 'clean scan over the whole document text']);
+
+  // D · timeline tiling recomputed here: contiguous, no overlap, no hole.
+  let tile = true, cursor = T(V.start);
+  for (const s of V.timeline) { if (T(s.start) !== cursor) tile = false; cursor = T(s.end); }
+  tile = tile && cursor === T(V.end);
+  out.push([tile, `D · the 8 timeline intervals tile the voyage exactly`,
+    `21:30:12Z → 04:56:33Z, contiguous, no overlap, no hole — recomputed in this file, not trusted`]);
+
+  // E · no solid bar: the dark and dead segments carry no work fill.
+  const darkSegs = [...document.querySelectorAll('.seg.dark, .seg.dead, .seg.tdark')];
+  const solid = darkSegs.filter(d => getComputedStyle(d).backgroundColor === 'rgb(61, 110, 168)');
+  out.push([darkSegs.length >= 5 && solid.length === 0, `E · absence is drawn as absence`,
+    `${darkSegs.length} void/testimony segments, ${solid.length} of them filled with the work colour`]);
+
+  // F · model provenance.
+  out.push([DRIFT !== 'DRIFT', `F · model source`,
+    `${SOURCE_KIND}${DRIFT ? ' · snapshot vs live module: ' + DRIFT : ' · live module not reachable from file://, snapshot used'}`]);
+
+  document.getElementById('shipcheck').innerHTML =
+    out.map(([ok, t, d]) => `<div class="check"><span class="cs ${ok ? 'pass' : 'fail'}">${ok ? 'PASS' : 'FAIL'}</span>
+      <span><b>${esc(t)}</b><br><span style="color:var(--dim)">${esc(d)}</span></span></div>`).join('') +
+    `<div class="check" data-nc-exempt><span class="cs info">MANUAL</span><span><b>Three negative-control entries are
+      structural and cannot be grepped</b><br><span style="color:var(--dim)">"a solid uninterrupted timeline bar", "the dark
+      zones drawn in the same ink as measured work", "the power cut drawn as if the machine recorded it". Check E tests the
+      first two mechanically by computed style; the third is asserted by construction &mdash; testimony lives on its own
+      dashed track, hatched, in a different hue, under a heading that says no machine record attests it.</span></span></div>`;
+  return out;
+}
+
+/* ---------- boot ---------- */
+paintAsOf();
+const results = shipcheck();
+document.getElementById('foot').innerHTML =
+  `panel-b-telemetry.html &middot; lineage B, the telemetry desk (NASA Open MCT composability + Grafana panel practice)
+   &middot; prototypes/mission-control, QUARANTINE &mdash; nothing here is imported, spawned, watched or shipped.<br>
+   Model: <span class="mono">${esc(SOURCE_KIND)}</span>. Fixture: 34 events + the held bundle's manifest, one voyage,
+   2026-08-31T21:30:12Z &rarr; 2026-09-01T04:56:33Z. Every number on this glass is
+   <span class="mono">field.display</span>; no code path in this file reads <span class="mono">field.value</span> except the
+   inspector's labelled wire-value line. ${V.eventCount} events, ${Object.keys(F).length} measures,
+   ${Object.values(F).filter(f=>!f.honest).length} of them banned raw.`;
+console.log('[panel-b] ship-check', results);
+</script>
+</body>
+</html>

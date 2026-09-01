@@ -1,0 +1,624 @@
+{
+  "analyst": {
+    "model": "qwen3:8b",
+    "backend": "local",
+    "program": "readability",
+    "chunks_passed": 928,
+    "chunks_rejected": 29,
+    "chunks_failed": 0,
+    "chunks_resumed": 641,
+    "chunks_generated": 316,
+    "duration_s": 4634.4,
+    "tokens_prompt_total": 314311,
+    "tokens_prompt_counted_calls": 316,
+    "tokens_output_total": 279174,
+    "tokens_counted_calls": 316,
+    "tokens_accepted_output": 275162,
+    "goodput_accepted_tok_s": 59.37,
+    "goodput_conditions": "THIS-run accepted-output tokens / whole-phase wall seconds (wall includes resumed-chunk skips, API pacing, and the terminal model unload; prompt totals are partial sums over tokens_prompt_counted_calls — cached prefills report none)"
+  },
+  "fidelity": {
+    "version": 1,
+    "convert": {
+      "kind": "fidelity",
+      "doc_survival": 0.9334,
+      "pages_scored": 1372,
+      "pages_flagged": [
+        3,
+        9,
+        10,
+        30,
+        60,
+        62,
+        63,
+        65,
+        78,
+        82,
+        104,
+        108,
+        110,
+        119,
+        127,
+        131,
+        134,
+        145,
+        153,
+        164,
+        165,
+        167,
+        169,
+        171,
+        172,
+        174,
+        177,
+        178,
+        180,
+        185,
+        195,
+        249,
+        251,
+        258,
+        271,
+        288,
+        291,
+        303,
+        308,
+        309,
+        314,
+        318,
+        319,
+        329,
+        330,
+        332,
+        335,
+        346,
+        351,
+        353,
+        355,
+        373,
+        375,
+        376,
+        377,
+        382,
+        383,
+        394,
+        399,
+        400,
+        401,
+        403,
+        413,
+        417,
+        420,
+        431,
+        435,
+        439,
+        440,
+        442,
+        455,
+        456,
+        457,
+        462,
+        489,
+        490,
+        505,
+        507,
+        510,
+        511,
+        512,
+        514,
+        517,
+        521,
+        522,
+        524,
+        525,
+        530,
+        531,
+        533,
+        536,
+        537,
+        538,
+        539,
+        541,
+        542,
+        543,
+        556,
+        557,
+        561,
+        562,
+        563,
+        567,
+        568,
+        570,
+        580,
+        585,
+        596,
+        602,
+        608,
+        609,
+        610,
+        618,
+        622,
+        638,
+        639,
+        654,
+        655,
+        656,
+        657,
+        676,
+        678,
+        679,
+        692,
+        694,
+        695,
+        696,
+        702,
+        708,
+        709,
+        710,
+        711,
+        712,
+        713,
+        714,
+        721,
+        732,
+        742,
+        743,
+        744,
+        746,
+        748,
+        749,
+        750,
+        751,
+        752,
+        754,
+        755,
+        757,
+        766,
+        767,
+        773,
+        774,
+        791,
+        794,
+        795,
+        796,
+        799,
+        800,
+        807,
+        828,
+        834,
+        836,
+        837,
+        841,
+        842,
+        843,
+        844,
+        847,
+        850,
+        855,
+        856,
+        861,
+        873,
+        878,
+        879,
+        880,
+        892,
+        896,
+        901,
+        902,
+        903,
+        909,
+        911,
+        913,
+        916,
+        917,
+        922,
+        938,
+        943,
+        944,
+        946,
+        952,
+        960,
+        971,
+        975,
+        992,
+        995,
+        996,
+        997,
+        999,
+        1002,
+        1015,
+        1023,
+        1048,
+        1061,
+        1063,
+        1064,
+        1068,
+        1071,
+        1074,
+        1078,
+        1083,
+        1084,
+        1093,
+        1099,
+        1102,
+        1106,
+        1110,
+        1113,
+        1119,
+        1122,
+        1124,
+        1134,
+        1146,
+        1152,
+        1157,
+        1158,
+        1159,
+        1160,
+        1161,
+        1162,
+        1163,
+        1170,
+        1172,
+        1180,
+        1185,
+        1196,
+        1197,
+        1207,
+        1209
+      ],
+      "runs": [
+        {
+          "page": 757,
+          "words": 154,
+          "excerpt": "year. valuing famous using these inputs, you can estimate the"
+        },
+        {
+          "page": 946,
+          "words": 120,
+          "excerpt": "firm (no synergy) cost of equity = 8.93% 9.37% 9.12%"
+        },
+        {
+          "page": 3,
+          "words": 116,
+          "excerpt": "measuring earnings and profitability measuring risk other issues in analyzing"
+        },
+        {
+          "page": 10,
+          "words": 108,
+          "excerpt": "cash-flow-producing assets collectibles trophy assets conclusion questions and short problems"
+        },
+        {
+          "page": 746,
+          "words": 108,
+          "excerpt": "growth by using a two-stage firm valuation model: ev forward"
+        },
+        {
+          "page": 1134,
+          "words": 108,
+          "excerpt": "revenues) = (40/200)(200 × . 03) = $1.2million expected free"
+        },
+        {
+          "page": 9,
+          "words": 106,
+          "excerpt": "what makes private firms different? estimating valuation inputs at private"
+        },
+        {
+          "page": 375,
+          "words": 96,
+          "excerpt": "$ 0 0.00% 1 $ 292 −$125 $266 $ 0"
+        },
+        {
+          "page": 561,
+          "words": 96,
+          "excerpt": "are estimated in the following calculations: reinvestmentrate = adjustedebit(1 −t)"
+        },
+        {
+          "page": 654,
+          "words": 96,
+          "excerpt": "trailing pe = payout ratio(1 + g)(1 − (1 +"
+        },
+        {
+          "page": 556,
+          "words": 93,
+          "excerpt": "of 2010 yields a value for the equity: reinvestment ="
+        },
+        {
+          "page": 174,
+          "words": 84,
+          "excerpt": "1/12, σ2 = 0.05, r = 0.04 the value from"
+        },
+        {
+          "page": 710,
+          "words": 84,
+          "excerpt": "per share0 = eps1 × payout ratio × [1 −"
+        },
+        {
+          "page": 799,
+          "words": 84,
+          "excerpt": "years-deutsche bank in 2009 current 1 2 3 4 5"
+        },
+        {
+          "page": 892,
+          "words": 84,
+          "excerpt": "is σj, and that the standard deviation in the market"
+        },
+        {
+          "page": 909,
+          "words": 84,
+          "excerpt": "the inputs to valuation for different valuation motives. illiquidity discountbase"
+        },
+        {
+          "page": 916,
+          "words": 84,
+          "excerpt": "in table 24.6: table 24.6 expected cash flows and present"
+        },
+        {
+          "page": 1068,
+          "words": 84,
+          "excerpt": "15% 1 $150.00 $120.00 $ 30.00 $ 26.09 2 $180.00"
+        },
+        {
+          "page": 1159,
+          "words": 84,
+          "excerpt": "year ebit(1 − t) from assets in place $ 0.00"
+        },
+        {
+          "page": 1161,
+          "words": 83,
+          "excerpt": "next 10 years: terminal value = ebit10(1 −tax rate)(1 +"
+        },
+        {
+          "page": 742,
+          "words": 80,
+          "excerpt": "firm can be extracted from a stable growth dividend discount"
+        },
+        {
+          "page": 580,
+          "words": 72,
+          "excerpt": "divisions, with other assets added in: table 15.10 value of"
+        },
+        {
+          "page": 609,
+          "words": 72,
+          "excerpt": "from segovia's consolidated assets = $300 million valueofseville'soperatingassets = ebit"
+        },
+        {
+          "page": 750,
+          "words": 72,
+          "excerpt": "sales do not increase proportionately. expectedgrowthnetincome = retentionratio × returnonequity"
+        },
+        {
+          "page": 754,
+          "words": 72,
+          "excerpt": "equity per share is $10. the cost of capital for"
+        }
+      ],
+      "runs_total": 531,
+      "runs_capped_at": 25,
+      "tripwires": {
+        "degeneration": true,
+        "degeneration_detail": {
+          "flagged": true,
+          "repeated_lines": 0,
+          "md_lines": 29696,
+          "worst": [
+            {
+              "line": 5524,
+              "chars": 34523,
+              "zlib": 0.023,
+              "max_trigram": 129,
+              "excerpt": "| Betas and Operating Leverage—Shoe Companies<br>Company Name<br>Beta<br>Market D/E<br>Fixed/Variable<br>Barry"
+            },
+            {
+              "line": 7068,
+              "chars": 4799,
+              "zlib": 0.041,
+              "max_trigram": 42,
+              "excerpt": "| 11<br>This will happen only if the marketable"
+            },
+            {
+              "line": 12456,
+              "chars": 1886,
+              "zlib": 0.045,
+              "max_trigram": 139,
+              "excerpt": "| holdings in other publicly traded firms. |"
+            },
+            {
+              "line": 18584,
+              "chars": 873,
+              "zlib": 0.052,
+              "max_trigram": 180,
+              "excerpt": "| standing. | | | | |-----------|--|--|--| |"
+            },
+            {
+              "line": 18065,
+              "chars": 2111,
+              "zlib": 0.064,
+              "max_trigram": 40,
+              "excerpt": "| that the growth rate in stable growth"
+            },
+            {
+              "line": 11339,
+              "chars": 2413,
+              "zlib": 0.067,
+              "max_trigram": 43,
+              "excerpt": "| negative consequences. In fact, we count the"
+            },
+            {
+              "line": 8795,
+              "chars": 3005,
+              "zlib": 0.074,
+              "max_trigram": 62,
+              "excerpt": "<span id=\"page-439-6\"></span> $$\\begin{array}{lll} {\\rm ROC} + {\\rm D/E}"
+            },
+            {
+              "line": 20481,
+              "chars": 4799,
+              "zlib": 0.09,
+              "max_trigram": 57,
+              "excerpt": "| Inbev | SAB Miller | Combined firm"
+            },
+            {
+              "line": 19370,
+              "chars": 1259,
+              "zlib": 0.108,
+              "max_trigram": 136,
+              "excerpt": "| Interest Coverage Ratios and Bond Ratings |"
+            },
+            {
+              "line": 602,
+              "chars": 4724,
+              "zlib": 0.143,
+              "max_trigram": 165,
+              "excerpt": "| | Table 14.2 Expected dividends and Present"
+            }
+          ],
+          "blocks_total": 24,
+          "worst_capped_at": 10
+        },
+        "page_coverage": {
+          "with_text": 1372,
+          "surviving": 1369
+        },
+        "asset_delta": 76,
+        "embedded_images": 232,
+        "reverse_sample": 0.765,
+        "dict_hit": null,
+        "garbage_rate": null
+      }
+    },
+    "verdict": "fail",
+    "analyst": {
+      "doc_survival": 0.9402,
+      "runs": [
+        {
+          "page": null,
+          "words": 576,
+          "excerpt": "{1 - t} \\right)/{\\rm e}} \\\\ & - & {\\rm"
+        },
+        {
+          "page": null,
+          "words": 372,
+          "excerpt": "evokes strong positive and negative reactions. can you avoid being"
+        },
+        {
+          "page": null,
+          "words": 312,
+          "excerpt": "assumed to be diversified? the argument that diversification reduces an"
+        },
+        {
+          "page": null,
+          "words": 240,
+          "excerpt": "valuing a private equity stake assume that you work for"
+        },
+        {
+          "page": null,
+          "words": 192,
+          "excerpt": "1997 sales \\$10,346 \\$10,696 \\$ 9,881 service and rentals \\$"
+        },
+        {
+          "page": null,
+          "words": 156,
+          "excerpt": "a brand name using the enterprise value to sales ratio"
+        },
+        {
+          "page": null,
+          "words": 144,
+          "excerpt": "following information about these investments (in \\$millions) in table 16.2:"
+        },
+        {
+          "page": null,
+          "words": 132,
+          "excerpt": "there are many academics as well as practitioners, who suggest"
+        },
+        {
+          "page": null,
+          "words": 132,
+          "excerpt": "regression is undervalued (overvalued) relative to the market. the first"
+        },
+        {
+          "page": null,
+          "words": 132,
+          "excerpt": "sachs 1 2 3 4 5 net income \\$ 9,118"
+        },
+        {
+          "page": null,
+          "words": 132,
+          "excerpt": "deal is: cost of takeover buy-back stock: \\$38 × 12.2"
+        },
+        {
+          "page": null,
+          "words": 120,
+          "excerpt": "roic in 2017 roic: 2013- 2017 cost of capital power"
+        },
+        {
+          "page": null,
+          "words": 120,
+          "excerpt": "noncash and cash assets: betaofthefirm = betaoperatingassets × weightoperatingassets+ betacashassets"
+        },
+        {
+          "page": null,
+          "words": 120,
+          "excerpt": "dividend discount model: $$value of equity = \\frac{dividends1}{\\left(cost of equity"
+        },
+        {
+          "page": null,
+          "words": 120,
+          "excerpt": "wacc pv 1 \\$ 358,394 \\$ 62,719 35.00% 10.50% \\$"
+        },
+        {
+          "page": null,
+          "words": 120,
+          "excerpt": "undervalued % time value lowest value highest value a \\$"
+        },
+        {
+          "page": null,
+          "words": 108,
+          "excerpt": "changes suggested: 1999 1998 1997 net income from continuing operations"
+        },
+        {
+          "page": null,
+          "words": 108,
+          "excerpt": "capital maintenance fcff wacc4 cumulated wacc5 pv 6 \\$45.53 \\$5.20"
+        },
+        {
+          "page": null,
+          "words": 108,
+          "excerpt": "year \\$ 3,626 (\\$ 818) 1 \\$ 4,692 \\$1,066 (\\$"
+        },
+        {
+          "page": null,
+          "words": 108,
+          "excerpt": "improving the odds if the message that you have received"
+        },
+        {
+          "page": null,
+          "words": 108,
+          "excerpt": "in place \\$ 100.00 + eva from assets in place"
+        },
+        {
+          "page": null,
+          "words": 96,
+          "excerpt": "to valuation and the business. business stories: spanning the spectrum"
+        },
+        {
+          "page": null,
+          "words": 96,
+          "excerpt": "telstra adr 21.70 27.66 -21.55% based on the predicted pe"
+        },
+        {
+          "page": null,
+          "words": 96,
+          "excerpt": "is \\$1,529 million, and the consolidated debt outstanding at the"
+        },
+        {
+          "page": null,
+          "words": 96,
+          "excerpt": "corporate bonds gold real estate 1930- 39 −1.92% 0.07% 4.27%"
+        }
+      ],
+      "runs_total": 404,
+      "runs_capped_at": 25
+    }
+  }
+}
