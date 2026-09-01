@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import base64
 import http.client
+import inspect
 import json
 import os
 import re
@@ -380,10 +381,54 @@ class TestM6Completeness(unittest.TestCase):
         self.assertEqual("2 of 2", counts["zones"]["label"])
         helper = js_function_body(EVENT_VOCAB, "countOfTotal")
         self.assertIn("`${shown} of ${total}`", helper)
+        self.assertIn('shownOk ? shown : "?"', helper)
         self.assertIn("total UNREAD", helper)
         self.assertIn("re-convert to measure totals", helper)
-        self.assertIn("countOfTotal(runs.length, st.runs_total, 25)", WIDGET_MAIN)
-        self.assertIn("countOfTotal(zones.length, a.zones_total, 10)", WIDGET_ROOM)
+        self.assertIn(
+            "countOfTotal(runs.length, st.runs_total, st.runs_capped_at ?? 25)",
+            WIDGET_MAIN)
+        self.assertIn(
+            "countOfTotal(zones.length, a.zones_total, a.zones_capped_at ?? 10)",
+            WIDGET_ROOM)
+
+    def test_display_limits_do_not_corrupt_manifest_completeness(self):
+        subject = self._bench(runs=60, zones=0, runs_total=531, zones_total=0,
+                              runs_cap=100, zones_cap=10)
+        count = subject.state()["evidence_counts"]["runs"]
+        self.assertEqual(
+            ("partial", 531, 471, "60 of 531", "full-evidence review required"),
+            (count["completeness"], count["total"], count["unseen"],
+             count["label"], count["remedy"]))
+        self.assertNotIn("display_cap", inspect.signature(bench.evidence_count).parameters)
+
+        display = js_function_body(EVENT_VOCAB, "displaySliceNote")
+        self.assertIn("available <= limit", display)
+        self.assertIn("open Repair Bench for the full retained list", display)
+        for source in (WIDGET_MAIN, WIDGET_ROOM):
+            self.assertIn('displaySliceNote(runs.length, 40, "map")', source)
+            self.assertIn('displaySliceNote(runs.length, 3, "details")', source)
+
+    def test_producer_cap_overflow_remains_malformed(self):
+        subject = self._bench(runs=101, zones=0, runs_total=531, zones_total=0,
+                              runs_cap=100, zones_cap=10)
+        count = subject.state()["evidence_counts"]["runs"]
+        self.assertEqual("malformed", count["completeness"])
+        self.assertIsNone(count["total"])
+        self.assertIn("producer cap of 100", count["reason"])
+
+    def test_rescore_counts_the_retained_list_not_an_arbitrary_preview_slice(self):
+        subject = self._bench(runs=0, zones=0, runs_total=0, zones_total=0,
+                              runs_cap=25, zones_cap=10)
+        fake = types.SimpleNamespace(degeneration=lambda _body: {
+            "flagged": True, "worst": self._zones(8),
+            "blocks_total": 8, "worst_capped_at": 10})
+        with mock.patch.dict(sys.modules, {"fidelity_audit": fake}):
+            preview = subject.rescore_preview()
+        current = preview["degeneration_now"]
+        self.assertEqual(8, len(current["zones"]))
+        self.assertEqual(("complete", 8, "8 of 8"),
+                         (current["count"]["completeness"],
+                          current["count"]["total"], current["count"]["label"]))
 
     def test_malformed_or_contradictory_totals_are_unread_and_fail_closed(self):
         for bad in (True, "634", -1, 6):

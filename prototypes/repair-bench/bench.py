@@ -77,7 +77,6 @@ MIN_CYCLE_REPEATS = 8      # fewer repeats is emphasis or a refrain, not a stuck
 MAX_CYCLE_PERIOD = 12      # tokens; the longest cycle we are willing to call a loop
 LEGACY_RUN_CAP = 25        # pre-NUM-3 manifests omitted totals but used these source caps
 LEGACY_ZONE_CAP = 10
-BENCH_RUN_DISPLAY_CAP = 40
 TOTAL_UNREAD_REMEDY = "re-convert to measure totals"
 FULL_EVIDENCE_REMEDY = "full-evidence review required"
 _MISSING = object()
@@ -92,15 +91,15 @@ def _strict_count(value) -> int | None:
     return value if isinstance(value, int) and not isinstance(value, bool) and value >= 0 else None
 
 
-def evidence_count(shown: int, raw_total=_MISSING, raw_cap=_MISSING, *, legacy_cap: int,
-                   display_cap: int | None = None) -> dict:
-    """Describe whether a displayed audit list is the complete review population.
+def evidence_count(shown: int, raw_total=_MISSING, raw_cap=_MISSING, *,
+                   legacy_cap: int) -> dict:
+    """Describe whether a retained audit list is the complete review population.
 
     Legacy manifests are exact only below the historical producer cap. At the cap, absence
     of a total means UNREAD; a malformed or contradictory declaration also fails closed.
-    The optional display cap accounts for a consumer that shows fewer entries than the
-    producer retained. This record is the one count vocabulary used by state, coverage,
-    preview, report, and the glass.
+    Display limits are deliberately outside this record: a surface hiding some retained rows
+    cannot make the manifest malformed. This is the one completeness vocabulary used by state,
+    coverage, preview, report, and the glass.
     """
     shown = int(shown)
     declared_cap = legacy_cap if raw_cap is _MISSING else _strict_count(raw_cap)
@@ -112,18 +111,17 @@ def evidence_count(shown: int, raw_total=_MISSING, raw_cap=_MISSING, *, legacy_c
             "remedy": TOTAL_UNREAD_REMEDY,
             "reason": "audit list cap is malformed",
         }
-    effective_cap = min(declared_cap, display_cap) if display_cap else declared_cap
-    if shown > effective_cap:
+    if shown > declared_cap:
         return {
             "shown": shown, "total": None, "capped_at": declared_cap,
             "completeness": "malformed", "complete": False, "unseen": None,
             "label": f"{shown} of at least {shown} — total UNREAD",
             "remedy": TOTAL_UNREAD_REMEDY,
-            "reason": f"shown count exceeds its cap of {effective_cap}",
+            "reason": f"shown count exceeds its producer cap of {declared_cap}",
         }
 
     if raw_total is _MISSING:
-        if shown < effective_cap:
+        if shown < declared_cap:
             return {
                 "shown": shown, "total": shown, "capped_at": declared_cap,
                 "completeness": "complete", "complete": True, "unseen": 0,
@@ -325,7 +323,7 @@ class Bench:
             "runs": evidence_count(
                 len(self.runs()) if runs_shown is None else runs_shown,
                 conv.get("runs_total", _MISSING), conv.get("runs_capped_at", _MISSING),
-                legacy_cap=LEGACY_RUN_CAP, display_cap=BENCH_RUN_DISPLAY_CAP),
+                legacy_cap=LEGACY_RUN_CAP),
             "zones": evidence_count(
                 len(self.zones()) if zones_shown is None else zones_shown,
                 detail.get("blocks_total", _MISSING),
@@ -471,7 +469,9 @@ class Bench:
         md_lines = int(det_md_lines or body_lines)
         reps = self.manifest.get("repairs", [])
         runs = []
-        for r in self.runs()[:40]:
+        # The producer already bounds this retained list. A second 40-row slice hid reviewable
+        # sites and made the state count disagree with the manifest population.
+        for r in self.runs():
             at = self._resolve_run_line(r)
             oc, why = self._outcome(self.run_key(r), at)
             runs.append({**r, "anchor_line": at, "key": self.run_key(r),
@@ -1852,10 +1852,13 @@ class Bench:
         else:
             why = ("nothing left open — but image-restored and dismissed-noise are HUMAN "
                    "assertions, so this is a recommendation for the bless rail, not a pass")
-        current_zones = (det.get("worst") or [])[:6]
+        # `worst` is already bounded by fidelity_audit's producer cap. A second display slice
+        # used to corrupt completeness by treating the preview's six-row UI limit as a
+        # manifest defect. Return the retained producer list; the status line renders its count.
+        current_zones = det.get("worst") or []
         current_count = evidence_count(
             len(current_zones), det.get("blocks_total", _MISSING),
-            det.get("worst_capped_at", _MISSING), legacy_cap=LEGACY_ZONE_CAP, display_cap=6)
+            det.get("worst_capped_at", _MISSING), legacy_cap=LEGACY_ZONE_CAP)
         return {
             "preview": True,
             "note": ("PREVIEW ONLY — the shipping audit re-runs in the pipeline, and whether a "

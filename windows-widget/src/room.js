@@ -7,7 +7,7 @@
 // The source object's `renderVals()` computed a view-model from a simulation; this rebuilds
 // the same view-model shape from real commands. The markup below is the lifted Room markup.
 
-import { eventPhrase, countOfTotal } from "./event-vocab.js";
+import { eventPhrase, countOfTotal, displaySliceNote } from "./event-vocab.js";
 
 const { invoke } = window.__TAURI__.core;
 
@@ -431,19 +431,24 @@ function assayPanel(d) {
       const w = clamp(((z.chars || 0) / (mdLines * 45)) * 100, 2, 8);
       return `<span class="z degen" style="left:${left.toFixed(1)}%;width:${w.toFixed(1)}%"></span>`;
     }).join("");
-    map = `<div class="ac-caption"><b>degeneration</b> — ${countOfTotal(zones.length, a.zones_total, 10)} loop zone(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
+    map = `<div class="ac-caption"><b>degeneration</b> — ${countOfTotal(zones.length, a.zones_total, a.zones_capped_at ?? 10)} loop zone(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
   } else if (runs.length && a.pages_scored) {
     const bands = runs.slice(0, 40).map((r) =>
       `<span class="z run" style="left:${clamp((r.page || 0) / a.pages_scored * 100, 0, 98).toFixed(1)}%;width:1.5%"></span>`).join("");
-    map = `<div class="ac-caption">${countOfTotal(runs.length, a.runs_total, 25)} omission run(s) · ${esc(a.kind)} lane</div><div class="ac-map">${bands}</div>`;
+    const mapSlice = displaySliceNote(runs.length, 40, "map");
+    map = `<div class="ac-caption">${countOfTotal(runs.length, a.runs_total, a.runs_capped_at ?? 25)} omission run(s) · ${esc(a.kind)} lane${mapSlice ? ` · ${esc(mapSlice)}` : ""}</div><div class="ac-map">${bands}</div>`;
   }
   let list = "";
   if (a.degeneration && zones.length) {
+    const detailSlice = displaySliceNote(zones.length, 3, "details");
     list = "<ul class=\"ac-runs\">" + zones.slice(0, 3).map((z) =>
-      `<li><span class="k">${Number(z.chars || 0).toLocaleString()} ch</span> · tri×${z.max_trigram} · <q>"${esc(words(z.excerpt, 6))}…"</q></li>`).join("") + "</ul>";
+      `<li><span class="k">${Number(z.chars || 0).toLocaleString()} ch</span> · tri×${z.max_trigram} · <q>"${esc(words(z.excerpt, 6))}…"</q></li>`).join("") +
+      (detailSlice ? `<li>${esc(detailSlice)}</li>` : "") + "</ul>";
   } else if (runs.length) {
+    const detailSlice = displaySliceNote(runs.length, 3, "details");
     list = "<ul class=\"ac-runs\">" + runs.slice(0, 3).map((r) =>
-      `<li><span class="k">p${r.page}</span> · ${r.words} words · <q>"${esc(words(r.excerpt, 6))}…"</q></li>`).join("") + "</ul>";
+      `<li><span class="k">p${r.page}</span> · ${r.words} words · <q>"${esc(words(r.excerpt, 6))}…"</q></li>`).join("") +
+      (detailSlice ? `<li>${esc(detailSlice)}</li>` : "") + "</ul>";
   }
   // Stage C (docs/18 §5.4): ✓ bless renders on flag AND fail cards because local manifests can
   // lag the staged truth (Cybernetics: desktop manifests say fail, the staged re-convert is
@@ -526,7 +531,7 @@ function numerationsPanel(d) {
     ["N062", "retry GPU spend", v(conv.retry_wall_s, "s")],
     ["N063", "slices resumed", v(conv.resumed_slices)],
     ["N064", "book true cost", v(conv.cost_s, "s")],
-    ["N316", "omission runs", sc.runs != null ? countOfTotal(sc.runs, sc.runs_total, 25) : "—"],
+    ["N316", "omission runs", sc.runs != null ? countOfTotal(sc.runs, sc.runs_total, sc.runs_capped_at ?? 25) : "—"],
     ["N286", "analyst goodput", v(an.goodput_accepted_tok_s, " tok/s")],
     ["N006", "chunks generated", v(an.chunks_generated)],
     ["N055", "promise scope", est.pages_this_run != null ? `${est.pages_this_run}pp this run` : "—"],

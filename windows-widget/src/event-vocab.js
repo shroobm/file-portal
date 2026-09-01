@@ -6,16 +6,29 @@
 // NUM-3 + M6-R1 (signed 2026-08-31): the one way a capped count may reach any glass.
 // Known totals use N of M even when the list is complete. A legacy list is exact only below
 // its producer cap; at/over the cap (or with a malformed total) it names both UNREAD and the
-// operator's remedy instead of letting the shown count masquerade as the population.
-export function countOfTotal(shown, total, cap = null) {
+// operator's remedy instead of letting the retained count masquerade as the population.
+// UI display limits never enter this decision; displaySliceNote reports them independently.
+export function countOfTotal(shown, total, producerCap = null) {
   const shownOk = typeof shown === "number" && Number.isInteger(shown) && shown >= 0;
   const totalOk = shownOk && typeof total === "number" && Number.isInteger(total) && total >= shown;
-  const capOk = typeof cap === "number" && Number.isInteger(cap) && cap > 0;
-  if (shownOk && totalOk) return `${shown} of ${total}`;
-  if ((total != null && !totalOk) || (cap != null && !capOk) || (capOk && shown >= cap)) {
+  const capOk = typeof producerCap === "number" && Number.isInteger(producerCap) && producerCap > 0;
+  const shownLabel = shownOk ? shown : "?";
+  if (!shownOk || (producerCap != null && !capOk) || (capOk && shown > producerCap) ||
+      (total != null && !totalOk)) {
+    return `${shownLabel} of at least ${shownLabel} — total UNREAD · re-convert to measure totals`;
+  }
+  if (totalOk) return `${shown} of ${total}`;
+  if (capOk && shown >= producerCap) {
     return `${shown} of at least ${shown} — total UNREAD · re-convert to measure totals`;
   }
   return `${shown}`;
+}
+
+export function displaySliceNote(available, limit, surface) {
+  const availableOk = typeof available === "number" && Number.isInteger(available) && available >= 0;
+  const limitOk = typeof limit === "number" && Number.isInteger(limit) && limit > 0;
+  if (!availableOk || !limitOk || available <= limit) return "";
+  return `${surface} shows first ${limit} of ${available} · open Repair Bench for the full retained list`;
 }
 
 export function eventPhrase(e, { compact = false, unknown = null } = {}) {

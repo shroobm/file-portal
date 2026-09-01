@@ -165,7 +165,9 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
         // NUM-3 (2026-08-31): the TRUE pre-cap counts ride beside the capped lists so the
         // glass can say "25 of 634" instead of SYM-066's bare "25". Null on legacy audits.
         "runs_total": conv.get("runs_total").cloned().unwrap_or(serde_json::Value::Null),
+        "runs_capped_at": conv.get("runs_capped_at").cloned().unwrap_or(serde_json::Value::Null),
         "zones_total": degen.get("blocks_total").cloned().unwrap_or(serde_json::Value::Null),
+        "zones_capped_at": degen.get("worst_capped_at").cloned().unwrap_or(serde_json::Value::Null),
         "analyst": fid["analyst"],
         "assets_out": assets_out,
         "embedded_images": conv["tripwires"]["embedded_images"],
@@ -753,6 +755,45 @@ mod tests {
             st["embedded_images"].is_null(),
             "embedded_images must be null"
         );
+        let _ = fs::remove_dir_all(&base);
+    }
+
+    #[test]
+    fn projects_evidence_totals_with_their_producer_caps() {
+        let source = "count-contract.pdf";
+        let base = fixture(source);
+        write_manifest(
+            &base,
+            "anchor",
+            "count-contract",
+            serde_json::from_str(
+                r#"{
+                    "source": "count-contract.pdf",
+                    "fidelity": {
+                        "verdict": "fail",
+                        "convert": {
+                            "runs": [{"page": 1}],
+                            "runs_total": 531,
+                            "runs_capped_at": 100,
+                            "tripwires": {
+                                "degeneration": true,
+                                "degeneration_detail": {
+                                    "worst": [{"line": 4}],
+                                    "blocks_total": 8,
+                                    "worst_capped_at": 10
+                                }
+                            }
+                        }
+                    }
+                }"#,
+            )
+            .unwrap(),
+        );
+        let st = status(base.to_str().unwrap()).unwrap();
+        assert_eq!(st["runs_total"], json!(531));
+        assert_eq!(st["runs_capped_at"], json!(100));
+        assert_eq!(st["zones_total"], json!(8));
+        assert_eq!(st["zones_capped_at"], json!(10));
         let _ = fs::remove_dir_all(&base);
     }
 }
