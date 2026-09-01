@@ -32,6 +32,10 @@ from pathlib import Path
 import pymupdf
 
 import fp_paths
+# J24: the block-record sidecar's PURE half (page correction + merge). Imported at module level
+# on purpose — marker_blocks defers every `marker` import into main(), so this costs nothing and
+# cannot make the converter unimportable when the engine is broken.
+import marker_blocks
 from events import emit
 
 # ---------- Survival Audit hooks (docs/15) — report-only, never raise ----------
@@ -87,6 +91,20 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
 
 
 MARKER = Path(r"C:\Users\Bndit\ml\marker-env\Scripts\marker_single.exe")
+# J24 (signed Rab 2026-09-01): the block-record sidecar — a marker_single drop-in that renders
+# the SAME built document twice (markdown, then chunks) so page/polygon/bbox stop being computed
+# and thrown away. See marker_blocks.py's docstring for why it is a subprocess and not an import:
+# _run_marker's stall monitor, tree-kill, pipe drain and page-scaled timeout are all
+# subprocess-shaped, and none of them change here.
+MARKER_BLOCKS = Path(__file__).resolve().with_name("marker_blocks.py")
+# DERIVED from MARKER, never retyped (SYM-039's rule): the sidecar must run under the SAME
+# interpreter marker_single.exe wraps, or it imports a different marker than the one measured.
+MARKER_PYTHON = MARKER.with_name("python.exe")
+# The kill-switch. `FP_BLOCKS=off` puts this file back on marker_single.exe byte for byte —
+# no lever file, because a lever is a promise to keep it working, and this is the escape hatch
+# for the case where it is NOT working. Costs nothing when unset (the normal case).
+BLOCKS_ENV = "FP_BLOCKS"
+BLOCKS_BUNDLE_FILE = "blocks.json"  # the name inside the bundle, beside manifest.json
 ANCHOR = fp_paths.root("anchor")
 PENDING = fp_paths.root("pending")  # deferred-analyst queue (widget card)
 HELD = fp_paths.root("held")  # audit-failed bundles (enforce mode; assay card)
@@ -618,6 +636,53 @@ def _stamp_supersede_safe(manifest: dict, marker: dict | None, source_sha: str, 
         emit("audit", "error", phase="supersede", error=str(exc)[:150])
 
 
+# ---------- J24: the block records join the bundle (signed Rab 2026-09-01) ----------
+
+def _attach_blocks_safe(tmp_dir: Path, manifest: dict, chunk_stats: dict, name: str) -> None:
+    """Move the merged block records INTO the bundle and stamp their summary on the manifest.
+
+    In the bundle's own directory, beside manifest.json, because that is the only way they
+    travel: every downstream path — the anchor copytree, pending/<id>, held/<sha16>, and the
+    `tar -cf - -C tmp_dir .` that ships to the ThinkPad — carries the whole directory. A file
+    left in the work dir would exist for one process and then be gone.
+
+    The manifest gets the COUNTS, never the blocks: manifest.json is read by hand and by the
+    exporter, and a 1,377-page book's blocks are megabytes. `complete` is the honesty flag —
+    false when a slice contributed none (a pre-J24 cached slice, a marker_single fallback, a
+    failed chunk render), because a partial record that presented itself as whole would be
+    SYM-053's own disease one level up.
+
+    Never raises (docs/15 §8's fail-safe rule): with no blocks, or on any fault here, the bundle
+    is byte-for-byte a pre-J24 bundle and the book ships exactly as it does today."""
+    try:
+        summary = chunk_stats.get("blocks")
+        src = chunk_stats.get("blocks_path")
+        if not summary or not src or not Path(src).is_file():
+            return
+        dest = tmp_dir / BLOCKS_BUNDLE_FILE
+        shutil.copy2(src, dest)
+        summary["bytes"] = dest.stat().st_size  # re-measured at its final resting place
+        manifest["blocks"] = summary
+        print(f"BLOCKS {summary['blocks_total']} records over "
+              f"{summary['pages_with_blocks']} pages "
+              f"(slices {summary['slices_with_blocks']}/{summary['slices_total']}, "
+              f"complete={summary['complete']}, {summary['bytes']} bytes)", flush=True)
+        emit("convert", "blocks", source=name, **{k: summary[k] for k in
+             ("blocks_total", "pages_with_blocks", "page_min", "page_max",
+              "page_unresolved", "slices_with_blocks", "slices_total", "complete", "bytes")})
+        if not summary["complete"]:
+            # Named out loud rather than left to be inferred from two counts: a downstream
+            # reader that treats a partial record as the book would place highlights on the
+            # pages it happens to have and stay silent about the rest.
+            emit("convert", "blocks_partial", source=name,
+                 slices_with_blocks=summary["slices_with_blocks"],
+                 slices_total=summary["slices_total"],
+                 page_unresolved=summary["page_unresolved"],
+                 unreadable=summary.get("unreadable"))
+    except Exception as exc:  # noqa: BLE001 — an addition may never cost a bundle
+        emit("convert", "blocks_error", source=name, phase="attach", error=str(exc)[:150])
+
+
 # ---------- bundle contract, mirrored from linux-converter/converter/bundle.py ----------
 
 _IMAGE_LINK = re.compile(r"!\[[^\]]*\]\(\s*<?([^)>\s]+)>?(?:\s+\"[^\"]*\")?\s*\)")
@@ -807,6 +872,80 @@ def estimate_from_ledger(pages: int, lane: str, chars_per_page: float) -> dict |
 
 # ---------- the monitored Marker run (one whole book, or one slice of one) ----------
 
+def _blocks_enabled() -> bool:
+    """Whether this run asks Marker for block records (J24). Re-read per invocation, so the
+    escape hatch works mid-book the way the batch lever does — `FP_BLOCKS=off` and the very
+    next slice is back on marker_single.exe.
+
+    Both files must EXIST, checked here and not assumed: the sidecar is a repo file and the
+    interpreter is derived from MARKER's own directory. If either is missing this returns False
+    and the conversion runs exactly as it did before J24, having spent no GPU finding out."""
+    if os.environ.get(BLOCKS_ENV, "").strip().lower() in ("0", "off", "no", "false"):
+        return False
+    return MARKER_BLOCKS.is_file() and MARKER_PYTHON.is_file()
+
+
+def _marker_argv(engine_src: Path, out_root: Path, extra: list[str],
+                 page_range: str | None) -> list[str]:
+    """The one Marker invocation, as either the J24 sidecar or marker_single.exe.
+
+    The ARGUMENTS are identical in both shapes on purpose — the sidecar parses them with
+    marker's own click command, so `--strip_existing_ocr` and `--recognition_batch_size` resolve
+    exactly as marker_single resolves them (they are crawler-synthesized options, absent from
+    ConfigParser.common_options; see marker_blocks.py). The only difference on the far side of
+    the pipe is that the sidecar keeps the built Document and renders it a second time, which
+    costs no GPU because the document is already built.
+
+    -u so the sidecar's own prints reach the drain immediately: `_run_marker`'s reader thread is
+    also the liveness clock, and a buffered child looks frozen (the S48 lesson, one step over)."""
+    engine_args = [str(engine_src), "--output_dir", str(out_root),
+                   "--output_format", "markdown", *extra,
+                   *(["--page_range", page_range] if page_range else [])]
+    if _blocks_enabled():
+        return [str(MARKER_PYTHON), "-u", str(MARKER_BLOCKS), *engine_args]
+    return [str(MARKER), *engine_args]
+
+
+def _slice_blocks_path(out_root: Path, start: int, end: int, split_depth: int = 0) -> Path:
+    """Where one slice's harvested block records land, computed identically by the harvest and
+    by the caller.
+
+    A NAMED FUNCTION and not a `meta` key on purpose. `_run_slice_with_retries`'s meta is a
+    CLOSED contract: tripwire T10 (the zero-stall negative control) asserts a healthy slice's
+    meta equals its baseline dict exactly, so that recovery bookkeeping can never leak into the
+    healthy path. Hanging a new product off it turns that tripwire red and costs the suite its
+    meaning. The path lives beside the kept assets in `out_root.parent` for the same reason they
+    do: the split path re-enters with the same `out_root` and rmtree's it (review CRITICAL /
+    tripwire T3), so anything inside it is dangling by the time the caller reads it."""
+    return out_root.parent / f".slice-blocks-{start:05d}-{end:05d}-d{split_depth}.json"
+
+
+def _harvest_blocks(out_dir: Path, engine_stem: str, dest: Path) -> Path | None:
+    """Copy this attempt's blocks file OUT of `out_root` to `dest`, exactly as the assets are
+    copied out and for the same reason.
+
+    `dest` is CLEARED first, always. A retry that falls back, or a slice that runs under
+    FP_BLOCKS=off after one that did not, would otherwise leave the previous attempt's file
+    standing at the same computed path and the caller would adopt it — blocks from the wrong
+    attempt, presented as this one's. That is the confidently-wrong class this whole ticket is
+    about, one level down.
+
+    Returns None on absence — the NORMAL case for FP_BLOCKS=off, for a marker_single run, and
+    for the selftest's MarkerStub, which materializes an out_dir with assets and no blocks.
+    Never raises: an addition may not cost a slice."""
+    try:
+        dest.unlink(missing_ok=True)
+        src = out_dir / f"{engine_stem}{marker_blocks.BLOCKS_SUFFIX}"
+        if not src.is_file():
+            return None
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(src, dest)
+        return dest
+    except OSError as exc:
+        emit("convert", "blocks_error", phase="harvest", error=str(exc)[:150])
+        return None
+
+
 def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[str],
                 pages: int, source_name: str, page_range: str | None = None,
                 progress_prefix: str = "", progress_context: dict | None = None
@@ -846,9 +985,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
 
     t0 = time.perf_counter()
     proc = subprocess.Popen(
-        [str(MARKER), str(engine_src), "--output_dir", str(out_root),
-         "--output_format", "markdown", *extra,
-         *(["--page_range", page_range] if page_range else [])],
+        _marker_argv(engine_src, out_root, extra, page_range),
         stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, bufsize=1,
         # Marker inherits PYTHONIOENCODING=utf-8 (the watcher sets it), so the pipe carries
         # UTF-8 — but text=True alone decodes with the locale codepage (cp1252 here), and
@@ -1005,6 +1142,13 @@ def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str
                 q = keep / p.name
                 shutil.copy2(p, q)
                 kept.append(q)
+            # J24: the blocks leave by `_slice_blocks_path`, NOT in `kept` and NOT in `meta`.
+            # Not `kept`, because that list is copied into the slice dir and merged into the
+            # bundle's assets/ (T3 asserts its exact contents, and a .json among the figures
+            # would be a silent contract change). Not `meta`, because T10 asserts the healthy
+            # meta dict exactly — see `_slice_blocks_path`.
+            _harvest_blocks(out_dir, engine_stem,
+                            _slice_blocks_path(out_root, start, end, split_depth))
             if attempt > 1:
                 emit("convert", "slice_retry_succeeded", source=source_name,
                      page_range=page_range, attempt=attempt, batch=batch)
@@ -1047,6 +1191,13 @@ def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str
         progress_prefix=f"{progress_prefix}split-right depth{split_depth+1}: ",
         slice_index=slice_index, slice_total=slice_total, split_side="right"
     )
+    # J24: the two halves' blocks merge into ONE file at THIS slice's path, so the caller reads
+    # the same place whether the slice ran whole or was split. A plain concatenation is correct
+    # here for the same reason it is correct across slices: the page numbers are already
+    # absolute (marker_blocks.absolute_page_from_block_id carries the evidence). A half whose
+    # blocks are missing contributes none — the split ladder is a stall RECOVERY path and must
+    # not grow a way to fail.
+    _merge_split_blocks(out_root, start, mid, end, split_depth)
     return (
         f"{left_md}\n\n{right_md}",
         [*left_imgs, *right_imgs],
@@ -1058,6 +1209,29 @@ def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str
                                + right_meta["retry_wall_s"], 1),
          "recovered": True, "split": True},
     )
+
+
+def _merge_split_blocks(out_root: Path, start: int, mid: int, end: int,
+                        split_depth: int) -> None:
+    """Fold a split slice's two halves into the parent slice's blocks path.
+
+    `dest` is cleared first for the same staleness reason `_harvest_blocks` clears its own: the
+    parent's pre-split attempts may have written there. Never raises (docs/15 §8's fail-safe
+    rule) — a stall recovery that succeeded must not then fail on bookkeeping."""
+    dest = _slice_blocks_path(out_root, start, end, split_depth)
+    try:
+        dest.unlink(missing_ok=True)
+        halves = [p for p in (_slice_blocks_path(out_root, start, mid, split_depth + 1),
+                              _slice_blocks_path(out_root, mid + 1, end, split_depth + 1))
+                  if p.is_file()]
+        if not halves:
+            return
+        # slices_total=2 even when only one half survived: `complete` then reads false, which is
+        # the truth about a half-blind split.
+        marker_blocks.merge_block_files(halves, dest, slices_total=2)
+    except Exception as exc:  # noqa: BLE001 — an addition may not cost a recovered slice
+        emit("convert", "blocks_error", phase="split_merge",
+             page_range=f"{start}-{end}", error=str(exc)[:150])
 
 
 def _done_identity_mismatch(prior: dict, source_sha: str, extra: list[str],
@@ -1114,6 +1288,11 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
          slice_size=SLICE_PAGES, batch=batch)
 
     parts: list[str] = []
+    # J24: one entry per slice that HAS blocks. Deliberately not one per slice — the gap is the
+    # point: `slices_with_blocks` vs `slices_total` is how the merged record admits it is
+    # partial (a slice cached by a pre-J24 run has slice.md and no blocks, and re-converting it
+    # for an ADDITION would cost hours of GPU, which constraint 1 forbids).
+    block_files: list[Path] = []
     total_wall = 0.0      # winning-attempt GPU time in THIS run (what the convert event reports)
     retry_wall = 0.0      # GPU time failed ladder attempts burned THIS run (review 2026-08-30:
                           # invisible before — the ledger understated the Damodaran by 46 %)
@@ -1175,6 +1354,20 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
                      page_range=f"{start}-{end}", count=len(stray), examples=stray[:3])
             for img in imgs:
                 shutil.copy2(img, staging / img.name)
+            # J24, constraint 3 (a resumed slice must still contribute its blocks): the blocks
+            # ride INSIDE the slice dir, published by the same dot-dir-then-rename below. So a
+            # resumed slice reads them off disk exactly like it reads slice.md, and the merge
+            # cannot tell a resumed slice from a fresh one — which is the property that makes a
+            # power-cut resume contribute blocks without re-running the GPU.
+            harvested = _slice_blocks_path(out_root, start, end)
+            slice_blocks = harvested.is_file()
+            if slice_blocks:
+                try:
+                    shutil.copy2(harvested, staging / "slice.blocks.json")
+                except OSError as exc:
+                    slice_blocks = False
+                    emit("convert", "blocks_error", phase="slice_publish",
+                         page_range=f"{start}-{end}", error=str(exc)[:150])
             # Identity fields (source_sha256, engine_args, marker_version) gate the next
             # resume; wall_s feeds the ledger; batch is FORENSIC only — never an admission
             # criterion (docs/37 §4 T2c: the lever must stay live mid-book). F-09 signed:
@@ -1187,6 +1380,20 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
                             "lever_batch": slice_batch,
                             "retry_wall_s": meta["retry_wall_s"],
                             "engine_args": list(extra),
+                            # J24 FORENSIC ONLY, never an admission criterion — same standing as
+                            # `batch` above and for a sharper reason: adding blocks to
+                            # _done_identity_mismatch would declare every pre-J24 cached slice
+                            # stale and re-pay a 3,834 s convert to collect an ADDITION. Blocks
+                            # degrade; they never re-convert.
+                            "blocks": bool(slice_blocks),
+                            # `blocks_engine`, not `engine`: the manifest already spends
+                            # "engine" on the CONVERTER (marker vs the ThinkPad's), and two
+                            # different meanings under one key is how a reader ends up sure of
+                            # the wrong thing. This one names which invocation shape was asked
+                            # for, so `blocks_engine: marker_blocks` with `blocks: false` reads
+                            # as "asked and got nothing" rather than as an unexplained absence.
+                            "blocks_engine": ("marker_blocks" if _blocks_enabled()
+                                              else "marker_single"),
                             "marker_version": marker_version}) + "\n", encoding="utf-8")
             staging.rename(slice_dir)  # atomic publish: .done exists only on a complete slice
             emit("convert", "slice", source=source_name, slice=i, slices=total,
@@ -1210,6 +1417,11 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
             emit("convert", "slice", source=source_name, slice=i, slices=total,
                  page_range=f"{start}-{end}", resumed=True)
         parts.append((slice_dir / "slice.md").read_text(encoding="utf-8"))
+        # J24: read from the PUBLISHED slice dir, not from meta — one line that serves the fresh
+        # and the resumed slice identically, and that yields nothing (not an error) for a slice
+        # cached before J24 existed.
+        if (slice_dir / "slice.blocks.json").is_file():
+            block_files.append(slice_dir / "slice.blocks.json")
         for img in sorted(slice_dir.iterdir()):
             if img.suffix.lower() in (".jpeg", ".jpg", ".png"):
                 shutil.copy2(img, merged_assets / img.name)
@@ -1228,6 +1440,19 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
              "retry_wall_s": round(retry_wall, 1),
              "resumed_slices": resumed_count,
              "pages_converted_this_run": converted_pages}
+    # J24: the book-level merge. `slices_total=total` (not len(block_files)) is what lets the
+    # record say `complete: false` instead of quietly presenting a subset as the whole book.
+    # Fails soft in both directions: no block files at all -> no key in stats -> the bundle is
+    # exactly a pre-J24 bundle; a merge fault -> a named event and the same outcome.
+    if block_files:
+        try:
+            dest = work / BLOCKS_BUNDLE_FILE
+            stats["blocks"] = marker_blocks.merge_block_files(
+                block_files, dest, slices_total=total)
+            stats["blocks_path"] = dest
+        except Exception as exc:  # noqa: BLE001 — an addition may not cost a book
+            emit("convert", "blocks_error", source=source_name, phase="book_merge",
+                 error=str(exc)[:150])
     return "\n\n".join(parts), merged_assets, total_wall, peak_mib, chunking, stats
 
 
@@ -1288,6 +1513,19 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         assets_dir = out_dir
         chunk_stats = {"cost_s": round(wall, 1), "retry_wall_s": 0.0,
                        "resumed_slices": 0, "pages_converted_this_run": pages}
+        # J24: the short-book path's blocks are already whole — one slice, one file, written by
+        # the sidecar beside the .md. Routed through the SAME merge so a 40-page book and a
+        # 1,377-page book hand the manifest one identical shape, and one reader serves both.
+        _one = out_dir / f"{engine_stem}{marker_blocks.BLOCKS_SUFFIX}"
+        if _one.is_file():
+            try:
+                dest = work / BLOCKS_BUNDLE_FILE
+                chunk_stats["blocks"] = marker_blocks.merge_block_files(
+                    [_one], dest, slices_total=1)
+                chunk_stats["blocks_path"] = dest
+            except Exception as exc:  # noqa: BLE001 — an addition may not cost a book
+                emit("convert", "blocks_error", source=src.name, phase="single_merge",
+                     error=str(exc)[:150])
     print(f"CONVERTED in {wall:.1f}s ({wall / pages:.1f} s/page)", flush=True)
     # Stage E: the promise rides the `converted` event beside the actual, forever — the event
     # stream is where the estimator's honesty can be audited later (docs/19 §6 hygiene).
@@ -1364,6 +1602,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # Rides every downstream path from here: the anchor copy, the pending/ card + resume, and
     # all three ship sites carry this same manifest, so nothing else needs to know about it.
     _stamp_supersede_safe(manifest, supersede_marker, source_sha, src.name)
+    # J24: the block records join the bundle here, beside the manifest that describes them.
+    _attach_blocks_safe(tmp_dir, manifest, chunk_stats, src.name)
     # The ledger learns from the book's TRUE cost, which includes any slices this run resumed
     # rather than re-ran (see _convert_chunked) — otherwise every retry teaches it to promise
     # a little more than the GPU can deliver.
