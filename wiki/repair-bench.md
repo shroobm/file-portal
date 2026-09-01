@@ -1,8 +1,8 @@
 ---
 title: Repair Bench
 section: Product
-last-verified: 2026-08-31
-verified-against: "57a5da6f29998b25357d3fd97bd1fcabaa6bd1f4"
+last-verified: 2026-09-01
+verified-against: "12f0ca9333d151f07107928aacab75af96791539"
 sources:
   - prototypes/repair-bench/bench.py
   - prototypes/repair-bench/bench.html
@@ -38,7 +38,7 @@ collapses, transcribes, and repairs. It lives in `prototypes/` under the quarant
 yet the widget spawns it directly — a contradiction the record only half-acknowledges (below).
 
 
-> **S108 update (2026-08-23):** three open defects closed this session — Ctrl+Z restored (native-undo path, `0f0e83f`; plaintext-only MODE was the killer), zone-click render is highlight-only when text is unchanged (`f9585b3`, perf log includes forced layout), and the bench gained its first 19-test stdlib harness (`abe4830`) with both S106 regressions as named fixtures. That harness now runs 78 tests; mutating routes require the launch token (`fb2a919`).
+> **S108 update (2026-08-23):** three open defects closed this session — Ctrl+Z restored (native-undo path, `0f0e83f`; plaintext-only MODE was the killer), zone-click render is highlight-only when text is unchanged (`f9585b3`, perf log includes forced layout), and the bench gained its first 19-test stdlib harness (`abe4830`) with both S106 regressions as named fixtures. That harness now runs 81 tests; mutating routes require the launch token (`fb2a919`).
 
 ## What it is
 
@@ -128,11 +128,21 @@ Whole-page transcription is therefore not a Bench gesture today.
 ## Capped evidence cannot recommend a false bless
 
 M6-R1 makes evidence-list completeness a typed server record instead of a number inferred from
-the displayed array. Runs and degeneration zones now carry `shown`, `total`, `unseen`, cap,
+the displayed array. Runs and degeneration zones now carry `shown`, `total`, `unseen`, producer cap,
 `completeness`, a label, and a remedy. A totals-bearing manifest renders `N of M`; a legacy list
 below its historical cap is exact; a legacy list at cap renders `N of at least N — total UNREAD`
 and names `re-convert to measure totals`; malformed or contradictory totals are also UNREAD
 (`prototypes/repair-bench/bench.py:95-155,315-334`).
+
+The completeness decision reads the manifest's **retained producer list only**. It never reads a
+surface display limit. The Bench now exposes every retained omission run instead of silently
+slicing the state at 40; the re-score preview likewise returns the producer-bounded zone list
+instead of a second six-zone slice. Dock and Room still keep compact maps (first 40) and detail
+lists (first 3), but name each truncation separately and direct the operator to the Repair Bench;
+the widget backend projects the actual `runs_capped_at` / `worst_capped_at` values so its shared
+count grammar can distinguish a valid `60 of 531` record from a real producer-cap contradiction
+(`prototypes/repair-bench/bench.py:469-478,1852-1862`; `windows-widget/src-tauri/src/assay.rs:153-172`;
+`windows-widget/src/event-vocab.js:6-32`; `windows-widget/src/main.js:862-905`).
 
 Coverage calls its tallies `shown`, `addressed_shown`, and `open_shown`. The re-score preview now
 requires clean current degeneration, zero shown-open sites, and complete evidence with zero
@@ -144,10 +154,11 @@ popover render those fields, while the shared widget helper applies the same cap
 `windows-widget/src/event-vocab.js:6-20`).
 
 The regression matrix covers future capped, future complete, legacy-at-cap, legacy-under-cap,
-malformed, and live HTTP projection. It reproduces 25 shown of 634 runs plus 10 shown of 37
-zones, with all 35 visible sites addressed, and still requires `eligible=false`; the complete
-Bench suite is 78/78 and real sandbox acceptance is 85/85
-(`prototypes/repair-bench/test_bench_page.py:266-422`; `prototypes/repair-bench/acceptance.py`).
+malformed, display-truncated, producer-cap overflow, re-score projection, and live HTTP
+projection. It reproduces 25 shown of 634 runs plus 10 shown of 37 zones, with all 35 visible
+sites addressed, and still requires `eligible=false`; the complete Bench suite is 81/81 and real
+sandbox acceptance is 85/85 (`prototypes/repair-bench/test_bench_page.py:266-466`;
+`prototypes/repair-bench/acceptance.py`).
 A 2026-08-31 read-only census found 11 of 33 manifests affected (7 anchor, 4 held); none were
 modified.
 
@@ -156,7 +167,7 @@ modified.
 Fixed but instructive (details live in the registers, not here): arrow keys no longer flip the
 PDF page while typing, native undo survives Enter, and zone clicks move only the highlight when
 text is unchanged. The source/wire suite now guards the historical line-truncation, navigation,
-token, viewport, search, text-layer, table, trim, OK-15, and M6 failures (78/78); real sandbox
+token, viewport, search, text-layer, table, trim, OK-15, and M6 failures (81/81); real sandbox
 acceptance is 85/85. The remaining test limit is honest: no tracked harness loads the whole DOM
 in a browser, so pixel/layout behavior still needs a browser smoke.
 
