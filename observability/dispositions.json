@@ -229,6 +229,10 @@
     "converter:lever_batch": {
       "disposition": "EVIDENCE",
       "reason": "OK-17's honesty field in the slice .done record (convert_and_ship.py:1187): the LEVER'S asked batch beside the ACTUAL batch used, recorded because the ladder can run a slice at 4 while the lever said 8 and every record used to say 8. Resume/audit trail; the rendered batch story is the slice event's batch field. Fable lane, 3d6775b."
+    },
+    "converter:blocks_engine": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01): names WHICH engine produced the block records that ride beside the bundle (marker_blocks.py sidecar over marker-pdf 1.10.2). It is provenance for the blocks.json file, the same class as converter:runs_capped_at - a record that declares its own producer. Written into .done as FORENSIC ONLY and deliberately excluded from _done_identity_mismatch (convert_and_ship.py, _convert_chunked ~1395): adding it would declare every pre-J24 cached slice stale and re-pay a 3,834 s convert to collect an ADDITION. No renderer reads it BY DESIGN - a human acts on blocks.json's contents (page + bbox), never on the engine name. Renamed from 'engine' at build time because that key already means the converter (marker) in the manifest. Signed by Fable 2026-09-02 at the same sitting the detector named it; steps 1-4 of docs/29 section 5.3 walked: no live home, no archival home beyond the manifest itself, and a human would not act on it."
     }
   },
   "census_dispositions": {
