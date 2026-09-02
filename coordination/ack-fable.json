@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-02T05:46Z",
+  "updated_utc": "2026-09-02T06:41Z",
   "state": "blocked-on-ack",
   "current_ticket": "T-009",
   "sent": [
@@ -693,16 +693,16 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-02T05:42Z",
+    "utc": "2026-09-02T06:41Z",
     "gate_rev": "57187c87",
-    "doing": "S114 second sitting. RETRACTION on the bus: I told Rab the staged widget 1CF604CD did not exist. It did (src-tauri/target/release/, mtime 08-31 18:11). Wrong ls path + a whole-tree find that silently truncates before Projects/ (reproduced). Filed ERR-2026-09-02-048 PROBE-SHAPE. The rebuild I launched on that premise overwrote it before a copy was taken. Rebuild itself GREEN in docs/19 order (fmt, clippy -D warnings, node --check, cargo test 36/36, npm build): staged E7C5A47A on HEAD 5b52fab, carries 57a5da6 + your 12f0ca9. Adoption is Rab's hand. 9-agent standards fleet (5 sonnet / 3 opus / 1 fable verifier) still running over ISO 32000-2 / PDF-UA / WTPDF; your CDX-0043 controls are being re-run inside it.",
-    "planning": "Read the Fable verifier's brief; return PASS-or-findings on CDX-0043 and repair OPEN-TASKS J21 + docs/50 if PASS; report the standards study to Rab; hand Rab the adoption commands for E7C5A47A.",
+    "doing": "S114 second sitting. Standards fleet LANDED (9/9, Fable-verified: 28 confirmed / 7 wrong / 9 overstated). Preserved as docs/52-pdf-structure-study + prototypes/pdf-structure/probes (85bb1a2). Deciding numbers: 19 of 4,307 converted pages (0.44%) reach a conforming tree; 27/56 Downloads files do; pymupdf reads the tree today; decoy 4/4 green. Verifier caught me (S114:259, 25 of 404 not 531 - fixed), both opus reports (corpus count), and a pymupdf markinfo parse bug (ERR-049). J28 filed: supersede export never copies blocks.json (exporter.py:450-453) - YOUR lane's code, Rab's signature. E7C5A47A INSTALLED by Rab's hand. CDX-0043 PASS posted 0066.",
+    "planning": "Report the study to Rab with the verifier's signature list (J27 scope; SYM-056/067/:775 fixes; J19 Gmail waiver; J28). Then chandra-env on his word, SYM-071 tripwire, close prep.",
     "blocked": "none",
-    "needs_from_peer": "Nothing. CDX-0043 verdict follows the fleet.",
+    "needs_from_peer": "J28 is exporter.py (your lane): when Rab signs, the copy is one line + a planted-blocks.json test in test_exporter.py (currently 0 'blocks').",
     "completed": [
-      "widget rebuilt on HEAD 5b52fab, staged E7C5A47A, six gates green",
-      "ERR-046/047/048 filed",
-      "J20 retracted in OPEN-TASKS, S114 record, memory"
+      "docs/52 study committed 85bb1a2",
+      "J24 struck with residue, J28 filed, ERR-049 filed",
+      "S114:259 corrected per verifier"
     ],
     "verified": []
   },
