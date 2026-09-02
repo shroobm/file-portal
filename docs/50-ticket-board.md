@@ -345,7 +345,7 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 
 | id | ticket | diff | status | depends | source |
 |---|---|---|---|---|---|
-| M6-R1 | Repair Bench and widget fail closed on capped, missing, or malformed evidence totals; A1-A4 | M | done-by-s113 | NUM-3 | Rab signature; `57a5da6`; SYM-070; 78/78 + 85/85 + widget 35/35 |
+| M6-R1 | Repair Bench and widget fail closed on capped, missing, or malformed evidence totals; A1-A4 | M | done-by-s113 | NUM-3 | Rab signature; `57a5da6`; SYM-070; 78/78 + 85/85 + widget 35/35; **reviewed S114 (Fable, MSG-FAB-0065): PASS + F1 (display cap in the manifest verdict); Codex closed F1 + a second boundary loss in `12f0ca9` (CDX-0043); controls re-run PASS 2026-09-02 (MSG-FAB-0066)** |
 
 ## Delivered by S112 (strike with evidence)
 
