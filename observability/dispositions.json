@@ -230,9 +230,29 @@
       "disposition": "EVIDENCE",
       "reason": "OK-17's honesty field in the slice .done record (convert_and_ship.py:1187): the LEVER'S asked batch beside the ACTUAL batch used, recorded because the ladder can run a slice at 4 while the lever said 8 and every record used to say 8. Resume/audit trail; the rendered batch story is the slice event's batch field. Fable lane, 3d6775b."
     },
+    "converter:latex_balance": {
+      "disposition": "EVIDENCE",
+      "reason": "SYM-056 (S109; semantic count corrected cross-vendor by MSG-CDX-0014, 2026-08-27 - 61 unmatched opens, not the strict-literal 60): the per-environment \\begin/\\end balance block, produced at fidelity_audit.py:373 and riding the convert block at :497 BESIDE the tripwires, deliberately not among them. REPORT-ONLY BY SIGNATURE (Rab, 2026-09-03, S114 Ticket E): it never fails the line, never changes the markdown, never changes a verdict - compute_verdict cannot see the key, and latex_balance_selftest.py L6 is the tripwire that keeps that true (watched failing: wiring it into compute_verdict turns a 61-unterminated body from pass to fail, 3 red). HOME: manifest fidelity.convert.latex_balance. docs/29 5.3 step 4 walked and answered honestly: NO live surface reads it today. The intended reader is the Repair Bench - an unterminated environment plus its line is exactly a repair zone (error-structure protocol: reason = the env and its counts, highlight = the line) - and THAT WIRING IS NOT BUILT. Named as residue in the S114 Ticket E report rather than implied. Nothing renders it yet, and nothing should gate on it."
+    },
+    "converter:unterminated_total": {
+      "disposition": "EVIDENCE",
+      "reason": "SYM-056: the NUMERATOR of converter:latex_balance - \\begin tokens left unmatched, summed over environments (fidelity_audit.py:431). docs/34 forbids a bare count, so it travels with its denominator begins_seen and never alone. Same report-only signature, same intended reader (Repair Bench, unwired) as converter:latex_balance; see that entry for the full step-4 walk."
+    },
+    "converter:begins_seen": {
+      "disposition": "EVIDENCE",
+      "reason": "SYM-056: the DENOMINATOR of converter:latex_balance - \\begin tokens seen in the body as audited, balanced ones included (fidelity_audit.py:431). Without it '61' is a number with no population, which is the SYM-066 shape. NOTE, on the record because a later reader will look for them: the per-environment detail keys (begin / end / unterminated / stray_end / line) are NOT signed here because the glass detector cannot see them - they are assigned through a Subscript target (envs[env] = {...}), which its own docstring names as invisible to the harvester. A disposition for a key no producer harvests would arm a permanent stale-signature red on the close gate (NUM-7 precedent, review C1 2026-08-31), so they are named as residue in the S114 Ticket E report instead. If a refactor ever moves that dict into the returned literal, those five keys need entries the same day."
+    },
     "converter:blocks_engine": {
       "disposition": "EVIDENCE",
       "reason": "J24 (S114, 2026-09-01): names WHICH engine produced the block records that ride beside the bundle (marker_blocks.py sidecar over marker-pdf 1.10.2). It is provenance for the blocks.json file, the same class as converter:runs_capped_at - a record that declares its own producer. Written into .done as FORENSIC ONLY and deliberately excluded from _done_identity_mismatch (convert_and_ship.py, _convert_chunked ~1395): adding it would declare every pre-J24 cached slice stale and re-pay a 3,834 s convert to collect an ADDITION. No renderer reads it BY DESIGN - a human acts on blocks.json's contents (page + bbox), never on the engine name. Renamed from 'engine' at build time because that key already means the converter (marker) in the manifest. Signed by Fable 2026-09-02 at the same sitting the detector named it; steps 1-4 of docs/29 section 5.3 walked: no live home, no archival home beyond the manifest itself, and a human would not act on it."
+    },
+    "widget:program": {
+      "disposition": "INTERNAL",
+      "reason": "The analyst PROGRAM name (docs/13 'program slot': readability etc.) forwarded by line.rs:484 into the status json. It identifies WHICH prompt file re-tasked the fenced model; the human reads the analyst's counts and verdict, never the slot name. Pulled into --since scope by F3 (S114, 2026-09-03) because the inline path now emits it beside the resume path's identical key; pre-existing since S113. Rendering it is a widget change beyond F7's signature - carried as residue, not wired."
+    },
+    "converter:chunks_resumed": {
+      "disposition": "EVIDENCE",
+      "reason": "analyst.py:424 - chunks carried over from a prior run's journal (S61 resume). Census N-005 names it SILENCED ON EVERY HUMAN CHANNEL, and on the 2026-09-01 maiden voyage it was 641 of 957 (67 %) - the number that makes duration_s and chunks_passed honest together (N-007/N-013). F3 (S114) now emits it on analyst/done from BOTH paths so it reaches the event stream and the manifest; the Dock/Room do not yet render it - that is the N-005 repair and a signed widget change, carried as residue. Signed EVIDENCE at the same sitting the detector named it (docs/29 s5.4 same-commit rule)."
     }
   },
   "census_dispositions": {

@@ -338,6 +338,100 @@ def reverse_sample(output_final: str, witness_search: str, cjk: bool) -> float |
 
 
 # ---------------------------------------------------------------------------
+# LaTeX environment balance - REPORT-ONLY (SYM-056, signed Rab 2026-09-03).
+#
+# S109 shipped a book carrying 61 unmatched `\begin{array}` opens: the audit scores CONTENT
+# and never STRUCTURE, so all 28 affected chunks read `status: passed` while three of them
+# ate 49.9 % of the analyst lane on a shape that has no valid completion. Nothing anywhere
+# in the pipeline measures environment balance. This counts it and does nothing else: it is
+# NOT a tripwire, compute_verdict never reads it, it never touches the markdown, and it can
+# never move a verdict - the report-only signature Rab gave it on 2026-09-03.
+#
+# docs/34: numerator = `\begin` tokens left unmatched; denominator = `\begin` tokens seen;
+# conditions = the Marker body exactly as audited, whole (see the fence note below).
+#
+# WHITESPACE-AWARE BY CONSTRUCTION, and that is the corrected half of SYM-056: the strict
+# literal rule `count("\begin{array}")` reads 60 on the Ashby body, but one opener is written
+# `\begin` + CRLF + `{array}`, which the literal rule misses while still counting its closer.
+# The cross-vendor correction (Codex lane, MSG-CDX-0014, 2026-08-27) measured 127 opens /
+# 66 closes / 0 stray closes / 61 unmatched with a whitespace-aware stack, and left a standing
+# note: any guard's test must include whitespace-separated TeX commands or it inherits the
+# same blind spot. The `\s*` below is that requirement, not decoration.
+#
+# FENCES AND INLINE CODE ARE NOT SKIPPED - a deliberate choice, written down because the
+# opposite is defensible. Two reasons. (1) Marker emits math inside fenced and inline spans
+# too, and the shipped SYM-056 specimen is `$$\begin{array}{c*36}$$`, so a fence-skipping
+# counter would under-report the very defect this exists to measure. (2) Skipping fences means
+# PARSING them, and a single unterminated fence would swallow the rest of the body and hide
+# every real unmatched open - the same class of blind spot as the strict-literal rule, bought
+# for nothing. A fenced example of BALANCED LaTeX costs nothing: balanced environments are
+# never listed, only counted into the denominator.
+# ---------------------------------------------------------------------------
+_LATEX_ENV = re.compile(r"\\(begin|end)\s*\{([A-Za-z][A-Za-z0-9*]{0,31})\}")
+
+
+def latex_balance(markdown: str) -> dict:
+    """Per-environment `\\begin{X}` / `\\end{X}` balance. Report-only; feeds no verdict.
+
+    Returns, ALWAYS with every key present (an absent key is a silence the reader would have
+    to guess at - SYM-057's lesson is that an unmeasurable result must never look like a
+    clean one):
+
+        {"checked": True,
+         "environments": {env: {"begin": n, "end": m, "unterminated": u,
+                                "stray_end": s, "line": first-unmatched-begin | None}},
+         "unterminated_total": u_total,      # numerator (docs/34)
+         "begins_seen": n_total}             # denominator (docs/34)
+
+    Only UNBALANCED environments are listed; a balanced one still counts into begins_seen. A
+    body with no `\\begin` at all reports the honest zero shape - never {} alone, never null.
+
+    Nesting resolves by DEPTH, not by pairing greedily: an `\\end` closes the INNERMOST open
+    environment of that name (LIFO), so with an inner pair closing cleanly the reported `line`
+    is the OUTER opener. A first-in-first-out pairer returns the same count and the wrong
+    line, and the line is the whole value of the field - the highlight a human repairs at
+    (error-structure protocol: reason = the env plus its counts, highlight = the line; the
+    solution comment belongs to the Repair Bench, which does not read this yet).
+    """
+    stacks: dict[str, list[int]] = {}          # env -> line numbers of still-open begins
+    counts: dict[str, list[int]] = {}          # env -> [begins, ends, stray_ends]
+    for m in _LATEX_ENV.finditer(markdown):
+        kind, env = m.group(1), m.group(2)
+        c = counts.setdefault(env, [0, 0, 0])
+        if kind == "begin":
+            c[0] += 1
+            # Same line convention as degeneration(): 1-based within the body as audited,
+            # so `line` and degeneration_detail's `line` share one denominator (md_lines).
+            stacks.setdefault(env, []).append(markdown.count("\n", 0, m.start()) + 1)
+        else:
+            c[1] += 1
+            stack = stacks.setdefault(env, [])
+            if stack:
+                stack.pop()                    # LIFO: close the innermost, never the first
+            else:
+                c[2] += 1                      # a close with nothing open (Codex: stray close)
+    envs: dict[str, dict] = {}
+    unterminated_total = 0
+    begins_seen = 0
+    for env in sorted(counts):
+        begins, ends, strays = counts[env]
+        begins_seen += begins
+        left = stacks.get(env, [])
+        unterminated_total += len(left)
+        if not left and not strays:
+            continue                           # balanced: counted, not listed
+        envs[env] = {
+            "begin": begins,
+            "end": ends,
+            "unterminated": len(left),
+            "stray_end": strays,               # begin - end + stray_end == unterminated
+            "line": left[0] if left else None,
+        }
+    return {"checked": True, "environments": envs,
+            "unterminated_total": unterminated_total, "begins_seen": begins_seen}
+
+
+# ---------------------------------------------------------------------------
 # Stage audits (docs/15 §4/§6/§7).
 # ---------------------------------------------------------------------------
 def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = None) -> dict:
@@ -396,6 +490,11 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
             "dict_hit": None,                       # wordfreq absent; garbage_rate below
             "garbage_rate": garbage_rate(output_final) if lane == "scan" else None,
         },
+        # SYM-056, REPORT-ONLY (signed Rab 2026-09-03): structural balance riding BESIDE the
+        # content tripwires and deliberately not among them - compute_verdict cannot see this
+        # key and must not. Measured on the RAW markdown, which is what ships; prepare_output
+        # would strip the very structure in question.
+        "latex_balance": latex_balance(markdown),
     }
     return block
 
