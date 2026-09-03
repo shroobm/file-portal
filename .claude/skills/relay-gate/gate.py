@@ -1110,7 +1110,7 @@ def cmd_init(a):
 # `verified` is mechanically expensive on purpose: it REQUIRES --probe. This is the tag law
 # (docs/21 §1) made structural rather than aspirational - a verified claim that cannot name the
 # command that settled it is not verified, it is inferred wearing a better word.
-BEAT_STALE_MIN = 45
+BEAT_STALE_MIN = 45  # lever-waiver: Rab; moves on a measured beat cadence across sessions (a distribution of real beat intervals), not a guess
 
 
 def _beat_age_min(beat) -> int:

@@ -57,8 +57,8 @@ import status
 
 PROTOCOL = status.PROTOCOL
 LANES = status.LANES
-GATE_TIMEOUT_S = 60.0
-MIRROR_MAX_ATTEMPTS = 3
+GATE_TIMEOUT_S = 60.0  # lever-waiver: Rab; moves on measured gate.py subprocess latencies under real load, not a guess
+MIRROR_MAX_ATTEMPTS = 3  # lever-waiver: Rab; moves on a measured mirror failure/retry rate read from the room's own log, not a guess
 
 def tmp_dir():
     """state/tmp - scratch for gate.py --body files. A FUNCTION, not a module constant:
