@@ -19,6 +19,7 @@ Each tripwire names what breaks if it fires:
   T10 zero-stall negative control  — recovery bookkeeping leaks into the healthy path
 """
 
+import ast
 import json
 import os
 import re
@@ -105,6 +106,7 @@ def with_stub(stub):
 
 
 REAL_RUN_MARKER = cas._run_marker
+REAL_OLLAMA_UNLOAD = cas._ollama_unload  # T17 no-ops it (no network on a stub run)
 SLICE_ARGS = ["--recognition_batch_size", "8"]
 
 
@@ -516,6 +518,198 @@ check(degen16["worst_capped_at"] == 10 and len(degen16["worst"]) <= 10,
 src16 = (HERE / "fidelity_audit.py").read_text(encoding="utf-8")
 check('"runs_total": len(runs)' in src16, "the audit block carries runs_total pre-cap")
 check("runs_total=" in src14, "audit/scored events emit runs_total beside the capped runs")
+
+# ---------- T17: F3 — the INLINE analyst path emits its two events ----------
+print("T17 inline analyst events (F3)")
+CAS_SRC = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+FAKE_TAIL = "\n\nANALYST-APPENDED-TAIL"
+# Every count DIFFERENT on purpose: an emit that aliases one field to another (generated <-
+# passed is the natural slip) cannot survive a meta where no two numbers are equal.
+FAKE_META = {
+    "model": "fake-model", "backend": "local", "program": "fake-program",
+    "chunks_passed": 7, "chunks_rejected": 2, "chunks_failed": 1,
+    "chunks_resumed": 641, "chunks_generated": 10, "duration_s": 12.5,
+    "goodput_accepted_tok_s": 33.75,
+}
+
+
+def _analyst_done_keys(func_name: str):
+    """The key tuple inside `emit("analyst", "done", **{k: ... for k in (...)})`, read out of
+    the SOURCE of the named function. Parity is checked against what the file really says —
+    retyping the tuple here would make the two paths agree only with this test (SYM-001)."""
+    fn = next((n for n in ast.walk(ast.parse(CAS_SRC))
+               if isinstance(n, ast.FunctionDef) and n.name == func_name), None)
+    if fn is None:
+        return None
+    for call in ast.walk(fn):
+        if not (isinstance(call, ast.Call) and isinstance(call.func, ast.Name)
+                and call.func.id == "emit" and len(call.args) == 2):
+            continue
+        if [getattr(a, "value", None) for a in call.args] != ["analyst", "done"]:
+            continue
+        for kw in call.keywords:
+            if kw.arg is None and isinstance(kw.value, ast.DictComp):
+                return [e.value for e in kw.value.generators[0].iter.elts]
+    return None
+
+
+INLINE_KEYS = _analyst_done_keys("convert")
+RESUME_KEYS = _analyst_done_keys("apply_analyst")
+check(INLINE_KEYS is not None and RESUME_KEYS is not None
+      and set(RESUME_KEYS) <= set(INLINE_KEYS),
+      "inline done carries every key the --resume path emits (parity-equal)")
+# D-2 (S114, 2026-09-03): the builder's first cut pinned the ASYMMETRY (inline had chunks_resumed,
+# apply_analyst did not) as if it were the invariant. The invariant is PARITY - the two emits are
+# the same event and must carry the same keys - and N-005's key must ride BOTH. This check goes
+# red if either side moves alone in either direction; watched failing by removing the key from
+# apply_analyst's tuple (RED), then restoring it (GREEN).
+check(INLINE_KEYS is not None and RESUME_KEYS is not None
+      and set(INLINE_KEYS) == set(RESUME_KEYS)
+      and "chunks_resumed" in INLINE_KEYS and "chunks_resumed" in RESUME_KEYS,
+      "inline and --resume done emit IDENTICAL key sets, and both carry chunks_resumed (N-005)")
+
+
+class FakeAnalyst:
+    """sys.modules-injected stand-in for analyst.py — no ollama, no network, no GPU. Its
+    process() returns a body of a DIFFERENT length on purpose: that is the decoy for `chars`,
+    where the wrong answer (len(body) after the rebind) is the analyst's own OUTPUT size."""
+
+    CHUNK_TARGET = 6000
+
+    def __init__(self, meta):
+        self.meta = dict(meta)
+        self.seen = []
+
+    def process(self, body, backend="local"):
+        self.seen.append((len(body), backend))
+        return body + FAKE_TAIL, dict(self.meta)
+
+    def load_rules(self):
+        return {}
+
+    def unload(self):
+        return None
+
+
+def _born_digital_pdf(path: Path) -> Path:
+    """>= MIN_CHARS_PER_PAGE of type-0 text on one page, so route() takes the CLEAN lane —
+    the scan lane would import marker.builders.document, which the stubbed marker has not."""
+    doc = _pm.open()
+    page = doc.new_page()
+    for i in range(6):
+        page.insert_text((72, 72 + 14 * i),
+                         f"born-digital line {i} carrying enough characters to route clean")
+    doc.save(str(path))
+    doc.close()
+    return path
+
+
+def drive_inline(module, work_name: str, meta: dict = FAKE_META):
+    """Run the REAL convert() end to end with use_analyst=True: the same Marker stub every
+    other tripwire uses (no GPU), ollama unload no-op'd (no network), the analyst faked."""
+    work = QUARANTINE / work_name
+    work.mkdir(parents=True, exist_ok=True)
+    # The source may NOT live inside work/: convert() copies it to work/<slugified stem>.pdf,
+    # and a same-named source there is a copy onto itself (WinError 32, hit building this).
+    pdf = _born_digital_pdf(QUARANTINE / f"{work_name}-inline.pdf")
+    fake = FakeAnalyst(meta)
+    rec = EmitRecorder()
+    module._run_marker = MarkerStub()
+    module.emit = rec
+    module._ollama_unload = lambda: None
+    prior = sys.modules.get("analyst")
+    sys.modules["analyst"] = fake
+    try:
+        _tmp, bundle, _manifest = module.convert(pdf, work, use_analyst=True,
+                                                 analyst_backend="local")
+    finally:
+        if prior is not None:
+            sys.modules["analyst"] = prior
+        else:
+            sys.modules.pop("analyst", None)
+    return rec, fake, bundle
+
+
+rec17, fake17, bundle17 = drive_inline(cas, "t17-work")
+starts17 = rec17.named("analyst/start")
+dones17 = rec17.named("analyst/done")
+check(len(starts17) == 1 and len(dones17) == 1,
+      "the inline pass emits exactly one analyst/start and one analyst/done")
+check([k for k, _ in rec17.events if k.startswith("analyst/")]
+      == ["analyst/start", "analyst/done"], "start precedes done, in that order, once each")
+pre17 = fake17.seen[0][0]          # what analyst.process was really handed
+post17 = pre17 + len(FAKE_TAIL)    # what it handed back — the wrong answer for `chars`
+check(bool(starts17) and starts17[0]["bundle"] == bundle17
+      and starts17[0]["backend"] == "local",
+      "start names the bundle and the backend the convert really used")
+check(bool(starts17) and starts17[0]["chars"] == pre17,
+      "start's chars is the body handed to analyst.process")
+check(bool(dones17) and dones17[0].get("chars") == pre17,
+      "done's chars is the PRE-analyst body, as apply_analyst measures it")
+check(bool(dones17) and dones17[0].get("chars") != post17,
+      f"decoy: done's chars is NOT the post-analyst body ({post17})")
+d17 = dones17[0] if dones17 else {}
+check(set(d17) == set(INLINE_KEYS or []) | {"bundle", "chars"},
+      "done carries bundle + chars + exactly the source's key tuple, nothing invented")
+check(d17.get("chunks_passed") == 7 and d17.get("chunks_rejected") == 2
+      and d17.get("chunks_failed") == 1, "the three chunk verdicts travel unaltered")
+check(d17.get("chunks_generated") == 10
+      and d17.get("chunks_generated") != d17.get("chunks_passed"),
+      "decoy: chunks_generated is the PAID-CALL count (10), never chunks_passed (7)")
+check(d17.get("goodput_accepted_tok_s") == 33.75,
+      "NUM-6: the docs/34 goodput rate reaches the stream from the inline path")
+check(d17.get("chunks_resumed") == 641,
+      "N-005: chunks_resumed rides the event (silenced on every human channel before F3)")
+check(d17.get("duration_s") == 12.5 and d17.get("program") == "fake-program"
+      and d17.get("backend") == "local",
+      "duration_s, program and backend carried exactly as apply_analyst carries them")
+TRAP17 = round(FAKE_META["chunks_passed"] / FAKE_META["duration_s"], 2)
+check(TRAP17 not in [v for v in d17.values() if isinstance(v, (int, float))],
+      f"decoy: no field equals chunks_passed/duration_s ({TRAP17}) — the N-007/N-013 trap "
+      f"(this-run wall under a whole-book numerator) stays underived")
+
+# An older analyst.py's meta lacks the NUM-6/N-005 counters. This emit sits mid-convert, after
+# hours of GPU and BEFORE the note and manifest are written, so a KeyError here would cost the
+# whole book to say nothing: the key set must survive, filled with honest nulls.
+LEAN17 = {k: v for k, v in FAKE_META.items()
+          if k not in ("chunks_generated", "goodput_accepted_tok_s", "chunks_resumed")}
+try:
+    rec17b, _f, _b = drive_inline(cas, "t17-work-lean", LEAN17)
+    d17b = (rec17b.named("analyst/done") or [{}])[0]
+except Exception as exc:  # noqa: BLE001 — a raise here IS the failure this check is for
+    d17b = {"__raised__": repr(exc)[:120]}
+check(bool(d17b) and set(d17b) == set(d17),   # bool(): two empty sets are not agreement
+      f"an older analyst's meta still emits the FULL key set ({d17b.get('__raised__', '')})")
+check(d17b.get("chunks_generated", 0) is None and d17b.get("goodput_accepted_tok_s", 0) is None
+      and d17b.get("chunks_resumed", 0) is None,
+      "a missing counter emits null — honest absence (docs/34), never an invented 0")
+
+# Negative control: the SAME run with the two emit statements textually removed from convert().
+# Blanking their line spans (not deleting them) keeps every other line number identical, so the
+# control differs from the subject in exactly the two statements under test and nothing else.
+NC_LINES = CAS_SRC.splitlines(keepends=True)
+_nc_fn = next(n for n in ast.walk(ast.parse(CAS_SRC))
+              if isinstance(n, ast.FunctionDef) and n.name == "convert")
+_nc_removed = 0
+for _n in ast.walk(_nc_fn):
+    if (isinstance(_n, ast.Expr) and isinstance(_n.value, ast.Call)
+            and isinstance(_n.value.func, ast.Name) and _n.value.func.id == "emit"
+            and _n.value.args and getattr(_n.value.args[0], "value", None) == "analyst"):
+        for _ln in range(_n.lineno - 1, _n.end_lineno):
+            NC_LINES[_ln] = "\n"
+        _nc_removed += 1
+check(_nc_removed == 2,
+      f"the control really removed 2 analyst emit statements from convert() ({_nc_removed})")
+nc = types.ModuleType("convert_and_ship_nc")
+nc.__file__ = str(HERE / "convert_and_ship.py")
+exec(compile("".join(NC_LINES), nc.__file__, "exec"), nc.__dict__)  # noqa: S102
+rec_nc, _fnc, _bnc = drive_inline(nc, "t17-nc")
+check(not [k for k, _ in rec_nc.events if k.startswith("analyst/")],
+      "negative control: emits removed -> ZERO analyst events from the same run")
+check(any(k == "convert/converted" for k, _ in rec_nc.events),
+      "negative control really RAN the convert — this is silence, not a skipped path")
+cas._ollama_unload = REAL_OLLAMA_UNLOAD
+
 
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER

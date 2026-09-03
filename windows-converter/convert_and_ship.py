@@ -1620,7 +1620,40 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
 
         print(f"ANALYST pass starting (link-fenced, backend={analyst_backend})...", flush=True)
         marker_body = body
+        # F3 (signed Rab 2026-09-03): this INLINE path emitted NOTHING. The two analyst emits
+        # lived only inside apply_analyst(), whose own docstring scopes it to the --resume
+        # (widget card) path — so an ordinary `--analyst` convert left events.jsonl silent
+        # through the LONGEST phase of the run (measured on the 7 h 26 m Damodaran 4e voyage:
+        # 4 h 40 m + 1 h 18 m of silence), and the first-ever goodput_accepted_tok_s /
+        # chunks_generated reached no glass at all. Same keys, same order as apply_analyst:
+        # the two paths must stay parity-equal or the Room learns a vocabulary that only one
+        # of them speaks (T7's standing rule).
+        emit("analyst", "start", bundle=bundle_name, backend=analyst_backend,
+             chars=len(marker_body))
         body, analyst_meta = analyst.process(body, backend=analyst_backend)
+        # `chars` is the PRE-analyst body — apply_analyst measures the body it HANDED to
+        # process(), never the one that came back. Inline, `body` has already been rebound by
+        # the line above, so the honest witness is marker_body (a len(body) here would report
+        # the analyst's output as its own input).
+        # `.get`, not `meta[k]`: apply_analyst runs over a bundle already written to disk, but
+        # this emit sits mid-convert, after hours of GPU and BEFORE the note and the manifest
+        # are written. A KeyError from an older analyst.py's meta would cost the whole book to
+        # say nothing. An absent key emits null — honest absence (docs/34), never a zero.
+        emit("analyst", "done", bundle=bundle_name, chars=len(marker_body),
+             **{k: analyst_meta.get(k) for k in
+                ("backend", "program", "chunks_passed", "chunks_rejected",
+                 "chunks_failed", "duration_s",
+                 # NUM-6: the paid-call count and the docs/34 rate ride the event to the glass
+                 "chunks_generated", "goodput_accepted_tok_s",
+                 # N-005 (docs/51 census, glass_detector answer key §7.5): chunks_resumed is
+                 # produced by analyst.process and silenced on every human channel — the
+                 # frontmatter writer's whitelist below drops it and no event carried it. It
+                 # rides HERE. It is a NEW key on this event: apply_analyst() does not carry
+                 # it yet (out of this ticket's region — F3 owns the inline path only).
+                 # DENOMINATOR TRAP (census N-007/N-013): duration_s is THIS run's wall while
+                 # chunks_passed counts the WHOLE book across resumes. No rate may be derived
+                 # from that pair — emit the fields, never a quotient.
+                 "chunks_resumed")})
         manifest["analyst"] = analyst_meta
         _audit_analyst_safe(marker_body, body, manifest, name=src.name)
         frontmatter = frontmatter.replace(
@@ -1697,11 +1730,15 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     head, body = raw.split("---\n", 2)[1], raw.split("---\n", 2)[2]
     emit("analyst", "start", bundle=bundle_name, backend=backend, chars=len(body))
     new_body, meta = analyst.process(body, backend=backend)
-    emit("analyst", "done", bundle=bundle_name, chars=len(body), **{k: meta[k] for k in
+    emit("analyst", "done", bundle=bundle_name, chars=len(body), **{k: meta.get(k) for k in
          ("backend", "program", "chunks_passed", "chunks_rejected",
           "chunks_failed", "duration_s",
           # NUM-6: the paid-call count and the docs/34 rate ride the event to the glass
-          "chunks_generated", "goodput_accepted_tok_s")})
+          "chunks_generated", "goodput_accepted_tok_s",
+          # N-005 / F3 D-2 (S114, 2026-09-03): mirrored from the inline path so the two emits stay
+          # parity-equal - T17 pins the key set and goes red if either side moves alone. `.get`,
+          # like the inline path, so an older analyst_meta can never KeyError the resume.
+          "chunks_resumed")})
     frontmatter = (
         f"---\nanalyst:\n  model: {meta['model']}\n  backend: {meta['backend']}\n"
         f"  chunks_passed: {meta['chunks_passed']}\n"
