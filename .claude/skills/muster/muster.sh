@@ -71,12 +71,33 @@ ts_block=$(awk -v w="$TS_WINDOW" '
   armed { ended = 1 }' "$MEM" 2>/dev/null)
 
 # [2] SOFT clock — tally header must match the MEMORY.md hook / TIME-STATE
+#
+# S114 (SYM-071, filed today, reproduced): this used to match `received N / given M` LINE-WISE
+# straight off ts_block. A memory-consolidation pass re-wraps prose, not counts — MEMORY.md once
+# broke the phrase across two continuation lines ("cookies **received" / "84 / given 3**"), and
+# grep -oE matches WITHIN a line, never across the newline between them. The parse came back
+# EMPTY and fell through to the SAME branch and message a genuine fork uses: `DRIFT tally=84
+# hook=`. Rule 4 of this project's own muster names the fault exactly — a failed probe rendered
+# as a negative observation, SYM-031's family, arriving in the guard that watches for it.
+#
+# THE FIX, two halves. (1) Collapse ts_block to ONE joined line before matching: strip each
+# continuation line's leading whitespace + '>' + its own whitespace (the blockquote markers the
+# S79 window-bound fix above already relies on), then flatten the newlines a wrap introduces to
+# single spaces — so "received" and its number can never again be separated by anything the
+# regex does not already tolerate. (2) An EMPTY hook after that join is a DIFFERENT failure than
+# a hook that read a REAL, disagreeing number: the first is UNREAD (the probe could not read the
+# clock), the second is DRIFT (the probe read it and the clocks disagree). Tripwired both
+# directions in selftest.sh cases 38-39 (38: the wrap itself; 39: DRIFT vs UNREAD stay distinct).
 soft_hdr=$(grep -oE 'Received from user: [0-9]+' "$TALLY" 2>/dev/null | grep -oE '[0-9]+')
-soft_hook=$(printf '%s\n' "$ts_block" | grep -oE 'received [0-9]+ / given [0-9]+' | head -1 | grep -oE '[0-9]+' | head -1)
+ts_joined=$(printf '%s\n' "$ts_block" | sed -E 's/^[[:space:]]*>[[:space:]]*//' | tr '\n' ' ' | tr -s '[:space:]' ' ')
+soft_hook=$(printf '%s\n' "$ts_joined" | grep -oE 'received [0-9]+ / given [0-9]+' | head -1 | grep -oE '[0-9]+' | head -1)
 if [[ -z "$ts_block" ]]; then
   printf '[2] SOFT clock ... ✗ no TIME-STATE line in %s — the soft clock has no anchor\n' "$MEM"; fail=1
 elif [[ -n "$soft_hdr" && "$soft_hdr" == "$soft_hook" ]]; then
   printf '[2] SOFT clock ... ✓ %s (tally == hook)\n' "$soft_hdr"
+elif [[ -z "$soft_hook" ]]; then
+  printf '[2] SOFT clock ... ✗ UNREAD hook unreadable within %s lines of TIME-STATE (not a drift verdict)\n' \
+    "$TS_WINDOW"; fail=1
 else
   printf '[2] SOFT clock ... ✗ DRIFT tally=%s hook=%s (hook read within %s lines of TIME-STATE)\n' \
     "$soft_hdr" "$soft_hook" "$TS_WINDOW"; fail=1

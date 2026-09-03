@@ -591,6 +591,51 @@ fi
 if printf '%s' "$out" | grep -qE 'symptoms +4 row\(s\), (1|4) open'; then
   bad "J15 negative control" "read 1 (only backticks) or 4 (counted prose) - both wrong"
 else ok "…and it reads neither 1 (backticks only) nor 4 (prose counted)"; fi
+# CASE 38 — SYM-071, filed S114. The property: the soft-clock hook is read off the TIME-STATE
+# entry as ONE JOINED unit, so a re-wrap of "received N / given M" across two continuation lines
+# — a memory-consolidation pass reflowing prose, not an edit to the count — cannot defeat the
+# match. THE OLD PROXY: `grep -oE` matches PER LINE; "received" ending one line while its number
+# opened the next put the phrase on two lines, and a line-wise regex cannot see across the break.
+# Watched failing pre-fix: this exact fixture, against the muster.sh SYM-071 shipped with, printed
+#   [2] SOFT clock ... ✗ DRIFT tally=84 hook=
+# — an empty parse rendered as a fork between two records that in fact agree. Violate the same
+# way; the fix must now read it as agreement.
+R="$WORK/c38"; sha=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"; git -C "$R" commit -qam rows >/dev/null 2>&1
+mklib "$WORK/l38" 84 S42 "$sha" \
+"> - **TIME-STATE** last session **S42**, closing SHA **$sha**, cookies
+>   **received
+>   84 / given 3** · 2026-01-01."
+out=$(run "$WORK/l38" "$R"); rc=$?
+assert "SYM-071: a hook wrapped across continuation lines still reads (tally == hook)" 0 'SOFT clock \.\.\. ✓ 84 \(tally == hook\)' "$rc" "$out"
+
+# CASE 39 — SYM-071's second half. Rule 4 (SKILL.md): a failed probe is never a negative
+# observation. An UNREADABLE hook and a REAL disagreement are different failures and must not
+# share a message — the S114 defect rendered both as "DRIFT". Violate the DRIFT side first: a
+# CONTIGUOUS phrase (no wrap at all — join is not the variable under test here) that simply
+# disagrees with the tally.
+R="$WORK/c39"; sha=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"; git -C "$R" commit -qam rows >/dev/null 2>&1
+mklib "$WORK/l39" 84 S42 "$sha" \
+"> - **TIME-STATE** last session **S42**, closing SHA **$sha**, cookies
+>   **received 85 / given 3** · 2026-01-01."
+out=$(run "$WORK/l39" "$R"); rc=$?
+assert "SYM-071: a real mismatch still fires DRIFT" 1 'DRIFT tally=84 hook=85' "$rc" "$out"
+if printf '%s' "$out" | grep -q 'UNREAD'; then
+  bad "…and does not say UNREAD for a real mismatch" "printed UNREAD where DRIFT was expected"
+else ok "…and does not say UNREAD for a real mismatch"; fi
+
+# NEGATIVE CONTROL for CASE 39: no 'received' phrase anywhere in the entry — the hook is
+# genuinely unreadable (not merely wrapped), and this must read UNREAD, never DRIFT. Pre-fix this
+# fixture printed `DRIFT tally=84 hook=` — the exact message SYM-071 names as indistinguishable
+# from a real fork; UNREAD did not exist as a message at all.
+mklib "$WORK/l39n" 84 S42 "$sha" \
+"> - **TIME-STATE** last session **S42**, closing SHA **$sha**, cookies given 3, no count stated."
+out=$(run "$WORK/l39n" "$R"); rc=$?
+assert "…and no 'received' phrase at all fires UNREAD, not DRIFT" 1 'UNREAD hook unreadable' "$rc" "$out"
+if printf '%s' "$out" | grep -q 'DRIFT'; then
+  bad "…and does not say DRIFT when there is no hook at all" "printed DRIFT where UNREAD was expected"
+else ok "…and does not say DRIFT when there is no hook at all"; fi
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
