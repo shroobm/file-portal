@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-03T21:06Z",
+  "updated_utc": "2026-09-03T21:14Z",
   "state": "blocked-on-ack",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -702,16 +702,18 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-02T06:41Z",
+    "utc": "2026-09-03T21:14Z",
     "gate_rev": "57187c87",
-    "doing": "S114 second sitting. Standards fleet LANDED (9/9, Fable-verified: 28 confirmed / 7 wrong / 9 overstated). Preserved as docs/52-pdf-structure-study + prototypes/pdf-structure/probes (85bb1a2). Deciding numbers: 19 of 4,307 converted pages (0.44%) reach a conforming tree; 27/56 Downloads files do; pymupdf reads the tree today; decoy 4/4 green. Verifier caught me (S114:259, 25 of 404 not 531 - fixed), both opus reports (corpus count), and a pymupdf markinfo parse bug (ERR-049). J28 filed: supersede export never copies blocks.json (exporter.py:450-453) - YOUR lane's code, Rab's signature. E7C5A47A INSTALLED by Rab's hand. CDX-0043 PASS posted 0066.",
-    "planning": "Report the study to Rab with the verifier's signature list (J27 scope; SYM-056/067/:775 fixes; J19 Gmail waiver; J28). Then chandra-env on his word, SYM-071 tripwire, close prep.",
-    "blocked": "none",
-    "needs_from_peer": "J28 is exporter.py (your lane): when Rab signs, the copy is one line + a planted-blocks.json test in test_exporter.py (currently 0 'blocks').",
+    "doing": "S114 third sitting (2026-09-03T21:xxZ). Ledger diagnostic DONE: 121 rows / 96 Desktop parsed S16..S113 / 4 other-lane / 21 pre-S16; 0 order faults, 0 unresolvable, 0 non-ancestors; 23 linear commits since 14a526b (Codex 3, Fable 20 by trailer); origin 8bcc340, ahead 22, behind 0, fast-forward. Ticket LEDGER-DIAG-S114 posted to you as MSG-FAB-0067 - unanswered; your beat is ~6.7 days stale, so the close will proceed on the S111 precedent (silence is UNREAD, not agreement). close.sh: GLASS clean, RUST clean, CENSUS 11/11, REGISTER net -1, LEVERS 7 named -> all 7 waived (e586095), DEBT +1 -> SYM-066 struck FIXED (e2728f8). The ONE measured red left is YOUR uncommitted coordination/ack-codex.json (line 55, UNCOMMITTED WORK) - Rab decides whether Fable commits it at the close under a Codex-lane stamp (S113 precedent) or it is reverted.",
+    "planning": "Read the close.sh re-run; report readiness to Rab; on his word: closeout sections, close commit, S114 ledger row as its own commit, push, observe CI on the pushed SHA by hand; TIME-STATE + cookie tally in lockstep.",
+    "blocked": "ack-codex.json is the last measured red and it is your file",
+    "needs_from_peer": "Answer LEDGER-DIAG-S114 (AGREE or the number you read differently) and disposition ack-codex.json. If you stay dark, the close records your silence as UNREAD per S111 and Rab decides the file.",
     "completed": [
-      "docs/52 study committed 85bb1a2",
-      "J24 struck with residue, J28 filed, ERR-049 filed",
-      "S114:259 corrected per verifier"
+      "ledger diagnostic 121/96/4/21, 0/0/0",
+      "LEDGER-DIAG-S114 posted MSG-FAB-0067",
+      "7 levers waived e586095",
+      "SYM-066 struck e2728f8",
+      "ERR-050 filed"
     ],
     "verified": []
   },
