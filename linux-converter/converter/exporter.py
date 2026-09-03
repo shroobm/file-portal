@@ -68,6 +68,20 @@ RECEIPTS_NAME = "receipts.jsonl"
 # nothing is held. N is Rab's number — promote to converter.toml when he wants to tune it.
 SPOT_CHECK_EVERY = 10
 
+# J28 (S114, 2026-09-03): the two export paths disagreed about exactly ONE bundle file. The
+# create path copies the whole staging tree, so `blocks.json` -- J24's per-block records (page,
+# polygon, bbox, section hierarchy), written into the bundle beside manifest.json by
+# windows-converter/convert_and_ship.py -- has ridden along implicitly since J24 shipped. The
+# supersede path copies the .md, assets/ and manifest.json BY NAME and never carried it, and its
+# L12 gate walks the COMMITTED tree instead of the staging bundle, so the omission could not even
+# fail loudly. Whether block records belong inside the vault git repo AT ALL is Rab's call and is
+# NOT made here (their size on a real book is UNREAD, and the receipts.jsonl argument -- the vault
+# holds notes, not machine records -- cuts both ways). Until his word: one lever governs BOTH
+# paths, and the exported manifest states what happened either way. An omission the manifest
+# records is not a silent omission.
+BLOCKS_NAME = "blocks.json"  # the bundle-side name (windows-converter/convert_and_ship.py:107)
+SHIP_BLOCKS_TO_VAULT = False  # lever-waiver: J28, Rab decided OUT 2026-09-03 (stay out of the vault; the manifest names the omission); flips to True only on his word
+
 
 def append_receipt(root: Path, outcome: str, **fields) -> None:
     """Append one seam receipt to <root>/receipts.jsonl. Best-effort and never raises:
@@ -117,6 +131,35 @@ def slugify(name: str) -> str:
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     slug = slug[:60].rstrip("-")
     return slug or "untitled"
+
+
+def _blocks_status(bundle_dir: Path) -> dict:
+    """What this export did with the bundle's blocks.json (J28), for the exported manifest.
+    Absent => {"present_in_bundle": False} and nothing else, so a vault reader can tell "this
+    book has no block records" apart from "its block records were deliberately left behind"."""
+    path = bundle_dir / BLOCKS_NAME
+    if not path.is_file():
+        return {"present_in_bundle": False}
+    try:
+        size = path.stat().st_size
+    except OSError:
+        # Sizing is telemetry, the copy below is the operation: a file we cannot stat but must
+        # ship makes shutil raise there, and the export fails loudly with staging kept.
+        logger.warning("EXPORT-BLOCKS %s: blocks.json could not be sized", bundle_dir.name)
+        size = None
+    return {"present_in_bundle": True, "shipped": bool(SHIP_BLOCKS_TO_VAULT), "bytes": size}
+
+
+def _skip_blocks(bundle_dir: Path):
+    """copytree() filter that keeps the bundle ROOT's blocks.json out of the vault while the J28
+    lever says OUT. copytree calls the filter for every directory it walks, so this checks the
+    directory identity: an asset that happens to be named blocks.json is a different file and
+    still ships."""
+
+    def _ignore(src, _names):
+        return {BLOCKS_NAME} if Path(src) == bundle_dir else set()
+
+    return _ignore
 
 
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
@@ -206,6 +249,25 @@ class Exporter:
             "reason": marker.get("reason", "human-bless"),
             "from_verdict": "flag",
         }
+
+    def _record_blocks(self, bundle_dir: Path, manifest: dict) -> dict:
+        """Fold the J28 blocks disposition into the staging manifest BEFORE any vault write --
+        the same move the bless fold makes, for the same reason: the vault must never carry a
+        manifest that is silent about a bundle file the export left on this machine. Returns the
+        status so the copy step and the L12 gate below act on ONE answer rather than two."""
+        status = _blocks_status(bundle_dir)
+        manifest["blocks"] = status
+        (bundle_dir / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        if status["present_in_bundle"] and not status["shipped"]:
+            logger.info(
+                "EXPORT-BLOCKS-HELD %s: blocks.json (%s bytes) stays on this machine "
+                "(SHIP_BLOCKS_TO_VAULT is False) -- in the manifest, not silently dropped",
+                bundle_dir.name,
+                status["bytes"],
+            )
+        return status
 
     def export(self, bundle_dir: Path) -> None:
         # A single bad bundle must not kill the observer thread or block later exports.
@@ -304,6 +366,7 @@ class Exporter:
                     "-- refusing to guess which note to overwrite, staging copy kept"
                 )
             if len(matches) == 1:
+                self._record_blocks(bundle_dir, manifest)  # J28: before any vault write
                 self._supersede_replace(bundle_dir, supersede, Path(matches[0]))
                 return
             # 0 matches: intent said supersede but nothing is vaulted -> fall through to a normal
@@ -335,6 +398,11 @@ class Exporter:
         target_rel = INBOX_REL / f"{slugify(bundle_dir.name)}--{source_sha[:8]}"
         target = vault_work / target_rel
 
+        # J28: state the blocks.json disposition in the manifest BEFORE it is copied, so the
+        # copy below and the L12 gate further down read the same answer -- what the gate
+        # verifies is then exactly what the manifest claims.
+        blocks = self._record_blocks(bundle_dir, manifest)
+
         # Resume point: a previous run may have committed but failed to push (service died,
         # bare repo unreachable). Committed content is never re-copied or touched.
         committed = _git(vault_work, "cat-file", "-e", f"HEAD:{target_rel}/manifest.json")
@@ -349,7 +417,9 @@ class Exporter:
             if tmp.exists():
                 shutil.rmtree(tmp)
             tmp.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copytree(bundle_dir, tmp)
+            # J28: while the lever says OUT, blocks.json is the one bundle file this copy skips.
+            skip = None if blocks.get("shipped") else _skip_blocks(bundle_dir)
+            shutil.copytree(bundle_dir, tmp, ignore=skip)
             tmp.rename(target)
             _git_check(vault_work, "add", "--", str(target_rel))
             _git_check(
@@ -370,6 +440,11 @@ class Exporter:
         _git_check(vault_bare, "cat-file", "-e", f"{commit_sha}^{{commit}}")
         for file in sorted(p for p in bundle_dir.rglob("*") if p.is_file()):
             rel = file.relative_to(bundle_dir)
+            # J28: a deliberately unshipped blocks.json has no blob to verify -- the gate must
+            # not demand one it was told not to create. The manifest carries the disposition,
+            # so the omission is still on the record.
+            if rel.as_posix() == BLOCKS_NAME and not blocks.get("shipped"):
+                continue
             _git_check(vault_bare, "cat-file", "-e", f"{commit_sha}:{target_rel / rel}")
 
         shutil.rmtree(bundle_dir)
@@ -451,6 +526,20 @@ class Exporter:
             shutil.copytree(bundle_dir / "assets", target / "assets")
         shutil.copyfile(new_md[0], target / old_md_name)
         shutil.copyfile(bundle_dir / "manifest.json", target / "manifest.json")
+        # J28: blocks.json is swapped exactly the way assets/ is -- dropped first, then re-added
+        # only if the lever ships it. Block records index the markdown they were computed from;
+        # stale ones outliving a remedy would point at text that is no longer in the note.
+        _git(
+            vault_work,
+            "rm",
+            "--quiet",
+            "--ignore-unmatch",
+            "--",
+            f"{target_rel.as_posix()}/{BLOCKS_NAME}",
+        )
+        (target / BLOCKS_NAME).unlink(missing_ok=True)
+        if SHIP_BLOCKS_TO_VAULT and (bundle_dir / BLOCKS_NAME).is_file():
+            shutil.copyfile(bundle_dir / BLOCKS_NAME, target / BLOCKS_NAME)
         _git_check(vault_work, "add", "--", target_rel.as_posix())
 
         changed = [

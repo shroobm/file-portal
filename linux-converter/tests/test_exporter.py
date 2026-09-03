@@ -428,3 +428,137 @@ def test_clean_manifest_adds_no_flag_keys(paths):
     exported = [r for r in read_receipts(paths) if r["outcome"] == "exported"]
     assert "degeneration_flagged" not in exported[0]
     assert "spot_check" not in exported[0]
+
+
+# ---------------------------------------------------------------------------
+# J28 (2026-09-03): blocks.json -- J24's block records -- at the vault seam. Whether they belong
+# inside the vault git repo is Rab's call and is NOT made yet, so these pin BOTH answers of the
+# SHIP_BLOCKS_TO_VAULT lever on BOTH export paths, plus the manifest that must state which one
+# happened. The defect they were written for: the supersede path copies .md + assets/ +
+# manifest.json BY NAME and nothing else, and its L12 gate walks the COMMITTED tree, so the drop
+# was silent -- every other supersede test above passed straight through it.
+# ---------------------------------------------------------------------------
+BLOCKS_A = json.dumps(
+    {"blocks": [{"id": "/page/0/Text/1", "page": 0, "bbox": [1, 2, 3, 4]}]}
+).encode()
+BLOCKS_B = json.dumps(
+    {"blocks": [{"id": "/page/7/Table/2", "page": 7, "bbox": [5, 6, 7, 8]}]}
+).encode()
+
+
+def plant_blocks(bundle, payload=BLOCKS_A):
+    """Drop a blocks.json beside the manifest, where marker_blocks.py writes it into the bundle.
+    Returns its TRUE byte size -- the number the exported manifest has to report."""
+    (bundle / "blocks.json").write_bytes(payload)
+    return len(payload)
+
+
+def bare_size(paths, rel):
+    """Committed blob size in bytes (`cat-file -s`), not len() of the shown text -- `git show`
+    comes back through .strip() and would undercount by the trailing newline."""
+    return int(git(paths.vault_bare, "cat-file", "-s", f"main:{rel}"))
+
+
+def vault_manifest(paths, dest):
+    return json.loads(bare_show(paths, f"{dest}/manifest.json"))
+
+
+def ship_blocks(monkeypatch, value):
+    """Flip the J28 lever for one test (same shape as the SPOT_CHECK_EVERY patches above)."""
+    import converter.exporter as exporter_mod
+
+    monkeypatch.setattr(exporter_mod, "SHIP_BLOCKS_TO_VAULT", value)
+
+
+def test_blocks_held_is_recorded_in_the_manifest_not_silently_dropped(paths):
+    # No monkeypatch: this is the lever as the module ships it (OUT, pending Rab's word).
+    bundle = make_bundle(paths, "paper", SHA_A)
+    n = plant_blocks(bundle)
+    Exporter(paths).export(bundle)
+
+    dest = f"Inbox/paper--{SHA_A[:8]}"
+    assert not bundle.exists(), "the L12 gate must not demand a blob it was told not to create"
+    assert bare_commits(paths) == 2, "the export still lands"
+    assert not bare_has(paths, f"{dest}/blocks.json"), "lever is OUT -- the vault must not have it"
+    assert vault_manifest(paths, dest)["blocks"] == {
+        "present_in_bundle": True,
+        "shipped": False,
+        "bytes": n,
+    }
+    # PLANTED DECOY: `bytes` has a wrong-answer shape -- an implementation that sized the file
+    # blocks.json is written beside (manifest.json) still yields a plausible int, and an
+    # equality-only assertion on some other run's number would not catch it. Assert the true
+    # size AND that it is not the decoy's; the guard only means something because they differ.
+    manifest_bytes = bare_size(paths, f"{dest}/manifest.json")
+    assert n != manifest_bytes, "decoy degenerate: plant a blocks.json of a different size"
+    assert vault_manifest(paths, dest)["blocks"]["bytes"] != manifest_bytes
+
+
+def test_blocks_ship_byte_identical_when_the_lever_says_in(paths, monkeypatch):
+    ship_blocks(monkeypatch, True)
+    bundle = make_bundle(paths, "paper", SHA_A)
+    n = plant_blocks(bundle)
+    Exporter(paths).export(bundle)
+
+    dest = f"Inbox/paper--{SHA_A[:8]}"
+    assert bare_has(paths, f"{dest}/blocks.json"), "lever is IN -- the vault must carry it"
+    assert bare_size(paths, f"{dest}/blocks.json") == n, "byte-identical, not re-serialized"
+    assert bare_show(paths, f"{dest}/blocks.json") == BLOCKS_A.decode()
+    assert vault_manifest(paths, dest)["blocks"] == {
+        "present_in_bundle": True,
+        "shipped": True,
+        "bytes": n,
+    }
+
+
+def test_bundle_without_blocks_records_absence(paths):
+    # "no block records" and "block records deliberately left behind" must not read the same.
+    Exporter(paths).export(make_bundle(paths, "plain", SHA_A))
+    dest = f"Inbox/plain--{SHA_A[:8]}"
+    assert vault_manifest(paths, dest)["blocks"] == {"present_in_bundle": False}
+    assert not bare_has(paths, f"{dest}/blocks.json")
+
+
+def test_supersede_carries_blocks_when_the_lever_says_in(paths, monkeypatch):
+    ship_blocks(monkeypatch, True)
+    exp = Exporter(paths)
+    exp.export(make_bundle(paths, "paper", SHA_A))  # vaulted before J24: no block records
+    dest = f"Inbox/paper--{SHA_A[:8]}"
+    assert not bare_has(paths, f"{dest}/blocks.json")
+
+    remedy = make_supersede_bundle(paths, "paper", SHA_A, body="the remedy")
+    n = plant_blocks(remedy, BLOCKS_B)
+    exp.export(remedy)
+
+    # J28 itself: the Damodaran re-convert is the first bundle to walk this path with block
+    # records in it, and before the fix they were dropped here without a word.
+    assert bare_has(paths, f"{dest}/blocks.json"), "the remedy's block records must ship too"
+    assert bare_show(paths, f"{dest}/blocks.json") == BLOCKS_B.decode()
+    assert bare_size(paths, f"{dest}/blocks.json") == n
+    assert vault_manifest(paths, dest)["blocks"]["shipped"] is True
+    assert not remedy.exists(), "staging cleared -- the L12 gate saw every committed blob"
+
+
+def test_supersede_held_records_it_and_stale_block_records_do_not_survive(paths, monkeypatch):
+    ship_blocks(monkeypatch, True)
+    exp = Exporter(paths)
+    first = make_bundle(paths, "paper", SHA_A)
+    plant_blocks(first, BLOCKS_A)
+    exp.export(first)
+    dest = f"Inbox/paper--{SHA_A[:8]}"
+    assert bare_show(paths, f"{dest}/blocks.json") == BLOCKS_A.decode()
+
+    # The lever flips OUT between the create and the remedy. The vaulted records index markdown
+    # the remedy just replaced -- like assets/, they must not outlive the note they describe.
+    ship_blocks(monkeypatch, False)
+    remedy = make_supersede_bundle(paths, "paper", SHA_A, body="the remedy")
+    n = plant_blocks(remedy, BLOCKS_B)
+    exp.export(remedy)
+
+    assert "the remedy" in bare_show(paths, f"{dest}/paper.md"), "the swap itself happened"
+    assert not bare_has(paths, f"{dest}/blocks.json"), "stale block records must not survive"
+    assert vault_manifest(paths, dest)["blocks"] == {
+        "present_in_bundle": True,
+        "shipped": False,
+        "bytes": n,
+    }
