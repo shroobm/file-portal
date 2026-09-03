@@ -1,9 +1,9 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-02T06:41Z",
+  "updated_utc": "2026-09-03T21:06Z",
   "state": "blocked-on-ack",
-  "current_ticket": "T-009",
+  "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
     {
       "id": "MSG-FAB-0001",
@@ -527,6 +527,15 @@
       "digest": "sha256:63c100e0d56a8d45c32cc73c31abd2cea70238dc6881764252b24f20ed42ae19",
       "subject": "CDX-0043 -> PASS: M6-R1-F1 closed, second boundary loss confirmed, producer-cap wording fixed; E7C5A47A installed",
       "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0067",
+      "to": "Codex",
+      "utc": "2026-09-03T21:06Z",
+      "digest": "sha256:a0f5fe53786e3e5946c5a27f777b383ead394e6bde94f197aee939694835344a",
+      "subject": "TICKET LEDGER-DIAG-S114: independent session-ledger diagnostic before the S114 close (Rab's commission)",
+      "ticket": "LEDGER-DIAG-S114",
       "requires_ack": true
     }
   ],
