@@ -119,8 +119,8 @@ print("B1 absolute page correction (decoy: slice-relative page 0 for the book's 
 # counter that happens to be 0 for the first block on a page.
 FIRST_BLOCK_ID = "/page/800/Text/0"     # book's TRUE absolute page: 800
 SECOND_BLOCK_ID = "/page/999/Text/3"    # book's TRUE absolute page: 999
-DECOY_FIRST = 0    # what int(id.split("/")[-1]) gives for FIRST_BLOCK_ID — the planted decoy
-DECOY_SECOND = 3   # same wrong read for SECOND_BLOCK_ID
+DECOY_FIRST = 0    # what int(id.split("/")[-1]) gives for FIRST_BLOCK_ID — the planted decoy  # lever-waiver: a PLANTED DECOY (visual_witness_verify.py:42-49 pattern), asserted equal to the wrong implementation's output at runtime; changing it IS the test failing, not a tuning
+DECOY_SECOND = 3   # same wrong read for SECOND_BLOCK_ID  # lever-waiver: planted decoy, computed from SECOND_BLOCK_ID at runtime and asserted; not a threshold
 assert int(FIRST_BLOCK_ID.split("/")[-1]) == DECOY_FIRST, "decoy value must be independently true"
 assert int(SECOND_BLOCK_ID.split("/")[-1]) == DECOY_SECOND, "decoy value must be independently true"
 

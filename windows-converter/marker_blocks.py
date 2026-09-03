@@ -61,7 +61,7 @@ BLOCKS_SUFFIX = ".blocks.json"
 
 # Bumped when the RECORD SHAPE changes, so a reader can refuse a shape it does not understand
 # instead of misreading it. 1 = the shape documented in `normalize_chunk_payload` below.
-BLOCKS_SCHEMA = 1
+BLOCKS_SCHEMA = 1  # lever-waiver: a schema VERSION, not a threshold - readers compare for equality, nothing is decided by magnitude; bumped only when the block record's shape changes (J24, S114)
 
 # Marker's chunk renderer inlines every figure as base64 inside the block that owns it
 # (renderers/chunk.py `collect_images`). The bundle already carries those exact bytes as FILES
