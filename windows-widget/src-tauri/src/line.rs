@@ -487,8 +487,15 @@ pub fn last_receipt(gpu_pipeline_dir: &str) -> Result<Value, String> {
                 });
             }
             (Some("convert"), Some("converted")) if receipt["convert"].is_null() => {
+                // F7 / census N-059 (S114, 2026-09-03): a RESUMED convert emits wall_s 0.0 and
+                // s_per_page 0.0 beside the honest pair below; without them the Dock's receipt
+                // line read "1377pp @ 0.0s/p" on the maiden voyage's power-cut resume. Both are
+                // Null on pre-J24 events (serde_json indexing), which main.js treats as "not a
+                // resume" and renders the old way.
                 receipt["convert"] = json!({
                     "wall_s": ev["wall_s"], "s_per_page": ev["s_per_page"], "pages": ev["pages"],
+                    "pages_converted_this_run": ev["pages_converted_this_run"],
+                    "cost_s": ev["cost_s"],
                 });
             }
             _ => {}

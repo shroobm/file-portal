@@ -54,6 +54,12 @@ export function eventPhrase(e, { compact = false, unknown = null } = {}) {
     "convert/ollama_unloaded": `ollama released ${e.count ?? "?"} resident(s) — VRAM margin cleared`,
     "convert/asset_range_warning": `${icon("⚠")}pp ${s(e.page_range)} — assets outside slice range`,
     "convert/converted": `${icon("⚙")}converted ${s(e.source)} in ${Math.round(e.wall_s || 0)}s${e.retry_wall_s ? ` (+${Math.round(e.retry_wall_s)}s retries)` : ""}${e.resumed_slices ? ` · ${e.resumed_slices} resumed` : ""}`,
+    // J24 (commit 850bdf3, convert_and_ship.py:670-683): block records ride beside the book,
+    // never gate it — "blocks never fail a book" is the law, so blocks_error names the reason
+    // and says so out loud rather than leaving a reader to guess whether the CONVERT failed too.
+    "convert/blocks": `${icon("▦")}${s(e.source)} — block records: ${e.blocks_total ?? "?"} blocks over ${e.slices_with_blocks ?? "?"}/${e.slices_total ?? "?"} slices`,
+    "convert/blocks_partial": `${icon("⚠")}${s(e.source)} — block records INCOMPLETE · ${typeof e.slices_total === "number" && typeof e.slices_with_blocks === "number" ? e.slices_total - e.slices_with_blocks : "?"} of ${e.slices_total ?? "?"} slices missing${e.page_unresolved ? ` · ${e.page_unresolved} pp unresolved` : ""}`,
+    "convert/blocks_error": `${icon("✗")}${e.source ? `${s(e.source)} — ` : ""}block records error (${s(e.phase)}${e.page_range ? ` @ pp ${s(e.page_range)}` : ""}): ${s(e.error)} — conversion unaffected`,
     "audit/scored": `scored ${s(e.source)} · survival ${e.doc_survival != null ? Number(e.doc_survival).toFixed(3) : "?"}`,
     "audit/flagged": `${s(e.source)} — verdict ${e.verdict}`,
     "audit/verdict_fail": `${s(e.bundle)} — verdict FAIL · algedonic`,

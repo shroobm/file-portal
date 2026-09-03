@@ -474,12 +474,34 @@ stDrop.addEventListener("click", () => {
   if (stDrop.classList.contains("has-failed")) invoke("open_failed_tray").catch(() => {});
 });
 
+// F7 / N-059 (docs/51 s0; S114 §10 "confirmed at source, a PARITY defect"): a resumed
+// convert can emit s_per_page 0.0 (wall_s 0.0 too) beside an honest, nonzero page count —
+// rendered raw, "0.0s/p" reads as a measurement of a run that measured nothing. docs/34:
+// an unmeasured duration renders UNREAD, never 0.0. room.js:530/533 (N061/N064) already
+// speak pages_converted_this_run/cost_s honestly for this same shape — this is that same
+// vocabulary, reused. last_receipt (src-tauri/src/line.rs:489-493) does not yet copy either
+// field into r.convert (only wall_s/s_per_page/pages cross that seam today), so those two
+// clauses degrade to UNREAD here rather than fabricate a count the widget was never sent;
+// the defect this function exists to kill — a falsy rate rendered beside a real page
+// count — is caught either way.
+function convertReceiptLine(c) {
+  const noRate = !c.s_per_page && c.pages;
+  const zeroRun = c.pages_converted_this_run === 0;
+  if (noRate || zeroRun) {
+    const thisRun = c.pages_converted_this_run != null
+      ? `${c.pages_converted_this_run} pp this run` : "pp this run UNREAD";
+    const cost = c.cost_s != null ? `book cost ${c.cost_s}s` : "book cost UNREAD";
+    return `${c.pages}pp · resumed, ${thisRun} · ${cost}`;
+  }
+  return `${c.pages}pp @ ${c.s_per_page}s/p`;
+}
+
 // S22: the ship station's receipt — last bundle's chain, shown in the status line.
 stShip.addEventListener("click", async () => {
   try {
     const r = await invoke("last_receipt");
     const bits = [r.bundle];
-    if (r.convert) bits.push(`${r.convert.pages}pp @ ${r.convert.s_per_page}s/p`);
+    if (r.convert) bits.push(convertReceiptLine(r.convert));
     if (r.analyst) bits.push(
       `${r.analyst.backend}: ${r.analyst.passed}✓` +
       (r.analyst.protected ? ` ${r.analyst.protected}🛡` : "") +
