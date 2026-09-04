@@ -1,0 +1,142 @@
+{
+  "results": [
+    {
+      "file": "Ashby - An Introduction to Cybernetics (1956).pdf",
+      "manifest_lane": "clean",
+      "pages_total": 156,
+      "pages_sampled": 156,
+      "total_spans": 13537,
+      "mode_counts": {
+        "0": 13537
+      },
+      "invisible_spans": 0,
+      "invisible_ratio": 0.0,
+      "predicted_lane_by_ratio_gt_0.5": "clean",
+      "producer": "Acrobat Distiller 3.0 for Power Macintosh",
+      "creator": ""
+    },
+    {
+      "file": "Best Practices for Equity Research Analysts - James J Valentine (2011).pdf",
+      "manifest_lane": "scan",
+      "pages_total": 465,
+      "pages_sampled": 465,
+      "total_spans": 13,
+      "mode_counts": {
+        "0": 13
+      },
+      "invisible_spans": 0,
+      "invisible_ratio": 0.0,
+      "predicted_lane_by_ratio_gt_0.5": "clean",
+      "producer": "Foxit Phantom - Foxit Corporation",
+      "creator": "Adobe Acrobat Pro 11.0.0"
+    },
+    {
+      "file": "bojieli_ai-agent-book： 《深入理解 AI Agent：设计原理与工程实践》（李博杰 著）开源主仓库：全书正文、编译版 PDF 与按章配套代码 (2026-07-18 3：4….pdf",
+      "manifest_lane": "clean",
+      "pages_total": 19,
+      "pages_sampled": 19,
+      "total_spans": 4088,
+      "mode_counts": {
+        "0": 4088
+      },
+      "invisible_spans": 0,
+      "invisible_ratio": 0.0,
+      "predicted_lane_by_ratio_gt_0.5": "clean",
+      "producer": "Skia/PDF m150",
+      "creator": "Chromium"
+    },
+    {
+      "file": "BRAIN OF THE FIRM STAFFORD BEER (WITH OCR) ISBN 13 9780471162131.pdf",
+      "manifest_lane": "scan",
+      "pages_total": 439,
+      "pages_sampled": 439,
+      "total_spans": 170132,
+      "mode_counts": {
+        "3": 170132
+      },
+      "invisible_spans": 170132,
+      "invisible_ratio": 1.0,
+      "predicted_lane_by_ratio_gt_0.5": "scan",
+      "producer": "calibre (5.27.0) [https://calibre-ebook.com]",
+      "creator": "calibre (5.27.0) [https://calibre-ebook.com]"
+    },
+    {
+      "file": "claude-code-up-and-running.pdf",
+      "manifest_lane": "clean",
+      "pages_total": 104,
+      "pages_sampled": 104,
+      "total_spans": 3830,
+      "mode_counts": {
+        "0": 3830
+      },
+      "invisible_spans": 0,
+      "invisible_ratio": 0.0,
+      "predicted_lane_by_ratio_gt_0.5": "clean",
+      "producer": "calibre 7.6.0",
+      "creator": "calibre 7.6.0"
+    },
+    {
+      "file": "Cybernetics_Book_of_Models-v4.6b-complete.pdf",
+      "manifest_lane": "clean",
+      "pages_total": 91,
+      "pages_sampled": 91,
+      "total_spans": 2319,
+      "mode_counts": {
+        "0": 2319
+      },
+      "invisible_spans": 0,
+      "invisible_ratio": 0.0,
+      "predicted_lane_by_ratio_gt_0.5": "clean",
+      "producer": "Adobe PDF Library 9.9",
+      "creator": "Adobe InDesign CS5 (7.0)"
+    },
+    {
+      "file": "DIAGNOSING THE SYSTEM FOR ORGANIZATIONS STAFFORD BEER.pdf",
+      "manifest_lane": "scan",
+      "pages_total": 184,
+      "pages_sampled": 184,
+      "total_spans": 68632,
+      "mode_counts": {
+        "3": 68632
+      },
+      "invisible_spans": 68632,
+      "invisible_ratio": 1.0,
+      "predicted_lane_by_ratio_gt_0.5": "scan",
+      "producer": "calibre (5.9.0) [https://calibre-ebook.com]",
+      "creator": "calibre (5.9.0) [https://calibre-ebook.com]"
+    },
+    {
+      "file": "Investment Valuation - Aswath Damodaran (4e, 2025).pdf",
+      "manifest_lane": "clean",
+      "pages_total": 1356,
+      "pages_sampled": 1356,
+      "total_spans": 212394,
+      "mode_counts": {
+        "0": 212394
+      },
+      "invisible_spans": 0,
+      "invisible_ratio": 0.0,
+      "predicted_lane_by_ratio_gt_0.5": "clean",
+      "producer": "calibre 7.21.0",
+      "creator": "calibre 7.21.0"
+    },
+    {
+      "file": "Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Fourth Edition, 2023 -- Wiley & Sons, Incorporated, John.pdf",
+      "manifest_lane": "clean",
+      "pages_total": 1377,
+      "pages_sampled": 1377,
+      "total_spans": 157924,
+      "mode_counts": {
+        "0": 157924
+      },
+      "invisible_spans": 0,
+      "invisible_ratio": 0.0,
+      "predicted_lane_by_ratio_gt_0.5": "clean",
+      "producer": "calibre 8.4.0",
+      "creator": "calibre 8.4.0"
+    }
+  ],
+  "missing": [
+    "Designing with Freedom W Sketches from Stafford Beer, Chichester, West Sussex ISBN 13 9780471062202.pdf (scan, per manifest) -- SOURCE NOT ON DISK, UNREAD"
+  ]
+}

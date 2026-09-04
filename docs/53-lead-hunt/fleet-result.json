@@ -1,0 +1,836 @@
+{
+  "summary": "Read the leads Rab hunted against the six-row conversion spec: tests first, then the line where the number is computed; measure what can be measured on his specimens; Fable verifies licence/VRAM/offline claims against the repos' own files",
+  "agentCount": 6,
+  "logs": [
+    "Read: 5 lanes",
+    "5/5 lanes returned"
+  ],
+  "result": {
+    "lanes": [
+      {
+        "lane": "A — Reading order without a tree (spec #4) + the Detect-Order-Construct paper",
+        "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/leads/A-reading-order.md",
+        "measured_on_specimen": "Ran a self-written ~55-line recursive XY-cut (xycut_probe.py, CPU-only, pymupdf+re+difflib, no torch) over pymupdf get_text(\"dict\") block bboxes — the same shape J24's marker_blocks.py persists — on the two specimens that actually carry a structure-tree ground truth: Well-Tagged-PDF-WTPDF-1.0.pdf (57pp) and ISO_32000-2_sponsored_EC3.pdf (60pp), C:/Users/Bndit/Downloads/. Reused probe_k_order.py's declared_frags()/geom_frags() verbatim as ground truth and Marker-baseline proxy rather than re-deriving a parallel methodology. Negative control run and Verified: (1) determinism self-compare True; (2) planted two-column synthetic page (full-height contiguous columns, 50pt gutter, column-interleaved input) — naive y-sort wrong, xy_cut correct — this IS the regression test. Measured v1 (plain XY-cut): 55/57 and 59/60 pages disagree with declared order (far worse than baseline's 2/57, 15/60). Diagnosed the cause (diag.py): a running footer, geometrically at page-bottom but content-stream-first, breaks pure-geometry sorting. Built v2 (margin-band header/footer excluded from the cut): WTPDF collapses to 2/57 (matches baseline exactly); ISO improves to 18/60 (still worse than baseline's 15/60). Computed the number that actually answers the spec (xycut_v3_net.py): on the pages where Marker's own stream-order baseline is already wrong, v2 XY-cut fixes 0/2 (WTPDF) and 0/15 (ISO), while breaking 3 ISO pages the baseline got right. Diagnosed those residual failures (diag_p0.py): they are cover/title pages with anomalous bboxes (one block at y0=-20.7), not multi-column body text — the algorithm's actual target case was never exercised by either ground-truthed specimen. Also read marker/processors/order.py, marker/builders/layout.py, and surya/layout/__init__.py directly to correct an assumption in the brief: Marker's current \"geometric order\" is actually pdftext span-order (stream order), not geometry — surya's layout position field (an autoregressive decode index) is only used as a fallback for spanless blocks.",
+        "residue": "Did not measure PdfPig's DocstrumBoundingBoxes or UnsupervisedReadingOrderDetector (interval-algebra) algorithms this session — only ported and measured RecursiveXYCut. Those two are plausible candidates for the cover-page/anomalous-bbox failure mode found (nearest-neighbour and interval-algebra don't assume axis-aligned gaps the way XY-cut does), flagged MEASURE_NEXT, not ruled out. The PdfPig wiki content itself came back as an AI-summarized WebFetch, not hand-parsed raw wiki markdown — tagged Observed, not independently re-verified against source text. Could not test XY-cut's actual target case (genuine multi-column running body text) against any ground truth at all: only 19/4,307 (0.44%) of Rab's real converted corpus carries a structure tree (docs/52, re-quoted not re-derived), and neither WTPDF nor ISO 32000-2 contains multi-column body pages in the specimens sampled — so this lane's negative result is solid on the specimens available but does not close the question for the algorithm's real niche. Did not attempt to run J24's actual marker_blocks.json output through xy_cut() (no J24-blocks book also carries a structure tree, so there's nothing to score it against) — confirmed this is a structural gap in the available ground truth, not a shortcut taken. Did not build the REDS-style graded metric (paragraph-boundary Levenshtein + Hungarian matching) — flagged IDEA_ONLY as a good next metric, zero lines written.",
+        "leads": [
+          {
+            "name": "Detect-Order-Construct / Comp-HRDoc (MSRA, arXiv 2401.11874v2 + github.com/microsoft/CompHRDoc)",
+            "spec_rows": [
+              "#4 READING ORDER WITHOUT A TREE"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "MIT (CompHRDoc repo LICENSE, Verified via WebFetch) — but the model code itself has no license because it was never released: 'Due to company policy, we cannot release the code for the model.' (UniHDSA/README.md, quoted verbatim, Verified via a second independent WebFetch)",
+            "offline_vram": "N/A — no weights exist anywhere to load. The architecture (ResNet-18/50 CNN backbone + BERT-base + multi-modal transformer relation heads) was trained on 8x Nvidia Tesla V100 32GB (paper §5.2); retraining from scratch on 1x RTX 3080 10GB is not feasible even if the withheld code existed.",
+            "test_quality": "none found — no code was released to have tests; only 'configuration including the model architecture, training hyperparameters, and data processing methods' plus an evaluation script were released (UniHDSA/README.md, quoted).",
+            "headline_number_and_denominator": "Text Region REDS 0.9319 / Graphical Region REDS 0.8637 (Table 6) on the Comp-HRDoc benchmark test split = 500 held-out documents from HRDoc-Hard (paper §5.1); REDS = 1 - Hungarian-matched Levenshtein edit distance / N basic units (text-lines + graphical objects). The paper's own cited rule-based XY-cut baseline (Lorenzo/Quiros et al.) scores 0.7741/0.8583 on the same benchmark — i.e. even the paper says geometric XY-cut gets most of the way there.",
+            "what_it_gives_file_portal": "Nothing directly installable. What survives: (a) the related-work citation trail for the rule-based reading-order family (XY-cut/topological-sort/bidimensional-relations, refs [50],[51],[53]) with the paper's own verdict quoted at 15 words: 'these rule-based methods can be prone to failure when confronted with out-of-domain cases' — which section 3 of the lead file re-measures empirically and confirms; (b) the REDS metric design as a reusable idea for a graded (not binary) reading-order score, not built this session.",
+            "smallest_measurement": "Two independent WebFetches of github.com/microsoft/CompHRDoc (main README) and github.com/microsoft/CompHRDoc/UniHDSA (subfolder README), both confirming: annotations + eval scripts + configs only, zero code/weights.",
+            "tag": "Verified"
+          },
+          {
+            "name": "UglyToad/PdfPig Document Layout Analysis wiki — portable algorithm references",
+            "spec_rows": [
+              "#4 READING ORDER WITHOUT A TREE"
+            ],
+            "verdict": "MEASURE_NEXT",
+            "licence_at_source": "Apache-2.0, C# (per GROUND's mechanical triage table, already measured 2026-09-04 via the GitHub API; not re-verified this session).",
+            "offline_vram": "0 — no model, pure geometry/interval-algebra rules over word/line bboxes; not installed or run this session (C#, outside the Python pipeline), referenced only for algorithm shape.",
+            "test_quality": "none found — PdfPig's own test suite was not fetched or run this session; the wiki page (algorithm descriptions) was read, not the repo's test files.",
+            "headline_number_and_denominator": "N/A — wiki documentation page, not a benchmark result.",
+            "what_it_gives_file_portal": "The algorithm vocabulary and class shapes: RecursiveXYCut (top-down recursive decomposition over word bboxes — ported natively to Python and measured, see the third lead below), DocstrumBoundingBoxes (bottom-up nearest-neighbour clustering, UNMEASURED), UnsupervisedReadingOrderDetector (Allen's-interval-algebra graph method over block bboxes, UNMEASURED). Not a dependency to adopt (C#); the value is entirely as a reference for what to reimplement.",
+            "smallest_measurement": "One AI-summarized WebFetch of github.com/UglyToad/PdfPig/wiki/Document-Layout-Analysis listing 8 named classes with input/family per class — not independently re-parsed from raw wiki markdown.",
+            "tag": "Observed"
+          },
+          {
+            "name": "Recursive XY-cut over J24/pymupdf block bboxes — this session's own ~55-line implementation, measured",
+            "spec_rows": [
+              "#4 READING ORDER WITHOUT A TREE"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "N/A — new code written this session into scratchpad (xycut_probe.py, xycut_v2.py, xycut_v3_net.py), not a third-party dependency; nothing written into file-portal.",
+            "offline_vram": "0 — pure Python over pymupdf get_text(\"dict\") blocks, no torch import anywhere in the script, CPU-only by construction; run on marker-env's python 3.12.13 / pymupdf 1.28.0.",
+            "test_quality": "Planted two-column synthetic page (full-height contiguous 3-row columns, 50pt gutter, column-interleaved input [L0,R0,L1,R1,L2,R2]) with a known-correct output [L0,L1,L2,R0,R1,R2]: a naive y-sort gets it wrong (ties fall back to input order), xy_cut gets it right (fails the Y-gap test correctly, falls through to X-gap, finds the gutter) — quoted from xycut_probe.py's negctrl_two_column(), re-run and Verified this session.",
+            "headline_number_and_denominator": "On the 17 pages where Marker's existing stream-order baseline already disagrees with the declared structure-tree order (2/57 WTPDF + 15/60 ISO 32000-2), margin-excluded XY-cut fixes 0/17 and breaks 3 additional ISO pages the baseline got right — net 0 gained / 3 lost across 117 measured pages (57+60).",
+            "what_it_gives_file_portal": "A working, negative-control-tested ~55-line CPU pass that ports directly onto J24's persisted block bboxes with no changes — but measured net-negative value on the only two ground-truthed (structure-tree) specimens Rab holds. Diagnosed why: both specimens' residual order errors are cover/title-page bbox anomalies (one ISO block has y0=-20.7, a stylized/oversized title graphic), not multi-column body-text confusion — the failure mode XY-cut is actually built to fix. Neither specimen contains genuinely multi-column running body text in the pages sampled, so the algorithm's real target case remains untested against any ground truth (see residue).",
+            "smallest_measurement": "xycut_v3_net.py's per-page fixed/broken diff against declared order, re-run: WTPDF fixes=[] breaks=[] (n=2 candidates), ISO fixes=[] breaks=[15,38,47] (n=15 candidates).",
+            "tag": "Verified"
+          }
+        ]
+      },
+      {
+        "lane": "B — Tables in born-digital untagged PDFs (spec #1)",
+        "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/leads/B-tables.md",
+        "measured_on_specimen": "Ran latex_balance (verbatim reimplementation of fidelity_audit.py:373-424, no pymupdf/rapidfuzz needed) against the actual held Damodaran 4e markdown (C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/...Four.md, 29,697 lines). Result: array env begin=87 end=84 unterminated=3 (not 61 as the commission's GROUND text asserted) - cross-checked against SYMPTOM-INDEX.md's own pre-existing SYM-056 row (\"anchored Investment Valuation bundle...delta 3, already vaulted\") which independently agrees on delta=3 via a differently-shaped literal-count method. The 61/60/40 figures belong to a different book (Ashby), quoted verbatim in that same SYMPTOM-INDEX row. Also measured: colspec width of all 87 array opens (max 3 columns, zero match Ashby's degenerate 36-column signature) and a markdown pipe-table/empty-cell census (4,580 table rows across 235 pages, 4,712 empty-cell markers across 217 pages - this is the real dense-financial-table data, top pages 805/564/757/779/579/888/1012). Negative control: latex_balance's other 4 LaTeX envs (align*, aligned, bmatrix, cases) do not uniformly read unterminated (aligned and cases show only stray closes, 0 unterminated) - the method discriminates rather than flagging everything. Second negative control: caught my own page-mapping artifact mid-measurement (a naive bucket wrongly absorbed 839 lines of front matter into \"page 1\" because the <span id=\"page-N-M\"> anchors are image-adjacent, not one-per-page) and reported it as a stated limitation rather than silently trusting it. Also read marker's actual installed table processor (marker-env/Lib/site-packages/marker/processors/table.py) confirming it already imports surya.table_rec.TableRecPredictor and combines it with pdftext glyph-level extraction on non-OCR pages - grounding what \"glyph geometry\" already does and doesn't cover in the running pipeline. Scripts + JSON outputs in the scratchpad leads dir alongside the report.",
+        "residue": "Declared in report §4: PaddleOCR's and deepdoctection's own unit-test suites UNREAD (404s / budget, not chased past two passes each); TATR's and TableFormer's published benchmark headline numbers + denominators UNREAD; exact (non-interpolated) page numbers for the §1 lists need marker_blocks.py's page+bbox JSON, which does not exist for this held bundle - Unknown, not resolved. One surprise pushed to top-level attention rather than buried: the INSTALLED surya_ocr-0.17.1 package's own METADATA states License: GPL-3.0-or-later (code) + a modified OpenRAIL-M weights license capped at $2M revenue/funding - not the plain Apache-2.0 the GROUND mechanical-triage table lists (that Apache-2.0 is real but is the CURRENT upstream repo's license, which has since diverged from what's actually installed and running). This sits outside Lane B's spec but is load-bearing for the already-running pipeline and is flagged for Rab directly in the report's closing section.",
+        "leads": [
+          {
+            "name": "PaddlePaddle/PaddleOCR - PP-StructureV3 / SLANet family (table_structure_recognition)",
+            "spec_rows": [
+              "#1 tables in born-digital untagged PDFs - wired/wireless model split is the closest of any candidate read to being ruling-aware, though still a learned model not literal PDF-vector ruling detection"
+            ],
+            "verdict": "BAKE_OFF_CANDIDATE",
+            "licence_at_source": "Verified, quoted from raw.githubusercontent.com/PaddlePaddle/PaddleOCR/main/LICENSE: \"Apache License / Version 2.0, January 2004 / http://www.apache.org/licenses/\"",
+            "offline_vram": "SLANet/SLANet_plus 6.9 MB each; SLANeXt_wired/wireless 351 MB each; full PP-StructureV3 table stack (+PP-DocLayout_plus-L 126 MB layout, PP-LCNet_x1_0_table_cls 6.6 MB, RT-DETR-L ~124 MB cell detector) ~608 MB total - all read from PaddleOCR's own module_usage/table_structure_recognition.md and pipeline_usage/PP-StructureV3.md (main branch). Doc states device param supports cpu: or gpu:0 explicitly. Tag: Verified (sizes/license), Observed (CPU-support claim from doc prose, not a live run - nothing installed locally to run it).",
+            "test_quality": "none found - UNREAD, not chased past two search passes (budget); flagged as a gap, not asserted absent",
+            "headline_number_and_denominator": "table_structure_recognition.md's own comparison table: SLANet 59.52, SLANet_plus 63.69, SLANeXt_wired/wireless 69.65 (\"accuracy\") - denominator/eval-set name not stated in the fetched doc (Inferred: likely a PubTabNet-family TEDS-style metric, unconfirmed)",
+            "what_it_gives_file_portal": "A structurally-constrained HTML-token output (valid <table>/<tr>/<td colspan=...> grammar) instead of free-form LaTeX - harder to leave unterminated than the array-environment failure mode SYM-056 names, plus a dedicated wired-vs-wireless model choice absent from Marker's current single surya-table_rec path",
+            "smallest_measurement": "not runnable locally (not installed anywhere in Rab's environment); the specimen-side measurement that would feed a bake-off is the page list in the report's §1 (pages 805/564/757/779/579/888/1012 etc., ranked by empty-cell-marker density)",
+            "tag": "Verified"
+          },
+          {
+            "name": "deepdoctection/deepdoctection (wraps microsoft/table-transformer, per search only)",
+            "spec_rows": [
+              "#1 tables in born-digital untagged PDFs - no architectural differentiator found; appears to wrap the same TATR model as unstructured (2c), unverified from its own source"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "Verified, quoted from raw.githubusercontent.com/deepdoctection/deepdoctection/master/LICENSE (README 404'd on main, LICENSE succeeded on master): \"Apache License / Version 2.0\"",
+            "offline_vram": "Unknown from source (README/docs 404'd, not chased past one retry given redundancy with the unstructured/TATR read below); if it truly wraps microsoft/table-transformer-structure-recognition as search results (not source) indicate, that model is 28.8M params / MIT, same footprint as row below",
+            "test_quality": "none found - UNREAD (deepdoctection's own tests/README 404'd; did not retry alternate branch names)",
+            "headline_number_and_denominator": "Unknown - not reached",
+            "what_it_gives_file_portal": "Unclear / likely nothing beyond what unstructured's TATR wrapper (below) already gives, since it appears to be the identical underlying model",
+            "smallest_measurement": "none run - this candidate's own source was unreachable in this pass, so no specimen-side measurement was attempted against it specifically",
+            "tag": "Unknown"
+          },
+          {
+            "name": "Unstructured-IO/unstructured + unstructured-inference (microsoft/table-transformer-structure-recognition, TATR)",
+            "spec_rows": [
+              "#1 tables in born-digital untagged PDFs - same architectural category (learned box detector + separate glyph/OCR text assignment) as Marker's own surya.table_rec; not a rulings/glyph-geometry reconstructor either, but best-verified of the four candidates read"
+            ],
+            "verdict": "BAKE_OFF_CANDIDATE",
+            "licence_at_source": "Verified, quoted from raw.githubusercontent.com/microsoft/table-transformer/main/LICENSE: \"MIT License / Copyright (c) Microsoft Corporation.\" (model code+weights repo); unstructured-inference wrapper repo itself is Apache-2.0 per GROUND's mechanical triage (not independently re-quoted this pass)",
+            "offline_vram": "28.8M params (HuggingFace model card, Verified), DETR-family object detector - on the order of 100-120 MB at fp32, trivially CPU-viable; HF card explicitly: \"You can use the raw model for detecting the structure (like rows, columns) in tables.\"",
+            "test_quality": "Verified by direct source read, test_table_prediction_with_ocr_tokens in unstructured-inference/test_unstructured_inference/models/test_tables.py: plants fixture image table-multi-row-column-cells.png + mocked OCR tokens, asserts `'<table><thead><tr><th rowspan=\"2\">' in prediction` AND `\"<tr><td>Blind</td><td>5</td><td>1</td><td>4</td><td>34.5%, n=1</td>\" in prediction` - exact cell text and a rowspan surviving round-trip; the one test in this whole lane that would catch a real regression",
+            "headline_number_and_denominator": "Not fetched this pass (TATR's own published GriTS/accuracy benchmark + denominator - UNREAD, declared residue, not chased); the concrete number I do have is test-shaped, not benchmark-shaped: 1 of 1 planted fixture passes its exact-text assertion",
+            "what_it_gives_file_portal": "Confirmed-local (not cloud) execution via source read of unstructured/partition/pdf.py + unstructured_inference/models/tables.py (@requires_dependencies local package call, not a network API on this codepath); architecturally identical in kind to what Marker already runs (box detector + separate glyph/OCR text step, per TATR's own README: \"inference code built on TATR needs text extraction... as a separate input\") - a different training corpus (PubTables-1M) behind the same design, not a new capability",
+            "smallest_measurement": "not installed locally; specimen-side feed for a bake-off is the same §1 page list (805/564/757/779/579/888/1012...)",
+            "tag": "Verified"
+          },
+          {
+            "name": "docling's TableFormer (docling-ibm-models, via docling-project)",
+            "spec_rows": [
+              "#1 tables in born-digital untagged PDFs - the one candidate architecturally different in kind (OTSL sequence decoder + bbox regression, not pure object detection)"
+            ],
+            "verdict": "MEASURE_NEXT",
+            "licence_at_source": "Split license, both Verified by direct fetch: code - raw.githubusercontent.com/docling-project/docling-ibm-models/main/LICENSE = \"MIT License / Copyright (c) 2024 International Business Machines\"; weights - CDLA-Permissive-2.0 (WebSearch-sourced from HF listing, tag Inferred for this half, not source-quoted)",
+            "offline_vram": "213 MB (accurate checkpoint otslp_all_standard_094_clean.check) / 145 MB (fast variant), both on HF docling-project/docling-models - WebSearch-sourced (Inferred), not fetched from a source file directly. CPU-viable at this size. DEVIATION from GROUND: the commission stated docling is installed at C:/Users/Bndit/ml/docling-env - Observed, directly, by listing the venv (139 site-packages entries): only docling_core 2.91.0 (the schema/serialization library) is present; neither the docling pipeline package nor docling-ibm-models (where TableFormer and its weights actually live) is installed. torch 2.11+cu128/transformers 5.14.1/pymupdf are present as ingredients but TableFormer itself cannot run in this venv today.",
+            "test_quality": "Verified by direct source read, docling-ibm-models/tests/test_tf_predictor.py's test_tf_predictor: asserts only `tf_responses is not None`, `isinstance(tf_responses, list)`, and that a 'bbox' key is present in each response - no planted-input/known-output check, no row/column count, no cell-text assertion. Exactly the tautology shape GROUND warned against; weaker than the TATR test above.",
+            "headline_number_and_denominator": "Not fetched this pass (TableFormer's own published TEDS number + denominator - UNREAD, declared residue)",
+            "what_it_gives_file_portal": "docling_core's own TableCell schema (Verified, read from types/doc/items/table/table_data.py) carries row_span/col_span/start_row_offset_idx/end_row_offset_idx/text/column_header/row_header/row_section - a full grid schema whose from_dict_format validator is explicitly written to ingest docling-ibm-models' raw bbox/token output shape, confirming what TableFormer emits even though it isn't installed to run here. Per its own README (Verified, quoted): \"TableModel04rs (OTSL) is our SOTA method that using transformers in order to predict table structure and bounding box\" - sequence generation + bbox regression combined, not pure detection.",
+            "smallest_measurement": "None run - not installed. Next concrete step named in the report: `uv pip install docling-ibm-models` into docling-env, fetch the 145 MB fast checkpoint, run CPU-only against the §1 page list, diff against surya's current markdown for the same pages.",
+            "tag": "Inferred"
+          }
+        ]
+      },
+      {
+        "lane": "C — scan-vs-clean lane (spec #3) + OCR engines",
+        "leads": [
+          {
+            "name": "render-mode-3/7 via pymupdf get_texttrace() — ALREADY SHIPPED (NUM-5, S113), verified not proposed",
+            "spec_rows": [
+              "#3 SCAN-vs-CLEAN LANE"
+            ],
+            "verdict": "BAKE_OFF_CANDIDATE",
+            "licence_at_source": "N/A — no new dependency; pymupdf 1.28.0 is already imported by convert_and_ship.py and fidelity_audit.py today",
+            "offline_vram": "0 — CPU-only byte-stream read, no model, already what's running in production",
+            "test_quality": "none found as a pytest — verified live instead: reproduced probe()'s exact loop (get_texttrace() per page, every page, no sampling) on all 9 measurable corpus works and it matched",
+            "headline_number_and_denominator": "8 of 9 measurable anchor works route correctly on the render-mode-3/7 signal ALONE (invisible_spans/total_spans, full document); the 9th (Valentine, 13 spans / 465 pages) is correctly routed by a separate, already-shipped chars<100/page gate, not by render mode — so 9 of 9 measurable works route correctly under the code as shipped today, 1 of 10 UNREAD (source PDF missing)",
+            "what_it_gives_file_portal": "Confirms the font-name regex (_OCR_FONT) is not load-bearing on this corpus — the render-mode ratio alone (0.0 or 1.0, no middle ground observed) decided every OCR-overlay case. Bake-off candidate: could the font-regex OR be dropped entirely now that render-mode is proven sufficient at this scale, simplifying route()?",
+            "smallest_measurement": "page.get_texttrace() on Brain of the Firm page-index 30/50/100/150: every span carries font='GlyphLessFont', type=3, 100% of spans on those pages",
+            "tag": "Verified"
+          },
+          {
+            "name": "get_text('rawdict') flags field",
+            "spec_rows": [
+              "#3 SCAN-vs-CLEAN LANE"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "N/A — same pymupdf install",
+            "offline_vram": "0",
+            "test_quality": "none found",
+            "headline_number_and_denominator": "flags==12 on 4/4 sampled OCR-overlay spans (Brain of the Firm, pages 30/50/100/150) — decodes to pymupdf's font-style bitmask (SERIFED|MONOSPACED), not a render-mode operator",
+            "what_it_gives_file_portal": "Nothing — negative finding. rawdict does not expose the PDF Tr render-mode operator at all in pymupdf 1.28; only get_texttrace()'s 'type' field does. Saves someone from reaching for rawdict later.",
+            "smallest_measurement": "rawdict span dict on 4 known type-3 pages: keys are size/flags/bidi/char_flags/font/color/alpha/ascender/descender/chars/origin/bbox — no 'type' or 'render' key present",
+            "tag": "Verified"
+          },
+          {
+            "name": "PDF Producer/Creator metadata as scan signal (the exiftool idea)",
+            "spec_rows": [
+              "#3 SCAN-vs-CLEAN LANE"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "N/A — doc.metadata is stdlib pymupdf, no new dependency",
+            "offline_vram": "0",
+            "test_quality": "none found — this is a one-shot measurement, not a maintained test",
+            "headline_number_and_denominator": "'calibre' is the producer string on 5 of the 9 measured works — 3 of those are clean-lane, 2 are scan-lane; 0/5 discrimination from the producer string alone",
+            "what_it_gives_file_portal": "Nothing usable — confirms Producer/Creator tracks the ebook-repackaging tool (calibre), not whether an OCR pass occurred; orthogonal signal, would misroute if used",
+            "smallest_measurement": "doc.metadata['producer'] == 'calibre 7.6.0' (claude-code-up-and-running, clean) vs 'calibre (5.27.0)' (Brain of the Firm, scan) — same tool family, opposite lanes",
+            "tag": "Verified"
+          },
+          {
+            "name": "JaidedAI/EasyOCR",
+            "spec_rows": [
+              "#3 SCAN-vs-CLEAN LANE (second OCR reader / independent witness for scan-lane fidelity)"
+            ],
+            "verdict": "BAKE_OFF_CANDIDATE",
+            "licence_at_source": "Apache License, Version 2.0 (raw-fetched LICENSE)",
+            "offline_vram": "CPU-able: README states gpu=False runs CPU-only. Deps: torch, torchvision>=0.5 (already present in marker-env for Marker/surya — not a new multi-GB install). Exact model-file MB sizes UNREAD — not stated in README, release-assets page failed to render sizes via WebFetch, model_hub.py's zoo dict has filename/URL/md5 but no filesize field.",
+            "test_quality": "unit_test/unit_test.py: real planted-input/known-output mechanism — loads a pickled known-answer package, validates via exact string match (test==solution) and 10% relative-error tolerance for numerics. Cannot quote the actual expected string; it's inside a binary pickle not rendered by WebFetch.",
+            "headline_number_and_denominator": "no speed/accuracy headline number found in the fetched README — no benchmark table present in the slice WebFetch returned",
+            "what_it_gives_file_portal": "The only way a scan-lane document (e.g. Brain of the Firm, Diagnosing the System) gets a text witness that isn't itself — right now fidelity_audit.py's pymupdf witness on a scan-lane work is comparing the OCR text against nothing independent",
+            "smallest_measurement": "none run — no download, no install, no CPU cycles spent; GPU stays idle per ground rules and I did not spend time/bandwidth on a live model download without Rab's go-ahead",
+            "tag": "Unknown"
+          },
+          {
+            "name": "PaddlePaddle/PaddleOCR (PP-OCRv4/v5/v6)",
+            "spec_rows": [
+              "#3 SCAN-vs-CLEAN LANE (second OCR reader / independent witness for scan-lane fidelity)"
+            ],
+            "verdict": "BAKE_OFF_CANDIDATE",
+            "licence_at_source": "Apache License Version 2.0, Copyright (c) 2016 PaddlePaddle Authors (raw-fetched LICENSE)",
+            "offline_vram": "CPU-able per README badge (cpu/gpu/xpu/npu). PP-OCRv6 tiers: tiny 1.5M / small 7.7M / medium 34.5M parameters (param counts, not MB — no MB figure found). requirements.txt does NOT include paddlepaddle itself — the inference framework is a separate CPU/GPU-wheel install per docs/version3.x/installation.en.md (this split confirmed at Inferred strength, not independently re-verified — well-known public fact, not re-fetched to source in this pass).",
+            "test_quality": "test_tipc/compare_results.py: np.testing.assert_allclose(pred[k], gt[k], atol=1e-3, rtol=1e-3) across fp32/fp16/int8 ground-truth dicts per key — real numeric-tolerance regression test against stored ground truth, shell-script CI rather than pytest but not a tautology",
+            "headline_number_and_denominator": "'5.2x CPU speedup' (OpenVINO) and '6.1x on Apple M4 (tiny)' — both RELATIVE speedups, no baseline ms/page or images/sec, no CPU model named for the 5.2x figure — vendor quoting itself, flagged per measurement-language law: no denominator, no trust",
+            "what_it_gives_file_portal": "Same slot as EasyOCR — independent OCR witness for scan-lane works; smaller declared param counts than EasyOCR's torch stack suggest a lighter CPU footprint, unverified on Rab's hardware",
+            "smallest_measurement": "none run — no download, no install, no CPU cycles spent",
+            "tag": "Unknown"
+          }
+        ],
+        "measured_on_specimen": "Reproduced probe()'s exact loop (convert_and_ship.py:766-773: for page in doc: for span in page.get_texttrace()) full-document, every page, no sampling, on all 9 of the 10 anchor-corpus works whose source PDF is on disk (C:/Users/Bndit/ml/library/drop/done/*.pdf, matched by manifest.json's 'source' field). pymupdf.__version__ confirmed 1.28.0 via marker-env python. Script + raw JSON: scratchpad/leads/measure_lanes.py, lane_measurements.json. Result: 6 clean-lane works measured exactly 0.0 invisible-span ratio (negative control, up to 212,394 spans on the 1,356-page Damodaran 4e); 2 scan/untrusted_ocr_layer works measured exactly 1.0 (Brain of the Firm 170,132/170,132, Diagnosing the System 68,632/68,632); 1 scan/no_text_layer work (Valentine) measured 13 total spans across 465 pages — a different route() branch (chars<100/page), not a render-mode question. Also measured get_text('rawdict') span structure on 5 page samples of Brain of the Firm to check for a render-mode field there — none found (flags=12 is a font-style bitmask, not Tr). Also measured doc.metadata producer/creator on all 9 works — DISCARD confirmed (calibre spans both lanes). Negative control for the metadata idea: same producer string family, opposite lanes, is itself the falsifying case. 1 work (Designing with Freedom) UNREAD — source PDF absent from drop/done, held/*, pending, and a full find over C:/Users/Bndit/ml.",
+        "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/leads/C-scan-lane.md",
+        "residue": "Neither EasyOCR nor PaddleOCR was installed, downloaded, or run — no GPU cycles anywhere (ground rule: pipeline idle), and no CPU cycles spent on either engine either, so neither has a measured CPU-seconds/page number on Rab's hardware; both are read-only repo audits. EasyOCR's actual on-disk model-weight MB sizes are UNREAD, not merely unverified — README states no figure, the GitHub releases page failed to render asset sizes through WebFetch, and model_hub.py's zoo dict carries filename/URL/md5 but no filesize field; would need a live pip install to measure. PaddleOCR's paddlepaddle-framework-is-a-separate-CPU/GPU-wheel-install claim is carried at Inferred strength (docs page pointed to a further doc I didn't fetch). Designing with Freedom (Beer) is UNREAD for spec #3's own corpus — its source PDF could not be found anywhere under C:/Users/Bndit/ml; only its converted .md survives, so its manifest-claimed scan/untrusted_ocr_layer lane is unverified against the render-mode signal. PyMuPDF's own licence (publicly AGPL/commercial dual) was not re-verified from source this pass — flagged as out of scope since it's an existing, already-accepted dependency of the shipped pipeline, not a new risk this lane introduces. get_text('rawdict') was checked on only one work (Brain of the Firm, 5 page indices) — sufficient to answer the yes/no question it was asked, not extended to a full-corpus pass since get_texttrace() already answers the real question and rawdict demonstrably doesn't carry render mode at all."
+      },
+      {
+        "lane": "D — Reconstructors and VLMs for the bake-off (spec #6)",
+        "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/leads/D-reconstructors.md",
+        "measured_on_specimen": "Ran windows-converter/fidelity_audit.py (unmodified, marker-env python, CPU-only, PYTHONIOENCODING=utf-8) against the held Damodaran 4e specimen to prove its --pdf/--md CLI contract is candidate-agnostic. POSITIVE: --pdf on the real source PDF (library/drop/done/...) + --md on the real held markdown (library/held/14c66834bdfeaa2e/...Four.md), --lane clean -> doc_survival 0.9271, pages_scored 1372 (exit 0). NEGATIVE CONTROL: same --pdf, --md swapped for a one-line unrelated filler string (\"the quick brown fox...\") -> doc_survival 0.0, pages_scored 1372 (exit 0). The audit discriminates real content from garbage and needs nothing but a markdown file + the source PDF, so any bake-off candidate that emits plain markdown text is scoreable unchanged -- this is Verified by execution, not inferred from reading the source. Side note not chased: my fresh 0.9271 differs from the manifest's stored 0.9334 for the same pair (pymupdf 1.28.0 here vs whatever converted it) -- flagged as residue for whoever owns fidelity_audit.py, not a Lane D finding. No GPU used anywhere in this lane; also verified on-disk Chandra OCR 2 weight size via `du -b` (10,611,947,865 bytes, byte-exact) against the spec's stated 10.6GB.",
+        "residue": "Qwen3-VL's actual document-parsing cookbook prompt was paraphrased by the fetch summarizer, not quoted verbatim -- go to qwen.readthedocs.io's cookbook page directly before a real run. Chandra's on-disk config.json says model_type \"qwen3_5\" while its HF card tag says \"qwen3_vl\" -- naming disagreement not resolved. Whether third-party Chandra GGUF quants actually load under llama.cpp is untested (would need downloading an unverified quant of a novel hybrid Mamba/SSM+attention arch, which this lane was told not to do unasked). Nougat's own eval script was not pulled to the \"quote one test\" bar (time-boxed out). llama-parse-py's license and output format were genuinely not found in two fetch attempts and left Unknown rather than guessed. ColPali's tests/ directory structure was confirmed (models/loss/compression/collators/interpretability/utils) but no specific assertion was quoted -- residue, not verified to the full bar.",
+        "leads": [
+          {
+            "name": "Qwen3-VL-4B/8B-Instruct-GGUF (QwenLM/Qwen3-VL, official quants)",
+            "spec_rows": [
+              "Sizes at source: dense 2B/4B/8B/32B (Instruct+Thinking) + MoE 30B-A3B/235B-A22B; only 4B/8B relevant at 8.3GB",
+              "4B Q4_K_M LLM 2,497,281,664 B + mmproj Q8_0 453,974,304 B = ~2.95GB combined (HF tree API, byte-exact)",
+              "8B Q4_K_M LLM 5,027,784,800 B + mmproj Q8_0 752,289,728 B = ~5.78GB combined (HF tree API, byte-exact)",
+              "Official GGUF from the Qwen org itself (Qwen/Qwen3-VL-4B-Instruct-GGUF, Qwen/Qwen3-VL-8B-Instruct-GGUF), run via llama.cpp's llama-mtmd-cli, not a community hack",
+              "Repo pushed_at 2026-01-30 (216 days since push, matches the MECHANICAL TRIAGE table's own number exactly)"
+            ],
+            "verdict": "MEASURE_NEXT",
+            "licence_at_source": "Apache License 2.0 -- fetched LICENSE directly: 'permits commercial use, modification, and distribution, provided you comply with attribution and notice requirements.' Confirmed again via api.github.com license.spdx_id: Apache-2.0.",
+            "offline_vram": "4B: ~2.95GB combined weights (Q4_K_M + mmproj Q8_0), huge headroom in 8.3GB free. 8B: ~5.78GB combined, fits but tighter. Both from huggingface.co/api/models/.../tree/main byte-exact sizes.",
+            "test_quality": "none found -- api.github.com/repos/QwenLM/Qwen3-VL/contents/tests returned 404; this is a cookbook/inference repo, not a library with a regression suite",
+            "headline_number_and_denominator": "none quoted -- general-purpose VLM, not a document-benchmark paper; deliberately did not borrow a leaderboard number that has nothing to do with Damodaran",
+            "what_it_gives_file_portal": "A locally-runnable VLM that takes a rendered page image and, with the right prompt (zerox's prompt below is a ready-made starting point), emits markdown/HTML text -- same output shape fidelity_audit.py already scores for Marker, no audit changes needed",
+            "smallest_measurement": "Render one already-flagged Damodaran page (e.g. page 3 or 9, both already in the manifest's pages_flagged list) to PNG with pymupdf, run llama-mtmd-cli with the 4B Q4_K_M + mmproj against it, audit that single page's markdown against the same pymupdf witness fidelity_audit.py already uses -- single-page, single-session, cheapest real test on the roster",
+            "tag": "Verified"
+          },
+          {
+            "name": "Chandra OCR 2 (datalab-to/chandra) -- already on spec's roster, refined",
+            "spec_rows": [
+              "On-disk BF16 weights: 10,611,947,865 bytes = 9.88GiB (du -b, byte-exact) -- matches spec's '10.6GB BF16', NOT '5B'-sized",
+              "HF card states 9B params -- spec's parenthetical '5B' is stale/wrong at source",
+              "config.json on disk: model_type 'qwen3_5'/'qwen3_5_text' with mamba_ssm_dtype float32 -- a HYBRID Mamba/SSM+attention backbone, not plain attention; HF card's own tag says 'qwen3_vl' -- the two labels disagree, unresolved",
+              "Third-party GGUF exists (mradermacher/chandra-ocr-2-GGUF): Q4_K_M 3,066,385,440B (2.86GiB), Q4_K_S 2,921,468,960B (2.72GiB) -- would fit 8.3GB easily IF it loads; datalab-to's own card documents only transformers-local and vllm-remote, no llama.cpp/GGUF mention at all",
+              "llama.cpp's support for hybrid Mamba/SSM+attention arches has historically lagged novel arches by months -- a quantizer producing a GGUF file does not prove llama.cpp runs it correctly"
+            ],
+            "verdict": "BAKE_OFF_CANDIDATE",
+            "licence_at_source": "Split, same pattern as Nougat below. Code: 'Code License: Apache 2.0' (GitHub badge). Model: 'Model License: OpenRAIL-M' -- HF card license field literally 'openrail'; repo prose: 'a modified OpenRAIL-M license (free for research, personal use, and startups under $2M funding/revenue, cannot be used competitively with our API)'. Personal/local use clears it; the behavioral 'cannot compete with our API' clause is categorically different from Apache-2.0 and worth Rab's own eyes.",
+            "offline_vram": "BF16 on disk = 9.88GiB, does NOT fit 8.3GB free as-is. Two lower-VRAM paths, neither run: (a) upgrade marker-env's transformers past 4.57.6 (spec's own stated blocker) + bitsandbytes INT4 on the same weights, ~5GB, well-trodden path; (b) third-party GGUF Q4_K_M at 2.86GiB, cheaper but Unknown whether the hybrid-arch quant loads correctly at all.",
+            "test_quality": "not checked -- out of scope, this is a model weights repo not a test-bearing library",
+            "headline_number_and_denominator": "none found -- HF card gives no named-benchmark score for this checkpoint",
+            "what_it_gives_file_portal": "Emits markdown, HTML, or JSON directly per its own HF card -- scoreable by fidelity_audit.py unchanged, same interface proven in the measured-on-specimen section",
+            "smallest_measurement": "Either upgrade transformers in a scratch env and load one page at INT4 (safer, more setup), or download the 2.86GiB community GGUF and attempt a llama-mtmd-cli load-test with no inference claim beyond 'did it initialize' (cheaper, higher risk, unverified arch support) -- Rab's call which risk to spend first",
+            "tag": "Observed"
+          },
+          {
+            "name": "facebookresearch/nougat (nougat-base)",
+            "spec_rows": [
+              "pushed_at 2025-02-21T16:38:00Z = 559 days before today (2026-09-03), not archived -- dormant by this project's own yardstick, closer to already-discarded repos' staleness than to any kept candidate",
+              "HF card (facebook/nougat-base): 0.3B params, Donut architecture (Swin vision encoder + mBART text decoder)",
+              "Own README: 'understands LaTeX math and tables', output is 'Mathpix Markdown (we make use of the LaTeX tables)', saved as .mmd",
+              "Trained specifically on arXiv-style scientific papers -- closer training-distribution match to SYM-056's unterminated \\begin{array} failure mode than any other roster candidate, but Damodaran itself is a finance textbook (numeric grids, not LaTeX equations), so it's a partial fit on the actual specimen, stronger fit on a hypothetical math-heavy one"
+            ],
+            "verdict": "BAKE_OFF_CANDIDATE",
+            "licence_at_source": "Split. Code: GitHub page quote: 'Nougat codebase is licensed under MIT.' Weights: HF card (facebook/nougat-base) license field 'cc-by-nc-4.0' -- non-commercial. Personal/local use clears it; anything commercial or redistributed would not.",
+            "offline_vram": "0.3B params, fp16 ~1.5GB -- fits 8.3GB free by roughly 25x margin, plausibly CPU-capable for occasional single-page runs even without the GPU",
+            "test_quality": "not pulled to the 'quote one assertion' bar -- time-boxed residue; Nougat's paper describes an edit-distance eval against ground-truth .mmd but I did not fetch and quote the actual test code",
+            "headline_number_and_denominator": "not chased -- the number that matters is what it does on a Damodaran/SYM-056 page, not a vendor arXiv-eval leaderboard entry",
+            "what_it_gives_file_portal": "A tiny, purpose-trained page-to-LaTeX-markdown model that emits .mmd (markdown-compatible) text directly -- the closest output shape to Marker's own on this whole roster, scoreable by fidelity_audit.py unchanged with the highest confidence of any candidate here",
+            "smallest_measurement": "Run nougat on one already-rendered page image from the SYM-056 corpus (a page already identified as an unterminated \\begin{array}) and diff its .mmd output against Marker's own output for that same page",
+            "tag": "Verified"
+          },
+          {
+            "name": "microsoft/Florence-2-{base,large}",
+            "spec_rows": [
+              "Florence-2-base 0.23B params, Florence-2-large 0.77B params -- both quoted verbatim from the HF card's own size table; brief's '~0.8B' matches -large exactly",
+              "License field on HF card literally 'mit' -- cleanest license on the whole roster, no NC/RAIL surprise",
+              "Emits task-token strings only: <OCR> = plain text no layout, <OCR_WITH_REGION> = text+bboxes -- NO task token reconstructs a page as markdown or an HTML table",
+              "Caught a vendor-quoting-itself trap: 'Florence-VL 3B/8B DocVQA 82.1/84.9' surfaced in search results, but Florence-VL (arXiv 2412.04424) is a DIFFERENT, later, larger model reusing the Florence name for its vision encoder -- NOT Microsoft's original Florence-2 checkpoint",
+              "The only number actually attributable to Florence-2-L itself: TextVQA 81.5 (short-answer VQA on natural images, not full-page document reconstruction) -- no denominator exists for page-level markdown/table fidelity on the pretrained checkpoint"
+            ],
+            "verdict": "IDEA_ONLY",
+            "licence_at_source": "MIT -- HF card license field 'mit', confirmed directly, no restrictions found",
+            "offline_vram": "Florence-2-large fp16 ~1.5GB (0.77B params) -- trivially small, fits 8.3GB free with enormous margin, CPU-capable",
+            "test_quality": "not checked -- this is a model card, not a library repo with a test suite in scope here",
+            "headline_number_and_denominator": "The 82.1/84.9 DocVQA figures found in search belong to Florence-VL (a different model, arXiv 2412.04424), not Florence-2 -- explicitly flagging this as a conflation risk rather than reporting it as Florence-2's number. The only verified Florence-2-L number is TextVQA 81.5, wrong task entirely for page reconstruction.",
+            "what_it_gives_file_portal": "Real, free, cheap, cleanly licensed vision-language model -- but off-the-shelf it answers short questions about an image or returns bare OCR text, it does not reconstruct a page's structure or tables. Would need finetuning + custom block-assembly/table logic to become a document reconstructor; nobody has built or asked for that here, and the one notebook that tried (anyantudre/Florence-2) is itself already on the spec's dead-notebook discard list with no successor found.",
+            "smallest_measurement": "N/A as a bake-off entry without finetuning -- if pursued anyway, the smallest test would be running <OCR_WITH_REGION> on one Damodaran page and hand-assembling the region text into a markdown table to see how far raw task-token output is from anything fidelity_audit.py could score",
+            "tag": "Verified"
+          },
+          {
+            "name": "getomni-ai/zerox",
+            "spec_rows": [
+              "Cloud-only: supports OpenAI GPT-4V, Azure OpenAI, AWS Bedrock Claude 3, Google Gemini, Anthropic Claude -- no local/on-prem model support of any kind, confirmed at source",
+              "MIT license on the wrapper code",
+              "pushed_at 2025-05-20 = 471 days since push",
+              "System prompt pulled verbatim from py_zerox/pyzerox/constants/prompts.py (quoted in full in licence_at_source-adjacent notes below) -- already solves 'return tables as HTML' + logo/watermark/page-number/checkbox conventions any local VLM candidate above would otherwise have to invent from scratch"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "MIT License, quoted from source: 'This project is licensed under the MIT License.' (Wrapper/client code only -- irrelevant here since it cannot run offline regardless of license.)",
+            "offline_vram": "N/A -- no local weights exist for this tool at all; it is a thin client calling cloud vision APIs. Fails the offline-by-design gate outright, independent of VRAM.",
+            "test_quality": "not checked -- disqualified on the offline gate before test quality became relevant",
+            "headline_number_and_denominator": "none -- not a benchmarked model, a cloud API wrapper",
+            "what_it_gives_file_portal": "Nothing runnable, but its page-image-to-markdown system prompt is directly reusable verbatim as the starting instruction for Qwen3-VL or Chandra above: 'Convert the following document to markdown. Return only the markdown with no explanation text... Return tables in an HTML format... Prefer using ☐ and ☑ for check boxes.' (full text quoted in the D-reconstructors.md report)",
+            "smallest_measurement": "N/A -- discarded on the offline gate, no measurement applicable",
+            "tag": "Verified"
+          },
+          {
+            "name": "run-llama/llama-parse-py (LlamaParse SDK)",
+            "spec_rows": [
+              "Cloud-only SaaS (LlamaParse) -- confirmed via the repo's own README referencing 'Llama Cloud Services'",
+              "Repo itself is DEPRECATED: own README states packages 'are deprecated and will be maintained until May 1, 2026', redirecting users to llama_cloud_services",
+              "License: not found despite two fetch attempts (README fetch returned only the deprecation notice both times)",
+              "Output format (markdown/JSON/text): not found -- genuinely Unknown, not chased further given the repo is already sunsetting"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "Unknown -- not stated anywhere reachable in two direct fetches of the repo's own README; left unresolved rather than guessed from general knowledge",
+            "offline_vram": "N/A -- cloud SaaS, no local weights, fails the offline gate regardless of any other property",
+            "test_quality": "not checked -- disqualified on the offline gate first",
+            "headline_number_and_denominator": "none found",
+            "what_it_gives_file_portal": "Nothing found worth stealing -- no prompt text, no license detail, no output-format detail surfaced in the fetches; the least load-bearing of the seven candidates, and the repo is actively telling its own users to leave it",
+            "smallest_measurement": "N/A -- discarded on the offline gate before any measurement was applicable",
+            "tag": "Unknown"
+          },
+          {
+            "name": "illuin-tech/colpali",
+            "spec_rows": [
+              "Produces multi-vector page-image EMBEDDINGS for query-to-page retrieval (ColBERT-style late interaction) -- does not emit text of any kind",
+              "Backbones vary by variant: original ColPali on PaliGemma-3B; ColQwen2/2.5 (2-3B) on Qwen2/2.5-VL; ColSmol (256M-500M); ColQwen3.5 (4.5B)",
+              "Codebase LICENSE fetched directly: MIT. Model weights inherit their backbone's license -- Gemma license for the original PaliGemma-backed checkpoint, Apache-2.0 for Qwen-backed variants -- mixed, check per-checkpoint",
+              "pushed_at 2026-09-01 = 2 days before today -- by far the most actively maintained repo on this roster",
+              "Real pytest suite confirmed present: tests/{models,loss,compression,collators,interpretability,utils}, with tests/models further split per backbone (gemma3/idefics3/modernvbert/paligemma/qwen2/qwen2_5/qwen3/qwen3_5) -- structure Observed, no specific assertion pulled/quoted (404 on the specific file guessed)",
+              "No mention anywhere in its own docs of blank-page detection or document classification as a use case -- checked directly, none found"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "Codebase: MIT (fetched LICENSE directly). Weights: Gemma License (original ColPali/PaliGemma-backed) or Apache-2.0 (ColQwen2/2.5/ColSmol/community Qwen-backed variants) -- mixed by checkpoint, not a single answer.",
+            "offline_vram": "Ranges 256M (ColSmol) to 4.5B (ColQwen3.5) params depending on variant -- all would fit 8.3GB free comfortably at any reasonable precision; VRAM was never the blocker here, output shape is",
+            "test_quality": "Real pytest suite exists (tests/models per-backbone, tests/loss, tests/compression, tests/collators, tests/interpretability) -- Observed structure only; did not successfully fetch and quote one specific assertion (404 on the guessed filename), so this stops short of the 'quote a test' bar",
+            "headline_number_and_denominator": "not chased -- irrelevant to this lane's decision, which turns entirely on output format (embeddings, not text), not retrieval accuracy",
+            "what_it_gives_file_portal": "As a reconstructor: nothing -- it cannot be scored by fidelity_audit.py's witness comparison at all, since there is no markdown/text output for the audit to diff against the pymupdf witness. As the brief's specific blank-crop (SYM-053) question: a stretch, leaning not-real -- ColPali's embedding space is trained end-to-end for semantic query-to-page matching, not calibrated as a blankness/anomaly score; no published threshold or training signal for 'blank' exists, and the repo's own docs never mention classification use cases. A blank crop is already trivially detectable CPU-only, zero-model, from pymupdf pixel ink-coverage or page.get_text() length -- reaching for a multi-vector VLM embedding model here is the wrong tool for a five-line heuristic's job.",
+            "smallest_measurement": "N/A for the reconstructor role -- no text output exists to measure against fidelity_audit.py. If the blank-crop angle were pursued anyway despite the stretch verdict, the smallest test would be comparing ColPali embedding cosine-similarity spread on a known blank page vs a known text page against the trivial pymupdf ink-coverage check on the same pair, to see if the heavy tool buys anything the cheap one doesn't.",
+            "tag": "Verified"
+          }
+        ]
+      },
+      {
+        "lane": "E — Frameworks and the Honest Discard List",
+        "report_file": "C:\\Users\\Bndit\\AppData\\Local\\Temp\\claude\\C--Users-Bndit-Projects-file-portal\\d6f7a30f-66e5-40d2-a905-b2dd64ee7f44\\scratchpad\\leads\\E-frameworks.md",
+        "measured_on_specimen": "Ran pymupdf 1.28.0 (marker-env, CPU-only, GPU untouched) directly against two of Rab's own source PDFs in C:/Users/Bndit/ml/library/drop/done/, read-only. Positive: the Damodaran 4e source (held specimen's own source file), page 10, 30 text spans via page.get_texttrace() — every span type=0 (normal fill), matching manifest.json's own lane:clean/ocr_font_trigger:null. Negative control: the SPEC's own named OCR-overlay book, 'BRAIN OF THE FIRM STAFFORD BEER (WITH OCR)', scanned pages 0-8 for first spans found — every span on every page (15/15, 255/255, 4/4, 36/36, 92/92) came back type=3 (invisible OCR text), the clean 0-vs-3 split. This settles Lane E's own question (does PdfPig give pymupdf-lacking low-level access?) with a direct measurement rather than trusting docs: pymupdf's get_texttrace() already carries the render-mode signal Lane C needs, undocumented on the main textpage.html page but real and confirmed live. Also checked doc.metadata (producer/creator) on both files natively in pymupdf — no exiftool/PdfPig needed for that signal either. Scripts left at scratchpad/leads/pymupdf_check.py and pymupdf_scan.py.",
+        "residue": "Did not chase exact checkpoint sizes (MB/GB) for deepdoctection's Detectron2+DETR+LayoutLM trio or Unstructured's YOLOX/Detectron2 backbones — neither repo's README/pyproject names a figure, and pinning one down would require an uncontrolled install/build this lane's verdict didn't need. Did not attempt to build either framework (Detectron2-from-source, or Unstructured's dual-torch/paddle extra) since both hit DISCARD on license+weight+tooling grounds before that would matter. The YousifHisham table notebook could not be located under that GitHub username via repos/gists/search API or web search (see report for the exact queries tried) — reported UNREAD, not fabricated. Left pymupdf_check.py and pymupdf_scan.py in scratchpad/leads/, alongside other lanes' pre-existing working files (xycut_probe.py, lane_measurements.json, etc.) which were present on arrival and left untouched. Noticed but did not chase: both the Damodaran and Beer source PDFs carry producer/creator \"calibre ...\" — Calibre-repackaged copies, not the original publisher PDFs — flagged in the report as a side observation for whichever lane cares.",
+        "leads": [
+          {
+            "name": "deepdoctection (framework)",
+            "spec_rows": [
+              "#1 (its table-eval tooling only)",
+              "general pipeline/eval reference"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "Apache License, Version 2.0, January 2004 (LICENSE file at repo root, Observed)",
+            "offline_vram": "No VRAM figure stated anywhere in README/docs (Inferred gap, not measured). Requires PyTorch>=2.6 + torchvision + a from-source Detectron2 fork (git+https://github.com/deepdoctection/detectron2.git, pinned in environment.yml, not pip-installable) + transformers>=5.2.0 + accelerate + python-doctr>=1.0.0 (all Observed in packages/*/pyproject.toml and environment.yml). Detectron2(layout)+DETR(table)+LayoutLM stacked is heavier than Marker+surya alone.",
+            "test_quality": "eval.py's Evaluator class streams a dataset + calls predictors + scores against ground truth via a pluggable metric (cocometric.py=COCO mAP, tedsmetric.py=TEDS tree-edit-distance for table structure, accmetric.py=accuracy); docstring names PublayNet as the example dataset -- a real denominator, not a bare README claim.",
+            "headline_number_and_denominator": "None claimed in the README itself (no '95% accuracy' style headline found) -- the only concrete numeric hook is the eval module's TEDS/COCO-mAP scoring machinery, which computes its own denominators per run rather than quoting a fixed one.",
+            "what_it_gives_file_portal": "Nothing worth the dependency as a framework. Its TEDS (tree-edit-distance) table-structure metric in eval/tedsmetric.py is a concrete, separately-portable idea for fidelity_audit.py -- a table-structure-specific fidelity score distinct from the existing pymupdf-witness prose score -- without pulling any of deepdoctection's GPU stack.",
+            "smallest_measurement": "packages/deepdoctection/src/deepdoctection/eval/tedsmetric.py existing as a standalone, dependency-light module would be the exact file to read next if SPEC #1's table work wants a structure-fidelity score.",
+            "tag": "Observed"
+          },
+          {
+            "name": "Unstructured-IO/unstructured (framework)",
+            "spec_rows": [
+              "general pipeline/dependency-weight reference"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "Apache License, Version 2.0 (LICENSE.md at repo root, Observed); unstructured-inference sub-package also Apache-2.0 (Observed via its own LICENSE file)",
+            "offline_vram": "No VRAM figure stated for either layout backbone (Inferred gap). unstructured-inference supports both Detectron2 (opt-in, heavier) and YOLOX (its own README's implied default, ONNX-exportable, lighter) as swappable layout backbones. The optional paddleocr extra pulls paddlepaddle>=3.3.0 as a SECOND full DL framework alongside torch>=2.10.0 -- real dependency weight if both OCR paths are wanted (all Observed in pyproject.toml / unstructured-inference README).",
+            "test_quality": "None found. No eval/metrics module or named benchmark located in the fetched README or pyproject.toml.",
+            "headline_number_and_denominator": "None found -- no headline accuracy/quality number surfaced in the fetched README.",
+            "what_it_gives_file_portal": "A cleaner single-dispatch abstraction (partition(), with a strategy=hi_res/fast/ocr_only/auto parameter) than deepdoctection's analyzer object, but still a whole-stage replacement for Marker+surya, not a layer that sits inside it, and with zero evaluation tooling to justify the swap.",
+            "smallest_measurement": "N/A -- no runnable benchmark found to measure against Rab's specimens.",
+            "tag": "Observed"
+          },
+          {
+            "name": "UglyToad/PdfPig (framework + reading-order algorithm citation)",
+            "spec_rows": [
+              "#4 (reading order without a tree) -- algorithm citation only",
+              "general low-level-access comparison vs pymupdf"
+            ],
+            "verdict": "IDEA_ONLY",
+            "licence_at_source": "Apache-2.0 for PdfPig's own code, with BSD notices for inherited PDFBox/FontBox contributions and bundled Adobe AFM/CMap resources (LICENSE file, Observed) -- the only one of the three repos in this lane whose LICENSE documents what it absorbed from elsewhere.",
+            "offline_vram": "N/A -- .NET/C# library, no ML models, no VRAM involved; not bindable into the Python pipeline (no Python bindings found; language barrier alone is dispositive, not deeply searched further).",
+            "test_quality": "Not chased -- out of scope once the framework verdict was DISCARD (C#, not integrable). None found/checked.",
+            "headline_number_and_denominator": "N/A -- not a quoted-metric library.",
+            "what_it_gives_file_portal": "Confirmed, not assumed, that pymupdf already covers what PdfPig's low-level classes wrap: PdfPig's SetTextRenderingMode operation (Graphics/Operations/TextState) duplicates pymupdf's own get_texttrace() 'type' field (Verified live, see measured_on_specimen); PdfPig's MarkedContentElement/MCID/ArtifactMarkedContentElement duplicates pymupdf's raw xref_get_key('StructTreeRoot')/xref_object access, already in use for docs/52's tagged-PDF ground truth. So PdfPig gives nothing pymupdf lacks. What IS worth citing: its UnsupervisedReadingOrderDetector.cs implements block ordering via Allen's interval algebra (citing Klampfl/Granitzer/Jack/Kern and Todoran/Worring/Aiello/Monz) rather than XY-cut -- a real, citable alternative algorithm family for spec #4, alongside TextEdgesExtractor.cs/WhitespaceCoverExtractor.cs (Docstrum-family whitespace column detection). Not portable as code (C#), but a legitimate pointer.",
+            "smallest_measurement": "src/UglyToad.PdfPig.DocumentLayoutAnalysis/ReadingOrderDetector/UnsupervisedReadingOrderDetector.cs's doc-comment citation of Klampfl et al. section 4.1 -- the exact algorithm name/paper to read if spec #4 wants an alternative to plain XY-cut.",
+            "tag": "Verified"
+          },
+          {
+            "name": "go-exiftool -> Producer-metadata signal, already native in pymupdf",
+            "spec_rows": [
+              "#3 (scan-vs-clean lane) -- supporting signal"
+            ],
+            "verdict": "DISCARD",
+            "licence_at_source": "GPL (per the mechanical triage's own rejection line) -- incompatible with this project's Apache-only dependency ecosystem; also Go, not bindable without a subprocess shim.",
+            "offline_vram": "N/A -- metadata read, no model involved.",
+            "test_quality": "none found",
+            "headline_number_and_denominator": "N/A",
+            "what_it_gives_file_portal": "The idea go-exiftool would supply (reading /Producer and /Creator to fingerprint what tool made a PDF) is already directly available with zero new dependency: pymupdf's doc.metadata dict returns producer/creator natively. Verified live on both Damodaran (producer: 'calibre 8.4.0') and the Beer OCR book (producer: 'calibre (5.27.0)') in the same run that confirmed render-mode access -- both PDFs turned out to be Calibre-repackaged copies of the originals, a side observation flagged for whichever lane cares.",
+            "smallest_measurement": "doc.metadata['producer'] on both specimen files, read straight off pymupdf with no extra library -- see measured_on_specimen.",
+            "tag": "Verified"
+          },
+          {
+            "name": "YousifHisham table notebook",
+            "spec_rows": [
+              "explicit ask, end of Lane E brief"
+            ],
+            "verdict": "IDEA_ONLY",
+            "licence_at_source": "No licence (per the mechanical triage's own rejection line) -- could not independently confirm, repo not located.",
+            "offline_vram": "Unknown -- repo not located.",
+            "test_quality": "none found -- repo not located",
+            "headline_number_and_denominator": "Unknown -- repo not located.",
+            "what_it_gives_file_portal": "Could not determine. Exhausted the reasonable search surface (GitHub repos+gists API for the named user, GitHub repo-search API, three separate WebSearch queries) with zero exact match -- see report for the specific queries and their empty/near-miss results.",
+            "smallest_measurement": "N/A -- nothing to measure, notebook not found.",
+            "tag": "Unknown"
+          }
+        ]
+      }
+    ],
+    "verify": {
+      "claims_checked": [
+        {
+          "lane": "GROUND triage",
+          "claim": "marker 1.10.2 and surya 0.17.1 are Apache-2.0",
+          "checked_against": "marker_pdf-1.10.2.dist-info/METADATA:5,93 and surya_ocr-0.17.1.dist-info/METADATA:5,95 (License: GPL-3.0-or-later; weights 'modified AI Pubs Open Rail-M ... under $2M') vs upstream datalab-to/marker and datalab-to/surya master LICENSE (Apache-2.0) and READMEs ($5M)",
+          "verdict": "WRONG"
+        },
+        {
+          "lane": "B",
+          "claim": "installed surya is GPL + $2M OpenRAIL-M while the upstream repo is Apache + $5M",
+          "checked_against": "same METADATA files + raw.githubusercontent.com/datalab-to/surya/master/LICENSE and README.md; the same split holds for marker",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "D",
+          "claim": "Chandra OCR 2 is 9B params per the HF card; the spec's 5B is stale",
+          "checked_against": "huggingface.co/api/models/datalab-to/chandra-ocr-2 (5.3B BF16, Qwen3_5ForConditionalGeneration, model_type qwen3_5) — Lane D read datalab-to/chandra v1 (8,767,123,696 params, qwen3_vl); du -b model.safetensors = 10,591,220,088 B ÷ 2 B/param = 5.30G",
+          "verdict": "WRONG"
+        },
+        {
+          "lane": "D",
+          "claim": "model.safetensors on disk = 10,611,947,865 bytes",
+          "checked_against": "du -b C:/Users/Bndit/ml/chandra/chandra-ocr-2/model.safetensors = 10,591,220,088 B; the 20,727,777 B delta matches the sidecar files (tokenizer.json 19,989,343 + PNGs/JSON)",
+          "verdict": "WRONG"
+        },
+        {
+          "lane": "D",
+          "claim": "Chandra weights are OpenRAIL-M, free under $2M funding/revenue, 'cannot be used competitively with our API'; local inference needs no API key",
+          "checked_against": "C:/Users/Bndit/ml/chandra/chandra-ocr-2/LICENSE §(a)(b) ($2,000,000); README.md line 218; raw chandra/settings.py (VLLM_API_BASE localhost:8000, VLLM_API_KEY 'EMPTY', --method hf)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "D",
+          "claim": "Qwen3-VL LICENSE is Apache-2.0; 4B Q4_K_M 2,497,281,664 B + mmproj Q8_0 453,974,304 B; 8B 5,027,784,800 + 752,289,728",
+          "checked_against": "raw.githubusercontent.com/QwenLM/Qwen3-VL/main/LICENSE; huggingface.co/api/models/Qwen/Qwen3-VL-{4B,8B}-Instruct-GGUF/tree/main",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "D",
+          "claim": "run path is llama-mtmd-cli, 'llama.cpp's documented multimodal mechanism'",
+          "checked_against": "huggingface.co/Qwen/Qwen3-VL-4B-Instruct-GGUF README: no command given, only 'compatible with llama.cpp, Ollama'",
+          "verdict": "OVERSTATED"
+        },
+        {
+          "lane": "D",
+          "claim": "third-party Chandra GGUF Q4_K_M = 3,066,385,440 B, Q4_K_S = 2,921,468,960 B, would fit if it loads",
+          "checked_against": "huggingface.co/api/models/mradermacher/chandra-ocr-2-GGUF/tree/main — sizes exact, but an mmproj (Q8_0 366,894,368 B) that a vision run needs was omitted; combined ~3.43 GB",
+          "verdict": "OVERSTATED"
+        },
+        {
+          "lane": "D",
+          "claim": "nougat: code MIT, weights CC-BY-NC-4.0, 0.3B params, pushed 2025-02-21 (559 days), not archived",
+          "checked_against": "raw facebookresearch/nougat LICENSE + README ('model weights are licensed under CC-BY-NC'); api/models/facebook/nougat-base (cc-by-nc-4.0, 348,736,012 params); api.github.com/repos/facebookresearch/nougat",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "D",
+          "claim": "Florence-2-large is MIT, 0.77B",
+          "checked_against": "huggingface.co/api/models/microsoft/Florence-2-large (license mit, 776,721,497 params)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "D",
+          "claim": "fidelity_audit.py CLI is candidate-agnostic: 0.9271/1372 on the held Damodaran, 0.0/1372 on a filler markdown",
+          "checked_against": "re-run windows-converter/fidelity_audit.py --pdf/--md/--lane clean; audit_pos_verify.json (0.9271, 1372, verdict fail) and audit_neg_verify.json (0.0, 1372, verdict flag)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "B",
+          "claim": "PaddleOCR is Apache-2.0; SLANet 6.9 MB / SLANeXt 351 MB; the 69.65/63.69/59.52 accuracy denominator is Unknown, 'likely PubTabNet-style'",
+          "checked_against": "raw PaddlePaddle/PaddleOCR/main/LICENSE; docs/version3.x/module_usage/table_structure_recognition.md — accuracy measured on an 'internal self-built high-difficulty Chinese table recognition dataset'",
+          "verdict": "WRONG"
+        },
+        {
+          "lane": "B",
+          "claim": "TATR is MIT, 28.8M params; test_table_prediction_with_ocr_tokens asserts '<th rowspan=\"2\">' and '<td>Blind</td><td>5</td>...' on a planted fixture image; unstructured-inference calls no cloud",
+          "checked_against": "raw microsoft/table-transformer/main/LICENSE; api/models/microsoft/table-transformer-structure-recognition (28,847,819 params, mit); raw unstructured-inference test_tables.py (33 tests, asserts verbatim); tables.py DEFAULT_MODEL, no network beyond HF from_pretrained",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "B",
+          "claim": "TableFormer accurate 213 MB / fast 145 MB; code MIT; weights CDLA-Permissive-2.0; test_tf_predictor.py asserts only presence",
+          "checked_against": "raw docling-ibm-models/main/LICENSE (MIT, IBM 2024); HF tree model_artifacts/tableformer/{accurate,fast} (212,758,388 / 145,453,276 B as tableformer_*.safetensors, not the .check name cited); api/models/docling-project/docling-models license = ['cdla-permissive-2.0','apache-2.0']; tests/test_tf_predictor.py 6 asserts all field-presence",
+          "verdict": "OVERSTATED"
+        },
+        {
+          "lane": "B",
+          "claim": "docling-env contains only docling_core; docling and docling-ibm-models are absent",
+          "checked_against": "ls C:/Users/Bndit/ml/docling-env/Lib/site-packages (docling_core 2.91.0, torch 2.11.0+cu128, transformers 5.14.1, pymupdf 1.28.2; no docling, no docling_ibm_models)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "B",
+          "claim": "held Damodaran 4e has 3 unterminated \\begin{array} (87/84), not 61; the 61 belongs to Ashby",
+          "checked_against": "the real fidelity_audit.latex_balance imported from the repo: held md array 87/84/3 (lines 8776, 17966, 22953), 0 degenerate colspecs; Ashby anchor md array 127/66/61 with six 30+-'c' colspecs; SYMPTOM-INDEX SYM-056 row (semantic 61, 127 opens, 66 closes); Ashby manifest lane=clean (Lane B's 'presumably OCR-lane' is wrong)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "B",
+          "claim": "1,277 page anchors, monotonic, 0 order violations",
+          "checked_against": "verify_lane_b.py: 1,393 anchors (<span id=\"page-N-M\">), 2 order violations (lines 19069→19103, 23800→23801), largest gap 839 lines; Lane B's own array_page_map.json says 1393",
+          "verdict": "WRONG"
+        },
+        {
+          "lane": "C",
+          "claim": "9/9 measurable works route correctly; render-mode ratio is exactly 0.0 or 1.0; 'the font regex never had to fire'",
+          "checked_against": "verify_lanes_c_e.py reproducing probe()+route() verbatim (convert_and_ship.py:744-790) on all 9 drop/done PDFs: 6 clean at 0.0, Beer/Diagnosing at 1.0, Valentine 13 spans chars_pp 1.43 → no_text_layer — all match manifests; but _OCR_FONT fires on both scan works (GlyphLessFont, InvisibleOCR) and is recorded in the evidence dict",
+          "verdict": "OVERSTATED"
+        },
+        {
+          "lane": "C",
+          "claim": "get_text('rawdict') flags decode to 12 and carry no render mode; Beer page 10 has zero spans in both APIs",
+          "checked_against": "re-run on Beer pages 10/30/50/100/150: flags {12}; page 10 empty in texttrace and rawdict",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "C",
+          "claim": "EasyOCR Apache-2.0; requirements torch/torchvision>=0.5/...; unit test is a pickled known-answer with test == solution; model sizes UNREAD",
+          "checked_against": "raw JaidedAI/EasyOCR LICENSE, requirements.txt (verbatim match), unit_test/unit_test.py (lzma+pickle, 'return test == solution'); api.github.com releases: craft_mlt_25k.zip 77,251,756 B, english_g2.zip 14,040,947 B — the UNREAD is now read",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "C",
+          "claim": "PaddleOCR requirements.txt omits paddlepaddle; test_tipc/compare_results.py uses np.testing.assert_allclose atol/rtol 1e-3",
+          "checked_against": "raw requirements.txt (no paddlepaddle line); compare_results.py (CLI defaults 1e-3, function defaults 1e-7)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "A",
+          "claim": "CompHRDoc is MIT; 'Due to company policy, we cannot release the code for the model'; no weights anywhere; images not released",
+          "checked_against": "raw microsoft/CompHRDoc/main/LICENSE ('MIT License ... Copyright (c) 2024 Jarvis'), UniHDSA/README.md (sentence verbatim), top README (annotations + evaluation only, images via HRDoc-Hard)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "A",
+          "claim": "REDS 0.9319 / 0.8637 vs Lorenzo† 0.7741 / 0.8583 on Comp-HRDoc; 500 test documents; 8× Tesla V100 32 GB; 'prone to failure when confronted with out-of-domain cases'",
+          "checked_against": "paper text extracted by pdf_text.py: paper_p25_35.txt Table 6 ('Ours 88.06 0.9319 0.8637'; 'Lorenzo et al.† 0.7741 0.8583'), paper_p13_24.txt:740 (1,000 train / 500 test), :774 (8 Nvidia Tesla V100 32 GB), paper_p1_12.txt:253",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "A",
+          "claim": "Marker's OrderProcessor overwrites surya's position for every non-OCR, non-sliced page, so Marker's final order is pdftext's span order and pymupdf raw block order is a faithful proxy",
+          "checked_against": "marker/processors/order.py:17-22 ('if not page.layout_sliced: continue' — it re-sorts ONLY sliced pdftext pages); builders/layout.py:140 sorts blocks by surya position=z (surya/layout/__init__.py:97); no other reorder of page.structure — the mechanism is inverted, and the '2/57, 15/60 Marker baseline' measures the content stream, not Marker",
+          "verdict": "WRONG"
+        },
+        {
+          "lane": "A",
+          "claim": "docs/52: 19 pages of 4,307 (0.44 %) of Rab's converted corpus reach a conforming structure tree",
+          "checked_against": "docs/52-pdf-structure-study/design.md:20-24",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "E",
+          "claim": "PdfPig is Apache-2.0 with BSD notices for PDFBox/FontBox and Adobe resources; UnsupervisedReadingOrderDetector.cs cites Klampfl et al. and Todoran et al. and uses Allen's interval relations with optional TextSequence",
+          "checked_against": "raw UglyToad/PdfPig/master/LICENSE; raw src/UglyToad.PdfPig.DocumentLayoutAnalysis/ReadingOrderDetector/UnsupervisedReadingOrderDetector.cs",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "E",
+          "claim": "deepdoctection Apache-2.0 with a real eval/tedsmetric.py; unstructured Apache-2.0; go-exiftool's Producer signal is native in pymupdf and does not discriminate (calibre on both lanes)",
+          "checked_against": "raw deepdoctection/master/LICENSE, packages/deepdoctection/src/deepdoctection/eval/tedsmetric.py (from apted import APTED; TEDS/TedsMetric classes); raw Unstructured-IO/unstructured/main/LICENSE.md; doc.metadata producer on 9 works (calibre 5.x on both scan works, 7.x-8.x on three clean)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "F",
+          "claim": "best config mAP@50 0.8836 / mAP@50:95 0.7351 / P 0.8429 / R 0.7879; no code, data or weights released; body cites DocBank as [39] while ref [39] is a wiring-harness paper",
+          "checked_against": "pdf_text.py on C:/Users/Bndit/Downloads/applsci-16-03089.pdf pp. 5 ('The DocBank dataset [39]'), 15-16 (numbers verbatim), 22 (Data Availability: 'included in the article'), 28 (39. Nguyen ... Wiring Harness)",
+          "verdict": "CONFIRMED"
+        },
+        {
+          "lane": "SYMPTOM-INDEX SYM-067",
+          "claim": "counterfactual with _strip_markdown first → 0 paragraphs trip in both 4e audits",
+          "checked_against": "verify_sym067_pair.py with the repo's degeneration(): 2025 4e anchor 26→0 (flagged=false) but held University 4e 25→1 — raw line 8776, 21,870 chars, zlib 0.011, max_trigram 441 ('{1 - t}' × 441), an unterminated \\begin{array}{lll} runaway; Beer anchors stay flagged (max_trigram 2,267 / 143)",
+          "verdict": "OVERSTATED"
+        },
+        {
+          "lane": "C / E (offline)",
+          "claim": "PaddleOCR runs offline after a first-use download",
+          "checked_against": "docs/version3.x/installation.en.md — says nothing about the model host or caching",
+          "verdict": "UNREAD"
+        }
+      ],
+      "measurements_rerun": [
+        "Lane A: `PYTHONPATH=<leads> marker-env python xycut_probe.py` → negative controls: determinism True; planted two-column page naive=False / xy-cut=True (matches). WTPDF v1 xy-cut vs declared same=2 reorder=55; ISO same=1 reorder=59 (theirs 55/57, 59/60 — matches). Content-stream vs declared 2/57 and 15/60 (matches; but per F1 this is the content stream, not Marker).",
+        "Lane A: `xycut_v2.py` margin-excluded → WTPDF 2/57, ISO 18/60 (theirs 2/57, 18/60 — matches).",
+        "Lane A: `xycut_v3_net.py` → WTPDF wrong pages [0,56], fixes 0, breaks 0; ISO wrong pages [0,2,9,17,18,19,21,22,23,24,25,26,27,28,34], fixes 0, breaks 3 [15,38,47] (matches exactly).",
+        "Lane B: real `fidelity_audit.latex_balance` (imported from the repo) on the held Damodaran Univ 4e md (29,698 lines) → array begin 87 / end 84 / unterminated 3 at lines 8776, 17966, 22953 (nearest anchor pages 439/832/1057); unterminated_total 5 of 173 begins; aligned 56/58 stray 2, cases 0/1 stray 1, bmatrix 2/1, align* 1/0 (theirs identical — matches).",
+        "Lane B: colspec widths 65×3, 17×2, 4×1, 1 uncaptured, 0 degenerate ≥6-identical (matches). Pipe tables 4,580 rows on 235 pages, 4,712 `| |` markers on 217 pages, top pages by empty markers 805(130)/564(122)/757(101)/779(95)/579(90)/888(83)/1012(82)/854(81)/860(76)/600(73) (matches).",
+        "Lane B: page anchors → 1,393 (theirs: 1,277 in prose, 1,393 in their JSON) with 2 order violations (theirs 0) — does NOT match; largest gap 839 lines (matches).",
+        "Lane B (extension): same function on the Ashby anchor md → array 127/66/61, six colspecs of 30+ 'c's; on the 2025 4e anchors → 43/40/3; on the Univ 4e base anchor → 86/82/4 — SYM-056's 61 is Ashby's, and the symptom-index's '43/40 delta 3' is the 2025 edition.",
+        "Lane C: `verify_lanes_c_e.py` reproducing probe()+route() on all 9 drop/done PDFs (pymupdf 1.28.0) → Ashby 13,537 spans 0.0; Valentine 13 spans 0.0 chars_pp 1.43 → scan/no_text_layer; bojieli 4,088 0.0; Beer Brain 170,132 spans all type 3 ratio 1.0 font_trigger GlyphLessFont; claude-code 3,830 0.0; Cybernetics 2,319 0.0; Diagnosing 68,632 all type 3 ratio 1.0 font_trigger InvisibleOCR; Damodaran 2025 212,394 0.0; Damodaran Univ 157,924 0.0 — 9/9 lanes match manifests (matches; the font trigger DOES fire on both scan works, which Lane C called 'never had to fire').",
+        "Lane C: producer metadata → Acrobat Distiller 3.0 / Foxit Phantom / Skia m150 / calibre 5.27.0 / calibre 7.6.0 / Adobe PDF Library 9.9 / calibre 5.9.0 / calibre 7.21.0 / calibre 8.4.0 (matches; calibre on both lanes).",
+        "Lane C: rawdict span flags on Beer pp. 30/50/100/150 → {12} everywhere; page 10 zero spans in both texttrace and rawdict (matches).",
+        "Lane D: `fidelity_audit.py --pdf <Damodaran Univ 4e source> --md <held md> --lane clean` → doc_survival 0.9271, pages_scored 1372, 257 pages flagged, latex array 87/84/3, verdict fail (theirs 0.9271/1372 — matches; manifest stores 0.9334, drift confirmed real).",
+        "Lane D negative control: same --pdf with a one-line filler md → doc_survival 0.0, pages_scored 1372, 1372 flagged, verdict flag (theirs 0.0/1372 — matches).",
+        "Lane E: Damodaran Univ 4e source page 10 → 30 spans all type 0; StructTreeRoot ('null','null'); producer calibre 8.4.0 (matches). Beer Brain pages 0/1/5/7/8 → 15/255/4/36/92 spans all type 3, plus p9 23 and p11 119 (matches).",
+        "New (SYM-067 planted pair, repo's own degeneration()): held Univ 4e RAW flagged 25 blocks repeated_lines 0 → pipe-rows stripped 1 block (raw line 8776, 21,870 chars, zlib 0.011, max_trigram 441 '{1 - t}', an unterminated \\begin{array}{lll}) → _strip_markdown 1 block; 2025 4e anchor RAW 26 blocks → stripped 0, flagged=false; Beer Brain anchors RAW 20 and 19 blocks (max_trigram 143 and 2,267 'The Stage of the Stage of the') and stay flagged under every variant; Diagnosing 2 blocks stay; Valentine 4-5 → 1-3 stay; Ashby 5 → 3 stay.",
+        "Chandra on disk: `du -b model.safetensors` = 10,591,220,088 B (Lane D: 10,611,947,865 — does NOT match; theirs is the folder total); config.json model_type qwen3_5 / qwen3_5_text, mamba_ssm_dtype float32, hidden_size 2560, 32 layers, transformers_version 5.2.0 (matches on-disk claims; HF chandra-ocr-2 config identical).",
+        "Paper 2401.11874v2 text (paper_p*.txt): Table 6 'Ours 88.06 0.9319 0.8637', 'Lorenzo et al.† 0.7741 0.8583'; 1,000 train / 500 test; 8 Nvidia Tesla V100 32 GB; 'prone to failure when confronted with out-of-domain cases' (matches Lane A).",
+        "Lane F paper (pdf_text.py on applsci-16-03089.pdf): p15-16 '0.8429 ... 0.7879 ... mAP@50 of 0.8836 ... mAP@50:95 of 0.7351'; p22 Data Availability 'included in the article'; p5 'The DocBank dataset [39]'; p28 ref 39 = Nguyen wiring-harness paper (matches)."
+      ],
+      "ranked_leads": [
+        {
+          "rank": 1,
+          "name": "Table-aware degeneration gate (strip markdown pipe-table rows before degeneration() in windows-converter/fidelity_audit.py) — not a repo lead, the project's own SYM-067",
+          "spec_row": "#2 DEGENERATION PRECISION (SYM-067)",
+          "verdict": "BUILD (gate change is Rab's signature)",
+          "one_measurement": "Run the repo's degeneration() with pipe rows stripped on the pair already on disk: anchored Damodaran 2025 4e must go flagged=true/26 blocks → false/0; held University 4e (14c66834bdfeaa2e) 25 → exactly 1 (raw line 8776, the 441×'{1 - t}' LaTeX runaway that is also SYM-056's unterminated \\begin{array} — must STAY flagged); Beer Brain-of-the-Firm anchor (max_trigram 2,267) must still trip. Measured this pass: it holds.",
+          "why_this_rank": "degeneration is the ONLY convert-stage path to `fail` (compute_verdict, fidelity_audit.py:545) and is why the maiden-voyage Damodaran is HELD; it is scored by fidelity_audit.py itself, CPU-only, on his actual failing verdict, and the negative control is measured, not planted by hand — highest fix ÷ lowest cost on the whole roster."
+        },
+        {
+          "rank": 2,
+          "name": "Qwen3-VL-4B-Instruct-GGUF (official Qwen org quant, Apache-2.0, Q4_K_M 2,497,281,664 B + mmproj Q8_0 453,974,304 B ≈ 2.95 GB)",
+          "spec_row": "#6 A BETTER RECONSTRUCTOR",
+          "verdict": "MEASURE_NEXT",
+          "one_measurement": "Render the held Damodaran's densest empty-cell table page (anchor page 805, 130 `| |` markers) with pymupdf, run it through llama.cpp with the 4B Q4_K_M + mmproj using zerox's prompt (re-fetched verbatim), and score the returned markdown with `fidelity_audit.py --pdf/--md` + latex_balance against the same page from Marker; negative control = the filler md (0.0 already measured).",
+          "why_this_rank": "cheapest real reconstructor test on the roster (one ~2.95 GB download Rab signs, one GPU session, ~5 GB VRAM headroom), fully audit-scoreable unchanged (contract re-verified 0.9271 vs 0.0), Apache-2.0 at the LICENSE file; no vendor number quoted, the number would be Rab's own."
+        },
+        {
+          "rank": 3,
+          "name": "Chandra-OCR-2 (weights on disk; 5.3B BF16 = 10,591,220,088 B, Qwen3.5 hybrid; code Apache-2.0, weights OpenRAIL-M $2M + 'cannot be used competitively with our API')",
+          "spec_row": "#6 A BETTER RECONSTRUCTOR (J25 on OPEN-TASKS)",
+          "verdict": "BAKE_OFF_CANDIDATE — licence clause for Rab's own eyes first",
+          "one_measurement": "Same page-805 protocol as rank 2, loading the on-disk safetensors at INT4 via C:/Users/Bndit/ml/docling-env (transformers 5.14.1 ≥ the config's 5.2.0, torch 2.11+cu128 already present) — or, cheaper and riskier, the third-party GGUF Q4_K_M 3,066,385,440 B + mmproj 366,894,368 B; compare `fidelity_audit` page score and latex_balance against Marker's.",
+          "why_this_rank": "highest expected fidelity (Datalab's own 85.8 vs Marker 76.5 on olmOCR-bench — unverified, vendor-quoting-itself) but it does not fit BF16 in 8.3 GB, needs a quantisation path, carries a use-restriction clause, and the hybrid-arch GGUF support in llama.cpp is Unknown; Lane D's 9B figure was wrong — it is 5.3B, so the INT4 path is easier than Lane D thought."
+        },
+        {
+          "rank": 4,
+          "name": "facebookresearch/nougat (nougat-base, 348.7M params, code MIT, weights CC-BY-NC-4.0, pushed 2025-02-21)",
+          "spec_row": "#1 (the \\begin{array} runaway) / #6",
+          "verdict": "BAKE_OFF_CANDIDATE on the RIGHT specimen (Ashby, not Damodaran)",
+          "one_measurement": "Run nougat on the Ashby anchor's array-pathology pages (the book that actually carries 61 unterminated arrays and six 30+-'c' colspecs) and count latex_balance unterminated in its .mmd vs Marker's 61; the held Damodaran's 3 is too small a target to see a difference.",
+          "why_this_rank": "the only candidate trained on LaTeX math/table markup, i.e. the exact failure shape; .mmd is markdown so fidelity_audit scores it unchanged; but NC weights, 559 days dormant, its own env, and its arXiv training distribution is a partial fit for a 1956 cybernetics book."
+        },
+        {
+          "rank": 5,
+          "name": "docling TableFormer (docling-ibm-models; fast 145,453,276 B / accurate 212,758,388 B; code MIT; weights cdla-permissive-2.0 + apache-2.0 on the HF card) — NOT installed in docling-env",
+          "spec_row": "#1 TABLES in born-digital untagged PDFs",
+          "verdict": "MEASURE_NEXT (install first)",
+          "one_measurement": "`uv pip install docling-ibm-models` into docling-env, fetch the fast checkpoint, run CPU on the held Damodaran's pages 805/564/757 table crops, and diff the cell grid (row_span/col_span/text) against surya table_rec's cells from a J24 blocks.json — scored with a TEDS implementation (deepdoctection's tedsmetric.py shape) against a hand-labelled grid for those three pages.",
+          "why_this_rank": "architecturally different in kind (OTSL sequence decoder + bbox regression) and CPU-viable, but it emits table structure, not page markdown — fidelity_audit.py cannot see it without a wrapper and there is no table ground truth on the corpus; its own test asserts field presence only."
+        },
+        {
+          "rank": 6,
+          "name": "microsoft/table-transformer (TATR) via unstructured-inference (28,847,819 params, MIT, real planted-image regression test)",
+          "spec_row": "#1 TABLES in born-digital untagged PDFs",
+          "verdict": "BAKE_OFF_CANDIDATE",
+          "one_measurement": "Same three-page cell-grid diff as rank 5, TATR structure + pdftext glyph assignment vs surya table_rec.",
+          "why_this_rank": "same kind as what Marker already runs (box detector + separate text assignment) and same wrapper/ground-truth gap as rank 5; ranks below it only because it is not different in kind; best test suite of the four table candidates."
+        },
+        {
+          "rank": 7,
+          "name": "PaddleOCR PP-StructureV3 / SLANeXt_wired+wireless (351 MB each, Apache-2.0)",
+          "spec_row": "#1 TABLES in born-digital untagged PDFs",
+          "verdict": "LOW — vendor quoting itself",
+          "one_measurement": "Same three-page cell-grid diff as rank 5, after a separate paddlepaddle CPU-wheel install.",
+          "why_this_rank": "the 69.65 'accuracy' is measured on an internal self-built Chinese dataset (proprietary denominator, no trust); requires a second DL framework not in its own requirements.txt; first-use model host UNREAD; the wired/wireless split is the one idea worth keeping."
+        },
+        {
+          "rank": 8,
+          "name": "JaidedAI/EasyOCR (Apache-2.0; craft 77,251,756 B + english_g2 14,040,947 B zipped; CPU-able; pickled known-answer test)",
+          "spec_row": "#3 SCAN-vs-CLEAN (second OCR witness)",
+          "verdict": "DEFER",
+          "one_measurement": "OCR Beer Brain page 1 (255 invisible spans) with EasyOCR CPU and compare its text against the embedded Archive.org layer and surya's, as a third witness for the scan-lane agreement score.",
+          "why_this_rank": "spec #3 is already shipped (NUM-5) and re-measured 9/9 correct with both signals agreeing — nothing on that row is failing; a second witness only sharpens scan-lane auditing, which is not a spec row."
+        },
+        {
+          "rank": 9,
+          "name": "Recursive XY-cut over J24 block bboxes (Lane A's 55-line xy_cut(), on disk) and PdfPig's interval-algebra ordering (citation only)",
+          "spec_row": "#4 READING ORDER WITHOUT A TREE",
+          "verdict": "DISCARD as measured; re-open only with Marker's REAL order measured",
+          "one_measurement": "Net payoff vs content-stream order on the only ground-truthed specimens: 0 pages fixed / 3 broken (ISO [15,38,47]); v2 vs declared 2/57 and 18/60. Missing measurement: a J24 blocks.json on WTPDF/ISO (GPU) to get Marker's actual surya-layout order vs the declared tree — never measured (F1).",
+          "why_this_rank": "cannot be scored by fidelity_audit.py; 0.44 % of Rab's pages carry a tree; both ground-truthed specimens are single-column; and the baseline it was compared against is the content stream, not Marker."
+        }
+      ],
+      "build_first": "Build the table-aware degeneration gate for SYM-067 — strip markdown pipe-table rows before `degeneration()` runs in `windows-converter/fidelity_audit.py` — measured on the pair already on disk: the anchored Damodaran 2025 4e must go from `flagged=true` / 26 blocks to `false` / 0, the held University 4e (`C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e`) from 25 blocks to exactly 1 — raw line 8776, the real 440-repeat `{1 - t}` runaway that is also SYM-056's unterminated `\\begin{array}` and must STAY flagged — and the Beer Brain-of-the-Firm anchor (`The Stage of the Stage of the…`, max_trigram 2,267) must still trip; CPU-only, scored by the audit itself, the gate change is yours to sign.",
+      "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/leads/VERIFIED.md",
+      "residue": "(1) Marker's ACTUAL block order (surya-layout position, per order.py/layout.py) vs the declared tree on WTPDF/ISO is UNREAD — needs a GPU marker_blocks.py run on those two PDFs; until then every 'Marker diverges 2/57, 15/60' sentence in docs/52, GROUND and Lane A describes the content stream. (2) PaddleOCR, EasyOCR and TableFormer were not installed or run; no CPU-s/page on Rab's hardware. (3) PaddleOCR's first-use model host / offline caching: UNREAD (installation doc silent). (4) Whether llama.cpp runs the Qwen3.5-hybrid Chandra GGUF correctly: Unknown; nothing downloaded. (5) The Qwen3-VL document-parsing cookbook prompt was not fetched; zerox's prompt (re-fetched verbatim) is the stand-in. (6) fidelity_audit version drift (manifest 0.9334 vs fresh 0.9271 on identical md/pdf) is real, cause Unknown (manifest records marker_version 'unknown'). (7) Lane B's anchor-derived page numbers are ± the local anchor gap (largest 839 lines); exact pages need a blocks.json this held bundle predates. (8) Designing with Freedom (Beer): source PDF absent from disk; its scan-lane routing unverified by render mode. (9) Lane F's paper: four numbers and two defects re-checked, the other 29 pages not re-read. (10) All web fetches passed through WebFetch's summariser; licence/size fields were requested verbatim and are quoted as returned, but I did not hand-parse raw bytes. (11) GPU untouched throughout; nothing under C:/Users/Bndit/Projects/file-portal was written."
+    }
+  },
+  "workflowProgress": [
+    {
+      "type": "workflow_phase",
+      "index": 1,
+      "title": "Read"
+    },
+    {
+      "type": "workflow_phase",
+      "index": 2,
+      "title": "Verify"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 1,
+      "label": "read:A-reading-order",
+      "phaseIndex": 1,
+      "phaseTitle": "Read",
+      "agentId": "ab458885d71ebcad8",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1788492482109,
+      "queuedAt": 1788492482088,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "A — Reading order without a tree (spec #4) + the Detect-Ord…",
+      "promptPreview": "GROUND. File Portal (Rab's local-first document-conversion pipeline: Marker 1.10.2 + surya 0.17.1 →\nmarkdown; a local qwen3:8b analyst; a fidelity audit against a pymupdf witness; Obsidian vault).\nOne RTX 3080, 10 GB VRAM (~8.3 GB free when idle). Offline by design. Rab hunted twenty leads;\nyour job is to READ, not to trust. Repo: C:/Users/Bndit/Projects/file-portal.\n\nTHE SPEC — a lead is only a l…",
+      "lastProgressAt": 1788493097785,
+      "tokens": 183701,
+      "toolCalls": 51,
+      "durationMs": 615673,
+      "resultPreview": "{\"lane\":\"A — Reading order without a tree (spec #4) + the Detect-Order-Construct paper\",\"report_file\":\"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/leads/A-reading-order.md\",\"measured_on_specimen\":\"Ran a self-written ~55-line recursive XY-cut (xycut_probe.py, CPU-only, pymupdf+re+difflib, no torch) over pymupdf get_tex…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 2,
+      "label": "read:B-tables",
+      "phaseIndex": 1,
+      "phaseTitle": "Read",
+      "agentId": "a8ad23b17d4dc9421",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1788492482110,
+      "queuedAt": 1788492482088,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "B — Tables in born-digital untagged PDFs (spec #1)",
+      "promptPreview": "GROUND. File Portal (Rab's local-first document-conversion pipeline: Marker 1.10.2 + surya 0.17.1 →\nmarkdown; a local qwen3:8b analyst; a fidelity audit against a pymupdf witness; Obsidian vault).\nOne RTX 3080, 10 GB VRAM (~8.3 GB free when idle). Offline by design. Rab hunted twenty leads;\nyour job is to READ, not to trust. Repo: C:/Users/Bndit/Projects/file-portal.\n\nTHE SPEC — a lead is only a l…",
+      "lastProgressAt": 1788493233909,
+      "tokens": 159198,
+      "toolCalls": 63,
+      "durationMs": 751796,
+      "resultPreview": "{\"lane\":\"B — Tables in born-digital untagged PDFs (spec #1)\",\"report_file\":\"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/leads/B-tables.md\",\"measured_on_specimen\":\"Ran latex_balance (verbatim reimplementation of fidelity_audit.py:373-424, no pymupdf/rapidfuzz needed) against the actual held Damodaran 4e markdown (C:/Us…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 3,
+      "label": "read:C-scan-lane",
+      "phaseIndex": 1,
+      "phaseTitle": "Read",
+      "agentId": "a0832121838233d00",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1788492482111,
+      "queuedAt": 1788492482089,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "C — scan-vs-clean lane (spec #3) + OCR engines",
+      "promptPreview": "GROUND. File Portal (Rab's local-first document-conversion pipeline: Marker 1.10.2 + surya 0.17.1 →\nmarkdown; a local qwen3:8b analyst; a fidelity audit against a pymupdf witness; Obsidian vault).\nOne RTX 3080, 10 GB VRAM (~8.3 GB free when idle). Offline by design. Rab hunted twenty leads;\nyour job is to READ, not to trust. Repo: C:/Users/Bndit/Projects/file-portal.\n\nTHE SPEC — a lead is only a l…",
+      "lastProgressAt": 1788492934700,
+      "tokens": 121957,
+      "toolCalls": 47,
+      "durationMs": 452587,
+      "resultPreview": "{\"lane\":\"C — scan-vs-clean lane (spec #3) + OCR engines\",\"leads\":[{\"name\":\"render-mode-3/7 via pymupdf get_texttrace() — ALREADY SHIPPED (NUM-5, S113), verified not proposed\",\"spec_rows\":[\"#3 SCAN-vs-CLEAN LANE\"],\"verdict\":\"BAKE_OFF_CANDIDATE\",\"licence_at_source\":\"N/A — no new dependency; pymupdf 1.28.0 is already imported by convert_and_ship.py and fidelity_audit.py today\",\"offline_vram\":\"0 — CPU…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 4,
+      "label": "read:D-reconstructors",
+      "phaseIndex": 1,
+      "phaseTitle": "Read",
+      "agentId": "a211486f374da8f92",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1788492482112,
+      "queuedAt": 1788492482089,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "D — Reconstructors and VLMs for the bake-off (spec #6)",
+      "promptPreview": "GROUND. File Portal (Rab's local-first document-conversion pipeline: Marker 1.10.2 + surya 0.17.1 →\nmarkdown; a local qwen3:8b analyst; a fidelity audit against a pymupdf witness; Obsidian vault).\nOne RTX 3080, 10 GB VRAM (~8.3 GB free when idle). Offline by design. Rab hunted twenty leads;\nyour job is to READ, not to trust. Repo: C:/Users/Bndit/Projects/file-portal.\n\nTHE SPEC — a lead is only a l…",
+      "lastProgressAt": 1788493152374,
+      "tokens": 127001,
+      "toolCalls": 56,
+      "durationMs": 670260,
+      "resultPreview": "{\"lane\":\"D — Reconstructors and VLMs for the bake-off (spec #6)\",\"report_file\":\"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/leads/D-reconstructors.md\",\"measured_on_specimen\":\"Ran windows-converter/fidelity_audit.py (unmodified, marker-env python, CPU-only, PYTHONIOENCODING=utf-8) against the held Damodaran 4e specimen…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 5,
+      "label": "read:E-frameworks",
+      "phaseIndex": 1,
+      "phaseTitle": "Read",
+      "agentId": "a56b924139ff3770f",
+      "model": "claude-sonnet-5",
+      "state": "done",
+      "startedAt": 1788492482112,
+      "queuedAt": 1788492482089,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "E — Frameworks and the Honest Discard List",
+      "promptPreview": "GROUND. File Portal (Rab's local-first document-conversion pipeline: Marker 1.10.2 + surya 0.17.1 →\nmarkdown; a local qwen3:8b analyst; a fidelity audit against a pymupdf witness; Obsidian vault).\nOne RTX 3080, 10 GB VRAM (~8.3 GB free when idle). Offline by design. Rab hunted twenty leads;\nyour job is to READ, not to trust. Repo: C:/Users/Bndit/Projects/file-portal.\n\nTHE SPEC — a lead is only a l…",
+      "lastProgressAt": 1788493041195,
+      "tokens": 133359,
+      "toolCalls": 75,
+      "durationMs": 559081,
+      "resultPreview": "{\"lane\":\"E — Frameworks and the Honest Discard List\",\"report_file\":\"C:\\\\Users\\\\Bndit\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-Bndit-Projects-file-portal\\\\d6f7a30f-66e5-40d2-a905-b2dd64ee7f44\\\\scratchpad\\\\leads\\\\E-frameworks.md\",\"measured_on_specimen\":\"Ran pymupdf 1.28.0 (marker-env, CPU-only, GPU untouched) directly against two of Rab's own source PDFs in C:/Users/Bndit/ml/library/drop/done/, read-…"
+    },
+    {
+      "type": "workflow_agent",
+      "index": 6,
+      "label": "verify:fable",
+      "phaseIndex": 2,
+      "phaseTitle": "Verify",
+      "agentId": "adcf8a39f87ad5a2b",
+      "model": "claude-fable-5-1",
+      "state": "done",
+      "startedAt": 1788493233937,
+      "queuedAt": 1788493233913,
+      "attempt": 1,
+      "lastToolName": "StructuredOutput",
+      "lastToolSummary": "Build the table-aware degeneration gate for SYM-067 — strip…",
+      "promptPreview": "GROUND. File Portal (Rab's local-first document-conversion pipeline: Marker 1.10.2 + surya 0.17.1 →\nmarkdown; a local qwen3:8b analyst; a fidelity audit against a pymupdf witness; Obsidian vault).\nOne RTX 3080, 10 GB VRAM (~8.3 GB free when idle). Offline by design. Rab hunted twenty leads;\nyour job is to READ, not to trust. Repo: C:/Users/Bndit/Projects/file-portal.\n\nTHE SPEC — a lead is only a l…",
+      "lastProgressAt": 1788494340147,
+      "tokens": 276071,
+      "toolCalls": 88,
+      "durationMs": 1106210,
+      "resultPreview": "{\"claims_checked\":[{\"lane\":\"GROUND triage\",\"claim\":\"marker 1.10.2 and surya 0.17.1 are Apache-2.0\",\"checked_against\":\"marker_pdf-1.10.2.dist-info/METADATA:5,93 and surya_ocr-0.17.1.dist-info/METADATA:5,95 (License: GPL-3.0-or-later; weights 'modified AI Pubs Open Rail-M ... under $2M') vs upstream datalab-to/marker and datalab-to/surya master LICENSE (Apache-2.0) and READMEs ($5M)\",\"verdict\":\"WRON…"
+    }
+  ],
+  "totalTokens": 1001287,
+  "totalToolCalls": 380
+}

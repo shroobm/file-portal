@@ -388,6 +388,15 @@ resequenced), and a declared artifact boundary instead of a 40 %-repeat heuristi
 `Observed` catches **0 of 57** and **0 of 79** artifact fragments on two of three specimens
 (§2.7d). Build for that.
 
+> ⚠ **CORRECTION (2026-09-04, the docs/53 lead hunt).** The "2 of 57" and "15 of 60" resequencing
+> counts compare the declared tree with **pymupdf's raw block order — the content stream — not with
+> Marker.** `Verified` in the installed marker 1.10.2: `marker/builders/layout.py:140` orders every
+> page's blocks by surya's layout `position`, and `marker/processors/order.py:17-22` re-sorts **only**
+> sliced pdftext pages by span position. Marker's real order is the layout model's; how far *it*
+> diverges from a declared tree is **UNREAD** (a GPU `marker_blocks.py` run on WTPDF + ISO — J30).
+> "A declared order instead of a geometric guess" is still the right prize; its size is unmeasured.
+
+
 ### 5.4 Complexity
 
 `Observed` **No new dependency.** Both doors are pymupdf 1.28.0 in `marker-env`, which

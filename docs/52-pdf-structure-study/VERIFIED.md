@@ -379,3 +379,15 @@ a ticket before the next supersede. (e) Banking the two pymupdf traps in ERROR-B
   `PYTHONIOENCODING=utf-8`. Declared because a silent crash there would have hidden the one
   positive.
 - **Nothing faked.**
+
+## Correction filed 2026-09-04 (the docs/53 lead hunt)
+
+Row 12's neighbour above — "reading order resequenced 2/57 WTPDF pages and 15/60 ISO pages" — and
+design.md §2.7c both describe **pymupdf's raw block order (the content stream) versus the declared
+tree, not Marker versus the declared tree.** Lane A of docs/53 asserted the opposite mechanism
+("OrderProcessor overwrites surya's position on every non-sliced page"); the coordinator marked it
+WRONG and Fable re-read the installed package: `marker/builders/layout.py:140` sorts by surya layout
+`position` (`surya/layout/__init__.py:97`, `position=z`); `marker/processors/order.py:17-22` skips
+every page that is not `layout_sliced`. Marker's true order against a declared tree is UNREAD (J30).
+The counts themselves are not withdrawn — only what they are counts *of*.
+
