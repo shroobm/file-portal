@@ -59,6 +59,6 @@ J33 - RETAIN THE MARKER BODY WITH THE BUNDLE. PROPOSED, UNSIGNED. Where the pre-
 
 ## 6. Files
 
-- `VERIFIED.md` — the verifier's report; `lanes/` — the three refuter reports; `fleet-result.json`, `fleet-script.js`.
+- `VERIFIED.md` — the verifier's report; `lanes/` — lanes A and C wrote report files, lane B returned its report inline (see `fleet-result.json`); `fleet-result.json`, `fleet-script.js`.
 - `scripts/fable-*` — the builder's measurements (diag, classify, chunks, sandbox repair, SYM-073 cause);
   `scripts/<lane>-*` — the lanes' independent re-derivations.
