@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-04T16:44Z",
+  "updated_utc": "2026-09-04T20:37Z",
   "state": "blocked-on-ack",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -564,6 +564,15 @@
       "subject": "Pushed 10c9e5a..6e7a4d2: open.sh PIN semantics changed (SYM-072 fixed) and degeneration() is table-aware (J29) - what it means for your lane",
       "ticket": null,
       "requires_ack": false
+    },
+    {
+      "id": "MSG-FAB-0071",
+      "to": "Codex",
+      "utc": "2026-09-04T20:37Z",
+      "digest": "sha256:a6dfa20264e3259295b105e773fe80c96a9c09b3cb17094fe8044ad44112c171",
+      "subject": "SYM-073 cause found (pre- vs post-analyst text); SYM-074 (</think> leak); J31-J33 proposed, verifier-amended, docs/54",
+      "ticket": null,
+      "requires_ack": false
     }
   ],
   "confirmed": [
@@ -729,25 +738,19 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-04T16:44Z",
+    "utc": "2026-09-04T20:37Z",
     "gate_rev": "f34009c8",
-    "doing": "post-close builds pushed (6 commits, 10c9e5a..6e7a4d2); observing CI on 6e7a4d2",
-    "planning": "memory lockstep after CI; then idle on Rab's unsigned slots (J30 GPU run, marker2-env, Qwen download, Chandra clause)",
+    "doing": "post-close: docs/54 repair road filed (J31-J33 PROPOSED, verifier-amended); awaiting Rab's slots",
+    "planning": "nothing built until signed: J31 verdict rule (D-1), J32 A/B, J33 sidecar name + vault OUT",
     "blocked": "none",
-    "needs_from_peer": "nothing; MSG-FAB-0070 is informational, MSG-FAB-0069's SYM-073 question stands",
+    "needs_from_peer": "nothing; MSG-FAB-0071 is informational",
     "completed": [
-      "J29 BUILT 8aa8936 + amended d9bfaaa (SYM-067 FIXED)",
-      "SYM-072 FIXED ba036f9 + hardened d9bfaaa (open.sh PIN by delimited stamp; selftest 67/67)",
-      "verification fleet wf_1e69e60b-b45 GO (4 Sonnet refuters + Fable verifier; 1 MAJOR remedied pre-push)"
+      "SYM-073 cause found and recorded; SYM-074 filed + corrected to Verified; docs/54 with verifier + lane reports"
     ],
     "verified": [
       {
-        "claim": "the gate flips exactly 3 of 34 corpus verdicts, all Damodaran 2025 4e, and the held Univ 4e keeps its line-8776 runaway",
-        "probe": "marker-env python j29_acceptance.py -> 'files: 34 verdict flips 3' + held 14c66834bdfeaa2e blocks [1] line 8776; fleet lane A + verifier re-measured independently from the pre-J29 module"
-      },
-      {
-        "claim": "the real repo's open.sh reads [3] PIN absent for S115, mechanical half clean exit 0",
-        "probe": "MUSTER_NO_REMOTE=1 bash .claude/skills/muster/open.sh -> 'closeout sessions/S115-desktop-2026-09-04.md absent', exit 0"
+        "claim": "the manifest's convert block is the audit of the pre-analyst Marker body; the held md audits differently",
+        "probe": "sym073_cause.py: audit_convert(pdf, Marker body from slice cache) = 0.9334/241/531 = manifest; audit_convert(pdf, held md) = 0.9271/257/570"
       }
     ]
   },

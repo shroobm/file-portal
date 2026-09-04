@@ -1,0 +1,140 @@
+{
+  "n_chunks_rebuilt": 957,
+  "n_journal_matched": 516,
+  "status_breakdown": {
+    "passed": 500,
+    "rejected": 16
+  },
+  "sum_per_chunk_failed_windows": 1301,
+  "sum_per_chunk_windows": 21882,
+  "n_chunks_with_any_loss": 337,
+  "n_chunks_needed_for_80pct_of_loss": 152,
+  "top20_chunks_by_loss": [
+    {
+      "i": 296,
+      "status": "passed",
+      "failed": 48,
+      "windows": 56
+    },
+    {
+      "i": 23,
+      "status": "passed",
+      "failed": 31,
+      "windows": 49
+    },
+    {
+      "i": 78,
+      "status": "passed",
+      "failed": 27,
+      "windows": 45
+    },
+    {
+      "i": 419,
+      "status": "passed",
+      "failed": 21,
+      "windows": 48
+    },
+    {
+      "i": 230,
+      "status": "passed",
+      "failed": 18,
+      "windows": 32
+    },
+    {
+      "i": 188,
+      "status": "passed",
+      "failed": 17,
+      "windows": 47
+    },
+    {
+      "i": 503,
+      "status": "passed",
+      "failed": 17,
+      "windows": 49
+    },
+    {
+      "i": 425,
+      "status": "passed",
+      "failed": 16,
+      "windows": 37
+    },
+    {
+      "i": 128,
+      "status": "passed",
+      "failed": 14,
+      "windows": 44
+    },
+    {
+      "i": 379,
+      "status": "passed",
+      "failed": 14,
+      "windows": 31
+    },
+    {
+      "i": 430,
+      "status": "passed",
+      "failed": 14,
+      "windows": 47
+    },
+    {
+      "i": 357,
+      "status": "passed",
+      "failed": 13,
+      "windows": 39
+    },
+    {
+      "i": 401,
+      "status": "passed",
+      "failed": 13,
+      "windows": 20
+    },
+    {
+      "i": 306,
+      "status": "passed",
+      "failed": 12,
+      "windows": 49
+    },
+    {
+      "i": 345,
+      "status": "passed",
+      "failed": 12,
+      "windows": 49
+    },
+    {
+      "i": 429,
+      "status": "passed",
+      "failed": 12,
+      "windows": 51
+    },
+    {
+      "i": 460,
+      "status": "passed",
+      "failed": 12,
+      "windows": 45
+    },
+    {
+      "i": 242,
+      "status": "passed",
+      "failed": 11,
+      "windows": 38
+    },
+    {
+      "i": 254,
+      "status": "passed",
+      "failed": 11,
+      "windows": 39
+    },
+    {
+      "i": 492,
+      "status": "passed",
+      "failed": 11,
+      "windows": 53
+    }
+  ],
+  "rejected_chunks_count": 16,
+  "rejected_chunks_total_failed_windows": 0,
+  "figure_mentions_marker": 664,
+  "figure_mentions_analyst": 662,
+  "table_mentions_marker": 599,
+  "table_mentions_analyst": 595
+}

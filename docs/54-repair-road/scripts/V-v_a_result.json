@@ -1,0 +1,520 @@
+{
+ "inputs": {
+  "n_slices": 7,
+  "marker_raw_chars": 3448179,
+  "marker_rewritten_chars": 3450335,
+  "held_body_chars": 3454928,
+  "sha16_marker_raw": "faf9309372be832b",
+  "WINDOW_WORDS": 12,
+  "ANALYST_DOC_FAIL": 0.995,
+  "ANALYST_RUN_WORDS": 25
+ },
+ "mirror_raw_join": {
+  "doc_survival": 0.9402,
+  "runs_total": 404,
+  "max_run_words": 576
+ },
+ "mirror_rewritten": {
+  "doc_survival": 0.9402,
+  "runs_total": 404,
+  "max_run_words": 576
+ },
+ "manifest_analyst": {
+  "doc_survival": 0.9402,
+  "runs_total": 404
+ },
+ "baseline": {
+  "windows": 40438,
+  "failed": 2420,
+  "doc_survival": 0.9402
+ },
+ "ladder_own": {
+  "1_unescape": {
+   "windows": 40438,
+   "failed": 1727,
+   "doc_survival": 0.9573,
+   "runs": 249,
+   "max_run_words": 576
+  },
+  "2b_unescape+space (the builder 0.9718 shape)": {
+   "windows": 40438,
+   "failed": 1102,
+   "doc_survival": 0.9727,
+   "runs": 104,
+   "max_run_words": 576
+  },
+  "2_unescape+punct": {
+   "windows": 42238,
+   "failed": 1283,
+   "doc_survival": 0.9696,
+   "runs": 182,
+   "max_run_words": 372
+  },
+  "3_unescape+punct+space": {
+   "windows": 42238,
+   "failed": 644,
+   "doc_survival": 0.9848,
+   "runs": 59,
+   "max_run_words": 372
+  }
+ },
+ "ladder_builder_regexes": {
+  "1_unescape": {
+   "windows": 40437,
+   "failed": 1763,
+   "doc_survival": 0.9564,
+   "runs": 254,
+   "max_run_words": 588
+  },
+  "2b_unescape+space": {
+   "windows": 40437,
+   "failed": 1141,
+   "doc_survival": 0.9718,
+   "runs": 120,
+   "max_run_words": 588
+  },
+  "2_unescape+punct": {
+   "windows": 42235,
+   "failed": 1288,
+   "doc_survival": 0.9695,
+   "runs": 185,
+   "max_run_words": 372
+  },
+  "3_unescape+punct+space (NEVER measured by the builder)": {
+   "windows": 42235,
+   "failed": 646,
+   "doc_survival": 0.9847,
+   "runs": 54,
+   "max_run_words": 372
+  }
+ },
+ "chunks": {
+  "n": 957,
+  "embeds": 308,
+  "manifest_passed+rejected": 957
+ },
+ "attrib_baseline": {
+  "located": 1501,
+  "unlocated": 919,
+  "located_rate": 0.62,
+  "chunks_with_loss": 538,
+  "chunks_for_80pct": 266,
+  "front_matter_chunks_1_15": 7,
+  "median_chunk": 463,
+  "top10": [
+   [
+    296,
+    45
+   ],
+   [
+    23,
+    30
+   ],
+   [
+    78,
+    24
+   ],
+   [
+    419,
+    15
+   ],
+   [
+    828,
+    15
+   ],
+   [
+    678,
+    14
+   ],
+   [
+    801,
+    13
+   ],
+   [
+    128,
+    12
+   ],
+   [
+    460,
+    12
+   ],
+   [
+    533,
+    12
+   ]
+  ]
+ },
+ "attrib_rung2b_own": {
+  "located": 765,
+  "unlocated": 337,
+  "located_rate": 0.694,
+  "chunks_with_loss": 391,
+  "chunks_for_80pct": 238,
+  "front_matter_chunks_1_15": 3,
+  "median_chunk": 448,
+  "top10": [
+   [
+    296,
+    43
+   ],
+   [
+    23,
+    30
+   ],
+   [
+    78,
+    24
+   ],
+   [
+    128,
+    12
+   ],
+   [
+    460,
+    12
+   ],
+   [
+    678,
+    11
+   ],
+   [
+    713,
+    10
+   ],
+   [
+    533,
+    8
+   ],
+   [
+    37,
+    7
+   ],
+   [
+    321,
+    7
+   ]
+  ]
+ },
+ "attrib_rung3_own": {
+  "located": 240,
+  "unlocated": 404,
+  "located_rate": 0.373,
+  "chunks_with_loss": 138,
+  "chunks_for_80pct": 90,
+  "front_matter_chunks_1_15": 1,
+  "median_chunk": 460.0,
+  "top10": [
+   [
+    23,
+    18
+   ],
+   [
+    78,
+    14
+   ],
+   [
+    460,
+    9
+   ],
+   [
+    128,
+    8
+   ],
+   [
+    476,
+    6
+   ],
+   [
+    569,
+    5
+   ],
+   [
+    678,
+    5
+   ],
+   [
+    753,
+    5
+   ],
+   [
+    256,
+    4
+   ],
+   [
+    623,
+    4
+   ]
+  ]
+ },
+ "attrib_rung2b_builder": {
+  "located": 780,
+  "unlocated": 361,
+  "located_rate": 0.684,
+  "chunks_with_loss": 378,
+  "chunks_for_80pct": 222,
+  "front_matter_chunks_1_15": 3,
+  "median_chunk": 453.5,
+  "top10": [
+   [
+    296,
+    45
+   ],
+   [
+    23,
+    30
+   ],
+   [
+    78,
+    24
+   ],
+   [
+    678,
+    13
+   ],
+   [
+    128,
+    12
+   ],
+   [
+    713,
+    10
+   ],
+   [
+    533,
+    9
+   ],
+   [
+    460,
+    8
+   ],
+   [
+    37,
+    7
+   ],
+   [
+    476,
+    7
+   ]
+  ]
+ },
+ "chunk1_head": "Fourth Edition # INVESTMENT VALUATION Tools and Techniques for Determining the Value of Any Asset ⟦IMG-0⟧ # <span id=\"page-1-0\"></span>**Table of Contents**",
+ "chunk15_head": "| Table 15.14 Base Year Operating Metrics for Disney | | | | | | | |-------------------------",
+ "chunk23": {
+  "chunk_chars": 3684,
+  "chunk_words": 587,
+  "paras_ge8w": 5,
+  "paras_present": 2,
+  "paras_absent": 3,
+  "absent_words": 361,
+  "absent_heads": [
+   "can you avoid being biased? we don't think so, but you can be open about these b",
+   "institutional concerns play a role in determining the extent of bias in valuatio",
+   "as consumers of other people's valuations, the lesson of this section is that wh"
+  ]
+ },
+ "chunk78": {
+  "chunk_chars": 3389,
+  "chunk_words": 545,
+  "paras_ge8w": 4,
+  "paras_present": 2,
+  "paras_absent": 2,
+  "absent_words": 308,
+  "absent_heads": [
+   "the argument that diversification reduces an investor's exposure to risk is clea",
+   "this argument is powerful, especially in markets where assets can be traded easi"
+  ]
+ },
+ "chunk296": {
+  "chunk_chars": 3868,
+  "chunk_words": 681,
+  "paras_ge8w": 3,
+  "paras_present": 1,
+  "paras_absent": 2,
+  "absent_words": 665,
+  "absent_heads": [
+   "$$\\begin{array}{lll} {\\rm roc} + {\\rm d/e} \\left[ {{\\rm roc} - i\\left( {1 - t} \\",
+   "- 10 note that 17.22% is halfway between the current return on capital and the i"
+  ]
+ },
+ "chunk678": {
+  "chunk_chars": 3434,
+  "chunk_words": 535,
+  "paras_ge8w": 10,
+  "paras_present": 3,
+  "paras_absent": 7,
+  "absent_words": 215,
+  "absent_heads": [
+   "assume that you work for a publicly traded firm and have been asked to value a p",
+   "first, you would value the private firm assuming that you do not invest the \\$10",
+   "now assume that your investment of \\$10 million will enable the firm to grow fas",
+   "postcash valuation = $$$50 \\text{ million} + $10 \\text{ million} = $60 \\text{ mi"
+  ]
+ },
+ "chunk128": {
+  "chunk_chars": 3614,
+  "chunk_words": 534,
+  "paras_ge8w": 8,
+  "paras_present": 6,
+  "paras_absent": 2,
+  "absent_words": 217,
+  "absent_heads": [
+   "when the long term is defined in terms of years, there is a negative correlation",
+   "there are many academics as well as practitioners, who suggest that these findin"
+  ]
+ },
+ "journal": {
+  "dir_key_on_disk": "d58db211c41b0e17",
+  "resume_key_rewritten": "5d885aa52e9e96d6",
+  "resume_key_raw_join": "5d885aa52e9e96d6",
+  "raw_lines": 646,
+  "validated_same_index_rewritten": 516,
+  "validated_same_index_raw": 516,
+  "rejected_validated": 16,
+  "manifest_rejected": 29,
+  "manifest_resumed": 641,
+  "loss_in_rejected_baseline": 7,
+  "loss_in_rejected_rung2b_own": 7,
+  "loss_in_rejected_rung2b_builder": 6,
+  "passed_validated_with_windows": 500,
+  "passed_chunks_below_0.5": {
+   "chunks": 5,
+   "baseline_loss_windows_they_carry": 104
+  },
+  "passed_chunks_below_0.8": {
+   "chunks": 32,
+   "baseline_loss_windows_they_carry": 255
+  },
+  "passed_chunks_below_0.9": {
+   "chunks": 100,
+   "baseline_loss_windows_they_carry": 458
+  },
+  "passed_chunks_below_0.95": {
+   "chunks": 179,
+   "baseline_loss_windows_they_carry": 615
+  },
+  "passed_chunks_below_0.98": {
+   "chunks": 290,
+   "baseline_loss_windows_they_carry": 747
+  },
+  "passed_chunks_below_0.995": {
+   "chunks": 337,
+   "baseline_loss_windows_they_carry": 793
+  },
+  "worst10_passed": [
+   [
+    296,
+    0.1429,
+    56,
+    673,
+    5164,
+    45
+   ],
+   [
+    401,
+    0.35,
+    20,
+    243,
+    223,
+    2
+   ],
+   [
+    23,
+    0.3673,
+    49,
+    584,
+    223,
+    30
+   ],
+   [
+    78,
+    0.4,
+    45,
+    544,
+    236,
+    24
+   ],
+   [
+    230,
+    0.4375,
+    32,
+    382,
+    329,
+    3
+   ],
+   [
+    379,
+    0.5484,
+    31,
+    366,
+    393,
+    7
+   ],
+   [
+    419,
+    0.5625,
+    48,
+    581,
+    665,
+    15
+   ],
+   [
+    425,
+    0.5676,
+    37,
+    447,
+    447,
+    6
+   ],
+   [
+    188,
+    0.6383,
+    47,
+    559,
+    581,
+    8
+   ],
+   [
+    503,
+    0.6531,
+    49,
+    588,
+    608,
+    9
+   ]
+  ],
+  "total_baseline_loss_in_validated_passed": 811,
+  "word_ratio_lt_0.9": 9,
+  "chunk23": {
+   "status": "passed",
+   "out_chars": 1450,
+   "in_chars": 3684
+  },
+  "chunk78": {
+   "status": "passed",
+   "out_chars": 1522,
+   "in_chars": 3389
+  }
+ },
+ "mentions": {
+  "figure \\d+\\.\\d+": {
+   "marker": 664,
+   "held": 662
+  },
+  "table \\d+\\.\\d+": {
+   "marker": 599,
+   "held": 595
+  }
+ },
+ "controls": {
+  "positive_passes_baseline": true,
+  "poison_fails_baseline": true,
+  "poison_fails_unescape": true,
+  "poison_fails_punct": true,
+  "poison_fails_space": true,
+  "escape_only_example": {
+   "before": "premiums for u.s. equity market \\(1960- 2023\\) figure 7.5 default spreads by",
+   "after_unescape": "premiums for u.s. equity market (1960- 2023) figure 7.5 default spreads by"
+  }
+ },
+ "wall_s": 289.9
+}

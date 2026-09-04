@@ -1,0 +1,677 @@
+{
+ "lanes": [
+  {
+   "lane": "A",
+   "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/A/LANE_A_REPORT.md",
+   "claims": [
+    {
+     "claim": "The mirror of fidelity_audit.audit_analyst on the rebuilt Marker reference vs shipped analyst.md reproduces doc_survival=0.9402, runs_total=404",
+     "verdict": "CONFIRMED",
+     "evidence": "mirror_audit.py: rebuilt reference from the 7 slice.md files (own glob+join, verified against convert_and_ship.py:1419/1456's own \"\\n\\n\".join(parts)); calling the real fa.audit_analyst gives doc_survival=0.9402, runs_total=404, windows_total=40438, failed=2420 -- bit-exact match to manifest.json fidelity.analyst and to the ticket's '2,420 of 40,438'.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "Normalisation ladder: unescape/+punct-free/+space-free = 0.9564/0.9695/0.9718, 1763/1288/1141 failed",
+     "verdict": "PARTIAL",
+     "evidence": "ladder.py, own regexes: 1,769/40,419 (0.9562) -> 1,169/39,461 (0.9704) -> 641/39,461 (0.9838). Same progressive-improvement shape, but exact figures not reproduced -- final survival is 98.4% not 97.18% under an equally defensible independent regex choice. The builder's own per-chunk script separately reaches 1,141 via a DIFFERENT 2-step (unescape+space-free, skipping punct-free) path; my own 2-step redo of that path gives 1,025, also close-not-exact.",
+     "tag": "Verified/Inferred"
+    },
+    {
+     "claim": "Residual loss spreads over 412 of 957 chunks; 246 chunks carry 80% of it",
+     "verdict": "PARTIAL",
+     "evidence": "Own positional-attribution re-implementation (chunk boundaries from real analyst.fence/_chunks, 957 confirmed): 1,025 still-failing windows, only 696 (67.9%) locatable to a chunk via first-5-word search -- 329 (32.1%) silently undropped from any attribution. Of the 696 located: 381 chunks carry any loss, 242 chunks carry 80%. Builder's own script (read, not trusted) shows the same gap in its own numbers: 1,141 still-failing, only 830 (72.7%) located, giving 412/246. Shape confirmed; exact figures regex- and location-method-dependent, and an undisclosed ~27-32% of failing windows never get attributed to any chunk under either method.",
+     "tag": "Verified/Inferred"
+    },
+    {
+     "claim": "Rejected chunks account for 10 windows",
+     "verdict": "PARTIAL",
+     "evidence": "The on-disk .analyst-work journal has only 646 raw lines (i=1..647), not 957 -- analyst.process() deletes its own work_dir via shutil.rmtree on successful completion (analyst.py ~446), so a 646-line file cannot be the completed run's own journal; it's stale/partial residue (consistent with MEMORY.md's S114 power-cut note, journal 641/957). Hash-validating against my rebuilt 957 chunks: only 516/957 (54%) match at the same index. Of the manifest's 29 total chunks_rejected, only 16 are identifiable at all from this journal; own-regex count of located loss windows in those 16 = 9 (ticket says 10). The other 13 rejected chunks are unrecoverable from anything on disk.",
+     "tag": "Verified/Inferred"
+    },
+    {
+     "claim": "Front matter intact: figure N.N mentions 664 marker/662 held, table N.N 599/595",
+     "verdict": "CONFIRMED",
+     "evidence": "chunk_attribution.py, own regex figure\\s+\\d+\\.\\d+ / table\\s+\\d+\\.\\d+ (case-insensitive) on the rebuilt Marker reference vs shipped analyst.md: 664/662 and 599/595 exactly.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "The losses concentrate in the front matter's list of figures",
+     "verdict": "REFUTED",
+     "evidence": "PLANTED DECOY. This sentence is not present anywhere in J32's actual draft text (whose real words are the opposite: 'front matter intact'). decoy_check.py: of 696 located loss windows (own regex), only 3 (0.4%) fall in chunks 1-15 (verified to be the book's actual front matter -- chunk 1 starts 'INVESTMENT VALUATION Tools and Techniques...' and contains a list-of-figures/contents marker). Median loss-window chunk index = 679 of 957 -- losses concentrate deep in the book body, nowhere near the front matter. Both the attribution ('the builder's phrase in the draft') and the substance are false.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "Convert-stage numbers are untouched by the proposed analyst-only normalisation, by construction",
+     "verdict": "CONFIRMED",
+     "evidence": "convert_and_ship.py:1616 calls fa.audit_convert(src, body, lane) -- body is the pre-analyst Marker text -- BEFORE line 1658's fa.audit_analyst(marker_body, body) (post-analyst) even runs. fidelity_audit.audit_convert (fidelity_audit.py:485) takes only (pdf_path, markdown, lane, asset_count) and never calls or reads audit_analyst or any analyst normalisation function. Disjoint calls on disjoint inputs -- confirmed from source, not asserted.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "Chunks 23 and 78 (top prose losers) are real rewordings by qwen3:8b under the readability program",
+     "verdict": "REFUTED",
+     "evidence": "qual_diff.py word-diff against hash-validated journal records: chunk 23 (3684->1450 chars, 39% retained) and chunk 78 (3389->1522 chars, 45% retained) each show ONE large deletion op (2-3 whole paragraphs) followed by a byte-identical tail (only a stripped **bold** heading differs) -- not word-level rewording. Independently confirmed the deleted phrases are absent from the SHIPPED analyst.md by direct substring search (5 unique phrases for chunk 78, 2 for chunk 23, all absent), and this matches the manifest's own fidelity.analyst.runs entries verbatim (372-word run 'evokes strong positive...can you avoid being'; 312-word run 'assumed to be diversified?...diversification reduces an'). These are deletions the fence check (image-token multiset only) does not catch, not rewordings.",
+     "tag": "Verified"
+    }
+   ],
+   "measurements": [
+    "mirror: windows_total 40438 / failed 2420 / doc_survival 0.9402 / runs_total 404 -- exact match to manifest.json and ticket, own rebuild of the 7-slice reference",
+    "ladder (own 3-step, cumulative): unescape 1769/40419 failed (0.9562); +punct-free 1169/39461 (0.9704); +space-free 641/39461 (0.9838) -- vs ticket's 1763/1288/1141 (0.9564/0.9695/0.9718)",
+    "ladder (own 2-step, unescape+space-free only, matching the builder's per-chunk script's own method): 1025 still-failing of 40418 windows -- vs builder's script's own 1141",
+    "per-chunk attribution (own regex): 696/1025 (67.9%) still-failing windows locatable to a chunk; 381/957 chunks carry any located loss; 242 chunks carry 80% of the 696 -- vs builder's own script's 830/1141 (72.7%) located, 412/957 chunks, 246 for 80%",
+    "journal coverage: chunks.jsonl has 646 raw lines (i=1..647) not 957; only 516/957 (54%) hash-validate at the same index against the independently rebuilt chunking (analyst._load_journal); 112 more hash-match at a SHIFTED index (drift starting near the known power-cut boundary at chunk ~641); 18 match nothing",
+    "rejected-chunk windows: 16 of manifest's 29 total chunks_rejected identifiable via the journal; 9 located loss windows across those 16 (own regex) vs ticket's 10",
+    "front matter mentions: figure N.N 664 marker / 662 analyst; table N.N 599 marker / 595 analyst -- exact match to ticket",
+    "front-matter loss share: 3 of 696 located loss windows (0.4%) fall in chunks 1-15 (the verified front-matter zone); median loss-window chunk index = 679 of 957",
+    "chunk 23: input 3684 chars / output 1450 chars (39.4% retained), one ~2200-char deletion, tail byte-identical to input bar one heading's bold markers",
+    "chunk 78: input 3389 chars / output 1522 chars (44.9% retained), one ~1850-char deletion, tail byte-identical to input bar one heading's bold markers and an inserted comma"
+   ],
+   "negative_control": "Planted a 12-word window from the real reference with one interior word replaced by the token \"xqzplonkotron9999\" (guaranteed absent from this 3.4M-char finance textbook). It fails containment at all four measured stages -- baseline, unescape, punctuation-free, space-free (negative_control.py) -- confirming none of the normalisation steps accidentally launder planted/synthetic corruption into a false pass. The genuine (unpoisoned) window at the same source location does pass at baseline, confirming the control location itself was a real, matchable passage and not a pre-existing loss zone.",
+   "defects": [
+    {
+     "severity": "MAJOR",
+     "where": "GROUND materials, lane A claim list, item (6)",
+     "what": "The claim \"the losses concentrate in the front matter's list of figures (the builder's phrase in the draft)\" is fabricated and false -- it is not in J32's actual draft text (whose real words say the opposite, 'front matter intact'), and measurement shows only 0.4% of located loss windows fall in the front-matter zone (chunks 1-15), with a median loss-chunk index of 679/957.",
+     "evidence": "decoy_check.py: per_chunk loss distribution shows chunks 1-15 carry 3 of 696 located loss windows; top loss chunks are at indices 23, 78, 678, 128, 713, 533, 37, 461, 753, 256 -- scattered through the book body, none in the front matter.",
+     "remedy": "This is the planted decoy for lane A -- do not add this sentence to J32; the ticket's actual 'front matter intact' framing is correct and should stand."
+    },
+    {
+     "severity": "MAJOR",
+     "where": "J32 draft, \"~2.8% are real rewordings by qwen3:8b\"",
+     "what": "The two named exemplar chunks (23, 78) used to characterize the residual loss as 'rewording' are actually paragraph-scale deletions (61%/55% of chunk content dropped), not rewordings; the fence check (image-token multiset only) does not catch text-completeness loss.",
+     "evidence": "qual_diff.py word-diff shows one large delete op per chunk followed by a byte-identical tail; deleted phrases independently confirmed absent from the shipped analyst.md and matching the manifest's own fidelity.analyst.runs entries (372-word and 312-word runs).",
+     "remedy": "Reword J32 to acknowledge that at least some (and its own two cited top-loss chunks specifically) are outright paragraph deletions the readability program's fence check does not detect, not wording changes -- this is a distinct, more serious defect worth its own ticket line, separate from the mechanical normalisation-gate proposal."
+    },
+    {
+     "severity": "MAJOR",
+     "where": "J32 draft, per-chunk attribution (\"412 of 957 chunks ... 246 chunks carry 80%\") and its underlying univ4e_chunks.py",
+     "what": "The positional first-5-word substring attribution silently drops ~27-32% of the still-failing windows (can't locate them in the source chunking) from the per-chunk count, and this gap is not disclosed in the ticket wording.",
+     "evidence": "Builder's own script: 830/1141 (72.7%) located. Own independent regex: 696/1025 (67.9%) located. Both leave roughly a quarter to a third of the measured loss unattributed to any chunk.",
+     "remedy": "State the location rate (e.g. '~73% of still-failing windows locatable to a chunk') alongside the 412/246 figures so the denominator's real coverage is visible."
+    },
+    {
+     "severity": "MINOR",
+     "where": "J32 draft, \"rejected chunks account for 10 windows\"",
+     "what": "This figure is computed from a journal that only identifies 16 of the manifest's 29 total rejected chunks; the other 13 rejected chunks' window-loss contribution is unknown, not zero.",
+     "evidence": "journal_probe.py: chunks.jsonl has 646/957 raw entries, 516/957 hash-validate; analyst.process() deletes its own journal on success (shutil.rmtree, analyst.py ~446), so this file is confirmed stale/partial residue, not the completed run's journal.",
+     "remedy": "Qualify as 'at least 9-10 windows across the 16 of 29 rejected chunks identifiable from the surviving (partial) journal'."
+    },
+    {
+     "severity": "MINOR",
+     "where": "J32 draft, ladder percentages (0.9564/0.9695/0.9718)",
+     "what": "These exact figures are sensitive to the specific unescape/punctuation-free/space-free regex implementation; an independently written but equally reasonable regex set produces a materially different curve (0.9562/0.9704/0.9838).",
+     "evidence": "ladder.py vs the ticket's own numbers -- same direction, different magnitude, especially by the final rung (98.4% vs 97.18%).",
+     "remedy": "Label the percentages as produced by one specific implementation, not a fixed constant, or publish the exact normalisation code alongside the numbers."
+    }
+   ],
+   "ticket_wording_fixes": [
+    "J32: replace 'The remaining ~2.8% are real rewordings by qwen3:8b under readability (\"Do NOT reword\")' with something acknowledging that at least the two named top-loss chunks (23, 78) are paragraph-scale DELETIONS (61%/55% of chunk content dropped, verified absent from the shipped book), not rewordings -- the fence check only validates the image-token multiset, never text completeness.",
+    "J32: do not add 'the losses concentrate in the front matter's list of figures' -- it is false (0.4% of located loss falls in the front-matter zone) and is not actually present in the draft; the existing 'front matter intact' line is correct and should stand as-is.",
+    "J32: alongside '412 of 957 chunks (246 chunks carry 80%)', disclose the window-location rate (~68-73% of still-failing windows are positionally attributable to a chunk; the rest are unattributed, not zero-loss).",
+    "J32: alongside 'rejected chunks account for 10 windows', disclose that this is computed from only 16 of the manifest's 29 total rejected chunks (the only ones with a surviving journal record) -- the analyst-work journal for the completed run is deleted on success by design (analyst.py's shutil.rmtree), so this file is stale/partial residue, not the run's own record.",
+    "J32: label the 0.9564/0.9695/0.9718 ladder percentages as produced under one specific normalisation-regex implementation rather than as fixed constants; an independently written regex set of the same three steps lands at 0.9562/0.9704/0.9838."
+   ],
+   "decoy_report": "Claim (6) in lane A's list -- \"the losses concentrate in the front matter's list of figures (the builder's phrase in the draft)\" -- is the planted decoy. It is fabricated in two ways: (1) no such sentence exists anywhere in J32's actual draft text supplied in GROUND, whose real words are the opposite (\"front matter intact\"); (2) it is substantively false -- decoy_check.py shows only 3 of 696 located loss windows (0.4%) fall in chunks 1-15 (independently verified to be the book's actual front matter, containing its title/contents), and the median loss-window chunk index is 679 of 957, i.e. losses concentrate deep in the book's body, not its front matter. It directly contradicts the adjacent, correctly-CONFIRMED claim (5) that front-matter figure/table mentions survive almost unchanged (664/662, 599/595). Identified by measurement (decoy_check.py), not propagated into any of the other verdicts above.",
+   "residue": "Did not attempt J31 or J33 (out of lane-A scope, which is J32's evidence only). Did not exhaustively re-derive window counts for all 24-29 rejected chunks individually -- only the 16 that are journal-identifiable at all (the other 13 are genuinely unrecoverable from anything on disk, see the journal-coverage finding under claim 4). Did not test a third or fourth normalisation-regex variant beyond the two reported (own cumulative 3-step ladder, and own 2-step unescape+space-free matching the builder's per-chunk-attribution method) -- a different regex choice would likely land at yet another point in the same range, which is itself part of the finding (the exact ladder/attribution numbers are regex-sensitive, not fixed). All scratch scripts, JSON results, and the consolidated report are under C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/A/ (mirror_audit.py, ladder.py, chunk_attribution.py, journal_probe.py, ladder2_and_attribution.py, decoy_check.py, qual_diff.py, negative_control.py, probe_escapes.py, plus their *_result.json outputs and LANE_A_REPORT.md). No writes were made to file-portal or ml/library at any point."
+  },
+  {
+   "claims": [
+    {
+     "claim": "Repairing the line-8776 runaway in the HELD bundle .md (as Lane B was instructed to do, and as J31 literally says: 'read the held md ... audit_convert(pdf, md, lane)') flips degeneration 1->0 and gives convert-alone verdict 'flag' with doc_survival 0.9271, 257 pages flagged, runs_total 570.",
+     "verdict": "CONFIRMED",
+     "evidence": "Own sandbox: held.md copied read-only from held/14c66834bdfeaa2e (sha256-verified against manifest.source_sha256 and against drop/done PDF, exact match). Deleted the 21,871-char paragraph at held.md line 8776 (1-indexed), re-ran windows-converter/fidelity_audit.audit_convert(pdf, md, 'clean') under C:/Users/Bndit/ml/marker-env/Scripts/python.exe (~46-50 s wall, matching the ticket's '48 s'). Result: doc_survival=0.9271, pages_scored=1372, pages_flagged=257, runs_total=570, tripwires.degeneration=False, blocks_total=0 -- exact match to the ticket's parenthetical numbers.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "The held bundle's .md IS the Marker/pre-analyst convert-stage text that fidelity.convert was originally scored against, i.e. 'the held md' is a valid stand-in for the convert-stage output.",
+     "verdict": "REFUTED",
+     "evidence": "convert_and_ship.py:1613-1670: `body = rewrite_image_links(markdown)` (Marker text) is audited by audit_convert at :1616, THEN at :1633 `body, analyst_meta = analyst.process(body, ...)` REBINDS body to the analyst-rewritten text, and :1670 writes `frontmatter + body` (the POST-analyst text) as the shipped .md. So held/<sha16>/*.md is analyst output, not what fidelity.convert measured. Proof by reproduction: audit_convert on the reconstructed pre-analyst Marker body (7 slice-cache files merged with '\\n\\n' per :1456, from .../scratchpad/univ4e-marker/) gives doc_survival=0.9334, pages_flagged=241, runs_total=531 -- an EXACT match to manifest.json's stored fidelity.convert block -- while audit_convert on held.md gives 0.9271/257/570, which does NOT match the stored manifest. Also: manifest's stored degeneration worst[0] (line 5524, 34523 chars, all pipes/spaces, excerpt 'Betas and Operating Leverage-Shoe Companies...') exists in BOTH held.md and the marker reference as a normal 1232-char table row -- the 34523-char figure is an artifact of the OLD pre-SYM-067 (non-table-aware) degeneration() treating an unbroken multi-row markdown table as one giant paragraph, not evidence the manifest was scored against held.md's current content.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "The TRUE pre-analyst Marker text (from slice cache) also degenerates at essentially the same location, so J31's core diagnosis (a real convert-stage runaway exists and repairing it flips degeneration) survives even though 'held md' is the wrong artifact to read.",
+     "verdict": "CONFIRMED",
+     "evidence": "audit_convert on marker_ref.md (unrepaired) trips degeneration=true, 1 block, line 8795, chars=3005, zlib=0.074, max_trigram=62, excerpt 'ROC + D/E ...' -- matching fidelity_audit.py's own code comment (line 274): 'the held University 4e 25 -> 1, and the 1 is a real runaway (line 8776, {1-t}x441 ... which MUST stay flagged'. Deleting that one paragraph and re-running gives doc_survival=0.9334, pages_flagged=241, runs_total=531 (UNCHANGED from the pre-repair stored manifest numbers) with degeneration flipped to false/0 blocks and convert-alone verdict 'flag'. So the TRUE convert-stage runaway is only ~3,000 chars (not ~21,900) -- the analyst stage (qwen3:8b, program 'readability', which is told 'Do NOT reword') appears to have looped and amplified this one math block roughly 7x when producing the shipped text; held.md line 8779 (right after the runaway) even carries an orphaned '</think>' tag, consistent with a leaked reasoning-model artifact from that stage.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "The convert-stage doc_survival/pages_flagged/runs_total numbers change because of the repair (i.e. the repair improves/changes page-survival scoring).",
+     "verdict": "REFUTED",
+     "evidence": "Negative control: audit_convert on the UNREPAIRED held.md (current code) already gives doc_survival=0.9271, pages_flagged=257, runs_total=570 -- IDENTICAL to the post-repair numbers for held.md; only tripwires.degeneration (true->false) and the worst-list change. Same pattern on the true marker text: unrepaired 0.9334/241/531 (degeneration true), repaired 0.9334/241/531 (degeneration false) -- again identical page-survival numbers. The degenerate block, being garbage/repetitive text, apparently never contributed any true-positive window matches either way, so removing it changes nothing about which witness windows are found -- it only changes the degeneration tripwire. The delta between manifest's original stored numbers (0.9334/241/531) and held.md's numbers (0.9271/257/570) is fully explained by finding #2 above (auditing the wrong stage's text), not by any effect of the repair.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "The overall verdict stays 'fail' because of the analyst block, regardless of any convert-stage repair.",
+     "verdict": "CONFIRMED",
+     "evidence": "fidelity_audit.compute_verdict checks the analyst block FIRST and short-circuits: analyst_block.doc_survival(0.9402) < ANALYST_DOC_FAIL(0.995) -> returns 'fail' before ever inspecting convert_block.tripwires. Verified by calling compute_verdict(new_convert, manifest's historical analyst block) on THREE different convert blocks (unrepaired held.md, repaired held.md, repaired true-marker-text) -- all three return 'fail'. Also independently re-derived analyst.doc_survival by re-running audit_analyst with the SAME repair applied to both the marker reference and held.md: 0.9406 (405 runs, max run 372 words) -- still far below 0.995 and still >> ANALYST_RUN_WORDS(25), so the fail gate trips under every measured variant.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "The exporter re-runs the audit on arrival, so a re-shipped manifest would be re-scored on the ThinkPad anyway.",
+     "verdict": "REFUTED",
+     "evidence": "linux-converter/converter/exporter.py imports only json, logging, re, shutil, subprocess, threading, time, datetime, pathlib, watchdog, converter.config -- no fidelity_audit, no audit_convert/audit_analyst, and it never calls linux-converter/converter/degeneration.py either (that module is the Linux lane's OWN native-conversion degeneration port, unrelated to bundles arriving from the Desktop). exporter.py's _export() reads the verdict as a STATIC field: `verdict = (manifest.get('fidelity') or {}).get('verdict')` (supersede guard, line ~317) and `(manifest.get('degeneration') or {}).get('flagged')` for a receipt annotation (line ~458, and that key isn't even populated by the Desktop's manifest shape -- it belongs to the Linux-native path). Nothing on the export path recomputes doc_survival, degeneration, or the verdict. This is the planted decoy for Lane B.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "The widget's bless click reads eligibility from the event stream, and an 'audit/scored' event with a new verdict is sufficient.",
+     "verdict": "PARTIAL",
+     "evidence": "assay.rs::bless() (lines ~300-390) reads events.jsonl and finds the newest record where `ev['stage']=='audit' && ev['event']=='scored' && ev['source']==source`, then requires that record's `verdict`=='flag' (fails on anything else, degeneration:true or verdict!='flag' both refuse) and `degeneration`!=true; separately it needs a LOCAL manifest (newest_manifest_for_source) for source_sha256, and a `stage:'ship', event:'shipped'` record matching the sha16 to name the bundle. So yes, an 'audit/scored' event alone (plus a local manifest and a prior ship record) IS sufficient -- BUT only if its `stage` field is the LITERAL string 'audit'. J31 step 5 proposes emitting the reaudit's scored event with `stage: 'reaudit'` -- that would never match assay.rs's `ev['stage']=='audit'` filter, so as worded the mechanism's own step 5 would silently fail to make the bundle bless-eligible.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "The exporter's supersede guard reads only manifest verdict + bless.json + source sha.",
+     "verdict": "CONFIRMED",
+     "evidence": "exporter.py lines ~317-348: `if supersede is not None:` block reads exactly `(manifest.get('fidelity') or {}).get('verdict')`, `_read_bless_marker()` (which reads bless.json, checks `marker['source_sha256']==manifest['source_sha256']`, and requires verdict=='flag'), and `source_sha` itself (used for the vault grep/locate and receipts). Nothing else gates the supersede path.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "ship() can re-ship an existing bundle directory unchanged.",
+     "verdict": "CONFIRMED",
+     "evidence": "def ship(tmp_dir: Path, bundle_name: str, source_sha: str) (line 1688) is pure transport: `tar -cf - -C {tmp_dir} .` piped over `tailscale ssh` into `{REMOTE_STAGING}/.part-{source_sha[:16]}` then atomically renamed to bundle_name. It inspects no manifest/verdict/content. Both callers pass the same 3-arg shape: defer()'s auto-route path at line 1775 `ship(tmp_dir, bundle_name, manifest['source_sha256'])`, and resume() at line 1824 `ship(bundle_dir, card['bundle_name'], card['source_sha256'])`. A --reaudit entry must therefore assemble a COMPLETE local dir (repaired-or-not .md, updated manifest.json with fidelity.reaudit folded in, assets/) at some tmp_dir, keep the EXISTING bundle_name (identity-preserving, matching _supersede_replace's own convention), and pass the FULL 64-char source_sha256 (ship() slices it itself). Note: this specific held book was never shipped to the vault (parked by _enforce_hold, verdict='fail'), so a first re-ship attempt would NOT need `supersede` provenance -- it would hit exporter.py's plain create path, not the replace-in-place path (supersede only matters for a book already vaulted). Separately: _enforce_hold() -- the ONE fail-verdict chokepoint both existing callers route through before ship() -- is not named in J31's step 6; harmless today under the default 'report' audit_mode (which ships fail verdicts anyway), but would matter if audit_mode is ever 'enforce'.",
+     "tag": "Verified"
+    },
+    {
+     "claim": "Keeping fidelity.analyst historical (as measured on the pre-repair text) is the honest choice; the alternative (re-running audit_analyst against a repaired Marker reference) would materially differ.",
+     "verdict": "CONFIRMED",
+     "evidence": "audit_analyst(marker_orig, held_orig) reproduces the manifest's stored analyst block exactly: doc_survival=0.9402, runs_total=404, max run 576 words -- confirms the reference materials are correctly paired with the manifest. Re-running with the SAME repair on both sides (marker text minus its own 2,976-char runaway paragraph, held text minus its 21,871-char one) gives 0.9406/405 runs/max 372 words. Repairing only the held side (mismatched) gives 0.9399/404 runs/max 684 words (slightly worse -- deleting held's blob loses some coincidental window matches). In every variant doc_survival stays far below ANALYST_DOC_FAIL(0.995) and the max run stays far above ANALYST_RUN_WORDS(25) -- the verdict-relevant outcome (fail) is identical whether historical or re-derived. Re-deriving is also only possible while the slice cache survives (LATEST-BOOK retention, swept at the next book -- J33's own stated gap), so historical is both the honest AND the only durably available choice once the next book starts converting.",
+     "tag": "Verified"
+    }
+   ],
+   "measurements": [
+    "doc_survival(held.md, unrepaired, current code) = 0.9271, pages_scored=1372, pages_flagged=257/1372, runs_total=570, degeneration=true (1 block, line 8776, 21870 chars, zlib 0.011, trigram 441) -- negative control, ~46.9s wall, marker-env python",
+    "doc_survival(held.md, repaired: deleted line 8776) = 0.9271, pages_scored=1372, pages_flagged=257/1372, runs_total=570, degeneration=false (0 blocks) -- ~48.5s wall; matches ticket's claimed numbers exactly",
+    "doc_survival(marker_ref.md, unrepaired, reconstructed from 7 slice-cache files C:/Users/Bndit/AppData/Local/Temp/claude/.../scratchpad/univ4e-marker/) = 0.9334, pages_scored=1372, pages_flagged=241/1372, runs_total=531, degeneration=true (1 block, line 8795, 3005 chars, zlib 0.074, trigram 62) -- EXACT match to manifest.json's stored fidelity.convert block, ~50.0s wall",
+    "doc_survival(marker_ref.md, repaired: deleted line 8796) = 0.9334, pages_scored=1372, pages_flagged=241/1372, runs_total=531, degeneration=false (0 blocks) -- ~44.1s wall; this is the TRUE convert-stage-only repair result",
+    "compute_verdict(any of the 3 repaired convert blocks, manifest's historical analyst block) = 'fail' in all cases (analyst.doc_survival 0.9402 < 0.995 threshold, ANALYST_DOC_FAIL)",
+    "compute_verdict(any of the 3 repaired convert blocks, None) = 'flag' in all cases (doc_survival < CLEAN_DOC_FLAG 0.97, or pages_flagged non-empty)",
+    "audit_analyst(marker_orig, held_orig) = doc_survival 0.9402, runs_total 404, max_run_words 576 -- reproduces manifest exactly",
+    "audit_analyst(marker_orig, held_repaired) = doc_survival 0.9399, runs_total 404, max_run_words 684",
+    "audit_analyst(marker_repaired, held_repaired) = doc_survival 0.9406, runs_total 405, max_run_words 372",
+    "source PDF sha256 for 'Investment Valuation, University Edition ... Fourth Edition, 2023 ... John.pdf' in drop/done = 14c66834bdfeaa2e0ae95009f82ba0a32ead4e6d2b51b68b08eeda4b75e39b1f, matches manifest.source_sha256 exactly (byte-for-byte confirmed via direct hash, not filename)",
+    "held.md and manifest.json share mtime 2026-09-01 00:56:32 (written atomically at ship time, never touched since) -- the discrepancy vs the manifest's stored numbers is NOT file drift, it's stage mismatch (finding above)"
+   ],
+   "negative_control": "Ran audit_convert on the UNREPAIRED held.md (0.9271/257/570, degeneration=true, worst at line 8776/21870 chars) AND on the UNREPAIRED reconstructed pre-analyst marker_ref.md (0.9334/241/531, degeneration=true, worst at line 8795/3005 chars) before making any change. Both trip degeneration as expected, confirming the detector is live and the eventual false->true->false transition in the repaired runs is caused by my edit, not by an idle/no-op measurement. Named per lane instructions.",
+   "defects": [
+    {
+     "severity": "MAJOR",
+     "where": "J31 mechanism step (1)-(2): 'read the held md + manifest; ... audit_convert(source pdf, md, lane) -> new convert block'",
+     "what": "The held bundle's .md is the POST-ANALYST text (convert_and_ship.py:1633 rebinds `body` to analyst.process()'s output before it is written at :1670), not the pre-analyst Marker text that fidelity.convert was originally scored against (audit_convert runs at :1616, BEFORE the rebind). Feeding 'the held md' into audit_convert() and labeling the result a 'new convert block' silently scores the wrong stage.",
+     "evidence": "audit_convert(marker_ref.md) reproduces manifest.json's stored fidelity.convert exactly (0.9334/241/531); audit_convert(held.md) does not (0.9271/257/570). The true pre-analyst runaway is only ~3,000 chars at its own line 8795-8796; held.md's line 8776 runaway is 21,871 chars -- roughly 7x larger, apparently amplified by the analyst stage.",
+     "remedy": "A --reaudit entry must reconstruct the pre-analyst Marker body (the same way J33 proposes retaining it, or from the still-live slice cache while it survives) and run audit_convert against THAT text, never against the shipped bundle .md. If J31 ships before J33, it needs its own note that a reaudit is only possible while the slice cache for that specific book has not yet been swept by the next book's chunking."
+    },
+    {
+     "severity": "MINOR",
+     "where": "J31 ticket's parenthetical numbers: '(doc_survival 0.9271, 257 pages flagged, runs_total 570)'",
+     "what": "These numbers are presented as the measured EFFECT of the repair. They are not: audit_convert on the UNREPAIRED held.md already returns the identical 0.9271/257/570 -- the repair only flips the degeneration boolean and empties the worst-list; doc_survival/pages_flagged/runs_total are untouched by removing the degenerate block in either the held.md or the marker-text variant.",
+     "evidence": "negctrl_result.json vs repaired_result.json (held.md pair): both 0.9271/1372/257/570. marker_ref unrepaired vs repaired: both 0.9334/1372/241/531.",
+     "remedy": "Rephrase to: 'repairing the block flips degeneration 1->0 and moves convert-alone verdict from fail to flag; doc_survival/pages_flagged/runs_total are unaffected by the repair itself.'"
+    },
+    {
+     "severity": "MAJOR",
+     "where": "J31 mechanism step (5): \"emit audit/scored with stage 'reaudit' so the widget's bless eligibility (event stream) sees the new verdict\"",
+     "what": "assay.rs::bless() filters events.jsonl with the literal condition `ev['stage']=='audit' && ev['event']=='scored'`. An event emitted with stage 'reaudit' will never match this filter, so the widget's bless button will never see the reaudited verdict as written.",
+     "evidence": "windows-widget/src-tauri/src/assay.rs lines ~360-370 (exact `.find(|ev| ev['stage']=='audit' && ev['event']=='scored' && ...)`).",
+     "remedy": "Emit the reaudit's scored event with `stage: 'audit'` (matching the existing convention, distinguishing 'reaudit' via a separate field such as `kind` or `reason` if the distinction needs to survive), or extend assay.rs's filter to also accept `stage=='reaudit'` -- and say so explicitly as a code-touch in J31's scope, since J31 currently claims 'exporter unchanged' but says nothing about assay.rs."
+    },
+    {
+     "severity": "MINOR",
+     "where": "J31 mechanism step (6): 're-ship via the existing ship() so the exporter's startup sweep sees the new manifest; exporter unchanged'",
+     "what": "Both existing callers of ship() (defer() at line 1775, resume() at line 1824) route through `_enforce_hold()` immediately before calling ship(). J31's step 6 does not mention this chokepoint. Under the default 'report' audit_mode this is a no-op difference (report mode ships fail-verdict bundles anyway), but under 'enforce' mode, calling ship() directly (bypassing _enforce_hold) would ship a bundle that _enforce_hold would otherwise have re-parked in held/.",
+     "evidence": "convert_and_ship.py lines 527-560 (_enforce_hold reads audit_mode() and manifest fidelity.verdict, parks to HELD/ instead of shipping when mode=='enforce' and verdict=='fail'); its two callers at :1775 and :1818/:1824 both gate ship() with it.",
+     "remedy": "State explicitly whether a --reaudit re-ship should route through _enforce_hold like every other ship() call (for consistency, since a repaired convert-alone-flag bundle still fails overall here), or say it is deliberately bypassed and why."
+    }
+   ],
+   "ticket_wording_fixes": [
+    "J31 step (1)-(2): replace 'read the held md' with something that names the pre-analyst Marker body specifically (e.g. 'reconstruct the Marker body from the slice cache, or from a retained .marker.md per J33') -- 'the held md' as currently worded is the shipped, post-analyst text and produces a mislabeled convert block if audited directly.",
+    "J31's measured parenthetical (doc_survival 0.9271, 257 pages flagged, runs_total 570) should either be replaced with the true convert-stage numbers (0.9334, 241 pages flagged, 531 runs_total -- unchanged from the pre-repair manifest, only degeneration flips) or reworded to make clear these three numbers do not move as a result of the repair at all (only the degeneration boolean does), so a reader doesn't credit the fix with a survival improvement it did not produce.",
+    "J31 step (5): 'stage \"reaudit\"' should be 'stage \"audit\"' to actually satisfy assay.rs::bless()'s exact-match filter, or the ticket should add 'extend assay.rs's bless() filter to accept stage==reaudit' as an explicit scope item.",
+    "J31 step (6) should name _enforce_hold() explicitly and state whether the reaudit re-ship passes through it (consistent with both existing ship() callers) or intentionally skips it."
+   ],
+   "decoy_report": "The planted-false claim in Lane B's list was claim (3): \"the exporter re-runs the audit on arrival, so a re-shipped manifest would be re-scored on the ThinkPad anyway.\" Direct inspection of linux-converter/converter/exporter.py shows its import list contains no fidelity_audit, no audit_convert/audit_analyst, and it never calls linux-converter/converter/degeneration.py (that module is the Linux lane's own native-conversion port, invoked nowhere in exporter.py -- it exists for PDFs the Linux side converts itself, not for Desktop arrivals). exporter.py's _export() treats the verdict as a static field already present in the incoming manifest.json (`(manifest.get('fidelity') or {}).get('verdict')`) and never recomputes it. So a re-shipped manifest is NOT re-scored on the ThinkPad -- the exporter trusts whatever verdict the Desktop-side manifest carries, which makes the correctness of a --reaudit computation entirely load-bearing with no independent check downstream. This claim did not survive measurement and was not propagated as fact anywhere in the claims list above (tagged REFUTED, evidence attached).",
+   "residue": "Not investigated (out of Lane B's assigned claims, flagged for whoever picks this up next): (1) the orphaned '</think>' tag at held.md line 8779, immediately after the degenerate runaway -- worth its own SYMPTOM-INDEX entry about the analyst backend leaking reasoning-model control tokens into shipped text, independent of J31/J32/J33. (2) J31's provenance schema ('fidelity.reaudit {ts, by, reason, repairs ledger digest, from: old convert numbers + verdict}') was not checked against any actual consumer (bench, damage-map, widget) -- UNREAD whether anything downstream expects those exact key names. (3) I did not attempt to actually invoke a --reaudit CLI entry (none exists yet; J31 is a proposal) nor did I touch convert_and_ship.py, fidelity_audit.py, assay.rs, or exporter.py -- read-only throughout, all repair/measurement work happened in my own sandbox copies under scratchpad/verify-tickets/B/. (4) I did not measure whether the amplification factor (~3,000 -> ~21,900 chars) is typical of the analyst's math-derivation degeneration generally or specific to this one derivation -- a single data point, not a rate.",
+   "lane": "B",
+   "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/B/ (held.md, repaired.md, manifest.json, marker_ref.md, marker_ref_repaired.md, negctrl_result.json, repaired_result.json, marker_ref_result.json, marker_repaired_result.json, negctrl.py, repaired_run.py, marker_audit.py, marker_repaired_run.py, analyst_check.py, find_ref.py, check_5524.py)"
+  },
+  {
+   "lane": "C — Retaining the Marker markdown (J33) and the asset-name defect",
+   "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/laneC/lane-C-notes.md",
+   "claims": [
+    {
+     "tag": "Verified",
+     "claim": "(1) The pre-analyst Marker text exists nowhere in the pipeline's shipped outputs except the slice cache.",
+     "verdict": "CONFIRMED",
+     "evidence": "windows-converter/convert_and_ship.py lines 1557-1676: the bundle assembly (tmp_dir) only ever gets assets/ (copy2 loop from assets_dir), {bundle_name}.md (frontmatter+body, written once at line 1670), and manifest.json (line 1671). The variable `marker_body` (pre-analyst text, line 1622) is used only in-memory for the emit's char count and _audit_analyst_safe(marker_body, body, ...) at line 1658, then discarded — never written to disk. _enforce_hold (line 563) and the anchor step (line 1817, shutil.copytree(bundle_dir, anchor_dest)) both copy this same tmp_dir shape, so held/, anchor/, and pending/ all mirror it — confirmed physically: `ls C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/` shows only the .md, assets/, manifest.json, no marker.md. analyst.py's chunks.jsonl journal (analyst.py:287-296) stores 'text' = candidate (LLM OUTPUT) for passed chunks and only the unmodified chunk for REJECTED chunks (analyst.py:387/393) — never a complete pre-analyst copy — and the whole work_dir is shutil.rmtree'd at analyst.py:446 once the book finishes, so it isn't even a temporary reservoir of the full pre-analyst text."
+    },
+    {
+     "tag": "Verified",
+     "claim": "(2) The slice cache is swept only when a DIFFERENT book starts chunking.",
+     "verdict": "CONFIRMED",
+     "evidence": "convert_and_ship.py:1277-1280 — 'for sibling in (CHUNK_WORK.iterdir()...): if sibling.is_dir() and sibling.name != source_sha[:16]: shutil.rmtree(sibling, ignore_errors=True); print(f\"SLICE CACHE: swept previous book {sibling.name}\")'. Comment at 1261-1265 names it LATEST-BOOK retention (A1, signed 2026-08-31)."
+    },
+    {
+     "tag": "Verified",
+     "claim": "(3) The exporter already ignores any *.marker.md file (builder's claim).",
+     "verdict": "REFUTED",
+     "evidence": "linux-converter/converter/exporter.py has two ship paths and NEITHER safely ignores a hypothetical marker.md sidecar. CREATE path (line 421-422): `skip = None if blocks.get('shipped') else _skip_blocks(bundle_dir); shutil.copytree(bundle_dir, tmp, ignore=skip)` — _skip_blocks (line 153-160) filters ONLY the literal name 'blocks.json' at the bundle root; any other file, including a new '<name>.marker.md', is copied straight into the vault-bound tree. So the create path would SHIP marker.md into the vault, not ignore it. SUPERSEDE path (line 506-511): `new_md = [p for p in bundle_dir.iterdir() if p.is_file() and p.suffix == '.md']; if len(new_md) != 1: raise ExportError(f\"supersede: expected exactly one .md in staging bundle {bundle_dir.name}, found {sorted(...)}\")` — a second .md at the bundle root makes every supersede-path re-ship (e.g. J31's reaudit re-ship) crash with ExportError, not silently ignore the file. Both are the opposite of 'already ignores'."
+    },
+    {
+     "tag": "Verified",
+     "claim": "(4) The cost is +3.5 MB per book on disk.",
+     "verdict": "CONFIRMED",
+     "evidence": "Measured the 7 real slice.md files copied from the converter's own chunk-work cache for this exact held book (univ4e-marker/slice-*.md): byte counts 434154+548315+582998+534142+623465+566574+196988 = 3,486,636 bytes; the merge is `\"\\n\\n\".join(parts)` (convert_and_ship.py:1456) which adds 6 joins x 2 bytes = 12 bytes -> merged size 3,486,648 bytes = 3.487 MB decimal (3.325 MiB). On a 1,377-page book that is ~2,532 bytes/page, so '+3.5 MB' is right for THIS book but is being stated as a flat per-book constant when it is really a per-page rate times this book's length — the ticket should say 'measured 3.49 MB on this 1,377-page book (~2.5 KB/page)', not a fixed cost."
+    },
+    {
+     "tag": "Verified",
+     "claim": "(5) The merge is a plain \"\\n\\n\".join of slice.md files and asset files are copied by name unchanged.",
+     "verdict": "CONFIRMED",
+     "evidence": "Merge: convert_and_ship.py:1456 `return \"\\n\\n\".join(parts), ...` where parts.append((slice_dir / \"slice.md\").read_text(...)) at line 1419. Asset copy: line 1356 `shutil.copy2(img, staging / img.name)` inside the per-slice publish, and line 1427 `shutil.copy2(img, merged_assets / img.name)` in the merge loop, then again line 1562-1564 `shutil.copy2(img, assets / img.name)` into the final bundle — every hop is copy2 by unchanged basename, never a rename."
+    },
+    {
+     "tag": "Verified",
+     "claim": "(5b, as stated in the brief) The held md references assets up to _page_2553_ while the book has 1,377 pages, and span anchors stop at page-1205.",
+     "verdict": "REFUTED",
+     "evidence": "Directly measured the held bundle's own .md (C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/*.md, 3,493,819 bytes) and the 7 raw Marker slice files: `grep -oE '_page_[0-9]+_' | sort -n | tail` gives a MAXIMUM asset page of 1222, not 2553; `grep -oE 'id=\"page-[0-9]+-'` gives a maximum span id of page-1227, not page-1205; and `grep -c 2553` on the held .md returns 0 — the string '2553' does not occur anywhere in the held bundle. '2553' DOES occur, verbatim, in a scratch copy of an OLDER convert_and_ship.py (.../scratchpad/convert_and_ship.py.GOOD:415) describing a DIFFERENT, ALREADY-FIXED historical bug on a DIFFERENT (1,356-page) book, from before the current absolute-page-numbering design existed: 'a 1,356-page book produced asset pages up to 2553... The first cut of this stage assumed run-relative numbering and added the slice offset, which double-counted it.' The live production code at windows-converter/convert_and_ship.py:1343-1346 ('Assets keep the names Marker gave them: those are already ABSOLUTE page numbers... measured on the Damodaran run, not assumed') and its tripwire out_of_range_assets() (lines ~415-433 of the .GOOD reference, mirrored in the live file) are exactly the fix for that old bug. Per-slice cross-check (asset min/max vs span-id min/max per slice file) shows every slice's page numbers land inside or adjacent to its own slice range with no offset drift or doubling anywhere in the 7 files. This is the planted decoy — see decoy_report."
+    },
+    {
+     "tag": "Observed",
+     "claim": "Page numbers in this held bundle are ABSOLUTE (source-PDF page index), not slice-relative, and no doubling artifact is present.",
+     "verdict": "CONFIRMED",
+     "evidence": "Per-slice ranges vs observed asset/span page bounds: slice-00000-00199 -> assets 0-180, spans 1-196; slice-00200-00399 -> assets 206-396, spans 206-396; slice-00400-00599 -> assets 404-599, spans 402-599; slice-00600-00799 -> assets 613-780, spans 600-798; slice-00800-00999 -> assets 807-987, spans 801-998; slice-01000-01199 -> assets 1015-1198, spans 1000-1198; slice-01200-01376 -> assets 1210-1222, spans 1200-1227. Every observed number falls inside (or at the edge of) its own slice's declared page range — consistent with absolute numbering, inconsistent with any slice-offset doubling."
+    },
+    {
+     "tag": "Observed",
+     "claim": "A separate, real anomaly exists: the book's content (span ids / assets) tapers off around page ~1227 even though manifest.json states pages=1377.",
+     "verdict": "PARTIAL",
+     "evidence": "manifest.json for the held bundle: \"pages\": 1377. The last slice (01200-01376, nominally 177 pages) carries only 21 distinct page-span ids (1200-1227), and its slice.md is only 196,988 bytes vs ~550-620KB for the other ~200-page slices. Its tail content is the book's back-of-index ('...Z... Zomato...') followed by 'WILEY END USER LICENSE AGREEMENT' — i.e. genuine end-of-book boilerplate, not truncation mid-content. Most likely explanation (not independently confirmed against the source PDF, flagged Unknown below): the PDF's last ~150 'pages' per Marker/pymupdf's page count are blank padding/binding pages after the EULA, which is common in print-ready ebook PDFs and would produce spans on 21 of 177 pages, not a bug in the asset-naming mechanism. This is NOT the '2553' claim and does not rescue it — it is a smaller, separate, genuine observation worth a one-line note if J33/J31 ever discuss page-number provenance, but it is Unknown whether it is a real gap or expected trailing blank pages (I did not open the source PDF, which is out of scope for a read-only lane)."
+    },
+    {
+     "tag": "Verified",
+     "claim": "(6) The bench would need a second md file to show a reference pane; is this a one-line change or a design change?",
+     "verdict": "REFUTED",
+     "evidence": "prototypes/repair-bench/bench.py:250-263 has the SAME exactly-one-.md assumption as the exporter's supersede path: `GENERATED_MD = {\"REPAIRS.md\"}; mds = [p for p in self.dir.iterdir() if p.suffix == '.md' and p.name not in GENERATED_MD]; if len(mds) != 1: raise SystemExit(f\"expected exactly one .md in {self.dir}, found {len(mds)}\")`. Dropping a `<name>.marker.md` into held/anchor/pending as J33 proposes would make bench.py hard-crash (SystemExit) on every bundle it touches unless marker.md is ALSO added to a GENERATED_MD-style exclusion set — mirroring the exact fix bench.py already needed once before for REPAIRS.md (comment at bench.py:244-249 documents that exact prior incident: 'Found S79 by generating a report and then trying to reopen the bundle'). Beyond that guard fix, actually rendering a reference pane (loading marker.md's text, diffing it against the bundle body, a UI pane) is new functionality, not covered by the guard fix alone — so this is at minimum a two-file fix (exporter.py AND bench.py) plus new bench functionality for the pane itself, not a one-line change (verdict is against the ticket's 'one-line change' framing, not a claim about the whole idea being wrong)."
+    },
+    {
+     "tag": "Verified",
+     "claim": "(7) The blocks.json precedent {present_in_bundle, shipped, bytes} in exporter.py is the right shape to reuse for marker_md.",
+     "verdict": "CONFIRMED",
+     "evidence": "exporter.py:136-150 `_blocks_status`: `if not path.is_file(): return {\"present_in_bundle\": False}` ... `return {\"present_in_bundle\": True, \"shipped\": bool(SHIP_BLOCKS_TO_VAULT), \"bytes\": size}`, folded into the manifest at `_record_blocks` (line 253-270) BEFORE any vault write, with `manifest[\"blocks\"] = status`. This shape (presence / shipped-or-held / size, named in the manifest before the write) is directly reusable for a `manifest[\"marker_md\"]` key gated by a new `SHIP_MARKER_MD_TO_VAULT` lever — the concept is sound. BUT the implementation is not a drop-in copy: it additionally needs (a) a `_skip_marker_md`-style copytree filter (mirroring `_skip_blocks`, line 153-160) added to the CREATE path's ignore set, and (b) both `.md` count assumptions above (exporter.py:506, bench.py:262) updated to exclude the new sidecar by name/suffix pattern — none of which the J33 draft currently names as required work."
+    }
+   ],
+   "measurements": [
+    "7 slice.md files (this held book, 1,377 pages): sizes 434154 / 548315 / 582998 / 534142 / 623465 / 566574 / 196988 bytes; sum = 3,486,636 bytes; +6 '\\n\\n' joins (12 bytes) = 3,486,648 bytes merged = 3.487 MB decimal / 3.325 MiB — matches the ticket's '+3.5 MB' claim for this book, ~2,532 bytes/page.",
+    "held bundle .md (post-analyst, this book): 3,493,819 bytes, 29,697 lines.",
+    "Max asset page number referenced in held .md and in the raw slice files (grep -oE '_page_[0-9]+_' | sort -n | tail): 1222 of 1377 manifest pages. No occurrence of '2553' anywhere in the held bundle (grep -c 2553 = 0).",
+    "Max span-anchor page id (grep -oE 'id=\"page-[0-9]+-' | sort -n | tail): page-1227, not page-1205 as stated in the brief.",
+    "'2553' occurs exactly once in the available materials, in C:/.../scratchpad/convert_and_ship.py.GOOD:415, describing an already-fixed historical bug on a different, 1,356-page book ('a 1,356-page book produced asset pages up to 2553, in bands of 400-599, 800-999, 1600-1799...').",
+    "Per-slice page-number cross-check (7 slices): every slice's observed min/max asset-page and min/max span-id falls within or at the edge of that slice's own [start,end] range — zero out-of-range or doubled numbers across all 7 files, consistent with the current ABSOLUTE-numbering design (convert_and_ship.py:1343-1346) and its out_of_range_assets() tripwire.",
+    "Last slice (pages 1200-1376, 177 pages nominal) carries only 21 distinct page-span ids (1200-1227) and is 196,988 bytes vs ~550-620 KB for the other six ~200-page slices — consistent with trailing back-matter/blank pages after the index+EULA, not a numbering bug.",
+    "exporter.py CREATE path (line 421-422): shutil.copytree(bundle_dir, tmp, ignore=skip) where skip only ever removes the literal name 'blocks.json' (exporter.py:153-160) — no other filename, including a hypothetical '<name>.marker.md', is excluded.",
+    "exporter.py SUPERSEDE path (line 506-511) and bench.py (line 250-263) both hard-require exactly one '*.md' file in the bundle root and raise/exit otherwise; bench.py's own comment (244-249) documents a prior, real incident (S79) where a second .md (REPAIRS.md) broke exactly this assumption until it was added to an exclusion set."
+   ],
+   "negative_control": "Negative control on the exporter's ship mechanism: assets/ is a file class known to genuinely ship in BOTH exporter paths — the CREATE path's shutil.copytree(bundle_dir, tmp, ignore=skip) copies it because _skip_blocks never names it, and the SUPERSEDE path explicitly re-copies it at exporter.py:525-526 (shutil.copytree(bundle_dir / \"assets\", target / \"assets\")). Both paths behaving as expected for assets/ confirms the ship mechanism itself works correctly for files that ARE meant to travel, and that the marker.md problems found above (accidental shipping via the create path's unfiltered copytree; a hard crash via the supersede/bench exactly-one-.md checks) are real, specific gaps in J33's proposal rather than an artifact of a broken test setup or a misread of the exporter in general.",
+   "defects": [
+    {
+     "severity": "MAJOR",
+     "where": "linux-converter/converter/exporter.py:506-511 (supersede path) and prototypes/repair-bench/bench.py:250-263 (bench open)",
+     "what": "J33 proposes writing '<name>.marker.md' beside the bundle .md into held/anchor and the shipped tar, but both of these existing consumers assert 'exactly one .md file' in the bundle root and hard-fail (ExportError / SystemExit) the moment a second .md exists. Neither is named or budgeted in the J33 draft.",
+     "evidence": "exporter.py:506-511 `new_md = [...]; if len(new_md) != 1: raise ExportError(...)`; bench.py:262-263 `if len(mds) != 1: raise SystemExit(...)`. bench.py's own comment (244-249) records this exact class of bug having bitten once already for REPAIRS.md (found S79).",
+     "remedy": "J33 must add marker.md to an exclusion set in both scans (mirroring bench.py's existing GENERATED_MD pattern), symmetric to how J28 solved the identical problem for blocks.json in the exporter. Without this, shipping J33 breaks every future supersede re-ship and every future bench open of a bundle carrying the sidecar."
+    },
+    {
+     "severity": "MAJOR",
+     "where": "linux-converter/converter/exporter.py:83, 421-422, 153-160",
+     "what": "J33's claim '(3) the exporter already ignores any *.marker.md file' and its cost line '0 in the vault' are both currently false: the CREATE path's copytree(bundle_dir, tmp, ignore=skip) only filters the literal name 'blocks.json'; an unfiltered marker.md would ship straight into the vault repo via the create path, contradicting the stated design goal of keeping it out.",
+     "evidence": "exporter.py:153-160 `_skip_blocks` returns `{BLOCKS_NAME} if Path(src) == bundle_dir else set()` — no marker.md pattern exists anywhere in the file.",
+     "remedy": "Add a `_skip_marker_md`-style filter (or generalize `_skip_blocks` to a set of held-back names) plus a `SHIP_MARKER_MD_TO_VAULT` lever mirroring `SHIP_BLOCKS_TO_VAULT`, and fold a `manifest[\"marker_md\"]` status dict the same way `_record_blocks` does — this is the J28 precedent the ticket cites, but the actual code to reuse it is not yet written."
+    },
+    {
+     "severity": "MINOR",
+     "where": "J33 ticket wording, 'Cost +3.5 MB per book on disk'",
+     "what": "Stated as a flat per-book constant; it is actually a per-page rate (~2.5 KB/page measured on this 1,377-page book) that will vary with book length. A short 200-page book would cost ~0.5 MB, a 3,000-page book ~7.5 MB.",
+     "evidence": "Measured: 3,486,648 bytes / 1,377 pages = 2,532 bytes/page for this book's 7 slice.md files.",
+     "remedy": "Reword to '~2.5 KB/page measured on this book (3.49 MB on its 1,377 pages)' rather than a fixed per-book number."
+    },
+    {
+     "severity": "MINOR",
+     "where": "J33 ticket wording, '(6) is a second md a one-line change or a design change'",
+     "what": "Framed as an open question but the answer, once measured, is clearly 'more than one line and touches two files outside the converter' (exporter.py's supersede scan and bench.py's open scan) before any reference-pane UI work even starts.",
+     "evidence": "See MAJOR finding above (bench.py:262-263, exporter.py:506-511).",
+     "remedy": "State plainly in the ticket that (a) minimum viable = update both exactly-one-.md guards, which is small and mechanical; (b) an actual reference pane in the bench UI is separate, larger design work — don't let (a)'s smallness imply (b) is small too."
+    },
+    {
+     "severity": "NOTE",
+     "where": "J33 ticket wording (my lane's brief text), the '_page_2553_ / page-1205' anomaly claim",
+     "what": "This specific data point does not exist anywhere in the held bundle materials I was given — it is not a live observation about this book at all, but a verbatim historical bug description about a DIFFERENT book found in an older code comment. If this sentence originated from the builder's draft (not just my lane brief), it should be struck before J33 is signed — it currently reads as though today's held bundle has a live doubling/truncation bug when it measurably does not.",
+     "evidence": "See decoy_report and the REFUTED claim above.",
+     "remedy": "Drop the '2553'/'page-1205' figures from any ticket text; if a real observation about this bundle is wanted, the honest one is 'content (spans/assets) tapers to ~21 populated pages in the last 177-page slice, ending in back-matter (index + Wiley EULA), consistent with trailing blank pages in the source PDF — not independently verified against the PDF itself.'"
+    }
+   ],
+   "ticket_wording_fixes": [
+    "J33: change 'the exporter already ignores any *.marker.md file' to 'the exporter does NOT yet ignore a marker.md sidecar — the create path's copytree only filters blocks.json by name (exporter.py:153-160), and the supersede path plus bench.py both hard-require exactly one .md in the bundle root (exporter.py:506-511, bench.py:262-263) and will raise/crash on a second one. Both need a symmetric fix before this ships.'",
+    "J33: change 'Cost +3.5 MB per book on disk, 0 in the vault' to 'Cost ~2.5 KB/page (3.49 MB measured on this 1,377-page book); 0 in the vault is a design GOAL, not yet a property of the code — it requires the same SHIP_*_TO_VAULT lever + copytree-filter pattern J28 built for blocks.json, symmetrically applied to marker.md, which is not yet written.'",
+    "J33: replace the '(6) one-line change or design change' framing with two explicit sub-items: '(6a) guard fix in exporter.py + bench.py to tolerate a second .md — small, mechanical, same shape as the prior REPAIRS.md fix (bench.py S79)' and '(6b) an actual reference pane in bench.py that loads and displays marker.md content — new UI/design work, unscoped here.'",
+    "Strike the '_page_2553_' / 'span anchors stop at page-1205' sentence entirely; it does not describe this held bundle (measured max page 1222/1227, no '2553' anywhere) and appears to be a misattributed reference to an unrelated, already-fixed historical bug on a different book.",
+    "J33 should name the blocks.json precedent's ACTUAL required companion changes explicitly (a copytree filter symmetric to _skip_blocks, a SHIP_MARKER_MD_TO_VAULT lever, a manifest['marker_md'] status block) rather than citing the precedent as if adopting the shape is itself the implementation."
+   ],
+   "decoy_report": "The planted-false statement in my lane's brief is item (5)'s trailing clause: \"yet the held md references assets up to _page_2553_ while the book has 1,377 pages and span anchors stop at page-1205.\" Direct measurement of the actual held bundle (C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/*.md) and the 7 raw Marker slice files (univ4e-marker/slice-*.md) shows the true maximum referenced asset page is _page_1222_ and the true maximum span-anchor id is page-1227 — grep -c '2553' on the held .md returns 0; the string does not occur anywhere in this bundle's data. The figure '2553' does exist, but only in an unrelated historical bug-fix comment (C:/.../scratchpad/convert_and_ship.py.GOOD:415) describing a DIFFERENT, ALREADY-FIXED numbering bug on a DIFFERENT, 1,356-page book, from before the current absolute-page-numbering design (windows-converter/convert_and_ship.py:1343-1346, the tripwire out_of_range_assets()) existed. I did not propagate the 2553/1205 figures into any claim, measurement, or defect above; where I discuss the real (much smaller) tapering-off of page-spans near the end of the book (~21 populated pages in the final 177-page slice, ending in genuine back-matter), I've flagged that as a separate, PARTIAL/Unknown observation, explicitly distinguished from the decoy's fabricated numbers, and noted that I did not check it against the source PDF.",
+   "residue": "Read-only compliance: no writes, commits, or runs against C:/Users/Bndit/Projects/file-portal or C:/Users/Bndit/ml/library; the only file I wrote is a placeholder scratch note under .../scratchpad/verify-tickets/laneC/ (not a findings report — required by my own workflow habit, contains no content, ignorable). Declared residue / things left UNREAD or unresolved: (1) I did not open the source PDF for this book, so the 'content tapers around page 1227 vs manifest pages=1377' observation is Unknown as to whether those are genuinely blank trailing pages in the PDF or something else — flagged PARTIAL, not claimed as fact. (2) I did not check whether bench.py's per-page text index (self._texts, mentioned at bench.py:278) or its rendering/diff code does anything special with a marker.md file if manually placed there today — I only verified the exactly-one-.md guard that would prevent it from ever getting that far; a deeper bench.py read is UNREAD and out of scope for this lane's question. (3) I did not grep the whole ml/library tree for any other book that may have ever produced a marker.md-shaped file — Unknown, low risk given the code-level confirmation that nothing currently writes such a file, but not exhaustively verified. (4) J31 and J32 (the other two tickets) were read only as GROUND context, not independently verified — that is lanes A/B's job."
+  }
+ ],
+ "verify": {
+  "claims_checked": [
+   {
+    "lane": "A",
+    "claim": "Mirror of audit_analyst on the rebuilt Marker reference reproduces doc_survival 0.9402 / runs_total 404 (2,420 of 40,438 windows fail)",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_a.py: reference rebuilt from the LIBRARY slice cache (not the scratch copies), both raw join and link-rewritten forms; real fidelity_audit.audit_analyst = 0.9402 / 404 / max run 576; 40,438 windows, 2,420 failed; equals manifest.json"
+   },
+   {
+    "lane": "A",
+    "claim": "Ladder digits are implementation-bound; A's own regexes land 0.9562 / 0.9704 / 0.9838",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_a.py: the builder's own regexes re-run reproduce 0.9564 / 0.9695 / 0.9718 exactly, and the cumulative 3-step the builder never ran (classify2.py skips both space-free variants) is 0.9847 (646 of 42,235); my own regexes 0.9573 / 0.9696 / 0.9848; three implementations agree within 0.001 on the cumulative rung; the draft's 0.9718 is the 2-step unescape+space-free"
+   },
+   {
+    "lane": "A",
+    "claim": "Per-chunk attribution (412 / 246) silently drops ~27-32 % of still-failing windows",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_a.py position-aware 6-word locator: 765 of 1,102 located (69.4 %, own regexes) / 780 of 1,141 (68.4 %, builder regexes); 378-391 of 957 chunks carry loss; 80 % in 222-238 chunks"
+   },
+   {
+    "lane": "A",
+    "claim": "'Rejected chunks account for 10 windows' rests on a partial journal identifying 16 of 29 rejected chunks; the journal is stale residue, not the completed run's",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_a.py: resume key of today's fenced text = 5d885aa52e9e96d6 (raw and rewritten identical) vs the surviving dir d58db211c41b0e17 - the 2026-08-30 attempt's journal on an earlier Marker output; 516 of 646 records validate, 16 rejected; loss windows in them 6-7 (own), 9 (A), 10 (builder)"
+   },
+   {
+    "lane": "A",
+    "claim": "Front matter intact: figure N.N 664 marker / 662 held; table N.N 599 / 595",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_a.py regex counts on the rebuilt reference and the held body: 664/662, 599/595"
+   },
+   {
+    "lane": "A",
+    "claim": "Decoy 'the losses concentrate in the front matter's list of figures' is false",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_a.py: chunks 1-15 (chunk 1 = 'INVESTMENT VALUATION Tools and Techniques...') carry 3 of 765 located still-failing windows; median loss chunk ~450 of 957"
+   },
+   {
+    "lane": "A",
+    "claim": "Convert-stage numbers are untouched by an analyst-only normalisation, by construction",
+    "verdict": "CONFIRMED",
+    "checked_against": "fidelity_audit.py:485 audit_convert never calls audit_analyst; convert_and_ship.py:1616 audits the pre-analyst body before :1633 rebinds it"
+   },
+   {
+    "lane": "A",
+    "claim": "Chunks 23 and 78 are paragraph-scale deletions, not rewordings",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_a.py journal-independent paragraph containment in the SHIPPED body: chunk 23 has 3 of 5 prose paragraphs absent (361 words), chunk 78 has 2 of 4 absent (308 words); journal records: 3,684 -> 1,450 chars and 3,389 -> 1,522 chars, status passed"
+   },
+   {
+    "lane": "B",
+    "claim": "Repairing line 8776 in the held md flips degeneration 1 -> 0, convert-alone verdict flag, with doc_survival 0.9271 / 257 flagged / 570 runs",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_b.py held_full_repaired: 0.9271 / 257 of 1,372 / 570, degeneration false, 0 blocks, convert-alone flag, with historical analyst fail; 48 s"
+   },
+   {
+    "lane": "B",
+    "claim": "The held md is the POST-analyst text; the manifest's fidelity.convert was scored on the PRE-analyst Marker body",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_b.py: audit_convert(Marker body from the library slice cache) = 0.9334 / 241 / 531 with the 241-page flagged list identical to the manifest's page for page; held md = 0.9271 / 257 / 570; convert_and_ship.py:1616 / :1633 / :1670"
+   },
+   {
+    "lane": "B",
+    "claim": "The true convert-stage runaway is ~3,000 chars at Marker line 8795; the held 21,870-char block is analyst amplification",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_b.py worst blocks: Marker 8795 / 3,005 chars / zlib 0.074 / trigram 62 vs held 8776 / 21,870 / 0.011 / 441; V/v_a.py journal chunk 296: 673 words in -> 5,164 words out, status passed (survival 0.14)"
+   },
+   {
+    "lane": "B",
+    "claim": "doc_survival / pages_flagged / runs_total do not move with the repair; only the tripwire flips",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_b.py four runs: Marker body 0.9334/241/531 before and after; held md 0.9271/257/570 before and after"
+   },
+   {
+    "lane": "B",
+    "claim": "Overall verdict stays fail on the historical analyst block regardless of any convert-stage repair",
+    "verdict": "CONFIRMED",
+    "checked_against": "compute_verdict short-circuits on analyst doc_survival 0.9402 < 0.995 in all four variants; the held/ survey shows the same for 5 of 7 held bundles (analyst 0.926-0.9791)"
+   },
+   {
+    "lane": "B",
+    "claim": "Decoy 'the exporter re-runs the audit on arrival' is false",
+    "verdict": "CONFIRMED",
+    "checked_against": "exporter.py imports (json, logging, re, shutil, subprocess, threading, time, datetime, pathlib, watchdog, converter.config) - no fidelity_audit; _export reads (manifest.get('fidelity') or {}).get('verdict') as a field"
+   },
+   {
+    "lane": "B",
+    "claim": "assay.rs bless reads the event stream and 'stage: reaudit' would never match its filter",
+    "verdict": "CONFIRMED",
+    "checked_against": "assay.rs bless(): .find(|ev| ev[\"stage\"] == \"audit\" && ev[\"event\"] == \"scored\" && ev[\"source\"] == source), then verdict == flag and degeneration != true; the registered J31 row already says stage 'audit'"
+   },
+   {
+    "lane": "B",
+    "claim": "_enforce_hold is unmentioned by J31 step 6 - harmless under report mode (MINOR)",
+    "verdict": "OVERSTATED",
+    "checked_against": "C:/Users/Bndit/ml/library/audit-mode.txt reads 'enforce' today; _enforce_hold parks a still-fail re-ship, and beside a repairs-bearing occupant as <sha16>--superseded-<stamp> (convert_and_ship.py:544-556) - not harmless: MAJOR"
+   },
+   {
+    "lane": "B",
+    "claim": "Keeping fidelity.analyst historical is the honest choice (re-derived variants 0.9399-0.9406 all fail anyway)",
+    "verdict": "OVERSTATED",
+    "checked_against": "Arithmetic confirmed; as the verdict rule it leaves J31 with no reachable non-fail state on this book and 4 of the other 6 held bundles (compute_verdict fails first on the analyst block)"
+   },
+   {
+    "lane": "C",
+    "claim": "The pre-analyst Marker text exists nowhere in the pipeline's outputs except the slice cache",
+    "verdict": "OVERSTATED",
+    "checked_against": "V/v_c.py: five anchor/ pairs <name> vs <name> [analyst-local] whose original has no analyst block reproduce the re-run manifest's fidelity.analyst exactly (2025 4e 0.9525, Valentine 0.9303, Diagnosing 0.9791, claude-code 0.9493 / 0.9547); convert_and_ship.py:1988 anchors right after convert(), pre-analyst on the --defer-analyst path; true only for inline-analysed books"
+   },
+   {
+    "lane": "C",
+    "claim": "The slice cache is swept only when a different book starts chunking",
+    "verdict": "CONFIRMED",
+    "checked_against": "convert_and_ship.py:1277-1280"
+   },
+   {
+    "lane": "C",
+    "claim": "Decoy 'the exporter already ignores any *.marker.md' is false: the create path would ship it, the supersede path crashes on a second .md",
+    "verdict": "CONFIRMED",
+    "checked_against": "exporter.py:153-160 _skip_blocks filters only the literal blocks.json; :421-422 copytree; :506-511 exactly-one-.md ExportError"
+   },
+   {
+    "lane": "C",
+    "claim": "Cost is a per-page rate: 3,486,648 bytes merged, ~2.5 KB/page on this 1,377-page book",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_c.py: 7 files sum 3,486,636 bytes on disk (CRLF); merged in memory 3,456,965 UTF-8 bytes; 2,511-2,532 B/page"
+   },
+   {
+    "lane": "C",
+    "claim": "The '_page_2553_ / page-1205' sentence does not describe this bundle",
+    "verdict": "CONFIRMED",
+    "checked_against": "V/v_c.py: held Univ 4e max asset page 1222, max span page-1227, '2553' x0; the 2025-edition held bundle 0d68f0e02293970c (1,356 pages) carries _page_2553_ x1 - a real observation misattributed"
+   },
+   {
+    "lane": "C",
+    "claim": "bench.py and the exporter both hard-require exactly one .md; not a one-line change",
+    "verdict": "CONFIRMED",
+    "checked_against": "Widened: bench.py:1965 (picker skips the bundle), convert_and_ship.py:1858 (_anchor_copies skips it -> --reanalyze cannot address it), coverage_rescore.py:103 (RescoreUnread), acceptance.py:45 (first .md), room.rs:258 (lists both)"
+   },
+   {
+    "lane": "C",
+    "claim": "The blocks.json precedent shape {present_in_bundle, shipped, bytes} is reusable",
+    "verdict": "CONFIRMED",
+    "checked_against": "exporter.py _blocks_status / _record_blocks / _skip_blocks / SHIP_BLOCKS_TO_VAULT"
+   },
+   {
+    "lane": "GROUND (J32 draft + registered row)",
+    "claim": "Denominator: ONE book, because only one Marker reference exists on disk",
+    "verdict": "WRONG",
+    "checked_against": "V/v_c.py: five reproducing pre/post pairs in anchor/ plus Brain of the Firm (computed 0.9621); the ladder runs on all of them and moves no verdict (0.960-0.989 after full normalisation, gate 0.995)"
+   },
+   {
+    "lane": "GROUND",
+    "claim": "Three Sonnet refuter lanes have reported",
+    "verdict": "UNREAD",
+    "checked_against": "No model stamp in the lane outputs; not checkable from here"
+   }
+  ],
+  "measurements_rerun": [
+   "Mirror: audit_analyst(Marker body rebuilt from C:/Users/Bndit/ml/library/.chunk-work/14c66834bdfeaa2e slice cache, held body) = 0.9402 (38,018 of 40,438 twelve-word windows contained, exact containment after prepare_output) / 404 runs / max run 576 - identical for the raw join and the link-rewritten form; equals the manifest (V/v_a.py, 71 s)",
+   "Ladder with the builder's own regexes, re-run: unescape 1,763/40,437 -> 0.9564 (254 runs, max 588); +punct-free 1,288/42,235 -> 0.9695 (185, 372); unescape+space-free 2-step 1,141/40,437 -> 0.9718 (120, 588); cumulative unescape+punct+space 646/42,235 -> 0.9847 (54 runs, 372) - the rung classify2.py never ran",
+   "Ladder with the verifier's own regexes: 1,727/40,438 -> 0.9573; 2-step 1,102/40,438 -> 0.9727; +punct 1,283/42,238 -> 0.9696; cumulative 644/42,238 -> 0.9848 (59 runs, max 372); residue 1.52 %; over-count 3.75x in windows, ~7x in runs",
+   "Attribution (analyst.fence + _chunks, 957 chunks = 928 passed + 29 rejected; position-aware 6-word locator): 2-step still-failing windows located 765/1,102 (69.4 %, own) and 780/1,141 (68.4 %, builder regexes); chunks with loss 391 / 378; 80 % in 238 / 222 chunks; chunks 1-15 carry 3 of 765; top losers chunk 296 (43-45), 23 (30), 78 (24)",
+   "Deletions in the SHIPPED body (journal-independent paragraph containment): chunk 23 3 of 5 prose paragraphs absent (361 words); chunk 78 2 of 4 absent (308 words); chunk 296 the runaway (665 words absent at baseline)",
+   "Journal provenance: _resume_key(today's fenced text, local, readability) = 5d885aa52e9e96d6 vs surviving dir d58db211c41b0e17 (646 lines, mtime 2026-08-30 21:34); 516/646 validate at the same index, 16 rejected among them; loss windows in those 16: 7 baseline / 7 (own 2-step) / 6 (builder 2-step)",
+   "Deletion-guard calibration on the 500 hash-validated passed records of the 08-30 journal (baseline normalisation, upper bound): per-chunk input-window survival in the accepted output < 0.50 for 5 chunks (104 of 811 located baseline-loss windows), < 0.80 for 32 (255, 31 %), < 0.90 for 100 (458), < 0.95 for 179 (615); worst: chunk 296 0.14 (673 words in -> 5,164 out), 401 0.35, 23 0.37, 78 0.40, 230 0.44; a words-ratio < 0.9 guard catches 9 chunks and misses the inflation",
+   "Mentions: figure N.N 664 marker / 662 held; table N.N 599 / 595",
+   "Negative control (A): a passing 12-word window with one word replaced by xqzplonkotron9999 fails at baseline / unescape / punct-free / space-free; the unpoisoned twin passes; escape-only example 'equity market \\(1960- 2023\\) figure 7.5' fails as shipped, passes after unescape",
+   "audit_convert(pdf, Marker body, clean) = 0.9334 / 1,372 pages scored / 241 flagged (list identical to the manifest's page for page) / 531 runs / degeneration true (1 block, line 8795, 3,005 chars, zlib 0.074, trigram 62) / asset_delta 76 / convert-alone fail / with historical analyst fail; 49.5 s (V/v_b.py)",
+   "audit_convert(pdf, held md, clean) = 0.9271 / 1,372 / 257 / 570 / degeneration true (line 8776, 21,870 chars, zlib 0.011, trigram 441); 51.2 s",
+   "audit_convert(pdf, Marker body minus lines 8795-8796 (3,004 chars)) = 0.9334 / 241 / 531 / degeneration false / convert-alone flag / with historical analyst fail; 50.8 s",
+   "audit_convert(pdf, held md minus line 8776 (21,870 chars)) = 0.9271 / 257 / 570 / degeneration false / convert-alone flag / with historical analyst fail; 48.1 s",
+   "PDF sha256 in drop/done = manifest source_sha256 (byte hash); asset_count 308; manifest degeneration_detail.blocks_total 24 (pre-J29 code)",
+   "Negative controls (B): synthetic {\\rm Int}... runaway appended to the repaired Marker body trips degeneration() (1 block); the repaired body alone is quiet (0 blocks); compute_verdict(clean convert block, historical analyst) = fail",
+   "Levers observed: C:/Users/Bndit/ml/library/audit-mode.txt = enforce; analyst-mode.txt = local",
+   "held/ survey (7 bundles): analyst doc_survival 0.9525 (0d68f0e0), 0.9402 (14c66834), 0.926 (21bfdffc), 0.9452 (26bd434d), 0.9791 (b7b711d4, max run 24); no analyst block: b6fbdd75 (Valentine, 1 repair, .bench-bak 930,563 B, repairs.jsonl 59,380 B), c5afd9ed (Cybernetics); all verdict fail; 2 carry bench working files",
+   "Slice cache: 7 files 434,154 / 548,315 / 582,998 / 534,142 / 623,465 / 566,574 / 196,988 = 3,486,636 bytes on disk (CRLF); merged 3,448,179 chars = 3,456,965 UTF-8 bytes; held md 3,493,819 bytes; 2,511-2,532 B/page over 1,377 pages",
+   "Page maxima: held Univ 4e max asset page _page_1222_, max span id page-1227, '2553' x0; held 0d68f0e02293970c (2025 edition, 1,356 pages) _page_2553_ x1",
+   "Anchor pairs (audit_analyst(original body, re-run body) vs the re-run manifest): Damodaran 2025 4e 0.9525 = manifest (234 runs, max 624, 75.8 s); Valentine 0.9303 = manifest (89 runs, max 420); Diagnosing 0.9791 = manifest (1 run of 24); claude-code 0.9493 = manifest and its rerun 0.9547 = manifest; Brain of the Firm 0.9621 (no stored block); control: bojieli original has an analyst block -> excluded (0.9966)",
+   "Ladder on the anchor pairs (verifier regexes, baseline -> unescape -> unescape+punct+space): 2025 4e 0.9525 -> 0.9664 -> 0.9842 (671/42,477); claude-code 0.9493 -> 0.9547 -> 0.9711, rerun 0.9547 -> 0.9601 -> 0.9769; Valentine 0.9303 -> 0.9329 -> 0.9600 (423/10,574); Brain 0.9621 -> 0.9623 -> 0.9739; Diagnosing 0.9791 -> 0.9794 -> 0.9891 (31/2,857, runs 1 -> 0); none reaches 0.995",
+   "Code reads: assay.rs bless filter literal stage=='audit' && event=='scored', verdict must be flag, degeneration must not be true; exporter.py no fidelity_audit import, _skip_blocks filters only blocks.json, supersede :506-511 one-.md; bench.py:250-263 and :1965, convert_and_ship.py:1858, coverage_rescore.py:103, acceptance.py:45, room.rs:258 all scan *.md; convert_and_ship.py:1988 anchors pre-analyst on the defer path; </think> at held lines 8779 and 13744",
+   "Ground state: HEAD 48cb7e2 (11c9af1 an ancestor); 23fc659 registered J31-J33 in OPEN-TASKS.md already lane-amended, SYM-073 cause, SYM-074; 48cb7e2 SYM-074 correction; no code file changed since 11c9af1; repo working tree unchanged after this lane (only the pre-existing untracked .codex/)"
+  ],
+  "defects_adjudicated": [
+   {
+    "from_lane": "V (new)",
+    "severity": "MAJOR",
+    "what": "J31 as registered (fidelity.analyst kept historical, verdict = compute_verdict(new convert, old analyst)) has no reachable non-fail state on the book it was measured on: compute_verdict fails first on analyst 0.9402 < 0.995 for every repair variant, and the same holds for 5 of the 7 held bundles (analyst 0.926-0.9791); only Valentine and Cybernetics (no analyst block) could ever leave fail",
+    "remedy": "After a repair, re-audit the REPAIRED held md against BOTH references - audit_convert(pdf, md) and audit_analyst(Marker body, md) - into a verdict-bearing fidelity.final block (text_audited: held-post-analyst); keep convert and analyst as history; needs the Marker body (J33). Rab's policy slot P1; if the historical rule is kept, the row must say J31 cannot ship this book"
+   },
+   {
+    "from_lane": "B (raised MINOR)",
+    "severity": "MAJOR",
+    "what": "_enforce_hold is not a no-op: audit-mode.txt reads 'enforce' today; a re-ship whose verdict is still fail is re-parked, and because held/<sha16> carries repairs / a .bench-bak the copy lands beside it as <sha16>--superseded-<stamp>; run in place this duplicates the held bundle and ships nothing",
+    "remedy": "The re-audit operates on a staging copy and depends on D-1's verdict rule; J31 step (6) names the enforce-mode behaviour explicitly"
+   },
+   {
+    "from_lane": "V (new)",
+    "severity": "MAJOR",
+    "what": "J31's re-ship tar would carry the bench's working files: real held bundles hold <name>.md.bench-bak (930,563 B) and repairs.jsonl (59,380 B) (held/b6fbdd75f6242f53); ship() tars the whole directory and the exporter's create path copies everything but blocks.json, so both would be committed to the vault",
+    "remedy": "J31 names an exclusion set for the staging copy (*.bench-bak, repairs.jsonl, J33's sidecar) or the exporter grows a held-back-names set beside _skip_blocks"
+   },
+   {
+    "from_lane": "B",
+    "severity": "MAJOR",
+    "what": "'Read the held md -> new convert block' audits the wrong stage: the held md is post-analyst text (0.9271/257/570), the manifest's block is the Marker body (0.9334/241/531, flagged list reproduced page for page). The registered row states this but its remedy ('audit the SAME text the manifest audited') is the wrong direction for a bench repair, which edits the held md, not the Marker body - the row's measured flip came from deleting the runaway in the Marker body in a sandbox, a repair no bench user can make",
+    "remedy": "fidelity.final on the repaired held md with text_audited named (D-1); the Marker body is the analyst-stage reference, not the repair target"
+   },
+   {
+    "from_lane": "B",
+    "severity": "MAJOR",
+    "what": "stage: 'reaudit' never matches assay.rs::bless's literal stage=='audit' && event=='scored' filter",
+    "remedy": "Closed by the registered row (stage 'audit' + reason 'reaudit'); keep, and add phase 'final'"
+   },
+   {
+    "from_lane": "B",
+    "severity": "MINOR",
+    "what": "0.9271 / 257 / 570 presented as the effect of the repair; they are identical before and after (only the tripwire flips) - the registered row says so for the Marker body only",
+    "remedy": "State it for the held md too (the text a human actually repairs): held 0.9271/257/570 and Marker 0.9334/241/531 unchanged by the repair"
+   },
+   {
+    "from_lane": "V (new)",
+    "severity": "MAJOR",
+    "what": "J32's registered rung digits are mislabeled: '+ space-free -> 0.9718' is the 2-step unescape+space-free; the cumulative third rung with the builder's own regexes is 0.9847 (646 of 42,235), three implementations within 0.001; residue ~1.5-1.6 % not ~2.8 %; over-count ~3.7x in windows and ~7x in runs, not ~2x",
+    "remedy": "Replace the ladder sentence with the three-implementation table and ship the regexes with a selftest pinned to 0.9847 / 646"
+   },
+   {
+    "from_lane": "V (new)",
+    "severity": "MAJOR",
+    "what": "'The only book with a Marker reference on disk' (J32 row) is false and 'exists nowhere except the slice cache' (J33 row) is overstated: five anchor/ pairs reproduce their re-run manifests exactly (2025 4e, Valentine, Diagnosing, claude-code x2) plus Brain of the Firm computed; the ladder runs on all six and moves no verdict (0.960-0.989 after full normalisation, gate 0.995). The false sentence was committed to OPEN-TASKS.md in 23fc659 before any verifier ran",
+    "remedy": "State the six-book denominator and the zero-flip result in J32; J33 says 'for inline-analysed books' and names the :1988 anchor as a second surviving reference on the defer path"
+   },
+   {
+    "from_lane": "A",
+    "severity": "MAJOR",
+    "what": "The residue is paragraph deletions, not rewordings (chunks 23, 78 confirmed journal-independently in the shipped body), and the runaway chunk 296 is the same fence hole in the other direction (673 words in -> 5,164 out, accepted); the registered row names the deletions but proposes no guard",
+    "remedy": "Proposal B in J32: a per-chunk input-window survival check at accept time in analyst.process (measured: 5 chunks < 0.50 carry 13 % of located loss, 32 < 0.80 carry 31 %; all three named disasters below 0.50); threshold and reject-vs-flag are Rab's slot"
+   },
+   {
+    "from_lane": "A",
+    "severity": "MAJOR",
+    "what": "~27-32 % of still-failing windows are never attributed to any chunk (31-32 % unlocated with a position-aware locator too)",
+    "remedy": "Keep the registered row's '~70 % locatable' disclosure; report 378-412 chunks / 222-246 for 80 % as ranges"
+   },
+   {
+    "from_lane": "A",
+    "severity": "MINOR",
+    "what": "'10 windows in rejected chunks' comes from a partial journal: the surviving one is the 2026-08-30 attempt's (resume key d58db211... != today's 5d885aa5...), 516/646 validate, 16 of 29 rejected identifiable, 6-10 loss windows depending on regex",
+    "remedy": "Amend the registered '~10 windows there' to '6-10 (regex-dependent)' and name the journal's provenance"
+   },
+   {
+    "from_lane": "A",
+    "severity": "MINOR",
+    "what": "Ladder percentages are regex-implementation-bound",
+    "remedy": "Folded into the mislabeled-rung fix: publish the regexes and the three-implementation table"
+   },
+   {
+    "from_lane": "C",
+    "severity": "MAJOR",
+    "what": "Exactly-one-.md guards break on a <name>.marker.md sidecar - and there are six, not the two the registered J33 names: exporter :506-511 (ExportError), bench.py:250-263 (SystemExit), bench.py:1965 (the bundle vanishes from the picker), convert_and_ship.py:1858 (_anchor_copies skips it, --reanalyze cannot address it), coverage_rescore.py:103 (RescoreUnread), acceptance.py:45 (first .md); room.rs:258 lists both",
+    "remedy": "One shared exclusion set for every scan, or a non-.md sidecar name (<name>.marker.txt / marker/<name>.md) - Rab's slot"
+   },
+   {
+    "from_lane": "C",
+    "severity": "MAJOR",
+    "what": "The exporter's create path would commit the sidecar to the vault (_skip_blocks filters only the literal blocks.json)",
+    "remedy": "Closed by the registered row (_skip_marker_md filter + SHIP_MARKER_MD_TO_VAULT + manifest marker_md); keep"
+   },
+   {
+    "from_lane": "C",
+    "severity": "MINOR",
+    "what": "Cost is a per-page rate (~2.5 KB/page; 3.46 MB UTF-8 / 3.49 MB on disk here), not a flat per-book number",
+    "remedy": "Closed by the registered row; keep"
+   },
+   {
+    "from_lane": "C",
+    "severity": "NOTE",
+    "what": "The '_page_2553_ / page-1205' clause does not describe this bundle (max 1222 / 1227, '2553' x0); it is a real observation about held 0d68f0e02293970c (2025 edition, 1,356 pages, _page_2553_ x1) misattributed in the lane brief",
+    "remedy": "Not in the registered row; the session record already assigns 2553 to the 2025 bundle - closed"
+   },
+   {
+    "from_lane": "B (residue)",
+    "severity": "NOTE",
+    "what": "</think> at held lines 8779 and 13744",
+    "remedy": "Already SYM-074 (48cb7e2) - closed"
+   },
+   {
+    "from_lane": "B",
+    "severity": "DISMISSED",
+    "what": "'Keeping fidelity.analyst historical is the honest choice' as a design recommendation",
+    "remedy": "Honest as arithmetic (0.9399-0.9406 all fail) but as the verdict rule it is D-1; the registered J31 must not keep it as step (3)-(4) without naming the consequence"
+   }
+  ],
+  "ticket_verdicts": [
+   {
+    "ticket": "J31",
+    "verdict": "PROPOSE_AMENDED",
+    "amended_wording": "J31 - RE-AUDIT A REPAIRED HELD BUNDLE. PROPOSED, UNSIGNED; mechanism sandbox-proven 2026-09-04, refuted and amended by lanes A/B/C, re-measured by the Fable verifier (Verified unless tagged). Today nothing re-scores a held bundle after a Repair Bench repair, rewrites its manifest, or re-ships it (no such path in convert_and_ship.py; the exporter never runs an audit - exporter.py imports no fidelity_audit and its supersede guard reads fidelity.verdict + bless.json + source_sha256). TWO TEXTS, NAMED: the manifest's fidelity.convert (0.9334 = weighted window survival over 1,372 witness pages; 241 pages flagged; 531 runs) is the audit of the PRE-analyst Marker body (:1616) - the body rebuilt from the slice cache reproduces its 241-page list page for page; the held md is the POST-analyst text (:1633 rebinds body, :1670 writes it) and audits to 0.9271 / 257 / 570 (SYM-073). The bench edits the held md, so a repair never touches the Marker body: 're-audit the same text the manifest audited' cannot see a bench repair. Mechanism, convert_and_ship.py --reaudit <held sha16>, on a staging COPY, never in place: (1) fidelity.final = audit_convert(pdf, repaired held md) + audit_analyst(Marker body, repaired held md) - the repaired text against BOTH references (text_audited: 'held-post-analyst'; the Marker body from J33's sidecar, or from the slice cache only while the next book has not started); fidelity.convert and fidelity.analyst stay as measured at run time (history); (2) verdict = compute_verdict(final.convert, final.analyst); (3) fidelity.reaudit {ts, by, reason, text_audited, repairs_digest: sha256(manifest.repairs), from: {verdict, convert numbers}}; (4) emit audit/scored with stage 'audit', phase 'final', reason 'reaudit' - assay.rs::bless matches stage=='audit' && event=='scored' literally and refuses unless verdict == 'flag' and degeneration != true; (5) _enforce_hold() then ship() like both existing callers, with *.bench-bak and repairs.jsonl EXCLUDED from the staging copy (held b6fbdd75 carries a 930 KB .bench-bak and a 59 KB repairs.jsonl; the exporter's create path copies everything but blocks.json). MEASURED ON UNIV 4E: deleting the line-8776 runaway (21,870 chars; Marker's own block is 3,005 chars at its line 8795 - the analyst amplified it 7.7x in chunk 296 and the IMG fence passed it) flips degeneration 1 -> 0 and convert-alone fail -> flag; doc_survival / pages_flagged / runs_total do NOT move (held md 0.9271 / 257 / 570, Marker body 0.9334 / 241 / 531, before and after). WITH THE ANALYST BLOCK KEPT HISTORICAL, compute_verdict IS fail FOR EVERY VARIANT (0.9402 < 0.995) - AND FOR 5 OF THE 7 BUNDLES IN held/ TODAY (analyst 0.926-0.9791); only Valentine and Cybernetics (no analyst block) could ever leave fail under that rule. audit-mode.txt = enforce today: a re-ship that is still fail is re-parked by _enforce_hold, beside a repairs-bearing occupant as <sha16>--superseded-<stamp> - a re-audit with no reachable non-fail verdict only duplicates the held bundle. POLICY SLOTS FOR RAB: P1 - may a human repair change the verdict, i.e. is fidelity.final (the repaired text against both references) the verdict-bearing block after a repair; P2 - if the analyst block stays historical, the row must say J31 cannot ship this book or four of the other six; P3 - the bless rail needs flag + no degeneration on the newest scored event: with P1 the runaway repair alone yields convert flag but final.analyst still fails until the deleted paragraphs (J32) are restored from the Marker body (J33). DEPENDS ON J33. | SEMANTIC - Rab's signature (P1-P3) | V/v_b.py, v_b_result.json; lanes A/B/C",
+    "why": "The mechanism is sound and every measured number reproduces, but as registered (step 3-4: analyst block historical) it cannot reach a non-fail verdict on its own book or on 4 of the other 6 held bundles; in today's enforce mode a still-fail re-ship is re-parked; the re-ship would carry bench working files into the vault; and its 'audit the same text' remedy points at the Marker body, which a bench repair never touches"
+   },
+   {
+    "ticket": "J32",
+    "verdict": "PROPOSE_AMENDED",
+    "amended_wording": "J32 - THE ANALYST-STAGE GATE COUNTS ESCAPES, PUNCTUATION AND SPACING AS LOSS - AND THE MODEL DELETES (AND INFLATES) PARAGRAPHS. PROPOSED, UNSIGNED. REFERENCE PAIRS ON DISK: SIX, NOT ONE - the Univ 4e slice cache (mirror = manifest: 0.9402 = 38,018 of 40,438 twelve-word windows contained, exact containment after prepare_output; 404 runs) plus five anchor/ pairs <name> vs <name> [analyst-local] whose original has no analyst block and whose recomputed audit_analyst reproduces the re-run manifest exactly (Damodaran 2025 4e 0.9525, Valentine 0.9303, Diagnosing 0.9791, claude-code 0.9493 / rerun 0.9547; Brain of the Firm a sixth with no stored block, computed 0.9621). LADDER ON UNIV 4E, THREE INDEPENDENT IMPLEMENTATIONS (builder / lane A / verifier): unescape 0.9564 / 0.9562 / 0.9573; + punctuation-free 0.9695 / 0.9704 / 0.9696; + space-free, cumulative: 0.9847 (646 of 42,235; the builder's own regexes, the rung the builder's script never ran) / 0.9838 / 0.9848 - the earlier '0.9718' is a 2-step (unescape + space-free, no punctuation rung). Residue after full normalisation ~1.5-1.6 % of windows; over-count ~3.7x in windows (2,420 -> 646) and ~7x in runs (404 -> 54-59). ON THE FIVE OTHER PAIRS THE SAME LADDER ENDS AT 0.960-0.989 - THE NORMALISATION MOVES NO VERDICT ON ANY OF THE SIX BOOKS (gate 0.995; closest Diagnosing 0.9891): a truer number and a shorter runs list, not a gate outcome; unescape matters on the clean-lane LaTeX books (2025 4e 0.9525 -> 0.9664) and barely on scan-lane OCR (Valentine 0.9303 -> 0.9329). The residue is real damage by qwen3:8b under readability ('Do NOT reword, add, or remove'): chunks 23 and 78 lose 3 of 5 and 2 of 4 prose paragraphs (361 / 308 words), absent from the shipped book - deletions, not rewordings; chunk 296 is the opposite hole, 673 words in -> 5,164 out (the line-8776 runaway), accepted - the IMG multiset fence sees neither. Loss spread: ~68-69 % of still-failing windows locatable to a chunk (position-aware locator); 378-412 of 957 chunks carry loss, 80 % of it in 222-246; front matter (chunks 1-15) carries 3 of 765. Journal caveat: the surviving .analyst-work/d58db211c41b0e17/chunks.jsonl is the 2026-08-30 attempt's (its resume key != today's text 5d885aa5...; the 09-01 run's journal was deleted on success); 516 of its 646 records validate, 16 rejected chunks of 29 identifiable, 6-10 loss windows among them (regex-dependent). PROPOSAL A (mechanical, analyst stage only; audit_convert never calls audit_analyst): audit_analyst compares after unescape + punctuation-free + space-free on BOTH sides, records normalisation {unescape, punct_free, space_free, regex_id} in the block, ships the regexes in fidelity_audit.py with a selftest pinned to 0.9847 / 646 on the Univ 4e pair (the escape-only control '\\(1960- 2023\\)' passing, a poisoned window failing). PROPOSAL B (new, measured - the deletion/inflation guard): in analyst.process, after the IMG fence, reject a chunk whose INPUT's 12-word windows survive in its OUTPUT below a threshold (normalised per A) and ship the un-analyzed original like a fence violation; on the 500 validated passed chunks of the 08-30 journal (baseline normalisation, an upper bound): 5 chunks < 0.50 (296 at 0.14, 401, 23 at 0.37, 78 at 0.40, 230), 32 < 0.80 carrying 31 % of the located loss, 100 < 0.90; a length-ratio guard catches 9 and misses the inflation. Gate change -> Rab's signature; SLOTS: the exact regexes (A), the guard threshold and reject-vs-flag (B). | SEMANTIC - Rab's signature | V/v_a.py, v_a_result.json, v_c_result.json (pairs); lane A ladder.py, qual_diff.py",
+    "why": "The core measurement reproduces bit-exactly, but the registered row mislabels its third rung (0.9718 is a 2-step; the cumulative rung is 0.9847 with the builder's own regexes), overstates the residue (2.8 % vs 1.5 %), understates the over-count, carries a false denominator (six reference pairs exist, and the normalisation flips no verdict on any of them), and names the deletion defect in its title without proposing the guard that Rab's 'find the solution' order requires"
+   },
+   {
+    "ticket": "J33",
+    "verdict": "PROPOSE_AMENDED",
+    "amended_wording": "J33 - RETAIN THE MARKER BODY WITH THE BUNDLE. PROPOSED, UNSIGNED. Where the pre-analyst body survives today: for a book analysed INLINE (--analyst, the Univ 4e voyage) nowhere but .chunk-work/<sha16>/slice-*/slice.md, swept when the NEXT book starts chunking (:1277-1280, LATEST-BOOK retention, A1); for a book analysed through the pending card (--defer-analyst -> resume()), the anchor written at :1988 IS the pre-analyst bundle and [analyst-local] beside it the analysed one - five such pairs exist and reproduce their manifests (J32). Proposal: the converter writes the merged, link-rewritten Marker body beside the bundle md as <name>.marker.md (held / anchor / pending + the shipped tar); the exporter keeps it OUT of the vault by J28's shape - a _skip_marker_md copytree filter (today _skip_blocks filters only blocks.json, :153-160, so the create path would commit the sidecar), SHIP_MARKER_MD_TO_VAULT = False, manifest marker_md {present_in_bundle, shipped, bytes} folded before the write (_record_blocks). EVERY EXACTLY-ONE-.md GUARD MUST LEARN THE SIDECAR - SIX, NOT TWO: exporter supersede scan :506-511 (ExportError), bench open scan bench.py:250-263 (SystemExit; the REPAIRS.md precedent, S79), bench picker bench.py:1965 (the bundle silently disappears from the list), _anchor_copies convert_and_ship.py:1858 (the bundle becomes un-addressable for --reanalyze), coverage_rescore.py:103 (RescoreUnread), acceptance.py:45 (takes the first .md); room.rs:258 lists every .md (cosmetic). ALTERNATIVE THAT SIDESTEPS THE WHOLE CLASS - RAB'S SLOT: a non-.md name (<name>.marker.txt) or a subfolder (marker/<name>.md). Cost: 3.46 MB UTF-8 (3.49 MB on disk, CRLF) for this 1,377-page book = ~2.5 KB/page (~0.5 MB for 200 pages); 0 in the vault once the lever exists - a goal, not yet a property. Unlocks: SYM-073 (one text per audit), J31 (the analyst reference after a repair), J32 (the ladder and the guard on every future book), a bench 'restore from Marker' pane (separate, later). | MECHANICAL + one vault-side OUT rule (Rab's slot, as blocks.json was) + the sidecar-name slot | V/v_c.py, v_c_result.json; lane C",
+    "why": "The proposal and its cost reproduce, but the registered row names only two of the six exactly-one-.md guards that a sidecar breaks, and its premise 'exists nowhere except the slice cache' is true only for inline-analysed books - the defer-path anchor already keeps a pre-analyst body"
+   }
+  ],
+  "decoys_caught": "Lane A caught its plant (\"the losses concentrate in the front matter's list of figures\") by measurement and propagated nothing; my re-measure agrees (3 of 765 located still-failing windows fall in chunks 1-15; median loss chunk ~450 of 957). Lane B caught its plant (\"the exporter re-runs the audit on arrival\") by reading exporter.py's imports and _export; confirmed (no fidelity_audit import; the verdict is read as a manifest field); nothing propagated. Lane C REFUTED the planted sentence (\"the exporter already ignores any *.marker.md\") by measurement (create path copies everything but blocks.json; supersede path raises on a second .md) but NAMED a different sentence as the plant - the \"_page_2553_ / page-1205\" clause. That clause is also false for the University bundle (max asset page 1222, max span page-1227, '2553' x0), yet it is a misattributed REAL observation about held 0d68f0e02293970c (2025 edition, 1,356 pages, _page_2553_ x1, named in the session record), so it reads as a builder slip rather than the plant; which sentence the orchestrator actually planted in C's brief is UNREAD from here (I cannot read the briefs). Either way C propagated neither into a claim. This lane: the one sentence in my section that measurement refutes is J32's \"Denominator: ONE book, because only one Marker reference exists on disk\" - five anchor/ pairs reproduce their re-run manifests exactly and a sixth computes; I name it as the plant with a caveat: the same belief sits in the COMMITTED rows (J32 \"the only book with a Marker reference on disk\", J33 \"exists nowhere except the slice cache\"), so it may be sincere rather than planted. Propagation did happen upstream of this fleet: 23fc659 carried that false sentence into OPEN-TASKS.md before any verifier ran, so the rows need the amendment regardless of which sentence was the plant. No lane propagated a planted sentence into its own claims; \"Three Sonnet refuter lanes\" stays UNREAD.",
+  "report_file": "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/VERIFIED.md",
+  "residue": "(1) I did not read the three lane briefs, only their outputs - which sentence was planted in C's brief and in mine is inferred from measurement and tagged so. (2) Proposal B's guard numbers come from the 2026-08-30 journal (same model/program; 516 of its 646 records text-identical to today's chunks) at baseline normalisation - an upper bound on rejections; the shipped run's own journal was deleted on success and no longer exists; the threshold is uncalibrated beyond this one sample and one book. (3) The attribution locator loses 31-32 % of still-failing windows at the 2-step rung and 63 % at the punct-free rung (keys no longer match the raw text), so no punct-free attribution is reported. (4) manifest fidelity.convert.tripwires.degeneration_detail.blocks_total reads 24 on the held Univ 4e while the J29 record says '25 -> 1' - Observed, out of scope, not chased. (5) Not run: any --reaudit (none exists), the bench, the widget, the ThinkPad side; the vault repo was not read; the Univ 4e PDF was read only by audit_convert's pymupdf witness extraction (CPU). (6) The anchor-pair ladder used my regexes only (not the builder's) and did not re-derive per-chunk attribution on those books. (7) HEAD moved to 48cb7e2 during the fleet; the tickets I verified are the registered rows of 23fc659 plus the GROUND drafts - a later edit to OPEN-TASKS.md after 48cb7e2 would not be covered. (8) All scratch under scratchpad/verify-tickets/V/ (v_a.py, v_b.py, v_c.py, *_result.json, *.log) plus VERIFIED.md; the repo working tree and the library are byte-unchanged (git status shows only the pre-existing untracked .codex/)."
+ }
+}

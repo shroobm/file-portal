@@ -1,0 +1,19 @@
+{
+  "doc_survival": 0.9271,
+  "pages_scored": 1372,
+  "pages_flagged_count": 257,
+  "runs_total": 570,
+  "degeneration": true,
+  "degeneration_detail_worst": [
+    {
+      "line": 8776,
+      "chars": 21870,
+      "zlib": 0.011,
+      "max_trigram": 441,
+      "excerpt": "$$\\begin{array}{lll} {\\rm ROC} + {\\rm D/E} \\left[ {{\\rm"
+    }
+  ],
+  "blocks_total": 1,
+  "table_rows_stripped": 4580,
+  "md_lines": 29698
+}

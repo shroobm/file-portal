@@ -1,0 +1,22 @@
+{
+  "slice_files": [
+    "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker\\slice-00000-00199.md",
+    "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker\\slice-00200-00399.md",
+    "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker\\slice-00400-00599.md",
+    "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker\\slice-00600-00799.md",
+    "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker\\slice-00800-00999.md",
+    "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker\\slice-01000-01199.md",
+    "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker\\slice-01200-01376.md"
+  ],
+  "marker_ref_chars": 3448179,
+  "marker_ref_sha256_first16": "faf9309372be832b",
+  "analyst_md_chars": 3455311,
+  "mirror_doc_survival": 0.9402,
+  "mirror_runs_total": 404,
+  "claimed_doc_survival": 0.9402,
+  "claimed_runs_total": 404,
+  "match_doc_survival": true,
+  "match_runs_total": true,
+  "windows_total_ref": 40438,
+  "failed_windows": 2418
+}

@@ -1,0 +1,30 @@
+{
+  "0_baseline": {
+    "windows_total": 40438,
+    "failed": 2420,
+    "doc_survival": 0.9402,
+    "runs_total": 404,
+    "max_run_words": 576
+  },
+  "1_unescape": {
+    "windows_total": 40419,
+    "failed": 1769,
+    "doc_survival": 0.9562,
+    "runs_total": 255,
+    "max_run_words": 588
+  },
+  "2_punct_free": {
+    "windows_total": 39461,
+    "failed": 1169,
+    "doc_survival": 0.9704,
+    "runs_total": 176,
+    "max_run_words": 372
+  },
+  "3_space_free": {
+    "windows_total": 39461,
+    "failed": 641,
+    "doc_survival": 0.9838,
+    "runs_total": 59,
+    "max_run_words": 372
+  }
+}

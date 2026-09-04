@@ -1,0 +1,19 @@
+{
+  "doc_survival": 0.9334,
+  "pages_scored": 1372,
+  "pages_flagged_count": 241,
+  "runs_total": 531,
+  "degeneration": true,
+  "degeneration_detail_worst": [
+    {
+      "line": 8795,
+      "chars": 3005,
+      "zlib": 0.074,
+      "max_trigram": 62,
+      "excerpt": "<span id=\"page-439-6\"></span> $$\\begin{array}{lll} {\\rm ROC} + {\\rm D/E}"
+    }
+  ],
+  "blocks_total": 1,
+  "table_rows_stripped": 4638,
+  "md_lines": 29696
+}

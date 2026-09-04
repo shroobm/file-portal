@@ -1,0 +1,337 @@
+{
+ "slices": {
+  "sizes": {
+   "slice-00000-00199": 434154,
+   "slice-00200-00399": 548315,
+   "slice-00400-00599": 582998,
+   "slice-00600-00799": 534142,
+   "slice-00800-00999": 623465,
+   "slice-01000-01199": 566574,
+   "slice-01200-01376": 196988
+  },
+  "sum_bytes": 3486636,
+  "merged_utf8_bytes": 3456965,
+  "merged_chars": 3448179,
+  "held_md_bytes": 3493819,
+  "pages": 1377,
+  "bytes_per_page": 2511
+ },
+ "pages_in_held": {
+  "max_asset_page": 1222,
+  "max_span_page": 1227,
+  "count_2553": 0,
+  "count_page_2553": 0
+ },
+ "pages_in_held_2025_edition": {
+  "max_asset_page": 2553,
+  "count_page_2553": 1,
+  "pages_manifest": 1356
+ },
+ "pairs": [
+  {
+   "orig": "BRAIN OF THE FIRM STAFFORD BEER (WITH OCR) ISBN 13 978047116",
+   "rerun_suffix": " [analyst-local]",
+   "same_sha": true,
+   "sha16": "7de1c31aaf611616",
+   "pages": 439,
+   "lane": "scan",
+   "orig_has_analyst_block": false,
+   "rerun_has_analyst_block": true,
+   "rerun_model": "qwen3:8b",
+   "rerun_program": "readability",
+   "orig_chars": 1049187,
+   "rerun_chars": 1138955,
+   "recomputed_doc_survival": 0.9621,
+   "rerun_manifest_doc_survival": null,
+   "recomputed_runs_total": 44,
+   "rerun_manifest_runs_total": null,
+   "rerun_manifest_runs_shown": 0,
+   "recomputed_max_run": 348,
+   "rerun_manifest_max_run": 0,
+   "pair_valid_marker_reference": "no stored analyst block (computed only)",
+   "ladder": {
+    "cjk": false,
+    "0_baseline": {
+     "windows": 14468,
+     "failed": 548,
+     "doc_survival": 0.9621,
+     "runs": 44,
+     "max_run_words": 348
+    },
+    "1_unescape": {
+     "windows": 14467,
+     "failed": 546,
+     "doc_survival": 0.9623,
+     "runs": 40,
+     "max_run_words": 360
+    },
+    "3_unescape+punct+space": {
+     "windows": 14537,
+     "failed": 379,
+     "doc_survival": 0.9739,
+     "runs": 29,
+     "max_run_words": 348
+    }
+   },
+   "wall_s": 11.0
+  },
+  {
+   "orig": "Best Practices for Equity Research Analysts - James J Valent",
+   "rerun_suffix": " [analyst-local rerun]",
+   "same_sha": true,
+   "sha16": "b6fbdd75f6242f53",
+   "pages": 465,
+   "lane": "scan",
+   "orig_has_analyst_block": false,
+   "rerun_has_analyst_block": true,
+   "rerun_model": "qwen3:8b",
+   "rerun_program": "readability",
+   "orig_chars": 923238,
+   "rerun_chars": 936387,
+   "recomputed_doc_survival": 0.9303,
+   "rerun_manifest_doc_survival": 0.9303,
+   "recomputed_runs_total": 89,
+   "rerun_manifest_runs_total": null,
+   "rerun_manifest_runs_shown": 25,
+   "recomputed_max_run": 420,
+   "rerun_manifest_max_run": 420,
+   "pair_valid_marker_reference": "reproduces manifest",
+   "ladder": {
+    "cjk": false,
+    "0_baseline": {
+     "windows": 10236,
+     "failed": 713,
+     "doc_survival": 0.9303,
+     "runs": 89,
+     "max_run_words": 420
+    },
+    "1_unescape": {
+     "windows": 10235,
+     "failed": 687,
+     "doc_survival": 0.9329,
+     "runs": 77,
+     "max_run_words": 420
+    },
+    "3_unescape+punct+space": {
+     "windows": 10574,
+     "failed": 423,
+     "doc_survival": 0.96,
+     "runs": 41,
+     "max_run_words": 432
+    }
+   },
+   "wall_s": 5.9
+  },
+  {
+   "orig": "DIAGNOSING THE SYSTEM FOR ORGANIZATIONS STAFFORD BEER",
+   "rerun_suffix": " [analyst-local]",
+   "same_sha": true,
+   "sha16": "b7b711d4d9e7234f",
+   "pages": 184,
+   "lane": "scan",
+   "orig_has_analyst_block": false,
+   "rerun_has_analyst_block": true,
+   "rerun_model": "qwen3:8b",
+   "rerun_program": "readability",
+   "orig_chars": 213337,
+   "rerun_chars": 219005,
+   "recomputed_doc_survival": 0.9791,
+   "rerun_manifest_doc_survival": 0.9791,
+   "recomputed_runs_total": 1,
+   "rerun_manifest_runs_total": null,
+   "rerun_manifest_runs_shown": 1,
+   "recomputed_max_run": 24,
+   "rerun_manifest_max_run": 24,
+   "pair_valid_marker_reference": "reproduces manifest",
+   "ladder": {
+    "cjk": false,
+    "0_baseline": {
+     "windows": 2865,
+     "failed": 60,
+     "doc_survival": 0.9791,
+     "runs": 1,
+     "max_run_words": 24
+    },
+    "1_unescape": {
+     "windows": 2865,
+     "failed": 59,
+     "doc_survival": 0.9794,
+     "runs": 1,
+     "max_run_words": 24
+    },
+    "3_unescape+punct+space": {
+     "windows": 2857,
+     "failed": 31,
+     "doc_survival": 0.9891,
+     "runs": 0,
+     "max_run_words": 0
+    }
+   },
+   "wall_s": 0.8
+  },
+  {
+   "orig": "Investment Valuation - Aswath Damodaran (4e, 2025)",
+   "rerun_suffix": " [analyst-local]",
+   "same_sha": true,
+   "sha16": "0d68f0e02293970c",
+   "pages": 1356,
+   "lane": "clean",
+   "orig_has_analyst_block": false,
+   "rerun_has_analyst_block": true,
+   "rerun_model": "qwen3:8b",
+   "rerun_program": "readability",
+   "orig_chars": 3466966,
+   "rerun_chars": 3434106,
+   "recomputed_doc_survival": 0.9525,
+   "rerun_manifest_doc_survival": 0.9525,
+   "recomputed_runs_total": 234,
+   "rerun_manifest_runs_total": null,
+   "rerun_manifest_runs_shown": 25,
+   "recomputed_max_run": 624,
+   "rerun_manifest_max_run": 624,
+   "pair_valid_marker_reference": "reproduces manifest",
+   "ladder": {
+    "cjk": false,
+    "0_baseline": {
+     "windows": 40750,
+     "failed": 1935,
+     "doc_survival": 0.9525,
+     "runs": 234,
+     "max_run_words": 624
+    },
+    "1_unescape": {
+     "windows": 40750,
+     "failed": 1368,
+     "doc_survival": 0.9664,
+     "runs": 111,
+     "max_run_words": 624
+    },
+    "3_unescape+punct+space": {
+     "windows": 42477,
+     "failed": 671,
+     "doc_survival": 0.9842,
+     "runs": 45,
+     "max_run_words": 432
+    }
+   },
+   "wall_s": 75.8
+  },
+  {
+   "orig": "bojieli_ai-agent-book： 《深入理解 AI Agent：设计原理与工程实践",
+   "rerun_suffix": " [analyst-local]",
+   "same_sha": true,
+   "sha16": "21bfdffc9c100b3d",
+   "pages": 19,
+   "lane": "clean",
+   "orig_has_analyst_block": true,
+   "rerun_has_analyst_block": true,
+   "rerun_model": "qwen3:8b",
+   "rerun_program": null,
+   "orig_chars": 26498,
+   "rerun_chars": 26557,
+   "recomputed_doc_survival": 0.9966,
+   "rerun_manifest_doc_survival": null,
+   "recomputed_runs_total": 0,
+   "rerun_manifest_runs_total": null,
+   "rerun_manifest_runs_shown": 0,
+   "recomputed_max_run": 0,
+   "rerun_manifest_max_run": 0,
+   "pair_valid_marker_reference": "no stored analyst block (computed only)",
+   "wall_s": 0.0
+  },
+  {
+   "orig": "claude-code-up-and-running",
+   "rerun_suffix": " [analyst-local rerun]",
+   "same_sha": true,
+   "sha16": "5998f114ae93f65c",
+   "pages": 104,
+   "lane": "clean",
+   "orig_has_analyst_block": false,
+   "rerun_has_analyst_block": true,
+   "rerun_model": "qwen3:8b",
+   "rerun_program": "readability",
+   "orig_chars": 140821,
+   "rerun_chars": 138260,
+   "recomputed_doc_survival": 0.9547,
+   "rerun_manifest_doc_survival": 0.9547,
+   "recomputed_runs_total": 12,
+   "rerun_manifest_runs_total": null,
+   "rerun_manifest_runs_shown": 12,
+   "recomputed_max_run": 180,
+   "rerun_manifest_max_run": 180,
+   "pair_valid_marker_reference": "reproduces manifest",
+   "ladder": {
+    "cjk": false,
+    "0_baseline": {
+     "windows": 1855,
+     "failed": 84,
+     "doc_survival": 0.9547,
+     "runs": 12,
+     "max_run_words": 180
+    },
+    "1_unescape": {
+     "windows": 1854,
+     "failed": 74,
+     "doc_survival": 0.9601,
+     "runs": 8,
+     "max_run_words": 192
+    },
+    "3_unescape+punct+space": {
+     "windows": 1905,
+     "failed": 44,
+     "doc_survival": 0.9769,
+     "runs": 4,
+     "max_run_words": 192
+    }
+   },
+   "wall_s": 0.4
+  },
+  {
+   "orig": "claude-code-up-and-running",
+   "rerun_suffix": " [analyst-local]",
+   "same_sha": true,
+   "sha16": "5998f114ae93f65c",
+   "pages": 104,
+   "lane": "clean",
+   "orig_has_analyst_block": false,
+   "rerun_has_analyst_block": true,
+   "rerun_model": "qwen3:8b",
+   "rerun_program": "readability",
+   "orig_chars": 140821,
+   "rerun_chars": 137548,
+   "recomputed_doc_survival": 0.9493,
+   "rerun_manifest_doc_survival": 0.9493,
+   "recomputed_runs_total": 14,
+   "rerun_manifest_runs_total": null,
+   "rerun_manifest_runs_shown": 14,
+   "recomputed_max_run": 180,
+   "rerun_manifest_max_run": 180,
+   "pair_valid_marker_reference": "reproduces manifest",
+   "ladder": {
+    "cjk": false,
+    "0_baseline": {
+     "windows": 1855,
+     "failed": 94,
+     "doc_survival": 0.9493,
+     "runs": 14,
+     "max_run_words": 180
+    },
+    "1_unescape": {
+     "windows": 1854,
+     "failed": 84,
+     "doc_survival": 0.9547,
+     "runs": 10,
+     "max_run_words": 192
+    },
+    "3_unescape+punct+space": {
+     "windows": 1905,
+     "failed": 55,
+     "doc_survival": 0.9711,
+     "runs": 6,
+     "max_run_words": 192
+    }
+   },
+   "wall_s": 0.4
+  }
+ ]
+}

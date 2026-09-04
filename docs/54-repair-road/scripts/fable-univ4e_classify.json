@@ -1,0 +1,136 @@
+{
+ "doc_survival_mirror": 0.9402,
+ "doc_survival_spacefree": 0.9545,
+ "windows": 40438,
+ "failed": 2420,
+ "failed_spacefree": 1841,
+ "runs": 404,
+ "runs_spacefree": 269,
+ "max_run_words_spacefree": 576,
+ "classes": {
+  "rewrite (60-89 similar)": 377,
+  "small edit (>=90 similar)": 1033,
+  "punctuation/format only": 478,
+  "absent (<60)": 466,
+  "space-only (word join/split)": 66
+ },
+ "words_by_class": {
+  "rewrite (60-89 similar)": 4524,
+  "small edit (>=90 similar)": 12396,
+  "punctuation/format only": 5736,
+  "absent (<60)": 5592,
+  "space-only (word join/split)": 792
+ },
+ "examples": {
+  "rewrite (60-89 similar)": [
+   {
+    "ref": "fourth edition investment valuation tools and techniques for determining the value of",
+    "held": "estment valuation tools and techniques for determining the value of",
+    "score": 88.2
+   },
+   {
+    "ref": "equity funds, 2013-2022 figure 6.24 the payoff to active money management: equity",
+    "held": "nsequence. figure 6.24 the payoff to active money management: equity funds note: ",
+    "score": 76.5
+   },
+   {
+    "ref": "u.s and global firms-january 2024 figure 18.8 peg ratios, expected growth, and",
+    "held": "or u.s and global firms-january 2024 peg ratios are most widely used in analyz",
+    "score": 67.9
+   },
+   {
+    "ref": "dividends and present value in high-growth -jp morgan chase table 14.3 expected",
+    "held": "dends and f present va alue in tr ansition- -jp morga an chase 6 7 8 9 10 expec",
+    "score": 69.6
+   }
+  ],
+  "small edit (>=90 similar)": [
+   {
+    "ref": "funds chapter 7 figure 7.1 determinants of equity risk premiums figure 7.2",
+    "held": "2022 chapter 7 figure 7.1 determinants of equity risk premiums figure 7.2 ",
+    "score": 93.2
+   },
+   {
+    "ref": "premiums for u.s. equity market \\(1960- 2023\\) figure 7.5 default spreads by",
+    "held": "premiums for u.s. equity market (1960- 2023) figure 7.5 default spreads by m",
+    "score": 97.4
+   },
+   {
+    "ref": "for nokia figure 8.4 beta estimate for enka: bist 100 \\(turkish index\\)",
+    "held": "e for nokia figure 8.4 beta estimate for enka: bist 100 (turkish index)",
+    "score": 97.2
+   },
+   {
+    "ref": "free cash flow to firm \\(fcff\\) chapter 11 figure 11.1 growth and",
+    "held": "free cash flow to firm (fcff) chapter 11 figure 11.1 growth and v",
+    "score": 96.9
+   }
+  ],
+  "punctuation/format only": [
+   {
+    "ref": "figure 17.3 analyzing multiples-equity and enterprise value \\(using price-to-book ra... figure 17.4",
+    "held": "figure 17.3 analyzing multiples-equity and enterprise value $using price-to-book ra... figure 17.4 ",
+    "score": 98.0
+   },
+   {
+    "ref": "companies in january 2024. figure 19.2 price-book value as a function of",
+    "held": "companies in january 2024 figure 19.2 price-book value as a function of ",
+    "score": 98.6
+   },
+   {
+    "ref": "table 7.3 historical risk premiums for the united states \\(with standard errors",
+    "held": " table 7.3 historical risk premiums for the united states (with standard errors",
+    "score": 98.7
+   },
+   {
+    "ref": "website that will accompany this book (www.damodaran.com\\), as will a significant number",
+    "held": " website that will accompany this book (www.damodaran.com, as will a significant number ",
+    "score": 97.7
+   }
+  ],
+  "absent (<60)": [
+   {
+    "ref": "growth rates- january 2024 figure 18.12 peg ratios versus ln\\(expected growth\\)-january 2024",
+    "held": "growth in more detail in chapter 11. illustration 23.1: revenue growth rates- airbnb in 2020",
+    "score": 45.7
+   },
+   {
+    "ref": "chapter 23 table 23.1 expected revenues for airbnb \\(in \\\\$ millions\\) table",
+    "held": "rowthperiod) $gn = growth rate in perpetuity after yearn \\\\$ in the case whe",
+    "score": 44.7
+   },
+   {
+    "ref": "for airbnb \\(in \\\\$ millions\\) table 23.5 present value of fcff for",
+    "held": " after\\ year\\ n \\\\$ as you can see, the structure of this model clo",
+    "score": 43.3
+   },
+   {
+    "ref": "status quo valuation of sab miller \\(in \\\\$ millions\\) table 25.3 value",
+    "held": "structure of this model closely follows the two-st",
+    "score": 39.7
+   }
+  ],
+  "space-only (word join/split)": [
+   {
+    "ref": "dividends and present value in transition- jp morgan chase table 14.4 dividends",
+    "held": "dividends and present value in transition-jp morgan chase table 14.4 dividends ",
+    "score": 98.7
+   },
+   {
+    "ref": "taxrateon ordinary in come the second term captures the benefit of financial",
+    "held": " taxrateon ordinary income the second term captures the benefit of financial",
+    "score": 98.7
+   },
+   {
+    "ref": "risks described-project, competitive, and sector risk -is that they affect only a",
+    "held": " risks described-project, competitive, and sector risk-is that they affect only a",
+    "score": 98.8
+   },
+   {
+    "ref": "quartile 3rd quartile 4th quartile liquidated 1 st quartile 8.21% 12.32% 24.02%",
+    "held": "quartile 3rd quartile 4th quartile liquidated 1st quartile 8.21% 12.32% 24.02% ",
+    "score": 98.7
+   }
+  ]
+ }
+}

@@ -1,0 +1,11 @@
+{
+  "n_chunks": 957,
+  "journal_validated_records": 516,
+  "still_failing_windows_unescape_spacefree": 1025,
+  "windows_located": 696,
+  "windows_not_located": 329,
+  "pct_not_located": 32.1,
+  "chunks_with_located_loss": 381,
+  "n_chunks_for_80pct_of_located_loss": 242,
+  "total_located_loss_windows": 696
+}

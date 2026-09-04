@@ -1,0 +1,117 @@
+{
+ "pdf_sha_matches_manifest": true,
+ "asset_count": 308,
+ "manifest_convert": {
+  "doc_survival": 0.9334,
+  "pages_scored": 1372,
+  "pages_flagged": 241,
+  "runs_total": 531,
+  "degeneration": true,
+  "degeneration_worst0_line": 5524,
+  "degeneration_blocks_total": 24,
+  "asset_delta": 76,
+  "embedded_images": 232
+ },
+ "marker_ref_unrepaired": {
+  "doc_survival": 0.9334,
+  "pages_scored": 1372,
+  "pages_flagged": 241,
+  "pages_flagged_equal_manifest_list": true,
+  "runs_total": 531,
+  "degeneration": true,
+  "blocks_total": 1,
+  "worst": [
+   [
+    8795,
+    3005,
+    0.074,
+    62
+   ]
+  ],
+  "asset_delta": 76,
+  "embedded_images": 232,
+  "verdict_convert_alone": "fail",
+  "verdict_with_historical_analyst": "fail",
+  "wall_s": 49.5
+ },
+ "held_full_unrepaired": {
+  "doc_survival": 0.9271,
+  "pages_scored": 1372,
+  "pages_flagged": 257,
+  "pages_flagged_equal_manifest_list": false,
+  "runs_total": 570,
+  "degeneration": true,
+  "blocks_total": 1,
+  "worst": [
+   [
+    8776,
+    21870,
+    0.011,
+    441
+   ]
+  ],
+  "asset_delta": 76,
+  "embedded_images": 232,
+  "verdict_convert_alone": "fail",
+  "verdict_with_historical_analyst": "fail",
+  "wall_s": 51.2
+ },
+ "marker_repair": {
+  "deleted_lines_1based": [
+   8795,
+   8796
+  ],
+  "deleted_chars": 3004,
+  "head": "<span id=\"page-439-6\"></span>"
+ },
+ "marker_ref_repaired": {
+  "doc_survival": 0.9334,
+  "pages_scored": 1372,
+  "pages_flagged": 241,
+  "pages_flagged_equal_manifest_list": true,
+  "runs_total": 531,
+  "degeneration": false,
+  "blocks_total": 0,
+  "worst": [],
+  "asset_delta": 76,
+  "embedded_images": 232,
+  "verdict_convert_alone": "flag",
+  "verdict_with_historical_analyst": "fail",
+  "wall_s": 50.8
+ },
+ "held_repair": {
+  "deleted_lines_1based": [
+   8776,
+   8776
+  ],
+  "deleted_chars": 21870,
+  "head": "$$\\begin{array}{lll} {\\rm ROC} + {\\rm D/E} \\left[ {{\\rm ROC} - i\\left(",
+  "line_after_blank": ""
+ },
+ "held_full_repaired": {
+  "doc_survival": 0.9271,
+  "pages_scored": 1372,
+  "pages_flagged": 257,
+  "pages_flagged_equal_manifest_list": false,
+  "runs_total": 570,
+  "degeneration": false,
+  "blocks_total": 0,
+  "worst": [],
+  "asset_delta": 76,
+  "embedded_images": 232,
+  "verdict_convert_alone": "flag",
+  "verdict_with_historical_analyst": "fail",
+  "wall_s": 48.1
+ },
+ "control_synthetic_runaway_trips": {
+  "flagged": true,
+  "blocks_total": 1
+ },
+ "control_repaired_quiet": {
+  "flagged": false,
+  "blocks_total": 0
+ },
+ "verdict_matrix": {
+  "hist_analyst_with_a_clean_convert_block": "fail"
+ }
+}
