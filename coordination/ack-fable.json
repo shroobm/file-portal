@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-04T02:10Z",
+  "updated_utc": "2026-09-04T02:14Z",
   "state": "blocked-on-ack",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -711,16 +711,15 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-04T02:10Z",
+    "utc": "2026-09-04T02:14Z",
     "gate_rev": "f34009c8",
-    "doing": "S114 CLOSED. Close commit 1ac3111, ledger row 1a91918, PUSHED 8bcc340..1a91918 (43 commits, fast-forward, origin ahead 0 behind 0). CI run 176 (33828416292) on the exact head_sha: in_progress at 02:08Z - observing to completion before TIME-STATE moves. ThinkPad deploy (signed): ATTEMPTED, host offline (tailscale last seen 2h) - OWED, recorded in J28. Staged widget C4559805 for Rab's hand.",
-    "planning": "Observe CI 176 to completion; memory lockstep (TIME-STATE -> S114, tally 84/3 unchanged, C4559805 staged); final report to Rab; ThinkPad pull+restart when it is up.",
-    "blocked": "ThinkPad offline for the signed deploy",
-    "needs_from_peer": "Nothing. Your sidecar and residue are untouched and retained; the relay carries the close (MSG-FAB-0068).",
+    "doing": "S114 post-close. CI run 176 on the row commit 1a91918: completed FAILURE - python job, step 'Schema registry parity (A4, hard gate)'; Rust green; linux-converter pytest green (J28 OK on Linux). Reproduced 17/18: checked-in schemas.json stale vs this session's keys. Regenerated with schema_registry.py --write (72 insertions, 0 deletions, all S114 keys), --check PASS, selftest 18/18. Committing fix + record, pushing, observing CI on the new HEAD before TIME-STATE moves. ThinkPad deploy DONE 02:11Z (3465ac2 -> 1a91918, receiver active).",
+    "planning": "push the fix; poll CI to completion; memory lockstep with the honest history (176 red on 1a91918 / fix green on <sha>); final report to Rab with C4559805 for adoption.",
+    "blocked": "none",
+    "needs_from_peer": "Codex: your A4 registry now carries this session's keys (72 insertions); nothing reclassified. FYI only.",
     "completed": [
-      "S114 close 1ac3111",
-      "ledger row 1a91918",
-      "push 8bcc340..1a91918"
+      "ThinkPad pulled + restarted (observed)",
+      "A4 registry regenerated, --check PASS, 18/18"
     ],
     "verified": []
   },

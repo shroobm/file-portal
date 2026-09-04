@@ -225,11 +225,13 @@
         "chunks_failed",
         "chunks_passed",
         "chunks_rejected",
+        "cost_s",
         "duration_s",
         "error",
         "event",
         "id",
         "pages",
+        "pages_converted_this_run",
         "program",
         "reason",
         "s_per_page",
@@ -281,14 +283,34 @@
         "convert/asset_range_warning": [
           "page_range"
         ],
+        "convert/blocks": [
+          "blocks_total",
+          "slices_total",
+          "slices_with_blocks",
+          "source"
+        ],
+        "convert/blocks_error": [
+          "error",
+          "page_range",
+          "phase",
+          "source"
+        ],
+        "convert/blocks_partial": [
+          "page_unresolved",
+          "slices_total",
+          "slices_with_blocks",
+          "source"
+        ],
         "convert/chunk_batch_invalid": [
           "fallback",
           "value"
         ],
         "convert/chunk_batch_unreadable": [],
         "convert/converted": [
+          "cost_s",
           "event",
           "pages",
+          "pages_converted_this_run",
           "resumed_slices",
           "retry_wall_s",
           "s_per_page",
@@ -400,6 +422,7 @@
             "chunks_generated",
             "chunks_passed",
             "chunks_rejected",
+            "chunks_resumed",
             "duration_s",
             "event",
             "goodput_accepted_tok_s",
@@ -558,6 +581,53 @@
             "source",
             "stage",
             "ts"
+          ]
+        },
+        "convert/blocks": {
+          "optional_keys": [],
+          "required_keys": [
+            "blocks_total",
+            "bytes",
+            "complete",
+            "event",
+            "page_max",
+            "page_min",
+            "page_unresolved",
+            "pages_with_blocks",
+            "pid",
+            "slices_total",
+            "slices_with_blocks",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/blocks_error": {
+          "optional_keys": [
+            "page_range",
+            "source"
+          ],
+          "required_keys": [
+            "error",
+            "event",
+            "phase",
+            "pid",
+            "stage",
+            "ts"
+          ]
+        },
+        "convert/blocks_partial": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "page_unresolved",
+            "pid",
+            "slices_total",
+            "slices_with_blocks",
+            "source",
+            "stage",
+            "ts",
+            "unreadable"
           ]
         },
         "convert/card_mutex": {
@@ -951,6 +1021,8 @@
       "optional_paths": [],
       "required_paths": [
         "batch",
+        "blocks",
+        "blocks_engine",
         "engine_args",
         "lever_batch",
         "marker_version",
