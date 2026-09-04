@@ -574,7 +574,7 @@ class FakeAnalyst:
     process() returns a body of a DIFFERENT length on purpose: that is the decoy for `chars`,
     where the wrong answer (len(body) after the rebind) is the analyst's own OUTPUT size."""
 
-    CHUNK_TARGET = 6000
+    CHUNK_TARGET = 6000  # lever-waiver: a test double's attribute, not a decision - it mirrors the shape of analyst.CHUNK_TARGET (the real lever, analyst.py) so the stub's chunker signature matches; any value works, and moving the real lever does not move this
 
     def __init__(self, meta):
         self.meta = dict(meta)
