@@ -130,6 +130,10 @@
       "disposition": "EVIDENCE",
       "reason": "NUM-3: names the [:10] exemplar cap beside blocks_total in degeneration_detail — same declared-cap discipline."
     },
+    "converter:table_rows_stripped": {
+      "disposition": "EVIDENCE",
+      "reason": "J29 / SYM-067 (signed Rab 2026-09-04): the number of markdown pipe-table rows blanked before degeneration() measured the body, beside blocks_total in degeneration_detail (fidelity_audit.py). docs/34: a gate that excludes something says how much it excluded. Renderers read flagged/worst; the count is record-keeping like worst_capped_at."
+    },
     "converter:tokens_prompt_total": {
       "disposition": "EVIDENCE",
       "reason": "NUM-6 (census N-026): aggregated backend prompt tokens, manifest.analyst — forensic record beside goodput; tokens_prompt_counted_calls names its partial-sum denominator."

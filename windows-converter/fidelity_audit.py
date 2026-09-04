@@ -261,14 +261,55 @@ def _score_page(page_text: str, output_search: str, idx: dict, freq: dict,
 # ---------------------------------------------------------------------------
 # Tripwires (docs/15 §5).
 # ---------------------------------------------------------------------------
-def degeneration(markdown: str) -> dict:
+# SYM-067 (filed S112, built S114 post-close as J29, signed Rab 2026-09-04): the loop detector
+# is TABLE-AWARE. degeneration() used to run on RAW markdown, and a sparse pipe-table grid — a
+# single-sentence callout promoted to a 30-row empty table, phantom trailing columns — is BOTH
+# crushed-compressible AND an extreme repeated word-trigram ("| | |" hundreds of times): the exact
+# signature of a decoder loop, with zero loops in it. It fired the whole `fail` verdict on the
+# Damodaran 2025 4e anchor (26 blocks, 0 real). Pipe-table ROWS are blanked before the
+# per-paragraph pass; each row's line terminator is kept, so every `line` in `worst` and
+# `md_lines` still address the body as shipped. Measured on the pair that named the symptom
+# (docs/53-lead-hunt/scripts/verify_sym067_pair.py, then this function): 2025 4e 26 → 0; the held
+# University 4e 25 → 1, and the 1 is a real runaway (line 8776, `{1 - t}` × 441 — SYM-056's
+# unterminated array), which MUST stay flagged; the Beer Brain-of-the-Firm anchor (max_trigram
+# 2,267) still trips. Declared blind spot, made falsifiable in degeneration_selftest.py D5: a loop
+# that emits ONLY table rows is not seen — the repeated-line check never counted `|` rows either
+# (docs/15 §9.2). The count of rows blanked rides in the block as `table_rows_stripped` (docs/34:
+# a gate that excludes something says how much it excluded).
+_TABLE_ROW = re.compile(r"^[ \t]*\|.*\|[ \t]*$")
+
+
+def _blank_table_rows(markdown: str) -> tuple[str, int]:
+    """Replace every markdown pipe-table row with an empty line, keeping its terminator, so the
+    line count and every newline position are preserved by construction."""
+    out, n = [], 0
+    for ln in markdown.splitlines(keepends=True):
+        body = ln.rstrip("\r\n")
+        if _TABLE_ROW.match(body):
+            out.append(ln[len(body):])
+            n += 1
+        else:
+            out.append(ln)
+    return "".join(out), n
+
+
+def degeneration(markdown: str, strip_table_rows: bool = True) -> dict:
     """Per-paragraph zlib ratio + max repeated trigram (word, or char for CJK blocks),
-    plus a repeated-output-line check. Priors from docs/15 §9.1."""
+    plus a repeated-output-line check. Priors from docs/15 §9.1. Table rows are blanked
+    first (SYM-067, above); `strip_table_rows=False` is the pre-J29 behaviour, kept only so
+    the selftest can prove the gate does work."""
+    table_rows_stripped = 0
+    if strip_table_rows:
+        markdown, table_rows_stripped = _blank_table_rows(markdown)
     flagged = False
     worst = []
     pos = 0
     for para in markdown.split("\n\n"):
-        line_no = markdown.count("\n", 0, pos) + 1
+        # The line of the paragraph's FIRST NON-BLANK character. A blanked table leaves an odd
+        # run of newlines that split() hands to the next paragraph as a leading "\n"; counting
+        # from `pos` alone would then report the line before the text (off by one).
+        lead = len(para) - len(para.lstrip())
+        line_no = markdown.count("\n", 0, pos + lead) + 1
         pos += len(para) + 2
         p = para.strip()
         if len(p) < DEGEN_BLOCK_MIN_CHARS:
@@ -312,7 +353,8 @@ def degeneration(markdown: str) -> dict:
     # NUM-3: the exemplar list stays capped at 10; the TRUE flagged-block count survives it
     return {"flagged": flagged, "repeated_lines": repeated_lines,
             "md_lines": markdown.count("\n") + 1, "worst": worst[:10],
-            "blocks_total": len(worst), "worst_capped_at": 10}
+            "blocks_total": len(worst), "worst_capped_at": 10,
+            "table_rows_stripped": table_rows_stripped}
 
 
 def garbage_rate(output_final: str):

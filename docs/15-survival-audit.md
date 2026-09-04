@@ -256,6 +256,32 @@ degeneration tripwire and, in `enforce` mode, was held. Reading the flagged cont
   unrepresented until the first live drop — exactly the "show its false alarms before it is
   allowed to pulse terracotta" safeguard (§9 step 3) doing its job.
 
+### 9.3 The table-aware gate — SYM-067 → J29 (measured 2026-09-04, signed Rab)
+
+The §9.2 recalibration cleared **dense** tables (their words vary → low trigram). A **sparse**
+grid is the opposite case: `| | | |` rows repeat the same three tokens hundreds of times, so the
+trigram half fires AND zlib crushes it — the loop signature, with no loop in it. First seen S112
+on the Damodaran 2025 4e anchor: 26 flagged blocks, `repeated_lines` 0, zero decoder loops on
+reading; the whole `fail` verdict rode on it (degeneration is the only convert-stage path to
+`fail`, §12).
+
+- **Repair** (`fidelity_audit._blank_table_rows`, J29): every pipe-table row (`^\s*\|.*\|\s*$`)
+  is blanked before the per-paragraph pass, its line terminator kept, so `line` and `md_lines`
+  still address the body as shipped; the count travels beside `blocks_total` as
+  `table_rows_stripped`. The `strip_table_rows=False` path is kept only so
+  `degeneration_selftest.py` can show the decoy tripping on the old path (D2).
+- **Re-verified over the whole anchor + held corpus on disk** (34 markdown files, CPU, read-only):
+  exactly three verdicts flip, all Damodaran 2025 4e bundles (26 → 0 blocks). The held University
+  4e keeps **one** block — line 8776, `{1 - t}` × 441, SYM-056's unterminated `\begin{array}` —
+  a real runaway that must stay flagged, and does. Brain of the Firm still flags (trigram ×2,267
+  / ×143); Diagnosing, Ashby, Valentine keep their verdicts with fewer exemplar blocks.
+- **Declared blind spot** (`degeneration_selftest.py` D5): a loop that emits ONLY table rows is
+  invisible to the gate — the repeated-line check (§9.2) never counted `|` rows either. Residue,
+  not a catch, until a specimen demands it.
+- **Lesson for the register:** the trigram discriminator (§9.2) is reliable on *words*; a
+  structural token repeated *as* words is the one way to fool it, and the repair is to take the
+  structure out of the text before measuring, not to move the threshold.
+
 ## 10. Deferred (add only when evidence demands)
 
 Reading-order property checks (olmOCR-style before/after pairs) · TEDS for table
