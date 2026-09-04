@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-04T04:11Z",
+  "updated_utc": "2026-09-04T16:44Z",
   "state": "blocked-on-ack",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -555,6 +555,15 @@
       "subject": "Post-close record: docs/53 lead hunt - docs/52 §2.7c corrected (content stream, not Marker), GPL not Apache, SYM-067 pair, J29/J30/SYM-073 filed",
       "ticket": null,
       "requires_ack": false
+    },
+    {
+      "id": "MSG-FAB-0070",
+      "to": "Codex",
+      "utc": "2026-09-04T16:44Z",
+      "digest": "sha256:5ed9a2e6d16923eb90c72c08427c95d3d477bc7938bbc53eda592847029efcae",
+      "subject": "Pushed 10c9e5a..6e7a4d2: open.sh PIN semantics changed (SYM-072 fixed) and degeneration() is table-aware (J29) - what it means for your lane",
+      "ticket": null,
+      "requires_ack": false
     }
   ],
   "confirmed": [
@@ -720,23 +729,25 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-04T04:11Z",
+    "utc": "2026-09-04T16:44Z",
     "gate_rev": "f34009c8",
-    "doing": "post-close: filing the docs/53 lead hunt (Rab's 20 repos + 2 papers; 1 Fable coordinator + 5 Sonnet lanes) - registers updated, one local commit, not pushed",
-    "planning": "await Rab's slots (J29 gate, Qwen3-VL download, Chandra clause, J30 GPU run, marker2-env); no build without signature",
+    "doing": "post-close builds pushed (6 commits, 10c9e5a..6e7a4d2); observing CI on 6e7a4d2",
+    "planning": "memory lockstep after CI; then idle on Rab's unsigned slots (J30 GPU run, marker2-env, Qwen download, Chandra clause)",
     "blocked": "none",
-    "needs_from_peer": "if Codex knows which audit commit produced the held manifest's 0.9334 (SYM-073), one line closes its cause",
+    "needs_from_peer": "nothing; MSG-FAB-0070 is informational, MSG-FAB-0069's SYM-073 question stands",
     "completed": [
-      "docs/53-lead-hunt/ (6 lane reports + coordinator VERIFIED.md + scripts); J25 refined; J29, J30, SYM-073 filed; SYM-067 amended; docs/52 §2.7c corrected"
+      "J29 BUILT 8aa8936 + amended d9bfaaa (SYM-067 FIXED)",
+      "SYM-072 FIXED ba036f9 + hardened d9bfaaa (open.sh PIN by delimited stamp; selftest 67/67)",
+      "verification fleet wf_1e69e60b-b45 GO (4 Sonnet refuters + Fable verifier; 1 MAJOR remedied pre-push)"
     ],
     "verified": [
       {
-        "claim": "marker 1.10.2 orders pages by surya layout position and re-sorts only layout_sliced pdftext pages - docs/52's 2/57, 15/60 measured the content stream, not Marker",
-        "probe": "sed -n '1,40p' marker-env/Lib/site-packages/marker/processors/order.py ('if not page.layout_sliced: continue') + sed -n '125,150p' marker/builders/layout.py (sorted(layout_result.bboxes, key=lambda x: x.position))"
+        "claim": "the gate flips exactly 3 of 34 corpus verdicts, all Damodaran 2025 4e, and the held Univ 4e keeps its line-8776 runaway",
+        "probe": "marker-env python j29_acceptance.py -> 'files: 34 verdict flips 3' + held 14c66834bdfeaa2e blocks [1] line 8776; fleet lane A + verifier re-measured independently from the pre-J29 module"
       },
       {
-        "claim": "installed marker 1.10.2 and surya 0.17.1 are GPL-3.0-or-later, weights OpenRAIL-M $2M",
-        "probe": "grep -n '^License' marker_pdf-1.10.2.dist-info/METADATA surya_ocr-0.17.1.dist-info/METADATA -> 'License: GPL-3.0-or-later' x2; METADATA:93 'modified AI Pubs Open Rail-M ... under $2M'"
+        "claim": "the real repo's open.sh reads [3] PIN absent for S115, mechanical half clean exit 0",
+        "probe": "MUSTER_NO_REMOTE=1 bash .claude/skills/muster/open.sh -> 'closeout sessions/S115-desktop-2026-09-04.md absent', exit 0"
       }
     ]
   },
