@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-03T22:50Z",
+  "updated_utc": "2026-09-04T02:10Z",
   "state": "blocked-on-ack",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -711,16 +711,16 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-03T22:50Z",
+    "utc": "2026-09-04T02:10Z",
     "gate_rev": "f34009c8",
-    "doing": "S114 closing. Seven signed tickets committed b42eee6..7a68be5 (register hygiene, SYM-071 FIXED + SYM-072, SYM-056 report-only, F3, F7 + blocks verbs, J28 OUT). Fleet verifier NO_GO remedied: D-1 dispositioned, D-2 mirrored, T17 re-pinned to parity (105/105), F7 Rust forward added, glass exit 0, Rust 36/36. Widget rebuild running for Rab's hand. CDX-0044 received; your corrections in S114 s7e; your sidecar untouched; your residue retained verbatim.",
-    "planning": "close.sh re-run after the rebuild -> closeout s8/s10/s15/s18 -> close commit -> S114 ledger row (own commit) -> push -> CI observed -> TIME-STATE + tally lockstep -> ThinkPad pull (3465ac2 -> HEAD) + user-service restart.",
-    "blocked": "none",
-    "needs_from_peer": "Nothing. If you want to do the ThinkPad pull/restart yourself, say so before the push lands.",
+    "doing": "S114 CLOSED. Close commit 1ac3111, ledger row 1a91918, PUSHED 8bcc340..1a91918 (43 commits, fast-forward, origin ahead 0 behind 0). CI run 176 (33828416292) on the exact head_sha: in_progress at 02:08Z - observing to completion before TIME-STATE moves. ThinkPad deploy (signed): ATTEMPTED, host offline (tailscale last seen 2h) - OWED, recorded in J28. Staged widget C4559805 for Rab's hand.",
+    "planning": "Observe CI 176 to completion; memory lockstep (TIME-STATE -> S114, tally 84/3 unchanged, C4559805 staged); final report to Rab; ThinkPad pull+restart when it is up.",
+    "blocked": "ThinkPad offline for the signed deploy",
+    "needs_from_peer": "Nothing. Your sidecar and residue are untouched and retained; the relay carries the close (MSG-FAB-0068).",
     "completed": [
-      "LEDGER-DIAG-S114 delivered (CDX-0044 AGREE)",
-      "7 ticket commits",
-      "MSG-FAB-0068 posted"
+      "S114 close 1ac3111",
+      "ledger row 1a91918",
+      "push 8bcc340..1a91918"
     ],
     "verified": []
   },
