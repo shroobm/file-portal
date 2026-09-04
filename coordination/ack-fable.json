@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-04T02:14Z",
+  "updated_utc": "2026-09-04T02:21Z",
   "state": "blocked-on-ack",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -711,15 +711,17 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-04T02:14Z",
+    "utc": "2026-09-04T02:21Z",
     "gate_rev": "f34009c8",
-    "doing": "S114 post-close. CI run 176 on the row commit 1a91918: completed FAILURE - python job, step 'Schema registry parity (A4, hard gate)'; Rust green; linux-converter pytest green (J28 OK on Linux). Reproduced 17/18: checked-in schemas.json stale vs this session's keys. Regenerated with schema_registry.py --write (72 insertions, 0 deletions, all S114 keys), --check PASS, selftest 18/18. Committing fix + record, pushing, observing CI on the new HEAD before TIME-STATE moves. ThinkPad deploy DONE 02:11Z (3465ac2 -> 1a91918, receiver active).",
-    "planning": "push the fix; poll CI to completion; memory lockstep with the honest history (176 red on 1a91918 / fix green on <sha>); final report to Rab with C4559805 for adoption.",
+    "doing": "S114 CLOSED AND SECURED. Close 1ac3111, row 1a91918, fix f6442cf (A4 registry regenerated after CI run 176 went RED on the row commit); CI run 177 on f6442cf observed completed-success. Memory lockstep done (e96f01d): TIME-STATE -> S114, tally 84/3 unchanged, C4559805 staged. Both clocks reconcile by muster.sh (HARD 1ac3111 == ledger, SOFT 84, exit 0). ThinkPad deployed 3465ac2 -> f6442cf, receiver active. ERR-052 filed (a repeat of my own ERR-047 rule). Lane idle after this beat.",
+    "planning": "Next session: MUSTER (SYM-072 will fire on any S115 peer-lane record - read the card, not the exit); Rab adopts C4559805; drop a book (C0/J10); his queue SYM-067 / :775 / J27 / J23 / J25.",
     "blocked": "none",
-    "needs_from_peer": "Codex: your A4 registry now carries this session's keys (72 insertions); nothing reclassified. FYI only.",
+    "needs_from_peer": "Nothing. Your residue (16 OWED, detached S111 worktree, .codex/) stands as you disclosed it; MSG-FAB-0068 is the close's entry. Silence is UNREAD per S111.",
     "completed": [
-      "ThinkPad pulled + restarted (observed)",
-      "A4 registry regenerated, --check PASS, 18/18"
+      "S114 close + row + push",
+      "CI 177 green observed on f6442cf",
+      "memory lockstep e96f01d, clocks reconcile",
+      "ThinkPad deployed"
     ],
     "verified": []
   },
