@@ -372,7 +372,34 @@ if [[ -n "$this_n" && -f "$FP_REPO/$closeout" ]]; then
   added=$(git -C "$FP_REPO" log --diff-filter=A --format=%h -- "$closeout" 2>/dev/null | tail -1)
   row "" "OPEN — this session's closeout exists${added:+, added in $added} · §1 must stay byte-identical to close"
 elif [[ -n "$this_n" && -n "$(ls -1 "$FP_REPO/sessions/S${this_n}-"* 2>/dev/null)" ]]; then
-  row "" "COLLISION — a closeout for S${this_n} exists under a different machine/date"; fail=1
+  # SYM-072 (S114): the old guard decided by FILENAME ONLY and called every other S<n>-* file a
+  # collision — which fired on day two of a multi-day session (the closeout is named by its OPEN
+  # date, SKILL.md Phase 6) and on a peer lane's record under the same number. The discriminator
+  # is the file's own ⟨claimed: … S<n> …⟩ stamp (coordination/authorship.md) plus the machine in
+  # its name: this machine + a past-or-today date + a stamp naming S<n> is THIS session's closeout
+  # (OPEN); another shape carrying the stamp is a named LANE RECORD; anything else — a different
+  # machine, a future date, or no stamp at all — is still a COLLISION, because continuity that
+  # cannot be read is not continuity (rule 4: a failed probe is never a negative observation).
+  own=""; lanes=""; foreign=""
+  for f in "$FP_REPO/sessions/S${this_n}-"*; do
+    b=$(basename "$f")
+    stamp=$(grep -m1 'claimed:' "$f" 2>/dev/null | tr -d '\r')
+    stamped=0; [[ "$stamp" =~ S${this_n}([^0-9]|$) ]] && stamped=1
+    if [[ "$b" =~ ^S${this_n}-${machine}-([0-9]{4}-[0-9]{2}-[0-9]{2})\.md$ ]]; then
+      d="${BASH_REMATCH[1]}"
+      if [[ "$stamped" -eq 1 && ! "$d" > "$today" ]]; then own+="$b (opened $d) "
+      elif [[ "$stamped" -eq 1 ]]; then foreign+="$b (dated after today) "
+      else foreign+="$b (no ⟨claimed: … S${this_n}⟩ stamp) "; fi
+    elif [[ "$b" =~ ^S${this_n}-(desktop|thinkpad|unknown)-[0-9]{4}-[0-9]{2}-[0-9]{2}\.md$ ]]; then
+      foreign+="$b (another machine's closeout) "      # closeout-shaped, not ours: stamp or no stamp
+    elif [[ "$stamped" -eq 1 ]]; then lanes+="$b "
+    else foreign+="$b (no stamp) "; fi
+  done
+  [[ -n "$own" ]]   && row "" "OPEN — this session's closeout exists: ${own}· a later day of the same session (SYM-072) · §1 must stay byte-identical to close"
+  [[ -n "$lanes" ]] && row "" "LANE RECORD — ${lanes}· a second lane under S${this_n}, named, not a collision (SYM-072)"
+  if [[ -n "$foreign" ]]; then
+    row "" "COLLISION — ${foreign}· a closeout for S${this_n} this session cannot claim"; fail=1
+  fi
 else
   row "" "absent — SKILL.md Phase 6 creates it BEFORE work, with §1 Intent in Rab's words"
 fi

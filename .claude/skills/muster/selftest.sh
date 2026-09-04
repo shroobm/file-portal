@@ -636,6 +636,53 @@ assert "…and no 'received' phrase at all fires UNREAD, not DRIFT" 1 'UNREAD ho
 if printf '%s' "$out" | grep -q 'DRIFT'; then
   bad "…and does not say DRIFT when there is no hook at all" "printed DRIFT where UNREAD was expected"
 else ok "…and does not say DRIFT when there is no hook at all"; fi
+# CASE 40 — SYM-072, filed S114. The property: [3] PIN tells CONTINUITY from COLLISION by the
+# file's own ⟨claimed:⟩ stamp and machine, not by the date in its name. Violate the old way: the
+# fixture's ledger ends at S42, so this session is S43 and today's closeout would be
+# S43-desktop-<today>.md; plant S43-desktop-2026-01-05.md (an EARLIER day, i.e. a multi-day
+# session's own file, opened 01-05) carrying ⟨claimed: Fable lane · S43⟩. Pre-fix this printed
+# "COLLISION — a closeout for S43 exists under a different machine/date" and exit 1, on every
+# open from day two of S114 onward (observed 2026-09-03).
+mkopen43() { # mkopen43 <workdir-suffix> → sets R, sha
+  R="$WORK/c$1"; sha=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+  sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"; git -C "$R" commit -qam rows >/dev/null 2>&1
+  mkdir -p "$R/sessions"; mklib "$WORK/l$1" 12 S42 "$sha"
+}
+runopen() { MEMORY_LIB="$WORK/l$1" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1; }
+mkopen43 40
+printf '# S43\n\n⟨claimed: Fable lane · occupant: t · S43 · 2026-01-05⟩\n\n## 1. Intent\n' > "$R/sessions/S43-desktop-2026-01-05.md"
+out=$(runopen 40); rc=$?
+assert "SYM-072: a same-machine EARLIER-day closeout with a ⟨claimed: S43⟩ stamp is OPEN, not a collision" 0 'OPEN — this session.s closeout exists: S43-desktop-2026-01-05.md \(opened 2026-01-05\)' "$rc" "$out"
+if printf '%s' "$out" | grep -q 'COLLISION'; then bad "…and does not also say COLLISION" "printed COLLISION for the session's own file"
+else ok "…and does not also say COLLISION"; fi
+
+# NEGATIVE CONTROL for CASE 40: the same filename with NO ⟨claimed:⟩ stamp. A fix that trusts
+# the machine+date in the NAME alone would accept this; the stamp is the evidence of continuity.
+mkopen43 40n
+printf '# S43\n\nno stamp here\n' > "$R/sessions/S43-desktop-2026-01-05.md"
+out=$(runopen 40n); rc=$?
+assert "…and the same name WITHOUT a stamp is still a COLLISION (exit 1), naming why" 1 'COLLISION — S43-desktop-2026-01-05.md \(no ⟨claimed: … S43⟩ stamp\)' "$rc" "$out"
+
+# CASE 41 — SYM-072's second shape: a PEER-LANE record under the same number
+# (S114-ledger-diag-codex.md; the S113 -fable-lane- precedent). Pre-fix: COLLISION, exit 1.
+# The fix must NAME it as a lane record and exit 0.
+mkopen43 41
+printf '# S43 diag\n\n⟨claimed: Codex · S43 · 2026-01-06 UTC⟩\n' > "$R/sessions/S43-ledger-diag-codex.md"
+out=$(runopen 41); rc=$?
+assert "SYM-072: a peer-lane record ⟨claimed: Codex · S43⟩ is a named LANE RECORD (exit 0)" 0 'LANE RECORD — S43-ledger-diag-codex.md ' "$rc" "$out"
+
+# CASE 42 — the guard must still FIRE on a genuine collision, or cases 40/41 pass by always
+# saying yes. A closeout for S43 on ANOTHER machine, stamp and all: exit 1.
+mkopen43 42
+printf '# S43\n\n⟨claimed: Fable lane · S43 · 2026-01-05⟩\n' > "$R/sessions/S43-thinkpad-2026-01-05.md"
+out=$(runopen 42); rc=$?
+assert "SYM-072: a closeout for S43 on another machine, STAMP AND ALL, is still a COLLISION (exit 1)" 1 'COLLISION — S43-thinkpad-2026-01-05.md \(another machine.s closeout\)' "$rc" "$out"
+# …and a stamp for the WRONG number does not count as this session's: S430 is not S43.
+mkopen43 42b
+printf '# S430\n\n⟨claimed: Fable lane · S430 · 2026-01-05⟩\n' > "$R/sessions/S43-desktop-2026-01-05.md"
+out=$(runopen 42b); rc=$?
+assert "…and a ⟨claimed: S430⟩ stamp does not satisfy S43 (prefix is not identity)" 1 'COLLISION — S43-desktop-2026-01-05.md \(no ⟨claimed: … S43⟩ stamp\)' "$rc" "$out"
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
