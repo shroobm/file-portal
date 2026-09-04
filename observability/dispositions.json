@@ -253,6 +253,10 @@
     "converter:chunks_resumed": {
       "disposition": "EVIDENCE",
       "reason": "analyst.py:424 - chunks carried over from a prior run's journal (S61 resume). Census N-005 names it SILENCED ON EVERY HUMAN CHANNEL, and on the 2026-09-01 maiden voyage it was 641 of 957 (67 %) - the number that makes duration_s and chunks_passed honest together (N-007/N-013). F3 (S114) now emits it on analyst/done from BOTH paths so it reaches the event stream and the manifest; the Dock/Room do not yet render it - that is the N-005 repair and a signed widget change, carried as residue. Signed EVIDENCE at the same sitting the detector named it (docs/29 s5.4 same-commit rule)."
+    },
+    "converter:pages_flagged": {
+      "disposition": "EVIDENCE",
+      "reason": "fidelity_audit.py:473 (audit_convert) - the per-page LOCALIZER behind doc_survival: the list of source pages whose witness windows failed (241 of 1,372 scored on the 2026-09-01 maiden voyage). Pre-existing since docs/15; pulled into --since scope by SYM-056's latex_balance edit to the same function (S114, 91973a4). The COUNT reaches the glass through doc_survival and the verdict; the LIST is a drill-down, not an alarm - EEMUA 191 and docs/52 CONTRACT.md both put localizers in the Bench's page rail, never on the strip. The Bench does not yet read it (unwired; the natural home is bench.html's thumbnail rail). Signed at the same sitting the detector named it. Method note for the ritual: glass_detector --since diffs COMMITTED changes only, so a key an uncommitted edit brings into scope is invisible until the commit - run the detector AFTER committing, or it reads clean on work it cannot see."
     }
   },
   "census_dispositions": {
