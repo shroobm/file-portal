@@ -1,8 +1,8 @@
 ---
 title: Conversion Quality & OCR
 section: Pipeline
-last-verified: 2026-08-31
-verified-against: 583f752923c7f557f29de6d20315c91d0d20a308
+last-verified: 2026-09-04
+verified-against: d9bfaaa
 sources: [windows-converter/fidelity_audit.py, windows-converter/figure_coverage.py, windows-converter/backend_parity.py, windows-converter/convert_and_ship.py, windows-converter/visual_witness_capture.py, windows-converter/visual_witness_capture_selftest.py, windows-converter/visual_witness_verify.py, linux-converter/converter/engines.py, docs/11-gpu-pipeline-revamp.md, docs/34-measurement-language.md, docs/41-conversion-completeness-plan.md, docs/42-conversion-completeness-findings.md, docs/48-visual-witness-evidence-contract.md, docs/contracts/visual-witness-e1-contract-v1.json, docs/contracts/visual-witness-e2-packet-r2.json, SYMPTOM-INDEX.md, OPEN-TASKS.md, prototypes/docling-calibration/README.md, sessions/S106-desktop-2026-08-20.md]
 ---
 
@@ -23,7 +23,7 @@ pipeline are only as good as the map they were measured on — check the map fir
 source PDF survives into Marker markdown, and how much of that survives the analyst pass,
 by window-survival containment against an ephemeral pymupdf witness — deterministic, CPU-only,
 report-only (fidelity_audit.py:1-8). Verdicts are `pass|flag|fail` (fidelity_audit.py:11), and
-by the signed policy only TWO signals reach "fail": degeneration (zlib+trigram AND-gate) and
+by the signed policy only TWO signals reach "fail": degeneration (zlib+trigram AND-gate — **table-aware since J29 `8aa8936` / `d9bfaaa`, 2026-09-04:** pipe-table rows are blanked to whitespace by `_blank_table_rows` before the per-paragraph pass, the count rides as `table_rows_stripped`; SYM-067, the sparse-grid false positive that failed the Damodaran 2025 4e anchor on zero loops, is FIXED — docs/15 §9.3, `degeneration_selftest.py`) and
 analyst near-exact containment (fidelity_audit.py:34-36, :411-437). Everything else — low
 survival, page flags, omission runs, garbage rate — is a report-only localizer, at most "flag"
 (fidelity_audit.py:421-423), because acceptable books measured 0.76–0.96 survival and gating

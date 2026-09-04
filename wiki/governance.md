@@ -1,8 +1,8 @@
 ---
 title: Governance & Records
 section: Governance
-last-verified: 2026-08-23
-verified-against: c56d486
+last-verified: 2026-09-04
+verified-against: d9bfaaa
 sources: [CLAUDE_README.md, SYMPTOM-INDEX.md, OPEN-TASKS.md, .claude/skills/muster/close.sh, .claude/skills/muster/SKILL.md, .claude/skills/wiki/SKILL.md, .agents/skills/muster/SKILL.md, observability/glass_detector.py, observability/dispositions.json, coordination/authorship.md, coordination/relay.md, coordination/selftest.sh, docs/45-s105-circle-findings.md]
 ---
 
@@ -65,8 +65,8 @@ it. Its §H states its own rot law: never quote a status from the file; open the
 
 ## 4 · The skills — the executable gates
 
-**muster** (.claude/skills/muster/): open.sh 298 lines (clocks, live state), close.sh 183,
-muster.sh, selftest.sh (20 cases, 0–18 + 27, incl. 15-18 on the close). `close.sh <pin>` prints VALUES, never
+**muster** (.claude/skills/muster/): open.sh 411 lines (clocks, live state), close.sh 404,
+muster.sh, selftest.sh (38 cases, incl. 15-18 on the close and 40–43 on the PIN). **[3] PIN decides by the file's own `⟨claimed: … S<n> …⟩` stamp and the machine in its name (SYM-072, fixed `ba036f9` 2026-09-04): a later day of the same session is OPEN, a peer lane's record is a named LANE RECORD, another machine's closeout — or a same-machine file with no delimited stamp — is a COLLISION, exit 1.** `close.sh <pin>` prints VALUES, never
 ✓; UNREAD never blocks and never claims clean; **only a MEASURED red exits 1** (close.sh:17-19).
 Its exit-1 gates:
 - PIN missing (:38-39) or unresolvable (:44-45)

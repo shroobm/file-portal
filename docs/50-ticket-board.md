@@ -394,3 +394,13 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | SYM-003 | Table-loop degeneration; the Bench is the response, not a fix | L | open | - | SYMPTOM-INDEX SYM-003 |
 | SYM-027 | Glass debt: criteria 2 and 3 not met | L | open | - | SYMPTOM-INDEX SYM-027 |
 | SYM-049 | Diagram on the page, absent from the bundle, uncaught | L | open | - | SYMPTOM-INDEX SYM-049 |
+
+## Correction 2026-09-04 (post-close, S114) — rows left as written
+
+- **AUD-2** and the **SYM-067** row above read `blocked-on-rab` and cite
+  `windows-converter/fidelity_audit.py:264-313,371,436`. Rab signed the gate on 2026-09-04 and it is
+  **BUILT as J29** (`8aa8936`, amended `d9bfaaa` after the verification fleet): pipe-table rows are
+  blanked to whitespace before `degeneration()` measures the body (`_blank_table_rows`), the count rides
+  as `table_rows_stripped`; 34-file corpus sweep, 3 verdict flips, all Damodaran 2025 4e; SYM-067 is
+  **FIXED**. The old line cell is superseded; the functions are named at HEAD.
+

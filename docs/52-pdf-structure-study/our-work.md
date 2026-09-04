@@ -218,6 +218,7 @@ See §1. **UNREAD**, and it sits underneath §6's controls.
 - **SYM-053 / SYM-056 / SYM-067 / SYM-054 remain open.** J24 built the *instrument* SYM-053 needs
   (page + bbox), but nothing consumes it yet — the audit's `run_page: null` is still null because
   no code reads `blocks.json` back.
+  > *Correction 2026-09-04:* SYM-067 FIXED by J29 `8aa8936` (amended `d9bfaaa`), post-close; SYM-053 / SYM-056 / SYM-054 remain open as written.
 - **Chandra: downloaded, unrunnable, unscoped.** Two blockers stand; `chandra-env` waits on Rab.
 - **CI status for this session's HEAD: UNREAD by me.** I did not observe a CI run for
   `850bdf3`, `8423e02` or `f41dd1e`. The project's own law is that CI is observed by hand after
