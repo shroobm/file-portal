@@ -32,6 +32,11 @@ Each tripwire names what breaks if it fires:
   D9  fences are NOT parsed            — a pipe row inside ``` is blanked too (line-shaped rule,
                                           the same declared choice as latex_balance L8)
   D10 a lone pipe is not a row         — "a | b" and "|x" are prose; only |…| rows are blanked
+  D11 an interleaved loop still trips  — FLEET LANE B (wf_1e69e60b-b45): a loop whose lines vary
+                                          per repetition and are interleaved one-to-one with pipe
+                                          rows must trip. Blanking a row to an EMPTY line split it
+                                          into sub-200-char fragments (flagged False, 0 blocks);
+                                          blanking to a whitespace line keeps one paragraph
 """
 
 from __future__ import annotations
@@ -149,6 +154,19 @@ LONE = "either a | b holds\n|x starts with a pipe\nthe norm \\left| v \\right| i
 lo = fa.degeneration(LONE)
 check(lo["table_rows_stripped"] == 0, "'a | b', '|x' and '\\left| v \\right|' are prose, 0 rows")
 check(fa._blank_table_rows("  | a |  \n")[1] == 1, "leading/trailing spaces around a row still count it")
+
+# ---------- D11: an interleaved, per-line-varying loop still trips (fleet lane B) ----------
+print("D11 a per-line-varying loop interleaved with table rows still trips")
+INTER = "\n".join(f"the stage of the stage of the stage {i}\n| x | y |" for i in range(120)) + "\n"
+it_new = fa.degeneration(INTER)
+it_old = fa.degeneration(INTER, strip_table_rows=False)
+check(it_new["flagged"] and it_new["blocks_total"] == 1 and it_new["worst"][0]["line"] == 1,
+      "the gate keeps the 120 prose lines in ONE paragraph and trips it at line 1")
+check(it_old["flagged"], "…and the pre-J29 path saw it too (no regression either way)")
+check(it_new["table_rows_stripped"] == 120, "…with all 120 rows counted as blanked")
+# the mechanism the fleet broke, made falsifiable: an EMPTY-line blanking fragments the loop
+frag = fa.degeneration(INTER.replace("| x | y |", ""))
+check(not frag["flagged"], "DECOY: the same body with rows replaced by EMPTY lines does NOT trip — the fragmentation lane B found")
 
 # ---------- verdict ----------
 n_checks = len(re.findall(r"^\s*check\(", Path(__file__).read_text(encoding="utf-8"), re.M))

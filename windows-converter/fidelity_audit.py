@@ -267,7 +267,8 @@ def _score_page(page_text: str, output_search: str, idx: dict, freq: dict,
 # crushed-compressible AND an extreme repeated word-trigram ("| | |" hundreds of times): the exact
 # signature of a decoder loop, with zero loops in it. It fired the whole `fail` verdict on the
 # Damodaran 2025 4e anchor (26 blocks, 0 real). Pipe-table ROWS are blanked before the
-# per-paragraph pass; each row's line terminator is kept, so every `line` in `worst` and
+# per-paragraph pass (as a whitespace-only line, never an empty one — see _blank_table_rows);
+# each row's line terminator is kept, so every `line` in `worst` and
 # `md_lines` still address the body as shipped. Measured on the pair that named the symptom
 # (docs/53-lead-hunt/scripts/verify_sym067_pair.py, then this function): 2025 4e 26 → 0; the held
 # University 4e 25 → 1, and the 1 is a real runaway (line 8776, `{1 - t}` × 441 — SYM-056's
@@ -280,13 +281,18 @@ _TABLE_ROW = re.compile(r"^[ \t]*\|.*\|[ \t]*$")
 
 
 def _blank_table_rows(markdown: str) -> tuple[str, int]:
-    """Replace every markdown pipe-table row with an empty line, keeping its terminator, so the
-    line count and every newline position are preserved by construction."""
+    """Replace every markdown pipe-table row with a SINGLE-SPACE line, keeping its terminator, so
+    the line count and every newline position are preserved by construction. A space, not an
+    empty line: an empty line would manufacture a "\\n\\n" paragraph break where the shipped body
+    had none, and a decoder loop interleaved one-to-one with table rows would be split into
+    sub-200-char fragments the per-paragraph pass never sees (fleet wf_1e69e60b-b45 lane B,
+    2026-09-04; tripwire D11). A whitespace-only line keeps the surrounding prose in ONE
+    paragraph exactly as the raw body did, and strip() removes it from the measured text."""
     out, n = [], 0
     for ln in markdown.splitlines(keepends=True):
         body = ln.rstrip("\r\n")
         if _TABLE_ROW.match(body):
-            out.append(ln[len(body):])
+            out.append(" " + ln[len(body):])
             n += 1
         else:
             out.append(ln)

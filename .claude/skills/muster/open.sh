@@ -383,7 +383,9 @@ elif [[ -n "$this_n" && -n "$(ls -1 "$FP_REPO/sessions/S${this_n}-"* 2>/dev/null
   own=""; lanes=""; foreign=""
   for f in "$FP_REPO/sessions/S${this_n}-"*; do
     b=$(basename "$f")
-    stamp=$(grep -m1 'claimed:' "$f" 2>/dev/null | tr -d '\r')
+    # The DELIMITED stamp decides (⟨claimed: …⟩, coordination/authorship.md); a bare 'claimed:' in
+    # prose — a quote of another session's stamp — is not a stamp (fleet wf_1e69e60b-b45 lane C).
+    stamp=$(grep -m1 '⟨claimed:' "$f" 2>/dev/null | tr -d '\r')
     stamped=0; [[ "$stamp" =~ S${this_n}([^0-9]|$) ]] && stamped=1
     if [[ "$b" =~ ^S${this_n}-${machine}-([0-9]{4}-[0-9]{2}-[0-9]{2})\.md$ ]]; then
       d="${BASH_REMATCH[1]}"

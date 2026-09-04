@@ -265,8 +265,10 @@ on the Damodaran 2025 4e anchor: 26 flagged blocks, `repeated_lines` 0, zero dec
 reading; the whole `fail` verdict rode on it (degeneration is the only convert-stage path to
 `fail`, §12).
 
-- **Repair** (`fidelity_audit._blank_table_rows`, J29): every pipe-table row (`^\s*\|.*\|\s*$`)
-  is blanked before the per-paragraph pass, its line terminator kept, so `line` and `md_lines`
+- **Repair** (`fidelity_audit._blank_table_rows`, J29): every pipe-table row (`^[ \t]*\|.*\|[ \t]*$`)
+  is blanked to a whitespace-only line before the per-paragraph pass (a space, not an empty line —
+  an empty line would split an interleaved loop into fragments; fleet lane B, D11), its line
+  terminator kept, so `line` and `md_lines`
   still address the body as shipped; the count travels beside `blocks_total` as
   `table_rows_stripped`. The `strip_table_rows=False` path is kept only so
   `degeneration_selftest.py` can show the decoy tripping on the old path (D2).

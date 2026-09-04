@@ -582,7 +582,7 @@ git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm sym >/dev/null 2>&1
 mklib "$WORK/l37" 12 S42 "$sha"
 out=$(MEMORY_LIB="$WORK/l37" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
 if printf '%s' "$out" | grep -qE 'symptoms +4 row\(s\), 3 open'; then
-  ok "J15: both `open` and **OPEN** counted, and a prose mention is NOT (3 of 4)"
+  ok 'J15: both `open` and **OPEN** counted, and a prose mention is NOT (3 of 4)'
 else
   bad "J15: symptoms must read '4 row(s), 3 open'" "got: $(printf '%s' "$out" | grep -E 'symptoms' | head -1)"
 fi
@@ -682,6 +682,21 @@ mkopen43 42b
 printf '# S430\n\n⟨claimed: Fable lane · S430 · 2026-01-05⟩\n' > "$R/sessions/S43-desktop-2026-01-05.md"
 out=$(runopen 42b); rc=$?
 assert "…and a ⟨claimed: S430⟩ stamp does not satisfy S43 (prefix is not identity)" 1 'COLLISION — S43-desktop-2026-01-05.md \(no ⟨claimed: … S43⟩ stamp\)' "$rc" "$out"
+
+# CASE 43 — fleet wf_1e69e60b-b45 lane C (2026-09-04). The property: the DELIMITED ⟨claimed:⟩ stamp
+# decides, not the first line that happens to contain the word 'claimed:'. Violate: a closeout whose
+# first 'claimed:' occurrence is PROSE quoting another session ("the S42 record said claimed: …") and
+# whose real delimited stamp names S43 further down. Pre-fix (bare-word grep -m1) read the prose line,
+# found no S43, and called the session's own file a COLLISION.
+mkopen43 43
+printf '# S43\n\nthe S42 record said claimed: Fable lane · S42, which is not this file.\n\n⟨claimed: Fable lane · occupant: t · S43 · 2026-01-05⟩\n' > "$R/sessions/S43-desktop-2026-01-05.md"
+out=$(runopen 43); rc=$?
+assert "SYM-072: a prose 'claimed:' quoting S42 before the real ⟨claimed: … S43⟩ stamp still reads OPEN" 0 'OPEN — this session.s closeout exists: S43-desktop-2026-01-05.md' "$rc" "$out"
+# NEGATIVE CONTROL: the bare word alone, with NO delimited stamp anywhere, is not continuity.
+mkopen43 43n
+printf '# S43\n\nclaimed: Fable lane · S43 · 2026-01-05 (no delimiters)\n' > "$R/sessions/S43-desktop-2026-01-05.md"
+out=$(runopen 43n); rc=$?
+assert "…and a bare 'claimed: … S43' with no ⟨ ⟩ delimiters is still a COLLISION (no stamp)" 1 'COLLISION — S43-desktop-2026-01-05.md \(no ⟨claimed: … S43⟩ stamp\)' "$rc" "$out"
 
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
