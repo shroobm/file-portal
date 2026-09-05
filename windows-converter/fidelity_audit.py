@@ -483,7 +483,11 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
 # deletion still fails and a run of real omissions still accumulates. `regex_id` names the
 # EXACT regex pair this ran with (text_norm._UNESCAPE / _PUNCT) so a future change to either
 # is provable as a version bump, not a silent drift in what "near-exact" means.
-_REGEX_ID = "j32a-v1"
+#
+# v2 (verifier GO_AMENDED, 2026-09-05): text_norm._PUNCT changed (`[^\w\s]` -> `[^\w\s\\]`, R5)
+# to stop deleting a backslash unconditionally -- see text_norm.py's v2 note. A regex change
+# bumps this id per the ticket's own rule.
+_REGEX_ID = "j32a-v2"
 
 
 def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:

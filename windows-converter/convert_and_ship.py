@@ -713,9 +713,20 @@ def _write_marker_body_safe(tmp_dir: Path, bundle_name: str, body: str, manifest
     docs/54 §J33 step 1. A write fault prints a non-fatal line instead of an event — this
     sidecar is new plumbing with no live reader yet, so a failure here is not (yet) an
     operator-facing alarm; docs/15 §8 already guarantees it costs nothing."""
+    tmp: Path | None = None
     try:
         dest = tmp_dir / f"{bundle_name}{MARKER_BODY_SUFFIX}"
-        dest.write_text(body, encoding="utf-8")
+        # R3 (verifier GO_AMENDED, 2026-09-05): encode BEFORE touching the destination — a
+        # lone surrogate in `body` (an unpaired half of a UTF-16 surrogate pair, which UTF-8
+        # cannot represent) must raise HERE, with nothing on disk yet, not after a partial
+        # write_text has already left a 0-byte or truncated file behind. Then write atomically
+        # via a same-directory .part + os.replace, so a crash mid-write never leaves a torn
+        # file at the real name either.
+        data = body.encode("utf-8")
+        tmp = dest.with_suffix(dest.suffix + ".part")
+        tmp.write_bytes(data)
+        os.replace(tmp, dest)
+        tmp = None
         data = dest.read_bytes()  # re-measured at its final resting place (J24's own idiom)
         manifest["marker_body"] = {
             "file": dest.name,
@@ -724,6 +735,11 @@ def _write_marker_body_safe(tmp_dir: Path, bundle_name: str, body: str, manifest
         }
         print(f"MARKER-BODY {dest.name} ({manifest['marker_body']['bytes']} bytes)", flush=True)
     except Exception as exc:  # noqa: BLE001 — an addition may never cost a bundle
+        if tmp is not None:
+            try:
+                tmp.unlink(missing_ok=True)
+            except Exception:  # noqa: BLE001 — cleanup must never mask the original fault
+                pass
         print(f"MARKER-BODY write failed (non-fatal, no sidecar this run): {exc}", flush=True)
 
 
@@ -2039,13 +2055,31 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
     The historical `fidelity.convert` / `fidelity.analyst` blocks are NEVER touched — only
     `fidelity.final`, `fidelity.verdict` and `fidelity.reaudit` are added/updated. A human
     repair may then change a verdict, WITH provenance (`fidelity.reaudit.from`)."""
+    # R1 (verifier GO_AMENDED, 2026-09-05): validate the ID BEFORE the filesystem is touched at
+    # all — a `bundle_id` from an untrusted caller (e.g. a widget-relayed argument) must never
+    # reach a `HELD / bundle_id` join that a `..`, an absolute path, or an embedded separator
+    # could walk outside `held/`. This is a NAME, never a path.
+    if (not bundle_id or bundle_id in (".", "..") or os.sep in bundle_id
+            or (os.altsep and os.altsep in bundle_id) or Path(bundle_id).is_absolute()):
+        sys.exit(f"REAUDIT refused: invalid ID {bundle_id!r} (a held/ directory NAME, never a "
+                 "path)")
     held_dir = HELD / bundle_id
+    # Belt-and-suspenders on the resolved path too: even an ID that passes the syntactic check
+    # above must still land as a DIRECT CHILD of HELD once resolved (symlink/junction escape).
+    if held_dir.resolve().parent != HELD.resolve():
+        sys.exit(f"REAUDIT refused: {bundle_id!r} does not resolve under {HELD}")
     if not held_dir.is_dir():
         sys.exit(f"REAUDIT refused: no held bundle {bundle_id!r} at {held_dir}")
     manifest_path = held_dir / "manifest.json"
     manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
     source_sha = manifest["source_sha256"]
     old_verdict = (manifest.get("fidelity") or {}).get("verdict")
+    # R4 (verifier GO_AMENDED, 2026-09-05): this verb re-audits an EXISTING fidelity verdict —
+    # a bundle with no `fidelity.verdict` at all was never audited by this pipeline in the
+    # first place, so there is no prior verdict for D-1 to compare a repair against.
+    if not old_verdict:
+        sys.exit(f"REAUDIT refused: {bundle_id!r} carries no prior fidelity.verdict — not a "
+                 "bundle this verb is for")
 
     # REPAIRS.md is a Repair Bench REPORT, not the bundle's note (bench.py's own GENERATED_MD
     # exclusion, S79) — without it, a bench that had declared this patient done would make
@@ -2072,10 +2106,24 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
     sidecar = held_dir / f"{bundle_name}{MARKER_BODY_SUFFIX}"
     reference_text: str | None = None
     reference_kind: str | None = None
-    if sidecar.is_file():
-        reference_text = sidecar.read_text(encoding="utf-8")
-        reference_kind = "sidecar"
-    else:
+    # R2 (verifier GO_AMENDED, 2026-09-05): the sidecar is an UNVERIFIED file living in a
+    # human-editable held/ directory (a Repair Bench operator could touch it, or it could be
+    # stale from a prior book at this name) — trust it as the reference ONLY when it matches
+    # the manifest's OWN record of what J33 actually wrote (`marker_body.sha256`/`.bytes`),
+    # never on its mere presence. A manifest with no `marker_body` key (a bundle converted
+    # before J33 existed) gets the sidecar ignored the same way — there is nothing to verify it
+    # against.
+    mb = manifest.get("marker_body") or {}
+    if sidecar.is_file() and mb.get("sha256"):
+        data = sidecar.read_bytes()
+        if (hashlib.sha256(data).hexdigest() == mb["sha256"]
+                and len(data) == mb.get("bytes", len(data))):
+            reference_text = data.decode("utf-8")
+            reference_kind = "sidecar"
+        else:
+            print("REAUDIT: sidecar present but does not match manifest.marker_body — ignored",
+                  flush=True)
+    if reference_text is None:
         slice_dir = CHUNK_WORK / source_sha[:16]
         slices = sorted(slice_dir.glob("slice-*/slice.md")) if slice_dir.is_dir() else []
         if slices:

@@ -809,27 +809,32 @@ check((tmp18b / f"{bundle18b}{cas.MARKER_BODY_SUFFIX}").is_file(),
 check(bool(manifest18b.get("marker_body")), "manifest key present on the no-analyst path too")
 
 # (c): fail-safe — monkeypatch the write to raise; convert still completes, the manifest key
-# is simply absent, and no exception escapes to the caller.
-_real_write_text = Path.write_text
+# is simply absent, and no exception escapes to the caller. R3 (verifier GO_AMENDED 2026-09-05)
+# made the write atomic (encode -> write the .part -> os.replace), so the fault is now injected
+# on Path.write_bytes (the .part file), the call that actually touches the destination's
+# directory entry today — write_text is no longer called on this path at all.
+_real_write_bytes = Path.write_bytes
 
 
-def _raising_write_text(self, *a, **kw):
-    if self.name.endswith(cas.MARKER_BODY_SUFFIX):
+def _raising_write_bytes(self, *a, **kw):
+    if self.name.endswith(cas.MARKER_BODY_SUFFIX + ".part"):
         raise OSError("disk full (simulated)")
-    return _real_write_text(self, *a, **kw)
+    return _real_write_bytes(self, *a, **kw)
 
 
-Path.write_text = _raising_write_text
+Path.write_bytes = _raising_write_bytes
 try:
     tmp18c, bundle18c, manifest18c, _rec18c = drive_marker_body(cas, "t18-failsafe", False)
 finally:
-    Path.write_text = _real_write_text
+    Path.write_bytes = _real_write_bytes
 check("marker_body" not in manifest18c,
       "a write fault leaves the manifest key absent, not a bad one")
 check((tmp18c / f"{bundle18c}.md").is_file(),
       "the book converts exactly as it did before J33, despite the fault")
 check(not (tmp18c / f"{bundle18c}{cas.MARKER_BODY_SUFFIX}").exists(),
       "and really did not leave a sidecar behind (a torn write is not a half-file)")
+check(not (tmp18c / f"{bundle18c}{cas.MARKER_BODY_SUFFIX}.part").exists(),
+      "(R3) and the atomic .part temp file does not survive the fault either")
 
 # (d): NEGATIVE CONTROL — the writer removed. Same blank-the-line-span technique T17 uses on
 # convert()'s analyst emits, applied here to the _write_marker_body_safe call.
@@ -856,6 +861,38 @@ check(not (tmp18d / f"{bundle18d}{cas.MARKER_BODY_SUFFIX}").exists(),
 check("marker_body" not in manifest18d, "NEGATIVE CONTROL: writer removed -> no manifest key")
 check((tmp18d / f"{bundle18d}.md").is_file(),
       "negative control really ran the convert — this is absence, not a skipped path")
+
+# (f) [R3, verifier GO_AMENDED 2026-09-05]: the REAL (unmocked) writer, driven with a body
+# containing a lone UTF-16 surrogate — `.encode("utf-8")` cannot represent it and raises. The
+# fix encodes BEFORE touching the destination and writes atomically via a same-directory
+# `.part` + os.replace, so this must leave NEITHER the final name NOR the `.part` temp file
+# on disk, and the manifest key must be absent (same fail-safe contract as (c), a different
+# fault shape: an encode error, not an OSError from the write call itself).
+tmp18f = QUARANTINE / "t18-surrogate"
+tmp18f.mkdir(parents=True, exist_ok=True)
+manifest18f: dict = {}
+cas._write_marker_body_safe(tmp18f, "surrogate-book", "abc\ud800def", manifest18f)
+check("marker_body" not in manifest18f,
+      "(f) a lone-surrogate encode failure leaves the manifest key absent")
+check(not (tmp18f / "surrogate-book.marker.txt").exists(),
+      "(f) no <name>.marker.txt exists after a lone-surrogate encode failure")
+check(not (tmp18f / "surrogate-book.marker.txt.part").exists(),
+      "(f) no <name>.marker.txt.part (the atomic temp file) survives either")
+
+# (f) NEGATIVE CONTROL: revert to a bare write_text (pre-R3 shape) and watch this go red — a
+# plain `dest.write_text(body, encoding="utf-8")` on a lone surrogate DOES leave a 0-byte file
+# behind (CPython flushes/creates the file before the encode error surfaces mid-write).
+tmp18f_nc = QUARANTINE / "t18-surrogate-nc"
+tmp18f_nc.mkdir(parents=True, exist_ok=True)
+dest18f_nc = tmp18f_nc / "surrogate-book-nc.marker.txt"
+try:
+    dest18f_nc.write_text("abc\ud800def", encoding="utf-8")
+    _nc18f_raised = False
+except UnicodeEncodeError:
+    _nc18f_raised = True
+check(_nc18f_raised and dest18f_nc.exists() and dest18f_nc.stat().st_size == 0,
+      "(f) NEGATIVE CONTROL: the pre-R3 write_text shape really does leave a 0-byte file behind "
+      "on this exact fault — proving check (f) above watches something real")
 
 
 # ---------- T19: J31 — re-audit a repaired held bundle (D-1, signed 2026-09-05) ----------
@@ -923,6 +960,17 @@ def make_held_bundle(sha16, name="paper", *, source=None, lane="clean",
     if with_analyst_block:
         manifest["analyst"] = {"model": "qwen3:8b", "chunks_passed": 900}
         manifest["fidelity"]["analyst"] = {"doc_survival": 0.94, "runs": [], "runs_total": 300}
+    if with_sidecar:
+        # R2 (verifier GO_AMENDED, 2026-09-05): reaudit() now trusts a sidecar only when it
+        # matches manifest.marker_body — every caller here that plants a TRUSTED sidecar (the
+        # pre-R2 default every existing T19 case relies on) must also plant the matching
+        # manifest key, exactly as J33's real writer does.
+        sidecar_bytes = sidecar_text.encode("utf-8")
+        manifest["marker_body"] = {
+            "file": f"{name}{cas.MARKER_BODY_SUFFIX}",
+            "bytes": len(sidecar_bytes),
+            "sha256": hashlib.sha256(sidecar_bytes).hexdigest(),
+        }
     (held_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
     if with_sidecar:
         (held_dir / f"{name}{cas.MARKER_BODY_SUFFIX}").write_text(sidecar_text, encoding="utf-8")
@@ -1159,6 +1207,273 @@ check("final" not in manifest8_after.get("fidelity", {}),
       "(8) --dry-run writes NOTHING back to held/<ID>/manifest.json")
 check(not list(cas.HELD.glob("shaa8888888888888--reshipped-*")),
       "(8) --dry-run creates no --reshipped- sibling")
+
+# (10) [R1, verifier GO_AMENDED 2026-09-05]: bundle_id validated BEFORE the filesystem is
+# touched — a relative escape and an ABSOLUTE path to a sentinel dir planted ONE LEVEL ABOVE
+# the quarantine HELD (a sibling of held/, i.e. QUARANTINE itself) both refuse with the same
+# 'invalid ID' message, the sentinel's manifest is never read (it has none — any attempt to
+# open it would raise something other than SystemExit and this test would surface that), and
+# the events file gains not one line.
+sentinel10 = QUARANTINE / "sentinel-outside-held"
+sentinel10.mkdir(parents=True, exist_ok=True)
+events_path10 = cas.fp_paths.root("events")
+before_lines10 = (events_path10.read_text(encoding="utf-8").count("\n")
+                  if events_path10.exists() else 0)
+for bad_id10 in ("../outside", str(sentinel10)):
+    try:
+        cas.reaudit(bad_id10)
+        raised10 = None
+    except SystemExit as exc:
+        raised10 = exc
+    except Exception as exc:  # noqa: BLE001 — any OTHER exception IS the failure this watches
+        raised10 = exc
+    check(isinstance(raised10, SystemExit),
+          f"(10) {bad_id10!r} refused with SystemExit, not some other exception ({raised10!r})")
+    check(isinstance(raised10, SystemExit)
+          and str(raised10.code).startswith("REAUDIT refused: invalid ID"),
+          f"(10) {bad_id10!r} refusal message starts 'REAUDIT refused: invalid ID'")
+after_lines10 = (events_path10.read_text(encoding="utf-8").count("\n")
+                 if events_path10.exists() else 0)
+check(after_lines10 == before_lines10, "(10) the events file length is unchanged by either refusal")
+check(not (sentinel10 / "manifest.json").exists(),
+      "(10) sentinel's manifest was never created as a side effect (still absent — it was "
+      "never read either, or reading it would have raised FileNotFoundError, not SystemExit)")
+
+# (10) NEGATIVE CONTROL: the R1 guard removed — a REAL bundle planted one level above HELD
+# (outside held/ entirely) is reached and actually processed via '../escaped-bundle'.
+print("T19 negative control (R1): the ID validation removed")
+NC_R1_SRC = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+_R1_GUARD = (
+    '    if (not bundle_id or bundle_id in (".", "..") or os.sep in bundle_id\n'
+    '            or (os.altsep and os.altsep in bundle_id) or Path(bundle_id).is_absolute()):\n'
+    '        sys.exit(f"REAUDIT refused: invalid ID {bundle_id!r} (a held/ directory NAME, '
+    'never a "\n'
+    '                 "path)")\n'
+    '    held_dir = HELD / bundle_id\n'
+    '    # Belt-and-suspenders on the resolved path too: even an ID that passes the syntactic '
+    'check\n'
+    '    # above must still land as a DIRECT CHILD of HELD once resolved (symlink/junction '
+    'escape).\n'
+    '    if held_dir.resolve().parent != HELD.resolve():\n'
+    '        sys.exit(f"REAUDIT refused: {bundle_id!r} does not resolve under {HELD}")\n'
+    '    if not held_dir.is_dir():\n'
+)
+_R1_BARE = (
+    '    held_dir = HELD / bundle_id\n'
+    '    if not held_dir.is_dir():\n'
+)
+check(_R1_GUARD in NC_R1_SRC, "the R1 negative control located the exact guard block to remove")
+NC_R1_PATCHED = NC_R1_SRC.replace(_R1_GUARD, _R1_BARE, 1)
+nc_r1 = types.ModuleType("convert_and_ship_nc_r1")
+nc_r1.__file__ = str(HERE / "convert_and_ship.py")
+exec(compile(NC_R1_PATCHED, nc_r1.__file__, "exec"), nc_r1.__dict__)  # noqa: S102
+
+escaped_dir = QUARANTINE / "escaped-bundle"
+if escaped_dir.exists():
+    shutil.rmtree(escaped_dir)
+escaped_dir.mkdir(parents=True)
+(escaped_dir / "escaped.md").write_text(
+    "---\nsource_sha256: shaescaped00000001\n---\nescaped body text\n", encoding="utf-8")
+escaped_manifest = {
+    "source": "escaped.pdf", "source_sha256": "shaescaped00000001", "lane": "clean",
+    "fidelity": {"version": 1, "convert": {"doc_survival": 0.93, "pages_flagged": [],
+                                            "runs_total": 1, "tripwires": {"degeneration": False},
+                                            "kind": "fidelity", "runs": []},
+                 "verdict": "fail"},
+}
+(escaped_dir / "manifest.json").write_text(json.dumps(escaped_manifest, indent=2),
+                                            encoding="utf-8")
+(cas.fp_paths.root("drop_done") / "escaped.pdf").write_bytes(b"%PDF-1.4 fake\n")
+
+fakes_ncr1, rec_ncr1, ships_ncr1, raised_ncr1, _f_ncr1 = run_reaudit(
+    nc_r1, "../escaped-bundle", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(len(fakes_ncr1.convert_calls) == 1,
+      "NEGATIVE CONTROL (R1): with the guard removed, '../escaped-bundle' really reaches "
+      "audit_convert on a bundle living OUTSIDE held/ — the traversal actually works against "
+      "the unguarded code")
+fakes_fixed_r1, rec_fixed_r1, ships_fixed_r1, raised_fixed_r1, _f_fixed_r1 = run_reaudit(
+    cas, "../escaped-bundle", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(isinstance(raised_fixed_r1, SystemExit)
+      and str(raised_fixed_r1.code).startswith("REAUDIT refused: invalid ID"),
+      "the FIXED module refuses the identical '../escaped-bundle' id before touching anything")
+check(len(fakes_fixed_r1.convert_calls) == 0,
+      "the FIXED module never calls audit_convert on the escaped bundle")
+
+# (11) [R2, verifier GO_AMENDED 2026-09-05]: an unverified sidecar is never trusted as the
+# reference. A synthetic held bundle with manifest.analyst present and manifest.marker_body
+# {sha256 of 'GOOD', bytes=4}: (a) a sidecar containing 'GOOD' -> reference 'sidecar'; (b) a
+# 0-byte (mismatched) sidecar -> NOT 'sidecar' — slice cache used if planted, else refused
+# reason 'analyst reference unavailable' with the held dir's file hashes unchanged; (c) a
+# byte-MATCHING sidecar but manifest.marker_body absent entirely -> ignored the same way.
+sha16_11a = "shab1111111111111"
+held11a, manifest11a = make_held_bundle(sha16_11a, name="mb11a", with_sidecar=False,
+                                         with_analyst_block=True)
+(held11a / f"mb11a{cas.MARKER_BODY_SUFFIX}").write_bytes(b"GOOD")
+manifest11a["marker_body"] = {"file": f"mb11a{cas.MARKER_BODY_SUFFIX}", "bytes": 4,
+                              "sha256": hashlib.sha256(b"GOOD").hexdigest()}
+(held11a / "manifest.json").write_text(json.dumps(manifest11a, indent=2), encoding="utf-8")
+fakes11a, rec11a, ships11a, raised11a, _f11a = run_reaudit(
+    cas, sha16_11a, convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(raised11a is None, "(11a) a matching sidecar + manifest.marker_body runs to completion")
+reshipped11a = sorted(cas.HELD.glob(f"{sha16_11a}--reshipped-*"))
+final11a = (json.loads((reshipped11a[0] / "manifest.json").read_text(encoding="utf-8"))
+            if reshipped11a else {})
+check(final11a.get("fidelity", {}).get("final", {}).get("reference") == "sidecar",
+      "(11a) a sidecar matching manifest.marker_body IS trusted as the reference")
+
+sha16_11b = "shab2222222222222"
+held11b, manifest11b = make_held_bundle(sha16_11b, name="mb11b", with_sidecar=False,
+                                         with_slice_cache=False, with_analyst_block=True)
+(held11b / f"mb11b{cas.MARKER_BODY_SUFFIX}").write_bytes(b"")  # 0-byte, mismatched
+manifest11b["marker_body"] = {"file": f"mb11b{cas.MARKER_BODY_SUFFIX}", "bytes": 4,
+                              "sha256": hashlib.sha256(b"GOOD").hexdigest()}
+(held11b / "manifest.json").write_text(json.dumps(manifest11b, indent=2), encoding="utf-8")
+before11b = _hash_dir(held11b)
+fakes11b, rec11b, ships11b, raised11b, _f11b = run_reaudit(
+    cas, sha16_11b, convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+after11b = _hash_dir(held11b)
+check(isinstance(raised11b, SystemExit) and bool(raised11b.code),
+      "(11b) a mismatched 0-byte sidecar with no slice cache refuses")
+refused11b = [f for k, f in rec11b.events if k == "audit/reaudit_refused"]
+check(len(refused11b) == 1 and refused11b[0].get("reason") == "analyst reference unavailable",
+      "(11b) refusal reason 'analyst reference unavailable' — the mismatched sidecar was "
+      "ignored, never trusted")
+check(before11b == after11b, "(11b) held dir file hashes unchanged after the refusal")
+
+sha16_11b2 = "shab333333333333"  # exactly 16 chars: reaudit() looks up the slice cache at
+# CHUNK_WORK / source_sha[:16], so the bundle_id/source_sha256 given to make_held_bundle must
+# be exactly 16 chars for that lookup to land on the directory the helper actually created.
+held11b2, manifest11b2 = make_held_bundle(sha16_11b2, name="mb11b2", with_sidecar=False,
+                                           with_slice_cache=True, with_analyst_block=True,
+                                           sidecar_text="SLICE CACHE TEXT")
+(held11b2 / f"mb11b2{cas.MARKER_BODY_SUFFIX}").write_bytes(b"")  # 0-byte, mismatched
+manifest11b2["marker_body"] = {"file": f"mb11b2{cas.MARKER_BODY_SUFFIX}", "bytes": 4,
+                               "sha256": hashlib.sha256(b"GOOD").hexdigest()}
+(held11b2 / "manifest.json").write_text(json.dumps(manifest11b2, indent=2), encoding="utf-8")
+fakes11b2, rec11b2, ships11b2, raised11b2, _f11b2 = run_reaudit(
+    cas, sha16_11b2, convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(raised11b2 is None,
+      "(11b) with a slice cache planted, a mismatched sidecar falls through to it instead of "
+      "refusing")
+reshipped11b2 = sorted(cas.HELD.glob(f"{sha16_11b2}--reshipped-*"))
+final11b2 = (json.loads((reshipped11b2[0] / "manifest.json").read_text(encoding="utf-8"))
+             if reshipped11b2 else {})
+check(final11b2.get("fidelity", {}).get("final", {}).get("reference") == "slice-cache",
+      "(11b) reference is 'slice-cache', never the mismatched sidecar")
+
+sha16_11c = "shab444444444444"  # exactly 16 chars — same slice-cache-lookup reason as 11b2 above
+held11c, manifest11c = make_held_bundle(sha16_11c, name="mb11c", with_sidecar=False,
+                                         with_slice_cache=True, with_analyst_block=True,
+                                         sidecar_text="SLICE CACHE TEXT C")
+(held11c / f"mb11c{cas.MARKER_BODY_SUFFIX}").write_bytes(b"GOOD")  # content MATCHES, key absent
+check("marker_body" not in manifest11c, "(11c) setup: manifest really carries no marker_body key")
+fakes11c, rec11c, ships11c, raised11c, _f11c = run_reaudit(
+    cas, sha16_11c, convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(raised11c is None,
+      "(11c) a byte-matching sidecar with no manifest.marker_body key still runs (falls "
+      "through, not refused, when a slice cache exists)")
+reshipped11c = sorted(cas.HELD.glob(f"{sha16_11c}--reshipped-*"))
+final11c = (json.loads((reshipped11c[0] / "manifest.json").read_text(encoding="utf-8"))
+            if reshipped11c else {})
+check(final11c.get("fidelity", {}).get("final", {}).get("reference") == "slice-cache",
+      "(11c) reference is 'slice-cache' — a byte-matching sidecar with no manifest.marker_body "
+      "key is NOT trusted")
+
+# (11) NEGATIVE CONTROL: revert to the trusting sidecar read and watch (11b) go falsely green.
+print("T19 negative control (R2): revert to the trusting sidecar read")
+NC_R2_SRC = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+_OLD_R2_BLOCK = (
+    '    mb = manifest.get("marker_body") or {}\n'
+    '    if sidecar.is_file() and mb.get("sha256"):\n'
+    '        data = sidecar.read_bytes()\n'
+    '        if (hashlib.sha256(data).hexdigest() == mb["sha256"]\n'
+    '                and len(data) == mb.get("bytes", len(data))):\n'
+    '            reference_text = data.decode("utf-8")\n'
+    '            reference_kind = "sidecar"\n'
+    '        else:\n'
+    '            print("REAUDIT: sidecar present but does not match manifest.marker_body — '
+    'ignored",\n'
+    '                  flush=True)\n'
+    '    if reference_text is None:\n'
+)
+_TRUSTING_BLOCK = (
+    '    if sidecar.is_file():\n'
+    '        reference_text = sidecar.read_text(encoding="utf-8")\n'
+    '        reference_kind = "sidecar"\n'
+    '    else:\n'
+)
+check(_OLD_R2_BLOCK in NC_R2_SRC, "the R2 negative control located the exact block to revert")
+NC_R2_PATCHED = NC_R2_SRC.replace(_OLD_R2_BLOCK, _TRUSTING_BLOCK, 1)
+nc_r2 = types.ModuleType("convert_and_ship_nc_r2")
+nc_r2.__file__ = str(HERE / "convert_and_ship.py")
+exec(compile(NC_R2_PATCHED, nc_r2.__file__, "exec"), nc_r2.__dict__)  # noqa: S102
+
+held_ncr2, manifest_ncr2 = make_held_bundle("shabncr2000000001", name="mbncr2",
+                                             with_sidecar=False, with_slice_cache=False,
+                                             with_analyst_block=True)
+(held_ncr2 / f"mbncr2{cas.MARKER_BODY_SUFFIX}").write_bytes(b"")  # 0-byte mismatched
+manifest_ncr2["marker_body"] = {"file": f"mbncr2{cas.MARKER_BODY_SUFFIX}", "bytes": 4,
+                                "sha256": hashlib.sha256(b"GOOD").hexdigest()}
+(held_ncr2 / "manifest.json").write_text(json.dumps(manifest_ncr2, indent=2), encoding="utf-8")
+_f_ncr2, _rec_ncr2, _ships_ncr2, _raised_ncr2, _files_ncr2 = run_reaudit(
+    nc_r2, "shabncr2000000001", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(_raised_ncr2 is None,
+      "NEGATIVE CONTROL (R2): the trusting read wrongly accepts the mismatched sidecar and "
+      "runs to completion")
+reshipped_ncr2 = sorted(cas.HELD.glob("shabncr2000000001--reshipped-*"))
+final_ncr2 = (json.loads((reshipped_ncr2[0] / "manifest.json").read_text(encoding="utf-8"))
+              if reshipped_ncr2 else {})
+check(final_ncr2.get("fidelity", {}).get("final", {}).get("reference") == "sidecar",
+      "NEGATIVE CONTROL (R2): with the fix reverted, a mismatched (0-byte) sidecar is wrongly "
+      "trusted as 'sidecar' — exactly what check (11b) above would catch if it fired against "
+      "this instead of the real (fixed) module")
+
+# (12) [R4, verifier GO_AMENDED 2026-09-05]: a manifest with no prior fidelity.verdict at all
+# refuses — this verb re-audits an EXISTING verdict, and there is none to re-audit here.
+sha16_12 = "shac1111111111111"
+held12, manifest12 = make_held_bundle(sha16_12, name="mb12", with_sidecar=True)
+del manifest12["fidelity"]
+(held12 / "manifest.json").write_text(json.dumps(manifest12, indent=2), encoding="utf-8")
+fakes12, rec12, ships12, raised12, _f12 = run_reaudit(
+    cas, sha16_12, convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(isinstance(raised12, SystemExit) and "no prior fidelity.verdict" in str(raised12.code),
+      "(12) a manifest with no fidelity.verdict refuses, message names 'no prior "
+      "fidelity.verdict'")
+check(len(ships12) == 0, "(12) ship() is never called")
+check(len(fakes12.convert_calls) == 0 and len(fakes12.analyst_calls) == 0,
+      "(12) neither audit runs at all — refused before either")
+
+# (12) NEGATIVE CONTROL: the R4 guard removed — the same fidelity-less manifest now runs
+# audit_convert instead of refusing.
+print("T19 negative control (R4): the fidelity.verdict guard removed")
+NC_R4_SRC = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+_R4_GUARD = (
+    '    old_verdict = (manifest.get("fidelity") or {}).get("verdict")\n'
+    '    # R4 (verifier GO_AMENDED, 2026-09-05): this verb re-audits an EXISTING fidelity '
+    'verdict —\n'
+    '    # a bundle with no `fidelity.verdict` at all was never audited by this pipeline in '
+    'the\n'
+    '    # first place, so there is no prior verdict for D-1 to compare a repair against.\n'
+    '    if not old_verdict:\n'
+    '        sys.exit(f"REAUDIT refused: {bundle_id!r} carries no prior fidelity.verdict — '
+    'not a "\n'
+    '                 "bundle this verb is for")\n'
+)
+_R4_BARE = '    old_verdict = (manifest.get("fidelity") or {}).get("verdict")\n'
+check(_R4_GUARD in NC_R4_SRC, "the R4 negative control located the exact guard block to remove")
+NC_R4_PATCHED = NC_R4_SRC.replace(_R4_GUARD, _R4_BARE, 1)
+nc_r4 = types.ModuleType("convert_and_ship_nc_r4")
+nc_r4.__file__ = str(HERE / "convert_and_ship.py")
+exec(compile(NC_R4_PATCHED, nc_r4.__file__, "exec"), nc_r4.__dict__)  # noqa: S102
+
+held_ncr4, manifest_ncr4 = make_held_bundle("shancr4000000001", name="mbncr4", with_sidecar=True)
+del manifest_ncr4["fidelity"]
+(held_ncr4 / "manifest.json").write_text(json.dumps(manifest_ncr4, indent=2), encoding="utf-8")
+fakes_ncr4, rec_ncr4, ships_ncr4, raised_ncr4, _f_ncr4 = run_reaudit(
+    nc_r4, "shancr4000000001", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(len(fakes_ncr4.convert_calls) == 1,
+      "NEGATIVE CONTROL (R4): with the guard removed, a manifest with no fidelity block still "
+      "runs audit_convert — proving check (12) above watches something real")
 
 # ---------- T19 vocabulary parity (audit/reaudit*, J31) ----------
 print("T19 vocabulary parity")

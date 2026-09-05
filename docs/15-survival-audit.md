@@ -99,8 +99,9 @@ tests that happened to agree. Window construction still runs on the SPACED, punc
 
 Every `audit_analyst` block (and J32-B's per-chunk `chunk_survival`, §6) carries a
 `normalisation` record naming exactly which regex pair ran: `{"unescape": true,
-"punct_free": true, "space_free": true, "regex_id": "j32a-v1"}` — a future change to either
-regex is a version bump on `regex_id`, not a silent drift in what "near-exact" means.
+"punct_free": true, "space_free": true, "regex_id": "j32a-v2"}` — a future change to either
+regex is a version bump on `regex_id`, not a silent drift in what "near-exact" means (this is
+exactly the rule R5 exercised: `j32a-v1` → `j32a-v2` when `punct_free` changed, §9.4).
 
 ## 4. Core algorithm
 
@@ -153,15 +154,17 @@ special alignment algorithm is needed.
   mixed-alnum junk).
 - **Per-chunk input-window survival (J32-B, signed Rab 2026-09-05, ACCEPT-TIME, ANALYST
   STAGE):** the fence (`analyst.py`'s asset-token multiset check) proves the chunk's images
-  survived; it sees neither a DELETED paragraph nor an INFLATED rewrite (the held University 4e
-  run's chunk 23/78 lost 361/308 words; chunk 296 read 673 words in, 5,164 out). After the fence
-  passes, `text_norm.chunk_survival` measures the fraction of the INPUT chunk's own 12-word
-  windows (same normalisation ladder as §3 steps 8-9) that still turn up, space-free, in the
-  candidate. `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` — below it, REJECT: the original chunk ships
-  and the rejection is recorded with `reason: "survival"` (§7 manifest schema, §9.4 measured).
-  Unlike every OTHER tripwire in this section, this ONE gates AT ACCEPT TIME, per-chunk, not
-  report-only over the finished document — the accept/reject decision it feeds already existed
-  (the fence); this is a second reason a chunk can reach it.
+  survived; it sees neither a DELETED paragraph nor an INFLATED rewrite BY CONSTRUCTION (the
+  held University 4e run's chunk 23/78 lost 361/308 words; chunk 296 read 673 words in, 5,164
+  out). After the fence passes, `text_norm.chunk_survival` measures the fraction of the INPUT
+  chunk's own 12-word windows (same normalisation ladder as §3 steps 8-9) that still turn up,
+  space-free, in the candidate. `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` — below it, REJECT: the
+  original chunk ships and the rejection is recorded with `reason: "survival"` (§7 manifest
+  schema, §9.4 measured). **This guard sees DELETION only** — a candidate that repeats or pads
+  its input keeps every input window and scores ≈1.0 (measured: 2×/7× duplication → 1.0; J34,
+  unsigned, is the inflation guard). Unlike every OTHER tripwire in this section, this ONE gates
+  AT ACCEPT TIME, per-chunk, not report-only over the finished document — the accept/reject
+  decision it feeds already existed (the fence); this is a second reason a chunk can reach it.
 - **The `</think>` leak guard (SYM-074, ACCEPT-TIME, ANALYST STAGE):** qwen3:8b (a thinking
   model, asked `"think": false`) leaked a bare `</think>` into shipped text twice (held
   University 4e lines 8779 and 13744) — `_generate` returned `reply["response"].strip()` with no
@@ -193,7 +196,7 @@ original does.
 
 | Guard | Threshold | Action | Checked |
 |---|---|---|---|
-| `</think>` leak (SYM-074) | any occurrence of `<think>` or `</think>` | REJECT, `reason: "think_leak"` | before the fence |
+| `</think>` leak (SYM-074) | the two literal ASCII tags, contiguous, case-sensitive (`<thinking>`, `</THINK>`, a tag split by a newline, or HTML-escaped are NOT caught — Observed, measured against the shipped guard: only the bare, contiguous, correctly-cased close tag fires; the observed qwen3:8b leak is exactly that bare close tag; widening is Rab's) | REJECT, `reason: "think_leak"` | before the fence |
 | asset-token fence (pre-existing) | token multiset must match exactly | REJECT, `reason: "fence"` | after the leak check, before survival |
 | input-window survival (J32-B) | `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` | REJECT, `reason: "survival"` | after the fence passes |
 
@@ -227,7 +230,7 @@ is NOT rejected. `chunks_rejected` (§7) now means ALL THREE reasons together; `
   "analyst": {
     "doc_survival": 0.998, "runs": [],
     "normalisation": { "unescape": true, "punct_free": true, "space_free": true,
-                      "regex_id": "j32a-v1" }
+                      "regex_id": "j32a-v2" }
   },
   "verdict": "pass | flag | fail"
 }
@@ -363,64 +366,87 @@ reading; the whole `fail` verdict rode on it (degeneration is the only convert-s
   structural token repeated *as* words is the one way to fool it, and the repair is to take the
   structure out of the text before measuring, not to move the threshold.
 
-### 9.4 The J32-A normalisation ladder (measured 2026-09-05, signed: Proposal A)
+### 9.4 The J32-A normalisation ladder (measured 2026-09-05, signed: Proposal A; **re-stamped
+2026-09-05 for R5 v2**)
 
-§3 steps 8-9 (unescape, punct-free) applied to the analyst-stage comparison only. Re-measured on
-this build (`fidelity_audit.audit_analyst`, marker-env interpreter, CPU, read-only against
-`C:\Users\Bndit\ml\library`) — every number below is THIS run's, not quoted from docs/54:
+§3 steps 8-9 (unescape, punct-free) applied to the analyst-stage comparison only. **v1 shipped
+with a defect** (below): `text_norm._PUNCT` was `[^\w\s]`, a superset that deleted every
+backslash unconditionally — so `unescape`'s letter-vs-punctuation rule never reached a
+comparison, and `\rm` compared equal to `rm` (the exact outcome the ticket rejected). **R5**
+(verifier GO_AMENDED, 2026-09-05) changed `_PUNCT` to `[^\w\s\\]` (regex_id bumped
+`j32a-v1` → `j32a-v2`) so only `unescape` may ever remove a backslash. Every number below is
+v2, THIS run's (`fidelity_audit.audit_analyst`, marker-env interpreter, CPU, read-only against
+`C:\Users\Bndit\ml\library`, `scratchpad/j32a_measure.py` + `scratchpad/j32a_univ4e_pin.py`
+with their `sys.path` pointed at this checkout's `windows-converter/`) — not quoted from docs/54
+or from this same section's own prior (v1) stamping:
 
-| Pair | Before (doc_survival / runs_total) | After (doc_survival / runs_total) | Verdict moved? |
+| Pair | Before (doc_survival / runs_total) | After v2 (doc_survival / runs_total) | Verdict moved? |
 |---|---|---|---|
-| Investment Valuation, Damodaran 4e (2025) | 0.9525 / 25 | 0.9835 / 42 | no (fail → fail) |
-| Best Practices, Valentine (analyst-local rerun) | 0.9303 / 25 | 0.9578 / 48 | no (fail → fail) |
+| Investment Valuation, Damodaran 4e (2025) | 0.9525 / 234 | 0.9817 / 51 | no (fail → fail) |
+| Best Practices, Valentine (analyst-local rerun) | 0.9303 / 89 | 0.9578 / 47 | no (fail → fail) |
 | Diagnosing the System, Beer | 0.9791 / 1 | 0.9886 / 0 | no (fail → fail) |
-| claude-code-up-and-running | 0.9493 / 14 | 0.9699 / 6 | no (fail → fail) |
-| bojieli ai-agent-book (CJK) | UNREAD (no prior fidelity.analyst block on disk) | 0.9987 / 0 | n/a (pass) |
-| Brain of the Firm (Beer, with OCR) | UNREAD (no prior fidelity.analyst block on disk) | 0.9734 / 30 | n/a (fail) |
+| claude-code-up-and-running | 0.9493 / 14 | 0.9644 / 9 | no (fail → fail) |
+| bojieli ai-agent-book (CJK) | UNREAD (no prior fidelity.analyst block on disk) | 0.9975 / 0 | n/a (pass) |
+| Brain of the Firm (Beer, with OCR) | UNREAD (no prior fidelity.analyst block on disk) | 0.9732 / 31 | n/a (fail) |
 
-`runs_total` moves in both directions per book (fewer real omission runs on Diagnosing and
-claude-code-up-and-running once escape/punctuation noise stops manufacturing false runs; MORE
-counted runs on Damodaran/Valentine because the ladder's word-count shift changes where a
-12-word window boundary falls — the runs it now reports are real ones the old boundary
-happened to split differently, not new losses). **No verdict moved on any of the six** — every
-book still gated by `ANALYST_DOC_FAIL = 0.995` exactly as before (all six were already well
-below 0.995 pre-ladder on the analyst stage; the ladder narrows the gap, it does not close it
-for these books).
+**The "Before" column, corrected:** the stored `fidelity.analyst` block for Damodaran 2025 4e
+and Valentine predates the `runs_total` key, so `len(runs)` (capped at 25) is not the true
+total — this section previously reported 25/25 for both, which is that cap, not the count.
+Re-measured against the SAME ref/out text with the BASE (pre-J32-A) module
+(`git show 08a7742:windows-converter/fidelity_audit.py`, a self-contained file at that
+revision): Damodaran 2025 4e is **234**, Valentine is **89** — the values now in the table.
+`doc_survival` was never affected (it does not depend on the capped list).
+
+`runs_total` moves per book for the same reason as before: escape/punctuation noise no longer
+manufactures false run boundaries, and the ladder's word-count shift changes where a 12-word
+window falls. **No verdict moved on any of the six** — every book still gated by
+`ANALYST_DOC_FAIL = 0.995` exactly as before.
 
 **THE PIN — held University 4e (`14c66834bdfeaa2e`)**, reference rebuilt from the LIVE library's
 slice cache (`.chunk-work/14c66834bdfeaa2e/slice-*/slice.md`, concatenated in order, then
 `rewrite_image_links` — the exact SYM-073-cause reproduction), read-only:
 
-| | Before (pre-J32-A, from manifest.json) | After (J32-A ladder, this run) |
+| | Before (pre-J32-A, from manifest.json) | After v2 (this run) |
 |---|---|---|
-| doc_survival | 0.9402 | **0.9838** |
-| failed windows | 404 (denominator not carried pre-ladder) | 639 of 39,461 |
-| runs_total | 404 | 59 |
+| doc_survival | 0.9402 | **0.9807** |
+| failed windows | 404 (denominator not carried pre-ladder) | 762 of 39,507 |
+| runs_total | 404 | 82 |
 | verdict | fail | fail (unchanged) |
 
-Within the coordinator's expected neighbourhood (0.9838-0.9848, ≈646 of 42,235 failed, runs
-54-59) on doc_survival and runs_total; total windows measured lower (39,461 vs the ≈42,235
-neighbourhood) because this ladder's `punct_free` DELETES non-word characters rather than
-replacing them with a space (per the ticket's literal step 1 spec), which merges some
-punctuation-adjacent word pairs into one token and so reduces the word-split count slightly —
-a difference in denominator convention, not a discrepancy in method. **The verdict stays
-`fail`**: this book's analyst pass has real paragraph deletions (docs/54 §2, SYM-074/J32-B
-below) that the ladder correctly leaves un-forgiven — narrowing false loss was never meant to
-launder a real one.
+**v1 (this section's own prior stamping) measured 0.9838 / 641 of 39,461 / 59 / fail** — quoted
+here as `641`, not the `639` an earlier build report read (the verifier fleet independently
+re-measured 641 twice; 639 was wrong). **v2 moves lower on doc_survival and higher on failed
+windows/runs_total than v1** (0.9807 vs 0.9838; 762 vs 641; 82 vs 59) — expected, not a
+regression: v1's punct_free was silently deleting every LaTeX backslash (`\rm`, `\alpha`, `\times`
+and friends) as if it were punctuation, which let more windows match than should have; v2 keeps
+those backslashes on both sides of the comparison (they are real content, not noise), so fewer
+windows now falsely agree. **The verdict stays `fail`** either way: this book's analyst pass has
+real paragraph deletions (docs/54 §2, SYM-074/J32-B below) that no version of the ladder
+forgives — narrowing false loss was never meant to launder a real one.
 
-**A residual finding, reported rather than silently worked around (docs/47 rule 1):** with
-`punct_free` specified as DELETE-based (the ticket's literal step 1, matched to lane A's
-script) and always chained after `unescape` in every caller this ticket builds, `unescape`'s
-letter-vs-punctuation distinction has **no observable effect on the final compared strings** —
-`punct_free` deletes every remaining backslash unconditionally regardless of what character
-follows it, so `punct_free(unescape(x)) == punct_free(x)` for any `x` (case (g)'s negative
-control in `analyst_audit_selftest.py` had to disable BOTH rungs together to demonstrate a
-break; disabling `unescape` alone changes nothing, because `punct_free` is a superset action).
-`unescape` is still built and tested as its own function exactly as specified — the letter-vs-
-punctuation rule is real and independently correct (case (e)) — and it is the shape a future
-consumer would need if punct_free is ever NOT chained after it (a display/diagnostic path, say).
-Left as residue rather than redesigned: the ticket asked for both functions with this exact
-composition, and re-measuring showed no verdict-relevant harm from the redundancy.
+**The v1 defect and its fix, reported rather than silently worked around (docs/47 rule 1):**
+with v1's `punct_free` deleting every backslash unconditionally and always chained after
+`unescape` (`punct_free(unescape(x))`), `unescape`'s letter-vs-punctuation distinction had **no
+observable effect on the final compared strings** — `punct_free(unescape(x)) == punct_free(x)`
+for any `x` (case (g)'s negative control in `analyst_audit_selftest.py` had to disable BOTH
+rungs together to demonstrate a break under v1; disabling `unescape` alone changed nothing,
+because `punct_free` was a superset action). **R5 fixes this**: `_PUNCT` now excludes the
+backslash (`[^\w\s\\]`), so `unescape` is the only function that may ever remove one, and only
+before punctuation — case (e) now asserts THROUGH `fa.audit_analyst` that `\rm` vs `rm` is a
+real loss (`doc_survival < 1.0`) while the escape-only case (a) still survives at `1.0`; case
+(e')'s negative control restores v1's regex and watches case (e) go falsely green. Disabling
+`unescape` alone now also breaks case (a) (Observed: `doc_survival` 0.0) — the two rungs are
+independent tripwires again, no longer one pipeline.
+
+**A consequence outside this ticket's scope, flagged not fixed:** J32-B's own calibration pin
+(§9.5 below) and OPEN-TASKS.md's J34 row both quote chunk 296's survival as measured by
+`text_norm.chunk_survival` — the SAME function this fix changes, because `chunk_survival` chains
+`punct_free(unescape(...))` exactly like `audit_analyst` does. Both were measured under v1;
+re-measured against the now-fixed v2 module (`scratchpad/j32b_named_chunks.py`), chunk 296 reads
+**0.159**, not v1's **0.7907** — the fix makes the guard SHARPER (v1's backslash-deletion was
+inflating survival scores generally, not just for this chunk), so J34's headline number and its
+"below 0.50: 2 of 500" / "below 0.60" counts are now stale. J34 is the coordinator's ticket
+(OPEN-TASKS.md), not touched here; this is reported so whoever signs it next re-measures first.
 
 ### 9.5 The J32-B survival-guard calibration pin (measured 2026-09-05)
 
@@ -430,21 +456,33 @@ only against a rebuild of TODAY's chunking of the held University 4e marker body
 hash validation (`analyst._load_journal`): **516 of 646 records validate against today's
 chunks** (the other 130 were chunked differently that run — expected, not a discrepancy). Of the
 **500 validated PASSED records**, running `text_norm.chunk_survival` on each (input = today's
-matching chunk, output = the journal's shipped text) gives:
+matching chunk, output = the journal's shipped text) gives, **re-stamped 2026-09-05 for R5's v2
+fix** (this table was measured under v1 when first written; `text_norm._PUNCT` changed since,
+and `chunk_survival` uses it too — see docs/47 rule 1 and §9.4's consequence note above):
 
-| Bucket (cumulative) | Count | of 500 |
-|---|---|---|
-| survival < 0.50 | 2 | 0.4% |
-| survival < 0.80 | 5 | 1.0% |
-| survival < 0.90 | 12 | 2.4% |
+| Bucket (cumulative) | Count (v1, superseded) | Count v2 | of 500 |
+|---|---|---|---|
+| survival < 0.50 | 2 | **3** | 0.6% |
+| survival < 0.80 | 5 | **6** | 1.2% |
+| survival < 0.90 | 12 | **14** | 2.8% |
 
-docs/54's expected neighbourhood at baseline normalisation was 5/32/100 of 500 — this run
-measures lower on all three buckets (this build's `chunk_survival` runs the full J32-A ladder,
-unescape+punct_free, before windowing, which the docs/54 baseline may not have; a difference in
-method, reported rather than reconciled to a number that was never this build's own). The
-**2 chunks below 0.50** are exactly the population `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` is built
-to catch — they were SHIPPED as "passed" in the 2026-08-30 attempt (this guard did not exist
-yet) and would be REJECTED under this ticket's guard today.
+docs/54's expected neighbourhood at baseline normalisation was 5/32/100 of 500 — a citation, not
+re-measured here (a DIFFERENT normalisation than this ladder, docs/54-repair-road/VERIFIED.md,
+`Verified` there). The **3 chunks below 0.50 under v2** (23, 78, 296 — v1 undercounted at 2
+because its punct_free was deleting backslashes on both sides, inflating some chunks' scores)
+are exactly the population `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` is built to catch — they were
+SHIPPED as "passed" in the 2026-08-30 attempt (this guard did not exist yet) and would be
+REJECTED under this ticket's guard today.
+
+**This guard sees DELETION only:** a candidate that repeats or pads its input keeps every input
+window and scores ≈1.0 (measured with `tn.chunk_survival`: 2× and 7× duplication of a 12-word
+chunk both → 1.0). The runaway chunk 296 (681 words in → 5,170 out, per the 08-30 journal) scores
+**0.159** under this (v2) ladder — v1 measured 0.7907 here too, now stale for the same reason as
+the bucket table above — and **0.14** at docs/54's baseline normalisation (a citation,
+`docs/54-repair-road/VERIFIED.md`, not re-measured here; a different, non-shipped normalisation).
+Inflation is **J34** (OPEN-TASKS, PROPOSED, unsigned): output/input word ratio, chunk 296 =
+**7.59×** vs the next-highest chunk at **1.18×** (re-confirmed this build — word-count ratios do
+not depend on the punct_free regex, so this figure is unaffected by R5).
 
 ## 10. Deferred (add only when evidence demands)
 
@@ -785,6 +823,17 @@ path passes, docs/15 §12's alarm doorway) and `ship(staging, ...)`. On a succes
 `held/<ID>` is renamed to `held/<ID>--reshipped-<stamp>` — **never deleted** (S65: a held bundle
 may carry a human's repair work); if the rename fails (Windows: the bench may still hold a file
 open) the bundle is left in place with a printed warning rather than lost.
+
+**A flag re-audit ships to staging, but the exporter supersedes a vaulted note only after a human
+bless** (`linux-converter/converter/exporter.py:402`, read and confirmed this build — CRLF, not
+edited: `if not (verdict == "pass" or (verdict == "flag" and blessed is not None)): ... return`,
+i.e. `pass` supersedes on its own, `flag` needs `bless.json`). The re-audit's own `audit/scored`
+record above (`phase: "final"`, `reason: "reaudit"`) is exactly what that bless click reads —
+`pass` supersedes a vaulted note on the exporter's next export sweep with no extra step; `flag`
+waits for the human bless. **For the 7 held bundles today, none of which is vaulted, both fall
+through to an ordinary create** — a re-audit that reaches `flag`/`pass` here ships a NEW note,
+not a replacement, until the corresponding source is vaulted at least once (EXPORT-SUPERSEDE-MISS
+— there is nothing yet for `flag`/`pass` to supersede).
 
 **The events.** `audit/scored` fires with `phase: "final"`, `reason: "reaudit"`, and the exact
 bless()-shaped fields `assay.rs::bless` needs from the newest such record for a source:

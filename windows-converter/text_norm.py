@@ -150,7 +150,19 @@ _UNESCAPE = re.compile(r"\\(?=[^\w\s])")
 # lane A's script measured (A-ladder.py punct_free). Applied identically to both sides of
 # every comparison this module feeds, so a merge like "e.g." -> "eg" costs nothing: the same
 # merge happens to the reference and the candidate alike.
-_PUNCT = re.compile(r"[^\w\s]", re.UNICODE)
+#
+# v2 (verifier GO_AMENDED, 2026-09-05): `[^\w\s]` was a SUPERSET of "punctuation" that also
+# matched a bare backslash -- so punct_free deleted every backslash unconditionally, including
+# one unescape() had just decided to LEAVE ALONE because it precedes a letter (`\rm`, `\alpha`
+# and friends). The two functions are chained as punct_free(unescape(x)) everywhere in this
+# codebase, so unescape's letter-vs-punctuation rule was INERT in every shipped caller:
+# punct_free(unescape(x)) == punct_free(x) for any x (docs/15 SS9.4's residual finding,
+# analyst_audit_selftest.py case (g)'s negative control had to disable BOTH rungs together to
+# show a break, because disabling unescape alone changed nothing). Excluding the backslash from
+# punct_free's deletion set restores the split: unescape is now the ONLY function that may ever
+# remove a backslash, and only immediately before punctuation -- `\rm` now genuinely survives
+# all the way through the ladder as `\rm`, not `rm`.
+_PUNCT = re.compile(r"[^\w\s\\]", re.UNICODE)
 
 
 def unescape(t: str) -> str:

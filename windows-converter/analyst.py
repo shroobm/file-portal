@@ -51,11 +51,19 @@ CHUNK_TARGET = 4000  # chars; well inside an 8k context with prompt + thinking r
 NUM_CTX = 8192
 # J32-B (docs/54-repair-road, lever-waiver: threshold 0.50, action REJECT, signed Rab
 # 2026-09-05). The fence (below) only proves the IMAGE TOKENS survived a chunk's rewrite; it
-# sees neither a DELETED paragraph (the held University 4e run's chunk 23/78 lost 361/308
-# words) nor an INFLATED one (chunk 296: 673 words in, 5,164 out). This is the accept-time
-# guard on the other failure mode: the fraction of the INPUT chunk's own 12-word windows
-# (text_norm.chunk_survival, the same normalisation ladder as J32-A) that still turn up,
-# space-free, in the candidate. Below threshold -> reject, ship the original chunk.
+# sees a DELETED paragraph (the held University 4e run's chunk 23/78 lost 361/308 words) via
+# this guard. This IS a per-chunk containment test (§5 R6, docs/15): a candidate that repeats
+# or pads its input keeps every one of the input's own windows and scores ~1.0 regardless of
+# length, so an INFLATED one is NOT caught here BY CONSTRUCTION -- J34 (OPEN-TASKS, PROPOSED,
+# unsigned) is the output/input word-ratio guard that failure mode still needs. (Chunk 296,
+# 673 words in / 5,164 out, is the observed real-world instance -- Observed 2026-09-05, replaying
+# the 08-30 journal through this shipped function: 0.159, below THIS threshold, because its
+# hallucinated output happens not to literally contain the input's windows either, not because
+# this guard measures inflation; a duplicated or padded copy of the same input would still score
+# ~1.0.) This is the accept-time guard on the deletion failure mode: the fraction of the INPUT
+# chunk's own 12-word windows (text_norm.chunk_survival, the same normalisation ladder as J32-A)
+# that still turn up, space-free, in the candidate. Below threshold -> reject, ship the original
+# chunk.
 ANALYST_CHUNK_SURVIVAL_MIN = 0.50
 # Stage C (docs/18 §4C): per-chunk liveness, the S42 progress-file pattern — overwritten every
 # chunk (zero flight-recorder growth); the file's mtime is the heartbeat the widget ages.
