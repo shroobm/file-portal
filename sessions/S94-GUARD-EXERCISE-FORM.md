@@ -21,6 +21,7 @@ Exe under test (sha256 first-8): ______________  ·  Date: ____________  ·  Rev
 | 7 | P-0 figures line on a real book | Renders count-not-coverage; null renders blank | ______ | |
 
 Verdict (circle): **WITHSTOOD / BLOCKED** — "held" is retired per the S108 circle rules.
+⟨correction 2026-09-05 (S115): "held" is NOT retired — the circle skill (`~/.claude/skills/circle/SKILL.md`, unchanged since 2026-08-13) still returns HELD as a verdict (line 101); the S108 circle rules were never imported (J37). The line above stands as written.⟩
 
 On completion: strike register rows D8 and P-0's acceptance line in the same commit that
 records this form's result (OPEN-TASKS §H rule 1).
