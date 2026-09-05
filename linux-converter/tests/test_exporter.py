@@ -9,7 +9,7 @@ import subprocess
 import pytest
 
 from converter.config import Paths
-from converter.exporter import Exporter, slugify
+from converter.exporter import MARKER_BODY_SUFFIX, Exporter, slugify
 
 SHA_A = "aa11" * 16
 SHA_B = "bb22" * 16
@@ -561,4 +561,110 @@ def test_supersede_held_records_it_and_stale_block_records_do_not_survive(paths,
         "present_in_bundle": True,
         "shipped": False,
         "bytes": n,
+    }
+
+
+# ---------------------------------------------------------------------------
+# J33 (2026-09-05): the pre-analyst Marker-body sidecar ("<bundle_name>.marker.txt", windows-
+# converter's _write_marker_body_safe) at the vault seam. Same open question as J28's
+# blocks.json -- is a working file that indexes text for a later audit a vault-repo citizen --
+# and the same lever shape: these pin both answers of SHIP_MARKER_BODY_TO_VAULT on both export
+# paths, plus the manifest that must state which one happened, MERGED with (never overwriting)
+# the sha256 the Desktop already measured.
+# ---------------------------------------------------------------------------
+MARKER_BODY_A = b"the marker body text, version A"
+MARKER_BODY_B = b"the marker body text, version B (repaired)"
+DESKTOP_SHA256 = "deadbeef" * 8
+
+
+def plant_marker_body(bundle, name, payload=MARKER_BODY_A, sha256=DESKTOP_SHA256):
+    """Drop a "<name>.marker.txt" sidecar beside the bundle's .md, WITH the desktop-side
+    manifest fields (bytes, sha256) already folded in -- exactly what _record_marker_body must
+    merge into (never overwrite), the same way windows-converter's _write_marker_body_safe
+    leaves them before the exporter ever sees the bundle. Returns the true byte size."""
+    (bundle / f"{name}{MARKER_BODY_SUFFIX}").write_bytes(payload)
+    manifest_path = bundle / "manifest.json"
+    manifest = json.loads(manifest_path.read_text())
+    manifest["marker_body"] = {
+        "file": f"{name}{MARKER_BODY_SUFFIX}",
+        "bytes": len(payload),
+        "sha256": sha256,
+    }
+    manifest_path.write_text(json.dumps(manifest))
+    return len(payload)
+
+
+def ship_marker_body(monkeypatch, value):
+    """Flip the J33 lever for one test (same shape as ship_blocks above)."""
+    import converter.exporter as exporter_mod
+
+    monkeypatch.setattr(exporter_mod, "SHIP_MARKER_BODY_TO_VAULT", value)
+
+
+def test_marker_body_held_is_recorded_and_sha256_survives_the_fold(paths):
+    # No monkeypatch: the lever as the module ships it (OUT, pending Rab's word -- like blocks).
+    bundle = make_bundle(paths, "paper", SHA_A)
+    n = plant_marker_body(bundle, "paper")
+    Exporter(paths).export(bundle)
+
+    dest = f"Inbox/paper--{SHA_A[:8]}"
+    assert not bundle.exists(), "the L12 gate must not demand a blob it was told not to create"
+    assert bare_commits(paths) == 2, "the export still lands"
+    assert not bare_has(paths, f"{dest}/paper.marker.txt"), "lever is OUT -- vault must not have it"
+    assert vault_manifest(paths, dest)["marker_body"] == {
+        "present_in_bundle": True,
+        "shipped": False,
+        "bytes": n,
+        "file": "paper.marker.txt",
+        "sha256": DESKTOP_SHA256,
+    }, "the merge must PRESERVE the sha256 the Desktop measured, never drop or replace it"
+
+
+def test_marker_body_ships_byte_identical_when_the_lever_says_in(paths, monkeypatch):
+    ship_marker_body(monkeypatch, True)
+    bundle = make_bundle(paths, "paper", SHA_A)
+    n = plant_marker_body(bundle, "paper")
+    Exporter(paths).export(bundle)
+
+    dest = f"Inbox/paper--{SHA_A[:8]}"
+    assert bare_has(paths, f"{dest}/paper.marker.txt"), "lever is IN -- the vault must carry it"
+    assert bare_size(paths, f"{dest}/paper.marker.txt") == n, "byte-identical, not re-serialized"
+    assert bare_show(paths, f"{dest}/paper.marker.txt") == MARKER_BODY_A.decode()
+    assert vault_manifest(paths, dest)["marker_body"]["shipped"] is True
+    assert vault_manifest(paths, dest)["marker_body"]["sha256"] == DESKTOP_SHA256
+
+
+def test_bundle_without_marker_body_records_absence(paths):
+    # "no sidecar" and "sidecar deliberately left behind" must not read the same.
+    Exporter(paths).export(make_bundle(paths, "plain", SHA_A))
+    dest = f"Inbox/plain--{SHA_A[:8]}"
+    assert vault_manifest(paths, dest)["marker_body"] == {"present_in_bundle": False}
+    assert not bare_has(paths, f"{dest}/plain.marker.txt")
+
+
+def test_supersede_marker_body_out_stale_sidecar_does_not_survive(paths, monkeypatch):
+    ship_marker_body(monkeypatch, True)
+    exp = Exporter(paths)
+    first = make_bundle(paths, "paper", SHA_A)
+    plant_marker_body(first, "paper", MARKER_BODY_A)
+    exp.export(first)
+    dest = f"Inbox/paper--{SHA_A[:8]}"
+    assert bare_show(paths, f"{dest}/paper.marker.txt") == MARKER_BODY_A.decode()
+
+    # The lever flips OUT between the create and the remedy -- the vaulted sidecar indexes
+    # markdown the remedy just replaced and must not outlive the note it describes, exactly
+    # the rule blocks.json follows (test_supersede_held_records_it_..., above).
+    ship_marker_body(monkeypatch, False)
+    remedy = make_supersede_bundle(paths, "paper", SHA_A, body="the remedy")
+    n = plant_marker_body(remedy, "paper", MARKER_BODY_B)
+    exp.export(remedy)
+
+    assert "the remedy" in bare_show(paths, f"{dest}/paper.md"), "the swap itself happened"
+    assert not bare_has(paths, f"{dest}/paper.marker.txt"), "stale sidecar must not survive"
+    assert vault_manifest(paths, dest)["marker_body"] == {
+        "present_in_bundle": True,
+        "shipped": False,
+        "bytes": n,
+        "file": "paper.marker.txt",
+        "sha256": DESKTOP_SHA256,
     }

@@ -510,3 +510,65 @@ running and a real vault write, so it is Rab's call, with him present.
 hand) does persist. If that filename is later converted it would carry the intent — but the blast
 radius is bounded by the exporter locating on the incoming bundle's real sha and requiring `pass`, so
 the worst case is replacing that same source's own note with a better conversion of it.
+
+## 15. The Marker body sidecar (J33, signed Rab 2026-09-05)
+
+**Where it lives.** `windows-converter/convert_and_ship.py::_write_marker_body_safe` writes the
+PRE-analyst Marker body — `body` at the exact point `_audit_convert_safe` sees it, before any
+analyst branch — beside the bundle as `<bundle_name>.marker.txt`, into `tmp_dir` before that
+directory is copied or tarred to every downstream site: the anchor copy, `pending/` (defer), or
+`held/` + the shipped tar (Verified for the anchor site by `T18` in
+`convert_and_ship_selftest.py`, same `shutil.copytree(tmp_dir, ...)` idiom `main()` uses;
+Inferred, not separately exercised, for pending/held/the tar, which copy or tar the identical
+`tmp_dir` by the identical mechanism). It is written unconditionally — a book converted with no
+`--analyst` gets the sidecar too, since a repaired-later held bundle (J31) may need this
+reference even if no analyst ever touched it. `manifest.json` gets COUNTS never the payload:
+`marker_body: {file, bytes, sha256}` (mirroring `_attach_blocks_safe`'s J24 shape exactly). On
+any fault the key is simply absent and the book converts exactly as it did before J33 — never an
+exception (docs/15 §8's fail-safe rule; `T18` watches this by monkeypatching the write to raise
+and by a negative control that removes the call entirely).
+
+**Why this exists (SYM-073).** The manifest's `fidelity.convert` audits the PRE-analyst body; the
+held `.md` is the POST-analyst text (§6/§7 above). A repaired held bundle (J31) needs to re-audit
+against BOTH references, and the analyst reference is this exact PRE-analyst text — which, for a
+book analysed inline (`--analyst`, the University Edition voyage), existed on disk nowhere but
+`.chunk-work/<sha16>/slice-*/slice.md`, swept the moment the NEXT book starts chunking
+(LATEST-BOOK retention). The sidecar is that reference, made durable.
+
+**Why OUT of the vault (Rab's slot, 2026-09-05 — same shape as blocks.json/J28).** The name
+itself, `.marker.txt` rather than `.marker.md`, sidesteps the whole class of "exactly one `.md`"
+guards the pipeline carries (six named in the S115 brief: the exporter's supersede scan, the
+Repair Bench's open scan and picker, `_anchor_copies`, `coverage_rescore.py`, `acceptance.py`;
+`room.rs`'s file listing is cosmetic and lists every `.md` regardless) — none of them needed to
+learn a second filename, because none of them match a `.txt` suffix. `linux-converter/converter/
+exporter.py` keeps it off the vault exactly the way `blocks.json` is: `SHIP_MARKER_BODY_TO_VAULT
+= False` (lever-waiver, flips only on Rab's word), `_marker_body_status`/`_record_marker_body`
+fold `{present_in_bundle, shipped, bytes, file}` into the manifest BEFORE any vault write —
+MERGED into the Desktop's `{file, bytes, sha256}`, never overwritten, because the sha256 is what
+J31's `--reaudit` will need later to prove which text a repair was compared against —
+`_skip_marker_body` keeps it out of the create-path copytree (composed with `_skip_blocks` via
+`_combine_skip`, since `shutil.copytree` accepts only one `ignore` filter and either lever may be
+OUT independently), and the L12 blob gate skips verifying a blob it was told not to create. Under
+supersede, the sidecar is swapped exactly the way `blocks.json` is: dropped first under the OLD
+note's name (`old_md_name`'s stem + `.marker.txt` — identity tracks the note, never the incoming
+bundle's own slug), re-added only if the lever ships it — proven by
+`linux-converter/tests/test_exporter.py`'s four J33 tests, mirroring J28's template
+(`test_marker_body_held_is_recorded_and_sha256_survives_the_fold`,
+`test_marker_body_ships_byte_identical_when_the_lever_says_in`,
+`test_bundle_without_marker_body_records_absence`,
+`test_supersede_marker_body_out_stale_sidecar_does_not_survive`).
+
+**No new event.** The coordinator's default (docs/54 §J33 step 1): the manifest key IS the
+record, so no `convert/marker_body` event verb was added — fewer undispositioned keys, no new
+vocabulary for `event-vocab.js`/the manual, no new `T7`-style parity row. A write fault prints a
+non-fatal line to stdout rather than emitting an event; there is no live reader of this key yet
+for an event to reach.
+
+**Cost, measured read-only on the live University Edition slice cache** (`held/14c66834bdfeaa2e`'s
+`.chunk-work/14c66834bdfeaa2e/slice-*/slice.md`, 7 slices, 1,377 pages) — `Observed`, this
+session, concatenating the slices in order (`sum(len(s.read_bytes()) for s in sorted(slices))`,
+before `rewrite_image_links`, which only rewrites image targets and does not materially change
+the byte count): **3,486,636 bytes ≈ 3.49 MB**, ≈ 2.53 KB/page for this book — in the same
+neighbourhood as docs/54 §3's ≈ 3.46 MB / 3.49 MB-on-disk figure (that number was re-measured
+here, not quoted). At 0 in the vault while the lever stays OUT — a goal the code now delivers on,
+not merely a plan.

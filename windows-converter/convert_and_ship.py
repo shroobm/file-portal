@@ -105,6 +105,11 @@ MARKER_PYTHON = MARKER.with_name("python.exe")
 # for the case where it is NOT working. Costs nothing when unset (the normal case).
 BLOCKS_ENV = "FP_BLOCKS"
 BLOCKS_BUNDLE_FILE = "blocks.json"  # the name inside the bundle, beside manifest.json
+# J33 (signed Rab 2026-09-05: name = "<bundle_name>.marker.txt", vault OUT — same shape as
+# BLOCKS_BUNDLE_FILE's lever, docs/54 §4 slot 3). A non-".md" suffix on purpose: it sidesteps
+# every "exactly one .md" guard in the pipeline (six of them, docs/54 §3) rather than teaching
+# each one a second filename.
+MARKER_BODY_SUFFIX = ".marker.txt"
 ANCHOR = fp_paths.root("anchor")
 PENDING = fp_paths.root("pending")  # deferred-analyst queue (widget card)
 HELD = fp_paths.root("held")  # audit-failed bundles (enforce mode; assay card)
@@ -681,6 +686,45 @@ def _attach_blocks_safe(tmp_dir: Path, manifest: dict, chunk_stats: dict, name: 
                  unreadable=summary.get("unreadable"))
     except Exception as exc:  # noqa: BLE001 — an addition may never cost a bundle
         emit("convert", "blocks_error", source=name, phase="attach", error=str(exc)[:150])
+
+
+# ---------- J33: the Marker body sidecar (signed Rab 2026-09-05) ----------
+
+def _write_marker_body_safe(tmp_dir: Path, bundle_name: str, body: str, manifest: dict,
+                             name: str = "") -> None:
+    """Write the PRE-analyst Marker body beside the bundle as `<bundle_name>.marker.txt`,
+    mirroring `_attach_blocks_safe`'s shape exactly: never raises, the manifest gets COUNTS
+    (bytes + sha256) never the payload, and on any fault the manifest key is simply absent —
+    the book converts exactly as it did before J33 (docs/15 §8's fail-safe rule).
+
+    Called with `body` at the SAME point `_audit_convert_safe` is (before the analyst branch,
+    if any) — this is the exact text SYM-073 named as missing: the reference `audit_analyst`
+    already compares against in memory (`marker_body` a few lines below, for a book converted
+    inline) but that today exists on disk NOWHERE for such a book once `.chunk-work`'s
+    LATEST-BOOK retention sweeps the slice cache. Because `tmp_dir` is copied whole to
+    anchor/, pending/, held/ and the shipped tar (this function runs before every one of
+    those copytree/tar sites), the sidecar rides everywhere the bundle goes — Verified for
+    the anchor site (same `shutil.copytree(tmp_dir, ...)` idiom main() uses, exercised by
+    T18); Inferred, not separately exercised, for pending/held/the shipped tar, which copy
+    or tar the identical `tmp_dir` by the identical mechanism.
+
+    No event is emitted on success: the manifest key IS the record (fewer undispositioned
+    keys than a new `convert/marker_body` verb would add), per the coordinator's default in
+    docs/54 §J33 step 1. A write fault prints a non-fatal line instead of an event — this
+    sidecar is new plumbing with no live reader yet, so a failure here is not (yet) an
+    operator-facing alarm; docs/15 §8 already guarantees it costs nothing."""
+    try:
+        dest = tmp_dir / f"{bundle_name}{MARKER_BODY_SUFFIX}"
+        dest.write_text(body, encoding="utf-8")
+        data = dest.read_bytes()  # re-measured at its final resting place (J24's own idiom)
+        manifest["marker_body"] = {
+            "file": dest.name,
+            "bytes": len(data),
+            "sha256": hashlib.sha256(data).hexdigest(),
+        }
+        print(f"MARKER-BODY {dest.name} ({manifest['marker_body']['bytes']} bytes)", flush=True)
+    except Exception as exc:  # noqa: BLE001 — an addition may never cost a bundle
+        print(f"MARKER-BODY write failed (non-fatal, no sidecar this run): {exc}", flush=True)
 
 
 # ---------- bundle contract, mirrored from linux-converter/converter/bundle.py ----------
@@ -1614,6 +1658,10 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # Survival Audit of the convert stage (docs/15) — before any analyst pass, so the
     # witness is scored against the raw Marker output. Report-only; never fails the line.
     _audit_convert_safe(src, body, lane, tmp_dir, manifest)
+    # J33: the PRE-analyst body, byte-for-byte what audit_analyst will treat as `marker_body`
+    # below (or what a --resume/--defer-analyst later run will need as J31's reference) —
+    # written BEFORE the analyst branch so an un-analysed book gets the sidecar too.
+    _write_marker_body_safe(tmp_dir, bundle_name, body, manifest, src.name)
     if use_analyst:
         # Marker has exited: the GPU is free for the analyst (Phase 2 serialization).
         import analyst

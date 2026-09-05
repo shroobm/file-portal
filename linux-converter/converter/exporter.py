@@ -82,6 +82,14 @@ SPOT_CHECK_EVERY = 10
 BLOCKS_NAME = "blocks.json"  # the bundle-side name (windows-converter/convert_and_ship.py:107)
 SHIP_BLOCKS_TO_VAULT = False  # lever-waiver: J28, Rab decided OUT 2026-09-03 (stay out of the vault; the manifest names the omission); flips to True only on his word
 
+# J33 (S115, 2026-09-05): the pre-analyst Marker body sidecar (windows-converter/convert_and_ship.py's
+# MARKER_BODY_SUFFIX), written beside the bundle as "<bundle_name>.marker.txt" -- a non-".md" name so
+# none of the pipeline's six "exactly one .md" guards needs to learn it (docs/54 §3). Same lever shape
+# as BLOCKS_NAME/SHIP_BLOCKS_TO_VAULT above, same open question (is a working file that indexes text
+# for an audit a vault-repo citizen), same answer for now.
+MARKER_BODY_SUFFIX = ".marker.txt"  # the bundle-side suffix (windows-converter/convert_and_ship.py)
+SHIP_MARKER_BODY_TO_VAULT = False  # lever-waiver: J33, Rab decided OUT 2026-09-05 (stay out of the vault; the manifest names the omission); flips to True only on his word
+
 
 def append_receipt(root: Path, outcome: str, **fields) -> None:
     """Append one seam receipt to <root>/receipts.jsonl. Best-effort and never raises:
@@ -158,6 +166,58 @@ def _skip_blocks(bundle_dir: Path):
 
     def _ignore(src, _names):
         return {BLOCKS_NAME} if Path(src) == bundle_dir else set()
+
+    return _ignore
+
+
+def _marker_body_status(bundle_dir: Path) -> dict:
+    """What this export did with the bundle's Marker-body sidecar (J33), for the exported
+    manifest. Absent => {"present_in_bundle": False} and nothing else -- same shape as
+    _blocks_status, plus "file": the sidecar's name varies with the bundle (windows-converter
+    names it "<bundle_name>.marker.txt"), unlike blocks.json's fixed name."""
+    matches = [p for p in bundle_dir.glob(f"*{MARKER_BODY_SUFFIX}") if p.is_file()]
+    if not matches:
+        return {"present_in_bundle": False}
+    path = matches[0]
+    try:
+        size = path.stat().st_size
+    except OSError:
+        # Sizing is telemetry, the copy below is the operation: a file we cannot stat but must
+        # ship makes shutil raise there, and the export fails loudly with staging kept.
+        logger.warning("EXPORT-MARKER-BODY %s: sidecar could not be sized", bundle_dir.name)
+        size = None
+    return {
+        "present_in_bundle": True,
+        "shipped": bool(SHIP_MARKER_BODY_TO_VAULT),
+        "bytes": size,
+        "file": path.name,
+    }
+
+
+def _skip_marker_body(bundle_dir: Path):
+    """copytree() filter that keeps the bundle ROOT's Marker-body sidecar out of the vault
+    while the J33 lever says OUT. Same directory-identity check _skip_blocks uses: an asset
+    that happens to end in .marker.txt inside assets/ is a different file and still ships."""
+
+    def _ignore(src, names):
+        if Path(src) != bundle_dir:
+            return set()
+        return {n for n in names if n.endswith(MARKER_BODY_SUFFIX)}
+
+    return _ignore
+
+
+def _combine_skip(*ignores):
+    """Compose copytree() ignore-filters: shutil.copytree accepts exactly one, and the J28
+    (blocks.json) and J33 (marker-body sidecar) levers each own theirs -- this unions whatever
+    each active filter excludes, so either lever alone still works exactly as it did."""
+    active = [ig for ig in ignores if ig is not None]
+
+    def _ignore(src, names):
+        result: set = set()
+        for ig in active:
+            result |= ig(src, names)
+        return result
 
     return _ignore
 
@@ -269,6 +329,29 @@ class Exporter:
             )
         return status
 
+    def _record_marker_body(self, bundle_dir: Path, manifest: dict) -> dict:
+        """Fold the J33 Marker-body disposition into the staging manifest BEFORE any vault
+        write -- MERGED into whatever windows-converter already wrote (file, bytes, sha256),
+        never overwritten wholesale the way _record_blocks replaces manifest["blocks"]: the
+        sha256 the Desktop measured is the one J31's --reaudit needs later to name exactly
+        which text a repair was compared against, and it must survive this fold untouched."""
+        status = _marker_body_status(bundle_dir)
+        existing = manifest.get("marker_body") or {}
+        merged = {**existing, **status}
+        manifest["marker_body"] = merged
+        (bundle_dir / "manifest.json").write_text(
+            json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8"
+        )
+        if merged.get("present_in_bundle") and not merged.get("shipped"):
+            logger.info(
+                "EXPORT-MARKER-BODY-HELD %s: %s (%s bytes) stays on this machine "
+                "(SHIP_MARKER_BODY_TO_VAULT is False) -- in the manifest, not silently dropped",
+                bundle_dir.name,
+                merged.get("file"),
+                merged.get("bytes"),
+            )
+        return merged
+
     def export(self, bundle_dir: Path) -> None:
         # A single bad bundle must not kill the observer thread or block later exports.
         with self._lock:
@@ -367,6 +450,7 @@ class Exporter:
                 )
             if len(matches) == 1:
                 self._record_blocks(bundle_dir, manifest)  # J28: before any vault write
+                self._record_marker_body(bundle_dir, manifest)  # J33: same, before any write
                 self._supersede_replace(bundle_dir, supersede, Path(matches[0]))
                 return
             # 0 matches: intent said supersede but nothing is vaulted -> fall through to a normal
@@ -398,10 +482,11 @@ class Exporter:
         target_rel = INBOX_REL / f"{slugify(bundle_dir.name)}--{source_sha[:8]}"
         target = vault_work / target_rel
 
-        # J28: state the blocks.json disposition in the manifest BEFORE it is copied, so the
-        # copy below and the L12 gate further down read the same answer -- what the gate
-        # verifies is then exactly what the manifest claims.
+        # J28 / J33: state the blocks.json / Marker-body dispositions in the manifest BEFORE
+        # either is copied, so the copy below and the L12 gate further down read the same
+        # answer -- what the gate verifies is then exactly what the manifest claims.
         blocks = self._record_blocks(bundle_dir, manifest)
+        marker_body = self._record_marker_body(bundle_dir, manifest)
 
         # Resume point: a previous run may have committed but failed to push (service died,
         # bare repo unreachable). Committed content is never re-copied or touched.
@@ -417,8 +502,13 @@ class Exporter:
             if tmp.exists():
                 shutil.rmtree(tmp)
             tmp.parent.mkdir(parents=True, exist_ok=True)
-            # J28: while the lever says OUT, blocks.json is the one bundle file this copy skips.
-            skip = None if blocks.get("shipped") else _skip_blocks(bundle_dir)
+            # J28 / J33: while a lever says OUT, its bundle file is one this copy skips --
+            # _combine_skip unions whichever of the two levers is currently OUT (either, both,
+            # or neither), so a single-lever bundle behaves exactly as it did before J33.
+            skip = _combine_skip(
+                None if blocks.get("shipped") else _skip_blocks(bundle_dir),
+                None if marker_body.get("shipped") else _skip_marker_body(bundle_dir),
+            )
             shutil.copytree(bundle_dir, tmp, ignore=skip)
             tmp.rename(target)
             _git_check(vault_work, "add", "--", str(target_rel))
@@ -444,6 +534,10 @@ class Exporter:
             # not demand one it was told not to create. The manifest carries the disposition,
             # so the omission is still on the record.
             if rel.as_posix() == BLOCKS_NAME and not blocks.get("shipped"):
+                continue
+            # J33: same rule for the Marker-body sidecar, whose name varies with the bundle.
+            if (marker_body.get("present_in_bundle") and not marker_body.get("shipped")
+                    and rel.as_posix() == marker_body.get("file")):
                 continue
             _git_check(vault_bare, "cat-file", "-e", f"{commit_sha}:{target_rel / rel}")
 
@@ -540,6 +634,23 @@ class Exporter:
         (target / BLOCKS_NAME).unlink(missing_ok=True)
         if SHIP_BLOCKS_TO_VAULT and (bundle_dir / BLOCKS_NAME).is_file():
             shutil.copyfile(bundle_dir / BLOCKS_NAME, target / BLOCKS_NAME)
+        # J33: the Marker-body sidecar is swapped exactly the way blocks.json is -- dropped
+        # first, then re-added only if the lever ships it. Its name tracks the OLD .md stem
+        # (identity is preserved, same as old_md_name itself), never the incoming bundle's own
+        # slug -- a stale sidecar would describe text this replace just overwrote.
+        old_marker_body_name = old_md_name[: -len(".md")] + MARKER_BODY_SUFFIX
+        _git(
+            vault_work,
+            "rm",
+            "--quiet",
+            "--ignore-unmatch",
+            "--",
+            f"{target_rel.as_posix()}/{old_marker_body_name}",
+        )
+        (target / old_marker_body_name).unlink(missing_ok=True)
+        new_marker_body = next(bundle_dir.glob(f"*{MARKER_BODY_SUFFIX}"), None)
+        if SHIP_MARKER_BODY_TO_VAULT and new_marker_body is not None:
+            shutil.copyfile(new_marker_body, target / old_marker_body_name)
         _git_check(vault_work, "add", "--", target_rel.as_posix())
 
         changed = [

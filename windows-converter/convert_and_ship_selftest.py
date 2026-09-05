@@ -20,6 +20,7 @@ Each tripwire names what breaks if it fires:
 """
 
 import ast
+import hashlib
 import json
 import os
 import re
@@ -709,6 +710,145 @@ check(not [k for k, _ in rec_nc.events if k.startswith("analyst/")],
 check(any(k == "convert/converted" for k, _ in rec_nc.events),
       "negative control really RAN the convert — this is silence, not a skipped path")
 cas._ollama_unload = REAL_OLLAMA_UNLOAD
+
+
+# ---------- T18: J33 — the Marker body sidecar ("<bundle_name>.marker.txt") ----------
+print("T18 marker body sidecar (J33)")
+
+
+class MarkerBodyFakeAnalyst:
+    """Like T17's FakeAnalyst, but keeps the full INPUT text (not just its length) so the
+    sidecar can be compared against exactly what analyst.process was handed — the decoy this
+    ticket watches for is a sidecar that captured the analyst's OUTPUT instead of Marker's."""
+
+    CHUNK_TARGET = 6000  # lever-waiver: shape-only test-double attribute, see T17's FakeAnalyst
+
+    def __init__(self):
+        self.seen_text = None
+
+    def process(self, body, backend="local"):
+        self.seen_text = body
+        return body + "\n\nANALYST REWROTE THIS", {
+            "model": "fake", "backend": backend, "program": "fake",
+            "chunks_passed": 1, "chunks_rejected": 0, "chunks_failed": 0, "duration_s": 1.0,
+        }
+
+    def load_rules(self):
+        return {}
+
+    def unload(self):
+        return None
+
+
+def drive_marker_body(module, work_name: str, use_analyst: bool, fake=None):
+    """Run the REAL convert() end to end (no GPU, no network) with or without the analyst
+    branch, and return (tmp_dir, bundle_name, manifest, EmitRecorder)."""
+    work = QUARANTINE / work_name
+    work.mkdir(parents=True, exist_ok=True)
+    pdf = _born_digital_pdf(QUARANTINE / f"{work_name}-inline.pdf")
+    rec = EmitRecorder()
+    module._run_marker = MarkerStub()
+    module.emit = rec
+    module._ollama_unload = lambda: None
+    prior = sys.modules.get("analyst")
+    if use_analyst:
+        sys.modules["analyst"] = fake or MarkerBodyFakeAnalyst()
+    try:
+        tmp_dir, bundle, manifest = module.convert(pdf, work, use_analyst=use_analyst,
+                                                    analyst_backend="local")
+    finally:
+        if prior is not None:
+            sys.modules["analyst"] = prior
+        elif use_analyst:
+            sys.modules.pop("analyst", None)
+    return tmp_dir, bundle, manifest, rec
+
+
+# (a) + (b): the sidecar equals what analyst.process was HANDED, not what it returned; the
+# manifest's bytes + sha256 match the file actually on disk.
+fake18 = MarkerBodyFakeAnalyst()
+tmp18, bundle18, manifest18, rec18 = drive_marker_body(cas, "t18-analyst", True, fake18)
+sidecar18 = tmp18 / f"{bundle18}{cas.MARKER_BODY_SUFFIX}"
+check(sidecar18.is_file(), "the sidecar file exists beside the bundle")
+sidecar_text18 = sidecar18.read_text(encoding="utf-8")
+check(sidecar_text18 == fake18.seen_text,
+      "sidecar text equals the body HANDED to analyst.process (the marker_body, not its output)")
+check(sidecar_text18 != fake18.seen_text + "\n\nANALYST REWROTE THIS",
+      "decoy: the sidecar is NOT the post-analyst text")
+mb18 = manifest18.get("marker_body")
+check(bool(mb18) and mb18.get("file") == sidecar18.name, "manifest names the sidecar file")
+raw18 = sidecar18.read_bytes()
+check(mb18 is not None and mb18.get("bytes") == len(raw18),
+      "manifest bytes matches the file's true on-disk size")
+check(mb18 is not None and mb18.get("sha256") == hashlib.sha256(raw18).hexdigest(),
+      "manifest sha256 matches the file's real digest")
+
+# copytree-carries proof: every downstream site (anchor/pending/held/the shipped tar) copies
+# or tars the SAME tmp_dir convert() returns, which already contains the sidecar written above
+# convert()'s return — proven directly for the anchor site (main()'s own idiom); pending/held/
+# ship copy or tar the identical tmp_dir by the identical mechanism (Inferred, not separately
+# exercised here — declared as residue).
+anchor_check18 = QUARANTINE / "t18-anchor-check" / bundle18
+anchor_check18.parent.mkdir(parents=True, exist_ok=True)
+shutil.copytree(tmp18, anchor_check18)
+check((anchor_check18 / f"{bundle18}{cas.MARKER_BODY_SUFFIX}").is_file(),
+      "the anchor copytree site (shutil.copytree(tmp_dir, ...), main()'s own idiom) carries "
+      "the sidecar")
+
+# (e): the no-analyst path also writes it.
+tmp18b, bundle18b, manifest18b, _rec18b = drive_marker_body(cas, "t18-no-analyst", False)
+check((tmp18b / f"{bundle18b}{cas.MARKER_BODY_SUFFIX}").is_file(),
+      "a book converted WITHOUT --analyst also gets the sidecar")
+check(bool(manifest18b.get("marker_body")), "manifest key present on the no-analyst path too")
+
+# (c): fail-safe — monkeypatch the write to raise; convert still completes, the manifest key
+# is simply absent, and no exception escapes to the caller.
+_real_write_text = Path.write_text
+
+
+def _raising_write_text(self, *a, **kw):
+    if self.name.endswith(cas.MARKER_BODY_SUFFIX):
+        raise OSError("disk full (simulated)")
+    return _real_write_text(self, *a, **kw)
+
+
+Path.write_text = _raising_write_text
+try:
+    tmp18c, bundle18c, manifest18c, _rec18c = drive_marker_body(cas, "t18-failsafe", False)
+finally:
+    Path.write_text = _real_write_text
+check("marker_body" not in manifest18c,
+      "a write fault leaves the manifest key absent, not a bad one")
+check((tmp18c / f"{bundle18c}.md").is_file(),
+      "the book converts exactly as it did before J33, despite the fault")
+check(not (tmp18c / f"{bundle18c}{cas.MARKER_BODY_SUFFIX}").exists(),
+      "and really did not leave a sidecar behind (a torn write is not a half-file)")
+
+# (d): NEGATIVE CONTROL — the writer removed. Same blank-the-line-span technique T17 uses on
+# convert()'s analyst emits, applied here to the _write_marker_body_safe call.
+NC18_SRC = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+NC18_LINES = NC18_SRC.splitlines(keepends=True)
+_nc18_fn = next(n for n in ast.walk(ast.parse(NC18_SRC))
+                if isinstance(n, ast.FunctionDef) and n.name == "convert")
+_nc18_removed = 0
+for _n in ast.walk(_nc18_fn):
+    if (isinstance(_n, ast.Expr) and isinstance(_n.value, ast.Call)
+            and isinstance(_n.value.func, ast.Name)
+            and _n.value.func.id == "_write_marker_body_safe"):
+        for _ln in range(_n.lineno - 1, _n.end_lineno):
+            NC18_LINES[_ln] = "\n"
+        _nc18_removed += 1
+check(_nc18_removed == 1,
+      f"the control really removed the _write_marker_body_safe call ({_nc18_removed})")
+nc18 = types.ModuleType("convert_and_ship_nc18")
+nc18.__file__ = str(HERE / "convert_and_ship.py")
+exec(compile("".join(NC18_LINES), nc18.__file__, "exec"), nc18.__dict__)  # noqa: S102
+tmp18d, bundle18d, manifest18d, _rec18d = drive_marker_body(nc18, "t18-nc", False)
+check(not (tmp18d / f"{bundle18d}{cas.MARKER_BODY_SUFFIX}").exists(),
+      "NEGATIVE CONTROL: writer removed -> no sidecar on disk")
+check("marker_body" not in manifest18d, "NEGATIVE CONTROL: writer removed -> no manifest key")
+check((tmp18d / f"{bundle18d}.md").is_file(),
+      "negative control really ran the convert — this is absence, not a skipped path")
 
 
 # ---------- verdict ----------
