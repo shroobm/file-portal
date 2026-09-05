@@ -165,4 +165,10 @@ acceptance harness's *stale signature* check ("the key is gone, the disposition 
 `reaudit()` and by the exporter's `_record_marker_body`, never rendered), and a future harvester
 that learns subscript assignment will surface them for a real disposition. Related: since J32-B /
 SYM-074, `chunks_rejected` counts ALL rejections (fence + survival + think_leak), not fence only —
-`converter:rejections`'s reason carries the widening.
+`converter:rejections`'s reason carries the widening. **S116 (2026-09-05), J34:** a fourth bucket,
+`inflation`, joined the same dict literal (the detector saw the changed site as `converter:rejections`,
+already EVIDENCE — `--since eb5958e --enforce` clean, acceptance 139/139); and the S61 chunk journal's
+records gained a `ratio` key beside `survival` (subscript-assigned in `analyst._append_journal`,
+invisible to the harvester like the six above). Both are EVIDENCE: `ratio` is read by nobody at HEAD and
+exists so the next calibration can be read off the journal instead of re-derived (`ANALYST_CHUNK_
+INFLATION_MAX` moved by Rab's word on a re-measured journal, never by taste).

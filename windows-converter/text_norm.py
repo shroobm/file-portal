@@ -206,3 +206,22 @@ def chunk_survival(input_text: str, output_text: str) -> float | None:
     out_flat = space_free(out)
     survived = sum(1 for w in windows if space_free(w) in out_flat)
     return round(survived / len(windows), 4)
+
+
+def word_ratio(input_text: str, output_text: str) -> float | None:
+    """J34's per-chunk accept-time guard (analyst.py process(), after the fence AND the survival
+    check pass): output words / input words, both counted as RAW whitespace-split tokens of the
+    FENCED chunk and candidate -- exactly the measurement Rab signed on (S115 `j32b_ratio.py`
+    over the 2026-08-30 University 4e journal: chunk 296 = 5170 / 681 = 7.59x, the next highest
+    1.18x; 1 of 500 passed chunks above 1.25 / 1.5 / 2 / 3). No normalisation ladder here ON
+    PURPOSE: the ladder measures containment (what survived), this measures BULK (how much came
+    back), and a padded or duplicated rewrite keeps every input window (survival ~1.0) while its
+    bulk doubles -- the failure mode chunk_survival cannot see BY CONSTRUCTION.
+
+    Returns None -- not 0.0, not inf -- when the input has no words at all: an unmeasurable
+    ratio must never read as a failing one (SYM-057's mirror, the same rule chunk_survival
+    keeps), so `ratio is None` must never be rejected."""
+    n_in = len(input_text.split())
+    if n_in == 0:
+        return None
+    return round(len(output_text.split()) / n_in, 4)

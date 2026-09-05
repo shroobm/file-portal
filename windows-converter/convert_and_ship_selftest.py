@@ -533,7 +533,8 @@ FAKE_META = {
     "goodput_accepted_tok_s": 33.75,
     # J32-B/SYM-074: chunks_rejected's breakdown — sums to 2 (chunks_rejected), each bucket a
     # DIFFERENT number so an emit that aliases one to another cannot survive this fixture.
-    "rejections": {"fence": 1, "survival": 1, "think_leak": 0},
+    # J34 (2026-09-05): the fourth bucket, inflation — still sums to chunks_rejected (2).
+    "rejections": {"fence": 1, "survival": 1, "think_leak": 0, "inflation": 0},
 }
 
 
@@ -664,8 +665,8 @@ check(d17.get("goodput_accepted_tok_s") == 33.75,
       "NUM-6: the docs/34 goodput rate reaches the stream from the inline path")
 check(d17.get("chunks_resumed") == 641,
       "N-005: chunks_resumed rides the event (silenced on every human channel before F3)")
-check(d17.get("rejections") == {"fence": 1, "survival": 1, "think_leak": 0},
-      "J32-B/SYM-074: the rejections breakdown rides the event unaltered")
+check(d17.get("rejections") == {"fence": 1, "survival": 1, "think_leak": 0, "inflation": 0},
+      "J32-B/SYM-074/J34: the rejections breakdown (four buckets) rides the event unaltered")
 check(d17.get("duration_s") == 12.5 and d17.get("program") == "fake-program"
       and d17.get("backend") == "local",
       "duration_s, program and backend carried exactly as apply_analyst carries them")

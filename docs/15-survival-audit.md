@@ -172,6 +172,17 @@ special alignment algorithm is needed.
   or `</think>` occurs anywhere in the candidate, REJECT (`reason: "think_leak"`) — the whole
   chunk is suspect, never stripped-and-kept (docs/12: the analyst can only be rejected, never
   edited).
+- **The inflation guard (J34, signed Rab 2026-09-05 "J34 1.5x reject", ACCEPT-TIME, ANALYST
+  STAGE):** the survival guard above is DELETION-ONLY by construction. After it passes,
+  `text_norm.word_ratio` measures output words / input words — raw whitespace-split on the fenced
+  chunk and candidate, the exact measurement signed on (2026-08-30 University 4e journal, 500
+  passed chunks: chunk 296 = 5,170 / 681 = 7.59×, the next highest 1.18×, 1 of 500 above 1.25 /
+  1.5 / 2 / 3; re-measured against the SHIPPED function at S116: 1 of 500 rejected, chunk 296 at
+  7.5918, second highest 1.1750, 0 unmeasurable). `ANALYST_CHUNK_INFLATION_MAX = 1.5` — above it,
+  REJECT (`reason: "inflation"`), the original chunk ships. Strict `>`: 1.5 exactly passes. A chunk
+  with 0 input words reports `ratio: null` and is NOT rejected. The ratio rides the journal on
+  passed chunks too (beside `survival`), so the next calibration is read off the record rather
+  than re-derived.
 
 ## 6. Stages and provisional thresholds
 
@@ -199,11 +210,13 @@ original does.
 | `</think>` leak (SYM-074) | the two literal ASCII tags, contiguous, case-sensitive (`<thinking>`, `</THINK>`, a tag split by a newline, or HTML-escaped are NOT caught — Observed, measured against the shipped guard: only the bare, contiguous, correctly-cased close tag fires; the observed qwen3:8b leak is exactly that bare close tag; widening is Rab's) | REJECT, `reason: "think_leak"` | before the fence |
 | asset-token fence (pre-existing) | token multiset must match exactly | REJECT, `reason: "fence"` | after the leak check, before survival |
 | input-window survival (J32-B) | `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` | REJECT, `reason: "survival"` | after the fence passes |
+| output/input word ratio (J34, 2026-09-05) | `ANALYST_CHUNK_INFLATION_MAX = 1.5` (strict `>`) | REJECT, `reason: "inflation"` | after survival passes |
 
 A chunk with 0 scoreable input windows (a short chunk) reports `survival: null`, never `0.0` —
 SYM-057's rule applies here too: an unmeasurable result must never read as a failing one, so it
-is NOT rejected. `chunks_rejected` (§7) now means ALL THREE reasons together; `rejections`
-(§7) is the breakdown.
+is NOT rejected; a chunk with 0 input words reports `ratio: null` under the same rule. `chunks_rejected`
+(§7) now means ALL FOUR reasons together (three until J34 landed, 2026-09-05); `rejections` (§7) is
+the breakdown.
 
 ## 7. Manifest schema (Python owns this; widget only renders)
 
@@ -239,11 +252,12 @@ is NOT rejected. `chunks_rejected` (§7) now means ALL THREE reasons together; `
 **A sibling key, not this block** (J32-B/SYM-074, 2026-09-05): `manifest["analyst"]` (analyst.py's
 own `process()` meta — `model`, `backend`, `chunks_passed`, `chunks_rejected`, `chunks_failed`,
 `chunks_resumed`, `chunks_generated`, `duration_s`, the NUM-6 token/goodput fields) now also
-carries `"rejections": {"fence": n, "survival": n, "think_leak": n}` — the breakdown behind
-`chunks_rejected`. Both `analyst/done` event emits (the inline path and `apply_analyst`'s
-`--resume` path) carry the same key, T17-pinned parity; the shipped frontmatter gets one derived
-line, `rejections_survival: n` (a human reading the note itself, without opening
-`manifest.json`, sees whether the NEW gate fired at all).
+carries `"rejections": {"fence": n, "survival": n, "think_leak": n, "inflation": n}` — the breakdown
+behind `chunks_rejected` (the fourth bucket is J34, 2026-09-05). Both `analyst/done` event emits (the
+inline path and `apply_analyst`'s `--resume` path) carry the same key, T17-pinned parity; the shipped
+frontmatter gets two derived lines, `rejections_survival: n` and `rejections_inflation: n` (a human
+reading the note itself, without opening `manifest.json`, sees whether either NEW gate fired at all).
+The S61 chunk journal's records carry `survival` and, since J34, `ratio` beside `reason`.
 
 ## 8. Integration
 

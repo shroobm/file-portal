@@ -65,6 +65,17 @@ NUM_CTX = 8192
 # that still turn up, space-free, in the candidate. Below threshold -> reject, ship the original
 # chunk.
 ANALYST_CHUNK_SURVIVAL_MIN = 0.50
+# J34 (OPEN-TASKS, lever-waiver: threshold 1.5, action REJECT, signed Rab 2026-09-05 "J34 1.5x
+# reject"). The guard above is DELETION-ONLY by construction (a candidate that repeats or pads
+# its input keeps every input window and scores ~1.0). This is the other half: output words /
+# input words, raw whitespace-split on the fenced chunk and candidate (text_norm.word_ratio, the
+# exact measurement signed on). Measured on the 2026-08-30 University 4e journal's 500 passed
+# chunks: the runaway chunk 296 = 7.59x (681 in / 5170 out); the next highest 1.18x; above 1.25
+# / 1.5 / 2 / 3 = 1 of 500 each time -- so 1.5 sits in a gap 0.3 wide below and 6x wide above,
+# and this threshold rejects exactly one chunk on that journal (0 false rejects, re-measured at
+# the S116 open). Checked AFTER survival passes: a deletion is reported as "survival", never as
+# a low ratio; a chunk with 0 input words reports ratio None and is NOT rejected.
+ANALYST_CHUNK_INFLATION_MAX = 1.5  # lever-waiver: Rab's word only ("J34 1.5x reject", 2026-09-05); moves on a re-measured journal, never by taste
 # Stage C (docs/18 §4C): per-chunk liveness, the S42 progress-file pattern — overwritten every
 # chunk (zero flight-recorder growth); the file's mtime is the heartbeat the widget ages.
 ANALYST_PROGRESS = fp_paths.root("analyst_progress")
@@ -302,20 +313,27 @@ def _load_journal(path: Path, chunks: list[str]) -> dict[int, dict]:
 
 
 def _append_journal(handle, i: int, chunk: str, status: str, text: str,
-                    reason: str | None = None, survival: float | None = None) -> None:
+                    reason: str | None = None, survival: float | None = None,
+                    ratio: float | None = None) -> None:
     """One durable line per finished chunk. fsync because the whole point is surviving a power
     cut — a line sitting in the OS write cache would be exactly as lost as no line at all.
 
-    `reason` (J32-B/SYM-074, added 2026-09-05): "fence" | "survival" | "think_leak" for a
-    rejected chunk, absent for a passed one — the 08-30 journal shape had no such key at all,
-    so it is only written when present, never as a null placeholder. `survival` rides beside
-    it when it was computed (rejected-for-survival AND passed chunks both carry it; a fence
-    or think-leak rejection never reaches the survival check, so it stays absent there)."""
+    `reason` (J32-B/SYM-074, added 2026-09-05): "fence" | "survival" | "think_leak" |
+    "inflation" (J34, same day) for a rejected chunk, absent for a passed one — the 08-30
+    journal shape had no such key at all, so it is only written when present, never as a null
+    placeholder. `survival` rides beside it when it was computed (rejected-for-survival AND
+    passed chunks both carry it; a fence or think-leak rejection never reaches the survival
+    check, so it stays absent there). `ratio` (J34) is the same shape one gate further: present
+    on inflation rejections and on passed chunks (both reached the ratio check), absent on
+    every earlier rejection — so a future calibration can read the ratio distribution of what
+    shipped straight off the journal, the way S115 read survival off the 08-30 one."""
     rec = {"i": i, "hash": _chunk_hash(chunk), "status": status, "text": text}
     if reason is not None:
         rec["reason"] = reason
     if survival is not None:
         rec["survival"] = survival
+    if ratio is not None:
+        rec["ratio"] = ratio
     try:
         handle.write(json.dumps(rec, ensure_ascii=False) + "\n")
         handle.flush()
@@ -338,8 +356,9 @@ def process(markdown: str, backend: str = "local",
     fenced, embeds = fence(markdown)
     chunks = _chunks(fenced)
     out, passed, rejected, failed = [], 0, 0, 0
-    # J32-B/SYM-074 (signed Rab 2026-09-05): chunks_rejected's THREE ways of happening, named.
-    rejections = {"fence": 0, "survival": 0, "think_leak": 0}
+    # J32-B/SYM-074 (signed Rab 2026-09-05): chunks_rejected's ways of happening, named — FOUR
+    # since J34 (signed the same day, "1.5x reject"): the inflation guard is the fourth.
+    rejections = {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0}
     t0 = time.perf_counter()
 
     # S61: pick up whatever a previous run finished before it died.
@@ -419,7 +438,7 @@ def process(markdown: str, backend: str = "local",
                 prompt_counted_calls += 1  # review M5: its OWN denominator — ollama omits
                 # prompt_eval_count on fully cached prefills, so the prompt sum is partial
             counted_calls += call_out is not None
-            reason, survival = None, None
+            reason, survival, ratio = None, None, None
             # SYM-074 (signed Rab 2026-09-05): qwen3:8b (a thinking model, asked "think":
             # false) leaked a bare `</think>` into shipped text twice (held University 4e
             # lines 8779 and 13744). Checked BEFORE the fence, on both backends (harmless on
@@ -442,11 +461,23 @@ def process(markdown: str, backend: str = "local",
                     rejections["survival"] += 1
                     status, text, reason = "rejected", chunk, "survival"
                 else:
-                    out.append(candidate)
-                    passed += 1
-                    status, text = "passed", candidate
-                    if call_out is not None:
-                        tokens_accepted += call_out  # NUM-6: only ACCEPTED output earns goodput
+                    # J34 (signed Rab 2026-09-05, "1.5x reject"): survival passed, so the input's
+                    # windows are still there — now the question the containment test cannot
+                    # ask: how much MORE came back than went in. Chunk 296 (7.59x) is the
+                    # observed instance; a 2x verbatim duplicate (survival 1.0) the constructed
+                    # one. The ratio is computed for passed chunks too and rides the journal.
+                    ratio = tn.word_ratio(chunk, candidate)
+                    if ratio is not None and ratio > ANALYST_CHUNK_INFLATION_MAX:
+                        out.append(chunk)  # inflation guard tripped -> ship the un-analyzed original
+                        rejected += 1
+                        rejections["inflation"] += 1
+                        status, text, reason = "rejected", chunk, "inflation"
+                    else:
+                        out.append(candidate)
+                        passed += 1
+                        status, text = "passed", candidate
+                        if call_out is not None:
+                            tokens_accepted += call_out  # NUM-6: only ACCEPTED output earns goodput
             else:
                 out.append(chunk)  # fence violated -> ship the un-analyzed original
                 rejected += 1
@@ -454,7 +485,8 @@ def process(markdown: str, backend: str = "local",
                 status, text, reason = "rejected", chunk, "fence"
             generated += 1
             if handle:
-                _append_journal(handle, i, chunk, status, text, reason=reason, survival=survival)
+                _append_journal(handle, i, chunk, status, text, reason=reason, survival=survival,
+                                ratio=ratio)
             _progress(i)
     finally:
         if handle:

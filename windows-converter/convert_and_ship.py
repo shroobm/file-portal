@@ -1736,7 +1736,11 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
             # already show up as chunks_rejected minus chunks_passed minus chunks_failed reading
             # oddly if a reader wants JUST the new gate's toll; the full breakdown lives in
             # manifest.analyst.rejections and the analyst/done event, not retyped three ways here.
-            f"  rejections_survival: {analyst_meta.get('rejections', {}).get('survival', 0)}\n",
+            f"  rejections_survival: {analyst_meta.get('rejections', {}).get('survival', 0)}\n"
+            # J34 (signed Rab 2026-09-05, "1.5x reject"): the inflation guard's toll, the same
+            # one-line rule as rejections_survival — a human reads whether the NEW gate fired
+            # without opening manifest.json; the breakdown stays in manifest.analyst.rejections.
+            f"  rejections_inflation: {analyst_meta.get('rejections', {}).get('inflation', 0)}\n",
             1,
         )
         print(f"ANALYST done: {analyst_meta}", flush=True)
@@ -1823,6 +1827,8 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
         # J32-B (2026-09-05): mirrored from the inline path's frontmatter — see that site's
         # comment for why this one line and not the full breakdown.
         f"  rejections_survival: {meta.get('rejections', {}).get('survival', 0)}\n"
+        # J34 (2026-09-05): mirrored from the inline path's frontmatter, same one-line rule.
+        f"  rejections_inflation: {meta.get('rejections', {}).get('inflation', 0)}\n"
         + head + "---\n"
     )
     md_path.write_text(frontmatter + new_body, encoding="utf-8")

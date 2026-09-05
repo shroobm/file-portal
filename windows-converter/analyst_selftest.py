@@ -1,7 +1,9 @@
 #!/usr/bin/env python3
 """Tripwires for analyst.process's per-chunk accept-time guards: J32-B (the per-chunk INPUT-
-WINDOW survival guard, threshold 0.50, action reject, signed Rab 2026-09-05) and SYM-074 (the
-`</think>` leak guard). Synthetic, CPU-only, no GPU, no ollama, no network -- every `_generate`
+WINDOW survival guard, threshold 0.50, action reject, signed Rab 2026-09-05), SYM-074 (the
+`</think>` leak guard) and J34 (the output/input word-ratio INFLATION guard, threshold 1.5,
+action reject, signed Rab 2026-09-05 "J34 1.5x reject"). Synthetic, CPU-only, no GPU, no
+ollama, no network -- every `_generate`
 call is monkeypatched to a scripted stand-in. FP_PIPELINE is pointed at a temp dir BEFORE import
 so ANALYST_WORK (the S61 chunk-resume journal dir) and every other fp_paths root land in
 quarantine, never the live library (SYM-010's class).
@@ -20,6 +22,12 @@ Run with the marker-env interpreter:
   SYM-074 (b) the plain word "think" in prose             -> passed (not over-broad)
   SYM-074 (c) an opening <think> alone                    -> rejected
   SYM-074 (d) NEGATIVE CONTROL: the think-leak guard removed -> (a)'s candidate now PASSES
+  J34 (a) a 2x verbatim duplicate: survival 1.0 (J32-B blind)   -> rejected, reason inflation
+  J34 (b) a faithful rewrite at ~1.09x                          -> passed
+  J34 (c) NEGATIVE CONTROL: lever monkeypatched to inf -> (a)'s duplicate now PASSES
+  J34 (d) survival fires first: a deletion is "survival", never a low ratio
+  J34 (e) the lever's edge is strict: 1.4889 passes, 1.5111 rejects
+  J34 (f) journal round-trip carries ratio; 0 input words -> ratio None, never a reject
 """
 import json
 import os
@@ -93,7 +101,7 @@ def _():
     assert survival is not None and survival >= 0.95, survival
     out, meta = run(md, [candidate])
     assert meta["chunks_passed"] == 1 and meta["chunks_rejected"] == 0, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0}, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0}, meta
     assert out.strip() == candidate.strip(), out
 
 
@@ -106,7 +114,7 @@ def _():
     candidate = "\n\n".join(paras[:2])  # only the first 2 of 5 survive
     out, meta = run(B_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0}, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0}, meta
     assert out.strip() == B_MD.strip(), "the ORIGINAL chunk must ship, not the candidate"
 
 
@@ -173,7 +181,7 @@ def _():
     candidate = fenced.replace("⟦IMG-0⟧\n\n", "")
     out, meta = run(md, [candidate])
     assert meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 1, "survival": 0, "think_leak": 0}, meta
+    assert meta["rejections"] == {"fence": 1, "survival": 0, "think_leak": 0, "inflation": 0}, meta
 
 
 # ---------------------------------------------------------------------------
@@ -231,8 +239,95 @@ def _():
     assert meta2["chunks_rejected"] == 1 and meta2["rejections"]["think_leak"] == 1
 
 
+# ---------------------------------------------------------------------------
+# J34 -- the inflation guard (signed Rab 2026-09-05, "J34 1.5x reject")
+# ---------------------------------------------------------------------------
+INF_MD = "\n\n".join([words(15, f"inf{p}tok") for p in range(1, 4)])  # 3 paragraphs, 45 words
+
+
+@case("J34 (a) a 2x verbatim duplicate -> survival 1.0 (J32-B is blind to it) but REJECTED, inflation")
+def _():
+    candidate = INF_MD + "\n\n" + INF_MD  # every input window survives; the bulk doubles
+    fenced, _ = analyst.fence(INF_MD)
+    assert tn.chunk_survival(fenced, candidate) == 1.0, "the constructed case must be invisible to J32-B"
+    assert tn.word_ratio(fenced, candidate) == 2.0
+    out, meta = run(INF_MD, [candidate])
+    assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1}, meta
+    assert out.strip() == INF_MD.strip(), "the ORIGINAL chunk must ship, not the candidate"
+
+
+@case("J34 (b) a faithful rewrite at ~1.09x (four words added) -> passed")
+def _():
+    candidate = INF_MD + " " + words(4, "extra")  # 49 / 45 = 1.0889, under the 1.5 lever
+    fenced, _ = analyst.fence(INF_MD)
+    r = tn.word_ratio(fenced, candidate)
+    assert r is not None and 1.0 < r < analyst.ANALYST_CHUNK_INFLATION_MAX, r
+    out, meta = run(INF_MD, [candidate])
+    assert meta["chunks_passed"] == 1 and meta["rejections"]["inflation"] == 0, meta
+    assert out.strip() == candidate.strip(), out
+
+
+@case("J34 (c) NEGATIVE CONTROL: lever -> inf makes (a)'s duplicate PASS (watched)")
+def _():
+    candidate = INF_MD + "\n\n" + INF_MD
+    real = analyst.ANALYST_CHUNK_INFLATION_MAX
+    try:
+        analyst.ANALYST_CHUNK_INFLATION_MAX = float("inf")
+        out, meta = run(INF_MD, [candidate])
+        assert meta["chunks_passed"] == 1 and meta["chunks_rejected"] == 0, (
+            "the guard did not fire: an infinite lever should have let the duplicate through", meta)
+    finally:
+        analyst.ANALYST_CHUNK_INFLATION_MAX = real
+    # restored: (a) must reject again
+    out2, meta2 = run(INF_MD, [candidate])
+    assert meta2["rejections"]["inflation"] == 1, meta2
+
+
+@case('J34 (d) survival fires FIRST: a deletion is "survival", never a low ratio')
+def _():
+    paras = B_MD.split("\n\n")
+    candidate = "\n\n".join(paras[:2])  # J32-B (b)'s fixture: 2 of 5 paragraphs, ratio 0.4
+    out, meta = run(B_MD, [candidate])
+    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0}, meta
+
+
+@case("J34 (e) the lever's edge is STRICT: 67 of 45 words (1.4889) passes, 68 (1.5111) rejects")
+def _():
+    fenced, _ = analyst.fence(INF_MD)
+    under = INF_MD + " " + words(22, "pad")   # 67 words
+    over = INF_MD + " " + words(23, "pad")    # 68 words
+    assert tn.word_ratio(fenced, under) == 1.4889 and tn.word_ratio(fenced, over) == 1.5111
+    _, m1 = run(INF_MD, [under])
+    _, m2 = run(INF_MD, [over])
+    assert m1["chunks_passed"] == 1 and m1["rejections"]["inflation"] == 0, m1
+    assert m2["chunks_rejected"] == 1 and m2["rejections"]["inflation"] == 1, m2
+
+
+@case("J34 (f) journal round-trip: ratio rides beside survival on inflation rejections AND passes; "
+      "0 input words -> ratio None (never a reject)")
+def _():
+    assert tn.word_ratio("", "anything at all") is None
+    assert tn.word_ratio("   \n\t ", "anything") is None
+    path = QUARANTINE / "journal-j34.jsonl"
+    with open(path, "a", encoding="utf-8") as h:
+        analyst._append_journal(h, 1, "alpha beta", "rejected", "alpha beta",
+                                reason="inflation", survival=1.0, ratio=7.59)
+        analyst._append_journal(h, 2, "gamma delta", "passed", "gamma delta ok",
+                                survival=1.0, ratio=1.5)
+        analyst._append_journal(h, 3, "eps zeta", "rejected", "eps zeta", reason="fence")
+    loaded = {}
+    with open(path, encoding="utf-8") as fh:
+        for line in fh:
+            rec = json.loads(line)
+            loaded[rec["i"]] = rec
+    assert loaded[1]["reason"] == "inflation" and loaded[1]["ratio"] == 7.59, loaded[1]
+    assert loaded[2].get("reason") is None and loaded[2]["ratio"] == 1.5, loaded[2]
+    assert "ratio" not in loaded[3] and "survival" not in loaded[3], loaded[3]
+
+
 print()
 if failed:
-    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 11: {failed}")
+    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 17: {failed}")
     raise SystemExit(1)
-print("ALL TRIPWIRES FIRED — 11/11")
+print("ALL TRIPWIRES FIRED — 17/17")
