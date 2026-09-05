@@ -28,7 +28,6 @@ Two families of function live here:
 
 import re
 import unicodedata
-from collections import Counter
 
 # ---------------------------------------------------------------------------
 # Window constants (docs/15 SS4). Unchanged from fidelity_audit.py's originals.
