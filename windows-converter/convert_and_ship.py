@@ -1701,7 +1701,10 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
                  # DENOMINATOR TRAP (census N-007/N-013): duration_s is THIS run's wall while
                  # chunks_passed counts the WHOLE book across resumes. No rate may be derived
                  # from that pair — emit the fields, never a quotient.
-                 "chunks_resumed")})
+                 "chunks_resumed",
+                 # J32-B/SYM-074 (2026-09-05): chunks_rejected's breakdown by reason (fence /
+                 # survival / think_leak) — T17 pins the key set on both emits, updated here.
+                 "rejections")})
         manifest["analyst"] = analyst_meta
         _audit_analyst_safe(marker_body, body, manifest, name=src.name)
         frontmatter = frontmatter.replace(
@@ -1711,7 +1714,13 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
             f"  chunks_passed: {analyst_meta['chunks_passed']}\n"
             f"  chunks_rejected: {analyst_meta['chunks_rejected']}\n"
             f"  chunks_failed: {analyst_meta.get('chunks_failed', 0)}\n"
-            f"  duration_s: {analyst_meta['duration_s']}\n",
+            f"  duration_s: {analyst_meta['duration_s']}\n"
+            # J32-B (2026-09-05, coordinator's default: yes — one line a human reads without
+            # opening manifest.json): the survival-guard rejection count alone. fence/think_leak
+            # already show up as chunks_rejected minus chunks_passed minus chunks_failed reading
+            # oddly if a reader wants JUST the new gate's toll; the full breakdown lives in
+            # manifest.analyst.rejections and the analyst/done event, not retyped three ways here.
+            f"  rejections_survival: {analyst_meta.get('rejections', {}).get('survival', 0)}\n",
             1,
         )
         print(f"ANALYST done: {analyst_meta}", flush=True)
@@ -1786,13 +1795,19 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
           # N-005 / F3 D-2 (S114, 2026-09-03): mirrored from the inline path so the two emits stay
           # parity-equal - T17 pins the key set and goes red if either side moves alone. `.get`,
           # like the inline path, so an older analyst_meta can never KeyError the resume.
-          "chunks_resumed")})
+          "chunks_resumed",
+          # J32-B/SYM-074 (2026-09-05): mirrored from the inline path, same parity rule.
+          "rejections")})
     frontmatter = (
         f"---\nanalyst:\n  model: {meta['model']}\n  backend: {meta['backend']}\n"
         f"  chunks_passed: {meta['chunks_passed']}\n"
         f"  chunks_rejected: {meta['chunks_rejected']}\n"
         f"  chunks_failed: {meta['chunks_failed']}\n"
-        f"  duration_s: {meta['duration_s']}\n" + head + "---\n"
+        f"  duration_s: {meta['duration_s']}\n"
+        # J32-B (2026-09-05): mirrored from the inline path's frontmatter — see that site's
+        # comment for why this one line and not the full breakdown.
+        f"  rejections_survival: {meta.get('rejections', {}).get('survival', 0)}\n"
+        + head + "---\n"
     )
     md_path.write_text(frontmatter + new_body, encoding="utf-8")
     manifest_path = bundle_dir / "manifest.json"

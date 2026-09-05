@@ -437,6 +437,7 @@
             "goodput_accepted_tok_s",
             "pid",
             "program",
+            "rejections",
             "stage",
             "ts"
           ]

@@ -151,6 +151,17 @@ special alignment algorithm is needed.
 - **Scan lane only (reference-free, QuPipe-style):** dictionary-hit rate over output
   words (wordfreq or a bundled wordlist), garbage-token rate (tokens with no vowel /
   mixed-alnum junk).
+- **Per-chunk input-window survival (J32-B, signed Rab 2026-09-05, ACCEPT-TIME, ANALYST
+  STAGE):** the fence (`analyst.py`'s asset-token multiset check) proves the chunk's images
+  survived; it sees neither a DELETED paragraph nor an INFLATED rewrite (the held University 4e
+  run's chunk 23/78 lost 361/308 words; chunk 296 read 673 words in, 5,164 out). After the fence
+  passes, `text_norm.chunk_survival` measures the fraction of the INPUT chunk's own 12-word
+  windows (same normalisation ladder as §3 steps 8-9) that still turn up, space-free, in the
+  candidate. `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` — below it, REJECT: the original chunk ships
+  and the rejection is recorded with `reason: "survival"` (§7 manifest schema, §9.4 measured).
+  Unlike every OTHER tripwire in this section, this ONE gates AT ACCEPT TIME, per-chunk, not
+  report-only over the finished document — the accept/reject decision it feeds already existed
+  (the fence); this is a second reason a chunk can reach it.
 
 ## 6. Stages and provisional thresholds
 
@@ -167,6 +178,21 @@ Analyst-stage matching is **near-exact**: normalization only, no fuzzy fallback
 (the reference is perfect; tolerance would only hide rewrites). An analyst FAIL
 parks the bundle exactly like a pre-flight card does — the fence extended from
 links to every sentence.
+
+**Per-chunk accept-time gates (J32-B, signed Rab 2026-09-05), the other side of the analyst
+stage from the DOCUMENT-level `doc < 0.995` row above:** these run WHILE the book is being
+analysed, one chunk at a time, and decide whether THIS chunk's candidate ships or the original
+does.
+
+| Guard | Threshold | Action | Checked |
+|---|---|---|---|
+| asset-token fence (pre-existing) | token multiset must match exactly | REJECT, `reason: "fence"` | before survival |
+| input-window survival (J32-B) | `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` | REJECT, `reason: "survival"` | after the fence passes |
+
+A chunk with 0 scoreable input windows (a short chunk) reports `survival: null`, never `0.0` —
+SYM-057's rule applies here too: an unmeasurable result must never read as a failing one, so it
+is NOT rejected. `chunks_rejected` (§7) now means ALL THREE reasons together; `rejections`
+(§7) is the breakdown.
 
 ## 7. Manifest schema (Python owns this; widget only renders)
 
@@ -190,10 +216,23 @@ links to every sentence.
       "dict_hit": null
     }
   },
-  "analyst": { "doc_survival": 0.998, "runs": [] },
+  "analyst": {
+    "doc_survival": 0.998, "runs": [],
+    "normalisation": { "unescape": true, "punct_free": true, "space_free": true,
+                      "regex_id": "j32a-v1" }
+  },
   "verdict": "pass | flag | fail"
 }
 ```
+
+**A sibling key, not this block** (J32-B/SYM-074, 2026-09-05): `manifest["analyst"]` (analyst.py's
+own `process()` meta — `model`, `backend`, `chunks_passed`, `chunks_rejected`, `chunks_failed`,
+`chunks_resumed`, `chunks_generated`, `duration_s`, the NUM-6 token/goodput fields) now also
+carries `"rejections": {"fence": n, "survival": n, "think_leak": n}` — the breakdown behind
+`chunks_rejected`. Both `analyst/done` event emits (the inline path and `apply_analyst`'s
+`--resume` path) carry the same key, T17-pinned parity; the shipped frontmatter gets one derived
+line, `rejections_survival: n` (a human reading the note itself, without opening
+`manifest.json`, sees whether the NEW gate fired at all).
 
 ## 8. Integration
 
@@ -374,6 +413,30 @@ punctuation rule is real and independently correct (case (e)) — and it is the 
 consumer would need if punct_free is ever NOT chained after it (a display/diagnostic path, say).
 Left as residue rather than redesigned: the ticket asked for both functions with this exact
 composition, and re-measuring showed no verdict-relevant harm from the redundancy.
+
+### 9.5 The J32-B survival-guard calibration pin (measured 2026-09-05)
+
+Replayed `.analyst-work/d58db211c41b0e17/chunks.jsonl` (the 2026-08-30 attempt, 646 records) read-
+only against a rebuild of TODAY's chunking of the held University 4e marker body
+(`analyst.fence`/`analyst._chunks` on the slice-cache reproduction), matched via the journal's own
+hash validation (`analyst._load_journal`): **516 of 646 records validate against today's
+chunks** (the other 130 were chunked differently that run — expected, not a discrepancy). Of the
+**500 validated PASSED records**, running `text_norm.chunk_survival` on each (input = today's
+matching chunk, output = the journal's shipped text) gives:
+
+| Bucket (cumulative) | Count | of 500 |
+|---|---|---|
+| survival < 0.50 | 2 | 0.4% |
+| survival < 0.80 | 5 | 1.0% |
+| survival < 0.90 | 12 | 2.4% |
+
+docs/54's expected neighbourhood at baseline normalisation was 5/32/100 of 500 — this run
+measures lower on all three buckets (this build's `chunk_survival` runs the full J32-A ladder,
+unescape+punct_free, before windowing, which the docs/54 baseline may not have; a difference in
+method, reported rather than reconciled to a number that was never this build's own). The
+**2 chunks below 0.50** are exactly the population `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` is built
+to catch — they were SHIPPED as "passed" in the 2026-08-30 attempt (this guard did not exist
+yet) and would be REJECTED under this ticket's guard today.
 
 ## 10. Deferred (add only when evidence demands)
 

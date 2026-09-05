@@ -22,6 +22,7 @@ import urllib.request
 from pathlib import Path
 
 import fp_paths
+import text_norm as tn
 
 MODEL = "qwen3:8b"
 OLLAMA_URL = "http://localhost:11434/api/generate"
@@ -48,6 +49,14 @@ GEMINI_MODEL = "gemini-flash-latest"  # stable alias, resolves to current Flash
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 CHUNK_TARGET = 4000  # chars; well inside an 8k context with prompt + thinking room
 NUM_CTX = 8192
+# J32-B (docs/54-repair-road, lever-waiver: threshold 0.50, action REJECT, signed Rab
+# 2026-09-05). The fence (below) only proves the IMAGE TOKENS survived a chunk's rewrite; it
+# sees neither a DELETED paragraph (the held University 4e run's chunk 23/78 lost 361/308
+# words) nor an INFLATED one (chunk 296: 673 words in, 5,164 out). This is the accept-time
+# guard on the other failure mode: the fraction of the INPUT chunk's own 12-word windows
+# (text_norm.chunk_survival, the same normalisation ladder as J32-A) that still turn up,
+# space-free, in the candidate. Below threshold -> reject, ship the original chunk.
+ANALYST_CHUNK_SURVIVAL_MIN = 0.50
 # Stage C (docs/18 §4C): per-chunk liveness, the S42 progress-file pattern — overwritten every
 # chunk (zero flight-recorder growth); the file's mtime is the heartbeat the widget ages.
 ANALYST_PROGRESS = fp_paths.root("analyst_progress")
@@ -284,12 +293,23 @@ def _load_journal(path: Path, chunks: list[str]) -> dict[int, dict]:
     return done
 
 
-def _append_journal(handle, i: int, chunk: str, status: str, text: str) -> None:
+def _append_journal(handle, i: int, chunk: str, status: str, text: str,
+                    reason: str | None = None, survival: float | None = None) -> None:
     """One durable line per finished chunk. fsync because the whole point is surviving a power
-    cut — a line sitting in the OS write cache would be exactly as lost as no line at all."""
+    cut — a line sitting in the OS write cache would be exactly as lost as no line at all.
+
+    `reason` (J32-B/SYM-074, added 2026-09-05): "fence" | "survival" | "think_leak" for a
+    rejected chunk, absent for a passed one — the 08-30 journal shape had no such key at all,
+    so it is only written when present, never as a null placeholder. `survival` rides beside
+    it when it was computed (rejected-for-survival AND passed chunks both carry it; a fence
+    or think-leak rejection never reaches the survival check, so it stays absent there)."""
+    rec = {"i": i, "hash": _chunk_hash(chunk), "status": status, "text": text}
+    if reason is not None:
+        rec["reason"] = reason
+    if survival is not None:
+        rec["survival"] = survival
     try:
-        handle.write(json.dumps({"i": i, "hash": _chunk_hash(chunk), "status": status,
-                                 "text": text}, ensure_ascii=False) + "\n")
+        handle.write(json.dumps(rec, ensure_ascii=False) + "\n")
         handle.flush()
         os.fsync(handle.fileno())
     except (OSError, ValueError):
@@ -310,6 +330,8 @@ def process(markdown: str, backend: str = "local",
     fenced, embeds = fence(markdown)
     chunks = _chunks(fenced)
     out, passed, rejected, failed = [], 0, 0, 0
+    # J32-B/SYM-074 (signed Rab 2026-09-05): chunks_rejected's THREE ways of happening, named.
+    rejections = {"fence": 0, "survival": 0, "think_leak": 0}
     t0 = time.perf_counter()
 
     # S61: pick up whatever a previous run finished before it died.
@@ -358,6 +380,14 @@ def process(markdown: str, backend: str = "local",
                 passed += status == "passed"
                 rejected += status == "rejected"
                 failed += status == "failed"
+                if status == "rejected":
+                    # A journal from before J32-B/SYM-074 never named a reason because "fence"
+                    # was the ONLY way a chunk could be rejected when it was written — an old,
+                    # reason-less record is attributed to "fence" rather than dropped from the
+                    # breakdown (the breakdown's total must still equal chunks_rejected).
+                    reason = rec.get("reason", "fence")
+                    if reason in rejections:
+                        rejections[reason] += 1
                 continue
             try:
                 candidate = generate(prompt + chunk)
@@ -381,19 +411,32 @@ def process(markdown: str, backend: str = "local",
                 prompt_counted_calls += 1  # review M5: its OWN denominator — ollama omits
                 # prompt_eval_count on fully cached prefills, so the prompt sum is partial
             counted_calls += call_out is not None
+            reason, survival = None, None
             if _tokens_of(candidate) == _tokens_of(chunk):
-                out.append(candidate)
-                passed += 1
-                status, text = "passed", candidate
-                if call_out is not None:
-                    tokens_accepted += call_out  # NUM-6: only ACCEPTED output earns goodput
+                # The fence passed: the asset tokens survived. J32-B (signed Rab 2026-09-05,
+                # threshold 0.50, action reject) checks the OTHER failure mode the fence
+                # cannot see — a deleted paragraph or a runaway inflation — by measuring how
+                # much of the INPUT chunk's own windows still turn up in the candidate.
+                survival = tn.chunk_survival(chunk, candidate)
+                if survival is not None and survival < ANALYST_CHUNK_SURVIVAL_MIN:
+                    out.append(chunk)  # survival guard tripped -> ship the un-analyzed original
+                    rejected += 1
+                    rejections["survival"] += 1
+                    status, text, reason = "rejected", chunk, "survival"
+                else:
+                    out.append(candidate)
+                    passed += 1
+                    status, text = "passed", candidate
+                    if call_out is not None:
+                        tokens_accepted += call_out  # NUM-6: only ACCEPTED output earns goodput
             else:
                 out.append(chunk)  # fence violated -> ship the un-analyzed original
                 rejected += 1
-                status, text = "rejected", chunk
+                rejections["fence"] += 1
+                status, text, reason = "rejected", chunk, "fence"
             generated += 1
             if handle:
-                _append_journal(handle, i, chunk, status, text)
+                _append_journal(handle, i, chunk, status, text, reason=reason, survival=survival)
             _progress(i)
     finally:
         if handle:
@@ -419,8 +462,14 @@ def process(markdown: str, backend: str = "local",
         "backend": backend,
         "program": program,
         "chunks_passed": passed,
-        "chunks_rejected": rejected,  # fence violations only
+        # J32-B/SYM-074 (2026-09-05): ALL rejections now, not fence violations alone — see
+        # "rejections" below for the breakdown by reason.
+        "chunks_rejected": rejected,
         "chunks_failed": failed,  # backend/API errors after retries
+        # J32-B/SYM-074: chunks_rejected's breakdown by reason — sums to chunks_rejected
+        # (an old, reason-less resumed record is counted as "fence", the only reason that
+        # existed before either ticket; see the resume branch above).
+        "rejections": dict(rejections),
         "chunks_resumed": resumed,  # carried from an earlier run's journal
         "chunks_generated": generated,  # NUM-6 (census N006): paid backend calls, now named
         "duration_s": duration,

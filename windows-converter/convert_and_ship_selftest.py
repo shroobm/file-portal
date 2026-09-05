@@ -531,6 +531,9 @@ FAKE_META = {
     "chunks_passed": 7, "chunks_rejected": 2, "chunks_failed": 1,
     "chunks_resumed": 641, "chunks_generated": 10, "duration_s": 12.5,
     "goodput_accepted_tok_s": 33.75,
+    # J32-B/SYM-074: chunks_rejected's breakdown — sums to 2 (chunks_rejected), each bucket a
+    # DIFFERENT number so an emit that aliases one to another cannot survive this fixture.
+    "rejections": {"fence": 1, "survival": 1, "think_leak": 0},
 }
 
 
@@ -661,6 +664,8 @@ check(d17.get("goodput_accepted_tok_s") == 33.75,
       "NUM-6: the docs/34 goodput rate reaches the stream from the inline path")
 check(d17.get("chunks_resumed") == 641,
       "N-005: chunks_resumed rides the event (silenced on every human channel before F3)")
+check(d17.get("rejections") == {"fence": 1, "survival": 1, "think_leak": 0},
+      "J32-B/SYM-074: the rejections breakdown rides the event unaltered")
 check(d17.get("duration_s") == 12.5 and d17.get("program") == "fake-program"
       and d17.get("backend") == "local",
       "duration_s, program and backend carried exactly as apply_analyst carries them")
@@ -673,7 +678,8 @@ check(TRAP17 not in [v for v in d17.values() if isinstance(v, (int, float))],
 # hours of GPU and BEFORE the note and manifest are written, so a KeyError here would cost the
 # whole book to say nothing: the key set must survive, filled with honest nulls.
 LEAN17 = {k: v for k, v in FAKE_META.items()
-          if k not in ("chunks_generated", "goodput_accepted_tok_s", "chunks_resumed")}
+          if k not in ("chunks_generated", "goodput_accepted_tok_s", "chunks_resumed",
+                       "rejections")}
 try:
     rec17b, _f, _b = drive_inline(cas, "t17-work-lean", LEAN17)
     d17b = (rec17b.named("analyst/done") or [{}])[0]
@@ -682,8 +688,9 @@ except Exception as exc:  # noqa: BLE001 — a raise here IS the failure this ch
 check(bool(d17b) and set(d17b) == set(d17),   # bool(): two empty sets are not agreement
       f"an older analyst's meta still emits the FULL key set ({d17b.get('__raised__', '')})")
 check(d17b.get("chunks_generated", 0) is None and d17b.get("goodput_accepted_tok_s", 0) is None
-      and d17b.get("chunks_resumed", 0) is None,
-      "a missing counter emits null — honest absence (docs/34), never an invented 0")
+      and d17b.get("chunks_resumed", 0) is None and d17b.get("rejections", 0) is None,
+      "a missing counter (or a pre-J32-B analyst's absent rejections breakdown) emits null — "
+      "honest absence (docs/34), never an invented 0")
 
 # Negative control: the SAME run with the two emit statements textually removed from convert().
 # Blanking their line spans (not deleting them) keeps every other line number identical, so the
