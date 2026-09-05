@@ -572,3 +572,121 @@ the byte count): **3,486,636 bytes ≈ 3.49 MB**, ≈ 2.53 KB/page for this book
 neighbourhood as docs/54 §3's ≈ 3.46 MB / 3.49 MB-on-disk figure (that number was re-measured
 here, not quoted). At 0 in the vault while the lever stays OUT — a goal the code now delivers on,
 not merely a plan.
+
+## 16. The re-audit road (J31, D-1 signed Rab 2026-09-05)
+
+**The rule (D-1).** After a Repair Bench repair, `fidelity.final` — the REPAIRED held text
+audited against BOTH references — is the verdict-bearing block:
+`fidelity.verdict = compute_verdict(final.convert, final.get("analyst"))`. A human repair may
+therefore change a verdict, but only WITH provenance: `fidelity.reaudit` names the old verdict,
+the reason, and (when the manifest carries `repairs`) a digest of what was repaired. The
+historical `fidelity.convert` and `fidelity.analyst` blocks are NEVER touched — they stay exactly
+what they were the day the book converted, a record of what the pipeline itself first measured;
+only `final`/`verdict`/`reaudit` are added.
+
+**The verb.** `convert_and_ship.py --reaudit <held/<ID>>` (a sha16 or a
+`<sha16>--superseded-<stamp>` sibling), dispatched in `main()` before `--resume`/`--reanalyze`,
+under the SAME unconditional `acquire_card_mutex()` every entry takes (docs/37 §3.2) — harmless
+here, since this whole span is **CPU-only**: `audit_convert`'s pymupdf witness extraction and
+`audit_analyst`'s text comparison, never Marker, never ollama, never the GPU. Everything runs on
+a `tempfile.TemporaryDirectory(prefix="fp-reaudit-")` staging COPY of `held/<ID>` — never in
+place. The copy excludes the Repair Bench's own working files (`*.bench-bak`, `repairs.jsonl`,
+`REPAIRS.md`) and keeps everything else (`assets/`, `blocks.json`, the J33 sidecar). The bundle's
+own `.md` is found by the same "exactly one `.md`" scan every other site uses, EXCLUDING
+`REPAIRS.md` by name (the S79 precedent, `prototypes/repair-bench/bench.py`'s `GENERATED_MD`) —
+a held bundle whose repair session left a report behind must still resolve to one `.md`, not two.
+
+**The two references.** The PDF witness is `drop/done/<manifest["source"]>` (via
+`fp_paths.root("drop_done")`) — absent, and the re-audit REFUSES (`audit/reaudit_refused
+{bundle, sha, reason: "pdf missing"}`, non-zero exit, held bundle untouched). The Marker
+reference — what J33's sidecar exists FOR — is `<bundle_name>.marker.txt` if present in the held
+bundle, else the slice cache (`.chunk-work/<sha16>/slice-*/slice.md`, concatenated in order and
+`rewrite_image_links`-ed, exactly SYM-073's own reconstruction recipe); the block records which
+one it used as `reference: "sidecar" | "slice-cache"`. If NEITHER exists and the manifest carries
+an `analyst` block, the re-audit REFUSES (`reason: "analyst reference unavailable"`) — a book that
+WAS analysed keeps needing an honest analyst-stage answer; dropping that stage to manufacture a
+prettier verdict is exactly the failure mode D-1 exists to prevent. A book with no `analyst`
+block at all (Valentine, Cybernetics) simply carries `reference: null` and no `final.analyst` —
+honest absence, not a stand-in pass.
+
+**The outcomes.** Still `fail`: the manifest is written back IN PLACE at `held/<ID>/manifest.json`
+(the `final`/`reaudit` blocks land even on a still-fail attempt — the record of the attempt
+itself, not only of a successful one) and nothing else happens — `_enforce_hold` is never called
+(there is nothing fresh to park; a duplicate beside the existing occupant would only confuse the
+assay), and `ship()` is never called. `flag`/`pass`: the SAME opt-in provenance authoring every
+other remedy path uses (`_stamp_supersede_safe`, `{"reason": "reaudit", "from_verdict": <old>,
+"source_sha256": <sha>, "requested_at_epoch_s": <now>}` — the exact shape `reanalyze()` already
+stamps for its own remedy) is folded into the manifest, written to BOTH the staging copy and
+`held/<ID>` itself, then `_enforce_hold(staging, ...)` (a no-op here — the on-disk verdict it
+re-reads is the fresh flag/pass, not fail — kept only because it is the ONE chokepoint every ship
+path passes, docs/15 §12's alarm doorway) and `ship(staging, ...)`. On a successful ship,
+`held/<ID>` is renamed to `held/<ID>--reshipped-<stamp>` — **never deleted** (S65: a held bundle
+may carry a human's repair work); if the rename fails (Windows: the bench may still hold a file
+open) the bundle is left in place with a printed warning rather than lost.
+
+**The events.** `audit/scored` fires with `phase: "final"`, `reason: "reaudit"`, and the exact
+bless()-shaped fields `assay.rs::bless` needs from the newest such record for a source:
+`source`, `kind`, `doc_survival`, `runs`, `runs_total`, `degeneration`, `verdict` — the same
+signature `_audit_convert_safe`'s own emit uses, just naming this scoring's phase/reason.
+`audit/flagged` follows when the verdict is not `pass`. Then `audit/reaudit {bundle, sha,
+from_verdict, verdict, reference, repairs_digest}` names the whole attempt as one record, so a
+reader never has to diff two `audit/scored` events to see what changed.
+
+**`--dry-run` means nothing happens, at all.** The same staging-copy audit runs and the verdict
+prints, but NOTHING is written back (neither the staging copy's manifest.json nor
+`held/<ID>`'s), nothing ships, and **no event is emitted — not even a refusal**. The hazard this
+avoids: `assay.rs::bless` finds the NEWEST `audit/scored` record for a source and trusts its
+verdict; a dry-run `audit/scored` would become that newest record and silently change what a
+later human bless click, on a book the dry-run never actually touched, is agreeing to. The
+`--reaudit` implementation suppresses every emit uniformly under `--dry-run` (refusals included)
+rather than trying to reason case-by-case about which specific event carries the hazard — a
+flag named "dry" should mean dry, full stop.
+
+**Two new event verbs.** `audit/reaudit` and `audit/reaudit_refused` — `windows-widget/src/
+event-vocab.js` and `docs/22-engineering-manual.html` both name them (T19's vocabulary-parity
+check, T7-shaped). `observability/schemas.json` picked up both automatically (A4's scope
+includes `events.jsonl`) — `--write` then `--check` PASS, `schema_registry_selftest.py` 18/18.
+
+**Dispositions.** Two GLITCHes surfaced under `glass_detector.py --since 08a7742 --enforce`:
+`widget:from_verdict` and `widget:requested_at_epoch_s`, both pre-existing fields in
+`assay.rs`'s own `⟳`/`⟲` marker-authoring code (docs/15 §14.2), pulled into `--since` scope only
+because J31's new `_stamp_supersede_safe` call reuses the SAME key names — the exact
+name-based `--since` mis-scoping already on record four times (docs/31 §5.2 item 7,
+`widget:source_sha256`'s own entry). Dispositioned INTERNAL; `assay.rs` itself was not touched.
+The J31-specific manifest keys (`final`, `reaudit`, `text_audited`, `reference`,
+`repairs_digest`) never register as a key at all under this detector's harvester — the same
+class J33's `marker_body` fell into (a bare `manifest[...] = {...}` assignment or an `emit()`
+kwarg whose value is a variable, not a literal dict, is invisible to it); a bare disposition
+entry for a key the harvester cannot see was tried and reverted (it manufactures a
+stale-signature failure in `acceptance.py` instead of a real one — confirmed empirically, not
+assumed).
+
+**Tests.** `convert_and_ship_selftest.py` T19 (28 checks + a 2-check vocabulary-parity section +
+a 2-check negative control watching the whole verb): the staging copy's exclusions/inclusions;
+the historical blocks staying content-identical while the verdict moves under D-1's own control
+(history says `fail`, `final` says `pass`); the bless()-shaped `audit/scored` fields and the
+`audit/reaudit` event; a still-fail attempt writing in place without shipping; a flag/pass
+attempt shipping the STAGING dir (never `held/`) and renaming to `--reshipped-`; THE REFERENCE
+CONTROL (a decoy sidecar/held-body pair proves `audit_analyst` was handed the sidecar, never the
+held `.md`); both refusal reasons (missing PDF, unavailable analyst reference) leaving the held
+bundle byte-hashed-unchanged; `--dry-run` appending zero lines to the REAL `events.jsonl`
+(the one check in the whole battery that does NOT monkeypatch `emit`, on purpose — dry-run's
+claim is about the real writer, not a recorder standing in for it). Negative control: blanking
+`fid["final"] = final` inside `reaudit()` and confirming the final block is really absent
+(check (2) would go red against this mutation) while the verdict itself still computes
+correctly — isolating the control to exactly the one removed line. Residual, found live during
+this build and left as evidence the harness bites: the staging-copy assertions initially read
+empty because `shutil.copytree` recurses into itself for subdirectories, so the naive "first
+call wins" capture caught the nested `assets/` call, not the top-level one — fixed by matching
+on source-path identity instead of call order (see `run_reaudit`'s `_spy_copytree`); a second,
+independent bug (the md-discovery glob matching `REPAIRS.md` too) was caught by these SAME
+tests before any manual inspection, cascading nearly every check in the block — real signal,
+not a decorative harness.
+
+**Not built this ticket (Rab's other slots, docs/54 §4):** J32 Proposals A/B (the normalised
+analyst comparison and the per-chunk survival guard) and SYM-074 (the `</think>` leak filter)
+are separate tickets in the fleet; `--reaudit` does not touch either. University Edition's own
+road to the vault is unchanged by this ticket alone — it needs J32-B's deletion/inflation guard
+restoring the lost paragraphs (from the Marker body J33 now retains) before a compliant re-run
+of the analyst could pass the analyst-stage gate; `--reaudit` only makes that FUTURE repaired
+book re-scoreable once it exists.

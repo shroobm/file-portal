@@ -262,6 +262,15 @@
         "audit/held": [
           "bundle"
         ],
+        "audit/reaudit": [
+          "bundle",
+          "from_verdict",
+          "verdict"
+        ],
+        "audit/reaudit_refused": [
+          "bundle",
+          "reason"
+        ],
         "audit/scored": [
           "degeneration",
           "doc_survival",
@@ -516,10 +525,38 @@
             "verdict"
           ]
         },
+        "audit/reaudit": {
+          "optional_keys": [],
+          "required_keys": [
+            "bundle",
+            "event",
+            "from_verdict",
+            "pid",
+            "reference",
+            "repairs_digest",
+            "sha",
+            "stage",
+            "ts",
+            "verdict"
+          ]
+        },
+        "audit/reaudit_refused": {
+          "optional_keys": [],
+          "required_keys": [
+            "bundle",
+            "event",
+            "pid",
+            "reason",
+            "sha",
+            "stage",
+            "ts"
+          ]
+        },
         "audit/scored": {
           "optional_keys": [
             "degeneration",
-            "kind"
+            "kind",
+            "reason"
           ],
           "required_keys": [
             "doc_survival",

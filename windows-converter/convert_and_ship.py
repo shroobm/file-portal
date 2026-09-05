@@ -1992,6 +1992,195 @@ def reanalyze(source: str, backend: str) -> None:
         ship(work, bundle_name, source_sha)
 
 
+# ---------- J31: re-audit a repaired held bundle (D-1, signed Rab 2026-09-05) ----------
+
+def _reaudit_skip_bench_files(_src, names):
+    """copytree() filter for the J31 staging copy: everything under held/<ID> travels EXCEPT
+    the Repair Bench's own working files — a *.bench-bak, repairs.jsonl, REPAIRS.md — which
+    describe the repair SESSION, not the book. assets/, blocks.json and the J33 Marker-body
+    sidecar all travel unfiltered, same as any other copytree."""
+    return {n for n in names if n.endswith(".bench-bak") or n in ("repairs.jsonl", "REPAIRS.md")}
+
+
+def reaudit(bundle_id: str, dry_run: bool = False) -> None:
+    """J31 (D-1, verdict rule signed Rab 2026-09-05): re-audit a Repair-Bench-repaired held
+    bundle (`held/<bundle_id>`, a sha16 or a `<sha16>--superseded-<stamp>` sibling) against
+    BOTH references — the PDF witness (audit_convert) and the Marker body (audit_analyst) —
+    computed on a `tempfile.TemporaryDirectory` staging COPY, never in place.
+
+    CPU-ONLY SPAN: this never touches the GPU or ollama — Marker never runs, the analyst
+    never runs, only pymupdf witness extraction (audit_convert) and text comparison
+    (audit_analyst). `main()`'s `acquire_card_mutex()` still runs first for every entry
+    (docs/37 §3.2's unconditional rule), which is harmless here: the mutex is held for a
+    span that costs no GPU-hours.
+
+    `--dry-run` runs the SAME staging-copy audit and PRINTS the verdict, but writes nothing
+    back (neither copy of manifest.json), ships nothing, and emits NO EVENT AT ALL — not even
+    a refusal. A dry-run `audit/scored` would become the newest such record `assay.rs::bless`
+    reads, silently changing what a human bless click on some OTHER book means; a dry-run
+    refusal event carries no such hazard by itself, but this function suppresses every emit
+    uniformly under --dry-run so the flag means what it says: nothing observable happens.
+
+    The historical `fidelity.convert` / `fidelity.analyst` blocks are NEVER touched — only
+    `fidelity.final`, `fidelity.verdict` and `fidelity.reaudit` are added/updated. A human
+    repair may then change a verdict, WITH provenance (`fidelity.reaudit.from`)."""
+    held_dir = HELD / bundle_id
+    if not held_dir.is_dir():
+        sys.exit(f"REAUDIT refused: no held bundle {bundle_id!r} at {held_dir}")
+    manifest_path = held_dir / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    source_sha = manifest["source_sha256"]
+    old_verdict = (manifest.get("fidelity") or {}).get("verdict")
+
+    # REPAIRS.md is a Repair Bench REPORT, not the bundle's note (bench.py's own GENERATED_MD
+    # exclusion, S79) — without it, a bench that had declared this patient done would make
+    # every "exactly one .md" scan in the pipeline see two and refuse, this one included.
+    md_candidates = sorted(p for p in held_dir.glob("*.md") if p.name != "REPAIRS.md")
+    if len(md_candidates) != 1:
+        sys.exit(f"REAUDIT refused: expected exactly one .md in {held_dir}, found "
+                  f"{[p.name for p in md_candidates]}")
+    bundle_name = md_candidates[0].stem
+
+    pdf_path = fp_paths.root("drop_done") / manifest["source"]
+    if not pdf_path.is_file():
+        if not dry_run:
+            emit("audit", "reaudit_refused", bundle=bundle_name, sha=source_sha[:16],
+                 reason="pdf missing")
+        sys.exit(f"REAUDIT refused: source PDF not found at {pdf_path} "
+                 f"(drop/done/{manifest['source']!r}) — nothing changed")
+
+    raw = md_candidates[0].read_text(encoding="utf-8")
+    # The SAME split apply_analyst uses (:1723-ish): head, body = raw.split("---\n", 2)[1:3].
+    parts = raw.split("---\n", 2)
+    body = parts[2] if len(parts) == 3 else raw
+
+    sidecar = held_dir / f"{bundle_name}{MARKER_BODY_SUFFIX}"
+    reference_text: str | None = None
+    reference_kind: str | None = None
+    if sidecar.is_file():
+        reference_text = sidecar.read_text(encoding="utf-8")
+        reference_kind = "sidecar"
+    else:
+        slice_dir = CHUNK_WORK / source_sha[:16]
+        slices = sorted(slice_dir.glob("slice-*/slice.md")) if slice_dir.is_dir() else []
+        if slices:
+            reference_text = rewrite_image_links(
+                "".join(p.read_text(encoding="utf-8") for p in slices)
+            )
+            reference_kind = "slice-cache"
+
+    if reference_text is None and manifest.get("analyst"):
+        # Never compute a prettier verdict by silently dropping the analyst stage: a book
+        # that WAS analysed keeps needing an analyst-stage answer, refusal or not.
+        if not dry_run:
+            emit("audit", "reaudit_refused", bundle=bundle_name, sha=source_sha[:16],
+                 reason="analyst reference unavailable")
+        sys.exit(f"REAUDIT refused: no Marker-body reference for {bundle_name!r} (no "
+                 f"{sidecar.name}, no slice cache under {CHUNK_WORK / source_sha[:16]}) and "
+                 "the manifest carries an analyst block — nothing changed")
+
+    import fidelity_audit as fa
+
+    with tempfile.TemporaryDirectory(prefix="fp-reaudit-") as work_str:
+        staging = Path(work_str) / bundle_name
+        shutil.copytree(held_dir, staging, ignore=_reaudit_skip_bench_files)
+
+        assets_dir = staging / "assets"
+        asset_count = sum(1 for _ in assets_dir.iterdir()) if assets_dir.exists() else None
+        conv = fa.audit_convert(pdf_path, body, manifest.get("lane", "clean"),
+                                 asset_count=asset_count)
+        an = fa.audit_analyst(reference_text, body) if reference_text is not None else None
+        verdict = fa.compute_verdict(conv, an)
+
+        fid = manifest.setdefault("fidelity", {})
+        old_convert = fid.get("convert") or {}  # HISTORY — read only, never overwritten below
+        final = {"convert": conv, "text_audited": "held-post-analyst", "reference": reference_kind}
+        if an is not None:
+            final["analyst"] = an
+        fid["final"] = final
+        fid["verdict"] = verdict
+
+        repairs = manifest.get("repairs")
+        repairs_digest = (
+            hashlib.sha256(json.dumps(repairs, sort_keys=True).encode("utf-8")).hexdigest()
+            if repairs is not None else None
+        )
+        fid["reaudit"] = {
+            "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            "by": "convert_and_ship --reaudit",
+            "reason": "repair-bench",
+            "repairs_digest": repairs_digest,
+            "from": {
+                "verdict": old_verdict,
+                "convert": {
+                    "doc_survival": old_convert.get("doc_survival"),
+                    "pages_flagged": len(old_convert.get("pages_flagged") or []),
+                    "runs_total": old_convert.get("runs_total"),
+                    "degeneration": (old_convert.get("tripwires") or {}).get("degeneration"),
+                },
+            },
+        }
+
+        print(f"REAUDIT {bundle_name} ({bundle_id}): from_verdict={old_verdict} -> "
+              f"verdict={verdict} (reference={reference_kind})", flush=True)
+
+        if dry_run:
+            print("DRY-RUN: not writing, not shipping, no event emitted", flush=True)
+            return
+
+        # bless()-shaped fields, exactly _audit_convert_safe's own emit signature, phase
+        # "final" / reason "reaudit" naming this as the re-audit's own scored record
+        # (assay.rs::bless finds the NEWEST audit/scored for `source` — this IS that record
+        # once it lands).
+        emit("audit", "scored", source=manifest.get("source", bundle_name), phase="final",
+             reason="reaudit", kind=conv["kind"], doc_survival=conv["doc_survival"],
+             runs=len(conv["runs"]), runs_total=conv.get("runs_total"),
+             degeneration=conv["tripwires"]["degeneration"], verdict=verdict)
+        if verdict != "pass":
+            emit("audit", "flagged", source=manifest.get("source", bundle_name),
+                 phase="final", verdict=verdict)
+        emit("audit", "reaudit", bundle=bundle_name, sha=source_sha[:16],
+             from_verdict=old_verdict, verdict=verdict, reference=reference_kind,
+             repairs_digest=repairs_digest)
+
+        if verdict == "fail":
+            # Every failure path leaves held/<ID> byte-unchanged except this manifest write.
+            manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+            print(f"REAUDIT {bundle_name}: still fail — stays held", flush=True)
+            return
+
+        # flag/pass: the same opt-in provenance authoring _stamp_supersede_safe already gives
+        # ⟳ re-convert and --reanalyze — never a silent overwrite.
+        _stamp_supersede_safe(
+            manifest,
+            {"reason": "reaudit", "from_verdict": old_verdict, "source_sha256": source_sha,
+             "requested_at_epoch_s": int(time.time())},
+            source_sha, bundle_name,
+        )
+        serialized = json.dumps(manifest, indent=2) + "\n"
+        (staging / "manifest.json").write_text(serialized, encoding="utf-8")
+        manifest_path.write_text(serialized, encoding="utf-8")
+
+        # _enforce_hold is a no-op here (the on-disk verdict it re-reads is flag/pass, not
+        # fail) — called anyway because it is the ONE chokepoint every ship path passes
+        # (docs/15 §12's alarm doorway), not to change behavior.
+        _enforce_hold(staging, bundle_name, source_sha)
+        ship(staging, bundle_name, source_sha)
+
+        # S65: never delete a human-repaired bundle. Rename beside itself, never over it —
+        # if the rename fails (Windows: the bench may still hold a file open), leave the
+        # held bundle in place with a printed warning rather than lose it.
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        reshipped = HELD / f"{bundle_id}--reshipped-{stamp}"
+        try:
+            held_dir.rename(reshipped)
+            print(f"REAUDIT {bundle_name}: shipped — held bundle renamed -> {reshipped.name}",
+                  flush=True)
+        except OSError as exc:
+            print(f"REAUDIT {bundle_name}: shipped, but could not rename {held_dir} "
+                  f"(left in place, not lost): {exc}", flush=True)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("pdf", type=Path, nargs="?")
@@ -2007,13 +2196,23 @@ def main():
     ap.add_argument("--reanalyze", metavar="SOURCE",
                     help="analyst-only re-run of an anchored bundle (docs/19 §3.1); Marker "
                          "never runs and the result ships as a supersede")
+    ap.add_argument("--reaudit", metavar="ID",
+                    help="J31 (D-1): re-audit a Repair-Bench-repaired held/<ID> bundle "
+                         "against both references and, on flag/pass, ship it as a supersede; "
+                         "CPU-only — never GPU, never ollama. --dry-run prints the verdict "
+                         "and changes/ships/emits nothing")
     args = ap.parse_args()
 
-    # The GPU span begins here for EVERY entry — convert, --resume, --reanalyze — so the
-    # card is claimed before dispatch (docs/37 §3.2, signed; SYM-042's cover). Held to
-    # process exit; the OS releases it.
+    # The GPU span begins here for EVERY entry — convert, --resume, --reanalyze, --reaudit —
+    # so the card is claimed before dispatch (docs/37 §3.2, signed; SYM-042's cover). Held to
+    # process exit; the OS releases it. Harmless for --reaudit specifically: that span is
+    # CPU-only (pymupdf witness extraction + text comparison, never Marker, never ollama), so
+    # holding the mutex costs no GPU-hours — it is simply unconditional for every entry.
     acquire_card_mutex()
 
+    if args.reaudit:
+        reaudit(args.reaudit, dry_run=args.dry_run)
+        return
     if args.resume:
         resume(args.resume, args.backend)
         return

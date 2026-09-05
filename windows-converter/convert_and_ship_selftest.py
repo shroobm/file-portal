@@ -851,6 +851,357 @@ check((tmp18d / f"{bundle18d}.md").is_file(),
       "negative control really ran the convert — this is absence, not a skipped path")
 
 
+# ---------- T19: J31 — re-audit a repaired held bundle (D-1, signed 2026-09-05) ----------
+print("T19 re-audit a repaired held bundle (J31)")
+import fidelity_audit  # noqa: E402  (already in sys.modules; bare name to monkeypatch on)
+
+
+class ReaudFakes:
+    """sys.modules-free stand-in for fidelity_audit's two stage audits — no real PDF read,
+    no real text comparison. compute_verdict stays REAL: these return controlled BLOCKS, and
+    the real verdict logic decides pass/flag/fail from them, so the D-1 control (history says
+    fail, the final blocks say otherwise) exercises the actual rule, not a stubbed answer."""
+
+    def __init__(self, convert_result, analyst_result):
+        self.convert_result = convert_result
+        self.analyst_result = analyst_result
+        self.convert_calls: list[dict] = []
+        self.analyst_calls: list[dict] = []
+
+    def audit_convert(self, pdf_path, markdown, lane, asset_count=None):
+        self.convert_calls.append({"pdf_path": Path(pdf_path), "markdown": markdown,
+                                    "lane": lane, "asset_count": asset_count})
+        return self.convert_result
+
+    def audit_analyst(self, marker_markdown, analyst_markdown):
+        self.analyst_calls.append({"marker_markdown": marker_markdown,
+                                    "analyst_markdown": analyst_markdown})
+        return self.analyst_result
+
+
+PASS_CONVERT = {"doc_survival": 0.99, "pages_flagged": [], "runs_total": 0, "runs": [],
+                "kind": "fidelity", "tripwires": {"degeneration": False}}
+PASS_ANALYST = {"doc_survival": 0.999, "runs": [], "runs_total": 0}
+FAIL_ANALYST = {"doc_survival": 0.9, "runs": [], "runs_total": 40}  # < ANALYST_DOC_FAIL
+
+
+def make_held_bundle(sha16, name="paper", *, source=None, lane="clean",
+                      old_verdict="fail", with_sidecar=True, with_slice_cache=False,
+                      with_analyst_block=True, with_bench_files=True,
+                      sidecar_text="MARKER BODY REFERENCE TEXT",
+                      held_body="held post-analyst body text"):
+    """A synthetic held/<sha16> bundle — enough of the real shape (manifest, .md, assets/,
+    optional bench working files, optional sidecar/slice-cache) to drive reaudit() end to end
+    without ever reading a real PDF (audit_convert is monkeypatched by every caller here)."""
+    source = source or f"{name}.pdf"
+    held_dir = cas.HELD / sha16
+    if held_dir.exists():
+        shutil.rmtree(held_dir)
+    held_dir.mkdir(parents=True)
+    (held_dir / "assets").mkdir()
+    (held_dir / "assets" / "img.png").write_bytes(b"PNG")
+    (held_dir / f"{name}.md").write_text(
+        f"---\nsource_sha256: {sha16}\n---\n{held_body}\n", encoding="utf-8")
+    manifest = {
+        "source": source,
+        "source_sha256": sha16,
+        "lane": lane,
+        "fidelity": {
+            "version": 1,
+            "convert": {"doc_survival": 0.93, "pages_flagged": [3, 7], "runs_total": 500,
+                        "tripwires": {"degeneration": False}, "kind": "fidelity", "runs": []},
+            "verdict": old_verdict,
+        },
+    }
+    if with_analyst_block:
+        manifest["analyst"] = {"model": "qwen3:8b", "chunks_passed": 900}
+        manifest["fidelity"]["analyst"] = {"doc_survival": 0.94, "runs": [], "runs_total": 300}
+    (held_dir / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    if with_sidecar:
+        (held_dir / f"{name}{cas.MARKER_BODY_SUFFIX}").write_text(sidecar_text, encoding="utf-8")
+    if with_slice_cache:
+        slice_dir = cas.CHUNK_WORK / sha16 / "slice-00000-00099"
+        slice_dir.mkdir(parents=True, exist_ok=True)
+        (slice_dir / "slice.md").write_text(sidecar_text, encoding="utf-8")
+    if with_bench_files:
+        (held_dir / f"{name}.md.bench-bak").write_text("stale backup", encoding="utf-8")
+        (held_dir / "repairs.jsonl").write_text('{"x": 1}\n', encoding="utf-8")
+        (held_dir / "REPAIRS.md").write_text("# repairs\n", encoding="utf-8")
+    done_dir = cas.fp_paths.root("drop_done")
+    done_dir.mkdir(parents=True, exist_ok=True)
+    (done_dir / source).write_bytes(b"%PDF-1.4 fake\n")
+    return held_dir, manifest
+
+
+def run_reaudit(module, bundle_id: str, *, convert_result, analyst_result, dry_run=False):
+    """Drive the REAL reaudit() end to end: fidelity_audit's two stage audits monkeypatched
+    (compute_verdict stays real), ship() stubbed and its calls recorded, emit() recorded, and
+    the staging copy's file LIST captured at the moment shutil.copytree populates it (the
+    TemporaryDirectory is gone by the time this returns)."""
+    fakes = ReaudFakes(convert_result, analyst_result)
+    rec = EmitRecorder()
+    ship_calls: list[dict] = []
+
+    def _stub_ship(tmp_dir, bundle_name, source_sha):
+        ship_calls.append({"tmp_dir": Path(tmp_dir), "bundle_name": bundle_name,
+                            "source_sha": source_sha})
+
+    real_convert = fidelity_audit.audit_convert
+    real_analyst = fidelity_audit.audit_analyst
+    fidelity_audit.audit_convert = fakes.audit_convert
+    fidelity_audit.audit_analyst = fakes.audit_analyst
+    module.emit = rec
+    real_ship = module.ship
+    module.ship = _stub_ship
+    captured_staging_files: list[str] = []
+    real_copytree = shutil.copytree
+    held_dir_path = (module.HELD / bundle_id).resolve()
+
+    def _spy_copytree(src, dst, *a, **kw):
+        result = real_copytree(src, dst, *a, **kw)
+        # shutil.copytree recurses into itself for subdirectories (e.g. assets/), so the
+        # FIRST call this spy sees is often a nested one, not held_dir -> staging — match on
+        # identity (src resolves to held_dir), not call order.
+        try:
+            src_is_held_dir = Path(src).resolve() == held_dir_path
+        except (TypeError, OSError):
+            src_is_held_dir = False
+        if src_is_held_dir and not captured_staging_files:
+            captured_staging_files.extend(
+                sorted(p.relative_to(dst).as_posix() for p in Path(dst).rglob("*")
+                       if p.is_file())
+            )
+        return result
+
+    shutil.copytree = _spy_copytree
+    try:
+        try:
+            module.reaudit(bundle_id, dry_run=dry_run)
+            raised = None
+        except SystemExit as exc:
+            raised = exc
+    finally:
+        fidelity_audit.audit_convert = real_convert
+        fidelity_audit.audit_analyst = real_analyst
+        module.ship = real_ship
+        shutil.copytree = real_copytree
+    return fakes, rec, ship_calls, raised, captured_staging_files
+
+
+# (1) + (2) + (3) + (5) + (7): a healthy flag/pass re-audit on a bundle with a sidecar,
+# bench files, and blocks.json.
+held1, manifest1 = make_held_bundle("shaa1111111111111", name="paper1")
+(held1 / "blocks.json").write_text('{"blocks": []}', encoding="utf-8")
+fakes1, rec1, ships1, raised1, files1 = run_reaudit(
+    cas, "shaa1111111111111", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+
+# (1) staging copy: bench files EXCLUDED, assets/blocks.json/sidecar INCLUDED.
+check(raised1 is None, "(1) a healthy re-audit runs to completion, no refusal")
+check("assets/img.png" in files1, "(1) staging copy carries assets/")
+check("blocks.json" in files1, "(1) staging copy carries blocks.json")
+check("paper1.marker.txt" in files1, "(1) staging copy carries the J33 sidecar")
+check("paper1.md.bench-bak" not in files1, "(1) staging copy EXCLUDES the stale .bench-bak")
+check("repairs.jsonl" not in files1, "(1) staging copy EXCLUDES repairs.jsonl")
+check("REPAIRS.md" not in files1, "(1) staging copy EXCLUDES REPAIRS.md")
+
+reshipped1 = sorted(cas.HELD.glob("shaa1111111111111--reshipped-*"))
+check(len(reshipped1) == 1, "(5) held dir renamed to a single --reshipped-<stamp> sibling")
+check(not (cas.HELD / "shaa1111111111111").exists(),
+      "(5) the OLD held/<ID> path no longer exists under its own name")
+final_manifest1 = (json.loads((reshipped1[0] / "manifest.json").read_text(encoding="utf-8"))
+                    if reshipped1 else {})
+
+# (2) final block + reaudit provenance present; HISTORICAL convert/analyst untouched; verdict
+# computed from final (D-1 control: history says fail, final says otherwise -> flag/pass).
+check(final_manifest1.get("fidelity", {}).get("convert") == manifest1["fidelity"]["convert"],
+      "(2) the HISTORICAL convert block is content-identical before/after (never overwritten)")
+check(final_manifest1.get("fidelity", {}).get("analyst") == manifest1["fidelity"]["analyst"],
+      "(2) the HISTORICAL analyst block is content-identical before/after (never overwritten)")
+check(final_manifest1.get("fidelity", {}).get("final", {}).get("convert") == PASS_CONVERT,
+      "(2) fidelity.final.convert IS the new audit, distinct from history")
+check(final_manifest1.get("fidelity", {}).get("verdict") == "pass",
+      "(2) D-1: verdict is computed from FINAL (pass) even though history says fail")
+reaudit_prov1 = final_manifest1.get("fidelity", {}).get("reaudit", {})
+check(reaudit_prov1.get("from", {}).get("verdict") == "fail",
+      "(2) reaudit provenance names the OLD (historical) verdict")
+check(reaudit_prov1.get("from", {}).get("convert", {}).get("pages_flagged") == 2,
+      "(2) reaudit provenance summarizes the historical convert block (pages_flagged COUNT)")
+check(reaudit_prov1.get("reason") == "repair-bench" and reaudit_prov1.get("by") ==
+      "convert_and_ship --reaudit", "(2) reaudit provenance names its own reason/author")
+
+# (3) events: audit/scored phase=final carries source/verdict/degeneration (bless()-shaped);
+# audit/reaudit carries from_verdict + verdict + reference.
+scored_final1 = [f for k, f in rec1.events if k == "audit/scored" and f.get("phase") == "final"]
+check(len(scored_final1) == 1, "(3) exactly one phase=final audit/scored event")
+check(bool(scored_final1) and scored_final1[0].get("source") == manifest1["source"]
+      and scored_final1[0].get("verdict") == "pass"
+      and scored_final1[0].get("degeneration") is False,
+      "(3) phase=final audit/scored carries source + verdict + degeneration (assay.rs::bless)")
+reaudit_events1 = [f for k, f in rec1.events if k == "audit/reaudit"]
+check(len(reaudit_events1) == 1, "(3) exactly one audit/reaudit event")
+check(bool(reaudit_events1) and reaudit_events1[0].get("from_verdict") == "fail"
+      and reaudit_events1[0].get("verdict") == "pass"
+      and reaudit_events1[0].get("reference") == "sidecar",
+      "(3) audit/reaudit carries from_verdict + verdict + reference")
+
+# (5) flag/pass: ship() called with the STAGING dir (never held/), supersede stamped reason
+# "reaudit".
+check(len(ships1) == 1, "(5) ship() called exactly once on a flag/pass verdict")
+check(bool(ships1) and ships1[0]["tmp_dir"] != held1 and "fp-reaudit-" in str(ships1[0]["tmp_dir"]),
+      "(5) ship() received the STAGING (tempfile) dir, never held/<ID> itself")
+check(final_manifest1.get("supersede", {}).get("reason") == "reaudit",
+      "(5) supersede stamped with reason='reaudit'")
+check(final_manifest1.get("supersede", {}).get("from_verdict") == "fail",
+      "(5) supersede names the OLD verdict as from_verdict")
+
+# (7) THE REFERENCE CONTROL: audit_analyst was handed the SIDECAR text, never the held .md —
+# sidecar_text and held_body were planted DIFFERENT on purpose (the decoy).
+check(len(fakes1.analyst_calls) == 1, "(7) audit_analyst called exactly once")
+check(bool(fakes1.analyst_calls)
+      and fakes1.analyst_calls[0]["marker_markdown"] == "MARKER BODY REFERENCE TEXT",
+      "(7) audit_analyst's reference arg IS the sidecar text")
+check(bool(fakes1.analyst_calls)
+      and fakes1.analyst_calls[0]["marker_markdown"] != "held post-analyst body text\n",
+      "(7) decoy: audit_analyst's reference arg is NOT the held .md body")
+check(bool(fakes1.analyst_calls)
+      and "held post-analyst body text" in fakes1.analyst_calls[0]["analyst_markdown"],
+      "(7) audit_analyst's second arg IS the held-post-analyst body (frontmatter split correctly)")
+
+# (4) still-fail: manifest written IN PLACE at held/<ID>, ship NOT called, no sibling created.
+held2, manifest2 = make_held_bundle("shaa2222222222222", name="paper2")
+fakes2, rec2, ships2, raised2, _files2 = run_reaudit(
+    cas, "shaa2222222222222", convert_result=PASS_CONVERT, analyst_result=FAIL_ANALYST)
+check(raised2 is None, "(4) a still-fail re-audit does not raise")
+check(len(ships2) == 0, "(4) ship() is NOT called when the verdict stays fail")
+check(not list(cas.HELD.glob("shaa2222222222222--reshipped-*")),
+      "(4) no --reshipped- sibling on a still-fail verdict")
+check(not list(cas.HELD.glob("shaa2222222222222--superseded-*")),
+      "(4) no --superseded- sibling either (_enforce_hold never runs on a fresh fail)")
+still_manifest2 = json.loads((cas.HELD / "shaa2222222222222" / "manifest.json")
+                              .read_text(encoding="utf-8"))
+check(still_manifest2.get("fidelity", {}).get("verdict") == "fail",
+      "(4) the manifest IN PLACE at held/<ID> now carries the still-fail verdict")
+check("final" in still_manifest2.get("fidelity", {}),
+      "(4) the final block IS written even on a still-fail verdict (the record of the attempt)")
+
+# (6) refusal: no sidecar + no slice cache + manifest HAS an analyst block -> refused, held
+# bundle byte-unchanged (hashed before/after).
+held3, manifest3 = make_held_bundle("shaa3333333333333", name="paper3",
+                                     with_sidecar=False, with_slice_cache=False,
+                                     with_analyst_block=True)
+
+
+def _hash_dir(d):
+    return sorted(
+        (str(p.relative_to(d)), hashlib.sha256(p.read_bytes()).hexdigest())
+        for p in d.rglob("*") if p.is_file()
+    )
+
+
+before3 = _hash_dir(held3)
+fakes3, rec3, ships3, raised3, _files3 = run_reaudit(
+    cas, "shaa3333333333333", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+after3 = _hash_dir(held3)
+check(isinstance(raised3, SystemExit) and bool(raised3.code), "(6) refusal exits non-zero")
+check(before3 == after3, "(6) held bundle byte-unchanged (hashed) after a refusal")
+check(len(fakes3.convert_calls) == 0 and len(fakes3.analyst_calls) == 0,
+      "(6) neither audit runs at all on a refusal")
+refused3 = [f for k, f in rec3.events if k == "audit/reaudit_refused"]
+check(len(refused3) == 1 and refused3[0].get("reason") == "analyst reference unavailable",
+      "(6) audit/reaudit_refused names reason='analyst reference unavailable'")
+check(len(ships3) == 0, "(6) ship() never called on a refusal")
+
+# (9) missing PDF -> refused, distinct reason, nothing runs.
+held9, manifest9 = make_held_bundle("shaa9999999999999", name="paper9")
+(cas.fp_paths.root("drop_done") / manifest9["source"]).unlink()
+fakes9, rec9, ships9, raised9, _files9 = run_reaudit(
+    cas, "shaa9999999999999", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(isinstance(raised9, SystemExit) and bool(raised9.code), "(9) missing PDF exits non-zero")
+check(len(fakes9.convert_calls) == 0, "(9) audit_convert never called when the PDF is missing")
+check(len(ships9) == 0, "(9) ship() never called")
+refused9 = [f for k, f in rec9.events if k == "audit/reaudit_refused"]
+check(len(refused9) == 1 and refused9[0].get("reason") == "pdf missing",
+      "(9) audit/reaudit_refused names reason='pdf missing'")
+
+# (8) --dry-run: no manifest write, no ship, ZERO events appended to the REAL events.jsonl
+# (emit is NOT monkeypatched for this one check — the real writer is exercised).
+held8, manifest8 = make_held_bundle("shaa8888888888888", name="paper8")
+events_path8 = cas.fp_paths.root("events")
+before_lines8 = (events_path8.read_text(encoding="utf-8").count("\n")
+                 if events_path8.exists() else 0)
+real_convert8, real_analyst8 = fidelity_audit.audit_convert, fidelity_audit.audit_analyst
+fakes8 = ReaudFakes(PASS_CONVERT, PASS_ANALYST)
+fidelity_audit.audit_convert = fakes8.audit_convert
+fidelity_audit.audit_analyst = fakes8.audit_analyst
+real_ship8 = cas.ship
+ship_calls8: list = []
+cas.ship = lambda *a, **k: ship_calls8.append(a)
+try:
+    cas.reaudit("shaa8888888888888", dry_run=True)
+finally:
+    fidelity_audit.audit_convert = real_convert8
+    fidelity_audit.audit_analyst = real_analyst8
+    cas.ship = real_ship8
+after_lines8 = (events_path8.read_text(encoding="utf-8").count("\n")
+                if events_path8.exists() else 0)
+check(after_lines8 == before_lines8, "(8) --dry-run appended ZERO lines to the real events.jsonl")
+check(len(ship_calls8) == 0, "(8) --dry-run never calls ship()")
+manifest8_after = json.loads((cas.HELD / "shaa8888888888888" / "manifest.json")
+                              .read_text(encoding="utf-8"))
+check("final" not in manifest8_after.get("fidelity", {}),
+      "(8) --dry-run writes NOTHING back to held/<ID>/manifest.json")
+check(not list(cas.HELD.glob("shaa8888888888888--reshipped-*")),
+      "(8) --dry-run creates no --reshipped- sibling")
+
+# ---------- T19 vocabulary parity (audit/reaudit*, J31) ----------
+print("T19 vocabulary parity")
+vocab19 = (HERE.parent / "windows-widget" / "src" / "event-vocab.js").read_text(encoding="utf-8")
+manual19 = (HERE.parent / "docs" / "22-engineering-manual.html").read_text(encoding="utf-8")
+for key19 in ("audit/reaudit", "audit/reaudit_refused"):
+    check(f'"{key19}"' in vocab19, f"shared event-vocab.js speaks {key19}")
+for name19 in ("reaudit", "reaudit_refused"):
+    check(name19 in manual19, f"docs/22 names {name19}")
+src19 = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+emitted19 = set(re.findall(r'emit\("audit", "([a-z_]+)"', src19))
+for name19 in ("reaudit", "reaudit_refused", "scored", "flagged"):
+    check(name19 in emitted19, f"converter really emits audit/{name19}")
+
+# ---------- NEGATIVE CONTROL for the whole verb ----------
+# Blank `fid["final"] = final` inside reaudit() and watch check (2)'s "final block present"
+# assertion go red — proving that check really watches this one line.
+print("T19 negative control: fid['final'] = final removed")
+NC19_SRC = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+NC19_LINES = NC19_SRC.splitlines(keepends=True)
+_nc19_fn = next(n for n in ast.walk(ast.parse(NC19_SRC))
+                if isinstance(n, ast.FunctionDef) and n.name == "reaudit")
+_nc19_removed = 0
+for _n in ast.walk(_nc19_fn):
+    if (isinstance(_n, ast.Assign) and len(_n.targets) == 1
+            and isinstance(_n.targets[0], ast.Subscript)
+            and isinstance(_n.targets[0].value, ast.Name) and _n.targets[0].value.id == "fid"
+            and isinstance(_n.targets[0].slice, ast.Constant)
+            and _n.targets[0].slice.value == "final"):
+        for _ln in range(_n.lineno - 1, _n.end_lineno):
+            NC19_LINES[_ln] = "\n"
+        _nc19_removed += 1
+check(_nc19_removed == 1, f"the control really removed fid['final'] = final ({_nc19_removed})")
+nc19 = types.ModuleType("convert_and_ship_nc19")
+nc19.__file__ = str(HERE / "convert_and_ship.py")
+exec(compile("".join(NC19_LINES), nc19.__file__, "exec"), nc19.__dict__)  # noqa: S102
+
+held_nc, manifest_nc = make_held_bundle("shncncncncncncnc1", name="papernc")
+_fakes_nc, _rec_nc, _ships_nc, _raised_nc, _files_nc = run_reaudit(
+    nc19, "shncncncncncncnc1", convert_result=PASS_CONVERT, analyst_result=FAIL_ANALYST)
+nc_manifest = json.loads((cas.HELD / "shncncncncncncnc1" / "manifest.json")
+                          .read_text(encoding="utf-8"))
+check("final" not in nc_manifest.get("fidelity", {}),
+      "NEGATIVE CONTROL: with fid['final'] = final removed, the final block is really absent — "
+      "check (2)'s 'fidelity.final.convert IS the new audit' assertion would fail against this")
+check(nc_manifest.get("fidelity", {}).get("verdict") == "fail",
+      "NEGATIVE CONTROL: verdict is still computed correctly (only the final BLOCK is missing, "
+      "isolating the control to exactly the one removed line)")
+
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

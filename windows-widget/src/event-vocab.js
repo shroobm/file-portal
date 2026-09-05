@@ -66,6 +66,11 @@ export function eventPhrase(e, { compact = false, unknown = null } = {}) {
     "audit/held": `${s(e.bundle)} — held · enforce`,
     "audit/supersede": `${s(e.source)} — remedy carried · replaces on pass`,
     "audit/supersede_ignored": `${s(e.source)} — remedy dropped · sha mismatch`,
+    // J31 (D-1, signed 2026-09-05): --reaudit re-scores a Repair-Bench-repaired held bundle
+    // against both references; this is the phase="final" audit/scored's sibling record,
+    // naming the OLD verdict beside the new one so a reader never has to diff two events.
+    "audit/reaudit": `${icon("🔁")}${s(e.bundle)} — reaudit ${e.from_verdict ?? "?"} → ${e.verdict ?? "?"}`,
+    "audit/reaudit_refused": `${icon("✗")}${s(e.bundle)} — reaudit refused (${s(e.reason)})`,
     "gate/pending": `${icon("✳")}${s(e.bundle)} — awaiting YOUR routing decision`,
     "gate/auto_routed": `${icon("✳")}${s(e.bundle)} — rule auto-routed local`,
     "gate/resolved": `${icon("✓")}task complete — check the Library button`,

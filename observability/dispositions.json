@@ -82,6 +82,14 @@
       "disposition": "INTERNAL",
       "reason": "Outbound request parameter (bench.py:1135) - tells qwen3 not to emit a reasoning block. Correct there: the operator wants the answer, not the deliberation. S80/S81 measured what this flag is worth (thinking ON costs 6.5x the tokens on the analyst's workload), and that measurement has its home in docs/34 and the CHANGELOG, not on the bench surface. They are NOT new to the bench: bench.py:1135 has carried them unchanged, and they surfaced now only because windows-converter/backend_parity.py added the same key NAMES in its own outbound ollama body this session. That is docs/31 §5.2 item 7, the detector's --since mis-scoping, recurring for the third recorded time (S78, S79, S81) and still unsigned."
     },
+    "widget:from_verdict": {
+      "disposition": "INTERNAL",
+      "reason": "The docs/15 SS14.2 supersede-marker field, unchanged in assay.rs (:251, the JSON! macro authoring drop/.supersede/<name>.json — the widget's ⟳/⟲ click), reachable to a human already: it rides into manifest.supersede.from_verdict (convert_and_ship.py's _stamp_supersede_safe) and the audit/supersede event, both of which ARE surfaced (the Assay card, room.js). It surfaced NOW only because J31 (S115) added a second Python-side site using the SAME key name (reaudit()'s own supersede marker, mirroring reanalyze()'s pre-existing one) — assay.rs itself was not touched. docs/31 SS5.2 item 7's name-based --since mis-scoping (see widget:source_sha256 above; fifth recorded recurrence, S78/S79/S81/S93/S115)."
+    },
+    "widget:requested_at_epoch_s": {
+      "disposition": "INTERNAL",
+      "reason": "The docs/15 SS14.2 supersede-marker field, unchanged in assay.rs (:254), same shape and same cause as widget:from_verdict directly above — surfaced by J31's new reaudit() site reusing the pre-existing key name, not by any assay.rs edit. Reaches a human through manifest.supersede (opaque epoch, the Assay does not render it directly) exactly as it did before this session; docs/31 SS5.2 item 7 recurrence."
+    },
     "widget:source_sha256": {
       "disposition": "INTERNAL",
       "reason": "The widget's outbound intent-marker payloads carry the source's full sha256 as an identity GUARD, not a display value: the remedy marker (assay.rs:219 - its own comment: the converter drops the intent if the file it hashes isn't this one, docs/15 SS14.2 consume-once) and the bless marker (assay.rs:358). A downstream process VERIFIES these fields; the human-facing identity everywhere is the sha16 that names bundle folders. The two remaining sites (assay.rs:458, :622) are test fixtures. SCOPE NOTE: assay.rs was NOT touched in S93 - the key name entered --since scope from T3's .done record and the session's prose. docs/31 SS5.2 item 7, name-based mis-scoping, fourth recorded recurrence (S78, S79, S81, S93), still unsigned."
