@@ -21,13 +21,27 @@ import json
 import os
 import random
 import re
-import unicodedata
 import zlib
 from collections import Counter
 from pathlib import Path
 
 import pymupdf
 from rapidfuzz import fuzz
+
+# J32-A (docs/54-repair-road, signed: Proposal A): the pure normalisation core (windows,
+# prepare_output, is_cjk, _merge_runs) and the normalisation LADDER (unescape/punct_free/
+# space_free/chunk_survival) moved to text_norm.py -- a module with no pymupdf import, so
+# analyst.py's per-chunk survival guard (J32-B, analyst.py:299) can import it without
+# dragging fidelity_audit's witness-extraction dependencies along. Re-exported here under
+# their original names so this module's public surface (`fa.prepare_output`, `fa.make_windows`,
+# `fa._merge_runs`, `fa.WINDOW_WORDS`, ...) is BYTE-FOR-BYTE unchanged for audit_convert and
+# every existing caller (docs/54's verification scripts import them as `fa.X`).
+from text_norm import (  # noqa: F401 -- re-exported, not merely used below
+    WINDOW_WORDS, WINDOW_MIN_WORDS, CJK_WINDOW_CHARS, CJK_WINDOW_MIN,
+    prepare_output, is_cjk, make_windows, _merge_runs,
+    unescape, punct_free, space_free,
+    _common, _finalize,  # prepare_witness (witness-side only) still calls these directly
+)
 
 # ---------------------------------------------------------------------------
 # Constants. Thresholds calibrated over the vaulted corpus (docs/15 §9.1). Per the
@@ -38,10 +52,6 @@ from rapidfuzz import fuzz
 # ---------------------------------------------------------------------------
 SCHEMA_VERSION = 1
 
-WINDOW_WORDS = 12          # non-overlapping window size (word path)
-WINDOW_MIN_WORDS = 6       # keep a short final window if at least this many words
-CJK_WINDOW_CHARS = 24      # char-n-gram window for CJK (no word boundaries)
-CJK_WINDOW_MIN = 12
 PAGE_MIN_WORDS = 15        # skip image-only / near-blank witness pages
 FUZZY_PASS = 90            # rapidfuzz partial_ratio pass threshold
 FUZZY_ANCHOR_CAP = 50      # max anchor occurrences probed per missing window
@@ -68,14 +78,6 @@ SCAN_GARBAGE_FLAG = 0.20   # 1 - dict_hit prior; garbage-token rate above this f
 ANALYST_DOC_FAIL = 0.995
 ANALYST_RUN_WORDS = 25
 
-_CJK = re.compile(r"[㐀-鿿豈-﫿぀-ヿ가-힯]")
-_QUOTES = str.maketrans({
-    "“": '"', "”": '"', "‘": "'", "’": "'",
-    "–": "-", "—": "-", "‐": "-", "‑": "-", "«": '"', "»": '"',
-})
-_DEHYPHEN = re.compile(r"(\w)-\n(\w)")
-_WS = re.compile(r"\s+")
-
 
 # ---------------------------------------------------------------------------
 # Windows long-path safety (docs/15 §8 / F5: pre-L15 vault paths reach 349 chars).
@@ -90,41 +92,6 @@ def _longpath(p) -> str:
 def read_text(path) -> str:
     with open(_longpath(path), "r", encoding="utf-8") as f:
         return f.read()
-
-
-# ---------------------------------------------------------------------------
-# Normalization (docs/15 §3). Steps 1-3 common; step 4 output-only markdown strip;
-# step 5 witness-only repeated-line strip (cross-page, handled in prepare_witness);
-# steps 6-7 casefold + whitespace collapse in _finalize.
-# ---------------------------------------------------------------------------
-def _common(text: str) -> str:
-    text = unicodedata.normalize("NFKC", text)
-    text = text.translate(_QUOTES)
-    text = _DEHYPHEN.sub(r"\1\2", text)
-    return text
-
-
-def _finalize(text: str) -> str:
-    return _WS.sub(" ", text.casefold()).strip()
-
-
-def _strip_markdown(t: str) -> str:
-    t = re.sub(r"!\[\[[^\]]*\]\]", " ", t)                 # ![[assets/img]] embeds
-    t = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", t)            # ![alt](url) images
-    t = re.sub(r"\[\[([^\]]*)\]\]", r"\1", t)              # [[wikilink]] -> inner
-    t = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", t)         # [text](url) -> text
-    t = re.sub(r"<[^>\n]+>", " ", t)                       # html tags
-    t = re.sub(r"(?m)^\s{0,3}#{1,6}\s*", " ", t)           # headings
-    t = re.sub(r"(?m)^\s*>\s?", " ", t)                    # blockquote markers
-    t = re.sub(r"(?m)^\s*`{3,}.*$", " ", t)                # fenced-code marker lines
-    t = re.sub(r"(?m)^\s*\|?[\s:|-]{3,}\|?\s*$", " ", t)   # table separator rows
-    t = t.replace("|", " ")                                # table pipes
-    t = re.sub(r"[*_~`]", "", t)                           # emphasis / inline-code markers
-    return t
-
-
-def prepare_output(markdown: str) -> str:
-    return _finalize(_strip_markdown(_common(markdown)))
 
 
 def prepare_witness(pages_raw: list[str]) -> list[str]:
@@ -168,27 +135,6 @@ def extract_witness(pdf_path) -> tuple[list[str], int]:
 # ---------------------------------------------------------------------------
 # Windowing + scoring (docs/15 §4).
 # ---------------------------------------------------------------------------
-def is_cjk(text: str) -> bool:
-    sample = re.sub(r"\s", "", text)[:4000]
-    if not sample:
-        return False
-    return len(_CJK.findall(sample)) / len(sample) > 0.3
-
-
-def make_windows(text: str, cjk: bool) -> list[str]:
-    if cjk:
-        s = text.replace(" ", "")
-        out = [s[i:i + CJK_WINDOW_CHARS] for i in range(0, len(s), CJK_WINDOW_CHARS)]
-        return [w for w in out if len(w) >= CJK_WINDOW_MIN]
-    words = text.split()
-    out = []
-    for i in range(0, len(words), WINDOW_WORDS):
-        chunk = words[i:i + WINDOW_WORDS]
-        if len(chunk) >= WINDOW_MIN_WORDS:
-            out.append(" ".join(chunk))
-    return out
-
-
 def _build_index(output_final: str) -> tuple[dict, dict]:
     idx: dict[str, list[int]] = {}
     freq: dict[str, int] = {}
@@ -213,27 +159,6 @@ def _fuzzy_hit(window: str, output_search: str, idx: dict, freq: dict, cjk: bool
         if fuzz.partial_ratio(window, seg) >= FUZZY_PASS:
             return True
     return False
-
-
-def _merge_runs(windows: list[str], failed: list[bool], page) -> list[dict]:
-    runs, i = [], 0
-    while i < len(windows):
-        if failed[i]:
-            j = i
-            while j < len(windows) and failed[j]:
-                j += 1
-            if j - i >= RUN_MIN_WINDOWS:
-                span = windows[i:j]
-                words = sum(len(w.split()) for w in span)
-                runs.append({
-                    "page": page,
-                    "words": words,
-                    "excerpt": " ".join(span[0].split()[:10]),
-                })
-            i = j
-        else:
-            i += 1
-    return runs
 
 
 def _score_page(page_text: str, output_search: str, idx: dict, freq: dict,
@@ -547,22 +472,43 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
     return block
 
 
+
+# J32-A (docs/54-repair-road/README.md §2, signed: Proposal A). The near-exact analyst-stage
+# comparison was counting Marker's OWN backslash escapes, punctuation and spacing choices as
+# LOSS: qwen3:8b routinely rewrites `\(1960-2023\)` to `(1960-2023)`, or moves a comma, and
+# prepare_output alone has no way to tell that from a real drop — measured at ~3.7x over-count
+# in windows on the anchor corpus, ~7x on the held University 4e run (docs/54 §2). The ladder
+# (text_norm.unescape -> punct_free, applied to BOTH sides before windowing) narrows agreement,
+# it can never manufacture it: the same transform runs on ref and out alike, so a real 12-word
+# deletion still fails and a run of real omissions still accumulates. `regex_id` names the
+# EXACT regex pair this ran with (text_norm._UNESCAPE / _PUNCT) so a future change to either
+# is provable as a version bump, not a silent drift in what "near-exact" means.
+_REGEX_ID = "j32a-v1"
+
+
 def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
-    """Near-exact containment: the Marker doc IS the reference (docs/15 §6). No fuzzy."""
-    ref = prepare_output(marker_markdown)
-    out = prepare_output(analyst_markdown)
+    """Near-exact containment: the Marker doc IS the reference (docs/15 §6/§9.4). No fuzzy.
+    Both sides run the J32-A normalisation ladder (unescape -> punct_free) before windowing;
+    containment is tested SPACE-FREE on both the window and the output stream — the CJK path
+    was already space-free, this unifies the word path onto the same rule rather than keeping
+    two containment tests that happen to agree."""
+    ref = punct_free(unescape(prepare_output(marker_markdown)))
+    out = punct_free(unescape(prepare_output(analyst_markdown)))
+    normalisation = {"unescape": True, "punct_free": True, "space_free": True,
+                     "regex_id": _REGEX_ID}
     cjk = is_cjk(ref[:4000])
-    out_search = out.replace(" ", "") if cjk else out
     windows = make_windows(ref, cjk)
     if not windows:
-        return {"doc_survival": 1.0, "runs": [], "runs_total": 0, "runs_capped_at": 25}
-    failed = [w not in out_search for w in windows]
+        return {"doc_survival": 1.0, "runs": [], "runs_total": 0, "runs_capped_at": 25,
+                "normalisation": normalisation}
+    out_flat = space_free(out)
+    failed = [space_free(w) not in out_flat for w in windows]
     doc = round(failed.count(False) / len(windows), 4)
     runs = [r for r in _merge_runs(windows, failed, page=None)]
     # NUM-3, both phases (review M2: repairing only the convert phase left the analyst event
     # ASSERTING that 25 is the total — strictly worse than the bare capped count)
     return {"doc_survival": doc, "runs": sorted(runs, key=lambda r: -r["words"])[:25],
-            "runs_total": len(runs), "runs_capped_at": 25}
+            "runs_total": len(runs), "runs_capped_at": 25, "normalisation": normalisation}
 
 
 def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:

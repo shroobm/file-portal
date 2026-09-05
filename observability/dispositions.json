@@ -269,6 +269,26 @@
     "converter:pages_flagged": {
       "disposition": "EVIDENCE",
       "reason": "fidelity_audit.py:473 (audit_convert) - the per-page LOCALIZER behind doc_survival: the list of source pages whose witness windows failed (241 of 1,372 scored on the 2026-09-01 maiden voyage). Pre-existing since docs/15; pulled into --since scope by SYM-056's latex_balance edit to the same function (S114, 91973a4). The COUNT reaches the glass through doc_survival and the verdict; the LIST is a drill-down, not an alarm - EEMUA 191 and docs/52 CONTRACT.md both put localizers in the Bench's page rail, never on the strip. The Bench does not yet read it (unwired; the natural home is bench.html's thumbnail rail). Signed at the same sitting the detector named it. Method note for the ritual: glass_detector --since diffs COMMITTED changes only, so a key an uncommitted edit brings into scope is invisible until the commit - run the detector AFTER committing, or it reads clean on work it cannot see."
+    },
+    "converter:normalisation": {
+      "disposition": "EVIDENCE",
+      "reason": "J32-A (docs/54-repair-road/README.md SS2, signed: Proposal A, 2026-09-05): audit_analyst's returned block now names EXACTLY which normalisation ladder ran (fidelity_audit.py's audit_analyst, docs/15 SS3/SS9.4) - {unescape, punct_free, space_free, regex_id}. HOME: manifest fidelity.analyst.normalisation (and, once J32-B's per-chunk survival guard reads the same ladder, analyst.py's chunk-level bookkeeping). The human reads doc_survival and the verdict; this sub-block is the audit trail proving WHICH regex pair produced them, so a future change to the ladder is a provable regex_id bump, never a silent drift in what near-exact means. Nothing renders it as its own surface today - report-only, like latex_balance."
+    },
+    "converter:unescape": {
+      "disposition": "EVIDENCE",
+      "reason": "J32-A: sub-key of converter:normalisation (fidelity_audit.py audit_analyst) - always True/False naming whether the unescape rung of the ladder ran. See converter:normalisation for the full walk; same HOME, same report-only signature."
+    },
+    "converter:punct_free": {
+      "disposition": "EVIDENCE",
+      "reason": "J32-A: sub-key of converter:normalisation - always True/False naming whether the punct-free rung ran. See converter:normalisation."
+    },
+    "converter:space_free": {
+      "disposition": "EVIDENCE",
+      "reason": "J32-A: sub-key of converter:normalisation - always True/False naming whether the final containment test was space-free (it always is, docs/15 SS3 step 9's unification of the CJK and word paths onto one rule). See converter:normalisation."
+    },
+    "converter:regex_id": {
+      "disposition": "EVIDENCE",
+      "reason": "J32-A: sub-key of converter:normalisation - the version tag for the exact regex pair (text_norm._UNESCAPE / _PUNCT) that produced this comparison, currently \"j32a-v1\". A future change to either regex must bump this string in the same commit - the docs/34 discipline of naming conditions applied to a MEASUREMENT METHOD rather than a number. See converter:normalisation."
     }
   },
   "census_dispositions": {

@@ -70,6 +70,38 @@ metrics persist (manifest block, §7). Nothing is doubled, nothing extra is vaul
 6. Casefold.
 7. Collapse all whitespace runs to single spaces.
 
+**Analyst-stage ladder (J32-A, docs/54-repair-road/README.md §2, signed: Proposal A, 2026-09-05)
+— steps 8-9, ANALYST STAGE ONLY (`audit_analyst`/`chunk_survival`; `audit_convert`'s witness
+comparison never runs these, and its numbers do not move — see §9.4).** The near-exact
+comparison above was counting Marker's OWN backslash escapes, punctuation and spacing choices
+as loss: qwen3:8b routinely rewrites `\(1960-2023\)` to `(1960-2023)`, or moves a comma, and
+steps 1-7 alone have no way to see those as the same text (measured ≈3.7x over-count in windows
+on the anchor corpus, ≈7x on the held University 4e run). Both steps run on BOTH sides of every
+analyst-stage comparison, so they can only narrow disagreement, never manufacture it:
+
+8. **Unescape** (`text_norm.unescape`): strip a lone backslash immediately before a
+   punctuation/symbol character (`\(`, `\)`, `\.`, ...). A backslash before a letter, digit or
+   underscore is LEFT ALONE — that is LaTeX (`\rm`, `\alpha`), a content-bearing command, not an
+   escape to undo. Chosen over the alternative shape that strips a backslash before ANY single
+   character (docs/54-repair-road/scripts/A-ladder.py's `\\(.)`, which turns `\rm` into the bare
+   letters `rm` — a real content change masquerading as agreement); the shape kept is the
+   lookahead form from docs/54-repair-road/scripts/V-v_a.py:77-81 (`\\(?=[^\w\s])`), which deletes
+   only the backslash and never touches what follows.
+9. **Punct-free**: drop every character outside `[^\w\s]`, then collapse whitespace runs to one
+   space (again). Applied identically to both sides, so a merge like `"e.g."` → `"eg"` costs
+   nothing — the same merge happens to the reference and the candidate alike.
+
+Containment for the analyst stage is then tested **space-free** on both the window and the
+output stream (`w.replace(" ", "") not in out.replace(" ", "")`) — the CJK path already worked
+this way; the word path is now unified onto the same rule instead of keeping two containment
+tests that happened to agree. Window construction still runs on the SPACED, punct-free `ref`
+(`make_windows`), so `words` counts in a run stay meaningful word counts, not character counts.
+
+Every `audit_analyst` block (and J32-B's per-chunk `chunk_survival`, §6) carries a
+`normalisation` record naming exactly which regex pair ran: `{"unescape": true,
+"punct_free": true, "space_free": true, "regex_id": "j32a-v1"}` — a future change to either
+regex is a version bump on `regex_id`, not a silent drift in what "near-exact" means.
+
 ## 4. Core algorithm
 
 For each witness page (skip pages with < 15 normalized words — image-only/blank):
@@ -283,6 +315,65 @@ reading; the whole `fail` verdict rode on it (degeneration is the only convert-s
 - **Lesson for the register:** the trigram discriminator (§9.2) is reliable on *words*; a
   structural token repeated *as* words is the one way to fool it, and the repair is to take the
   structure out of the text before measuring, not to move the threshold.
+
+### 9.4 The J32-A normalisation ladder (measured 2026-09-05, signed: Proposal A)
+
+§3 steps 8-9 (unescape, punct-free) applied to the analyst-stage comparison only. Re-measured on
+this build (`fidelity_audit.audit_analyst`, marker-env interpreter, CPU, read-only against
+`C:\Users\Bndit\ml\library`) — every number below is THIS run's, not quoted from docs/54:
+
+| Pair | Before (doc_survival / runs_total) | After (doc_survival / runs_total) | Verdict moved? |
+|---|---|---|---|
+| Investment Valuation, Damodaran 4e (2025) | 0.9525 / 25 | 0.9835 / 42 | no (fail → fail) |
+| Best Practices, Valentine (analyst-local rerun) | 0.9303 / 25 | 0.9578 / 48 | no (fail → fail) |
+| Diagnosing the System, Beer | 0.9791 / 1 | 0.9886 / 0 | no (fail → fail) |
+| claude-code-up-and-running | 0.9493 / 14 | 0.9699 / 6 | no (fail → fail) |
+| bojieli ai-agent-book (CJK) | UNREAD (no prior fidelity.analyst block on disk) | 0.9987 / 0 | n/a (pass) |
+| Brain of the Firm (Beer, with OCR) | UNREAD (no prior fidelity.analyst block on disk) | 0.9734 / 30 | n/a (fail) |
+
+`runs_total` moves in both directions per book (fewer real omission runs on Diagnosing and
+claude-code-up-and-running once escape/punctuation noise stops manufacturing false runs; MORE
+counted runs on Damodaran/Valentine because the ladder's word-count shift changes where a
+12-word window boundary falls — the runs it now reports are real ones the old boundary
+happened to split differently, not new losses). **No verdict moved on any of the six** — every
+book still gated by `ANALYST_DOC_FAIL = 0.995` exactly as before (all six were already well
+below 0.995 pre-ladder on the analyst stage; the ladder narrows the gap, it does not close it
+for these books).
+
+**THE PIN — held University 4e (`14c66834bdfeaa2e`)**, reference rebuilt from the LIVE library's
+slice cache (`.chunk-work/14c66834bdfeaa2e/slice-*/slice.md`, concatenated in order, then
+`rewrite_image_links` — the exact SYM-073-cause reproduction), read-only:
+
+| | Before (pre-J32-A, from manifest.json) | After (J32-A ladder, this run) |
+|---|---|---|
+| doc_survival | 0.9402 | **0.9838** |
+| failed windows | 404 (denominator not carried pre-ladder) | 639 of 39,461 |
+| runs_total | 404 | 59 |
+| verdict | fail | fail (unchanged) |
+
+Within the coordinator's expected neighbourhood (0.9838-0.9848, ≈646 of 42,235 failed, runs
+54-59) on doc_survival and runs_total; total windows measured lower (39,461 vs the ≈42,235
+neighbourhood) because this ladder's `punct_free` DELETES non-word characters rather than
+replacing them with a space (per the ticket's literal step 1 spec), which merges some
+punctuation-adjacent word pairs into one token and so reduces the word-split count slightly —
+a difference in denominator convention, not a discrepancy in method. **The verdict stays
+`fail`**: this book's analyst pass has real paragraph deletions (docs/54 §2, SYM-074/J32-B
+below) that the ladder correctly leaves un-forgiven — narrowing false loss was never meant to
+launder a real one.
+
+**A residual finding, reported rather than silently worked around (docs/47 rule 1):** with
+`punct_free` specified as DELETE-based (the ticket's literal step 1, matched to lane A's
+script) and always chained after `unescape` in every caller this ticket builds, `unescape`'s
+letter-vs-punctuation distinction has **no observable effect on the final compared strings** —
+`punct_free` deletes every remaining backslash unconditionally regardless of what character
+follows it, so `punct_free(unescape(x)) == punct_free(x)` for any `x` (case (g)'s negative
+control in `analyst_audit_selftest.py` had to disable BOTH rungs together to demonstrate a
+break; disabling `unescape` alone changes nothing, because `punct_free` is a superset action).
+`unescape` is still built and tested as its own function exactly as specified — the letter-vs-
+punctuation rule is real and independently correct (case (e)) — and it is the shape a future
+consumer would need if punct_free is ever NOT chained after it (a display/diagnostic path, say).
+Left as residue rather than redesigned: the ticket asked for both functions with this exact
+composition, and re-measuring showed no verdict-relevant harm from the redundancy.
 
 ## 10. Deferred (add only when evidence demands)
 
