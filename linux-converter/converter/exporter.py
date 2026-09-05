@@ -536,8 +536,11 @@ class Exporter:
             if rel.as_posix() == BLOCKS_NAME and not blocks.get("shipped"):
                 continue
             # J33: same rule for the Marker-body sidecar, whose name varies with the bundle.
-            if (marker_body.get("present_in_bundle") and not marker_body.get("shipped")
-                    and rel.as_posix() == marker_body.get("file")):
+            if (
+                marker_body.get("present_in_bundle")
+                and not marker_body.get("shipped")
+                and rel.as_posix() == marker_body.get("file")
+            ):
                 continue
             _git_check(vault_bare, "cat-file", "-e", f"{commit_sha}:{target_rel / rel}")
 
