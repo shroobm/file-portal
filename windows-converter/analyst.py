@@ -69,8 +69,11 @@ ANALYST_CHUNK_SURVIVAL_MIN = 0.50
 # reject"). The guard above is DELETION-ONLY by construction (a candidate that repeats or pads
 # its input keeps every input window and scores ~1.0). This is the other half: output words /
 # input words, raw whitespace-split on the fenced chunk and candidate (text_norm.word_ratio, the
-# exact measurement signed on). Measured on the 2026-08-30 University 4e journal's 500 passed
-# chunks: the runaway chunk 296 = 7.59x (681 in / 5170 out); the next highest 1.18x; above 1.25
+# exact measurement signed on; a CJK input -- no inter-word spaces -- is counted in non-space
+# CHARACTERS instead, R1 of the S116 verify fleet, else a doubled CJK chunk read 1.0). Measured on
+# the 2026-08-30 University 4e journal's 500 hash-matched passed records (of 623 passed in the raw
+# journal; the 123 whose input hash no longer matches today's chunking are UNMEASURED, not
+# measured): the runaway chunk 296 = 7.59x (681 in / 5170 out); the next highest 1.18x; above 1.25
 # / 1.5 / 2 / 3 = 1 of 500 each time -- so 1.5 sits in a gap 0.3 wide below and 6x wide above,
 # and this threshold rejects exactly one chunk on that journal (0 false rejects, re-measured at
 # the S116 open). Checked AFTER survival passes: a deletion is reported as "survival", never as

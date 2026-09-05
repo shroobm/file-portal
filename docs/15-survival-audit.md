@@ -175,10 +175,15 @@ special alignment algorithm is needed.
 - **The inflation guard (J34, signed Rab 2026-09-05 "J34 1.5x reject", ACCEPT-TIME, ANALYST
   STAGE):** the survival guard above is DELETION-ONLY by construction. After it passes,
   `text_norm.word_ratio` measures output words / input words — raw whitespace-split on the fenced
-  chunk and candidate, the exact measurement signed on (2026-08-30 University 4e journal, 500
-  passed chunks: chunk 296 = 5,170 / 681 = 7.59×, the next highest 1.18×, 1 of 500 above 1.25 /
-  1.5 / 2 / 3; re-measured against the SHIPPED function at S116: 1 of 500 rejected, chunk 296 at
-  7.5918, second highest 1.1750, 0 unmeasurable). `ANALYST_CHUNK_INFLATION_MAX = 1.5` — above it,
+  chunk and candidate, the exact measurement signed on (2026-08-30 University 4e journal: **500
+  hash-matched passed records of 623 passed in the raw journal** — the 123 whose input hash no
+  longer matches today's chunking are UNMEASURED, not measured (docs/34; S116 fleet lane A):
+  chunk 296 = 5,170 / 681 = 7.59×, the next highest 1.18×, 1 of 500 above 1.25 / 1.5 / 2 / 3;
+  re-measured against the SHIPPED function at S116: 1 of 500 rejected, chunk 296 at 7.5918,
+  second highest 1.1750, 0 unmeasurable). **A CJK input** (no inter-word spaces; `is_cjk`, the
+  same rule `make_windows` uses) is counted in non-whitespace CHARACTERS on both sides — R1 of the
+  S116 verify fleet: under the word count a verbatim-doubled CJK chunk read 1.0 (`Observed`,
+  selftest J34 (g) keeps that as its watched control). `ANALYST_CHUNK_INFLATION_MAX = 1.5` — above it,
   REJECT (`reason: "inflation"`), the original chunk ships. Strict `>`: 1.5 exactly passes. A chunk
   with 0 input words reports `ratio: null` and is NOT rejected. The ratio rides the journal on
   passed chunks too (beside `survival`), so the next calibration is read off the record rather

@@ -403,6 +403,29 @@ assert "CLOSE CENSUS: the missing tripwire ID is visible" 1 'MISSING FIRED: T2' 
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/huge.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
 assert "CLOSE CENSUS: an oversized integer is UNREAD, never a numeric false green" 0 'banner integers exceed the bounded parser' "$rc" "$out"
 
+# R3 (S116 verify fleet, lane B, 2026-09-05): arming must not turn "the suite could not RUN"
+# into a red. A present file that dies before its first case (interpreter/permission/syntax) is
+# a failed probe — UNREAD, exit 0 (SYM-031). A suite that fired a tripwire and still exited
+# non-zero has measured a broken tripwire — RED, exit 1. Both shapes, so the boundary is watched.
+cat > "$CEN29/cannot-run.sh" <<'CEN'
+#!/usr/bin/env bash
+# ---- T1: first
+# ---- T2: second
+exit 127
+CEN
+cat > "$CEN29/ran-and-failed.sh" <<'CEN'
+#!/usr/bin/env bash
+# ---- T1: first
+# ---- T2: second
+echo 'TRIPWIRE T1 FIRED'
+exit 1
+CEN
+chmod +x "$CEN29"/cannot-run.sh "$CEN29"/ran-and-failed.sh
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/cannot-run.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE CENSUS (armed, R3): a suite that could not run is UNREAD — exit 0, never a green" 0 'UNREAD.*could not run.*exit 127.*no tripwire output' "$rc" "$out"
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/ran-and-failed.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE CENSUS (armed, R3): a suite that fired and then failed is a red — exit 1" 1 'RED.*exited 1 after firing 1' "$rc" "$out"
+
 
 # ── CASES 30-32: THE DESCENDANT RULE (S109 — proposed by Claude Opus 5, work authorised by
 # Rab's blanket "I sign on everything..."; he did NOT author it. The earlier "Rab's, signed"

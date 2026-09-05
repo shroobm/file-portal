@@ -28,6 +28,8 @@ Run with the marker-env interpreter:
   J34 (d) survival fires first: a deletion is "survival", never a low ratio
   J34 (e) the lever's edge is strict: 1.4889 passes, 1.5111 rejects
   J34 (f) journal round-trip carries ratio; 0 input words -> ratio None, never a reject
+  J34 (g) R1 (S116 fleet lane A): a 2x CJK duplicate -> ratio 2.0 by characters, rejected;
+          the whitespace-split count read it as 1.0 (watched)
 """
 import json
 import os
@@ -326,8 +328,32 @@ def _():
     assert "ratio" not in loaded[3] and "survival" not in loaded[3], loaded[3]
 
 
+CJK_MD = "这是一个测试段落，用来验证膨胀守卫在没有空格的文字上也能计数。" * 3  # no inter-word spaces
+
+
+@case("J34 (g) R1: a 2x verbatim CJK duplicate -> ratio 2.0 (characters), REJECTED; the pre-R1 "
+      "word count read it as 1.0 (watched)")
+def _():
+    candidate = CJK_MD + CJK_MD
+    fenced, _ = analyst.fence(CJK_MD)
+    # the failure the fleet found, reproduced as the control: whitespace-split words see ONE
+    # word on each side, so the old measurement is blind to a doubled CJK chunk
+    assert len(fenced.split()) == 1 and len(candidate.split()) == 1
+    assert round(len(candidate.split()) / len(fenced.split()), 4) == 1.0
+    # the shipped function counts non-space characters when the input reads as CJK
+    assert tn.is_cjk(fenced[:4000])
+    assert tn.word_ratio(fenced, candidate) == 2.0, tn.word_ratio(fenced, candidate)
+    out, meta = run(CJK_MD, [candidate])
+    assert meta["chunks_rejected"] == 1 and meta["rejections"]["inflation"] == 1, meta
+    assert out.strip() == CJK_MD.strip()
+    # and a faithful CJK candidate (same characters, one added clause) still passes
+    faithful = CJK_MD + "补充一句。"
+    _, m2 = run(CJK_MD, [faithful])
+    assert m2["chunks_passed"] == 1 and m2["rejections"]["inflation"] == 0, m2
+
+
 print()
 if failed:
-    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 17: {failed}")
+    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 18: {failed}")
     raise SystemExit(1)
-print("ALL TRIPWIRES FIRED — 17/17")
+print("ALL TRIPWIRES FIRED — 18/18")

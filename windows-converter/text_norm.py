@@ -220,8 +220,20 @@ def word_ratio(input_text: str, output_text: str) -> float | None:
 
     Returns None -- not 0.0, not inf -- when the input has no words at all: an unmeasurable
     ratio must never read as a failing one (SYM-057's mirror, the same rule chunk_survival
-    keeps), so `ratio is None` must never be rejected."""
-    n_in = len(input_text.split())
+    keeps), so `ratio is None` must never be rejected.
+
+    R1 (S116 verify fleet, lane A, 2026-09-05 -- Observed): a CJK chunk has no inter-word
+    spaces, so `str.split()` sees ONE word and a verbatim-doubled CJK chunk scored 1.0 -- the
+    exact failure mode this guard exists for, invisible in the one script the ladder already
+    special-cases. When the INPUT reads as CJK (`is_cjk`, the same 2 % CJK-character rule
+    make_windows uses), bulk is counted in non-whitespace CHARACTERS on both sides instead.
+    The English path is byte-identical to the measurement signed on."""
+    if is_cjk(input_text[:4000]):
+        n_in = len(_WS.sub("", input_text))
+        n_out = len(_WS.sub("", output_text))
+    else:
+        n_in = len(input_text.split())
+        n_out = len(output_text.split())
     if n_in == 0:
         return None
-    return round(len(output_text.split()) / n_in, 4)
+    return round(n_out / n_in, 4)

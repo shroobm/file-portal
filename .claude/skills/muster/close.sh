@@ -281,9 +281,17 @@ else
   cen_fired_unique=$(printf '%s\n' "$cen_fired_ids" | sed '/^$/d' | sort -u | awk 'NF { n++ } END { print n+0 }')
   cen_missing=$(comm -23 <(printf '%s\n' "$cen_decl_ids" | sed '/^$/d' | sort -u) <(printf '%s\n' "$cen_fired_ids" | sed '/^$/d' | sort -u) | tr '\n' ' ')
   cen_extra=$(comm -13 <(printf '%s\n' "$cen_decl_ids" | sed '/^$/d' | sort -u) <(printf '%s\n' "$cen_fired_ids" | sed '/^$/d' | sort -u) | tr '\n' ' ')
-  if [ "$cen_rc" -ne 0 ]; then
-    row "CENSUS" "RED — $(basename "$CEN_SUITE") itself exited $cen_rc; its last line: $(printf '%s' "$cen_out" | tail -1)"
-    row "" "ARMED 2026-09-05 (S116): a suite that cannot run has proven none of its tripwires"
+  if [ "$cen_rc" -ne 0 ] && [ "$cen_fired" -eq 0 ] && [ "$cen_banner_n" -eq 0 ]; then
+    # R3 (S116 verify fleet, lane B): a non-zero exit with NO tripwire output at all is a suite
+    # that could not RUN (bash absent, permission denied, a syntax error before the first case)
+    # — that is a failed probe, and a failed probe is UNREAD, never a red and never a green
+    # (SYM-031). A suite that fired at least one tripwire, or printed a banner, and still exited
+    # non-zero has MEASURED something and is red below.
+    row "CENSUS" "UNREAD — $(basename "$CEN_SUITE") could not run (exit $cen_rc, no tripwire output); its first line: $(printf '%s' "$cen_out" | head -1)"
+    row "" "NOT a statement its tripwires are whole — and not a green"
+  elif [ "$cen_rc" -ne 0 ]; then
+    row "CENSUS" "RED — $(basename "$CEN_SUITE") itself exited $cen_rc after firing $cen_fired; its last line: $(printf '%s' "$cen_out" | tail -1)"
+    row "" "ARMED 2026-09-05 (S116): a suite that ran and failed has proven a tripwire is broken"
     red=1
   elif [ "$cen_decl" -eq 0 ] || [ "$cen_decl" -ne "$cen_decl_unique" ]; then
     row "CENSUS" "UNREAD — declaration IDs absent/duplicated: rows $cen_decl · unique $cen_decl_unique"
