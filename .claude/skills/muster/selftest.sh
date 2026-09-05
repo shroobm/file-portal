@@ -342,6 +342,16 @@ out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_DOCTOR_LEVERS="$DOC28/lever
       bash "$CLOSE" "$base" 2>&1); rc=$?
 assert "CLOSE DOCTOR: a failed reference probe is UNREAD, never 'missing'" 0 'consumer reference probe exited 2' "$rc" "$out"
 
+# ARMED 2026-09-05 (S116, S108 sign sheet item 9): a lever the operator file NAMES and the
+# consumer never quotes is a MEASURED red, exit 1. The three UNREAD shapes above (unparsed
+# declaration, failed probe) keep asserting exit 0 — arming must not turn a failed probe into
+# a fail. The positive control (MISSING 0 → exit 0) is case 28's first assertion.
+printf 'actually_read=10\nnever_quoted=20\n' > "$DOC28/levers.txt"
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_DOCTOR_LEVERS="$DOC28/levers.txt" \
+      FP_DOCTOR_CODE="$DOC28/consumer.py" bash "$CLOSE" "$base" 2>&1); rc=$?
+assert "CLOSE DOCTOR (armed): a named lever the consumer never quotes is a red — exit 1" 1 'MISSING: never_quoted' "$rc" "$out"
+assert "CLOSE DOCTOR (armed): the red still says a lexical hit is not proof of a read" 1 'does NOT prove' "$rc" "$out"
+
 # CASE 29 - CENSUS must reconcile three independent-looking surfaces: declared IDs, actual
 # control-flow markers, and the suite's banner numerator/denominator. Each fixture is disposable;
 # close remains warn-only and the fixture suites write nowhere.
@@ -381,11 +391,15 @@ chmod +x "$CEN29"/*.sh
 
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/good.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
 assert "CLOSE CENSUS control: declared = FIRED = banner passes" 0 'declared 2 = FIRED 2 = banner 2/2' "$rc" "$out"
+# ARMED 2026-09-05 (S116, S108 sign sheet item 9 signed by Rab): the two RED shapes below now
+# EXIT 1. Until today they asserted exit 0 — a gate whose own tripwire pins the warn-only exit
+# code would have kept certifying the unarmed behaviour after the arming, which is the shape
+# of a guard that decays without anyone re-reading it (close.sh's own CI probe, S109).
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/zero-two.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
-assert "CLOSE CENSUS: 0/2 can never green a two-tripwire suite" 0 'RED-WARN.*banner 0/2' "$rc" "$out"
+assert "CLOSE CENSUS (armed): 0/2 can never green a two-tripwire suite — exit 1" 1 'RED.*banner 0/2' "$rc" "$out"
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/shared-lie.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
-assert "CLOSE CENSUS: a declared-but-unreached tripwire is named missing" 0 'RED-WARN.*declaration/flight mismatch' "$rc" "$out"
-assert "CLOSE CENSUS: the missing tripwire ID is visible" 0 'MISSING FIRED: T2' "$rc" "$out"
+assert "CLOSE CENSUS (armed): a declared-but-unreached tripwire is a red — exit 1" 1 'RED.*declaration/flight mismatch' "$rc" "$out"
+assert "CLOSE CENSUS: the missing tripwire ID is visible" 1 'MISSING FIRED: T2' "$rc" "$out"
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/huge.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
 assert "CLOSE CENSUS: an oversized integer is UNREAD, never a numeric false green" 0 'banner integers exceed the bounded parser' "$rc" "$out"
 

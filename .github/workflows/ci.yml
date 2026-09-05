@@ -66,6 +66,13 @@ jobs:
       # desktop has no ruff installed), so the first-ever lint outcome is UNREAD until this
       # step reports. Same pinned ruff (==0.15.20) as the linux lanes — it arrives via their
       # requirements-dev installs above; `ruff check` only, no format gate on an unformatted lane.
+      # NOT ARMED 2026-09-05 (S116), and why: the step HAS reported — run 33990130578 (num 192)'s
+      # job LOG reads "Found 50 errors." then "##[error]Process completed with exit code 1",
+      # while the jobs API reports this step `conclusion: success` (continue-on-error's
+      # post-override value; SYM-075). Arming it would go red on the next push. The debt is
+      # OPEN-TASKS J39: E702 ×22, E731 ×12, F401 ×10, E741 ×3, E402, F541, F841 (ruff 0.15.20,
+      # reproduced locally with `uvx ruff==0.15.20 check .` in windows-converter/). Arm it in
+      # the same commit that clears them.
       - name: Lint (windows-converter, warn-only)
         working-directory: windows-converter
         continue-on-error: true
@@ -81,21 +88,25 @@ jobs:
       # dirs. Desktop run 2026-08-23 (marker-env, py3.12):
       # "==== figure_coverage selftest: 30/30 ====", exit 0. Warn-only per the S108 standard
       # until the ubuntu/py3.11/fresh-pymupdf triple is observed green.
+      # ARMED 2026-09-05 (S116; S108 sign sheet item 9, signed by Rab): the triple WAS observed
+      # green — run 33990130578 (num 192, on 3036d19), job LOG line
+      # "==== figure_coverage selftest: 30/30 ====". Observed in the log, not the jobs API
+      # (SYM-075: a continue-on-error step's API `conclusion` is the post-override value).
       # EXCLUDED, deliberately:
       #   deferral_gate_selftest.py  — launches the REAL watch_and_convert.py as live
       #     subprocesses and drives watcher lifecycle (~40 s of real process orchestration).
       #   card_mutex_selftest.py     — exercises a Windows OS mutex (Local\file-portal-card)
       #     across real processes; no such object exists on a Linux runner.
-      - name: Selftest (windows-converter figure_coverage, warn-only)
+      - name: Selftest (windows-converter figure_coverage)
         working-directory: windows-converter
-        continue-on-error: true
         run: python figure_coverage_selftest.py
       # S108 (lane B2), register A29's smallest slice: the governance acceptance suite runs
       # where a human will see it. stdlib+ast only — no installs. Desktop run 2026-08-23
       # (py3.12): "PASS — 41/41 checks", exit 0. Needs the deepened checkout above for its
       # §5/§6 --since probes. Warn-only per the S108 standard until observed on ubuntu/py3.11.
-      - name: Governance acceptance (observability, warn-only)
-        continue-on-error: true
+      # ARMED 2026-09-05 (S116; S108 sign sheet item 9): observed on ubuntu/py3.11 — run
+      # 33990130578 (num 192), job LOG line "PASS — 139/139 checks" (read in the log, SYM-075).
+      - name: Governance acceptance (observability)
         run: python observability/acceptance.py
       # A4 (signed Rab 2026-08-31): unlike the historical warn-only census above, this is a
       # contract gate. It statically regenerates schemas.json from the real writers, proves

@@ -19,6 +19,7 @@ failure mode that no gate yet checks. Trust exit codes and cited probes; never a
 
 
 > **S108 update (2026-08-23):** close.sh gained two sections this session, both warn-only until armed: DOCTOR (artifact-vs-measurement parity — the check docs/45 §6.2 named as missing) and CENSUS (promised tripwires vs fixtures on disk). The register was committed to git and struck per §H rule 1; the relay is now bidirectional (Codex returned four entries 2026-08-23).
+> **S116 update (2026-09-05):** DOCTOR and CENSUS **ARMED** in close.sh (S108 sign sheet item 9, signed by Rab "arm DOCTOR/CENSUS"): a MISSING lever name or a census RED now exits 1; the UNREAD shapes stay exit 0; tripwired in the muster selftest (69/69 — the two armed shapes assert exit 1, the UNREAD shapes still assert 0). In CI the figure_coverage selftest and the governance acceptance lost `continue-on-error` after their run-192 LOGS read 30/30 and 139/139; the windows-converter Lint step stays warn-only because its log reads 50 errors under an API `conclusion: success` (SYM-075; the debt is J39). The REGISTER gate ([8], S109) stays warn-only — not in the signature.
 
 ## 1 · The Change Ledger — the HARD clock
 

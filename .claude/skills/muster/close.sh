@@ -186,7 +186,10 @@ else
 fi
 
 # ── [6] DOCTOR — the artifact vs the measurement that justified it (S108, atlas rank 1) ─────
-# S108: warn-only for one session, arm next close.
+# S108: warn-only for one session, arm next close. ARMED 2026-09-05 (S116; S108 sign sheet item
+# 9, signed by Rab "arm DOCTOR/CENSUS"): a MISSING lever name is now red=1. The UNREAD shapes
+# (lever file absent, consumer absent, parse incomplete, probe failed) stay exit 0 — arming a
+# gate must never turn a failed probe into a fail. A lexical hit is STILL not proof of a read.
 #
 # S106's own words: "the one check the governance layer still lacks is comparing the
 # artifact to the measurement" — that session shipped a triage rule its code did not
@@ -238,18 +241,23 @@ EOF
     else
       row "DOCTOR" "lever lexical parity: $(basename "$DOC_LEVERS") names $doc_parsed · quoted refs $doc_m · MISSING $doc_x"
       [ -n "$doc_match" ] && row "" "LEXICAL REF: $doc_match"
-      row "" "UNREAD — a quoted lexical occurrence does NOT prove the consumer reads the lever; gate remains unarmed"
+      row "" "UNREAD — a quoted lexical occurrence does NOT prove the consumer reads the lever; ARMED on MISSING only"
     fi
     if [ "$doc_probe_bad" -eq 0 ] && [ "$doc_x" -gt 0 ]; then
-      row "" "MISSING: $doc_miss — named in the operator file, never read by $(basename "$DOC_CODE")"
-      row "" "the operator can turn a knob no code is holding — S108: warn-only for one session, arm next close"
+      row "" "RED — MISSING: $doc_miss — named in the operator file, never read by $(basename "$DOC_CODE")"
+      row "" "the operator can turn a knob no code is holding — ARMED 2026-09-05 (S116, S108 sign sheet item 9)"
+      red=1
     fi
   fi
 fi
 row "DOCTOR-HEAD" "UNREAD — closeout-headline probe re-run not yet mechanized; NOT a statement the numbers reproduce"
 
 # ── [7] CENSUS — promised tripwires vs executed (S108, atlas rank 2) ────────────────────────
-# S108: warn-only for one session, arm next close.
+# S108: warn-only for one session, arm next close. ARMED 2026-09-05 (S116; S108 sign sheet item
+# 9, signed by Rab "arm DOCTOR/CENSUS"): every RED branch below is now red=1 — the suite itself
+# failing, a declared-but-unfired tripwire, an undeclared one, a banner that does not equal the
+# declarations. The UNREAD branches (suite absent, ids absent/duplicated, banner missing or
+# oversized) stay exit 0 for the same reason DOCTOR's do.
 #
 # docs/32 §5 rule 2: a guard nobody watched fire is a proxy with a reputation. The census
 # checks that a suite EXECUTES every tripwire it declares — a planted red that never runs
@@ -274,8 +282,9 @@ else
   cen_missing=$(comm -23 <(printf '%s\n' "$cen_decl_ids" | sed '/^$/d' | sort -u) <(printf '%s\n' "$cen_fired_ids" | sed '/^$/d' | sort -u) | tr '\n' ' ')
   cen_extra=$(comm -13 <(printf '%s\n' "$cen_decl_ids" | sed '/^$/d' | sort -u) <(printf '%s\n' "$cen_fired_ids" | sed '/^$/d' | sort -u) | tr '\n' ' ')
   if [ "$cen_rc" -ne 0 ]; then
-    row "CENSUS" "RED-WARN — $(basename "$CEN_SUITE") itself exited $cen_rc; its last line: $(printf '%s' "$cen_out" | tail -1)"
-    row "" "S108: warn-only for one session, arm next close"
+    row "CENSUS" "RED — $(basename "$CEN_SUITE") itself exited $cen_rc; its last line: $(printf '%s' "$cen_out" | tail -1)"
+    row "" "ARMED 2026-09-05 (S116): a suite that cannot run has proven none of its tripwires"
+    red=1
   elif [ "$cen_decl" -eq 0 ] || [ "$cen_decl" -ne "$cen_decl_unique" ]; then
     row "CENSUS" "UNREAD — declaration IDs absent/duplicated: rows $cen_decl · unique $cen_decl_unique"
   elif [ "$cen_banner_n" -ne 1 ] || [ -z "$cen_frac" ]; then
@@ -283,13 +292,15 @@ else
   elif [ "${#cen_pass}" -gt 9 ] || [ "${#cen_total}" -gt 9 ]; then
     row "CENSUS" "UNREAD — banner integers exceed the bounded parser; NOT a green"
   elif [ "$cen_fired" -ne "$cen_fired_unique" ] || [ "$cen_fired_unique" -ne "$cen_decl_unique" ] || [ -n "$cen_missing$cen_extra" ]; then
-    row "CENSUS" "RED-WARN — declaration/flight mismatch: declared $cen_decl_unique · unique FIRED markers $cen_fired_unique"
+    row "CENSUS" "RED — declaration/flight mismatch: declared $cen_decl_unique · unique FIRED markers $cen_fired_unique"
     [ -n "$cen_missing" ] && row "" "MISSING FIRED: $cen_missing"
     [ -n "$cen_extra" ] && row "" "UNDECLARED FIRED: $cen_extra"
-    row "" "S108: warn-only for one session, arm next close"
+    row "" "ARMED 2026-09-05 (S116): a declared tripwire that never fired protects nothing"
+    red=1
   elif [ "$cen_pass" -le 0 ] || [ "$cen_pass" -ne "$cen_total" ] || [ "$cen_total" -ne "$cen_decl_unique" ]; then
-    row "CENSUS" "RED-WARN — declared $cen_decl_unique · FIRED $cen_fired_unique · banner $cen_frac; require positive numerator = denominator = declarations"
-    row "" "S108: warn-only for one session, arm next close"
+    row "CENSUS" "RED — declared $cen_decl_unique · FIRED $cen_fired_unique · banner $cen_frac; require positive numerator = denominator = declarations"
+    row "" "ARMED 2026-09-05 (S116)"
+    red=1
   else
     row "CENSUS" "$(basename "$CEN_SUITE"): declared $cen_decl_unique = FIRED $cen_fired_unique = banner $cen_frac (exit 0)"
   fi

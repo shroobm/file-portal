@@ -33,6 +33,7 @@ see the runs its own push triggers (docs/45-s105-circle-findings.md:141, F16).**
 
 
 > **S108 update (2026-08-23):** windows-converter entered CI (ruff + figure_coverage_selftest, warn-only until first green is observed) with its first dependency manifest; observability/acceptance.py (41/41) runs in CI; the bench gained test_bench_page.py (19 tests); status writers gained tests (UNREAD locally, CI observes). close.sh gained DOCTOR + tripwire-census sections, warn-only this session.
+> **S116 update (2026-09-05):** the figure_coverage selftest and observability/acceptance are now HARD CI gates (armed after run 192's job LOGS read 30/30 and 139/139 — read in the log, not the jobs API: a `continue-on-error` step's API `conclusion` is post-override, SYM-075). Lint (windows-converter) is NOT armed: 50 ruff errors masked by continue-on-error (debt J39). close.sh's DOCTOR/CENSUS are armed (muster selftest 69/69). `analyst_selftest.py` grew 11 → 17 with J34's six cases (the inflation guard: a 2× duplicate rejected while survival reads 1.0; lever→inf negative control watched).
 
 ## World A — `.github/workflows/ci.yml`
 

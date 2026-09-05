@@ -243,7 +243,7 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | S108-3 | Ratify the G-lane trade: force-kill ends GPU run | S | blocked-on-rab | - | sessions/S108-SIGN-SHEET.md:13 |
 | S108-4 | Ratify loopback token posture on 14 mutating routes | S | blocked-on-rab | - | sessions/S108-SIGN-SHEET.md:14 |
 | S108-5 | Ratify token entropy: 28-hex, loopback-CSRF grade | S | blocked-on-rab | - | sessions/S108-SIGN-SHEET.md:15 |
-| S108-9 | Arm DOCTOR and CENSUS gates in close.sh and CI | S | blocked-on-rab | - | sessions/S108-SIGN-SHEET.md:24 |
+| S108-9 | Arm DOCTOR and CENSUS gates in close.sh and CI | S | signed | 2026-09-05 (S116): close.sh DOCTOR + CENSUS armed (selftest 69/69); CI figure_coverage + acceptance armed on run 192's logs; Lint (windows-converter) stays warn-only — 50 errors under an API success (SYM-075, J39) | sessions/S108-SIGN-SHEET.md:24 |
 | S110-C1 | Tag decided at probe design, never at write-up | S | blocked-on-rab | - | sessions/S110-SIGN-SHEET.md:47 |
 | S110-C2 | Rab names what the session is for, at open | S | blocked-on-rab | - | sessions/S110-SIGN-SHEET.md:48 |
 | A11 | The wrapper decision — two engines or one | M | blocked-on-rab | - | OPEN-TASKS §A A11; S83 §18.3 |
