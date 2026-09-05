@@ -150,3 +150,19 @@ subject is what happens when a recorded fact reaches nobody.)*
 
 And docs/31 §5.2 opens a sheet of its own on this tool: site-awareness (limit 6), whether a
 signed `GLASS` should be distinguishable from glass-by-reference, and the lane topology.
+
+## Keys the harvester cannot see (S115, 2026-09-05)
+
+The detector's writer census is an AST walk over dict literals and `emit()` calls. A manifest key
+assigned by **subscript** — `manifest["marker_body"] = {...}`, `fid["final"] = final`,
+`fid["reaudit"] = {...}` — is invisible to it, exactly as J24's bare `blocks` key was. Measured on
+2026-09-05 (S115, lane 1 and the INTEGRATION refuter, `wf_6fca68fd-b1d`): adding a
+`converter:marker_body` disposition for such a key does not resolve anything — it trips the
+acceptance harness's *stale signature* check ("the key is gone, the disposition remains"),
+139/139 → 140/141. So the six J31/J33 manifest keys — `fidelity.final{text_audited, reference}`,
+`fidelity.reaudit{repairs_digest}`, `marker_body{file, bytes, sha256}` — carry **no** entry in
+`dispositions.json` by design, and this note is their record: they are EVIDENCE (read by
+`reaudit()` and by the exporter's `_record_marker_body`, never rendered), and a future harvester
+that learns subscript assignment will surface them for a real disposition. Related: since J32-B /
+SYM-074, `chunks_rejected` counts ALL rejections (fence + survival + think_leak), not fence only —
+`converter:rejections`'s reason carries the widening.
