@@ -38,7 +38,12 @@ ANSWER_KEY = [
     ("outcome_reason", "glass", "§7.4 — the five-outcome triage, wired S77"),
     ("runs", "glass", "SYM-026 — omission runs, wired S76 as amber ◍ chips"),
     ("seams", "GLITCH", "§7.3 — recorded FOR the Bench (docs/18 §5.2); the Bench never reads it"),
-    ("chunks_resumed", "GLITCH", "§7.5 — the power-cut recovery, silenced on two channels"),
+    # S115 (2026-09-05): expectation corrected GLITCH → evidence. F3 (`eee951d`, S114) put
+    # chunks_resumed on the analyst/done event on both paths, and S114 dispositioned
+    # `converter:chunks_resumed` EVIDENCE (dispositions.json). No renderer names the key, so
+    # the detector reads the signed silence — "evidence" — not a glitch. The row read GLITCH
+    # from S78 to S114 and had been the harness's one red (122/123) since that disposition.
+    ("chunks_resumed", "evidence", "§7.5 — the power-cut recovery; on the wire since F3, silence signed S114"),
     # S108 (2026-08-23): expectation corrected GLITCH → glass. S94's Stage 1 slice (b65ef0c,
     # 2026-08-17, "the missing renders") wired the digest: room.rs builds `recent_audits`
     # (take(6)) and room.js:505 renders it in the Room. The row predates that fix; the detector
