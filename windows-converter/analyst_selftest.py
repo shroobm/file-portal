@@ -1,11 +1,10 @@
 #!/usr/bin/env python3
-"""Tripwires for analyst.process's per-chunk accept-time guards. J32-B (the per-chunk INPUT-
-WINDOW survival guard, threshold 0.50, action reject, signed Rab 2026-09-05) today; SYM-074 (the
-`</think>` leak guard) adds its own cases to this same file in its own commit. Synthetic,
-CPU-only, no GPU, no ollama, no network -- every `_generate` call is monkeypatched to a scripted
-stand-in. FP_PIPELINE is pointed at a temp dir BEFORE import so ANALYST_WORK (the S61
-chunk-resume journal dir) and every other fp_paths root land in quarantine, never the live
-library (SYM-010's class).
+"""Tripwires for analyst.process's per-chunk accept-time guards: J32-B (the per-chunk INPUT-
+WINDOW survival guard, threshold 0.50, action reject, signed Rab 2026-09-05) and SYM-074 (the
+`</think>` leak guard). Synthetic, CPU-only, no GPU, no ollama, no network -- every `_generate`
+call is monkeypatched to a scripted stand-in. FP_PIPELINE is pointed at a temp dir BEFORE import
+so ANALYST_WORK (the S61 chunk-resume journal dir) and every other fp_paths root land in
+quarantine, never the live library (SYM-010's class).
 
 Run with the marker-env interpreter:
     C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe analyst_selftest.py
@@ -17,11 +16,16 @@ Run with the marker-env interpreter:
   J32-B (e) a chunk with 0 windows (short)               -> passed, survival None
   J32-B (f) NEGATIVE CONTROL: threshold monkeypatched to 0.0 -> (b)'s candidate now PASSES
   J32-B (g) the fence still fires first: an IMG-token change is "fence", not "survival"
+  SYM-074 (a) a candidate carrying </think> (else identical) -> rejected, reason think_leak
+  SYM-074 (b) the plain word "think" in prose             -> passed (not over-broad)
+  SYM-074 (c) an opening <think> alone                    -> rejected
+  SYM-074 (d) NEGATIVE CONTROL: the think-leak guard removed -> (a)'s candidate now PASSES
 """
 import json
 import os
 import sys
 import tempfile
+import types
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -172,8 +176,63 @@ def _():
     assert meta["rejections"] == {"fence": 1, "survival": 0, "think_leak": 0}, meta
 
 
+# ---------------------------------------------------------------------------
+# SYM-074
+# ---------------------------------------------------------------------------
+THINK_MD = words(20, "gamma")
+
+
+@case("SYM-074 (a) a candidate carrying </think> (else identical) -> rejected, think_leak")
+def _():
+    candidate = THINK_MD + "\n</think>"
+    out, meta = run(THINK_MD, [candidate])
+    assert meta["chunks_rejected"] == 1 and meta["rejections"]["think_leak"] == 1, meta
+    assert out.strip() == THINK_MD.strip(), "the ORIGINAL chunk must ship"
+
+
+@case('SYM-074 (b) the plain word "think" in prose -> passed (not over-broad)')
+def _():
+    md = "I think this analysis is correct and complete for every reader who reviews it"
+    candidate = "I think this analysis is correct and complete for every reader who reviews it"
+    out, meta = run(md, [candidate])
+    assert meta["chunks_passed"] == 1 and meta["rejections"]["think_leak"] == 0, meta
+
+
+@case("SYM-074 (c) an opening <think> alone -> rejected")
+def _():
+    candidate = "<think>" + THINK_MD
+    out, meta = run(THINK_MD, [candidate])
+    assert meta["chunks_rejected"] == 1 and meta["rejections"]["think_leak"] == 1, meta
+
+
+@case("SYM-074 (d) NEGATIVE CONTROL: the think-leak guard removed -> (a)'s candidate PASSES")
+def _():
+    # The SAME "blank the guard, watch red, restore" technique convert_and_ship_selftest.py's
+    # T17 uses: a literal string patch of the ONE guard line (not the elif/else chain it
+    # belongs to), exec'd into a fresh module so the real analyst.py on disk is never touched.
+    target = 'if "<think>" in candidate or "</think>" in candidate:'
+    src = (HERE / "analyst.py").read_text(encoding="utf-8")
+    assert src.count(target) == 1, f"guard line not found exactly once ({src.count(target)})"
+    patched_src = src.replace(target, "if False:  # NEGATIVE CONTROL: think-leak guard removed")
+    mod = types.ModuleType("analyst_nc_sym074")
+    mod.__file__ = str(HERE / "analyst.py")
+    sys.modules["analyst_nc_sym074"] = mod
+    try:
+        exec(compile(patched_src, str(HERE / "analyst.py"), "exec"), mod.__dict__)
+        mod.unload = lambda: None
+        candidate = THINK_MD + "\n</think>"
+        out, meta = run(THINK_MD, [candidate], module=mod)
+        assert meta["chunks_passed"] == 1 and meta["chunks_rejected"] == 0, (
+            "the guard did not fire: removing the think-leak check should have passed this", meta)
+    finally:
+        sys.modules.pop("analyst_nc_sym074", None)
+    # restored: the real module still rejects (a)'s fixture
+    out2, meta2 = run(THINK_MD, [THINK_MD + "\n</think>"])
+    assert meta2["chunks_rejected"] == 1 and meta2["rejections"]["think_leak"] == 1
+
+
 print()
 if failed:
-    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 7: {failed}")
+    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 11: {failed}")
     raise SystemExit(1)
-print("ALL TRIPWIRES FIRED — 7/7")
+print("ALL TRIPWIRES FIRED — 11/11")

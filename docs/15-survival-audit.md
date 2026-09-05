@@ -162,6 +162,13 @@ special alignment algorithm is needed.
   Unlike every OTHER tripwire in this section, this ONE gates AT ACCEPT TIME, per-chunk, not
   report-only over the finished document — the accept/reject decision it feeds already existed
   (the fence); this is a second reason a chunk can reach it.
+- **The `</think>` leak guard (SYM-074, ACCEPT-TIME, ANALYST STAGE):** qwen3:8b (a thinking
+  model, asked `"think": false`) leaked a bare `</think>` into shipped text twice (held
+  University 4e lines 8779 and 13744) — `_generate` returned `reply["response"].strip()` with no
+  filter. Checked immediately after generation, BEFORE the fence, on both backends: if `<think>`
+  or `</think>` occurs anywhere in the candidate, REJECT (`reason: "think_leak"`) — the whole
+  chunk is suspect, never stripped-and-kept (docs/12: the analyst can only be rejected, never
+  edited).
 
 ## 6. Stages and provisional thresholds
 
@@ -179,14 +186,15 @@ Analyst-stage matching is **near-exact**: normalization only, no fuzzy fallback
 parks the bundle exactly like a pre-flight card does — the fence extended from
 links to every sentence.
 
-**Per-chunk accept-time gates (J32-B, signed Rab 2026-09-05), the other side of the analyst
-stage from the DOCUMENT-level `doc < 0.995` row above:** these run WHILE the book is being
-analysed, one chunk at a time, and decide whether THIS chunk's candidate ships or the original
-does.
+**Per-chunk accept-time gates (J32-B, SYM-074 — signed Rab 2026-09-05), the other side of the
+analyst stage from the DOCUMENT-level `doc < 0.995` row above:** these run WHILE the book is
+being analysed, one chunk at a time, and decide whether THIS chunk's candidate ships or the
+original does.
 
 | Guard | Threshold | Action | Checked |
 |---|---|---|---|
-| asset-token fence (pre-existing) | token multiset must match exactly | REJECT, `reason: "fence"` | before survival |
+| `</think>` leak (SYM-074) | any occurrence of `<think>` or `</think>` | REJECT, `reason: "think_leak"` | before the fence |
+| asset-token fence (pre-existing) | token multiset must match exactly | REJECT, `reason: "fence"` | after the leak check, before survival |
 | input-window survival (J32-B) | `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` | REJECT, `reason: "survival"` | after the fence passes |
 
 A chunk with 0 scoreable input windows (a short chunk) reports `survival: null`, never `0.0` —

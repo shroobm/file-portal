@@ -412,7 +412,17 @@ def process(markdown: str, backend: str = "local",
                 # prompt_eval_count on fully cached prefills, so the prompt sum is partial
             counted_calls += call_out is not None
             reason, survival = None, None
-            if _tokens_of(candidate) == _tokens_of(chunk):
+            # SYM-074 (signed Rab 2026-09-05): qwen3:8b (a thinking model, asked "think":
+            # false) leaked a bare `</think>` into shipped text twice (held University 4e
+            # lines 8779 and 13744). Checked BEFORE the fence, on both backends (harmless on
+            # Gemini): the tag is never stripped-and-kept — docs/12 says the analyst can only
+            # be REJECTED, never edited, so the whole chunk is suspect, not just the tag.
+            if "<think>" in candidate or "</think>" in candidate:
+                out.append(chunk)
+                rejected += 1
+                rejections["think_leak"] += 1
+                status, text, reason = "rejected", chunk, "think_leak"
+            elif _tokens_of(candidate) == _tokens_of(chunk):
                 # The fence passed: the asset tokens survived. J32-B (signed Rab 2026-09-05,
                 # threshold 0.50, action reject) checks the OTHER failure mode the fence
                 # cannot see — a deleted paragraph or a runaway inflation — by measuring how
