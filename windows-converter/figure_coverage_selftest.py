@@ -152,7 +152,8 @@ def main() -> int:
             if page_index == 300:
                 pg.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200, 110))
         poison_pdf = tmp / "sym050.pdf"
-        doc.save(poison_pdf); doc.close()
+        doc.save(poison_pdf)
+        doc.close()
         poison_bundle = _bundle(tmp, [500], "sym050")
         (poison_bundle / "manifest.json").write_text(
             json.dumps({"chunking": {"slice_size": 200}}), encoding="utf-8"
@@ -258,7 +259,8 @@ def main() -> int:
         p2 = doc.new_page()
         p2.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200, 90))
         tri = tmp / "triage.pdf"
-        doc.save(tri); doc.close()
+        doc.save(tri)
+        doc.close()
         empty = _bundle(tmp, [], name="tri")             # nothing shipped: both pages uncovered
         on  = fc.coverage(tri, empty, lv=fc.levers(text="mode=caption")["values"])
         off = fc.coverage(tri, empty, lv=fc.levers(text="mode=off")["values"])
@@ -289,7 +291,8 @@ def main() -> int:
         pg2.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200, 60))
         pg2.insert_text(pymupdf.Point(72, 400), "FIGURE 18.14 A Real Caption")
         prec = tmp / "prec.pdf"
-        doc.save(prec); doc.close()
+        doc.save(prec)
+        doc.close()
         capt = fc.source_figure_regions(prec)["captioned_pages"]
         check("TRIAGE BITES: an ILLUSTRATION worked example that merely CITES a figure is NOT "
               "promoted, while a genuine caption on the next page is",

@@ -371,7 +371,7 @@ def acquire_card_mutex() -> object | None:
               f"proceeding UNGUARDED", flush=True)
         emit("convert", "card_mutex", state="unavailable")
         return None
-    WAIT_OBJECT_0, WAIT_ABANDONED, WAIT_TIMEOUT = 0x00, 0x80, 0x102
+    WAIT_ABANDONED, WAIT_TIMEOUT = 0x80, 0x102  # WAIT_OBJECT_0 = 0x00 (immediate acquire; no branch needed for it below)
     poll_ms = int(os.environ.get("FP_CARD_MUTEX_POLL_MS", "30000"))
     result = k32.WaitForSingleObject(handle, 0)
     if result == WAIT_TIMEOUT:
@@ -906,8 +906,8 @@ def estimate_from_ledger(pages: int, lane: str, chars_per_page: float) -> dict |
     evidence behind it. `basis` is a real discriminator now: "similar" (≥2 neighbours) or
     "single-sample" (1); the docstring's former phantom fallback branch is gone with it."""
     try:
-        rows = [json.loads(l) for l in
-                LEDGER_FILE.read_text(encoding="utf-8").splitlines() if l.strip()]
+        rows = [json.loads(line) for line in
+                LEDGER_FILE.read_text(encoding="utf-8").splitlines() if line.strip()]
     except (OSError, ValueError):
         return None
     # `is not None`, not truthiness: a 0.0 rate is a real (if implausible) measurement, and

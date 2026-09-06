@@ -30,7 +30,6 @@ import hmac
 import json
 import os
 import re
-import shutil
 import socket
 import subprocess
 import sys
@@ -153,8 +152,8 @@ def discover_models() -> list[dict]:
         for mf in sorted(p for p in man_root.rglob("*") if p.is_file()):
             try:
                 man = json.loads(mf.read_text(encoding="utf-8"))
-                digest = next(l["digest"] for l in man.get("layers", [])
-                              if "model" in l.get("mediaType", ""))
+                digest = next(layer["digest"] for layer in man.get("layers", [])
+                              if "model" in layer.get("mediaType", ""))
                 blob = OLLAMA_STORE / "blobs" / digest.replace(":", "-")
                 if not blob.is_file():
                     continue

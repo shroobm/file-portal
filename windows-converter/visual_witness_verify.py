@@ -11,10 +11,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
-import math
-import re
 import sys
-import time
 from pathlib import Path
 from typing import Any, Mapping, Sequence
 
@@ -272,10 +269,11 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
     relation_rank = {"equals-min-boundary": 0, "equals-max-boundary": 1, "straddles": 2}
     direction_rank = {"negative": 0, "positive": 1, "both": 2}
     touches = recovery["touched_internal_edges"]
-    touch_key = lambda item: (
-        0 if item["axis"] == "x" else 1, item["coordinate_px"],
-        relation_rank[item["relation"]], direction_rank[item["neighbor_direction"]],
-    )
+    def touch_key(item):
+        return (
+            0 if item["axis"] == "x" else 1, item["coordinate_px"],
+            relation_rank[item["relation"]], direction_rank[item["neighbor_direction"]],
+        )
     if touches != sorted(touches, key=touch_key) or not _canonical_object_unique(touches):
         return False
     recovery_ids = recovery["recovery_tile_ids"]
@@ -304,10 +302,11 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
             for track in tracks:
                 if not _sorted_unique_strings(track["member_primitive_ids"]):
                     return False
-            key = lambda track: (
-                track["axis_px"], track["extent_start_px"], track["extent_end_px"],
-                tuple(track["member_primitive_ids"]),
-            )
+            def key(track):
+                return (
+                    track["axis_px"], track["extent_start_px"], track["extent_end_px"],
+                    tuple(track["member_primitive_ids"]),
+                )
             if tracks != sorted(tracks, key=key) or not _canonical_object_unique(tracks):
                 return False
         cells = measurements["closed_cells"]
@@ -385,9 +384,10 @@ def _canonical_payload_order(payload: Mapping[str, Any]) -> bool:
                     return False
                 for primitive in primitives:
                     provenance = primitive["source_evidence"]["provenance_records"]
-                    provenance_key = lambda item: tuple(
-                        -1 if item[name] is None else item[name] for name in provenance_names
-                    )
+                    def provenance_key(item):
+                        return tuple(
+                            -1 if item[name] is None else item[name] for name in provenance_names
+                        )
                     if provenance != sorted(provenance, key=provenance_key):
                         return False
                     if len({canonical(item) for item in provenance}) != len(provenance):

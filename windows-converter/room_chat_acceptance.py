@@ -176,7 +176,7 @@ check("live state is served as DATA, not narrated by the model",
 check("the system prompt forbids stating live values", "Never state a live number" in chat.SYSTEM,
       "nothing tells the model to stay out of the projection's lane")
 
-import shutil
+import shutil  # noqa: E402  (used only here, at the point of use for scratch cleanup)
 shutil.rmtree(SCRATCH, ignore_errors=True)
 print(f"\n{'-'*46}")
 if failed:

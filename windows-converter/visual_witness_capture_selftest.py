@@ -13,17 +13,15 @@ import datetime as dt
 import hashlib
 import importlib.util
 import io
-import json
 import math
 import os
 import re
 import subprocess
-import struct
 import sys
 import tempfile
 import types
 import unittest
-from dataclasses import dataclass, field
+from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Callable, Mapping, Sequence
 from unittest import mock
@@ -573,10 +571,14 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
 
     def tearDown(self) -> None:
         vw.EVENT_ACTIVITY = self.original_activity
-        vw.EVENT_CHILD_PIDS.clear(); vw.EVENT_CHILD_PIDS.update(self.original_children)
-        vw.EVENT_CHILD_EXITED_PIDS.clear(); vw.EVENT_CHILD_EXITED_PIDS.update(self.original_exited)
-        vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear(); vw.EVENT_OBSERVED_DESCENDANT_PIDS.update(self.original_descendants)
-        vw.EVENT_MEASURED_GIT_HEADS.clear(); vw.EVENT_MEASURED_GIT_HEADS.update(self.original_heads)
+        vw.EVENT_CHILD_PIDS.clear()
+        vw.EVENT_CHILD_PIDS.update(self.original_children)
+        vw.EVENT_CHILD_EXITED_PIDS.clear()
+        vw.EVENT_CHILD_EXITED_PIDS.update(self.original_exited)
+        vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear()
+        vw.EVENT_OBSERVED_DESCENDANT_PIDS.update(self.original_descendants)
+        vw.EVENT_MEASURED_GIT_HEADS.clear()
+        vw.EVENT_MEASURED_GIT_HEADS.update(self.original_heads)
         vw._EVENT_AUDIT_ACTIVE = self.original_audit_active
 
     @staticmethod
@@ -607,7 +609,8 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
             observed.append((list(command), dict(kwargs)))
             return next(processes)
 
-        clean_measurement = lambda known: vw.IsolationMeasurement(tuple(sorted(known)), (), ())
+        def clean_measurement(known):
+            return vw.IsolationMeasurement(tuple(sorted(known)), (), ())
         vw.install_event_activity_audit()
         with mock.patch.object(vw.subprocess, "Popen", side_effect=fake_popen), mock.patch.object(
             vw, "_census_native_git_descendants", return_value=set()
@@ -919,7 +922,8 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
             (repository / ".git" / "HEAD").write_text("ref: refs/heads/main\n", encoding="ascii")
             reference.write_text(old_oid + "\n", encoding="ascii")
             evidence_root, scratch_root = root / "evidence", root / "scratch"
-            evidence_root.mkdir(); scratch_root.mkdir()
+            evidence_root.mkdir()
+            scratch_root.mkdir()
             run_id = "post-report-head-drift"
             evidence_run = evidence_root / run_id
             evidence_run.mkdir()
@@ -1218,7 +1222,8 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary).resolve()
             evidence, scratch = base / "evidence", base / "scratch"
-            evidence.mkdir(); scratch.mkdir()
+            evidence.mkdir()
+            scratch.mkdir()
             run_id = "rollback-residue"
             scratch_collision = scratch / run_id
             scratch_collision.mkdir()
@@ -1540,8 +1545,10 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.EVENT_ACTIVITY.gpu_call_count = original.gpu_call_count
             vw.EVENT_ACTIVITY.instrumentation_ready = original.instrumentation_ready
             vw.EVENT_ACTIVITY.reconciled_child_processes = original.reconciled_child_processes
-            vw.EVENT_CHILD_PIDS.clear(); vw.EVENT_CHILD_PIDS.update(original_children)
-            vw.EVENT_CHILD_EXITED_PIDS.clear(); vw.EVENT_CHILD_EXITED_PIDS.update(original_exited)
+            vw.EVENT_CHILD_PIDS.clear()
+            vw.EVENT_CHILD_PIDS.update(original_children)
+            vw.EVENT_CHILD_EXITED_PIDS.clear()
+            vw.EVENT_CHILD_EXITED_PIDS.update(original_exited)
 
     def test_full_canonical_order_mutations_bite_producer_and_independent_verifier(self) -> None:
         verifier = _load_verifier_module()
@@ -1750,19 +1757,24 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear()
             vw.EVENT_ACTIVITY.reset()
             vw.EVENT_CHILD_PIDS.add(101)
-            before_provider = lambda _known: vw.IsolationMeasurement((101, 102), (101,), ())
+            def before_provider(_known):
+                return vw.IsolationMeasurement((101, 102), (101,), ())
             before_hash, before_result, _before = vw.isolation_probe(
                 "1" * 64, provider=before_provider, transitional_pids=(101,)
             )
             self.assertEqual(0, before_result["event_child_process_count"])
-            after_provider = lambda _known: vw.IsolationMeasurement((101, 102), (), ())
+            def after_provider(_known):
+                return vw.IsolationMeasurement((101, 102), (), ())
             after_hash, after_result, _after = vw.isolation_probe("1" * 64, provider=after_provider)
             self.assertEqual(before_hash, after_hash)
             self.assertEqual(0, after_result["event_child_process_count"])
         finally:
-            vw.EVENT_CHILD_PIDS.clear(); vw.EVENT_CHILD_PIDS.update(original_children)
-            vw.EVENT_CHILD_EXITED_PIDS.clear(); vw.EVENT_CHILD_EXITED_PIDS.update(original_exited)
-            vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear(); vw.EVENT_OBSERVED_DESCENDANT_PIDS.update(original_descendants)
+            vw.EVENT_CHILD_PIDS.clear()
+            vw.EVENT_CHILD_PIDS.update(original_children)
+            vw.EVENT_CHILD_EXITED_PIDS.clear()
+            vw.EVENT_CHILD_EXITED_PIDS.update(original_exited)
+            vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear()
+            vw.EVENT_OBSERVED_DESCENDANT_PIDS.update(original_descendants)
             vw.EVENT_ACTIVITY.network_call_count = original_network
             vw.EVENT_ACTIVITY.gpu_call_count = original_gpu
 
@@ -1772,19 +1784,23 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         original_network = vw.EVENT_ACTIVITY.network_call_count
         original_gpu = vw.EVENT_ACTIVITY.gpu_call_count
         try:
-            vw.EVENT_CHILD_PIDS.clear(); vw.EVENT_CHILD_PIDS.add(201)
+            vw.EVENT_CHILD_PIDS.clear()
+            vw.EVENT_CHILD_PIDS.add(201)
             vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear()
             vw.EVENT_ACTIVITY.reset()
-            descendant = lambda _known: vw.IsolationMeasurement((201, 202), (201, 202), ())
+            def descendant(_known):
+                return vw.IsolationMeasurement((201, 202), (201, 202), ())
             _digest, result, _measurement = vw.isolation_probe(
                 "1" * 64, provider=descendant, transitional_pids=(201,)
             )
             self.assertEqual(1, result["event_child_process_count"])
-            port_provider = lambda _known: vw.IsolationMeasurement((201,), (), (49152,))
+            def port_provider(_known):
+                return vw.IsolationMeasurement((201,), (), (49152,))
             _digest, result, _measurement = vw.isolation_probe("1" * 64, provider=port_provider)
             self.assertEqual(1, result["event_child_port_count"])
             vw.EVENT_ACTIVITY.network_call_count = 1
-            clean_provider = lambda _known: vw.IsolationMeasurement((201,), (), ())
+            def clean_provider(_known):
+                return vw.IsolationMeasurement((201,), (), ())
             _digest, result, _measurement = vw.isolation_probe("1" * 64, provider=clean_provider)
             self.assertTrue(result["network_used"])
 
@@ -1794,8 +1810,10 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             with self.assertRaisesRegex(vw.VWStop, "UNREAD"):
                 vw.isolation_probe("1" * 64, provider=unavailable)
         finally:
-            vw.EVENT_CHILD_PIDS.clear(); vw.EVENT_CHILD_PIDS.update(original_children)
-            vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear(); vw.EVENT_OBSERVED_DESCENDANT_PIDS.update(original_descendants)
+            vw.EVENT_CHILD_PIDS.clear()
+            vw.EVENT_CHILD_PIDS.update(original_children)
+            vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear()
+            vw.EVENT_OBSERVED_DESCENDANT_PIDS.update(original_descendants)
             vw.EVENT_ACTIVITY.network_call_count = original_network
             vw.EVENT_ACTIVITY.gpu_call_count = original_gpu
 

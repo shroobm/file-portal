@@ -84,7 +84,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 import statistics
 import subprocess
 import sys
@@ -640,7 +639,7 @@ def main() -> int:
         vals = [r.get("cached_tok") for r in rows]
         return UNREAD if all(v is None for v in vals) else str(sum(v or 0 for v in vals))
     cache = {lb: _cache_total(rows) for lb, rows in results.items()}
-    print(f"  cached prefill tokens: " + ", ".join(f"{lb.split('_')[0]}={v}"
+    print("  cached prefill tokens: " + ", ".join(f"{lb.split('_')[0]}={v}"
                                                    for lb, v in cache.items())
           + "   (a cached prefill is not a measured prefill - docs/34 §4)\n")
     for label, rows in results.items():

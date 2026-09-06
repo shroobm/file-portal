@@ -26,11 +26,9 @@ import multiprocessing as mp
 import os
 import re
 import shutil
-import stat as stat_module
 import struct
 import subprocess
 import sys
-import tempfile
 import time
 from dataclasses import dataclass, field
 from ctypes import wintypes
@@ -4591,12 +4589,13 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
     touches = recovery["touched_internal_edges"]
     relation_rank = {"equals-min-boundary": 0, "equals-max-boundary": 1, "straddles": 2}
     direction_rank = {"negative": 0, "positive": 1, "both": 2}
-    touch_key = lambda item: (
-        0 if item["axis"] == "x" else 1,
-        item["coordinate_px"],
-        relation_rank[item["relation"]],
-        direction_rank[item["neighbor_direction"]],
-    )
+    def touch_key(item):
+        return (
+            0 if item["axis"] == "x" else 1,
+            item["coordinate_px"],
+            relation_rank[item["relation"]],
+            direction_rank[item["neighbor_direction"]],
+        )
     if touches != sorted(touches, key=touch_key) or not _canonical_object_unique(touches):
         return False
     recovery_ids = recovery["recovery_tile_ids"]
@@ -4627,10 +4626,11 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
             for track in tracks:
                 if not _sorted_unique_strings(track["member_primitive_ids"]):
                     return False
-            track_key = lambda track: (
-                track["axis_px"], track["extent_start_px"], track["extent_end_px"],
-                tuple(track["member_primitive_ids"]),
-            )
+            def track_key(track):
+                return (
+                    track["axis_px"], track["extent_start_px"], track["extent_end_px"],
+                    tuple(track["member_primitive_ids"]),
+                )
             if tracks != sorted(tracks, key=track_key) or not _canonical_object_unique(tracks):
                 return False
         cells = measurements["closed_cells"]
@@ -4691,7 +4691,8 @@ def _canonical_arrays(report: Mapping[str, Any]) -> bool:
                     "engine_list_index_0based", "drawing_list_index_0based", "drawing_seqno_observed",
                     "item_list_index_0based", "emitted_edge_index_0based", "engine_number_observed",
                 )
-                key = lambda item: tuple(-1 if item[name] is None else item[name] for name in names)
+                def key(item):
+                    return tuple(-1 if item[name] is None else item[name] for name in names)
                 if provenance != sorted(provenance, key=key) or len({canonical_json_bytes(item) for item in provenance}) != len(provenance):
                     return False
             for candidate in page["region_candidates"]:

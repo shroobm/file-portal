@@ -66,16 +66,11 @@ jobs:
       # desktop has no ruff installed), so the first-ever lint outcome is UNREAD until this
       # step reports. Same pinned ruff (==0.15.20) as the linux lanes — it arrives via their
       # requirements-dev installs above; `ruff check` only, no format gate on an unformatted lane.
-      # NOT ARMED 2026-09-05 (S116), and why: the step HAS reported — run 33990130578 (num 192)'s
-      # job LOG reads "Found 50 errors." then "##[error]Process completed with exit code 1",
-      # while the jobs API reports this step `conclusion: success` (continue-on-error's
-      # post-override value; SYM-075). Arming it would go red on the next push. The debt is
-      # OPEN-TASKS J39: E702 ×22, E731 ×12, F401 ×10, E741 ×3, E402, F541, F841 (ruff 0.15.20,
-      # reproduced locally with `uvx ruff==0.15.20 check .` in windows-converter/). Arm it in
-      # the same commit that clears them.
-      - name: Lint (windows-converter, warn-only)
+      # ARMED 2026-09-06 (S117, J39): 50 -> 0 under uvx ruff==0.15.20; SYM-075 stays the reason
+      # the log, not the API, was read (a continue-on-error step's jobs-API `conclusion` is the
+      # post-override value, so the prior warn-only runs had to be confirmed from the job LOG).
+      - name: Lint (windows-converter)
         working-directory: windows-converter
-        continue-on-error: true
         run: ruff check .
       - name: Test (linux-receiver)
         working-directory: linux-receiver

@@ -236,23 +236,28 @@ def levers(path: Path | None = None, text: str | None = None) -> dict:
         if not line:
             continue
         if "=" not in line:
-            rejected.append(f"line {lineno}: not key=value"); continue
+            rejected.append(f"line {lineno}: not key=value")
+            continue
         key, _, val = line.partition("=")
         key, val = key.strip().lower(), val.strip()
         if key not in LEVER_SPEC:
-            rejected.append(f"line {lineno}: unknown key {key!r}"); continue
+            rejected.append(f"line {lineno}: unknown key {key!r}")
+            continue
         typ, default, rng = LEVER_SPEC[key]
         if typ is str:
             if val.lower() not in rng:
-                rejected.append(f"{key}={val!r} not in {rng}"); continue
+                rejected.append(f"{key}={val!r} not in {rng}")
+                continue
             eff[key] = val.lower()
         else:
             try:
                 num = typ(val)
             except ValueError:
-                rejected.append(f"{key}={val!r} not a {typ.__name__}"); continue
+                rejected.append(f"{key}={val!r} not a {typ.__name__}")
+                continue
             if not (rng[0] <= num <= rng[1]):
-                rejected.append(f"{key}={num} outside {rng}"); continue
+                rejected.append(f"{key}={num} outside {rng}")
+                continue
             eff[key] = num
     return {"values": eff, "rejected": rejected, "source": source}
 

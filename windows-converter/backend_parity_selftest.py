@@ -30,9 +30,9 @@ def case(name):
 @case("the unit trap: the same numeral in ollama-ns and llama.cpp-ms differs by 10^6")
 def _():
     o = bp._phases_ollama({"eval_count": 3, "eval_duration": 82_501_000})
-    l = bp._phases_llamacpp({"timings": {"predicted_n": 3, "predicted_ms": 82_501_000.0}})
+    llamacpp = bp._phases_llamacpp({"timings": {"predicted_n": 3, "predicted_ms": 82_501_000.0}})
     assert abs(o["decode_s"] - 0.082501) < 1e-9, o["decode_s"]
-    assert abs(l["decode_s"] / o["decode_s"] - 1e6) < 1e-3, "the 10^6 boundary moved"
+    assert abs(llamacpp["decode_s"] / o["decode_s"] - 1e6) < 1e-3, "the 10^6 boundary moved"
 
 
 @case("S81: ollama's unseeable cache is None and prints UNREAD, never 0")
