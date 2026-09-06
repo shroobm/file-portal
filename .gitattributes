@@ -3,3 +3,10 @@
 # committed LF blob as CRLF and `--check` read "registry drift" on an untouched tree — both S115 build
 # lanes hit it in fresh worktrees and had to run --write before they could start. No conversion, ever.
 observability/schemas.json -text
+# S117 (2026-09-06): the same hazard, the other direction. docs/contracts/*.json are BYTE-EXACT
+# fixtures (visual_witness_capture_selftest binds packet + schema identity by size/hash) and their
+# committed blobs are CRLF. A fresh worktree checkout under core.autocrlf=true added a second CR per
+# line (110,341 -> 111,213 bytes = one byte per line) and 6 of 54 tests read GROUND-DRIFT while the
+# main checkout — byte-identical to the blob — passed 54/54 (the J39 builder found it, its refuter
+# reproduced it). Any file whose bytes ARE the contract must never be converted, in either direction.
+docs/contracts/*.json -text
