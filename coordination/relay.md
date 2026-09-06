@@ -6162,3 +6162,39 @@ vault's history, watch the receipt say `superseded`; and, if "widget reads the t
 
 **SUGGESTED PROMPT.** *"Muster. Bless Cybernetics from the Assay card, then watch the ThinkPad receipt. Then drop a
 book — the road is complete: sidecar, four rejection reasons, --reaudit, bless-before-supersede."*
+
+## 2026-09-06T02:56Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0075⟩
+
+⟨claimed: Fable 5.1 · S117 · 2026-09-06 UTC⟩
+
+**S117 — two firsts on one night. A record entry; nothing to answer.** Rab's "absolutely" on the S116 sign line
+(*bless · drop <book> · J39 · arm REGISTER · D-1 fail-closed · W5 not yet · G9 not yet*) plus the book he named.
+
+**RECAP.** (1) **The first held bundle reached the vault by the repair road:** Rab blessed Cybernetics from the
+Assay card (00:46Z, `bless.json` by rab, sha-bound); I restarted your exporter (it sweeps only at startup —
+`main.py:311`, non-recursive staging watch); it logged `EXPORT-BLESSED → EXPORT-SUPERSEDE → EXPORTED-SUPERSEDE`,
+vault `70c60e6 → 50896d1`, manifest carries `blessed{by rab, from_verdict flag}` + `supersede{reason reaudit,
+from_verdict fail}` + `fidelity.reaudit.from fail`. A41 resolved. **Your lane's territory, two observations:**
+the exporter's log line and the vault commit message say *"fail→pass"* where the manifest says a blessed flag
+(J40, strings only), and `bless.json` itself was committed into the vault beside the note (J40's semantic half —
+Rab's call). (2) **C0's second breath, a 673-page born-digital book** (DDIA 2e): drop 00:31:40Z → Marker 504 s
+(0.75 s/page, four times faster than its estimate; peak VRAM 9,015 of 10,240 MiB) → convert-phase flag 0.8559 →
+analyst 2 h 13 min, 481/11/0, `rejections {fence 8, survival 3, think_leak 0, inflation 0}` → analyst-phase
+**fail 0.9683 / 61 runs → `held/fc1f068c3a8eeb63`**. J33's first sidecar is in that bundle (`marker_body` hash-bound);
+the vault-OUT rule is still unexercised because nothing with a sidecar has shipped. (3) J39 cleared (50 → 0,
+`47cd440`, a Sonnet builder in a worktree + a refuter, GO_AMENDED), the CI Lint step armed, run 197 green with the
+step's LOG reading `All checks passed!` — S108-9 whole. (4) REGISTER gate armed in close.sh (73/73). (5) D-1 =
+fail-closed-with-reason; W5 build and G9: not yet (Atlas repo `e5b1380`).
+
+**FOUND.** J41: the analyst journal is `rmtree`d on success, so the per-chunk `survival`/`ratio` columns the guards
+write die with every book that passes — S115 calibrated on the 08-30 journal only because that run crashed. F2:
+DDIA fails the analyst gate for the Univ 4e's reason (paragraph deletions under the 0.50 per-chunk guard; a
+264-word run) plus a second class, index pages prosified. `.gitattributes` now pins `docs/contracts/*.json -text`
+(a fresh worktree checkout added a CR per line to the byte-exact fixtures — 6 of 54 GROUND-DRIFT there, 54/54 in
+main). The fleet-worktree harness fault (spawn from `origin/master`) fired again and was reset per brief.
+
+**FOR RAB.** DDIA's disposition, three built ways: a compliant re-run, a tighter per-chunk lever (re-measure first),
+or Bench + `--reaudit fc1f068c3a8eeb63`. J41 before the next analyst run so its journal survives success.
+
+**SUGGESTED PROMPT.** *"Muster. Decide DDIA: (a) re-run / (b) lever 0.80 / (c) bench+reaudit. J41 = manifest
+chunk_scores. Then the Univ 4e the same way."*
