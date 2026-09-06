@@ -426,6 +426,27 @@ assert "CLOSE CENSUS (armed, R3): a suite that could not run is UNREAD — exit 
 out=$(FP_PY="/no/such/python.exe" FP_REPO="$GATE" FP_CENSUS_SUITE="$CEN29/ran-and-failed.sh" bash "$CLOSE" "$base" 2>&1); rc=$?
 assert "CLOSE CENSUS (armed, R3): a suite that fired and then failed is a red — exit 1" 1 'RED.*exited 1 after firing 1' "$rc" "$out"
 
+# ── REGISTER gate, ARMED 2026-09-06 (S117, Rab's "arm REGISTER") ─────────────────────────────
+# Property: a session that never wrote OPEN-TASKS.md is a MEASURED red; one that wrote it is
+# not; a repo with no register at all stays UNREAD (exit 0). Three shapes, one fixture repo.
+REG="$WORK/register"; mkdir -p "$REG"
+git -C "$REG" init -q 2>/dev/null
+printf '| A1 | first |\n' > "$REG/OPEN-TASKS.md"; printf 'x = 1\n' > "$REG/m.py"
+git -C "$REG" add -A >/dev/null 2>&1
+git -C "$REG" -c user.email=t@t -c user.name=t commit -qm base >/dev/null 2>&1
+regbase=$(git -C "$REG" rev-parse HEAD)
+printf 'x = 2\n' > "$REG/m.py"
+git -C "$REG" add -A >/dev/null 2>&1
+git -C "$REG" -c user.email=t@t -c user.name=t commit -qm "code only" >/dev/null 2>&1
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$REG" bash "$CLOSE" "$regbase" 2>&1); rc=$?
+assert "CLOSE REGISTER (armed): OPEN-TASKS.md untouched since the pin is a red — exit 1" 1 'REGISTER.*RED.*UNTOUCHED' "$rc" "$out"
+printf '| A1 | first |\n| A2 | second |\n' > "$REG/OPEN-TASKS.md"
+git -C "$REG" add -A >/dev/null 2>&1
+git -C "$REG" -c user.email=t@t -c user.name=t commit -qm "register written" >/dev/null 2>&1
+out=$(FP_PY="/no/such/python.exe" FP_REPO="$REG" bash "$CLOSE" "$regbase" 2>&1); rc=$?
+assert "CLOSE REGISTER (armed) control: a written register is not a red — exit 0" 0 'REGISTER.*written this session' "$rc" "$out"
+# the no-register shape is case 18/27's fixture repos (no OPEN-TASKS.md) — they assert exit 0 above.
+
 
 # ── CASES 30-32: THE DESCENDANT RULE (S109 — proposed by Claude Opus 5, work authorised by
 # Rab's blanket "I sign on everything..."; he did NOT author it. The earlier "Rab's, signed"

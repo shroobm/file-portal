@@ -326,9 +326,14 @@ TASKS_MD="$FP_REPO/OPEN-TASKS.md"
 if [ ! -f "$TASKS_MD" ]; then
   row "REGISTER" "UNREAD — OPEN-TASKS.md is missing; that is not 'nothing open'"
 elif git -C "$FP_REPO" diff --quiet "$PIN"..HEAD -- OPEN-TASKS.md 2>/dev/null; then
-  row "REGISTER" "WARN — OPEN-TASKS.md UNTOUCHED since $PIN. Every session either strikes an item"
-  row "" "or adds one; a session that did neither must SAY SO in its closeout, not imply it."
-  row "" "S109: warn-only for one session, arm next close"
+  # ARMED 2026-09-06 (S117; Rab's "arm REGISTER" on the S116 sign line): warn-only since S109 —
+  # seven sessions of "arm next close". An untouched register is a MEASURED red: the session
+  # either wrote a row (strike or add) or its closeout must say out loud that it did neither,
+  # and this gate cannot read prose — so the honest escape is one dated line in the register.
+  row "REGISTER" "RED — OPEN-TASKS.md UNTOUCHED since $PIN. Every session either strikes an item"
+  row "" "or adds one; a session that did neither writes ONE dated line saying so (the gate reads the file, not the closeout)."
+  row "" "ARMED 2026-09-06 (S117)"
+  red=1
 else
   reg_add=$(git -C "$FP_REPO" diff --numstat "$PIN"..HEAD -- OPEN-TASKS.md 2>/dev/null | awk '{print $1}')
   reg_del=$(git -C "$FP_REPO" diff --numstat "$PIN"..HEAD -- OPEN-TASKS.md 2>/dev/null | awk '{print $2}')
