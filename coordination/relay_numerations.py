@@ -205,17 +205,45 @@ def main(argv):
         row("NR-12", "peer-owned bytes unstaged", f"UNREAD — git status failed: {e}", "as above", "UNREAD")
 
     # NR-13/14: the watcher's signals and the handler's turnaround need a signal log the watcher does not yet write
+    # The tracked watcher (coordination/relay_watch.sh, S120 B8) writes `<UTC YYYY-MM-DDTHH:MM:SSZ> <SIGNAL …>`
+    # to coordination/private/relay-watch.log; WATCH ALIVE lines are log-only heartbeats, not signals.
     log = HERE / "private" / "relay-watch.log"
+    stamp = re.compile(r"^(\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) (.*)$")
     if log.exists():
-        lines = [line for line in io.open(log, encoding="utf-8") if line.strip()]
-        sig = [line for line in lines if not line.startswith("WATCH ARMED")]
-        row("NR-13", "watcher signals logged", f"{len(sig)} signal lines · {sum(1 for line in lines if line.startswith('WATCH ARMED'))} arms",
-            "lines in coordination/private/relay-watch.log (one per signal; FALSE-POSITIVE lines are those the session marked so)", "Observed")
+        parsed = [stamp.match(line.rstrip("\n")) for line in io.open(log, encoding="utf-8") if line.strip()]
+        parsed = [(m.group(1), m.group(2)) for m in parsed if m]
+        arms = [t for t, s in parsed if s.startswith("WATCH ARMED")]
+        alive = [t for t, s in parsed if s.startswith("WATCH ALIVE")]
+        sigs = [(t, s) for t, s in parsed if not s.startswith(("WATCH ARMED", "WATCH ALIVE", "STOPPED"))]
+        kinds = {}
+        for _, s in sigs:
+            kinds[s.split(" ", 1)[0]] = kinds.get(s.split(" ", 1)[0], 0) + 1
+        row("NR-13", "watcher signals logged", f"{len(sigs)} signals ({', '.join(f'{k} {v}' for k, v in sorted(kinds.items())) or 'none'}) · {len(arms)} arms · {len(alive)} alive beats · last alive {alive[-1] if alive else 'none'}",
+            "UTC-stamped lines in coordination/private/relay-watch.log by kind; ALIVE is the watcher's own heartbeat (log-only), so a stretch with no ALIVE is a dead watcher, not a quiet bus",
+            "Observed")
+        # NR-14: pair each NEW-ENTRY / INBOX signal carrying a peer id with this lane's confirmation of that id.
+        mine = sc["Fable"][0] if both else None
+        conf = {c["id"]: c for c in (mine or {}).get("confirmed", [])}
+        turns = []
+        for t, s in sigs:
+            m = re.search(r"MSG-[A-Z]{3}-\d{4}", s)
+            if m and s.split(" ", 1)[0] in ("NEW-ENTRY", "INBOX") and m.group(0) in conf:
+                t0 = datetime.strptime(t, "%Y-%m-%dT%H:%M:%SZ").replace(tzinfo=timezone.utc)
+                t1 = utc(conf[m.group(0)].get("confirmed_utc"))
+                if t1 and t1 >= t0.replace(second=0):
+                    turns.append((m.group(0), minutes(t0.replace(second=0), t1)))
+        if turns:
+            vals = sorted(v for _, v in turns)
+            row("NR-14", "handler turnaround (signal → confirmation)", f"median {statistics.median(vals):.0f} min · max {max(vals):.0f} min ({max(turns, key=lambda x: x[1])[0]}) · n {len(vals)}",
+                "for each NEW-ENTRY/INBOX signal naming a peer id that this lane later confirmed: confirmed_utc − signal utc (minute-floored); n = signals with a confirmation",
+                "Observed")
+        else:
+            row("NR-14", "handler turnaround (signal → confirmation)", "UNREAD — no logged signal has a matching confirmation yet",
+                "as above", "UNREAD")
     else:
-        row("NR-13", "watcher signals logged", "UNREAD — the watcher writes no log yet (relay-watch.sh prints to the Monitor only)",
-            "needs relay-watch.sh to append each signal line with its UTC to coordination/private/relay-watch.log", "UNREAD")
-    row("NR-14", "handler turnaround (signal → confirmation)", "UNREAD — needs NR-13's log to pair a signal's UTC with the confirmation's confirmed_utc",
-        "confirmed_utc − signal utc per handled signal", "UNREAD")
+        row("NR-13", "watcher signals logged", "UNREAD — no coordination/private/relay-watch.log (the tracked watcher has not run here)",
+            "needs coordination/relay_watch.sh armed", "UNREAD")
+        row("NR-14", "handler turnaround (signal → confirmation)", "UNREAD — needs NR-13's log", "confirmed_utc − signal utc per handled signal", "UNREAD")
 
     if as_json:
         print(json.dumps({"measured_utc": now.strftime("%Y-%m-%dT%H:%MZ"), "rows": rows}, indent=1, ensure_ascii=False))
