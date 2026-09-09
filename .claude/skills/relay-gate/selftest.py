@@ -1975,6 +1975,79 @@ def main():
           r.returncode == 0
           and all(f"**{s}" in tail for s in ("RECAP", "FOR RAB", "SUGGESTED PROMPT")))
 
+        # ---- B6: appends land in the log's OWN dominant line ending ----
+        b6_crlf = Path(tmp) / "_s120_l2_b6_crlf"
+        b6_crlf.mkdir()
+        (b6_crlf / "relay.md").write_bytes(b"# relay (fixture)\r\n")   # 1 CRLF, 0 bare LF
+        run(["init", "--as", "Fable"], b6_crlf)
+        run(["init", "--as", "Codex"], b6_crlf)
+        pre_len = len((b6_crlf / "relay.md").read_bytes())
+        lf_text = "**RECAP.** lf body\n\n**FOR RAB.** x\n\n**SUGGESTED PROMPT** y\n"
+        lf_body = body_file(b6_crlf, lf_text, envelope=False)
+        t("S120 L2 B6 sanity: the LF fixture body genuinely contains no CR before posting",
+          b"\r" not in Path(lf_body).read_bytes())
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "lf-into-crlf",
+                 "--body", lf_body], b6_crlf)
+        tail_bytes = (b6_crlf / "relay.md").read_bytes()[pre_len:]
+        bare_lf = tail_bytes.count(b"\n") - tail_bytes.count(b"\r\n")
+        t("S120 L2 B6: CRLF-dominant log + LF body -> zero bare-LF bytes added",
+          r.returncode == 0 and bare_lf == 0 and tail_bytes.count(b"\r\n") > 0)
+
+        # the published digest equals digest(entry AS GIVEN) - canonical() is EOL-blind, so
+        # converting the append's bytes must never change what sent[] records.
+        raw_crlf = (b6_crlf / "relay.md").read_bytes().decode("utf-8")
+        norm_crlf = raw_crlf.replace("\r\n", "\n").replace("\r", "\n")
+        header_crlf = next(ln for ln in norm_crlf.split("\n")
+                           if ln.startswith("## ") and "MSG-FAB-0001" in ln)
+        given_crlf = header_crlf + "\n\n" + lf_text.strip("\n") + "\n"
+        sent_crlf = json.loads(io.open(b6_crlf / "ack-fable.json", encoding="utf-8").read())
+        t("S120 L2 B6: sent[] digest equals digest of the LF body as given",
+          sent_crlf["sent"][-1]["digest"] == g.digest(given_crlf))
+
+        # LF-dominant log + CRLF body. `cmd_post` reads the body FILE with universal newlines
+        # (io.open(..., encoding="utf-8") with no `newline=` override), so a CRLF body typed
+        # into a file is already all-LF by the time it reaches _post_entry - the CLI can never
+        # actually hand _append_relay_locked a body carrying real \r bytes. To exercise the
+        # conversion for real, this calls _append_relay_locked directly (same function the CLI
+        # calls) with a hand-built entry whose body keeps its literal \r\n.
+        b6_lf = Path(tmp) / "_s120_l2_b6_lf"
+        b6_lf.mkdir()
+        (b6_lf / "relay.md").write_bytes(b"# relay (fixture)\n")       # 0 CRLF, 1 bare LF
+        run(["init", "--as", "Fable"], b6_lf)
+        run(["init", "--as", "Codex"], b6_lf)
+        pre_len2 = len((b6_lf / "relay.md").read_bytes())
+        crlf_text = "**RECAP.** crlf body\r\n\r\n**FOR RAB.** x\r\n\r\n**SUGGESTED PROMPT** y\r\n"
+        t("S120 L2 B6 sanity: the direct-call CRLF body genuinely contains CR before append",
+          "\r" in crlf_text)
+
+        prior_fp_coord = os.environ.get("FP_COORD")
+        os.environ["FP_COORD"] = str(b6_lf)
+        try:
+            data_lf, status_lf = g.load("Fable")
+            msg_id_lf = g.next_id("Fable", data_lf)
+            header_lf_line = (f"## {g.utc_now()} · ⟨from: Fable⟩ → "
+                              f"⟨to: Codex⟩ · ⟨msg: {msg_id_lf}⟩")
+            given_lf = header_lf_line + "\n\n" + crlf_text
+            with g._relay_transaction_lock():
+                published_digest_lf = g._append_relay_locked(
+                    given_lf, msg_id_lf, kind="post",
+                    request_digest=g._stable_digest({"probe": "S120 L2 B6 direct"}),
+                    expected_revision=data_lf[g._LOADED_REVISION],
+                )
+                g._clear_append_intent()
+        finally:
+            if prior_fp_coord is None:
+                os.environ.pop("FP_COORD", None)
+            else:
+                os.environ["FP_COORD"] = prior_fp_coord
+
+        tail_bytes2 = (b6_lf / "relay.md").read_bytes()[pre_len2:]
+        t("S120 L2 B6: LF-dominant log + CRLF body -> zero CR bytes added",
+          status_lf == "ok" and tail_bytes2.count(b"\r") == 0
+          and msg_id_lf.encode() in tail_bytes2)
+        t("S120 L2 B6: the published digest equals digest of the CRLF entry as given",
+          published_digest_lf == g.digest(given_lf))
+
     total = PASS + FAIL
     print()
     if FAIL == 0:

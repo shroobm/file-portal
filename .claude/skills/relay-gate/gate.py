@@ -508,8 +508,24 @@ def _append_relay_locked(entry: str, msg_id: str, *, kind: str,
     crash_before = os.environ.get("FP_GATE_TEST_CRASH_BEFORE_APPEND")
     if os.environ.get("FP_COORD") and crash_before in (kind, "all"):
         os._exit(86)
+    # B6: the log's OWN dominant line ending, not the body file's. `entry` arrives with
+    # whatever EOL its source body file used (S120 §4 19:30: relay.md is 5,252 CRLF lines +
+    # 1,117 bare LF because this write used to land the body's bytes verbatim). digest() is
+    # line-ending-blind (canonical(), law 4/re-digest), so converting here changes no seal.
+    payload = "\n" + entry
+    payload = payload.replace("\r\n", "\n").replace("\r", "\n")
+    try:
+        existing_raw = relay_path().read_bytes()
+    except OSError:
+        existing_raw = b""
+    crlf_lines = existing_raw.count(b"\r\n")
+    bare_lf_lines = existing_raw.count(b"\n") - crlf_lines
+    if crlf_lines > bare_lf_lines:               # tie or empty resolves to LF
+        payload = payload.replace("\n", "\r\n")
+    if digest(payload) != digest(entry):
+        raise SystemExit("RED: B6 EOL conversion changed the sealed digest - refusing to append")
     with io.open(relay_path(), "a", encoding="utf-8", newline="") as fh:
-        fh.write("\n" + entry)
+        fh.write(payload)
         fh.flush()
         os.fsync(fh.fileno())
     published, status = relay_entries()
