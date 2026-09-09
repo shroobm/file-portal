@@ -21,6 +21,7 @@ import io
 import json
 import os
 import re
+import subprocess
 import sys
 import time
 from datetime import datetime, timezone
@@ -2425,6 +2426,116 @@ def cmd_watch(a):
         time.sleep(a.interval)
 
 
+# ---------- B7: stage (one relay.md, two writers, one git index) ----------
+
+def _git(repo_root: Path, args):
+    return subprocess.run(["git", "-C", str(repo_root)] + list(args), capture_output=True)
+
+
+def _stage_entry_id(entry_text: str) -> str:
+    m = ENTRY_META_RE.match(entry_text.splitlines()[0].rstrip("\r\n"))
+    return m.group("id") if m else "?"
+
+
+def _split_relay_tail_entries(tail_text: str):
+    """Split the append-only tail of relay.md (everything after HEAD's own bytes) into entries
+    by the canonical header regex (ENTRY_META_RE). Returns ([(from_lane, entry_text)], ok).
+
+    Each entry_text is REBUILT to the canonical one-trailing-newline shape `_append_relay_locked`
+    always writes (header + \\n\\n + body + \\n) rather than a raw byte slice: the separator
+    blank line between two appends belongs to neither entry on its own, so preserving it verbatim
+    would glue two headers together the moment the entry between them is dropped. `ok` is False
+    when any tail byte belongs to no entry: non-blank bytes before the first header, or a
+    nonempty tail with no header at all.
+    """
+    if tail_text.strip() == "":
+        return [], True
+    lines = tail_text.splitlines(keepends=True)
+    heads = [i for i, line in enumerate(lines) if ENTRY_META_RE.match(line.rstrip("\r\n"))]
+    if not heads:
+        return [], False
+    if "".join(lines[:heads[0]]).strip() != "":
+        return [], False
+    entries = []
+    for n, start in enumerate(heads):
+        end = heads[n + 1] if n + 1 < len(heads) else len(lines)
+        raw = "".join(lines[start:end])
+        from_lane = ENTRY_META_RE.match(lines[start].rstrip("\r\n")).group("from")
+        entries.append((from_lane, raw.rstrip("\r\n") + "\n"))
+    return entries, True
+
+
+def cmd_stage(a):
+    """One relay.md, two writers, one git index (B7). Stages ONLY `--as`'s own new entries from
+    the working copy into the git index, leaving the peer's uncommitted hunk in the working tree
+    for it to stage itself later. Nothing is committed - this prepares the index only."""
+    announce_bus("stage")
+    repo_root = coord_dir().parent
+    try:
+        rel_to_root = coord_dir().resolve().relative_to(repo_root.resolve())
+    except ValueError:
+        print(f"REFUSED: FP_COORD {coord_dir()} is not inside its own parent {repo_root}",
+              file=sys.stderr)
+        return 1
+    relay_git_path = (rel_to_root / "relay.md").as_posix()
+    ack_git_path = (rel_to_root / f"ack-{a.as_model.lower()}.json").as_posix()
+
+    head = _git(repo_root, ["show", f"HEAD:{relay_git_path}"])
+    if head.returncode != 0:
+        print(f"UNREAD: cannot read HEAD:{relay_git_path} - {head.stderr.decode(errors='replace').strip()}",
+              file=sys.stderr)
+        return 1
+    head_bytes = head.stdout
+    try:
+        working_bytes = relay_path().read_bytes()
+    except OSError as exc:
+        print(f"UNREAD: cannot read {relay_path()} - {exc}", file=sys.stderr)
+        return 1
+    if not working_bytes.startswith(head_bytes):
+        print(f"REFUSED: UNREAD - HEAD:{relay_git_path} is not a byte-prefix of the working "
+              f"copy; refusing to stage a diverged log. Index left untouched.", file=sys.stderr)
+        return 1
+
+    try:
+        tail_text = working_bytes[len(head_bytes):].decode("utf-8")
+    except UnicodeDecodeError as exc:
+        print(f"UNREAD: tail after HEAD:{relay_git_path} is not valid UTF-8 - {exc}",
+              file=sys.stderr)
+        return 1
+    entries, ok = _split_relay_tail_entries(tail_text)
+    if not ok:
+        print("REFUSED: UNREAD - bytes after HEAD belong to no entry (malformed tail); "
+              "refusing to stage. Index left untouched.", file=sys.stderr)
+        return 1
+
+    kept = [(lane, text) for lane, text in entries if lane == a.as_model]
+    left = [(lane, text) for lane, text in entries if lane != a.as_model]
+    blob_bytes = head_bytes + "".join("\n" + text for _, text in kept).encode("utf-8")
+
+    hashed = subprocess.run(["git", "-C", str(repo_root), "hash-object", "-w", "--stdin"],
+                            input=blob_bytes, capture_output=True)
+    if hashed.returncode != 0:
+        print(f"REFUSED: git hash-object failed - {hashed.stderr.decode(errors='replace').strip()}",
+              file=sys.stderr)
+        return 1
+    oid = hashed.stdout.decode().strip()
+    updated = _git(repo_root, ["update-index", "--cacheinfo", f"100644,{oid},{relay_git_path}"])
+    if updated.returncode != 0:
+        print(f"REFUSED: git update-index failed - {updated.stderr.decode(errors='replace').strip()}",
+              file=sys.stderr)
+        return 1
+    added = _git(repo_root, ["add", ack_git_path])
+    if added.returncode != 0:
+        print(f"[gate] note: git add {ack_git_path} did not succeed - "
+              f"{added.stderr.decode(errors='replace').strip()}", file=sys.stderr)
+
+    kept_ids = [_stage_entry_id(t) for _, t in kept]
+    left_ids = [_stage_entry_id(t) for _, t in left]
+    print(f"staged {a.as_model}: {', '.join(kept_ids) or '(none)'}")
+    print(f"left for peer: {', '.join(left_ids) or '(none)'}")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser(description="relay-gate: the ACK protocol's mechanical half")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -2511,6 +2622,7 @@ def main() -> int:
     sp = add_as(sub.add_parser("watch"))
     sp.add_argument("--interval", type=float, default=10.0)
     sp.set_defaults(fn=cmd_watch)
+    add_as(sub.add_parser("stage")).set_defaults(fn=cmd_stage)
 
     a = p.parse_args()
     return a.fn(a)

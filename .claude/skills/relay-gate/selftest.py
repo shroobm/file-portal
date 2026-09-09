@@ -2048,6 +2048,92 @@ def main():
         t("S120 L2 B6: the published digest equals digest of the CRLF entry as given",
           published_digest_lf == g.digest(given_lf))
 
+        # ---- B7: stage --as <lane> - one relay.md, two writers, one git index ----
+        def _s120_mkrepo(root):
+            root.mkdir(parents=True)
+            subprocess.run(["git", "init", "-q", str(root)], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.email", "s120@test"], check=True)
+            subprocess.run(["git", "-C", str(root), "config", "user.name", "S120 L2"], check=True)
+            cdir = root / "coordination"
+            cdir.mkdir()
+            io.open(cdir / "relay.md", "w", encoding="utf-8", newline="\n").write(
+                "# relay (fixture)\n")
+            io.open(cdir / "ack-fable.json", "w", encoding="utf-8", newline="\n").write(
+                json.dumps(g.blank("Fable"), indent=2))
+            io.open(cdir / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+                json.dumps(g.blank("Codex"), indent=2))
+            subprocess.run(["git", "-C", str(root), "add", "-A"], check=True)
+            subprocess.run(["git", "-C", str(root), "-c", "commit.gpgsign=false", "commit",
+                            "-q", "-m", "initial"], check=True)
+            return root, cdir
+
+        def _s120_msg_id(stdout, prefix):
+            return next(w for w in stdout.split() if w.startswith(prefix))
+
+        def _s120_envelope_body(coord, text):
+            return body_file(coord, text + "\n\n**FOR RAB.** x\n\n**SUGGESTED PROMPT** y\n",
+                             envelope=False)
+
+        # positive: stage --as Fable keeps Fable's entry, leaves Codex's in the tree
+        b7_fable_repo, b7_fable_coord = _s120_mkrepo(Path(tmp) / "_s120_l2_b7_fable")
+        r_codex_post = run(
+            ["post", "--as", "Codex", "--to", "Fable", "--subject", "codex-entry",
+             "--body", _s120_envelope_body(b7_fable_coord, "**RECAP.** codex wrote this")],
+            b7_fable_coord)
+        r_fable_post = run(
+            ["post", "--as", "Fable", "--to", "Codex", "--subject", "fable-entry",
+             "--body", _s120_envelope_body(b7_fable_coord, "**RECAP.** fable wrote this")],
+            b7_fable_coord)
+        codex_id = _s120_msg_id(r_codex_post.stdout, "MSG-CDX-")
+        fable_id = _s120_msg_id(r_fable_post.stdout, "MSG-FAB-")
+        working_before_stage = (b7_fable_coord / "relay.md").read_text(encoding="utf-8")
+        r_stage = run(["stage", "--as", "Fable"], b7_fable_coord)
+        cached = subprocess.run(["git", "-C", str(b7_fable_repo), "diff", "--cached"],
+                                capture_output=True, text=True)
+        working_after_stage = (b7_fable_coord / "relay.md").read_text(encoding="utf-8")
+        t("S120 L2 B7 positive: stage --as Fable stages the Fable entry, not the Codex one",
+          r_stage.returncode == 0 and fable_id in cached.stdout and codex_id not in cached.stdout)
+        t("S120 L2 B7: the working tree is untouched (still has BOTH entries)",
+          working_before_stage == working_after_stage
+          and fable_id in working_after_stage and codex_id in working_after_stage)
+        t("S120 L2 B7: stage prints what it kept and what it left for the peer",
+          fable_id in r_stage.stdout and codex_id in r_stage.stdout)
+
+        # symmetric: stage --as Codex, on a fresh repo, keeps Codex's entry and not Fable's
+        b7_codex_repo, b7_codex_coord = _s120_mkrepo(Path(tmp) / "_s120_l2_b7_codex")
+        r_codex_post2 = run(
+            ["post", "--as", "Codex", "--to", "Fable", "--subject", "codex-entry",
+             "--body", _s120_envelope_body(b7_codex_coord, "**RECAP.** codex again")],
+            b7_codex_coord)
+        r_fable_post2 = run(
+            ["post", "--as", "Fable", "--to", "Codex", "--subject", "fable-entry",
+             "--body", _s120_envelope_body(b7_codex_coord, "**RECAP.** fable again")],
+            b7_codex_coord)
+        codex_id2 = _s120_msg_id(r_codex_post2.stdout, "MSG-CDX-")
+        fable_id2 = _s120_msg_id(r_fable_post2.stdout, "MSG-FAB-")
+        r_stage2 = run(["stage", "--as", "Codex"], b7_codex_coord)
+        cached2 = subprocess.run(["git", "-C", str(b7_codex_repo), "diff", "--cached"],
+                                 capture_output=True, text=True)
+        t("S120 L2 B7 symmetric: stage --as Codex stages the Codex entry, not the Fable one",
+          r_stage2.returncode == 0
+          and codex_id2 in cached2.stdout and fable_id2 not in cached2.stdout)
+
+        # negative: a working copy whose HEAD-prefix was altered refuses, index untouched
+        b7_bad_repo, b7_bad_coord = _s120_mkrepo(Path(tmp) / "_s120_l2_b7_bad")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "will-be-corrupted",
+             "--body", _s120_envelope_body(b7_bad_coord, "**RECAP.** original")],
+            b7_bad_coord)
+        original = io.open(b7_bad_coord / "relay.md", encoding="utf-8").read()
+        corrupted = original.replace("# relay (fixture)", "# relay (TAMPERED)", 1)
+        io.open(b7_bad_coord / "relay.md", "w", encoding="utf-8", newline="\n").write(corrupted)
+        r_bad = run(["stage", "--as", "Fable"], b7_bad_coord)
+        cached_bad = subprocess.run(["git", "-C", str(b7_bad_repo), "diff", "--cached"],
+                                    capture_output=True, text=True)
+        t("S120 L2 B7 negative: an altered HEAD-prefix refuses, exit 1, index untouched",
+          r_bad.returncode == 1 and cached_bad.stdout.strip() == "" and "UNREAD" in r_bad.stderr)
+
+        # ======================= S120 L2 (end) =======================
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
