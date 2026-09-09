@@ -6198,3 +6198,38 @@ or Bench + `--reaudit fc1f068c3a8eeb63`. J41 before the next analyst run so its 
 
 **SUGGESTED PROMPT.** *"Muster. Decide DDIA: (a) re-run / (b) lever 0.80 / (c) bench+reaudit. J41 = manifest
 chunk_scores. Then the Univ 4e the same way."*
+
+## 2026-09-09T17:18Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0076⟩
+
+⟨claimed: Fable 5.1 · S118 · 2026-09-09 UTC⟩
+
+**S118 — Rab's "B": J41 built, the survival lever moved 0.50 → 0.80, DDIA re-run. A record entry; nothing to
+answer — but J44 and J45 are the kind of thing your lane has cross-verified before.**
+
+**RECAP.** (1) **J41 BUILT** `07daaf5` (+ refuter amendments `aa93818`): every finished chunk leaves `{i, s?, r?,
+x?}` in `manifest.analyst.chunk_scores` (manifest only; both `analyst/done` emits untouched, T17 206/206); a Sonnet
+builder in a worktree + a Sonnet refuter, GO_AMENDED. (2) **Lever** `ANALYST_CHUNK_SURVIVAL_MIN` 0.50 → 0.80
+(`c5709d7`). The pre-move re-measure could not run: A1's slice sweep (signed 08-31) took the 08-30 journal's Marker
+reference when DDIA converted on 09-06, and no other copy of that body exists — the basis is the 09-05 measurement;
+this run is the first post-move one. (3) **The re-run** (a re-drop; `--reanalyze` refuses analysed anchors, J42):
+Marker skipped (A1 kept DDIA's slices), analyst 8,034 s, 472/20/0, `rejections {fence 8, survival 12, think_leak
+0, inflation 0}`, analyst-phase **fail 0.9718 / 49** (was 0.9683 / 61) → held again, in place.
+
+**FOUND, with numbers off the manifest.** `chunk_scores`: 492 rows, 17.5 KB. The 472 passing chunks still lose
+3.04 % of windows (36 in [0.80,0.90), 55 in [0.90,0.95)); the body, not the index. The actual lost windows show:
+(a) Marker's escaped underscores (`within\_recursive`, `LIVES\_IN`) that the model unescapes — **SYM-076**: the
+ladder strips markdown `_` BEFORE `unescape` sees `\_` (unit probe 0.0); (b) Marker's dropped fi/fl ligatures
+(`rst`, `proles`) that the model REPAIRS, counted as loss; (c) paragraphs dropped inside chunks passing at
+0.80–0.82; (d) a numeral rewritten (`100` → `10`). Sized offline with the real `audit_analyst` on sidecar vs shipped
+body (the as-shipped run reproduces the manifest exactly; `fidelity_audit` binds `prepare_output` by name, so both
+bindings were patched): escape-first ladder **+0.0038 (0.9756 / 46)**, plus a ligature-blind rung **0.9808 / 33**.
+Neither clears 0.995; the rest is content. Tickets: **J44** (ladder v3, then `--reaudit` this bundle for free),
+**J45** (a digit-token multiset guard for the numeral class; my first census was noisy and is not quoted), J42
+(sidecar-aware reanalyze), J43 (the Room's convert bar reads 95 % for two hours — elapsed ÷ a 0 s Marker promise).
+
+**FOR RAB.** J44 first (mechanical, then a free re-audit of DDIA), then the content half: J45, a stricter program, a
+stronger model, or D1 signed (*ship-with-losses-named* vs *audit-must-be-green*, open since S110). Two live books,
+984 chunks, zero inflation rejects: J34's lever is not the binding constraint.
+
+**SUGGESTED PROMPT.** *"Muster. J44 then reaudit fc1f068c3a8eeb63. Then decide the content half: J45 / program /
+D1."*
