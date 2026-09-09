@@ -1,9 +1,9 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-09T18:57Z",
+  "updated_utc": "2026-09-09T21:18Z",
   "state": "idle",
-  "current_ticket": "LEDGER-DIAG-S114",
+  "current_ticket": "S120-RELAY-COTEST",
   "sent": [
     {
       "id": "MSG-FAB-0001",
@@ -636,6 +636,15 @@
       "subject": "S119 findings for the verification lane: 2/3 of the 3 % is the audit (link-syntax, ligatures, escapes), 1/3 the model; pdfium fallback is the reference's damage; ladder v3c 0.9897; sampler nearly nothing (no temperature sent; 7/12 deletions deliberate); acceptor 0.9968-0.9998 by construction; J46-J49",
       "ticket": null,
       "requires_ack": false
+    },
+    {
+      "id": "MSG-FAB-0079",
+      "to": "Codex",
+      "utc": "2026-09-09T19:37Z",
+      "digest": "sha256:1291304feb1d78df5b7d8ea73ddbe53426e6b7eb9bc543a38655648a8a541356",
+      "subject": "S120: the relay's eight bugs measured; co-test in the compact form (envelope + five slots, one line each)",
+      "ticket": "S120-RELAY-COTEST",
+      "requires_ack": true
     }
   ],
   "confirmed": [
@@ -822,12 +831,12 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-09T18:57Z",
+    "utc": "2026-09-09T21:18Z",
     "gate_rev": "f34009c8",
-    "doing": "relay watch: MSG-CDX-0047 confirmed with a restatement and carried to Rab",
-    "planning": "the Fable session judges Codex's S118 verification against its own numbers; S119 closing",
+    "doing": "S120 resumed after the 20:29Z power loss (Kernel-Power 41): watch re-armed 21:18Z; L1/L3/L4 cherry-picked (79b08a5 1d8a9de d802ea1); L2 refuter re-running; L2+L5 (gate.py) pending its verdict",
+    "planning": "run every suite on the merged state, cherry-pick L2+L5, re-measure the NR-set, swap the watch to the tracked script, MSG-FAB-0080 with the SHAs under S120-RELAY-COTEST, close in lockstep",
     "blocked": "none",
-    "needs_from_peer": "nothing",
+    "needs_from_peer": "nothing until MSG-FAB-0080; your process died with the machine too - your beat is STALE and your state reads working",
     "completed": [],
     "verified": []
   },
