@@ -49,8 +49,16 @@ GEMINI_MODEL = "gemini-flash-latest"  # stable alias, resolves to current Flash
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 CHUNK_TARGET = 4000  # chars; well inside an 8k context with prompt + thinking room
 NUM_CTX = 8192
-# J32-B (docs/54-repair-road, lever-waiver: threshold 0.50, action REJECT, signed Rab
-# 2026-09-05). The fence (below) only proves the IMAGE TOKENS survived a chunk's rewrite; it
+# J32-B (docs/54-repair-road, lever-waiver: threshold 0.50 signed Rab 2026-09-05, MOVED to 0.80
+# on his word 2026-09-09 — "B" on the S118 walkthrough — after DDIA 2e held at analyst-phase
+# 0.9683 with a 264-word paragraph deleted from a chunk that scored ≈0.56 and passed at 0.50).
+# Basis for 0.80: the 2026-08-30 University 4e journal as measured 2026-09-05 (S115 §7, S116 §9
+# R2): below 0.50 / 0.80 / 0.90 = 3 / 6 / 14 of 500 hash-matched passed records under j32a-v2.
+# The pre-move re-measure the S118 plan called for could NOT run: A1's slice sweep (signed
+# 2026-08-31) took that journal's Marker reference when DDIA converted on 2026-09-06, and no
+# other copy of that body exists (both Univ 4e anchors are analysed, the held one pre-dates the
+# J33 sidecar). The DDIA re-run under 0.80 — its chunk_scores (J41) surviving in the manifest — is
+# the first post-move measurement. The fence (below) only proves the IMAGE TOKENS survived a chunk's rewrite; it
 # sees a DELETED paragraph (the held University 4e run's chunk 23/78 lost 361/308 words) via
 # this guard. This IS a per-chunk containment test (§5 R6, docs/15): a candidate that repeats
 # or pads its input keeps every one of the input's own windows and scores ~1.0 regardless of
@@ -64,7 +72,7 @@ NUM_CTX = 8192
 # chunk's own 12-word windows (text_norm.chunk_survival, the same normalisation ladder as J32-A)
 # that still turn up, space-free, in the candidate. Below threshold -> reject, ship the original
 # chunk.
-ANALYST_CHUNK_SURVIVAL_MIN = 0.50
+ANALYST_CHUNK_SURVIVAL_MIN = 0.80  # lever-waiver: Rab's word only (0.50 on 2026-09-05; 0.80 "B" on 2026-09-09); moves on a measured journal, never by taste
 # J34 (OPEN-TASKS, lever-waiver: threshold 1.5, action REJECT, signed Rab 2026-09-05 "J34 1.5x
 # reject"). The guard above is DELETION-ONLY by construction (a candidate that repeats or pads
 # its input keeps every input window and scores ~1.0). This is the other half: output words /
@@ -440,8 +448,10 @@ def process(markdown: str, backend: str = "local",
                     resumed_reason = rec.get("reason", "fence")
                     if resumed_reason in rejections:
                         rejections[resumed_reason] += 1
-                elif status == "failed":
-                    resumed_reason = rec.get("reason", "failed")
+                # (S118 refuter: a `status == "failed"` arm stood here and was DEAD — a backend
+                # failure is deliberately never journalled, see the except-branch below — so a
+                # resumed record can only be "passed" or "rejected". Removed rather than kept as
+                # an untested branch; if that ever changes, _score_row needs a reason for it.)
                 # J41: the resume branch replays an old journal record straight into the
                 # manifest row too — an old-shape record with no survival/ratio yields those
                 # two keys absent, exactly like a fresh chunk that never reached that check.

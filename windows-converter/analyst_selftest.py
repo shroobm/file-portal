@@ -32,7 +32,7 @@ Run with the marker-env interpreter:
           the whitespace-split count read it as 1.0 (watched)
   J41 (a) a 3-chunk run (pass / survival-reject / inflation-reject) -> chunk_scores in order
   J41 (b) resumed old-shape journal record -> a row with no s/r, x="fence"
-  J41 (c) NEGATIVE CONTROL: chunk_scores removed from meta -> (a)'s length check fails (watched)
+  J41 (c) NEGATIVE CONTROL: the collector line blanked in analyst.py -> chunk_scores gone (watched)
   J41 (d) size: json.dumps(chunk_scores) stays under 60 bytes/chunk
 """
 import json
@@ -417,18 +417,32 @@ def _():
     assert meta["chunk_scores"] == [{"i": 1, "x": "fence"}], meta["chunk_scores"]
 
 
-@case("J41 (c) NEGATIVE CONTROL: chunk_scores removed from meta -> (a)'s length check fails (watched)")
+@case("J41 (c) NEGATIVE CONTROL: the collector line blanked in analyst.py -> chunk_scores GONE from "
+      "meta (watched); the real module still carries it")
 def _():
-    out, meta = run(J41_MD, J41_CANDIDATES)
-    assert len(meta["chunk_scores"]) == 3, meta["chunk_scores"]  # sanity: the real property holds
-    del meta["chunk_scores"]  # simulate the collector never having run
-    watched_failed = False
+    # S118 refuter's amendment: the first version of this control deleted the key from the
+    # test's own dict, which proves dict deletion, not the collector. This is the SYM-074 (d)
+    # technique instead — blank the ONE line that puts chunk_scores into meta, exec the patched
+    # source into a fresh module, and watch the property fail for the real reason.
+    target = '"chunk_scores": chunk_scores,'
+    src = (HERE / "analyst.py").read_text(encoding="utf-8")
+    assert src.count(target) == 1, f"collector line not found exactly once ({src.count(target)})"
+    patched_src = src.replace(target, "# NEGATIVE CONTROL: chunk_scores collector line blanked")
+    mod = types.ModuleType("analyst_nc_j41")
+    mod.__file__ = str(HERE / "analyst.py")
+    sys.modules["analyst_nc_j41"] = mod
     try:
-        assert len(meta.get("chunk_scores", [])) == 3, "chunk_scores missing"
-    except AssertionError:
-        watched_failed = True
-    assert watched_failed, "negative control did not fail as expected — chunk_scores's absence " \
-        "should have broken (a)'s length assertion"
+        exec(compile(patched_src, str(HERE / "analyst.py"), "exec"), mod.__dict__)
+        mod.unload = lambda: None
+        out, meta = run(J41_MD, J41_CANDIDATES, module=mod)
+        assert "chunk_scores" not in meta, (
+            "the control did not fire: with the collector line blanked, meta must not carry "
+            "chunk_scores", sorted(meta))
+    finally:
+        sys.modules.pop("analyst_nc_j41", None)
+    # restored: the real module still collects all three rows
+    out2, meta2 = run(J41_MD, J41_CANDIDATES)
+    assert len(meta2["chunk_scores"]) == 3, meta2["chunk_scores"]
 
 
 @case("J41 (d) size: json.dumps(chunk_scores) stays under 60 bytes/chunk")
