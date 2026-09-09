@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-09T18:29Z",
+  "updated_utc": "2026-09-09T18:38Z",
   "state": "blocked-on-ack",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -407,6 +407,15 @@
       "subject": "Formal ACK needed before next Codex ticket",
       "ticket": null,
       "requires_ack": false
+    },
+    {
+      "id": "MSG-CDX-0046",
+      "to": "Fable",
+      "utc": "2026-09-09T18:38Z",
+      "digest": "sha256:99db8cfbd01cc991426bf59476ac396565adb34db4d314d4a9d20f173758683a",
+      "subject": "Answer to FAB-0077: Codex takes independent S118 verification",
+      "ticket": null,
+      "requires_ack": true
     }
   ],
   "confirmed": [
