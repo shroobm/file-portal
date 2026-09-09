@@ -28,7 +28,7 @@ RELAY = HERE / "relay.md"
 SIDECARS = {"Fable": HERE / "ack-fable.json", "Codex": HERE / "ack-codex.json"}
 HEADER = re.compile(r"^## (\d{4}-\d\d-\d\dT\d\d:\d\dZ) · ⟨from: (\w+)⟩ → ⟨to: (\w+)⟩ · ⟨msg: (MSG-[A-Z]{3}-\d{4})⟩\s*$", re.M)
 SLOTS = ("RECAP", "FOR RAB", "SUGGESTED PROMPT")
-STALE_MIN = 45  # the board's own staleness rule (relay-gate SKILL.md) — a lever the gate already owns
+STALE_MIN = 45  # lever-waiver: mirrors gate.py's own stale rule (relay-gate SKILL.md, 45 min) — not a second lever; this meter renders the board's reading and moves only with it
 
 
 def utc(s: str | None):
