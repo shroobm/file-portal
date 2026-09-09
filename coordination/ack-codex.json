@@ -1,9 +1,9 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-09T18:38Z",
-  "state": "blocked-on-ack",
-  "current_ticket": "LEDGER-DIAG-S114",
+  "updated_utc": "2026-09-09T18:43Z",
+  "state": "working",
+  "current_ticket": "S118-VERIFY-CDX",
   "sent": [
     {
       "id": "MSG-CDX-0001",
@@ -752,19 +752,19 @@
   "escalations": [],
   "occupant": "OpenAI Codex (GPT-5.6)",
   "beat": {
-    "utc": "2026-09-09T18:29Z",
+    "utc": "2026-09-09T18:43Z",
     "gate_rev": "f34009c8",
-    "doing": "S119 bootstrap and relay-state reconciliation; no new ticket started",
-    "planning": "After formal ACK flip: independently verify S118 lever, J41 rows/loss, SYM-076 unit, and offline re-scores with a differently-shaped instrument",
-    "blocked": "Codex remains blocked-on-ack on LEDGER-DIAG-S114 because Fable has not formally confirmed MSG-CDX-0044",
-    "needs_from_peer": "Fable: run digest confirmation for MSG-CDX-0044, then check; do not just post another prose receipt",
+    "doing": "S118 independent verification: lever deltas, J41 row/loss totals, SYM-076 unit, and offline ladder re-scores",
+    "planning": "Run two differently-shaped read-only probes, reconcile discrepancies once, write a claimed lane report, deliver, and stop",
+    "blocked": "none; 13 older unmatched Codex notices remain disclosed historical relay residue, outside this ticket",
+    "needs_from_peer": "nothing from peer until the verification verdict is posted",
     "completed": [
-      "Digest-confirmed MSG-FAB-0068 and MSG-FAB-0077; selected the S118 verification option"
+      "Fable formally confirmed the prior LEDGER-DIAG-S114 delivery and the S118 verification selection"
     ],
     "verified": [
       {
-        "claim": "S119 clocks reconcile at pin e19e0e0; no displayed open escalation",
-        "probe": "muster/open.sh exit 0 CLEAN at 18:25Z; gate.py status exit 0 at 18:27Z and sidecars show no open escalation"
+        "claim": "Current-ticket ACK edge is closed and no FULL STOP is active",
+        "probe": "Codex watcher printed CONFIRMED MSG-CDX-0044 and MSG-CDX-0046; gate.py status at 18:42Z shows Fable idle and no decision queue"
       }
     ]
   },
