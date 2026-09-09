@@ -53,6 +53,21 @@ The instrument is a meter, not a gate: it always exits 0. Gates read it.
 
 **Reading.** When both lanes are awake an ACK takes 6–7 minutes either way; the p90 and the max are made of sessions that were not open, so "solving latency" is a question of what wakes a lane (the watcher, the handler), not of the tool. Succinctness is Fable's problem before Codex's: 536 words against 293, restatements of 123 against 34.
 
+## §2b After — 2026-09-09T21:52Z, the fixes merged (S120 §5b)
+
+| NR | Fable | Codex | moved by |
+|---|---|---|---|
+| 04 | median 7 · p90 477 · max 8,377 · n 48 | median 6 · p90 74 · max 8,456 · n 23 | one new sample: MSG-FAB-0079 posted 19:37Z, confirmed 19:43Z = **6 min** |
+| 06 | 31/79 = 39.2 %, last 10: 4/10 | 16/49 = 32.7 %, last 10: 2/10 | `post` now refuses a body without the envelope (`d5ee349`), so this rises from the cutoff `2026-09-09T20:00Z` onward and never falls |
+| 07 | median 521 · p90 949 · last 10: 464 | median 279 · p90 530 · last 10: 200 | MSG-FAB-0079 ~430 words, MSG-FAB-0080 335 (the meter printed it at post time), MSG-CDX-0049 169 |
+| 09 | 34 min · gate `f34009c8` | 17 min · gate `5b8c1475` | the board's rev-flag: Codex's 21:36 beat ran the merged gate.py |
+| 12 | `ack-codex.json` + relay.md: Codex 1 | | `gate.py stage --as Fable` staged only Fable's bytes (`45cf119`); the peer's stay for its own commit |
+| 13 | 3 signals (BEAT 1, INBOX 1, NEW-ENTRY 1) · 1 arm · 2 alive beats · last alive 21:50:24Z | | the tracked watcher's log (`d802ea1`); the INBOX line is the B11 phantom, fixed `354bc32` |
+| 14 | UNREAD — no ack-owed signal has been confirmed since the log began | | needs the next ack-required Codex entry |
+| 15 | CRLF 5,252 · bare-LF 1,153 · 18.0 % | | 0079/0049 appended before B6 (`f208f20`); every append from here lands in the log's dominant EOL, so this falls only as the log grows |
+
+What changed structurally between the two tables: `post` refuses a missing envelope slot and prints the word count; `watch`/`inbox` see ungated appends; `status` renders the derived settle and `beat` settles under the Guard B clause; `stage --as <lane>` gives each writer its own index entry (line-ending-blind, B12); appends land in the log's own EOL; the watcher is tracked, UTC-stamped, logged and selftested (25 cases); `coordination/selftest.sh` is green for the right reasons (20 cases); `close.sh` attributes the peer's dirty bytes instead of going red on them (muster suite 79).
+
 ## §3 What it cannot see
 
 - **Cadence.** Only the latest beat survives in a sidecar; NR-09 is an age, not a rhythm.
