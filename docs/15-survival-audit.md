@@ -263,6 +263,10 @@ inline path and `apply_analyst`'s `--resume` path) carry the same key, T17-pinne
 frontmatter gets two derived lines, `rejections_survival: n` and `rejections_inflation: n` (a human
 reading the note itself, without opening `manifest.json`, sees whether either NEW gate fired at all).
 The S61 chunk journal's records carry `survival` and, since J34, `ratio` beside `reason`.
+Beside `rejections`, `manifest["analyst"]` also carries `chunk_scores` (J41, 2026-09-09): one
+short-keyed row per finished chunk (`i`/`s`/`r`/`x`, manifest only — the journal itself still
+dies with the work dir at the end of every run, `chunks_rejected`'s successor for a book that
+PASSES) — see `observability/dispositions.json` under `converter:chunk_scores`.
 
 ## 8. Integration
 

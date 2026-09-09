@@ -345,6 +345,24 @@ def _append_journal(handle, i: int, chunk: str, status: str, text: str,
         pass  # journalling must never cost the analysis itself
 
 
+def _score_row(i: int, status: str, reason: str | None = None,
+               survival: float | None = None, ratio: float | None = None) -> dict:
+    """J41 (signed Rab 2026-09-09): one compact manifest row per finished chunk — the journal's
+    survival/ratio/reason columns, shaped short (≈20-40 bytes) so a 492-chunk book costs
+    ≈15-20 KB in the manifest instead of dying with the journal on every book that PASSES (the
+    journal is rmtree'd at the end of process(), see there). Keys: "i" (1-based chunk index),
+    "s" (survival, absent when never computed), "r" (ratio, absent when never computed), "x"
+    (reason, absent on a passed row — the same absent-not-null discipline as _append_journal)."""
+    row: dict = {"i": i}
+    if survival is not None:
+        row["s"] = survival
+    if ratio is not None:
+        row["r"] = ratio
+    if status != "passed":
+        row["x"] = reason
+    return row
+
+
 def process(markdown: str, backend: str = "local",
             program: str = DEFAULT_PROGRAM) -> tuple[str, dict]:
     """Returns (markdown_out, analyst_meta). On any per-chunk fence violation or error the
@@ -362,6 +380,9 @@ def process(markdown: str, backend: str = "local",
     # J32-B/SYM-074 (signed Rab 2026-09-05): chunks_rejected's ways of happening, named — FOUR
     # since J34 (signed the same day, "1.5x reject"): the inflation guard is the fourth.
     rejections = {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0}
+    # J41 (signed Rab 2026-09-09): one row per finished chunk, in chunk order, surviving into
+    # meta["chunk_scores"] — see _score_row and the rmtree comment below.
+    chunk_scores: list[dict] = []
     t0 = time.perf_counter()
 
     # S61: pick up whatever a previous run finished before it died.
@@ -410,14 +431,23 @@ def process(markdown: str, backend: str = "local",
                 passed += status == "passed"
                 rejected += status == "rejected"
                 failed += status == "failed"
+                resumed_reason = None
                 if status == "rejected":
                     # A journal from before J32-B/SYM-074 never named a reason because "fence"
                     # was the ONLY way a chunk could be rejected when it was written — an old,
                     # reason-less record is attributed to "fence" rather than dropped from the
                     # breakdown (the breakdown's total must still equal chunks_rejected).
-                    reason = rec.get("reason", "fence")
-                    if reason in rejections:
-                        rejections[reason] += 1
+                    resumed_reason = rec.get("reason", "fence")
+                    if resumed_reason in rejections:
+                        rejections[resumed_reason] += 1
+                elif status == "failed":
+                    resumed_reason = rec.get("reason", "failed")
+                # J41: the resume branch replays an old journal record straight into the
+                # manifest row too — an old-shape record with no survival/ratio yields those
+                # two keys absent, exactly like a fresh chunk that never reached that check.
+                chunk_scores.append(_score_row(i, status, reason=resumed_reason,
+                                               survival=rec.get("survival"),
+                                               ratio=rec.get("ratio")))
                 continue
             try:
                 candidate = generate(prompt + chunk)
@@ -425,6 +455,9 @@ def process(markdown: str, backend: str = "local",
                 out.append(chunk)  # API/backend error -> ship the un-analyzed original
                 failed += 1
                 generated += 1
+                # J41: nothing was computed for a failed call — no survival, no ratio, just the
+                # index and the reason, same shape rule as the passed/rejected rows below.
+                chunk_scores.append({"i": i, "x": "failed"})
                 # DELIBERATELY NOT JOURNALLED. A failure here means the backend errored — an
                 # ollama restart, a VRAM blip, a 5xx — which is exactly the kind of thing the
                 # next run would succeed at. Persisting it would bake a transient hiccup into
@@ -490,6 +523,8 @@ def process(markdown: str, backend: str = "local",
             if handle:
                 _append_journal(handle, i, chunk, status, text, reason=reason, survival=survival,
                                 ratio=ratio)
+            chunk_scores.append(_score_row(i, status, reason=reason, survival=survival,
+                                           ratio=ratio))
             _progress(i)
     finally:
         if handle:
@@ -543,8 +578,13 @@ def process(markdown: str, backend: str = "local",
                                "(wall includes resumed-chunk skips, API pacing, and the "
                                "terminal model unload; prompt totals are partial sums over "
                                "tokens_prompt_counted_calls — cached prefills report none)"),
+        # J41 (signed Rab 2026-09-09): manifest-only — the analyst/done event's key set stays
+        # pinned by T17, and no frontmatter line is added; see the rmtree comment below.
+        "chunk_scores": chunk_scores,
     }
-    # The book is assembled and about to be written — the journal has done its job.
+    # The book is assembled and about to be written — the journal has done its job. J41: the
+    # journal still dies here, every time — but its per-chunk survival/ratio/reason numbers now
+    # live on in meta["chunk_scores"] above, so a book that PASSES no longer loses them too.
     shutil.rmtree(work_dir, ignore_errors=True)
     return unfence("\n\n".join(out), embeds), meta
 

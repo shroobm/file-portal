@@ -30,6 +30,10 @@ Run with the marker-env interpreter:
   J34 (f) journal round-trip carries ratio; 0 input words -> ratio None, never a reject
   J34 (g) R1 (S116 fleet lane A): a 2x CJK duplicate -> ratio 2.0 by characters, rejected;
           the whitespace-split count read it as 1.0 (watched)
+  J41 (a) a 3-chunk run (pass / survival-reject / inflation-reject) -> chunk_scores in order
+  J41 (b) resumed old-shape journal record -> a row with no s/r, x="fence"
+  J41 (c) NEGATIVE CONTROL: chunk_scores removed from meta -> (a)'s length check fails (watched)
+  J41 (d) size: json.dumps(chunk_scores) stays under 60 bytes/chunk
 """
 import json
 import os
@@ -352,8 +356,91 @@ def _():
     assert m2["chunks_passed"] == 1 and m2["rejections"]["inflation"] == 0, m2
 
 
+# ---------------------------------------------------------------------------
+# J41 -- the journal's per-chunk rows survive success in the manifest
+# (signed Rab 2026-09-09, "J41 = manifest chunk_scores")
+# ---------------------------------------------------------------------------
+# Three chunks, each its own >CHUNK_TARGET-char paragraph so _chunks() never merges them:
+# one passes, one is rejected by the survival guard, one by the inflation guard — the three
+# ways a finished chunk's row differs (s/r present or not, x present or not).
+J41_C1 = words(600, "c1w")  # -> passed candidate is identical: survival 1.0, ratio 1.0
+J41_C2 = words(600, "c2w")  # -> candidate shares no tokens: survival 0.0, rejected
+J41_C3 = words(600, "c3w")  # -> candidate is C3 doubled: survival 1.0, ratio 2.0, rejected
+J41_MD = J41_C1 + "\n\n" + J41_C2 + "\n\n" + J41_C3
+J41_CAND_PASS = J41_C1
+J41_CAND_SURVIVAL = words(600, "zzz")
+J41_CAND_INFLATION = J41_C3 + "\n\n" + J41_C3
+J41_CANDIDATES = [J41_CAND_PASS, J41_CAND_SURVIVAL, J41_CAND_INFLATION]
+
+
+@case("J41 (a) 3-chunk run (pass / survival-reject / inflation-reject) -> chunk_scores in order")
+def _():
+    out, meta = run(J41_MD, J41_CANDIDATES)
+    assert meta["chunks_passed"] == 1 and meta["rejections"]["survival"] == 1 \
+        and meta["rejections"]["inflation"] == 1, meta
+    scores = meta["chunk_scores"]
+    assert len(scores) == 3, scores
+    assert [row["i"] for row in scores] == [1, 2, 3], scores
+    # row 1: passed -> no "x" at all, s/r reflect the identical-candidate measurement
+    assert "x" not in scores[0], scores[0]
+    assert scores[0]["s"] == 1.0 and scores[0]["r"] == 1.0, scores[0]
+    # row 2: survival-rejected -> exact reason string, ratio never computed (absent, not null)
+    assert scores[1]["x"] == "survival", scores[1]
+    assert scores[1]["s"] == 0.0, scores[1]
+    assert "r" not in scores[1], scores[1]
+    # row 3: inflation-rejected -> exact reason string, survival AND ratio both rode this far
+    assert scores[2]["x"] == "inflation", scores[2]
+    assert scores[2]["s"] == 1.0 and scores[2]["r"] == 2.0, scores[2]
+
+
+@case('J41 (b) resumed old-shape journal record -> a row with no s/r, x="fence"')
+def _():
+    md = "a resumed short chunk of text about nothing in particular at all today"
+    fenced, _ = analyst.fence(md)
+    key = analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM)
+    work_dir = analyst.ANALYST_WORK / key
+    work_dir.mkdir(parents=True, exist_ok=True)
+    jpath = work_dir / "chunks.jsonl"
+    with open(jpath, "w", encoding="utf-8") as h:
+        # old-shape record (mirrors J32-B (d)): status only, no reason, no survival, no ratio
+        analyst._append_journal(h, 1, fenced, "rejected", fenced)
+
+    def refuse(prompt):
+        raise AssertionError("should not be called: the only chunk is fully resumed")
+    real_gen = analyst._generate
+    analyst._generate = refuse
+    try:
+        out, meta = analyst.process(md, backend="local")
+    finally:
+        analyst._generate = real_gen
+    assert meta["chunks_resumed"] == 1, meta
+    assert meta["chunk_scores"] == [{"i": 1, "x": "fence"}], meta["chunk_scores"]
+
+
+@case("J41 (c) NEGATIVE CONTROL: chunk_scores removed from meta -> (a)'s length check fails (watched)")
+def _():
+    out, meta = run(J41_MD, J41_CANDIDATES)
+    assert len(meta["chunk_scores"]) == 3, meta["chunk_scores"]  # sanity: the real property holds
+    del meta["chunk_scores"]  # simulate the collector never having run
+    watched_failed = False
+    try:
+        assert len(meta.get("chunk_scores", [])) == 3, "chunk_scores missing"
+    except AssertionError:
+        watched_failed = True
+    assert watched_failed, "negative control did not fail as expected — chunk_scores's absence " \
+        "should have broken (a)'s length assertion"
+
+
+@case("J41 (d) size: json.dumps(chunk_scores) stays under 60 bytes/chunk")
+def _():
+    out, meta = run(J41_MD, J41_CANDIDATES)
+    n = len(meta["chunk_scores"])
+    size = len(json.dumps(meta["chunk_scores"]))
+    assert size < 60 * n, (size, n)
+
+
 print()
 if failed:
-    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 18: {failed}")
+    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 22: {failed}")
     raise SystemExit(1)
-print("ALL TRIPWIRES FIRED — 18/18")
+print("ALL TRIPWIRES FIRED — 22/22")
