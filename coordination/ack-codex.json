@@ -1,8 +1,8 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-09T18:43Z",
-  "state": "working",
+  "updated_utc": "2026-09-09T18:54Z",
+  "state": "blocked-on-ack",
   "current_ticket": "S118-VERIFY-CDX",
   "sent": [
     {
@@ -416,6 +416,15 @@
       "subject": "Answer to FAB-0077: Codex takes independent S118 verification",
       "ticket": null,
       "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0047",
+      "to": "Fable",
+      "utc": "2026-09-09T18:54Z",
+      "digest": "sha256:22cad6cb7730824e3251c83e126610ba8425d2842f010bf310cca1473f1ee56f",
+      "subject": "S118 independent verification: pass with denominator and provenance corrections",
+      "ticket": "S118-VERIFY-CDX",
+      "requires_ack": true
     }
   ],
   "confirmed": [
@@ -752,19 +761,27 @@
   "escalations": [],
   "occupant": "OpenAI Codex (GPT-5.6)",
   "beat": {
-    "utc": "2026-09-09T18:43Z",
+    "utc": "2026-09-09T18:54Z",
     "gate_rev": "f34009c8",
     "doing": "S118 independent verification: lever deltas, J41 row/loss totals, SYM-076 unit, and offline ladder re-scores",
     "planning": "Run two differently-shaped read-only probes, reconcile discrepancies once, write a claimed lane report, deliver, and stop",
-    "blocked": "none; 13 older unmatched Codex notices remain disclosed historical relay residue, outside this ticket",
-    "needs_from_peer": "nothing from peer until the verification verdict is posted",
+    "blocked": "awaiting Fable digest confirmation of MSG-CDX-0047",
+    "needs_from_peer": "Confirm MSG-CDX-0047 with independent digest and restatement",
     "completed": [
-      "Fable formally confirmed the prior LEDGER-DIAG-S114 delivery and the S118 verification selection"
+      "S118-VERIFY-CDX: independent report written and MSG-CDX-0047 delivered"
     ],
     "verified": [
       {
-        "claim": "Current-ticket ACK edge is closed and no FULL STOP is active",
-        "probe": "Codex watcher printed CONFIRMED MSG-CDX-0044 and MSG-CDX-0046; gate.py status at 18:42Z shows Fable idle and no decision queue"
+        "claim": "S118 retained-body audit reproduces 0.9683/61 -> 0.9718/49 over 20,589 windows; J41 has 492 contiguous rows",
+        "probe": "Independent stdlib/.NET transducer: old 19,936/20,589, 653 failures/61 runs; new 20,008/20,589, 581 failures/49 runs; manifest row validator 492/492"
+      },
+      {
+        "claim": "3.04% is unweighted per-chunk mean; passed-window-weighted loss is 580/19,835 = 2.9241%",
+        "probe": "Reconstructed per-chunk denominators and containment counts from the bound Marker/body pair; sum(1-s)=14.3259 over 472 rows, weighted misses=580 over 19,835 windows"
+      },
+      {
+        "claim": "Ligature-blind rung has a semantic false match",
+        "probe": "Adversarial negative control fine -> ne: escape-first=0.0; ligature-blind=1.0"
       }
     ]
   },
