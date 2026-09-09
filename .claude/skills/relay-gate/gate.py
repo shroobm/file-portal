@@ -2491,13 +2491,22 @@ def cmd_stage(a):
     except OSError as exc:
         print(f"UNREAD: cannot read {relay_path()} - {exc}", file=sys.stderr)
         return 1
-    if not working_bytes.startswith(head_bytes):
-        print(f"REFUSED: UNREAD - HEAD:{relay_git_path} is not a byte-prefix of the working "
-              f"copy; refusing to stage a diverged log. Index left untouched.", file=sys.stderr)
+    # B12 (S120, found on the LIVE checkout 2026-09-09T21:48Z, the first real run of this command):
+    # under core.autocrlf=true the stored blob is LF while the checked-out prefix is CRLF, so a raw
+    # byte-prefix test can never pass on this machine - the fleet's fixtures were LF-only temp repos
+    # (the builder's own declared residue). Compare LINE-ENDING-CANONICALLY, and build the new blob in
+    # HEAD's OWN convention (LF if the stored blob is LF, CRLF if it is CRLF), so the index receives
+    # exactly what `git add` would have stored. Content divergence still refuses (the TAMPERED case).
+    head_norm = head_bytes.replace(b"\r\n", b"\n")
+    work_norm = working_bytes.replace(b"\r\n", b"\n")
+    if not work_norm.startswith(head_norm):
+        print(f"REFUSED: UNREAD - HEAD:{relay_git_path} is not a prefix of the working copy "
+              f"(compared line-ending-blind); refusing to stage a diverged log. Index left untouched.",
+              file=sys.stderr)
         return 1
 
     try:
-        tail_text = working_bytes[len(head_bytes):].decode("utf-8")
+        tail_text = work_norm[len(head_norm):].decode("utf-8")
     except UnicodeDecodeError as exc:
         print(f"UNREAD: tail after HEAD:{relay_git_path} is not valid UTF-8 - {exc}",
               file=sys.stderr)
@@ -2510,7 +2519,10 @@ def cmd_stage(a):
 
     kept = [(lane, text) for lane, text in entries if lane == a.as_model]
     left = [(lane, text) for lane, text in entries if lane != a.as_model]
-    blob_bytes = head_bytes + "".join("\n" + text for _, text in kept).encode("utf-8")
+    appended = "".join("\n" + text for _, text in kept).encode("utf-8").replace(b"\r\n", b"\n")
+    if b"\r\n" in head_bytes:
+        appended = appended.replace(b"\n", b"\r\n")
+    blob_bytes = head_bytes + appended
 
     hashed = subprocess.run(["git", "-C", str(repo_root), "hash-object", "-w", "--stdin"],
                             input=blob_bytes, capture_output=True)

@@ -2132,6 +2132,41 @@ def main():
         t("S120 L2 B7 negative: an altered HEAD-prefix refuses, exit 1, index untouched",
           r_bad.returncode == 1 and cached_bad.stdout.strip() == "" and "UNREAD" in r_bad.stderr)
 
+        # ---- B12 (S120, found LIVE 21:48Z): core.autocrlf=true - LF blob, CRLF checkout ----------
+        # The first real `stage --as Fable` on the shared checkout was REFUSED: git stores relay.md
+        # as LF and checks it out as CRLF on this machine, so HEAD's bytes were never a byte-prefix
+        # of the working copy. The fleet's fixtures above are LF-only temp repos and could not reach
+        # this. Positive: stage succeeds and stages only Fable's entry; the staged blob keeps HEAD's
+        # convention (no CR enters the index). Negative control: the TAMPERED case above still refuses.
+        b12_repo, b12_coord = _s120_mkrepo(Path(tmp) / "_s120_b12_autocrlf")
+        subprocess.run(["git", "-C", str(b12_repo), "config", "core.autocrlf", "true"], check=True)
+        lf_prefix = io.open(b12_coord / "relay.md", "rb").read()
+        io.open(b12_coord / "relay.md", "wb").write(lf_prefix.replace(b"\n", b"\r\n"))  # the checkout
+        r_b12c = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "codex-on-crlf",
+                      "--body", _s120_envelope_body(b12_coord, "**RECAP.** codex on a crlf checkout")],
+                     b12_coord)
+        r_b12f = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "fable-on-crlf",
+                      "--body", _s120_envelope_body(b12_coord, "**RECAP.** fable on a crlf checkout")],
+                     b12_coord)
+        b12_codex_id = _s120_msg_id(r_b12c.stdout, "MSG-CDX-")
+        b12_fable_id = _s120_msg_id(r_b12f.stdout, "MSG-FAB-")
+        b12_tree_before = io.open(b12_coord / "relay.md", "rb").read()
+        r_b12 = run(["stage", "--as", "Fable"], b12_coord)
+        cached_b12 = subprocess.run(["git", "-C", str(b12_repo), "diff", "--cached"],
+                                    capture_output=True, text=True)
+        staged_blob = subprocess.run(["git", "-C", str(b12_repo), "show", ":coordination/relay.md"],
+                                     capture_output=True).stdout
+        b12_tree_after = io.open(b12_coord / "relay.md", "rb").read()
+        t("S120 B12 positive: stage --as Fable succeeds on an autocrlf checkout (LF blob, CRLF "
+          "working prefix) and stages the Fable entry only",
+          r_b12.returncode == 0 and b12_fable_id in cached_b12.stdout
+          and b12_codex_id not in cached_b12.stdout)
+        t("S120 B12: the staged blob keeps HEAD's own line-ending convention (LF) - no CR enters "
+          "the index; the working tree is untouched and still holds both entries",
+          b"\r\n" not in staged_blob and b12_fable_id.encode() in staged_blob
+          and b12_tree_before == b12_tree_after
+          and b12_codex_id.encode() in b12_tree_after)
+
         # ======================= S120 L2 (end) =======================
 
     total = PASS + FAIL
