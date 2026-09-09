@@ -1,0 +1,68 @@
+{
+ "generations_done": 90,
+ "planned": 90,
+ "aborted": null,
+ "wall_s": 1668.8,
+ "sample": {
+  "low20": [
+   81,
+   77,
+   127,
+   100,
+   307,
+   61,
+   89,
+   83,
+   109,
+   187,
+   258,
+   348,
+   445,
+   95,
+   110,
+   166,
+   266,
+   293,
+   69,
+   184
+  ],
+  "rej12": [
+   1,
+   76,
+   82,
+   284,
+   290,
+   401,
+   440,
+   461,
+   466,
+   470,
+   473,
+   488
+  ],
+  "rand8": [
+   15,
+   22,
+   66,
+   74,
+   188,
+   239,
+   256,
+   436
+  ],
+  "det5": [
+   81,
+   77,
+   127,
+   100,
+   307
+  ]
+ },
+ "nvidia_smi": {
+  "before": "1633 MiB, 10240 MiB",
+  "during": "7987 MiB, 10240 MiB",
+  "after": "1661 MiB, 10240 MiB"
+ },
+ "strict_system": "You are a copy-typist, not an editor. Reproduce the user's markdown EXACTLY, word for word and number for number, with only two permitted changes: join a word broken by a mid-word hyphenation split, and make heading levels consistent. Never drop, merge, reorder, paraphrase or add a sentence, paragraph, list item, table row or number.",
+ "results_jsonl": "C:\\Users\\Bndit\\AppData\\Local\\Temp\\r2\\gen_results.jsonl"
+}
