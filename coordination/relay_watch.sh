@@ -104,8 +104,16 @@ alive_log() {
   printf '%s WATCH ALIVE\n' "$(utc_now)" >>"$LOG"
 }
 
+# B10 (S120, 2026-09-09): the inbox id is the FIRST COLUMN of an inbox line and nothing else. The
+# S119 watcher grepped ids out of the whole line and fired a phantom "INBOX MSG-FAB-0055" at its
+# arming (18:39:45Z) because MSG-CDX-0033's SUBJECT reads "RED: MSG-FAB-0055 digest mismatch".
+# Tripwire: relay_watch_selftest.sh cases 3b/3c.
+inbox_ids() {
+  $PY "$GATE" inbox --as "$LANE" 2>/dev/null | awk '$1 ~ /^MSG-[A-Z][A-Z][A-Z]-[0-9][0-9][0-9][0-9]$/ {print $1}' | sort -u | tr '\n' ' '
+}
+
 seen_headers=$(header_count)
-inbox_prev=$($PY "$GATE" inbox --as "$LANE" 2>/dev/null | grep -oE "MSG-[A-Z]{3}-[0-9]{4}" | sort -u | tr '\n' ' ')
+inbox_prev=$(inbox_ids)
 beat_prev=$($PY "$GATE" status 2>/dev/null | awk -v peer="$PEER" '$0 ~ ("^  " peer "  state="){f=1} f&&/doing/{print; exit}')
 esc_prev=0
 last_alive=$(date +%s)
@@ -136,7 +144,7 @@ while true; do
     seen_headers=$now_headers
   fi
 
-  inbox_now=$($PY "$GATE" inbox --as "$LANE" 2>/dev/null | grep -oE "MSG-[A-Z]{3}-[0-9]{4}" | sort -u | tr '\n' ' ')
+  inbox_now=$(inbox_ids)
   if [ "$inbox_now" != "$inbox_prev" ]; then
     for id in $inbox_now; do
       case " $inbox_prev " in

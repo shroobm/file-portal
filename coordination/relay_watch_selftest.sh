@@ -119,6 +119,18 @@ check "fixture: gate.py post --as Codex (conforming envelope)" $?
 wait_for "$STDOUT_FILE" "INBOX"
 check "3: INBOX fires for the unconfirmed gated message" $?
 
+# ── 3b/3c: B10 (S120) — an id named inside another message's SUBJECT must never become an INBOX
+#    signal. The S119 watcher grepped ids out of the whole inbox line and fired a phantom
+#    "INBOX MSG-FAB-0055" at its arming (2026-09-09T18:39:45Z) because MSG-CDX-0033's subject reads
+#    "RED: MSG-FAB-0055 digest mismatch". The id is the FIRST column, nothing else. ───────────
+$PY "$GATE" post --as Codex --to Fable --subject "RED: MSG-FAB-0055 digest mismatch (selftest B10)" --body "$BODY" >/dev/null 2>&1
+check "fixture: gate.py post --as Codex whose SUBJECT names MSG-FAB-0055" $?
+sleep 3
+phantom="$(grep -c 'INBOX MSG-FAB-0055' "$STDOUT_FILE")"
+check "3b: B10 — an id inside a subject never fires INBOX (phantom lines: $phantom)" $([ "$phantom" -eq 0 ]; echo $?)
+inbox_lines="$(grep -c 'INBOX MSG-CDX-' "$STDOUT_FILE")"
+check "3c: B10 — both real Codex messages fired INBOX by their own id (INBOX MSG-CDX-* lines: $inbox_lines)" $([ "$inbox_lines" -eq 2 ]; echo $?)
+
 # ── 4: BEAT — Codex's doing text changes ────────────────────────────────────
 $PY "$GATE" beat --as Codex --doing "selftest beat marker" >/dev/null 2>&1
 check "fixture: gate.py beat --as Codex --doing ..." $?
