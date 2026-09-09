@@ -158,7 +158,9 @@ special alignment algorithm is needed.
   held University 4e run's chunk 23/78 lost 361/308 words; chunk 296 read 673 words in, 5,164
   out). After the fence passes, `text_norm.chunk_survival` measures the fraction of the INPUT
   chunk's own 12-word windows (same normalisation ladder as §3 steps 8-9) that still turn up,
-  space-free, in the candidate. `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` — below it, REJECT: the
+  space-free, in the candidate. `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` (**0.80 since 2026-09-09**, Rab's "B" after
+  DDIA 2e held at 0.9683 with a 264-word paragraph deleted from a chunk that passed at ≈0.56; basis = the
+  09-05 measurement, 6 of 500 below 0.80 — the pre-move re-measure was impossible, see S118 §4) — below it, REJECT: the
   original chunk ships and the rejection is recorded with `reason: "survival"` (§7 manifest
   schema, §9.4 measured). **This guard sees DELETION only** — a candidate that repeats or pads
   its input keeps every input window and scores ≈1.0 (measured: 2×/7× duplication → 1.0; J34,
@@ -214,7 +216,7 @@ original does.
 |---|---|---|---|
 | `</think>` leak (SYM-074) | the two literal ASCII tags, contiguous, case-sensitive (`<thinking>`, `</THINK>`, a tag split by a newline, or HTML-escaped are NOT caught — Observed, measured against the shipped guard: only the bare, contiguous, correctly-cased close tag fires; the observed qwen3:8b leak is exactly that bare close tag; widening is Rab's) | REJECT, `reason: "think_leak"` | before the fence |
 | asset-token fence (pre-existing) | token multiset must match exactly | REJECT, `reason: "fence"` | after the leak check, before survival |
-| input-window survival (J32-B) | `ANALYST_CHUNK_SURVIVAL_MIN = 0.50` | REJECT, `reason: "survival"` | after the fence passes |
+| input-window survival (J32-B) | `ANALYST_CHUNK_SURVIVAL_MIN = 0.80` (0.50 from 2026-09-05 to 2026-09-09) | REJECT, `reason: "survival"` | after the fence passes |
 | output/input word ratio (J34, 2026-09-05) | `ANALYST_CHUNK_INFLATION_MAX = 1.5` (strict `>`) | REJECT, `reason: "inflation"` | after survival passes |
 
 A chunk with 0 scoreable input windows (a short chunk) reports `survival: null`, never `0.0` —
