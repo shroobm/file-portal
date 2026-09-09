@@ -98,7 +98,19 @@ def commit_last_doctrine(skill_text):
     ))
 
 
-def body_file(coord, text):
+def body_file(coord, text, envelope=True):
+    """Write a `post`/`escalate` body fixture. B3 made the three-part envelope
+    (**RECAP/**FOR RAB/**SUGGESTED PROMPT) mandatory at `post` time, so every pre-existing
+    fixture in this suite that was testing something ELSE (GUARD A, crash recovery, id
+    collision...) now needs one to reach the behavior it actually tests. Rather than editing
+    every call site, this appends whichever of the three slots the caller's text does not
+    already carry - substring-matched the same way gate.py's own check and NR-06 do. Pass
+    envelope=False to build a fixture that is deliberately incomplete (the S120 L2 negatives)."""
+    if envelope:
+        missing = [s for s in ("RECAP", "FOR RAB", "SUGGESTED PROMPT") if f"**{s}" not in text]
+        if missing:
+            text = text.rstrip("\n") + "".join(
+                f"\n\n**{s}.** (fixture default)" for s in missing) + "\n"
     p = Path(coord) / "_body.md"
     io.open(p, "w", encoding="utf-8", newline="\n").write(text)
     return str(p)
@@ -1898,6 +1910,70 @@ def main():
           r_beat_2.returncode == 0 and d_after_beat["state"] == "blocked-on-rab"
           and any(e.get("state") == "open" for e in d_after_beat.get("escalations", [])))
         # ============================= S120 L5 (end) ==============================
+        # ======================= S120 L2 (begin) — B3, B6, B7 =======================
+        # Lane L2-gate-append. Self-contained: builds its own fixture dirs (never reuses
+        # `coord`/`tmp` state from earlier sections), so a sibling lane's read-path edits
+        # elsewhere in this file cherry-pick onto this hunk without conflict.
+
+        # ---- B3: the three-part envelope is mandatory on EVERY posted entry (CR-CDX-0002) ----
+        b3 = Path(tmp) / "_s120_l2_b3"
+        b3.mkdir()
+        io.open(b3 / "relay.md", "w", encoding="utf-8", newline="\n").write("# relay (fixture)\n")
+        run(["init", "--as", "Fable"], b3)
+        run(["init", "--as", "Codex"], b3)
+
+        conforming = body_file(
+            b3, "**RECAP.** all three slots present\n\n**FOR RAB.** nothing yet\n\n"
+                "**SUGGESTED PROMPT** none needed\n", envelope=False)
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "conforms",
+                 "--body", conforming], b3)
+        t("S120 L2 B3 positive: a conforming body posts",
+          r.returncode == 0 and "MSG-FAB-0001" in
+          io.open(b3 / "relay.md", encoding="utf-8").read())
+        t("S120 L2 B3: the NR-07 meter prints with no threshold (envelope ok · body N words)",
+          "envelope ok" in r.stderr and "words" in r.stderr)
+
+        # each of the three slots missing, one at a time: refused, exit 1, zero mutation
+        single_missing = {
+            "RECAP": "**FOR RAB.** x\n\n**SUGGESTED PROMPT** y\n",
+            "FOR RAB": "**RECAP.** x\n\n**SUGGESTED PROMPT** y\n",
+            "SUGGESTED PROMPT": "**RECAP.** x\n\n**FOR RAB.** y\n",
+        }
+        for missing_slot, text in single_missing.items():
+            relay_before = (b3 / "relay.md").read_bytes()
+            sidecar_before = (b3 / "ack-fable.json").read_bytes()
+            lock_path = b3 / ".relay-gate.lock"
+            lock_before = lock_path.read_bytes() if lock_path.exists() else None
+            bf = body_file(b3, text, envelope=False)
+            r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "incomplete",
+                     "--body", bf], b3)
+            relay_after = (b3 / "relay.md").read_bytes()
+            sidecar_after = (b3 / "ack-fable.json").read_bytes()
+            lock_after = lock_path.read_bytes() if lock_path.exists() else None
+            t(f"S120 L2 B3 negative: missing {missing_slot} refused, exit 1, zero mutation, "
+              f"no journal intent",
+              r.returncode == 1 and f"**{missing_slot}." in r.stderr
+              and relay_after == relay_before and sidecar_after == sidecar_before
+              and lock_after == lock_before)
+
+        # a body missing ALL three names EVERY missing slot, not just the first
+        bare = body_file(b3, "nothing structured here at all\n", envelope=False)
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "bare",
+                 "--body", bare], b3)
+        t("S120 L2 B3 negative: a body missing all three names every missing slot",
+          r.returncode == 1
+          and all(f"**{s}." in r.stderr for s in ("RECAP", "FOR RAB", "SUGGESTED PROMPT")))
+
+        # cmd_escalate's generated entry: CR-CDX-0002 said escalate must be brought into
+        # compliance too - verify the entry it actually builds carries all three slots.
+        r = run(["escalate", "--as", "Fable",
+                 "--asking", "a decision for the S120 L2 envelope check"], b3)
+        relay_text = io.open(b3 / "relay.md", encoding="utf-8").read()
+        tail = relay_text[relay_text.rindex("**RECAP"):]   # the entry's own start, not a
+                                                             # substring inside its heading
+        t("S120 L2 B3: the escalate-generated entry already carries all three envelope slots",
+          r.returncode == 0
+          and all(f"**{s}" in tail for s in ("RECAP", "FOR RAB", "SUGGESTED PROMPT")))
 
     total = PASS + FAIL
     print()

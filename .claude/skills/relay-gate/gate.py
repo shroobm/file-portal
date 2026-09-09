@@ -292,6 +292,13 @@ def save(model: str, data: dict, as_model: str) -> None:
 
 MSG_RE = re.compile(r"MSG-(FAB|CDX)-(\d{4})")
 
+# B3 (CR-CDX-0002, Rab signed 2026-08-24, recorded in ack-fable.json escalations[0]): "three-part
+# envelope on every relay entry ... gate.py escalate is to be brought into compliance with it
+# before the next escalation" - his signed law, not a house style. Substring-matched on the SAME
+# three names coordination/relay_numerations.py's NR-06 already counts (`SLOTS`), so the gate that
+# refuses and the meter that measures agree on what "carries the envelope" means.
+ENVELOPE_SLOTS = ("RECAP", "FOR RAB", "SUGGESTED PROMPT")
+
 # An entry boundary in relay.md, by the log's OWN grammar. Used to bound what a digest seals -
 # see extract_entry. Deliberately anchored on the ⟨msg:⟩ stamp: a "## " line inside a body is
 # prose, and treating it as a boundary is how 76% of an escalation escaped its own seal.
@@ -1330,6 +1337,17 @@ def _cmd_post_locked(a, body):
     if st == "UNREAD":
         print(f"UNREAD: {ack_path(a.as_model).name} missing or malformed - run `init` first", file=sys.stderr)
         return 1
+    # B3 (CR-CDX-0002, signed 2026-08-24): the three-part envelope is mandatory on EVERY entry,
+    # checked at write time - before any guard, before any state mutation, before an id is
+    # allocated. A body missing a slot is refused whole: nothing appended, no sidecar touched,
+    # no transaction-journal intent written (the check runs before request_digest/intent below).
+    missing_slots = [slot for slot in ENVELOPE_SLOTS if f"**{slot}" not in body]
+    if missing_slots:
+        named = ", ".join(f"**{slot}." for slot in missing_slots)
+        print(f"REFUSED: envelope — missing {named} (CR-CDX-0002, signed 2026-08-24)",
+              file=sys.stderr)
+        return 1
+    print(f"[gate] envelope ok · body {len(body.split())} words", file=sys.stderr)  # NR-07 meter; no threshold
     # GUARD A (S108): never issue a NEW ticket into a recipient that is already working.
     # On 2026-08-24 a 90-second-stale board read manufactured a duplicate ticket; the tool now
     # refuses what care did not. Notices always pass (no --ticket, or the ticket they already
