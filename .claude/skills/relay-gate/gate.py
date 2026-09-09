@@ -1088,6 +1088,25 @@ def lane_commitments(lane: str):
     return rows, "ok"
 
 
+def ungated_entries(as_model: str):
+    """Relay headers `⟨from: <peer>⟩ → ⟨to: as_model⟩` whose id has NO `sent` record in the
+    PEER's own sidecar - appended to relay.md outside `gate.py post` (S120 B4; Codex's
+    MSG-CDX-0045 and 0048 were such). `watch` and `inbox` used to read only `sent[]`, so these
+    were invisible to both - no ACK is owed on them (the sender's own sidecar never claimed
+    requires_ack), but a reader scanning the board for what landed would miss them entirely.
+    Ordered by log position, oldest first. Returns [] if either side cannot be read."""
+    rows, st = relay_entries()
+    if st != "ok":
+        return []
+    peer = other(as_model)
+    peer_data, peer_status = load(peer)
+    if peer_status != "ok":
+        return []
+    sent_ids = {s["id"] for s in peer_data.get("sent", []) if isinstance(s, dict)}
+    return [row for row in rows
+            if row["from"] == peer and row["to"] == as_model and row["id"] not in sent_ids]
+
+
 # ---------- commands ----------
 
 def cmd_init(a):
@@ -1098,7 +1117,7 @@ def cmd_init(a):
         return 0
     save(a.as_model, blank(a.as_model), a.as_model)
     print(f"relay-gate ON for {a.as_model}: {p.name} created (state idle)")
-    print(f"the protocol is LIVE only when BOTH ack files exist and Rab has signed it")
+    print("the protocol is LIVE only when BOTH ack files exist and Rab has signed it")
     return 0
 
 
@@ -1430,11 +1449,20 @@ def cmd_inbox(a):
         return 0
     done = {c["id"] for c in (mine or {}).get("confirmed", [])}
     pending = [s for s in theirs["sent"] if s.get("to") == a.as_model and s.get("requires_ack") and s["id"] not in done]
-    if not pending:
+    # B4 (S120): a header appended outside `gate.py post` carries no `sent` record, so it can
+    # never appear in `pending` above - `pending` is keyed on the sender's own claim. Listed
+    # separately so it is not missed, and NEVER folded into the ack-required count: no sender
+    # claim means no ACK is owed (the watcher and this handler both count `len(pending)`).
+    ungated = ungated_entries(a.as_model)
+    if not pending and not ungated:
         print("inbox empty - nothing awaiting your confirmation")
         return 0
     for s in pending:
         print(f"  {s['id']}  {s['utc']}  ticket={s.get('ticket')}  {s.get('subject','')}")
+    if ungated:
+        print("ungated (no ACK owed):")
+        for row in ungated:
+            print(f"  {row['id']}  {row['utc']}  from={row['from']}")
     return 0
 
 
@@ -2263,43 +2291,64 @@ def cmd_discharge(a):
     return 0
 
 
+def _watch_once(a, seen):
+    """One iteration of `watch`'s poll loop, returning the lines it would print.
+
+    Refactored out of `cmd_watch`'s `while True` (S120 B4) so the selftest can drive exactly one
+    iteration without a sleep. `seen` carries state across calls: `conf`/`in`/`ungated` sets of
+    ids already announced, `first` (baseline iteration - CONFIRMED/TICKET stay quiet, matching
+    the pre-B4 behaviour) and `warned_unread`.
+    """
+    lines = []
+    theirs, st = load(other(a.as_model))
+    mine, st_mine = load(a.as_model)
+    # UNREAD IS NEVER SILENCE (S109, found while arming this as a monitor). The loop below
+    # ran only when BOTH sidecars read ok; when either was missing or malformed it looped
+    # forever printing nothing, and to a monitor that is indistinguishable from "a quiet
+    # bus". This is the gate agent's own sleep signal rendering a FAILED PROBE as calm -
+    # SYM-031, in the one place a lane trusts to wake it.
+    if st != "ok" or st_mine != "ok":
+        if not seen["warned_unread"]:
+            seen["warned_unread"] = True
+            bad = [m for m, s in ((other(a.as_model), st), (a.as_model, st_mine)) if s != "ok"]
+            lines.append(f"UNREAD {', '.join(bad)} — the board cannot be read, so this watch is "
+                         f"BLIND, not quiet. Run `gate.py status`; if a sidecar is missing run "
+                         f"`init`.")
+    elif seen["warned_unread"]:
+        seen["warned_unread"] = False
+        lines.append("board readable again — watch resumed")
+    if st == "ok" and st_mine == "ok":
+        mine_ids = {s["id"] for s in mine["sent"]}
+        for c in theirs["confirmed"]:
+            if c["id"] in mine_ids and c["id"] not in seen["conf"]:
+                seen["conf"].add(c["id"])
+                if not seen["first"]:
+                    lines.append(f"CONFIRMED {c['id']} by {other(a.as_model)} — \"{c['restatement'][:90]}\"")
+        done = {c["id"] for c in mine["confirmed"]}
+        for s in theirs["sent"]:
+            if s.get("to") == a.as_model and s["id"] not in done and s["id"] not in seen["in"]:
+                seen["in"].add(s["id"])
+                if not seen["first"]:
+                    lines.append(f"TICKET {s['id']} from {other(a.as_model)} — {s.get('subject','')}")
+        # B4 (S120): an UNGATED entry is, by definition, already invisible to the sent[]-keyed
+        # scan above and to `inbox`. Unlike CONFIRMED/TICKET it prints even on the baseline
+        # iteration - suppressing it on `first` would mean a watch started against a fixture that
+        # already carries the hand-appended header never announces it at all.
+        for row in ungated_entries(a.as_model):
+            if row["id"] not in seen["ungated"]:
+                seen["ungated"].add(row["id"])
+                lines.append(f"UNGATED-ENTRY {row['id']} ({row['utc']}) — appended outside "
+                             f"gate.py post; no ACK owed; read it")
+    seen["first"] = False
+    return lines
+
+
 def cmd_watch(a):
     """One stdout line per state change. Unbounded by design - run it under a monitor."""
-    seen_conf, seen_in = set(), set()
-    first = True
-    warned_unread = False
+    seen = {"conf": set(), "in": set(), "ungated": set(), "first": True, "warned_unread": False}
     while True:
-        theirs, st = load(other(a.as_model))
-        mine, st_mine = load(a.as_model)
-        # UNREAD IS NEVER SILENCE (S109, found while arming this as a monitor). The loop below
-        # ran only when BOTH sidecars read ok; when either was missing or malformed it looped
-        # forever printing nothing, and to a monitor that is indistinguishable from "a quiet
-        # bus". This is the gate agent's own sleep signal rendering a FAILED PROBE as calm -
-        # SYM-031, in the one place a lane trusts to wake it.
-        if st != "ok" or st_mine != "ok":
-            if not warned_unread:
-                warned_unread = True
-                bad = [m for m, s in ((other(a.as_model), st), (a.as_model, st_mine)) if s != "ok"]
-                print(f"UNREAD {', '.join(bad)} — the board cannot be read, so this watch is "
-                      f"BLIND, not quiet. Run `gate.py status`; if a sidecar is missing run "
-                      f"`init`.", flush=True)
-        elif warned_unread:
-            warned_unread = False
-            print("board readable again — watch resumed", flush=True)
-        if st == "ok" and st_mine == "ok":
-            mine_ids = {s["id"] for s in mine["sent"]}
-            for c in theirs["confirmed"]:
-                if c["id"] in mine_ids and c["id"] not in seen_conf:
-                    seen_conf.add(c["id"])
-                    if not first:
-                        print(f"CONFIRMED {c['id']} by {other(a.as_model)} — \"{c['restatement'][:90]}\"", flush=True)
-            done = {c["id"] for c in mine["confirmed"]}
-            for s in theirs["sent"]:
-                if s.get("to") == a.as_model and s["id"] not in done and s["id"] not in seen_in:
-                    seen_in.add(s["id"])
-                    if not first:
-                        print(f"TICKET {s['id']} from {other(a.as_model)} — {s.get('subject','')}", flush=True)
-        first = False
+        for line in _watch_once(a, seen):
+            print(line, flush=True)
         time.sleep(a.interval)
 
 

@@ -1712,6 +1712,81 @@ def main():
           and "DIS-RACE-POST-VALIDATION" in io.open(
               post_validation / "relay.md", encoding="utf-8").read())
 
+        # ============================ S120 L5 (start) ============================
+        # B4 (ungated-append signal in watch/inbox) + B5 (derived settle in `status`, actual
+        # settle in `beat` under THE GUARD B CLAUSE). One delimited block at the END of the
+        # suite, own fixture subdirectories throughout - never the shared `coord` above, never
+        # the real coordination/ - so a sibling lane editing the append path (B1-B3, B6-B9)
+        # cherry-picks this hunk without conflict.
+        import importlib
+        g = importlib.import_module("gate")
+        l5root = Path(tmp) / "s120-l5"
+        l5root.mkdir()
+
+        def _l5_fixture(name):
+            d = l5root / name
+            d.mkdir()
+            io.open(d / "relay.md", "w", encoding="utf-8", newline="\n").write(
+                "# relay (S120 L5 fixture)\n")
+            run(["init", "--as", "Fable"], d)
+            run(["init", "--as", "Codex"], d)
+            return d
+
+        def _l5_hand_append(d, utc, frm, to, msg_id, note):
+            with io.open(d / "relay.md", "a", encoding="utf-8", newline="\n") as fh:
+                fh.write(f"\n## {utc} · ⟨from: {frm}⟩ → ⟨to: {to}⟩ · "
+                          f"⟨msg: {msg_id}⟩\n\n{note}\n")
+
+        # ---- B4 positive/negative: inbox's "ungated (no ACK owed)" heading -------------------
+        l5_inbox = _l5_fixture("inbox")
+        _l5_hand_append(l5_inbox, "2026-09-09T20:00Z", "Fable", "Codex", "MSG-FAB-0001",
+                         "hand-appended outside gate.py post (S120 B4 fixture)")
+        r = run(["inbox", "--as", "Codex"], l5_inbox)
+        t("S120 L5 B4 positive: inbox lists a hand-appended peer header under "
+          "'ungated (no ACK owed)'",
+          "ungated (no ACK owed):" in r.stdout
+          and "MSG-FAB-0001" in r.stdout.partition("ungated (no ACK owed):")[2])
+
+        bf_l5a = body_file(l5_inbox, "**RECAP.** S120 L5 gated fixture\n\n**FOR RAB.** none\n")
+        r_post_l5a = run(["post", "--as", "Fable", "--to", "Codex", "--subject",
+                           "s120-l5-gated", "--body", bf_l5a], l5_inbox)
+        r2 = run(["inbox", "--as", "Codex"], l5_inbox)
+        before_heading, _, after_heading = r2.stdout.partition("ungated (no ACK owed):")
+        t("S120 L5 B4: a real post lands in the ack-required listing, uncounted-ungated "
+          "section unaffected",
+          r_post_l5a.returncode == 0 and "MSG-FAB-0002" in before_heading
+          and "MSG-FAB-0001" not in before_heading)
+        t("S120 L5 B4 negative: a gated entry (posted via gate.py post) is never listed as "
+          "ungated by inbox",
+          "MSG-FAB-0002" not in after_heading and "MSG-FAB-0001" in after_heading)
+
+        # ---- B4 positive/negative: watch's single iteration (no sleep loop) ------------------
+        l5_watch = _l5_fixture("watch")
+        _l5_hand_append(l5_watch, "2026-09-09T20:05Z", "Fable", "Codex", "MSG-FAB-0001",
+                         "hand-appended outside gate.py post (S120 B4 fixture)")
+        os.environ["FP_COORD"] = str(l5_watch)
+        watch_ns = SimpleNamespace(as_model="Codex", interval=1)
+        watch_seen = {"conf": set(), "in": set(), "ungated": set(),
+                      "first": True, "warned_unread": False}
+        watch_lines_1 = g._watch_once(watch_ns, watch_seen)
+        ungated_1 = [ln for ln in watch_lines_1 if ln.startswith("UNGATED-ENTRY")]
+        t("S120 L5 B4 positive: one watch iteration prints exactly one UNGATED-ENTRY line",
+          len(ungated_1) == 1 and "MSG-FAB-0001" in ungated_1[0])
+        watch_lines_2 = g._watch_once(watch_ns, watch_seen)
+        ungated_2 = [ln for ln in watch_lines_2 if ln.startswith("UNGATED-ENTRY")]
+        t("S120 L5 B4: watch does not repeat an already-announced UNGATED-ENTRY",
+          ungated_2 == [])
+        bf_l5b = body_file(l5_watch,
+                            "**RECAP.** S120 L5 watch gated fixture\n\n**FOR RAB.** none\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "s120-l5-watch-gated",
+             "--body", bf_l5b], l5_watch)
+        watch_lines_3 = g._watch_once(watch_ns, watch_seen)
+        ungated_3 = [ln for ln in watch_lines_3 if ln.startswith("UNGATED-ENTRY")]
+        t("S120 L5 B4 negative: a gated entry (posted via gate.py post) is never listed as "
+          "ungated by watch", ungated_3 == [])
+
+        # ============================= S120 L5 (end) ==============================
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
