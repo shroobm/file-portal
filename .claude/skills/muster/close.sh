@@ -47,12 +47,58 @@ else
 fi
 
 # ── [1] DIFF — every changed file must be accounted for by a human in the closeout ──────────
+# B7, S120: two lanes (Fable/Codex) share one checkout. A dirty tracked file that is the PEER's
+# (its path names the peer lane, or it is coordination/relay.md carrying only the peer's
+# append-only header hunk) is not this lane's to commit — Codex's word, MSG-CDX-0048: "do not
+# absorb either file into a Fable close commit". The row now ATTRIBUTES every dirty tracked file
+# to a writer and reds only on THIS lane's own — peer-owned files are STATED, never silent, never
+# absorbed. A relay.md hunk carrying headers from BOTH writers is MINE (shared, not append-only
+# provably-peer) and reds with a pointer at the mechanism meant to resolve it (gate.py stage).
+FP_LANE="${FP_LANE:-Fable}"
+case "$(printf '%s' "$FP_LANE" | tr '[:upper:]' '[:lower:]')" in
+  codex) PEER_LANE="Fable" ;;
+  *)     PEER_LANE="Codex" ;;
+esac
 if [ -n "$PIN" ] && git -C "$FP_REPO" rev-parse --verify "$PIN^{commit}" >/dev/null 2>&1; then
   files=$(git -C "$FP_REPO" diff --name-only "$PIN"..HEAD | grep -c . || true)
-  dirty=$(git -C "$FP_REPO" status --porcelain | grep -cv '^??' || true)
   untracked=$(git -C "$FP_REPO" status --porcelain | grep -c '^??' || true)
-  row "DIFF" "$files file(s) since $PIN · $dirty uncommitted · $untracked untracked"
-  [ "$dirty" -gt 0 ] && { row "" "UNCOMMITTED WORK — the close must commit or state it"; red=1; }
+  peer_lc="$(printf '%s' "$PEER_LANE" | tr '[:upper:]' '[:lower:]')"
+  dirty=0; mine=0; peer=0; peer_paths=""; shared_hunk=0
+  while IFS= read -r line; do
+    [ -z "$line" ] && continue
+    path="${line:3}"
+    dirty=$((dirty + 1))
+    path_lc="$(printf '%s' "$path" | tr '[:upper:]' '[:lower:]')"
+    case "$path_lc" in
+      *"$peer_lc"*)
+        peer=$((peer + 1)); peer_paths="${peer_paths}${peer_paths:+ · }${path}"
+        ;;
+      coordination/relay.md)
+        hunk=$(git -C "$FP_REPO" diff -U0 -- coordination/relay.md 2>/dev/null)
+        has_minus=$(printf '%s\n' "$hunk" | grep -cE '^-[^-]' || true)
+        hdr_lines=$(printf '%s\n' "$hunk" | grep -E '^\+## ' || true)
+        hdr_total=$(printf '%s\n' "$hdr_lines" | grep -c . || true)
+        hdr_peer=$(printf '%s\n' "$hdr_lines" | grep -icF "⟨from: $PEER_LANE⟩" || true)
+        if [ "${has_minus:-0}" -eq 0 ] && [ "${hdr_total:-0}" -gt 0 ] && [ "${hdr_total:-0}" -eq "${hdr_peer:-0}" ]; then
+          peer=$((peer + 1)); peer_paths="${peer_paths}${peer_paths:+ · }${path}"
+        else
+          mine=$((mine + 1))
+          # MIXED: the hunk carries headers from both writers — not this lane's alone to
+          # commit, and not provably the peer's either. Name the remedy; a hunk that is only
+          # this lane's own append (hdr_peer=0) is ordinary MINE, no special message.
+          [ "${hdr_peer:-0}" -gt 0 ] && [ "${hdr_peer:-0}" -lt "${hdr_total:-0}" ] && shared_hunk=1
+        fi
+        ;;
+      *)
+        mine=$((mine + 1))
+        ;;
+    esac
+  done <<EOF
+$(git -C "$FP_REPO" status --porcelain | grep -v '^??' || true)
+EOF
+  row "DIFF" "$files file(s) since $PIN · dirty $dirty = mine $mine · peer-owned $peer (${peer_paths:-none}) · $untracked untracked"
+  [ "$mine" -gt 0 ] && { row "" "UNCOMMITTED WORK — the close must commit or state it"; red=1; }
+  [ "$shared_hunk" -eq 1 ] && row "" "shared hunk — run gate.py stage --as $FP_LANE"
 fi
 
 # ── [2] GLASS — with --enforce, the only form whose exit code means anything (SYM-046) ──────

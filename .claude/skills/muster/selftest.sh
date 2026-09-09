@@ -756,6 +756,63 @@ printf '# S43\n\nclaimed: Fable lane · S43 · 2026-01-05 (no delimiters)\n' > "
 out=$(runopen 43n); rc=$?
 assert "…and a bare 'claimed: … S43' with no ⟨ ⟩ delimiters is still a COLLISION (no stamp)" 1 'COLLISION — S43-desktop-2026-01-05.md \(no ⟨claimed: … S43⟩ stamp\)' "$rc" "$out"
 
+# ── CASE 44: close.sh DIFF, B7 (S120) — attribute every dirty tracked file to a writer ───────
+# Two lanes (Fable/Codex) share one checkout. Pre-fix, close.sh's [1] DIFF counted EVERY tracked
+# change as this lane's ("dirty = every tracked change; dirty > 0 -> red"), so a Fable close went
+# red on bytes that are not Fable's to commit — Codex keeps its own sidecar and session files
+# uncommitted by its own word (MSG-CDX-0048: "do not absorb either file into a Fable close
+# commit"), and S119 closed exit 1 for exactly this. The fix must attribute each dirty tracked
+# file to FP_LANE or its peer and red ONLY on this lane's own; peer-owned files are STATED on
+# the row, never silent, never absorbed. A relay.md hunk is peer-owned only when it is PURELY
+# append-only (no "-" lines) and EVERY added "## " header reads "⟨from: <peer>⟩" — a hunk mixing
+# both writers' headers is MINE (shared), and the row must name the remedy (gate.py stage).
+CLOSE="$HERE/close.sh"
+B7="$WORK/b7"; mkdir -p "$B7/coordination"
+git -C "$B7" init -q 2>/dev/null
+git -C "$B7" config user.email t@t; git -C "$B7" config user.name t
+printf 'base\n' > "$B7/f.txt"
+printf '## 2026-01-01T00:00Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0001⟩\nbody\n' > "$B7/coordination/relay.md"
+printf 'fable\n' > "$B7/coordination/ack-fable.json"
+printf 'codex\n' > "$B7/coordination/ack-codex.json"
+git -C "$B7" add -A >/dev/null 2>&1
+git -C "$B7" commit -qm base >/dev/null 2>&1
+B7PIN=$(git -C "$B7" rev-parse HEAD)
+
+# 44a — POSITIVE CONTROL: only a peer-owned tracked file (Codex's sidecar) dirty must NOT force
+# red — the DIFF row is not the thing forcing it red (docs/47 negative-control law).
+printf 'fable\nmore\n' >> "$B7/coordination/ack-codex.json"
+out=$(FP_REPO="$B7" FP_PY="/no/such/python.exe" bash "$CLOSE" "$B7PIN" 2>&1); rc=$?
+assert "CLOSE B7a: only a peer-owned dirty tracked file does not force red" 0 'DIFF .*dirty 1 = mine 0 · peer-owned 1 \(coordination/ack-codex\.json\)' "$rc" "$out"
+git -C "$B7" checkout -q -- coordination/ack-codex.json
+
+# 44b — NEGATIVE CONTROL: a Fable-written tracked file dirty (no lane name in its path) must
+# still red — the attribution fix must not become a blanket "never red".
+printf 'base\nfable edit\n' > "$B7/f.txt"
+out=$(FP_REPO="$B7" FP_PY="/no/such/python.exe" bash "$CLOSE" "$B7PIN" 2>&1); rc=$?
+assert "CLOSE B7b: a lane's own dirty tracked file forces red" 1 'DIFF .*dirty 1 = mine 1' "$rc" "$out"
+git -C "$B7" checkout -q -- f.txt
+
+# 44c — a relay.md hunk carrying a Fable header (this lane's own append) is MINE, red.
+printf '## 2026-01-01T02:00Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0002⟩\nbody3\n' >> "$B7/coordination/relay.md"
+out=$(FP_REPO="$B7" FP_PY="/no/such/python.exe" bash "$CLOSE" "$B7PIN" 2>&1); rc=$?
+assert "CLOSE B7c: a relay.md hunk carrying a Fable header is MINE, red" 1 'DIFF .*dirty 1 = mine 1 · peer-owned 0' "$rc" "$out"
+git -C "$B7" checkout -q -- coordination/relay.md
+
+# 44d — a relay.md hunk with ONLY Codex headers (pure append-only, no "-" lines) is peer-owned,
+# not red — the mirror of 44c, so 44c cannot pass by always calling relay.md MINE.
+printf '## 2026-01-01T01:00Z · ⟨from: Codex⟩ → ⟨to: Fable⟩ · ⟨msg: MSG-CDX-0001⟩\nbody2\n' >> "$B7/coordination/relay.md"
+out=$(FP_REPO="$B7" FP_PY="/no/such/python.exe" bash "$CLOSE" "$B7PIN" 2>&1); rc=$?
+assert "CLOSE B7d: a relay.md hunk with only Codex headers is peer-owned, not red" 0 'DIFF .*dirty 1 = mine 0 · peer-owned 1 \(coordination/relay\.md\)' "$rc" "$out"
+git -C "$B7" checkout -q -- coordination/relay.md
+
+# 44e — a MIXED relay.md hunk (headers from BOTH writers) is MINE, red, and the row names the
+# remedy — the case a pure-append rule alone could not tell from 44d.
+printf '## 2026-01-01T03:00Z · ⟨from: Codex⟩ → ⟨to: Fable⟩ · ⟨msg: MSG-CDX-0002⟩\nbody4\n## 2026-01-01T04:00Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0003⟩\nbody5\n' >> "$B7/coordination/relay.md"
+out=$(FP_REPO="$B7" FP_PY="/no/such/python.exe" bash "$CLOSE" "$B7PIN" 2>&1); rc=$?
+assert "CLOSE B7e: a MIXED relay.md hunk (both writers) is MINE, red" 1 'DIFF .*dirty 1 = mine 1 · peer-owned 0' "$rc" "$out"
+assert "CLOSE B7e: the row names the shared-hunk remedy (gate.py stage)" 1 'shared hunk — run gate\.py stage --as Fable' "$rc" "$out"
+git -C "$B7" checkout -q -- coordination/relay.md
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
