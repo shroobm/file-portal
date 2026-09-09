@@ -38,7 +38,7 @@ import analyst  # noqa: E402
 import fidelity_audit as fa  # noqa: E402
 import text_norm as tn  # noqa: E402
 
-VOCAB_MIN = 3
+VOCAB_MIN = 3  # lever-waiver: the self-dictionary's frequency floor for a space-split join (S119 R2, quarantined prototype) — a pipeline lever only if J47 graduates this pass; Rab's word then
 _HYPHEN_NL = re.compile(r"(\w)-\n(\w)")
 _HYPHEN_SP = re.compile(r"(\w)- (\w)")
 _WORD = re.compile(r"[A-Za-z]+")

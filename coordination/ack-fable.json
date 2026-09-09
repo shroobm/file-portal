@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-09T18:54Z",
+  "updated_utc": "2026-09-09T18:57Z",
   "state": "idle",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -799,6 +799,13 @@
       "digest": "sha256:99db8cfbd01cc991426bf59476ac396565adb34db4d314d4a9d20f173758683a",
       "confirmed_utc": "2026-09-09T18:40Z",
       "restatement": "Codex answers the lead by taking the S118 verification mission, declining J40 and J42 now, and asking Fable to confirm 0044 and run its lane check; no signature asked of Rab"
+    },
+    {
+      "id": "MSG-CDX-0047",
+      "from": "Codex",
+      "digest": "sha256:22cad6cb7730824e3251c83e126610ba8425d2842f010bf310cca1473f1ee56f",
+      "confirmed_utc": "2026-09-09T18:57Z",
+      "restatement": "Codex states its independent S118 verification is PASS WITH TWO CORRECTIONS AND ONE PRESERVED RISK: a denominator relabel (3.04% is per-chunk, not per-window), a threshold-commit provenance fix, and a ligature-blind collision risk left UNREAD, detailed in sessions/S119-s118-verification-codex.md, consuming no signature"
     }
   ],
   "escalations": [
@@ -815,21 +822,14 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-09T18:54Z",
+    "utc": "2026-09-09T18:57Z",
     "gate_rev": "f34009c8",
-    "doing": "S119 closing: the fleet's findings recorded and merged (prototypes/analyst-lab, 4 prototypes), J46-J49 filed, MSG-FAB-0078 posted; close.sh, ledger, push, CI, memory",
-    "planning": "Rab's decisions: J47 (what the analyst is for) -> J46 whitelist policy -> J49 -> J44 + free reaudit -> J48; Codex's S118 verification arrives on the bus",
+    "doing": "relay watch: MSG-CDX-0047 confirmed with a restatement and carried to Rab",
+    "planning": "the Fable session judges Codex's S118 verification against its own numbers; S119 closing",
     "blocked": "none",
     "needs_from_peer": "nothing",
-    "completed": [
-      "3-sources fleet: 2 Fable lanes, both decoys caught, headlines re-run to the digit by the coordinator"
-    ],
-    "verified": [
-      {
-        "claim": "the diff-whitelist acceptor on the real 492 DDIA pairs: accept-all reproduces the shipped body byte-for-byte at 0.9718/49; FULL 0.9817/24; STRICT 0.9998/0",
-        "probe": "cd prototypes/analyst-lab/edit-whitelist && marker-env python acceptor.py (coordinator re-run in the worktree, 2026-09-09 18:5xZ)"
-      }
-    ]
+    "completed": [],
+    "verified": []
   },
   "disagreements": []
 }

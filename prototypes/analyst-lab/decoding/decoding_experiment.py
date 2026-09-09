@@ -50,7 +50,7 @@ TEMP_OUT.mkdir(parents=True, exist_ok=True)
 RESULTS_JSONL = TEMP_OUT / "gen_results.jsonl"
 LOG = TEMP_OUT / "experiment.log"
 SUMMARY = HERE / "results.json"
-CAP = 90
+CAP = 90  # lever-waiver: the S119 R2 brief's generation budget (Fable, 2026-09-09), a quarantined experiment's cap — not a pipeline lever; Rab's word to run more
 NUM = re.compile(r"\d[\d,.]*\d|\d")
 
 STRICT_SYSTEM = ("You are a copy-typist, not an editor. Reproduce the user's markdown EXACTLY, word for "
