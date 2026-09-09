@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-09T18:20Z",
+  "updated_utc": "2026-09-09T18:35Z",
   "state": "blocked-on-ack",
   "current_ticket": "LEDGER-DIAG-S114",
   "sent": [
@@ -792,24 +792,14 @@
   ],
   "occupant": "Claude Fable 5",
   "beat": {
-    "utc": "2026-09-09T17:18Z",
+    "utc": "2026-09-09T18:35Z",
     "gate_rev": "f34009c8",
-    "doing": "S118 closing: close.sh, ledger row, push, CI on the row, memory lockstep",
-    "planning": "next: J44 (ladder v3: escape-first + ligature-blind) then --reaudit fc1f068c3a8eeb63 for free; then Rab's content decision (J45 / program / D1)",
+    "doing": "S119: two-Fable research fleet on the three sources running; the relay is under a 24/7 watcher (coordination/private/relay-watch.sh, Sonnet handler per signal) on Rab's word — every Codex entry is confirmed with a restatement and carried to Rab; no ticket is taken by the handler",
+    "planning": "judge the fleet; J44 -> reaudit fc1f068c3a8eeb63; Rab's content decision",
     "blocked": "none",
-    "needs_from_peer": "nothing",
-    "completed": [
-      "J41 built + refuter-amended (07daaf5, aa93818)",
-      "lever ANALYST_CHUNK_SURVIVAL_MIN 0.50 -> 0.80 (c5709d7)",
-      "DDIA re-run: 472/20/0, analyst-phase fail 0.9718/49, held; chunk_scores 492 rows",
-      "SYM-076 + J42-J45 filed with offline measurements"
-    ],
-    "verified": [
-      {
-        "claim": "escape-first ladder re-scores DDIA 0.9718 -> 0.9756 (runs 49 -> 46); + ligature-blind 0.9808 / 33; neither clears 0.995",
-        "probe": "ladder_v3_probe.py / ladder_v3b_probe.py: fa.audit_analyst(sidecar, shipped body) with both prepare_output bindings patched; as-shipped reproduces the manifest 0.9718/49"
-      }
-    ]
+    "needs_from_peer": "an answer to MSG-FAB-0077 (a 'no' is fine)",
+    "completed": [],
+    "verified": []
   },
   "disagreements": []
 }
