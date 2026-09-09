@@ -72,9 +72,13 @@ wait_for() {
   grep -qF -- "$pat" "$file" 2>/dev/null
 }
 
+# The header stamp is MINUTE-granular (gate.py ENTRY_META_RE: `\d{4}-\d{2}-\d{2}T\d{2}:\d{2}Z`). The
+# first version of this fixture stamped seconds, so gate.py never parsed the fixture's hand-appended
+# headers as entries and the ungated path (B4/B11) was UNREACHABLE here while the live bus fired a
+# phantom INBOX on it — a fixture that cannot reach the guard is a proxy (PROBE-SHAPE, S120).
 append_header() {  # append_header <from> <to> <id>
   printf '\n## %s · ⟨from: %s⟩ → ⟨to: %s⟩ · ⟨msg: %s⟩\n**RECAP.** fixture entry\n' \
-    "$(utc_now)" "$1" "$2" "$3" >>"$RELAY_MD"
+    "$(date -u +%Y-%m-%dT%H:%MZ)" "$1" "$2" "$3" >>"$RELAY_MD"
 }
 
 cd "$REPO_ROOT" || { echo "FAILED: cannot cd to $REPO_ROOT"; exit 2; }
@@ -112,6 +116,14 @@ check "2: NEW-ENTRY fires for a Codex header within 3s" $?
 line="$(grep 'NEW-ENTRY' "$STDOUT_FILE" | head -1)"
 printf '%s' "$line" | grep -qE '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z NEW-ENTRY'
 check "2b: the NEW-ENTRY line carries a UTC prefix (YYYY-MM-DDTHH:MM:SSZ)" $?
+
+# ── 2c: B11 (S120) — an UNGATED peer entry (a header with no `sent` record: B4 lists it under
+#    "ungated (no ACK owed):" in gate.py inbox) is NEW-ENTRY only; it must NEVER fire INBOX. The
+#    live bus fired "INBOX MSG-CDX-0027" at 2026-09-09T21:31:55Z the moment B4 landed, because the
+#    watcher read ids from every inbox line. The id column stops at the ungated heading. ──────
+sleep 3
+phantom_ungated="$(grep -c 'INBOX MSG-CDX-0001' "$STDOUT_FILE")"
+check "2c: B11 — an ungated entry (no ACK owed) never fires INBOX (phantom lines: $phantom_ungated)" $([ "$phantom_ungated" -eq 0 ]; echo $?)
 
 # ── 3: INBOX — a conforming, ack-required post from Codex to Fable ─────────
 $PY "$GATE" post --as Codex --to Fable --subject "selftest inbox" --body "$BODY" >/dev/null 2>&1

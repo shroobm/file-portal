@@ -108,8 +108,11 @@ alive_log() {
 # S119 watcher grepped ids out of the whole line and fired a phantom "INBOX MSG-FAB-0055" at its
 # arming (18:39:45Z) because MSG-CDX-0033's SUBJECT reads "RED: MSG-FAB-0055 digest mismatch".
 # Tripwire: relay_watch_selftest.sh cases 3b/3c.
+# B11 (S120, 21:31:55Z): gate.py inbox (B4) now also lists UNGATED peer entries under the heading
+# "ungated (no ACK owed):" — those owe nothing and are already NEW-ENTRY signals; the id column
+# stops at that heading. Tripwire: case 2c.
 inbox_ids() {
-  $PY "$GATE" inbox --as "$LANE" 2>/dev/null | awk '$1 ~ /^MSG-[A-Z][A-Z][A-Z]-[0-9][0-9][0-9][0-9]$/ {print $1}' | sort -u | tr '\n' ' '
+  $PY "$GATE" inbox --as "$LANE" 2>/dev/null | awk '/^ungated/ {exit} $1 ~ /^MSG-[A-Z][A-Z][A-Z]-[0-9][0-9][0-9][0-9]$/ {print $1}' | sort -u | tr '\n' ' '
 }
 
 seen_headers=$(header_count)

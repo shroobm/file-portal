@@ -117,7 +117,7 @@ def main():
           d.get("disagreements") == [])
 
         # T2 negative: single-writer law - Fable may not write Codex's file
-        import gate as _  # noqa - import path check only if colocated
+        import gate as _gate_colocated  # noqa - import path check only if colocated
         try:
             sys.path.insert(0, str(Path(GATE).parent))
             import importlib
@@ -162,7 +162,7 @@ def main():
         t("a fresh reload saves successfully after the concurrent winner",
           fresh_status == "ok" and fresh_saved
           and disk.get("occupant") == "fresh reloaded writer")
-        reset, _ = g.load("Fable")
+        reset, _reset_status = g.load("Fable")
         reset["occupant"] = None
         g.save("Fable", reset, "Fable")
 
@@ -263,7 +263,8 @@ def main():
 
         # T17 positive: an idle recipient takes a new ticket normally
         c = json.loads(io.open(coord / "ack-codex.json", encoding="utf-8").read())
-        c["state"] = "idle"; c["current_ticket"] = None
+        c["state"] = "idle"
+        c["current_ticket"] = None
         io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(json.dumps(c, indent=2))
         r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "ok", "--body", bf3, "--ticket", "T-011"], coord)
         t("GUARD A passes a new ticket to an idle recipient", r.returncode == 0)
