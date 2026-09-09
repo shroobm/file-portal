@@ -1,0 +1,41 @@
+{
+ "vocab": 14156,
+ "repair": {
+  "R-lig repaired": 58,
+  "R-lig unknown": 830,
+  "R-lig ambiguous": 1,
+  "R-link joined": 138,
+  "R-hyph joined": 716,
+  "R-hyph left": 66
+ },
+ "before": [
+  0.9718,
+  49
+ ],
+ "after": [
+  0.9726,
+  50
+ ],
+ "per_rule": {
+  "lig": [
+   0.9727,
+   48
+  ],
+  "hyph": [
+   0.9717,
+   49
+  ],
+  "link": [
+   0.9713,
+   55
+  ],
+  "cite": [
+   0.9234,
+   283
+  ]
+ },
+ "repaired_plus_acceptor_full": [
+  0.9814,
+  28
+ ]
+}

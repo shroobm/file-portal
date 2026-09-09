@@ -1,0 +1,476 @@
+{
+ "FULL": {
+  "deletion/reverted": [
+   {
+    "chunk": 2,
+    "in": "This book should be required reading for software engineers. *Designing Data-Intensive Applications* is a rare resource ",
+    "out": ""
+   },
+   {
+    "chunk": 2,
+    "in": "tional",
+    "out": ""
+   },
+   {
+    "chunk": 4,
+    "in": "Tolerance<br>Hardware",
+    "out": ""
+   }
+  ],
+  "substitution/reverted": [
+   {
+    "chunk": 2,
+    "in": "**!***e",
+    "out": "**The"
+   },
+   {
+    "chunk": 2,
+    "in": "corporate/institu!",
+    "out": "corporate/institutional"
+   },
+   {
+    "chunk": 4,
+    "in": "| Fault",
+    "out": "Faults  \nHumans"
+   }
+  ],
+  "markup/accepted": [
+   {
+    "chunk": 2,
+    "in": "Systems*",
+    "out": "Systems**"
+   },
+   {
+    "chunk": 11,
+    "in": "**How",
+    "out": "How"
+   },
+   {
+    "chunk": 11,
+    "in": "Us**",
+    "out": "Us"
+   }
+  ],
+  "reflow/accepted": [
+   {
+    "chunk": 2,
+    "in": "[…]",
+    "out": "[...]"
+   }
+  ],
+  "mixed-whitelist/accepted": [
+   {
+    "chunk": 2,
+    "in": "%*ey",
+    "out": "*They"
+   },
+   {
+    "chunk": 12,
+    "in": "%*ere",
+    "out": "There"
+   },
+   {
+    "chunk": 12,
+    "in": "trade-o*&*s. […]",
+    "out": "trade-offs. [...]"
+   }
+  ],
+  "insertion/reverted": [
+   {
+    "chunk": 3,
+    "in": "",
+    "out": "/no_think\n\n| Fault Tolerance  \nHardware and Software"
+   },
+   {
+    "chunk": 4,
+    "in": "",
+    "out": "Architectures"
+   },
+   {
+    "chunk": 4,
+    "in": "",
+    "out": "Scalability  \nMaintainability"
+   }
+  ],
+  "numeral/reverted": [
+   {
+    "chunk": 4,
+    "in": "Easy<br>Summary<br>3.<br>Data",
+    "out": "Data"
+   },
+   {
+    "chunk": 4,
+    "in": "65<br>Relational",
+    "out": "Relational"
+   },
+   {
+    "chunk": 4,
+    "in": "Arrays<br>Summary<br>4.<br>Storage",
+    "out": "Storage"
+   }
+  ],
+  "insertion/accepted": [
+   {
+    "chunk": 7,
+    "in": "",
+    "out": "|"
+   },
+   {
+    "chunk": 65,
+    "in": "",
+    "out": "```"
+   },
+   {
+    "chunk": 134,
+    "in": "",
+    "out": "```"
+   }
+  ],
+  "deletion/accepted": [
+   {
+    "chunk": 7,
+    "in": "|",
+    "out": ""
+   },
+   {
+    "chunk": 62,
+    "in": "##",
+    "out": ""
+   },
+   {
+    "chunk": 455,
+    "in": "|                                               |\n|                                               |",
+    "out": ""
+   }
+  ],
+  "punctuation/case/reverted": [
+   {
+    "chunk": 9,
+    "in": "(minimizing",
+    "out": "(minim,izing"
+   },
+   {
+    "chunk": 12,
+    "in": "purposes how",
+    "out": "purposes. How"
+   },
+   {
+    "chunk": 13,
+    "in": "[\\(\"Cloud",
+    "out": "[\"Cloud"
+   }
+  ],
+  "markup+escape/accepted": [
+   {
+    "chunk": 13,
+    "in": "[\\[2\\]](#page-49-0),",
+    "out": "[[2](#page-49-0)],"
+   },
+   {
+    "chunk": 14,
+    "in": "[[4\\]](#page-49-0).",
+    "out": "[[4](#page-49-0)]."
+   },
+   {
+    "chunk": 15,
+    "in": "[[5\\]](#page-50-0).",
+    "out": "[[5](#page-50-0)]."
+   }
+  ],
+  "escape/accepted": [
+   {
+    "chunk": 14,
+    "in": "[\\[3](#page-49-0)].",
+    "out": "[[3](#page-49-0)]."
+   },
+   {
+    "chunk": 18,
+    "in": "[\\[15](#page-50-0)].",
+    "out": "[[15](#page-50-0)]."
+   },
+   {
+    "chunk": 18,
+    "in": "[\\[16](#page-50-0)].",
+    "out": "[[16](#page-50-0)]."
+   }
+  ],
+  "ligature/accepted": [
+   {
+    "chunk": 15,
+    "in": "prede!ned",
+    "out": "predefined"
+   },
+   {
+    "chunk": 21,
+    "in": "Snow\"ake",
+    "out": "Snowflake"
+   },
+   {
+    "chunk": 66,
+    "in": "**Trade-o!s",
+    "out": "**Trade-offs"
+   }
+  ],
+  "link/accepted": [
+   {
+    "chunk": 42,
+    "in": "[38,](#page-82-0)",
+    "out": "[38](#page-82-0),"
+   },
+   {
+    "chunk": 78,
+    "in": "[[46,](#page-135-0)",
+    "out": "[[46](#page-135-0),"
+   },
+   {
+    "chunk": 104,
+    "in": "[[40,](#page-177-0)",
+    "out": "[[40](#page-177-0),"
+   }
+  ],
+  "markup+link/accepted": [
+   {
+    "chunk": 399,
+    "in": "[\"Change](#page-526-0) [Data Capture\" on",
+    "out": "[\"Change Data Capture\"](#page-526-0) [on"
+   }
+  ]
+ },
+ "STRICT": {
+  "deletion/reverted": [
+   {
+    "chunk": 2,
+    "in": "This book should be required reading for software engineers. *Designing Data-Intensive Applications* is a rare resource ",
+    "out": ""
+   },
+   {
+    "chunk": 2,
+    "in": "tional",
+    "out": ""
+   },
+   {
+    "chunk": 4,
+    "in": "Tolerance<br>Hardware",
+    "out": ""
+   }
+  ],
+  "substitution/reverted": [
+   {
+    "chunk": 2,
+    "in": "**!***e",
+    "out": "**The"
+   },
+   {
+    "chunk": 2,
+    "in": "corporate/institu!",
+    "out": "corporate/institutional"
+   },
+   {
+    "chunk": 4,
+    "in": "| Fault",
+    "out": "Faults  \nHumans"
+   }
+  ],
+  "markup/accepted": [
+   {
+    "chunk": 2,
+    "in": "Systems*",
+    "out": "Systems**"
+   },
+   {
+    "chunk": 11,
+    "in": "**How",
+    "out": "How"
+   },
+   {
+    "chunk": 11,
+    "in": "Us**",
+    "out": "Us"
+   }
+  ],
+  "reflow/accepted": [
+   {
+    "chunk": 2,
+    "in": "[…]",
+    "out": "[...]"
+   }
+  ],
+  "mixed-whitelist/reverted": [
+   {
+    "chunk": 2,
+    "in": "%*ey",
+    "out": "*They"
+   },
+   {
+    "chunk": 12,
+    "in": "%*ere",
+    "out": "There"
+   },
+   {
+    "chunk": 12,
+    "in": "trade-o*&*s. […]",
+    "out": "trade-offs. [...]"
+   }
+  ],
+  "insertion/reverted": [
+   {
+    "chunk": 3,
+    "in": "",
+    "out": "/no_think\n\n| Fault Tolerance  \nHardware and Software"
+   },
+   {
+    "chunk": 4,
+    "in": "",
+    "out": "Architectures"
+   },
+   {
+    "chunk": 4,
+    "in": "",
+    "out": "Scalability  \nMaintainability"
+   }
+  ],
+  "numeral/reverted": [
+   {
+    "chunk": 4,
+    "in": "Easy<br>Summary<br>3.<br>Data",
+    "out": "Data"
+   },
+   {
+    "chunk": 4,
+    "in": "65<br>Relational",
+    "out": "Relational"
+   },
+   {
+    "chunk": 4,
+    "in": "Arrays<br>Summary<br>4.<br>Storage",
+    "out": "Storage"
+   }
+  ],
+  "insertion/accepted": [
+   {
+    "chunk": 7,
+    "in": "",
+    "out": "|"
+   },
+   {
+    "chunk": 65,
+    "in": "",
+    "out": "```"
+   },
+   {
+    "chunk": 134,
+    "in": "",
+    "out": "```"
+   }
+  ],
+  "deletion/accepted": [
+   {
+    "chunk": 7,
+    "in": "|",
+    "out": ""
+   },
+   {
+    "chunk": 62,
+    "in": "##",
+    "out": ""
+   },
+   {
+    "chunk": 455,
+    "in": "|                                               |\n|                                               |",
+    "out": ""
+   }
+  ],
+  "punctuation/case/reverted": [
+   {
+    "chunk": 9,
+    "in": "(minimizing",
+    "out": "(minim,izing"
+   },
+   {
+    "chunk": 12,
+    "in": "purposes how",
+    "out": "purposes. How"
+   },
+   {
+    "chunk": 13,
+    "in": "[\\(\"Cloud",
+    "out": "[\"Cloud"
+   }
+  ],
+  "markup+escape/reverted": [
+   {
+    "chunk": 13,
+    "in": "[\\[2\\]](#page-49-0),",
+    "out": "[[2](#page-49-0)],"
+   },
+   {
+    "chunk": 14,
+    "in": "[[4\\]](#page-49-0).",
+    "out": "[[4](#page-49-0)]."
+   },
+   {
+    "chunk": 15,
+    "in": "[[5\\]](#page-50-0).",
+    "out": "[[5](#page-50-0)]."
+   }
+  ],
+  "escape/reverted": [
+   {
+    "chunk": 14,
+    "in": "[\\[3](#page-49-0)].",
+    "out": "[[3](#page-49-0)]."
+   },
+   {
+    "chunk": 18,
+    "in": "[\\[15](#page-50-0)].",
+    "out": "[[15](#page-50-0)]."
+   },
+   {
+    "chunk": 18,
+    "in": "[\\[16](#page-50-0)].",
+    "out": "[[16](#page-50-0)]."
+   }
+  ],
+  "ligature/reverted": [
+   {
+    "chunk": 15,
+    "in": "prede!ned",
+    "out": "predefined"
+   },
+   {
+    "chunk": 21,
+    "in": "Snow\"ake",
+    "out": "Snowflake"
+   },
+   {
+    "chunk": 66,
+    "in": "**Trade-o!s",
+    "out": "**Trade-offs"
+   }
+  ],
+  "link/reverted": [
+   {
+    "chunk": 42,
+    "in": "[38,](#page-82-0)",
+    "out": "[38](#page-82-0),"
+   },
+   {
+    "chunk": 78,
+    "in": "[[46,](#page-135-0)",
+    "out": "[[46](#page-135-0),"
+   },
+   {
+    "chunk": 104,
+    "in": "[[40,](#page-177-0)",
+    "out": "[[40](#page-177-0),"
+   }
+  ],
+  "markup+link/reverted": [
+   {
+    "chunk": 399,
+    "in": "[\"Change](#page-526-0) [Data Capture\" on",
+    "out": "[\"Change Data Capture\"](#page-526-0) [on"
+   }
+  ]
+ }
+}

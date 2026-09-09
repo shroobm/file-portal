@@ -1,0 +1,47 @@
+{
+ "doc_windows": 20589,
+ "failed": 581,
+ "class_counts_opcodes": {
+  "deletion": 984,
+  "substitution": 956,
+  "ligature": 163,
+  "insertion": 33,
+  "link-syntax": 189,
+  "escape": 99,
+  "numeral": 38
+ },
+ "failed_windows_by_class": {
+  "deletion": 127,
+  "ligature": 138,
+  "link-syntax": 175,
+  "insertion": 10,
+  "substitution": 46,
+  "escape": 78,
+  "numeral": 7
+ },
+ "pairs_status": {
+  "rejected/identical": 20,
+  "passed/differs": 403,
+  "passed/identical": 69
+ },
+ "numeral_census": {
+  "chunks": 141,
+  "tokens": 268
+ },
+ "align_stats": {
+  "tokens_in": 154,
+  "tokens_out": 154,
+  "methods": {
+   "verbatim": 51,
+   "exact12": 409,
+   "fuzzy": 2,
+   "exact8": 27,
+   "exact6": 1,
+   "exact4": 1,
+   "last": 1
+  },
+  "rejected_verbatim": 20,
+  "rejected_total": 20,
+  "rejected_mismatch": []
+ }
+}

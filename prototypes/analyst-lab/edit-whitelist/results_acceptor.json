@@ -1,0 +1,88 @@
+{
+ "shipped": [
+  0.9718,
+  49
+ ],
+ "control_all": [
+  0.9718,
+  49,
+  true
+ ],
+ "control_none": [
+  1.0,
+  0,
+  true
+ ],
+ "FULL": {
+  "v2": [
+   0.9817,
+   24
+  ],
+  "v3b": [
+   0.9898,
+   9
+  ],
+  "v3c": [
+   0.9968,
+   1
+  ],
+  "accepted": {
+   "markup": 526,
+   "reflow": 1,
+   "mixed-whitelist": 127,
+   "insertion": 3,
+   "deletion": 9,
+   "markup+escape": 189,
+   "escape": 331,
+   "ligature": 12,
+   "link": 14,
+   "markup+link": 1
+  },
+  "reverted": {
+   "deletion": 1006,
+   "substitution": 989,
+   "insertion": 62,
+   "numeral": 321,
+   "punctuation/case": 272
+  },
+  "still_failing_windows": 376
+ },
+ "STRICT": {
+  "v2": [
+   0.9998,
+   0
+  ],
+  "v3b": [
+   0.9998,
+   0
+  ],
+  "v3c": [
+   0.9998,
+   0
+  ],
+  "accepted": {
+   "markup": 526,
+   "reflow": 1,
+   "insertion": 3,
+   "deletion": 9
+  },
+  "reverted": {
+   "deletion": 1006,
+   "substitution": 989,
+   "mixed-whitelist": 127,
+   "insertion": 62,
+   "numeral": 321,
+   "punctuation/case": 272,
+   "markup+escape": 189,
+   "escape": 331,
+   "ligature": 12,
+   "link": 14,
+   "markup+link": 1
+  },
+  "still_failing_windows": 4
+ },
+ "shipped_v3b": [
+  0.9808,
+  33
+ ]
+}
