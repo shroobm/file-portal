@@ -1107,6 +1107,22 @@ def ungated_entries(as_model: str):
             if row["from"] == peer and row["to"] == as_model and row["id"] not in sent_ids]
 
 
+def _ack_settle_count(d: dict, peer_data, peer_status: str):
+    """S120 B5: count of `d`'s ack-required sent messages when EVERY one of them is confirmed
+    in the peer's own sidecar, else None. Board latency, not delivery latency - `check` used to
+    be the only settler, so a lane sat `blocked-on-ack` after every ack it was owed had landed,
+    until it happened to run `check`. Shared, read-only math: `status` renders it as a derived
+    reading, `beat` uses it to actually settle. Neither writes across the single-writer line -
+    this only ever reads the peer's `confirmed[]`, and the caller decides who writes what."""
+    if peer_status != "ok":
+        return None
+    confirmed_ids = {c["id"] for c in (peer_data or {}).get("confirmed", []) if isinstance(c, dict)}
+    ack_required = [s for s in d.get("sent", []) if isinstance(s, dict) and s.get("requires_ack")]
+    if ack_required and all(s["id"] in confirmed_ids for s in ack_required):
+        return len(ack_required)
+    return None
+
+
 # ---------- commands ----------
 
 def cmd_init(a):
@@ -1202,6 +1218,18 @@ def cmd_beat(a):
         "completed": a.completed or [],
         "verified": [{"claim": c, "probe": pr} for c, pr in zip(a.verified or [], a.probe or [])],
     }
+    # GUARD B (S109, the third path - cmd_check's own comment above carries the same clause):
+    # a beat, like a query, may not change what only Rab may change. THE GUARD B CLAUSE: this
+    # settle fires ONLY when state == blocked-on-ack; it must never touch blocked-on-rab. S109's
+    # lesson was that three separate state writers each had to carry this clause on their own -
+    # `check` was found writing blocked-on-ack OVER blocked-on-rab while the suite stayed green,
+    # because the guard existed in one writer and not the others. B5 (S120): board latency, not
+    # delivery latency - a lane sat blocked-on-ack after every ack it was owed had landed, until
+    # it happened to run `check`; `beat` is a second, independent settle point for that reading.
+    if d["state"] == "blocked-on-ack":
+        peer_data, peer_status = load(other(a.as_model))
+        if _ack_settle_count(d, peer_data, peer_status) is not None:
+            d["state"] = "idle"
     save(a.as_model, d, a.as_model)
     print(f"{a.as_model}: beat published")
     for ln in render_beat(d):
@@ -1575,7 +1603,18 @@ def _cmd_status_locked(a):
         if st == "UNREAD":
             print(f"  {m:<6} UNREAD (skill not on, or file malformed)")
             continue
-        print(f"  {m:<6} state={d['state']:<15} ticket={d.get('current_ticket')}  "
+        # B5 (S120): board latency, not delivery latency. `check` used to be the only settler, so
+        # a lane's state read blocked-on-ack long after every ack it was owed had actually landed
+        # - this is a DERIVED reading only, computed from the board and never written into the
+        # peer's file (single writer stands; nothing here calls save()).
+        state_field = d["state"]
+        if state_field == "blocked-on-ack":
+            peer_data, peer_status = boards[other(m)]
+            n = _ack_settle_count(d, peer_data, peer_status)
+            if n is not None:
+                state_field = (f"blocked-on-ack (SETTLED — all {n} sent confirmed; "
+                                f"the lane has not run check)")
+        print(f"  {m:<6} state={state_field:<15} ticket={d.get('current_ticket')}  "
               f"sent={len(d['sent'])} confirmed={len(d['confirmed'])}  updated={d['updated_utc']}")
         print(f"         lane {m} · occupant {occupant_of(d)}")
         for ln in render_beat(d):

@@ -1785,6 +1785,117 @@ def main():
         t("S120 L5 B4 negative: a gated entry (posted via gate.py post) is never listed as "
           "ungated by watch", ungated_3 == [])
 
+        # ---- B5 positive: status renders the derived SETTLED reading -------------------------
+        l5_settled = _l5_fixture("settled")
+        bf_l5c = body_file(l5_settled, "**RECAP.** S120 L5 settle fixture\n\n**FOR RAB.** none\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "s120-l5-settle",
+             "--body", bf_l5c], l5_settled)
+        run(["confirm", "--as", "Codex", "--id", "MSG-FAB-0001", "--restatement",
+             "will watch the settle reading"], l5_settled)
+        r_status_1 = run(["status"], l5_settled)
+        fable_line_1 = next((ln for ln in r_status_1.stdout.splitlines()
+                              if ln.strip().startswith("Fable")), "")
+        t("S120 L5 B5 positive: status renders the derived SETTLED reading when every sent "
+          "ack is confirmed",
+          "SETTLED" in fable_line_1 and "all 1 sent confirmed" in fable_line_1
+          and "the lane has not run check" in fable_line_1)
+        t("S120 L5 B5: the derived SETTLED reading never writes the sidecar - state on disk "
+          "is still blocked-on-ack",
+          json.loads(io.open(l5_settled / "ack-fable.json", encoding="utf-8").read())["state"]
+          == "blocked-on-ack")
+
+        # ---- B5 negative: status does not render SETTLED while an ack is owed ----------------
+        l5_owed = _l5_fixture("owed")
+        bf_l5d1 = body_file(l5_owed, "**RECAP.** S120 L5 owed fixture one\n\n**FOR RAB.** none\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "s120-l5-owed-1",
+             "--body", bf_l5d1], l5_owed)
+        bf_l5d2 = body_file(l5_owed, "**RECAP.** S120 L5 owed fixture two\n\n**FOR RAB.** none\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "s120-l5-owed-2",
+             "--body", bf_l5d2], l5_owed)
+        run(["confirm", "--as", "Codex", "--id", "MSG-FAB-0001", "--restatement",
+             "confirming only the first of two"], l5_owed)
+        r_status_2 = run(["status"], l5_owed)
+        fable_line_2 = next((ln for ln in r_status_2.stdout.splitlines()
+                              if ln.strip().startswith("Fable")), "")
+        t("S120 L5 B5 negative: status does not render SETTLED while one ack-required "
+          "message is still owed",
+          "state=blocked-on-ack" in fable_line_2 and "SETTLED" not in fable_line_2)
+
+        # ---- B5 positive: beat settles blocked-on-ack -> idle --------------------------------
+        l5_beat_settle = _l5_fixture("beat-settle")
+        bf_l5e = body_file(l5_beat_settle,
+                            "**RECAP.** S120 L5 beat settle fixture\n\n**FOR RAB.** none\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "s120-l5-beat-settle",
+             "--body", bf_l5e], l5_beat_settle)
+        run(["confirm", "--as", "Codex", "--id", "MSG-FAB-0001", "--restatement",
+             "confirming so beat can settle"], l5_beat_settle)
+        r_beat_1 = run(["beat", "--as", "Fable", "--doing", "watching the settle"],
+                        l5_beat_settle)
+        d_after_1 = json.loads(io.open(l5_beat_settle / "ack-fable.json",
+                                        encoding="utf-8").read())
+        t("S120 L5 B5 positive: beat settles blocked-on-ack to idle once every sent ack is "
+          "confirmed",
+          r_beat_1.returncode == 0 and d_after_1["state"] == "idle")
+
+        # ---- B5 negative: beat does not settle while an ack is owed --------------------------
+        l5_beat_owed = _l5_fixture("beat-owed")
+        bf_l5f1 = body_file(l5_beat_owed,
+                             "**RECAP.** S120 L5 beat owed fixture one\n\n**FOR RAB.** none\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "s120-l5-beat-owed-1",
+             "--body", bf_l5f1], l5_beat_owed)
+        bf_l5f2 = body_file(l5_beat_owed,
+                             "**RECAP.** S120 L5 beat owed fixture two\n\n**FOR RAB.** none\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "s120-l5-beat-owed-2",
+             "--body", bf_l5f2], l5_beat_owed)
+        run(["confirm", "--as", "Codex", "--id", "MSG-FAB-0001", "--restatement",
+             "confirming only the first of two"], l5_beat_owed)
+        run(["beat", "--as", "Fable", "--doing", "watching the unsettled owed ack"],
+            l5_beat_owed)
+        d_owed_after = json.loads(io.open(l5_beat_owed / "ack-fable.json",
+                                           encoding="utf-8").read())
+        t("S120 L5 B5 negative: beat does not settle while an ack-required message is "
+          "still owed", d_owed_after["state"] == "blocked-on-ack")
+
+        # ---- B5 negative, THE GUARD B TRIPWIRE (S109): beat never settles blocked-on-rab -----
+        # S109: three separate state writers each had to carry this clause on their own -
+        # `check` was found writing blocked-on-ack OVER blocked-on-rab while the suite stayed
+        # green, because the guard existed in one writer and not the others. Proven here by
+        # making the settle CONDITION hold (every ack-required sent message confirmed,
+        # including the escalation's own) while state is blocked-on-rab with an open
+        # escalation - if beat's `if d["state"] == "blocked-on-ack"` guard were missing or
+        # loosened to any truthy blocked-on-*, this is exactly the fixture that would catch it.
+        l5_guard_b = _l5_fixture("guard-b")
+        bf_l5g = body_file(l5_guard_b, "**RECAP.** S120 L5 guard-b fixture\n\n**FOR RAB.** none\n")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "s120-l5-guard-b",
+             "--body", bf_l5g], l5_guard_b)
+        run(["confirm", "--as", "Codex", "--id", "MSG-FAB-0001", "--restatement",
+             "confirming the ordinary message before the escalation"], l5_guard_b)
+        r_esc = run(["escalate", "--as", "Fable", "--asking",
+                     "S120 L5 Guard B tripwire: rule on nothing, this is a fixture"],
+                    l5_guard_b)
+        d_escalated = json.loads(io.open(l5_guard_b / "ack-fable.json",
+                                          encoding="utf-8").read())
+        t("S120 L5 setup: the escalation posts and Fable enters blocked-on-rab",
+          r_esc.returncode == 0 and d_escalated["state"] == "blocked-on-rab")
+        run(["confirm", "--as", "Codex", "--id", "MSG-FAB-0002", "--restatement",
+             "confirming the escalation's own ack-required message too"], l5_guard_b)
+        fable_sent = json.loads(io.open(l5_guard_b / "ack-fable.json",
+                                         encoding="utf-8").read())
+        codex_confirmed = json.loads(io.open(l5_guard_b / "ack-codex.json",
+                                              encoding="utf-8").read())
+        t("S120 L5 setup: every one of Fable's ack-required sent messages is now confirmed "
+          "(in Codex's own sidecar) - the settle CONDITION holds even though state is "
+          "blocked-on-rab",
+          all(any(c["id"] == s["id"] for c in codex_confirmed["confirmed"])
+              for s in fable_sent["sent"] if s.get("requires_ack")))
+        r_beat_2 = run(["beat", "--as", "Fable", "--doing", "watching the guard hold"],
+                       l5_guard_b)
+        d_after_beat = json.loads(io.open(l5_guard_b / "ack-fable.json",
+                                           encoding="utf-8").read())
+        t("S120 L5 B5 negative (THE GUARD B TRIPWIRE, S109): beat leaves blocked-on-rab "
+          "untouched even when every sent ack is confirmed and an escalation is open",
+          r_beat_2.returncode == 0 and d_after_beat["state"] == "blocked-on-rab"
+          and any(e.get("state") == "open" for e in d_after_beat.get("escalations", [])))
         # ============================= S120 L5 (end) ==============================
 
     total = PASS + FAIL
