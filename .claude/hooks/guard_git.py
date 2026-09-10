@@ -204,6 +204,20 @@ def segments(cmd):
                 stack.pop()
                 i += 1
                 continue
+            if cmd.startswith("$((", i):  # arithmetic inside double quotes: data, same as in command context
+                depth, j = 0, i + 3
+                while j < n:
+                    if cmd[j] == "(":
+                        depth += 1
+                    elif cmd[j] == ")":
+                        if depth == 0 and cmd.startswith("))", j):
+                            j += 2
+                            break
+                        depth -= 1
+                    j += 1
+                buf.append(cmd[i:j])
+                i = j
+                continue
             if cmd.startswith("$(", i):
                 flush()
                 stack.append("cmd")
@@ -227,6 +241,22 @@ def segments(cmd):
             buf.append(c)
             stack.append("dquote")
             i += 1
+            continue
+        if cmd.startswith("$((", i):
+            # arithmetic expansion, not a command: copy through its matching "))" as data (the guard once denied
+            # sed -n "$((L+1)),$p" for a "$p" head it manufactured here — a false deny on a read-only command)
+            depth, j = 0, i + 3
+            while j < n:
+                if cmd[j] == "(":
+                    depth += 1
+                elif cmd[j] == ")":
+                    if depth == 0 and cmd.startswith("))", j):
+                        j += 2
+                        break
+                    depth -= 1
+                j += 1
+            buf.append(cmd[i:j])
+            i = j
             continue
         if cmd.startswith("$(", i):
             flush()

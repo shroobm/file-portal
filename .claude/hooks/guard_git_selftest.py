@@ -215,6 +215,12 @@ def main():
         # CRITIC CLASS #6 — variable head, -C names the guarded tree, from an unguarded cwd
         case("CRITIC: G=git; $G -C <main> reset from unguarded cwd", "deny", bash(f'G=git; $G -C "{main_repo}" reset --hard', tmp))
         case("CRITIC: a variable head with NO guarded target from unguarded cwd still passes", "allow", bash("G=git; $G status", tmp))
+        # FALSE-DENY REGRESSION (S124): arithmetic expansion is data, not a command — the guard denied a read-only sed
+        # for a "$p" head it manufactured out of "$((L+1)),$p"
+        case("arithmetic $((L+1)) in double quotes with a $p passes (read-only sed)", "allow",
+             bash('L=5; sed -n "$((L+1)),\\$p" SYMPTOM-INDEX.md | head -3'))
+        case("arithmetic $((1+2)) bare passes", "allow", bash("echo $((1+2)); git status"))
+        case("a real $( ) command substitution with git reset in main is still denied", "deny", bash('echo "$(git reset --hard)"'))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))
