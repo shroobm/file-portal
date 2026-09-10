@@ -99,19 +99,19 @@ MECHANISM = {
         "/Flag into a path; the harness collapses an escape; a second toolchain keeps its own state",
         "compare the bytes on both sides of the layer: git show HEAD:<f> | grep -cU $'\\r' vs grep -cU $'\\r' <f>; "
         "the same command from PowerShell vs Git Bash",
-        ["SYM-004", "SYM-017", "SYM-029", "SYM-036", "SYM-078", "SYM-079", "SYM-080", "SYM-082"],
+        ["SYM-004", "SYM-017", "SYM-029", "SYM-036", "SYM-078", "SYM-079", "SYM-080", "SYM-082", "SYM-087"],
     ),
     "S2 GREEN-WITHOUT-A-MEASUREMENT": (
         "a pass, a green badge, a 1.0 or an exit 0 is derived from something other than the property — the system's "
         "own output, the exit code of the wrong pipeline stage, a post-override API field",
         "mutate what the check claims to verify (swap the algorithm, fail the gated stage, read the log) — does it go RED?",
-        ["SYM-001", "SYM-038", "SYM-046", "SYM-055", "SYM-056", "SYM-075", "SYM-077"],
+        ["SYM-001", "SYM-038", "SYM-046", "SYM-055", "SYM-056", "SYM-075", "SYM-077", "SYM-100"],
     ),
     "S3 A-DEFAULT,-CAP-OR-CUT-WEARING-A-NUMBER": (
         "an unmeasured branch returns a value that looks measured: a default 'unknown' as an identity, a display cap "
         "read as the population, a truncation with no marker",
         "force the unmeasurable branch or exceed the cap — does the surface say UNREAD/total, or a plausible number?",
-        ["SYM-005", "SYM-044", "SYM-052", "SYM-057", "SYM-066", "SYM-070"],
+        ["SYM-005", "SYM-044", "SYM-052", "SYM-057", "SYM-066", "SYM-070", "SYM-088"],
     ),
     "S4 FAILED-PROBE-RENDERED-AS-NEGATIVE": (
         "the probe errored, timed out or could not match, and the surface printed a definite negative — down, clean, "
@@ -123,7 +123,7 @@ MECHANISM = {
         "the lock file, detector, CI trigger or job object sits on one entry path; a manual run, a feature branch, a "
         "zero-area geometry or a foreign process takes another and is invisible to every reader",
         "list every entry point that touches the guarded resource; one with zero writes to the signal is this family",
-        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054"],
+        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107"],
     ),
     "S6 THE-CHILD-OUTLIVES-THE-KILL": (
         "the kill, close or job is scoped to the direct child or one window; the real worker is a grandchild (a venv "
@@ -135,13 +135,13 @@ MECHANISM = {
         "a phase computes and stores a correct value and no renderer reads it, reads another object, or shows it beside "
         "an unrelated verdict; or a surface promises a live lever the code baked in once",
         "grep the producer for the key, then every renderer for a read of that key — writes without reads",
-        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061"],
+        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106"],
     ),
     "S8 A-FACT-FROZEN-WHILE-THE-WORLD-MOVED": (
         "a number, SHA, date or topology assumption typed once into prose, a guard or a default and never regenerated; "
         "healthy activity (a commit, a rewrap, a new window, a new day) falsifies it",
         "re-derive the cited value from its live source (rev-parse, the suite, the dependency's metadata) and diff",
-        ["SYM-014", "SYM-016", "SYM-019", "SYM-023", "SYM-039", "SYM-065", "SYM-072"],
+        ["SYM-014", "SYM-016", "SYM-019", "SYM-023", "SYM-039", "SYM-065", "SYM-072", "SYM-098", "SYM-108"],
     ),
     "S9 THE-WRONG-REFERENCE-OBJECT": (
         "an index, key or comparison target is computed from the wrong object — an offset already absolute, a "
@@ -161,7 +161,7 @@ MECHANISM = {
         "name the precondition the act assumes; violate it in a fixture — what happens to the held state or the clock?",
         # SYM-083 (ThinkPad S123): fastembed's default batch of 256 × a 512-token padded window → 9 GiB RSS —
         # a hidden-cost default, the shape of SYM-048's `xrefs=True`
-        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-083", "SYM-085"],
+        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-083", "SYM-085", "SYM-099"],
     ),
     "S12 PLATFORM-OR-LIBRARY-SEMANTICS-TRAP": (
         "the platform or library means something other than its name: force_ocr keeps the old text, inotify reports a "
@@ -169,7 +169,7 @@ MECHANISM = {
         "read the producer's own definition (its source or docs) of the flag or event before trusting the name",
         # SYM-084 (ThinkPad S123): Taildrop moves files only between devices of the same tailnet user; a tagged
         # node has no user — the platform's own definition, not its name
-        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084"],
+        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109"],
     ),
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",
@@ -187,13 +187,13 @@ MECHANISM = {
         "loss or coverage indistinguishable from real defects until traced to the check itself",
         "re-derive the figure through a second, independently built extractor/parser — does the number move while the "
         "artefact does not?",
-        ["SYM-067", "SYM-076"],
+        ["SYM-067", "SYM-076", "SYM-094", "SYM-095", "SYM-097"],
     ),
     "S16 GUARD-COARSER-THAN-THE-DEFECT": (
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
         "one-directional metric cannot see gain); moderate real loss passes at the margin",
         "plant a defect one notch below the guard's resolution — does it pass?",
-        [],  # closeout findings only so far: S104 §8-1, S116 §8-F3, S117 §8-F2, S118 §8-F3 — no SYM row yet
+        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104"],  # S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f
     ),
 }
 
