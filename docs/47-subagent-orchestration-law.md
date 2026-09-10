@@ -216,3 +216,45 @@ lanes interleave coherently or preserve ordering is `Unknown`, and the mutation 
 to be its own first phase ending in a yield. That is worth doing whether or not a relay is ever adopted
 — it fails fast either way — but it is also the only window where Rab's master-branch example could
 actually be caught in time to matter.
+
+## §9 THE SHARED-CHECKOUT MODE LAW — signed by Rab 2026-09-10 (S124, J56)
+
+Born of **ERR-068 / SYM-085**: on 2026-09-10T02:40:41Z a read-only reader lane ran `git reset --hard
+feat/library-pipeline` in the **shared main checkout**. Its brief pointed it at a fleet GROUND written for
+**worktree** lanes — whose correct first act is `git reset --hard` in their own spawned-stale worktree
+(S115/S119) — and the lane, having no worktree, ran it in the tree everyone shares. Codex's uncommitted bytes
+(its `MSG-CDX-0064` relay entry, its `sent` record, its beat) were destroyed, unrecoverable from git. The
+ground was written for one MODE and carried unchanged into another. This section is the rule that mode makes
+explicit; §10 is the mechanism that enforces it.
+
+**Every fleet GROUND names the lane's MODE, and the lane checks it before its first working-tree act.**
+
+- **A ground that instructs `git reset/checkout/clean/stash/restore/switch` (or any working-tree reset) states
+  the mode it assumes.** "Reset first" is a *worktree* instruction. A ground that does not name its mode is
+  incomplete the way a ground with no digest is incomplete (§2).
+- **The lane's first phase resolves its own mode** — `git rev-parse --show-toplevel` and whether `.git` is a
+  file (a linked worktree) or a directory (a main checkout) — and reports it, before any expensive or
+  destructive work. This is the same first-phase-ends-in-a-yield discipline §3's GROUND bullet already
+  requires; mode is now part of what that phase establishes.
+- **In a SHARED main checkout, a lane may not run** `git reset`, `git checkout`, `git clean`, `git stash`,
+  `git restore`, `git switch` — nor any plumbing that rewrites the working tree (`read-tree`,
+  `checkout-index`), nor `git rm`/`git mv`/`git apply`/`git am`. The peer lane and the main session keep
+  uncommitted bytes there by their word, and no lane's convenience outranks another's unpushed work. A lane
+  that needs to reset works **in its own worktree**, or hands the request to the main session.
+- **DEVIATION IS THE REPORT still governs (§3):** a lane that finds the tree not matching its ground stops and
+  reports; it does not "fix" the tree with a reset. The reset that caused ERR-068 was a silent workaround of a
+  mismatch the lane never surfaced.
+
+**This is enforced mechanically, not only by discipline** (docs/32 §5: a rule without a mechanism is a proxy
+with a reputation). `.claude/hooks/guard_git.py` is a `PreToolUse` hook on the Bash and PowerShell tools that
+DENIES the forbidden verbs against a guarded checkout and restricts a subagent lane (a payload carrying
+`agent_id`) to read-only git there; a `deny` from a `PreToolUse` hook blocks the call **even in
+bypass-permissions mode**, so it holds under a fleet running unattended. Its one bypass carries a 20+-character
+reason in the command text and is logged. Its tripwire is `.claude/hooks/guard_git_selftest.py`. The guard is
+the floor; **the ground still names the mode**, because a guard the fleet never trips teaches nothing, and a
+lane told the mode does not have to be caught.
+
+**What the guard cannot see (stated, per §7):** a git run from inside a script FILE the guard did not read; a
+git reached through a process the harness does not route through these two tools; and its own config files,
+which this law — not the mechanism — places off-limits. The mechanism narrows the blast radius; it does not
+replace the sentence.
