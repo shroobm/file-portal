@@ -145,6 +145,8 @@ from the input lines; the "from the inside" column is the digest's characterisat
 
 **23 classes, 45 rows.**
 
+**Corrected 2026-09-10 (S123, `Observed` by `observability/error_families.py --census`):** the table above was left standing at its S110 count — the register holds **67 rows** and **24 classes**: **CONTROL-LEAK** was filed as "(new class)" at row ERR-2026-09-05-056 and never added here (*from the inside: a planted control or a fixture byte reaches an audience or a tree it was meant to be hidden from; rule: keep a control in private scratch until the fleet that must not see it has returned; classify every runtime path as tracked or ignored when introduced*). The 24 classes are grouped into **nine families** by shared mechanism in `docs/58-error-class-families/README.md`, each with the one probe that discriminates it; the census refuses any row whose class no family holds, so a new class is placed before it is filed.
+
 ---
 
 ## §B THE ROWS
