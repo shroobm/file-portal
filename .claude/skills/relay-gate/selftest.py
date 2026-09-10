@@ -2312,6 +2312,93 @@ def main():
 
         # ======================= S120 L2 (end) =======================
 
+        # ======================= S121 J52 (start) =======================
+        # Rab, 2026-09-10T00:35Z, verbatim: "the watch that outlives the session ... Twin rule:
+        # a lane STALE beyond 45 minutes renders 'presumed dead' instead of `working`." A
+        # RENDERING law only (docs/47 B5-style: no state is written, no guard changes, the
+        # single writer still holds - `status` never calls save()).
+        from datetime import datetime, timedelta, timezone
+
+        def _j52_beat(minutes_ago):
+            if minutes_ago is None:
+                return None
+            stamp = (datetime.now(timezone.utc) - timedelta(minutes=minutes_ago)).strftime(
+                "%Y-%m-%dT%H:%MZ")
+            return {"utc": stamp, "gate_rev": None, "doing": "J52 fixture", "planning": None,
+                    "blocked": None, "needs_from_peer": None, "completed": [], "verified": []}
+
+        def _j52_sidecar(model, *, minutes_ago, ticket="T-J52"):
+            return {"writer": model, "protocol": "fp-relay-ack/v1", "updated_utc": "x",
+                    "occupant": None, "state": "working", "current_ticket": ticket,
+                    "beat": _j52_beat(minutes_ago), "sent": [], "confirmed": [],
+                    "escalations": [], "disagreements": []}
+
+        j52 = Path(tmp) / "_s121_j52"
+        j52.mkdir()
+        io.open(j52 / "relay.md", "w", encoding="utf-8", newline="\n").write("# relay (fixture)\n")
+
+        # T-J52-1 tripwire (positive-fires): a beat 46 minutes old renders presumed dead on
+        # BOTH the beat line and the state line, and `status` never mutates the sidecar it read.
+        io.open(j52 / "ack-fable.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps(_j52_sidecar("Fable", minutes_ago=46), indent=2))
+        io.open(j52 / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps(_j52_sidecar("Codex", minutes_ago=46), indent=2))
+        before_46 = (j52 / "ack-fable.json").read_bytes()
+        r = run(["status"], j52)
+        after_46 = (j52 / "ack-fable.json").read_bytes()
+        # ASCII-only substrings either side of the em dash: subprocess.run(text=True)'s default
+        # decode on this host does not always round-trip the literal em dash byte-for-byte
+        # (a pre-existing gap in selftest.py's `run()`, unrelated to J52 - out of this block's
+        # scope to fix), so the assertion is split rather than widened to swallow that gap.
+        t("J52 T1: a beat 46 minutes old renders presumed dead on the beat line",
+          "STALE" in r.stdout and "presumed dead (J52, Rab 2026-09-10) ***" in r.stdout)
+        t("J52 T1: a beat 46 minutes old renders presumed dead on the state line",
+          "state=working (presumed dead)" in r.stdout)
+        t("J52 T1: status is read-only - the sidecar bytes are unchanged by rendering",
+          before_46 == after_46)
+
+        # T-J52-2 tripwire (negative control, the twin of T1): a beat 44 minutes old fires
+        # NEITHER marker - the 45-minute lever, not "any old beat is suspect".
+        io.open(j52 / "ack-fable.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps(_j52_sidecar("Fable", minutes_ago=44), indent=2))
+        io.open(j52 / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps(_j52_sidecar("Codex", minutes_ago=44), indent=2))
+        r = run(["status"], j52)
+        t("J52 T2: a beat 44 minutes old fires no STALE / presumed-dead marker at all",
+          "STALE" not in r.stdout and "presumed dead" not in r.stdout
+          and "state=working " in r.stdout)
+
+        # T-J52-3 tripwire: NO beat keeps rendering plain 'beat UNREAD', never presumed dead -
+        # silence is never calm, but it is not proof of death either; no marker without a beat
+        # to age (docs/47: a rule that only fires when it has evidence to age is not a guess).
+        io.open(j52 / "ack-fable.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps(_j52_sidecar("Fable", minutes_ago=None), indent=2))
+        io.open(j52 / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps(_j52_sidecar("Codex", minutes_ago=None), indent=2))
+        r = run(["status"], j52)
+        t("J52 T3: a lane with no beat still renders exactly 'beat UNREAD', never presumed dead",
+          "beat UNREAD - this lane has published no status beat" in r.stdout
+          and "presumed dead" not in r.stdout)
+
+        # T-J52-4 tripwire: Guard A still refuses a NEW ticket into a presumed-dead working
+        # lane - the rule RENDERS, it does not FREE THE SEAT (Guard A reads the raw sidecar
+        # state, untouched by this change; single-writer law is unaffected).
+        io.open(j52 / "ack-codex.json", "w", encoding="utf-8", newline="\n").write(
+            json.dumps(_j52_sidecar("Codex", minutes_ago=46, ticket="T-002"), indent=2))
+        bf_j52 = body_file(j52, "**RECAP.** J52 guard check\n")
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "dup",
+                 "--body", bf_j52, "--ticket", "T-009"], j52)
+        t("J52 T4: Guard A still refuses a new ticket into a presumed-dead working lane",
+          r.returncode == 1 and "REFUSED" in r.stderr)
+
+        # T-J52-5 positive control for T4: a no-ticket notice still passes on the SAME
+        # presumed-dead fixture, proving T4's refusal is Guard A firing and not a broken fixture.
+        r = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "notice",
+                 "--body", bf_j52], j52)
+        t("J52 T5: Guard A still lets a no-ticket notice through on the same presumed-dead lane",
+          r.returncode == 0)
+        # ======================= S121 J52 (end) =======================
+
     total = PASS + FAIL
     print()
     if FAIL == 0:

@@ -1190,7 +1190,9 @@ def render_beat(d) -> list:
     age = _beat_age_min(b)
     if age < 0:
         return ["         beat UNREAD - beat present but its timestamp is unreadable"]
-    stamp = f"{age}m ago" + ("  *** STALE ***" if age > BEAT_STALE_MIN else "")
+    stamp = f"{age}m ago" + (
+        "  *** STALE — presumed dead (J52, Rab 2026-09-10) ***"
+        if age > BEAT_STALE_MIN else "")
     rev = b.get("gate_rev") or UNDECLARED
     mine = gate_rev()
     drift = "" if rev in (mine, UNDECLARED) else f"  *** running {rev}, this shell runs {mine} ***"
@@ -1651,6 +1653,11 @@ def _cmd_status_locked(a):
             if n is not None:
                 state_field = (f"blocked-on-ack (SETTLED — all {n} sent confirmed; "
                                 f"the lane has not run check)")
+        # J52 (Rab 2026-09-10): a lane STALE beyond BEAT_STALE_MIN renders "presumed dead" -
+        # rendering only, no state written, no guard changed (a beat-less lane stays UNREAD,
+        # never presumed dead - silence is never calm, but it is not proof of death either).
+        if _beat_age_min(d.get("beat")) > BEAT_STALE_MIN:
+            state_field = f"{state_field} (presumed dead)"
         print(f"  {m:<6} state={state_field:<15} ticket={d.get('current_ticket')}  "
               f"sent={len(d['sent'])} confirmed={len(d['confirmed'])}  updated={d['updated_utc']}")
         print(f"         lane {m} · occupant {occupant_of(d)}")
