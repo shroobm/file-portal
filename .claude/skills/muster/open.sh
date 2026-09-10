@@ -311,10 +311,20 @@ if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
   # presence every open — `present` and `ABSENT` are readings; a probe that did not run is UNREAD,
   # the rule paid for above. FP_PS_EXE lets the selftest break the probe.
   PS_EXE="${FP_PS_EXE:-powershell.exe}"
-  ta_out=$("$PS_EXE" -NoProfile -NonInteractive -Command "\$t = Get-ScheduledTask -TaskName 'File Portal widget (J57)' -ErrorAction SilentlyContinue; if (\$t) { 'STATE=' + \$t.State } else { 'ABSENT' }" 2>/dev/null | tr -d '\r'); ta_rc=$?
-  case "$ta_out" in
-    STATE=*) row "widget autostart" "task 'File Portal widget (J57)' ${ta_out#STATE=} — AtLogOn (J57; the unattended proof is the next logon)";;
-    ABSENT)  row "widget autostart" "ABSENT — no 'File Portal widget (J57)' task (J57 unregistered?)";;
+  # S127 (Rab: "auto-logon to finish J57"): the same probe also READS the auto-logon state — AutoAdminLogon and
+  # DefaultUserName under Winlogon (never the password; a read, not a change — the setting is Rab's hand). The task
+  # closes the click; auto-logon closes the logon; the card shows both, and a probe that did not answer is UNREAD.
+  ta_out=$("$PS_EXE" -NoProfile -NonInteractive -Command "\$t = Get-ScheduledTask -TaskName 'File Portal widget (J57)' -ErrorAction SilentlyContinue; if (\$t) { 'STATE=' + \$t.State } else { 'ABSENT' }; \$w = Get-ItemProperty -Path 'HKLM:\\SOFTWARE\\Microsoft\\Windows NT\\CurrentVersion\\Winlogon' -ErrorAction SilentlyContinue; 'AUTOLOGON=' + \$w.AutoAdminLogon + ' USER=' + \$w.DefaultUserName" 2>/dev/null | tr -d '\r'); ta_rc=$?
+  ta_task=$(printf '%s\n' "$ta_out" | head -n 1)
+  ta_auto=$(printf '%s\n' "$ta_out" | grep -m1 '^AUTOLOGON=')
+  case "$ta_auto" in
+    AUTOLOGON=1*) al_txt="auto-logon ON (${ta_auto#*USER=})";;
+    AUTOLOGON=*)  al_txt="auto-logon OFF (the logon is still a hand — J62)";;
+    *)            al_txt="auto-logon UNREAD";;
+  esac
+  case "$ta_task" in
+    STATE=*) row "widget autostart" "task 'File Portal widget (J57)' ${ta_task#STATE=} — AtLogOn · $al_txt";;
+    ABSENT)  row "widget autostart" "ABSENT — no 'File Portal widget (J57)' task (J57 unregistered?) · $al_txt";;
     *)       row "widget autostart" "UNREAD (powershell probe rc=$ta_rc)";;
   esac
   row "python procs" "$(printf '%s\n' "$ps_table" | grep -c '^python\.exe')"

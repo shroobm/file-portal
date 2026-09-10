@@ -830,6 +830,22 @@ out=$(FP_PS_EXE="$WORK/fakeps45b/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE
       VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
 if printf '%s' "$out" | grep -qE "widget autostart +task 'File Portal widget \(J57\)' Disabled"; then ok "J57: the task's STATE is read back verbatim (Disabled is not present)"
 else bad "J57: the task's STATE is read back verbatim" "got: $(printf '%s' "$out" | grep -E 'widget autostart' | head -1)"; fi
+# CASE 46 — S127 (Rab: "auto-logon to finish J57"). The property: the auto-logon half is a READING of the registry
+# beside the task, never assumed from the task's presence. (a) a probe that answers the task but not the auto-logon
+# field renders `auto-logon UNREAD` (the fake above prints no AUTOLOGON line); (b) AUTOLOGON=1 reads ON with the user;
+# (c) an empty AUTOLOGON reads OFF and names the hand that remains.
+if printf '%s' "$out" | grep -qE "auto-logon UNREAD"; then ok "J62: no AUTOLOGON line from the probe renders auto-logon UNREAD, never OFF"
+else bad "J62: a missing AUTOLOGON line renders UNREAD" "got: $(printf '%s' "$out" | grep -E 'widget autostart' | head -1)"; fi
+mkdir -p "$WORK/fakeps46b"; printf '#!/bin/sh\necho STATE=Ready\necho "AUTOLOGON=1 USER=Bndit"\n' > "$WORK/fakeps46b/ps.sh"; chmod +x "$WORK/fakeps46b/ps.sh"
+out=$(FP_PS_EXE="$WORK/fakeps46b/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE "auto-logon ON \(Bndit\)"; then ok "J62: AUTOLOGON=1 reads ON with the user named"
+else bad "J62: AUTOLOGON=1 reads ON" "got: $(printf '%s' "$out" | grep -E 'widget autostart' | head -1)"; fi
+mkdir -p "$WORK/fakeps46c"; printf '#!/bin/sh\necho STATE=Ready\necho "AUTOLOGON= USER="\n' > "$WORK/fakeps46c/ps.sh"; chmod +x "$WORK/fakeps46c/ps.sh"
+out=$(FP_PS_EXE="$WORK/fakeps46c/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE "auto-logon OFF"; then ok "J62: an empty AUTOLOGON reads OFF (the hand that remains, named)"
+else bad "J62: an empty AUTOLOGON reads OFF" "got: $(printf '%s' "$out" | grep -E 'widget autostart' | head -1)"; fi
 
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
