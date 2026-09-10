@@ -331,3 +331,32 @@ slots: **"J50, J51, J52 all signed."** The slots as offered and signed:
    the state line — a rendering, no state written, no guard changed (built S121, see the record).
 
 **Recorded at:** `2026-09-10T00:43:38Z`. Recorded by Fable (Claude Fable 5.1), lane Fable, S121.
+
+## J55 · J56 — signed by Rab, 2026-09-10T03:3xZ (S124)
+
+Rab, verbatim: **"J56-J55 signed, Codex isn't gonna be on for a while bud. Sorry."** — one line, both tickets, and the
+standing condition that the Codex lane is away. Later in the session, after switching the model back (`/model
+claude-fable-5-1`): **"see what happened. eyes on deck. Just you to ride it."**
+
+1. **J56 — read as (c) both** (the ticket offered a docs/47 amendment, a mechanical guard, or both; he signed the ticket,
+   not a letter; the ticket's own "Rab's" column names the law as his signature and the hook as a standing change to his
+   checkout). Executed: **docs/47 §9 THE SHARED-CHECKOUT MODE LAW** (every ground names the lane's MODE; the lane resolves
+   worktree-vs-main in its first phase; in the shared checkout the working-tree verbs are forbidden and a subagent lane
+   gets read-only git; deviation-is-the-report) + **`.claude/hooks/guard_git.py`**, a `PreToolUse` hook on the Bash and
+   PowerShell tools wired in the tracked `.claude/settings.json` (a `deny` holds even in bypass-permissions mode) +
+   `guard_git_selftest.py` (129 cases at close) + `coordination/fleet-ground-template.md` (the MODE CHECK preamble).
+   Red-teamed by six Sonnet lanes on six registered sacrificial clones plus a source-reading critic: five lanes fully
+   denied; **one breach** — `git --work-tree="$CLONE" --git-dir="$CLONE/.git" checkout` from an unguarded cwd, the guard
+   reading `$CLONE` as a literal — plus five critic-named classes, all closed (an UNREAD target fails closed for a
+   destructive verb). **Stated residue:** the hook covers only tool calls the Claude Code harness routes through Bash /
+   PowerShell — **Codex's harness is not covered; the law covers it** — and it cannot read a script file or a
+   runtime-assembled target. SYM-085 → `fixed`.
+2. **J55 — executed as a sweep by my own hand from a fleet's proposals:** 24 SYM rows (SYM-086..109), 9 ERR rows
+   (…-069..077, dated by the event), 5 J rows (J57..J61); 28 already-filed and 13 not-a-defect candidates recorded with
+   reasons in the S124 record §8; every quoted source re-found in the closeout before a row was written (39/39); ids
+   allocated after a fetch. `error_families.py --census` 77/77 · 109/109.
+3. **Occupant note (relay-gate law: the occupant is attributed, never guessed).** The Fable lane's occupant was
+   **Claude Opus 4.8 from ~04:00Z to ~04:26Z** (commits `f83867e` and `816c997` carry its trailer) and **Claude Fable 5.1**
+   before and after; Rab switched it back by `/model` at ~04:27Z. The ledger row names both.
+
+**Recorded at:** `2026-09-10T04:5xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S124.
