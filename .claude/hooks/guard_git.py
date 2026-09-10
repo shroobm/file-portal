@@ -410,8 +410,8 @@ def head_of(toks):
     base = head.rsplit("/", 1)[-1]
     if base.endswith(".exe"):
         base = base[:-4]
-    if "::start" in head or "diagnostics.process" in head or "]::" in head:
-        base = "start-process"  # a .NET process start is a wrapper by any name
+    if "::start" in head or "diagnostics.process" in head:
+        base = "start-process"  # a .NET process start is a wrapper by any name (a bare `]::` — [math]::Round — is not; S126)
     if base.endswith("()"):
         base = "function"  # NAME() { … } defines a command
     return i, base, env, called
@@ -543,7 +543,9 @@ def decide(payload):
             # assignment (`$_.Name -like …`, `$t = Get-Process`), never an invocation — `$G reset` is a syntax error there;
             # only the call operator (`& $G …`, `. $G`) invokes a variable. The guard false-denied a read-only
             # `Where-Object { $_.TaskName -like "*File Portal*" }` for a "$_.taskname" head (S125, 05:1xZ).
-            if expands and tool == "PowerShell" and not called and base.startswith("$"):
+            # (S126: the exception keys on the RAW token — `$w.WorkingSet64/1MB` has basename `1mb`, its `$` lost to the
+            # path split; the fourth false deny of this family.)
+            if expands and tool == "PowerShell" and not called and head_raw.lstrip("('\"").startswith("$"):
                 expands = False
             if expands:
                 if here:

@@ -234,6 +234,14 @@ def main():
         case("find -exec grep -e x in main passes (no git, -e is grep's)", "allow", bash("find . -name x -exec grep -e y {} \\;"))
         case("powershell -e <base64> in main is still denied", "deny", ps("powershell -e ZwBpAHQA"))
         case("pwsh -EncodedCommand in main is still denied", "deny", ps("pwsh -EncodedCommand ZwBpAHQA"))
+        # FALSE-DENY REGRESSION (S126, the fourth shape): a PowerShell expression whose basename lost its `$`, and a
+        # static method call that is not a process start
+        case("PS: [math]::Round($w.WorkingSet64/1MB) in main passes (expression, not a process start)", "allow",
+             ps("$w = Get-Process -Id 1; Write-Output ([math]::Round($w.WorkingSet64/1MB))"))
+        case("PS: Get-CimInstance ... | Where-Object { $_.ParentProcessId -eq $w.Id } passes", "allow",
+             ps('$kids = Get-CimInstance Win32_Process -Filter "Name = \'x.exe\'" | Where-Object { $_.ParentProcessId -eq $w.Id }; $kids.Count'))
+        case("PS: [System.Diagnostics.Process]::Start git reset in main is still denied", "deny",
+             ps("[System.Diagnostics.Process]::Start('git','reset --hard')"))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))
