@@ -228,6 +228,12 @@ def main():
         case("PS: & $G reset --hard in main is still denied (the call operator invokes)", "deny", ps("$G = 'git'; & $G reset --hard"))
         case("PS: . $G clean in main is still denied", "deny", ps("$G = 'git'; . $G clean -fdx"))
         case("Bash: $G reset --hard in main is still denied (bash invokes a variable head)", "deny", bash("G=git; $G reset --hard"))
+        # FALSE-DENY REGRESSION (S126): -E / -e are only ENCODED-COMMAND flags on a powershell head
+        case("timeout ssh host 'grep -E ...' in main passes (grep's -E is not -EncodedCommand)", "allow",
+             bash("timeout 40 ssh -o BatchMode=yes rab@archlinux 'systemctl --user cat x | grep -E \"ExecStart|WorkingDirectory\"'"))
+        case("find -exec grep -e x in main passes (no git, -e is grep's)", "allow", bash("find . -name x -exec grep -e y {} \\;"))
+        case("powershell -e <base64> in main is still denied", "deny", ps("powershell -e ZwBpAHQA"))
+        case("pwsh -EncodedCommand in main is still denied", "deny", ps("pwsh -EncodedCommand ZwBpAHQA"))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))

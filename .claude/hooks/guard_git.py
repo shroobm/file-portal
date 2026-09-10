@@ -560,7 +560,10 @@ def decide(payload):
                 continue
             if base in WRAPPERS:
                 mentions_git = re.search(r"(?i)\bgit(\.exe)?\b", seg) is not None
-                unreadable = base in ("eval", "iex", "invoke-expression", "invoke-command", "icm") or ENCODED.search(seg) is not None
+                # an encoded command (-EncodedCommand / -enc / -e <base64>) is a POWERSHELL flag: only a powershell/pwsh
+                # head carries one. (S126: `timeout 40 ssh … grep -E "…"` was denied for grep's -E — a third live false deny.)
+                unreadable = base in ("eval", "iex", "invoke-expression", "invoke-command", "icm") or \
+                    (base in ("powershell", "pwsh") and ENCODED.search(seg) is not None)
                 if here and (mentions_git or unreadable):
                     why = "carries an encoded or evaluated command" if unreadable else "mentions git"
                     return (f"guard_git: a wrapper ({base}) {why} inside the shared checkout {here}; run git directly so the guard "
