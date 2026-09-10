@@ -169,7 +169,7 @@ MECHANISM = {
         "read the producer's own definition (its source or docs) of the flag or event before trusting the name",
         # SYM-084 (ThinkPad S123): Taildrop moves files only between devices of the same tailnet user; a tagged
         # node has no user — the platform's own definition, not its name
-        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109"],
+        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109", "SYM-094"],  # 094 moved S15 → S12 (S124 cross-check: the root is find_tables' semantics)
     ),
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",
@@ -187,7 +187,7 @@ MECHANISM = {
         "loss or coverage indistinguishable from real defects until traced to the check itself",
         "re-derive the figure through a second, independently built extractor/parser — does the number move while the "
         "artefact does not?",
-        ["SYM-067", "SYM-076", "SYM-094", "SYM-095", "SYM-097"],
+        ["SYM-067", "SYM-076", "SYM-095", "SYM-097"],
     ),
     "S16 GUARD-COARSER-THAN-THE-DEFECT": (
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
