@@ -2167,6 +2167,89 @@ def main():
           and b12_tree_before == b12_tree_after
           and b12_codex_id.encode() in b12_tree_after)
 
+        # ---- B13 (S120, found by CODEX on the live checkout, MSG-CDX-0050 22:13Z): two real writers,
+        #      sequential commits, interleaved appends. Fable's `stage`+commit had made HEAD's bytes
+        #      non-contiguous in the working copy for Codex (working = old+0049+0080, HEAD = old+0080),
+        #      so Codex's own `stage` was refused. The rule is entry-aware now: every HEAD entry kept in
+        #      the working copy's order, the peer's uncommitted ones left, the file order (append order)
+        #      preserved through both commits. Negative controls: an EDITED HEAD entry and a REMOVED HEAD
+        #      entry in the working copy both refuse with the index untouched. -----------------------
+        def _b13_commit(repo, msg):
+            subprocess.run(["git", "-C", str(repo), "-c", "commit.gpgsign=false", "commit", "-q", "-m", msg],
+                           check=True)
+
+        def _b13_head_relay(repo):
+            return subprocess.run(["git", "-C", str(repo), "show", "HEAD:coordination/relay.md"],
+                                  capture_output=True).stdout.replace(b"\r\n", b"\n")
+
+        b13_repo, b13_coord = _s120_mkrepo(Path(tmp) / "_s120_b13_two_writers")
+        r_a = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "A-codex-first",
+                   "--body", _s120_envelope_body(b13_coord, "**RECAP.** A, codex, appended first")], b13_coord)
+        r_b = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "B-fable-second",
+                   "--body", _s120_envelope_body(b13_coord, "**RECAP.** B, fable, appended second")], b13_coord)
+        id_a = _s120_msg_id(r_a.stdout, "MSG-CDX-")
+        id_b = _s120_msg_id(r_b.stdout, "MSG-FAB-")
+        r_f1 = run(["stage", "--as", "Fable"], b13_coord)
+        _b13_commit(b13_repo, "fable commits B first")
+        head_after_fable = _b13_head_relay(b13_repo)
+        t("S120 B13: the first writer (Fable) stages and commits its own entry while the peer's older "
+          "entry stays in the tree",
+          r_f1.returncode == 0 and id_b.encode() in head_after_fable and id_a.encode() not in head_after_fable)
+        r_c1 = run(["stage", "--as", "Codex"], b13_coord)
+        cached_c1 = subprocess.run(["git", "-C", str(b13_repo), "diff", "--cached"], capture_output=True, text=True)
+        t("S120 B13 positive: the SECOND writer (Codex) stages after the first's commit - the interleaved "
+          "case Codex hit live - and the diff adds only its own entry",
+          r_c1.returncode == 0 and id_a in cached_c1.stdout and cached_c1.stdout.count("+## ") == 1)
+        _b13_commit(b13_repo, "codex commits A second")
+        head_final = _b13_head_relay(b13_repo)
+        working_final = io.open(b13_coord / "relay.md", "rb").read().replace(b"\r\n", b"\n")
+        t("S120 B13: after both commits HEAD equals the working copy and the file keeps the APPEND order "
+          "(A before B) - neither writer's content was reordered or lost",
+          head_final == working_final and 0 <= head_final.find(id_a.encode()) < head_final.find(id_b.encode()))
+        # the mirror: Fable first to append, Codex first to commit
+        r_c = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "C-fable-first",
+                   "--body", _s120_envelope_body(b13_coord, "**RECAP.** C, fable, appended first")], b13_coord)
+        r_d = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "D-codex-second",
+                   "--body", _s120_envelope_body(b13_coord, "**RECAP.** D, codex, appended second")], b13_coord)
+        id_c = _s120_msg_id(r_c.stdout, "MSG-FAB-")
+        id_d = _s120_msg_id(r_d.stdout, "MSG-CDX-")
+        r_c2 = run(["stage", "--as", "Codex"], b13_coord)
+        _b13_commit(b13_repo, "codex commits D first")
+        r_f2 = run(["stage", "--as", "Fable"], b13_coord)
+        _b13_commit(b13_repo, "fable commits C second")
+        head_mirror = _b13_head_relay(b13_repo)
+        working_mirror = io.open(b13_coord / "relay.md", "rb").read().replace(b"\r\n", b"\n")
+        t("S120 B13 mirror: Codex commits first, Fable second - both succeed, HEAD equals the working copy, "
+          "append order kept (C before D)",
+          r_c2.returncode == 0 and r_f2.returncode == 0 and head_mirror == working_mirror
+          and 0 <= head_mirror.find(id_c.encode()) < head_mirror.find(id_d.encode()))
+        # negative: a HEAD entry EDITED in the working copy refuses, index untouched
+        wc = io.open(b13_coord / "relay.md", encoding="utf-8", newline="").read()
+        io.open(b13_coord / "relay.md", "w", encoding="utf-8", newline="").write(
+            wc.replace("A, codex, appended first", "A, codex, EDITED after commit", 1))
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "E-after-edit",
+             "--body", _s120_envelope_body(b13_coord, "**RECAP.** E")], b13_coord)
+        r_edit = run(["stage", "--as", "Fable"], b13_coord)
+        cached_edit = subprocess.run(["git", "-C", str(b13_repo), "diff", "--cached"], capture_output=True, text=True)
+        t("S120 B13 negative: an EDITED HEAD entry in the working copy refuses (append-only), exit 1, "
+          "index untouched",
+          r_edit.returncode == 1 and "edited" in r_edit.stderr and cached_edit.stdout.strip() == "")
+        # read FIRST, then open for writing: opening "w" before the read truncates the file (the first
+        # draft of this restore did exactly that and left an empty log for the next case)
+        _restored = io.open(b13_coord / "relay.md", encoding="utf-8", newline="").read().replace(
+            "A, codex, EDITED after commit", "A, codex, appended first", 1)
+        io.open(b13_coord / "relay.md", "w", encoding="utf-8", newline="").write(_restored)
+        # negative: a HEAD entry REMOVED from the working copy refuses, index untouched
+        pre_r, ents_r, _ok_r = g._split_relay_document(
+            io.open(b13_coord / "relay.md", encoding="utf-8", newline="").read())
+        io.open(b13_coord / "relay.md", "w", encoding="utf-8", newline="").write(
+            pre_r + "".join(raw for _lane, eid, _text, raw in ents_r if eid != id_d))
+        r_rm = run(["stage", "--as", "Fable"], b13_coord)
+        cached_rm = subprocess.run(["git", "-C", str(b13_repo), "diff", "--cached"], capture_output=True, text=True)
+        t("S120 B13 negative: a HEAD entry REMOVED from the working copy refuses (append-only), exit 1, "
+          "index untouched",
+          r_rm.returncode == 1 and "missing" in r_rm.stderr and cached_rm.stdout.strip() == "")
+
         # ======================= S120 L2 (end) =======================
 
     total = PASS + FAIL

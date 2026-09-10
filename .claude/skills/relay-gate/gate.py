@@ -2465,6 +2465,32 @@ def _split_relay_tail_entries(tail_text: str):
     return entries, True
 
 
+def _split_relay_document(text: str):
+    """Split a WHOLE relay.md (preamble + entries) by ENTRY_META_RE. Returns
+    (preamble, [(from_lane, msg_id, canonical_text, raw_slice)], ok). The preamble is everything
+    before the first header (the protocol section - may be long, may be empty). `canonical_text` is
+    the entry rebuilt to the one-trailing-newline shape (as `_split_relay_tail_entries` does) so two
+    copies of the same entry COMPARE equal regardless of the blank separator after them; `raw_slice`
+    is the entry's exact bytes in this document, separator included, so a blob REASSEMBLED from kept
+    slices is byte-identical to the working copy minus the dropped entries (a rebuilt shape would
+    leave the tree dirty by blank lines after every commit). `ok` is False only when a header line
+    fails to carry a parseable id (a document with zero entries is legal)."""
+    lines = text.splitlines(keepends=True)
+    heads = [i for i, line in enumerate(lines) if ENTRY_META_RE.match(line.rstrip("\r\n"))]
+    if not heads:
+        return text, [], True
+    preamble = "".join(lines[:heads[0]])
+    entries = []
+    for n, start in enumerate(heads):
+        end = heads[n + 1] if n + 1 < len(heads) else len(lines)
+        m = ENTRY_META_RE.match(lines[start].rstrip("\r\n"))
+        if not m:
+            return preamble, [], False
+        raw = "".join(lines[start:end])
+        entries.append((m.group("from"), m.group("id"), raw.rstrip("\r\n") + "\n", raw))
+    return preamble, entries, True
+
+
 def cmd_stage(a):
     """One relay.md, two writers, one git index (B7). Stages ONLY `--as`'s own new entries from
     the working copy into the git index, leaving the peer's uncommitted hunk in the working tree
@@ -2499,30 +2525,55 @@ def cmd_stage(a):
     # exactly what `git add` would have stored. Content divergence still refuses (the TAMPERED case).
     head_norm = head_bytes.replace(b"\r\n", b"\n")
     work_norm = working_bytes.replace(b"\r\n", b"\n")
-    if not work_norm.startswith(head_norm):
-        print(f"REFUSED: UNREAD - HEAD:{relay_git_path} is not a prefix of the working copy "
-              f"(compared line-ending-blind); refusing to stage a diverged log. Index left untouched.",
-              file=sys.stderr)
-        return 1
-
+    # B13 (S120, found by Codex on the live checkout - MSG-CDX-0050, 22:13Z): the FIRST writer to
+    # commit makes HEAD's bytes non-contiguous in the working copy for the SECOND writer, because the
+    # peer's older uncommitted entry sits BEFORE the newly committed one (working = old+0049+0080,
+    # HEAD = old+0080). A prefix rule, byte-exact or line-ending-blind, can never pass that. The rule
+    # is ENTRY-AWARE: the blob is the working copy with the peer's uncommitted entries removed -
+    # every HEAD entry kept, in the working copy's order, byte-for-byte; every entry of mine kept;
+    # only entries that are neither in HEAD nor mine are left in the tree. Append-only is enforced
+    # as a precondition: a HEAD entry that is missing, edited, or reordered in the working copy
+    # refuses, and so does a changed preamble.
     try:
-        tail_text = work_norm[len(head_norm):].decode("utf-8")
+        head_pre, head_entries, head_ok = _split_relay_document(head_norm.decode("utf-8"))
+        work_pre, work_entries, work_ok = _split_relay_document(work_norm.decode("utf-8"))
     except UnicodeDecodeError as exc:
-        print(f"UNREAD: tail after HEAD:{relay_git_path} is not valid UTF-8 - {exc}",
+        print(f"UNREAD: {relay_git_path} is not valid UTF-8 - {exc}", file=sys.stderr)
+        return 1
+    if not head_ok or not work_ok:
+        print("REFUSED: UNREAD - bytes belong to no entry (malformed log); refusing to stage. "
+              "Index left untouched.", file=sys.stderr)
+        return 1
+    # The blank separator line that precedes the first entry belongs to the working copy's preamble
+    # when HEAD has no entries yet (a fresh log), so preambles compare with trailing newlines
+    # stripped; the working copy's preamble is the one reassembled (it IS HEAD's plus that separator).
+    if head_pre.rstrip("\n") != work_pre.rstrip("\n"):
+        print(f"REFUSED: UNREAD - the preamble of {relay_git_path} differs between HEAD and the "
+              f"working copy (compared line-ending-blind); refusing to stage a diverged log. "
+              f"Index left untouched.", file=sys.stderr)
+        return 1
+    head_by_id = {eid: text for _, eid, text, _raw in head_entries}
+    work_ids = [eid for _, eid, _text, _raw in work_entries]
+    work_by_id = {eid: text for _, eid, text, _raw in work_entries}
+    missing = [eid for _, eid, _text, _raw in head_entries if eid not in work_by_id]
+    edited = [eid for _, eid, text, _raw in head_entries if eid in work_by_id and work_by_id[eid] != text]
+    head_order = [eid for _, eid, _text, _raw in head_entries]
+    work_order_of_head = [eid for eid in work_ids if eid in head_by_id]
+    if missing or edited or work_order_of_head != head_order:
+        print(f"REFUSED: UNREAD - {relay_git_path} is append-only and the working copy breaks it: "
+              f"missing {missing or '-'} · edited {edited or '-'} · "
+              f"reordered {'yes' if work_order_of_head != head_order else 'no'}. Index left untouched.",
               file=sys.stderr)
         return 1
-    entries, ok = _split_relay_tail_entries(tail_text)
-    if not ok:
-        print("REFUSED: UNREAD - bytes after HEAD belong to no entry (malformed tail); "
-              "refusing to stage. Index left untouched.", file=sys.stderr)
-        return 1
 
-    kept = [(lane, text) for lane, text in entries if lane == a.as_model]
-    left = [(lane, text) for lane, text in entries if lane != a.as_model]
-    appended = "".join("\n" + text for _, text in kept).encode("utf-8").replace(b"\r\n", b"\n")
-    if b"\r\n" in head_bytes:
-        appended = appended.replace(b"\n", b"\r\n")
-    blob_bytes = head_bytes + appended
+    kept = [(lane, text, raw) for lane, eid, text, raw in work_entries if eid in head_by_id or lane == a.as_model]
+    new_mine = [(lane, text) for lane, eid, text, _raw in work_entries if eid not in head_by_id and lane == a.as_model]
+    left = [(lane, text) for lane, eid, text, _raw in work_entries if eid not in head_by_id and lane != a.as_model]
+    # Reassemble from the working copy's RAW slices (separators included): the committed bytes are
+    # then exactly the working copy minus the peer's uncommitted entries, so after the peer commits
+    # its own, HEAD == the tree and `git status` is clean - no blank-line drift.
+    blob_norm = (work_pre + "".join(raw for _, _, raw in kept)).encode("utf-8")
+    blob_bytes = blob_norm.replace(b"\n", b"\r\n") if b"\r\n" in head_bytes else blob_norm
 
     hashed = subprocess.run(["git", "-C", str(repo_root), "hash-object", "-w", "--stdin"],
                             input=blob_bytes, capture_output=True)
@@ -2541,9 +2592,10 @@ def cmd_stage(a):
         print(f"[gate] note: git add {ack_git_path} did not succeed - "
               f"{added.stderr.decode(errors='replace').strip()}", file=sys.stderr)
 
-    kept_ids = [_stage_entry_id(t) for _, t in kept]
+    kept_ids = [_stage_entry_id(t) for _, t in new_mine]
     left_ids = [_stage_entry_id(t) for _, t in left]
-    print(f"staged {a.as_model}: {', '.join(kept_ids) or '(none)'}")
+    print(f"staged {a.as_model}: {', '.join(kept_ids) or '(none)'} · HEAD's {len(head_entries)} entries kept "
+          f"in the working copy's order")
     print(f"left for peer: {', '.join(left_ids) or '(none)'}")
     return 0
 
