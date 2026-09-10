@@ -2558,16 +2558,19 @@ def cmd_stage(a):
     # one), and an id-keyed comparison read the first occurrence against the last and called an
     # untouched August entry "edited" (2026-09-10T00:19Z, the first live run of this rule).
     hp = 0
-    kept, new_mine, left = [], [], []
+    kept, new_mine, left, keep_flags = [], [], [], []
     for lane, eid, text, raw in work_entries:
         if hp < len(head_entries) and canonical(head_entries[hp][2]) == canonical(text):
             kept.append((lane, text, raw))
+            keep_flags.append(True)
             hp += 1
         elif lane == a.as_model:
             kept.append((lane, text, raw))
             new_mine.append((lane, text))
+            keep_flags.append(True)
         else:
             left.append((lane, text))
+            keep_flags.append(False)
     if hp < len(head_entries):
         stalled = head_entries[hp][1]
         print(f"REFUSED: UNREAD - {relay_git_path} is append-only and the working copy breaks it: "
@@ -2577,7 +2580,13 @@ def cmd_stage(a):
     # Reassemble from the working copy's RAW slices (separators included): the committed bytes are
     # then exactly the working copy minus the peer's uncommitted entries, so after the peer commits
     # its own, HEAD == the tree and `git status` is clean - no blank-line drift.
-    blob_norm = (work_pre + "".join(raw for _, _, raw in kept)).encode("utf-8")
+    blob_text = work_pre + "".join(raw for _, _, raw in kept)
+    if keep_flags and not keep_flags[-1]:
+        # The LAST working entry was dropped: the last kept slice still carries the blank separator
+        # that belonged to it. A committed log ends with exactly one newline (the shape every append
+        # starts from), so trim to that - otherwise HEAD gains a trailing blank line per stage.
+        blob_text = blob_text.rstrip("\n") + "\n"
+    blob_norm = blob_text.encode("utf-8")
     blob_bytes = blob_norm.replace(b"\n", b"\r\n") if b"\r\n" in head_bytes else blob_norm
 
     hashed = subprocess.run(["git", "-C", str(repo_root), "hash-object", "-w", "--stdin"],

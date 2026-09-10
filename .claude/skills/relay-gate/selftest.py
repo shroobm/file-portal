@@ -2284,6 +2284,32 @@ def main():
           r_dup.returncode == 0 and dup_fable_id in cached_dup.stdout and dup_codex_id not in cached_dup.stdout
           and cached_dup.stdout.count("+## ") == 1)
 
+        # ---- B13c (S120, found live 2026-09-10T00:29Z): when the PEER's entry is the LAST in the working copy,
+        #      the last kept slice carries the blank separator that belonged to the dropped entry, and each
+        #      stage left HEAD one trailing blank line longer. A committed log ends with exactly one newline.
+        b13c_repo, b13c_coord = _s120_mkrepo(Path(tmp) / "_s120_b13c_peer_last")
+        r_c_f = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "fable-first",
+                     "--body", _s120_envelope_body(b13c_coord, "**RECAP.** fable, then codex last")], b13c_coord)
+        r_c_c = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "codex-last",
+                     "--body", _s120_envelope_body(b13c_coord, "**RECAP.** codex, the last entry")], b13c_coord)
+        c_f_id = _s120_msg_id(r_c_f.stdout, "MSG-FAB-")
+        c_c_id = _s120_msg_id(r_c_c.stdout, "MSG-CDX-")
+        r_c_stage = run(["stage", "--as", "Fable"], b13c_coord)
+        _b13_commit(b13c_repo, "fable commits with codex's entry last in the tree")
+        head_c = subprocess.run(["git", "-C", str(b13c_repo), "show", "HEAD:coordination/relay.md"],
+                                capture_output=True).stdout
+        t("S120 B13c positive: with the peer's entry LAST in the tree, Fable's staged blob ends with exactly one "
+          "newline (no trailing blank line), holds Fable's entry and not the peer's",
+          r_c_stage.returncode == 0 and head_c.endswith(b"\n") and not head_c.endswith(b"\n\n")
+          and c_f_id.encode() in head_c and c_c_id.encode() not in head_c)
+        r_c_stage2 = run(["stage", "--as", "Codex"], b13c_coord)
+        _b13_commit(b13c_repo, "codex commits its last entry")
+        head_c2 = subprocess.run(["git", "-C", str(b13c_repo), "show", "HEAD:coordination/relay.md"],
+                                 capture_output=True).stdout.replace(b"\r\n", b"\n")
+        tree_c2 = io.open(b13c_coord / "relay.md", "rb").read().replace(b"\r\n", b"\n")
+        t("S120 B13c: after the peer's own stage+commit HEAD equals the tree byte-for-byte",
+          r_c_stage2.returncode == 0 and head_c2 == tree_c2)
+
         # ======================= S120 L2 (end) =======================
 
     total = PASS + FAIL
