@@ -173,9 +173,11 @@ def to_windows(path):
     return p
 
 
-def segments(cmd):
+def segments(cmd, ps=False):
     """Quote-aware split into command segments. Separators outside quotes: && || ; | newline ( ) { } $( and backticks;
-    inside DOUBLE quotes `$(` and backticks still open a command (bash expands them there); single quotes are literal."""
+    inside DOUBLE quotes `$(` and backticks still open a command (bash expands them there); single quotes are literal.
+    ps=True (the PowerShell tool): a lone `&` is the CALL OPERATOR, not a separator — `& $G reset` must keep its `&`
+    so head_of can see the variable being invoked (bash's lone `&` is a background separator and stays one)."""
     out, buf, stack = [], [], ["cmd"]
     i, n = 0, len(cmd)
 
@@ -274,6 +276,14 @@ def segments(cmd):
                 stack.pop()
             else:
                 stack.append("cmd")
+            i += 1
+            continue
+        if cmd.startswith("&&", i) or cmd.startswith("||", i):
+            flush()
+            i += 2
+            continue
+        if c == "&" and ps:
+            buf.append(c)  # PowerShell call operator, kept for head_of
             i += 1
             continue
         if c in "(){}|;&\n\r":
@@ -379,7 +389,7 @@ def head_of(toks):
     """Skip env assignments (collecting them), PowerShell call operators, and command-prefix keywords; return
     (index, cleaned lowercase basename, env). base carries any residual shell-expansion metachar so the caller can
     render it UNREAD (git${IFS}reset, $'\\x67it', $G all reach here without being mistaken for a safe literal)."""
-    i, env = 0, {}
+    i, env, called = 0, {}, False
     while i < len(toks):
         if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[i]) and "=" in toks[i]:
             k, v = toks[i].split("=", 1)
@@ -387,6 +397,7 @@ def head_of(toks):
             i += 1
             continue
         if toks[i] in ("&", "."):
+            called = True  # PowerShell's call operator: what follows IS invoked, even a variable
             i += 1
             continue
         if clean_head(toks[i]).rsplit("/", 1)[-1] in CMD_PREFIX:
@@ -394,7 +405,7 @@ def head_of(toks):
             continue
         break
     if i >= len(toks):
-        return i, "", env
+        return i, "", env, called
     head = clean_head(toks[i])
     base = head.rsplit("/", 1)[-1]
     if base.endswith(".exe"):
@@ -403,7 +414,7 @@ def head_of(toks):
         base = "start-process"  # a .NET process start is a wrapper by any name
     if base.endswith("()"):
         base = "function"  # NAME() { … } defines a command
-    return i, base, env
+    return i, base, env, called
 
 
 def parse_git(toks, i):
@@ -487,11 +498,11 @@ def decide(payload):
         env_target = None  # GIT_WORK_TREE / GIT_DIR exported earlier in the same command
         cur_unresolved = False  # cur came from a `cd $VAR` the guard could not resolve
         worktree_redirect = False  # an earlier segment set core.worktree — a later unguarded-repo verb is UNREAD
-        for seg in segments(text):
+        for seg in segments(text, tool == "PowerShell"):
             toks = tokens(seg)
             if not toks:
                 continue
-            i, base, env = head_of(toks)
+            i, base, env, called = head_of(toks)
             for k in ENV_TARGETS:
                 if k in env and not base:  # a bare assignment segment: it persists for the rest of the command
                     env_target = env[k] if k == "GIT_WORK_TREE" else os.path.dirname(env[k].rstrip("/\\"))
@@ -526,8 +537,15 @@ def decide(payload):
             # and would drop a leading '$' before a stripped backslash ($'\\x67it' -> x67it). We cannot know the
             # command; fail closed.
             head_raw = toks[i]
-            if any(c in base for c in ("$", "`", "{", "%")) or any(c in head_raw for c in ("$", "`")) \
-                    or re.search(r"%[A-Za-z_][A-Za-z0-9_]*%", head_raw):
+            expands = any(c in base for c in ("$", "`", "{", "%")) or any(c in head_raw for c in ("$", "`")) \
+                or re.search(r"%[A-Za-z_][A-Za-z0-9_]*%", head_raw) is not None
+            # PowerShell (S12, a platform-semantics trap the guard itself fell into): a bare `$x …` is an EXPRESSION or an
+            # assignment (`$_.Name -like …`, `$t = Get-Process`), never an invocation — `$G reset` is a syntax error there;
+            # only the call operator (`& $G …`, `. $G`) invokes a variable. The guard false-denied a read-only
+            # `Where-Object { $_.TaskName -like "*File Portal*" }` for a "$_.taskname" head (S125, 05:1xZ).
+            if expands and tool == "PowerShell" and not called and base.startswith("$"):
+                expands = False
+            if expands:
                 if here:
                     return f"guard_git: a command head the shell expands ({base[:40]}) is UNREAD in the shared checkout {here}; denied ({LAW})"
                 # even from an unguarded cwd, an explicit -C/--work-tree/--git-dir/env target may name the shared tree

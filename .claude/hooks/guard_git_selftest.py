@@ -221,6 +221,13 @@ def main():
              bash('L=5; sed -n "$((L+1)),\\$p" SYMPTOM-INDEX.md | head -3'))
         case("arithmetic $((1+2)) bare passes", "allow", bash("echo $((1+2)); git status"))
         case("a real $( ) command substitution with git reset in main is still denied", "deny", bash('echo "$(git reset --hard)"'))
+        # FALSE-DENY REGRESSION (S125): PowerShell expression heads are not invocations
+        case("PS: Where-Object { $_.TaskName -like ... } in main passes (expression head)", "allow",
+             ps('Get-ScheduledTask | Where-Object { $_.TaskName -like "*File Portal*" } | ForEach-Object { $_.State }'))
+        case("PS: $t = Get-Process; $t.Path in main passes (assignment + property)", "allow", ps("$t = Get-Process -Id 1; $t.Path"))
+        case("PS: & $G reset --hard in main is still denied (the call operator invokes)", "deny", ps("$G = 'git'; & $G reset --hard"))
+        case("PS: . $G clean in main is still denied", "deny", ps("$G = 'git'; . $G clean -fdx"))
+        case("Bash: $G reset --hard in main is still denied (bash invokes a variable head)", "deny", bash("G=git; $G reset --hard"))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))
