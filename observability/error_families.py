@@ -159,13 +159,17 @@ MECHANISM = {
         "a destructive or blocking act has no guard: an rmtree over held state, an append that assumes a terminator, a "
         "fixture port that reaches the live server, a wait with no bound, an artefact that disables its own producer",
         "name the precondition the act assumes; violate it in a fixture — what happens to the held state or the clock?",
-        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-085"],
+        # SYM-083 (ThinkPad S123): fastembed's default batch of 256 × a 512-token padded window → 9 GiB RSS —
+        # a hidden-cost default, the shape of SYM-048's `xrefs=True`
+        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-083", "SYM-085"],
     ),
     "S12 PLATFORM-OR-LIBRARY-SEMANTICS-TRAP": (
         "the platform or library means something other than its name: force_ocr keeps the old text, inotify reports a "
         "move as create, MSIX virtualises writes and kills on update, a base interpreter is missing",
         "read the producer's own definition (its source or docs) of the flag or event before trusting the name",
-        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051"],
+        # SYM-084 (ThinkPad S123): Taildrop moves files only between devices of the same tailnet user; a tagged
+        # node has no user — the platform's own definition, not its name
+        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084"],
     ),
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",
