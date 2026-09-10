@@ -154,3 +154,5 @@ Two honest numbers beat one flattering one.
 - The five outcomes in §4, especially `dismissed-noise`.
 - Whether vault eligibility is a recommendation routed through the existing bless rail
   (recommended) or a hard gate.
+
+**Appended 2026-09-10 (S127, J63).** "Recording precedes action" is enforced mechanically now, at the session level: `open.sh` publishes the session number in `coordination/private/session.current`, and two `PreToolUse` hooks refuse an Edit/Write to a tracked file (`guard_record.py`) and a `git commit` in the shared checkout (`guard_git.py`) while `sessions/S<N>-*.md` for that number does not exist. Born of three ORDERING rows in three sessions (ERR-063, -078, -080). The hook's first live catch was its author, one edit after it went live.
