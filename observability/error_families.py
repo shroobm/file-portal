@@ -159,7 +159,7 @@ MECHANISM = {
         "a destructive or blocking act has no guard: an rmtree over held state, an append that assumes a terminator, a "
         "fixture port that reaches the live server, a wait with no bound, an artefact that disables its own producer",
         "name the precondition the act assumes; violate it in a fixture — what happens to the held state or the clock?",
-        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-083"],
+        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-085"],
     ),
     "S12 PLATFORM-OR-LIBRARY-SEMANTICS-TRAP": (
         "the platform or library means something other than its name: force_ocr keeps the old text, inotify reports a "
