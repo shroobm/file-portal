@@ -403,3 +403,26 @@ shipping without a restart — his next bless click is the proof (`journalctl --
 copy the export cannot remove there — environmental, pre-existing); the Linux target is the test bed.
 
 **Recorded at:** `2026-09-10T06:1xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S126.
+
+## Auto-logon (J57's other half) · Electron parked — Rab's words, 2026-09-10T06:2xZ (S127)
+
+Rab, verbatim: **"auto-logon to finish J57, keep electron on the backburner for now."**
+
+1. **Auto-logon is his hand, and this is why, in one sentence:** it is a Windows security setting that stores the account
+   password (as an LSA secret through `netplwiz` or Sysinternals Autologon; in cleartext through the raw registry), and the
+   rules this lane runs under forbid it from changing system or security settings and from entering a password — which
+   docs/19 §0.3(c) already says about system configuration. **What the lane did instead (S127, read-only, `Observed`):**
+   `AutoAdminLogon` unset · no cleartext `DefaultPassword` · `DevicePasswordLessBuildVersion = 2` (the netplwiz checkbox is
+   hidden until it is 0) · account `Bndit` is LOCAL · last sign-in provider is the **password** (no PIN trip) · Windows 10
+   Pro 19045 · BitLocker `UNREAD` (access denied, non-admin) · Sysinternals Autologon not on the machine · the J57 task
+   Ready. **The procedure, verified against that state, for his elevated shell:** either Sysinternals Autologon
+   (`Autologon.exe DESKTOP-BNDIT Bndit <password>` — an LSA secret, not cleartext) or set the PasswordLess value to 0 and
+   use `netplwiz` (untick "Users must enter a user name and password", the password twice). **Caveats named:** anyone
+   who powers the machine gets the desktop (BitLocker state unknown; the seat may be his brother's, docs/19 §0.8); a
+   later password change breaks auto-logon silently. **The card now reads it every open** (`widget autostart … ·
+   auto-logon ON/OFF/UNREAD`, CASE 46, 84/84) — OFF today. **J62** holds it with the done-when (the card reads ON, and a
+   reboot brings the widget up with no click; J57 becomes `Observed` then).
+2. **Electron — parked.** `docs/59` stands as the assessment; OPEN-TASKS §G records it as NOT open, with docs/59 §7's
+   conditions as the only re-open path besides his word.
+
+**Recorded at:** `2026-09-10T06:4xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S127.
