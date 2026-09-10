@@ -247,6 +247,19 @@ def main():
              ps('$p = "x"; $name = switch ($p.ToUpper()) { "{D6886603-9D2F-4EB2-B667-1971041FA96B}" { "PIN" } default { "other" } }; $name'))
         case("Bash: brace-expansion head {git,} reset in main is still denied", "deny", bash("{git,} reset --hard"))
         case("PS: & \"git\" reset in main is still denied (a quoted head after the call operator invokes)", "deny", ps('& "git" reset --hard'))
+        # J63 (S127): the record precedes the act — a commit in a guarded File Portal checkout needs sessions/S<N>-*.md
+        # for the number the card published in coordination/private/session.current
+        os.makedirs(os.path.join(main_repo, "coordination", "private"))
+        os.makedirs(os.path.join(main_repo, "sessions"))
+        case("J63: a commit with NO session marker is refused (no open ran)", "deny", bash("git commit -q -m x"))
+        io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("S42 desktop 2026-09-10T00:00:00Z\n")
+        case("J63: a commit with the marker but no sessions/S42-*.md is refused", "deny", bash("git commit -q -m x"))
+        io.open(os.path.join(main_repo, "sessions", "S42-desktop-2026-09-10.md"), "w").write("# S42\n")
+        case("J63: a commit with the marker AND the record passes", "allow", bash("git commit -q -m x"))
+        io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("garbage\n")
+        case("J63: an unreadable marker refuses the commit (UNREAD is not clean)", "deny", bash("git commit -q -m x"))
+        io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("S42 desktop 2026-09-10T00:00:00Z\n")
+        case("J63: a repository WITHOUT coordination/ is exempt (not a File Portal checkout)", "allow", bash("git commit -q -m x", other_repo))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))

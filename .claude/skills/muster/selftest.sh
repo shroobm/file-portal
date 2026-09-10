@@ -847,6 +847,17 @@ out=$(FP_PS_EXE="$WORK/fakeps46c/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE
 if printf '%s' "$out" | grep -qE "auto-logon OFF"; then ok "J62: an empty AUTOLOGON reads OFF (the hand that remains, named)"
 else bad "J62: an empty AUTOLOGON reads OFF" "got: $(printf '%s' "$out" | grep -E 'widget autostart' | head -1)"; fi
 
+# CASE 47 — J63 (S127). The property: the open PUBLISHES the session number for the hooks. After open.sh on the c45
+# fixture (Desktop rows S41, S42 → this session S43), coordination/private/session.current must hold `S43`, and the
+# card must NAME the marker. Violate the absence: remove the marker first, run the open, read it back.
+mkdir -p "$R/coordination"; rm -f "$R/coordination/private/session.current"  # a File Portal-shaped fixture (the guards exempt a root without coordination/)
+out=$(FP_PS_EXE="$WORK/fakeps46c/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if [[ -f "$R/coordination/private/session.current" ]] && head -c 4 "$R/coordination/private/session.current" | grep -q '^S43'; then ok "J63: the open writes coordination/private/session.current = S43"
+else bad "J63: the open writes the session marker" "got: $(cat "$R/coordination/private/session.current" 2>/dev/null || echo '(absent)')"; fi
+if printf '%s' "$out" | grep -qE 'session marker +coordination/private/session.current = S43'; then ok "J63: the card names the marker it wrote"
+else bad "J63: the card names the marker" "got: $(printf '%s' "$out" | grep -E 'session marker' | head -1)"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

@@ -71,6 +71,16 @@ case "$machine" in MINGW*|MSYS*|CYGWIN*) machine="desktop" ;; Linux) machine="th
 today=$(date +%Y-%m-%d)
 closeout="sessions/S${this_n}-${machine}-${today}.md"
 [[ -n "$this_n" ]] && row "this session" "S$this_n  ·  $machine  ·  $today"
+# J63 (S127): the open PUBLISHES the session number for the hooks — coordination/private/session.current, per machine,
+# untracked. guard_git.py refuses a `git commit` in the shared checkout, and guard_record.py an Edit/Write to a tracked
+# file, while sessions/S<N>-*.md for THIS number does not exist: the record precedes the act (docs/28), now mechanically
+# (ERR-063, -078, -080 — three sessions in a row wrote instruments before their record). A stale marker means "no open
+# ran": both guards refuse until it does. A read-only session never trips either.
+if [[ -n "$this_n" && -d "$FP_REPO/coordination" ]]; then
+  mkdir -p "$FP_REPO/coordination/private" 2>/dev/null
+  printf 'S%s %s %s\n' "$this_n" "$machine" "$(date -u +%Y-%m-%dT%H:%M:%SZ)" > "$FP_REPO/coordination/private/session.current" 2>/dev/null \
+    && row "session marker" "coordination/private/session.current = S$this_n (guard_record / guard_git read it)"
+fi
 
 # Collision check. A number already spoken for means either this session is misnumbered or an
 # earlier one wrote under a number it did not own. Both are faults, they are indistinguishable

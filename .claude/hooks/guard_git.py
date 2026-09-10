@@ -344,6 +344,26 @@ def resolve_alias(root, verb):
     return p.stdout.strip()
 
 
+def record_missing(root):
+    """J63: why a write/commit in `root` must wait — or None when the session's record exists. The card publishes the
+    session number in coordination/private/session.current (`S<N> <machine> <utc>`); the record is sessions/S<N>-*.md.
+    A root without a coordination/ directory is not a File Portal checkout and is exempt. Shared with guard_record.py."""
+    import glob
+    if not os.path.isdir(os.path.join(root, "coordination")):
+        return None
+    marker = os.path.join(root, "coordination", "private", "session.current")
+    try:
+        first = io.open(marker, encoding="utf-8").read().split()
+    except OSError:
+        return "no session marker (coordination/private/session.current): no open ran — run `bash .claude/skills/muster/open.sh` first"
+    if not first or not re.match(r"^S\d+$", first[0]):
+        return "the session marker is unreadable — re-run `bash .claude/skills/muster/open.sh`"
+    n = first[0][1:]
+    if glob.glob(os.path.join(root, "sessions", f"S{n}-*.md")):
+        return None
+    return f"sessions/S{n}-*.md does not exist — open.sh said this session is S{n}; write the record (§1 in Rab's words, the card, the pin) before any instrument"
+
+
 def targets_named(toks, i, cur, guarded):
     """Scan toks[i:] for git target flags (-C, --work-tree[=], --git-dir[=]); return the guarded root any of them
     names, or a marker string when one is UNREAD (a shell-expanded value), else None. Used when the command HEAD is
@@ -647,6 +667,14 @@ def decide(payload):
                     continue
                 return (f"guard_git: a subagent lane may run only READ-ONLY git in the shared checkout {root}; `git {verb}` "
                         f"is denied — commit in your own worktree or hand the bytes to the main session ({LAW})")
+            if verb == "commit" and root in roots:
+                # J63 (S127): the record precedes the act, mechanically. open.sh publishes the session number in
+                # coordination/private/session.current; a commit in the shared checkout while sessions/S<N>-*.md for that
+                # number does not exist is refused (ERR-063 / -078 / -080: three sessions in a row committed instruments
+                # before their record). No marker = no open ran = refused too (the MUSTER law: open first).
+                why = record_missing(root)
+                if why:
+                    return f"guard_git: `git commit` refused — {why} (J63: the record precedes the act, docs/28)"
             if verb in READ_ONLY or verb in MAIN_WRITES:
                 continue
             exp = resolve_alias(root, verb)
