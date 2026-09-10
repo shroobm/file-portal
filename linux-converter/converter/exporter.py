@@ -780,7 +780,9 @@ class ExportHandler(FileSystemEventHandler):
             return
         bundle_dir = self._bless_bundle(event.dest_path)
         if bundle_dir is not None:
-            logger.info("EXPORT-BLESS-SEEN %s: bless.json arrived (rename) -- re-exporting", bundle_dir.name)
+            logger.info(
+                "EXPORT-BLESS-SEEN %s: bless.json arrived (rename) -- re-exporting", bundle_dir.name
+            )
             self.exporter.export(bundle_dir)
 
     def on_created(self, event):
