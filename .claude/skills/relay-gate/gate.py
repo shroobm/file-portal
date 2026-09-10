@@ -2552,23 +2552,28 @@ def cmd_stage(a):
               f"working copy (compared line-ending-blind); refusing to stage a diverged log. "
               f"Index left untouched.", file=sys.stderr)
         return 1
-    head_by_id = {eid: text for _, eid, text, _raw in head_entries}
-    work_ids = [eid for _, eid, _text, _raw in work_entries]
-    work_by_id = {eid: text for _, eid, text, _raw in work_entries}
-    missing = [eid for _, eid, _text, _raw in head_entries if eid not in work_by_id]
-    edited = [eid for _, eid, text, _raw in head_entries if eid in work_by_id and work_by_id[eid] != text]
-    head_order = [eid for _, eid, _text, _raw in head_entries]
-    work_order_of_head = [eid for eid in work_ids if eid in head_by_id]
-    if missing or edited or work_order_of_head != head_order:
+    # Match HEAD's entries as an ORDERED SUBSEQUENCE of the working copy's, by canonical text (the
+    # digest law's own equality - line-ending- and trailing-space-blind), never by id: the live log
+    # carries a header line twice under one id (a quoted header inside a body splits like a real
+    # one), and an id-keyed comparison read the first occurrence against the last and called an
+    # untouched August entry "edited" (2026-09-10T00:19Z, the first live run of this rule).
+    hp = 0
+    kept, new_mine, left = [], [], []
+    for lane, eid, text, raw in work_entries:
+        if hp < len(head_entries) and canonical(head_entries[hp][2]) == canonical(text):
+            kept.append((lane, text, raw))
+            hp += 1
+        elif lane == a.as_model:
+            kept.append((lane, text, raw))
+            new_mine.append((lane, text))
+        else:
+            left.append((lane, text))
+    if hp < len(head_entries):
+        stalled = head_entries[hp][1]
         print(f"REFUSED: UNREAD - {relay_git_path} is append-only and the working copy breaks it: "
-              f"missing {missing or '-'} · edited {edited or '-'} · "
-              f"reordered {'yes' if work_order_of_head != head_order else 'no'}. Index left untouched.",
-              file=sys.stderr)
+              f"HEAD entry {stalled} (#{hp + 1} of {len(head_entries)}) is missing, edited or reordered "
+              f"in the working copy. Index left untouched.", file=sys.stderr)
         return 1
-
-    kept = [(lane, text, raw) for lane, eid, text, raw in work_entries if eid in head_by_id or lane == a.as_model]
-    new_mine = [(lane, text) for lane, eid, text, _raw in work_entries if eid not in head_by_id and lane == a.as_model]
-    left = [(lane, text) for lane, eid, text, _raw in work_entries if eid not in head_by_id and lane != a.as_model]
     # Reassemble from the working copy's RAW slices (separators included): the committed bytes are
     # then exactly the working copy minus the peer's uncommitted entries, so after the peer commits
     # its own, HEAD == the tree and `git status` is clean - no blank-line drift.

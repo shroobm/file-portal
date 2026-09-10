@@ -2250,6 +2250,40 @@ def main():
           "index untouched",
           r_rm.returncode == 1 and "missing" in r_rm.stderr and cached_rm.stdout.strip() == "")
 
+        # ---- B13b (S120, found LIVE 2026-09-10T00:19Z on the first real run of the entry-aware rule):
+        #      the real log carries one header id TWICE (MSG-FAB-0018, a 2026-08-24 double-post older than
+        #      the id-uniqueness refusal), and an id-keyed comparison read the first occurrence against the
+        #      last and called an untouched entry "edited". HEAD's entries match as an ordered SUBSEQUENCE by
+        #      canonical text now. Positive: a duplicate id in HEAD stages fine. Positive: a HEAD entry whose
+        #      working-copy bytes differ only by a stray CR and trailing spaces is not "edited" (canonical()
+        #      is the digest law's own equality). ------------------------------------------------------
+        b13b_repo, b13b_coord = _s120_mkrepo(Path(tmp) / "_s120_b13b_dup_id")
+        dup_text = ("\n## 2026-08-24T17:25Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0018⟩\n\n"
+                    "**RECAP.** first posting\n\n**FOR RAB.** x\n\n**SUGGESTED PROMPT** y\n"
+                    "\n## 2026-08-24T17:27Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0018⟩\n\n"
+                    "**RECAP.** second posting, same id (historical double-post)\n\n**FOR RAB.** x\n\n"
+                    "**SUGGESTED PROMPT** y\n")
+        with io.open(b13b_coord / "relay.md", "a", encoding="utf-8", newline="\n") as fh:
+            fh.write(dup_text)
+        subprocess.run(["git", "-C", str(b13b_repo), "add", "-A"], check=True)
+        _b13_commit(b13b_repo, "history with a duplicate header id")
+        r_dup_c = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "after-dup",
+                       "--body", _s120_envelope_body(b13b_coord, "**RECAP.** codex after the duplicate")], b13b_coord)
+        r_dup_f = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "after-dup-fable",
+                       "--body", _s120_envelope_body(b13b_coord, "**RECAP.** fable after the duplicate")], b13b_coord)
+        dup_codex_id = _s120_msg_id(r_dup_c.stdout, "MSG-CDX-")
+        dup_fable_id = _s120_msg_id(r_dup_f.stdout, "MSG-FAB-0")
+        # stray CR + trailing spaces inside the FIRST duplicate's body line, in the working copy only
+        wc_dup = io.open(b13b_coord / "relay.md", encoding="utf-8", newline="").read()
+        wc_dup = wc_dup.replace("**RECAP.** first posting\n", "**RECAP.** first posting  \r\n", 1)
+        io.open(b13b_coord / "relay.md", "w", encoding="utf-8", newline="").write(wc_dup)
+        r_dup = run(["stage", "--as", "Fable"], b13b_coord)
+        cached_dup = subprocess.run(["git", "-C", str(b13b_repo), "diff", "--cached"], capture_output=True, text=True)
+        t("S120 B13b positive: a duplicate header id in HEAD does not break stage, and a stray CR + trailing "
+          "spaces in a HEAD entry's working-copy bytes is not 'edited' - stages Fable's new entry only",
+          r_dup.returncode == 0 and dup_fable_id in cached_dup.stdout and dup_codex_id not in cached_dup.stdout
+          and cached_dup.stdout.count("+## ") == 1)
+
         # ======================= S120 L2 (end) =======================
 
     total = PASS + FAIL
