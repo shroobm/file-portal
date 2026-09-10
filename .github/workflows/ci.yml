@@ -3,7 +3,7 @@
 # python: ruff lint + format check for the four Linux subprojects, pytest for the allocator, the
 #         converter (the converter writes the vault — it is the last code that should be
 #         unverified) and, warn-only until observed, the indexer (2026-09-09, ThinkPad lane:
-#         reads the vault, never writes it). S108 (lane B2): the LIVE windows-converter lane joins, warn-only — ruff
+#         reads the vault, never writes it; armed 2026-09-10 on run 222). S108 (lane B2): the LIVE windows-converter lane joins, warn-only — ruff
 #         check + its one CI-safe hermetic selftest; the inline comments name what is excluded
 #         and why. Also warn-only: observability/acceptance.py, the governance suite (A29).
 # rust:   cargo fmt + clippy for the Tauri widget, run on windows-latest because that is the
@@ -70,12 +70,14 @@ jobs:
       # gap on ubuntu/py3.11 must show as a warning HERE, not fail the ARMED allocator and
       # converter gates. Heavier than the other lanes (fastembed + onnxruntime + sqlite-vec,
       # ~200 MB installed); range-bounded (<1, <0.2) in its requirements.txt, not pinned.
-      - name: Install (linux-indexer, warn-only)
-        continue-on-error: true
+      # ARMED 2026-09-10 (S123 post-close): observed on ubuntu/py3.11 in the job LOG of run
+      # 34430418662 (num 222, on the row commit d0a4c38) — install "Successfully installed …
+      # fastembed-0.8.0 … sqlite_vec …", lint "All checks passed!" / "17 files already
+      # formatted", test "43 passed in 4.97s". Read in the log, not the API (SYM-075).
+      - name: Install (linux-indexer)
         run: pip install -r linux-indexer/requirements-dev.txt
-      - name: Lint (linux-indexer, warn-only)
+      - name: Lint (linux-indexer)
         working-directory: linux-indexer
-        continue-on-error: true
         run: |
           ruff check .
           ruff format --check .
@@ -99,9 +101,9 @@ jobs:
       # 2026-09-09 (ThinkPad lane): hermetic — a real bare git vault under tmp_path and a hash
       # embedder; no model download, no network. Warn-only per S108 until the fastembed +
       # onnxruntime + sqlite-vec wheels are observed resolving on ubuntu/py3.11 in the job LOG.
-      - name: Test (linux-indexer, warn-only)
+      # ARMED 2026-09-10 (S123 post-close): run 222's job LOG line "43 passed in 4.97s".
+      - name: Test (linux-indexer)
         working-directory: linux-indexer
-        continue-on-error: true
         run: pytest tests/ -v
       # S108 (lane B2): the one windows-converter selftest that is safe here. It is hermetic —
       # every fixture PDF is synthesised with pymupdf in a temp dir; no corpus, no GPU, no live
