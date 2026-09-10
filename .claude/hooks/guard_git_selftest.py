@@ -156,6 +156,31 @@ def main():
         case("LANE: unknown verb denied without an alias lookup", "deny", bash("git ll", agent="lane-1"))
         case("LANE: git tag -l passes", "allow", bash("git tag -l", agent="lane-1"))
         case("LANE: git tag v1 denied", "deny", bash("git tag v1", agent="lane-1"))
+        # environment-directed targets, from an unguarded cwd
+        case("GIT_WORK_TREE=<main> prefix from elsewhere", "deny", bash(f"GIT_WORK_TREE={msys_main} GIT_DIR={msys_main}/.git git reset --hard", tmp))
+        case("export GIT_DIR=<main>/.git; git clean from elsewhere", "deny", bash(f"export GIT_DIR={msys_main}/.git; git clean -fdx", tmp))
+        case("PowerShell $env:GIT_WORK_TREE = <main>; git reset from elsewhere", "deny", ps(f"$env:GIT_WORK_TREE = '{main_repo}'; git reset --hard", tmp))
+        case("--git-dir=<main>/.git reset from elsewhere", "deny", bash(f'git --git-dir="{main_repo}/.git" reset --hard', tmp))
+        # self-defined command names
+        case("alias g=git; g reset --hard in main", "deny", bash("alias g=git; g reset --hard"))
+        case("Set-Alias g git; g reset --hard in main", "deny", ps("Set-Alias g git; g reset --hard"))
+        case("function g { git reset --hard }; g in main", "deny", ps("function g { git reset --hard }; g"))
+        case("g() { git reset --hard; }; g in main", "deny", bash("g() { git reset --hard; }; g"))
+        case("alias defined from elsewhere naming <main>", "deny", bash(f"alias g='git -C {msys_main}'; g reset --hard", tmp))
+        case("an alias with no shared checkout in play passes", "allow", bash("alias ll='ls -la'; ll", tmp))
+        # more process starters
+        case(".NET Process::Start git reset in main", "deny", ps("[System.Diagnostics.Process]::Start('git','reset --hard')"))
+        case("wsl git reset in main", "deny", bash("wsl git reset --hard"))
+        case("schtasks scheduling a git reset in main", "deny", ps('schtasks /create /tn x /tr "git reset --hard" /sc once /st 00:00'))
+        case("Start-Job { git clean } in main", "deny", ps("Start-Job { git clean -fdx }"))
+        # an unguarded repository whose core.worktree points INTO the guarded main
+        sh(["git", "config", "core.worktree", main_repo], other_repo)
+        case("core.worktree → <main>: git reset --hard in the unguarded repo denied", "deny", bash("git reset --hard", other_repo))
+        case("core.worktree → <main>: git clean denied", "deny", bash("git clean -fdx", other_repo))
+        case("core.worktree → <main>: a LANE's git add denied", "deny", bash("git add -A", other_repo, agent="lane-1"))
+        case("core.worktree → <main>: git status still passes", "allow", bash("git status", other_repo))
+        sh(["git", "config", "--unset", "core.worktree"], other_repo)
+        case("core.worktree unset again: git reset --hard in the unguarded repo passes", "allow", bash("git reset --hard", other_repo))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))

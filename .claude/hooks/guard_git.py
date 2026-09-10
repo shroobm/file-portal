@@ -86,9 +86,13 @@ LANE_FORMS = {
 }
 WRAPPERS = ("bash", "sh", "zsh", "dash", "ksh", "fish", "powershell", "pwsh", "cmd", "python", "python3", "py", "uv", "uvx",
             "env", "eval", "exec", "xargs", "find", "timeout", "nohup", "nice", "time", "sudo", "runas", "start", "call",
-            "start-process", "invoke-expression", "iex", "invoke-command", "icm", "node", "perl", "ruby", "busybox",
-            "parallel", "watch", "script", "source")
+            "start-process", "saps", "start-job", "sajb", "start-threadjob", "invoke-item", "ii", "invoke-expression", "iex",
+            "invoke-command", "icm", "node", "perl", "ruby", "busybox", "parallel", "watch", "script", "source", "wsl",
+            "conhost", "schtasks", "at", "register-scheduledtask", "new-scheduledtask", "new-scheduledtaskaction",
+            "forfiles", "msiexec", "wmic", "psexec")
+DEFINERS = ("alias", "set-alias", "sal", "new-alias", "nal", "function", "filter")  # a command that names its own commands
 DIR_WORDS = ("cd", "pushd", "set-location", "push-location", "sl", "chdir")
+ENV_TARGETS = ("GIT_WORK_TREE", "GIT_DIR")
 HOOK_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normcase(os.path.realpath(os.path.join(HOOK_DIR, "..", "..")))
 ROOTS_FILE = os.path.join(REPO, "coordination", "private", "git-guard.roots")
@@ -273,26 +277,47 @@ def resolve_alias(root, verb):
     return p.stdout.strip()
 
 
+def core_worktree(root):
+    """The repository's core.worktree, absolute; '' when unset; None when git could not answer (UNREAD)."""
+    try:
+        p = subprocess.run(["git", "-C", root, "config", "--get", "core.worktree"], capture_output=True, text=True, timeout=5)
+    except Exception:
+        return None
+    if p.returncode == 1 and not p.stdout.strip():
+        return ""
+    if p.returncode != 0:
+        return None
+    wt = to_windows(p.stdout.strip())
+    return wt if is_abs(wt) else os.path.normpath(os.path.join(root, ".git", wt))
+
+
 def head_of(toks):
-    """Skip env assignments and PowerShell call operators; return (index, cleaned lowercase basename)."""
-    i = 0
+    """Skip env assignments (collecting them) and PowerShell call operators; return (index, cleaned lowercase basename, env)."""
+    i, env = 0, {}
     while i < len(toks) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[i]):
+        k, v = toks[i].split("=", 1)
+        env[k.upper()] = to_windows(v)
         i += 1
     while i < len(toks) and toks[i] in ("&", "."):
         i += 1
     if i >= len(toks):
-        return i, ""
+        return i, "", env
     head = clean_head(toks[i])
     base = head.rsplit("/", 1)[-1]
     if base.endswith(".exe"):
         base = base[:-4]
-    return i, base
+    if "::start" in head or "diagnostics.process" in head or "]::" in head:
+        base = "start-process"  # a .NET process start is a wrapper by any name
+    if base.endswith("()"):
+        base = "function"  # NAME() { … } defines a command
+    return i, base, env
 
 
 def parse_git(toks, i):
-    """toks[i] is git. Return (verb, args, c_path, work_tree, alias_on_line)."""
+    """toks[i] is git. Return (verb, args, target_override, alias_on_line); the override comes from --work-tree, -C or
+    --git-dir (the directory holding that .git), in that precedence."""
     i += 1
-    c_path = work_tree = None
+    c_path = work_tree = git_dir = None
     alias_on_line = False
     while i < len(toks):
         t = clean_token(toks[i])
@@ -308,6 +333,14 @@ def parse_git(toks, i):
             work_tree = to_windows(toks[i + 1])
             i += 2
             continue
+        if t.startswith("--git-dir="):
+            git_dir = to_windows(t.split("=", 1)[1])
+            i += 1
+            continue
+        if t == "--git-dir" and i + 1 < len(toks):
+            git_dir = to_windows(toks[i + 1])
+            i += 2
+            continue
         if t == "-c" and i + 1 < len(toks):
             if clean_token(toks[i + 1]).lower().startswith("alias."):
                 alias_on_line = True
@@ -317,8 +350,10 @@ def parse_git(toks, i):
             i += 1
             continue
         args = [clean_token(x) for x in toks[i + 1:]]
-        return t.lower(), args, c_path, work_tree, alias_on_line
-    return "", [], c_path, work_tree, alias_on_line
+        override = work_tree or c_path or (os.path.dirname(git_dir.rstrip("/\\")) if git_dir else None)
+        return t.lower(), args, override, alias_on_line
+    override = work_tree or c_path or (os.path.dirname(git_dir.rstrip("/\\")) if git_dir else None)
+    return "", [], override, alias_on_line
 
 
 def decide(payload):
@@ -354,12 +389,23 @@ def decide(payload):
     def scan(text, cur, depth):
         """Walk the segments of `text` from directory `cur`; return a deny reason or None. Recurses into a wrapper's
         quoted arguments (bash -c '…', sh -c "…", powershell -Command "…", cmd /c "…") up to three levels."""
+        env_target = None  # GIT_WORK_TREE / GIT_DIR exported earlier in the same command
         for seg in segments(text):
             toks = tokens(seg)
             if not toks:
                 continue
-            i, base = head_of(toks)
+            i, base, env = head_of(toks)
+            for k in ENV_TARGETS:
+                if k in env and not base:  # a bare assignment segment: it persists for the rest of the command
+                    env_target = env[k] if k == "GIT_WORK_TREE" else os.path.dirname(env[k].rstrip("/\\"))
             if not base:
+                continue
+            if base == "export" and len(toks) > i + 1:
+                for t in toks[i + 1:]:
+                    m = re.match(r"^(GIT_WORK_TREE|GIT_DIR)=(.+)$", clean_token(t), re.I)
+                    if m:
+                        v = to_windows(m.group(2))
+                        env_target = v if m.group(1).upper() == "GIT_WORK_TREE" else os.path.dirname(v.rstrip("/\\"))
                 continue
             if base in DIR_WORDS and len(toks) > i + 1:
                 target = to_windows(toks[-1])
@@ -368,9 +414,19 @@ def decide(payload):
                 cur = target if is_abs(target) else os.path.join(cur, target)
                 continue
             here = guarded(cur)
+            m = re.match(r"^\$env:(git_work_tree|git_dir)$", base)
+            if m and len(toks) > i + 1:  # PowerShell: $env:GIT_WORK_TREE = '<path>'
+                v = to_windows(toks[-1])
+                env_target = v if m.group(1) == "git_work_tree" else os.path.dirname(v.rstrip("/\\"))
+                continue
             if base.startswith("$") or base.startswith("%") or base.startswith("${"):
                 if here:
                     return f"guard_git: a command head that is a shell variable ({base}) is UNREAD in the shared checkout {here}; denied ({LAW})"
+                continue
+            if base in DEFINERS:
+                if here or names_guarded_root(text):
+                    return (f"guard_git: the command defines its own command names ({base}) — what they run is UNREAD in the shared "
+                            f"checkout; denied ({LAW})")
                 continue
             if base in WRAPPERS:
                 mentions_git = re.search(r"(?i)\bgit(\.exe)?\b", seg) is not None
@@ -390,13 +446,26 @@ def decide(payload):
                 continue
             if base != "git":
                 continue
-            verb, args, c_path, work_tree, alias_on_line = parse_git(toks, i)
-            target = work_tree or c_path or cur
+            verb, args, override, alias_on_line = parse_git(toks, i)
+            seg_env = None
+            for k in ENV_TARGETS:
+                if k in env:
+                    seg_env = env[k] if k == "GIT_WORK_TREE" else os.path.dirname(env[k].rstrip("/\\"))
+            target = override or seg_env or env_target or cur
             if not is_abs(target):
                 target = os.path.join(cur, target)
             root = guarded(target)
             if root is None:
-                continue  # a linked worktree, an unguarded repository, or not a repository: the lane's own business
+                # a linked worktree, an unguarded repository, or not a repository: the lane's own business — unless that
+                # repository's core.worktree points INTO a guarded tree (an unguarded .git driving a guarded working tree)
+                r0, kind0 = repo_root_of(target)
+                if r0 and kind0 == "dir" and (verb in TIER1 or lane):
+                    wt = core_worktree(r0)
+                    if wt is None:
+                        return f"guard_git: core.worktree of {r0} could not be read; UNREAD, denied ({LAW})"
+                    if wt and guarded(wt):
+                        return f"guard_git: {r0} has core.worktree inside the shared checkout {guarded(wt)}; `git {verb}` there is denied ({LAW})"
+                continue
             if alias_on_line:
                 return f"guard_git: `git -c alias.…` on the command line is denied in the shared checkout {root} ({LAW})"
             if not verb or "$" in verb or "%" in verb:
