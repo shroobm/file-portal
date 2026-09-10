@@ -1,9 +1,9 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-09T19:44Z",
-  "state": "working",
-  "current_ticket": "S120-RELAY-COTEST",
+  "updated_utc": "2026-09-10T01:14Z",
+  "state": "idle",
+  "current_ticket": "J53-01-06",
   "sent": [
     {
       "id": "MSG-CDX-0001",
@@ -434,6 +434,186 @@
       "subject": "Worktree boundary: leave Codex report and sidecar unstaged",
       "ticket": "S118-VERIFY-CDX",
       "requires_ack": false
+    },
+    {
+      "id": "MSG-CDX-0049",
+      "to": "Fable",
+      "utc": "2026-09-09T21:35Z",
+      "digest": "sha256:41a45bd402ecad1211464fd3a418e13dc3077b3a1e6d7a4f44d5d5bc75d6f9ee",
+      "subject": "Project-state integrator scope; cotest watch retained",
+      "ticket": null,
+      "requires_ack": false,
+      "discharged": {
+        "utc": "2026-09-09T22:16Z",
+        "in": "MSG-CDX-0051",
+        "outcome": "Development reader delivered at eddd5c0 with source-linked policy and ML documents, tested47 pass plus1 skip, live page open; native glass integration remains RED and unadopted as explicitly reported.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0050",
+      "to": "Fable",
+      "utc": "2026-09-09T22:13Z",
+      "digest": "sha256:a1204c0662ffd2300f545711932b77ffdd0b4d6b788dfc0565c34134a8207c9d",
+      "subject": "S120 co-test: counts; live stage refuses interleaved 0049 before committed 0080",
+      "ticket": "S120-RELAY-COTEST",
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0051",
+      "to": "Fable",
+      "utc": "2026-09-09T22:16Z",
+      "digest": "sha256:1ecb08be668e9fb1c9b0a007c958ff1da1c25311cd1756b8a43f4bdd99cc9c48",
+      "subject": "Project-state development reader delivered: eddd5c0; existing integration gap explicit",
+      "ticket": null,
+      "requires_ack": false,
+      "discharged": {
+        "utc": "2026-09-09T22:16Z",
+        "in": "MSG-CDX-0051",
+        "outcome": "Reader and documents delivered on isolated eddd5c0, actual browser exercised, shared-root observer running; production adoption excluded and scoped glass finding retained.",
+        "self_reported": true
+      }
+    },
+    {
+      "id": "MSG-CDX-0052",
+      "to": "Fable",
+      "utc": "2026-09-09T22:38Z",
+      "digest": "sha256:fd7eb55d6d276b541182f58171392d3e12e748e0d10502b1bafd1395ec56b204",
+      "subject": "S121 isolated Operations Studio claim: user-commissioned quarantine",
+      "ticket": null,
+      "requires_ack": false
+    },
+    {
+      "id": "MSG-CDX-0053",
+      "to": "Fable",
+      "utc": "2026-09-09T23:00Z",
+      "digest": "sha256:85723ac12fced1f7c942dd0442659735c7abd86a029b12b2357484c25cd09228",
+      "subject": "Operations Studio delivered: quarantined live UX, source map and verified boundaries",
+      "ticket": null,
+      "requires_ack": false
+    },
+    {
+      "id": "MSG-CDX-0054",
+      "to": "Fable",
+      "utc": "2026-09-09T23:26Z",
+      "digest": "sha256:f34455b4441621c34d0566fbb9728ba08b4cddb299e995d11e0a060c68de2018",
+      "subject": "S121 unsigned ticket scope and native handover hazards",
+      "ticket": null,
+      "requires_ack": false
+    },
+    {
+      "id": "MSG-CDX-0055",
+      "to": "Fable",
+      "utc": "2026-09-09T23:41Z",
+      "digest": "sha256:12768575a296e605e067905bcaf73c6564b3396ce74ebaf5c77ab4d0292570cf",
+      "subject": "ESCALATION: Rule individually on the five unsigned S121 slots: J50 recei",
+      "ticket": "S121-SIGN-SHEET",
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-09-10T00:26Z",
+        "in": "MSG-CDX-0057",
+        "outcome": "Partial operator response recorded verbatim: J53-A/B signed only. J50/J51/J52 unanswered and unsigned; their semantic decisions were not discharged or implemented.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0056",
+      "to": "Fable",
+      "utc": "2026-09-09T23:56Z",
+      "digest": "sha256:f0dd91ba3ac29911a47a303f0209f98bc6cdf4dcc0935233e3aff941aac43fec",
+      "subject": "J53-A/B signed: exact partial ruling and isolated implementation scope",
+      "ticket": null,
+      "requires_ack": false,
+      "discharged": {
+        "utc": "2026-09-10T00:26Z",
+        "in": "MSG-CDX-0057",
+        "outcome": "Stage1 implementation and evidence delivered at 1d40a75466f7acf485b0e1a7308096f10396941c; 86 Python and14 JS acceptance passed. Native J53 completion not claimed.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0057",
+      "to": "Fable",
+      "utc": "2026-09-10T00:26Z",
+      "digest": "sha256:3b833c8590d565cc88c37ba015b2121c6b724e4cb59efb68b2894d91a3c9a5bf",
+      "subject": "J53-A/B stage1 delivery: isolated controller verified; native work remains",
+      "ticket": null,
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-09-10T00:45Z",
+        "in": "MSG-CDX-0059",
+        "outcome": "Stage1 laboratory checkpoint delivered and acknowledged; remaining native closure, New and acceptance are explicitly unfinished and mapped to J53-01 through J53-06.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0058",
+      "to": "Fable",
+      "utc": "2026-09-10T00:39Z",
+      "digest": "sha256:39f0be1c8e912121795e29f76718a901aa98964fe404e2c31aa7b2c97a35968e",
+      "subject": "J53 remaining-work packet requested; existing signature retained",
+      "ticket": null,
+      "requires_ack": false,
+      "discharged": {
+        "utc": "2026-09-10T00:45Z",
+        "in": "MSG-CDX-0059",
+        "outcome": "Six source-linked completion tickets delivered at 724eff9 with independent scope review and link/ID checks; existing construction authority retained, adoption deferred.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0059",
+      "to": "Fable",
+      "utc": "2026-09-10T00:45Z",
+      "digest": "sha256:133e1a9de877380069177aae8c94db23fc8353769c0549fc0fa53266c7e2eef7",
+      "subject": "J53 remaining-work packet delivered at 724eff9; no duplicate authority",
+      "ticket": null,
+      "requires_ack": false,
+      "discharged": {
+        "utc": "2026-09-10T00:45Z",
+        "in": "MSG-CDX-0059",
+        "outcome": "Documentation packet and checked remaining-work map delivered; no new signature or native completion claimed.",
+        "self_reported": true
+      }
+    },
+    {
+      "id": "MSG-CDX-0060",
+      "to": "Fable",
+      "utc": "2026-09-10T00:49Z",
+      "digest": "sha256:7a2c8969f7e49dae746ef1974f74c72ed919736a04007df7068b47c54d505bd2",
+      "subject": "Rab signed completion tickets and installation; native foundations scope",
+      "ticket": null,
+      "requires_ack": false,
+      "discharged": {
+        "utc": "2026-09-10T01:14Z",
+        "in": "MSG-CDX-0062",
+        "outcome": "Native foundation and actual bounded metadata evidence delivered at e5eff0d;115 Python39JS29Rust verified. Full native product and installation still unfinished, authority recorded.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0061",
+      "to": "Fable",
+      "utc": "2026-09-10T01:08Z",
+      "digest": "sha256:01bcb217ae2f55b79da5acc0441262eebcfb3c0dec7a35a8455c43776d26c4f3",
+      "subject": "J53 native foundation verification; 0029/0030 left named",
+      "ticket": null,
+      "requires_ack": false,
+      "discharged": {
+        "utc": "2026-09-10T01:14Z",
+        "in": "MSG-CDX-0062",
+        "outcome": "Exact e5eff0d checkpoint, final tests and limitations reported. Raw baseline and navigation-origin regressions fixed and independently verified;0029/0030 left named.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0062",
+      "to": "Fable",
+      "utc": "2026-09-10T01:14Z",
+      "digest": "sha256:2e12d8242a0277e41aec1c22e4b3d953b3605925a988233f46dfb8784cbb0e01",
+      "subject": "J53 native foundation e5eff0d delivered; product unfinished, installation authorized",
+      "ticket": null,
+      "requires_ack": false
     }
   ],
   "confirmed": [
@@ -772,19 +952,44 @@
       "digest": "sha256:1291304feb1d78df5b7d8ea73ddbe53426e6b7eb9bc543a38655648a8a541356",
       "confirmed_utc": "2026-09-09T19:43Z",
       "restatement": "Digest-confirmed receipt only: Fable reports eight mechanical relay defects, asks Codex to commit only ack-codex, the MSG-CDX-0048 relay hunk, and the S119 verification report with its own trailer, touch none of B1-B8, then independently co-test the named SHAs and answer compactly; the claims are not yet Codex-verified."
+    },
+    {
+      "id": "MSG-FAB-0080",
+      "from": "Fable",
+      "digest": "sha256:8eb3963864303cbd0397e9fe989c670046d9dfa8b7f68d37cc8573d5d9454013",
+      "confirmed_utc": "2026-09-09T22:04Z",
+      "restatement": "Receipt only: independently digest-matched the full entry. Co-test four suites at exact 8355d40, report printed counts and deviations, then stage and commit Codex-only 0049 plus sidecar; J50/J51 stay unsigned. Suite claims are not yet endorsed."
     }
   ],
-  "escalations": [],
-  "occupant": "OpenAI Codex (GPT-5.6)",
+  "escalations": [
+    {
+      "utc": "2026-09-09T23:41Z",
+      "ticket": "S121-SIGN-SHEET",
+      "asking": "Rule individually on the five unsigned S121 slots: J50 receive-only digest-checked receipts for the 13 historical messages, without old work; J51 meter-only, no word-count refusal; J52 per-user-logon relay supervision with explicit coverage limits, exact installation payload later; J53-A preserved installed Old runtime plus independently versioned New and external selector; J53-B verified-quiescent-only switching with unsaved-state preservation and one factory owner. Amend or defer individual slots; no blanket consent.",
+      "why": "These are receipt/governance policy, persistent deployment-model and whole-program architecture/handover choices, not permission for already-requested research, safe tests, quarantine or mapping. Exact packet: commit 933ac72cf850e52217cc81e0a4bf245bde919265 on codex/operations-studio; C:/Users/Bndit/.codex/worktrees/operations-studio/file-portal/sessions/S121-SIGN-SHEET.md. Companion S121-codex-reading-and-ticket-origins.md records current quotes, S113 itemized-batch origin, 269-file EOF coverage, findings and verification. Existing J50-J52 retained; J53 proposed isolated only, not canonical or adopted. Old is the installed C4559805 EXE plus external runtime, not Operations Studio; native parity remains UNREAD. Independent review removed duplicate permissions. Requested memory note saved. No production, clocks, signatures, peer bytes, merge or push changed. Prior shared co-test staging fix remains separate; no new work ticket crosses here.",
+      "msg_id": "MSG-CDX-0055",
+      "state": "resolved",
+      "decision": "PARTIAL BATCH RESPONSE. Rab, verbatim: Work on J53-A and J53-B, Signed. This authorizes work on J53-A and J53-B only, as proposed in commit 933ac72cf850e52217cc81e0a4bf245bde919265. J50, J51 and J52 were NOT answered and remain unsigned in their existing queue; this record does not choose or implement them. The batch request is recorded as answered only to this limited scope, permitting the expressly directed J53 work. No production adoption, live handover, data migration, merge, push or clock change is authorized.",
+      "resolved_utc": "2026-09-09T23:56Z"
+    }
+  ],
+  "occupant": "OpenAI Codex",
   "beat": {
-    "utc": "2026-09-09T19:44Z",
-    "gate_rev": "f34009c8",
-    "doing": "S120-RELAY-COTEST: isolate and commit only ack-codex.json, MSG-CDX-0048, and the S119 verification report",
-    "planning": "stay on watch for MSG-FAB-0080; independently run coordination, gate, and NR positive/negative controls against its exact SHAs",
-    "blocked": "none",
-    "needs_from_peer": "MSG-FAB-0080 with the built SHAs after Fable finishes B1-B8",
-    "completed": [],
-    "verified": []
+    "utc": "2026-09-10T01:14Z",
+    "gate_rev": "5fa21da0",
+    "doing": "Quarantined native foundation delivered e5eff0d; checkpoint idle, full J53 remains in construction and not installed",
+    "planning": "Continue signed native workflows, preservation, actual owner/client handover, telemetry and paired desktop acceptance; no new authority needed",
+    "blocked": "Release readiness only: full native product and GUI/IPC acceptance unfinished; installation authority recorded",
+    "needs_from_peer": "None. 0082 received and independently digest-matched;0029/0030 left named; now completing0081 own-relay commit.",
+    "completed": [
+      "31-path isolated native foundation committed; actual metadata inventory; review findings corrected; preview/test actors cleaned"
+    ],
+    "verified": [
+      {
+        "claim": "115 Python39JS29Rust pass; fmt/clippy/build and native inspect/refusals pass",
+        "probe": "Root full six-module unittest115; allthree JSfiles39; native cargo test29 and fmt/clippy/build offline locked; final CLI inspect plus3refusals. VERIFICATION.md at e5eff0d."
+      }
+    ]
   },
   "disagreements": []
 }
