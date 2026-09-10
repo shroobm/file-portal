@@ -813,6 +813,24 @@ assert "CLOSE B7e: a MIXED relay.md hunk (both writers) is MINE, red" 1 'DIFF .*
 assert "CLOSE B7e: the row names the shared-hunk remedy (gate.py stage)" 1 'shared hunk — run gate\.py stage --as Fable' "$rc" "$out"
 git -C "$B7" checkout -q -- coordination/relay.md
 
+# CASE 45 — J57 (Rab, signed 2026-09-10, S125). The property: the `widget autostart` row is a READING of the
+# scheduled task, never a remembered fact. Violate twice: (a) a powershell probe that FAILS must render UNREAD,
+# never ABSENT (the failed-probe rule, case 7's shape); (b) a probe that answers must be read back as its state.
+R="$WORK/c45"; sha=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm c45 >/dev/null 2>&1
+mklib "$WORK/l45" 12 S42 "$sha"
+mkdir -p "$WORK/fakeps45a"; printf '#!/bin/sh\nexit 9\n' > "$WORK/fakeps45a/ps.sh"; chmod +x "$WORK/fakeps45a/ps.sh"
+out=$(FP_PS_EXE="$WORK/fakeps45a/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'widget autostart +UNREAD'; then ok "J57: a FAILED task probe renders UNREAD, never ABSENT"
+else bad "J57: a FAILED task probe renders UNREAD" "got: $(printf '%s' "$out" | grep -E 'widget autostart' | head -1)"; fi
+mkdir -p "$WORK/fakeps45b"; printf '#!/bin/sh\necho STATE=Disabled\n' > "$WORK/fakeps45b/ps.sh"; chmod +x "$WORK/fakeps45b/ps.sh"
+out=$(FP_PS_EXE="$WORK/fakeps45b/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE_ROOT="$WORK/nope" \
+      VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE "widget autostart +task 'File Portal widget \(J57\)' Disabled"; then ok "J57: the task's STATE is read back verbatim (Disabled is not present)"
+else bad "J57: the task's STATE is read back verbatim" "got: $(printf '%s' "$out" | grep -E 'widget autostart' | head -1)"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

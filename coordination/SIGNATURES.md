@@ -360,3 +360,26 @@ claude-fable-5-1`): **"see what happened. eyes on deck. Just you to ride it."**
    before and after; Rab switched it back by `/model` at ~04:27Z. The ledger row names both.
 
 **Recorded at:** `2026-09-10T04:5xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S124.
+
+## J57 — signed by Rab, 2026-09-10T05:0xZ (S125) — and a standing word on the Codex lane
+
+Rab, verbatim: **"J57 signed, stop giving stuff to codex for now."**
+
+1. **J57 — read as the ticket's first option:** *a scheduled task at logon for the widget (J52's shape)* — the one already
+   proven on this machine, reversible by `Unregister-ScheduledTask`; the second option (a watcher service independent of
+   the glass) changes a design fact he signed (docs/13: the widget owns the watcher's lifecycle) and was not taken.
+   Investigated before the act: the widget already autostarts its watcher at boot (`windows-widget/src/main.js:1152`
+   `watcherAutostart()` → `watcher_start` when stopped), so the seam is the WIDGET's unattended start — S114 F6's exact
+   words. Registered: **`File Portal widget (J57)`** — trigger AtLogOn for `DESKTOP-BNDIT\Bndit`; principal Interactive,
+   RunLevel Limited; ExecutionTimeLimit 0; MultipleInstances IgnoreNew; no battery stops; action the installed
+   `C:\Users\Bndit\AppData\Local\File Portal\file-portal-widget.exe` with its directory as cwd (PowerShell's
+   `Register-ScheduledTask`; `schtasks` cannot run from Git Bash — SYM-080). **Observed:** `Start-ScheduledTask` once while
+   the widget ran → LastTaskResult 0, one widget instance before and after (the single-instance plugin, `main.rs:628`,
+   fronted it). **Intended, not yet Observed:** the unattended start itself — the proof is the next logon. **What remains
+   is the logon:** a power cut still ends at the logon screen unless the machine auto-logs-on, which is a security setting
+   and Rab's hand. The card's `widget autostart` row re-measures the task's presence every open; muster selftest 81/81.
+2. **"Stop giving stuff to codex for now."** Standing until he lifts it: no relay entries, tickets, door briefs or
+   delegations to the Codex lane. Saved to the memory library (`no-handoffs-to-codex-for-now`). This session wrote nothing
+   to Codex.
+
+**Recorded at:** `2026-09-10T05:2xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S125.

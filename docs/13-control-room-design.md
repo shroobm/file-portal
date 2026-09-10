@@ -111,3 +111,15 @@ restart — `CREATE_NO_WINDOW`), killing the manual console ritual.
 - **S22 — judgment layer:** receipts, remember-my-choice rules, ETA ranges, failed tray.
 
 Each lands separately, each switchable, bundle format and ThinkPad untouched throughout.
+
+---
+
+**Appended 2026-09-10 (S125) — Unattended start (J57, Rab's signature).** The design fact stands: *the widget owns the
+watcher's lifecycle* (S20 above; S37's job object; SYM-033's single-instance plugin). What was missing was who owns the
+widget's start. S114 F6 measured the cost: a power cut left the machine "powered, healthy and idle for 1 h 46 m until a
+human logged in and clicked" — no `Run` key, no Startup entry, no task. Now the Windows scheduled task **`File Portal
+widget (J57)`** launches the installed widget at this user's logon (the J52 shape: AtLogOn, Interactive, no time limit,
+IgnoreNew); the widget's boot then autostarts the watcher (`main.js` `watcherAutostart()`), and a second launch fronts the
+one running instance. The muster card re-measures the task every open (`widget autostart` row). What this does NOT close:
+the logon itself — auto-logon after a power cut is a security setting and Rab's hand. The unattended proof is the next
+logon; until then the claim is `Intended`.

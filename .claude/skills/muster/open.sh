@@ -303,6 +303,20 @@ if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
   else
     row "widget" "${wpids:-down (table read, no match)}"
   fi
+  # (2026-09-10, S125: the comment above predates the single-instance plugin — main.rs registers
+  # tauri_plugin_single_instance since S94/OK-14, SYM-033 fixed; a second launch now fronts the
+  # one widget. The row stays: two instances is still a state an OLDER exe can reach.)
+  # J57 (Rab, signed 2026-09-10, S125): the widget's unattended start is the scheduled task
+  # "File Portal widget (J57)" at this user's logon (J52's shape). The card RE-MEASURES its
+  # presence every open — `present` and `ABSENT` are readings; a probe that did not run is UNREAD,
+  # the rule paid for above. FP_PS_EXE lets the selftest break the probe.
+  PS_EXE="${FP_PS_EXE:-powershell.exe}"
+  ta_out=$("$PS_EXE" -NoProfile -NonInteractive -Command "\$t = Get-ScheduledTask -TaskName 'File Portal widget (J57)' -ErrorAction SilentlyContinue; if (\$t) { 'STATE=' + \$t.State } else { 'ABSENT' }" 2>/dev/null | tr -d '\r'); ta_rc=$?
+  case "$ta_out" in
+    STATE=*) row "widget autostart" "task 'File Portal widget (J57)' ${ta_out#STATE=} — AtLogOn (J57; the unattended proof is the next logon)";;
+    ABSENT)  row "widget autostart" "ABSENT — no 'File Portal widget (J57)' task (J57 unregistered?)";;
+    *)       row "widget autostart" "UNREAD (powershell probe rc=$ta_rc)";;
+  esac
   row "python procs" "$(printf '%s\n' "$ps_table" | grep -c '^python\.exe')"
   row "ollama" "$(printf '%s\n' "$ps_table" | grep -c '^ollama')"
   # S81 §10.4: a hung run was reported healthy because a process NAMED llama-server was read as
