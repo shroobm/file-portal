@@ -286,6 +286,14 @@ def segments(cmd, ps=False):
             buf.append(c)  # PowerShell call operator, kept for head_of
             i += 1
             continue
+        if c in "{}" and not ps:
+            # bash: `{ cmd; }` is a group (a separator); `{git,}` is BRACE EXPANSION inside a word — keep it in the token so
+            # head_of sees the `{` and renders the head UNREAD (S127: `{git,} reset --hard` had split into `git,` and passed)
+            boundary = (c == "{" and (i + 1 >= n or cmd[i + 1] in " \t\n\r")) or (c == "}" and (i == 0 or cmd[i - 1] in " \t\n\r;"))
+            if not boundary:
+                buf.append(c)
+                i += 1
+                continue
         if c in "(){}|;&\n\r":
             flush()
             i += 1
@@ -545,7 +553,9 @@ def decide(payload):
             # `Where-Object { $_.TaskName -like "*File Portal*" }` for a "$_.taskname" head (S125, 05:1xZ).
             # (S126: the exception keys on the RAW token — `$w.WorkingSet64/1MB` has basename `1mb`, its `$` lost to the
             # path split; the fourth false deny of this family.)
-            if expands and tool == "PowerShell" and not called and head_raw.lstrip("('\"").startswith("$"):
+            # (S127: a QUOTED string as a PowerShell head — a `switch` case label "{D6886603-…}" — is an expression too;
+            # the `{` inside it is data, not bash brace expansion. The fifth shape.)
+            if expands and tool == "PowerShell" and not called and head_raw.lstrip("(").startswith(("$", "'", '"')):
                 expands = False
             if expands:
                 if here:

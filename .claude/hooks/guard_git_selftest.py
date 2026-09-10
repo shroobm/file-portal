@@ -242,6 +242,11 @@ def main():
              ps('$kids = Get-CimInstance Win32_Process -Filter "Name = \'x.exe\'" | Where-Object { $_.ParentProcessId -eq $w.Id }; $kids.Count'))
         case("PS: [System.Diagnostics.Process]::Start git reset in main is still denied", "deny",
              ps("[System.Diagnostics.Process]::Start('git','reset --hard')"))
+        # FALSE-DENY REGRESSION (S127, the fifth shape): a quoted-string head in PowerShell (a switch case label with a GUID)
+        case("PS: switch ($x) { \"{D6886603-...}\" { 'PIN' } default { 'other' } } in main passes", "allow",
+             ps('$p = "x"; $name = switch ($p.ToUpper()) { "{D6886603-9D2F-4EB2-B667-1971041FA96B}" { "PIN" } default { "other" } }; $name'))
+        case("Bash: brace-expansion head {git,} reset in main is still denied", "deny", bash("{git,} reset --hard"))
+        case("PS: & \"git\" reset in main is still denied (a quoted head after the call operator invokes)", "deny", ps('& "git" reset --hard'))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))
