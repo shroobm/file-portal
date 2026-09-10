@@ -193,7 +193,7 @@ MECHANISM = {
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
         "one-directional metric cannot see gain); moderate real loss passes at the margin",
         "plant a defect one notch below the guard's resolution — does it pass?",
-        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104"],  # S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f
+        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110"],  # S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies
     ),
 }
 

@@ -383,3 +383,23 @@ Rab, verbatim: **"J57 signed, stop giving stuff to codex for now."**
    to Codex.
 
 **Recorded at:** `2026-09-10T05:2xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S125.
+
+## J58 — signed by Rab, 2026-09-10T05:5xZ (S126)
+
+Rab, verbatim: **"J58 signed."** (the same line asked for the Electron assessment — `docs/59`).
+
+**Read as "one click":** the ticket's product question was whether a bless should be one click or two (the second being
+the exporter restart the widget's own status line told me to perform, S117 §8-F5). Signed = one. Two mechanisms were
+possible; the exporter side was taken (Python, tests, a ThinkPad pull and a unit restart) over the widget side (Rust, a
+rebuild, an adoption by his hand). **Executed:** the staging watch is recursive (`linux-converter/converter/main.py`);
+`ExportHandler` re-exports a bundle when a `bless.json` is written (IN_CLOSE_WRITE — the widget's scp in place, `assay.rs
+bless`) or renamed directly inside a top-level bundle dir, and ignores every other nested event; export() stays
+idempotent and lock-serialized, so a marker seen twice is a no-op. Tests: the held flag remedy ships on the closed
+event with three negative controls; markers in a dot dir, deeper, or outside staging are ignored. **Observed:** ThinkPad
+baseline 32 passed at `d22adc9`; fast-forward to `3c39d3b`; 34 passed; `systemctl --user restart file-portal-converter`
+at 06:04:31Z, active, NRestarts 0, the journal's two `watching` lines. **Intended, not yet Observed:** a real bless
+shipping without a restart — his next bless click is the proof (`journalctl --user -u file-portal-converter` will show
+`EXPORT-BLESS-SEEN` then `EXPORTED-SUPERSEDE`, no restart between). Windows cannot run the supersede fixtures (a staging
+copy the export cannot remove there — environmental, pre-existing); the Linux target is the test bed.
+
+**Recorded at:** `2026-09-10T06:1xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S126.

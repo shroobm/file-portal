@@ -229,3 +229,9 @@ Valentine's retry (§5.3) rides whichever pipeline session comes first and needs
 
 **Done-when for the brief itself:** every stage above has shipped or been consciously retired;
 blind spots 1–10 each map to a shipped mitigation; every lever in §3 renders on a surface.
+
+**Appended 2026-09-10 (S126, J58 — Rab's signature).** §5.4's human-bless is now honoured on the WRITE, not on the
+exporter's next restart: the ThinkPad exporter's staging watch is recursive and its handler re-exports a held bundle
+the moment `bless.json` is written (IN_CLOSE_WRITE) or renamed into it. The two-click bless of S117 §8-F5 ("deploy/
+restart the ThinkPad exporter") is one click. Every other nested event under staging is ignored — only a top-level
+bundle directory, or a `bless.json` directly inside one, is a signal. `Intended` until the next real bless is observed.
