@@ -1,10 +1,11 @@
 """guard_git_selftest.py — the tripwire for guard_git.py (docs/32 §6: a guard born today gets its tripwire today).
 
-Builds a throwaway repository under the scratchpad with ONE real linked worktree, registers the throwaway main
-checkout as a guarded root through the hook's environment (never the real roots file), points the hook's log at a
-scratch file, and feeds the hook payloads by subprocess exactly as the harness would. Case 0 is the positive
-control (a harmless `git status` passes); every other case violates the property its guard stands for, or proves
-the guard is SCOPED (an unguarded repository and a linked worktree pass). Prints its own count; exit 1 on any red.
+Builds a throwaway repository under the temp dir with ONE real linked worktree and one unguarded neighbour,
+registers the throwaway main checkout as a guarded root through the hook's environment (never the real roots
+file), points the hook's log at a scratch file, and feeds the hook payloads by subprocess exactly as the harness
+would. Case 0 is the positive control (a harmless `git status` passes); every other case violates the property its
+guard stands for, or proves the guard is SCOPED (an unguarded repository, a linked worktree, a script file, a
+verb inside data all pass). The deny count is derived, never typed. Prints its own count; exit 1 on any red.
 
 Run:  python .claude/hooks/guard_git_selftest.py
 """
@@ -28,8 +29,8 @@ def sh(args, cwd):
 def run_hook(payload_text, env_extra):
     env = dict(os.environ)
     env.update(env_extra)
-    p = subprocess.run([PY, HOOK], input=payload_text, capture_output=True, text=True, env=env)
-    out = p.stdout.strip()
+    p = subprocess.run([PY, HOOK], input=payload_text.encode("utf-8"), capture_output=True, env=env)
+    out = p.stdout.decode("utf-8", errors="replace").strip()
     if not out:
         return "allow", p
     try:
@@ -39,27 +40,36 @@ def run_hook(payload_text, env_extra):
         return f"UNPARSEABLE:{out[:80]}", p
 
 
-def payload(tool, cmd, cwd):
-    return json.dumps({"session_id": "selftest", "hook_event_name": "PreToolUse", "tool_name": tool,
-                       "tool_input": {"command": cmd}, "cwd": cwd})
+def payload(tool, cmd, cwd, agent=None):
+    d = {"session_id": "selftest", "hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": {"command": cmd}, "cwd": cwd}
+    if agent:
+        d["agent_id"] = agent
+        d["agent_type"] = "selftest-lane"
+    return json.dumps(d, ensure_ascii=False)
 
 
 def main():
-    tmp = tempfile.mkdtemp(prefix="guard-selftest-", dir=os.environ.get("FP_SELFTEST_DIR") or None)
+    tmp = tempfile.mkdtemp(prefix="guard-selftest-")
     main_repo = os.path.join(tmp, "main")
     other_repo = os.path.join(tmp, "unguarded")
     wt = os.path.join(tmp, "wt")
     logf = os.path.join(tmp, "guard.log")
     env = {"FP_GIT_GUARD_EXTRA_ROOTS": main_repo, "FP_GIT_GUARD_LOG": logf}
-    results = []
-    expected_denies = []  # derived, never hand-typed (SYM-039: a hand-typed count is a future defect)
+    results, expected_denies = [], []
 
-    def case(n, name, expect, got, extra=""):
+    def case(name, expect, got, tool="Bash", ):
+        n = len(results)
         ok = got == expect
         results.append(ok)
         if expect == "deny":
             expected_denies.append(n)
-        print(f"  [{n:>3}] {'ok ' if ok else 'RED'} {name}: expect {expect}, got {got} {extra}")
+        print(f"  [{n:>3}] {'ok ' if ok else 'RED'} {name}: expect {expect}, got {got}")
+
+    def bash(cmd, cwd=None, agent=None, e=None):
+        return run_hook(payload("Bash", cmd, cwd or main_repo, agent), e if e is not None else env)[0]
+
+    def ps(cmd, cwd=None, agent=None):
+        return run_hook(payload("PowerShell", cmd, cwd or main_repo, agent), env)[0]
 
     try:
         for r in (main_repo, other_repo):
@@ -68,44 +78,105 @@ def main():
             sh(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "one"], r)
             sh(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "--allow-empty", "-m", "two"], r)
         sh(["git", "worktree", "add", "-q", wt, "-b", "lane"], main_repo)
+        sh(["git", "config", "alias.zap", "reset --hard"], main_repo)
+        sh(["git", "config", "alias.ll", "log --oneline"], main_repo)
+        sh(["git", "config", "alias.boom", "!echo boom"], main_repo)
         assert os.path.isfile(os.path.join(wt, ".git")), "the linked worktree's .git must be a FILE"
         assert os.path.isdir(os.path.join(main_repo, ".git")), "the main checkout's .git must be a DIRECTORY"
         msys_main = "/" + main_repo[0].lower() + "/" + main_repo[3:].replace("\\", "/")
 
         print("guard_git selftest — throwaway repo", tmp)
-        # 0 positive control
-        case(0, "positive control: git status in the guarded main", "allow", run_hook(payload("Bash", "git status", main_repo), env)[0])
-        # the six verbs in the guarded main
-        for i, verb in enumerate(["reset --hard HEAD~1", "checkout -- .", "clean -fdx", "stash", "restore .", "switch -"], 1):
-            case(i, f"git {verb.split()[0]} in the guarded main", "deny", run_hook(payload("Bash", f"git {verb}", main_repo), env)[0])
-        # scoping: linked worktree and unguarded repo pass
-        case(7, "git reset --hard inside the LINKED WORKTREE passes", "allow", run_hook(payload("Bash", "git reset --hard HEAD~1", wt), env)[0])
-        case(8, "git reset --hard in an UNGUARDED repository passes", "allow", run_hook(payload("Bash", "git reset --hard HEAD~1", other_repo), env)[0])
+        case("positive control: git status in the guarded main", "allow", bash("git status"))
+        # TIER 1 — the twelve working-tree destroyers, everyone
+        for verb in ("reset --hard HEAD~1", "checkout -- .", "clean -fdx", "stash", "restore .", "switch -", "read-tree -u --reset HEAD",
+                     "checkout-index -a -f", "rm -f tracked.txt", "mv a b", "apply -R x.patch", "am x.mbox"):
+            case(f"tier 1: git {verb.split()[0]} in the guarded main", "deny", bash(f"git {verb}"))
+        case("tier 1 read-only-looking form still denied: git stash list", "deny", bash("git stash list"))
+        # scoping
+        case("git reset --hard inside the LINKED WORKTREE passes", "allow", bash("git reset --hard HEAD~1", wt))
+        case("a LANE's git reset --hard inside the linked worktree passes", "allow", bash("git reset --hard HEAD~1", wt, agent="lane-1"))
+        case("git reset --hard in an UNGUARDED repository passes", "allow", bash("git reset --hard HEAD~1", other_repo))
+        case("git reset --hard in a non-repository directory passes", "allow", bash("git reset --hard", tmp))
         # targeting forms
-        case(9, "git -C <main> checkout from elsewhere", "deny", run_hook(payload("Bash", f'git -C "{main_repo}" checkout -- .', tmp), env)[0])
-        case(10, "cd <main> (MSYS path) && git clean", "deny", run_hook(payload("Bash", f"cd {msys_main} && git clean -fdx", tmp), env)[0])
-        case(11, "--work-tree=<main> reset from elsewhere", "deny", run_hook(payload("Bash", f'git --work-tree="{main_repo}" reset --hard', tmp), env)[0])
-        case(12, "PowerShell tool: Set-Location <main>; git stash", "deny", run_hook(payload("PowerShell", f"Set-Location '{main_repo}'; git stash", tmp), env)[0])
-        case(13, "options before the verb (-c, --no-pager) still read", "deny", run_hook(payload("Bash", "git -c core.autocrlf=false --no-pager checkout -b x", main_repo), env)[0])
-        case(14, "later segment: git status && git reset --hard", "deny", run_hook(payload("Bash", "git status && git reset --hard", main_repo), env)[0])
-        case(15, "a wrapper hides the verb: bash -c 'git reset --hard'", "deny", run_hook(payload("Bash", "bash -c 'git reset --hard'", main_repo), env)[0])
-        # not a git invocation: the verb inside data passes
-        case(16, "echo \"git reset --hard\" passes (first token is echo)", "allow", run_hook(payload("Bash", 'echo "git reset --hard"', main_repo), env)[0])
-        case(17, "grep 'git reset' file passes", "allow", run_hook(payload("Bash", "grep -n 'git reset' SYMPTOM-INDEX.md", main_repo), env)[0])
+        case("git -C <main> checkout from elsewhere", "deny", bash(f'git -C "{main_repo}" checkout -- .', tmp))
+        case("cd <main> (MSYS path) && git clean", "deny", bash(f"cd {msys_main} && git clean -fdx", tmp))
+        case("--work-tree=<main> reset from elsewhere", "deny", bash(f'git --work-tree="{main_repo}" reset --hard', tmp))
+        case("subshell (cd <main> && git reset --hard) from elsewhere", "deny", bash(f"(cd {msys_main} && git reset --hard)", tmp))
+        case("command substitution echo $(cd <main>; git reset --hard) from elsewhere", "deny", bash(f'echo "$(cd {msys_main}; git reset --hard)"', tmp))
+        case("PowerShell: Set-Location <main>; git stash", "deny", ps(f"Set-Location '{main_repo}'; git stash", tmp))
+        case("PowerShell: Push-Location <main>; & git reset --hard", "deny", ps(f"Push-Location '{main_repo}'; & git reset --hard", tmp))
+        case("PowerShell call operator & git reset in main", "deny", ps("& git reset --hard"))
+        case("git.exe reset in main", "deny", bash("git.exe reset --hard"))
+        case("full path to git.exe reset in main", "deny", bash('"C:/Program Files/Git/bin/git.exe" reset --hard'))
+        case("options before the verb (-c, --no-pager) still read", "deny", bash("git -c core.autocrlf=false --no-pager checkout -b x"))
+        case("later segment: git status && git reset --hard", "deny", bash("git status && git reset --hard"))
+        case("pipe: echo y | git checkout -- .", "deny", bash("echo y | git checkout -- ."))
+        # obfuscation of the verb
+        case("quote-split verb git re'set'", "deny", bash("git re'set' --hard"))
+        case("backslash verb git res\\et", "deny", bash("git res\\et --hard"))
+        case("variable verb VERB=reset; git $VERB", "deny", bash("VERB=reset; git $VERB --hard"))
+        case("variable command head $G reset", "deny", bash("G=git; $G reset --hard"))
+        case("alias on the line: git -c alias.zap=reset zap", "deny", bash("git -c 'alias.zap=reset --hard' zap"))
+        case("configured alias to a tier-1 verb: git zap", "deny", bash("git zap"))
+        case("configured shell alias: git boom (!echo)", "deny", bash("git boom"))
+        case("configured read-only alias: git ll passes for the main session", "allow", bash("git ll"))
+        case("unknown verb git frobnicate denied (no alias)", "deny", bash("git frobnicate"))
+        # wrappers
+        case("bash -c 'git reset --hard'", "deny", bash("bash -c 'git reset --hard'"))
+        case("sh -c with cd inside", "deny", bash(f"sh -c 'cd {msys_main} && git reset --hard'", tmp))
+        case("python -c subprocess git reset", "deny", bash("python -c \"import subprocess;subprocess.run(['git','reset','--hard'])\""))
+        case("xargs git reset", "deny", bash("echo HEAD | xargs git reset --hard"))
+        case("find -exec git checkout", "deny", bash("find . -name x -exec git checkout -- {} \\;"))
+        case("eval in main (unreadable) denied even without the word git", "deny", bash('eval "$cmd"'))
+        case("PowerShell -EncodedCommand in main denied", "deny", ps("powershell -EncodedCommand ZwBpAHQAIAByAGUAcwBlAHQA"))
+        case("Invoke-Expression in main denied", "deny", ps('Invoke-Expression "git reset --hard"'))
+        case("cmd /c git clean", "deny", ps('cmd /c "git clean -fdx"'))
+        case("Start-Process git -ArgumentList reset", "deny", ps("Start-Process git -ArgumentList 'reset --hard'"))
+        case("a wrapper that does not mention git passes: bash open.sh", "allow", bash("bash .claude/skills/muster/open.sh"))
+        case("python script.py passes (a script file is residue, stated)", "allow", bash("python observability/error_families.py --census"))
+        case("uv run python selftest.py passes", "allow", bash("uv run python .claude/skills/relay-gate/selftest.py"))
+        # the verb inside data
+        case('echo "git reset --hard" passes (first token is echo)', "allow", bash('echo "git reset --hard"'))
+        case("grep 'git reset' file passes", "allow", bash("grep -n 'git reset' SYMPTOM-INDEX.md"))
+        case("non-ASCII command passes: echo with an em dash and CJK", "allow", bash('echo "— 東京 — ok"'))
+        case("non-ASCII branch still denied: git reset --hard 東京", "deny", bash("git reset --hard 東京"))
+        # the lane tier
+        case("LANE: git status passes", "allow", bash("git status --short", agent="lane-1"))
+        case("LANE: git log / diff / fetch pass", "allow", bash("git log --oneline -3 && git diff --stat && git fetch -q", agent="lane-1"))
+        case("LANE: git add -A denied", "deny", bash("git add -A", agent="lane-1"))
+        case("LANE: git commit denied", "deny", bash("git commit -m x", agent="lane-1"))
+        case("LANE: git pull denied", "deny", bash("git pull --rebase", agent="lane-1"))
+        case("LANE: git push denied", "deny", bash("git push", agent="lane-1"))
+        case("LANE: git branch (list) passes", "allow", bash("git branch --show-current", agent="lane-1"))
+        case("LANE: git branch -D denied", "deny", bash("git branch -D x", agent="lane-1"))
+        case("LANE: git config --get passes", "allow", bash("git config --get core.autocrlf", agent="lane-1"))
+        case("LANE: git config alias.z (a write) denied", "deny", bash("git config alias.z 'reset --hard'", agent="lane-1"))
+        case("LANE: git worktree list passes", "allow", bash("git worktree list", agent="lane-1"))
+        case("LANE: git worktree add denied", "deny", bash("git worktree add ../x", agent="lane-1"))
+        case("LANE: unknown verb denied without an alias lookup", "deny", bash("git ll", agent="lane-1"))
+        case("LANE: git tag -l passes", "allow", bash("git tag -l", agent="lane-1"))
+        case("LANE: git tag v1 denied", "deny", bash("git tag v1", agent="lane-1"))
+        # the main session's own writes
+        case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
+        case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))
+        case("MAIN: git worktree add passes", "allow", bash("git worktree add ../x"))
         # fail closed
-        case(18, "malformed payload denies", "deny", run_hook("this is not json", env)[0])
-        case(19, "payload without a command denies", "deny", run_hook(json.dumps({"tool_name": "Bash", "tool_input": {}, "cwd": main_repo}), env)[0])
+        case("malformed payload denies", "deny", run_hook("this is not json", env)[0])
+        case("payload without a command denies", "deny", run_hook(json.dumps({"tool_name": "Bash", "tool_input": {}, "cwd": main_repo}), env)[0])
         # the bypass: never silent
-        got, _ = run_hook(payload("Bash", "FP_GIT_GUARD_BYPASS='selftest: proving the bypass is logged' git reset --hard", main_repo), env)
+        got = bash("FP_GIT_GUARD_BYPASS='selftest: proving the bypass is logged' git reset --hard")
         logged = os.path.exists(logf) and "BYPASS" in io.open(logf, encoding="utf-8").read()
-        case(20, "bypass with a 20+ char reason passes AND is logged", "allow+logged", f"{got}+{'logged' if logged else 'NOT LOGGED'}")
-        case(21, "bypass with a short reason denies", "deny", run_hook(payload("Bash", "FP_GIT_GUARD_BYPASS='short' git reset --hard", main_repo), env)[0])
+        case("bypass with a 20+ char reason passes AND is logged", "allow+logged", f"{got}+{'logged' if logged else 'NOT LOGGED'}")
+        case("bypass with a short reason denies", "deny", bash("FP_GIT_GUARD_BYPASS='short' git reset --hard"))
         # the real object: this repository is guarded by default, with no environment at all
-        case(22, "the REAL checkout: git reset --hard denied with no env override", "deny", run_hook(payload("Bash", "git reset --hard feat/library-pipeline", REPO), {"FP_GIT_GUARD_LOG": logf})[0])
-        case(23, "the REAL checkout: git status passes", "allow", run_hook(payload("Bash", "git status --short", REPO), {"FP_GIT_GUARD_LOG": logf})[0])
+        case("the REAL checkout: git reset --hard denied with no env override", "deny", bash("git reset --hard feat/library-pipeline", REPO, e={"FP_GIT_GUARD_LOG": logf}))
+        case("the REAL checkout: git status passes", "allow", bash("git status --short", REPO, e={"FP_GIT_GUARD_LOG": logf}))
+        case("the REAL checkout: a LANE's git commit denied", "deny", bash("git commit -m x", REPO, agent="lane-1", e={"FP_GIT_GUARD_LOG": logf}))
         # every deny was logged
         n_deny = sum(1 for line in io.open(logf, encoding="utf-8") if " DENY " in line) if os.path.exists(logf) else 0
-        case(24, f"every DENY wrote a log line ({len(expected_denies)} deny cases so far)", len(expected_denies), n_deny)
+        case(f"every DENY wrote a log line ({len(expected_denies)} deny cases so far)", len(expected_denies), n_deny)
+        n_agent = sum(1 for line in io.open(logf, encoding="utf-8") if " agent=lane-1/selftest-lane " in line) if os.path.exists(logf) else 0
+        case("a lane's denials carry its agent id in the log", True, n_agent > 0)
     finally:
         try:
             subprocess.run(["git", "worktree", "remove", "--force", wt], cwd=main_repo, capture_output=True)
