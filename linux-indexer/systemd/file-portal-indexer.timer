@@ -1,0 +1,11 @@
+[Unit]
+Description=Daily File Portal index reconcile (catch-up for pushes the post-update hook could not announce)
+
+[Timer]
+OnCalendar=daily
+# A day the laptop slept through fires on next boot instead of being skipped.
+Persistent=true
+RandomizedDelaySec=15min
+
+[Install]
+WantedBy=timers.target

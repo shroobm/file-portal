@@ -1,8 +1,9 @@
 # CI for File Portal — see docs/08-roadmap.md (v3).
 #
-# python: ruff lint + format check for all three Linux subprojects, pytest for the allocator and
-#         the converter (the converter writes the vault — it is the last code that should be
-#         unverified). S108 (lane B2): the LIVE windows-converter lane joins, warn-only — ruff
+# python: ruff lint + format check for the four Linux subprojects, pytest for the allocator, the
+#         converter (the converter writes the vault — it is the last code that should be
+#         unverified) and, warn-only until observed, the indexer (2026-09-09, ThinkPad lane:
+#         reads the vault, never writes it). S108 (lane B2): the LIVE windows-converter lane joins, warn-only — ruff
 #         check + its one CI-safe hermetic selftest; the inline comments name what is excluded
 #         and why. Also warn-only: observability/acceptance.py, the governance suite (A29).
 # rust:   cargo fmt + clippy for the Tauri widget, run on windows-latest because that is the
@@ -61,6 +62,23 @@ jobs:
         run: |
           ruff check .
           ruff format --check .
+      # 2026-09-09 (ThinkPad lane): linux-indexer joins, warn-only — the S108 standard makes every
+      # new gate warn-only until observed. Local run on the ThinkPad (py3.14, ruff 0.15.20):
+      # "All checks passed!" / "already formatted". Arm after the ubuntu/py3.11 job LOG is read
+      # (SYM-075: never the API `conclusion` of a continue-on-error step).
+      # Its install is its own warn-only step, never part of the shared install above: a wheel
+      # gap on ubuntu/py3.11 must show as a warning HERE, not fail the ARMED allocator and
+      # converter gates. Heavier than the other lanes (fastembed + onnxruntime + sqlite-vec,
+      # ~200 MB installed); range-bounded (<1, <0.2) in its requirements.txt, not pinned.
+      - name: Install (linux-indexer, warn-only)
+        continue-on-error: true
+        run: pip install -r linux-indexer/requirements-dev.txt
+      - name: Lint (linux-indexer, warn-only)
+        working-directory: linux-indexer
+        continue-on-error: true
+        run: |
+          ruff check .
+          ruff format --check .
       # S108 (lane B2): the LIVE Windows lane joins CI, warn-only — the S108 standard makes
       # every new gate warn-only until observed. ruff has never run on this lane anywhere (the
       # desktop has no ruff installed), so the first-ever lint outcome is UNREAD until this
@@ -77,6 +95,13 @@ jobs:
         run: pytest tests/ -v
       - name: Test (linux-converter)
         working-directory: linux-converter
+        run: pytest tests/ -v
+      # 2026-09-09 (ThinkPad lane): hermetic — a real bare git vault under tmp_path and a hash
+      # embedder; no model download, no network. Warn-only per S108 until the fastembed +
+      # onnxruntime + sqlite-vec wheels are observed resolving on ubuntu/py3.11 in the job LOG.
+      - name: Test (linux-indexer, warn-only)
+        working-directory: linux-indexer
+        continue-on-error: true
         run: pytest tests/ -v
       # S108 (lane B2): the one windows-converter selftest that is safe here. It is hermetic —
       # every fixture PDF is synthesised with pymupdf in a temp dir; no corpus, no GPU, no live

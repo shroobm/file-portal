@@ -33,6 +33,14 @@ linux-converter/__pycache__/
 linux-converter/**/__pycache__/
 linux-converter/*.egg-info/
 
+# --- Linux indexer (Python) ---
+# The passage store and the model files live under ~/file-portal/index (index.sqlite and
+# index/models/), never in the checkout (derived data; the repo is public and binaries never enter it).
+linux-indexer/.venv/
+linux-indexer/__pycache__/
+linux-indexer/**/__pycache__/
+linux-indexer/*.egg-info/
+
 # --- OS / editor noise ---
 .DS_Store
 Thumbs.db

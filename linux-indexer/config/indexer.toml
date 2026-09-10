@@ -1,0 +1,42 @@
+# Indexer levers (docs/18 modularity gate). Read once per run -- a oneshot's version of the
+# allocator's re-read-per-event contract -- so edits take effect on the next run with no
+# daemon-reload. Every key has a signed default in indexer/config.py; a value that is
+# missing, unparseable or out of range falls back to that default and the run NAMES the
+# fallback in its log line and its receipt rather than ignoring it silently.
+[index]
+# Embedding model, any name in fastembed's catalogue (`python -c "from fastembed import
+# TextEmbedding as T; print([m['model'] for m in T.list_supported_models()])"`). Measured on
+# this ThinkPad 2026-09-09 (batch 32, 4 threads, 1,244 real passages, 7 relevance probes of
+# which 2 Chinese): all-MiniLM-L6-v2 56 passages/s, 420 MiB, 7/7 -- the docs/11 model, English,
+# 256-token window; paraphrase-multilingual-MiniLM-L12-v2 5 passages/s, 980 MiB, 6/7 -- the
+# choice for a vault where Chinese (or any of ~50 languages) must be searched SEMANTICALLY
+# (the keyword leg reaches CJK only with fts_tokenizer = "trigram"). Changing it needs
+# `--rebuild` (the store refuses to mix models).
+model = "sentence-transformers/all-MiniLM-L6-v2"
+# Target passage length in characters, packed on paragraph boundaries; a heading always opens
+# a new passage. 800 is the docs/11 Phase 3 shape. PROVISIONAL: no retrieval-quality
+# measurement has moved it yet. Range 200-2000. Changing it needs `--rebuild`.
+passage_chars = 800
+# Hard cap on one passage. A 32,294-character single line exists in the vault (Brain of the
+# Firm, an OCR degeneration loop); the models see at most 256-512 word-pieces, so text past
+# ~1,000-2,000 chars is unseen by them anyway. Range passage_chars-4000.
+passage_max_chars = 1200
+# ONNX intra-op threads. 4 leaves the 2P+8E i7-1265U responsive for the converter and for
+# whatever else this laptop is doing (2026-09-09: a 6 GiB Java server). Range 1-12.
+threads = 4
+# Passages returned per query (the CLI's --top-k must stay within the same range). Range 1-50.
+top_k = 5
+# hybrid = vector + keyword fused by reciprocal rank; vector = the model alone; keyword = FTS5
+# BM25 alone (answers with no model loaded -- exact names, ISBNs, phrases).
+query_mode = "hybrid"
+# Cross-encoder reranker over the fused candidates, or "off". Candidates in fastembed's
+# catalogue: Xenova/ms-marco-MiniLM-L-6-v2 (English, 80 MB) and
+# jinaai/jina-reranker-v2-base-multilingual (1.1 GB, CC-BY-NC-4.0 -- non-commercial, NOT open
+# source; named so the choice is informed, not endorsed). Costs one more model per query.
+rerank = "off"
+# FTS5 tokenizer for the keyword leg: unicode61 (word-based, diacritics folded; CJK runs are
+# one token) or trigram (substring matching, works for CJK, weaker for short English words).
+# Changing it needs `--rebuild`.
+fts_tokenizer = "unicode61"
+# Port of the opt-in loopback HTTP endpoint (`python -m indexer.serve`). Range 1024-65535.
+serve_port = 8765

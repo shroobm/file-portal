@@ -8,6 +8,48 @@ and this project aims to follow [Semantic Versioning](https://semver.org/).
 
 ### Added
 
+- **S123 — THE INDEX STATION SCAFFOLDED (2026-09-09, ThinkPad lane, Fable).** Rab's go on D7's
+  embedding half: *"go ahead, pull and scaffold linux-indexer"*, then *"if a solution can be
+  created that is far more operator friendly … do it, make sure its free, open sourced, and
+  integratable, if any of the current tools are lacking."* They were: the July stack (ChromaDB +
+  English-only MiniLM) cannot search the Chinese book already in the vault, cannot find an ISBN
+  or an exact phrase, and phones home by default. Built instead, as a fourth Linux lane
+  `linux-indexer/`: ONE SQLite file (`~/file-portal/index/index.sqlite` — bundles, passages, an
+  FTS5 keyword index, sqlite-vec embeddings) reconciled to the vault's `main` tip by a oneshot
+  fired from a `vault.git/hooks/post-update` one-liner (`--no-block`, never inside the exporter's
+  push) plus a daily `Persistent=true` timer. Whole-tree and idempotent, keyed on `source_sha256`
+  and the `.md`/`manifest.json` blob shas: a supersede replaces one bundle in place, a bless
+  rewrites its row without the model, a Desktop filing re-keys, a deletion removes; contract
+  breaches are refused and exit 1 (report-mode); `--rebuild` is the only way the index is ever
+  emptied. Embeddings through fastembed (ONNX, no torch; the model is a lever — measured here at
+  batch 32/4 threads on 1,244 real passages: all-MiniLM-L6-v2 **56/s, 420 MiB, 7/7 probes**, the
+  default; paraphrase-multilingual-MiniLM-L12-v2 5/s, 980 MiB, 6/7, one flip away for CJK
+  semantics). Query = vector + BM25 keyword + a title leg over filename/path (where an ISBN
+  lives), reciprocal-rank fused, filters by bundle/lane/verdict applied INSIDE every leg, an
+  opt-in cross-encoder reranker (ms-marco-MiniLM-L-6-v2: 20 candidates in 1.14 s), `--mode
+  keyword` answering with no model in 0.1 s. Surfaces: `indexer.query` (one JSON document on
+  stdout, question on stdin — callable as one `tailscale ssh` literal), `indexer.status`
+  (index tip vs vault tip, no model), and an opt-in loopback-only `indexer.serve` for `tailscale
+  serve`. Receipts: one `indexed` per run that changed something (`result` pass|fail, `tip`,
+  counts, effective levers, model digest; `bundle`/`note` when exactly one changed),
+  `index-failed` otherwise — never the exporter's outcomes. Nine levers in `config/indexer.toml`
+  pass the docs/18 gate (ranges/menus, named fallbacks; every query answer and `indexer.status` print all effective values, every receipt its build levers).
+  **Live proof on a bare clone of the real vault (Observed):** 6 bundles → 3,970 passages in
+  69.5 s at 444 MiB; quiet second run 0.6 s, no receipt; tip advanced 70c60e6→50896d1 replaced
+  only Cybernetics (583 passages, 11.4 s); 7/7 hybrid probes on the right book incl. Chinese;
+  index file 12 MB. Tests: 43 hermetic (real bare git vault + real SQLite + hash embedder;
+  `cd linux-indexer && .venv/bin/python -m pytest tests/`). CI steps join warn-only (S108).
+  Filed: coordination message for the two receipt phrases + the query contract; docs/18 row;
+  D7 bracket. **DEPLOYED 2026-09-10 on Rab's word ("deploy it"):** `install.sh` built the venv,
+  templated both units, enabled the timer (next 2026-09-11 00:10 UTC) and installed
+  `vault.git/hooks/post-update`; the first unit run indexed the real vault — 6 bundles, **3,951
+  passages, 75 s, Result=success** — and filed the first `indexed` receipt (tip 50896d15); the
+  hook fired a quiet run (INDEX-SKIP, no receipt) in 0 s. **Not yet:** the room.js phrases; the
+  Desktop's `tailscale ssh` query leg (UNREAD from here — self-ssh is refused); the tagging
+  half of D7. Caveat on record: fastembed's MiniLM is a different
+  ONNX export from July's torch model (cosine floor 0.58 on 64 passages) — same name, not the
+  same vectors.
+
 - **S104 — THE TEXT-DENSITY VETO, AND THE HANDOFF (2026-08-20, Desktop lane, Fable).** P-1's
   number now means something: three vetoes, each calibrated on measured specimens with the
   acceptance fixed in advance (a shaded prose sidebar must veto, the Du Pont flow diagram must

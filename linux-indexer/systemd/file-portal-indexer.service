@@ -1,0 +1,18 @@
+[Unit]
+Description=File Portal indexer (reconciles the passage index at ~/file-portal/index to the vault's main tip)
+
+[Service]
+# Oneshot fired by the matching .timer (daily catch-up) and by vault.git/hooks/post-update
+# (every push). A fail exits nonzero (unit shows red) and writes an index-failed or a
+# result=fail receipt; the index is derived data and is rebuilt only on an explicit
+# `--rebuild`, never by itself. __WORKDIR__/__EXEC_PATH__ substituted by scripts/install.sh,
+# same templating as the converter unit.
+Type=oneshot
+WorkingDirectory=__WORKDIR__
+ExecStart=__EXEC_PATH__ -m indexer.main
+# Courtesy to the converter and to the rest of the laptop (2026-09-09): embedding is
+# CPU-bound and never urgent. Nice + idle IO rather than a memory cap -- the measured peak RSS
+# of a full six-book reconcile is ~450 MiB (Observed 2026-09-09, fastembed MiniLM, batch 32,
+# 4 threads) and a cgroup kill would be a silent failure shape.
+Nice=10
+IOSchedulingClass=idle

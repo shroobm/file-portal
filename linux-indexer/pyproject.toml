@@ -1,0 +1,17 @@
+[project]
+name = "file-portal-indexer"
+version = "0.1.0"
+description = "Reconciles a SQLite passage index (sqlite-vec + FTS5) to the vault's tip and answers hybrid queries"
+requires-python = ">=3.11"
+dependencies = [
+    "sqlite-vec>=0.1.6,<0.2",
+    "fastembed>=0.7,<1",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.pytest.ini_options]
+# Make `pytest tests/` work without installing the package (CI runs it from a bare venv).
+pythonpath = ["."]

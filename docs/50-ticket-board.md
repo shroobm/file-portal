@@ -262,7 +262,7 @@ and every strike/fold in §1's arithmetic awaits Rab's word before any register 
 | J7 | The disclosure standard and private-layer doctrine are drafts | M | blocked-on-rab | - | OPEN-TASKS §J J7; `DISCLOSURE-STANDARD.md` |
 | S108-15 | Commission adversarial review of Concordance Lab dossier | M | blocked-on-rab | - | sessions/S108-SIGN-SHEET.md:40 |
 | T-004 | Joint seam: EXTRACTED vs AUTHORED term comparison | M | blocked-on-rab | - | coordination/T-004-EXTRACTED-SCHEMA.md:23; S108:208; OPEN-TASKS.md:402 (J6) |
-| D7 | ThinkPad lane: enrichment consumer, docs/14 Phase A window | L | blocked-on-rab | - | OPEN-TASKS §D D7; S43 ledger row |
+| D7 | ThinkPad lane: enrichment consumer, docs/14 Phase A window | L | in-progress (embedding half built and DEPLOYED 2026-09-10 as `linux-indexer/`; room.js phrases owed by the Desktop; tagging + phone window still blocked-on-rab) | - | OPEN-TASKS §D D7; S43 ledger row; linux-indexer/README.md |
 
 ## The open pool (unphased buildable work)
 

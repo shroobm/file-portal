@@ -172,3 +172,20 @@ records gained a `ratio` key beside `survival` (subscript-assigned in `analyst._
 invisible to the harvester like the six above). Both are EVIDENCE: `ratio` is read by nobody at HEAD and
 exists so the next calibration can be read off the journal instead of re-derived (`ANALYST_CHUNK_
 INFLATION_MAX` moved by Rab's word on a re-measured journal, never by taste).
+
+## Keys of a producer no lane names: the ThinkPad's index station (S123, 2026-09-09)
+
+`linux-indexer/indexer/reconcile.py` appends two receipt outcomes to `~/file-portal/receipts.jsonl`
+through a mirror copy of the exporter's `append_receipt`: `indexed` (fields `result`, `tip`,
+`bundle`/`note` when exactly one bundle changed, `bundles`, `added`, `replaced`, `updated`,
+`removed`, `refused`, `unchanged`, `passages`, `embed_s`, `model`, `model_sha`, `passage_chars`,
+`passage_max_chars`, `fts_tokenizer`, `threads`, `lever_fallbacks`) and `index-failed` (`tip`,
+`error`). No lane in `dispositions.json` names a `linux-*` producer (the converter lane's producers
+are `windows-converter/*.py`; `linux-converter` appears only as a renderer), so the harvester never
+sees these keys and a `dispositions.json` row for them would be exactly the stale-signature trip
+measured above. This note is their record: all are **REPORT** (docs/29 §5.4's receipt home), read
+today by `python -m indexer.status` and the SQLite `meta` table on the ThinkPad, and by the widget's
+receipt tail through `room.js`'s `<outcome> <bundle>` fallback until the Desktop lands the two
+phrases requested in `coordination/messages/2026-09-09T21-24--linux-to-desktop--index-station-receipts-and-query-contract.md`
+(the fixity precedent: `room.js:607-609` names that fallback's cost). When a lane for
+`linux-indexer/**/*.py` is added, these keys surface for a real disposition.

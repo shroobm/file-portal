@@ -1,0 +1,12 @@
+#!/bin/sh
+# Installed as ~/file-portal/vault.git/hooks/post-update by linux-indexer/scripts/install.sh
+# (only if no hook exists -- the vault was initialised by hand and stays that way).
+#
+# Fires after every push into the bare vault -- the exporter's, or a hand push over tailscale
+# ssh -- and asks the user manager to run the indexer oneshot WITHOUT waiting: this hook runs
+# inside the pusher's process, and the exporter's L12 blob gate and `exported` receipt wait on
+# the push returning. Always exit 0: indexing must never cost the export it follows (docs/11:
+# the index gates nothing). If systemctl is unreachable here (a session without the user
+# bus), the daily timer catches up.
+systemctl --user start --no-block file-portal-indexer.service >/dev/null 2>&1 || true
+exit 0
