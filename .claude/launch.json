@@ -73,6 +73,20 @@
         "7133"
       ],
       "port": 7133
+    },
+    {
+      "name": "reading-bench",
+      "runtimeExecutable": "C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe",
+      "runtimeArgs": [
+        "-m",
+        "http.server",
+        "7141",
+        "--bind",
+        "127.0.0.1",
+        "--directory",
+        ".claude/skills/reading-bench/out"
+      ],
+      "port": 7141
     }
   ]
 }
