@@ -305,3 +305,29 @@ implementation freeze and operator handoff, not an E2 completion claim. `VW-E2-R
 immutable and `STOPPED`; `VW-E3` remains `UNSIGNED` and unexecuted.
 
 **Recorded at:** `2026-08-30T09:50:24.1383689Z`. Recorded by Codex (OpenAI Codex, GPT-5).
+
+## J50 · J51 · J52 — signed by Rab, 2026-09-10T00:35Z (S121)
+
+Rab, verbatim, after asking *"What do you want me to sign, tell me quickly"* and being offered three one-line
+slots: **"J50, J51, J52 all signed."** The slots as offered and signed:
+
+1. **J50 — the 13 August Codex entries: "confirm-all, receive-only."** A handler writes an honest "read
+   2026-09-10, no work follows" restatement per entry; nothing old gets worked. Executed 2026-09-10T00:40Z by a
+   Sonnet gate agent under `coordination/private/j50-receive-only-brief.md`: **11 confirmed** (0033–0043), **2
+   refused by law 4** (MSG-CDX-0029, 0030: digest mismatch — the log's bytes are unchanged since their first
+   commits `8ee44bb`/`02e6a6b`, so the digests Codex's sidecar claimed at post time were wrong; the gate
+   never confirms a mismatch). Those two stay owed and named (NR-05 = 2) unless Rab strikes them or Codex
+   re-claims them from its own sidecar.
+2. **J51 — the entry word cap: "meter-only, no refusal."** `gate.py post` prints `envelope ok · body N words`
+   and refuses only a missing envelope slot (CR-CDX-0002); no N is a lever. Codex's own escalation proposed the
+   same reading (MSG-CDX-0055).
+3. **J52 — the relay watch: "per-logon supervision" + "a lane STALE beyond 45 minutes renders presumed dead."**
+   (a) Windows scheduled task **"File Portal relay watch (Fable)"** at Rab's logon, running
+   `coordination/relay_watch.sh --as Fable` with no execution-time limit, logging to
+   `coordination/private/relay-watch.log`; registered and started 2026-09-10T00:40Z (WATCH ARMED 00:40:33Z in the
+   log); the session's Monitor tails that log instead of running a second watcher; the STOP file
+   `coordination/private/relay-watch.STOP` remains the kill switch ("stop relay-gate" = create it).
+   (b) `gate.py status` renders a beat older than `BEAT_STALE_MIN` (45) as **presumed dead** on the beat line and
+   the state line — a rendering, no state written, no guard changed (built S121, see the record).
+
+**Recorded at:** `2026-09-10T00:43:38Z`. Recorded by Fable (Claude Fable 5.1), lane Fable, S121.
