@@ -736,29 +736,77 @@ class Exporter:
 
 
 class ExportHandler(FileSystemEventHandler):
-    """Watches library/staging/ (non-recursive). The converter publishes bundles by atomic
-    rename within staging, which is an on_moved; a manual cp -r arrives as on_created and
-    gets a stability wait, mirroring the inbox handler's event model."""
+    """Watches library/staging/ RECURSIVELY (J58, Rab signed 2026-09-10, S126; non-recursive before).
+    The converter publishes bundles by atomic rename within staging, which is an on_moved of a
+    TOP-LEVEL directory; a manual cp -r arrives as on_created and gets a stability wait, mirroring
+    the inbox handler's event model. The recursion exists for exactly one nested write: the widget's
+    bless click scp's a sha-bound `bless.json` INTO a held remedy bundle (assay.rs `bless`, an
+    in-place write -> IN_CLOSE_WRITE -> on_closed; a rename form -> on_moved). Before J58 that write
+    was invisible to a top-level watch and the bless was honoured only by the next restart's startup
+    sweep (S117 §8-F5: "deploy/restart the ThinkPad exporter"). Every OTHER nested event -- a bundle's
+    own subdirectories, its files, anything under a dot-prefixed temp dir -- is ignored: only a
+    top-level bundle dir, or a bless.json directly inside one, is a signal. export() is idempotent
+    and lock-serialized, so a bless seen twice (created+closed, or closed+sweep) is a harmless no-op."""
+
+    BLESS = "bless.json"
 
     def __init__(self, exporter: Exporter):
         self.exporter = exporter
+        self.staging = Path(exporter.paths.staging)
+
+    def _bundle_of(self, path) -> Path | None:
+        """The path itself if it is a top-level, non-dot entry of staging; else None."""
+        p = Path(path)
+        try:
+            rel = p.relative_to(self.staging)
+        except ValueError:
+            return None
+        if len(rel.parts) != 1 or rel.parts[0].startswith("."):
+            return None
+        return p
+
+    def _bless_bundle(self, path) -> Path | None:
+        """The bundle dir if `path` is <staging>/<bundle>/bless.json; else None."""
+        p = Path(path)
+        if p.name != self.BLESS:
+            return None
+        return self._bundle_of(p.parent)
 
     def on_moved(self, event):
-        if event.is_directory and not Path(event.dest_path).name.startswith("."):
-            self.exporter.export(Path(event.dest_path))
+        if event.is_directory:
+            bundle_dir = self._bundle_of(event.dest_path)
+            if bundle_dir is not None:
+                self.exporter.export(bundle_dir)
+            return
+        bundle_dir = self._bless_bundle(event.dest_path)
+        if bundle_dir is not None:
+            logger.info("EXPORT-BLESS-SEEN %s: bless.json arrived (rename) -- re-exporting", bundle_dir.name)
+            self.exporter.export(bundle_dir)
 
     def on_created(self, event):
         # The dot-check must happen BEFORE the stability wait: the converter assembles two
         # dot-prefixed temp dirs inside staging per bundle, and their created events would
         # otherwise each hold the dispatch thread for the full timeout (the dir gets renamed
         # away, so its manifest never appears -- observed live as a 2x60s export delay).
+        # A FILE's created event is the empty file (scp opens, then writes): its completion is
+        # on_closed (in place) or on_moved (rename) -- never act on the empty shell.
         if not event.is_directory:
             return
-        bundle_dir = Path(event.src_path)
-        if bundle_dir.name.startswith("."):
-            return
+        bundle_dir = self._bundle_of(event.src_path)
+        if bundle_dir is None:
+            return  # nested dir (a bundle's assets/), or a dot-prefixed temp dir
         self._wait_until_stable(bundle_dir)
         self.exporter.export(bundle_dir)
+
+    def on_closed(self, event):
+        # inotify IN_CLOSE_WRITE: the completion signal for an in-place write -- the bless click's
+        # scp. Only bless.json directly inside a top-level bundle is a signal (J58).
+        if event.is_directory:
+            return
+        bundle_dir = self._bless_bundle(event.src_path)
+        if bundle_dir is not None:
+            logger.info("EXPORT-BLESS-SEEN %s: bless.json written -- re-exporting", bundle_dir.name)
+            self.exporter.export(bundle_dir)
 
     @staticmethod
     def _wait_until_stable(bundle_dir: Path, interval: float = 0.5, timeout: float = 60.0):

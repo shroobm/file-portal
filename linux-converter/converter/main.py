@@ -299,10 +299,14 @@ def run(root: Path, settings_path: Path):
     # One watch on pipeline/ covers both inboxes; _convert derives the lane from the parent
     # directory, the same way the allocator derives the category.
     observer.schedule(handler, str(paths.pipeline), recursive=True)
-    # L11: same process, second watch. Staging only ever receives whole bundles (atomic
-    # rename), so non-recursive top-level directory events are the complete signal.
+    # L11: same process, second watch. Bundles arrive as whole top-level directories (atomic
+    # rename), which the handler still treats as the arrival signal. J58 (Rab, signed
+    # 2026-09-10, S126): the watch is RECURSIVE now, because the one nested write that matters
+    # -- the widget's `bless.json` scp'd INTO a held bundle -- was invisible to a top-level
+    # watch, so a bless was honoured only by the next restart's sweep (S117 §8-F5). The
+    # handler ignores every other nested event (ExportHandler docstring).
     vault_exporter = exporter.Exporter(paths)
-    observer.schedule(exporter.ExportHandler(vault_exporter), str(paths.staging), recursive=False)
+    observer.schedule(exporter.ExportHandler(vault_exporter), str(paths.staging), recursive=True)
     observer.start()
     logger.info("watching %s (lanes: %s)", paths.pipeline, ", ".join(LANE_BY_INBOX))
     logger.info("watching %s (exporting to %s)", paths.staging, paths.vault_bare)

@@ -245,6 +245,65 @@ def test_supersede_swaps_assets(paths):
     assert bare_show(paths, f"{dest}/assets/fig.png") == "NEWPNG"
 
 
+def test_bless_written_inside_a_held_bundle_re_exports_it_without_a_restart(paths):
+    """J58 (Rab, signed 2026-09-10, S126). A `flag` remedy without a bless is HELD in staging; the
+    widget's bless click then scp's a sha-bound bless.json INTO that bundle -- an in-place write,
+    IN_CLOSE_WRITE, a NESTED event. Before J58 the staging watch was non-recursive, the write was
+    invisible, and the bless was honoured only by the next restart's startup sweep (S117 §8-F5).
+    Now the handler re-exports the bundle on the closed event. Negative controls: the empty-file
+    created event, a nested directory, and a non-bless file must NOT export anything."""
+    from watchdog.events import DirCreatedEvent, FileClosedEvent, FileCreatedEvent
+
+    from converter.exporter import ExportHandler
+
+    exp = Exporter(paths)
+    exp.export(make_bundle(paths, "paper", SHA_A))
+    held = make_supersede_bundle(paths, "paper", SHA_A, verdict="flag", body="blessed body")
+    handler = ExportHandler(exp)
+
+    handler.on_created(DirCreatedEvent(str(held)))  # the remedy's arrival (cp -r shape)
+    assert held.exists(), "a flag remedy without a bless is HELD -- staging kept"
+    assert bare_commits(paths) == 2, "no supersede commit yet"
+
+    # nested events that are NOT signals (negative controls)
+    handler.on_created(DirCreatedEvent(str(held / "assets")))
+    handler.on_closed(FileClosedEvent(str(held / "manifest.json")))
+    handler.on_created(FileCreatedEvent(str(held / "bless.json")))  # the empty shell scp opens
+    assert held.exists() and bare_commits(paths) == 2, "nothing but a written bless.json may fire"
+
+    # the bless click: the marker is written in place inside the held bundle, then closed
+    (held / "bless.json").write_text(
+        json.dumps({"source_sha256": SHA_A, "by": "rab", "reason": "human-bless (figure ceiling)"})
+    )
+    handler.on_closed(FileClosedEvent(str(held / "bless.json")))
+
+    assert not held.exists(), "the blessed remedy shipped on the closed event -- no restart"
+    assert bare_commits(paths) == 3, "exactly one supersede commit"
+    assert "blessed body" in bare_show(paths, f"Inbox/paper--{SHA_A[:8]}/paper.md")
+
+
+def test_bless_outside_a_top_level_bundle_is_ignored(paths):
+    """J58's recursion must not widen the signal: a bless.json in a dot-prefixed temp dir, or
+    nested deeper than one level, or outside staging, is not a bundle's bless."""
+    from watchdog.events import FileClosedEvent, FileMovedEvent
+
+    from converter.exporter import ExportHandler
+
+    exp = Exporter(paths)
+    handler = ExportHandler(exp)
+    tmp = paths.staging / ".part-abc"
+    (tmp / "deep").mkdir(parents=True)
+    (tmp / "bless.json").write_text("{}")
+    (tmp / "deep" / "bless.json").write_text("{}")
+    outside = paths.root / "bless.json"
+    outside.write_text("{}")
+    handler.on_closed(FileClosedEvent(str(tmp / "bless.json")))
+    handler.on_closed(FileClosedEvent(str(tmp / "deep" / "bless.json")))
+    handler.on_moved(FileMovedEvent(str(outside), str(outside)))
+    assert bare_commits(paths) == 1, "nothing exported: no top-level bundle holds these markers"
+    assert tmp.exists(), "a dot-prefixed temp dir is never treated as a bundle"
+
+
 def test_supersede_fail_verdict_refuses_and_keeps_staging(paths):
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))
