@@ -123,3 +123,5 @@ IgnoreNew); the widget's boot then autostarts the watcher (`main.js` `watcherAut
 one running instance. The muster card re-measures the task every open (`widget autostart` row). What this does NOT close:
 the logon itself — auto-logon after a power cut is a security setting and Rab's hand. The unattended proof is the next
 logon; until then the claim is `Intended`.
+
+**Observed 2026-09-10 16:36Z (S128).** The chain fired unattended after Rab set auto-logon and rebooted: boot 16:36:07Z → logon → the J57 task launched the widget at 16:36:29Z → its boot log `watcher_start running` at 16:36:37Z. The `Intended` above is discharged; the widget's unattended start is a measured fact of this machine, re-read by the card every open.

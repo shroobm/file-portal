@@ -426,3 +426,17 @@ Rab, verbatim: **"auto-logon to finish J57, keep electron on the backburner for 
    conditions as the only re-open path besides his word.
 
 **Recorded at:** `2026-09-10T06:4xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S127.
+
+## "Tried it. Nice." — J57 and J62 observed, 2026-09-10T16:4xZ (S128)
+
+Rab, verbatim: **"Tried it. Nice."** — after setting auto-logon in his own shell (J62) and rebooting.
+
+**Observed (read-only, S128):** boot 16:36:07Z → auto-logon (console session `bndit`, logon 16:36) → the J57 task launched the widget at 16:36:29Z (pid 9096; the task's LastRunTime 16:36:36Z, state Running = its instance is the widget) → the widget's boot log: `boot: all loops launched` then `watcher_start running pid 14120` at 16:36:37Z → the watcher's parent is 9096. Thirty-one seconds from power to converting, no click. `AutoAdminLogon=1`, `DefaultUserName=Bndit`, no cleartext `DefaultPassword` (an LSA secret — a proper route). The card read `auto-logon ON (Bndit)` at open, unprompted.
+
+**What this closes:** J57 (the widget's unattended start — `Intended` since S125, `Observed` now) and J62 (auto-logon, his hand).
+**What it does not change:** the remote posture measured the same sitting — from the ThinkPad on the same LAN, the Desktop's
+LAN address refuses SSH (22) and Sunshine (47989/47990) while its Tailscale address answers; Remote Desktop is off; SSH is
+keys-only; Ollama listens on localhost only. Auto-logon opens no remote door; it changes who is at the console after a
+boot. Kept true by: the Ethernet staying on the Public firewall profile, and the tailnet's membership.
+
+**Recorded at:** `2026-09-10T16:5xZ`. Recorded by Fable (Claude Fable 5.1), lane Fable, S128.
