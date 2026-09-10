@@ -1364,7 +1364,9 @@ def _cmd_post_locked(a, body):
         print(f"REFUSED: envelope — missing {named} (CR-CDX-0002, signed 2026-08-24)",
               file=sys.stderr)
         return 1
-    print(f"[gate] envelope ok · body {len(body.split())} words", file=sys.stderr)  # NR-07 meter; no threshold
+    # J51, Rab's signature 2026-09-10T00:35Z: "meter-only, no refusal" — the word count is PRINTED (NR-07,
+    # docs/56) and never a threshold; a cap at any N would be a new lever and his word again.
+    print(f"[gate] envelope ok · body {len(body.split())} words", file=sys.stderr)  # NR-07 meter; no threshold (J51)
     # GUARD A (S108): never issue a NEW ticket into a recipient that is already working.
     # On 2026-08-24 a 90-second-stale board read manufactured a duplicate ticket; the tool now
     # refuses what care did not. Notices always pass (no --ticket, or the ticket they already
