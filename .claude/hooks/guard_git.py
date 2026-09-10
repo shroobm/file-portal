@@ -48,10 +48,16 @@ Output: DENY → JSON on stdout (permissionDecision "deny" + reason), exit 0 —
 blocks even in bypass-permissions mode; ALLOW → nothing, exit 0. `settings.json` turns an interpreter failure
 into exit 2, so a missing python also denies. No shell layer in this file, deliberately (ERR-009).
 
-WHAT IT CANNOT SEE (residue, stated): a script FILE that runs git (`bash x.sh`, `python x.py`) — the guard
-reads the command line, not files; a git invoked by a process the harness does not route through these two
-tools; the roots file and this hook are ordinary files a lane could edit (the guard's config is not itself
-guarded — docs/47 §9 forbids it by law, and the log shows the denial that preceded any such edit).
+WHAT IT CANNOT SEE (residue, stated — a command-line guard is defense in depth, not a sandbox; the LAW's
+real isolation is the worktree):
+  - a git run from inside a script FILE the guard did not read (`echo '…git…' > x.sh; bash x.sh`), or a target
+    the program ASSEMBLES at runtime (`python -c "…bytes([103,105,116])…"`) — the guard reads the command
+    line, not files, and not a program's runtime strings. A heredoc body IS on the command line, so its git is
+    seen (it lands on its own segment).
+  - a git invoked by a process the harness does not route through the Bash / PowerShell tools.
+  - the roots file and this hook are ordinary files a lane could edit; the guard's config is not itself guarded
+    (docs/47 §9 forbids the edit by law, and the trace log shows the ALLOW that preceded any such write).
+These residues were surfaced by the S124 red team (the critic lane) and are named here rather than papered over.
 
 Tripwire: `.claude/hooks/guard_git_selftest.py` — a positive control and every negative, on a throwaway
 repository with a real linked worktree. Run it whenever this file changes.
@@ -100,6 +106,9 @@ LOG_FILE = os.environ.get("FP_GIT_GUARD_LOG") or os.path.join(REPO, "coordinatio
 EXTRA_ROOTS_ENV = os.environ.get("FP_GIT_GUARD_EXTRA_ROOTS") or ""
 TRACE_FILE = os.path.join(REPO, "coordination", "private", "git-guard.trace")
 BYPASS = re.compile(r"^\s*FP_GIT_GUARD_BYPASS=(['\"])(.{20,}?)\1\s+")
+# a path the guard cannot resolve because the SHELL would expand it at runtime and the guard is not a shell:
+# $VAR, ${VAR}, $(...), backticks, %VAR% (cmd). An UNREAD target must fail closed, never read as "not guarded".
+UNRESOLVED = re.compile(r"\$\w|\$\{|\$\(|`|%[A-Za-z_][A-Za-z0-9_]*%")
 # (segments() below replaced the flat SPLIT regex: a separator inside quotes is data, a $( inside double quotes is a command)
 ENCODED = re.compile(r"(?i)(^|\s)-(enc|encodedcommand|ec|e)\s+\S")
 LAW = "docs/47 §9, J56 (ERR-068 destroyed the peer's uncommitted bytes this way)"
@@ -140,9 +149,19 @@ def clean_token(t):
     return t.replace("'", "").replace('"', "").replace("\\", "")
 
 
+def unquote(t):
+    """Remove surrounding/embedded quotes but KEEP backslashes — for path arguments, where `\\` is a separator."""
+    return t.replace("'", "").replace('"', "")
+
+
 def clean_head(t):
     """The command head: quotes removed, backslashes read as path separators (a Windows path keeps its shape)."""
     return t.replace("'", "").replace('"', "").replace("\\", "/").lower()
+
+
+def is_unresolved(p):
+    """True when a path token is empty or carries a shell expansion the guard cannot perform (so the target is UNREAD)."""
+    return (not p) or bool(UNRESOLVED.search(p))
 
 
 def to_windows(path):
@@ -277,6 +296,35 @@ def resolve_alias(root, verb):
     return p.stdout.strip()
 
 
+def targets_named(toks, i, cur, guarded):
+    """Scan toks[i:] for git target flags (-C, --work-tree[=], --git-dir[=]); return the guarded root any of them
+    names, or a marker string when one is UNREAD (a shell-expanded value), else None. Used when the command HEAD is
+    UNREAD so the precise git path was not taken, but an explicit target could still name the shared tree."""
+    j = i
+    while j < len(toks):
+        t = clean_token(toks[j])
+        raw = unquote(toks[j])
+        val = None
+        if t in ("-C", "--work-tree", "--git-dir") and j + 1 < len(toks):
+            val = to_windows(toks[j + 1])
+            j += 2
+        elif t.startswith("--work-tree=") or t.startswith("--git-dir="):
+            val = to_windows(raw.split("=", 1)[1])
+            j += 1
+        else:
+            j += 1
+            continue
+        if is_unresolved(val):
+            return "UNREAD"
+        base = val if is_abs(val) else os.path.join(cur, val)
+        if t in ("--git-dir", "--git-dir=") or t.startswith("--git-dir="):
+            base = os.path.dirname(base.rstrip("/\\"))
+        g = guarded(base)
+        if g:
+            return g
+    return None
+
+
 def core_worktree(root):
     """The repository's core.worktree, absolute; '' when unset; None when git could not answer (UNREAD)."""
     try:
@@ -291,15 +339,30 @@ def core_worktree(root):
     return wt if is_abs(wt) else os.path.normpath(os.path.join(root, ".git", wt))
 
 
+# shell prefixes that run the NEXT word as the real command (so `command git … reset` must expose `git`, not hide it).
+# These take no args of their own, so we strip them and re-read the head. (env/sudo/nohup/time stay WRAPPERS: they
+# can carry their own args before the command, so they are handled opaquely there.)
+CMD_PREFIX = ("command", "builtin", "exec", "then", "do", "else", "elif", "!", "..", ";")
+
+
 def head_of(toks):
-    """Skip env assignments (collecting them) and PowerShell call operators; return (index, cleaned lowercase basename, env)."""
+    """Skip env assignments (collecting them), PowerShell call operators, and command-prefix keywords; return
+    (index, cleaned lowercase basename, env). base carries any residual shell-expansion metachar so the caller can
+    render it UNREAD (git${IFS}reset, $'\\x67it', $G all reach here without being mistaken for a safe literal)."""
     i, env = 0, {}
-    while i < len(toks) and re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[i]):
-        k, v = toks[i].split("=", 1)
-        env[k.upper()] = to_windows(v)
-        i += 1
-    while i < len(toks) and toks[i] in ("&", "."):
-        i += 1
+    while i < len(toks):
+        if re.match(r"^[A-Za-z_][A-Za-z0-9_]*=", toks[i]) and "=" in toks[i]:
+            k, v = toks[i].split("=", 1)
+            env[k.upper()] = to_windows(v)
+            i += 1
+            continue
+        if toks[i] in ("&", "."):
+            i += 1
+            continue
+        if clean_head(toks[i]).rsplit("/", 1)[-1] in CMD_PREFIX:
+            i += 1
+            continue
+        break
     if i >= len(toks):
         return i, "", env
     head = clean_head(toks[i])
@@ -320,13 +383,15 @@ def parse_git(toks, i):
     c_path = work_tree = git_dir = None
     alias_on_line = False
     while i < len(toks):
-        t = clean_token(toks[i])
+        t = clean_token(toks[i])       # backslash-stripped: for matching flag NAMES only
+        raw = unquote(toks[i])         # quotes off, backslashes KEPT: for path VALUES (ERR at clone-6: the equals
+        #                                forms read t, so a Windows path lost its separators and became UNREAD garbage)
         if t == "-C" and i + 1 < len(toks):
             c_path = to_windows(toks[i + 1])
             i += 2
             continue
         if t.startswith("--work-tree="):
-            work_tree = to_windows(t.split("=", 1)[1])
+            work_tree = to_windows(raw.split("=", 1)[1])
             i += 1
             continue
         if t == "--work-tree" and i + 1 < len(toks):
@@ -334,7 +399,7 @@ def parse_git(toks, i):
             i += 2
             continue
         if t.startswith("--git-dir="):
-            git_dir = to_windows(t.split("=", 1)[1])
+            git_dir = to_windows(raw.split("=", 1)[1])
             i += 1
             continue
         if t == "--git-dir" and i + 1 < len(toks):
@@ -349,7 +414,7 @@ def parse_git(toks, i):
         if t.startswith("-"):
             i += 1
             continue
-        args = [clean_token(x) for x in toks[i + 1:]]
+        args = [unquote(x) for x in toks[i + 1:]]
         override = work_tree or c_path or (os.path.dirname(git_dir.rstrip("/\\")) if git_dir else None)
         return t.lower(), args, override, alias_on_line
     override = work_tree or c_path or (os.path.dirname(git_dir.rstrip("/\\")) if git_dir else None)
@@ -390,6 +455,8 @@ def decide(payload):
         """Walk the segments of `text` from directory `cur`; return a deny reason or None. Recurses into a wrapper's
         quoted arguments (bash -c '…', sh -c "…", powershell -Command "…", cmd /c "…") up to three levels."""
         env_target = None  # GIT_WORK_TREE / GIT_DIR exported earlier in the same command
+        cur_unresolved = False  # cur came from a `cd $VAR` the guard could not resolve
+        worktree_redirect = False  # an earlier segment set core.worktree — a later unguarded-repo verb is UNREAD
         for seg in segments(text):
             toks = tokens(seg)
             if not toks:
@@ -411,17 +478,32 @@ def decide(payload):
                 target = to_windows(toks[-1])
                 if target in ("-", "~"):
                     continue
+                if is_unresolved(target):
+                    cur_unresolved = True  # we no longer know where we are; a bare destructive verb here is UNREAD
+                    cur = target
+                    continue
+                cur_unresolved = False
                 cur = target if is_abs(target) else os.path.join(cur, target)
                 continue
-            here = guarded(cur)
+            here = None if cur_unresolved else guarded(cur)
             m = re.match(r"^\$env:(git_work_tree|git_dir)$", base)
             if m and len(toks) > i + 1:  # PowerShell: $env:GIT_WORK_TREE = '<path>'
                 v = to_windows(toks[-1])
                 env_target = v if m.group(1) == "git_work_tree" else os.path.dirname(v.rstrip("/\\"))
                 continue
-            if base.startswith("$") or base.startswith("%") or base.startswith("${"):
+            # an UNREAD head — a shell variable, ANSI-C/parameter/command expansion, or a word the shell will assemble
+            # at runtime ($G, $'\\x67it', git${IFS}reset, `printf git`). Test the RAW token: clean_head splits on '/'
+            # and would drop a leading '$' before a stripped backslash ($'\\x67it' -> x67it). We cannot know the
+            # command; fail closed.
+            head_raw = toks[i]
+            if any(c in base for c in ("$", "`", "{", "%")) or any(c in head_raw for c in ("$", "`")) \
+                    or re.search(r"%[A-Za-z_][A-Za-z0-9_]*%", head_raw):
                 if here:
-                    return f"guard_git: a command head that is a shell variable ({base}) is UNREAD in the shared checkout {here}; denied ({LAW})"
+                    return f"guard_git: a command head the shell expands ({base[:40]}) is UNREAD in the shared checkout {here}; denied ({LAW})"
+                # even from an unguarded cwd, an explicit -C/--work-tree/--git-dir/env target may name the shared tree
+                hit = targets_named(toks, i, cur, guarded)
+                if hit:
+                    return f"guard_git: a command head the shell expands ({base[:40]}) carries a target at the shared checkout {hit}; UNREAD, denied ({LAW})"
                 continue
             if base in DEFINERS:
                 if here or names_guarded_root(text):
@@ -451,15 +533,37 @@ def decide(payload):
             for k in ENV_TARGETS:
                 if k in env:
                     seg_env = env[k] if k == "GIT_WORK_TREE" else os.path.dirname(env[k].rstrip("/\\"))
+            # is the target UNREAD — a value the shell will expand that the guard cannot? (the clone-6 destroyer:
+            # `git --work-tree="$CLONE" --git-dir="$CLONE/.git" checkout` slipped through as a literal "$CLONE")
+            target_unread = (override is not None and is_unresolved(override)) or (seg_env is not None and is_unresolved(seg_env)) \
+                or (env_target is not None and is_unresolved(env_target)) \
+                or (override is None and seg_env is None and env_target is None and cur_unresolved)
+            is_write = verb not in READ_ONLY  # for a lane, anything not read-only is a write; TIER1 is destruction for anyone
+            # setting core.worktree is a redirection primitive: it aims one repo's git at another's working tree
+            if verb == "config" and any("core.worktree" == clean_token(a).lower() for a in args):
+                worktree_redirect = True
+                idx_cw = next((j for j, a in enumerate(args) if clean_token(a).lower() == "core.worktree"), -1)
+                val = args[idx_cw + 1] if -1 < idx_cw < len(args) - 1 else ""
+                unset = any(a in ("--unset", "--unset-all") for a in args)
+                if not unset:
+                    if lane or is_unresolved(val):
+                        return f"guard_git: `git config core.worktree` (a working-tree redirection) with an UNREAD or lane-issued value is denied ({LAW})"
+                    vabs = to_windows(val) if is_abs(to_windows(val)) else os.path.normpath(os.path.join(cur, to_windows(val)))
+                    if guarded(vabs):
+                        return f"guard_git: `git config core.worktree` pointing into the shared checkout {guarded(vabs)} is denied ({LAW})"
             target = override or seg_env or env_target or cur
             if not is_abs(target):
                 target = os.path.join(cur, target)
             root = guarded(target)
             if root is None:
-                # a linked worktree, an unguarded repository, or not a repository: the lane's own business — unless that
-                # repository's core.worktree points INTO a guarded tree (an unguarded .git driving a guarded working tree)
+                if target_unread and (verb in TIER1 or (lane and is_write) or worktree_redirect):
+                    return (f"guard_git: `git {verb}` has an UNREAD target (a shell-expanded path the guard cannot resolve) and "
+                            f"cannot be proven to spare the shared checkout; denied — use a concrete path, a worktree, or the logged bypass ({LAW})")
+                # an unguarded repository whose core.worktree points INTO a guarded tree drives a guarded working tree
                 r0, kind0 = repo_root_of(target)
                 if r0 and kind0 == "dir" and (verb in TIER1 or lane):
+                    if worktree_redirect:
+                        return f"guard_git: `git {verb}` in {r0} after a core.worktree redirect in the same command is UNREAD; denied ({LAW})"
                     wt = core_worktree(r0)
                     if wt is None:
                         return f"guard_git: core.worktree of {r0} could not be read; UNREAD, denied ({LAW})"

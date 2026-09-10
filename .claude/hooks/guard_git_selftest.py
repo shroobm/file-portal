@@ -181,6 +181,40 @@ def main():
         case("core.worktree → <main>: git status still passes", "allow", bash("git status", other_repo))
         sh(["git", "config", "--unset", "core.worktree"], other_repo)
         case("core.worktree unset again: git reset --hard in the unguarded repo passes", "allow", bash("git reset --hard", other_repo))
+        # THE RED-TEAM HOLES (clone-6, S124): an UNREAD target — a shell variable in --work-tree/--git-dir/-C/env/cd —
+        # must fail closed for a destructive verb, not read as "not guarded".
+        case("RED-TEAM: --git-dir=$C/.git --work-tree=$C checkout (the clone-6 destroyer)", "deny",
+             bash('C=' + f'"{main_repo}"' + '; git --git-dir="$C/.git" --work-tree="$C" checkout -- tracked.txt', tmp))
+        case("RED-TEAM: --work-tree=$C reset --hard", "deny", bash('C=x; git --work-tree="$C" reset --hard', tmp))
+        case("RED-TEAM: -C $C clean -fdx", "deny", bash('C=x; git -C "$C" clean -fdx', tmp))
+        case("RED-TEAM: GIT_WORK_TREE=$C git reset", "deny", bash('C=x; GIT_WORK_TREE="$C" GIT_DIR="$C/.git" git reset --hard', tmp))
+        case("RED-TEAM: cd $C && git reset --hard (unresolved cwd)", "deny", bash('C=x; cd "$C" && git reset --hard', tmp))
+        case("RED-TEAM: %VAR% cmd-style var in --work-tree", "deny", ps('git --work-tree="%CLONE%" reset --hard', tmp))
+        case("a variable target with a READ-ONLY verb from MAIN still passes (no destruction possible)", "allow", bash('C=x; git -C "$C" status', tmp))
+        case("a LANE with a variable target and a write is denied (UNREAD)", "deny", bash('C=x; git -C "$C" add -A', tmp, agent="lane-1"))
+        case("a concrete -C to an UNGUARDED repo with a var-free reset still passes", "allow", bash(f'git -C "{other_repo}" reset --hard', tmp))
+        # THE SIBLING core.worktree-in-one-command hole (clone-6): set core.worktree then destroy, all before the hook can read it
+        sib = os.path.join(tmp, "sibling")
+        case("RED-TEAM: git config core.worktree <main> in a sibling is denied", "deny",
+             bash(f'git init "{sib}"; git -C "{sib}" config core.worktree "{main_repo}"; git -C "{sib}" checkout -- .', tmp))
+        case("RED-TEAM: a lane setting core.worktree anywhere is denied", "deny", bash(f'git -C "{other_repo}" config core.worktree /tmp/x', tmp, agent="lane-1"))
+        case("git config core.worktree to an UNGUARDED path still passes for main", "allow", bash(f'git -C "{other_repo}" config core.worktree "{tmp}/harmless"', tmp))
+        # CRITIC CLASS #1 — backslash Windows path in the equals form, from a NON-repo cwd (no accidental resolution)
+        case("CRITIC: --work-tree=<backslash main> reset from a non-repo cwd", "deny", bash(f'git --work-tree="{main_repo}" --git-dir="{main_repo}\\.git" reset --hard', tmp))
+        # CRITIC CLASS #2 — git behind a command prefix keyword
+        case("CRITIC: command git -C <main> reset", "deny", bash(f'command git -C "{main_repo}" reset --hard'))
+        case("CRITIC: exec git -C <main> clean", "deny", bash(f'exec git -C "{main_repo}" clean -fdx'))
+        case("CRITIC: ! git -C <main> reset", "deny", bash(f'! git -C "{main_repo}" reset --hard'))
+        case("CRITIC: if/then git reset in main", "deny", bash("if true; then git reset --hard; fi"))
+        case("CRITIC: while/do git clean in main", "deny", bash("while :; do git clean -fdx; done"))
+        # CRITIC CLASS #4 — ANSI-C quoted head that spells git
+        case("CRITIC: $'\\x67it' -C <main> reset (ANSI-C, from unguarded cwd, -C names main)", "deny", bash(f"$'\\x67it' -C \"{main_repo}\" reset --hard", tmp))
+        case("CRITIC: $'\\x67it' reset in main cwd", "deny", bash("$'\\x67it' reset --hard"))
+        # CRITIC CLASS #5 — IFS word-glue head in main cwd
+        case("CRITIC: git${IFS}reset --hard in main cwd", "deny", bash("git${IFS}reset --hard"))
+        # CRITIC CLASS #6 — variable head, -C names the guarded tree, from an unguarded cwd
+        case("CRITIC: G=git; $G -C <main> reset from unguarded cwd", "deny", bash(f'G=git; $G -C "{main_repo}" reset --hard', tmp))
+        case("CRITIC: a variable head with NO guarded target from unguarded cwd still passes", "allow", bash("G=git; $G status", tmp))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))
