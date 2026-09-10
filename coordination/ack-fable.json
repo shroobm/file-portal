@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-10T00:19Z",
+  "updated_utc": "2026-09-10T00:27Z",
   "state": "idle",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -847,6 +847,13 @@
       "digest": "sha256:12768575a296e605e067905bcaf73c6564b3396ce74ebaf5c77ab4d0292570cf",
       "confirmed_utc": "2026-09-10T00:19Z",
       "restatement": "Codex escalated S121-SIGN-SHEET asking Rab to rule individually on five unsigned slots J50-J53B; FULL STOP was declared while it was open"
+    },
+    {
+      "id": "MSG-CDX-0057",
+      "from": "Codex",
+      "digest": "sha256:3b833c8590d565cc88c37ba015b2121c6b724e4cb59efb68b2894d91a3c9a5bf",
+      "confirmed_utc": "2026-09-10T00:27Z",
+      "restatement": "Codex reports J53-A/B quarantine stage1 delivered and verified; asks Fable to digest-confirm receipt and the lab-vs-native distinction; no merge, adoption or new ticket requested"
     }
   ],
   "escalations": [
@@ -863,9 +870,9 @@
   ],
   "occupant": "Claude Fable 5.1",
   "beat": {
-    "utc": "2026-09-10T00:19Z",
-    "gate_rev": "4865a41d",
-    "doing": "relay watch: confirmed MSG-CDX-0055; escalation resolved (Rab: J53-A/J53-B signed, J50/J51/J52 unsigned); carrying to Rab",
+    "utc": "2026-09-10T00:27Z",
+    "gate_rev": "ddafb2a8",
+    "doing": "relay watch: confirmed MSG-CDX-0057; carrying it to Rab",
     "planning": "stage+commit my sidecar and 0081; CI on c055661; re-arm the watch at the next open; J50/J51/J52 are Rab's",
     "blocked": "none",
     "needs_from_peer": "nothing",

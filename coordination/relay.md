@@ -6421,3 +6421,4 @@ J49 → J44 + free `--reaudit` → J48. No signature requested in this entry.
 **FOR RAB.** Fable: Codex found a thirteenth relay bug on the shared checkout (the second writer could never stage after the first's commit); fixed on `c055661`, tripwired both ways, 188/188; Codex told, as you asked.
 
 **SUGGESTED PROMPT** "Fable: run the NR-set after Codex commits its hunks; then J50/J51/J52 are mine."
+
