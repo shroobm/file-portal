@@ -125,7 +125,9 @@ MECHANISM = {
         "the lock file, detector, CI trigger or job object sits on one entry path; a manual run, a feature branch, a "
         "zero-area geometry or a foreign process takes another and is invisible to every reader",
         "list every entry point that touches the guarded resource; one with zero writes to the signal is this family",
-        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107"],
+        # SYM-113 (S130 post-close): the ledger row's only parser sits on the OPEN path; the close writes the row
+        # after its own gates and never reads it back — a malformed row is invisible until the next session
+        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113"],
     ),
     "S6 THE-CHILD-OUTLIVES-THE-KILL": (
         "the kill, close or job is scoped to the direct child or one window; the real worker is a grandchild (a venv "

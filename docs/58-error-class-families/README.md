@@ -147,7 +147,7 @@ The status column is the first word of each row's own Status cell, measured at S
 - **Highlight.** A busy/covered/clean signal reads negative while the resource is in use, because the path in use never wrote the signal.
 - **Probe.** *List every entry point that touches the guarded resource; one with zero writes to the signal is a live instance.*
 - **Solution.** Put the guard where every path must pass — an OS-enforced mutex, a process census, the branch the work actually lands on — rather than adding one more path-specific writer.
-- **Members.** SYM-018, 020, 032, 042, 047, 049, 054. Method twin: **M6**.
+- **Members.** SYM-018, 020, 032, 042, 047, 049, 054. **113** (S130 post-close: the ledger row's parser runs at the next OPEN, never at the close that writes the row). Method twin: **M6**.
 
 ### S6 · THE-CHILD-OUTLIVES-THE-KILL
 - **Reason.** The kill or close is scoped to the direct child or one window; the real worker is a grandchild (a venv launcher's interpreter, 006, 068), the next command of a `;` chain (021), a second full factory from a second launch with no single-instance guard (033), a window whose teardown never reaches process exit (069); two survivors then share the card and fault the driver (022).
