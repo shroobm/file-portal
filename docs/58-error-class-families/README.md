@@ -140,7 +140,7 @@ The status column is the first word of each row's own Status cell, measured at S
 - **Highlight.** A confident absence — down, clean, gone, no drift — with no error trace anywhere, while the thing is present.
 - **Probe.** *Make the probe fail on purpose (bad path, wrapped text, refused command) — does the surface say UNREAD?*
 - **Solution.** A failed probe renders `UNREAD`, never a negative observation; check the call succeeded before counting anything from its output. This is the tag law's rule 4 in code.
-- **Members.** SYM-024, 031, 034, 063, 071. Method twin: **M1** (PREMATURE-ALARM).
+- **Members.** SYM-024, 031, 034, 063, 071. **111** (S130: the events-mode tracker printed a failed post-event read as an empty command line and a dropped stop event as a live process). Method twin: **M1** (PREMATURE-ALARM).
 
 ### S5 · A-GUARD-OFF-THE-PATH-THE-WORK-TAKES
 - **Reason.** The lock, detector, trigger or job object sits on one entry path and the work takes another: only the watcher writes `.gpu-lock`, a manual or `--resume` run never does (042); the job object governs only the watcher the widget spawned (047); CI triggered on master while work was pushed to a feature branch for 205 commits (018) and the ritual ran clippy but never fmt (020); zero-area connectors dropped before clustering (049); a fleet's servers outlive a harness that audits files, not processes (054); a lock nothing ever read (032).

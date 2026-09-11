@@ -117,7 +117,9 @@ MECHANISM = {
         "the probe errored, timed out or could not match, and the surface printed a definite negative — down, clean, "
         "absent, no drift — instead of UNREAD",
         "make the probe fail on purpose (bad path, wrapped text, refused command) — does the surface say UNREAD?",
-        ["SYM-024", "SYM-031", "SYM-034", "SYM-063", "SYM-071"],
+        # SYM-111 (S130): the events-mode tracker read a command line AFTER the start event and rendered a
+        # gone process as an EMPTY cell, a dropped stop event as "still running" — a failed read printed as a reading
+        ["SYM-024", "SYM-031", "SYM-034", "SYM-063", "SYM-071", "SYM-111"],
     ),
     "S5 A-GUARD-OFF-THE-PATH-THE-WORK-TAKES": (
         "the lock file, detector, CI trigger or job object sits on one entry path; a manual run, a feature branch, a "
@@ -169,7 +171,7 @@ MECHANISM = {
         "read the producer's own definition (its source or docs) of the flag or event before trusting the name",
         # SYM-084 (ThinkPad S123): Taildrop moves files only between devices of the same tailnet user; a tagged
         # node has no user — the platform's own definition, not its name
-        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109", "SYM-094"],  # 094 moved S15 → S12 (S124 cross-check: the root is find_tables' semantics)
+        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109", "SYM-094", "SYM-112"],  # 094 moved S15 → S12 (S124 cross-check: the root is find_tables' semantics)
     ),
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",
