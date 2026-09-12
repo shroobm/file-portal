@@ -1921,6 +1921,31 @@ def resume(pend_id: str, backend: str) -> None:
 
 # ---------- the analyst-only re-run (docs/19 §3.1) ----------
 
+_ANALYST_FM = re.compile(r"^analyst:\n(?:  [^\n]*\n)*", re.M)
+
+
+def _restore_pre_analyst(work: Path, bundle_name: str, sidecar_text: str) -> None:
+    """J42: turn the work copy of an ANALYSED bundle back into its pre-analyst self so
+    apply_analyst starts where the first run started — the body is the verified sidecar text,
+    the frontmatter loses its `analyst:` block (apply_analyst prepends a fresh one; without this
+    the note would carry two), the manifest loses `analyst` and `fidelity.analyst` (apply_analyst
+    rewrites both). The sidecar file and manifest.marker_body stay: they are still the truth
+    the re-audit road (J31) verifies against."""
+    md_path = work / f"{bundle_name}.md"
+    raw = md_path.read_text(encoding="utf-8")
+    parts = raw.split("---\n", 2)
+    head = parts[1] if len(parts) == 3 else ""
+    head = _ANALYST_FM.sub("", head)
+    md_path.write_text("---\n" + head + "---\n" + sidecar_text, encoding="utf-8")
+    manifest_path = work / "manifest.json"
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    manifest.pop("analyst", None)
+    fid = manifest.get("fidelity")
+    if isinstance(fid, dict):
+        fid.pop("analyst", None)
+    manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
+
+
 def _anchor_copies(source: str) -> list[tuple[Path, dict, str]]:
     """Every anchored bundle whose manifest records `source`, newest first.
 
@@ -1970,6 +1995,25 @@ def reanalyze(source: str, backend: str) -> None:
         emit("analyst", "rerun_refused", source=source, reason="no anchored bundle")
         sys.exit(f"REANALYZE refused: no anchored bundle records source {source!r}")
     pre = [c for c in copies if not c[1].get("analyst")]
+    sidecar_text: str | None = None
+    if not pre:
+        # J42 (S140, signed Rab 2026-09-12 as C's road): every anchored copy is analyst output —
+        # but J33's sidecar (`<name>.marker.txt`, hash-bound in manifest.marker_body) IS the
+        # pre-analyst body this refusal was protecting against losing. Start from the newest
+        # copy whose sidecar VERIFIES (sha256 + bytes, the same test reaudit() applies — R2:
+        # never on mere presence); a stale or missing sidecar refuses exactly as before.
+        for bundle_dir_, manifest_, bundle_name_ in copies:
+            mb = manifest_.get("marker_body") or {}
+            sc = bundle_dir_ / f"{bundle_name_}{MARKER_BODY_SUFFIX}"
+            if mb.get("sha256") and sc.is_file():
+                data = sc.read_bytes()
+                if (hashlib.sha256(data).hexdigest() == mb["sha256"]
+                        and len(data) == mb.get("bytes", len(data))):
+                    pre = [(bundle_dir_, manifest_, bundle_name_)]
+                    sidecar_text = data.decode("utf-8")
+                    break
+                print(f"REANALYZE: sidecar of {bundle_dir_.name} does not match "
+                      "manifest.marker_body -- ignored (stale)", flush=True)
     if not pre:
         emit("analyst", "rerun_refused", source=source, reason="only analyst output survives")
         # ASCII only: this string is printed to stderr, and a console left on cp1252 (any shell
@@ -1977,6 +2021,7 @@ def reanalyze(source: str, backend: str) -> None:
         # UnicodeEncodeError on the glyphs the UI uses. A refusal must never fail to be read.
         sys.exit(
             f"REANALYZE refused: every anchored copy of {source!r} is already analyst output "
+            "and none carries a VERIFIED Marker-body sidecar (J33) to start from "
             "-- re-analyzing an analyst pass compounds its damage. Use re-convert instead "
             "(it rebuilds the Marker copy first)."
         )
@@ -1989,13 +2034,17 @@ def reanalyze(source: str, backend: str) -> None:
     analyzed = [c for c in copies if c[1].get("analyst")]
     from_verdict = ((analyzed[0] if analyzed else copies[0])[1].get("fidelity") or {}).get("verdict")
     print(f"REANALYZE {bundle_name} <- {bundle_dir.name} (backend={backend}, "
-          f"from_verdict={from_verdict})", flush=True)
+          f"from_verdict={from_verdict}"
+          f"{', from the verified Marker-body sidecar' if sidecar_text is not None else ''})",
+          flush=True)
     emit("analyst", "rerun", source=source, bundle=bundle_name, backend=backend,
          from_verdict=from_verdict, sha=source_sha[:16])
 
     with tempfile.TemporaryDirectory(prefix="fp-reanalyze-") as work_str:
         work = Path(work_str) / bundle_name
         shutil.copytree(bundle_dir, work)
+        if sidecar_text is not None:
+            _restore_pre_analyst(work, bundle_name, sidecar_text)
         try:
             meta = apply_analyst(work, bundle_name, backend)
         except Exception as exc:

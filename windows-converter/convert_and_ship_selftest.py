@@ -1540,6 +1540,103 @@ check(nc_manifest.get("fidelity", {}).get("verdict") == "fail",
       "isolating the control to exactly the one removed line)")
 
 
+# ---------- J42 (S140, signed Rab 2026-09-12 — C's road): a sidecar-aware --reanalyze ----------
+# reanalyze() used to refuse every source whose anchored copies all carry an analyst block — every
+# book analysed once. J33's sidecar IS the pre-analyst body; a copy whose sidecar VERIFIES against
+# manifest.marker_body (sha256 + bytes) now re-analyses from it; a stale or missing sidecar refuses
+# exactly as before. Driven end to end with apply_analyst / ship / _enforce_hold stubbed and the
+# work copy captured at the moment apply_analyst receives it (the TemporaryDirectory dies after).
+
+
+def make_anchor_bundle(name, *, source, sidecar_text, with_sidecar=True, stale=False):
+    """A synthetic ANCHORED, ANALYSED bundle: the note carries an analyst frontmatter block and an
+    analyst body; the manifest carries analyst + fidelity.analyst + marker_body; the sidecar file is
+    the pre-analyst body (or a STALE one when stale=True: the file's bytes differ from the manifest's)."""
+    d = cas.ANCHOR / name
+    if d.exists():
+        shutil.rmtree(d)
+    d.mkdir(parents=True)
+    (d / f"{name}.md").write_text(
+        "---\nanalyst:\n  model: qwen3:8b\n  backend: local\n  chunks_passed: 3\n  chunks_rejected: 0\n"
+        "  chunks_failed: 0\n  duration_s: 1.0\n  rejections_survival: 0\n  rejections_inflation: 0\n"
+        f"source_sha256: {'ab' * 32}\n---\nANALYST OUTPUT BODY (rewritten)\n", encoding="utf-8")
+    sidecar_bytes = sidecar_text.encode("utf-8")
+    manifest = {
+        "source": source, "source_sha256": "ab" * 32, "lane": "clean",
+        "analyst": {"model": "qwen3:8b", "chunks_passed": 3},
+        "fidelity": {"version": 1, "convert": {"doc_survival": 0.99, "runs": [], "runs_total": 0,
+                                                "tripwires": {"degeneration": False}, "kind": "fidelity"},
+                     "analyst": {"doc_survival": 0.97, "runs": [], "runs_total": 5}, "verdict": "fail"},
+    }
+    if with_sidecar:
+        manifest["marker_body"] = {"file": f"{name}{cas.MARKER_BODY_SUFFIX}", "bytes": len(sidecar_bytes),
+                                   "sha256": hashlib.sha256(sidecar_bytes).hexdigest()}
+        # bytes, as J33's writer does — write_text would turn "\n" into "\r\n" on Windows and the sha would not match
+        (d / f"{name}{cas.MARKER_BODY_SUFFIX}").write_bytes(
+            sidecar_bytes + (b" (edited after the manifest was written)" if stale else b""))
+    (d / "manifest.json").write_text(json.dumps(manifest, indent=2), encoding="utf-8")
+    return d
+
+
+def run_reanalyze(source):
+    """Drive the REAL reanalyze(): apply_analyst captures the work copy's note and manifest and returns a
+    fake meta; ship and _enforce_hold are stubbed; emit recorded. Returns (captured, ship_calls, events,
+    exit_message)."""
+    captured: dict = {}
+    ship_calls: list = []
+    rec = EmitRecorder()
+
+    def _fake_apply(bundle_dir, bundle_name, backend):
+        captured["note"] = (bundle_dir / f"{bundle_name}.md").read_text(encoding="utf-8")
+        captured["manifest"] = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
+        captured["sidecar_present"] = (bundle_dir / f"{bundle_name}{cas.MARKER_BODY_SUFFIX}").is_file()
+        return {"model": "qwen3:8b", "backend": backend, "chunks_passed": 1, "chunks_rejected": 0,
+                "chunks_failed": 0, "duration_s": 0.1}
+
+    saved = (cas.apply_analyst, cas.ship, cas._enforce_hold, cas.emit, cas._stamp_supersede_safe)
+    cas.apply_analyst = _fake_apply
+    cas.ship = lambda tmp_dir, bundle_name, source_sha: ship_calls.append(bundle_name)
+    cas._enforce_hold = lambda work, bundle_name, source_sha: False
+    cas.emit = rec
+    cas._stamp_supersede_safe = lambda *a, **k: None
+    exit_msg = None
+    try:
+        cas.reanalyze(source, "local")
+    except SystemExit as e:
+        exit_msg = str(e)
+    finally:
+        cas.apply_analyst, cas.ship, cas._enforce_hold, cas.emit, cas._stamp_supersede_safe = saved
+    return captured, ship_calls, rec, exit_msg
+
+
+SIDECAR = "MARKER BODY REFERENCE TEXT\n\nthe pre-analyst paragraph\n"
+make_anchor_bundle("j42good", source="j42good.pdf", sidecar_text=SIDECAR)
+cap, ships, rec, msg = run_reanalyze("j42good.pdf")
+check(msg is None and ships == ["j42good"],
+      "J42 (a) an anchored ANALYSED bundle with a VERIFIED sidecar re-analyses and ships (no refusal)")
+check(cap.get("note", "").endswith("---\n" + SIDECAR) and "analyst:" not in cap.get("note", ""),
+      "J42 (a) the work copy's body IS the sidecar text and its frontmatter has no analyst: block")
+check("analyst" not in cap.get("manifest", {}) and "analyst" not in cap.get("manifest", {}).get("fidelity", {})
+      and cap.get("manifest", {}).get("marker_body", {}).get("sha256"),
+      "J42 (a) the work manifest lost analyst + fidelity.analyst and kept marker_body")
+check(cap.get("sidecar_present") is True, "J42 (a) the sidecar file travels with the work copy (the re-audit road still verifies)")
+check(any(k == "analyst/rerun" and f.get("from_verdict") == "fail" for k, f in rec.events),
+      "J42 (a) the rerun event carries the replaced generation's verdict")
+
+make_anchor_bundle("j42stale", source="j42stale.pdf", sidecar_text=SIDECAR, stale=True)
+cap, ships, rec, msg = run_reanalyze("j42stale.pdf")
+check(msg is not None and "refused" in msg and not ships and not cap,
+      "J42 (b) a STALE sidecar (bytes differ from manifest.marker_body) refuses — nothing analysed, nothing shipped")
+check(any(k == "analyst/rerun_refused" for k, _ in rec.events), "J42 (b) the refusal is an event, not a silent no-op")
+
+make_anchor_bundle("j42none", source="j42none.pdf", sidecar_text=SIDECAR, with_sidecar=False)
+cap, ships, rec, msg = run_reanalyze("j42none.pdf")
+check(msg is not None and "refused" in msg and not ships and not cap,
+      "J42 (c) no sidecar at all refuses exactly as before")
+for n in ("j42good", "j42stale", "j42none"):
+    shutil.rmtree(cas.ANCHOR / n, ignore_errors=True)
+
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)
