@@ -592,6 +592,49 @@ reference survival 0.9892 with the one 420-word run; masked reference survival 0
 with the convert gate's own pass (0.9939, 0 pages flagged, no degeneration). Tripwires: `analyst_audit_selftest.py`
 cases (h)–(k), including the mask disabled as the watched negative control.
 
+### 12.2 Amendment — SIGNED 2026-09-12 (Rab, S140, "C+A"): the diff-whitelist acceptor (J46)
+
+*Appended, not edited: §12 and §12.1 stand as signed.*
+
+**The finding (S119 R1, measured on the real 492 DDIA pairs; S131, *Zero to One*).** The analyst stage's guards
+(the fence, the survival windows, the 1.5× ratio) are per-chunk thresholds: a candidate can pass all three and still
+drop a sentence, halve a numeral (`81`), reword, or leak a control token (`/no_think`). On *Zero to One* eight such
+holes (~560 words) reached the bench and were repaired by hand (`repairs.jsonl` seq 6–13). Every one was an edit the
+analyst is not asked to make.
+
+**The rule.** After the three guards, before a candidate is accepted, `edit_whitelist.reconcile(chunk, candidate,
+FULL)` compares the two texts word by word and keeps an edit ONLY if the two spans are the same text under a stated
+whitelist — backslash-escapes removed, a link re-syntaxed with the same URL multiset, heading/emphasis/table marks
+and citation brackets removed, a line-end hyphen joined, a mis-mapped ligature glyph replaced by its ligature, a
+word boundary moved (reflow). Everything else — a substitution, a deletion, an insertion, a numeral change, a
+punctuation or case change — reverts to the input's words. **The whitelist IS the policy** (Rab's slot, S119,
+unchanged S140): punctuation and case edits are reverted; on *Zero to One* the analyst's `ESCAPPING` was one.
+Link STRUCTURE is never markup: an edit may not change a span's bracket balance or its count of `[text](url)`
+constructs (found at promotion: a dropped opening `[` had read as "markup", and the URL leaked into the text).
+
+**Measured at promotion (S140, `prototypes/analyst-lab/edit-whitelist/promotion_check.py`, the same 492 pairs).**
+Controls: accept-all reproduces the shipped body byte-for-byte (0.9718/49); accept-none reproduces the sidecar's
+words (1.0/0). FULL: **0.9819 / 24** under the shipped ladder, **0.9969 / 1** under ladder v3c (S119's prototype:
+0.9817/24 and 0.9968/1); 1,919 edits accepted (hyphen 669 · markup 549 · escape 339 · mixed 130 · reflow 19 ·
+ligature 14 · link 14 · markup+link 1), 1,390 reverted (punctuation/case 415 · deletion 315 · substitution 312 ·
+numeral 301 · insertion 47); no non-whitelisted class among the accepted. STRICT (markup + hyphen only): 1.0 / 0.
+The promoted module aligns on exact tokens between anchors and on normalised keys inside an edit region, and judges
+a run of adjacent edits as one hunk before falling back to each — the S119 prototype's per-opcode judgement had
+starved its own hyphen and reflow rungs (rapidfuzz splits a two-token merge into replace + delete: 1 reflow, 0
+hyphen accepts on DDIA) and reverted good repairs beside a bad one.
+
+**What the record carries.** `manifest.analyst.edits` — `accepted` and `reverted` by class, `chunks_reconciled`,
+the `whitelist` in force; a passed row of `chunk_scores` gains `e: [accepted, reverted]` when the candidate carried
+an edit at all (absent otherwise). The `analyst/done` event's key set is unchanged (T17). Cost ≈ microseconds per
+chunk, no GPU. The acceptor changes the shipped TEXT, so `--reaudit` cannot measure it on a held book; a live run
+does (S140's C: the re-analysis of the held *Zero to One* through J42's sidecar-aware `--reanalyze`).
+
+**Tripwires.** `edit_whitelist_selftest.py` (the two controls, one case per rung with its negative — `\rm` vs `rm`,
+a re-targeted URL, a dropped garble with no replacement, `ne` → `fine` named — the reverted classes, the promotion
+fix for a reverted deletion's whitespace, the hyphen rung's documented blind spot `well- known`); `analyst_selftest.py`
+J46 (a)–(c) with `reconcile` replaced by identity as the watched negative control; J32-B (a) and J34 (b) re-read
+under the signed policy (the hyphen join ships, the dropped commas and the four inserted words do not).
+
 ## 13. The Assay — widget projection (design record, docs/13 grammar)
 
 The audit becomes a channel the operator can **see** (observation) and **steer** (control).

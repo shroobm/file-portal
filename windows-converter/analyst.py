@@ -21,6 +21,7 @@ import urllib.error
 import urllib.request
 from pathlib import Path
 
+import edit_whitelist as ew  # J46 (S140): the diff-whitelist acceptor — faithfulness by construction
 import fp_paths
 import text_norm as tn
 
@@ -359,7 +360,8 @@ def _append_journal(handle, i: int, chunk: str, status: str, text: str,
 
 
 def _score_row(i: int, status: str, reason: str | None = None,
-               survival: float | None = None, ratio: float | None = None) -> dict:
+               survival: float | None = None, ratio: float | None = None,
+               edits: dict | None = None) -> dict:
     """J41 (signed Rab 2026-09-09): one compact manifest row per finished chunk — the journal's
     survival/ratio/reason columns, shaped short (≈20-40 bytes) so a 492-chunk book costs
     ≈15-20 KB in the manifest instead of dying with the journal on every book that PASSES (the
@@ -373,6 +375,10 @@ def _score_row(i: int, status: str, reason: str | None = None,
         row["r"] = ratio
     if status != "passed":
         row["x"] = reason
+    if edits and (edits.get("accepted") or edits.get("reverted")):
+        # J46 (S140): "e" = [accepted, reverted] edit counts of a passed chunk, absent when the
+        # candidate carried no edit at all — the same absent-not-null discipline as the rest
+        row["e"] = [sum(edits["accepted"].values()), sum(edits["reverted"].values())]
     return row
 
 
@@ -393,6 +399,13 @@ def process(markdown: str, backend: str = "local",
     # J32-B/SYM-074 (signed Rab 2026-09-05): chunks_rejected's ways of happening, named — FOUR
     # since J34 (signed the same day, "1.5x reject"): the inflation guard is the fourth.
     rejections = {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0}
+    # J46 (signed Rab 2026-09-12, C+A): every ACCEPTED chunk is reconciled against its input by the
+    # diff-whitelist — an edit ships only if the two spans are the same text under the whitelist
+    # (escape, link re-syntax, markup, hyphen join, ligature repair, reflow); everything else reverts
+    # to the input's words. The counts by class, summed over the book, ride meta["edits"].
+    edits_accepted: dict = {}
+    edits_reverted: dict = {}
+    chunks_reconciled = 0  # chunks where at least one edit was reverted
     # J41 (signed Rab 2026-09-09): one row per finished chunk, in chunk order, surviving into
     # meta["chunk_scores"] — see _score_row and the rmtree comment below.
     chunk_scores: list[dict] = []
@@ -490,6 +503,7 @@ def process(markdown: str, backend: str = "local",
                 # prompt_eval_count on fully cached prefills, so the prompt sum is partial
             counted_calls += call_out is not None
             reason, survival, ratio = None, None, None
+            e = None  # J46: the chunk's edit tally, set on the accept path only
             # SYM-074 (signed Rab 2026-09-05): qwen3:8b (a thinking model, asked "think":
             # false) leaked a bare `</think>` into shipped text twice (held University 4e
             # lines 8779 and 13744). Checked BEFORE the fence, on both backends (harmless on
@@ -530,9 +544,19 @@ def process(markdown: str, backend: str = "local",
                         rejections["inflation"] += 1
                         status, text, reason = "rejected", chunk, "inflation"
                     else:
-                        out.append(candidate)
+                        # J46: the whitelist decides which of the candidate's edits ship; the rest
+                        # revert to the input's words. Pure, microseconds, 0 GPU.
+                        reconciled, edit_log = ew.reconcile(chunk, candidate, ew.FULL)
+                        e = ew.tally(edit_log)
+                        for k, v in e["accepted"].items():
+                            edits_accepted[k] = edits_accepted.get(k, 0) + v
+                        for k, v in e["reverted"].items():
+                            edits_reverted[k] = edits_reverted.get(k, 0) + v
+                        if e["reverted"]:
+                            chunks_reconciled += 1
+                        out.append(reconciled)
                         passed += 1
-                        status, text = "passed", candidate
+                        status, text = "passed", reconciled
                         if call_out is not None:
                             tokens_accepted += call_out  # NUM-6: only ACCEPTED output earns goodput
             else:
@@ -545,7 +569,7 @@ def process(markdown: str, backend: str = "local",
                 _append_journal(handle, i, chunk, status, text, reason=reason, survival=survival,
                                 ratio=ratio)
             chunk_scores.append(_score_row(i, status, reason=reason, survival=survival,
-                                           ratio=ratio))
+                                           ratio=ratio, edits=e))
             _progress(i)
     finally:
         if handle:
@@ -579,6 +603,11 @@ def process(markdown: str, backend: str = "local",
         # (an old, reason-less resumed record is counted as "fence", the only reason that
         # existed before either ticket; see the resume branch above).
         "rejections": dict(rejections),
+        # J46 (signed Rab 2026-09-12): what the whitelist did to the ACCEPTED chunks — edits shipped
+        # and edits reverted, by class, summed over the book; chunks_reconciled = chunks that lost at
+        # least one edit to the revert. The whitelist is the policy (edit_whitelist.FULL).
+        "edits": {"accepted": edits_accepted, "reverted": edits_reverted,
+                  "chunks_reconciled": chunks_reconciled, "whitelist": sorted(ew.FULL)},
         "chunks_resumed": resumed,  # carried from an earlier run's journal
         "chunks_generated": generated,  # NUM-6 (census N006): paid backend calls, now named
         "duration_s": duration,

@@ -110,7 +110,10 @@ def _():
     out, meta = run(md, [candidate])
     assert meta["chunks_passed"] == 1 and meta["chunks_rejected"] == 0, meta
     assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0}, meta
-    assert out.strip() == candidate.strip(), out
+    # J46 (S140, Rab's slot): the chunk PASSES and the hyphen join ships, but the two dropped commas are
+    # punctuation edits — reverted by the whitelist, so the shipped text keeps the author's commas
+    assert "September" in out and "budget, carefully," in out, out
+    assert meta["edits"]["accepted"].get("hyphen") == 1 and meta["edits"]["reverted"].get("punctuation/case", 0) >= 1, meta["edits"]
 
 
 B_MD = "\n\n".join([words(15, f"para{p}tok") for p in range(1, 6)])  # 5 distinct paragraphs
@@ -320,7 +323,10 @@ def _():
     assert r is not None and 1.0 < r < analyst.ANALYST_CHUNK_INFLATION_MAX, r
     out, meta = run(INF_MD, [candidate])
     assert meta["chunks_passed"] == 1 and meta["rejections"]["inflation"] == 0, meta
-    assert out.strip() == candidate.strip(), out
+    # J46 (S140): under the 1.5x lever the chunk passes the gate — and the four inserted words are an
+    # INSERTION the whitelist reverts, so the shipped text is the input's words
+    assert out.strip().split() == INF_MD.strip().split(), out
+    assert meta["edits"]["reverted"].get("insertion") == 1, meta["edits"]
 
 
 @case("J34 (c) NEGATIVE CONTROL: lever -> inf makes (a)'s duplicate PASS (watched)")
@@ -500,6 +506,46 @@ def _():
     n = len(meta["chunk_scores"])
     size = len(json.dumps(meta["chunk_scores"]))
     assert size < 60 * n, (size, n)
+
+
+# ---------------------------------------------------------------------------
+# J46 — the diff-whitelist acceptor on the analyst's own path (signed Rab 2026-09-12, C+A)
+# ---------------------------------------------------------------------------
+J46_PAD = words(60, "j46pad")  # long enough that a numeral change + a two-word deletion stay above the 0.80 survival gate
+J46_MD = J46_PAD + "\n\nThe 81 members voted in Septem-\nber and the plan, carefully drafted, passed with `code` intact."
+
+
+@case("J46 (a) a passed chunk ships RECONCILED: hyphen + markup accepted, a numeral change and a deletion reverted")
+def _():
+    candidate = J46_PAD + "\n\nThe 18 members voted in September and the plan passed with code intact."
+    out, meta = run(J46_MD, [candidate])
+    assert meta["chunks_passed"] == 1, meta
+    assert "81 members" in out and "September" in out and "carefully drafted" in out and "with code intact" in out, out
+    e = meta["edits"]
+    assert e["reverted"].get("numeral") == 1 and e["reverted"].get("deletion", 0) >= 1, e
+    assert e["accepted"].get("hyphen") == 1 and e["accepted"].get("markup") == 1, e
+    assert e["chunks_reconciled"] == 1 and e["whitelist"] == sorted(analyst.ew.FULL), e
+    row = meta["chunk_scores"][0]
+    assert row.get("e") == [2, 2] or (row.get("e") and row["e"][1] >= 2), row
+
+
+@case("J46 (b) a candidate with no edit carries no `e` and no edits counted (absent, not null)")
+def _():
+    out, meta = run(J46_MD, [J46_MD])
+    assert meta["edits"] == {"accepted": {}, "reverted": {}, "chunks_reconciled": 0, "whitelist": sorted(analyst.ew.FULL)}, meta["edits"]
+    assert "e" not in meta["chunk_scores"][0], meta["chunk_scores"]
+
+
+@case("J46 (c) NEGATIVE CONTROL: the accept path with ew.reconcile replaced by identity ships the candidate's numeral")
+def _():
+    candidate = J46_PAD + "\n\nThe 18 members voted in September and the plan, carefully drafted, passed with `code` intact."
+    real = analyst.ew.reconcile
+    try:
+        analyst.ew.reconcile = lambda inp, cand, rungs=None, policy="whitelist": (cand, [])
+        out, meta = run(J46_MD, [candidate])
+        assert "18 members" in out, ("the guard did not fire: without reconcile the numeral change ships", out)
+    finally:
+        analyst.ew.reconcile = real
 
 
 print()

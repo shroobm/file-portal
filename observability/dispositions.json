@@ -301,6 +301,14 @@
     "converter:chunk_scores": {
       "disposition": "EVIDENCE",
       "reason": "J41 (signed Rab 2026-09-09, S118, 'J41 = manifest chunk_scores'): the ticket's proposal for the S61 journal's per-chunk survival/ratio/reason columns, which previously died with shutil.rmtree(work_dir) at the end of every run that PASSED (S115 could only calibrate J32-B/J34 because the 2026-08-30 run had CRASHED and left an orphan journal behind, C:/Users/Bndit/ml/library/.analyst-work/d58db211c41b0e17/chunks.jsonl). Produced by analyst.py:process, HOME: manifest.analyst.chunk_scores ONLY - deliberately not on either analyst/done event emit (T17 pins that key set, kept lean) and not in the shipped frontmatter. One row per finished chunk, in chunk order, short keys on purpose: {i: 1-based chunk index, s: survival or absent, r: ratio or absent, x: reject reason or absent on a passed row} - roughly 20-40 bytes/chunk, so a 492-chunk book costs roughly 15-20 KB in manifest.json. Rows come from both the live loop (a backend-FAILED chunk gets {i, x:\"failed\"}, nothing else - no survival/ratio was ever computed) and the resume branch (an old-shape journal record with no survival/ratio key yields a row with those two keys absent, x defaulting to \"fence\" exactly as the existing resume branch already attributes a reason-less rejected record). Nothing renders it yet - report-only, same shape as converter:normalisation and converter:rejections; a future Bench/Room surface would need its own signed widget change."
+    },
+    "converter:edits": {
+      "disposition": "EVIDENCE",
+      "reason": "J46 (signed Rab 2026-09-12, S140, C+A): the diff-whitelist acceptor's record on manifest.analyst - edits ACCEPTED and REVERTED by class over the book (escape, link, markup, hyphen, ligature, reflow accepted; substitution, deletion, insertion, numeral, punctuation/case reverted) and the whitelist in force. Forensic evidence beside the audit: a book whose reverted deletion count is high was rewritten by the analyst and saved by the acceptor; measured on DDIA at promotion (1,919 accepted / 1,390 reverted; survival 0.9819/24 shipped ladder, 0.9969/1 v3c). Not rendered yet - the bench is the natural home (a per-chunk e column beside survival) and is a separate ticket; the analyst/done event's key set stays pinned (T17), so this is manifest-only like chunk_scores."
+    },
+    "converter:chunks_reconciled": {
+      "disposition": "EVIDENCE",
+      "reason": "J46 (S140): inside manifest.analyst.edits - the number of PASSED chunks that lost at least one edit to the whitelist's revert; the denominator is chunks_passed. Evidence, same home as converter:edits."
     }
   },
   "census_dispositions": {
