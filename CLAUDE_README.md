@@ -70,9 +70,6 @@ git pull  # always first
   (A ledger SHA that is not an ancestor of `HEAD` is a mechanically detectable lie — one
   `git merge-base --is-ancestor` call. That check is what caught the L6.5 status-feed
   regression, where `0c3a074` was never merged into the branch.)
-  The row's occupant stamp `⟨Fable · <model>⟩` is likewise a CLAIM the transcript can refute: since S141 the
-  close chain compares it to the majority `message.model` of the session's window (`occupant.py --check`,
-  exit 11 = not pushed) and derives the ledger commit's `Co-Authored-By` name from the same reading.
 - Commit and push:
   ```bash
   git add CLAUDE_README.md
