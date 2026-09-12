@@ -1084,6 +1084,17 @@ check(reaudit_prov1.get("from", {}).get("convert", {}).get("pages_flagged") == 2
       "(2) reaudit provenance summarizes the historical convert block (pages_flagged COUNT)")
 check(reaudit_prov1.get("reason") == "repair-bench" and reaudit_prov1.get("by") ==
       "convert_and_ship --reaudit", "(2) reaudit provenance names its own reason/author")
+# (2b) S133: the bench's ledger IS the provenance when the manifest has no `repairs` key — the digest is
+# the file's sha256 (the fixture plants one line), the source is named, the entries counted.
+# the ledger travels with the renamed held dir (the staging copy excludes it); hash the bytes the fixture
+# actually wrote — write_text is text-mode, so on Windows they end in CRLF, and a literal LF hash is the
+# wrong object (S133's own first run, 2 of 208 red)
+_ledger_sha = (hashlib.sha256((reshipped1[0] / "repairs.jsonl").read_bytes()).hexdigest()
+               if reshipped1 else None)
+check(reaudit_prov1.get("repairs_digest") == _ledger_sha
+      and reaudit_prov1.get("repairs_source") == "repairs.jsonl"
+      and reaudit_prov1.get("repairs_entries") == 1,
+      "(2b) S133: repairs_digest is sha256(repairs.jsonl), source named, 1 entry counted")
 
 # (3) events: audit/scored phase=final carries source/verdict/degeneration (bless()-shaped);
 # audit/reaudit carries from_verdict + verdict + reference.
@@ -1099,6 +1110,10 @@ check(bool(reaudit_events1) and reaudit_events1[0].get("from_verdict") == "fail"
       and reaudit_events1[0].get("verdict") == "pass"
       and reaudit_events1[0].get("reference") == "sidecar",
       "(3) audit/reaudit carries from_verdict + verdict + reference")
+check(bool(reaudit_events1) and reaudit_events1[0].get("repairs_digest") == _ledger_sha
+      and reaudit_events1[0].get("repairs_source") == "repairs.jsonl"
+      and reaudit_events1[0].get("repairs_entries") == 1,
+      "(3b) S133: the audit/reaudit event carries the ledger digest, its source and the count")
 
 # (5) flag/pass: ship() called with the STAGING dir (never held/), supersede stamped reason
 # "reaudit".

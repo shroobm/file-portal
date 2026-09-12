@@ -1,7 +1,10 @@
 """Tripwires for SYM-067 / J29 — the table-aware degeneration gate (signed Rab 2026-09-04).
 
 Run with the marker-env interpreter (fidelity_audit imports pymupdf and rapidfuzz at module
-level):
+level), and with a UTF-8 console — this file prints its own arrows and ellipses, and Windows
+PowerShell's cp1252 stdout raises UnicodeEncodeError at D7 BEFORE the verdict line (S131's
+identity lane, 2026-09-12; SYM-112's kin on stdout):
+  set PYTHONIOENCODING=utf-8
   C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe degeneration_selftest.py
 
 NO GPU, no marker, no ollama, no real book, no PDF. Every body here is a synthetic string —

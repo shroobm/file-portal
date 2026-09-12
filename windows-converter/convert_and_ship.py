@@ -2169,16 +2169,32 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
         fid["final"] = final
         fid["verdict"] = verdict
 
+        # S133: the Repair Bench's ledger is `repairs.jsonl` beside the manifest (bench.py's chokepoint
+        # writes it, fsynced, one JSON per edit with a sha chain); no bench writes a `repairs` manifest
+        # key, so the digest below was `null` on every real re-audit — the shipped Zero to One named the
+        # re-audit but not the fourteen repairs behind it. The manifest key still wins when present
+        # (nothing that had it changes); otherwise the ledger file's bytes are the provenance, and the
+        # entry count says how much human work the verdict rests on.
         repairs = manifest.get("repairs")
-        repairs_digest = (
-            hashlib.sha256(json.dumps(repairs, sort_keys=True).encode("utf-8")).hexdigest()
-            if repairs is not None else None
-        )
+        ledger_path = held_dir / "repairs.jsonl"
+        if repairs is not None:
+            repairs_digest = hashlib.sha256(
+                json.dumps(repairs, sort_keys=True).encode("utf-8")).hexdigest()
+            repairs_source, repairs_entries = "manifest", None
+        elif ledger_path.is_file():
+            ledger_bytes = ledger_path.read_bytes()
+            repairs_digest = hashlib.sha256(ledger_bytes).hexdigest()
+            repairs_source = "repairs.jsonl"
+            repairs_entries = sum(1 for ln in ledger_bytes.splitlines() if ln.strip())
+        else:
+            repairs_digest, repairs_source, repairs_entries = None, None, 0
         fid["reaudit"] = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             "by": "convert_and_ship --reaudit",
             "reason": "repair-bench",
             "repairs_digest": repairs_digest,
+            "repairs_source": repairs_source,
+            "repairs_entries": repairs_entries,
             "from": {
                 "verdict": old_verdict,
                 "convert": {
@@ -2210,7 +2226,8 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
                  phase="final", verdict=verdict)
         emit("audit", "reaudit", bundle=bundle_name, sha=source_sha[:16],
              from_verdict=old_verdict, verdict=verdict, reference=reference_kind,
-             repairs_digest=repairs_digest)
+             repairs_digest=repairs_digest, repairs_source=repairs_source,
+             repairs_entries=repairs_entries)
 
         if verdict == "fail":
             # Every failure path leaves held/<ID> byte-unchanged except this manifest write.
