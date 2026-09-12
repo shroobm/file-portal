@@ -260,6 +260,44 @@ def main():
         case("J63: an unreadable marker refuses the commit (UNREAD is not clean)", "deny", bash("git commit -q -m x"))
         io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("S42 desktop 2026-09-10T00:00:00Z\n")
         case("J63: a repository WITHOUT coordination/ is exempt (not a File Portal checkout)", "allow", bash("git commit -q -m x", other_repo))
+        # J71 (S136): a push that carries a ledger change is refused when the newest row fails its reader (row_check.sh).
+        # Fixture: a bare upstream, the real row_check.sh copied into the fixture's skill folder, a ledger table.
+        import shutil as _sh
+        bare = os.path.join(tmp, "upstream.git")
+        sh(["git", "init", "-q", "--bare", bare], tmp)
+        sh(["git", "remote", "add", "origin", bare], main_repo)
+        sh(["git", "-c", "user.name=t", "-c", "user.email=t@t", "push", "-q", "-u", "origin", "main"], main_repo)
+        os.makedirs(os.path.join(main_repo, ".claude", "skills", "muster"), exist_ok=True)
+        _sh.copy(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "skills", "muster", "row_check.sh"),
+                 os.path.join(main_repo, ".claude", "skills", "muster", "row_check.sh"))
+        io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("S42 desktop 2026-09-10T00:00:00Z\n")
+        io.open(os.path.join(main_repo, "sessions", "S42-desktop-2026-09-10.md"), "w").write("# S42\n")
+        first_sha = sh(["git", "rev-parse", "--short", "HEAD"], main_repo).stdout.strip()
+        def ledger(*rows):
+            io.open(os.path.join(main_repo, "CLAUDE_README.md"), "w", encoding="utf-8").write(
+                "# CLAUDE_README\n\n## Change Ledger\n\n| Date | Machine | Milestone | Files | SHA |\n|---|---|---|---|---|\n" + "".join(r + "\n" for r in rows))
+            sh(["git", "add", "-A"], main_repo)
+            sh(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "row"], main_repo)
+        ledger(f"| 2026-01-01 | Desktop | S41: first | one file | 1111111 |", f"| 2026-01-02 | Desktop | S42: the close | two files | {first_sha} |")
+        case("J71 CONTROL: a push carrying a five-cell S42 row whose SHA is a real ancestor passes", "allow", bash("git push -q"))
+        sh(["git", "-c", "user.name=t", "-c", "user.email=t@t", "push", "-q"], main_repo)   # upstream catches up
+        io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("S43 desktop 2026-09-10T00:00:00Z\n")
+        ledger(f"| 2026-01-01 | Desktop | S41: first | one file | 1111111 |", f"| 2026-01-02 | Desktop | S42: the close | two files | {first_sha} |",
+               f"| 2026-01-03 | Desktop | S43: the close, SHA {first_sha} in the prose, no cell. |")
+        case("J71: a push carrying S130's shape (three cells, the SHA in prose) is refused", "deny", bash("git push -q"))
+        case("J71: a lane's push from its OWN worktree is untouched by J71 (the lane rules govern there; allow)", "allow", bash("git push -q", wt, agent="lane-1"))
+        io.open(os.path.join(main_repo, "x2.txt"), "w").write("x\n")
+        sh(["git", "add", "-A"], main_repo); sh(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "not the ledger"], main_repo)
+        case("J71: the bad row is still unpushed but this push is judged on upstream..HEAD, which touches the ledger -> still refused", "deny", bash("git push -q"))
+        sh(["git", "reset", "-q", "--hard", "origin/main"], main_repo)   # back to the pushed five-cell state (a fixture, not the shared checkout)
+        io.open(os.path.join(main_repo, "x3.txt"), "w").write("x\n")
+        sh(["git", "add", "-A"], main_repo); sh(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "no ledger change"], main_repo)
+        case("J71: a push that does not touch the ledger is not checked (allow)", "allow", bash("git push -q"))
+        os.remove(os.path.join(main_repo, ".claude", "skills", "muster", "row_check.sh"))
+        ledger(f"| 2026-01-01 | Desktop | S41: first | one file | 1111111 |", f"| 2026-01-03 | Desktop | S43: no reader here, SHA {first_sha} in prose |")
+        case("J71: without row_check.sh in the checkout the guard is UNREAD and allows (never a verdict)", "allow", bash("git push -q"))
+        sh(["git", "reset", "-q", "--hard", "origin/main"], main_repo)
+        io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("S42 desktop 2026-09-10T00:00:00Z\n")
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))

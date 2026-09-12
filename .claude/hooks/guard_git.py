@@ -344,6 +344,45 @@ def resolve_alias(root, verb):
     return p.stdout.strip()
 
 
+def row_check_missing(root):
+    """J71 (S136): a `git push` from the main session that CARRIES a change to CLAUDE_README.md (the ledger) is refused
+    when the newest row does not pass its reader — `.claude/skills/muster/row_check.sh <N>` (J69), N from the session
+    marker. S130's three-cell row reached origin and opened the next muster on an INCIDENT (SYM-113); S133's chain pushed
+    a red row past a hand-check. Returns the deny reason, or None. Everything the guard cannot judge is UNREAD and is
+    NOT a verdict: no coordination/ (not a File Portal checkout), no row_check.sh, no upstream, an unreadable marker, a
+    row_check exit 2, bash absent, a timeout — all None, the caller logs the note. Only exit 1 denies."""
+    if not os.path.isdir(os.path.join(root, "coordination")):
+        return None
+    script = os.path.join(root, ".claude", "skills", "muster", "row_check.sh")
+    if not os.path.isfile(script):
+        return None
+    try:
+        p = subprocess.run(["git", "-C", root, "diff", "--quiet", "@{upstream}..HEAD", "--", "CLAUDE_README.md"],
+                           capture_output=True, text=True, timeout=20)
+    except Exception:
+        return None
+    if p.returncode != 1:          # 0: the ledger is unchanged since upstream; anything else: no upstream etc. — UNREAD
+        return None
+    marker = os.path.join(root, "coordination", "private", "session.current")
+    try:
+        first = io.open(marker, encoding="utf-8").read().split()
+    except OSError:
+        return None
+    if not first or not re.match(r"^S\d+$", first[0]):
+        return None
+    n = first[0][1:]
+    try:
+        q = subprocess.run(["bash", script, n], capture_output=True, text=True, timeout=60,
+                           env=dict(os.environ, FP_REPO=root), cwd=root)
+    except Exception:
+        return None
+    if q.returncode == 1:
+        last = (q.stdout.strip().splitlines() or ["(no output)"])[-1]
+        return (f"guard_git: `git push` refused — the ledger row does not pass its reader: {last[:220]} "
+                f"(J71; fix the row — five cells, the SHA alone in the last — then push)")
+    return None
+
+
 def record_missing(root):
     """J63: why a write/commit in `root` must wait — or None when the session's record exists. The card publishes the
     session number in coordination/private/session.current (`S<N> <machine> <utc>`); the record is sessions/S<N>-*.md.
@@ -675,6 +714,13 @@ def decide(payload):
                 why = record_missing(root)
                 if why:
                     return f"guard_git: `git commit` refused — {why} (J63: the record precedes the act, docs/28)"
+            if verb == "push" and root in roots:
+                # J71 (S136): the ledger row is validated by its reader before it reaches origin. A push that
+                # carries a CLAUDE_README.md change runs row_check.sh <N>; exit 1 denies; everything else is
+                # UNREAD and allowed (a guard that cannot judge does not block a push).
+                why = row_check_missing(root)
+                if why:
+                    return why
             if verb in READ_ONLY or verb in MAIN_WRITES:
                 continue
             exp = resolve_alias(root, verb)
