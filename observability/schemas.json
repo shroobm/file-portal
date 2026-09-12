@@ -535,6 +535,8 @@
             "pid",
             "reference",
             "repairs_digest",
+            "repairs_entries",
+            "repairs_source",
             "sha",
             "stage",
             "ts",
