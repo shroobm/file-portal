@@ -107,3 +107,7 @@ dumps/*
 prototypes/proc-feed/
 prototypes/moonlight-phone/
 prototypes/relay-desk/
+
+# S134 (Rab, 2026-09-12): "scripts should NEVER BE PUBLIC" - the agent-scripts library lives in the PRIVATE repo
+# (file-portal-private, branch workshop) and is reached here through a directory junction. Never tracked here.
+agent-scripts/
