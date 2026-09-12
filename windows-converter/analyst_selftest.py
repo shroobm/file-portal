@@ -53,10 +53,12 @@ import text_norm as tn  # noqa: E402
 analyst.unload = lambda: None  # never touch a real ollama server
 
 failed: list[str] = []
+ran: list[str] = []
 
 
 def case(name):
     def deco(fn):
+        ran.append(name)
         try:
             fn()
             print(f"  ok   {name}")
@@ -204,6 +206,51 @@ def _():
     assert out.strip() == THINK_MD.strip(), "the ORIGINAL chunk must ship"
 
 
+@case("SYM-115 (d) a candidate ending in the leaked soft switch `/no_think` -> rejected, think_leak, the original ships")
+def _():
+    candidate = THINK_MD + " /no_think"
+    out, meta = run(THINK_MD, [candidate])
+    assert meta["chunks_rejected"] == 1 and meta["rejections"]["think_leak"] == 1, meta
+    assert out.strip() == THINK_MD.strip(), "the ORIGINAL chunk must ship"
+
+
+@case("SYM-115 (e) a bare `/think` on its own line -> rejected, think_leak")
+def _():
+    candidate = THINK_MD + "\n/think\n"
+    out, meta = run(THINK_MD, [candidate])
+    assert meta["chunks_rejected"] == 1 and meta["rejections"]["think_leak"] == 1, meta
+
+
+@case("SYM-115 (f) a URL path containing /think in prose -> passed (not over-broad)")
+def _():
+    md = "the discussion continues at https://example.com/think/more for every reader who reviews it carefully"
+    out, meta = run(md, [md])
+    assert meta["chunks_passed"] == 1 and meta["rejections"]["think_leak"] == 0, meta
+
+
+@case("SYM-115 (g) NEGATIVE CONTROL: only the switch test removed -> (d)'s candidate PASSES while (a)'s still rejects")
+def _():
+    target = "or _THINK_SWITCH.search(candidate)"
+    src = (HERE / "analyst.py").read_text(encoding="utf-8")
+    assert src.count(target) == 1, f"switch test not found exactly once ({src.count(target)})"
+    patched_src = src.replace(target, "or False")  # NEGATIVE CONTROL: the switch test removed (no trailing comment: `):` follows)
+    mod = types.ModuleType("analyst_nc_sym115")
+    mod.__file__ = str(HERE / "analyst.py")
+    sys.modules["analyst_nc_sym115"] = mod
+    try:
+        exec(compile(patched_src, str(HERE / "analyst.py"), "exec"), mod.__dict__)
+        mod.unload = lambda: None
+        out, meta = run(THINK_MD, [THINK_MD + " /no_think"], module=mod)
+        assert meta["chunks_passed"] == 1 and meta["chunks_rejected"] == 0, (
+            "the guard did not fire: removing the switch test should have passed the /no_think candidate", meta)
+        out2, meta2 = run(THINK_MD, [THINK_MD + "\n</think>"], module=mod)
+        assert meta2["chunks_rejected"] == 1, ("the tag half of the guard must still reject with the switch test gone", meta2)
+    finally:
+        sys.modules.pop("analyst_nc_sym115", None)
+    # restored: the real module rejects the switch again
+    assert run(THINK_MD, [THINK_MD + " /no_think"])[1]["rejections"]["think_leak"] == 1
+
+
 @case('SYM-074 (b) the plain word "think" in prose -> passed (not over-broad)')
 def _():
     md = "I think this analysis is correct and complete for every reader who reviews it"
@@ -224,7 +271,9 @@ def _():
     # The SAME "blank the guard, watch red, restore" technique convert_and_ship_selftest.py's
     # T17 uses: a literal string patch of the ONE guard line (not the elif/else chain it
     # belongs to), exec'd into a fresh module so the real analyst.py on disk is never touched.
-    target = 'if "<think>" in candidate or "</think>" in candidate:'
+    # S135: the condition spans two lines since SYM-115 joined it; the target is the whole condition.
+    target = ('if ("<think>" in candidate or "</think>" in candidate\n'
+              '                    or _THINK_SWITCH.search(candidate)):')
     src = (HERE / "analyst.py").read_text(encoding="utf-8")
     assert src.count(target) == 1, f"guard line not found exactly once ({src.count(target)})"
     patched_src = src.replace(target, "if False:  # NEGATIVE CONTROL: think-leak guard removed")
@@ -455,6 +504,6 @@ def _():
 
 print()
 if failed:
-    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 22: {failed}")
+    print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")
     raise SystemExit(1)
-print("ALL TRIPWIRES FIRED — 22/22")
+print(f"ALL TRIPWIRES FIRED — {len(ran)}/{len(ran)}")

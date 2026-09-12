@@ -112,6 +112,11 @@ def load_program(program: str) -> str:
     return path.read_text(encoding="utf-8").strip() + "\n\n"
 
 
+# SYM-115: qwen's soft switches, leaked as bare tokens — preceded by start-of-text or whitespace (never by a
+# URL's `/` or a word), followed by a word boundary. `/no_think` and `/think` both.
+_THINK_SWITCH = re.compile(r"(?:^|\s)/(?:no_)?think\b")
+
+
 def fence(markdown: str) -> tuple[str, list[str]]:
     embeds: list[str] = []
 
@@ -490,7 +495,13 @@ def process(markdown: str, backend: str = "local",
             # lines 8779 and 13744). Checked BEFORE the fence, on both backends (harmless on
             # Gemini): the tag is never stripped-and-kept — docs/12 says the analyst can only
             # be REJECTED, never edited, so the whole chunk is suspect, not just the tag.
-            if "<think>" in candidate or "</think>" in candidate:
+            # SYM-115 (S131/S135, 2026-09-12): the same model leaked its SOFT SWITCH — a bare `/no_think`
+            # at the end of a heading and of a paragraph in Zero to One — and the chunk's text ENDED there
+            # (a 16-word sentence tail and the next paragraph gone). The switch is a think-control token
+            # like the tags above, so it is the same reason, not a new key (the key set is pinned by T17
+            # and three asserts). Word-boundaried: `/think` inside a URL path is prose, not a leak.
+            if ("<think>" in candidate or "</think>" in candidate
+                    or _THINK_SWITCH.search(candidate)):
                 out.append(chunk)
                 rejected += 1
                 rejections["think_leak"] += 1
