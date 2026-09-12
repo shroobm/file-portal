@@ -54,6 +54,10 @@
     }
   ],
   "dispositions": {
+    "converter:reference_masked": {
+      "disposition": "EVIDENCE",
+      "reason": "S131 (Rab signed 2026-09-12; docs/15 §12.1): the analyst block's record of the reference blocks the near-exact gate masked before its windows were built (per block: line, line_end, chars, zlib, max_trigram, excerpt; plus the words removed). A verdict that leaned on the mask must be readable as such, and it is: docs/29 §5.3 step 4 — HOME = the manifest's fidelity.analyst / fidelity.final.analyst block, the card the assay and the Repair Bench open (fidelity_audit.py audit_analyst; first specimen the Zero to One reaudit, vault 8d7cc85, one block of 408 words). Not GLASS: a masked block is Marker's disease, already surfaced by the convert gate's degeneration tripwire and its damage map; this key only says the analyst gate did not count the same disease twice. If a second book needs it at a glance, a 'reference masked: N words' chip on the assay card is the next home."
+    },
     "bench:stream": {
       "disposition": "INTERNAL",
       "reason": "An outbound request parameter on the bench's ✦ assist call (bench.py:1134) — it tells Ollama not to stream. docs/29 §5.3 step 1: it exists only to feed another computation, so it is correctly silent and no human ever wants it on a surface. SCOPE NOTE, and it is the point of this entry: bench.py was NOT touched this session. This key entered the --since scope from `analyst.py`'s request body, which S79 edited for the residency fix, because the filter harvests key NAMES across the whole *.py diff and then attributes them to whichever lane has a producer using that name. That is the identical mis-scoping S79 diagnosed in the `bench:reason` entry below at 21:00 and then reproduced at its own close six hours later. docs/31 §5.2 item 7 — whether outbound request bodies are 'measured, stored values' at all — is UNSIGNED, and this is the second piece of evidence that they are not."
