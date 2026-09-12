@@ -15,6 +15,8 @@ Two registers describe two different objects, so there are two tiers of family:
                                                                  # an unknown ERR class or an unplaced SYM row
     python observability/error_families.py --place "<text>"      # the nearest families for a new failure's words
     python observability/error_families.py --selftest            # positive + negative controls (docs/32 §5)
+    python observability/error_families.py --bin <register.md>   # S141: another register in ERROR-BIN's row shape (IB- ids,
+                                                                 # the private INSTRUMENT-BUGS.md) placed by the same families
 
 Read-only over the registers; stdlib; CRLF-safe. The document is the judgment half; this is the mechanical half.
 """
@@ -233,7 +235,7 @@ SIGNATURES = {
 # The class cell may be bold (ERR-014: `**PREDICATE-COLLAPSE**`) or carry a parenthetical (ERR-056: `CONTROL-LEAK
 # (new class)`); a SYM id cell may carry a provenance note (SYM-037..039: `SYM-037 *(was SYM-028, ThinkPad lane…)*`).
 # The first census missed exactly those four rows — the guard fired on real history before the tool was trusted.
-ERR_ROW = re.compile(r"^\| (ERR-\d{4}-\d\d-\d\d-\d{3}) \| \*{0,2}([A-Z][A-Z /-]*?)\*{0,2}\s*(?:\([^)]*\))?\s*\|")
+ERR_ROW = re.compile(r"^\| ((?:ERR|IB)-\d{4}-\d\d-\d\d-\d{3}) \| \*{0,2}([A-Z][A-Z /-]*?)\*{0,2}\s*(?:\([^)]*\))?\s*\|")
 SYM_ROW = re.compile(r"^\| (SYM-\d{3})\b[^|]*\|")
 
 
@@ -405,6 +407,13 @@ def selftest() -> int:
     sink = io.StringIO()
     rc = place("zzzz qqqq", out=sink)
     check("place: nonsense renders UNREAD, never a family", rc == 1 and "UNREAD" in sink.getvalue())
+    # 7 --bin: another register in the same row shape (IB- ids, S141) is placed by the same families; a missing path is CONFIG (S141)
+    with tempfile.TemporaryDirectory() as td:
+        eb = Path(td) / "OTHER-BIN.md"
+        io.open(eb, "w", encoding="utf-8", newline="").write("| ID | Class | Surface | a | b | c | d |\n|---|---|---|---|---|---|---|\n"
+                                                             "| IB-2026-01-01-001 | PROBE-SHAPE | x | y | z | w | r |\n")
+        check("--bin: a register in ERROR-BIN's row shape is censused (exit 0)", main(["--bin", str(eb)]) == 0)
+    check("--bin: a missing path is CONFIG (exit 2)", main(["--bin", str(Path(td) / "nope.md")]) == 2)
     print(f"════ error_families selftest: {passed}/{total} ════")
     return 0 if passed == total else 1
 
@@ -415,6 +424,12 @@ def main(argv) -> int:
     if "--place" in argv:
         i = argv.index("--place")
         return place(" ".join(argv[i + 1:]))
+    if "--bin" in argv:  # S141: another register in ERROR-BIN's row shape (the private INSTRUMENT-BUGS.md) placed by the same families
+        i = argv.index("--bin")
+        if i + 1 >= len(argv) or not Path(argv[i + 1]).is_file():
+            print("CONFIG: --bin needs a path to a register in ERROR-BIN's row shape")
+            return 2
+        return census(Path(argv[i + 1]), SYMPTOM_INDEX)
     return census(ERROR_BIN, SYMPTOM_INDEX)
 
 
