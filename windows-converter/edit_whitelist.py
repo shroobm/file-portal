@@ -13,8 +13,8 @@ Faithfulness by construction. After the fence, survival and ratio checks, `analy
 The whitelist N (applied to BOTH spans, then compared space-free):
   quotes      curly quotes / dashes unified to ASCII (text_norm's own _QUOTES map, NFKC) — always
   escape      markdown backslash-escapes removed (`\_` `\*` `\$` `\(` `\[` `\]` `\#` `\-` ...)
-  link        `[text](url)` and Marker's `[[n\]](url)` collapse to their text; the URL MULTISET of
-              the two spans must be equal (a link may be re-syntaxed, never re-targeted or dropped)
+  link        `[text](url)` and Marker's `[[n\]](url)` collapse to their text; the ORDERED sequence of URLs
+              in the two spans must be equal (a link may be re-syntaxed, never re-targeted, reordered or dropped)
   markup      heading marks, emphasis `*`, boundary `_`, backticks, blockquote `>`, table pipes
               and separator dashes removed; square brackets removed (citation `[2]` == `2`)
   hyphen      a line-end hyphen glyph mis-mapped to `!` (S119 R1 a_probe3) or a real `-` followed
@@ -26,11 +26,15 @@ The whitelist N (applied to BOTH spans, then compared space-free):
   reflow      space-free comparison: word boundaries may move (`unexpect edly` -> `unexpectedly`)
 Everything else is REVERTED: word substitutions, deletions, insertions, numeral changes,
 punctuation-only edits (`.` -> `,`), case changes. Rab's slot (S119, unchanged S140): the
-whitelist IS the policy — which edits the analyst may make; punctuation/case stay reverted (on
-*Zero to One* the analyst's misspelling `ESCAPPING` was a case/punctuation-shaped edit).
+whitelist IS the policy — which edits the analyst may make; punctuation/case stay reverted, and so
+does every substitution (on *Zero to One* the analyst's `E SCAPING` -> `ESCAPPING` is one: reverted).
+Residue named by the S140 review: a whitespace-free run (a CJK sentence) is ONE token, so a hunk there
+that mixes a good edit with a bad one reverts whole — the good edit with it; an apostrophe that is not
+in a contraction tail and sits between letters is still a garble candidate for the ligature rung.
 
-Policies: FULL = the whitelist above (what ships); STRICT = FULL minus {ligature, escape, link}
-(reflow and markup only — the ceiling of "faithful by construction" under the audit as shipped);
+Policies: FULL = the whitelist above (what ships); STRICT = FULL minus {ligature, escape, link} —
+markup and hyphen, plus the always-on quotes/NFKC unification and the space-free (reflow) comparison
+(the ceiling of "faithful by construction" under the audit as shipped);
 "all" = accept everything (a control: must reproduce the candidate byte-for-byte); "none" =
 accept nothing (a control: must reproduce the input's words).
 
@@ -56,7 +60,10 @@ _ESC = re.compile(r"\\([\\`*_{}\[\]()#+\-.!$|<>~\"'])")
 _LINK = re.compile(r"\[(\[?[^\]\n]*\]?)\]\(([^)\n]*)\)")
 _HYPHEN_JOIN = re.compile(r"(?<=[A-Za-z])[!\-­]\s+(?=[a-z])")
 _GARBLE_IN = re.compile(r"(?<=[A-Za-z])[!\"#$&'%)](?=[a-z])")
-_GARBLE_START = re.compile(r"(?<![A-Za-z])[!\"#$&'%](?=[a-z]{2,})")
+_GARBLE_START = re.compile(r"(?<![A-Za-z])[!\"#$&%](?=[a-z]{2,})")   # S140 review: `'` is never a word-START garble (`'tis`)
+# S140 review (Logic#1, reproduced): `wasn't` -> `wasnfft` shipped as a "ligature repair" — an apostrophe inside a word is
+# a real apostrophe whenever it sits in a contraction tail; such a `'` is never a garble candidate
+_CONTRACTION = re.compile(r"(?i)(?:n't|'s|'d|'m|'re|'ve|'ll)(?![a-z])")
 LIG_ALT = "(?:ffi|ffl|ff|fi|fl|ft|fk|fj|fb|fh|st|Th|th)"
 _MARKUP = re.compile(r"(?m)^\s{0,3}#{1,6}\s*|`|\*|(?<!\w)_|_(?!\w)|^\s*>\s?|\||^\s*:?-{3,}:?\s*$")
 _BRACKETS = re.compile(r"[\[\]]")
@@ -69,12 +76,14 @@ CLASSES = ("reflow", "hyphen", "escape", "link", "markup", "ligature", "markup+l
            "mixed-whitelist", "punctuation/case", "numeral", "insertion", "deletion", "substitution")
 
 
-def _urls(text: str, rungs) -> collections.Counter:
+def _urls(text: str, rungs) -> list:
     # escapes come off BEFORE the link regex: Marker writes a citation as `[[2\]](#page-490-0)`
-    # and the escaped bracket hides the link from a naive regex (S119 R1, first acceptor run)
+    # and the escaped bracket hides the link from a naive regex (S119 R1, first acceptor run).
+    # S140 review (Logic#2 / Test#1, reproduced): the ORDERED list, not a multiset — two links inside one hunk
+    # could swap targets and pass a multiset test; the sequence of URLs an edit leaves must be the sequence it found
     if "escape" in rungs:
         text = _ESC.sub(r"\1", text)
-    return collections.Counter(u for _, u in _LINK.findall(text))
+    return [u for _, u in _LINK.findall(text)]
 
 
 def norm(text: str, rungs) -> str:
@@ -116,7 +125,9 @@ def equivalent(a: str, b: str, rungs) -> bool:
         for j, ch in enumerate(na):
             left = na[j - 1] if j else ""
             right = na[j + 1:j + 3]
-            if ch in "!\"#$&'%)" and (
+            contraction = ch == "'" and (
+                not left.isalpha() or _CONTRACTION.match(na, j - 1 if left.lower() == "n" else j) is not None)
+            if ch in "!\"#$&'%)" and not contraction and (
                 (left.isalpha() and right[:1].islower()) or
                 (not left.isalpha() and len(right) == 2 and right.islower() and right.isalpha())):
                 pat += LIG_ALT
@@ -148,9 +159,13 @@ def label(a: str, b: str) -> str:
     pb = re.sub(r"[^\w\s]", "", b).casefold().split()
     if "".join(pa) == "".join(pb):
         return "punctuation/case"
-    da = [w for w in a.split() if _DIGIT.search(w)]
-    db = [w for w in b.split() if _DIGIT.search(w)]
-    if da != db and len(a.split()) == len(b.split()):
+    # S140 review (Logic#4): "numeral" only when the two sides differ digit-for-digit — the digit strings of the
+    # tokens differ while their letters agree (`81` -> `18`); `two` -> `TWO2` is a substitution
+    da = ["".join(ch for ch in w if ch.isdigit()) for w in a.split() if _DIGIT.search(w)]
+    db = ["".join(ch for ch in w if ch.isdigit()) for w in b.split() if _DIGIT.search(w)]
+    la = re.sub(r"[\d\W_]", "", a).casefold()
+    lb = re.sub(r"[\d\W_]", "", b).casefold()
+    if da and db and da != db and la == lb and len(a.split()) == len(b.split()):
         return "numeral"
     return "substitution"
 

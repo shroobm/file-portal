@@ -522,11 +522,11 @@ def _():
     assert meta["chunks_passed"] == 1, meta
     assert "81 members" in out and "September" in out and "carefully drafted" in out and "with code intact" in out, out
     e = meta["edits"]
-    assert e["reverted"].get("numeral") == 1 and e["reverted"].get("deletion", 0) >= 1, e
-    assert e["accepted"].get("hyphen") == 1 and e["accepted"].get("markup") == 1, e
+    # exact (S140 review, Test#3): a stray class would show here
+    # (`plan,` -> `plan` beside the deletion is a punctuation edit of its own — three reverts, not two)
+    assert e["accepted"] == {"hyphen": 1, "markup": 1} and e["reverted"] == {"numeral": 1, "punctuation/case": 1, "deletion": 1}, e
     assert e["chunks_reconciled"] == 1 and e["whitelist"] == sorted(analyst.ew.FULL), e
-    row = meta["chunk_scores"][0]
-    assert row.get("e") == [2, 2] or (row.get("e") and row["e"][1] >= 2), row
+    assert meta["chunk_scores"][0]["e"] == [2, 3], meta["chunk_scores"][0]
 
 
 @case("J46 (b) a candidate with no edit carries no `e` and no edits counted (absent, not null)")
@@ -534,6 +534,15 @@ def _():
     out, meta = run(J46_MD, [J46_MD])
     assert meta["edits"] == {"accepted": {}, "reverted": {}, "chunks_reconciled": 0, "whitelist": sorted(analyst.ew.FULL)}, meta["edits"]
     assert "e" not in meta["chunk_scores"][0], meta["chunk_scores"]
+
+
+@case("J46 (d) an accepted-only candidate (one hyphen join, nothing reverted): e = [1, 0], chunks_reconciled 0")
+def _():
+    candidate = J46_PAD + "\n\nThe 81 members voted in September and the plan, carefully drafted, passed with `code` intact."
+    out, meta = run(J46_MD, [candidate])
+    assert "September" in out, out
+    assert meta["edits"]["accepted"] == {"hyphen": 1} and meta["edits"]["reverted"] == {} and meta["edits"]["chunks_reconciled"] == 0, meta["edits"]
+    assert meta["chunk_scores"][0]["e"] == [1, 0], meta["chunk_scores"][0]
 
 
 @case("J46 (c) NEGATIVE CONTROL: the accept path with ew.reconcile replaced by identity ships the candidate's numeral")

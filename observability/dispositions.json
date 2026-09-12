@@ -304,7 +304,7 @@
     },
     "converter:edits": {
       "disposition": "EVIDENCE",
-      "reason": "J46 (signed Rab 2026-09-12, S140, C+A): the diff-whitelist acceptor's record on manifest.analyst - edits ACCEPTED and REVERTED by class over the book (escape, link, markup, hyphen, ligature, reflow accepted; substitution, deletion, insertion, numeral, punctuation/case reverted) and the whitelist in force. Forensic evidence beside the audit: a book whose reverted deletion count is high was rewritten by the analyst and saved by the acceptor; measured on DDIA at promotion (1,919 accepted / 1,390 reverted; survival 0.9819/24 shipped ladder, 0.9969/1 v3c). Not rendered yet - the bench is the natural home (a per-chunk e column beside survival) and is a separate ticket; the analyst/done event's key set stays pinned (T17), so this is manifest-only like chunk_scores."
+      "reason": "J46 (signed Rab 2026-09-12, S140, C+A): the diff-whitelist acceptor's record on manifest.analyst - edits ACCEPTED and REVERTED by class over the book (escape, link, markup, hyphen, ligature, reflow accepted; substitution, deletion, insertion, numeral, punctuation/case reverted) and the whitelist in force. Forensic evidence beside the audit: a book whose reverted deletion count is high was rewritten by the analyst and saved by the acceptor; measured on DDIA at promotion, after the S140 review (1,914 accepted / 1,397 reverted; survival 0.9822/24 shipped ladder, 0.9969/1 v3c). Not rendered yet - the bench is the natural home (a per-chunk e column beside survival) and is a separate ticket; the analyst/done event's key set stays pinned (T17), so this is manifest-only like chunk_scores."
     },
     "converter:chunks_reconciled": {
       "disposition": "EVIDENCE",

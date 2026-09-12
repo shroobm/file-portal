@@ -43,6 +43,11 @@ t, lg = rec("see [[2\\]](#page-1) here", "see [2](#page-1) here")
 case("link: a re-syntaxed citation with the same URL is accepted", t == "see [2](#page-1) here" and lg[0][1])
 t, lg = rec("see [t](http://a) here", "see [t](http://b) here")
 case("link NEGATIVE: a re-targeted URL is reverted", t == "see [t](http://a) here" and not lg[0][1])
+# S140 review, Logic#2 / Test#1 (reproduced): two links in one hunk may not swap targets — the URL SEQUENCE is the invariant
+t, lg = rec("see [a](http://A)[b](http://B) end", "see [a](http://B)[b](http://A) end")
+case("link NEGATIVE (S140 review): two adjacent links swapping targets is reverted", t == "see [a](http://A)[b](http://B) end" and not lg[0][1])
+t, lg = rec("[Home](urlA) [Docs](urlB)", "[Home](urlB) [Docs](urlA)")
+case("link NEGATIVE (S140 review): `[Home](urlA) [Docs](urlB)` cross-assigned is reverted", t == "[Home](urlA) [Docs](urlB)" and not lg[0][1])
 t, lg = rec("see [t](http://a) here", "see t here")
 case("link NEGATIVE: a dropped link is reverted", t == "see [t](http://a) here" and not lg[0][1])
 t, lg = rec("see [An Overview](http://a) and more", "see An Overview](http://a) and more")
@@ -66,6 +71,10 @@ t, lg = rec("%ere it is", "There it is")
 case("ligature: a word-start garble `%ere` -> `There` is accepted", t == "There it is" and lg[0][1])
 t, lg = rec("it was Di\"cult", "it was Dicult")
 case("ligature NEGATIVE: a dropped garble with no replacement is reverted", t == "it was Di\"cult" and not lg[0][1])
+# S140 review, Logic#1 (reproduced): an apostrophe in a contraction is never a garble
+for i_, c_ in (("he wasn't sure", "he wasnfft sure"), ("and 'tis so old", "and fftis so old"), ("it's fine", "itfts fine"), ("they'll go", "theyffll go")):
+    t, lg = rec(i_, c_)
+    case("ligature NEGATIVE (S140 review): `%s` -> `%s` is reverted (a contraction's apostrophe is not a garble)" % (i_, c_), t == i_ and not lg[0][1])
 t, lg = rec("it is ne", "it is fine")
 case("ligature NEGATIVE: `ne` -> `fine` (no garble to replace) is reverted and named", t == "it is ne" and not lg[0][1] and lg[0][0] == "substitution")
 t, lg = rec("an unexpect edly long", "an unexpectedly long")
@@ -91,13 +100,23 @@ case("punctuation: `.` -> `,` is reverted (Rab's slot)", t == "one. two" and not
 t, lg = rec("the Case", "the case")
 case("case: a case change is reverted (Rab's slot)", t == "the Case" and not lg[0][1] and lg[0][0] == "punctuation/case")
 
+# S140 review, Test#6/#7: the always-on quotes unification; the peel bound is a real path
+t, lg = rec("she said \u201chello\u201d to me", 'she said "hello" to me')
+case("quotes: curly -> ASCII quotes is accepted (the always-on unification)", t == 'she said "hello" to me' and lg[0][1])
+big_a = " ".join("w%d" % i for i in range(1, 14))
+big_b = " ".join("x%d" % i for i in range(1, 14))
+t, lg = rec(big_a, big_b)
+case("the peel bound (>12 tokens a side): the whole span reverts as one op, no crash", t == big_a and len(lg) == 1 and not lg[0][1])
+t, lg = rec("para one words.\n\npara two words.", "para one words.\npara TWO2 words.")
+case("label (S140 review): `two` -> `TWO2` is a substitution, not a numeral", not lg[0][1] and lg[0][0] == "substitution")
+
 # ---- mixed and the tally
 t, lg = rec(inp, cand)
 tl = ew.tally(lg)
 case("the mixed pair: whitelisted edits accepted (as hunks), the rest reverted each on its own",
-     t == "The 81 cats sat.\n\nDifficult unexpected code [2](#p-1) There." and tl["reverted"].get("numeral") == 1
-     and tl["reverted"].get("punctuation/case") == 1 and tl["reverted"].get("insertion") == 2
-     and sum(tl["accepted"].values()) >= 2, "got %r %r" % (t, tl))
+     t == "The 81 cats sat.\n\nDifficult unexpected code [2](#p-1) There."
+     and tl["reverted"] == {"numeral": 1, "punctuation/case": 1, "insertion": 2}
+     and tl["accepted"] == {"mixed-whitelist": 2}, "got %r %r" % (t, tl))  # exact (S140 review, Test#3)
 case("tally counts every log entry once", sum(tl["accepted"].values()) + sum(tl["reverted"].values()) == len(lg))
 case("STRICT reverts a ligature repair FULL accepts", rec("it was Di\"cult", "it was Difficult", ew.STRICT)[0] == "it was Di\"cult")
 

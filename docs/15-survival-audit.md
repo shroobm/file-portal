@@ -608,16 +608,21 @@ whitelist — backslash-escapes removed, a link re-syntaxed with the same URL mu
 and citation brackets removed, a line-end hyphen joined, a mis-mapped ligature glyph replaced by its ligature, a
 word boundary moved (reflow). Everything else — a substitution, a deletion, an insertion, a numeral change, a
 punctuation or case change — reverts to the input's words. **The whitelist IS the policy** (Rab's slot, S119,
-unchanged S140): punctuation and case edits are reverted; on *Zero to One* the analyst's `ESCAPPING` was one.
+unchanged S140): punctuation and case edits are reverted, and so is every substitution — on *Zero to One* the
+analyst's `E SCAPING` → `ESCAPPING` is a substitution the whitelist reverts.
 Link STRUCTURE is never markup: an edit may not change a span's bracket balance or its count of `[text](url)`
 constructs (found at promotion: a dropped opening `[` had read as "markup", and the URL leaked into the text).
 
-**Measured at promotion (S140, `prototypes/analyst-lab/edit-whitelist/promotion_check.py`, the same 492 pairs).**
+**Measured at promotion (S140, `prototypes/analyst-lab/edit-whitelist/promotion_check.py` for the controls, the FULL
+audits and the class totals; `promotion_variants.py` for the STRICT and FULL−hyphen rows; the same 492 pairs).**
 Controls: accept-all reproduces the shipped body byte-for-byte (0.9718/49); accept-none reproduces the sidecar's
-words (1.0/0). FULL: **0.9819 / 24** under the shipped ladder, **0.9969 / 1** under ladder v3c (S119's prototype:
-0.9817/24 and 0.9968/1); 1,919 edits accepted (hyphen 669 · markup 549 · escape 339 · mixed 130 · reflow 19 ·
-ligature 14 · link 14 · markup+link 1), 1,390 reverted (punctuation/case 415 · deletion 315 · substitution 312 ·
-numeral 301 · insertion 47); no non-whitelisted class among the accepted. STRICT (markup + hyphen only): 1.0 / 0.
+words (1.0/0). FULL: **0.9822 / 24** under the shipped ladder, **0.9969 / 1** under ladder v3c (S119's prototype:
+0.9817/24 and 0.9968/1); 1,914 edits accepted (hyphen 670 · markup 549 · escape 339 · markup+escape 184 · mixed 124 ·
+reflow 19 · ligature 14 · link 14 · markup+link 1), 1,397 reverted (substitution 609 · punctuation/case 415 · deletion 316 ·
+insertion 47 · numeral 10 — digit-for-digit; the prototype's "numeral 321" counted any token with a digit on one side);
+no non-whitelisted class among the accepted. (The row before the S140 review read 0.9819/24, 1,919 / 1,390: the two
+holes the review closed moved six accepts to the revert side.) STRICT (markup + hyphen, with the always-on quotes unification and the space-free reflow comparison): 1.0 / 0
+under both ladders (`promotion_variants.py`; the S119 prototype's STRICT read 0.9998/0 with four seam windows).
 The promoted module aligns on exact tokens between anchors and on normalised keys inside an edit region, and judges
 a run of adjacent edits as one hunk before falling back to each — the S119 prototype's per-opcode judgement had
 starved its own hyphen and reflow rungs (rapidfuzz splits a two-token merge into replace + delete: 1 reflow, 0
@@ -628,6 +633,14 @@ the `whitelist` in force; a passed row of `chunk_scores` gains `e: [accepted, re
 an edit at all (absent otherwise). The `analyst/done` event's key set is unchanged (T17). Cost ≈ microseconds per
 chunk, no GPU. The acceptor changes the shipped TEXT, so `--reaudit` cannot measure it on a held book; a live run
 does (S140's C: the re-analysis of the held *Zero to One* through J42's sidecar-aware `--reanalyze`).
+
+**Reviewed (S140, three Sonnet lanes — Logic · Test · Readability — and a refuter; every high finding reproduced).**
+Two holes closed the same hour: an apostrophe in a contraction had counted as a ligature garble (`wasn't` → `wasnfft`
+would have shipped as a "repair"); two links inside one hunk could swap targets under a URL *multiset* test — the
+invariant is the ordered sequence of URLs now. Residue the review named and this section keeps: a whitespace-free run
+(a CJK sentence) is one token, so a hunk there that mixes a good edit with a bad one reverts whole; an apostrophe
+between letters outside a contraction tail is still a garble candidate; `well- known` → `wellknown` is accepted as a
+line-end join (a compound broken across a line is indistinguishable from a hyphenated word).
 
 **Tripwires.** `edit_whitelist_selftest.py` (the two controls, one case per rung with its negative — `\rm` vs `rm`,
 a re-targeted URL, a dropped garble with no replacement, `ne` → `fine` named — the reverted classes, the promotion
