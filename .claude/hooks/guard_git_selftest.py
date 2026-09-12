@@ -260,6 +260,32 @@ def main():
         case("J63: an unreadable marker refuses the commit (UNREAD is not clean)", "deny", bash("git commit -q -m x"))
         io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("S42 desktop 2026-09-10T00:00:00Z\n")
         case("J63: a repository WITHOUT coordination/ is exempt (not a File Portal checkout)", "allow", bash("git commit -q -m x", other_repo))
+        # J64 (S137): FALSE-DENY REGRESSION — SYM-110's shapes 6–11, each a live deny on a read-only command. The wrapper
+        # rule recursed into EVERY quoted argument of EVERY wrapper as shell text; heredoc bodies were split into commands
+        # whoever received them. Each case below reproduced the deny before the fix (S137 §8 F1: five of seven red).
+        case("J64/6: python -c whose code carries braces and semicolons passes (its text is Python, not shell)", "allow",
+             bash('python -c "import json;r=json.load(open(\'x.json\'));[print(f\'{k:16s}\',v[\'path\']) for k,v in r[\'roots\'].items()]"'))
+        case("J64/7: time -f '%es' bash x.sh passes (a format string is not a head)", "allow", bash("/usr/bin/time -f '%es' bash x.sh"))
+        case("J64/8: an inline PowerShell if { } block passes", "allow", ps('if (Test-Path "C:\\x") { Write-Output "yes" } else { Write-Output "no" }'))
+        case("J64/9: a [void][System.…]:: head passes (an expression head)", "allow", ps('[void][System.Reflection.Assembly]::LoadWithPartialName("System.Windows.Forms"); Write-Output ok'))
+        case("J64/10: find -printf '%TY-%Tm-%Td …' passes", "allow", bash("find /c/x -type f -printf '%TY-%Tm-%Td %TH:%TM %p\\n' | sort | head -n 3"))
+        case("J64/11: a heredoc body fed to python (a format line ' - [%s] …') passes — data, not commands", "allow",
+             bash("python - <<'EOF'\nfor f in x:\n    print(\" - [%s] %s:%s %s\" % (1, 2, 3, 4))\nEOF"))
+        case("J64/11b: a heredoc body fed to git commit -F - that SAYS 'git reset --hard' passes (a message is data)", "allow",
+             bash("git commit -q -F - <<'EOF'\nsubject\n\nthe guard once denied: git reset --hard\nEOF"))
+        case("J64/11c: a heredoc body fed to cat > file with braces and % passes", "allow", bash("cat > x.txt <<'EOF'\n%s/{a,b}\ngit reset --hard\nEOF"))
+        case("J64/11d: a heredoc with <<- and a tab-indented terminator, fed to tee, passes", "allow", bash("tee x.txt <<-'EOF'\n\t%s\n\tEOF"))
+        # NEGATIVE CONTROLS — the narrowing must not open a door
+        case("J64 NEG: bash <<EOF carrying git reset is still denied (the receiver is a shell)", "deny", bash("bash <<'EOF'\ngit reset --hard HEAD~1\nEOF"))
+        case("J64 NEG: cat <<EOF | sh carrying git clean is still denied (the line pipes into a shell)", "deny", bash("cat <<'EOF' | sh\ngit clean -fdx\nEOF"))
+        case("J64 NEG: python - <<EOF whose body shells out to git is denied (a hole closed, not opened)", "deny",
+             bash("python - <<'EOF'\nimport os\nos.system('git reset --hard')\nEOF"))
+        case("J64 NEG: python -c that shells out to git is still denied (the mentions-git rule over the segment)", "deny",
+             bash("python -c \"import os; os.system('git reset --hard')\""))
+        case("J64 NEG: bash -c 'git reset --hard' is still denied (a SHELL wrapper's quoted text is scanned)", "deny", bash("bash -c 'git reset --hard'"))
+        case("J64 NEG: sh -c with a cd into the main then git clean is still denied", "deny", bash(f"sh -c 'cd {msys_main} && git clean -fdx'", tmp))
+        case("J64 NEG: a %VAR% head is still the designed deny", "deny", bash("%PY% x.py"))
+        case("J64 NEG: a $VAR head is still the designed deny", "deny", bash('"$S/script.sh" 1 2'))
         # J71 (S136): a push that carries a ledger change is refused when the newest row fails its reader (row_check.sh).
         # Fixture: a bare upstream, the real row_check.sh copied into the fixture's skill folder, a ledger table.
         import shutil as _sh

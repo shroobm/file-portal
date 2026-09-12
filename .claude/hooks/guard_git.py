@@ -97,6 +97,14 @@ WRAPPERS = ("bash", "sh", "zsh", "dash", "ksh", "fish", "powershell", "pwsh", "c
             "conhost", "schtasks", "at", "register-scheduledtask", "new-scheduledtask", "new-scheduledtaskaction",
             "forfiles", "msiexec", "wmic", "psexec")
 DEFINERS = ("alias", "set-alias", "sal", "new-alias", "nal", "function", "filter")  # a command that names its own commands
+# J64 (S137): the wrappers whose QUOTED ARGUMENT is itself shell text (bash -c '…', cmd /c "…", powershell -Command "…",
+# eval "…"). Only these are recursed into; a python -c payload, a `time -f '%es'` format or a `find -printf '%TY…'`
+# format is that program's own text, and reading it with the bash grammar manufactured five false heads (SYM-110's
+# shapes 6, 7, 10 and the heredoc bodies). A non-shell wrapper that shells out to git is still caught by the
+# mentions-git rule over the whole segment (the R4 red-team case: python -c "os.system('git reset --hard')").
+SHELL_WRAPPERS = ("bash", "sh", "zsh", "dash", "ksh", "fish", "cmd", "powershell", "pwsh", "eval", "iex",
+                  "invoke-expression", "invoke-command", "icm", "wsl", "busybox", "script", "source", "xargs", "parallel")
+HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 DIR_WORDS = ("cd", "pushd", "set-location", "push-location", "sl", "chdir")
 ENV_TARGETS = ("GIT_WORK_TREE", "GIT_DIR")
 HOOK_DIR = os.path.dirname(os.path.abspath(__file__))
@@ -641,7 +649,7 @@ def decide(payload):
                             f"can read its verb and target — or this verb is forbidden here ({LAW})")
                 if mentions_git and names_guarded_root(seg):
                     return f"guard_git: a wrapper ({base}) mentions git and names a shared checkout; run git directly ({LAW})"
-                if depth < 3:
+                if depth < 3 and base in SHELL_WRAPPERS:
                     for t in toks[i + 1:]:
                         if len(t) > 2 and t[0] in "'\"" and t[-1] == t[0]:
                             r = scan(t[1:-1], cur, depth + 1)
@@ -733,10 +741,73 @@ def decide(payload):
                 return f"guard_git: alias `{verb}` expands to `{exp[:60]}` in the shared checkout {root}; denied ({LAW})"
         return None
 
-    reason = scan(cmd, cwd, 0)
+    if tool != "PowerShell":
+        cmd_for_scan, why = fold_data_heredocs(cmd, guarded(cwd) is not None, names_guarded_root)
+        if why:
+            return "deny", why, tool, cwd, cmd
+    else:
+        cmd_for_scan = cmd
+    reason = scan(cmd_for_scan, cwd, 0)
     if reason:
         return "deny", reason, tool, cwd, cmd
     return "allow", "", tool, cwd, cmd
+
+
+def fold_data_heredocs(cmd, cwd_guarded, names_guarded_root):
+    """J64 (S137): a heredoc body is shell text only when its RECEIVER is a shell — `bash <<EOF`, `sh <<EOF`, or the
+    opener line pipes into one (`cat <<EOF | sh`). Those bodies stay and are scanned line by line as before (the R1/R2
+    red-team cases). A body fed to anything else — python, cat > file, tee, git commit -F -, printf — is that program's
+    DATA: it is removed before the scan, so a Python line ` - [%s] %s:%s %s` or a message line `git reset --hard` is
+    never read as a command (SYM-110's eleventh shape, S133–S136: every heredoc with a format string was denied).
+    One narrowing that CLOSES a hole rather than opening one: a body fed to a non-shell WRAPPER (python, node, perl,
+    ruby, uv, …) that mentions git while the cwd is a guarded root (or the body names one) is denied as UNREAD — `python - <<EOF` with
+    `os.system("git reset --hard")` in the body had no `git` head and passed the old scan.
+    Returns (text_for_scan, deny_reason_or_None)."""
+    lines = cmd.split("\n")
+    out, i, n = [], 0, len(lines)
+    while i < n:
+        line = lines[i]
+        m = HEREDOC.search(line)
+        if not m:
+            out.append(line)
+            i += 1
+            continue
+        tag = m.group(2)
+        strip_tabs = "<<-" in line[:m.end()]
+        # the opener line's heads: every segment of this one line
+        heads = []
+        for seg in segments(line, False):
+            t = tokens(seg)
+            if not t:
+                continue
+            _, base, _, _ = head_of(t)
+            if base:
+                heads.append(base)
+        shellish = any(h in ("bash", "sh", "zsh", "dash", "ksh", "fish", "eval", "source", ".") for h in heads)
+        wrapperish = any(h in WRAPPERS for h in heads)
+        body, j = [], i + 1
+        while j < n:
+            probe = lines[j].lstrip("\t") if strip_tabs else lines[j]
+            if probe.rstrip("\r") == tag:
+                break
+            body.append(lines[j])
+            j += 1
+        if shellish:
+            out.append(line)
+            out.extend(body)
+            if j < n:
+                out.append(lines[j])
+            i = j + 1
+            continue
+        body_text = "\n".join(body)
+        if wrapperish and re.search(r"(?i)\bgit(\.exe)?\b", body_text) and (cwd_guarded or names_guarded_root(body_text)):
+            return cmd, (f"guard_git: a heredoc fed to a program ({', '.join(h for h in heads if h in WRAPPERS)}) mentions git "
+                         f"inside the shared checkout; what the program does with it is UNREAD; denied ({LAW})")
+        out.append(line)          # the opener stays (its own head is scanned); the body is data and goes
+        if j < n:
+            out.append(lines[j])
+        i = j + 1
+    return "\n".join(out), None
 
 
 def emit_deny(reason):

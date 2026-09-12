@@ -211,6 +211,8 @@ The status column is the first word of each row's own Status cell, measured at S
 
 ### S16 · GUARD-COARSER-THAN-THE-DEFECT — no symptom row yet; four closeout findings: a threshold veto summing partial text and table coverage (S104 §8-1), a one-directional survival guard blind to duplication (S116 §8-F3), a per-chunk threshold's blind zone between "obviously bad" and "perfect" (S117 §8-F2), a window-overlap fraction that cannot see one changed digit (S118 §8-F3 → J45). Probe: plant a defect one notch below the guard's resolution. Filed here so the next instance gets its row.
 
+*Rows since this section was written (the table above is S123's, Historical): SYM-110 (S126, the guard's false-deny shapes — one grammar for two shells, fails closed on what it cannot read) and SYM-116 (S137: the same heredoc construct the guard over-denied also let a program-fed `git reset` pass — coarser than the defect in both directions). `error_families.py` is the source; run `--census`.*
+
 ## §3 The placing walk — how to group a new failure in under a minute
 
 1. **Is the object a claim or a mechanism?** If an agent said something the evidence did not support, it is a METHOD family (ERROR-BIN); if a program did the wrong thing, a MECHANISM family (SYMPTOM-INDEX). Both may apply to one incident — file both rows.
