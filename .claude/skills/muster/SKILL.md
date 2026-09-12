@@ -226,6 +226,12 @@ Not this skill's job to perform, but the open sets its terms, so state them at o
    `python` is the Store stub and exits 49.
 4. Ledger row (≤80 words) as a **separate follow-up commit** — never `--amend`, which orphans
    the SHA you just wrote.
+4b. **The row is parsed by its reader BEFORE the push** (J69, S132): after the row commit,
+   `bash .claude/skills/muster/row_check.sh <N>` — [3b]'s own awk over the newest row, its SHA a commit and
+   an ancestor of HEAD; exit 1 is the signal the close chain stops on — a documented step the closer runs, not a
+   hook (wiring it into guard_git's push path is J71). The check is the PARSE and the SHA, never the clocks: the
+   TIME-STATE cannot agree until the memory lockstep, and S131 refused a good row for exactly that reason.
+   S130's three-cell row had opened a mock muster on an INCIDENT (SYM-113).
 5. Both clocks advanced together; §1 unedited; **no artifact carries a session number other
    than this session's**.
 6. **The close pushes** (`git push`, after the ledger row). An unpushed close is how the
@@ -268,6 +274,13 @@ of the tautology S78 shipped in this exact position.
 
 Run it when `muster.sh` or `open.sh` changes, and whenever a clean card is about to be trusted
 with something expensive.
+
+### Appended 2026-09-12 (S132) — J69's cases 48–56, and the count
+
+The "43 assertions" figure two paragraphs up is stale twice over (SYM-039: a hand-typed count is a future defect). The
+suite prints its own banner — `ALL TRIPWIRES FIRED — N/N` — and that line is the count; this file names none. Cases
+48–56 are J69's: the ledger row validated by its reader before the push (`row_check.sh`), including the awk-identity
+assertion (case 51) and the review fleet's four holes (CRLF, a non-ancestor commit, exit 2, a duplicate session row).
 
 ### Appended 2026-08-24 (S109) — the descendant rule, cases 30-32
 

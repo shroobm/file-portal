@@ -858,6 +858,68 @@ else bad "J63: the open writes the session marker" "got: $(cat "$R/coordination/
 if printf '%s' "$out" | grep -qE 'session marker +coordination/private/session.current = S43'; then ok "J63: the card names the marker it wrote"
 else bad "J63: the card names the marker" "got: $(printf '%s' "$out" | grep -E 'session marker' | head -1)"; fi
 
+
+# CASE 48–52 — J69 (S132). The property: the ledger row is validated by ITS READER before the push. S130's three-cell
+# row opened a mock muster on an INCIDENT (SYM-113); S131's hand-check then gated on the clocks, which cannot agree before
+# the memory lockstep. row_check.sh parses with [3b]'s own awk and checks the SHA against the repo — nothing else.
+ROWCHECK="$(dirname "$MUSTER")/row_check.sh"
+addrow() { # addrow <dir> <row> → commits the appended row, echoes HEAD sha
+  printf '%s\n' "$2" >> "$1/CLAUDE_README.md"; git -C "$1" add -A >/dev/null 2>&1; git -C "$1" commit -qm row >/dev/null 2>&1; git -C "$1" rev-parse --short HEAD
+}
+# 48 — POSITIVE CONTROL: a proper five-cell row whose SHA is the fixture's own earlier commit → exit 0.
+R="$WORK/c48"; s1=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | one file | 1111111 |')
+addrow "$R" "| 2026-01-02 | Desktop | S42: the close. Closeout: sessions/S42.md | two files | $s1 |" >/dev/null
+out=$(FP_REPO="$R" bash "$ROWCHECK" 42 2>&1); rc=$?
+assert "J69 CONTROL: a five-cell S42 row naming a real ancestor passes (exit 0)" 0 'ROW OK — S42' "$rc" "$out"
+# 49 — S130's shape: three cells, the SHA inside the prose → exit 1 naming no-sha.
+R="$WORK/c49"; s1=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | one file | 1111111 |')
+addrow "$R" "| 2026-01-02 | Desktop | S42: the close, SHA $s1 in the prose, no cell. |" >/dev/null
+out=$(FP_REPO="$R" bash "$ROWCHECK" 42 2>&1); rc=$?
+assert "J69: a three-cell row with the SHA in prose fires, naming no-sha (S130's row)" 1 'UNPARSED ROW.*no-sha' "$rc" "$out"
+# 50 — five cells but a SHA that is no commit here (a typo) → exit 1.
+R="$WORK/c50"; s1=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | one file | 1111111 |')
+addrow "$R" "| 2026-01-02 | Desktop | S42: the close | two files | deadbee |" >/dev/null
+out=$(FP_REPO="$R" bash "$ROWCHECK" 42 2>&1); rc=$?
+assert "J69: a well-formed row whose SHA is not a commit here fires" 1 'not a commit' "$rc" "$out"
+# 51 — ONE GRAMMAR, TWO DOORS: row_check.sh's awk must be byte-identical to muster.sh [3b]'s.
+a=$(tr -d '\r' < "$MUSTER"   | sed -n "/awk -F'|' -v lane=\"\$LANE\" '/,/^  END { print \"rows\", NR }')/p" | sed '1d;$d')
+b=$(tr -d '\r' < "$ROWCHECK" | sed -n "/awk -F'|' -v lane=\"\$LANE\" '/,/^  END { print \"rows\", NR }')/p" | sed '1d;$d')
+if [[ -n "$a" && "$a" == "$b" ]]; then ok "J69: row_check.sh's awk is byte-identical to muster.sh [3b]'s ($(printf '%s\n' "$a" | wc -l | tr -d ' ') lines)"
+else bad "J69: row_check.sh's awk drifted from muster.sh [3b]'s" "$(diff <(printf '%s\n' "$a") <(printf '%s\n' "$b") | head -3)"; fi
+# 52 — the row that was never written: the newest row is S42, the session says 43 → exit 1 naming both.
+out=$(FP_REPO="$WORK/c48" bash "$ROWCHECK" 43 2>&1); rc=$?
+assert "J69: an absent S43 row fires, naming the S42 it found instead" 1 'newest Desktop row is S42.*expected S43' "$rc" "$out"
+
+# CASE 53–56 — the review fleet's findings on J69 (wf_39d7d910-024, S132), each a case FIRST.
+# 53 — the real ledger is CRLF; every fixture above is LF. The same fixture as 48, CRLF-terminated → still exit 0.
+R="$WORK/c53"; s1=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | one file | 1111111 |')
+addrow "$R" "| 2026-01-02 | Desktop | S42: the close | two files | $s1 |" >/dev/null
+sed -i 's/$/\r/' "$R/CLAUDE_README.md"
+out=$(FP_REPO="$R" bash "$ROWCHECK" 42 2>&1); rc=$?
+assert "J69: a CRLF ledger (the real one's shape) still passes" 0 'ROW OK — S42' "$rc" "$out"
+# 54 — a REAL commit that is NOT an ancestor of HEAD (a sibling branch): exists, so cat-file passes; merge-base must fire.
+R="$WORK/c54"; s1=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | one file | 1111111 |')
+git -C "$R" checkout -q -b sibling; printf 'x\n' > "$R/x"; git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm sibling >/dev/null 2>&1; sib=$(git -C "$R" rev-parse --short HEAD)
+git -C "$R" checkout -q - 2>/dev/null || git -C "$R" checkout -q master 2>/dev/null || git -C "$R" checkout -q main
+addrow "$R" "| 2026-01-02 | Desktop | S42: the close | two files | $sib |" >/dev/null
+out=$(FP_REPO="$R" bash "$ROWCHECK" 42 2>&1); rc=$?
+assert "J69: a real commit that is NOT an ancestor of HEAD fires (a sibling branch's SHA)" 1 'not an ancestor of HEAD' "$rc" "$out"
+# 55 — exit 2 is CONFIG, never a verdict: no argument; a non-git FP_REPO. (assert() knows 0/1; exit 2 is checked by hand.)
+out=$(FP_REPO="$WORK/c48" bash "$ROWCHECK" 2>&1); rc=$?
+if [[ "$rc" -eq 2 ]] && printf '%s' "$out" | grep -q 'usage'; then ok "J69: no argument is usage (exit 2), not a verdict"; else bad "J69: no argument is usage (exit 2)" "got exit $rc: $out"; fi
+mkdir -p "$WORK/c55notgit"; printf '| 2026-01-01 | Desktop | S41: x | y | 1111111 |\n' > "$WORK/c55notgit/CLAUDE_README.md"
+out=$(FP_REPO="$WORK/c55notgit" bash "$ROWCHECK" 41 2>&1); rc=$?
+if [[ "$rc" -eq 2 ]] && printf '%s' "$out" | grep -q 'CONFIG'; then ok "J69: a non-git FP_REPO is CONFIG (exit 2), not a verdict"; else bad "J69: a non-git FP_REPO is CONFIG (exit 2)" "got exit $rc: $out"; fi
+# 56 — a duplicate row for one session is a red (the reader's tie-break would pick by hex order); and no lane row at all.
+R="$WORK/c56"; s1=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | one file | 1111111 |')
+s2=$(addrow "$R" "| 2026-01-02 | Desktop | S42: first write | two files | $s1 |")
+addrow "$R" "| 2026-01-02 | Desktop | S42: second write | two files | $s2 |" >/dev/null
+out=$(FP_REPO="$R" bash "$ROWCHECK" 42 2>&1); rc=$?
+assert "J69: two rows for one session fire, naming both" 1 'TWO rows for S42' "$rc" "$out"
+R="$WORK/c56b"; mkrepo "$R" '| 2026-01-01 | ThinkPad | S41: first | one file | 1111111 |' >/dev/null
+out=$(FP_REPO="$R" bash "$ROWCHECK" 41 2>&1); rc=$?
+assert "J69: a ledger with no Desktop row at all fires, saying so" 1 'no parsed Desktop row' "$rc" "$out"
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
