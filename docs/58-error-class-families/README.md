@@ -175,7 +175,7 @@ The status column is the first word of each row's own Status cell, measured at S
 - **Highlight.** Hundreds of pages "missing" or two runs of identical bytes scoring differently while the content, checked by eye, is present.
 - **Probe.** *Trace one flagged item by hand to its reference object — does the formula double-apply, or do two texts get compared?*
 - **Solution.** Repair the reference map before scoring, and record which reference every audit measured.
-- **Members.** SYM-002, 013, 025, 028, 050, 073. Method twin: **M2**.
+- **Members.** SYM-002, 013, 025, 028, 050, 073. **114** (S131: the near-exact reference was Marker's own body, loop included — the reference carried the disease). Method twin: **M2**.
 
 ### S10 · IDENTITY-FROM-THE-WRONG-EVIDENCE
 - **Reason.** An identity or authority check reads a proxy an impostor would also carry: a launcher's pid compared to the actor's parent (081); a local counter for a namespace shared across machines or concurrent sessions (040, 045); a decision string's length standing in for a human's ruling (062).
@@ -198,7 +198,7 @@ The status column is the first word of each row's own Status cell, measured at S
 - **Solution.** Bank the definition in the register the first time; verify the config from the boot log, never from the writing surface (SYM-007 ×4).
 - **Members.** SYM-007, 008, 011, 012, 015, 051.
 
-### S13 · MODEL-OUTPUT-HAZARD — SYM-003 (table-loop degeneration), SYM-074 (a bare `</think>` leaked into shipped markdown). Probe: diff output against input under the fence; count repeats and control tokens. Solution: the fence, the degeneration gate (J29), the think-leak filter.
+### S13 · MODEL-OUTPUT-HAZARD — SYM-003 (table-loop degeneration), SYM-074 (a bare `</think>` leaked into shipped markdown), SYM-115 (S131: `/no_think` leaked and the chunk was cut at it). Probe: diff output against input under the fence; count repeats and control tokens. Solution: the fence, the degeneration gate (J29), the think-leak filter.
 
 ### S14 · CONFOUNDED-COMPARISON — SYM-035 (arms run in a fixed order; the incumbent always runs on a cool card, the artefact scales with n). Probe: swap or interleave the arms.
 

@@ -151,7 +151,7 @@ MECHANISM = {
         "an index, key or comparison target is computed from the wrong object — an offset already absolute, a "
         "sanitised stem, a positional 'newest', the pre-analyst body against the post-analyst one",
         "trace one flagged item by hand to its reference object; does the formula double-apply, or compare two texts?",
-        ["SYM-002", "SYM-013", "SYM-025", "SYM-028", "SYM-050", "SYM-073"],
+        ["SYM-002", "SYM-013", "SYM-025", "SYM-028", "SYM-050", "SYM-073", "SYM-114"],  # 114 (S131): the reference carried the disease
     ),
     "S10 IDENTITY-FROM-THE-WRONG-EVIDENCE": (
         "an identity or authority check reads a proxy — a pid that belongs to a launcher, a local counter for a global "
@@ -178,7 +178,7 @@ MECHANISM = {
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",
         "diff the model's output against its input under the fence; count repeats and control tokens",
-        ["SYM-003", "SYM-074"],
+        ["SYM-003", "SYM-074", "SYM-115"],  # 115 (S131): a second leaked control token
     ),
     "S14 CONFOUNDED-COMPARISON": (
         "two arms run under a systematically different condition (heat, order), so the artefact scales with n like a "

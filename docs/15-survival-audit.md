@@ -565,6 +565,33 @@ block) and emits `audit/held` instead of shipping. The lever is flipped from the
 (§13); wiring the hold into the ship paths + live-testing it on the Beer re-audit is part
 of the dedicated build session (§13, "buildable now vs the build session").
 
+### 12.1 Amendment — SIGNED 2026-09-12 (Rab, S131): a degenerate reference block is masked
+
+*Appended, not edited: §12 above stands as signed 2026-07-20.*
+
+**The finding (S130/S131, *Zero to One*, held `cb7e026f3fc02da8`).** Marker looped on page 1 and wrote a
+2048-character heading (`# INTERNATIONAL PROPERTY AND ROUTE AND ROUTE…`, zlib 0.028, trigram 202; the PDF's own
+text holds no "and route" at all). That block sits in the Marker body J33 retains as the analyst stage's
+reference. The Repair Bench cut it from the shipped body, as it should; the near-exact gate then read the cut as a
+420-word omission (survival 0.9848, a run ≥ 25 words) — **fail** — while a body that kept the block failed on
+degeneration. The two signals of §12 had made a degeneration repair unshippable, and `bless` is written to refuse
+a degeneration fail from either side.
+
+**The rule.** Before the analyst stage's windows are built, every block of the reference that the audit's OWN
+degeneration detector flags (the same per-paragraph test, uncapped, on the same table-blanked text) is blanked.
+Nothing else in the gate moves: the levers stay 0.995 / 25 words, the normalisation ladder is untouched, and the
+body side is never masked — a body that kept the disease still fails on the convert gate's tripwire. The analyst
+block records what was masked as `reference_masked` (`blocks`: line, line_end, chars, zlib, max_trigram, excerpt;
+`words`), so a verdict that leaned on the mask reads as such in the manifest and on the bench. Blanking glues the
+block's neighbours together in the reference stream, so a body that kept the block (or put a heading in its place)
+loses the windows that span that seam — a dip of a few words, never a run (case (k)). The repeated-line signal
+(`repeated_lines`) is not masked: no specimen yet, and a case comes before the rule.
+
+**Measured on the specimen** (`fidelity_audit.audit_analyst`, the repaired body against the sidecar): raw
+reference survival 0.9892 with the one 420-word run; masked reference survival 0.9994, no run; verdict **pass**
+with the convert gate's own pass (0.9939, 0 pages flagged, no degeneration). Tripwires: `analyst_audit_selftest.py`
+cases (h)–(k), including the mask disabled as the watched negative control.
+
 ## 13. The Assay — widget projection (design record, docs/13 grammar)
 
 The audit becomes a channel the operator can **see** (observation) and **steer** (control).

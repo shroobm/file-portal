@@ -18,15 +18,25 @@ Run with the marker-env interpreter (fidelity_audit imports pymupdf/rapidfuzz):
   (e') negative control: v1's punct_free restored -> case (e) FALSELY green (watched)
   (f) CJK path unchanged (space-free containment still the same rule, no crash)
   (g) negative control: ladder disabled       -> case (a) FAILS (watched)
+  (h) S131: a degenerate block in the REFERENCE is masked -> a body without it reads 1.0,
+      no run, and the mask is recorded (docs/15 §12.1, Rab signed 2026-09-12)
+  (i) S131: a REAL loss beside the mask still fails (the gate is not blunted)
+  (j) negative control: the mask disabled     -> case (h) FAILS the way S130 did (watched)
+  (k) S131: a body that KEPT the loop is not rewarded -- the convert gate's degeneration
+      tripwire still fails it; the mask only ever removes reference text
+  (l) S131: a CRLF reference masks the same block as its LF twin (the fleet's refutation,
+      closed in the mask; degeneration() itself is untouched)
 """
 import text_norm as tn
 import fidelity_audit as fa
 
 failed: list[str] = []
+ran: list[str] = []
 
 
 def case(name):
     def deco(fn):
+        ran.append(name)
         try:
             fn()
             print(f"  ok   {name}")
@@ -174,8 +184,93 @@ def _():
     assert fa.audit_analyst(ref, out)["doc_survival"] == 1.0
 
 
+# S131 fixtures: Marker's loop, as the Zero to One sidecar carried it -- a heading that repeats
+# a trigram hundreds of times (zlib << DEGEN_ZLIB_MAX, trigram >> DEGEN_TRIGRAM_MAX).
+LOOP = "# INTERNATIONAL PROPERTY " + "AND ROUTE " * 200
+PARA_A = words(40, "alpha")
+PARA_B = words(40, "beta")
+REF_WITH_LOOP = PARA_A + "\n\n" + LOOP + "\n\n" + PARA_B
+CONVERT_OK = {"tripwires": {"degeneration": False}, "kind": "fidelity", "doc_survival": 1.0,
+              "runs": [], "pages_flagged": []}
+
+
+@case("(h) S131: a degenerate block in the REFERENCE is masked -- a body without it reads 1.0, "
+      "no run, and reference_masked names the block")
+def _():
+    assert fa.degeneration(REF_WITH_LOOP)["flagged"], "fixture must trip the detector on its own"
+    block = fa.audit_analyst(REF_WITH_LOOP, PARA_A + "\n\n" + PARA_B)
+    assert block["doc_survival"] == 1.0, block
+    assert block["runs_total"] == 0, block
+    rm = block["reference_masked"]
+    assert len(rm["blocks"]) == 1, rm
+    assert rm["blocks"][0]["line"] == 3 and rm["blocks"][0]["line_end"] == 3, rm
+    assert rm["blocks"][0]["chars"] == len(LOOP.strip()), rm   # chars of the STRIPPED block
+    assert rm["words"] == len(LOOP.split()), rm
+    assert fa.compute_verdict(CONVERT_OK, block) == "pass", block
+
+
+@case("(i) S131: a REAL loss beside the mask still fails -- the whole of PARA_B gone reads as a "
+      "run >= 25 words and the verdict is fail")
+def _():
+    block = fa.audit_analyst(REF_WITH_LOOP, PARA_A)
+    assert block["doc_survival"] < 0.995, block
+    assert any(r["words"] >= 25 for r in block["runs"]), block
+    assert "beta01" in block["runs"][0]["excerpt"], block   # the run is the real loss, not the loop
+    assert block["reference_masked"]["words"] == len(LOOP.split()), block
+    assert fa.compute_verdict(CONVERT_OK, block) == "fail"
+
+
+@case("(j) NEGATIVE CONTROL: the mask disabled -> case (h)'s body FAILS the way S130 did "
+      "(the loop counted as a run of hundreds of words)")
+def _():
+    real_mask = fa.mask_degenerate_reference
+    try:
+        fa.mask_degenerate_reference = lambda t: (t, {"blocks": [], "words": 0})
+        block = fa.audit_analyst(REF_WITH_LOOP, PARA_A + "\n\n" + PARA_B)
+        assert block["doc_survival"] < 0.995, (
+            "the guard did not fire: with the mask off the loop should read as loss", block)
+        assert any(r["words"] >= 25 for r in block["runs"]), block
+        assert fa.compute_verdict(CONVERT_OK, block) == "fail"
+    finally:
+        fa.mask_degenerate_reference = real_mask
+    # restored: case (h) must pass again
+    assert fa.audit_analyst(REF_WITH_LOOP, PARA_A + "\n\n" + PARA_B)["doc_survival"] == 1.0
+
+
+@case("(k) S131: a body that KEPT the loop is not rewarded -- the mask glues the loop's "
+      "neighbours in the reference, so the body's extra block costs it the seam windows "
+      "(a dip, never a run), and the convert gate's degeneration tripwire still fails it")
+def _():
+    body = PARA_A + "\n\n" + LOOP + "\n\n" + PARA_B
+    block = fa.audit_analyst(REF_WITH_LOOP, body)
+    clean = fa.audit_analyst(REF_WITH_LOOP, PARA_A + "\n\n" + PARA_B)
+    assert block["doc_survival"] <= clean["doc_survival"] == 1.0, (block, clean)
+    assert block["runs_total"] == 0, block          # the seam never manufactures a run
+    conv = {"tripwires": {"degeneration": fa.degeneration(body)["flagged"]}, "kind": "fidelity",
+            "doc_survival": 1.0, "runs": [], "pages_flagged": []}
+    assert conv["tripwires"]["degeneration"] is True, conv
+    assert fa.compute_verdict(conv, block) == "fail"
+    # and a reference with no degenerate block is left byte-identical, nothing masked
+    clean_ref = PARA_A + "\n\n" + PARA_B
+    assert fa.mask_degenerate_reference(clean_ref) == (clean_ref, {"blocks": [], "words": 0})
+
+
+@case("(l) S131: a CRLF reference masks the same block as its LF twin -- same block report, "
+      "same words, and the clean body reads 1.0 either way")
+def _():
+    crlf_ref = REF_WITH_LOOP.replace("\n", "\r\n")
+    _lf_text, lf_report = fa.mask_degenerate_reference(REF_WITH_LOOP)
+    crlf_text, crlf_report = fa.mask_degenerate_reference(crlf_ref)
+    assert crlf_report == lf_report and len(crlf_report["blocks"]) == 1, (crlf_report, lf_report)
+    assert "AND ROUTE" not in crlf_text, "the loop survived the CRLF mask"
+    assert fa.audit_analyst(crlf_ref, PARA_A + "\n\n" + PARA_B)["doc_survival"] == 1.0
+    # a CRLF reference with nothing to mask comes back byte-identical, CR and all
+    clean_crlf = (PARA_A + "\n\n" + PARA_B).replace("\n", "\r\n")
+    assert fa.mask_degenerate_reference(clean_crlf) == (clean_crlf, {"blocks": [], "words": 0})
+
+
 print()
 if failed:
-    print(f"TRIPWIRES DISARMED — {len(failed)} failed of 8: {failed}")
+    print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")
     raise SystemExit(1)
-print("ALL TRIPWIRES FIRED — 8/8")
+print(f"ALL TRIPWIRES FIRED — {len(ran)}/{len(ran)}")

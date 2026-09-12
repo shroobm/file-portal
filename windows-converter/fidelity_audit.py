@@ -224,16 +224,14 @@ def _blank_table_rows(markdown: str) -> tuple[str, int]:
     return "".join(out), n
 
 
-def degeneration(markdown: str, strip_table_rows: bool = True) -> dict:
-    """Per-paragraph zlib ratio + max repeated trigram (word, or char for CJK blocks),
-    plus a repeated-output-line check. Priors from docs/15 §9.1. Table rows are blanked
-    first (SYM-067, above); `strip_table_rows=False` is the pre-J29 behaviour, kept only so
-    the selftest can prove the gate does work."""
-    table_rows_stripped = 0
-    if strip_table_rows:
-        markdown, table_rows_stripped = _blank_table_rows(markdown)
-    flagged = False
-    worst = []
+def _degenerate_blocks(markdown: str) -> list[tuple[dict, int]]:
+    """The per-paragraph half of degeneration(): every block whose zlib ratio AND repeated
+    trigram both cross the priors (docs/15 §9.1–9.2), UNCAPPED, each paired with the 1-based
+    line its text ends on (the block spans [block["line"], line_end] on the text as given).
+    Shared by degeneration(), which reports the ten worst, and by mask_degenerate_reference()
+    (S131), which must mask every one — a cap that hides an eleventh loop from the mask would
+    let it back in as loss."""
+    found: list[tuple[dict, int]] = []
     pos = 0
     for para in markdown.split("\n\n"):
         # The line of the paragraph's FIRST NON-BLANK character. A blanked table leaves an odd
@@ -257,11 +255,61 @@ def degeneration(markdown: str, strip_table_rows: bool = True) -> dict:
         # but their words vary → low trigram, so the trigram gate clears them. The old zlib-OR
         # path false-fired on the Cybernetics table-dense book (zlib 0.11/0.15, trigram 28/10).
         if ratio < DEGEN_ZLIB_MAX and mx >= DEGEN_TRIGRAM_MAX:
-            flagged = True
-            worst.append({
+            found.append(({
                 "line": line_no, "chars": len(p), "zlib": round(ratio, 3),
                 "max_trigram": mx, "excerpt": " ".join(p.split()[:8]),
-            })
+            }, line_no + p.count("\n")))
+    return found
+
+
+def mask_degenerate_reference(markdown: str) -> tuple[str, dict]:
+    """S131 (Rab signed 2026-09-12): a reference block the audit's OWN degeneration detector
+    flags is Marker's disease, not the book, and a body that lacks it is not missing anything.
+    The specimen: the Zero to One sidecar carried a 2048-char "# INTERNATIONAL PROPERTY AND
+    ROUTE AND ROUTE…" heading Marker looped on (zlib 0.028, trigram 202; the PDF's own text
+    holds no "and route" at all), so the body repaired by cutting it read as a 420-word
+    omission (survival 0.9848 → fail) while a body that kept it failed on degeneration: no
+    repair could pass. This blanks every such block's lines — the same blocks degeneration()
+    would find, uncapped, on the same table-blanked text, whose newline positions are
+    preserved by construction — BEFORE the near-exact windows are built, and says what it
+    masked so the verdict carries its provenance. Blanking glues the block's neighbours in the
+    reference stream: a body that KEPT the block loses the windows spanning that seam (a dip
+    of a few words, never a run) — and fails on the convert gate's tripwire anyway. The
+    repeated-line signal (`repeated_lines`) is NOT masked here: no specimen yet, and a case
+    comes before the rule."""
+    # CRLF first (fleet wf_c4845e33-681, lane "hostile", 2026-09-12): the paragraph split
+    # below is on the literal "\n\n", which a CRLF blank line ("\r\n\r\n") never contains —
+    # a CRLF reference would read as ONE paragraph and its loop would go unmasked. The
+    # pipeline's sidecars are LF by construction (raw UTF-8 bytes of Marker's body), so this
+    # guards the function, not a live path. A reference with nothing to mask is returned
+    # byte-identical, CR and all.
+    text = markdown.replace("\r\n", "\n")
+    blanked, _rows = _blank_table_rows(text)
+    blocks = _degenerate_blocks(blanked)
+    if not blocks:
+        return markdown, {"blocks": [], "words": 0}
+    lines = text.split("\n")
+    report: list[dict] = []
+    words = 0
+    for blk, line_end in blocks:
+        lo, hi = blk["line"] - 1, min(line_end, len(lines))
+        words += sum(len(ln.split()) for ln in lines[lo:hi])
+        for i in range(lo, hi):
+            lines[i] = ""
+        report.append(dict(blk, line_end=line_end))
+    return "\n".join(lines), {"blocks": report, "words": words}
+
+
+def degeneration(markdown: str, strip_table_rows: bool = True) -> dict:
+    """Per-paragraph zlib ratio + max repeated trigram (word, or char for CJK blocks),
+    plus a repeated-output-line check. Priors from docs/15 §9.1. Table rows are blanked
+    first (SYM-067, above); `strip_table_rows=False` is the pre-J29 behaviour, kept only so
+    the selftest can prove the gate does work."""
+    table_rows_stripped = 0
+    if strip_table_rows:
+        markdown, table_rows_stripped = _blank_table_rows(markdown)
+    worst = [blk for blk, _end in _degenerate_blocks(markdown)]
+    flagged = bool(worst)
     # Repeated-line check (docs/15 §9.2): a degeneration loop repeats a line CONTIGUOUSLY
     # (the decoder gets stuck), so measure the longest RUN of consecutive identical non-blank
     # lines — NOT the total count. Legitimate structure repeats but is DISTRIBUTED: section
@@ -492,11 +540,16 @@ _REGEX_ID = "j32a-v2"
 
 def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
     """Near-exact containment: the Marker doc IS the reference (docs/15 §6/§9.4). No fuzzy.
+    S131 (docs/15 §12.1): blocks of the reference that degeneration() flags are masked first.
     Both sides run the J32-A normalisation ladder (unescape -> punct_free) before windowing;
     containment is tested SPACE-FREE on both the window and the output stream — the CJK path
     was already space-free, this unifies the word path onto the same rule rather than keeping
     two containment tests that happen to agree."""
-    ref = punct_free(unescape(prepare_output(marker_markdown)))
+    # S131: Marker's own degenerate blocks come out of the reference first (see
+    # mask_degenerate_reference); `reference_masked` says what left, so a verdict that leaned
+    # on the mask can be read as such.
+    masked_ref, reference_masked = mask_degenerate_reference(marker_markdown)
+    ref = punct_free(unescape(prepare_output(masked_ref)))
     out = punct_free(unescape(prepare_output(analyst_markdown)))
     normalisation = {"unescape": True, "punct_free": True, "space_free": True,
                      "regex_id": _REGEX_ID}
@@ -504,7 +557,7 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
     windows = make_windows(ref, cjk)
     if not windows:
         return {"doc_survival": 1.0, "runs": [], "runs_total": 0, "runs_capped_at": 25,
-                "normalisation": normalisation}
+                "normalisation": normalisation, "reference_masked": reference_masked}
     out_flat = space_free(out)
     failed = [space_free(w) not in out_flat for w in windows]
     doc = round(failed.count(False) / len(windows), 4)
@@ -512,7 +565,8 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
     # NUM-3, both phases (review M2: repairing only the convert phase left the analyst event
     # ASSERTING that 25 is the total — strictly worse than the bare capped count)
     return {"doc_survival": doc, "runs": sorted(runs, key=lambda r: -r["words"])[:25],
-            "runs_total": len(runs), "runs_capped_at": 25, "normalisation": normalisation}
+            "runs_total": len(runs), "runs_capped_at": 25, "normalisation": normalisation,
+            "reference_masked": reference_masked}
 
 
 def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
