@@ -101,6 +101,9 @@ dumps/*
 !dumps/LEDGER.md
 !dumps/dump.sh
 !dumps/.gitattributes
+!dumps/LEDGER.jsonl
+!dumps/ledger_check.py
+!dumps/ledger_check_selftest.py
 
 # S130 (Rab, 2026-09-11): the private working directories live in the PRIVATE repo (file-portal-private, branch
 # workshop) and are reached here through directory junctions. Never tracked here, whatever a future close does.

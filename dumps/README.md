@@ -94,3 +94,30 @@ grep -i "<term>" dumps/LEDGER.md  # find it
   verdict, and reading one is `Historical`, never `Observed`.
 - **It does not replace the relay.** Coordination *decisions* stay on the append-only bus with
   digests and restatements. This holds the weight the bus should not carry.
+
+---
+
+## S141 — the ledger extended, not forked (2026-09-12, provenance/extend-dump-ledger-not-invent-manifest)
+
+The audit layer's receipts (`file-portal-private/agent-scripts/journal/`) needed a manifest — who wrote each file, from
+what bytes, with what digest. The study that asked for one (`measurement/STUDY-2026-09-12-astra-mandate.md`) first
+proposed a new family; its second reading found THIS ledger already doing it since D0001. So `dump.sh` grew instead:
+
+- **`--ref`** records a file IN PLACE — no copy; the md row points at it (the receipts are tracked in the private repo
+  already, copying them here would put private bytes in the public tree — POLICY §1).
+- **`LEDGER.jsonl`, the twin** — one JSON object per md row, written by the same `dump.sh` act: the seven columns plus
+  `path`, `producer {path, blob}` (`git hash-object` of the script that wrote the file — the bytes that RAN),
+  `sources [{path, bytes, sha256}]`, `coverage`, and `row_sha256` over the row's canonical JSON (sorted keys, no
+  whitespace, UTF-8 — RFC 8785's shape) without itself. **The md row's SEVEN columns never change shape**: a reader of
+  D0001 reads D0099 the same way; the twin is where the columns grow.
+- **`--ledger <dir>`** writes another ledger pair: the private receipts are rowed into
+  `agent-scripts/journal/LEDGER.md` + `.jsonl` at every close, by the chain, with `--producer` = the writer.
+- **`ledger_check.py [<dir>]`** verifies a ledger: each twin row's `row_sha256` recomputes; md and twin agree on
+  id/bytes/sha; a `--ref` file's bytes reproduce; a copy whose bytes were deleted reads `bytes gone — the ledger
+  survives, by design`; a pre-S141 md row without a twin is said, not red. Exit 0 · 1 a disagreement · 2 no LEDGER.md.
+  Tripwire: `ledger_check_selftest.py` (11 cases).
+- **Trust boundary, stated:** the files and the ledger live on one disk under one user; the commit of the ledger is the
+  tamper-evidence line. A sha proves the bytes did not drift after hashing; it does not prove the source told the truth.
+  This is in-toto/SLSA-SHAPED (producer, materials, digests), not conformant, unsigned.
+- One coreutils trap, paid on the first `--ref` run: `sha256sum` prefixes its digest with a backslash when the path
+  carries one (a Windows path); the script strips it.
