@@ -145,7 +145,7 @@ MECHANISM = {
         "a number, SHA, date or topology assumption typed once into prose, a guard or a default and never regenerated; "
         "healthy activity (a commit, a rewrap, a new window, a new day) falsifies it",
         "re-derive the cited value from its live source (rev-parse, the suite, the dependency's metadata) and diff",
-        ["SYM-014", "SYM-016", "SYM-019", "SYM-023", "SYM-039", "SYM-065", "SYM-072", "SYM-098", "SYM-108"],
+        ["SYM-014", "SYM-016", "SYM-019", "SYM-023", "SYM-039", "SYM-065", "SYM-072", "SYM-098", "SYM-108", "SYM-117"],
     ),
     "S9 THE-WRONG-REFERENCE-OBJECT": (
         "an index, key or comparison target is computed from the wrong object — an offset already absolute, a "
