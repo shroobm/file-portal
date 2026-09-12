@@ -41,7 +41,8 @@ def main():
     os.makedirs(os.path.join(root, "sessions"))
     os.makedirs(os.path.join(root, "docs"))
     marker = os.path.join(root, "coordination", "private", "session.current")
-    env = {"FP_GIT_GUARD_EXTRA_ROOTS": root}
+    log_file = os.path.join(tmp, "git-guard.log")  # S141: the guard LOGS every deny — the selftest's go here, never into the production log
+    env = {"FP_GIT_GUARD_EXTRA_ROOTS": root, "FP_GIT_GUARD_LOG": log_file}
     results, denies = [], []
 
     def case(name, expect, got):
@@ -71,6 +72,12 @@ def main():
         case("a malformed payload is refused (fails closed)", "deny", run_hook("not json", env))
         shutil.rmtree(os.path.join(root, "coordination"))
         case("a root without coordination/ is exempt (not a File Portal checkout)", "allow", run_hook(payload("Write", os.path.join(root, "docs", "x.md")), env))
+        # S141 (cross-checks/journal-denies-equal-guard-log): every deny above was LOGGED, with guard=record, to the redirected log
+        logged = io.open(log_file, encoding="utf-8").read().splitlines() if os.path.isfile(log_file) else []
+        case("every deny wrote one `DENY … guard=record` line to the (redirected) guard log", "%d lines" % len(denies),
+             "%d lines" % sum(1 for ln in logged if " DENY " in ln and "guard=record" in ln))
+        case("the log lines carry the tool and the target", "yes",
+             "yes" if any("tool=Edit" in ln and "README.md" in ln for ln in logged) else "no")
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
     n_ok = sum(results)

@@ -22,7 +22,7 @@ import sys
 
 HOOK_DIR = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HOOK_DIR)
-from guard_git import REPO, record_missing  # noqa: E402  (stdlib-only sibling; the shared rule lives there)
+from guard_git import REPO, log, record_missing  # noqa: E402  (stdlib-only sibling; the shared rule and the ONE log live there)
 
 EXTRA_ROOTS_ENV = os.environ.get("FP_GIT_GUARD_EXTRA_ROOTS") or ""
 
@@ -65,9 +65,14 @@ def decide(payload):
     return None
 
 
-def emit_deny(reason):
+def emit_deny(reason, payload=None):
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                              "permissionDecisionReason": reason}}))
+    # S141 (cross-checks/journal-denies-equal-guard-log): every deny goes to the same log guard_git writes — until now
+    # guard_record's denies existed only in the transcript, so the log could not corroborate the journal's count
+    p = payload if isinstance(payload, dict) else {}
+    log("DENY", p.get("tool_name") or "?", p.get("cwd") or "?", str(p.get("tool_input") or {})[:200],
+        who="%s/%s" % (p.get("agent_id") or "-", p.get("agent_type") or "-"), extra="guard=record")
 
 
 def main():
@@ -81,10 +86,10 @@ def main():
     try:
         reason = decide(payload)
     except Exception as e:
-        emit_deny(f"guard_record: internal error ({e}) — fails closed; denied")
+        emit_deny(f"guard_record: internal error ({e}) — fails closed; denied", payload)
         return
     if reason:
-        emit_deny(reason)
+        emit_deny(reason, payload)
 
 
 if __name__ == "__main__":
