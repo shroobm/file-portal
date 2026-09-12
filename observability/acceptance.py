@@ -186,7 +186,11 @@ def main() -> int:
           bad.get("since_fell_back") is True)
     check("a typo'd --lane name exits 2, never a silent 0", _rc(["--lane", "zz-nope", "--enforce"]) == 2)
     check("a producer glob matching nothing is fatal under --enforce", _empty_glob_is_caught())
-    check("a stale signature is caught in the SIGNED (--since) mode", _stale_caught_under_since())
+    stale = _stale_caught_under_since()
+    if stale is None:
+        print("       SKIP — no diff to scope --since against (a single-commit history)")
+    else:
+        check("a stale signature is caught in the SIGNED (--since) mode", stale)
 
     failed = [n for n, ok in results if not ok]
     print(f"\n{'PASS' if not failed else 'FAIL'} — {len(results) - len(failed)}/{len(results)} checks")
@@ -295,7 +299,13 @@ def _empty_glob_is_caught() -> bool:
         Path(p).unlink(missing_ok=True)
 
 
-def _stale_caught_under_since() -> bool:
+def _stale_caught_under_since() -> bool | None:
+    """S138 (run 263 RED, 139/140): this case used to require the KEYED ref from `_exercising_ref()` and returned
+    False — a FAIL — when no commit in the 40-deep window introduced an extractable key. The property it asserts
+    (a stale signature is reported in the SIGNED mode) holds against ANY non-empty diff (measured S138: HEAD~1,
+    HEAD~2, HEAD~5 all True); the keyed ref was a proxy, and two record-only commits (the close, the row) pushed
+    the last keyed commit past the window — the docstring above `_exercising_ref` foretold this shape. Now: the
+    keyed ref when there is one, else HEAD~1; None (the caller prints SKIP) only when there is no diff at all."""
     def plant(cfg):
         cfg["dispositions"] = {
             "bench:zz_key_that_no_longer_exists": {
@@ -307,8 +317,10 @@ def _stale_caught_under_since() -> bool:
     p = _tmp_cfg(plant)
     try:
         ref, _ = _exercising_ref()
+        if ref is None and _diff_since("HEAD~1") is not None:
+            ref = "HEAD~1"
         if ref is None:
-            return False
+            return None
         rc = _rc(["--config", p, "--enforce", "--since", ref])
         seen = _census(["--config", p, "--since", ref]).get("stale") or []
         return rc == 1 and "bench:zz_key_that_no_longer_exists" in seen
