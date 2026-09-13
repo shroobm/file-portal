@@ -129,7 +129,7 @@ MECHANISM = {
         "list every entry point that touches the guarded resource; one with zero writes to the signal is this family",
         # SYM-113 (S130 post-close): the ledger row's only parser sits on the OPEN path; the close writes the row
         # after its own gates and never reads it back — a malformed row is invisible until the next session
-        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113", "SYM-122", "SYM-126", "SYM-127"],  # S141: 122 the watcher mutex blocked its own tripwire; S143: 127 the smoke's hook probes write the log the denies check reads
+        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113", "SYM-122", "SYM-126", "SYM-127", "SYM-130"],  # S144: 130 the exporter's first-ingest path has no verdict guard (the guard sits on supersede only); S141: 122 the watcher mutex blocked itsown tripwire; S143: 127 the smoke's hook probes write the log the denies check reads
     ),
     "S6 THE-CHILD-OUTLIVES-THE-KILL": (
         "the kill, close or job is scoped to the direct child or one window; the real worker is a grandchild (a venv "
@@ -141,7 +141,7 @@ MECHANISM = {
         "a phase computes and stores a correct value and no renderer reads it, reads another object, or shows it beside "
         "an unrelated verdict; or a surface promises a live lever the code baked in once",
         "grep the producer for the key, then every renderer for a read of that key — writes without reads",
-        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106", "SYM-123", "SYM-124"],  # S141: 123 a deferral with no event; 124 a failed move with no event
+        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106", "SYM-123", "SYM-124", "SYM-131"],  # S144: 131 the audit-mode lever decides shipping and nothing projects its state (no card row, no event, no writer); S141: 123 a deferral with no event; 124 afailed move with no event
     ),
     "S8 A-FACT-FROZEN-WHILE-THE-WORLD-MOVED": (
         "a number, SHA, date or topology assumption typed once into prose, a guard or a default and never regenerated; "
@@ -180,7 +180,7 @@ MECHANISM = {
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",
         "diff the model's output against its input under the fence; count repeats and control tokens",
-        ["SYM-003", "SYM-074", "SYM-115"],  # 115 (S131): a second leaked control token
+        ["SYM-003", "SYM-074", "SYM-115", "SYM-129"],  # 115 (S131): a second leaked control token; 129 (S144): a chunk's generation runs to the client timeout — no num_predict bound
     ),
     "S14 CONFOUNDED-COMPARISON": (
         "two arms run under a systematically different condition (heat, order), so the artefact scales with n like a "
