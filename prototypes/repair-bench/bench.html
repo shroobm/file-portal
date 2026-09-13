@@ -2,6 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <title>Repair Bench</title>
 <style>
   /* ---- S66: the dummy-proof pass. Same Apple system as S63 (SF stack, blur chrome,
@@ -365,6 +366,242 @@
   .ev-unread-list { max-height:300px; overflow:auto; padding-right:5px; }
   .ev-unread { display:grid; grid-template-columns:auto 1fr; gap:7px; align-items:start; margin:5px 0; }
   .ev-unread span { font:11px var(--mono); color:var(--bad); word-break:break-word; }
+
+  /* ---- S147 · adjustable panes: the edges move, the features do not. The layout module at the
+     end of the page owns --w-side / --fr-stage / --fr-md / --upper-h and the lay-* classes;
+     sizes are remembered per device (phone · laptop · desktop) in localStorage. `main` is a
+     flex row now — the bench's own inline grid-template-columns write is inert on a flex box,
+     so its program stays byte-identical. ---- */
+  :root { --w-side:236px; --fr-stage:1; --fr-md:1; --gw:14px; }
+  main { display:flex; gap:0; align-items:stretch; }
+  #sidebar { flex:none; width:var(--w-side); min-width:0; }
+  #stage-pane { flex:var(--fr-stage) 1 0; min-width:0; }
+  #md-pane { flex:var(--fr-md) 1 0; min-width:0; }
+  main.md-off #g-md { display:none; }
+  .pane.collapsed, #upper.collapsed { display:none; }
+  #upper { flex:none; max-height:var(--upper-h, none); overflow:auto; min-height:0; }
+  .gutter { flex:none; position:relative; width:var(--gw); cursor:col-resize; touch-action:none;
+            display:flex; align-items:center; justify-content:center; border-radius:7px;
+            user-select:none; -webkit-user-select:none; outline:none; color:var(--text-3);
+            transition:background .16s ease, color .16s ease; }
+  .gutter:hover, .gutter:focus-visible, .gutter.dragging { background:var(--accent-bg); color:var(--accent); }
+  .gutter:focus-visible { box-shadow:0 0 0 2px var(--accent-bg) inset; }
+  .gutter .grip { width:6px; height:28px; border-radius:3px; pointer-events:none;
+                  background:radial-gradient(circle, currentColor 1.15px, transparent 1.55px) 0 0 / 6px 6px; }
+  .gutter-h { width:auto; height:var(--gw); cursor:row-resize; margin:0 16px; }
+  .gutter-h .grip { width:28px; height:6px; }
+  .gutter.rail { cursor:pointer; width:22px; background:var(--fill); }
+  .gutter.rail:hover { background:var(--fill-2); }
+  .gutter.rail .grip { display:none; }
+  .gutter.rail::after { content:attr(data-rail); writing-mode:vertical-rl; transform:rotate(180deg);
+                        font-size:10.5px; font-weight:600; letter-spacing:.06em; text-transform:uppercase;
+                        color:var(--text-2); white-space:nowrap; }
+  .gutter-h.rail { width:auto; height:22px; }
+  .gutter-h.rail::after { writing-mode:horizontal-tb; transform:none; }
+  html.lay-resizing, html.lay-resizing * { cursor:col-resize !important; }
+  html.lay-resizing.lay-phone, html.lay-resizing.lay-phone * { cursor:row-resize !important; }
+  html.lay-resizing { user-select:none; -webkit-user-select:none; }
+  html.lay-resizing #pagewrap, html.lay-resizing img { pointer-events:none; }
+  /* laptop (≤ 1100 px): a narrower default sidebar, tighter margins */
+  html.lay-laptop main { padding:10px 12px; }
+  /* phone (≤ 720 px): the panes stack, every edge turns horizontal, the strips scroll sideways */
+  html.lay-phone { --gw:18px; }
+  html.lay-phone main { flex-direction:column; padding:6px 8px; }
+  html.lay-phone #sidebar { width:auto; height:var(--w-side); }
+  html.lay-phone .gutter { width:auto; height:var(--gw); cursor:row-resize; margin:0 12px; }
+  html.lay-phone .gutter .grip { width:28px; height:6px; }
+  html.lay-phone .gutter.rail { height:22px; width:auto; }
+  html.lay-phone .gutter.rail::after { writing-mode:horizontal-tb; transform:none; }
+  html.lay-phone header { overflow-x:auto; gap:8px; padding:8px 10px; scrollbar-width:none; }
+  html.lay-phone header > * { flex:none; }
+  html.lay-phone .name { max-width:34vw; }
+  html.lay-phone #zonebar { padding:6px 10px; }
+  html.lay-phone #chips { flex-wrap:nowrap; overflow-x:auto; padding-bottom:2px; scrollbar-width:none; }
+  html.lay-phone .zchip { flex:none; white-space:nowrap; }
+  html.lay-phone #coach { padding:6px 10px; }
+  html.lay-phone .coach-steps { overflow-x:auto; scrollbar-width:none; }
+  html.lay-phone .cstep { flex:none; min-width:132px; }
+  html.lay-phone #side-tabs { margin:6px; }
+  html.lay-phone .stab { min-width:0; padding:5px 2px; }
+  html.lay-phone #diag { margin:0 8px 8px; }
+  html.lay-phone footer { padding:6px 10px; }
+  html.lay-phone #srcline { max-width:30%; }
+  html.lay-phone #stage-tools { overflow-x:auto; flex-wrap:nowrap; scrollbar-width:none; }
+  html.lay-phone #stage-tools > * { flex:none; }
+  html.lay-phone #stage-info { white-space:nowrap; overflow:hidden; }
+  html.lay-phone #stage-info > * { min-width:0; overflow:hidden; text-overflow:ellipsis; }
+  html.lay-phone #stage-info .grow { flex:0 0 8px; }
+  html.lay-phone #aibar input { min-width:120px; }
+
+  /* ---- S147 · the visual pass: "Galley & Lamp" (the judge panel's pick, 40 and 43 of 50), with three
+     grafts from the runners-up — a live readout while a grip is dragged, the page and the markdown never
+     collapse to a rail on the desktop, and every control grows to a 30-px hit (40 on the phone) because
+     Rab's own words were "I can't see much". Warm paper-and-ink neutrals chosen on purpose, the PDF stage
+     lit like a page under a desk lamp, the markdown a galley proof. The meanings are the law and stay:
+     clay = your hand is required (docs/13, nothing else pulses) · green = repaired · amber = omission ·
+     the accent (a blue pencil now) = selection / current. Every id, control, text and title is untouched;
+     the bench's own program is byte-identical. Overrides only — the S66 rules above still carry the
+     load-bearing mechanisms (#pagephold[hidden], .modal[hidden], the #ctx counter gutter). ---- */
+  :root {
+    --bg:#e6dfd2;
+    --wallpaper:radial-gradient(1100px 640px at 82% -10%, rgba(255,205,140,.18), transparent 60%),
+                radial-gradient(900px 620px at -8% 106%, rgba(120,90,60,.10), transparent 55%);
+    --material:rgba(250,247,239,.72); --card:#f9f6ef; --card-2:#efe8d9;
+    --fill:rgba(94,78,58,.09); --fill-2:rgba(94,78,58,.17);
+    --sep:rgba(66,52,38,.14); --sep-2:rgba(66,52,38,.24);
+    --text:#2b2420; --text-2:rgba(43,36,32,.64); --text-3:rgba(43,36,32,.36);
+    --accent:#3d6ea1; --accent-bg:rgba(61,110,161,.12);
+    --ok:#4a7c56; --ok-bg:rgba(74,124,86,.14);
+    --warn:#b1802c; --warn-bg:rgba(177,128,44,.14);
+    --clay:#c1552f; --clay-bg:rgba(193,85,47,.11);
+    --hl:rgba(255,205,90,.5);
+    --stage:radial-gradient(ellipse 950px 560px at 50% -8%, rgba(255,205,140,.32), transparent 62%), #6f5d47;
+    --shadow:0 1px 2px rgba(43,30,20,.07), 0 8px 22px rgba(43,30,20,.09);
+    --shadow-page:0 3px 10px rgba(30,20,12,.30), 0 20px 48px rgba(30,20,12,.26);
+    --mono:"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",ui-monospace,monospace;
+    --sans:"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
+    --display:"Segoe UI Variable Display","Segoe UI Semibold","Segoe UI",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif;
+    /* five tokens the S66 sheet referenced but never defined (they rendered as invalid CSS) — mapped: */
+    --line:var(--sep); --panel:var(--card-2); --panel-2:var(--card-2); --flow:var(--accent); --bad:var(--clay);
+  }
+  [data-theme="dark"] {
+    --bg:#14100d;
+    --wallpaper:radial-gradient(1100px 650px at 82% -10%, rgba(255,195,130,.07), transparent 60%),
+                radial-gradient(800px 520px at -8% 106%, rgba(200,110,60,.05), transparent 55%);
+    --material:rgba(27,22,18,.7); --card:#1f1a15; --card-2:#27201a;
+    --fill:rgba(214,192,164,.10); --fill-2:rgba(214,192,164,.18);
+    --sep:rgba(255,232,204,.09); --sep-2:rgba(255,232,204,.16);
+    --text:#f1ebe0; --text-2:rgba(241,235,224,.63); --text-3:rgba(241,235,224,.34);
+    --accent:#6fa0d3; --accent-bg:rgba(111,160,211,.16);
+    --ok:#5cab6b; --ok-bg:rgba(92,171,107,.16);
+    --warn:#cb9c47; --warn-bg:rgba(203,156,71,.16);
+    --clay:#d97b53; --clay-bg:rgba(217,123,83,.17);
+    --hl:rgba(255,210,110,.30);
+    --stage:radial-gradient(ellipse 950px 560px at 50% -8%, rgba(255,195,130,.15), transparent 62%), #0e0b09;
+    --shadow:none;
+    --shadow-page:0 4px 14px rgba(0,0,0,.6), 0 24px 60px rgba(0,0,0,.55);
+  }
+
+  /* type: Windows faces first (the tool lives on a Windows desktop and its stream), tabular figures
+     wherever digits must rule up like a proof-reader's line count */
+  .ttl { font-family:var(--display); }
+  .sub { color:var(--text-3); font-style:italic; }
+  #pin, #ptotal, #locbadge, .zchip .zp, .ev-card .n, .toc-row .p, .mark-row .p, .hit .hp,
+  #ctx .cl::before { font-variant-numeric:tabular-nums; }
+
+  /* controls: a 30-px hit everywhere ("I can't see much"), 8-px radius kept */
+  button, input, select { min-height:30px; }
+  button { padding:5px 12px; transition:background .12s ease, transform .08s ease; }
+  #open-btn { padding:2px 8px 2px 2px; border-radius:8px; }
+  .logo { width:28px; height:28px; border-radius:6px; background:var(--text); color:var(--card);
+          font-size:13px; box-shadow:inset 0 1px 0 rgba(255,255,255,.2), 0 1px 2px rgba(0,0,0,.18); }
+
+  /* the header: a letterhead resting on the desk — a top hairline to match the bottom one */
+  header { padding:8px 14px; gap:12px; border-top:1px solid var(--sep); }
+  .chip { border-radius:5px; padding:4px 9px; border:1px solid transparent; }
+  .chip.sandbox, .chip.okc, .chip.reader { background:transparent; border-color:color-mix(in srgb, currentColor 35%, transparent); }
+  .chip.fail { border-color:color-mix(in srgb, var(--clay) 45%, transparent); }
+
+  /* the zone strip: a register ruler and correction slips */
+  #zonebar { padding:8px 14px 9px; }
+  #map { height:8px; background:repeating-linear-gradient(to right, color-mix(in srgb, var(--text) 6%, transparent) 0 1px, transparent 1px 8px), var(--fill); }
+  .zchip { background:var(--card-2); border-radius:5px; box-shadow:none; border-left:3px solid var(--clay);
+           padding:4px 10px 4px 9px; transition:box-shadow .12s ease, background .12s ease; }
+  .zchip:hover { background:var(--card); box-shadow:var(--shadow); }
+  .zchip.repaired { border-left-color:var(--ok); }
+  .zchip.omit { border:1px dashed color-mix(in srgb, var(--warn) 45%, transparent); border-left:3px solid var(--warn); box-shadow:none; }
+  .zchip.sel { border-left-color:var(--accent); background:var(--card); box-shadow:0 0 0 1px var(--accent), var(--shadow); }
+
+  /* the diagnosis card: a marginal note in blue pencil — an explanation, never a summons; the caution
+     inside it is the one place that earns the warm signal */
+  #diag { background:var(--card-2); border:0; border-left:2px solid var(--accent); border-radius:10px; padding:12px 16px; margin:0 14px 10px; }
+  #diag .dtag { border-radius:5px; }
+  #diag .dcaution { background:color-mix(in srgb, var(--clay) 6%, transparent); }
+
+  /* the coach: a ticket strip on card-2, the accent as one rule instead of a wash */
+  #coach { background:var(--card-2); border-top:1px solid var(--accent); }
+  .cstep { border-radius:8px; }
+
+  /* panes and the index tabs */
+  .pane { border-radius:10px; }
+  #sidebar { background:var(--card-2); }
+  #side-tabs { background:transparent; border-radius:0; padding:0; margin:8px 8px 0; gap:2px; }
+  .stab { border-radius:6px 6px 0 0; padding:7px 4px; color:var(--text-2); transition:background .12s ease, color .12s ease; }
+  .stab:hover { background:var(--fill); }
+  .stab.on { background:var(--card); color:var(--text); box-shadow:inset 0 -2px 0 var(--accent); }
+  .sbody { background:var(--card); }
+  .thumb { border-radius:6px; }
+  .thumb .tn { border-radius:4px; }
+
+  /* the stage: paper under a lamp — the page is the lit thing, everything around it recedes.
+     The toolbar WRAPS now: the S66 sheet clipped its right-hand controls (⌖ locate · ⌨ · ✂) whenever the
+     pane was narrower than the row — at 1280 px they were simply gone; nothing is clipped any more */
+  #stage-tools { flex-wrap:wrap; row-gap:6px; max-height:136px; overflow-y:auto; }   /* three rows at most, then it scrolls — never clips */
+  #pagewrap { background:var(--stage); }
+  #pagebox { border-radius:2px; }
+  #stage-info { background:var(--card-2); }
+  .tp-cols img { border-radius:5px; }
+  #tablepanel, #modepin { border-radius:8px; background:var(--card-2); color:var(--text); box-shadow:var(--shadow); }
+
+  /* the markdown pane: a galley proof — crisper stock than the sidebar's; the counter gutter untouched */
+  #aibar { background:var(--card-2); }
+  #ctx { background:var(--card); }
+  #tpanel, #cpanel { border-radius:10px; }
+  .tp-plain, #tmd { border-radius:6px; }
+  .rep-txt { border-radius:5px; }
+
+  /* the footer: filed labels; the toast keeps its pill */
+  .rep { border-radius:5px; }
+  #repairs .rlabel { letter-spacing:.06em; }
+
+  /* sheets, picker, evidence */
+  .sheet { border-radius:12px; }
+  .pick { border-radius:8px; }
+  .pick .pi { border-radius:6px; }
+  .pick .pv { border-radius:5px; }
+  .ev-note, .ev-card { border-radius:6px; }
+
+  /* the grips: a printer's column rule with a proof-reader's caret marking the grab point — ink at rest,
+     ink-black on hover with a small halo behind the wedge, the blue pencil while dragging (never clay),
+     and a live readout so the resize is an instrument reading, not a vibe */
+  .gutter { color:var(--text-2); border-radius:6px; transition:background .12s ease, color .12s ease; }
+  .gutter::before { content:""; position:absolute; left:50%; top:8px; bottom:8px; width:2px; margin-left:-1px;
+                    border-radius:1px; background:var(--sep-2); transition:background .12s ease; }
+  .gutter .grip { position:relative; z-index:1; width:10px; height:9px; border-radius:0; background:currentColor;
+                  clip-path:polygon(50% 0, 0 100%, 100% 100%); transition:none; }
+  .gutter:hover, .gutter:focus-visible { color:var(--text); background:radial-gradient(circle at 50% 50%, var(--fill) 0 13px, transparent 14px); }
+  .gutter:hover::before, .gutter:focus-visible::before { background:var(--sep); }
+  .gutter.dragging, .gutter.dragging:hover { color:var(--accent); background:var(--accent-bg); transition:none; }
+  .gutter.dragging::before { background:var(--accent); }
+  .gutter.dragging .grip, .gutter:hover .grip { width:10px; height:9px; }
+  .gutter.dragging::after { content:attr(data-readout); position:absolute; left:50%; top:50%; transform:translate(-50%, -50%) translateY(-28px);
+                            z-index:60; padding:3px 8px; border-radius:6px; background:var(--card); color:var(--text);
+                            font:500 11px/1.2 var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap; pointer-events:none;
+                            box-shadow:0 0 0 1px var(--accent), var(--shadow); }
+  main:has(#g-side.dragging) #sidebar, main:has(#g-side.dragging) #stage-pane,
+  main:has(#g-md.dragging) #stage-pane, main:has(#g-md.dragging) #md-pane { box-shadow:0 0 0 1px var(--accent), var(--shadow); }
+  body:has(#g-upper.dragging) #upper { box-shadow:inset 0 -1px 0 var(--accent); }
+  /* horizontal seams: the rule runs along, the wedge turns to point into the seam */
+  .gutter-h::before, html.lay-phone .gutter::before { left:8px; right:8px; top:50%; bottom:auto; width:auto; height:2px; margin:-1px 0 0; }
+  .gutter-h .grip, html.lay-phone .gutter .grip { transform:rotate(90deg); width:10px; height:9px; }
+  .gutter-h.dragging .grip, .gutter-h:hover .grip, html.lay-phone .gutter.dragging .grip, html.lay-phone .gutter:hover .grip { width:10px; height:9px; }
+  .gutter-h.dragging::after, html.lay-phone .gutter.dragging::after { transform:translate(-50%, -50%) translateY(-24px); }
+  /* the rail a collapsed pane leaves behind — its name stays visible, always */
+  .gutter.rail { width:26px; background:var(--card-2); color:var(--text-2); box-shadow:0 0 0 1px var(--sep); }
+  .gutter.rail::before { display:none; }
+  .gutter.rail:hover { background:var(--card); color:var(--text); box-shadow:0 0 0 1px var(--sep-2), var(--shadow); }
+  .gutter.rail::after { font-size:11px; letter-spacing:.08em; color:inherit; }
+  .gutter-h.rail, html.lay-phone .gutter.rail { width:auto; height:26px; }
+
+  /* the phone: fingers, not cursors */
+  html.lay-phone button, html.lay-phone input, html.lay-phone select { min-height:40px; }
+  html.lay-phone .stab { padding:11px 2px; }
+  html.lay-phone header { padding:8px 10px; }
+  html.lay-phone .logo { width:32px; height:32px; }
+  html.lay-phone #searchbox button { min-width:40px; }
+  html.lay-laptop #side-tabs { margin:8px 6px 0; }
+  html.lay-laptop .stab { font-size:10.5px; padding:7px 3px; }
+  html.lay-laptop .thumb { min-height:96px; }
 </style>
 </head>
 <body>
@@ -389,6 +626,7 @@
   <button id="rescore" title="re-run the degeneration check on the current text — a preview, writes nothing">◎ re-score</button>
 </header>
 
+<div id="upper">
 <div id="coach" hidden>
   <div class="coach-steps" id="coach-steps"></div>
   <button id="coach-close" title="hide (reopen with ☰ guide)">✕</button>
@@ -402,6 +640,8 @@
      a reason of what's the issue, the highlight of it and a comment that contains the solution…
      banked… to reduce latency between decision making and editing." -->
 <div id="diag"></div>
+</div>
+<div class="gutter gutter-h" id="g-upper" role="separator" aria-orientation="horizontal" tabindex="0" data-rail="zones · diagnosis ▾" title="drag to resize the zone strip · double-click resets"><span class="grip"></span></div>
 
 <main>
   <section class="pane" id="sidebar">
@@ -423,7 +663,9 @@
     </div>
   </section>
 
-  <section class="pane">
+  <div class="gutter" id="g-side" role="separator" aria-orientation="vertical" tabindex="0" data-rail="Contents · Search · Pages · Marks" title="drag to resize the panels"><span class="grip"></span></div>
+
+  <section class="pane" id="stage-pane">
     <div id="stage-tools">
       <button id="histback" title="back — where you jumped from (Alt+←)" disabled>↶</button>
       <button id="histfwd" title="forward (Alt+→)" disabled>↷</button>
@@ -477,6 +719,8 @@
       <div id="nopdf" hidden>source PDF not found — markdown-only repairs (paste a screenshot: Ctrl+V)</div>
     </div>
   </section>
+
+  <div class="gutter" id="g-md" role="separator" aria-orientation="vertical" tabindex="0" data-rail="" data-rail-md="markdown" data-rail-stage="the page" title="drag to share the space between the page and the markdown"><span class="grip"></span></div>
 
   <section class="pane" id="md-pane">
     <div class="pane-head"><span id="md-title">markdown at the zone</span><span class="grow"></span>
@@ -2219,6 +2463,245 @@ addEventListener("beforeunload", (e) => {
 });
 addEventListener("resize", () => { const z = $("zoom").value; if (z === "fit" || z === "fitpage") applyZoom(); }); // review: fit-page refits too
 load().catch((e) => status(`load failed: ${e.message}`, true));
+</script>
+<script>
+/* ---- S147 · the layout module: adjustable panes, a visible grip, sizes remembered per device.
+   LAYOUT ONLY. The bench's own program (the <script> above) is byte-identical to S146's; this
+   block never calls into it and touches no feature — it moves edges, remembers where they were
+   per device (phone / laptop / desktop), and tells the page it was resized so fit-width refits.
+   Gestures: drag a grip = resize · drag past the edge = collapse (the grip becomes a rail; click
+   the rail = reopen) · double-click a grip = this device's defaults · a focused grip takes the
+   arrow keys (Shift = bigger steps) and Enter/Space to collapse or reopen. ---- */
+(function () {
+  "use strict";
+  var KEY = "fp-bench-layout", VERSION = 1;
+  var PHONE_MAX = 720, LAPTOP_MAX = 1100;
+  var byId = function (id) { return document.getElementById(id); };
+  var main = document.querySelector("main");
+  var side = byId("sidebar"), stage = byId("stage-pane"), md = byId("md-pane"), upper = byId("upper");
+  var gSide = byId("g-side"), gMd = byId("g-md"), gUp = byId("g-upper");
+  if (!main || !side || !stage || !md || !upper || !gSide || !gMd || !gUp) return;
+  var root = document.documentElement;
+
+  /* per-device defaults — `side` is a WIDTH on the desktop and laptop, a HEIGHT on the phone;
+     `stage` / `md` are flex shares of what remains; `upper` caps the strip's height (null = natural) */
+  var DEFAULTS = {
+    desktop: { side: 236, stage: 1, md: 1, upper: null },
+    laptop:  { side: 196, stage: 1, md: 1, upper: null },
+    phone:   { side: 124, stage: 3, md: 2, upper: 96 }
+  };
+  var FLOOR = { side: 120, pane: 150, stage: 300, upper: 40 }; /* the smallest a pane is held at; the page keeps room for its wrapped toolbar on the desktop */
+  var SNAP = 56;                                    /* dragged below this, a pane collapses to a rail */
+
+  function clamp(v, lo, hi) { return Math.min(Math.max(v, lo), Math.max(lo, hi)); }
+  function bucket() {
+    var w = window.innerWidth;
+    return w <= PHONE_MAX ? "phone" : (w <= LAPTOP_MAX ? "laptop" : "desktop");
+  }
+  function isPhone() { return bucket() === "phone"; }
+  function fresh(b) {
+    var d = DEFAULTS[b];
+    return { side: d.side, stage: d.stage, md: d.md, upper: d.upper, collapsed: {} };
+  }
+  function load() {
+    var s = null;
+    try { s = JSON.parse(localStorage.getItem(KEY) || "null"); } catch (e) { s = null; }
+    if (!s || s.v !== VERSION || !s.b || typeof s.b !== "object") s = { v: VERSION, b: {} };
+    return s;
+  }
+  var store = load();
+  function state(b) {
+    var s = store.b[b];
+    var num = function (v) { return typeof v === "number" && isFinite(v); };
+    if (!s || !num(s.side) || !num(s.stage) || !num(s.md) || s.side <= 0 || s.stage <= 0 || s.md <= 0) s = store.b[b] = fresh(b);
+    if (!s.collapsed || typeof s.collapsed !== "object") s.collapsed = {};
+    if (s.upper !== null && (!num(s.upper) || s.upper < 0)) s.upper = DEFAULTS[b].upper;
+    return s;
+  }
+  function save() {
+    try { localStorage.setItem(KEY, JSON.stringify(store)); } catch (e) { /* no storage: sizes live for this page only */ }
+  }
+
+  /* tell the bench it was resized (its own listener refits fit-width / fit-page); one per frame */
+  var pinged = false;
+  function ping() {
+    if (pinged) return;
+    pinged = true;
+    requestAnimationFrame(function () { pinged = false; window.dispatchEvent(new Event("resize")); });
+  }
+
+  var lastBucket = null;
+  function apply(announce) {
+    var b = bucket(), s = state(b), phone = b === "phone";
+    root.classList.toggle("lay-phone", phone);
+    root.classList.toggle("lay-laptop", b === "laptop");
+    root.style.setProperty("--w-side", s.side + "px");
+    root.style.setProperty("--fr-stage", String(Math.max(0.05, s.stage)));
+    root.style.setProperty("--fr-md", String(Math.max(0.05, s.md)));
+    if (s.upper == null) root.style.removeProperty("--upper-h"); else root.style.setProperty("--upper-h", s.upper + "px");
+    side.classList.toggle("collapsed", !!s.collapsed.side);
+    stage.classList.toggle("collapsed", !!s.collapsed.stage);
+    md.classList.toggle("collapsed", !!s.collapsed.md);
+    upper.classList.toggle("collapsed", !!s.collapsed.upper);
+    gSide.classList.toggle("rail", !!s.collapsed.side);
+    gUp.classList.toggle("rail", !!s.collapsed.upper);
+    var mdRail = !!s.collapsed.md || !!s.collapsed.stage;
+    gMd.classList.toggle("rail", mdRail);
+    gMd.setAttribute("data-rail", s.collapsed.md ? gMd.getAttribute("data-rail-md") : (s.collapsed.stage ? gMd.getAttribute("data-rail-stage") : ""));
+    var orient = phone ? "horizontal" : "vertical";
+    gSide.setAttribute("aria-orientation", orient);
+    gMd.setAttribute("aria-orientation", orient);
+    gSide.title = s.collapsed.side ? "click to reopen the panels (Contents · Search · Pages · Marks)"
+      : "panels " + s.side + " px — drag to resize · past the edge collapses · double-click resets · arrows nudge";
+    gMd.title = mdRail ? "click to reopen" : "drag to share the space between the page and the markdown · past an edge collapses that side · double-click resets · arrows nudge";
+    gUp.title = s.collapsed.upper ? "click to reopen the zone strip"
+      : (s.upper == null ? "zone strip at its natural height — drag up to cap it · past the edge collapses · double-click resets"
+                         : "zone strip capped at " + s.upper + " px — drag · past the edge collapses · double-click resets");
+    lastBucket = b;
+    if (announce) ping();
+  }
+
+  function size(el) { var r = el.getBoundingClientRect(); return isPhone() ? r.height : r.width; }
+
+  function drag(g, begin, move, end) {
+    g.addEventListener("pointerdown", function (e) {
+      if (e.button !== 0 || g.classList.contains("rail")) return; /* a rail is a button, not a handle */
+      e.preventDefault();
+      delete g.dataset.dragged;
+      var start = { x: e.clientX, y: e.clientY, snap: begin(), b: bucket() }, moved = false;
+      try { g.setPointerCapture(e.pointerId); } catch (x) { /* older engines: capture is a nicety */ }
+      g.classList.add("dragging"); root.classList.add("lay-resizing");
+      function onMove(ev) {
+        if (bucket() !== start.b) { onUp(ev); return; }   /* the window crossed a breakpoint mid-gesture: end the drag, never write one device's size into another's */
+        moved = true; move(ev.clientX - start.x, ev.clientY - start.y, start.snap);
+      }
+      function onUp(ev) {
+        g.removeEventListener("pointermove", onMove); g.removeEventListener("pointerup", onUp); g.removeEventListener("pointercancel", onUp);
+        try { g.releasePointerCapture(ev.pointerId); } catch (x) { /* already released */ }
+        g.classList.remove("dragging"); root.classList.remove("lay-resizing");
+        if (moved) g.dataset.dragged = "1";   /* the click that trails a drag is not a click on the rail */
+        end(moved);
+      }
+      g.addEventListener("pointermove", onMove); g.addEventListener("pointerup", onUp); g.addEventListener("pointercancel", onUp);
+    });
+  }
+
+  /* the panels' edge */
+  drag(gSide,
+    function () { return { side: size(side), side0: state(bucket()).side }; },
+    function (dx, dy, snap) {
+      var s = state(bucket()), phone = isPhone(), v = snap.side + (phone ? dy : dx);
+      var max = phone ? main.clientHeight * 0.6 : main.clientWidth * 0.5;
+      if (v < SNAP) { s.collapsed.side = true; s.side = snap.side0; }   /* a reopen returns to the size before the drag */
+      else { s.collapsed.side = false; s.side = Math.round(clamp(v, FLOOR.side, max)); }
+      gSide.setAttribute("data-readout", s.collapsed.side ? "closed" : s.side + " px");
+      apply(false);
+    },
+    function () { save(); ping(); });
+
+  /* the page ⇄ markdown edge */
+  drag(gMd,
+    function () { var st = size(stage), m = size(md), s = state(bucket()); return { st: st, m: m, sum: st + m, stage0: s.stage, md0: s.md }; },
+    function (dx, dy, snap) {
+      var s = state(bucket()), d = isPhone() ? dy : dx;
+      if (s.collapsed.stage || s.collapsed.md || snap.sum <= 0) return;
+      var st = snap.st + d, m = snap.m - d, phone = isPhone();
+      /* the page and the markdown collapse to a rail on the PHONE only — on the desktop the two things
+         he reads and edits are never one gesture away from a name-only strip (the judges' graft) */
+      if (phone && st < SNAP) { s.collapsed.stage = true; s.stage = snap.stage0; s.md = snap.md0; }
+      else if (phone && m < SNAP) { s.collapsed.md = true; s.stage = snap.stage0; s.md = snap.md0; }
+      else {
+        var fs = Math.min(phone ? FLOOR.pane : FLOOR.stage, snap.sum / 2), fm = Math.min(FLOOR.pane, snap.sum / 2);   /* a starved viewport still splits evenly */
+        st = clamp(st, fs, snap.sum - fm);
+        s.stage = +(2 * st / snap.sum).toFixed(3);
+        s.md = +(2 - s.stage).toFixed(3);
+      }
+      gMd.setAttribute("data-readout", s.collapsed.stage || s.collapsed.md ? "closed"
+        : Math.round(50 * s.stage) + " % · " + Math.round(50 * s.md) + " %");
+      apply(false);
+    },
+    function () { save(); ping(); });
+
+  /* the strip above the panes (coach · zones · diagnosis) */
+  drag(gUp,
+    function () { return { h: upper.getBoundingClientRect().height, nat: upper.scrollHeight, upper0: state(bucket()).upper }; },
+    function (dx, dy, snap) {
+      var s = state(bucket()), v = snap.h + dy;
+      if (v < SNAP / 2) { s.collapsed.upper = true; s.upper = snap.upper0; }
+      else if (v >= snap.nat - 4) { s.collapsed.upper = false; s.upper = null; }   /* natural = uncapped, so a longer strip later is not clipped */
+      else { s.collapsed.upper = false; s.upper = Math.round(clamp(v, FLOOR.upper, snap.nat)); }
+      gUp.setAttribute("data-readout", s.collapsed.upper ? "closed" : (s.upper == null ? "natural" : s.upper + " px"));
+      apply(false);
+    },
+    function () { save(); ping(); });
+
+  /* a rail reopens on click; a grip resets on double-click */
+  function reopen(g, keys) {
+    g.addEventListener("click", function () {
+      if (g.dataset.dragged) { delete g.dataset.dragged; return; }
+      if (!g.classList.contains("rail")) return;
+      var s = state(bucket());
+      keys.forEach(function (k) { s.collapsed[k] = false; });
+      apply(true); save();
+    });
+  }
+  function reset(g, keys, fields) {
+    g.addEventListener("dblclick", function () {
+      var b = bucket(), s = state(b), d = DEFAULTS[b];
+      fields.forEach(function (f) { s[f] = d[f]; });
+      keys.forEach(function (k) { s.collapsed[k] = false; });
+      apply(true); save();
+    });
+  }
+  reopen(gSide, ["side"]); reopen(gMd, ["stage", "md"]); reopen(gUp, ["upper"]);
+  reset(gSide, ["side"], ["side"]); reset(gMd, ["stage", "md"], ["stage", "md"]); reset(gUp, ["upper"], ["upper"]);
+
+  /* the keyboard: arrows nudge, Enter / Space collapse or reopen (a rail always reopens) */
+  function keys(g, nudge, toggle) {
+    g.addEventListener("keydown", function (e) {
+      var step = e.shiftKey ? 48 : 16, k = e.key;
+      if (k === "ArrowLeft" || k === "ArrowUp") { if (!g.classList.contains("rail")) nudge(-step); e.preventDefault(); }
+      else if (k === "ArrowRight" || k === "ArrowDown") { if (!g.classList.contains("rail")) nudge(step); e.preventDefault(); }
+      else if (k === "Enter" || k === " ") { toggle(state(bucket())); apply(true); save(); e.preventDefault(); }
+    });
+  }
+  function toggleOne(key) { return function (s) { s.collapsed[key] = !s.collapsed[key]; }; }
+  /* the shared page ⇄ markdown grip: a rail reopens BOTH; otherwise only the phone may rail the markdown */
+  function toggleMd(s) {
+    if (s.collapsed.stage || s.collapsed.md) { s.collapsed.stage = false; s.collapsed.md = false; }
+    else if (isPhone()) { s.collapsed.md = true; }
+  }
+  keys(gSide, function (d) {
+    var s = state(bucket()), phone = isPhone();
+    s.collapsed.side = false;
+    s.side = Math.round(clamp(s.side + d, FLOOR.side, phone ? main.clientHeight * 0.6 : main.clientWidth * 0.5));
+    apply(true); save();
+  }, toggleOne("side"));
+  keys(gMd, function (d) {
+    var s = state(bucket()), st = size(stage), m = size(md), sum = st + m;
+    if (s.collapsed.stage || s.collapsed.md || sum <= 0) return;
+    var fs = Math.min(isPhone() ? FLOOR.pane : FLOOR.stage, sum / 2), fm = Math.min(FLOOR.pane, sum / 2);
+    st = clamp(st + d, fs, sum - fm);
+    s.stage = +(2 * st / sum).toFixed(3); s.md = +(2 - s.stage).toFixed(3);
+    apply(true); save();
+  }, toggleMd);
+  keys(gUp, function (d) {
+    var s = state(bucket()), h = (s.upper == null ? upper.getBoundingClientRect().height : s.upper) + d;
+    s.collapsed.upper = false;
+    s.upper = h >= upper.scrollHeight - 4 ? null : Math.round(clamp(h, FLOOR.upper, upper.scrollHeight));
+    apply(true); save();
+  }, toggleOne("upper"));
+
+  /* the bench hides the markdown pane for a bare PDF (reading mode) by writing its inline style;
+     mirror that so the edge between them hides too — observed, never assumed */
+  function mdOff() { main.classList.toggle("md-off", md.style.display === "none"); }
+  new MutationObserver(mdOff).observe(md, { attributes: true, attributeFilter: ["style"] });
+  mdOff();
+
+  /* crossing a breakpoint switches to that device's remembered sizes */
+  window.addEventListener("resize", function () { if (bucket() !== lastBucket) apply(false); });
+  apply(false);
+})();
 </script>
 </body>
 </html>
