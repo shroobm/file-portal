@@ -1885,9 +1885,19 @@ def ship(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
     """Stream the bundle contents (ASCII paths only on the local side) into a dot-prefixed
     remote assembly dir, then atomically rename it to the visible bundle name."""
     part = f"{REMOTE_STAGING}/.part-{source_sha[:16]}"
+    dest = f"{REMOTE_STAGING}/{shell_quote(bundle_name)}"
+    # S146 E4 (SYM-128): POSIX `mv DIR EXISTING_DIR` puts DIR INSIDE the existing one — a
+    # reship under a name still sitting in staging nested the new assembly inside the old
+    # copy (S144 E4, repaired by hand as `.held-<sha>-<stamp>`). The same repair, mechanical
+    # and BEFORE the move: an existing name is moved aside under a dot-prefixed name the
+    # exporter's sweep does not ingest (Observed on the S144 repair: NOOP), the move is
+    # reported on stdout and carried by the shipped event, and a failed move-aside aborts
+    # (exit 97) rather than nesting. Nothing in staging is ever deleted here.
+    aside = f"{REMOTE_STAGING}/.held-{source_sha[:16]}-{datetime.now(timezone.utc).strftime('%Y%m%d-%H%M%S')}"
     remote_cmd = (
         f"rm -rf {part} && mkdir -p {part} && tar -xf - -C {part} && "
-        f"mv {part} {REMOTE_STAGING}/{shell_quote(bundle_name)}"
+        f"if [ -e {dest} ]; then mv {dest} {aside} || exit 97; echo MOVED-ASIDE {aside}; fi && "
+        f"mv {part} {dest}"
     )
     tar = subprocess.Popen(
         ["tar", "-cf", "-", "-C", str(tmp_dir), "."], stdout=subprocess.PIPE
@@ -1908,9 +1918,14 @@ def ship(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
         emit("ship", "failed", bundle=bundle_name, error=ssh.stderr.strip()[:150])
         raise RuntimeError(f"ship failed: tar={tar.returncode} ssh={ssh.returncode} "
                            f"{ssh.stderr.strip()[:300]}")
+    moved = [ln.split(" ", 1)[1].strip() for ln in (ssh.stdout or "").splitlines()
+             if ln.startswith("MOVED-ASIDE ")]
+    if moved:
+        print(f"STAGING NAME REPLACED: the previous {bundle_name} moved aside as {moved[0]}", flush=True)
     print(f"SHIPPED {bundle_name} -> {REMOTE}:{REMOTE_STAGING}/", flush=True)
     emit("ship", "shipped", bundle=bundle_name, sha=source_sha[:16],
-         audit_mode=audit_mode())  # S146 E2: a ship names the lever it shipped under (SYM-131)
+         audit_mode=audit_mode(),  # S146 E2: a ship names the lever it shipped under (SYM-131)
+         **({"replaced_staging": moved[0]} if moved else {}))  # S146 E4 (SYM-128): and the copy it displaced
 
 
 def shell_quote(s: str) -> str:

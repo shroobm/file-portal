@@ -22,6 +22,8 @@ Each tripwire names what breaks if it fires:
   T21 per-process memory signature — a death at the card's ceiling cannot say WHOSE memory the
                                      rest was (SYM-132): the split is misread, unread renders as
                                      nobody, or the ceiling moment is lost or overwritten
+  T22 ship move-aside              — a reship nests inside a copy still sitting under the same
+                                     staging name (SYM-128), or the displaced copy goes unnamed
 """
 
 import ast
@@ -1689,7 +1691,7 @@ try:
           and not cas.AUDIT_MODE_FILE.with_name(cas.AUDIT_MODE_FILE.name + ".tmp").exists(),
           "T20 (g) the undo is the same call; no temp file survives the atomic replace")
     src_ship = Path(cas.__file__).read_text(encoding="utf-8")
-    check('emit("ship", "shipped", bundle=bundle_name, sha=source_sha[:16],\n         audit_mode=audit_mode())' in src_ship
+    check('emit("ship", "shipped", bundle=bundle_name, sha=source_sha[:16],\n         audit_mode=audit_mode(),' in src_ship
           and 'verdict="fail",\n             audit_mode=audit_mode())' in src_ship,
           "T20 (h) the shipped and held events name the lever they acted under (source read, not inferred)")
 finally:
@@ -1776,6 +1778,65 @@ check(len(ev) == 1 and "peak_mib" in ev[0] and "ceiling_top" not in ev[0] and "c
 src13 = Path(cas.__file__).read_text(encoding="utf-8")
 check(src13.count("sig = _gpu_signature(with_processes=True)") == 2 and 'sig["ceiling_top"] = _CEILING["top"]' in src13,
       "T21 (k) both death certificates (timeout, stalled) read the per-process split and carry the ceiling moment (source read)")
+
+# ---------- T22: a ship never nests onto an existing staging name (S146 E4, SYM-128) ----------
+print("T22 ship move-aside")
+
+
+class FakeTarT22:
+    def __init__(self):
+        self.stdout, self.returncode, self.killed = object(), 0, False
+
+    def poll(self):
+        return 0
+
+    def wait(self, timeout=None):
+        return 0
+
+    def kill(self):
+        self.killed = True
+
+
+class FakeSshRunT22:
+    def __init__(self, stdout=""):
+        self.stdout_text, self.cmds = stdout, []
+
+    def __call__(self, args, **kw):
+        self.cmds.append(args)
+        return types.SimpleNamespace(returncode=0, stdout=self.stdout_text, stderr="")
+
+
+_saved_popen_t22, _saved_run_t22, _saved_emit_t22 = cas.subprocess.Popen, cas.subprocess.run, cas.emit
+try:
+    cas.subprocess.Popen = lambda *a, **k: FakeTarT22()
+    rec = EmitRecorder()
+    cas.emit = rec
+    sha = "cb7e026f3fc02da8ffffffffffffffff"
+    work22 = QUARANTINE / "t22-bundle"
+    work22.mkdir(parents=True, exist_ok=True)
+    (work22 / "x.md").write_text("x", encoding="utf-8")
+    fake_ssh = FakeSshRunT22(stdout="MOVED-ASIDE ~/file-portal/library/staging/.held-cb7e026f3fc02da8-20260913-181500\n")
+    cas.subprocess.run = fake_ssh
+    cas.ship(work22, "Zero-to-One by Blake Masters and Peter Thiel", sha)
+    remote = fake_ssh.cmds[0][-1]
+    i_guard, i_mv = remote.find("if [ -e "), remote.rfind("mv ~/file-portal/library/staging/.part-")
+    check(i_guard != -1 and i_mv != -1 and i_guard < i_mv and ".held-cb7e026f3fc02da8-" in remote and "|| exit 97" in remote,
+          "T22 (a) the remote command moves an existing name aside (.held-<sha>-<stamp>, or exit 97) BEFORE the final mv — never a bare mv onto a name")
+    check("rm -rf ~/file-portal/library/staging/'Zero" not in remote and remote.count("rm -rf") == 1 and "rm -rf ~/file-portal/library/staging/.part-" in remote,
+          "T22 (b) NEGATIVE: nothing in staging is deleted — the only rm -rf is the assembly's own .part dir")
+    ev = rec.named("ship/shipped")
+    check(len(ev) == 1 and ev[0].get("replaced_staging", "").endswith("/.held-cb7e026f3fc02da8-20260913-181500") and ev[0]["sha"] == "cb7e026f3fc02da8",
+          "T22 (c) when the remote reports MOVED-ASIDE, the shipped event names the displaced copy")
+    rec2 = EmitRecorder()
+    cas.emit = rec2
+    cas.subprocess.run = FakeSshRunT22(stdout="")
+    cas.ship(work22, "Zero-to-One by Blake Masters and Peter Thiel", sha)
+    ev2 = rec2.named("ship/shipped")
+    check(len(ev2) == 1 and "replaced_staging" not in ev2[0], "T22 (d) NEGATIVE: a first ship (nothing displaced) carries no replaced_staging key")
+    check(re.search(r"\.held-cb7e026f3fc02da8-\d{8}-\d{6}", remote) is not None,
+          "T22 (e) the aside name is dot-prefixed (the exporter's sweep skips it — Observed on the S144 hand repair) and carries the sha and a UTC stamp")
+finally:
+    cas.subprocess.Popen, cas.subprocess.run, cas.emit = _saved_popen_t22, _saved_run_t22, _saved_emit_t22
 
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER

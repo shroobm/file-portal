@@ -1062,7 +1062,9 @@
           ]
         },
         "ship/shipped": {
-          "optional_keys": [],
+          "optional_keys": [
+            "replaced_staging"
+          ],
           "required_keys": [
             "audit_mode",
             "bundle",
