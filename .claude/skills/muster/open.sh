@@ -337,6 +337,17 @@ if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
     ABSENT)  row "widget autostart" "ABSENT — no 'File Portal widget (J57)' task (J57 unregistered?) · $al_txt";;
     *)       row "widget autostart" "UNREAD (powershell probe rc=$ta_rc)";;
   esac
+  # S141 (unread-surfaces/scheduled-tasks-on-the-card; the S140 second reading's SURF-04): the OTHER two File Portal tasks —
+  # the Desk server Rab's phone talks to and the relay watch — are an OS-level surface no card read. State + last run + last
+  # result, as readings; a task that is not registered is ABSENT; a probe that did not answer is UNREAD, never "down".
+  for tname in "File Portal desk (relay)" "File Portal relay watch (Fable)"; do
+    tk_out=$("$PS_EXE" -NoProfile -NonInteractive -Command "\$t = Get-ScheduledTask -TaskName '$tname' -ErrorAction SilentlyContinue; if (\$t) { \$i = \$t | Get-ScheduledTaskInfo; 'STATE=' + \$t.State + ' LASTRUN=' + \$i.LastRunTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mmZ') + ' RESULT=' + \$i.LastTaskResult } else { 'ABSENT' }" 2>/dev/null | tr -d '\r' | head -n 1); tk_rc=$?
+    case "$tk_out" in
+      STATE=*) row "task" "'$tname' ${tk_out#STATE=}";;
+      ABSENT)  row "task" "'$tname' ABSENT — not registered (install_task.ps1)";;
+      *)       row "task" "'$tname' UNREAD (powershell probe rc=$tk_rc)";;
+    esac
+  done
   row "python procs" "$(printf '%s\n' "$ps_table" | grep -c '^python\.exe')"
   row "ollama" "$(printf '%s\n' "$ps_table" | grep -c '^ollama')"
   # S81 §10.4: a hung run was reported healthy because a process NAMED llama-server was read as

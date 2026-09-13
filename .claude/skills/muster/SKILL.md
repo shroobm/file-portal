@@ -256,6 +256,11 @@ A floor, not a proof — state these rather than let a clean card imply them:
   the enforcement tier and is currently off, by Rab's standing choice.
 - The collision check greps tracked text; a compressed asset can produce a spurious hit, and a
   human decides which hits are real.
+- The two `task` rows (S141: `File Portal desk (relay)`, `File Portal relay watch (Fable)`, beside the widget's) are
+  the SCHEDULER's words — state, last run, last result code — not a health check: `Running` says the process was
+  started, not that it answers; `RESULT=267009` is Task Scheduler's own code for a still-running task. `ABSENT` means
+  unregistered; `UNREAD` means the PowerShell probe did not answer. The Desk's health is its access log, the relay
+  watch's is `coordination/private/relay-watch.log`.
 
 ## Tripwires
 
