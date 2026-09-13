@@ -140,6 +140,22 @@ else bad "identity ignores an S99 in prose" "got: $(printf '%s' "$out" | grep 't
 if printf '%s' "$out" | grep -qE 'collision.*S43 is already named'; then
   bad "…and does not confuse the prose S99 with a collision on S43" "false collision"; else ok "…and reports no false collision on S43"; fi
 
+# CASE 6b — THE LEVER THAT DECIDES SHIPPING SAYS SO (S145; ERR-102, C-024). The property: when
+# `audit-mode.txt` is not `enforce`, the card prints its own `SHIPS ON VERDICT` line — the levers
+# row alone printed `audit=report` at three opens and was read past; a failing book reached the
+# vault. Violate: a library root whose lever reads `report`; assert the line. Negative control:
+# `enforce` must print nothing — a line that fires on every value is case 0's tautology.
+LEV="$WORK/lev"; mkdir -p "$LEV"; printf 'report' > "$LEV/audit-mode.txt"
+out=$(MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$LEV" VAULT_DIR="$WORK/nope" \
+      WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1); rc=$?
+if printf '%s' "$out" | grep -qE 'SHIPS ON VERDICT +audit-mode=report'; then ok "S145: a lever reading report makes the card say SHIPS ON VERDICT"
+else bad "S145: a lever reading report makes the card say SHIPS ON VERDICT" "got: $(printf '%s' "$out" | grep -E 'levers|SHIPS' | head -2)"; fi
+printf 'enforce' > "$LEV/audit-mode.txt"
+out=$(MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$LEV" VAULT_DIR="$WORK/nope" \
+      WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1); rc=$?
+if printf '%s' "$out" | grep -qE 'SHIPS ON VERDICT'; then bad "S145 control: enforce prints no SHIPS ON VERDICT line" "the line fired on enforce"
+else ok "S145 control: enforce prints no SHIPS ON VERDICT line"; fi
+
 # CASE 7 — THE FAILED-PROBE RULE, paid for by this script's own first run. The property: `down`
 # is a reading. Violate: make the process probe fail (a `tasklist` on PATH that exits non-zero)
 # and assert the card says UNREAD. If it says `down`, a broken probe is again being rendered as

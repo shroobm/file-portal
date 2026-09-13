@@ -149,6 +149,15 @@ State these as in force, each with its trigger, because they bind *after* the op
 - **Read the page before editing it** — at the bench, read the bundle markdown Rab is reading,
   and look at the rendered page *before* the write, not after.
 - **Adoption is Rab's hand** — build → print SHA-8 → he copies and launches (MSIX ghost laws).
+- **The levers line decides shipping — read it aloud** (S145; ERR-102, C-024). The card's `levers audit=… ·
+  analyst=… · batch=…` row is quoted in the open reply and named in the plan, and it is read AGAIN, in the
+  same reply, before any launch that can ship (a converter run, a reship, a queue). `audit=report` means
+  every verdict ships, fail included, and the ThinkPad's first ingest has no guard (SYM-130/131): the card
+  now prints that meaning as its own `SHIPS ON VERDICT` line whenever the lever is not `enforce`. It printed
+  `audit=report` at the S142, S143 and S144 opens; the reader read the S142 triage and the plan instead, and
+  a failing book reached the vault. A launch without the lever named in its own sentence is a launch without
+  its premise. Tripwire: `selftest.sh` (a fixture whose lever reads `report` must make the card say so; one
+  reading `enforce` must not).
 - **One lab process on the card, ever** — check `nvidia-smi` / `.gpu-lock` before any GPU work.
 - **Kill process trees**, never single PIDs. **Never chain GPU work with `;`** (SYM-021).
 - **The link fence is non-negotiable** wherever an LLM touches markdown.

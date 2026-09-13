@@ -210,6 +210,12 @@ if [[ -d "$PIPE_ROOT" ]]; then
     row "intake" "UNREAD - no .intake-state.json (the watcher never ran here, or a different root)"
   fi
   row "levers" "audit=$(cat "$PIPE_ROOT/audit-mode.txt" 2>/dev/null || echo '?') · analyst=$(cat "$PIPE_ROOT/analyst-mode.txt" 2>/dev/null || echo '?') · batch=$(cat "$PIPE_ROOT/chunk-batch.txt" 2>/dev/null || echo '?')"
+  # S145 (ERR-102, C-024): the levers row printed `audit=report` at three opens and the reader read the plan instead. The
+  # lever that decides SHIPPING gets its own line whenever it is not `enforce`, so the card SAYS what the value means.
+  am=$(tr -d '\r\n' < "$PIPE_ROOT/audit-mode.txt" 2>/dev/null || echo '?')
+  if [[ "$am" != "enforce" ]]; then
+    row "SHIPS ON VERDICT" "audit-mode=${am:-?} — every verdict SHIPS (fail included) and the exporter's first ingest has no guard (SYM-130/131): name this line in the plan and before any launch that can ship"
+  fi
   row "gpu-lock" "$([[ -e "$PIPE_ROOT/.gpu-lock" ]] && echo 'PRESENT — a convert holds the card' || echo 'absent')"
   row "events" "$(grep -c . "$PIPE_ROOT/events.jsonl" 2>/dev/null || echo 0) line(s)"
 else

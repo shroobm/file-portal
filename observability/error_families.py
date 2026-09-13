@@ -141,7 +141,7 @@ MECHANISM = {
         "a phase computes and stores a correct value and no renderer reads it, reads another object, or shows it beside "
         "an unrelated verdict; or a surface promises a live lever the code baked in once",
         "grep the producer for the key, then every renderer for a read of that key — writes without reads",
-        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106", "SYM-123", "SYM-124", "SYM-131"],  # S144: 131 the audit-mode lever decides shipping and nothing projects its state (no card row, no event, no writer); S141: 123 a deferral with no event; 124 afailed move with no event
+        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106", "SYM-123", "SYM-124"],  # S141: 123 a deferral with no event; 124 afailed move with no event
     ),
     "S8 A-FACT-FROZEN-WHILE-THE-WORLD-MOVED": (
         "a number, SHA, date or topology assumption typed once into prose, a guard or a default and never regenerated; "
@@ -153,7 +153,7 @@ MECHANISM = {
         "an index, key or comparison target is computed from the wrong object — an offset already absolute, a "
         "sanitised stem, a positional 'newest', the pre-analyst body against the post-analyst one",
         "trace one flagged item by hand to its reference object; does the formula double-apply, or compare two texts?",
-        ["SYM-002", "SYM-013", "SYM-025", "SYM-028", "SYM-050", "SYM-073", "SYM-114"],  # 114 (S131): the reference carried the disease
+        ["SYM-002", "SYM-013", "SYM-025", "SYM-028", "SYM-050", "SYM-073", "SYM-114", "SYM-131"],  # 114 (S131): the reference carried the disease
     ),
     "S10 IDENTITY-FROM-THE-WRONG-EVIDENCE": (
         "an identity or authority check reads a proxy — a pid that belongs to a launcher, a local counter for a global "
