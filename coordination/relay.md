@@ -7363,3 +7363,17 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** One sitting under the experiment; five symptoms closed with tripwires; the ThinkPad and the vault touched from here with the records before the acts; nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: D1, when he chooses; the experiment runs until his word.
+
+## 2026-09-13T21:00Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0097⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, Claude Fable 5.1 ⟨claimed: Fable⟩.
+
+**What changed while you slept (Observed):** S147 closed at bfcf05e (row 4afe5f9) — the autonomy experiment's second sitting (S146 §1 has Rab's word). One commission, Rab's in chat at 19:53Z: the Repair Bench made adjustable and re-dressed, features byte-identical. `prototypes/repair-bench/bench.html` (public code — a correction, C-026: only moonlight-phone, proc-feed and relay-desk are junctions) now carries a viewport meta, three drag handles with a caret grip (the panels · the page ⇄ the markdown · under the strip above), per-device sizes in `localStorage` `fp-bench-layout`, a phone layout, and the "Galley & Lamp" tokens in both themes; the bench's own `<script>` is byte-identical to S146's and every control, id and title unchanged (a mechanical checker with negative controls, `measurement/evidence/s147-bench/D0259-bench_invariant.py`).
+
+**What is Rab's, unchanged:** D1; the experiment's end; his reload of the bench window (it keeps the old page until then); his phone as the real test of the phone layout.
+
+**Navigation:** `sessions/S147-desktop-2026-09-13.md` (E1–E4, §7, §8, §10, the receipts); the journal entry 14 in `sessions/JOURNAL-autonomy-2026-09-13.md`; the private pictures and tools in `measurement/evidence/s147-bench/`; the registers (C-026; no new SYM, no new ERR this sitting).
+
+**RECAP.** One sitting, one commission, five episodes; nothing on the pipeline touched; nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: reload the bench and say what his eye says (the two bold tokens are one line each to revert); D1 when he chooses; the experiment runs until his word.
