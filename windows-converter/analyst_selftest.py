@@ -85,8 +85,26 @@ def scripted(candidates):
     return gen
 
 
+_LEDGER_DIR = None
+
+
+def test_ledger():
+    """A throwaway ledger dir (S141): the chunk journal is dumped by dump.sh at the end of process() — never into the real dumps/."""
+    global _LEDGER_DIR
+    if _LEDGER_DIR is None:
+        import tempfile
+        _LEDGER_DIR = tempfile.mkdtemp(prefix="analyst-ledger-")
+        open(os.path.join(_LEDGER_DIR, "LEDGER.md"), "w", encoding="utf-8").write("| id | utc | lane | category | subject | bytes | sha256 |\n|---|---|---|---|---|---|---|\n")
+    os.environ["FP_DUMP_LEDGER"] = _LEDGER_DIR
+    return _LEDGER_DIR
+
+
+test_ledger()  # at IMPORT: every process() in this file — through run() or direct — dumps into the throwaway (ERR-099: the first run wrote 36 fixture rows into the real ledger)
+
+
 def run(markdown, candidates, module=analyst):
     """Run module.process() with _generate scripted; restores the real _generate after."""
+    test_ledger()
     real_gen = module._generate
     module._generate = scripted(candidates)
     try:
@@ -114,6 +132,9 @@ def _():
     # punctuation edits — reverted by the whitelist, so the shipped text keeps the author's commas
     assert "September" in out and "budget, carefully," in out, out
     assert meta["edits"]["accepted"].get("hyphen") == 1 and meta["edits"]["reverted"].get("punctuation/case", 0) >= 1, meta["edits"]
+    # S141 (unread-surfaces/orphan-chunk-journal-dump-before-rmtree): the chunk journal was LEDGERED before its dir died
+    assert str(meta.get("chunk_journal_dump", "")).startswith("DUMPED"), meta.get("chunk_journal_dump")
+    assert "chunk journal - run" in open(os.path.join(test_ledger(), "LEDGER.md"), encoding="utf-8").read(), "no ledger row"
 
 
 B_MD = "\n\n".join([words(15, f"para{p}tok") for p in range(1, 6)])  # 5 distinct paragraphs

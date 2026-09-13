@@ -309,6 +309,10 @@
     "converter:chunks_reconciled": {
       "disposition": "EVIDENCE",
       "reason": "J46 (S140): inside manifest.analyst.edits - the number of PASSED chunks that lost at least one edit to the whitelist's revert; the denominator is chunks_passed. Evidence, same home as converter:edits."
+    },
+    "converter:chunk_journal_dump": {
+      "disposition": "EVIDENCE",
+      "reason": "S141 (unread-surfaces/orphan-chunk-journal-dump-before-rmtree): manifest.analyst.chunk_journal_dump - the DUMPED id (or the UNREAD reason) of the chunk journal ledgered by dumps/dump.sh before the analyst rmtree's its work dir; dumps/ D0001 was this journal snapshotted by hand minutes before an rmtree, and SURF-12 (S140 second reading) found one orphaned 12 days. Evidence: a pointer to bytes + a ledger row, never a verdict."
     }
   },
   "census_dispositions": {

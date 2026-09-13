@@ -631,12 +631,39 @@ def process(markdown: str, backend: str = "local",
         # J41 (signed Rab 2026-09-09): manifest-only — the analyst/done event's key set stays
         # pinned by T17, and no frontmatter line is added; see the rmtree comment below.
         "chunk_scores": chunk_scores,
+        # S141 (unread-surfaces/orphan-chunk-journal-dump-before-rmtree): the journal's bytes ledgered by dumps/dump.sh BEFORE the
+        # work dir goes (dumps/ D0001 was this journal snapshotted by hand minutes before an rmtree; SURF-12 found one orphaned
+        # 12 days) — the DUMPED id, or the UNREAD reason; a failure to dump is said, never fatal. In the literal so the glass
+        # detector reads the key (it harvests returned dict literals, not subscript assignments).
+        "chunk_journal_dump": _dump_journal(journal_path, work_dir.name),
     }
     # The book is assembled and about to be written — the journal has done its job. J41: the
     # journal still dies here, every time — but its per-chunk survival/ratio/reason numbers now
     # live on in meta["chunk_scores"] above, so a book that PASSES no longer loses them too.
-    shutil.rmtree(work_dir, ignore_errors=True)
+    shutil.rmtree(work_dir, ignore_errors=True)  # after the dump above
     return unfence("\n\n".join(out), embeds), meta
+
+
+def _dump_journal(journal_path, run_key: str) -> str:
+    """Ledger the chunk journal through dumps/dump.sh (the ONLY writer of the ledger); returns the DUMPED id or an UNREAD
+    reason. Bash is Git Bash on this machine; the pipeline lane signs the row as DUMP_LANE=pipeline."""
+    try:
+        if not Path(journal_path).is_file() or Path(journal_path).stat().st_size == 0:
+            return "UNREAD: no journal to dump (nothing was journaled this run)"
+        dump_sh = Path(__file__).resolve().parent.parent / "dumps" / "dump.sh"
+        if not dump_sh.is_file():
+            return "UNREAD: dumps/dump.sh not beside this checkout"
+        args = ["bash", str(dump_sh)]
+        test_ledger = os.environ.get("FP_DUMP_LEDGER")  # a selftest's throwaway ledger: in place, no copy into the public dumps/
+        if test_ledger:
+            args += ["--ref", "--ledger", test_ledger]
+        p = subprocess.run(args + ["evidence", "chunk journal - run %s" % run_key[:40], str(journal_path)],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+                           env=dict(os.environ, DUMP_LANE="pipeline"))
+        line = next((ln for ln in p.stdout.splitlines() if ln.startswith("DUMPED")), "")
+        return line if p.returncode == 0 and line else "UNREAD: dump.sh exited %s: %s" % (p.returncode, (p.stderr or p.stdout).strip()[:120])
+    except (OSError, subprocess.TimeoutExpired) as e:
+        return "UNREAD: dump.sh did not run (%s)" % e
 
 
 def gpu_busy(threshold_mib: int = 2000) -> tuple[bool, int]:
