@@ -141,7 +141,7 @@ MECHANISM = {
         "a phase computes and stores a correct value and no renderer reads it, reads another object, or shows it beside "
         "an unrelated verdict; or a surface promises a live lever the code baked in once",
         "grep the producer for the key, then every renderer for a read of that key — writes without reads",
-        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106", "SYM-123", "SYM-124"],  # S141: 123 a deferral with no event; 124 afailed move with no event
+        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106", "SYM-123", "SYM-124", "SYM-132"],  # S145: 132 a death at the ceiling names no co-tenant (the OS produces the per-process split; the signature never reads it); S141: 123 a deferral with no event; 124 afailed move with no event
     ),
     "S8 A-FACT-FROZEN-WHILE-THE-WORLD-MOVED": (
         "a number, SHA, date or topology assumption typed once into prose, a guard or a default and never regenerated; "
