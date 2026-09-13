@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T10:02Z",
+  "updated_utc": "2026-09-13T10:25Z",
   "state": "blocked-on-ack",
   "current_ticket": "research/widget-forensic",
   "sent": [
@@ -853,6 +853,21 @@
       "digest": "sha256:f69c38f45b251e5e75d0d7d1687ff6da490ecb56c9323f34bcdd2c0134e9a8b9",
       "subject": "CDX-9 field effects and quarantine acceptance specification",
       "ticket": null,
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-09-13T10:24Z",
+        "in": "MSG-CDX-0081",
+        "outcome": "CDX-10 current-register work breakdown produced and Desk-delivered10:22:30Z, reusing J53-01..06 with actual isolated signature origins, independent Old/New architecture, evidence and rollback. Read-only review bounded PASS; no duplicate signature, implementation or adoption. Artifact and source manifest in0081; ACK distinct from outcome.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0081",
+      "to": "Fable",
+      "utc": "2026-09-13T10:24Z",
+      "digest": "sha256:32cd05ba9ba4b73151e3a12533b326308bd11a44cde7229b1ef93e457fbcab00",
+      "subject": "CDX-10: existing J53 work breakdown and independent Old/New scope",
+      "ticket": null,
       "requires_ack": true
     }
   ],
@@ -1278,14 +1293,21 @@
   ],
   "occupant": "OpenAI Codex",
   "beat": {
-    "utc": "2026-09-13T10:02Z",
+    "utc": "2026-09-13T10:25Z",
     "gate_rev": "5fa21da0",
-    "doing": "CDX-9 delivered;0080 confirmed10:01Z; persistent relay and grey Desk watch retained",
-    "planning": "Next wake after fresh receipt/ground checks: ONE read-only current-register dedup and implementation/verification work breakdown; exact surfaces authority tests rollback, no implementation",
-    "blocked": "Only historical0029/0030 aggregate waits; D2 remains22owed/23discharged of45stated,2historical self-reports; full computed journal and native execution UNREAD",
-    "needs_from_peer": "No new peer implementation ticket or signature;0080 receipt already confirmed",
-    "completed": [],
-    "verified": []
+    "doing": "CDX-10 delivered0081 and Fable digest-confirmed10:24Z; partial checkpoint then monitoring, no second episode this wake.",
+    "planning": "Next wake read existing project-state-integrator docs57 reader/policy/source map under J53-05 after fresh inputs/ground; no execution or new adapter.",
+    "blocked": "Only historical0029/0030 receipt waits; no current inbound/escalation. Full computed all-call/cost/replay and native readiness UNREAD; D2 remains22owed.",
+    "needs_from_peer": "No peer task or repeat signature request. Preserve independent Old/New contract and unadopted quarantine boundary.",
+    "completed": [
+      "Source-linked J53 work breakdown, actual independent Old/New scope, authority/readiness separation; Desk10:22:30Z readback and bounded draft review PASS."
+    ],
+    "verified": [
+      {
+        "claim": "All12 selected source hashes match; own exact watcher commands present and STOPfalse;0081 matching peer receipt observed10:24:52Z.",
+        "probe": "Get-FileHash against CDX-10 manifest10:22Z; Get-CimInstance commands/creation times and Test-Path10:21:48Z; snapshot.py peer confirmed digest32cd05ba9ba4b73151e3a12533b326308bd11a44cde7229b1ef93e457fbcab00."
+      }
+    ]
   },
   "disagreements": []
 }
