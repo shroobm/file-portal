@@ -564,15 +564,33 @@
   /* the grips: a printer's column rule with a proof-reader's caret marking the grab point — ink at rest,
      ink-black on hover with a small halo behind the wedge, the blue pencil while dragging (never clay),
      and a live readout so the resize is an instrument reading, not a vibe */
-  .gutter { color:var(--text-2); border-radius:6px; transition:background .12s ease, color .12s ease; }
-  .gutter::before { content:""; position:absolute; left:50%; top:8px; bottom:8px; width:2px; margin-left:-1px;
-                    border-radius:1px; background:var(--sep-2); transition:background .12s ease; }
+  .gutter { color:var(--text-2); border-radius:6px; transition:background .12s ease, color .12s ease; --rule:var(--sep-2); }
+  /* the rule is painted in the middle of an 18-px strip: the visual stays 2 px, the hit zone is the strip (S148) */
+  .gutter::before { content:""; position:absolute; left:50%; top:8px; bottom:8px; width:18px; margin-left:-9px;
+                    background:linear-gradient(to right, transparent calc(50% - 1px), var(--rule) calc(50% - 1px), var(--rule) calc(50% + 1px), transparent calc(50% + 1px)); }
+  .gutter:hover, .gutter:focus-visible { --rule:var(--sep); }
+  .gutter.dragging { --rule:var(--accent); }
+  /* the tap-steppers (S148): shown on hover / focus and always on the phone; a tap nudges by a step; hidden on a rail */
+  .gutter .step { position:absolute; left:50%; top:50%; width:22px; height:22px; margin-left:-11px; border-radius:6px; z-index:2;
+                  display:flex; align-items:center; justify-content:center; font-size:11px; line-height:1; color:var(--text-2);
+                  background:var(--card); box-shadow:0 0 0 1px var(--sep), var(--shadow); cursor:pointer;
+                  opacity:0; pointer-events:none; transition:opacity .12s ease, background .12s ease; }
+  .gutter .step:hover { background:var(--accent-bg); color:var(--accent); }
+  .gutter .step[data-step="-1"] { margin-top:-50px; }
+  .gutter .step[data-step="1"] { margin-top:28px; }
+  .gutter .step[data-step="-1"]::before { content:"◂"; }
+  .gutter .step[data-step="1"]::before { content:"▸"; }
+  .gutter:hover .step, .gutter:focus-visible .step, .gutter:focus-within .step, html.lay-phone .gutter .step { opacity:1; pointer-events:auto; }
+  .gutter.rail .step, .gutter.dragging .step { display:none; }
+  .gutter-h .step, html.lay-phone .gutter .step { margin-top:-11px; }
+  .gutter-h .step[data-step="-1"], html.lay-phone .gutter .step[data-step="-1"] { margin-left:-62px; }
+  .gutter-h .step[data-step="1"], html.lay-phone .gutter .step[data-step="1"] { margin-left:40px; }
+  .gutter-h .step[data-step="-1"]::before, html.lay-phone .gutter .step[data-step="-1"]::before { content:"▴"; }
+  .gutter-h .step[data-step="1"]::before, html.lay-phone .gutter .step[data-step="1"]::before { content:"▾"; }
   .gutter .grip { position:relative; z-index:1; width:10px; height:9px; border-radius:0; background:currentColor;
                   clip-path:polygon(50% 0, 0 100%, 100% 100%); transition:none; }
   .gutter:hover, .gutter:focus-visible { color:var(--text); background:radial-gradient(circle at 50% 50%, var(--fill) 0 13px, transparent 14px); }
-  .gutter:hover::before, .gutter:focus-visible::before { background:var(--sep); }
   .gutter.dragging, .gutter.dragging:hover { color:var(--accent); background:var(--accent-bg); transition:none; }
-  .gutter.dragging::before { background:var(--accent); }
   .gutter.dragging .grip, .gutter:hover .grip { width:10px; height:9px; }
   .gutter.dragging::after { content:attr(data-readout); position:absolute; left:50%; top:50%; transform:translate(-50%, -50%) translateY(-28px);
                             z-index:60; padding:3px 8px; border-radius:6px; background:var(--card); color:var(--text);
@@ -582,7 +600,8 @@
   main:has(#g-md.dragging) #stage-pane, main:has(#g-md.dragging) #md-pane { box-shadow:0 0 0 1px var(--accent), var(--shadow); }
   body:has(#g-upper.dragging) #upper { box-shadow:inset 0 -1px 0 var(--accent); }
   /* horizontal joins: the rule lies along the edge, the wedge turns to point into it */
-  .gutter-h::before, html.lay-phone .gutter::before { left:8px; right:8px; top:50%; bottom:auto; width:auto; height:2px; margin:-1px 0 0; }
+  .gutter-h::before, html.lay-phone .gutter::before { left:8px; right:8px; top:50%; bottom:auto; width:auto; height:18px; margin:-9px 0 0;
+    background:linear-gradient(to bottom, transparent calc(50% - 1px), var(--rule) calc(50% - 1px), var(--rule) calc(50% + 1px), transparent calc(50% + 1px)); }
   .gutter-h .grip, html.lay-phone .gutter .grip { transform:rotate(90deg); width:10px; height:9px; }
   .gutter-h.dragging .grip, .gutter-h:hover .grip, html.lay-phone .gutter.dragging .grip, html.lay-phone .gutter:hover .grip { width:10px; height:9px; }
   .gutter-h.dragging::after, html.lay-phone .gutter.dragging::after { transform:translate(-50%, -50%) translateY(-24px); }
@@ -641,7 +660,7 @@
      banked… to reduce latency between decision making and editing." -->
 <div id="diag"></div>
 </div>
-<div class="gutter gutter-h" id="g-upper" role="separator" aria-orientation="horizontal" tabindex="0" data-rail="zones · diagnosis ▾" title="drag to resize the zone strip · double-click resets"><span class="grip"></span></div>
+<div class="gutter gutter-h" id="g-upper" role="separator" aria-orientation="horizontal" tabindex="0" data-rail="zones · diagnosis ▾" title="drag to resize the zone strip · double-click resets"><span class="step" data-step="-1" role="button" aria-label="smaller" title="smaller (a tap; the wheel works too)"></span><span class="grip"></span><span class="step" data-step="1" role="button" aria-label="larger" title="larger (a tap; the wheel works too)"></span></div>
 
 <main>
   <section class="pane" id="sidebar">
@@ -663,7 +682,7 @@
     </div>
   </section>
 
-  <div class="gutter" id="g-side" role="separator" aria-orientation="vertical" tabindex="0" data-rail="Contents · Search · Pages · Marks" title="drag to resize the panels"><span class="grip"></span></div>
+  <div class="gutter" id="g-side" role="separator" aria-orientation="vertical" tabindex="0" data-rail="Contents · Search · Pages · Marks" title="drag to resize the panels"><span class="step" data-step="-1" role="button" aria-label="smaller" title="smaller (a tap; the wheel works too)"></span><span class="grip"></span><span class="step" data-step="1" role="button" aria-label="larger" title="larger (a tap; the wheel works too)"></span></div>
 
   <section class="pane" id="stage-pane">
     <div id="stage-tools">
@@ -720,7 +739,7 @@
     </div>
   </section>
 
-  <div class="gutter" id="g-md" role="separator" aria-orientation="vertical" tabindex="0" data-rail="" data-rail-md="markdown" data-rail-stage="the page" title="drag to share the space between the page and the markdown"><span class="grip"></span></div>
+  <div class="gutter" id="g-md" role="separator" aria-orientation="vertical" tabindex="0" data-rail="" data-rail-md="markdown" data-rail-stage="the page" title="drag to share the space between the page and the markdown"><span class="step" data-step="-1" role="button" aria-label="smaller" title="smaller (a tap; the wheel works too)"></span><span class="grip"></span><span class="step" data-step="1" role="button" aria-label="larger" title="larger (a tap; the wheel works too)"></span></div>
 
   <section class="pane" id="md-pane">
     <div class="pane-head"><span id="md-title">markdown at the zone</span><span class="grow"></span>
@@ -2671,26 +2690,51 @@ load().catch((e) => status(`load failed: ${e.message}`, true));
     if (s.collapsed.stage || s.collapsed.md) { s.collapsed.stage = false; s.collapsed.md = false; }
     else if (isPhone()) { s.collapsed.md = true; }
   }
-  keys(gSide, function (d) {
+  function nudgeSide(d) {
     var s = state(bucket()), phone = isPhone();
     s.collapsed.side = false;
     s.side = Math.round(clamp(s.side + d, FLOOR.side, phone ? main.clientHeight * 0.6 : main.clientWidth * 0.5));
     apply(true); save();
-  }, toggleOne("side"));
-  keys(gMd, function (d) {
+  }
+  function nudgeMd(d) {
     var s = state(bucket()), st = size(stage), m = size(md), sum = st + m;
     if (s.collapsed.stage || s.collapsed.md || sum <= 0) return;
     var fs = Math.min(isPhone() ? FLOOR.pane : FLOOR.stage, sum / 2), fm = Math.min(FLOOR.pane, sum / 2);
     st = clamp(st + d, fs, sum - fm);
     s.stage = +(2 * st / sum).toFixed(3); s.md = +(2 - s.stage).toFixed(3);
     apply(true); save();
-  }, toggleMd);
-  keys(gUp, function (d) {
+  }
+  function nudgeUp(d) {
     var s = state(bucket()), h = (s.upper == null ? upper.getBoundingClientRect().height : s.upper) + d;
     s.collapsed.upper = false;
     s.upper = h >= upper.scrollHeight - 4 ? null : Math.round(clamp(h, FLOOR.upper, upper.scrollHeight));
     apply(true); save();
-  }, toggleOne("upper"));
+  }
+  keys(gSide, nudgeSide, toggleOne("side"));
+  keys(gMd, nudgeMd, toggleMd);
+  keys(gUp, nudgeUp, toggleOne("upper"));
+
+  /* S148 (Rab, Desk ba04c67f: on the stream a one-finger drag is a cursor move, a scroll is a wheel): the WHEEL over a
+     handle resizes it (down = bigger), and each handle carries two tap-steppers — a tap is a click, which the stream
+     carries — so the panes move without a held-button drag. A rail ignores both (its click reopens). */
+  var STEP = 48;
+  function wire(g, nudge) {
+    g.addEventListener("wheel", function (e) {
+      if (g.classList.contains("rail")) return;
+      e.preventDefault();
+      nudge((e.deltaY || e.deltaX) > 0 ? STEP : -STEP);
+    }, { passive: false });
+    Array.prototype.forEach.call(g.querySelectorAll(".step"), function (st) {
+      st.addEventListener("pointerdown", function (e) { e.stopPropagation(); e.preventDefault(); });   /* a tap on a stepper never starts a drag */
+      st.addEventListener("dblclick", function (e) { e.stopPropagation(); });
+      st.addEventListener("click", function (e) {
+        e.stopPropagation();
+        if (g.classList.contains("rail")) return;
+        nudge(STEP * (parseInt(st.getAttribute("data-step"), 10) || 1));
+      });
+    });
+  }
+  wire(gSide, nudgeSide); wire(gMd, nudgeMd); wire(gUp, nudgeUp);
 
   /* the bench hides the markdown pane for a bare PDF (reading mode) by writing its inline style;
      mirror that so the edge between them hides too — observed, never assumed */
