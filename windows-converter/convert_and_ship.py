@@ -15,6 +15,7 @@ force-OCR VRAM-fill stall, docs/11 Phase 1).
 """
 
 import argparse
+import csv
 import hashlib
 import json
 import os
@@ -441,20 +442,93 @@ def out_of_range_assets(names: list[str], start: int, end: int) -> list[str]:
             if (p := asset_page(n)) is not None and not (start <= p <= end)]
 
 
-def _gpu_signature() -> dict:
+def _gpu_top_committers(limit: int = 3, floor_mib: int = 64) -> list[dict]:
+    """S146 E3 (SYM-132): WHO holds the card — the top committers of GPU memory by the WDDM
+    per-process counter `\\GPU Process Memory(*)\\Total Committed`, one sample through typeperf
+    (no admin, ~1 s). `nvidia-smi`'s per-process column prints N/A under WDDM, and the
+    per-process `Dedicated Usage` counter DRIFTS (S145 E8 read 11 GB on a process whose
+    Total Committed was 478 MB) — so it is this counter or nothing. Names come from one
+    `tasklist` pass. Rows [{pid, name, mib}] sorted by mib, at most `limit`, none under
+    `floor_mib`; an EMPTY list on any failure (best-effort, never raises), which a reader must
+    render as UNREAD, not as "nobody"."""
+    try:
+        out = subprocess.run(
+            ["typeperf", r"\GPU Process Memory(*)\Total Committed", "-sc", "1"],
+            capture_output=True, text=True, timeout=20, encoding="utf-8", errors="replace")
+        lines = [ln for ln in out.stdout.splitlines() if ln.startswith('"')]
+        if len(lines) < 2:
+            return []
+        header = next(csv.reader([lines[0]]))
+        values = next(csv.reader([lines[1]]))
+        rows = []
+        for column, value in zip(header[1:], values[1:]):
+            m = re.search(r"pid_(\d+)_", column)
+            if not m:
+                continue
+            try:
+                mib = int(float(value) / (1024 * 1024))
+            except ValueError:
+                continue
+            if mib >= floor_mib:
+                rows.append({"pid": int(m.group(1)), "mib": mib})
+        rows.sort(key=lambda r: -r["mib"])
+        rows = rows[:limit]
+        if rows:
+            names = {}
+            tl = subprocess.run(["tasklist", "/FO", "CSV", "/NH"], capture_output=True, text=True,
+                                timeout=20, encoding="utf-8", errors="replace")
+            for rec in csv.reader(tl.stdout.splitlines()):
+                if len(rec) >= 2 and rec[1].isdigit():
+                    names[int(rec[1])] = rec[0]
+            for r in rows:
+                r["name"] = names.get(r["pid"], "?")
+        return rows
+    except Exception:  # noqa: BLE001
+        return []
+
+
+# S146 E3: the card's ceiling moment during the current Marker run — the first sample at or above
+# CEILING_FRACTION of the card, with WHO held it (the per-process split). Cleared at each
+# _run_marker start; read by the slice event and the death certificates. A module-level dict on
+# purpose: _run_marker's and _run_slice_with_retries' return shapes are CLOSED contracts (T10).
+CEILING_FRACTION = 0.80
+_CEILING: dict = {}
+
+
+def _note_ceiling(sig: dict) -> None:
+    """Called on every 30-s GPU sample of a Marker run: at or above CEILING_FRACTION of the
+    card, and only on a NEW high, record the moment with the per-process split — so the
+    split kept is the one at the worst moment, not the last one seen. The per-process read
+    costs ~1 s (typeperf) and runs only up here, never on a quiet card. A sample without a
+    total (nvidia-smi failed) records nothing — UNREAD, not a ceiling."""
+    mib_now = sig.get("gpu_mem_used_mib", 0)
+    total_now = sig.get("gpu_mem_total_mib", 0)
+    if not total_now or mib_now < CEILING_FRACTION * total_now or mib_now <= _CEILING.get("mib", 0):
+        return
+    _CEILING.update({"mib": mib_now, "util_pct": sig.get("gpu_util_pct"),
+                     "top": _gpu_top_committers(),
+                     "at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime())})
+
+
+def _gpu_signature(with_processes: bool = False) -> dict:
     """Best-effort triage facts for a stall's death certificate: GPU util/mem at kill time.
     High util + near-full mem = the VRAM-thrash species; low util = deadlock/IO species.
-    Facts only — classification is the reader's job. Never raises."""
+    Facts only — classification is the reader's job. Never raises. With `with_processes`,
+    adds `gpu_top` — the per-process split (S146 E3: a death at the ceiling that cannot say
+    whose memory the rest was is unattributable by construction; SYM-132)."""
     try:
         out = subprocess.run(
             ["nvidia-smi", "--query-gpu=utilization.gpu,memory.used,memory.total",
              "--format=csv,noheader,nounits"],
             capture_output=True, text=True, timeout=10, encoding="utf-8", errors="replace")
         util, used, total = (x.strip() for x in out.stdout.strip().split(",")[:3])
-        return {"gpu_util_pct": int(util), "gpu_mem_used_mib": int(used),
-                "gpu_mem_total_mib": int(total)}
+        sig = {"gpu_util_pct": int(util), "gpu_mem_used_mib": int(used),
+               "gpu_mem_total_mib": int(total)}
     except Exception:  # noqa: BLE001
         return {}
+    if with_processes:
+        sig["gpu_top"] = _gpu_top_committers()
+    return sig
 
 
 OLLAMA_URL = os.environ.get("FP_OLLAMA_URL", "http://127.0.0.1:11434")
@@ -1095,6 +1169,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
     # count, so each slice gets its own proportionate bound.
     timeout_s = max(3600, pages * 20)
     peak_mib = 0
+    _CEILING.clear()  # S146 E3: the ceiling moment is per Marker run
     next_gpu_sample = time.perf_counter()
 
     def _kill_and_clear() -> None:
@@ -1118,10 +1193,15 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
             pass
         elapsed = time.perf_counter() - t0
         if time.perf_counter() >= next_gpu_sample:
-            peak_mib = max(peak_mib, _gpu_signature().get("gpu_mem_used_mib", 0))
+            sig = _gpu_signature()
+            peak_mib = max(peak_mib, sig.get("gpu_mem_used_mib", 0))
+            _note_ceiling(sig)  # S146 E3: at the card's ceiling, read WHO holds it
             next_gpu_sample = time.perf_counter() + 30
         if elapsed >= timeout_s:
-            sig = _gpu_signature()
+            sig = _gpu_signature(with_processes=True)  # S146 E3: the death certificate names WHO held the card
+            if _CEILING:
+                sig["ceiling_mib"] = _CEILING["mib"]
+                sig["ceiling_top"] = _CEILING["top"]
             _kill_and_clear()
             # review 2026-08-30: the timeout got structured fields and emitted nothing — a
             # timeout kill was visible only as intake/failed exit 1. Now it names itself.
@@ -1131,7 +1211,10 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
                                      elapsed_s=int(elapsed), pages=pages, timeout_s=timeout_s)
         frozen_s = liveness.age()
         if frozen_s > STALL_FROZEN_S:
-            sig = _gpu_signature()
+            sig = _gpu_signature(with_processes=True)  # S146 E3: the death certificate names WHO held the card
+            if _CEILING:
+                sig["ceiling_mib"] = _CEILING["mib"]
+                sig["ceiling_top"] = _CEILING["top"]
             _kill_and_clear()
             emit("convert", "stalled", source=source_name, frozen_s=int(frozen_s),
                  elapsed_s=int(elapsed), page_range=page_range, **sig)
@@ -1490,7 +1573,11 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
             staging.rename(slice_dir)  # atomic publish: .done exists only on a complete slice
             emit("convert", "slice", source=source_name, slice=i, slices=total,
                  page_range=f"{start}-{end}", wall_s=round(wall, 1), batch=meta["batch"],
-                 resumed=False,
+                 resumed=False, peak_mib=mib,
+                 # S146 E3 (SYM-132): the slice names its peak and, when the card reached its
+                 # ceiling during the winning attempt, WHO held it at that moment.
+                 **({"ceiling_mib": _CEILING["mib"], "ceiling_top": _CEILING["top"],
+                     "ceiling_at": _CEILING["at"]} if _CEILING else {}),
                  **({"attempts": meta["attempts"], "recovered": True,
                      "retry_wall_s": meta["retry_wall_s"],
                      "lever_batch": slice_batch} if meta["recovered"] else {}))

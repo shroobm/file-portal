@@ -310,6 +310,18 @@
       "disposition": "EVIDENCE",
       "reason": "J46 (S140): inside manifest.analyst.edits - the number of PASSED chunks that lost at least one edit to the whitelist's revert; the denominator is chunks_passed. Evidence, same home as converter:edits."
     },
+    "converter:gpu_util_pct": {
+      "disposition": "REPORT",
+      "reason": "S146 E3: a field of _gpu_signature() - the three facts of the death certificate (timeout/stalled events carry **sig; the morning's kill row '100 %, 9,515 of 10,240 MiB' was read from them) and of the 30-s samples that drive the peak and the ceiling moment. Since S45; the detector sees a store now because the signature is built in a local dict before gpu_top is added. Reported through the events, read by the record and the Room's algedonic line."
+    },
+    "converter:gpu_mem_used_mib": {
+      "disposition": "REPORT",
+      "reason": "S146 E3: the card's resident total at the sample (nvidia-smi memory.used) - the death certificate's second fact and the input of _note_ceiling(); reported through the timeout/stalled events and the per-slice peak_mib. Twin of gpu_util_pct."
+    },
+    "converter:gpu_mem_total_mib": {
+      "disposition": "REPORT",
+      "reason": "S146 E3: the card's size at the sample - the denominator of the ceiling fraction (CEILING_FRACTION 0.80) and of every 'x of 10,240 MiB' sentence in the records; reported through the timeout/stalled events. Twin of gpu_util_pct."
+    },
     "converter:mtime_before": {
       "disposition": "EVIDENCE",
       "reason": "S146 E2 (pipeline/audit-mode-provenance, SYM-131): a field of the pipeline/audit_mode_set event - the lever file's mtime before set_audit_mode() replaced it. The SYM-131 gap was a value with no writer and no time; the pair of mtimes proves the write replaced the exact file the reader had read and dates the previous value (the first row dated report at 2026-09-12 02:59:52Z). Read live by nobody; the record quotes it. Evidence, same home as the event row."

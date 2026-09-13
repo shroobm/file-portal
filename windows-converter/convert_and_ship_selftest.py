@@ -17,8 +17,11 @@ Each tripwire names what breaks if it fires:
   T7  vocabulary parity            — an event exists that the Room and manual cannot speak
   T8  invocation bound + outer cap — the ladder's worst case silently exceeds its signed bound
   T10 zero-stall negative control  — recovery bookkeeping leaks into the healthy path
-  T12 audit-mode provenance        — the lever is written without a writer on record (SYM-131),
+  T20 audit-mode provenance        — the lever is written without a writer on record (SYM-131),
                                      or a ship/hold event cannot say which mode it acted under
+  T21 per-process memory signature — a death at the card's ceiling cannot say WHOSE memory the
+                                     rest was (SYM-132): the split is misread, unread renders as
+                                     nobody, or the ceiling moment is lost or overwritten
 """
 
 import ast
@@ -1644,54 +1647,135 @@ for n in ("j42good", "j42stale", "j42none"):
     shutil.rmtree(cas.ANCHOR / n, ignore_errors=True)
 
 
-# ---------- T12: the lever's provenance (S146 E2, SYM-131) ----------
-print("T12 audit-mode provenance")
+# ---------- T20: the lever's provenance (S146 E2, SYM-131) ----------
+print("T20 audit-mode provenance")
 _saved_emit_t11 = cas.emit
 rec = EmitRecorder()
 cas.emit = rec
 try:
     cas.AUDIT_MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
     cas.AUDIT_MODE_FILE.write_text("report\n", encoding="utf-8")
-    row = cas.set_audit_mode("enforce", "selftest T12", "the flip through the writer")
+    row = cas.set_audit_mode("enforce", "selftest T20", "the flip through the writer")
     check(cas.AUDIT_MODE_FILE.read_text(encoding="utf-8").strip() == "enforce" and cas.audit_mode() == "enforce",
-          "T12 (a) set_audit_mode writes the lever and audit_mode() reads it back")
+          "T20 (a) set_audit_mode writes the lever and audit_mode() reads it back")
     ev = rec.named("pipeline/audit_mode_set")
-    check(len(ev) == 1 and ev[0]["old"] == "report" and ev[0]["new"] == "enforce" and ev[0]["writer"] == "selftest T12"
+    check(len(ev) == 1 and ev[0]["old"] == "report" and ev[0]["new"] == "enforce" and ev[0]["writer"] == "selftest T20"
           and ev[0]["unchanged"] is False and ev[0]["reason"] == "the flip through the writer"
           and ev[0]["mtime_after"] is not None,
-          "T12 (b) the write is ONE event naming old, new, writer, reason and the mtime")
-    check(row["old"] == "report" and row["new"] == "enforce", "T12 (c) the returned row is the event's row")
+          "T20 (b) the write is ONE event naming old, new, writer, reason and the mtime")
+    check(row["old"] == "report" and row["new"] == "enforce", "T20 (c) the returned row is the event's row")
     mtime_now = cas.AUDIT_MODE_FILE.stat().st_mtime
     refused = False
     try:
-        cas.set_audit_mode("audit", "selftest T12", "a value outside the vocabulary")
+        cas.set_audit_mode("audit", "selftest T20", "a value outside the vocabulary")
     except ValueError:
         refused = True
     check(refused and cas.AUDIT_MODE_FILE.read_text(encoding="utf-8").strip() == "enforce"
           and cas.AUDIT_MODE_FILE.stat().st_mtime == mtime_now and len(rec.named("pipeline/audit_mode_set")) == 1,
-          "T12 (d) NEGATIVE: a value outside report|enforce refuses BEFORE writing and emits nothing")
+          "T20 (d) NEGATIVE: a value outside report|enforce refuses BEFORE writing and emits nothing")
     refused = False
     try:
         cas.set_audit_mode("report", "", "no writer")
     except ValueError:
         refused = True
     check(refused and cas.audit_mode() == "enforce" and len(rec.named("pipeline/audit_mode_set")) == 1,
-          "T12 (e) NEGATIVE: a write without a writer refuses — an unattributed write is the defect this exists for")
-    row2 = cas.set_audit_mode("enforce", "selftest T12", "the same value again")
+          "T20 (e) NEGATIVE: a write without a writer refuses — an unattributed write is the defect this exists for")
+    row2 = cas.set_audit_mode("enforce", "selftest T20", "the same value again")
     ev = rec.named("pipeline/audit_mode_set")
     check(row2["unchanged"] is True and len(ev) == 2 and ev[1]["unchanged"] is True and ev[1]["old"] == "enforce",
-          "T12 (f) writing the value already there is still an event (unchanged: true) — a no-op write is a decision")
-    row3 = cas.set_audit_mode("report", "selftest T12", "back")
+          "T20 (f) writing the value already there is still an event (unchanged: true) — a no-op write is a decision")
+    row3 = cas.set_audit_mode("report", "selftest T20", "back")
     check(row3["old"] == "enforce" and row3["new"] == "report" and cas.audit_mode() == "report"
           and not cas.AUDIT_MODE_FILE.with_name(cas.AUDIT_MODE_FILE.name + ".tmp").exists(),
-          "T12 (g) the undo is the same call; no temp file survives the atomic replace")
+          "T20 (g) the undo is the same call; no temp file survives the atomic replace")
     src_ship = Path(cas.__file__).read_text(encoding="utf-8")
     check('emit("ship", "shipped", bundle=bundle_name, sha=source_sha[:16],\n         audit_mode=audit_mode())' in src_ship
           and 'verdict="fail",\n             audit_mode=audit_mode())' in src_ship,
-          "T12 (h) the shipped and held events name the lever they acted under (source read, not inferred)")
+          "T20 (h) the shipped and held events name the lever they acted under (source read, not inferred)")
 finally:
     cas.emit = _saved_emit_t11
     cas.AUDIT_MODE_FILE.write_text("report\n", encoding="utf-8")
+
+# ---------- T21: the card's ceiling names WHO holds it (S146 E3, SYM-132) ----------
+print("T21 per-process memory signature")
+TYPEPERF_TEXT = (
+    r'"(PDH-CSV 4.0)","\\HOST\GPU Process Memory(pid_111_luid_0x0_0x1_phys_0)\Total Committed",'
+    r'"\\HOST\GPU Process Memory(pid_222_luid_0x0_0x1_phys_0)\Total Committed",'
+    r'"\\HOST\GPU Process Memory(pid_333_luid_0x0_0x1_phys_0)\Total Committed",'
+    r'"\\HOST\GPU Process Memory(pid_444_luid_0x0_0x1_phys_0)\Total Committed"' + "\n"
+    '"09/13/2026 13:54:48.443","4620000000.000000","500000000.000000","30000000.000000","1300000000.000000"\n')
+TASKLIST_TEXT = ('"python.exe","111","Console","1","3,500,000 K"\n'
+                 '"dwm.exe","444","Console","1","120,000 K"\n'
+                 '"firefox.exe","222","Console","1","300,000 K"\n')
+
+
+class FakeRunT13:
+    def __init__(self, typeperf=TYPEPERF_TEXT, smi="45, 9300, 10240\n"):
+        self.typeperf, self.smi, self.calls = typeperf, smi, []
+
+    def __call__(self, args, **kw):
+        self.calls.append(args[0])
+        text = {"typeperf": self.typeperf, "tasklist": TASKLIST_TEXT, "nvidia-smi": self.smi}.get(args[0], "")
+        return types.SimpleNamespace(stdout=text, stderr="", returncode=0)
+
+
+_saved_run_t13 = cas.subprocess.run
+try:
+    fake = FakeRunT13()
+    cas.subprocess.run = fake
+    rows = cas._gpu_top_committers()
+    check([r["pid"] for r in rows] == [111, 444, 222] and [r["mib"] for r in rows] == [4405, 1239, 476]
+          and [r["name"] for r in rows] == ["python.exe", "dwm.exe", "firefox.exe"],
+          "T21 (a) the top committers are read from Total Committed, sorted by MiB, named from one tasklist pass; the 28 MiB row is under the floor")
+    cas.subprocess.run = FakeRunT13(typeperf="")
+    check(cas._gpu_top_committers() == [], "T21 (b) NEGATIVE: no counter output reads as an EMPTY list (UNREAD), never as nobody on the card")
+    cas.subprocess.run = fake
+    sig = cas._gpu_signature(with_processes=True)
+    plain = cas._gpu_signature()
+    check(sig.get("gpu_mem_used_mib") == 9300 and [r["pid"] for r in sig.get("gpu_top", [])] == [111, 444, 222]
+          and "gpu_top" not in plain,
+          "T21 (c) the signature carries gpu_top only when asked — the quiet-card sample stays one nvidia-smi call")
+    cas._CEILING.clear()
+    cas._note_ceiling({"gpu_util_pct": 40, "gpu_mem_used_mib": 7000, "gpu_mem_total_mib": 10240})
+    check(not cas._CEILING, "T21 (d) NEGATIVE: 68 % of the card is not a ceiling moment — nothing recorded, no per-process read")
+    cas._note_ceiling({"gpu_util_pct": 4, "gpu_mem_used_mib": 9256, "gpu_mem_total_mib": 10240})
+    first_at = cas._CEILING.get("at")
+    check(cas._CEILING.get("mib") == 9256 and cas._CEILING.get("util_pct") == 4
+          and [r["pid"] for r in cas._CEILING.get("top", [])] == [111, 444, 222] and first_at,
+          "T21 (e) 90 % of the card records the moment with WHO held it (E8's 9,256 MiB at 4 % util is the shape)")
+    cas._note_ceiling({"gpu_util_pct": 44, "gpu_mem_used_mib": 8500, "gpu_mem_total_mib": 10240})
+    check(cas._CEILING.get("mib") == 9256, "T21 (f) a later, lower sample above the fraction does NOT overwrite the worst moment")
+    cas._note_ceiling({"gpu_util_pct": 100, "gpu_mem_used_mib": 9515, "gpu_mem_total_mib": 10240})
+    check(cas._CEILING.get("mib") == 9515 and cas._CEILING.get("util_pct") == 100, "T21 (g) a new high replaces it (the morning's kill row: 9,515 at 100 %)")
+    cas._CEILING.clear()
+    cas._note_ceiling({})
+    check(not cas._CEILING, "T21 (h) NEGATIVE: a sample without a total (nvidia-smi failed) records nothing — UNREAD, not a ceiling")
+finally:
+    cas.subprocess.run = _saved_run_t13
+
+# (i)/(j): the slice event carries its peak and, with a ceiling moment in the winning attempt, the split — through the real
+# _convert_chunked with the stubbed Marker (the stub never clears _CEILING; the real _run_marker clears it at its start).
+work13 = QUARANTINE / "t13-work"
+(work13 / "marker-out").mkdir(parents=True, exist_ok=True)
+cas._CEILING.clear()
+cas._CEILING.update({"mib": 9256, "util_pct": 4, "top": [{"pid": 111, "name": "python.exe", "mib": 4405}], "at": "2026-09-13T16:18:30Z"})
+rec = with_stub(MarkerStub())
+cas._convert_chunked("stub.pdf", QUARANTINE / "stub.pdf", "stub", work13, work13 / "marker-out", SLICE_ARGS, 200, "t13sha00000000000")
+ev = [f for f in rec.named("convert/slice") if not f.get("resumed")]
+check(len(ev) == 1 and ev[0].get("peak_mib") == 4321 and ev[0].get("ceiling_mib") == 9256
+      and ev[0].get("ceiling_top") == [{"pid": 111, "name": "python.exe", "mib": 4405}] and ev[0].get("ceiling_at") == "2026-09-13T16:18:30Z",
+      "T21 (i) the slice event names its peak and the ceiling moment's split")
+cas._CEILING.clear()
+work13b = QUARANTINE / "t13-work-b"
+(work13b / "marker-out").mkdir(parents=True, exist_ok=True)
+rec = with_stub(MarkerStub())
+cas._convert_chunked("stub.pdf", QUARANTINE / "stub.pdf", "stub", work13b, work13b / "marker-out", SLICE_ARGS, 200, "t13sha11111111111")
+ev = [f for f in rec.named("convert/slice") if not f.get("resumed")]
+check(len(ev) == 1 and "peak_mib" in ev[0] and "ceiling_top" not in ev[0] and "ceiling_mib" not in ev[0],
+      "T21 (j) NEGATIVE: a run that never reached the ceiling carries no ceiling keys — absence is the reading, not a zero")
+src13 = Path(cas.__file__).read_text(encoding="utf-8")
+check(src13.count("sig = _gpu_signature(with_processes=True)") == 2 and 'sig["ceiling_top"] = _CEILING["top"]' in src13,
+      "T21 (k) both death certificates (timeout, stalled) read the per-process split and carry the ceiling moment (source read)")
 
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER

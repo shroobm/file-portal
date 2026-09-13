@@ -802,7 +802,11 @@
           "optional_keys": [
             "attempts",
             "batch",
+            "ceiling_at",
+            "ceiling_mib",
+            "ceiling_top",
             "lever_batch",
+            "peak_mib",
             "recovered",
             "retry_wall_s",
             "wall_s"
@@ -820,11 +824,7 @@
           ]
         },
         "convert/slice_retry": {
-          "optional_keys": [
-            "gpu_mem_total_mib",
-            "gpu_mem_used_mib",
-            "gpu_util_pct"
-          ],
+          "optional_keys": [],
           "required_keys": [
             "attempt",
             "batch",
@@ -880,11 +880,7 @@
           ]
         },
         "convert/stalled": {
-          "optional_keys": [
-            "gpu_mem_total_mib",
-            "gpu_mem_used_mib",
-            "gpu_util_pct"
-          ],
+          "optional_keys": [],
           "required_keys": [
             "elapsed_s",
             "event",
@@ -897,11 +893,7 @@
           ]
         },
         "convert/timeout": {
-          "optional_keys": [
-            "gpu_mem_total_mib",
-            "gpu_mem_used_mib",
-            "gpu_util_pct"
-          ],
+          "optional_keys": [],
           "required_keys": [
             "elapsed_s",
             "event",
