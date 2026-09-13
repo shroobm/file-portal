@@ -479,6 +479,25 @@ class Exporter:
             if grep.returncode > 1:
                 raise ExportError(f"dedup grep failed: {grep.stderr.strip()}")
 
+        # S146 E6 (SYM-130): the FIRST ingest reads the verdict too. The supersede branch above
+        # refuses a `fail` (fail-closed, signed S56); a first ingest never looked, so a failing
+        # book (degeneration TRUE) became a vault note (Ashby, 54b471d7, 2026-09-13 11:31Z)
+        # under the Windows lane's `report` lever. An explicit `fail` is refused here whatever
+        # that lever reads -- the lever lives on the other machine and decides SHIPPING, not
+        # ingesting -- while `flag` still ingests (ship-with-losses-named, Rab's D1) and a
+        # MISSING fidelity block still ingests (old bundles carry none; the linux lane's own
+        # verdict is written at the seam below). Staging kept, receipt written, vault untouched
+        # -- the same shape as EXPORT-SUPERSEDE-HELD, and the same sweep re-reads it later.
+        verdict_in = (manifest.get("fidelity") or {}).get("verdict")
+        if verdict_in == "fail":
+            logger.info(
+                "EXPORT-INGEST-HELD %s: incoming verdict %r -- vault untouched, staging copy kept",
+                bundle_dir.name,
+                verdict_in,
+            )
+            self._receipt("ingest-held", bundle_dir, verdict=verdict_in, sha=source_sha[:16])
+            return
+
         target_rel = INBOX_REL / f"{slugify(bundle_dir.name)}--{source_sha[:8]}"
         target = vault_work / target_rel
 

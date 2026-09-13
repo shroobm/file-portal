@@ -727,3 +727,61 @@ def test_supersede_marker_body_out_stale_sidecar_does_not_survive(paths, monkeyp
         "file": "paper.marker.txt",
         "sha256": DESKTOP_SHA256,
     }
+
+
+# ---------------------------------------------------------------------------
+# S146 E6 (2026-09-13, SYM-130): the FIRST ingest reads the verdict. A failing book became a vault
+# note on a first ingest (Ashby, 54b471d7) because only the supersede branch looked; an explicit
+# `fail` is refused here with the staging copy kept and a receipt, `flag` still ingests
+# (ship-with-losses-named, Rab's D1), a missing fidelity block still ingests (old bundles carry
+# none), and the sweep re-reads a held fail and says so again.
+# ---------------------------------------------------------------------------
+def set_fidelity(bundle, verdict):
+    manifest = json.loads((bundle / "manifest.json").read_text())
+    manifest["fidelity"] = {"verdict": verdict}
+    (bundle / "manifest.json").write_text(json.dumps(manifest))
+
+
+def test_first_ingest_fail_verdict_refuses_and_keeps_staging(paths):
+    exp = Exporter(paths)
+    bundle = make_bundle(paths, "paper", SHA_A)
+    set_fidelity(bundle, "fail")
+    exp.export(bundle)
+
+    assert bundle.exists(), "a failing first ingest never lands -- staging kept"
+    assert bare_commits(paths) == 1, "no ingest commit"
+    assert not bare_has(paths, f"Inbox/paper--{SHA_A[:8]}/manifest.json"), "vault untouched"
+    held = [r for r in read_receipts(paths) if r.get("outcome") == "ingest-held"]
+    assert (
+        len(held) == 1 and held[0].get("verdict") == "fail" and held[0].get("sha") == SHA_A[:16]
+    ), read_receipts(paths)
+
+
+def test_first_ingest_flag_verdict_still_ingests(paths):
+    exp = Exporter(paths)
+    bundle = make_bundle(paths, "paper", SHA_A)
+    set_fidelity(bundle, "flag")
+    exp.export(bundle)
+
+    assert bare_commits(paths) == 2, "a flag ingests -- ship-with-losses-named (D1)"
+    assert bare_has(paths, f"Inbox/paper--{SHA_A[:8]}/manifest.json")
+
+
+def test_first_ingest_missing_fidelity_still_ingests(paths):
+    exp = Exporter(paths)
+    exp.export(make_bundle(paths, "paper", SHA_A))  # no fidelity block at all
+
+    assert bare_commits(paths) == 2 and bare_has(paths, f"Inbox/paper--{SHA_A[:8]}/manifest.json")
+
+
+def test_first_ingest_held_fail_is_re_read_by_the_sweep_and_held_again(paths):
+    exp = Exporter(paths)
+    bundle = make_bundle(paths, "paper", SHA_A)
+    set_fidelity(bundle, "fail")
+    exp.export(bundle)
+    exp.sweep()
+
+    assert bundle.exists() and bare_commits(paths) == 1
+    assert sum(1 for r in read_receipts(paths) if r.get("outcome") == "ingest-held") == 2, (
+        "each sweep says so again -- a held fail is never silent"
+    )
