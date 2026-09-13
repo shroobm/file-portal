@@ -175,7 +175,7 @@ MECHANISM = {
         "read the producer's own definition (its source or docs) of the flag or event before trusting the name",
         # SYM-084 (ThinkPad S123): Taildrop moves files only between devices of the same tailnet user; a tagged
         # node has no user — the platform's own definition, not its name
-        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109", "SYM-094", "SYM-112"],  # 094 moved S15 → S12 (S124 cross-check: the root is find_tables' semantics)
+        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109", "SYM-094", "SYM-112", "SYM-128"],  # 094 moved S15 → S12 (S124 cross-check: the root is find_tables' semantics); 128 (S144): `mv dir existing-dir` NESTS — the ship's "atomic rename" onto a held staging name
     ),
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",

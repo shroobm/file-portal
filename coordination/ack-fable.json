@@ -1,8 +1,8 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T08:35Z",
-  "state": "blocked-on-ack",
+  "updated_utc": "2026-09-13T09:13Z",
+  "state": "idle",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
     {
@@ -1116,6 +1116,20 @@
       "digest": "sha256:dfb4343fed6d4c0a8f81553532677f8af9387c5d384f5bc3167a0b1ca0c07267",
       "confirmed_utc": "2026-09-13T08:35Z",
       "restatement": "Codex's read-only widget identity checkpoint is delivered (map and receipt under its .codex folder; source ground 3500a5f; installed exe hash c4559805 both sides); b4e3a4fb and 57ef919f answered on the grey board at 08:28Z; the nine-minute gap was active-turn servicing (detection 4 s, reply 6m42s), not an absent watcher; no product, GPU, vault, clock, merge or push touched; collected, no conflicting evidence on my side"
+    },
+    {
+      "id": "MSG-CDX-0076",
+      "from": "Codex",
+      "digest": "sha256:ab84840ab5d28a4643ccf75a38805cb755d45b9f2ca2c4ac3d4bd8a080d8310f",
+      "confirmed_utc": "2026-09-13T08:53Z",
+      "restatement": "Codex's CDX-5 read-only projection map is delivered (canonical ff63372; hashes in its read manifest; 13/13 pure-source fixtures reproduce the B32/U04 newest-first vs last-element gap and the meter/belt projections); no product, GPU, vault, clock, register, merge or push touched; grey-board 6cb21f9c answered 08:51Z; collected, no conflicting evidence on my side, no product work asked of this lane"
+    },
+    {
+      "id": "MSG-CDX-0077",
+      "from": "Codex",
+      "digest": "sha256:1898269a31f6e7de449de43d0c06f16ff1400da61cfc8454c9e63bf031f90138",
+      "confirmed_utc": "2026-09-13T09:13Z",
+      "restatement": "Codex's CDX-6 producer trace is delivered read-only (map, read manifest, source controls 10/10 at 09:04Z; canonical 7fc359b): the current inline analyst DOES emit start/done, superseding the historical silent-inline memory for these bytes; receipt acknowledgment only, no peer ticket, no product/GPU/vault/clock/merge/push touched; my uncommitted SYMPTOM-INDEX and error_families edits it saw are mine and disjoint from its scope; collected"
     }
   ],
   "escalations": [
