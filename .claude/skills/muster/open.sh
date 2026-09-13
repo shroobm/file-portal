@@ -264,7 +264,9 @@ if [[ -f "$README" ]]; then
   # so this counts OPEN rows, which is the point.
   # Tripwire: selftest CASE 35, with a negative control on the strike exclusion.
   reg_row "open-tasks" "$TASKS" \
-    "$(grep -cU '^| [A-FJ][0-9]' "$TASKS" 2>/dev/null || echo '?') item(s)"
+    "$(grep -cU '^| \([A-FJ][0-9]\|[a-z-]*/[a-z0-9-]*\)' "$TASKS" 2>/dev/null || echo '?') item(s)"
+  # S141 E11 (register-naming-transition): a NAMED ticket id (`<category>/<verb-object>`) is an open row like a
+  # lettered one; a struck named id begins `| ~~` and correctly does not match. Tripwire: CASE 35's fixture.
   # ERROR-BIN.md, wired 2026-08-27. The file diagnosed itself on the day it was born: its
   # own section D.6 measures that NO row names it in the "how it was caught" column - zero of
   # thirteen - and concludes "a register written at the end of a task is a record; it becomes

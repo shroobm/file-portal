@@ -118,6 +118,11 @@ either earn its keep by being worked down or be deleted."
   Staleness is a reading. A task list that stopped being written is worse than none, because it
   still reads authoritative.
 - A **missing** register is `UNREAD` and exits 1. It is never "nothing open".
+- **Named tickets (S141, Rab 2026-09-12: the lettering is retired).** `OPEN-TASKS.md` carries a section `TICKETS (named)`:
+  one row per `<category>/<verb-object>` id with its goal and status, the bodies in the private
+  `measurement/TICKETS-<date>.md`. A new item is a named ticket, never a new letter id; the old lettered rows keep
+  theirs until struck. `close.sh` [8] counts named ids the way it counts lettered ones — a struck id is one wrapped
+  in `~~`, an added id is one absent at the pin.
 - The relay row is a pointer, not a verdict — `gate.py status` is the board, and a lane that has
   gone quiet is a **question**, not a fault, unless the record says why (see `MSG-FAB-0029`).
 

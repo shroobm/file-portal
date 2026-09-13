@@ -258,3 +258,25 @@ lane told the mode does not have to be caught.
 git reached through a process the harness does not route through these two tools; and its own config files,
 which this law — not the mechanism — places off-limits. The mechanism narrows the blast radius; it does not
 replace the sentence.
+
+### Appended 2026-09-13 (S141, contracts/policy-and-sequences-rewrite-pass) — three clauses the audit layer added to the GROUND
+
+PROVENANCE: written single-lane by the session's occupant (⟨Fable · Claude Opus 5⟩), from the S141 record and the
+private library's briefs; no second model has read this change. Appends never erase: the law above stands as written.
+
+- **The lane journal is read, not remembered.** Every subagent's transcript (`<session>/subagents/**/agent-*.jsonl`)
+  and every Workflow's `journal.jsonl` is a surface the audit layer reads at the close (`script_journal.py`'s Lanes and
+  Workflows sections): a lane's guard denies are counted from its own rows and checked against the guard log by
+  `agent=`; a Workflow result whose cache key already had a result in an earlier run, or that arrived with no `started`
+  row, is marked REPLAYED — it was served from the cache, not computed in that run. A GROUND that hands a lane a
+  question therefore says: *your calls are journaled; a replayed result is not your work.*
+- **The tool-version rule.** A lane is handed a tool by its literal absolute path, and the tool's bytes at the moment of
+  the call are the bytes git holds at HEAD — or the receipt says MOVING TARGET (`script_journal.py`: certain when the
+  harness backed the file up before the call, POSSIBLE when a commit followed within fifteen minutes). Law 5 above
+  (never edit a file a running lane is reading) is the human half; the receipt is the mechanical half. A GROUND names
+  the tool's commit (`git log -1 --format=%h -- <path>`) beside its path when the lane's verdict depends on it.
+- **Consulted is not inferred.** A call that READS a tool's source or brief (`cat`, `sed -n`, `grep` over it) is
+  `consulted`, its own kind beside `preloaded` (the tool ran), `scratch` (a one-off written this session and run by
+  path), `inferred` (a command composed in the call) and `harness` (the harness's own tools). A GROUND that says *use
+  the library* is measured by the lane's `preloaded` count with `consulted` printed beside it — moving reads into
+  scripts to move the number is the hiding move the pair is there to catch (STUDY §13).

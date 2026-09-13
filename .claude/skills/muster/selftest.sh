@@ -579,22 +579,23 @@ else ok "S109 D3: …and is NOT called a fork"; fi
 # The fixture mixes all three cases so ONE number falsifies all three at once.
 R="$WORK/c35"; sha=$(mkrepo "$R" '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
 sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"
-printf '%s\r\n' '# OPEN TASKS' '' '| A1 | open a-row | x |' '| A2 | open a-row | x |' '| ~~A3~~ **STRUCK** | resolved - must NOT be counted | x |' '| B1 | open b-row | x |' '| J1 | open j-row | x |' '| J2 | open j-row | x |' > "$R/OPEN-TASKS.md"
+printf '%s\r\n' '# OPEN TASKS' '' '| A1 | open a-row | x |' '| A2 | open a-row | x |' '| ~~A3~~ **STRUCK** | resolved - must NOT be counted | x |' '| B1 | open b-row | x |' '| J1 | open j-row | x |' '| J2 | open j-row | x |' '| unread-surfaces/named-open | a named ticket (S141) | open |' '| ~~services/named-struck~~ | a struck named ticket - must NOT be counted | done |' > "$R/OPEN-TASKS.md"
 printf '%s\r\n' '| SYM-001 | s | c | S1 | `open` | g |' > "$R/SYMPTOM-INDEX.md"
 git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm reg >/dev/null 2>&1
 mklib "$WORK/l35" 12 S42 "$sha"
 out=$(MEMORY_LIB="$WORK/l35" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
-if printf '%s' "$out" | grep -qE 'open-tasks +5 item\(s\)'; then
-  ok "REGISTER COUNT: A-rows, B-rows AND J-rows all counted; struck excluded (5)"
-else
-  bad "REGISTER COUNT: open-tasks must read 5 (2 A + 1 B + 2 J; struck A3 excluded)" "got: $(printf '%s' "$out" | grep -E 'open-tasks' | head -1)"
-fi
-# NEGATIVE CONTROL, same fixture: 6 id-bearing rows exist. A counter that ignored the strike
-# would read 6. So 6 must never appear - this is what stops the fix degenerating into
-# "count every row", which would satisfy the assertion above for entirely the wrong reason.
 if printf '%s' "$out" | grep -qE 'open-tasks +6 item\(s\)'; then
-  bad "REGISTER COUNT negative control: a struck row was counted" "read 6, so ~~A3~~ was counted"
-else ok "…and a struck row is never counted (never reads 6)"; fi
+  ok "REGISTER COUNT: A-rows, B-rows, J-rows AND named ids all counted; struck excluded (6)"
+else
+  bad "REGISTER COUNT: open-tasks must read 6 (2 A + 1 B + 2 J + 1 named; struck A3 and the struck named id excluded)" "got: $(printf '%s' "$out" | grep -E 'open-tasks' | head -1)"
+fi
+# NEGATIVE CONTROL, same fixture: 8 id-bearing rows exist (S141 E11: 6 open + 2 struck, one of each named). A
+# counter that ignored the strike would read 8 (or 7, ignoring one of the two strikes). So neither must appear -
+# this is what stops the fix degenerating into "count every row", which would satisfy the assertion above
+# for entirely the wrong reason.
+if printf '%s' "$out" | grep -qE 'open-tasks +[78] item\(s\)'; then
+  bad "REGISTER COUNT negative control: a struck row was counted" "read 7 or 8, so a struck id (~~A3~~ or the struck named id) was counted"
+else ok "…and a struck row is never counted (never reads 7 or 8)"; fi
 
 # CASE 36 - the ERROR BIN must be READ AT THE OPEN, 2026-08-27. The property: [2b] surfaces
 # ERROR-BIN.md with a COUNT, and a MISSING one reads UNREAD rather than silence. The file's own

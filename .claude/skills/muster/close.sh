@@ -397,10 +397,12 @@ else
   # ADDED and STRUCK are therefore CENSUSES OF THE FILE AT EACH END, never reads of the diff
   # between them: two states, two counts. `sort | uniq -u` over the doubled pin list yields
   # ids present now and absent at the pin, without process substitution.
-  ids_now=$(grep -oU '^| *~*~*[A-FJ][0-9]*' "$TASKS_MD" 2>/dev/null | tr -d '| ~' | sort -u)
-  ids_pin=$(git -C "$FP_REPO" show "$PIN:OPEN-TASKS.md" 2>/dev/null | grep -oU '^| *~*~*[A-FJ][0-9]*' | tr -d '| ~' | sort -u)
-  struck_now=$(grep -coU '^| *~~[A-FJ][0-9]' "$TASKS_MD" 2>/dev/null || echo 0)
-  struck_pin=$(git -C "$FP_REPO" show "$PIN:OPEN-TASKS.md" 2>/dev/null | grep -coU '^| *~~[A-FJ][0-9]' || echo 0)
+  # S141 E11 (register-naming-transition): a NAMED ticket id (`<category>/<verb-object>`) is an id like a lettered one —
+  # struck when wrapped in ~~, added when absent at the pin. The same two censuses, one more spelling of the id.
+  ids_now=$(grep -oU '^| *~*~*\([A-FJ][0-9]*\|[a-z-]*/[a-z0-9-]*\)' "$TASKS_MD" 2>/dev/null | tr -d '| ~' | sort -u)
+  ids_pin=$(git -C "$FP_REPO" show "$PIN:OPEN-TASKS.md" 2>/dev/null | grep -oU '^| *~*~*\([A-FJ][0-9]*\|[a-z-]*/[a-z0-9-]*\)' | tr -d '| ~' | sort -u)
+  struck_now=$(grep -coU '^| *~~\([A-FJ][0-9]\|[a-z-]*/\)' "$TASKS_MD" 2>/dev/null || echo 0)
+  struck_pin=$(git -C "$FP_REPO" show "$PIN:OPEN-TASKS.md" 2>/dev/null | grep -coU '^| *~~\([A-FJ][0-9]\|[a-z-]*/\)' || echo 0)
   struck=$(( ${struck_now:-0} - ${struck_pin:-0} ))
   added=$(printf '%s\n%s\n%s\n' "$ids_now" "$ids_pin" "$ids_pin" | sort | uniq -u | grep -c . || true)
   row "" "STRUCK ${struck:-0} · ADDED ${added:-0} — $(
