@@ -250,6 +250,12 @@ Not this skill's job to perform, but the open sets its terms, so state them at o
    fmt --check` LEADS** the rebuild ritual (docs/19:68, SYM-020): clippy never sees formatting,
    so skipping fmt rots the build invisibly, which is exactly what S101 did.
 
+**A sitting may close in parts (Rab, signed 2026-09-13).** A category of tickets is an episode; each episode
+ends in a partial closeout — the private SEQUENCES §3b: gates → receipts over the episode's window → the record's
+`## Episode K … PARTIAL CLOSEOUT` section → commits → pushes → CI observed — and the next episode opens on that
+section. A compaction is a memory boundary: the plan file before it, the section after it. The close above is still
+the close: §18 last, the row, the push, CI, both clocks.
+
 ## What this cannot see
 
 A floor, not a proof — state these rather than let a clean card imply them:

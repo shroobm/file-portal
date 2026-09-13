@@ -75,6 +75,12 @@ irreversible.** The remaining twelve. A docs-only or investigation-only session 
 <state>, nothing shipped, next entry point unchanged"* — and that line is a valid closeout. An
 honest stub beats a missing ceremony, and both beat a fabricated one.
 
+**The episode clause (Rab, signed 2026-09-13):** a sitting may close in PARTS. A category of tickets is an
+episode; each episode ends in a partial closeout — its own receipts over its window, a `## Episode K … PARTIAL
+CLOSEOUT` section in the session record (tickets · acceptance readings · contracts touched · what an agent is handed ·
+receipts · discovered · carry-over), commits and pushes, CI observed — and the next episode opens on that section, not
+on a summary. The core sections above are still written once, at the close; §18 last.
+
 ## 3. Derived vs. authored — do not hand-write what a command can produce
 
 Half of these sections are mechanically derivable. Deriving them costs one tool call and cannot
