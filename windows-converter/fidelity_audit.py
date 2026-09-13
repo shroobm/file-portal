@@ -77,6 +77,7 @@ SCAN_PAGE_FLAG = 0.70
 SCAN_GARBAGE_FLAG = 0.20   # 1 - dict_hit prior; garbage-token rate above this flags
 ANALYST_DOC_FAIL = 0.995
 ANALYST_RUN_WORDS = 25
+WITNESS_COVERAGE_FLOOR = 0.50   # S144: pages_scored / pages_total under this -> the convert gate reads flag, never pass
 
 
 # ---------------------------------------------------------------------------
@@ -491,6 +492,10 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         "kind": kind,
         "doc_survival": doc_survival,
         "pages_scored": scored,
+        # S144 (audit/verdict-weighs-denominator, Rab's word 2026-09-13): the denominator rides beside the numerator, so a
+        # witness that saw 1 page of 465 (Valentine's scan, S142 E1 F5) can no longer print a pass-shaped 1.0 — the
+        # verdict reads pages_scored / pages_total (compute_verdict). Blocks written before this key stay as they were.
+        "pages_total": len(pages_raw),
         "pages_flagged": pages_flagged,
         # NUM-3 (signed 2026-08-31, SYM-066's repair at the source): the shown list stays
         # capped for payload size, but the TRUE count and the cap ride beside it — "25" can
@@ -609,6 +614,14 @@ def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
         if (doc < CLEAN_DOC_FLAG or convert_block.get("pages_flagged")
                 or any(r["words"] >= CLEAN_RUN_WORDS for r in runs)):
             return "flag"
+    # S144 (audit/verdict-weighs-denominator; Rab's word, Desk bf4d5d05 2026-09-13; docs/15 §12.3): a witness that scored
+    # under WITNESS_COVERAGE_FLOOR of the book's pages localises nothing — its survival is a number over the pages it saw,
+    # not over the book — so the verdict is at most `flag` (a localiser, never a fail: §12's two fail signals stand above).
+    # Both counts must exist (audit_convert writes pages_total from S144 on); a block without them keeps its old verdict.
+    pages_total = convert_block.get("pages_total")
+    pages_scored = convert_block.get("pages_scored")
+    if pages_total and pages_scored is not None and pages_scored / pages_total < WITNESS_COVERAGE_FLOOR:
+        return "flag"
     return "pass"
 
 

@@ -648,6 +648,25 @@ fix for a reverted deletion's whitespace, the hyphen rung's documented blind spo
 J46 (a)–(c) with `reconcile` replaced by identity as the watched negative control; J32-B (a) and J34 (b) re-read
 under the signed policy (the hyphen join ships, the dropped commas and the four inserted words do not).
 
+### 12.3 Amendment — on Rab's word 2026-09-13 (Desk bf4d5d05, S144): the witness's coverage floor
+
+*Appended, not edited: §12 and §12.1–12.2 above stand as signed.*
+
+**The finding (S142 E1 F5 / S143 E5, Valentine, held `b6fbdd75f6242f53`).** A 465-page scan with no text layer: the scan
+lane's witness is the PDF's own OCR text, so the convert gate scored the one page that had any — `doc_survival 1.0 ·
+pages_scored 1` — a pass-shaped number over one page in 465. The block printed its denominator (docs/34 holds) and the
+verdict did not weigh it.
+
+**The rule.** `audit_convert` now writes `pages_total` beside `pages_scored`. `compute_verdict` reads
+`pages_scored / pages_total`; under `WITNESS_COVERAGE_FLOOR = 0.50` the convert gate is at most `flag` — a localiser
+(§12: it never fails; degeneration and the analyst near-exact gate stand above it). A block without both counts (every
+block written before S144) keeps the verdict it had. The case: `analyst_audit_selftest.py` (m) — 1 of 465 reads flag,
+400 of 465 pass, 233 of 465 (0.501) pass, no counts unchanged, and a thin witness never lifts a degeneration fail.
+
+**What it does not do.** It does not measure the pages the witness did not see — that is the gauge's instruments (a
+second witness, the ink under the boxes; `measurement/ML-GAUGE-2026-09-13.md`); it only stops a 1.0 over one page from
+reading as a pass.
+
 ## 13. The Assay — widget projection (design record, docs/13 grammar)
 
 The audit becomes a channel the operator can **see** (observation) and **steer** (control).

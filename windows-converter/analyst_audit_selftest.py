@@ -209,6 +209,24 @@ def _():
     assert fa.compute_verdict(CONVERT_OK, block) == "pass", block
 
 
+@case("(m) S144 audit/verdict-weighs-denominator: a convert block whose witness scored 1 page of 465 "
+      "reads flag, never pass; a block covering 400 of 465 passes; a block with no page counts (pre-S144) "
+      "is unchanged")
+def _():
+    # Rab's word (Desk bf4d5d05); born of S142 E1 F5 — Valentine's scan read `1.0 over 1 page` as a pass-shaped
+    # number. A witness that saw under half the book localises nothing; the verdict weighs its denominator.
+    thin = dict(CONVERT_OK, pages_scored=1, pages_total=465)
+    assert fa.compute_verdict(thin, None) == "flag", thin
+    wide = dict(CONVERT_OK, pages_scored=400, pages_total=465)
+    assert fa.compute_verdict(wide, None) == "pass", wide
+    edge = dict(CONVERT_OK, pages_scored=233, pages_total=465)   # 0.501: at the floor, not under it
+    assert fa.compute_verdict(edge, None) == "pass", edge
+    assert fa.compute_verdict(dict(CONVERT_OK), None) == "pass"   # no counts: the old blocks' verdicts stand
+    # the negative control: a thin witness never LIFTS a fail — degeneration still fails first
+    degen = dict(thin, tripwires={"degeneration": True})
+    assert fa.compute_verdict(degen, None) == "fail", degen
+
+
 @case("(i) S131: a REAL loss beside the mask still fails -- the whole of PARA_B gone reads as a "
       "run >= 25 words and the verdict is fail")
 def _():
