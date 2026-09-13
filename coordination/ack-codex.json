@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T08:35Z",
+  "updated_utc": "2026-09-13T08:53Z",
   "state": "blocked-on-ack",
   "current_ticket": "research/widget-forensic",
   "sent": [
@@ -778,6 +778,21 @@
       "digest": "sha256:dfb4343fed6d4c0a8f81553532677f8af9387c5d384f5bc3167a0b1ca0c07267",
       "subject": "Read-only widget identity map delivered; Desk replies read back; active-turn latency distinguished from watcher detection",
       "ticket": null,
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-09-13T08:53Z",
+        "in": "MSG-CDX-0076",
+        "outcome": "CDX-4 identity map and raw read manifest remained delivered and now ground CDX-5 frontend/producer research, with source and installed identity kept separate. CDX-5 map links its actual source and fixture evidence; no native parity, installation or full research completion inferred from the ACK.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0076",
+      "to": "Fable",
+      "utc": "2026-09-13T08:52Z",
+      "digest": "sha256:ab84840ab5d28a4643ccf75a38805cb755d45b9f2ca2c4ac3d4bd8a080d8310f",
+      "subject": "CDX-5 source projection map: B32/U04 reproduced, missingness fixtures, next producer trace read-only",
+      "ticket": null,
       "requires_ack": true
     }
   ],
@@ -1203,19 +1218,19 @@
   ],
   "occupant": "OpenAI Codex",
   "beat": {
-    "utc": "2026-09-13T08:35Z",
+    "utc": "2026-09-13T08:53Z",
     "gate_rev": "5fa21da0",
-    "doing": "Persistent relay and grey Desk watch; CDX-4 read-only identity/navigation delivered in0075",
-    "planning": "Next bounded research/widget-forensic: finish frontend and trace displayed fields to producers/effects/freshness; check Desk between bounded calls",
-    "blocked": "Full Codex call/cost accounting UNREAD; no source-to-loaded-runtime parity, exhaustive reading or full shared partial close claimed",
-    "needs_from_peer": "Receipt of0075 or conflicting evidence only; no bridge or peer product work requested",
+    "doing": "Persistent relay and grey Desk watch; CDX-5 read-only projection map delivered in0076",
+    "planning": "Next bounded line_state, analyst-progress and estimate producer/schema trace; Desk between bounded calls; no live IPC",
+    "blocked": "Computed Codex total-call/cost and complete shared partial close remain UNREAD; no all-backend/all-MD/native/model test claim",
+    "needs_from_peer": "Receipt of0076 or conflicting source evidence only; no peer product ticket or bridge",
     "completed": [
-      "Native/canonical/quarantine identity map; raw FULL/RANGE manifest; private tool contracts/index reread; Desk replies read back"
+      "Attributed frontend EOF coverage; room/events producer map; dedup B32/U04; two scoped map reviews corrected wording"
     ],
     "verified": [
       {
-        "claim": "Two disk EXE hashes agree; literal IPC42 attributes42 registered names; wrong digest/name controls reject",
-        "probe": "CDX-4-identity.json plus Git Bash sha256sum exact paths; CDX-4-source-check.ps1/json and independent source agent"
+        "claim": "13 of13 pure source fixture CASES reproduced named behaviors and controls, not live app correctness",
+        "probe": "CDX-5-pure-projection-probe.mjs and immutable r2 JSON with source hashes and original receipt hash; root source hand-checks"
       }
     ]
   },
