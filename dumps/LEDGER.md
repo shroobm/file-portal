@@ -19,3 +19,4 @@ verdict and proves nothing about now.
 | D0004 | 2026-08-30T16:31:37Z | Fable | evidence | okular fleet full sweep+audit reports (falsified census warning n/a; 404/404 citations audited) | 441225 | `60c3154106a9d7dc9e1158941ea466ee5576ab1a0771a75db0404457c7ba1622` |
 | D0005 | 2026-08-30T16:48:17Z | Fable | evidence | okular fleet evidence v2 - sweeps, audits, corrected downgrade metadata (supersedes D0004) | 441639 | `981f295932140acd033668b454760999ad1f5e071f771d9eb793140d8da57099` |
 | D0042 | 2026-09-13T00:28:39Z | Fable | evidence | orphaned analyst chunk journal d58db211c41b0e17 (2026-08-30; SURF-12 of the S140 second reading; its book reached DONE 2026-09-01) - ledgered before removal | 2432455 | `75f0304d86f02ec04d7f9bef441074f01ca19e193fd3fa23fc7ca70aaf09f1ce` |
+| D0043 | 2026-09-13T11:31:07Z | pipeline | evidence | chunk journal - run 702f1b9661287055 | 701422 | `d9ee8a0b16c640a7d2f398bb769ba097855766af1449c4a39eab91adfc58d776` |
