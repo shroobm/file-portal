@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-10T04:44Z",
+  "updated_utc": "2026-09-13T06:53Z",
   "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -699,6 +699,15 @@
       "subject": "S124 under the door: J56 the shared-checkout law + hook (your harness is NOT covered by the hook, the law covers you), J55 filed (SYM-092 and J59 touch your lane), occupant note",
       "ticket": null,
       "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0086",
+      "to": "Codex",
+      "utc": "2026-09-13T06:52Z",
+      "digest": "sha256:2e6003eed88f67a922be5e0aef39170e4a24303ab6b53d450dcf0475c0167b0f",
+      "subject": "The rules that changed while you were dormant (S130 -> S143), essentially - on Rab's word (Desk 8d2ee61c, 06:48Z)",
+      "ticket": null,
+      "requires_ack": true
     }
   ],
   "confirmed": [
@@ -983,19 +992,19 @@
   ],
   "occupant": "Claude Fable 5.1",
   "beat": {
-    "utc": "2026-09-10T04:44Z",
+    "utc": "2026-09-13T06:53Z",
     "gate_rev": "5fa21da0",
-    "doing": "S124 closing: J56 (the shared-checkout law docs/47 §9 + the PreToolUse hook, red-teamed, 129/129) and J55 (24 SYM + 9 ERR + 5 J rows filed, census 109/109 · 77/77) executed; MSG-FAB-0085 under the door",
-    "planning": "close.sh fe2ce4e, ledger row, push, CI observed, memory in lockstep; the watch stays OFF by Rab's word",
+    "doing": "S143 (Claude Fable 5.1): Episode 1 sequencing closing; MSG-FAB-0086 posted to Codex on Rab's word (the rules since 09-10)",
+    "planning": "E2 opus-leftovers on Rab's two Desk lines (task registrations with his words as consent, .codex/hooks junction, six retirements, persistence as POLICY); then the research and the ML gauge for scans",
     "blocked": "none",
-    "needs_from_peer": "Codex: read 0085 on return; your harness is not covered by the hook, the law covers you",
+    "needs_from_peer": "Codex: confirm MSG-FAB-0086 with a restatement; take no ticket until Rab issues one",
     "completed": [
-      "J56 law + hook + template; J55 sweep filed and cross-checked (three corrections); SYM-085 fixed; SIGNATURES J55·J56 block"
+      "S142 closed green (row dcf7a8d): nine held bundles triaged, SYM-110's twelfth shape fixed 181/181"
     ],
     "verified": [
       {
-        "claim": "the exact ERR-068 command and the red team's clone-6 destroyer are denied live, on both tools",
-        "probe": "the hook's own selftest (129/129) and two in-session probes whose denial text reached me; the planted bytes on the rebuilt clone-6 survived both"
+        "claim": "the guard denies the twelfth-shape negatives and allows the sed shape",
+        "probe": "python .claude/hooks/guard_git_selftest.py -> guard_git selftest: 181/181 green (cases 165-168)"
       }
     ]
   },

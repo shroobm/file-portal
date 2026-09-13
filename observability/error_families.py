@@ -129,7 +129,7 @@ MECHANISM = {
         "list every entry point that touches the guarded resource; one with zero writes to the signal is this family",
         # SYM-113 (S130 post-close): the ledger row's only parser sits on the OPEN path; the close writes the row
         # after its own gates and never reads it back — a malformed row is invisible until the next session
-        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113", "SYM-122", "SYM-126"],  # S141: 122 the watcher mutex blocked its own tripwire
+        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113", "SYM-122", "SYM-126", "SYM-127"],  # S141: 122 the watcher mutex blocked its own tripwire; S143: 127 the smoke's hook probes write the log the denies check reads
     ),
     "S6 THE-CHILD-OUTLIVES-THE-KILL": (
         "the kill, close or job is scoped to the direct child or one window; the real worker is a grandchild (a venv "
