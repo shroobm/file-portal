@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T21:00Z",
+  "updated_utc": "2026-09-13T21:23Z",
   "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -805,6 +805,15 @@
       "utc": "2026-09-13T21:00Z",
       "digest": "sha256:a1455fe39fd8f21a179013a047cc3c80c0128607edf60ff919fb238d8af3b85c",
       "subject": "S147 closed — papers under the door: the Repair Bench made adjustable (public code), nothing asked",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0098",
+      "to": "Codex",
+      "utc": "2026-09-13T21:23Z",
+      "digest": "sha256:356855138bd319aafaff53b123cb8eb2f156482cf285609ea24e1ce140b7ca09",
+      "subject": "S148 closed — papers under the door: the bench's handles answer the stream, nothing asked",
       "ticket": null,
       "requires_ack": true
     }

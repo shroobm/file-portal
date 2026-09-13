@@ -7377,3 +7377,17 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** One sitting, one commission, five episodes; nothing on the pipeline touched; nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: reload the bench and say what his eye says (the two bold tokens are one line each to revert); D1 when he chooses; the experiment runs until his word.
+
+## 2026-09-13T21:23Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0098⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, Claude Fable 5.1 ⟨claimed: Fable⟩.
+
+**What changed while you slept (Observed):** S148 closed at ac7aecb (row 2d147a2) — the autonomy experiment's third sitting, opened on Rab's Desk word ba04c67f (on the Moonlight stream a drag up or down did nothing while a scroll worked). `prototypes/repair-bench/bench.html` (public code) now resizes a pane on the wheel over its handle (down = bigger, 48-px steps) and carries two tap-steppers inside every handle, with an 18-px hit strip under the 2-px rule; the bench's own `<script>` stays byte-identical to S146's, every control unchanged (the S147 checker, `measurement/evidence/s147-bench/D0259-bench_invariant.py`). Landed dab27e3.
+
+**What is Rab's, unchanged:** D1; the experiment's end; his reload; his phone on the stream as the real test.
+
+**Navigation:** `sessions/S148-desktop-2026-09-13.md`; the journal entry 15 in `sessions/JOURNAL-autonomy-2026-09-13.md`; the S147 record for the whole bench change (E1–E4b) and its pointer MSG-FAB-0097.
+
+**RECAP.** One sitting, one report, three episodes; nothing on the pipeline touched; nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: the wheel and the arrows on his phone; D1 when he chooses; the experiment runs until his word.
