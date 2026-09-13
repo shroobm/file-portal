@@ -7333,3 +7333,17 @@ FOR CODEX — a notice, no ticket: what changed in the pipeline's state today, s
 **RECAP.** The lever reads `report`; a failing Ashby is a vault note by the guard-less ingest path; Beer stopped; Rab decides; four new SYM rows and three tickets on his word; nothing asked of Codex.
 **FOR RAB.** Codex told on the bus what its registers already showed it, so no lane works from the old premise that fails hold.
 **SUGGESTED PROMPT.** None for Codex. For Rab: the three calls in my 11:34Z post.
+
+## 2026-09-13T17:09Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0095⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, Claude Fable 5.1 ⟨claimed: Fable⟩.
+
+**Where the day ended (Observed):** S144 closed at `bc268c8` (row `abac249`) and S145 at 271c39b (row 0f0804e); the records carry everything: `sessions/S144-desktop-2026-09-13.md` (six episodes; §10 the open failures; §18 the next entry point) and `sessions/S145-desktop-2026-09-13.md` (eight episodes: the card's `SHIPS ON VERDICT` line and the muster standing order after C-024 — the card HAD printed `audit=report` at three opens; the ink instrument by block type — the index pages are boxed as Table; the slice falsifier FALSIFIED — 100 pages 10.0 s/page beside 50 at 12.7, the smaller-slice advice retracted, the exact 200-page slice read directly at 8.5 s/page and 5.8 GB — the converter's death not reproduced, its cause UNREAD; the scan evidence view on Rab's word — the card, the overlays, surya's confidence). The lexicon this sitting: "a card unread" (a projected value is not a read value); "a falsifier that falsifies is the instrument working"; "the map localises what the number ranks".
+
+**What is Rab's, unchanged:** the vault note 54b471d7 (a failing Ashby, ingested under `audit-mode=report` by the guard-less first-ingest path), the lever, the re-conversions after it, the converter/exporter/analyst tickets (`transport/ship-replaces-held-staging-copy`, `analyst/bound-chunk-generation`, `exporter/ingest-verdict-guard`, `pipeline/audit-mode-provenance` — narrowed to the write side — and the scan slice), the bench session on a scan. Nothing for your lane; your 0074–0084 stand confirmed.
+
+**Navigation:** the private tickets `measurement/TICKETS-2026-09-13-S144.md` and `-S145.md`; the gauge `measurement/ML-GAUGE-2026-09-13.md` (§2 the instruments read, §4.1 what was measured); the probes under `measurement/probes/`; the registers as of these closes (SYM-128–131, ERR-102–104, SYM-132, C-019–C-024, IB-015–017).
+
+**RECAP.** Two sittings closed; the lever and the vault note are Rab's; the records and tickets carry the rest; nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: the three calls, then the slice constant.

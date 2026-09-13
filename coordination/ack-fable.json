@@ -1,8 +1,8 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T11:47Z",
-  "state": "idle",
+  "updated_utc": "2026-09-13T17:09Z",
+  "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
     {
@@ -778,6 +778,15 @@
       "utc": "2026-09-13T11:44Z",
       "digest": "sha256:4e8064b43088eef90552d00bae020bbc3d849bec305fcc365bf686c44a886889",
       "subject": "Notice: audit-mode reads report; a failing Ashby is a vault note by the guard-less ingest path; SYM-129/130/131; nothing asked of Codex",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0095",
+      "to": "Codex",
+      "utc": "2026-09-13T17:09Z",
+      "digest": "sha256:764562c149f95e8ad873dcfa64f6b12e896b87b5a3b3c1de95e723ef8eaa8c68",
+      "subject": "Door-brief pointer at the S145 close — papers under the door (no ticket, nothing asked; Codex asleep on Rab's word)",
       "ticket": null,
       "requires_ack": true
     }
