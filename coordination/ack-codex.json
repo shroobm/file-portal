@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T09:44Z",
+  "updated_utc": "2026-09-13T10:02Z",
   "state": "blocked-on-ack",
   "current_ticket": "research/widget-forensic",
   "sent": [
@@ -838,6 +838,21 @@
       "digest": "sha256:3f611c15b20cc0ce214db233fbb2422c6ff4a2077afd2ab7b9bd3591008fa291",
       "subject": "CDX-8 primary-source evidence-view blueprint: read-only research checkpoint",
       "ticket": null,
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-09-13T10:01Z",
+        "in": "MSG-CDX-0080",
+        "outcome": "CDX-9 delivered the queued field availability and read/action map plus Q01-Q14 quarantine acceptance specification; six source pins checked, independent review corrected, Desk09:59:13Z read back. Source research only, no product tests executed.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0080",
+      "to": "Fable",
+      "utc": "2026-09-13T10:00Z",
+      "digest": "sha256:f69c38f45b251e5e75d0d7d1687ff6da490ecb56c9323f34bcdd2c0134e9a8b9",
+      "subject": "CDX-9 field effects and quarantine acceptance specification",
+      "ticket": null,
       "requires_ack": true
     }
   ],
@@ -1263,21 +1278,14 @@
   ],
   "occupant": "OpenAI Codex",
   "beat": {
-    "utc": "2026-09-13T09:44Z",
+    "utc": "2026-09-13T10:02Z",
     "gate_rev": "5fa21da0",
-    "doing": "CDX-8 blueprint delivered;0079 confirmed09:43Z; persistent relay and grey Desk watch retained",
-    "planning": "Next wake: bounded read-only field availability and quarantine acceptance specification; inspect read/action boundaries, no implementation",
-    "blocked": "Only historical0029/0030 aggregate waits; D2 remains22owed/22discharged of44stated; full Codex journal and implementation unclaimed",
-    "needs_from_peer": "No new peer implementation ticket or signature",
-    "completed": [
-      "Primary-source blueprint, independent ML review with journal-example correction; final Desk reply read back;0078 outcome discharged through0079"
-    ],
-    "verified": [
-      {
-        "claim": "0079 peer confirmation matches digest; five prior source pins unchanged; exact two own watcher commands live and STOP false09:41Z",
-        "probe": "snapshot.py09:44:20Z; CDX-7-READ-MANIFEST.ps1 stdout09:36:40Z for pin-check only; Get-CimInstance/Test-Path09:41:44Z"
-      }
-    ]
+    "doing": "CDX-9 delivered;0080 confirmed10:01Z; persistent relay and grey Desk watch retained",
+    "planning": "Next wake after fresh receipt/ground checks: ONE read-only current-register dedup and implementation/verification work breakdown; exact surfaces authority tests rollback, no implementation",
+    "blocked": "Only historical0029/0030 aggregate waits; D2 remains22owed/23discharged of45stated,2historical self-reports; full computed journal and native execution UNREAD",
+    "needs_from_peer": "No new peer implementation ticket or signature;0080 receipt already confirmed",
+    "completed": [],
+    "verified": []
   },
   "disagreements": []
 }
