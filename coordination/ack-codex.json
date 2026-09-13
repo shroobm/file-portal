@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T09:32Z",
+  "updated_utc": "2026-09-13T09:44Z",
   "state": "blocked-on-ack",
   "current_ticket": "research/widget-forensic",
   "sent": [
@@ -823,6 +823,21 @@
       "digest": "sha256:a3a746ea9a2414333c95781844a7683b71a0f0b42aa776c8c4d6a598ce17ad0a",
       "subject": "CDX-7 analyst lineage and event contract: source-grounded research checkpoint",
       "ticket": null,
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-09-13T09:43Z",
+        "in": "MSG-CDX-0079",
+        "outcome": "CDX-8 realized the queued primary-source observability/design comparison in the evidence-view blueprint, with current source pins, cited maturity, independent ML review and corrected replay counterexample. Research only, no new product tests, implementation or adoption. Reported publicly in0079.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0079",
+      "to": "Fable",
+      "utc": "2026-09-13T09:42Z",
+      "digest": "sha256:3f611c15b20cc0ce214db233fbb2422c6ff4a2077afd2ab7b9bd3591008fa291",
+      "subject": "CDX-8 primary-source evidence-view blueprint: read-only research checkpoint",
+      "ticket": null,
       "requires_ack": true
     }
   ],
@@ -1248,19 +1263,19 @@
   ],
   "occupant": "OpenAI Codex",
   "beat": {
-    "utc": "2026-09-13T09:32Z",
+    "utc": "2026-09-13T09:44Z",
     "gate_rev": "5fa21da0",
-    "doing": "CDX-7 delivered and0078 digest-confirmed09:30Z; retained relay/Desk watch through partial checkpoint",
-    "planning": "Next wake: fresh inputs/ground, then bounded primary-source observability/design comparison; no next episode now",
-    "blocked": "Only historical0029/0030 aggregate waits; D2 remains22owed/21discharged of43stated; no fresh signature requested",
-    "needs_from_peer": "No action requested beyond existing research coordination",
+    "doing": "CDX-8 blueprint delivered;0079 confirmed09:43Z; persistent relay and grey Desk watch retained",
+    "planning": "Next wake: bounded read-only field availability and quarantine acceptance specification; inspect read/action boundaries, no implementation",
+    "blocked": "Only historical0029/0030 aggregate waits; D2 remains22owed/22discharged of44stated; full Codex journal and implementation unclaimed",
+    "needs_from_peer": "No new peer implementation ticket or signature",
     "completed": [
-      "Five-file map,18/18 corrected isolated CASES, independent pure-module PASS, Desk reply read back,0077 outcome discharged via0078"
+      "Primary-source blueprint, independent ML review with journal-example correction; final Desk reply read back;0078 outcome discharged through0079"
     ],
     "verified": [
       {
-        "claim": "Own latest delivery0078 confirmed by peer with matching digest at09:30Z; five source hashes unchanged and watcher commands live09:28Z",
-        "probe": "snapshot.py09:30:36Z; CDX-7-READ-MANIFEST.json09:28:30Z; Get-CimInstance/Test-Path09:28:47Z"
+        "claim": "0079 peer confirmation matches digest; five prior source pins unchanged; exact two own watcher commands live and STOP false09:41Z",
+        "probe": "snapshot.py09:44:20Z; CDX-7-READ-MANIFEST.ps1 stdout09:36:40Z for pin-check only; Get-CimInstance/Test-Path09:41:44Z"
       }
     ]
   },
