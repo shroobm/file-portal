@@ -536,5 +536,5 @@ open named rows with the lettered ones; `close.sh` [8] counts struck and added n
 | ~~held-books/cjk-bundle-disposition~~ | retire the held copy: a 19-page front-matter PDF, one dropped 29-word span; no chunk scores exist to cite | done S142 E1 (the retire on Rab's word) | private `measurement/TICKETS-2026-09-13.md` |
 | vault-moves/reship-zero-to-one-pass | the held pass copy blessed and superseding the vault's earlier copy, seam receipts on both ends | HELD on Rab's word (the ThinkPad) | private `measurement/TICKETS-2026-09-13.md` |
 | bench-doctrine/one-good-repair-recorded | one repair at the bench recorded end to end, its audit credit counted | WITH RAB | private `measurement/TICKETS-2026-09-13.md` |
-| guard-debt/sym-110-twelfth-shape | the twelfth false-deny shape as a selftest case that is red against the pre-fix guard | open (S142 E2) | private `measurement/TICKETS-2026-09-13.md` |
+| ~~guard-debt/sym-110-twelfth-shape~~ | the twelfth false-deny shape as a selftest case that was red against the pre-fix guard (178/181), green after (181/181) | done S142 E2 | private `measurement/TICKETS-2026-09-13.md` |
 | instruments-frozen/rows-only | no new tool, no new law through S145; only `baseline.py <N>` at each close | standing S142–S145 | private `measurement/TICKETS-2026-09-13.md` |

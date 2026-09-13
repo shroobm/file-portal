@@ -181,6 +181,35 @@ def to_windows(path):
     return p
 
 
+def subst_end(cmd, i):
+    """`cmd[i:]` starts with `$(`; return the index just past its matching `)`, honouring nested `$(`/`(` and quotes inside
+    the body (a `\\` escapes inside double quotes there as in bash). Unbalanced → len(cmd): the rest of the text is the
+    body, which the caller still scans. (S142 E2, SYM-110's twelfth shape.)"""
+    depth, j, n, q = 1, i + 2, len(cmd), None
+    while j < n:
+        c = cmd[j]
+        if q:
+            if c == "\\" and q == '"' and j + 1 < n:
+                j += 2
+                continue
+            if c == q:
+                q = None
+        elif c in ("'", '"'):
+            q = c
+        elif cmd.startswith("$(", j):
+            depth += 1
+            j += 2
+            continue
+        elif c == "(":
+            depth += 1
+        elif c == ")":
+            depth -= 1
+            if depth == 0:
+                return j + 1
+        j += 1
+    return n
+
+
 def segments(cmd, ps=False):
     """Quote-aware split into command segments. Separators outside quotes: && || ; | newline ( ) { } $( and backticks;
     inside DOUBLE quotes `$(` and backticks still open a command (bash expands them there); single quotes are literal.
@@ -229,9 +258,15 @@ def segments(cmd, ps=False):
                 i = j
                 continue
             if cmd.startswith("$(", i):
-                flush()
-                stack.append("cmd")
-                i += 2
+                # SYM-110's twelfth shape (S142 E2): a substitution INSIDE double quotes is part of the enclosing word.
+                # Flushing here split `sed -n "$(grep … | cut -d: -f1),\$p" file` so the text after the `)` opened a new
+                # segment whose head read as `$p` → UNREAD → a false deny on a read-only sed. Now the body is emitted as
+                # its own segment(s) — still scanned, so `"$(git reset --hard)"` is still denied — and the raw `$(…)`
+                # stays in the word. Backticks inside quotes keep the old split (no live deny on record; a case first).
+                j = subst_end(cmd, i)
+                out.extend(segments(cmd[i + 2:j - 1] if cmd[j - 1:j] == ")" else cmd[i + 2:j], ps))
+                buf.append(cmd[i:j])
+                i = j
                 continue
             if c == "`":
                 flush()

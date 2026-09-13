@@ -338,6 +338,20 @@ def main():
         case("J71: without row_check.sh in the checkout the guard is UNREAD and allows (never a verdict)", "allow", bash("git push -q"))
         sh(["git", "reset", "-q", "--hard", "origin/main"], main_repo)
         io.open(os.path.join(main_repo, "coordination", "private", "session.current"), "w").write("S42 desktop 2026-09-10T00:00:00Z\n")
+        # S142 E2 (guard-debt/sym-110-twelfth-shape): FALSE-DENY REGRESSION — SYM-110's twelfth shape (a live deny, S138 16:1xZ).
+        # Inside double quotes a `$(…)` substitution used to FLUSH the enclosing segment, so the text after it (`,\$p" file`)
+        # opened a new segment whose first token read as a `$p` head → UNREAD → denied on a read-only sed. The substitution's
+        # body is still its own segment (scanned — the two negatives); the enclosing word stays whole. Both positive cases were
+        # RED against the guard before the fix (measured S142 E2: 178/181 — the two positives, plus the deny-log count that
+        # their two false denies inflated, 122 for 120), as the SYM-110 rule requires: a case, then the grammar.
+        case("SYM-110/12: sed -n \"$(grep -n … | cut -d: -f1),\\$p\" file passes (the text after a quoted $(…) is the same word)", "allow",
+             bash("sed -n \"$(grep -n 'Change Ledger' CLAUDE_README.md | cut -d: -f1),\\$p\" CLAUDE_README.md | head -3"))
+        case("SYM-110/12b: the same shape with an unescaped $p passes (a data string, not a head)", "allow",
+             bash("sed -n \"$(grep -n 'x' f | cut -d: -f1),$p\" f"))
+        case("SYM-110/12 NEG: a git verb INSIDE the quoted $(…) is still denied (the substitution body is scanned)", "deny",
+             bash("sed -n \"$(git reset --hard),\\$p\" f"))
+        case("SYM-110/12 NEG: a git verb AFTER the quoted substitution is still denied (the split outside quotes stands)", "deny",
+             bash("cat \"$(git rev-parse --show-toplevel)/x\" && git reset --hard"))
         # the main session's own writes
         case("MAIN: git add / commit / push pass", "allow", bash("git add x && git commit -q -m x && git push -q"))
         case("MAIN: git pull --rebase passes", "allow", bash("git pull --rebase"))
