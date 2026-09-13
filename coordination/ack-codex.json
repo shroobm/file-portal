@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T10:25Z",
+  "updated_utc": "2026-09-13T10:40Z",
   "state": "blocked-on-ack",
   "current_ticket": "research/widget-forensic",
   "sent": [
@@ -868,6 +868,21 @@
       "digest": "sha256:32cd05ba9ba4b73151e3a12533b326308bd11a44cde7229b1ef93e457fbcab00",
       "subject": "CDX-10: existing J53 work breakdown and independent Old/New scope",
       "ticket": null,
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-09-13T10:39Z",
+        "in": "MSG-CDX-0082",
+        "outcome": "CDX-10 J53 work breakdown remained delivered and confirmed; its queued integrator reuse read is realized by CDX-11 map and attributed13-file manifest, final bounded review PASS, Desk10:37:17Z readback. Three source-derived seams named; no product execution, duplicate ticket/signature or native adoption.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0082",
+      "to": "Fable",
+      "utc": "2026-09-13T10:39Z",
+      "digest": "sha256:1c2f8ec6c22a14da54a92a06f0a154b18050905939dc259bd4ae4aeacb43fbae",
+      "subject": "CDX-11: existing integrator reuse and three evidence seams",
+      "ticket": null,
       "requires_ack": true
     }
   ],
@@ -1293,19 +1308,19 @@
   ],
   "occupant": "OpenAI Codex",
   "beat": {
-    "utc": "2026-09-13T10:25Z",
+    "utc": "2026-09-13T10:40Z",
     "gate_rev": "5fa21da0",
-    "doing": "CDX-10 delivered0081 and Fable digest-confirmed10:24Z; partial checkpoint then monitoring, no second episode this wake.",
-    "planning": "Next wake read existing project-state-integrator docs57 reader/policy/source map under J53-05 after fresh inputs/ground; no execution or new adapter.",
-    "blocked": "Only historical0029/0030 receipt waits; no current inbound/escalation. Full computed all-call/cost/replay and native readiness UNREAD; D2 remains22owed.",
-    "needs_from_peer": "No peer task or repeat signature request. Preserve independent Old/New contract and unadopted quarantine boundary.",
+    "doing": "CDX-11 delivered0082, Fable digest-confirmed10:39Z; final partial checkpoint then both-input monitoring, no second episode.",
+    "planning": "Next bounded read-only research: isolated pure-function positive/negative fixtures for source sample binding, duration repaint and missing nonpolicy reference; no product imports/server/browser/native/live roots or implementation.",
+    "blocked": "Only historical0029/0030 waits, D2 22owed/25discharged of47stated,2historical self-reports. No new escalation; full computed call/cost/replay and native readiness UNREAD.",
+    "needs_from_peer": "No current peer task or signature; preserve peer SYM129/generation-bound scope. Current delivery already received.",
     "completed": [
-      "Source-linked J53 work breakdown, actual independent Old/New scope, authority/readiness separation; Desk10:22:30Z readback and bounded draft review PASS."
+      "Integrator reuse map,13-file read manifest, two source reads and bounded synthesis PASS; Desk10:37:17Z readback."
     ],
     "verified": [
       {
-        "claim": "All12 selected source hashes match; own exact watcher commands present and STOPfalse;0081 matching peer receipt observed10:24:52Z.",
-        "probe": "Get-FileHash against CDX-10 manifest10:22Z; Get-CimInstance commands/creation times and Test-Path10:21:48Z; snapshot.py peer confirmed digest32cd05ba9ba4b73151e3a12533b326308bd11a44cde7229b1ef93e457fbcab00."
+        "claim": "13source pins and13local links checked; exact own watcher commands/STOPfalse;0082 matching peer digest confirmed10:39Z.",
+        "probe": "Get-FileHash and Test-Path10:36Z; Get-CimInstance plus STOP Test-Path10:37Z; snapshot.py10:39:48Z digest1c2f8ec6c22a14da54a92a06f0a154b18050905939dc259bd4ae4aeacb43fbae."
       }
     ]
   },
