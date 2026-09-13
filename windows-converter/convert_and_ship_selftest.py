@@ -17,6 +17,8 @@ Each tripwire names what breaks if it fires:
   T7  vocabulary parity            — an event exists that the Room and manual cannot speak
   T8  invocation bound + outer cap — the ladder's worst case silently exceeds its signed bound
   T10 zero-stall negative control  — recovery bookkeeping leaks into the healthy path
+  T12 audit-mode provenance        — the lever is written without a writer on record (SYM-131),
+                                     or a ship/hold event cannot say which mode it acted under
 """
 
 import ast
@@ -33,6 +35,11 @@ from pathlib import Path
 HERE = Path(__file__).parent
 QUARANTINE = Path(tempfile.mkdtemp(prefix="fp-selftest-"))
 os.environ["FP_PIPELINE"] = str(QUARANTINE)
+# S146 E2 (IB-019): the analyst path ledgers its chunk journal through dumps/dump.sh, and without this the rows landed in the
+# PUBLIC dumps/LEDGER.md (four rows on 2026-09-13, D0044–D0047) — analyst_selftest.py had set the throwaway ledger since S141;
+# this suite had not. A selftest's dumps go to a ledger inside its own quarantine, in place, and nowhere else.
+(QUARANTINE / "dump-ledger").mkdir(parents=True, exist_ok=True)
+os.environ["FP_DUMP_LEDGER"] = str(QUARANTINE / "dump-ledger")
 sys.modules.setdefault("marker", types.SimpleNamespace(__version__="test"))
 sys.path.insert(0, str(HERE))
 
@@ -1636,6 +1643,55 @@ check(msg is not None and "refused" in msg and not ships and not cap,
 for n in ("j42good", "j42stale", "j42none"):
     shutil.rmtree(cas.ANCHOR / n, ignore_errors=True)
 
+
+# ---------- T12: the lever's provenance (S146 E2, SYM-131) ----------
+print("T12 audit-mode provenance")
+_saved_emit_t11 = cas.emit
+rec = EmitRecorder()
+cas.emit = rec
+try:
+    cas.AUDIT_MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    cas.AUDIT_MODE_FILE.write_text("report\n", encoding="utf-8")
+    row = cas.set_audit_mode("enforce", "selftest T12", "the flip through the writer")
+    check(cas.AUDIT_MODE_FILE.read_text(encoding="utf-8").strip() == "enforce" and cas.audit_mode() == "enforce",
+          "T12 (a) set_audit_mode writes the lever and audit_mode() reads it back")
+    ev = rec.named("pipeline/audit_mode_set")
+    check(len(ev) == 1 and ev[0]["old"] == "report" and ev[0]["new"] == "enforce" and ev[0]["writer"] == "selftest T12"
+          and ev[0]["unchanged"] is False and ev[0]["reason"] == "the flip through the writer"
+          and ev[0]["mtime_after"] is not None,
+          "T12 (b) the write is ONE event naming old, new, writer, reason and the mtime")
+    check(row["old"] == "report" and row["new"] == "enforce", "T12 (c) the returned row is the event's row")
+    mtime_now = cas.AUDIT_MODE_FILE.stat().st_mtime
+    refused = False
+    try:
+        cas.set_audit_mode("audit", "selftest T12", "a value outside the vocabulary")
+    except ValueError:
+        refused = True
+    check(refused and cas.AUDIT_MODE_FILE.read_text(encoding="utf-8").strip() == "enforce"
+          and cas.AUDIT_MODE_FILE.stat().st_mtime == mtime_now and len(rec.named("pipeline/audit_mode_set")) == 1,
+          "T12 (d) NEGATIVE: a value outside report|enforce refuses BEFORE writing and emits nothing")
+    refused = False
+    try:
+        cas.set_audit_mode("report", "", "no writer")
+    except ValueError:
+        refused = True
+    check(refused and cas.audit_mode() == "enforce" and len(rec.named("pipeline/audit_mode_set")) == 1,
+          "T12 (e) NEGATIVE: a write without a writer refuses — an unattributed write is the defect this exists for")
+    row2 = cas.set_audit_mode("enforce", "selftest T12", "the same value again")
+    ev = rec.named("pipeline/audit_mode_set")
+    check(row2["unchanged"] is True and len(ev) == 2 and ev[1]["unchanged"] is True and ev[1]["old"] == "enforce",
+          "T12 (f) writing the value already there is still an event (unchanged: true) — a no-op write is a decision")
+    row3 = cas.set_audit_mode("report", "selftest T12", "back")
+    check(row3["old"] == "enforce" and row3["new"] == "report" and cas.audit_mode() == "report"
+          and not cas.AUDIT_MODE_FILE.with_name(cas.AUDIT_MODE_FILE.name + ".tmp").exists(),
+          "T12 (g) the undo is the same call; no temp file survives the atomic replace")
+    src_ship = Path(cas.__file__).read_text(encoding="utf-8")
+    check('emit("ship", "shipped", bundle=bundle_name, sha=source_sha[:16],\n         audit_mode=audit_mode())' in src_ship
+          and 'verdict="fail",\n             audit_mode=audit_mode())' in src_ship,
+          "T12 (h) the shipped and held events name the lever they acted under (source read, not inferred)")
+finally:
+    cas.emit = _saved_emit_t11
+    cas.AUDIT_MODE_FILE.write_text("report\n", encoding="utf-8")
 
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER

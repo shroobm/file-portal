@@ -310,6 +310,14 @@
       "disposition": "EVIDENCE",
       "reason": "J46 (S140): inside manifest.analyst.edits - the number of PASSED chunks that lost at least one edit to the whitelist's revert; the denominator is chunks_passed. Evidence, same home as converter:edits."
     },
+    "converter:mtime_before": {
+      "disposition": "EVIDENCE",
+      "reason": "S146 E2 (pipeline/audit-mode-provenance, SYM-131): a field of the pipeline/audit_mode_set event - the lever file's mtime before set_audit_mode() replaced it. The SYM-131 gap was a value with no writer and no time; the pair of mtimes proves the write replaced the exact file the reader had read and dates the previous value (the first row dated report at 2026-09-12 02:59:52Z). Read live by nobody; the record quotes it. Evidence, same home as the event row."
+    },
+    "converter:mtime_after": {
+      "disposition": "EVIDENCE",
+      "reason": "S146 E2 (pipeline/audit-mode-provenance, SYM-131): the twin of mtime_before - the lever file's mtime after the atomic replace, so a later reader can match the file on disk to the event that wrote it (mtime == mtime_after means no unrecorded write since). Read live by nobody; evidence, same home as the event row."
+    },
     "converter:chunk_journal_dump": {
       "disposition": "EVIDENCE",
       "reason": "S141 (unread-surfaces/orphan-chunk-journal-dump-before-rmtree): manifest.analyst.chunk_journal_dump - the DUMPED id (or the UNREAD reason) of the chunk journal ledgered by dumps/dump.sh before the analyst rmtree's its work dir; dumps/ D0001 was this journal snapshotted by hand minutes before an rmtree, and SURF-12 (S140 second reading) found one orphaned 12 days. Evidence: a pointer to bytes + a ledger row, never a verdict."

@@ -498,6 +498,37 @@ def audit_mode() -> str:
         return "report"
 
 
+def set_audit_mode(value: str, writer: str, reason: str) -> dict:
+    """The ONLY sanctioned writer of audit-mode.txt (S146 E2; SYM-131). The lever that decides
+    what reaches the vault had read `report` since 2026-09-12 02:59:52Z with no record of who
+    set it, and a failing book reached the vault under it (S144 E5). This writes the value
+    atomically and emits `pipeline/audit_mode_set` naming the old and new value, the writer,
+    the reason and both mtimes — a write that names its writer. A value outside
+    report|enforce, or a writer shorter than three characters, refuses with ValueError before
+    anything is written and emits nothing. Writing the value already there is still an event
+    (`unchanged: true`): a no-op write is still a decision someone made."""
+    new = (value or "").strip().lower()
+    if new not in ("report", "enforce"):
+        raise ValueError(f"audit mode must be report or enforce, not {value!r}")
+    who = (writer or "").strip()
+    if len(who) < 3:
+        raise ValueError("set_audit_mode needs a writer (who is setting it)")
+    old = audit_mode()
+    try:
+        mtime_before = AUDIT_MODE_FILE.stat().st_mtime
+    except OSError:
+        mtime_before = None
+    AUDIT_MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    tmp = AUDIT_MODE_FILE.with_name(AUDIT_MODE_FILE.name + ".tmp")
+    tmp.write_text(new + "\n", encoding="utf-8")
+    os.replace(tmp, AUDIT_MODE_FILE)
+    row = {"old": old, "new": new, "unchanged": old == new, "writer": who[:120],
+           "reason": (reason or "").strip()[:300], "mtime_before": mtime_before,
+           "mtime_after": AUDIT_MODE_FILE.stat().st_mtime}
+    emit("pipeline", "audit_mode_set", **row)
+    return row
+
+
 def _raise_audit_verdict(bundle_dir: Path, bundle_name: str) -> None:
     """Raise a fidelity verdict of 'fail' on the algedonic line, WHATEVER audit-mode.txt says
     (docs/30 §5.4, SIGNED by Rab 2026-08-14: "Report means ship anyway, never stay silent").
@@ -567,7 +598,8 @@ def _enforce_hold(bundle_dir: Path, bundle_name: str, source_sha: str) -> bool:
                 shutil.rmtree(dest)
         shutil.copytree(bundle_dir, dest)
         emit("audit", "held", bundle=bundle_name,
-             source=manifest.get("source", bundle_name), verdict="fail")
+             source=manifest.get("source", bundle_name), verdict="fail",
+             audit_mode=audit_mode())  # S146 E2: the event names the mode it acted under
         print(f"HELD {bundle_name} — audit verdict=fail (enforce mode); not shipped", flush=True)
         return True
     except Exception as exc:  # noqa: BLE001 — enforcement must never lose a bundle
@@ -1790,7 +1822,8 @@ def ship(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
         raise RuntimeError(f"ship failed: tar={tar.returncode} ssh={ssh.returncode} "
                            f"{ssh.stderr.strip()[:300]}")
     print(f"SHIPPED {bundle_name} -> {REMOTE}:{REMOTE_STAGING}/", flush=True)
-    emit("ship", "shipped", bundle=bundle_name, sha=source_sha[:16])
+    emit("ship", "shipped", bundle=bundle_name, sha=source_sha[:16],
+         audit_mode=audit_mode())  # S146 E2: a ship names the lever it shipped under (SYM-131)
 
 
 def shell_quote(s: str) -> str:
@@ -2336,6 +2369,13 @@ def main():
                          "against both references and, on flag/pass, ship it as a supersede; "
                          "CPU-only — never GPU, never ollama. --dry-run prints the verdict "
                          "and changes/ships/emits nothing")
+    ap.add_argument("--set-audit-mode", metavar="MODE", choices=["report", "enforce"],
+                    help="S146 E2 (SYM-131): write audit-mode.txt through the one sanctioned "
+                         "writer — the write emits pipeline/audit_mode_set naming --writer, "
+                         "--reason, the old and the new value. Waits for the card like every "
+                         "entry, so a flip lands between books, never inside one.")
+    ap.add_argument("--writer", metavar="WHO", help="who is setting the audit mode (required with --set-audit-mode)")
+    ap.add_argument("--reason", metavar="WHY", default="", help="why the audit mode is being set (recorded)")
     args = ap.parse_args()
 
     # The GPU span begins here for EVERY entry — convert, --resume, --reanalyze, --reaudit —
@@ -2345,6 +2385,14 @@ def main():
     # holding the mutex costs no GPU-hours — it is simply unconditional for every entry.
     acquire_card_mutex()
 
+    if args.set_audit_mode:
+        if not args.writer:
+            sys.exit("--set-audit-mode needs --writer (who is setting it)")
+        row = set_audit_mode(args.set_audit_mode, args.writer, args.reason)
+        print(f"AUDIT-MODE {row['old']} -> {row['new']} by {row['writer']} "
+              f"({'unchanged' if row['unchanged'] else 'changed'}); event pipeline/audit_mode_set",
+              flush=True)
+        return
     if args.reaudit:
         reaudit(args.reaudit, dry_run=args.dry_run)
         return

@@ -517,6 +517,7 @@
         "audit/held": {
           "optional_keys": [],
           "required_keys": [
+            "audit_mode",
             "bundle",
             "event",
             "pid",
@@ -1041,6 +1042,22 @@
             "ts"
           ]
         },
+        "pipeline/audit_mode_set": {
+          "optional_keys": [],
+          "required_keys": [
+            "event",
+            "mtime_after",
+            "mtime_before",
+            "new",
+            "old",
+            "pid",
+            "reason",
+            "stage",
+            "ts",
+            "unchanged",
+            "writer"
+          ]
+        },
         "ship/failed": {
           "optional_keys": [],
           "required_keys": [
@@ -1055,6 +1072,7 @@
         "ship/shipped": {
           "optional_keys": [],
           "required_keys": [
+            "audit_mode",
             "bundle",
             "event",
             "pid",

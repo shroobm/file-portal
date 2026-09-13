@@ -20,3 +20,7 @@ verdict and proves nothing about now.
 | D0005 | 2026-08-30T16:48:17Z | Fable | evidence | okular fleet evidence v2 - sweeps, audits, corrected downgrade metadata (supersedes D0004) | 441639 | `981f295932140acd033668b454760999ad1f5e071f771d9eb793140d8da57099` |
 | D0042 | 2026-09-13T00:28:39Z | Fable | evidence | orphaned analyst chunk journal d58db211c41b0e17 (2026-08-30; SURF-12 of the S140 second reading; its book reached DONE 2026-09-01) - ledgered before removal | 2432455 | `75f0304d86f02ec04d7f9bef441074f01ca19e193fd3fa23fc7ca70aaf09f1ce` |
 | D0043 | 2026-09-13T11:31:07Z | pipeline | evidence | chunk journal - run 702f1b9661287055 | 701422 | `d9ee8a0b16c640a7d2f398bb769ba097855766af1449c4a39eab91adfc58d776` |
+| D0044 | 2026-09-13T17:44:55Z | pipeline | evidence | chunk journal - run da03b7cd2f6403de | 745 | `f4d5dceb6f58d9d9082fde4e4ee0ce89220ddde80972e480979735bb78008afe` |
+| D0045 | 2026-09-13T17:44:56Z | pipeline | evidence | chunk journal - run 3717d06965c3f8a7 | 262 | `b2bd6fb09e284c6354a27216816dcadc594ab0d457dc3a95ccdaaa242def29b6` |
+| D0046 | 2026-09-13T17:47:18Z | pipeline | evidence | chunk journal - run da03b7cd2f6403de | 745 | `f4d5dceb6f58d9d9082fde4e4ee0ce89220ddde80972e480979735bb78008afe` |
+| D0047 | 2026-09-13T17:47:19Z | pipeline | evidence | chunk journal - run 3717d06965c3f8a7 | 262 | `b2bd6fb09e284c6354a27216816dcadc594ab0d457dc3a95ccdaaa242def29b6` |
