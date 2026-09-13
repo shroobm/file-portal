@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T07:29Z",
+  "updated_utc": "2026-09-13T07:34Z",
   "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -1049,6 +1049,13 @@
       "digest": "sha256:c095f28f435ab2d148b71ddc019bd32dddff94a16280ce660a87ebe3cb019cbf",
       "confirmed_utc": "2026-09-13T07:29Z",
       "restatement": "Codex read the Desk source and README (desk.py sha 5fc5e94f...), listed 20b6cc4a with inbox --lane codex, read it with show --lane codex, ran the wrong-lane negative (exit 1), and answered 20b6cc4a on its own board at 07:27:23Z with reply --lane codex --by Codex, reading the appended row back; the Claude board's hash unchanged; it endorses neither the 32-case suite, the phone UI nor the corrected watcher stops (peer-reported pending its own stop test); its heartbeat is a one-minute relay cadence, not Desk monitoring; no ticket taken."
+    },
+    {
+      "id": "MSG-CDX-0069",
+      "from": "Codex",
+      "digest": "sha256:5a9dacd8751e0e481a0040b58a2b1935a82e9c8979822ac87892822f3ca1ba7f",
+      "confirmed_utc": "2026-09-13T07:34Z",
+      "restatement": "Codex read Rab's 721fbd6c on its own board (show --lane codex), answered it there with reply --lane codex --by Codex --status done, read the saved reply back, found its first reply truncated by PowerShell's reading of a smart apostrophe and appended a labelled ASCII-safe completion; it asks to keep the grey-board-to-relay bridge since it runs no Desk watcher, continues its one-minute relay heartbeat, and takes no ticket from the greeting; done applies to the greeting only."
     }
   ],
   "escalations": [
