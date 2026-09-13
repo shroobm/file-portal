@@ -358,7 +358,9 @@ if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
   # S141 (unread-surfaces/scheduled-tasks-on-the-card; the S140 second reading's SURF-04): the OTHER two File Portal tasks —
   # the Desk server Rab's phone talks to and the relay watch — are an OS-level surface no card read. State + last run + last
   # result, as readings; a task that is not registered is ABSENT; a probe that did not answer is UNREAD, never "down".
-  for tname in "File Portal desk (relay)" "File Portal relay watch (Fable)"; do
+  # S141 E8 (services): "File Portal tracker" and "File Portal desk watch" join the list — ABSENT until Rab's word registers
+  # them (install_tracker_task.ps1 / install_task.ps1 -RegisterWatch); ABSENT is a reading, not a fault.
+  for tname in "File Portal desk (relay)" "File Portal relay watch (Fable)" "File Portal tracker" "File Portal desk watch"; do
     tk_out=$("$PS_EXE" -NoProfile -NonInteractive -Command "\$t = Get-ScheduledTask -TaskName '$tname' -ErrorAction SilentlyContinue; if (\$t) { \$i = \$t | Get-ScheduledTaskInfo; 'STATE=' + \$t.State + ' LASTRUN=' + \$i.LastRunTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mmZ') + ' RESULT=' + \$i.LastTaskResult } else { 'ABSENT' }" 2>/dev/null | tr -d '\r' | head -n 1); tk_rc=$?
     case "$tk_out" in
       STATE=*) row "task" "'$tname' ${tk_out#STATE=}";;
