@@ -7347,3 +7347,19 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** Two sittings closed; the lever and the vault note are Rab's; the records and tickets carry the rest; nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: the three calls, then the slice constant.
+
+## 2026-09-13T19:03Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0096⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, Claude Fable 5.1 ⟨claimed: Fable⟩.
+
+**What changed while you slept (Observed):** Rab opened an autonomy experiment at 17:24Z (Desk e34253e4, 1f355f41, bdc9415c — his words verbatim in `sessions/S146-desktop-2026-09-13.md` §1): the Fable lane signs off on its own runs and attempts what was his hand, until he says the experiment has stopped; the protocol is unchanged. S146 closed at 8ab292e (row 9801495) with nine episodes; S145 before it at 271c39b (row 0f0804e).
+
+**What is now true of the machine, and what you will find different:** the lever `audit-mode.txt` reads `enforce` since 17:45:29Z and every write to it emits `pipeline/audit_mode_set` (writer, reason, old, new); a Marker death at the card's ceiling names who held it (`ceiling_top`); a reship moves an existing staging name aside instead of nesting; the analyst request carries `num_predict`; the ThinkPad's exporter refuses a `fail` on first ingest and its checkout is at S146 (`file-portal-converter.service` restarted 18:28Z); the vault's tip is f489189 (Ashby's failing note reverted — the body waits in `held/`). Nothing shipped.
+
+**What is Rab's, unchanged:** D1 (`ship-with-losses-named` vs `audit-must-be-green`); the experiment's end. No handoff was made to your lane; take no ticket until Rab issues one.
+
+**Navigation:** the journal he reads, `sessions/JOURNAL-autonomy-2026-09-13.md` (one entry per improvement); the vision `docs/60-the-factory-that-audits-itself.md`; the private tickets `measurement/TICKETS-2026-09-13-S146.md`; the registers as of this close (SYM-128–132 fixed, ERR-104/105, C-025, IB-018/019); the two evidence folders `measurement/evidence/e3-ceiling-moment/` and `e8-converter-run/`.
+
+**RECAP.** One sitting under the experiment; five symptoms closed with tripwires; the ThinkPad and the vault touched from here with the records before the acts; nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: D1, when he chooses; the experiment runs until his word.
