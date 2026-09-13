@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T10:57Z",
+  "updated_utc": "2026-09-13T11:18Z",
   "state": "blocked-on-ack",
   "current_ticket": "research/widget-forensic",
   "sent": [
@@ -898,6 +898,21 @@
       "digest": "sha256:4c01e6b1592726ced87d371dfebe6613623ed54dae59c389cf06bb183d14467d",
       "subject": "CDX-12: isolated validation of integrator evidence seams",
       "ticket": null,
+      "requires_ack": true,
+      "discharged": {
+        "utc": "2026-09-13T11:17Z",
+        "in": "MSG-CDX-0084",
+        "outcome": "CDX-12 isolated validation remains delivered and confirmed. Its queued read-only interface/test specification is now completed as CDX-13, independently reviewed, corrected for wire precision, and delivered on Desk at 11:15:58Z and in MSG-CDX-0084. No product fix or new test execution; proposed acceptance remains NOT RUN.",
+        "self_reported": false
+      }
+    },
+    {
+      "id": "MSG-CDX-0084",
+      "to": "Fable",
+      "utc": "2026-09-13T11:16Z",
+      "digest": "sha256:f843a4f202aa239288d2b58b6c2653087868645910777407636264f89e55ab69",
+      "subject": "CDX-13: integrator interface and acceptance specification delivered",
+      "ticket": null,
       "requires_ack": true
     }
   ],
@@ -1323,23 +1338,23 @@
   ],
   "occupant": "OpenAI Codex",
   "beat": {
-    "utc": "2026-09-13T10:57Z",
+    "utc": "2026-09-13T11:18Z",
     "gate_rev": "5fa21da0",
-    "doing": "CDX-12 delivered on Desk and relay; MSG-CDX-0083 digest-confirmed by Fable at 10:53Z. Final bounded checkpoint, then both-input monitoring; no second episode this wake.",
-    "planning": "Next authorized read-only episode: minimal J53-05 interface-and-test change specification for displayed-source binding, cheap-field refresh and typed unresolved references, using existing tests. No implementation.",
-    "blocked": "Only historical MSG-CDX-0029/0030 receipt waits. D2: 22 owed, 26 discharged, 48 stated, 0 UNREAD; 2 historical self-reports. Native readiness and complete computed call/cost/replay journal remain UNREAD. No new escalation.",
-    "needs_from_peer": "No new peer ticket or signature; current delivery already received. Preserve peer SYM-129 and analyst generation-bound scope.",
+    "doing": "CDX-13 delivered to Desk and in MSG-CDX-0084; Fable digest-confirmed at 11:17Z. Final partial checkpoint, then both-input monitoring.",
+    "planning": "The announced three-seam research package is complete. Monitor current direct steering and actionable relay/Desk changes; do not repeat the survey or automatically implement a proposed contract.",
+    "blocked": "Historical MSG-CDX-0029/0030 receipt waits only; D2 22 owed / 27 discharged / 49 stated / 0 UNREAD, including 2 historical self-reports. Native readiness and full computed call/cost/replay journal UNREAD; no new escalation.",
+    "needs_from_peer": "No new peer task or signature. Current delivery received. Preserve peer SYM-129 and generation-bound scope; monitoring remains active.",
     "completed": [
-      "Source-extracted Python and fake-DOM JavaScript fixtures, independent review/replay, corrected report and Desk delivery at 10:52:18Z. No product changes."
+      "J53-05 interface/test specification with exact observation identity, source refusal/retry, incremental refresh, typed reference evidence, retained test inventory and unrun acceptance cases. Independent draft review correction applied."
     ],
     "verified": [
       {
-        "claim": "Python 11/11 named case records including 3 planted controls; independent replay exit 0. UI four actual phases and three sensitivity controls, root replay exit 0. Desired invariants remain false; these are characterization tests, not fixes.",
-        "probe": "CDX-12-python-root-R1.log and CDX-12-ui-root-R1.log in C:/Users/Bndit/.codex/file-portal; pinned scripts and source SHA values in CDX-12-VALIDATION-RESULTS.md; scoped agent review and root command receipts."
+        "claim": "Six source/contract pins match, six unique local links resolve, wrong-digest and missing-link controls discriminate. Reader test bodies and draft independently read; no product tests were run.",
+        "probe": "Get-FileHash and Test-Path controls in CDX-13 task transcript; EPISODE-CDX-13-RECEIPT.md and CDX-13-INTERFACE-TEST-SPEC.md SHA256 6cdad8feadd617dae8769fe8dd692b27ee7c5767c0dafc76eb674dac49f90dcb; scoped reader result."
       },
       {
-        "claim": "Both owned Python watchers still present with exact lane commands, parent IDs and original creation times; both STOP paths absent. Existing one-minute heartbeat ACTIVE.",
-        "probe": "Get-CimInstance Win32_Process for relay PID 26220 and Desk PID 25956; Test-Path on both owned STOP files; read existing file-portal-relay-watch/automation.toml at 10:57Z."
+        "claim": "Own relay 26220 and Desk 25956 exact Python commands, parents and creation times remain present; both STOP files absent. MSG-CDX-0084 matching digest and full Fable restatement read.",
+        "probe": "Get-CimInstance and Test-Path at 11:17:40Z; peer confirmed record f843a4f202aa239288d2b58b6c2653087868645910777407636264f89e55ab69 at 11:17Z."
       }
     ]
   },
