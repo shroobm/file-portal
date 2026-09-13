@@ -77,7 +77,7 @@ SCAN_PAGE_FLAG = 0.70
 SCAN_GARBAGE_FLAG = 0.20   # 1 - dict_hit prior; garbage-token rate above this flags
 ANALYST_DOC_FAIL = 0.995
 ANALYST_RUN_WORDS = 25
-WITNESS_COVERAGE_FLOOR = 0.50   # S144: pages_scored / pages_total under this -> the convert gate reads flag, never pass
+WITNESS_COVERAGE_FLOOR = 0.50  # lever-waiver: Rab's word 2026-09-13 (Desk bf4d5d05, S144 E2); a verdict floor is a rule (docs/15 §12.3), not a lever   # S144: pages_scored / pages_total under this -> the convert gate reads flag, never pass
 
 
 # ---------------------------------------------------------------------------
