@@ -191,6 +191,24 @@ if [[ -d "$PIPE_ROOT" ]]; then
   cnt() { ls -1d "$PIPE_ROOT/$1"/*/ 2>/dev/null | grep -c . ; }
   fcnt() { ls -1 "$PIPE_ROOT/$1"/*.pdf 2>/dev/null | grep -c . ; }
   row "pipeline" "held $(cnt held) · anchor $(cnt anchor) · pending $(cnt pending) · drop $(fcnt drop)"
+  # S141 (unread-surfaces/watcher-stuck-drop-file): the watcher's OWN receipt, not a guess from mtimes - the loop
+  # rewrites .intake-state.json every poll, so its age says whether the watcher is alive and its rows say what waits.
+  st="$PIPE_ROOT/.intake-state.json"
+  if [[ -f "$st" ]]; then
+    st_waiting=$(grep -o '"waiting":[0-9]*' "$st" | head -n 1 | cut -d: -f2)
+    st_oldest=$(grep -o '"wait_s":[0-9]*' "$st" | cut -d: -f2 | sort -n | tail -n 1)
+    st_active=$(grep -o '"active":\(null\|"[^"]*"\)' "$st" | head -n 1 | cut -d: -f2-)
+    st_pid=$(grep -o '"writer_pid":[0-9]*' "$st" | head -n 1 | cut -d: -f2)
+    st_written=$(grep -o '"written_at":"[^"]*"' "$st" | head -n 1 | cut -d'"' -f4)
+    st_epoch=$(date -u -d "${st_written%Z}" +%s 2>/dev/null || echo "")
+    if [[ -n "$st_epoch" ]]; then st_age=$(( $(date -u +%s) - st_epoch )); else st_age=""; fi
+    st_line="waiting ${st_waiting:-?} · oldest ${st_oldest:-0}s · active ${st_active:-?} · written ${st_age:-?}s ago by pid ${st_pid:-?}"
+    if [[ -n "$st_age" && "$st_age" -gt 60 ]]; then st_line="$st_line *** STALE - the watcher rewrites this every poll; is it alive? ***"; fi
+    if [[ "${st_oldest:-0}" -gt 3600 && "$st_active" == "null" ]]; then st_line="$st_line *** STUCK: a PDF has waited > 1 h with no active convert ***"; fi
+    row "intake" "$st_line"
+  else
+    row "intake" "UNREAD - no .intake-state.json (the watcher never ran here, or a different root)"
+  fi
   row "levers" "audit=$(cat "$PIPE_ROOT/audit-mode.txt" 2>/dev/null || echo '?') · analyst=$(cat "$PIPE_ROOT/analyst-mode.txt" 2>/dev/null || echo '?') · batch=$(cat "$PIPE_ROOT/chunk-batch.txt" 2>/dev/null || echo '?')"
   row "gpu-lock" "$([[ -e "$PIPE_ROOT/.gpu-lock" ]] && echo 'PRESENT — a convert holds the card' || echo 'absent')"
   row "events" "$(grep -c . "$PIPE_ROOT/events.jsonl" 2>/dev/null || echo 0) line(s)"

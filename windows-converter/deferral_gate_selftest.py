@@ -14,6 +14,7 @@ import subprocess
 import sys
 import tempfile
 import time
+import uuid
 from pathlib import Path
 
 HERE = Path(__file__).parent
@@ -34,8 +35,10 @@ def main() -> int:
 
     stub = root / "stub_convert.py"
     marker = root / "CONVERTED.txt"
+    delete_source = root / "DELETE_SOURCE"
     stub.write_text(
         "import sys, pathlib\n"
+        f"if pathlib.Path(r'{delete_source}').exists(): pathlib.Path(sys.argv[1]).unlink()\n"
         f"pathlib.Path(r'{marker}').write_text(sys.argv[1], encoding='utf-8')\n",
         encoding="utf-8")
 
@@ -45,7 +48,12 @@ def main() -> int:
     hold.write_text(json.dumps({"held_by": "tripwire", "pid": os.getpid(), "port": 0,
                                 "model": "tripwire"}), encoding="utf-8")
 
-    env = {**os.environ, "FP_PIPELINE": str(root), "FP_CONVERT": str(stub)}
+    # Isolated from the LIVE watcher and the widget's card (S141): per-run mutex names, or the test
+    # watcher exits 3 (the fixed watcher mutex is owned) / defers behind a real convert.
+    tag = uuid.uuid4().hex[:12]
+    env = {**os.environ, "FP_PIPELINE": str(root), "FP_CONVERT": str(stub),
+           "FP_WATCHER_MUTEX": f"Local\\fp-watcher-selftest-{tag}",
+           "FP_CARD_MUTEX": f"Local\\fp-card-selftest-{tag}"}
     watcher = subprocess.Popen(
         [sys.executable, str(HERE / "watch_and_convert.py")],
         env=env, stdin=subprocess.DEVNULL, stdout=subprocess.DEVNULL,
@@ -57,7 +65,7 @@ def main() -> int:
 
         # Phase A - HELD. Two poll cycles plus the stability wait.
         time.sleep(16)
-        log = (root / "watcher.log").read_text(encoding="utf-8") if (root / "watcher.log").exists() else ""
+        log = (root / "watcher.log").read_text(encoding="utf-8", errors="replace") if (root / "watcher.log").exists() else ""
         check("held: the stub converter was NOT invoked", not marker.exists())
         check("held: the PDF stays in drop/ (not consumed, not moved)", pdf.exists())
         check("held: DEFERRED logged, naming the hold", "DEFERRED" in log and "chat-hold" in log)
@@ -78,7 +86,7 @@ def main() -> int:
                   "tripwire.pdf" in marker.read_text(encoding="utf-8"))
         time.sleep(3)
         check("cleared: the PDF was archived to done/", (drop / "done" / "tripwire.pdf").exists())
-        log = (root / "watcher.log").read_text(encoding="utf-8")
+        log = (root / "watcher.log").read_text(encoding="utf-8", errors="replace")
         check("cleared: CONVERTING logged after the deferral", "CONVERTING tripwire.pdf" in log)
 
         # Phase C - STALE. A hold from a DEAD pid must be reaped, not obeyed: a Job-Object kill
@@ -91,10 +99,52 @@ def main() -> int:
         while time.monotonic() < deadline and not marker.exists():
             time.sleep(1)
         check("stale: a dead pid's hold did NOT stop the convert", marker.exists())
-        log = (root / "watcher.log").read_text(encoding="utf-8")
+        log = (root / "watcher.log").read_text(encoding="utf-8", errors="replace")
         check("stale: the reap was logged, naming the dead pid",
               "REAPED" in log and "999999999" in log)
         check("stale: the hold file is gone", not hold.exists())
+
+        # Phase D - a name with a full-width colon and CJK (S141 unread-surfaces/watcher-stuck-drop-file:
+        # the 2026-08-31 traceback was blamed on this shape; the timeline said otherwise). A positive
+        # control: the shape converts and archives like any other name.
+        marker.unlink(missing_ok=True)
+        wide = "book\uff1a \u300a\u6df1\u5165\u300b (2026-07-18 3\uff1a4\u2026).pdf"
+        (drop / wide).write_bytes(b"%PDF-1.4 full-width colon")
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and not (drop / "done" / wide).exists():
+            time.sleep(1)
+        check("wide: a name with a full-width colon was converted", marker.exists())
+        check("wide: ... and archived to done/ under the exact listed name", (drop / "done" / wide).exists())
+
+        # Phase E - the source leaves drop/ by another hand DURING the conversion (the stub removes it).
+        # The move after the convert must be an EVENT and one log line, never a bare traceback, and
+        # the watcher must go on to the next PDF.
+        marker.unlink(missing_ok=True)
+        delete_source.write_text("1", encoding="utf-8")
+        (drop / "vanishes.pdf").write_bytes(b"%PDF-1.4 removed mid-conversion")
+        deadline = time.monotonic() + 30
+        ev = ""
+        while time.monotonic() < deadline and '"move_failed"' not in ev:
+            time.sleep(1)
+            ev = (root / "events.jsonl").read_text(encoding="utf-8") if (root / "events.jsonl").exists() else ""
+        rows = [json.loads(ln) for ln in ev.splitlines() if '"move_failed"' in ln]
+        check("vanished: one move_failed event, naming the source and drop/done/",
+              len(rows) == 1 and rows[0].get("source") == "vanishes.pdf" and rows[0].get("dest") == "drop/done/"
+              and rows[0].get("outcome") == "done", f"rows={rows}")
+        check("vanished: the reason says the source was missing",
+              bool(rows) and "missing" in str(rows[0].get("reason")), f"rows={rows}")
+        log = (root / "watcher.log").read_text(encoding="utf-8", errors="replace")
+        check("vanished: MOVE FAILED logged as one line, no Traceback in the log",
+              "MOVE FAILED vanishes.pdf" in log and "Traceback" not in log)
+        check("vanished: the DONE line says NOT MOVED, not drop/done/",
+              "DONE vanishes.pdf -> NOT MOVED" in log)
+        delete_source.unlink(missing_ok=True)
+        marker.unlink(missing_ok=True)
+        (drop / "after.pdf").write_bytes(b"%PDF-1.4 the belt keeps moving")
+        deadline = time.monotonic() + 30
+        while time.monotonic() < deadline and not (drop / "done" / "after.pdf").exists():
+            time.sleep(1)
+        check("vanished: the watcher converted and archived the NEXT PDF", (drop / "done" / "after.pdf").exists())
     finally:
         subprocess.run(["taskkill", "/pid", str(watcher.pid), "/t", "/f"],
                        capture_output=True)  # tree-kill, never a bare kill (SYM-006)

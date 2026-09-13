@@ -256,6 +256,11 @@ A floor, not a proof — state these rather than let a clean card imply them:
   the enforcement tier and is currently off, by Rab's standing choice.
 - The collision check greps tracked text; a compressed asset can produce a spurious hit, and a
   human decides which hits are real.
+- The `intake` row (S141) is the watcher's OWN receipt read back (`.intake-state.json`: waiting, the oldest wait,
+  the active convert, the receipt's age and writer pid). The loop rewrites it every poll, so `STALE` (> 60 s) is
+  a reading about the watcher's life, `STUCK` (a PDF waiting > 1 h with no active convert) about the belt, and
+  `UNREAD` means no receipt - never "0 waiting". A stuck PDF is the watcher's to move; a hand that moves it
+  mid-conversion is what the 2026-08-31 `move_failed` was (blamed on a full-width colon; the timeline said no).
 - The two `task` rows (S141: `File Portal desk (relay)`, `File Portal relay watch (Fable)`, beside the widget's) are
   the SCHEDULER's words — state, last run, last result code — not a health check: `Running` says the process was
   started, not that it answers; `RESULT=267009` is Task Scheduler's own code for a still-running task. `ABSENT` means

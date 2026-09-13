@@ -920,6 +920,29 @@ R="$WORK/c56b"; mkrepo "$R" '| 2026-01-01 | ThinkPad | S41: first | one file | 1
 out=$(FP_REPO="$R" bash "$ROWCHECK" 41 2>&1); rc=$?
 assert "J69: a ledger with no Desktop row at all fires, saying so" 1 'no parsed Desktop row' "$rc" "$out"
 
+# CASE 57 — S141 (unread-surfaces/watcher-stuck-drop-file). The property: the card's `intake` row is the WATCHER'S receipt
+# read back, never a mtime guess. (a) no receipt renders UNREAD, never "0 waiting"; (b) a PDF waiting > 1 h with no active
+# convert renders STUCK; (c) a receipt older than 60 s renders STALE (the loop rewrites it every poll).
+R="$WORK/c57"; sha=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm c57 >/dev/null 2>&1
+mklib "$WORK/l57" 12 S42 "$sha"
+P57="$WORK/pipe57"; mkdir -p "$P57/drop"
+out=$(MEMORY_LIB="$WORK/l57" FP_REPO="$R" PIPE_ROOT="$P57" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'intake +UNREAD'; then ok "S141 intake: no receipt renders UNREAD, never a count"
+else bad "S141 intake: no receipt renders UNREAD" "got: $(printf '%s' "$out" | grep -E '^ +intake' | head -1)"; fi
+now57=$(date -u +%Y-%m-%dT%H:%M:%S.000Z)
+printf '{"v":1,"writer_pid":4242,"written_at":"%s","wake_mode":"reconcile","card_state":"idle","active":null,"waiting":1,"items":[{"name":"old.pdf","bytes":1,"mtime_ns":1,"phase":"ready","first_seen_at":"2026-01-01T00:00:00Z","wait_s":7200,"quiet_s":5.0}]}\n' "$now57" > "$P57/.intake-state.json"
+out=$(MEMORY_LIB="$WORK/l57" FP_REPO="$R" PIPE_ROOT="$P57" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -E '^ +intake' | grep -q 'STUCK' && printf '%s' "$out" | grep -E '^ +intake' | grep -q 'waiting 1 · oldest 7200s'; then ok "S141 intake: a PDF waiting > 1 h with no active convert renders STUCK, with the numbers"
+else bad "S141 intake: waiting > 1 h renders STUCK" "got: $(printf '%s' "$out" | grep -E '^ +intake' | head -1)"; fi
+if printf '%s' "$out" | grep -E '^ +intake' | grep -q 'STALE'; then bad "S141 intake: a fresh receipt must NOT read STALE" "got: $(printf '%s' "$out" | grep -E '^ +intake' | head -1)"
+else ok "S141 intake: a fresh receipt does not read STALE (negative control)"; fi
+printf '{"v":1,"writer_pid":4242,"written_at":"2026-01-01T00:00:00.000Z","wake_mode":"reconcile","card_state":"idle","active":null,"waiting":0,"items":[]}\n' > "$P57/.intake-state.json"
+out=$(MEMORY_LIB="$WORK/l57" FP_REPO="$R" PIPE_ROOT="$P57" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -E '^ +intake' | grep -q 'STALE'; then ok "S141 intake: a receipt older than 60 s renders STALE (the watcher rewrites it every poll)"
+else bad "S141 intake: an old receipt renders STALE" "got: $(printf '%s' "$out" | grep -E '^ +intake' | head -1)"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

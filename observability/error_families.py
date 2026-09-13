@@ -101,7 +101,7 @@ MECHANISM = {
         "/Flag into a path; the harness collapses an escape; a second toolchain keeps its own state",
         "compare the bytes on both sides of the layer: git show HEAD:<f> | grep -cU $'\\r' vs grep -cU $'\\r' <f>; "
         "the same command from PowerShell vs Git Bash",
-        ["SYM-004", "SYM-017", "SYM-029", "SYM-036", "SYM-078", "SYM-079", "SYM-080", "SYM-082", "SYM-087"],
+        ["SYM-004", "SYM-017", "SYM-029", "SYM-036", "SYM-078", "SYM-079", "SYM-080", "SYM-082", "SYM-087", "SYM-125"],  # S141: 125 the watcher log in cp1252+backslashreplace
     ),
     "S2 GREEN-WITHOUT-A-MEASUREMENT": (
         "a pass, a green badge, a 1.0 or an exit 0 is derived from something other than the property — the system's "
@@ -129,7 +129,7 @@ MECHANISM = {
         "list every entry point that touches the guarded resource; one with zero writes to the signal is this family",
         # SYM-113 (S130 post-close): the ledger row's only parser sits on the OPEN path; the close writes the row
         # after its own gates and never reads it back — a malformed row is invisible until the next session
-        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113"],
+        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113", "SYM-122"],  # S141: 122 the watcher mutex blocked its own tripwire
     ),
     "S6 THE-CHILD-OUTLIVES-THE-KILL": (
         "the kill, close or job is scoped to the direct child or one window; the real worker is a grandchild (a venv "
@@ -141,7 +141,7 @@ MECHANISM = {
         "a phase computes and stores a correct value and no renderer reads it, reads another object, or shows it beside "
         "an unrelated verdict; or a surface promises a live lever the code baked in once",
         "grep the producer for the key, then every renderer for a read of that key — writes without reads",
-        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106"],
+        ["SYM-026", "SYM-027", "SYM-041", "SYM-043", "SYM-053", "SYM-058", "SYM-059", "SYM-060", "SYM-061", "SYM-092", "SYM-102", "SYM-103", "SYM-106", "SYM-123", "SYM-124"],  # S141: 123 a deferral with no event; 124 a failed move with no event
     ),
     "S8 A-FACT-FROZEN-WHILE-THE-WORLD-MOVED": (
         "a number, SHA, date or topology assumption typed once into prose, a guard or a default and never regenerated; "

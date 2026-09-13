@@ -291,7 +291,10 @@ def _claim_single_watcher() -> bool:
     k32.CreateMutexW.restype = wintypes.HANDLE
     k32.CreateMutexW.argtypes = [ctypes.c_void_p, wintypes.BOOL, wintypes.LPCWSTR]
     k32.CloseHandle.argtypes = [wintypes.HANDLE]
-    handle = k32.CreateMutexW(None, False, "Local\\FilePortalWatcher")
+    # FP_WATCHER_MUTEX: a selftest's per-run name (S141) - the production case is the fixed name; the
+    # fixed name alone made the deferral-gate tripwire exit 3 beside the live watcher since 2026-08-31.
+    name = os.environ.get("FP_WATCHER_MUTEX", "Local\\FilePortalWatcher")
+    handle = k32.CreateMutexW(None, False, name)
     if not handle:
         return False
     if ctypes.windll.kernel32.GetLastError() == 183:  # ERROR_ALREADY_EXISTS
@@ -334,6 +337,22 @@ def _card_mutex_busy() -> bool | None:
 # One deferral log/event per PDF per hold episode - the loop retries every POLL_S seconds and a
 # held card can stay held for a long chat; a log line every 5 s would bury the signal.
 _deferred: set[str] = set()
+
+
+def _note_deferred(name: str, reason: str) -> None:
+    """One DEFERRED line + one `intake deferred` event per PDF per episode (S141: since f045a66 the loop
+    pre-empts the dispatch under a hold, so convert_one's own branch was unreachable and the event stream
+    lost every deferral - the state file alone knew)."""
+    if name in _deferred:
+        return
+    _deferred.add(name)
+    if reason == "chat-hold":
+        logger.info("DEFERRED %s - the assistant holds the card (chat-hold.json); "
+                    "retrying every %ss until it clears", name, POLL_S)
+    else:
+        logger.info("DEFERRED %s - the card mutex is %s; retrying every %ss until it clears",
+                    name, reason, POLL_S)
+    emit("intake", "deferred", source=name, reason=reason)
 
 
 def pid_alive(pid: int) -> bool:
@@ -403,6 +422,31 @@ def chat_hold() -> str | None:
     return None
 
 
+def _move_source(pdf: Path, dest_dir: Path, outcome: str) -> str:
+    """Move the converted source out of drop/; returns where it went, for the DONE/FAILED line.
+
+    A failure is an EVENT and one log line, never a bare traceback (S141, unread-surfaces): on
+    2026-08-31 the source left drop/ by another hand 20 s into its conversion (drop/failed/ was
+    written at 07:37:14Z, between `estimate` and `converted`) and the only trace was a
+    "watcher loop error (continuing)" traceback in watcher.log - events.jsonl never learned that
+    the book's source had vanished. The full-width colon in that name was NOT the cause: the same
+    name had moved on 07-19 and twice on 07-22.
+    """
+    dest = dest_dir / pdf.name
+    try:
+        shutil.move(str(pdf), str(dest))
+        return "drop/%s/" % dest_dir.name
+    except OSError as e:
+        if not pdf.exists():
+            reason = "source missing from drop/ (removed by another hand during the conversion)"
+        else:
+            reason = ("%s: %s" % (type(e).__name__, e))[:300]
+        logger.error("MOVE FAILED %s -> drop/%s/ after %s: %s", pdf.name, dest_dir.name, outcome, reason)
+        emit("intake", "move_failed", source=pdf.name, outcome=outcome, dest="drop/%s/" % dest_dir.name,
+             reason=reason)
+        return "NOT MOVED (%s)" % reason
+
+
 def convert_one(pdf: Path) -> str:
     hold = chat_hold()
     if hold:
@@ -445,16 +489,14 @@ def convert_one(pdf: Path) -> str:
     finally:
         LOCK_FILE.unlink(missing_ok=True)
     if child.returncode == 0 and not timed_out:
-        dest = DONE_DIR / pdf.name
-        shutil.move(str(pdf), str(dest))
-        logger.info("DONE %s -> drop/done/ | %s", pdf.name,
+        went = _move_source(pdf, DONE_DIR, "done")
+        logger.info("DONE %s -> %s | %s", pdf.name, went,
                     (out or "").strip().splitlines()[-1] if out else "")
         return "done"
     else:
-        dest = FAILED_DIR / pdf.name
-        shutil.move(str(pdf), str(dest))
+        went = _move_source(pdf, FAILED_DIR, "failed")
         exit_code = "timeout" if timed_out else child.returncode
-        logger.error("FAILED %s -> drop/failed/ (exit %s): %s", pdf.name,
+        logger.error("FAILED %s -> %s (exit %s): %s", pdf.name, went,
                      exit_code, (err or "").strip()[-400:])
         emit("intake", "failed", source=pdf.name, exit_code=exit_code,
              **({"timeout_s": TIMEOUT_S} if timed_out else {}))
@@ -496,9 +538,11 @@ class _Worker:
                     logger.info("READINESS REVOKED %s - writer handle is open", pdf.name)
                     continue
                 convert_one(pdf)
-            except Exception:
+            except Exception as e:
                 logger.exception("conversion worker error for %s; PDF remains on durable belt",
                                  pdf.name)
+                emit("intake", "worker_error", source=pdf.name,
+                     error=("%s: %s" % (type(e).__name__, e))[:300])
             finally:
                 with self._lock:
                     self._active = None
@@ -526,12 +570,13 @@ def main() -> None:
     if not MODE_FILE.exists():
         MODE_FILE.write_text("off\n", encoding="utf-8")
     logging.basicConfig(
-        filename=LOG_FILE, level=logging.INFO,
+        filename=LOG_FILE, level=logging.INFO, encoding="utf-8",  # S141: was the locale's cp1252
         format="%(asctime)s %(levelname)s %(message)s",
     )
     logging.getLogger().addHandler(logging.StreamHandler())
     if not _claim_single_watcher():
-        logger.error("another real File Portal watcher already owns Local\\FilePortalWatcher")
+        logger.error("another real File Portal watcher already owns %s",
+                     os.environ.get("FP_WATCHER_MUTEX", "Local\\FilePortalWatcher"))
         raise SystemExit(3)
     wake = threading.Event()
     worker = _Worker(wake)
@@ -572,6 +617,7 @@ def main() -> None:
                 for row in rows:
                     if row["phase"] == "ready" and row["name"] != active:
                         row["phase"] = "deferred"
+                        _note_deferred(row["name"], "chat-hold" if hold else card_state)
             if not busy and not active and not hold and not external_block:
                 # Filename order is the queue law, not merely a sort over ready rows: a later
                 # PDF must never bypass an earlier file that is still receiving or settling.
