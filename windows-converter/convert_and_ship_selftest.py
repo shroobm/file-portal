@@ -1779,6 +1779,22 @@ src13 = Path(cas.__file__).read_text(encoding="utf-8")
 check(src13.count("sig = _gpu_signature(with_processes=True)") == 2 and 'sig["ceiling_top"] = _CEILING["top"]' in src13,
       "T21 (k) both death certificates (timeout, stalled) read the per-process split and carry the ceiling moment (source read)")
 
+# (l)/(m): S146 E8 found live that a SINGLE-call run (under the chunking threshold: no slices) projected its ceiling moment only
+# in a death certificate — Beer sat at 9.5 GB through recognition and survived, and nothing carried the split. The converted
+# event carries the run's peak and the ceiling moment now, through the real convert() with the stubbed Marker.
+cas._CEILING.clear()
+cas._CEILING.update({"mib": 9496, "util_pct": 67, "top": [{"pid": 28628, "name": "python.exe", "mib": 8321}], "at": "2026-09-13T18:41:48Z"})
+rec21l, _fake21l, _b21l = drive_inline(cas, "t21l-work")
+ev = rec21l.named("convert/converted")
+check(len(ev) == 1 and ev[0].get("peak_mib") == 4321 and ev[0].get("ceiling_mib") == 9496
+      and ev[0].get("ceiling_top") == [{"pid": 28628, "name": "python.exe", "mib": 8321}] and ev[0].get("ceiling_at") == "2026-09-13T18:41:48Z",
+      "T21 (l) the converted event names the run's peak and the ceiling moment's split (Beer, S146 E8: 8,321 MB in the sidecar at 9.5 GB, alive)")
+cas._CEILING.clear()
+rec21m, _fake21m, _b21m = drive_inline(cas, "t21m-work")
+ev = rec21m.named("convert/converted")
+check(len(ev) == 1 and "peak_mib" in ev[0] and "ceiling_top" not in ev[0],
+      "T21 (m) NEGATIVE: a run that never reached the ceiling carries the peak and no ceiling keys")
+
 # ---------- T22: a ship never nests onto an existing staging name (S146 E4, SYM-128) ----------
 print("T22 ship move-aside")
 

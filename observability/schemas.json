@@ -719,6 +719,9 @@
         },
         "convert/converted": {
           "optional_keys": [
+            "ceiling_at",
+            "ceiling_mib",
+            "ceiling_top",
             "estimate_basis",
             "estimate_samples",
             "promised_eta_s",
@@ -729,6 +732,7 @@
             "event",
             "pages",
             "pages_converted_this_run",
+            "peak_mib",
             "peak_vram_mib",
             "pid",
             "resumed_slices",

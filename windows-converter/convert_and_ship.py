@@ -1720,6 +1720,13 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     run_pages = true_run_pages or pages
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
          s_per_page=round(wall / pages, 2), pages=pages,
+         # S146 E8 (SYM-132, found live on Beer): a single-call run (no slices) projected its
+         # ceiling moment only in a death certificate — Beer sat at 9.5 GB through recognition
+         # and survived, and nothing carried the split. The converted event names the run's
+         # peak and, when the card reached its ceiling, WHO held it at that moment.
+         peak_mib=peak_mib,
+         **({"ceiling_mib": _CEILING["mib"], "ceiling_top": _CEILING["top"],
+             "ceiling_at": _CEILING["at"]} if _CEILING else {}),
          pages_converted_this_run=true_run_pages,
          s_per_page_this_run=round(wall / run_pages, 2),
          retry_wall_s=chunk_stats.get("retry_wall_s", 0.0),
