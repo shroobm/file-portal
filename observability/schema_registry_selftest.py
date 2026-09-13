@@ -81,6 +81,16 @@ mutate(case, "windows-converter/convert_and_ship.py", '"peak_vram_mib": peak_mib
 check("negative: undeclared writer key trips byte drift", rejects(case))
 shutil.rmtree(case)
 
+# 1b. S141: an emit() inside a CLASS METHOD is a writer too - the extractor walked only module-level functions and
+# intake/worker_error (watch_and_convert._Worker._run) registered nothing while --check passed.
+case = scratch_repo()
+mutate(case, "windows-converter/watch_and_convert.py", "            pdf = self.jobs.get()\n",
+       "            pdf = self.jobs.get()\n            emit(\"intake\", \"zz_method_probe\", source=pdf.name)\n")
+check("negative: an emit inside a class method is registered (stale schemas.json trips)", rejects(case))
+check("positive: the method-level emit appears in the projection",
+      "intake/zz_method_probe" in sr.build_registry(case)["contracts"]["events.jsonl"]["variants"])
+shutil.rmtree(case)
+
 # 2. A consumer asks convert progress for a key no writer declares.
 case = scratch_repo()
 mutate(case, "windows-widget/src-tauri/src/line.rs", '"convert_split_side": cp_field("split_side"),',

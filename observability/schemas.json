@@ -997,6 +997,19 @@
             "ts"
           ]
         },
+        "intake/move_failed": {
+          "optional_keys": [],
+          "required_keys": [
+            "dest",
+            "event",
+            "outcome",
+            "pid",
+            "reason",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
         "intake/stale-hold-reaped": {
           "optional_keys": [],
           "required_keys": [
@@ -1010,6 +1023,17 @@
         "intake/stale-lock-reaped": {
           "optional_keys": [],
           "required_keys": [
+            "event",
+            "pid",
+            "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "intake/worker_error": {
+          "optional_keys": [],
+          "required_keys": [
+            "error",
             "event",
             "pid",
             "source",

@@ -79,11 +79,20 @@ def _tree(root: Path, relative: str) -> ast.Module:
 
 
 def _functions(tree: ast.Module) -> dict[str, ast.FunctionDef | ast.AsyncFunctionDef]:
-    return {
+    """Module-level functions by name, plus every class's methods as "Class.method" (S141: an emit() inside a class
+    method - watch_and_convert._Worker._run -> intake/worker_error - was invisible to the writer extractor, so the
+    registry passed --check beside an unregistered event; the guard has to walk every path a writer takes)."""
+    found: dict[str, ast.FunctionDef | ast.AsyncFunctionDef] = {
         node.name: node
         for node in tree.body
         if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef))
     }
+    for cls in tree.body:
+        if isinstance(cls, ast.ClassDef):
+            for node in cls.body:
+                if isinstance(node, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                    found[f"{cls.name}.{node.name}"] = node
+    return found
 
 
 def _function(tree: ast.Module, name: str, source: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
