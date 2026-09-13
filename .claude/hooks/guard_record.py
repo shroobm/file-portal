@@ -47,6 +47,11 @@ def target_of(payload):
 def decide(payload):
     path = target_of(payload)
     if not path:
+        # S141 (guard-holes/guard-record-selftest-shapes; the S140 second reading's I8): the matcher fires only for the writing
+        # tools, so a writing tool with NO target is a payload the guard cannot read — UNREAD fails closed, it does not pass
+        tool = str(payload.get("tool_name") or "")
+        if tool in ("Write", "Edit", "MultiEdit", "NotebookEdit"):
+            return f"guard_record: a {tool} with no file_path / notebook_path / path — the target is UNREAD; denied (fails closed)"
         return None
     p = os.path.normcase(os.path.realpath(path))
     for root in roots():

@@ -357,8 +357,9 @@ def row_check_missing(root):
     when the newest row does not pass its reader — `.claude/skills/muster/row_check.sh <N>` (J69), N from the session
     marker. S130's three-cell row reached origin and opened the next muster on an INCIDENT (SYM-113); S133's chain pushed
     a red row past a hand-check. Returns the deny reason, or None. Everything the guard cannot judge is UNREAD and is
-    NOT a verdict: no coordination/ (not a File Portal checkout), no row_check.sh, no upstream, an unreadable marker, a
-    row_check exit 2, bash absent, a timeout — all None, the caller logs the note. Only exit 1 denies."""
+    NOT a verdict: no coordination/ (not a File Portal checkout), no row_check.sh, an unreadable marker, a row_check
+    exit 2, bash absent, a timeout — all None, the caller logs the note. Only exit 1 denies. S141: NO UPSTREAM is no longer
+    "nothing to judge" — the row is checked unconditionally then (the reader needs no upstream), said in the reason."""
     if not os.path.isdir(os.path.join(root, "coordination")):
         return None
     script = os.path.join(root, ".claude", "skills", "muster", "row_check.sh")
@@ -369,8 +370,13 @@ def row_check_missing(root):
                            capture_output=True, text=True, timeout=20)
     except Exception:
         return None
-    if p.returncode != 1:          # 0: the ledger is unchanged since upstream; anything else: no upstream etc. — UNREAD
+    if p.returncode == 0:          # the ledger is unchanged since upstream: nothing to judge
         return None
+    no_upstream = p.returncode != 1
+    # S141 (guard-holes/row-check-with-no-upstream; the S140 second reading's I9): no upstream to diff against used to be
+    # "nothing to judge" — a push with no tracking branch carried the ledger unread. The row reader needs no upstream:
+    # it runs on the working tree's newest row anyway; only its exit 1 denies, everything else stays UNREAD.
+    marker = os.path.join(root, "coordination", "private", "session.current")
     marker = os.path.join(root, "coordination", "private", "session.current")
     try:
         first = io.open(marker, encoding="utf-8").read().split()
@@ -387,7 +393,8 @@ def row_check_missing(root):
     if q.returncode == 1:
         last = (q.stdout.strip().splitlines() or ["(no output)"])[-1]
         return (f"guard_git: `git push` refused — the ledger row does not pass its reader: {last[:220]} "
-                f"(J71; fix the row — five cells, the SHA alone in the last — then push)")
+                f"(J71; fix the row — five cells, the SHA alone in the last — then push)"
+                + (" [no upstream to compare against — the ledger was checked unconditionally, S141]" if no_upstream else ""))
     return None
 
 
@@ -592,7 +599,15 @@ def decide(payload):
                 continue
             if base in DIR_WORDS and len(toks) > i + 1:
                 target = to_windows(toks[-1])
-                if target in ("-", "~"):
+                # S141 (guard-holes/cd-tilde-and-cd-dash; the S140 second reading's I6): `cd ~` is knowable — the profile;
+                # `cd -` is the shell's previous directory, which the guard cannot know — UNREAD, like `cd $VAR`; before
+                # this both were no-ops for the tracked cwd, so `cd -; git branch -D x` from an unguarded cwd was ALLOWED
+                if target == "~" or target.startswith("~/") or target.startswith("~\\"):
+                    home = os.environ.get("USERPROFILE") or os.path.expanduser("~")
+                    target = home if target == "~" else os.path.join(home, target[2:])
+                elif target == "-":
+                    cur_unresolved = True  # the previous directory: the guard is not a shell and does not know it
+                    cur = target
                     continue
                 if is_unresolved(target):
                     cur_unresolved = True  # we no longer know where we are; a bare destructive verb here is UNREAD

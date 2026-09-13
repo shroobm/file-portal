@@ -121,7 +121,7 @@ MECHANISM = {
         "make the probe fail on purpose (bad path, wrapped text, refused command) — does the surface say UNREAD?",
         # SYM-111 (S130): the events-mode tracker read a command line AFTER the start event and rendered a
         # gone process as an EMPTY cell, a dropped stop event as "still running" — a failed read printed as a reading
-        ["SYM-024", "SYM-031", "SYM-034", "SYM-063", "SYM-071", "SYM-111", "SYM-119"],
+        ["SYM-024", "SYM-031", "SYM-034", "SYM-063", "SYM-071", "SYM-111", "SYM-119", "SYM-121"],  # S141: 121 no upstream read as nothing-to-judge
     ),
     "S5 A-GUARD-OFF-THE-PATH-THE-WORK-TAKES": (
         "the lock file, detector, CI trigger or job object sits on one entry path; a manual run, a feature branch, a "
@@ -199,7 +199,7 @@ MECHANISM = {
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
         "one-directional metric cannot see gain); moderate real loss passes at the margin",
         "plant a defect one notch below the guard's resolution — does it pass?",
-        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110", "SYM-116"],  # S137: 116 the heredoc bypass beside the false deny; S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies
+        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110", "SYM-116", "SYM-120"],  # S141: 120 cd - / cd ~ no-ops; S137: 116 the heredoc bypass beside the false deny; S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies
     ),
 }
 

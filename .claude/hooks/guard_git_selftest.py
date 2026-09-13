@@ -189,6 +189,12 @@ def main():
         case("RED-TEAM: -C $C clean -fdx", "deny", bash('C=x; git -C "$C" clean -fdx', tmp))
         case("RED-TEAM: GIT_WORK_TREE=$C git reset", "deny", bash('C=x; GIT_WORK_TREE="$C" GIT_DIR="$C/.git" git reset --hard', tmp))
         case("RED-TEAM: cd $C && git reset --hard (unresolved cwd)", "deny", bash('C=x; cd "$C" && git reset --hard', tmp))
+        # S141 (guard-holes/cd-tilde-and-cd-dash; the S140 second reading's I6): `cd -` is the shell's previous directory —
+        # the guard cannot know it, so it is UNREAD like `cd $VAR`; before S141 both `cd -` and `cd ~` were no-ops for the
+        # tracked cwd and `cd -; git branch -D x` from an unguarded cwd was ALLOWED
+        case("S141: cd - ; git reset --hard from an UNGUARDED cwd is denied (the previous directory is UNREAD, like $VAR)", "deny", bash("cd - && git reset --hard", tmp))
+        case("S141: cd - ; git status from an unguarded cwd still passes (read-only cannot destroy)", "allow", bash("cd - && git status", tmp))
+        case("S141: cd ~ resolves to the profile — a read-only verb passes there", "allow", bash("cd ~ && git status", tmp))
         case("RED-TEAM: %VAR% cmd-style var in --work-tree", "deny", ps('git --work-tree="%CLONE%" reset --hard', tmp))
         case("a variable target with a READ-ONLY verb from MAIN still passes (no destruction possible)", "allow", bash('C=x; git -C "$C" status', tmp))
         case("a LANE with a variable target and a write is denied (UNREAD)", "deny", bash('C=x; git -C "$C" add -A', tmp, agent="lane-1"))
@@ -319,6 +325,14 @@ def main():
         io.open(os.path.join(main_repo, "x3.txt"), "w").write("x\n")
         sh(["git", "add", "-A"], main_repo); sh(["git", "-c", "user.name=t", "-c", "user.email=t@t", "commit", "-q", "-m", "no ledger change"], main_repo)
         case("J71: a push that does not touch the ledger is not checked (allow)", "allow", bash("git push -q"))
+        # S141 (guard-holes/row-check-with-no-upstream; the S140 second reading's I9): with NO upstream the diff cannot be judged
+        # and the guard used to allow; now the row is checked unconditionally — a bad newest row is refused, a good one passes
+        sh(["git", "branch", "--unset-upstream"], main_repo)
+        ledger(f"| 2026-01-01 | Desktop | S41: first | one file | 1111111 |", f"| 2026-01-03 | Desktop | S42: three cells, SHA {first_sha} in the prose |")  # ledger() commits
+        case("S141: NO upstream + a bad newest row -> refused (the ledger checked unconditionally, said in the reason)", "deny", bash("git push -q origin main"))
+        sh(["git", "reset", "-q", "--hard", "origin/main"], main_repo)
+        case("S141: NO upstream + the pushed five-cell row -> allowed", "allow", bash("git push -q origin main"))
+        sh(["git", "branch", "--set-upstream-to=origin/main"], main_repo)
         os.remove(os.path.join(main_repo, ".claude", "skills", "muster", "row_check.sh"))
         ledger(f"| 2026-01-01 | Desktop | S41: first | one file | 1111111 |", f"| 2026-01-03 | Desktop | S43: no reader here, SHA {first_sha} in prose |")
         case("J71: without row_check.sh in the checkout the guard is UNREAD and allows (never a verdict)", "allow", bash("git push -q"))

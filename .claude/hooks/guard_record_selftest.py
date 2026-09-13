@@ -68,7 +68,12 @@ def main():
         case("NO marker (no open ran) → a write to a tracked file is refused", "deny", run_hook(payload("Write", os.path.join(root, "docs", "x.md")), env))
         io.open(marker, "w").write("garbage\n")
         case("an unreadable marker refuses (UNREAD is not clean)", "deny", run_hook(payload("Write", os.path.join(root, "docs", "x.md")), env))
-        case("a payload without a file path is not a write and passes", "allow", run_hook(json.dumps({"tool_name": "Write", "tool_input": {}}), env))
+        case("S141: a WRITING tool with no target is UNREAD and refused (fails closed; was a pass)", "deny", run_hook(json.dumps({"tool_name": "Write", "tool_input": {}}), env))
+        case("S141: a non-writing tool with no target still passes (the matcher never sends one; the rule is scoped)", "allow", run_hook(json.dumps({"tool_name": "Read", "tool_input": {}}), env))
+        case("S141: NotebookEdit with notebook_path inside the repo, no record -> refused like a Write", "deny",
+             run_hook(json.dumps({"tool_name": "NotebookEdit", "tool_input": {"notebook_path": os.path.join(root, "docs", "x.ipynb"), "new_source": "x"}, "cwd": "C:/"}), env))
+        case("S141: MultiEdit with file_path inside the repo, no record -> refused like an Edit", "deny",
+             run_hook(json.dumps({"tool_name": "MultiEdit", "tool_input": {"file_path": os.path.join(root, "docs", "x.md"), "edits": []}, "cwd": "C:/"}), env))
         case("a malformed payload is refused (fails closed)", "deny", run_hook("not json", env))
         shutil.rmtree(os.path.join(root, "coordination"))
         case("a root without coordination/ is exempt (not a File Portal checkout)", "allow", run_hook(payload("Write", os.path.join(root, "docs", "x.md")), env))
