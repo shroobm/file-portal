@@ -71,6 +71,12 @@ a `model_refusal_fallback` row (the harness switching models mid-chat — 2026-0
 Claude Opus 4.8) is named by the check and belongs in the record. The stamp is still typed by the agent; it is
 no longer trusted by the chain.
 
+**Checked at every close (S141):** the harness transcript records `message.model` per answer; the close chain
+compares the ledger row's `⟨Fable · <model>⟩` stamp to the window's majority and refuses to push a mismatch;
+a `model_refusal_fallback` row (the harness switching models mid-chat — 2026-09-10T03:54Z, 50 messages on
+Claude Opus 4.8) is named by the check and belongs in the record. The stamp is still typed by the agent; it is
+no longer trusted by the chain.
+
 **Fixed:** the sidecar carries an `occupant` field; `gate.py occupant --as <lane> --model <name>`
 declares it; an undeclared occupant renders **`UNDECLARED`** and is **never guessed from the lane**
 (guessing is precisely how this happened); naming a lane as an occupant is refused; and
