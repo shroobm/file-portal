@@ -88,6 +88,22 @@ ANALYST_CHUNK_SURVIVAL_MIN = 0.80  # lever-waiver: Rab's word only (0.50 on 2026
 # the S116 open). Checked AFTER survival passes: a deletion is reported as "survival", never as
 # a low ratio; a chunk with 0 input words reports ratio None and is NOT rejected.
 ANALYST_CHUNK_INFLATION_MAX = 1.5  # lever-waiver: Rab's word only ("J34 1.5x reject", 2026-09-05); moves on a re-measured journal, never by taste
+# S146 E5 (SYM-129): the generation BOUND on the local backend — num_predict = the chunk's estimated
+# tokens x this factor (floor ANALYST_NUM_PREDICT_MIN, cap NUM_CTX). It sits ABOVE the inflation
+# reject (2.0 > 1.5) on purpose: every output the bound could cut is one the ratio guard rejects
+# anyway, so the bound loses no acceptable chunk — it stops paying (up to the 900 s client
+# timeout) for a rejection. The token estimate is chars / 3, a deliberate OVER-estimate (English
+# markdown runs ~4 chars/token), so the bound errs loose. lever-waiver: derived from the signed
+# 1.5x reject; moves with it.
+ANALYST_NUM_PREDICT_FACTOR = 2.0
+ANALYST_NUM_PREDICT_MIN = 512
+_call_bound: dict = {}  # process() -> _generate(): the bound for the NEXT local call (the twin of _last_call)
+
+
+def _num_predict_for(chunk: str) -> int:
+    """The generation bound for one chunk: 2x its estimated tokens, never under 512, never over NUM_CTX."""
+    est_tokens = max(1, len(chunk) // 3)
+    return int(min(NUM_CTX, max(ANALYST_NUM_PREDICT_MIN, est_tokens * ANALYST_NUM_PREDICT_FACTOR)))
 # Stage C (docs/18 §4C): per-chunk liveness, the S42 progress-file pattern — overwritten every
 # chunk (zero flight-recorder growth); the file's mtime is the heartbeat the widget ages.
 ANALYST_PROGRESS = fp_paths.root("analyst_progress")
@@ -225,10 +241,22 @@ def _generate_gemini(prompt: str) -> str:
     raise RuntimeError(f"gemini failed after 3 attempts: {last_err}")
 
 
-def _generate(prompt: str) -> str:
+def _generate(prompt: str, num_predict: int | None = None) -> str:
+    # S146 E5 (SYM-129): the request carries a generation bound. Without one, chunk 296 of the
+    # University 4e journal ran 681 tokens in / 5,170 out (7.59x) and a runaway can run to the
+    # 900 s client timeout below, taking the whole phase with it. The bound is 2x the chunk's
+    # estimated tokens (_num_predict_for): every output above 1.5x is rejected by the inflation
+    # guard anyway, so the bound loses no acceptable chunk — it only stops paying for a
+    # rejection. A reply that stopped on the bound reports done_reason "length"; process()
+    # rejects it as "truncated" (the original ships, like every other rejection).
+    if num_predict is None:
+        num_predict = _call_bound.get("num_predict")  # set by process() for the next local call
+    options = {"num_ctx": NUM_CTX}
+    if num_predict is not None:
+        options["num_predict"] = int(num_predict)
     body = json.dumps({
         "model": MODEL, "stream": False, "keep_alive": KEEP_ALIVE_HOLD, "prompt": prompt,
-        "options": {"num_ctx": NUM_CTX},
+        "options": options,
         "think": False,
     }).encode("utf-8")
     # urllib with bytes end to end (room_chat's ask() idiom; the PS quoting hazards of
@@ -254,6 +282,8 @@ def _generate(prompt: str) -> str:
     _last_call.update({
         "prompt_tokens": reply.get("prompt_eval_count"),
         "output_tokens": reply.get("eval_count"),
+        "done_reason": reply.get("done_reason"),  # S146 E5: "length" = the bound stopped it
+        "num_predict": num_predict,
     })
     return reply["response"].strip()
 
@@ -398,7 +428,7 @@ def process(markdown: str, backend: str = "local",
     out, passed, rejected, failed = [], 0, 0, 0
     # J32-B/SYM-074 (signed Rab 2026-09-05): chunks_rejected's ways of happening, named — FOUR
     # since J34 (signed the same day, "1.5x reject"): the inflation guard is the fourth.
-    rejections = {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0}
+    rejections = {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0}  # truncated: S146 E5 (SYM-129)
     # J46 (signed Rab 2026-09-12, C+A): every ACCEPTED chunk is reconciled against its input by the
     # diff-whitelist — an edit ships only if the two spans are the same text under the whitelist
     # (escape, link re-syntax, markup, hyphen join, ligature repair, reflow); everything else reverts
@@ -477,6 +507,8 @@ def process(markdown: str, backend: str = "local",
                                                survival=rec.get("survival"),
                                                ratio=rec.get("ratio")))
                 continue
+            _last_call.clear()  # S146 E5: a stale done_reason must never outlive its own call
+            _call_bound["num_predict"] = _num_predict_for(chunk) if backend == "local" else None
             try:
                 candidate = generate(prompt + chunk)
             except Exception:
@@ -514,7 +546,16 @@ def process(markdown: str, backend: str = "local",
             # (a 16-word sentence tail and the next paragraph gone). The switch is a think-control token
             # like the tags above, so it is the same reason, not a new key (the key set is pinned by T17
             # and three asserts). Word-boundaried: `/think` inside a URL path is prose, not a leak.
-            if ("<think>" in candidate or "</think>" in candidate
+            if _last_call.get("done_reason") == "length":
+                # S146 E5 (SYM-129): the backend stopped on the generation bound — the candidate
+                # is cut mid-thought by construction and was already past every acceptable size
+                # (the bound sits above the 1.5x inflation reject). Rejected first, before the
+                # think/fence/survival/ratio checks can read a truncated text as something else.
+                out.append(chunk)
+                rejected += 1
+                rejections["truncated"] += 1
+                status, text, reason = "rejected", chunk, "truncated"
+            elif ("<think>" in candidate or "</think>" in candidate
                     or _THINK_SWITCH.search(candidate)):
                 out.append(chunk)
                 rejected += 1

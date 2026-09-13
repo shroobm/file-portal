@@ -127,7 +127,7 @@ def _():
     assert survival is not None and survival >= 0.95, survival
     out, meta = run(md, [candidate])
     assert meta["chunks_passed"] == 1 and meta["chunks_rejected"] == 0, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0}, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
     # J46 (S140, Rab's slot): the chunk PASSES and the hyphen join ships, but the two dropped commas are
     # punctuation edits — reverted by the whitelist, so the shipped text keeps the author's commas
     assert "September" in out and "budget, carefully," in out, out
@@ -146,7 +146,7 @@ def _():
     candidate = "\n\n".join(paras[:2])  # only the first 2 of 5 survive
     out, meta = run(B_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0}, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
     assert out.strip() == B_MD.strip(), "the ORIGINAL chunk must ship, not the candidate"
 
 
@@ -213,7 +213,7 @@ def _():
     candidate = fenced.replace("⟦IMG-0⟧\n\n", "")
     out, meta = run(md, [candidate])
     assert meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 1, "survival": 0, "think_leak": 0, "inflation": 0}, meta
+    assert meta["rejections"] == {"fence": 1, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
 
 
 # ---------------------------------------------------------------------------
@@ -332,7 +332,7 @@ def _():
     assert tn.word_ratio(fenced, candidate) == 2.0
     out, meta = run(INF_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1}, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
     assert out.strip() == INF_MD.strip(), "the ORIGINAL chunk must ship, not the candidate"
 
 
@@ -371,7 +371,7 @@ def _():
     paras = B_MD.split("\n\n")
     candidate = "\n\n".join(paras[:2])  # J32-B (b)'s fixture: 2 of 5 paragraphs, ratio 0.4
     out, meta = run(B_MD, [candidate])
-    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0}, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
 
 
 @case("J34 (e) the lever's edge is STRICT: 67 of 45 words (1.4889) passes, 68 (1.5111) rejects")
@@ -576,6 +576,104 @@ def _():
         assert "18 members" in out, ("the guard did not fire: without reconcile the numeral change ships", out)
     finally:
         analyst.ew.reconcile = real
+
+
+# ---------------------------------------------------------------------------
+# S146 E5 (SYM-129): the generation bound and the truncated rejection
+# ---------------------------------------------------------------------------
+@case("S146-E5 (a) the bound is 2x the chunk's estimated tokens, never under 512, never over NUM_CTX")
+def _():
+    assert analyst._num_predict_for("x" * 3000) == 2000, analyst._num_predict_for("x" * 3000)   # 1000 est. tokens x 2.0
+    assert analyst._num_predict_for("x" * 10) == analyst.ANALYST_NUM_PREDICT_MIN
+    assert analyst._num_predict_for("x" * 100000) == analyst.NUM_CTX
+    assert analyst.ANALYST_NUM_PREDICT_FACTOR > analyst.ANALYST_CHUNK_INFLATION_MAX, \
+        "the bound must sit ABOVE the inflation reject, or it would cut chunks the ratio guard would have accepted"
+
+
+class _FakeOllama:
+    """urlopen stand-in: captures the request body, answers with the scripted reply."""
+    def __init__(self, reply):
+        self.reply, self.bodies = reply, []
+
+    def __call__(self, req, timeout=None):
+        self.bodies.append(json.loads(req.data.decode("utf-8")))
+        payload = json.dumps(self.reply).encode("utf-8")
+
+        class _R:
+            def __enter__(self_inner):
+                return self_inner
+
+            def __exit__(self_inner, *a):
+                return False
+
+            def read(self_inner):
+                return payload
+        return _R()
+
+
+@case("S146-E5 (b) the local request carries options.num_predict; a reply that stopped on the bound reads done_reason=length")
+def _():
+    real = analyst.urllib.request.urlopen
+    fake = _FakeOllama({"response": "cut mid-", "done_reason": "length", "eval_count": 2000, "prompt_eval_count": 900})
+    analyst.urllib.request.urlopen = fake
+    try:
+        analyst._call_bound.clear()
+        text = analyst._generate("prompt", num_predict=2000)
+        assert fake.bodies[0]["options"]["num_predict"] == 2000 and fake.bodies[0]["options"]["num_ctx"] == analyst.NUM_CTX, fake.bodies[0]["options"]
+        assert text == "cut mid-" and analyst._last_call["done_reason"] == "length" and analyst._last_call["num_predict"] == 2000, analyst._last_call
+        # the process()-side channel: no explicit argument -> the bound set for the next call is used
+        analyst._call_bound["num_predict"] = 777
+        analyst._generate("prompt")
+        assert fake.bodies[1]["options"]["num_predict"] == 777, fake.bodies[1]["options"]
+        # NEGATIVE: no bound anywhere -> no num_predict key (the request is the old one)
+        analyst._call_bound.clear()
+        analyst._generate("prompt")
+        assert "num_predict" not in fake.bodies[2]["options"], fake.bodies[2]["options"]
+    finally:
+        analyst.urllib.request.urlopen = real
+        analyst._call_bound.clear()
+        analyst._last_call.clear()
+
+
+@case("S146-E5 (c) process(): a chunk whose reply stopped on the bound is REJECTED as truncated — the original ships, the reason is counted")
+def _():
+    test_ledger()
+    md = "The committee met in September to review the annual budget and approved it without changes.\n"
+
+    def cut_short(prompt):
+        analyst._last_call.clear()
+        analyst._last_call.update({"done_reason": "length", "output_tokens": 512, "prompt_tokens": 40})
+        return "The committee met in September to review the annual budget and approved it without changes. The committee met in"
+    real_gen = analyst._generate
+    analyst._generate = cut_short
+    try:
+        out, meta = analyst.process(md, backend="local")
+    finally:
+        analyst._generate = real_gen
+        analyst._last_call.clear()
+    assert out.strip() == md.strip(), ("the original must ship on a truncated reply", out)
+    assert meta["rejections"]["truncated"] == 1 and meta["chunks_rejected"] == 1, meta["rejections"]
+    assert meta["chunk_scores"][0]["x"] == "truncated", meta["chunk_scores"]
+    assert analyst._call_bound.get("num_predict") == analyst._num_predict_for(md.strip()) or analyst._call_bound.get("num_predict") == analyst.ANALYST_NUM_PREDICT_MIN, analyst._call_bound
+
+
+@case("S146-E5 (d) NEGATIVE CONTROL: the same candidate with done_reason=stop is NOT rejected as truncated (the normal path judges it)")
+def _():
+    test_ledger()
+    md = "The committee met in September to review the annual budget and approved it without changes.\n"
+
+    def stopped(prompt):
+        analyst._last_call.clear()
+        analyst._last_call.update({"done_reason": "stop", "output_tokens": 30, "prompt_tokens": 40})
+        return md.strip()
+    real_gen = analyst._generate
+    analyst._generate = stopped
+    try:
+        out, meta = analyst.process(md, backend="local")
+    finally:
+        analyst._generate = real_gen
+        analyst._last_call.clear()
+    assert meta["rejections"]["truncated"] == 0 and meta["chunks_passed"] == 1, meta
 
 
 print()
