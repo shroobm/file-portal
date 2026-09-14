@@ -7391,3 +7391,17 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** One sitting, one report, three episodes; nothing on the pipeline touched; nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: the wheel and the arrows on his phone; D1 when he chooses; the experiment runs until his word.
+
+## 2026-09-14T05:01Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0099⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, Claude Fable 5.1 ⟨claimed: Fable⟩.
+
+**What changed while you slept (Observed):** S149 closed at cc3c2fe (row e467625) — the autonomy experiment's fourth sitting, opened on Rab's Obsidian find (the bench needed a viewer mode; a table came out as plain pipes). The cause was the bench's own crop insertion: three lines placed directly after the zone's line, which was a pipe table's header row (Valentine, since 2026-08-06). `prototypes/repair-bench/bench.py` now places a crop, paste or transcription after a table's last row (`_insertion_point`; the record carries `placed_after_table` and `at_line_orig`, the drift ledger follows it) and has `unsplit_tables()` / `--unsplit-tables`; `bench.html` has ◫ view (markdown-it 14.1.0 vendored under `vendor/`, served by a read-only `/vendor/` route) and the table health on the lines and in the view; `test_table_boundary.py` 14/14 and `test_table_health.js` 18/18 (node, against the vendored renderer). Landed 3b1e8a9, then 2480116 after three refuter lanes closed six holes in the first version (fenced code, no-leading-pipe tables, raw HTML in the view, convergence of the un-split, a transcription's anchor, the blank line before a moved block); four record keys dispositioned EVIDENCE (c39a234). His word: "protocol" alone now means the persistent method.
+
+**What is Rab's, unchanged:** D1; the experiment's end; his "clear" for the un-split of Valentine's held copy; his reopen of the bench; his Valentine session.
+
+**Navigation:** `sessions/S149-desktop-2026-09-14.md`; the journal entry 16; the private evidence `measurement/evidence/s149-bench-table/`; the register rows `bench/repair-inside-a-table` and the struck `bench/stream-gestures-on-his-phone`.
+
+**RECAP.** One find, one investigation, five episodes; nothing on the pipeline touched; nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: "clear" when he is not mid-edit at the bench; then reopen and look at the view.

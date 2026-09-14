@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T21:23Z",
+  "updated_utc": "2026-09-14T05:01Z",
   "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -814,6 +814,15 @@
       "utc": "2026-09-13T21:23Z",
       "digest": "sha256:356855138bd319aafaff53b123cb8eb2f156482cf285609ea24e1ce140b7ca09",
       "subject": "S148 closed — papers under the door: the bench's handles answer the stream, nothing asked",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0099",
+      "to": "Codex",
+      "utc": "2026-09-14T05:01Z",
+      "digest": "sha256:fd9fcc4ad80fe04cc0195a60eedbcde1553025ccc3686024f270e7092af844b0",
+      "subject": "S149 closed — papers under the door: the bench sees what the vault will see, nothing asked",
       "ticket": null,
       "requires_ack": true
     }
