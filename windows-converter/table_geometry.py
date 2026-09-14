@@ -302,13 +302,36 @@ def fold_letters(s: str) -> str:
     return "".join(out)
 
 
-def _lcs(a: str, b: str) -> int:
-    """Longest common subsequence; a `?` in `a` matches any character of `b`."""
+CONFUSIONS = {"0": "o", "1": "il", "2": "z", "3": "e", "4": "a", "5": "s", "6": "cgb", "7": "t", "8": "b", "9": "g"}
+
+
+def read_pattern(letters: str) -> list:
+    """The letters as the OCR read them, one entry per glyph: a Latin letter → itself; a digit → the letters an OCR pass confuses
+    it with (`6` → c, g, b — never any letter, which let MOST fit `6OST` beside COSTS); an accented letter → its base; a glyph
+    with no base → None (any letter). Whitespace and combining marks dropped."""
+    out = []
+    for ch in unicodedata.normalize("NFKD", letters):
+        if unicodedata.combining(ch) or ch.isspace():
+            continue
+        c = ch.casefold()
+        if "a" <= c <= "z":
+            out.append(c)
+        elif c in CONFUSIONS:
+            out.append(CONFUSIONS[c])
+        else:
+            out.append(None)
+    return out
+
+
+def _lcs(a, b: str) -> int:
+    """Longest common subsequence of a read pattern (`read_pattern`, or a plain string) against a word; a None entry matches
+    any letter, a string entry any of its letters."""
     prev = [0] * (len(b) + 1)
     for ca in a:
         cur = [0]
         for j, cb in enumerate(b, 1):
-            cur.append(max(prev[j], cur[j - 1], prev[j - 1] + (1 if (ca == "?" or ca == cb) else 0)))
+            hit = ca is None or (cb in ca)
+            cur.append(max(prev[j], cur[j - 1], prev[j - 1] + (1 if hit else 0)))
         prev = cur
     return prev[-1]
 
@@ -326,22 +349,157 @@ def letters_fit(letters: str, word: str) -> tuple[bool, str]:
     """Does the word contain the letters the OCR read, in order, but for ONE confusion and any number of missing letters?
     The check that bounds the resolver: `SARTEGΫ` fits STRATEGY (6 of 7 in order), `HGH` fits HIGH, `LLO` fits LOW,
     `RlvĖNUE` fits REVENUE; `RlvĖNUE` does not fit COSTS."""
-    a, b = fold_letters(letters), fold_letters(word)
+    a, b = read_pattern(letters), fold_letters(word)
     if len(b) < 2 or "?" in b:
         return False, "the word is not letters"
     if len(a) < 2:
         return False, "fewer than two letters read"
     if len(b) < len(a) - 1:
         return False, "more letters read (%d) than the word holds (%d)" % (len(a), len(b))
+    # S151 E1: a read must hold at least half the word's letters — `UE` is not CAUSE, `lvĖN` is not INVESTMENTS
+    if len(a) < (len(b) + 1) // 2:
+        return False, "too few letters read (%d) for a word of %d" % (len(a), len(b))
+    # S151 E1 (S150's loss: `LABEL` for `LLO` passed as two of three letters in order): a read of three letters or fewer
+    # must fit EXACTLY, after the doubled-letter collapse — one confusion is a third of the evidence
+    a2 = _collapse_pattern(a)
+    need = len(a) if len(a) <= 3 else len(a) - 1
+    need2 = len(a2) if len(a2) <= 3 else len(a2) - 1
+    # S151 E1 run 3 (Observed): `LLO` read as LOST because "Lost Opportunity" sat in the matrix's rows — a short read (three
+    # letters or fewer) may be at most ONE letter short of its word: LOW for `LO`, never LOST
+    if len(a) <= 3 and len(b) - len(a) > 1:
+        return False, "a short read (%d letters) may be one letter short of its word, not %d" % (len(a), len(b) - len(a))
     k = _lcs(a, b)
-    if k >= len(a) - 1:
+    if k >= need:
         return True, "%d of %d letters in order" % (k, len(a))
-    a2 = collapse_doubles(a)
-    if a2 != a:
+    if len(a2) != len(a):
+        if len(a2) <= 3 and len(b) - len(a2) > 1:
+            return False, "a short read (%d letters) may be one letter short of its word, not %d" % (len(a2), len(b) - len(a2))
         k2 = _lcs(a2, b)
-        if k2 >= len(a2) - 1:
+        if k2 >= need2:
             return True, "%d of %d letters in order (a doubled letter collapsed)" % (k2, len(a2))
     return False, "%d of %d letters in order" % (k, len(a))
+
+
+def _collapse_pattern(pat: list) -> list:
+    out: list = []
+    for p in pat:
+        if not out or out[-1] != p:
+            out.append(p)
+    return out
+
+
+# ---- the lexicon route (S151 E1): the word must be one the book itself uses ---------------------------------------
+#
+# S150 E4b measured the word route with a model and the letters-only bound: qwen3:8b returned the letters shuffled (SARTGEY),
+# an echo (HGH), or a wrong word the letters admitted (LABEL for LOW) — four labels no better than the garble. The second
+# bound: a label must be a word of the book's own prose that fits the letters; with the words per cell known, a run of rails
+# the OCR left without a blank row between them (COSTS · MGMT · VALUATION as one run) is split where each word's letters end
+# at a cell — the boundary the picture alone was thought to hold.
+
+WORD = re.compile(r"[A-Za-zÀ-ž][A-Za-zÀ-ž'\-]{2,}")
+
+
+def lexicon(lines: list[str]) -> dict:
+    """The book's own words: every alphabetic token of three letters or more (folded, hyphens and apostrophes removed) with
+    its count — table cells included, the rail cells excluded by their own length. A label must be one of these."""
+    lex: dict = {}
+    for ln in lines:
+        for m in WORD.finditer(ln):
+            w = fold_letters(m.group(0).replace("-", "").replace("'", ""))
+            if len(w) >= 3 and "?" not in w:
+                lex[w] = lex.get(w, 0) + 1
+    return lex
+
+
+def best_word(letters: str, lex: dict, min_len: int = 3, context=None) -> tuple:
+    """(word, why) — the ONE lexicon word the letters fit best, or (None, why). Best = `fit_score` (the letters placed, less
+    the read letters unplaced, less half the word's letters missed), plus one point when the word occurs in the rows the
+    rail labels (`context`, folded words — a group label echoes its rows' own vocabulary: STRATEGY over STARTED for
+    `SARTEGΫ`, whose rows ask how the strategy differs), then the commonest; a tie at the top is refused ("ambiguous")."""
+    a = read_pattern(letters)
+    if len(a) < 2:
+        return None, "fewer than two letters read"
+    scored = []
+    for w, n in lex.items():
+        if len(w) < min_len or len(w) < len(a) - 1 or len(w) > 2 * len(a):
+            continue
+        ok, why = letters_fit(letters, w)
+        if ok:
+            k = int(why.split(" of ")[0])
+            bonus = 1.0 if (context and w in context) else 0.0
+            scored.append((-(fit_score(len(a), k, len(w)) + bonus), -n, w, k))
+    if not scored:
+        return None, "no word of the book fits %r" % letters
+    scored.sort()
+    if len(scored) > 1 and abs(scored[0][0] - scored[1][0]) < 0.25:
+        return None, "ambiguous: %s and %s fit %r alike" % (scored[0][2], scored[1][2], letters)
+    top = scored[0]
+    return top[2].upper(), "lexicon (%d of %d letters in order; %d candidate%s)" % (top[3], len(a), len(scored), "" if len(scored) == 1 else "s")
+
+
+def fit_score(nread: int, placed: int, nword: int) -> float:
+    """How well a word explains a read: the letters placed, less the read letters the word cannot place, less half the
+    word's letters the OCR would have to have missed. COSTS explains `6OSTs` (5 − 0 − 0 = 5); MANAGEMENT explains `sMGMT`
+    poorly (4 − 1 − 3 = 0); VALUATION explains `VAĀON` (5 − 0 − 2 = 3)."""
+    return placed - (nread - placed) - (nword - placed) / 2.0
+
+
+SEGMENT_MIN_SCORE = 1.25   # a word must explain its read this much better than leaving it (MIGHT for `MGMT` scores 1: refused)
+
+
+def boundary_collapse(cell_letters: list[str]) -> list[str]:
+    """A letter the OCR read twice across a row boundary — `L` on one row, `L O` on the next, for LOW — is one letter: when a
+    cell begins with the letter the previous cell ended with, the repeat is dropped (inside a cell nothing is touched)."""
+    out: list[str] = []
+    for c in cell_letters:
+        # plain Latin letters only: `Ā` after `A` is not a repeat (it is TI merged by the OCR in VALUATION), `L` after `L` is
+        if (out and c and out[-1] and out[-1][-1].isascii() and out[-1][-1].isalpha() and c[0].isascii() and c[0].isalpha()
+                and out[-1][-1].lower() == c[0].lower()):
+            c = c[1:]
+        out.append(c)
+    return out
+
+
+def lexicon_segments(cell_letters: list[str], lex: dict, context=None) -> list:
+    """A run of letter cells (their bared letters, one entry per cell, in row order) segmented into lexicon words: a list of
+    (first_cell, last_cell, WORD, why) covering a prefix-free choice of cells; cells no word covers are left out (reported
+    unresolved by the caller). Dynamic programming over the cell boundaries maximising the words' `fit_score` (an uncovered
+    cell scores 0, a segment under SEGMENT_MIN_SCORE is refused), then the fewest words; a fragment under three letters is
+    no evidence unless it is the whole run."""
+    cell_letters = boundary_collapse(cell_letters)
+    n = len(cell_letters)
+    best: list = [None] * (n + 1)   # best[i] = (score, -words, segments) for cells[:i]; an uncovered cell scores 0
+    best[0] = (0.0, 0, [])
+    whole = len(read_pattern("".join(cell_letters)))
+    for i in range(1, n + 1):
+        cand = None
+        if best[i - 1] is not None:      # leave cell i-1 uncovered
+            s, w, segs = best[i - 1]
+            cand = (s, w, segs)
+        for j in range(0, i):
+            if best[j] is None:
+                continue
+            letters = "".join(cell_letters[j:i])
+            nread = len(read_pattern(letters))
+            if nread < 3 and nread < whole:   # a fragment under three letters is no evidence unless it is the whole run (LLO, LO)
+                continue
+            word, why = best_word(letters, lex, context=context)
+            if not word:
+                continue
+            placed = int(why.split("(")[1].split(" of ")[0])
+            # the rows' vocabulary chooses BETWEEN words for the same cells (best_word); it never inflates a segment's own
+            # score — run 4 (Observed): COST + SEGMENTS, each with a bonus, outscored COSTS over the same cells
+            score = fit_score(nread, placed, len(fold_letters(word)))
+            if score < SEGMENT_MIN_SCORE:   # a word that explains the read no better than leaving it alone
+                continue
+            s, w, segs = best[j]
+            # S151 E1 run 3 (Observed): COST + SEGMENTS (4 + 2) outscored COSTS (5) over the same cells — a segmentation is
+            # scored by each word's EXCESS over the bar, so two weak words never beat one strong one
+            trial = (s + (score - SEGMENT_MIN_SCORE), w - 1, segs + [(j, i - 1, word, why)])
+            if cand is None or trial[:2] > cand[:2]:
+                cand = trial
+        best[i] = cand
+    return best[n][2] if best[n] else []
 
 
 def _fragment_of(long: str, frag: str) -> bool:
@@ -350,13 +508,15 @@ def _fragment_of(long: str, frag: str) -> bool:
     return bool(f) and len(f) <= 5 and _bare(long).lower().endswith(f)
 
 
-def propose(lines: list[str], resolver=None) -> list[dict]:
+def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[dict]:
     """The shape repairs a table asks for, table by table, without touching a byte: a `caption` (a spanning title lifted
     above the table), a `rail` per letter run (the letters → the word the resolver gives, placed on the run's first row),
     a `dots` fix (stray bullet glyphs → `•` inside a table that has a bullet matrix). A table with a health issue is never
-    proposed for. `resolver(letters, context) -> word | None` is the word route (a lexicon, the model); without one every
-    rail is reported unresolved and stays as it is. Every rail proposal carries its letters, its word and how it was
-    resolved, so the record can list every label recovered."""
+    proposed for. The word route (S151 E1): with a `lex` (the book's own words, `lexicon(lines)`) a run is segmented into
+    lexicon words at cell boundaries — one `rail` proposal per word, `how` = "lexicon (…)" — and the cells no word covers
+    stay as they are, reported; `resolver(letters, context) -> word | None` (the model) is asked only for what the lexicon
+    left, and its answer must itself be a word of the lexicon that fits. Without either, every rail is reported unresolved.
+    Every rail proposal carries its letters, its word and how it was resolved, so the record can list every label."""
     issue_lines = {x["line"] for x in health(lines)}
     out = []
     for h, d, e in table_blocks(lines):
@@ -383,9 +543,56 @@ def propose(lines: list[str], resolver=None) -> list[dict]:
                     run = []
             if run:
                 runs.append(run)
+            prev_end = d
             for r in runs:
-                letters = "".join(_bare(cells(lines[k])[0]) for k in r)
-                context = [(cells(lines[k])[1] if len(cells(lines[k])) > 1 else "") for k in r[:3]]
+                cell_letters = [_bare(cells(lines[k])[0]) for k in r]
+                letters = "".join(cell_letters)
+                context = [(cells(lines[k])[1] if len(cells(lines[k])[1:]) else "") for k in r[:3]]
+                if lex is not None:
+                    # the group's own words (every cell but the rail's, on the rows from the previous run's end to this run's
+                    # end — a rotated label starts above its first letter cell): a group label echoes its rows' vocabulary
+                    ctx_words = set()
+                    for k in range(prev_end + 1, r[-1] + 1):
+                        for c in cells(lines[k])[1:]:
+                            ctx_words.update(fold_letters(m.group(0)) for m in WORD.finditer(c))
+                    prev_end = r[-1]
+                    segs = lexicon_segments(cell_letters, lex, ctx_words)
+                    covered = set()
+                    for c0, c1, word, why in segs:
+                        covered.update(range(c0, c1 + 1))
+                        out.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[c0] + 1, r[c1] + 1],
+                                    "letters": "".join(cell_letters[c0:c1 + 1]), "word": word, "how": why, "refused": None})
+                    left = [i for i in range(len(r)) if i not in covered]
+                    if not left:
+                        continue
+                    # the cells no lexicon word covers: one unresolved proposal per maximal stretch (the model may be asked)
+                    stretches, cur = [], []
+                    for i in left:
+                        if cur and i != cur[-1] + 1:
+                            stretches.append(cur)
+                            cur = []
+                        cur.append(i)
+                    if cur:
+                        stretches.append(cur)
+                    for st in stretches:
+                        lt = "".join(cell_letters[st[0]:st[-1] + 1])
+                        word, how = None, "unresolved"
+                        refused = best_word(lt, lex, context=ctx_words)[1] if len(fold_letters(lt)) >= 2 else "fewer than two letters read"
+                        if not refused.startswith(("ambiguous", "no word", "fewer")):
+                            refused = "the word the lexicon offers explains the read no better than leaving it (%s)" % refused
+                        if resolver is not None and len(fold_letters(lt)) >= 2:
+                            got = resolver(lt, [(cells(lines[r[i]])[1] if len(cells(lines[r[i]])) > 1 else "") for i in st[:3]])
+                            if got and all(fold_letters(g) in lex for g in got.split()):
+                                ok, why = letters_fit(lt, got)
+                                if ok:
+                                    word, how, refused = got, "resolver, a word of the book (%s)" % why, None
+                                else:
+                                    refused = "the word %r does not fit the letters %r: %s" % (got, lt, why)
+                            elif got:
+                                refused = "the word %r is not a word of the book" % got
+                        out.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[st[0]] + 1, r[st[-1]] + 1],
+                                    "letters": lt, "word": word, "how": how, "refused": refused})
+                    continue
                 word, how, refused = None, "unresolved", None
                 if len(letters) < 2:
                     refused = "fewer than two letters"
@@ -520,10 +727,34 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
     return not reasons, reasons, facts
 
 
-def geometry_pass(text: str, resolver=None) -> tuple[str, dict]:
+def apply_admitted(lines: list[str], h: int, d: int, e: int, props: list[dict]) -> tuple:
+    """One table's proposals applied ONE AT A TIME, each kept only if the invariant admits the table with it added to those
+    already kept (S151 E1: a single wrong label refused the whole batch — the caption and the dots with it — under the
+    all-or-nothing apply). Returns (new_lines, admitted, refused, invariant_checks, dots_fixed)."""
+    before = lines[h:e + 1]
+    kept: list = []
+    refused: list = []
+    new = before
+    checks = 0
+    dots = 0
+    for p in props:
+        trial = apply_table(lines, h, d, e, kept + [p])
+        checks += 1
+        ok, reasons, facts = grid_invariant(before, trial)
+        if ok:
+            kept.append(p)
+            new = trial
+            dots = facts["dots_fixed"]
+        else:
+            refused.append(dict(p, refused="; ".join(reasons)))
+    return new, kept, refused, checks, dots
+
+
+def geometry_pass(text: str, resolver=None, use_lexicon: bool = True) -> tuple[str, dict]:
     """The layer over a whole markdown text: propose per table, apply on a copy, keep only what the invariant admits.
     Returns (text, record): the record counts tables, proposals, applied, refused and unresolved, lists every label and
-    caption, and names the invariant's own tallies — the AFTER half of the measurement, written by the act itself."""
+    caption, and names the invariant's own tallies — the AFTER half of the measurement, written by the act itself.
+    S151 E1: the book's own lexicon is the first word route (`use_lexicon`); the resolver is asked only for what it leaves."""
     lines = text.split("\n")
     calls = {"n": 0}
 
@@ -531,7 +762,8 @@ def geometry_pass(text: str, resolver=None) -> tuple[str, dict]:
         calls["n"] += 1
         return resolver(letters, context)
 
-    props = propose(lines, counted if resolver is not None else None)
+    lex = lexicon(lines) if use_lexicon else None
+    props = propose(lines, counted if resolver is not None else None, lex)
     blocks = {(h + 1, e + 1): (h, d, e) for h, d, e in table_blocks(lines)}
     by_table: dict = {}
     for p in props:
@@ -545,17 +777,15 @@ def geometry_pass(text: str, resolver=None) -> tuple[str, dict]:
         todo = [p for p in ps if p["kind"] != "rail" or p.get("word")]
         if not todo:
             continue
-        new = apply_table(lines, h, d, e, todo)
-        checks += 1
-        ok, reasons, facts = grid_invariant(lines[h:e + 1], new)
-        if ok:
+        new, admitted, refused_here, n_checks, dots = apply_admitted(lines, h, d, e, todo)
+        checks += n_checks
+        refused.extend(refused_here)
+        if admitted:
             out_lines.extend(lines[pos:h])
             out_lines.extend(new)
             pos = e + 1
-            applied.extend(todo)
-            dots_fixed += facts["dots_fixed"]
-        else:
-            refused.extend(dict(p, refused="; ".join(reasons)) for p in todo)
+            applied.extend(admitted)
+            dots_fixed += dots
     out_lines.extend(lines[pos:])
     record = {
         "tables": len(blocks),
@@ -571,5 +801,6 @@ def geometry_pass(text: str, resolver=None) -> tuple[str, dict]:
         "dots_fixed": dots_fixed,
         "invariant_checks": checks,
         "resolver_calls": calls["n"],
+        "lexicon_words": len(lex) if lex is not None else None,
     }
     return "\n".join(out_lines), record

@@ -681,6 +681,8 @@ def _():
 # ---------------------------------------------------------------------------
 S150_MD = ("Intro paragraph.\n\n| Start with this source to investigate before meeting management |  |  |  |\n|---|---|---|---|\n"
            "|  | Question | Source | Note |\n| R | pricing? | • | a |\n| l v | wins? | ٠ | b |\n| Ė<br>N | factors? | • | c |\n\nOutro paragraph.\n")
+# S151 E1: the same exhibit in a book whose prose says the word — the lexicon route resolves the rail without any model
+S151_MD = S150_MD.replace("Outro paragraph.", "Outro paragraph on revenue and costs.")
 
 
 @case("S150-E3 (a) tables=True: the layer repairs the exhibit BEFORE the chunks (REVENUE labelled, the title captioned, ٠ -> •); the record rides meta.geometry; the class counts in edits; the whitelist names it")
@@ -694,12 +696,13 @@ def _():
     real_gen = analyst._generate
     analyst._generate = gen
     try:
-        out, meta = analyst.process(S150_MD, backend="local", tables=True, resolver=lambda letters, ctx: "REVENUE")
+        out, meta = analyst.process(S151_MD, backend="local", tables=True, resolver=lambda letters, ctx: "REVENUE")
     finally:
         analyst._generate = real_gen
     g = meta["geometry"]
     assert g and g["applied"] == 3 and g["refused"] == 0 and g["unresolved"] == 0, g
-    assert g["labels"] == [{"rows": [6, 8], "letters": "RlvĖN", "word": "REVENUE", "how": g["labels"][0]["how"]}] and g["labels"][0]["how"].startswith("resolver"), g
+    assert g["labels"] == [{"rows": [6, 8], "letters": "RlvĖN", "word": "REVENUE", "how": g["labels"][0]["how"]}] and g["labels"][0]["how"].startswith("lexicon"), g
+    assert g["resolver_calls"] == 0 and g["lexicon_words"] >= 5, g  # the book's own word, no model asked
     assert g["captions"][0]["text"] == "Start with this source to investigate before meeting management" and g["dots_fixed"] == 1 and g["program"] == "resolver", g
     assert "table-geometry" in meta["edits"]["whitelist"] and meta["edits"]["accepted"].get("table-geometry") == 3, meta["edits"]
     assert "| REVENUE | pricing? | • | a |" in out and "|  | wins? | • | b |" in out and "٠" not in out, out
@@ -759,7 +762,7 @@ def _():
     analyst._call_bound.clear()
 
 
-@case("S150-E3 (d) a resolver's wrong word is refused by the layer (letters_fit), the rail stays, the refusal is on the record")
+@case("S150-E3 (d) a resolver's wrong word is refused by the layer — S151: not a word of the book — the rail stays, the refusal is on the record")
 def _():
     test_ledger()
     real_gen = analyst._generate
@@ -769,8 +772,16 @@ def _():
     finally:
         analyst._generate = real_gen
     g = meta["geometry"]
-    assert g["labels"] == [] and g["unresolved"] == 1 and "does not fit" in g["unresolved_rails"][0]["why"], g
+    assert g["labels"] == [] and g["unresolved"] == 1 and "not a word of the book" in g["unresolved_rails"][0]["why"], g
     assert g["applied"] == 2 and "| R | pricing? | • | a |" in out and "٠" not in out, (g, out)
+    # S150's own loss, replayed: the shuffle SARTGEY and the wrong word LABEL are refused by the lexicon even where letters_fit admitted them
+    real_gen = analyst._generate
+    analyst._generate = lambda prompt: prompt[len(analyst.load_program("readability")):]
+    try:
+        out2, meta2 = analyst.process(S150_MD, backend="local", tables=True, resolver=lambda letters, ctx: "RLVEN")
+    finally:
+        analyst._generate = real_gen
+    assert meta2["geometry"]["labels"] == [] and "not a word of the book" in meta2["geometry"]["unresolved_rails"][0]["why"], meta2["geometry"]
 
 
 print()

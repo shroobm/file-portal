@@ -117,9 +117,9 @@ def main():
     check("the caption is the spanning title, its chopped tail `ment` dropped", cap["text"].startswith("Start with this source") and cap["fragment_dropped"])
     rails = [(p["word"], p["rows"]) for p in props if p["kind"] == "rail"]
     check("the rails resolved on their rows: REVENUE 7-10, COSTS MGMT 12-14", rails == [("REVENUE", [7, 10]), ("COSTS MGMT", [12, 14])], str(rails))
-    text, rec = tg.geometry_pass(VALENTINE, resolver)
-    check("the pass applied all four, refused none, one invariant check, two resolver calls",
-          rec["applied"] == 4 and rec["refused"] == 0 and rec["invariant_checks"] == 1 and rec["resolver_calls"] == 2, str(rec))
+    text, rec = tg.geometry_pass(VALENTINE, resolver, use_lexicon=False)   # [4] tests the resolver route alone; [5] the lexicon
+    check("the pass applied all four, refused none, one invariant check per proposal (four), two resolver calls",
+          rec["applied"] == 4 and rec["refused"] == 0 and rec["invariant_checks"] == 4 and rec["resolver_calls"] == 2, str(rec))
     after = tg.census(text.split("\n"))[0]
     check("AFTER: no letter column, no title row, no stray glyph, • up by one, one row fewer, 13 columns",
           not after["letter_column"] and not after["title_row"] and after["stray_dot_glyphs"] == 0 and after["dots_total"] == 53 and after["rows"] == 10 and after["cols"] == 13,
@@ -134,7 +134,7 @@ def main():
     check("the invariant holds on the pass's own output (caption seen, 2 labels, 1 dot fixed, 120 cells compared)",
           ok and facts["caption"] and len(facts["labels"]) == 2 and facts["dots_fixed"] == 1 and facts["cells_compared"] == 120, str((reasons, facts)))
     check("idempotent: a second pass proposes nothing", tg.propose(L2, resolver) == [])
-    text_none, rec_none = tg.geometry_pass(VALENTINE, None)
+    text_none, rec_none = tg.geometry_pass(VALENTINE, None, use_lexicon=False)
     check("without a resolver: the rails are unresolved and reported; the caption and the dots still apply",
           rec_none["unresolved"] == 2 and rec_none["applied"] == 2 and rec_none["labels"] == [] and len(rec_none["unresolved_rails"]) == 2, str(rec_none))
     props_bad = tg.propose(V, lambda letters, ctx: "COSTS")
@@ -160,6 +160,85 @@ def main():
     check("invariant: an unchanged table is admitted", tg.grid_invariant(B, B)[0])
     split = VALENTINE.replace("|------", "![[assets/_repair_p234_1.png]]\n<!-- repair p234 · repair-bench -->\n|------", 1).split("\n")
     check("a split table (a health issue) is never proposed for", tg.propose(split, resolver) == [] and tg.health(split) != [])
+
+    print("[5] the lexicon route (S151 E1): a label must be a word the book itself uses")
+    check("letters_fit, short reads exact: LLO fits LOW and not LABEL; HGH fits HIGH; LO fits LOW; UE does not fit CAUSE (half the word at least)",
+          tg.letters_fit("LLO", "LOW")[0] and not tg.letters_fit("LLO", "LABEL")[0] and tg.letters_fit("HGH", "HIGH")[0]
+          and tg.letters_fit("LO", "LOW")[0] and not tg.letters_fit("UE", "CAUSE")[0])
+    check("a digit reads as its OCR confusions, not any letter: 6OST fits COSTS (6 → c) and not MOST in full; lvĖN does not fit INVESTMENTS",
+          tg.letters_fit("6OST", "COSTS")[0] and tg.letters_fit("6OST", "MOST")[1].startswith("3 of 4") and not tg.letters_fit("lvĖN", "INVESTMENTS")[0],
+          str((tg.letters_fit("6OST", "COSTS"), tg.letters_fit("6OST", "MOST"), tg.letters_fit("lvĖN", "INVESTMENTS"))))
+    prose = ["The analyst weighs revenue, costs and management quality before valuation; strategy and financial questions come first.",
+             "High and low marks; the label column; a table of P/E ratios."]
+    lex = tg.lexicon(prose + ["| R | one |", "| l v | two |"])
+    check("the lexicon holds the book's words with counts and never a rail cell", lex.get("revenue") == 1 and lex.get("management") == 1 and "r" not in lex and "lv" not in lex and lex.get("the", 0) >= 2)
+    check("best_word: SARTEGΫ → STRATEGY, RlvĖNUE → REVENUE, FNANČĹ → FINANCIAL, VAĀON → VALUATION, HGH → HIGH, LLO → LOW",
+          [tg.best_word(x, lex)[0] for x in ("SARTEGΫ", "RlvĖNUE", "FNANČĹ", "VAĀON", "HGH", "LLO")] == ["STRATEGY", "REVENUE", "FINANCIAL", "VALUATION", "HIGH", "LOW"],
+          str([tg.best_word(x, lex) for x in ("SARTEGΫ", "RlvĖNUE", "FNANČĹ", "VAĀON", "HGH", "LLO")]))
+    check("best_word: MGMT and ABCD find no word of the book", tg.best_word("MGMT", lex)[0] is None and tg.best_word("ABCD", lex)[0] is None)
+    check("best_word: a tie at the top is refused, not guessed", tg.best_word("LO", {"low": 1, "lot": 1})[0] is None and "ambiguous" in tg.best_word("LO", {"low": 1, "lot": 1})[1])
+    segs = tg.lexicon_segments(["6", "OST", "s", "MGMT", "VA", "Ā", "ON"], lex)
+    check("lexicon_segments: the run COSTS·MGMT·VALUATION splits at the cells where each word's letters end; MGMT (no word) left out",
+          [(a, b, w) for a, b, w, _ in segs] == [(0, 2, "COSTS"), (4, 6, "VALUATION")], str(segs))
+    lex2 = dict(lex, mgmt=1)
+    segs2 = tg.lexicon_segments(["6", "OST", "s", "MGMT", "VA", "Ā", "ON"], lex2)
+    check("lexicon_segments: with MGMT in the book, all three words, all seven cells covered",
+          [(a, b, w) for a, b, w, _ in segs2] == [(0, 2, "COSTS"), (3, 3, "MGMT"), (4, 6, "VALUATION")], str(segs2))
+    props = tg.propose(V, None, lex2)
+    rails = [(p["rows"], p["word"], p["how"][:7]) for p in props if p["kind"] == "rail"]
+    check("propose with the lexicon: REVENUE rows 7-10, COSTS rows 12-13, MGMT row 14 — each on its own rows, no resolver asked",
+          rails == [([7, 10], "REVENUE", "lexicon"), ([12, 13], "COSTS", "lexicon"), ([14, 14], "MGMT", "lexicon")], str(rails))
+    props_typo = tg.propose(V, None, dict(lex, mangement=1))   # the book's own typo of management must not become MGMT's label
+    check("a nine-letter word does not fit a four-letter read (MGMT is not MANGEMENT): the cell stays unresolved",
+          any(p["kind"] == "rail" and p["letters"] == "MGMT" and p["word"] is None for p in props_typo), str([(p["letters"], p["word"]) for p in props_typo if p["kind"] == "rail"]))
+    text2, rec2 = tg.geometry_pass(VALENTINE + "\n\n" + prose[0] + " Management (MGMT) matters.", None)
+    L3 = text2.split("\n")
+    check("geometry_pass with the book's own lexicon: three labels applied, none unresolved, no resolver call, lexicon counted",
+          rec2["applied"] == 5 and rec2["unresolved"] == 0 and rec2["resolver_calls"] == 0 and rec2["lexicon_words"] > 20 and [lb["word"] for lb in rec2["labels"]] == ["REVENUE", "COSTS", "MGMT"], str(rec2))
+    check("the run split where the words end: COSTS on the `6` row, MGMT on its own row, the cells between blank",
+          tg.cells(L3[12])[0] == "COSTS" and tg.cells(L3[13])[0] == "" and tg.cells(L3[14])[0] == "MGMT", repr([L3[12][:30], L3[13][:30], L3[14][:30]]))
+    check("the invariant admits the segmented run", tg.grid_invariant(V[2:14], L3[2:15])[0], str(tg.grid_invariant(V[2:14], L3[2:15])[1]))
+    props_bad = tg.propose(V, lambda letters, ctx: "SARTGEY", lex)
+    check("a resolver's shuffle is refused by the lexicon: SARTGEY is not a word of the book (the unresolved proposal says so)",
+          any(p["kind"] == "rail" and p["word"] is None and "not a word of the book" in (p["refused"] or "") for p in props_bad), str([p for p in props_bad if p["kind"] == "rail"]))
+    text3, rec3 = tg.geometry_pass(VALENTINE, lambda letters, ctx: "REVENUE")
+    check("without the word in the book's prose the resolver's REVENUE is refused too (the book must say it)",
+          not any(lb["word"] == "REVENUE" for lb in rec3["labels"]) and any("not a word of the book" in u["why"] for u in rec3["unresolved_rails"]), str((rec3["labels"], rec3["unresolved_rails"])))
+    check("fit_score: COSTS explains 6OSTs (5) better than MANAGEMENT explains sMGMT (0); VALUATION explains VAĀON (3)",
+          tg.fit_score(5, 5, 5) == 5 and tg.fit_score(5, 4, 10) == 0 and tg.fit_score(5, 5, 9) == 3)
+    # the two traps the real book set (S151 E1, Observed): the OCR swapped R and T so `SARTEGΫ` fits STARTED (s,a,r,t,e,d) better than
+    # STRATEGY by the letters alone; `L | L O` across a row boundary fits ALLOW better than LOW; and MGMT is not a word of any prose
+    trap = {"started": 3, "strategy": 3, "allow": 5, "low": 5, "might": 8, "high": 4}
+    check("the context bonus: with the rows asking about strategy, SARTEGΫ → STRATEGY; without it the letters alone say STARTED (the trap, named)",
+          tg.best_word("SARTEGΫ", trap, context={"strategy", "differ"})[0] == "STRATEGY" and tg.best_word("SARTEGΫ", trap)[0] == "STARTED",
+          str((tg.best_word("SARTEGΫ", trap, context={"strategy"}), tg.best_word("SARTEGΫ", trap))))
+    check("the boundary collapse: cells L | LO read as LO → LOW, not ALLOW", [(a, b, w) for a, b, w, _ in tg.lexicon_segments(["L", "LO"], trap)] == [(0, 1, "LOW")],
+          str(tg.lexicon_segments(["L", "LO"], trap)))
+    check("MGMT is not MIGHT: a word that explains the read by one point is refused (SEGMENT_MIN_SCORE)", tg.lexicon_segments(["MGMT"], trap) == [],
+          str(tg.lexicon_segments(["MGMT"], trap)))
+    check("HGH → HIGH still clears the bar", [(a, b, w) for a, b, w, _ in tg.lexicon_segments(["HGH"], trap)] == [(0, 0, "HIGH")])
+    # S151 E1 run 3 (Observed): LOST, in the matrix's own rows, beat LOW for `L | L O`; COST + SEGMENTS beat COSTS over the same cells
+    check("a short read may be one letter short of its word: L | LO → LOW even with LOST in the rows; LOT and LOW alike → ambiguous, unresolved",
+          [(a, b, w) for a, b, w, _ in tg.lexicon_segments(["L", "LO"], {"low": 2, "lost": 9}, context={"lost"})] == [(0, 1, "LOW")]
+          and tg.lexicon_segments(["L", "LO"], {"low": 2, "lot": 2}) == [] and "ambiguous" in tg.best_word("LO", {"low": 2, "lot": 2})[1],
+          str((tg.lexicon_segments(["L", "LO"], {"low": 2, "lost": 9}, context={"lost"}), tg.best_word("LO", {"low": 2, "lot": 2}))))
+    check("two weak words never beat one strong one: 6 | OST | s → COSTS, not COST + SEGMENTS (even with cost and segments in the rows)",
+          [(a, b, w) for a, b, w, _ in tg.lexicon_segments(["6", "OST", "s", "MGMT"], {"costs": 3, "cost": 9, "segments": 2, "might": 4}, context={"segments", "cost"})] == [(0, 2, "COSTS")],
+          str(tg.lexicon_segments(["6", "OST", "s", "MGMT"], {"costs": 3, "cost": 9, "segments": 2, "might": 4}, context={"segments", "cost"})))
+    check("the boundary collapse leaves an accented glyph alone: VA | Ā | ON stays VAĀON (TI merged, not a repeat) → VALUATION",
+          tg.boundary_collapse(["VA", "Ā", "ON"]) == ["VA", "Ā", "ON"] and [(a, b, w) for a, b, w, _ in tg.lexicon_segments(["VA", "Ā", "ON"], {"valuation": 2, "van": 9})] == [(0, 2, "VALUATION")],
+          str(tg.lexicon_segments(["VA", "Ā", "ON"], {"valuation": 2, "van": 9})))
+    # S151 E1 run 2 (Observed on the anchor copy): one wrong label refused the table's WHOLE batch — the caption and the dots with it;
+    # proposals are admitted one at a time now
+    good = tg.propose(V, resolver)
+    bad = [dict(p, word="ZZZZ", how="a planted wrong word") if (p["kind"] == "rail" and p["rows"] == [7, 10]) else p for p in good]
+    h0, d0, e0 = tg.table_blocks(V)[0]
+    new, admitted, refused_, n_checks, dots = tg.apply_admitted(V, h0, d0, e0, bad)
+    check("apply_admitted: a planted wrong label is refused alone; the caption, the dots and the other rail are admitted (4 checks)",
+          len(refused_) == 1 and refused_[0]["word"] == "ZZZZ" and [p["kind"] for p in admitted] == ["caption", "rail", "dots"] and n_checks == 4 and dots == 1,
+          str(([p["kind"] for p in admitted], [(p["kind"], p.get("word")) for p in refused_], n_checks, dots)))
+    check("apply_admitted: the admitted table passes the invariant and keeps the wrong label's cells as they were",
+          tg.grid_invariant(V[h0:e0 + 1], new)[0] and tg.cells(new[5])[0] == "R", repr(new[5][:24]))
 
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
