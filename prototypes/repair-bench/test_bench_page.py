@@ -1256,6 +1256,16 @@ class TestOK15EvidenceWiring(unittest.TestCase):
         # Negative control: an ordinal-only rail cannot pass the logical-label check.
         self.assertNotIn("page_labels", 'd.innerHTML = `<span class="tn">${n}</span>`;')
 
+    def test_s150_view_anchor_is_a_marker_not_raw_html(self):
+        """S149's refuter set the view's renderer to html:false, which turned the raw anchor tag injected into the markdown
+        source into visible text; S150 injects a plain marker paragraph and swaps it for the anchor after the render."""
+        body = js_function_body(BENCH_HTML, "renderView")
+        self.assertIn('"⟦FP-ZONE-ANCHOR⟧\\n\\n"', body, "the marker is injected as text before the zone's line")
+        self.assertIn("<p>⟦FP-ZONE-ANCHOR⟧<\\/p>", body, "the rendered marker paragraph is swapped for the anchor")
+        self.assertIn('\'<a id="fp-zone-anchor"></a>\'', body)
+        self.assertNotIn('\'<a id="fp-zone-anchor"></a>\\n\\n\'', body, "the raw tag is never put into the markdown source")
+        self.assertIn("html: false", BENCH_HTML.replace("html:false", "html: false"), "the view's renderer stays html:false (S149's refuter)")
+
 
 if __name__ == "__main__":
     try:

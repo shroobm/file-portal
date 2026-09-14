@@ -2628,13 +2628,15 @@ function renderView() {
   }
   const src = lines.map((l, i) => {
     const line = l.replace(/!\[\[assets\/([^\]|]+)(\|[^\]]*)?\]\]/g, (m0, n) => `![](/api/asset?name=${encodeURIComponent(n)})`);
-    return (i === anchorAt ? '<a id="fp-zone-anchor"></a>\n\n' : "") + line;
+    // S150: a plain-text marker paragraph, never raw HTML — html:false (S149's refuter) escapes a tag into visible text
+    return (i === anchorAt ? "⟦FP-ZONE-ANCHOR⟧\n\n" : "") + line;
   }).join("\n");
   const banner = issues.length
     ? `<div class="tb-banner">⚠ ${issues.length} table issue(s) — ` +
       issues.slice(0, 6).map((x) => `line ${x.line}: ${x.reason}`).join(" · ") + (issues.length > 6 ? " · …" : "") + "</div>"
     : "";
-  v.innerHTML = banner + m.render(src).replace(/&lt;br\s*\/?&gt;/gi, "<br>");
+  v.innerHTML = banner + m.render(src).replace(/&lt;br\s*\/?&gt;/gi, "<br>")
+    .replace(/<p>⟦FP-ZONE-ANCHOR⟧<\/p>/, '<a id="fp-zone-anchor"></a>');
   const a = v.querySelector("#fp-zone-anchor");
   if (a) a.scrollIntoView({ block: "start" });
 }
