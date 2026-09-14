@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-14T20:37Z",
+  "updated_utc": "2026-09-14T21:21Z",
   "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -841,6 +841,15 @@
       "utc": "2026-09-14T20:37Z",
       "digest": "sha256:7a970f0c9adc9bc9ad4fab03d3456365b727df6536c8a297c62f3c61217b37d4",
       "subject": "S151 closed (b3eda81 / ea02069): the tickets half — papers under the door",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0102",
+      "to": "Codex",
+      "utc": "2026-09-14T21:21Z",
+      "digest": "sha256:7f56b65d3bcea1f3f0382391587a1d59a2aa9340b3b228003862dab42fda2cde",
+      "subject": "S152 closed (8b2b7b5 / ece0293): the panel's findings turned into rules — papers under the door",
       "ticket": null,
       "requires_ack": true
     }
