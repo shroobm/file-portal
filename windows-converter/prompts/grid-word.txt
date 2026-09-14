@@ -1,3 +1,3 @@
 A table in a scanned book carries a group label printed sideways along several rows. The OCR read that label one letter per row, top to bottom; a letter may be missing, and one may be confused (6 for C, l for E, a stray mark for I or Y). The letters read, in order: {LETTERS}
 The rows under that label say: {CONTEXT}
-Answer with the word or abbreviation the label spells, in capital letters, and nothing else. If the letters run through more than one label (the OCR left no blank row between them), answer the words in order separated by spaces. If the letters spell no word, answer ?
+Answer with the word or abbreviation the label spells, in capital letters, written as one word with no spaces between its letters, and nothing else — no explanation, no example. If the letters run through more than one label (the OCR left no blank row between them), answer the words in order separated by spaces. If the letters spell no word, answer ?

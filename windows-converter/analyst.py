@@ -152,18 +152,28 @@ def _word_resolver(generate):
         prompt = (template.replace("{LETTERS}", " ".join(letters))
                   .replace("{CONTEXT}", " / ".join(c[:80] for c in context if c) or "(no text)") + "\n\n")
         saved = _call_bound.get("num_predict")
+        saved_t = _call_bound.get("temperature")
         _call_bound["num_predict"] = GRID_NUM_PREDICT
+        _call_bound["temperature"] = 0.0  # a word is a lookup, not a composition: the same letters must give the same word
         try:
             reply = generate(prompt)
         except Exception:  # noqa: BLE001 — see docstring
             return None
         finally:
             _call_bound["num_predict"] = saved
+            _call_bound["temperature"] = saved_t
         head = reply.strip().splitlines()[0].strip() if reply and reply.strip() else ""
         head = re.sub(r"[`*\"'.,:;]", "", head).strip().upper()
-        if not head or head == "?" or len(head) > 40 or len(head.split()) > 4 or not all(w.isalpha() for w in head.split()):
+        words = head.split()
+        # E4b (S150, Observed on the card): asked with the letters spaced ("R l v Ė N U E"), qwen3 echoed its answer spaced too
+        # ("R E V I N U E", "H I G H") and the first parser read seven one-letter words and refused every rail of the book —
+        # a spaced answer is the word: join single letters into one
+        if words and all(len(w) == 1 for w in words):
+            words = ["".join(words)]
+            head = words[0]
+        if not head or head == "?" or len(head) > 40 or len(words) > 4 or not all(w.isalpha() for w in words):
             return None
-        return head
+        return " ".join(words)
     return resolve
 
 
@@ -292,6 +302,8 @@ def _generate(prompt: str, num_predict: int | None = None) -> str:
     options = {"num_ctx": NUM_CTX}
     if num_predict is not None:
         options["num_predict"] = int(num_predict)
+    if _call_bound.get("temperature") is not None:  # S150 E4b: the grid program's calls are deterministic; the readability pass is unchanged
+        options["temperature"] = float(_call_bound["temperature"])
     body = json.dumps({
         "model": MODEL, "stream": False, "keep_alive": KEEP_ALIVE_HOLD, "prompt": prompt,
         "options": options,

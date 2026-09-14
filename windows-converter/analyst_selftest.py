@@ -731,7 +731,27 @@ def _():
     assert analyst._word_resolver(lambda p: "")("HGH", []) is None
     assert analyst._word_resolver(lambda p: "COSTS MGMT")("6OSTMGMT", []) == "COSTS MGMT"
     assert analyst._word_resolver(lambda p: "COSTS MGMT VALUATION")("6OSTsMGMTVAĀON", []) == "COSTS MGMT VALUATION"  # three rails run together (the anchor copy, rows 1585-1591)
-    assert analyst._word_resolver(lambda p: "A B C D E")("ABCDE", []) is None  # more than four words is not a label
+    # E4b on the card (S150): qwen3 echoed the answer spaced like the question's letters — "R E V I N U E", "H I G H" — and the first
+    # parser refused every rail of the book as seven one-letter words; a spaced answer is the word
+    assert analyst._word_resolver(lambda p: "H I G H")("HIGH", []) == "HIGH"
+    assert analyst._word_resolver(lambda p: "R E V E N U E\n")("RlvĖNUE", []) == "REVENUE"
+    assert analyst._word_resolver(lambda p: "A B C D E F G H I")("ABCDEFGHI", []) == "ABCDEFGHI"  # joined, then bounded by letters_fit in propose
+    assert analyst._word_resolver(lambda p: "ONE TWO THREE FOUR FIVE")("ABCDE", []) is None  # more than four words is not a label
+    # E4b run 3 (S150, Observed on the card): the program once carried an example answer ("REVENUE, not R E V E N U E") and qwen3, at
+    # temperature 0, answered REVENUE for every rail of the book — the example leaked; letters_fit refused nine of the ten. The program
+    # may name no word a rail could be.
+    prog = analyst.load_program(analyst.GRID_PROGRAM).replace("{LETTERS}", "").replace("{CONTEXT}", "")
+    import re as _re
+    caps = [w for w in _re.findall(r"\b[A-Z]{3,}\b", prog) if w not in ("OCR",)]
+    assert caps == [], "the grid program carries a capitalised word that can leak into an answer: %s" % caps
+    temps = []
+
+    def gen_t(p):
+        temps.append(analyst._call_bound.get("temperature"))
+        return "HIGH"
+    analyst._call_bound["temperature"] = None
+    analyst._word_resolver(gen_t)("HGH", [])
+    assert temps == [0.0] and analyst._call_bound.get("temperature") is None, (temps, analyst._call_bound)  # deterministic for the word, restored after
 
     def boom(p):
         raise RuntimeError("ollama down")
