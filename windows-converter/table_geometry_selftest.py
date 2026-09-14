@@ -262,15 +262,16 @@ def main():
     c7 = tg.census(RL)[0]
     check("the reading half sees the wrapped label as the pair of file lines 6 and 7", c7["wrapped_labels"] == [[6, 7]], str(c7["wrapped_labels"]))
     props7 = tg.propose(RL, None, {"standard": 3, "lower": 3, "upper": 3, "error": 3, "value": 3})
-    folds7 = [p for p in props7 if p["kind"] == "fold"]
-    check("one fold proposed, naming both halves of the label", len(folds7) == 1 and folds7[0]["rows"] == [6, 7] and "manufacturing" in folds7[0]["why"] and "index)" in folds7[0]["why"], str(props7))
+    folds7 = [p for p in props7 if p["kind"] == "fold" and not p.get("header")]   # the header fold is [9]'s
+    check("one wrapped-label fold proposed, naming both halves of the label", len(folds7) == 1 and folds7[0]["rows"] == [6, 7] and "manufacturing" in folds7[0]["why"] and "index)" in folds7[0]["why"], str(props7))
     after7 = tg.apply_table(RL, 0, 1, 6, folds7)
     check("applied: one row fewer, the label joined with a space, the data the second row's",
           len(after7) == 6 and tg.cells(after7[5])[0] == "lag1 (log of<br>manufacturing index)" and tg.cells(after7[5])[1] == "0.48", str(after7[-1]))
     ok7, why7, facts7 = tg.grid_invariant(RL[:7], after7)
     check("the invariant admits the fold and names it (rows 5-6 of the table, a wrapped label)", ok7 and len(facts7["folds"]) == 1 and facts7["folds"][0]["how"] == "a wrapped label", str((why7, facts7.get("folds"))))
     text7, rec7 = tg.geometry_pass(REG, None)
-    check("geometry_pass folds it and the record says so", rec7["applied"] >= 1 and len(rec7["folds"]) == 1 and "manufacturing index)" in text7 and text7.count("\n") == REG.count("\n") - 1, str((rec7["folds"], rec7["refusals"])))
+    check("geometry_pass folds it and the record says so (the stacked heading of [9] folds beside it: two rows fewer)",
+          rec7["applied"] >= 1 and any("wrapped row label" in f["why"] for f in rec7["folds"]) and "manufacturing index)" in text7 and text7.count("\n") == REG.count("\n") - 2, str((rec7["folds"], rec7["refusals"])))
     SECTION = ("| Participants | Purpose of Discussion | Typical Time Limit |\n|---|---|---|\n"
                "| I. Buy-Side and Sell-Side Roles |  |  |\n| Outgoing call to company management | A few follow-up questions | 10 to 30 minutes |\n"
                "| II. Buy-Side Only Role |  |  |\n| Inbound call from your portfolio manager | You are responding to a question(s). | 1 to 10 minutes |\n\ntail")
@@ -317,6 +318,37 @@ def main():
     HEADS = "|  | Revenue and | Costs | Margin |\n|---|---|---|---|\n| A | 1 | 2 | 3 |\n| B | 4 | 5 | 6 |\n\ntail"
     check("NEGATIVE (the named risk): single-word heading pieces the book uses are refused by the guard even with a signal",
           not any(p["kind"] == "caption" for p in tg.propose(HEADS.split("\n"), None, {"revenue": 4, "costs": 4, "margin": 4, "and": 9})))
+    print("[9] a stacked column heading folded into one heading row (S152 E3)")
+    lex9 = {"standard": 3, "lower": 3, "upper": 3, "error": 3, "value": 3, "coefficients": 2, "intercept": 2}
+    props9 = tg.propose(RL, None, lex9)
+    hf = [p for p in props9 if p["kind"] == "fold" and p.get("header")]
+    check("the regression's stacked heading proposes a HEADER fold (not a caption), naming both rows", len(hf) == 1 and hf[0]["rows"] == [1, 3] and "Standard" in hf[0]["why"] and not any(p["kind"] == "caption" for p in props9), str(props9))
+    check("the join follows the page's typography: Standard Error, t Stat (the OCR's lone `1` dropped), P-value (no space after a hyphen), Lower 95%",
+          tg._join_heading(tg.cells(RL[0]), tg.cells(RL[2])) == ["", "Coefficients", "Standard Error", "t Stat", "P-value", "Lower 95%", "Upper 95%", "Lower 95%", "Upper 95%"], str(tg._join_heading(tg.cells(RL[0]), tg.cells(RL[2]))))
+    after9 = tg.apply_table(RL, 0, 1, 6, hf)
+    check("applied: the header row is the joined heading, the delimiter under it, one row fewer", tg.cells(after9[0])[2] == "Standard Error" and tg.DELIM.match(after9[1]) is not None and tg.cells(after9[2])[0] == "Intercept" and len(after9) == 6, str(after9[:3]))
+    ok9, why9, facts9 = tg.grid_invariant(RL[:7], after9)
+    check("the invariant admits the header fold and names it", ok9 and len(facts9["folds"]) == 1 and facts9["folds"][0]["how"] == "a header fold", str((why9, facts9.get("folds"))))
+    text9, rec9 = tg.geometry_pass(REG, None)
+    L9 = text9.split("\n")
+    check("geometry_pass: both folds on the regression table (the heading and the wrapped label), the record naming them",
+          len(rec9["folds"]) == 2 and tg.cells(L9[0])[4] == "P-value" and "manufacturing index)" in text9 and text9.count("\n") == REG.count("\n") - 2, str((rec9["folds"], rec9["refusals"], L9[:2])))
+    check("NEGATIVE: the chopped title (CHOPPED) is a caption, never a header fold", not any(p["kind"] == "fold" and p.get("header") for p in tg.propose((CHOPPED + "\n\n" + VALENTINE).split("\n"), None, tg.lexicon((CHOPPED + "\n\n" + VALENTINE).split("\n")))))
+    check("NEGATIVE: a healthy header over a data row is not a stacked heading", not any(p["kind"] == "fold" for p in tg.propose(HEALTHY.split("\n"), None, {"a": 5, "b": 5, "c": 5})))
+    smug9 = list(after9)
+    smug9[0] = smug9[0].replace("Standard Error", "Standard Deviation")
+    ok10, why10, _ = tg.grid_invariant(RL[:7], smug9)
+    check("NEGATIVE: a heading not the exact join (Standard Deviation) is refused", not ok10, str(why10))
+    print("[10] an index read as a table is named by the census (S152 E4 — a signature, no repair)")
+    entries = ["| %s of, %d | %s, %d-%d |" % (w, 100 + i, w.capitalize(), 10 + i, 20 + i) for i, w in enumerate(["timing", "trend", "index", "industry", "inflation", "influencing", "information", "contacts", "hub", "source", "bloggers", "buy-side", "company", "data", "economic", "filter", "financial"])]
+    INDEXT = "| timing/value of line item in, 200 | Information hub, 51-66 |\n|---|---|\n" + "\n".join(entries) + "\n\ntail"
+    ci = tg.census(INDEXT.split("\n"))[0]
+    check("two columns of entries ending in page numbers, an entry-shaped header row: index_like", ci["index_like"] is True, str(ci["index_like"]))
+    check("NEGATIVE: the exhibit (a real table with headings) is not index_like; nor the regression; nor a two-column table of prose (p.239's shape)",
+          tg.census(VALENTINE.split("\n"))[0]["index_like"] is False and tg.census(RL)[0]["index_like"] is False
+          and tg.census(("| Value (or Cyclical) | Growth |\n|---|---|\n" + "\n".join("| item %d of the past. | size of the market. |" % k for k in range(20)) + "\n\ntail").split("\n"))[0]["index_like"] is False)
+    text10, rec10 = tg.geometry_pass(INDEXT, None)
+    check("the layer proposes nothing on an index (a signature only): the text unchanged", text10 == INDEXT and rec10["applied"] == 0)
     text3, rec3 = tg.geometry_pass(VALENTINE, lambda letters, ctx: "REVENUE")
     check("without the word in the book's prose the resolver's REVENUE is refused too (the book must say it)",
           not any(lb["word"] == "REVENUE" for lb in rec3["labels"]) and any("not a word of the book" in u["why"] for u in rec3["unresolved_rails"]), str((rec3["labels"], rec3["unresolved_rails"])))

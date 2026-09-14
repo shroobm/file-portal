@@ -175,6 +175,25 @@ class TableReading:
     filled_cells: int = 0
     wrapped_labels: list = field(default_factory=list)   # S152 E1: [[line, line+1]] — a row label wrapped over two rows
     title_pieces: bool = False       # S152 E2: the first row is a spanning title chopped into LONG pieces beside empty cells
+    index_like: bool = False         # S152 E4: a back-of-book index read as a table (entries ending in page numbers, no headings)
+
+
+_PAGE_REF = re.compile(r"\d+\s*$")
+
+
+def _index_like(header: list[str], body: list[list[str]]) -> bool:
+    """S152 E4 (the panel: p.421 is an index, no table; the copy has two 36-row tables there; the block record calls them Table):
+    a text signature for the index — at most three columns, fifteen or more body rows, three in five filled cells ending in a
+    page number, the header row's own cells ending in a page number or a comma (entries, not headings)."""
+    if not (1 <= len(header) <= 3) or len(body) < 15:
+        return False
+    cells_ = [c for r in body for c in r if c]
+    if not cells_:
+        return False
+    refs = sum(1 for c in cells_ if _PAGE_REF.search(BR.sub(" ", c).strip()))
+    hdr = [BR.sub(" ", c).strip() for c in header if c]
+    hdr_entries = sum(1 for c in hdr if _PAGE_REF.search(c) or c.endswith(","))
+    return refs >= 0.6 * len(cells_) and hdr and hdr_entries == len(hdr)
 
 
 _PIECE_END = re.compile(r"(?:\b[A-Za-z]|-|\b(?:of|and|the|for|to|in|on|or|a|an|by|with|per|from|your))\s*$", re.I)
@@ -291,6 +310,8 @@ def read_table(lines: list[str], h: int, d: int, e: int) -> TableReading:
             runs.append("".join(cur))
         t.letter_runs = runs
         t.letters_in_order = "".join(runs)
+    # S152 E4: an index read as a table (a signature, no repair — the census names it; the layer leaves it alone)
+    t.index_like = _index_like(header, body)
     # S152 E1: a row label wrapped over two rows (the pair's 1-based file lines)
     for i in range(len(body) - 1):
         if _wrapped_pair(body[i], body[i + 1], len(header)):
@@ -728,6 +749,10 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
             ph, why = (None, "a stacked heading, not a title") if headings else best_phrase(stream, phrase_list if phrase_list is not None else [])
             if headings:
                 text = None
+                # S152 E3: a stacked column heading — the header row and the first body row folded into ONE heading row by the
+                # page's typography (`Standard` + `Error`, `P-` + `value`, `Lower` + `95%`); the invariant's header-fold clause
+                out.append({"kind": "fold", "table": [h + 1, e + 1], "rows": [h + 1, d + 2], "header": True,
+                            "why": "a stacked heading: %s over %s" % (" | ".join(frags)[:60], " | ".join(c for c in cells(lines[d + 1]) if c)[:60])})
             elif ph:
                 text, how = ph, why
             else:
@@ -861,6 +886,28 @@ def _join_rows(a: list[str], b: list[str]) -> list[str]:
     return [(x if not y else (y if not x else x + " " + y)) for x, y in zip(a, b)]
 
 
+def _join_heading(a: list[str], b: list[str]) -> list[str]:
+    """S152 E3: a STACKED column heading's two rows joined into one heading per column, by the page's own typography: an
+    upper piece ending in a hyphen joins without a space (`P-` + `value` → `P-value`); an upper piece with no letter (`1`, the
+    OCR's echo of the `t` the lower piece already carries in `t Stat`) above a lower piece of two or more words is dropped;
+    otherwise one space (`Standard` + `Error`, `Lower` + `95%`)."""
+    n = max(len(a), len(b))
+    a = list(a) + [""] * (n - len(a))
+    b = list(b) + [""] * (n - len(b))
+    out = []
+    for x, y in zip(a, b):
+        xs, ys = BR.sub(" ", x).strip(), BR.sub(" ", y).strip()
+        if not xs or not ys:
+            out.append(x if not y else y if not x else x + " " + y)
+        elif xs.endswith("-"):
+            out.append(xs + ys)
+        elif not any(ch.isalpha() for ch in xs) and len(ys.split()) >= 2:
+            out.append(y)
+        else:
+            out.append(x + " " + y)
+    return out
+
+
 def _fold_allowed(a: list[str], b: list[str], header: bool) -> tuple[bool, str]:
     """A body fold may join only where at most one side is filled outside column 1 (a wrapped label carries no data of its
     own); a fold of the HEADER row with the first body row (S152 E3, a stacked heading) may join filled cells."""
@@ -884,7 +931,7 @@ def apply_table(lines: list[str], h: int, d: int, e: int, props: list[dict]) -> 
         if p["kind"] == "fold":
             r0, r1 = p["rows"][0] - 1, p["rows"][1] - 1
             if r0 in grid and r1 in grid and r1 not in dropped:
-                grid[r0] = _join_rows(grid[r0], grid[r1])
+                grid[r0] = _join_heading(grid[r0], grid[r1]) if r0 == h else _join_rows(grid[r0], grid[r1])
                 dropped.add(r1)
         elif p["kind"] == "rail" and p.get("word"):
             r0, r1 = p["rows"][0] - 1, p["rows"][1] - 1
@@ -959,9 +1006,10 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
         merged: list = []
         i = j = 0
         while i < len(rb2):
+            is_header = i == 0 and lifted == 0
             if (j < len(ra) and i + 1 < len(rb2) and len(rb2) - i > len(ra) - j and rb2[i] != ra[j]
-                    and _join_rows(rb2[i], rb2[i + 1]) == ra[j]):
-                ok_fold, why = _fold_allowed(rb2[i], rb2[i + 1], header=(i == 0 and lifted == 0))
+                    and (_join_rows(rb2[i], rb2[i + 1]) == ra[j] or (is_header and _join_heading(rb2[i], rb2[i + 1]) == ra[j]))):
+                ok_fold, why = _fold_allowed(rb2[i], rb2[i + 1], header=is_header)
                 if ok_fold:
                     facts["folds"].append({"rows": [i + 1 + lifted, i + 2 + lifted], "label": (ra[j][0] if ra[j] else "")[:40], "how": why})
                     merged.append(ra[j])
