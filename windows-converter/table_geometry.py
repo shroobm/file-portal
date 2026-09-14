@@ -178,22 +178,26 @@ class TableReading:
     index_like: bool = False         # S152 E4: a back-of-book index read as a table (entries ending in page numbers, no headings)
 
 
-_PAGE_REF = re.compile(r"\d+\s*$")
+_PAGE_REF = re.compile(r"[A-Za-z].*,\s*\d+(?:\s*[-–]\s*\d+)?\s*$")   # an index entry: words, a comma, a page or a page range
 
 
 def _index_like(header: list[str], body: list[list[str]]) -> bool:
     """S152 E4 (the panel: p.421 is an index, no table; the copy has two 36-row tables there; the block record calls them Table):
-    a text signature for the index — at most three columns, fifteen or more body rows, three in five filled cells ending in a
-    page number, the header row's own cells ending in a page number or a comma (entries, not headings)."""
-    if not (1 <= len(header) <= 3) or len(body) < 15:
+    a text signature for the index — at most three columns, fifteen or more body rows, three in five filled cells an ENTRY
+    (words, a comma, a page number or range: `Contact networks, 13`, `IR contacts, 100-102`). A numeric data table's cells
+    carry no words before their numbers; a table of prose carries no page numbers. The first cut also asked the header row
+    to be entry-shaped and named 6 of the anchor's 18 index tables — the continued heads (`Catalyst (Cont.)`, `Telephone`)
+    are not entries; the body's shape is the signature."""
+    if not (1 <= len(header) <= 3) or len(body) < 10:   # 10: the anchor's shortest index fragment holds 13 rows
         return False
     cells_ = [c for r in body for c in r if c]
     if not cells_:
         return False
     refs = sum(1 for c in cells_ if _PAGE_REF.search(BR.sub(" ", c).strip()))
-    hdr = [BR.sub(" ", c).strip() for c in header if c]
-    hdr_entries = sum(1 for c in hdr if _PAGE_REF.search(c) or c.endswith(","))
-    return refs >= 0.6 * len(cells_) and hdr and hdr_entries == len(hdr)
+    # 0.35, not 0.6 (measured on the anchor's index pages): an index entry wraps onto a second line as often as not (`Index of
+    # Leading Economic` / `Indicators, U.S., 327`), so barely half the cells end in a page reference; a numeric table's cells
+    # match none (no words before the number) and a prose table's none (no page numbers), so the floor is far above both
+    return refs >= 0.35 * len(cells_)
 
 
 _PIECE_END = re.compile(r"(?:\b[A-Za-z]|-|\b(?:of|and|the|for|to|in|on|or|a|an|by|with|per|from|your))\s*$", re.I)
