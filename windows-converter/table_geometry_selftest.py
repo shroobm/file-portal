@@ -140,9 +140,9 @@ def main():
     props_bad = tg.propose(V, lambda letters, ctx: "COSTS")
     check("a word that does not fit its letters is refused (REVENUE's letters offered COSTS)",
           any(p["kind"] == "rail" and p["word"] is None and "does not fit" in p["refused"] for p in props_bad))
-    check("the resolver's `?` means no word: every rail unresolved", all(p["word"] is None for p in tg.propose(V, lambda l, c: "?") if p["kind"] == "rail"))
+    check("the resolver's `?` means no word: every rail unresolved", all(p["word"] is None for p in tg.propose(V, lambda s, c: "?") if p["kind"] == "rail"))
     check("a healthy table and a rating column propose nothing (the resolver is never asked)",
-          tg.propose(HEALTHY.split("\n"), resolver) == [] and tg.propose(RATING.split("\n"), lambda l, c: "ABCD") == [])
+          tg.propose(HEALTHY.split("\n"), resolver) == [] and tg.propose(RATING.split("\n"), lambda s, c: "ABCD") == [])
 
     def mutate(rows, idx, fn):
         rows = list(rows)
@@ -150,12 +150,12 @@ def main():
         return rows
     # A[4] is the "Does the company…" row (row 2 of the table), A[5] the REVENUE row, A[6] the wins/losses row inside the rail
     check("the fixture's rows are where the negatives expect them", "pricing power" in A[4] and A[5].startswith("| REVENUE") and "customer wins" in A[6], repr(A[4:7]))
-    check("invariant NEGATIVE: a cell outside column 1 reworded", not tg.grid_invariant(B, mutate(A, 4, lambda l: l.replace("pricing power", "pricing")))[0])
-    check("invariant NEGATIVE: a • dropped (on a row inside the rail)", not tg.grid_invariant(B, mutate(A, 6, lambda l: l.replace("| • |", "|  |", 1)))[0])
+    check("invariant NEGATIVE: a cell outside column 1 reworded", not tg.grid_invariant(B, mutate(A, 4, lambda s: s.replace("pricing power", "pricing")))[0])
+    check("invariant NEGATIVE: a • dropped (on a row inside the rail)", not tg.grid_invariant(B, mutate(A, 6, lambda s: s.replace("| • |", "|  |", 1)))[0])
     check("invariant NEGATIVE: a row dropped", not tg.grid_invariant(B, A[:6] + A[7:])[0])
-    check("invariant NEGATIVE: a pipe dropped (the cell count changes)", not tg.grid_invariant(B, mutate(A, 4, lambda l: l.replace("| •", "•", 1)))[0])
-    check("invariant NEGATIVE: a label that does not fit its letters (REVENUE -> COSTS)", not tg.grid_invariant(B, mutate(A, 5, lambda l: l.replace("REVENUE", "COSTS")))[0])
-    check("invariant NEGATIVE: a cell inside the rail's rows reworded (the rows a rail spans are compared too)", not tg.grid_invariant(B, mutate(A, 6, lambda l: l.replace("customer wins", "wins")))[0])
+    check("invariant NEGATIVE: a pipe dropped (the cell count changes)", not tg.grid_invariant(B, mutate(A, 4, lambda s: s.replace("| •", "•", 1)))[0])
+    check("invariant NEGATIVE: a label that does not fit its letters (REVENUE -> COSTS)", not tg.grid_invariant(B, mutate(A, 5, lambda s: s.replace("REVENUE", "COSTS")))[0])
+    check("invariant NEGATIVE: a cell inside the rail's rows reworded (the rows a rail spans are compared too)", not tg.grid_invariant(B, mutate(A, 6, lambda s: s.replace("customer wins", "wins")))[0])
     check("invariant NEGATIVE: the title row dropped with no caption above", not tg.grid_invariant(B, A[4:])[0])
     check("invariant: an unchanged table is admitted", tg.grid_invariant(B, B)[0])
     split = VALENTINE.replace("|------", "![[assets/_repair_p234_1.png]]\n<!-- repair p234 · repair-bench -->\n|------", 1).split("\n")

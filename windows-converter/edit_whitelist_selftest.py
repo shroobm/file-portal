@@ -141,10 +141,10 @@ T_IN2 = T_IN.replace("intro line", "in- tro line")
 T_WORD = T_IN.replace("Have there been wins?", "Were there wins?")
 t, lg = rec(T_IN2, T_WORD, ew.FULL_TABLES)
 case("table-geometry: a reworded cell restores the table whole while the hyphen join outside it is accepted",
-     t == T_IN and sorted((l, a) for l, a, _, _ in lg) == [("hyphen", True), ("table-geometry", False)], "got %r %r" % (t, lg))
+     t == T_IN and sorted((lab, a) for lab, a, _, _ in lg) == [("hyphen", True), ("table-geometry", False)], "got %r %r" % (t, lg))
 t, lg = rec(T_IN2, T_IN, ew.FULL_TABLES)
 case("table-geometry: an unchanged table is no edit (no log entry); the edit outside it is judged as before",
-     t == T_IN and [l for l, _, _, _ in lg] == ["hyphen"], "got %r %r" % (t, lg))
+     t == T_IN and [lab for lab, _, _, _ in lg] == ["hyphen"], "got %r %r" % (t, lg))
 T_CAP_IN = ("intro\n\n| Start with this source to investigate before meeting management |  |  |\n|---|---|---|\n"
             "|  | Question | Source |\n| R | pricing? | • |\n\nafter")
 T_CAP = ("intro\n\nStart with this source to investigate before meeting management\n\n|  | Question | Source |\n|---|---|---|\n"
@@ -158,7 +158,7 @@ case("table-geometry NEGATIVE: the title row dropped with no caption above is re
 T_TWO = T_IN + "\n\n| a | b |\n|---|---|\n| 1 | 2 |"
 t, lg = rec(T_TWO, T_TWO.replace("| 1 | 2 |", "| 1 | 3 |").replace("| R |", "| REVENUE |").replace("| l v |", "|  |").replace("| Ė<br>N |", "|  |").replace("| ٠ |", "| • |"), ew.FULL_TABLES)
 case("table-geometry: two tables judged each on its own — the first accepted, the second (a cell changed) restored",
-     t == T_OK + "\n\n| a | b |\n|---|---|\n| 1 | 2 |" and [(l, a) for l, a, _, _ in lg] == [("table-geometry", True), ("table-geometry", False)], "got %r %r" % (t, lg))
+     t == T_OK + "\n\n| a | b |\n|---|---|\n| 1 | 2 |" and [(lab, a) for lab, a, _, _ in lg] == [("table-geometry", True), ("table-geometry", False)], "got %r %r" % (t, lg))
 t, lg = rec(T_IN, T_IN.replace("\n\nafter line", ""), ew.FULL_TABLES)
 case("table-geometry: with the table counts equal, a deletion outside the tables reverts as before", t == T_IN and lg[0][0] == "deletion" and not lg[0][1], "got %r %r" % (t, lg))
 t, lg = rec(T_IN, "intro line\n\nafter line", ew.FULL_TABLES)

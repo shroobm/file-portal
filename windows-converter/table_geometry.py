@@ -16,6 +16,7 @@ What it names, per table (`census(lines)`):
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass, field, asdict
 
 DELIM = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
@@ -30,8 +31,8 @@ LETTERISH = re.compile(r"^[A-Za-zÀ-ž]{1,4}$")         # a cell that is one to 
 def fence_mask(lines: list[str]) -> list[bool]:
     """True for every line inside a fenced code block (``` or ~~~, the fence lines included)."""
     mask, fence = [], None
-    for l in lines:
-        s = l.lstrip()
+    for ln in lines:
+        s = ln.lstrip()
         if fence is None and (s.startswith("```") or s.startswith("~~~")):
             fence = s[:3]
             mask.append(True)
@@ -45,8 +46,8 @@ def fence_mask(lines: list[str]) -> list[bool]:
     return mask
 
 
-def has_pipe(l: str) -> bool:
-    return "|" in l.replace("\\|", "")
+def has_pipe(line: str) -> bool:
+    return "|" in line.replace("\\|", "")
 
 
 def table_blocks(lines: list[str]) -> list[tuple[int, int, int]]:
@@ -77,8 +78,8 @@ def cells(row: str) -> list[str]:
     return [p.replace("\x00", "|").strip() for p in parts]
 
 
-def is_repair_line(l: str) -> bool:
-    return l.startswith("![[assets/_repair") or l.startswith("<!-- repair ") or l.startswith("<!-- transcribed ")
+def is_repair_line(line: str) -> bool:
+    return line.startswith("![[assets/_repair") or line.startswith("<!-- repair ") or line.startswith("<!-- transcribed ")
 
 
 # ---- the health (the S149 rules, the page's own twin) ---------------------------------------------
@@ -98,11 +99,11 @@ def health(lines: list[str]) -> list[dict]:
             issues.append({"line": h + 1, "reason": "the header has %d cells and the delimiter row %d — a renderer does not treat this as a table at all" % (want, dc)})
             continue
         for k in range(d + 1, e + 1):
-            l = lines[k]
-            if is_repair_line(l) or not has_pipe(l):
+            row = lines[k]
+            if is_repair_line(row) or not has_pipe(row):
                 issues.append({"line": k + 1, "reason": "this line touches the table's last row, so a renderer folds it in as a garbled row — put a blank line before it"})
             else:
-                c = len(cells(l))
+                c = len(cells(row))
                 if c != want:
                     issues.append({"line": k + 1, "reason": "row has %d cells, the header has %d — %s" % (c, want, "the extra cells are dropped" if c > want else "the missing cells are blank")})
         j = e + 1
@@ -230,7 +231,8 @@ def read_table(lines: list[str], h: int, d: int, e: int) -> TableReading:
             if c and _letterish(c):
                 cur.append(_bare(c))
             elif cur:
-                runs.append("".join(cur)); cur = []
+                runs.append("".join(cur))
+                cur = []
         if cur:
             runs.append("".join(cur))
         t.letter_runs = runs
@@ -284,8 +286,6 @@ def orphan_runs(lines: list[str]) -> list[dict]:
 # label column changes but a stray bullet glyph, the bullet matrix is the same set of cells, the rows are the same but
 # for a title lifted to a caption, and a label must FIT the letters the OCR read. The same invariant is what the
 # acceptor (edit_whitelist, rung "table-geometry") applies to a model's edit of a table, so one law guards both roads.
-
-import unicodedata
 
 TITLE_MIN = 20          # a spanning title is a phrase (≥ 20 characters with a space); "Significance" above "F" is a stacked heading
 
@@ -466,7 +466,7 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
     lifted = 0
     if len(ra) == len(rb) - 1:
         filled = sorted((c for c in rb[0] if c), key=len)
-        above = "".join(_bare(l) for l in after[:ha]).lower()
+        above = "".join(_bare(x) for x in after[:ha]).lower()
         if filled and len(filled) <= 2 and _bare(filled[-1]).lower() and _bare(filled[-1]).lower() in above:
             lifted = 1
             facts["caption"] = filled[-1]
