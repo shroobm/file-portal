@@ -72,8 +72,18 @@ _DIGIT = re.compile(r"\d")
 
 FULL = frozenset({"escape", "link", "markup", "hyphen", "ligature"})
 STRICT = frozenset({"markup", "hyphen"})
+# S150 E3: the table-geometry CLASS — a rung that judges a TABLE whole, not a span. When it is in the rungs, every
+# table of the input is paired with the candidate's table at the same position (same count, same order); a pair that
+# differs is accepted only if table_geometry.grid_invariant holds (nothing outside the label column changed but a stray
+# bullet glyph, the bullet matrix the same, the rows the same but for a title lifted to a caption, a label fitting its
+# letters) and is otherwise RESTORED from the input whole — so a dropped pipe, a lost row or a reworded cell can no
+# longer ship through the markup rung. Off the shipped policy until Rab's word (FULL is his slot): the pipeline runs
+# FULL; the analyst's table layer runs FULL_TABLES.
+FULL_TABLES = frozenset(FULL | {"table-geometry"})
 CLASSES = ("reflow", "hyphen", "escape", "link", "markup", "ligature", "markup+link", "markup+escape",
-           "mixed-whitelist", "punctuation/case", "numeral", "insertion", "deletion", "substitution")
+           "mixed-whitelist", "punctuation/case", "numeral", "insertion", "deletion", "substitution", "table-geometry")
+_TBL = "⟦TBL-%d⟧"
+_TBL_RE = re.compile(r"⟦TBL-(\d+)⟧")
 
 
 def _urls(text: str, rungs) -> list:
@@ -170,16 +180,68 @@ def label(a: str, b: str) -> str:
     return "substitution"
 
 
+def _mask_tables(inp: str, cand: str):
+    """S150 E3: the tables of both texts paired by position and judged whole by the grid invariant; each pair is swapped
+    for one token ⟦TBL-k⟧ on both sides so the word alignment treats it as equal, and the chosen text (the candidate's
+    when the invariant admits the edit, the input's otherwise) returns at unmask. Returns (inp, cand, entries) — entries
+    None when the counts differ (the old span path judges everything then)."""
+    import table_geometry as tg
+    la, lb = inp.split("\n"), cand.split("\n")
+    ba, bb = tg.table_blocks(la), tg.table_blocks(lb)
+    if not ba or len(ba) != len(bb):
+        return inp, cand, None
+    entries = []
+    for k, ((ha, da, ea), (hb, db, eb)) in enumerate(zip(ba, bb)):
+        a_text = "\n".join(la[ha:ea + 1])
+        b_text = "\n".join(lb[hb:eb + 1])
+        if a_text == b_text:
+            entries.append({"k": k, "a": a_text, "b": b_text, "choice": a_text, "judged": False, "accepted": None,
+                            "a_span": (ha, ea), "b_span": (hb, eb), "reasons": []})
+            continue
+        start = max(0, hb - 2)  # a caption the candidate lifted above the table sits in the two lines before it
+        ok, reasons, facts = tg.grid_invariant(la[ha:ea + 1], lb[start:eb + 1])
+        b0 = hb - facts["caption_lines"] if ok and facts["caption_lines"] else hb
+        b_full = "\n".join(lb[b0:eb + 1])
+        entries.append({"k": k, "a": a_text, "b": b_full, "choice": b_full if ok else a_text, "judged": True,
+                        "accepted": ok, "a_span": (ha, ea), "b_span": (b0, eb), "reasons": reasons})
+    for ent in reversed(entries):
+        tok = _TBL % ent["k"]
+        ha, ea = ent["a_span"]
+        hb, eb = ent["b_span"]
+        la[ha:ea + 1] = [tok]
+        lb[hb:eb + 1] = [tok]
+    return "\n".join(la), "\n".join(lb), entries
+
+
+def _unmask_tables(text: str, entries: list, log: list) -> tuple[str, list]:
+    by_k = {e["k"]: e for e in entries}
+    text = _TBL_RE.sub(lambda m: by_k[int(m.group(1))]["choice"] if int(m.group(1)) in by_k else m.group(0), text)
+    for e in entries:
+        if e["judged"]:
+            log.append(("table-geometry", bool(e["accepted"]), e["a"], e["b"]))
+    return text, log
+
+
 def reconcile(inp: str, cand: str, rungs=FULL, policy: str = "whitelist") -> tuple[str, list]:
     """Returns (reconciled text, edit log [(label, accepted, a_span, b_span)]). `policy`: "whitelist"
     (the rungs decide) | "all" (accept every edit — the candidate returns unchanged) | "none" (revert
-    every edit — the input's words return, in the candidate's whitespace where they meet)."""
+    every edit — the input's words return, in the candidate's whitespace where they meet).
+    With "table-geometry" in the rungs (FULL_TABLES) every table is judged whole by table_geometry.grid_invariant
+    before the word alignment sees the text (S150 E3): accepted as one edit or restored whole."""
+    tables = None
+    if policy == "whitelist" and "table-geometry" in rungs:
+        inp, cand, tables = _mask_tables(inp, cand)
+        if tables is not None and all(not e["judged"] for e in tables) and inp == cand:
+            text, log = _unmask_tables(cand, tables, [])
+            return text, log
     ta = [(m.start(), m.end()) for m in _WS_TOKEN.finditer(inp)]
     tb = [(m.start(), m.end()) for m in _WS_TOKEN.finditer(cand)]
     wa = [inp[s:e] for s, e in ta]
     wb = [cand[s:e] for s, e in tb]
     if wa == wb and policy != "all":
         # token-identical: whitespace/paragraphing is the only difference; keep the candidate
+        if tables:
+            return _unmask_tables(cand, tables, [])
         return cand, []
     ops = _hunks(_aligned(wa, wb), inp, cand, ta, tb, rungs, policy)
     out = []
@@ -238,6 +300,8 @@ def reconcile(inp: str, cand: str, rungs=FULL, policy: str = "whitelist") -> tup
         first = False
     tail = cand[prev_end_b:] if tb else inp[prev_end_a:]
     out.append(tail)
+    if tables:
+        return _unmask_tables("".join(out), tables, log)
     return "".join(out), log
 
 

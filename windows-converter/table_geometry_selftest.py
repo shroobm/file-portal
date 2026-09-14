@@ -101,6 +101,66 @@ def main():
     o = tg.orphan_runs("| a | b |\n\npara\n\n|---|---|\n| 1 | 2 |\n".split("\n"))
     check("orphan runs counted (a lone header, a headless run)", [x["rows"] for x in o] == [1, 2], str(o))
 
+    print("[4] the repair half: the word check, the proposals, the invariant, the pass")
+    check("letters_fit: SARTEGΫ fits STRATEGY (a letter missing, two swapped)", tg.letters_fit("SARTEGΫ", "STRATEGY")[0])
+    check("letters_fit: RlvĖNUE fits REVENUE and not COSTS", tg.letters_fit("RlvĖNUE", "REVENUE")[0] and not tg.letters_fit("RlvĖNUE", "COSTS")[0])
+    check("letters_fit: HGH/HIGH · LLO/LOW · 6OSTs/COSTS · VAĀON/VALUATION · FNANČĹ/FINANCIAL · MGMT/MGMT",
+          all(tg.letters_fit(a, b)[0] for a, b in (("HGH", "HIGH"), ("LLO", "LOW"), ("6OSTs", "COSTS"), ("VAĀON", "VALUATION"), ("FNANČĹ", "FINANCIAL"), ("MGMT", "MGMT"))))
+    check("letters_fit NEGATIVE: ABCD does not fit GRADE; one letter fits nothing; a non-word is refused",
+          not tg.letters_fit("ABCD", "GRADE")[0] and not tg.letters_fit("A", "AND")[0] and not tg.letters_fit("HGH", "H1GH")[0])
+    WORDS = {"RlvĖNUE": "REVENUE", "6OSTMGMT": "COSTS MGMT"}   # two rails the OCR ran together: the resolver answers a phrase
+    resolver = lambda letters, ctx: WORDS.get(letters)  # noqa: E731
+    props = tg.propose(V, resolver)
+    kinds = sorted(p["kind"] for p in props)
+    check("proposals on the exhibit: a caption, two rails, the dots", kinds == ["caption", "dots", "rail", "rail"], str(kinds))
+    cap = next(p for p in props if p["kind"] == "caption")
+    check("the caption is the spanning title, its chopped tail `ment` dropped", cap["text"].startswith("Start with this source") and cap["fragment_dropped"])
+    rails = [(p["word"], p["rows"]) for p in props if p["kind"] == "rail"]
+    check("the rails resolved on their rows: REVENUE 7-10, COSTS MGMT 12-14", rails == [("REVENUE", [7, 10]), ("COSTS MGMT", [12, 14])], str(rails))
+    text, rec = tg.geometry_pass(VALENTINE, resolver)
+    check("the pass applied all four, refused none, one invariant check, two resolver calls",
+          rec["applied"] == 4 and rec["refused"] == 0 and rec["invariant_checks"] == 1 and rec["resolver_calls"] == 2, str(rec))
+    after = tg.census(text.split("\n"))[0]
+    check("AFTER: no letter column, no title row, no stray glyph, • up by one, one row fewer, 13 columns",
+          not after["letter_column"] and not after["title_row"] and after["stray_dot_glyphs"] == 0 and after["dots_total"] == 53 and after["rows"] == 10 and after["cols"] == 13,
+          str((after["letter_column"], after["title_row"], after["stray_dot_glyphs"], after["dots_total"], after["rows"], after["cols"])))
+    L2 = text.split("\n")
+    check("the caption above the table, a blank between, the real header then the delimiter",
+          L2[2].startswith("Start with this source") and L2[3] == "" and "Questions to be investigated" in L2[4] and tg.DELIM.match(L2[5]) is not None, repr(L2[2:6]))
+    check("REVENUE on the run's first row, the rail's other cells blank, the question cells untouched",
+          tg.cells(L2[7])[0] == "REVENUE" and all(tg.cells(L2[k])[0] == "" for k in (8, 9, 10)) and tg.cells(L2[7])[1] == "How does the company set pricing?")
+    B, A = V[2:14], L2[2:15]
+    ok, reasons, facts = tg.grid_invariant(B, A)
+    check("the invariant holds on the pass's own output (caption seen, 2 labels, 1 dot fixed, 120 cells compared)",
+          ok and facts["caption"] and len(facts["labels"]) == 2 and facts["dots_fixed"] == 1 and facts["cells_compared"] == 120, str((reasons, facts)))
+    check("idempotent: a second pass proposes nothing", tg.propose(L2, resolver) == [])
+    text_none, rec_none = tg.geometry_pass(VALENTINE, None)
+    check("without a resolver: the rails are unresolved and reported; the caption and the dots still apply",
+          rec_none["unresolved"] == 2 and rec_none["applied"] == 2 and rec_none["labels"] == [] and len(rec_none["unresolved_rails"]) == 2, str(rec_none))
+    props_bad = tg.propose(V, lambda letters, ctx: "COSTS")
+    check("a word that does not fit its letters is refused (REVENUE's letters offered COSTS)",
+          any(p["kind"] == "rail" and p["word"] is None and "does not fit" in p["refused"] for p in props_bad))
+    check("the resolver's `?` means no word: every rail unresolved", all(p["word"] is None for p in tg.propose(V, lambda l, c: "?") if p["kind"] == "rail"))
+    check("a healthy table and a rating column propose nothing (the resolver is never asked)",
+          tg.propose(HEALTHY.split("\n"), resolver) == [] and tg.propose(RATING.split("\n"), lambda l, c: "ABCD") == [])
+
+    def mutate(rows, idx, fn):
+        rows = list(rows)
+        rows[idx] = fn(rows[idx])
+        return rows
+    # A[4] is the "Does the company…" row (row 2 of the table), A[5] the REVENUE row, A[6] the wins/losses row inside the rail
+    check("the fixture's rows are where the negatives expect them", "pricing power" in A[4] and A[5].startswith("| REVENUE") and "customer wins" in A[6], repr(A[4:7]))
+    check("invariant NEGATIVE: a cell outside column 1 reworded", not tg.grid_invariant(B, mutate(A, 4, lambda l: l.replace("pricing power", "pricing")))[0])
+    check("invariant NEGATIVE: a • dropped (on a row inside the rail)", not tg.grid_invariant(B, mutate(A, 6, lambda l: l.replace("| • |", "|  |", 1)))[0])
+    check("invariant NEGATIVE: a row dropped", not tg.grid_invariant(B, A[:6] + A[7:])[0])
+    check("invariant NEGATIVE: a pipe dropped (the cell count changes)", not tg.grid_invariant(B, mutate(A, 4, lambda l: l.replace("| •", "•", 1)))[0])
+    check("invariant NEGATIVE: a label that does not fit its letters (REVENUE -> COSTS)", not tg.grid_invariant(B, mutate(A, 5, lambda l: l.replace("REVENUE", "COSTS")))[0])
+    check("invariant NEGATIVE: a cell inside the rail's rows reworded (the rows a rail spans are compared too)", not tg.grid_invariant(B, mutate(A, 6, lambda l: l.replace("customer wins", "wins")))[0])
+    check("invariant NEGATIVE: the title row dropped with no caption above", not tg.grid_invariant(B, A[4:])[0])
+    check("invariant: an unchanged table is admitted", tg.grid_invariant(B, B)[0])
+    split = VALENTINE.replace("|------", "![[assets/_repair_p234_1.png]]\n<!-- repair p234 · repair-bench -->\n|------", 1).split("\n")
+    check("a split table (a health issue) is never proposed for", tg.propose(split, resolver) == [] and tg.health(split) != [])
+
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 

@@ -120,6 +120,54 @@ case("the mixed pair: whitelisted edits accepted (as hunks), the rest reverted e
 case("tally counts every log entry once", sum(tl["accepted"].values()) + sum(tl["reverted"].values()) == len(lg))
 case("STRICT reverts a ligature repair FULL accepts", rec("it was Di\"cult", "it was Difficult", ew.STRICT)[0] == "it was Di\"cult")
 
+# ---- S150 E3: the table-geometry CLASS — a table judged WHOLE by table_geometry.grid_invariant under FULL_TABLES
+T_IN = ("intro line\n\n|  | Question | Source |\n|---|---|---|\n| R | How does the company set pricing? | • |\n"
+        "| l v | Have there been wins? | ٠ |\n| Ė<br>N | Which factors? | • |\n\nafter line")
+T_OK = T_IN.replace("| R |", "| REVENUE |").replace("| l v |", "|  |").replace("| Ė<br>N |", "|  |").replace("| ٠ |", "| • |")
+t, lg = rec(T_IN, T_OK, ew.FULL_TABLES)
+case("table-geometry: a rail repair (REVENUE on the run's first row, a stray dot fixed) is accepted WHOLE under FULL_TABLES",
+     t == T_OK and lg == [("table-geometry", True, T_IN.split("\n\n")[1], T_OK.split("\n\n")[1])], "got %r %r" % (t, lg))
+t, lg = rec(T_IN, T_OK, ew.FULL)
+case("table-geometry NEGATIVE CONTROL: the same repair under FULL reverts to the input's words (the class is what admits it)",
+     t.split() == T_IN.split() and not any(a for _, a, _, _ in lg), "got %r" % (t,))
+T_PIPE = T_IN.replace("| How does the company set pricing? | • |", "| How does the company set pricing? • |")
+t, lg = rec(T_IN, T_PIPE, ew.FULL)
+case("the hazard the class closes: under FULL a dropped table pipe ships through the markup rung (the row loses a cell)",
+     t == T_PIPE and lg[0][0] == "markup" and lg[0][1], "got %r %r" % (t, lg))
+t, lg = rec(T_IN, T_PIPE, ew.FULL_TABLES)
+case("table-geometry: under FULL_TABLES the dropped pipe is RESTORED whole (the cell count changed)",
+     t == T_IN and lg == [("table-geometry", False, T_IN.split("\n\n")[1], T_PIPE.split("\n\n")[1])], "got %r %r" % (t, lg))
+T_IN2 = T_IN.replace("intro line", "in- tro line")
+T_WORD = T_IN.replace("Have there been wins?", "Were there wins?")
+t, lg = rec(T_IN2, T_WORD, ew.FULL_TABLES)
+case("table-geometry: a reworded cell restores the table whole while the hyphen join outside it is accepted",
+     t == T_IN and sorted((l, a) for l, a, _, _ in lg) == [("hyphen", True), ("table-geometry", False)], "got %r %r" % (t, lg))
+t, lg = rec(T_IN2, T_IN, ew.FULL_TABLES)
+case("table-geometry: an unchanged table is no edit (no log entry); the edit outside it is judged as before",
+     t == T_IN and [l for l, _, _, _ in lg] == ["hyphen"], "got %r %r" % (t, lg))
+T_CAP_IN = ("intro\n\n| Start with this source to investigate before meeting management |  |  |\n|---|---|---|\n"
+            "|  | Question | Source |\n| R | pricing? | • |\n\nafter")
+T_CAP = ("intro\n\nStart with this source to investigate before meeting management\n\n|  | Question | Source |\n|---|---|---|\n"
+         "| R | pricing? | • |\n\nafter")
+t, lg = rec(T_CAP_IN, T_CAP, ew.FULL_TABLES)
+case("table-geometry: a title row lifted to a caption above the table is accepted with its caption",
+     t == T_CAP and lg == [("table-geometry", True, T_CAP_IN.split("\n\n")[1], "\n\n".join(T_CAP.split("\n\n")[1:3]))], "got %r %r" % (t, lg))
+T_ROWLESS = T_CAP_IN.replace("| Start with this source to investigate before meeting management |  |  |\n|---|---|---|\n|  | Question | Source |", "|  | Question | Source |\n|---|---|---|")
+t, lg = rec(T_CAP_IN, T_ROWLESS, ew.FULL_TABLES)
+case("table-geometry NEGATIVE: the title row dropped with no caption above is restored", t == T_CAP_IN and lg[0][0] == "table-geometry" and not lg[0][1], "got %r %r" % (t, lg))
+T_TWO = T_IN + "\n\n| a | b |\n|---|---|\n| 1 | 2 |"
+t, lg = rec(T_TWO, T_TWO.replace("| 1 | 2 |", "| 1 | 3 |").replace("| R |", "| REVENUE |").replace("| l v |", "|  |").replace("| Ė<br>N |", "|  |").replace("| ٠ |", "| • |"), ew.FULL_TABLES)
+case("table-geometry: two tables judged each on its own — the first accepted, the second (a cell changed) restored",
+     t == T_OK + "\n\n| a | b |\n|---|---|\n| 1 | 2 |" and [(l, a) for l, a, _, _ in lg] == [("table-geometry", True), ("table-geometry", False)], "got %r %r" % (t, lg))
+t, lg = rec(T_IN, T_IN.replace("\n\nafter line", ""), ew.FULL_TABLES)
+case("table-geometry: with the table counts equal, a deletion outside the tables reverts as before", t == T_IN and lg[0][0] == "deletion" and not lg[0][1], "got %r %r" % (t, lg))
+t, lg = rec(T_IN, "intro line\n\nafter line", ew.FULL_TABLES)
+case("table-geometry: a table the candidate dropped (counts differ) falls to the span path and reverts as a deletion",
+     t == T_IN and not any(a for _, a, _, _ in lg), "got %r %r" % (t, lg))
+tl = ew.tally([("table-geometry", True, "a", "b"), ("table-geometry", False, "a", "c"), ("hyphen", True, "x- y", "xy")])
+case("tally counts the class on both sides", tl == {"accepted": {"table-geometry": 1, "hyphen": 1}, "reverted": {"table-geometry": 1}})
+case("the class is named in CLASSES and in FULL_TABLES, not in FULL (Rab's slot)", "table-geometry" in ew.CLASSES and "table-geometry" in ew.FULL_TABLES and "table-geometry" not in ew.FULL)
+
 n, ok = len(results), sum(results)
 print("edit_whitelist selftest: %d/%d green%s" % (ok, n, "" if ok == n else "  *** RED ***"))
 sys.exit(0 if ok == n else 1)

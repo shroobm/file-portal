@@ -314,6 +314,10 @@
       "disposition": "EVIDENCE",
       "reason": "J46 (S140): inside manifest.analyst.edits - the number of PASSED chunks that lost at least one edit to the whitelist's revert; the denominator is chunks_passed. Evidence, same home as converter:edits."
     },
+    "converter:geometry": {
+      "disposition": "EVIDENCE",
+      "reason": "S150 E3 (Rab 2026-09-14, 'build the new analyst, test that, and see what we gained, and lost'): the table-geometry LAYER's record on manifest.analyst - tables a renderer reads, proposals, applied / refused / unresolved, every label recovered (rows, the letters the OCR read, the word, how it was resolved), every caption lifted, stray bullet glyphs fixed, the invariant's checks, the resolver's calls, the grid program. None when the layer is off (ANALYST_TABLES, a lever-waiver: off in the pipeline until Rab's word). The detector reads the key as rendered by an incidental match on the word 'geometry' elsewhere - it is manifest-only like converter:edits, so this entry says so; the class's own counts ride converter:edits under the name table-geometry. The AFTER half of the S150 measurement is written by the act itself."
+    },
     "converter:gpu_util_pct": {
       "disposition": "REPORT",
       "reason": "S146 E3: a field of _gpu_signature() - the three facts of the death certificate (timeout/stalled events carry **sig; the morning's kill row '100 %, 9,515 of 10,240 MiB' was read from them) and of the 30-s samples that drive the peak and the ceiling moment. Since S45; the detector sees a store now because the signature is built in a local dict before gpu_top is added. Reported through the events, read by the record and the Room's algedonic line."

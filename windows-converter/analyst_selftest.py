@@ -676,6 +676,83 @@ def _():
     assert meta["rejections"]["truncated"] == 0 and meta["chunks_passed"] == 1, meta
 
 
+# ---------------------------------------------------------------------------
+# S150 E3 — the table-geometry layer and class (Rab, 2026-09-14: "build the new analyst, test that")
+# ---------------------------------------------------------------------------
+S150_MD = ("Intro paragraph.\n\n| Start with this source to investigate before meeting management |  |  |  |\n|---|---|---|---|\n"
+           "|  | Question | Source | Note |\n| R | pricing? | • | a |\n| l v | wins? | ٠ | b |\n| Ė<br>N | factors? | • | c |\n\nOutro paragraph.\n")
+
+
+@case("S150-E3 (a) tables=True: the layer repairs the exhibit BEFORE the chunks (REVENUE labelled, the title captioned, ٠ -> •); the record rides meta.geometry; the class counts in edits; the whitelist names it")
+def _():
+    test_ledger()
+    seen = {}
+
+    def gen(prompt):
+        seen["n"] = seen.get("n", 0) + 1
+        return prompt[len(analyst.load_program("readability")):]   # the model hands its chunk back unchanged
+    real_gen = analyst._generate
+    analyst._generate = gen
+    try:
+        out, meta = analyst.process(S150_MD, backend="local", tables=True, resolver=lambda letters, ctx: "REVENUE")
+    finally:
+        analyst._generate = real_gen
+    g = meta["geometry"]
+    assert g and g["applied"] == 3 and g["refused"] == 0 and g["unresolved"] == 0, g
+    assert g["labels"] == [{"rows": [6, 8], "letters": "RlvĖN", "word": "REVENUE", "how": g["labels"][0]["how"]}] and g["labels"][0]["how"].startswith("resolver"), g
+    assert g["captions"][0]["text"] == "Start with this source to investigate before meeting management" and g["dots_fixed"] == 1 and g["program"] == "resolver", g
+    assert "table-geometry" in meta["edits"]["whitelist"] and meta["edits"]["accepted"].get("table-geometry") == 3, meta["edits"]
+    assert "| REVENUE | pricing? | • | a |" in out and "|  | wins? | • | b |" in out and "٠" not in out, out
+    assert "meeting management\n\n|  | Question | Source | Note |\n|---|---|---|---|\n| REVENUE |" in out, out
+    assert meta["chunks_passed"] == 1 and seen["n"] == 1, (meta["chunks_passed"], seen)
+
+
+@case("S150-E3 (b) NEGATIVE CONTROL: the lever off (the default) — no layer, geometry None, the whitelist as shipped, the exhibit as it came")
+def _():
+    out, meta = run(S150_MD, [S150_MD])
+    assert meta["geometry"] is None and "table-geometry" not in meta["edits"]["whitelist"], meta["edits"]
+    assert "| R | pricing? | • | a |" in out and "٠" in out, out
+
+
+@case("S150-E3 (c) the grid program's resolver: the backend's first word in capitals; `?`, a non-word, an empty reply and a backend error are None; the bound is 24 tokens and restored after")
+def _():
+    prompts = []
+
+    def gen(p):
+        prompts.append((p, analyst._call_bound.get("num_predict")))
+        return "revenue\n"
+    analyst._call_bound["num_predict"] = 4096
+    r = analyst._word_resolver(gen)
+    assert r("RlvĖNUE", ["pricing?", "wins?"]) == "REVENUE"
+    assert prompts[0][1] == analyst.GRID_NUM_PREDICT and analyst._call_bound["num_predict"] == 4096, (prompts, analyst._call_bound)
+    assert "R l v Ė N U E" in prompts[0][0] and "pricing? / wins?" in prompts[0][0], prompts[0][0]
+    assert analyst._word_resolver(lambda p: "?")("HGH", []) is None
+    assert analyst._word_resolver(lambda p: "H1GH")("HGH", []) is None
+    assert analyst._word_resolver(lambda p: "")("HGH", []) is None
+    assert analyst._word_resolver(lambda p: "COSTS MGMT")("6OSTMGMT", []) == "COSTS MGMT"
+    assert analyst._word_resolver(lambda p: "COSTS MGMT VALUATION")("6OSTsMGMTVAĀON", []) == "COSTS MGMT VALUATION"  # three rails run together (the anchor copy, rows 1585-1591)
+    assert analyst._word_resolver(lambda p: "A B C D E")("ABCDE", []) is None  # more than four words is not a label
+
+    def boom(p):
+        raise RuntimeError("ollama down")
+    assert analyst._word_resolver(boom)("HGH", []) is None
+    analyst._call_bound.clear()
+
+
+@case("S150-E3 (d) a resolver's wrong word is refused by the layer (letters_fit), the rail stays, the refusal is on the record")
+def _():
+    test_ledger()
+    real_gen = analyst._generate
+    analyst._generate = lambda prompt: prompt[len(analyst.load_program("readability")):]
+    try:
+        out, meta = analyst.process(S150_MD, backend="local", tables=True, resolver=lambda letters, ctx: "COSTS")
+    finally:
+        analyst._generate = real_gen
+    g = meta["geometry"]
+    assert g["labels"] == [] and g["unresolved"] == 1 and "does not fit" in g["unresolved_rails"][0]["why"], g
+    assert g["applied"] == 2 and "| R | pricing? | • | a |" in out and "٠" not in out, (g, out)
+
+
 print()
 if failed:
     print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")

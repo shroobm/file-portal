@@ -23,6 +23,7 @@ from pathlib import Path
 
 import edit_whitelist as ew  # J46 (S140): the diff-whitelist acceptor — faithfulness by construction
 import fp_paths
+import table_geometry as tg  # S150 E3: the table-geometry layer (propose → invariant → apply) and the class's law
 import text_norm as tn
 
 MODEL = "qwen3:8b"
@@ -122,11 +123,48 @@ _TOKEN = re.compile(r"⟦IMG-(\d+)⟧")  # ⟦IMG-n⟧
 # without training, versioned in git. Every program runs inside the same link-fence.
 PROMPTS_DIR = Path(__file__).parent / "prompts"
 DEFAULT_PROGRAM = "readability"
+# S150 E3 (Rab, 2026-09-14: "build the new analyst, test that, and see what we gained, and lost"): the TABLE LAYER.
+# Before the chunks are cut, table_geometry.geometry_pass reads every table a renderer would read, proposes its shape
+# repairs (a spanning title lifted to a caption, a rotated rail read letter by letter → the word it spells on the run's
+# first row, stray bullet glyphs → •), applies them on a copy and keeps only what grid_invariant admits; the word comes
+# from the grid program below (one short call per rail, the same backend), checked against the letters by letters_fit.
+# The same invariant then guards every table through the acceptor (edit_whitelist.FULL_TABLES): a model's edit to a
+# table is accepted whole or restored whole. The record rides meta["geometry"] and the class counts in meta["edits"].
+# lever-waiver: OFF in the pipeline until Rab's word — the shipped whitelist is his slot (S119, S140); the dry run
+# (E4) passes tables=True explicitly.
+ANALYST_TABLES = False
+GRID_PROGRAM = "grid-word"
+GRID_NUM_PREDICT = 32  # a word or a few (rails the OCR ran together answer as a phrase), never a paragraph
 
 
 def load_program(program: str) -> str:
     path = PROMPTS_DIR / f"{program}.txt"
     return path.read_text(encoding="utf-8").strip() + "\n\n"
+
+
+def _word_resolver(generate):
+    """The grid program as a resolver for table_geometry.propose: letters (and the rows' own text as context) → one
+    word in capitals, or None (`?`, an empty reply, a non-word, a backend error — the rail then stays as it is and is
+    reported unresolved; a failure here may never cost the analysis)."""
+    template = load_program(GRID_PROGRAM).strip()
+
+    def resolve(letters: str, context: list) -> str | None:
+        prompt = (template.replace("{LETTERS}", " ".join(letters))
+                  .replace("{CONTEXT}", " / ".join(c[:80] for c in context if c) or "(no text)") + "\n\n")
+        saved = _call_bound.get("num_predict")
+        _call_bound["num_predict"] = GRID_NUM_PREDICT
+        try:
+            reply = generate(prompt)
+        except Exception:  # noqa: BLE001 — see docstring
+            return None
+        finally:
+            _call_bound["num_predict"] = saved
+        head = reply.strip().splitlines()[0].strip() if reply and reply.strip() else ""
+        head = re.sub(r"[`*\"'.,:;]", "", head).strip().upper()
+        if not head or head == "?" or len(head) > 40 or len(head.split()) > 4 or not all(w.isalpha() for w in head.split()):
+            return None
+        return head
+    return resolve
 
 
 # SYM-115: qwen's soft switches, leaked as bare tokens — preceded by start-of-text or whitespace (never by a
@@ -413,17 +451,30 @@ def _score_row(i: int, status: str, reason: str | None = None,
 
 
 def process(markdown: str, backend: str = "local",
-            program: str = DEFAULT_PROGRAM) -> tuple[str, dict]:
+            program: str = DEFAULT_PROGRAM, tables: bool | None = None,
+            resolver=None) -> tuple[str, dict]:
     """Returns (markdown_out, analyst_meta). On any per-chunk fence violation or error the
     original chunk is kept; meta records pass/reject counts for the frontmatter.
 
     backend: "local" (qwen3:8b via Ollama, air-gapped) or "gemini" (Gemini Flash via
     API, cloud routing — chunk text leaves the machine; the user chooses per document).
     program: prompt file name (sans .txt) in prompts/ — the analyst's job description.
+    tables: S150 E3 — run the table-geometry layer before the chunks and judge every table
+    through the acceptor's table-geometry rung (None = ANALYST_TABLES, the lever). resolver:
+    the word route for a rotated rail (letters, context) -> word | None; None = the grid
+    program on this backend.
     """
     prompt = load_program(program)
     generate = {"local": _generate, "gemini": _generate_gemini}[backend]
     fenced, embeds = fence(markdown)
+    if tables is None:
+        tables = ANALYST_TABLES
+    geometry = None
+    if tables:
+        # the layer, on the fenced text (an image token inside a table is text to it): the record is the AFTER half
+        fenced, geometry = tg.geometry_pass(fenced, resolver if resolver is not None else _word_resolver(generate))
+        geometry["program"] = GRID_PROGRAM if resolver is None else "resolver"
+    rungs = ew.FULL_TABLES if tables else ew.FULL
     chunks = _chunks(fenced)
     out, passed, rejected, failed = [], 0, 0, 0
     # J32-B/SYM-074 (signed Rab 2026-09-05): chunks_rejected's ways of happening, named — FOUR
@@ -435,6 +486,13 @@ def process(markdown: str, backend: str = "local",
     # to the input's words. The counts by class, summed over the book, ride meta["edits"].
     edits_accepted: dict = {}
     edits_reverted: dict = {}
+    if geometry:
+        # S150 E3: the layer's own edits count in the class beside the acceptor's (the record says which is which:
+        # meta["geometry"] carries the layer's tallies, the chunk rows the acceptor's)
+        if geometry["applied"]:
+            edits_accepted["table-geometry"] = geometry["applied"]
+        if geometry["refused"]:
+            edits_reverted["table-geometry"] = geometry["refused"]
     chunks_reconciled = 0  # chunks where at least one edit was reverted
     # J41 (signed Rab 2026-09-09): one row per finished chunk, in chunk order, surviving into
     # meta["chunk_scores"] — see _score_row and the rmtree comment below.
@@ -442,7 +500,7 @@ def process(markdown: str, backend: str = "local",
     t0 = time.perf_counter()
 
     # S61: pick up whatever a previous run finished before it died.
-    work_dir = ANALYST_WORK / _resume_key(fenced, backend, program)
+    work_dir = ANALYST_WORK / _resume_key(fenced, backend, program + ("+tables" if tables else ""))
     journal_path = work_dir / "chunks.jsonl"
     done = _load_journal(journal_path, chunks)
     resumed = len(done)
@@ -587,7 +645,7 @@ def process(markdown: str, backend: str = "local",
                     else:
                         # J46: the whitelist decides which of the candidate's edits ship; the rest
                         # revert to the input's words. Pure, microseconds, 0 GPU.
-                        reconciled, edit_log = ew.reconcile(chunk, candidate, ew.FULL)
+                        reconciled, edit_log = ew.reconcile(chunk, candidate, rungs)
                         e = ew.tally(edit_log)
                         for k, v in e["accepted"].items():
                             edits_accepted[k] = edits_accepted.get(k, 0) + v
@@ -648,7 +706,10 @@ def process(markdown: str, backend: str = "local",
         # and edits reverted, by class, summed over the book; chunks_reconciled = chunks that lost at
         # least one edit to the revert. The whitelist is the policy (edit_whitelist.FULL).
         "edits": {"accepted": edits_accepted, "reverted": edits_reverted,
-                  "chunks_reconciled": chunks_reconciled, "whitelist": sorted(ew.FULL)},
+                  "chunks_reconciled": chunks_reconciled, "whitelist": sorted(rungs)},
+        # S150 E3: the table layer's record (None when the layer is off — honest absence): tables read, proposals,
+        # applied / refused / unresolved, every label and caption, the invariant's checks, the resolver's calls
+        "geometry": geometry,
         "chunks_resumed": resumed,  # carried from an earlier run's journal
         "chunks_generated": generated,  # NUM-6 (census N006): paid backend calls, now named
         "duration_s": duration,

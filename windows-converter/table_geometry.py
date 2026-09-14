@@ -275,3 +275,301 @@ def orphan_runs(lines: list[str]) -> list[dict]:
         out.append({"first_line": i + 1, "last_line": e + 1, "rows": e - i + 1})
         i = e + 1
     return out
+
+
+# ---- the repair half (S150 E3): the word check, the proposals, the invariant, the pass ---------------------------
+#
+# The layer proposes a table's shape repairs from the signatures above, applies them on a copy, and keeps the result
+# only when `grid_invariant` holds between the table before and after — Rab's law for the class: nothing outside the
+# label column changes but a stray bullet glyph, the bullet matrix is the same set of cells, the rows are the same but
+# for a title lifted to a caption, and a label must FIT the letters the OCR read. The same invariant is what the
+# acceptor (edit_whitelist, rung "table-geometry") applies to a model's edit of a table, so one law guards both roads.
+
+import unicodedata
+
+TITLE_MIN = 20          # a spanning title is a phrase (≥ 20 characters with a space); "Significance" above "F" is a stacked heading
+
+
+def fold_letters(s: str) -> str:
+    """Letters as the word check compares them: NFKD with the combining marks dropped, casefolded; a digit or any glyph
+    that is not a plain letter becomes the wildcard `?` (an OCR confusion may stand for any letter: `6` for C, `Ϋ́` for Y)."""
+    out = []
+    for ch in unicodedata.normalize("NFKD", s):
+        if unicodedata.combining(ch) or ch.isspace():
+            continue  # a two-word label (`COSTS MGMT`, two rails the OCR ran together) compares as its letters
+        ch = ch.casefold()
+        out.append(ch if "a" <= ch <= "z" else "?")
+    return "".join(out)
+
+
+def _lcs(a: str, b: str) -> int:
+    """Longest common subsequence; a `?` in `a` matches any character of `b`."""
+    prev = [0] * (len(b) + 1)
+    for ca in a:
+        cur = [0]
+        for j, cb in enumerate(b, 1):
+            cur.append(max(prev[j], cur[j - 1], prev[j - 1] + (1 if (ca == "?" or ca == cb) else 0)))
+        prev = cur
+    return prev[-1]
+
+
+def collapse_doubles(s: str) -> str:
+    """`LLO` read for LOW — a letter the OCR saw twice across a row boundary: adjacent duplicates collapse to one."""
+    out = []
+    for ch in s:
+        if not out or out[-1] != ch:
+            out.append(ch)
+    return "".join(out)
+
+
+def letters_fit(letters: str, word: str) -> tuple[bool, str]:
+    """Does the word contain the letters the OCR read, in order, but for ONE confusion and any number of missing letters?
+    The check that bounds the resolver: `SARTEGΫ` fits STRATEGY (6 of 7 in order), `HGH` fits HIGH, `LLO` fits LOW,
+    `RlvĖNUE` fits REVENUE; `RlvĖNUE` does not fit COSTS."""
+    a, b = fold_letters(letters), fold_letters(word)
+    if len(b) < 2 or "?" in b:
+        return False, "the word is not letters"
+    if len(a) < 2:
+        return False, "fewer than two letters read"
+    if len(b) < len(a) - 1:
+        return False, "more letters read (%d) than the word holds (%d)" % (len(a), len(b))
+    k = _lcs(a, b)
+    if k >= len(a) - 1:
+        return True, "%d of %d letters in order" % (k, len(a))
+    a2 = collapse_doubles(a)
+    if a2 != a:
+        k2 = _lcs(a2, b)
+        if k2 >= len(a2) - 1:
+            return True, "%d of %d letters in order (a doubled letter collapsed)" % (k2, len(a2))
+    return False, "%d of %d letters in order" % (k, len(a))
+
+
+def _fragment_of(long: str, frag: str) -> bool:
+    """`ment` beside `…before meeting management`: a chopped tail of the title, read twice."""
+    f = _bare(frag).lower()
+    return bool(f) and len(f) <= 5 and _bare(long).lower().endswith(f)
+
+
+def propose(lines: list[str], resolver=None) -> list[dict]:
+    """The shape repairs a table asks for, table by table, without touching a byte: a `caption` (a spanning title lifted
+    above the table), a `rail` per letter run (the letters → the word the resolver gives, placed on the run's first row),
+    a `dots` fix (stray bullet glyphs → `•` inside a table that has a bullet matrix). A table with a health issue is never
+    proposed for. `resolver(letters, context) -> word | None` is the word route (a lexicon, the model); without one every
+    rail is reported unresolved and stays as it is. Every rail proposal carries its letters, its word and how it was
+    resolved, so the record can list every label recovered."""
+    issue_lines = {x["line"] for x in health(lines)}
+    out = []
+    for h, d, e in table_blocks(lines):
+        if any(h + 1 <= ln <= e + 1 for ln in issue_lines):
+            continue
+        t = read_table(lines, h, d, e)
+        header = cells(lines[h])
+        if t.title_row:
+            filled = sorted((c for c in header if c), key=len)
+            long = filled[-1]
+            if len(long) >= TITLE_MIN and " " in long:
+                frag = filled[0] if len(filled) == 2 else ""
+                dropped = bool(frag) and _fragment_of(long, frag)
+                out.append({"kind": "caption", "table": [h + 1, e + 1], "line": h + 1,
+                            "text": long if (not frag or dropped) else long + " " + frag, "fragment_dropped": dropped})
+        if t.letter_column:
+            runs, run = [], []
+            for k in range(d + 1, e + 1):
+                c = cells(lines[k])
+                if c and c[0] and _letterish(c[0]):
+                    run.append(k)
+                elif run:
+                    runs.append(run)
+                    run = []
+            if run:
+                runs.append(run)
+            for r in runs:
+                letters = "".join(_bare(cells(lines[k])[0]) for k in r)
+                context = [(cells(lines[k])[1] if len(cells(lines[k])) > 1 else "") for k in r[:3]]
+                word, how, refused = None, "unresolved", None
+                if len(letters) < 2:
+                    refused = "fewer than two letters"
+                elif resolver is None:
+                    refused = "no resolver"
+                else:
+                    got = resolver(letters, context)
+                    if not got:
+                        refused = "the resolver gave no word"
+                    else:
+                        ok, why = letters_fit(letters, got)
+                        if ok:
+                            word, how = got, "resolver (%s)" % why
+                        else:
+                            refused = "the word %r does not fit the letters %r: %s" % (got, letters, why)
+                out.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[0] + 1, r[-1] + 1], "letters": letters,
+                            "word": word, "how": how, "refused": refused})
+        if t.dots_total and t.stray_dot_glyphs:
+            out.append({"kind": "dots", "table": [h + 1, e + 1], "cells": t.stray_dot_glyphs})
+    return out
+
+
+def _render_row(cs: list[str]) -> str:
+    return "| " + " | ".join(c if "`" in c else c.replace("|", "\\|") for c in cs) + " |"
+
+
+def apply_table(lines: list[str], h: int, d: int, e: int, props: list[dict]) -> list[str]:
+    """The table's lines (h..e, 0-based) with the given proposals applied; an unchanged row keeps its bytes."""
+    grid = {k: cells(lines[k]) for k in range(h, e + 1) if k != d}
+    before = {k: list(v) for k, v in grid.items()}
+    caption = None
+    for p in props:
+        if p["kind"] == "rail" and p.get("word"):
+            r0, r1 = p["rows"][0] - 1, p["rows"][1] - 1
+            if r0 in grid and r1 in grid and grid[r0]:
+                grid[r0][0] = p["word"]
+                for k in range(r0 + 1, r1 + 1):
+                    if grid.get(k):
+                        grid[k][0] = ""
+        elif p["kind"] == "dots":
+            for cs in grid.values():
+                for j, c in enumerate(cs):
+                    if c in STRAY_DOTS:
+                        cs[j] = DOT
+        elif p["kind"] == "caption":
+            caption = p
+    out = []
+    order = list(range(h, e + 1))
+    if caption and d + 1 <= e:
+        # the title row goes; the second row becomes the header, so the delimiter row moves under it
+        out.append(caption["text"])
+        out.append("")
+        order = [d + 1, d] + list(range(d + 2, e + 1))
+    for k in order:
+        if k == d or grid[k] == before[k]:
+            out.append(lines[k])
+        else:
+            out.append(_render_row(grid[k]))
+    return out
+
+
+def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str], dict]:
+    """The class's law, checked on ONE table (its lines before and after; `after` may carry a caption above the table):
+    one table on both sides; the same columns; the same rows but for a title row lifted to a caption whose text is above
+    the table; every cell outside column 1 byte-identical, or a stray bullet glyph become `•`; column 1 changed only
+    where a run of letter cells became one label on the run's first row with blanks under it, the label fitting the
+    letters. Returns (ok, reasons, facts) — facts name what was compared, fixed and labelled."""
+    reasons: list[str] = []
+    facts: dict = {"cells_compared": 0, "dots_fixed": 0, "labels": [], "caption": None, "caption_lines": 0}
+    tb, ta = table_blocks(before), table_blocks(after)
+    if len(tb) != 1 or len(ta) != 1:
+        return False, ["tables before %d, after %d — must be one and one" % (len(tb), len(ta))], facts
+    (hb, db, eb), (ha, da, ea) = tb[0], ta[0]
+    if before[db].strip() != after[da].strip():
+        reasons.append("the delimiter row changed")
+    rb = [cells(before[k]) for k in range(hb, eb + 1) if k != db]
+    ra = [cells(after[k]) for k in range(ha, ea + 1) if k != da]
+    lifted = 0
+    if len(ra) == len(rb) - 1:
+        filled = sorted((c for c in rb[0] if c), key=len)
+        above = "".join(_bare(l) for l in after[:ha]).lower()
+        if filled and len(filled) <= 2 and _bare(filled[-1]).lower() and _bare(filled[-1]).lower() in above:
+            lifted = 1
+            facts["caption"] = filled[-1]
+            facts["caption_lines"] = ha
+        else:
+            reasons.append("a row was dropped (rows before %d, after %d) and no caption above carries the first row's text" % (len(rb), len(ra)))
+    elif len(ra) != len(rb):
+        reasons.append("rows before %d, after %d" % (len(rb), len(ra)))
+    n = min(len(ra), len(rb) - lifted)
+    # every cell outside column 1, every row (a rail's rows included — the first version of this loop jumped over
+    # them with the rail and compared 60 of 120 cells: the selftest's own negatives caught it)
+    for i in range(n):
+        b, a = rb[i + lifted], ra[i]
+        if len(a) != len(b):
+            reasons.append("row %d has %d cells before and %d after" % (i + 1, len(b), len(a)))
+            continue
+        for j in range(1, len(b)):
+            facts["cells_compared"] += 1
+            if a[j] == b[j]:
+                continue
+            if b[j] in STRAY_DOTS and a[j] == DOT:
+                facts["dots_fixed"] += 1
+                continue
+            reasons.append("row %d cell %d changed: %r -> %r" % (i + 1, j + 1, b[j][:40], a[j][:40]))
+    # column 1: identical, a stray dot fixed, or a letter run become one label with blanks under it
+    i = 0
+    while i < n:
+        b, a = rb[i + lifted], ra[i]
+        b1, a1 = (b[0] if b else ""), (a[0] if a else "")
+        if b1 == a1:
+            i += 1
+            continue
+        if b1 in STRAY_DOTS and a1 == DOT:
+            facts["dots_fixed"] += 1
+            i += 1
+            continue
+        if not (b1 and _letterish(b1) and a1):
+            reasons.append("column 1 row %d changed: %r -> %r" % (i + 1, b1[:40], a1[:40]))
+            i += 1
+            continue
+        k, letters = i, []
+        while k < n and rb[k + lifted] and rb[k + lifted][0] and _letterish(rb[k + lifted][0]) and (k == i or (ra[k] and ra[k][0] == "")):
+            letters.append(_bare(rb[k + lifted][0]))
+            k += 1
+        ok, why = letters_fit("".join(letters), a1)
+        if ok:
+            facts["labels"].append({"row": i + 1, "letters": "".join(letters), "word": a1, "fit": why})
+        else:
+            reasons.append("column 1 rows %d-%d: the label %r does not fit the letters %r (%s)" % (i + 1, k, a1[:40], "".join(letters), why))
+        i = k
+    return not reasons, reasons, facts
+
+
+def geometry_pass(text: str, resolver=None) -> tuple[str, dict]:
+    """The layer over a whole markdown text: propose per table, apply on a copy, keep only what the invariant admits.
+    Returns (text, record): the record counts tables, proposals, applied, refused and unresolved, lists every label and
+    caption, and names the invariant's own tallies — the AFTER half of the measurement, written by the act itself."""
+    lines = text.split("\n")
+    calls = {"n": 0}
+
+    def counted(letters, context):
+        calls["n"] += 1
+        return resolver(letters, context)
+
+    props = propose(lines, counted if resolver is not None else None)
+    blocks = {(h + 1, e + 1): (h, d, e) for h, d, e in table_blocks(lines)}
+    by_table: dict = {}
+    for p in props:
+        by_table.setdefault(tuple(p["table"]), []).append(p)
+    applied, refused, unresolved = [], [], []
+    out_lines, pos, checks, dots_fixed = [], 0, 0, 0
+    for key in sorted(by_table):
+        h, d, e = blocks[key]
+        ps = by_table[key]
+        unresolved.extend(p for p in ps if p["kind"] == "rail" and not p.get("word"))
+        todo = [p for p in ps if p["kind"] != "rail" or p.get("word")]
+        if not todo:
+            continue
+        new = apply_table(lines, h, d, e, todo)
+        checks += 1
+        ok, reasons, facts = grid_invariant(lines[h:e + 1], new)
+        if ok:
+            out_lines.extend(lines[pos:h])
+            out_lines.extend(new)
+            pos = e + 1
+            applied.extend(todo)
+            dots_fixed += facts["dots_fixed"]
+        else:
+            refused.extend(dict(p, refused="; ".join(reasons)) for p in todo)
+    out_lines.extend(lines[pos:])
+    record = {
+        "tables": len(blocks),
+        "with_signature": len(by_table),
+        "proposals": len(props),
+        "applied": len(applied),
+        "refused": len(refused),
+        "unresolved": len(unresolved),
+        "labels": [{"rows": p["rows"], "letters": p["letters"], "word": p["word"], "how": p["how"]} for p in applied if p["kind"] == "rail"],
+        "captions": [{"line": p["line"], "text": p["text"], "fragment_dropped": p["fragment_dropped"]} for p in applied if p["kind"] == "caption"],
+        "unresolved_rails": [{"rows": p["rows"], "letters": p["letters"], "why": p["refused"]} for p in unresolved],
+        "refusals": [{"kind": p["kind"], "table": p["table"], "why": p["refused"]} for p in refused],
+        "dots_fixed": dots_fixed,
+        "invariant_checks": checks,
+        "resolver_calls": calls["n"],
+    }
+    return "\n".join(out_lines), record
