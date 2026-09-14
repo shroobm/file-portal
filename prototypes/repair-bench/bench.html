@@ -3,6 +3,7 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+<script src="/vendor/markdown-it.min.js"></script>  <!-- S149: the viewer's renderer (markdown-it 14.1.0, MIT, vendored — served read-only by bench.py) -->
 <title>Repair Bench</title>
 <style>
   /* ---- S66: the dummy-proof pass. Same Apple system as S63 (SF stack, blur chrome,
@@ -621,6 +622,28 @@
   html.lay-laptop #side-tabs { margin:8px 6px 0; }
   html.lay-laptop .stab { font-size:10.5px; padding:7px 3px; }
   html.lay-laptop .thumb { min-height:96px; }
+
+  /* ---- S149 · the view (the buffer rendered as a GFM parser sees it) and the table health marks ---- */
+  #mdview { flex:1; overflow:auto; padding:12px 18px 24px; font-size:13px; line-height:1.55; color:var(--text); background:var(--card); }
+  #mdview[hidden], #ctx[hidden] { display:none !important; }
+  #mdview h1, #mdview h2, #mdview h3 { font-family:var(--display); letter-spacing:-0.01em; margin:18px 0 8px; line-height:1.25; }
+  #mdview h1 { font-size:20px; } #mdview h2 { font-size:16px; } #mdview h3 { font-size:14px; }
+  #mdview p { margin:8px 0; max-width:72ch; }
+  #mdview img { max-width:100%; height:auto; display:block; margin:8px 0; border-radius:4px; box-shadow:0 0 0 1px var(--sep); }
+  #mdview table { border-collapse:collapse; margin:10px 0; font-size:12px; font-variant-numeric:tabular-nums; max-width:100%; display:block; overflow-x:auto; }
+  #mdview th, #mdview td { border:1px solid var(--sep-2); padding:3px 8px; vertical-align:top; text-align:left; }
+  #mdview th { background:var(--card-2); font-weight:600; }
+  #mdview tr:nth-child(even) td { background:color-mix(in srgb, var(--card-2) 55%, transparent); }
+  #mdview code { font-family:var(--mono); font-size:11.5px; background:var(--fill); border-radius:4px; padding:0 4px; }
+  #mdview pre { font-family:var(--mono); font-size:11.5px; background:var(--card-2); border-radius:6px; padding:8px 10px; overflow:auto; }
+  #mdview blockquote { border-left:2px solid var(--accent); margin:8px 0; padding:2px 12px; color:var(--text-2); }
+  #mdview a { color:var(--accent); }
+  #mdview hr { border:0; border-top:1px solid var(--sep); margin:14px 0; }
+  .tb-banner { position:sticky; top:0; z-index:1; margin:-12px -18px 12px; padding:8px 18px; font-size:11.5px; line-height:1.4;
+               color:var(--warn); background:var(--warn-bg); border-bottom:1px solid var(--warn); }
+  #ctx .cl.tb-bad { background:var(--warn-bg); color:var(--warn); border-radius:5px; }
+  #ctx .cl.tb-bad::before { background:var(--warn-bg); color:var(--warn); }
+  #view.on { background:var(--accent-bg); color:var(--accent); }
 </style>
 </head>
 <body>
@@ -743,6 +766,7 @@
 
   <section class="pane" id="md-pane">
     <div class="pane-head"><span id="md-title">markdown at the zone</span><span class="grow"></span>
+      <button id="view" title="view the markdown rendered — as a GFM table parser sees it (tables, embeds, breaks); this is what the vault will show. ≡ lines brings the editor back">◫ view</button>
       <button id="edit" title="edit the whole file by hand">✎ edit</button>
       <button id="save" hidden class="primary">save</button>
     </div>
@@ -752,6 +776,10 @@
       <button id="aiundo" hidden title="restore the markdown exactly as before the last AI change">↩ undo AI</button>
     </div>
     <div id="ctx" spellcheck="false"></div>
+    <!-- S149 (Rab, 2026-09-13: "Bench Repair needs to have a editor mode and a viewer mode"): the VIEW —
+         the same buffer rendered by a GFM table parser (markdown-it, vendored, offline). What the vault
+         will show: a split table shows as no table here, exactly as it did in his Obsidian. -->
+    <div id="mdview" hidden></div>
     <!-- the textarea is retired: editing now happens IN the numbered surface (#ctx), so the
          gutter cannot be lost by switching modes. Route 1, signed Rab S106. -->
   </section>
@@ -2481,6 +2509,128 @@ addEventListener("beforeunload", (e) => {
   if (ctxDirty) { e.preventDefault(); e.returnValue = ""; }
 });
 addEventListener("resize", () => { const z = $("zoom").value; if (z === "fit" || z === "fitpage") applyZoom(); }); // review: fit-page refits too
+// ---- S149 (Rab, 2026-09-13: "Bench Repair needs to have a editor mode and a viewer mode for the markdown …
+// The same table text comes out like this, because of the way that the table was written breaks.") ----
+// THE VIEW: the buffer rendered by a GFM table parser (markdown-it, vendored, offline) — what the vault will
+// show. The lines pane showed Valentine's split table as fine; only a renderer showed the break. And THE
+// TABLE HEALTH (C): a pipe table whose rows disagree in cell count, whose delimiter is missing or not
+// directly under its header, or which holds a non-table line inside, is flagged on the lines and listed
+// in the view. Both read the same text the save would write (ctxText()).
+let viewOn = false, _mdit = null;
+function mdit() {
+  if (_mdit === null) _mdit = window.markdownit ? window.markdownit({ html: true, linkify: false, breaks: false }) : false;
+  return _mdit;
+}
+function tableSpanJS(lines, i) {
+  if (i < 0 || i >= lines.length || !lines[i].trimStart().startsWith("|")) return null;
+  let s = i, e = i;
+  while (s > 0 && lines[s - 1].trimStart().startsWith("|")) s--;
+  while (e + 1 < lines.length && lines[e + 1].trimStart().startsWith("|")) e++;
+  return [s, e];
+}
+function cellCount(row) {
+  // cells between pipes; a leading/trailing pipe is the table's edge, not a cell; an escaped \| is text
+  const t = row.trim().replace(/\\\|/g, " ");
+  const parts = t.split("|");
+  if (parts.length && parts[0].trim() === "") parts.shift();
+  if (parts.length && parts[parts.length - 1].trim() === "") parts.pop();
+  return parts.length;
+}
+const DELIM = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+function isRepairLine(l) { return l.startsWith("![[assets/_repair") || l.startsWith("<!-- repair ") || l.startsWith("<!-- transcribed "); }
+function tableHealth(lines) {
+  const issues = [];
+  let i = 0;
+  while (i < lines.length) {
+    if (!lines[i].trimStart().startsWith("|")) { i++; continue; }
+    const [s, e] = tableSpanJS(lines, i);
+    const n = e - s + 1;
+    if (n === 1 || !DELIM.test(lines[s + 1])) {
+      // a header row with no delimiter row directly under it — not a table to a renderer
+      let why = DELIM.test(lines[s]) ? "a delimiter row (|---|) with no header row directly above it — the rows below render as plain text"
+              : n === 1 ? "a lone pipe row — no delimiter row under it, so a renderer shows plain text"
+                        : "the row under the header is not a delimiter row (|---|), so a renderer shows plain text";
+      // the S149 case: the delimiter exists but something sits between the header and it
+      let j = e + 1;
+      while (j < lines.length && (lines[j].trim() === "" || isRepairLine(lines[j]))) j++;
+      if (j < lines.length && lines[j].trimStart().startsWith("|") && j > e + 1) {
+        for (let k = e + 1; k < j; k++) issues.push({ line: k + 1, reason: "a non-table line inside the table — the table ends here for a renderer (the S149 split)" });
+        why = "the table continues below the lines above — a renderer stops it here";
+      }
+      issues.push({ line: s + 1, reason: why });
+      i = e + 1; continue;
+    }
+    const want = cellCount(lines[s]);
+    for (let k = s + 1; k <= e; k++) {
+      const c = cellCount(lines[k]);
+      if (c !== want) issues.push({ line: k + 1, reason: `row has ${c} cells, the header has ${want}` });
+    }
+    // the run ended — was it ended by a blank or a repair line with more pipe rows after it?
+    let j = e + 1;
+    while (j < lines.length && (lines[j].trim() === "" || isRepairLine(lines[j]))) j++;
+    if (j < lines.length && lines[j].trimStart().startsWith("|") && j > e + 1 && !DELIM.test(lines[j + 1] || "")) {
+      for (let k = e + 1; k < j; k++) issues.push({ line: k + 1, reason: "a non-table line inside the table — the rows below it render as plain text" });
+    }
+    i = e + 1;
+  }
+  return issues;
+}
+function markTableHealth() {
+  const ctx = $("ctx"), lines = ctxText().split("\n"), issues = tableHealth(lines);
+  const bad = new Map(issues.map((x) => [x.line, x.reason]));
+  const rows = ctx.querySelectorAll(".cl");
+  rows.forEach((el, k) => {
+    const why = bad.get(k + 1);
+    el.classList.toggle("tb-bad", !!why);
+    if (why) el.title = "⚠ " + why; else if (el.title && el.title.startsWith("⚠ ")) el.removeAttribute("title");
+  });
+  const t = $("md-title"), base = t.textContent.replace(/ · ⚠ \d+ table issue\(s\)$/, "");
+  t.textContent = issues.length ? `${base} · ⚠ ${issues.length} table issue(s)` : base;
+  return issues;
+}
+function renderView() {
+  const v = $("mdview"), m = mdit();
+  if (!m) { v.innerHTML = '<p class="side-note">the renderer did not load (/vendor/markdown-it.min.js) — the view needs it; the lines are unaffected</p>'; return; }
+  const lines = ctxText().split("\n");
+  const issues = tableHealth(lines);
+  // the zone anchor goes before the zone's line — or before the table it sits in, never inside one
+  let anchorAt = null;
+  if (st && st.zones && st.zones[zone]) {
+    let i = (st.zones[zone].adjusted_line || 1) - 1;
+    const sp = tableSpanJS(lines, i);
+    anchorAt = sp ? sp[0] : i;
+  }
+  const src = lines.map((l, i) => {
+    const line = l.replace(/!\[\[assets\/([^\]|]+)(\|[^\]]*)?\]\]/g, (m0, n) => `![](/api/asset?name=${encodeURIComponent(n)})`);
+    return (i === anchorAt ? '<a id="fp-zone-anchor"></a>\n\n' : "") + line;
+  }).join("\n");
+  const banner = issues.length
+    ? `<div class="tb-banner">⚠ ${issues.length} table issue(s) — ` +
+      issues.slice(0, 6).map((x) => `line ${x.line}: ${x.reason}`).join(" · ") + (issues.length > 6 ? " · …" : "") + "</div>"
+    : "";
+  v.innerHTML = banner + m.render(src);
+  const a = v.querySelector("#fp-zone-anchor");
+  if (a) a.scrollIntoView({ block: "start" });
+}
+function toggleView(on) {
+  viewOn = (on === undefined) ? !viewOn : !!on;
+  $("ctx").hidden = viewOn;
+  $("mdview").hidden = !viewOn;
+  $("view").textContent = viewOn ? "≡ lines" : "◫ view";
+  $("view").classList.toggle("on", viewOn);
+  $("view").title = viewOn ? "back to the numbered lines (the editor)" : "view the markdown rendered — as a GFM table parser sees it (tables, embeds, breaks); this is what the vault will show. ≡ lines brings the editor back";
+  if (viewOn) renderView();
+}
+$("view").onclick = () => toggleView();
+// the editor and the view are one buffer: editing happens on the lines, so ✎ edit brings the lines back;
+// every render of the lines re-reads the table health; a zone change while the view is on re-renders it
+{
+  const _edit = $("edit").onclick;
+  $("edit").onclick = () => { if (viewOn) toggleView(false); _edit(); };
+  const _renderCtx = renderCtx, _renderCtxPlain = renderCtxPlain;
+  renderCtx = function () { _renderCtx(); markTableHealth(); if (viewOn) renderView(); };
+  renderCtxPlain = function () { _renderCtxPlain(); markTableHealth(); if (viewOn) renderView(); };
+}
 load().catch((e) => status(`load failed: ${e.message}`, true));
 </script>
 <script>

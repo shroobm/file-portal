@@ -1341,7 +1341,8 @@ class Bench:
         does not)."""
         prior = sum(self._record_shift(r)
                     for r in self.manifest.get("repairs", [])
-                    if r.get("zone_line") is not None and r["zone_line"] < zone_line)
+                    if r.get("zone_line") is not None
+                    and r.get("at_line_orig", r["zone_line"]) < zone_line)   # S149: where the lines really went
         drift = sum(d for (at, d) in self._ai_drift if at < zone_line)
         return zone_line + prior + drift
 
@@ -1472,6 +1473,34 @@ class Bench:
                 return min(hits, key=lambda h: abs(h - adj)), "excerpt"
         return adj, "drift"
 
+    # ---- S149 (Rab, 2026-09-13, the Obsidian discovery): an insertion never lands INSIDE a pipe table ----
+    @staticmethod
+    def _table_span(lines: list[str], i: int) -> tuple[int, int] | None:
+        """The 0-based inclusive span of consecutive pipe rows around line i, or None when line i is
+        not a pipe row. A renderer reads a pipe table as one unbroken run of `|` lines: a blank line,
+        an embed or a comment inside the run ends the table where it stands (Valentine's Exhibit 8.2
+        carried the 2026-08-06 crop between its header row and its delimiter row — no renderer showed
+        a table; the bench's line view showed nothing wrong). The run, not the parse, is the unit."""
+        if i < 0 or i >= len(lines) or not lines[i].lstrip().startswith("|"):
+            return None
+        s = e = i
+        while s > 0 and lines[s - 1].lstrip().startswith("|"):
+            s -= 1
+        while e + 1 < len(lines) and lines[e + 1].lstrip().startswith("|"):
+            e += 1
+        return s, e
+
+    def _insertion_point(self, lines: list[str], zone_line: int) -> tuple[int, list[int] | None, int]:
+        """Where a repair's lines go: after the zone's (drift-adjusted) line — unless that line is a
+        pipe-table row with more rows below it, in which case after the table's LAST row, so the
+        table stays one run. Returns (at, placed_after_table [first,last] 1-based or None, adjusted)."""
+        adjusted = self._adjusted_line(zone_line)
+        at = min(adjusted, len(lines))
+        span = self._table_span(lines, at - 1) if at >= 1 else None
+        if span and span[1] > at - 1:
+            return span[1] + 1, [span[0] + 1, span[1] + 1], adjusted
+        return at, None, adjusted
+
     def repair(self, zone_line: int, page: int, rect: list[float] | None = None,
                image_b64: str | None = None, note: str = "") -> dict:
         """The one gesture: capture (crop or paste) → assets/ → ![[embed]] at the zone →
@@ -1502,24 +1531,79 @@ class Bench:
 
         fm, body = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
         lines = body.split("\n")
-        at = min(self._adjusted_line(zone_line), len(lines))  # insert AFTER this body line
+        # insert AFTER this body line — after the table's last row when the zone sits in one (S149)
+        at, placed_after_table, adjusted = self._insertion_point(lines, zone_line)
         caption = f"repair p{page}" + (f" — {note}" if note else "")
         lines[at:at] = ["", f"![[assets/{asset}]]", f"<!-- {caption} · repair-bench -->"]
         self._write_body("\n".join(lines), gesture=mode, zone_line=zone_line, note=note,
-                         extra={"asset": asset, "page": page})
+                         extra={"asset": asset, "page": page,
+                                **({"placed_after_table": placed_after_table} if placed_after_table else {})})
 
         # OK-0 (docs/49 §1 c0, signed 2026-08-30): every NEW record gets a UUID at creation —
         # line numbers shift under edits; the id is the durable key later features (review
         # index, undo re-binding) resolve against. Existing records are never rewritten.
+        # S149: `at_line_orig` is the line the insertion FOLLOWED, in the zone's own (original)
+        # numbering — the drift ledger compares it, not zone_line, so a record placed below a
+        # table shifts only the zones below where its lines really are.
         rec = {"id": "fpr-" + uuid.uuid4().hex,
                "ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": asset,
                "mode": mode, "note": note, "by": "repair-bench",
                "dpi": CROP_DPI if mode == "crop" else None,
-               "rect": rect}
+               "rect": rect, "at_line_orig": at - (adjusted - zone_line),
+               **({"placed_after_table": placed_after_table} if placed_after_table else {})}
         self.manifest.setdefault("repairs", []).append(rec)
         self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
                                       encoding="utf-8")
-        return {"asset": asset, "inserted_after_line": at, "record": rec}
+        return {"asset": asset, "inserted_after_line": at, "record": rec,
+                "placed_after_table": placed_after_table}
+
+    def unsplit_tables(self) -> dict:
+        """S149 — move every repair line pair (`![[assets/_repair…]]` + its `<!-- … -->` comment, and the
+        blank line the gesture put before them) that sits INSIDE a pipe table to just after that table's
+        last row, through the chokepoint (one ledger event per move), and re-anchor the record's
+        `at_line_orig`. Idempotent: a body with no split table returns moved == []."""
+        self._require_md()
+        fm, body = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
+        lines = body.split("\n")
+        moved = []
+        k = 0
+        while k < len(lines):
+            if not (lines[k].startswith("![[assets/_repair") and k + 1 < len(lines)
+                    and lines[k + 1].startswith("<!-- ")):
+                k += 1
+                continue
+            start = k - 1 if k > 0 and lines[k - 1].strip() == "" else k
+            end = k + 2                       # exclusive
+            above = next((j for j in range(start - 1, -1, -1) if lines[j].strip()), None)
+            below = next((j for j in range(end, len(lines)) if lines[j].strip()), None)
+            inside = (above is not None and lines[above].lstrip().startswith("|")
+                      and below is not None and lines[below].lstrip().startswith("|"))
+            if not inside:
+                k = end
+                continue
+            pair = lines[start:end]
+            del lines[start:end]
+            span = self._table_span(lines, start)      # the row that followed the pair now sits at `start`
+            new_at = span[1] + 1                       # after the table's last row
+            lines[new_at:new_at] = pair
+            asset = pair[1 if pair[0] == "" else 0][len("![[assets/"):].rstrip("]")
+            rec = next((r for r in self.manifest.get("repairs", []) if r.get("asset") == asset), None)
+            others = sum(self._record_shift(r) for r in self.manifest.get("repairs", [])
+                         if r is not rec and r.get("at_line_orig", r.get("zone_line", 0)) < new_at)
+            if rec is not None:
+                rec["at_line_orig"] = new_at - others
+                rec["placed_after_table"] = [span[0] + 1, span[1] + 1]
+                rec["unsplit"] = _now_iso()
+            moved.append({"asset": asset, "from_after_line": start, "to_after_line": new_at,
+                          "table": [span[0] + 1, span[1] + 1]})
+            k = new_at + len(pair)
+        if moved:
+            self._write_body("\n".join(lines), gesture="unsplit-table",
+                             note="moved %d repair(s) out of a table to its end (S149)" % len(moved),
+                             extra={"moved": moved})
+            self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
+                                          encoding="utf-8")
+        return {"moved": moved}
 
     # ---- the transcribe gesture (S71, docs/23 built): the crop gains a reading eye ----------
     def transcribe(self, zone_line: int, page: int, rect: list[float]) -> dict:
@@ -1602,7 +1686,7 @@ class Bench:
         self._undo.append(("transcribe", body))
         del self._undo[:-20]  # the assist's bounded stack, shared philosophy
         lines = body.split("\n")
-        at = min(self._adjusted_line(zone_line), len(lines))
+        at, placed_after_table, adjusted = self._insertion_point(lines, zone_line)   # S149: never inside a table
         inserted = ["", *markdown.split("\n"),
                     f"<!-- transcribed p{page} · granite-docling-258M · repair-bench -->"]
         lines[at:at] = inserted
@@ -2076,6 +2160,15 @@ def make_handler(bench: Bench, token=_NO_GATE):
                     n = int(q.get("n", ["1"])[0])
                     dpi = int(q.get("dpi", [str(RASTER_DPI)])[0])
                     self._send(200, bench.page_png(n, min(dpi, 300)), "image/png")
+                elif url.path.startswith("/vendor/"):
+                    # S149: the viewer's renderer (markdown-it, MIT, vendored) — read-only, basename only,
+                    # scripts only; nothing under vendor/ is ever written by the bench
+                    name = Path(url.path).name
+                    p = BENCH_DIR / "vendor" / name
+                    if p.is_file() and p.suffix == ".js" and p.parent == BENCH_DIR / "vendor":
+                        self._send(200, p.read_bytes(), "application/javascript; charset=utf-8")
+                    else:
+                        self._json({"error": "no such vendor file"}, 404)
                 elif url.path == "/api/asset":
                     name = Path(q.get("name", [""])[0]).name  # basename only — no traversal
                     p = bench.assets / name
@@ -2227,6 +2320,10 @@ def main():
     ap.add_argument("--sandbox", action="store_true",
                     help="repair a COPY under .sandbox/ — trial mode, originals untouched")
     ap.add_argument("--port", type=int, default=7077)
+    ap.add_argument("--unsplit-tables", action="store_true",
+                    help="S149 maintenance, no server: move every repair embed that sits inside a pipe table "
+                         "to just after that table (one ledger event per move, the record re-anchored), print the "
+                         "moves as JSON and exit — run it only when nobody has the bundle open at a bench")
     # CONTRACT (the widget half is Lane G, windows-widget/src-tauri/src/bench.rs): the widget
     # generates a random secret per spawn, passes it here as `--token <secret>`, and appends
     # `?token=<secret>` to the WebviewUrl so bench.html can read it at load and attach it as
@@ -2237,6 +2334,9 @@ def main():
                          "header (no --token = mutating routes answer 403)")
     args = ap.parse_args()
     bench = Bench(args.bundle, pdf=args.pdf, sandbox=args.sandbox)
+    if args.unsplit_tables:
+        print(json.dumps(bench.unsplit_tables(), indent=1))
+        return
     st = bench.state()
     print(f"REPAIR BENCH · {st['bundle']}{'  [SANDBOX]' if st['sandbox'] else ''}")
     print(f"  verdict {st['verdict']} · {len(st['zones'])} zone(s) · {st['pages']} pp · "
