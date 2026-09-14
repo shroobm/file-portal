@@ -174,6 +174,23 @@ class TableReading:
     empty_cells: int = 0
     filled_cells: int = 0
     wrapped_labels: list = field(default_factory=list)   # S152 E1: [[line, line+1]] — a row label wrapped over two rows
+    title_pieces: bool = False       # S152 E2: the first row is a spanning title chopped into LONG pieces beside empty cells
+
+
+_PIECE_END = re.compile(r"(?:\b[A-Za-z]|-|\b(?:of|and|the|for|to|in|on|or|a|an|by|with|per|from|your))\s*$", re.I)
+
+
+def _pieces_signal(pieces: list[str]) -> bool:
+    """S152 E2: do consecutive pieces read as ONE phrase cut between cells? A piece ending in a lone letter (`…Your I`), a hyphen
+    or a preposition, or the next piece starting lowercase, says so; two real headings beside an empty corner (`Lipstick on a
+    Pig | Reputation Builder`) show no such signal."""
+    ps = [BR.sub(" ", c).strip() for c in pieces]
+    for p, q in zip(ps, ps[1:]):
+        if not p or not q:
+            continue
+        if _PIECE_END.search(p) or q[0].islower():
+            return True
+    return False
 
 
 _CONT_END = re.compile(r"(?:\(|-|\b(?:of|and|the|for|to|in|on|or|a|an|by|with|per|from))\s*$", re.I)
@@ -240,6 +257,12 @@ def read_table(lines: list[str], h: int, d: int, e: int) -> TableReading:
     if (body and not t.title_row and len(filled_first) >= 3 and all(len(_bare(c)) <= 8 for c in filled_first)
             and sum(1 for c in body[0] if c) >= len(filled_first) + 1):
         t.title_fragments = True
+    # S152 E2: the title chopped into LONG pieces (p.72: `Quality of Self-Side | Analyst Based on Your I | Prior Experience`
+    # beside empty cells, above the real headings) — two or more filled cells, at least one empty, the next row as full or
+    # fuller, and a continuation signal across the pieces
+    if (body and not t.title_row and not t.title_fragments and len(filled_first) >= 2 and len(filled_first) < len(header)
+            and sum(1 for c in body[0] if c) >= max(3, len(filled_first)) and _pieces_signal([c for c in header if c])):
+        t.title_pieces = True
     t.header_br_cells = sum(1 for c in header if BR.search(c))
     if t.title_row and body:
         t.header_br_cells = max(t.header_br_cells, sum(1 for c in body[0] if BR.search(c)))
@@ -720,6 +743,25 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
             if text:
                 out.append({"kind": "caption", "table": [h + 1, e + 1], "line": h + 1, "text": text, "fragment_dropped": False,
                             "fragments_joined": True, "raw": raw, "how": how})
+        elif t.title_pieces and lex is not None:
+            # S152 E2: the pieces of a chopped caption — a single-word piece the book uses twice is a heading (the guard as E3's);
+            # the book's own phrase first, else the pieces joined as read (they are words already, so the join is the caption)
+            pieces = [c for c in header if c]
+            single = [fold_letters(_bare(c)) for c in pieces if " " not in BR.sub(" ", c).strip() and len(_bare(c)) >= 3]
+            selfwords = sum(1 for w in single if lex.get(w, 0) >= 2)
+            if not (single and 2 * selfwords >= len(single)):
+                stream = "".join(_bare(c) for c in pieces)
+                raw = " ".join(BR.sub(" ", c).strip() for c in pieces)
+                ph, why = best_phrase(stream, phrase_list if phrase_list is not None else [])
+                if ph:
+                    text, how = ph, why
+                elif sum(1 for c in pieces if " " in BR.sub(" ", c).strip()) >= 2:
+                    text, how = raw, "the pieces joined as read — a caption chopped into cells (%s)" % why
+                else:
+                    text = None
+                if text:
+                    out.append({"kind": "caption", "table": [h + 1, e + 1], "line": h + 1, "text": text, "fragment_dropped": False,
+                                "fragments_joined": True, "raw": raw, "how": how})
         for pair in t.wrapped_labels:
             # S152 E1: the two rows folded into one — the label joined with a space, the data the second row's
             out.append({"kind": "fold", "table": [h + 1, e + 1], "rows": list(pair),

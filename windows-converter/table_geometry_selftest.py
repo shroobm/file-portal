@@ -292,6 +292,31 @@ def main():
     forced = tg.apply_table(RL, 0, 1, 6, [{"kind": "fold", "table": [1, 7], "rows": [4, 5], "why": "planted"}])
     ok9, why9, _ = tg.grid_invariant(RL[:7], forced)
     check("NEGATIVE: a fold of two rows that both hold data is refused by the invariant (a body fold joins only where one side is empty)", not ok9 and any("filled on both rows" in w for w in why9), str(why9))
+    print("[8] a caption chopped into long pieces beside empty cells (S152 E2, p.72)")
+    P97 = ("|  |  | Quality of Self-Side | Analyst Based on Your I | Prior Experience |\n|---|---|---|---|---|\n"
+           "|  |  | New and Unknown | Experienced and Bad | Experienced and Good<br>(or Great) |\n"
+           "| y Stocks | Critical<br>to My<br>Stocks | Scan for key points in less than 2 minutes. | Scan for key points in less than 2 minutes. | Read ASAP. |\n"
+           "| impact the Topics They Discuss Have on My Stocks | Could Be<br>or<br>Become<br>Critical | Scan for key points in 2 minutes; if warranted. | Scan for key points in less than 2 minutes to understand his or her perspective. | Read for less than 10 minutes. |\n"
+           "| Impact t | Not<br>Critical | Send directly to recycling bin. | Send directly to recycling bin. | Read on your own time if you find it interesting or amusing. |\n\ntail")
+    PL = P97.split("\n")
+    c8 = tg.census(PL)[0]
+    check("the reading half sees the pieces (title_pieces), not the one-cell title nor the short fragments", c8["title_pieces"] is True and c8["title_row"] is False and c8["title_fragments"] is False, str((c8["title_pieces"], c8["title_row"], c8["title_fragments"])))
+    lex8 = tg.lexicon(PL + ["The quality of a sell-side analyst is judged on your prior experience with the analyst; the sell-side analyst again."])
+    props8 = tg.propose(PL, None, lex8)
+    cap8 = [p for p in props8 if p["kind"] == "caption"]
+    check("the caption is the pieces joined as read (the book has no phrase holding them), the raw join on the record",
+          len(cap8) == 1 and cap8[0]["text"] == "Quality of Self-Side Analyst Based on Your I Prior Experience" and cap8[0].get("fragments_joined") and "joined as read" in cap8[0]["how"], str(cap8))
+    text8, rec8 = tg.geometry_pass(P97, None)
+    L8 = text8.split("\n")
+    check("geometry_pass admits it: the caption above, a blank, the real headings row as the header, the delimiter under it",
+          any(c.get("fragments_joined") for c in rec8["captions"]) and L8[0].startswith("Quality of Self-Side") and L8[1] == "" and "New and Unknown" in L8[2] and tg.DELIM.match(L8[3]) is not None and not rec8["refusals"],
+          str((rec8["captions"], rec8["refusals"], L8[:4])))
+    check("NEGATIVE: two real headings beside an empty corner (Lipstick on a Pig | Reputation Builder) are not pieces — no signal",
+          tg.census(LIPSTICK.split("\n"))[0]["title_pieces"] is False and not any(p["kind"] == "caption" for p in tg.propose(LIPSTICK.split("\n"), None, tg.lexicon(LIPSTICK.split("\n")))))
+    check("NEGATIVE: short fragments stay the fragments shape (REG's stacked heading is neither pieces nor a title)", tg.census(RL)[0]["title_pieces"] is False and tg.census(RL)[0]["title_fragments"] is True)
+    HEADS = "|  | Revenue and | Costs | Margin |\n|---|---|---|---|\n| A | 1 | 2 | 3 |\n| B | 4 | 5 | 6 |\n\ntail"
+    check("NEGATIVE (the named risk): single-word heading pieces the book uses are refused by the guard even with a signal",
+          not any(p["kind"] == "caption" for p in tg.propose(HEADS.split("\n"), None, {"revenue": 4, "costs": 4, "margin": 4, "and": 9})))
     text3, rec3 = tg.geometry_pass(VALENTINE, lambda letters, ctx: "REVENUE")
     check("without the word in the book's prose the resolver's REVENUE is refused too (the book must say it)",
           not any(lb["word"] == "REVENUE" for lb in rec3["labels"]) and any("not a word of the book" in u["why"] for u in rec3["unresolved_rails"]), str((rec3["labels"], rec3["unresolved_rails"])))
