@@ -1854,6 +1854,34 @@ try:
 finally:
     cas.subprocess.Popen, cas.subprocess.run, cas.emit = _saved_popen_t22, _saved_run_t22, _saved_emit_t22
 
+# ---------- S151 E2 (B6 / SYM-044): the engine's version stamp ----------
+# marker-pdf 1.10.2 exposes no __version__, so every manifest and .done carried "unknown"; the installed distribution is the stamp.
+_stub_v = types.SimpleNamespace(__version__="9.9")
+_stub_none = types.SimpleNamespace()
+
+
+def _dist_raises(name):
+    raise RuntimeError("no distribution named %s" % name)
+
+
+check(cas.marker_version_stamp(_stub_none, dist_version=lambda n: "1.10.2" if n == "marker-pdf" else "") == "1.10.2",
+      "SYM-044 (a) the installed distribution's version is the stamp when the module declares none (the real marker)")
+check(cas.marker_version_stamp(_stub_v, dist_version=lambda n: "1.10.2") == "9.9",
+      "SYM-044 (f) a module that declares __version__ is authoritative for itself (the stub's \"test\" keeps every resume fixture honest)")
+check(cas.marker_version_stamp(_stub_v, dist_version=_dist_raises) == "9.9",
+      "SYM-044 (b) no distribution: the module's __version__ is the fallback")
+check(cas.marker_version_stamp(_stub_none, dist_version=_dist_raises) == "unknown",
+      "SYM-044 (c) neither answers: \"unknown\" — an honest absence, never a guess")
+check(cas.marker_version_stamp(_stub_v, dist_version=lambda n: "") == "9.9",
+      "SYM-044 (d) an empty distribution version falls through to the attribute")
+try:
+    import importlib.metadata as _md_probe
+    _real = _md_probe.version("marker-pdf")
+except Exception:  # noqa: BLE001 — not installed in this environment: the branch below reads "unknown", said so
+    _real = None
+check(cas.marker_version_stamp(_stub_none) == (_real or "unknown"),
+      "SYM-044 (e) the default lookup reads the installed marker-pdf (%s here) or \"unknown\" where it is not installed" % (_real or "not installed"))
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

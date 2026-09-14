@@ -238,7 +238,7 @@ def _resumable_pages(source_sha: str, pages: int, extra: list[str]) -> int:
         if not book_work.is_dir():
             return 0
         import marker  # marker-env only; the same version stamp the resume gate compares
-        marker_version = getattr(marker, "__version__", "unknown")
+        marker_version = marker_version_stamp(marker)
         done_pages = 0
         for d in book_work.iterdir():
             m = re.fullmatch(r"slice-(\d{5})-(\d{5})", d.name)
@@ -1409,6 +1409,27 @@ def _merge_split_blocks(out_root: Path, start: int, mid: int, end: int,
              page_range=f"{start}-{end}", error=str(exc)[:150])
 
 
+def marker_version_stamp(marker_module=None, dist_version=None) -> str:
+    """The engine's version for the manifest and the `.done` identity gate. SYM-044 (S151 E2, B6): marker-pdf 1.10.2 exposes
+    no `__version__`, so every bundle ever converted carried "unknown" and a Marker upgrade could splice new-engine slices
+    onto old ones under the gate. A module that declares `__version__` is authoritative for itself (the selftest's stub says
+    "test"; the real marker says nothing); else the installed distribution's version is the stamp (`importlib.metadata`,
+    "marker-pdf" → 1.10.2 on this machine); "unknown" only when neither answers — an honest absence, never a guess."""
+    v = getattr(marker_module, "__version__", None) if marker_module is not None else None
+    if v:
+        return str(v)
+    try:
+        if dist_version is None:
+            import importlib.metadata as _md
+            dist_version = _md.version
+        d = dist_version("marker-pdf")
+        if d:
+            return str(d)
+    except Exception:  # noqa: BLE001 — a missing distribution is the fallback's case, never a failed conversion
+        pass
+    return "unknown"
+
+
 def _done_identity_mismatch(prior: dict, source_sha: str, extra: list[str],
                             marker_version: str) -> list[str]:
     """Names every identity field a finished slice's `.done` does NOT match (empty = safe to
@@ -1440,7 +1461,7 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     to one book."""
     import marker  # marker-env only; version for provenance (the manifest stamp's twin)
 
-    marker_version = getattr(marker, "__version__", "unknown")
+    marker_version = marker_version_stamp(marker)
     batch = chunk_batch()
     ranges = slice_ranges(pages)
     total = len(ranges)
@@ -1777,7 +1798,7 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         "probe_evidence": ocr_evidence,
         "pages": pages,
         "converter_version": CONVERTER_VERSION,
-        "marker_version": getattr(marker, "__version__", "unknown"),
+        "marker_version": marker_version_stamp(marker),
         "converted_at": converted_at.isoformat(timespec="seconds"),
     }
     # Stage D: the seams travel WITH the book, forever. The audit scores the merged whole, and
