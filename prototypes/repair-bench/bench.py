@@ -1473,27 +1473,67 @@ class Bench:
                 return min(hits, key=lambda h: abs(h - adj)), "excerpt"
         return adj, "drift"
 
-    # ---- S149 (Rab, 2026-09-13, the Obsidian discovery): an insertion never lands INSIDE a pipe table ----
+    # ---- S149 (Rab, 2026-09-13, the Obsidian discovery): an insertion never lands INSIDE a table ----
+    # The unit is the table a renderer reads (GFM / markdown-it): a header line holding a `|` whose NEXT line is
+    # a delimiter row (|---|), then every following NON-BLANK line until a blank — a line touching the last row
+    # becomes a row, a blank ends the table, a pipe inside a fenced code block is text. Valentine's Exhibit 8.2
+    # carried the 2026-08-06 crop between its header and its delimiter; the bench's line view showed nothing
+    # wrong and no renderer showed a table. The three refuters of E5 closed the first version's holes: fenced
+    # code read as a table, tables without a leading pipe unseen, a transcription's record without its anchor,
+    # two trapped blocks in one table never converging.
+    _DELIM = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
+
     @staticmethod
-    def _table_span(lines: list[str], i: int) -> tuple[int, int] | None:
-        """The 0-based inclusive span of consecutive pipe rows around line i, or None when line i is
-        not a pipe row. A renderer reads a pipe table as one unbroken run of `|` lines: a blank line,
-        an embed or a comment inside the run ends the table where it stands (Valentine's Exhibit 8.2
-        carried the 2026-08-06 crop between its header row and its delimiter row — no renderer showed
-        a table; the bench's line view showed nothing wrong). The run, not the parse, is the unit."""
-        if i < 0 or i >= len(lines) or not lines[i].lstrip().startswith("|"):
-            return None
-        s = e = i
-        while s > 0 and lines[s - 1].lstrip().startswith("|"):
-            s -= 1
-        while e + 1 < len(lines) and lines[e + 1].lstrip().startswith("|"):
-            e += 1
-        return s, e
+    def _fence_mask(lines: list[str]) -> list[bool]:
+        """True for every line inside a fenced code block (``` or ~~~, the fence lines included)."""
+        mask, fence = [], None
+        for l in lines:
+            s = l.lstrip()
+            if fence is None and (s.startswith("```") or s.startswith("~~~")):
+                fence = s[:3]
+                mask.append(True)
+                continue
+            if fence is not None:
+                mask.append(True)
+                if s.startswith(fence):
+                    fence = None
+                continue
+            mask.append(False)
+        return mask
+
+    @staticmethod
+    def _has_pipe(l: str) -> bool:
+        return "|" in l.replace("\\|", "")
+
+    @classmethod
+    def _table_blocks(cls, lines: list[str]) -> list[tuple[int, int, int]]:
+        """Every table a renderer would read, as (header, delimiter, last) 0-based inclusive."""
+        mask = cls._fence_mask(lines)
+        out, i, n = [], 0, len(lines)
+        while i < n - 1:
+            if (not mask[i] and lines[i].strip() and cls._has_pipe(lines[i])
+                    and not mask[i + 1] and cls._DELIM.match(lines[i + 1])):
+                e = i + 1
+                while e + 1 < n and lines[e + 1].strip():
+                    e += 1
+                out.append((i, i + 1, e))
+                i = e + 1
+            else:
+                i += 1
+        return out
+
+    @classmethod
+    def _table_span(cls, lines: list[str], i: int) -> tuple[int, int] | None:
+        """The (first, last) 0-based span of the table containing line i, or None."""
+        for h, d, e in cls._table_blocks(lines):
+            if h <= i <= e:
+                return h, e
+        return None
 
     def _insertion_point(self, lines: list[str], zone_line: int) -> tuple[int, list[int] | None, int]:
-        """Where a repair's lines go: after the zone's (drift-adjusted) line — unless that line is a
-        pipe-table row with more rows below it, in which case after the table's LAST row, so the
-        table stays one run. Returns (at, placed_after_table [first,last] 1-based or None, adjusted)."""
+        """Where a repair's lines go: after the zone's (drift-adjusted) line — unless that line is inside a
+        table with rows below it, in which case after the table's LAST row (the gesture's own leading blank
+        line then keeps the block out of the table). Returns (at, placed_after_table 1-based or None, adjusted)."""
         adjusted = self._adjusted_line(zone_line)
         at = min(adjusted, len(lines))
         span = self._table_span(lines, at - 1) if at >= 1 else None
@@ -1557,52 +1597,94 @@ class Bench:
         return {"asset": asset, "inserted_after_line": at, "record": rec,
                 "placed_after_table": placed_after_table}
 
+    def _repair_blocks(self, lines: list[str]) -> list[tuple[int, int, str, str | None]]:
+        """Every block a gesture inserted, as (start, end_exclusive, kind, key): a crop/paste block is the
+        `![[assets/_repair…]]` embed + its comment (key = the asset name); a transcription block is its markdown +
+        the `<!-- transcribed … -->` comment, its extent taken from the ONE record whose page and `lines` match
+        (key = the record id) — an unmatched transcription comment is left alone. The blank the gesture put before
+        a block travels with it when present."""
+        blocks, k, n = [], 0, len(lines)
+        recs = self.manifest.get("repairs", [])
+        while k < n:
+            l = lines[k]
+            if l.startswith("![[assets/_repair") and k + 1 < n and lines[k + 1].startswith("<!-- "):
+                s = k - 1 if k > 0 and lines[k - 1].strip() == "" else k
+                asset = l[len("![[assets/"):].split("]]")[0].split("|")[0]
+                blocks.append((s, k + 2, "embed", asset))
+                k += 2
+                continue
+            if l.startswith("<!-- transcribed "):
+                m = re.match(r"<!-- transcribed p(\d+) ", l)
+                page = int(m.group(1)) if m else None
+                cands = [r for r in recs if r.get("mode") == "transcribe" and r.get("page") == page and r.get("lines")]
+                if len(cands) == 1 and cands[0]["lines"] >= 2:
+                    s = max(0, k + 1 - cands[0]["lines"])       # the record's count includes the blank and the comment
+                    if not (s < k and lines[s].strip() == ""):
+                        s = max(0, k + 2 - cands[0]["lines"])
+                    blocks.append((s, k + 1, "transcribe", cands[0].get("id")))
+            k += 1
+        return blocks
+
     def unsplit_tables(self) -> dict:
-        """S149 — move every repair line pair (`![[assets/_repair…]]` + its `<!-- … -->` comment, and the
-        blank line the gesture put before them) that sits INSIDE a pipe table to just after that table's
-        last row, through the chokepoint (one ledger event per move), and re-anchor the record's
-        `at_line_orig`. Idempotent: a body with no split table returns moved == []."""
+        """S149 — move every repair block that sits INSIDE a table to just after that table's last row, through the
+        chokepoint (one ledger event), and re-anchor the records. The tables are measured on the CLEAN body (every
+        repair block lifted out), so two blocks trapped in one table both leave it in one pass; a moved block always
+        gets a blank line before it (the gesture's own convention — a block touching the last row would become a
+        row). Idempotent: a body with nothing trapped returns moved == []."""
         self._require_md()
         fm, body = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
         lines = body.split("\n")
+        blocks = sorted(self._repair_blocks(lines))
+        if not blocks:
+            return {"moved": []}
+        clean, held, k = [], [], 0
+        for s, e, kind, key in blocks:
+            clean.extend(lines[k:s])
+            held.append({"anchor": len(clean), "lines": lines[s:e], "kind": kind, "key": key, "orig_start": s})
+            k = e
+        clean.extend(lines[k:])
+        tables = self._table_blocks(clean)
         moved = []
-        k = 0
-        while k < len(lines):
-            if not (lines[k].startswith("![[assets/_repair") and k + 1 < len(lines)
-                    and lines[k + 1].startswith("<!-- ")):
-                k += 1
+        for hb in held:
+            a = hb["anchor"]                       # the block sat after clean line a (1-based a; 0 = before everything)
+            for h, d, e in tables:
+                if h < a <= e:                     # after a row that is not the table's last row: trapped
+                    hb["anchor"] = e + 1
+                    moved.append({"kind": hb["kind"], "key": hb["key"], "from_after_line": a, "to_after_line": e + 1,
+                                  "table": [h + 1, e + 1], "numbering": "the body with every repair block lifted out"})
+                    break
+        if not moved:
+            return {"moved": []}
+        out = []
+        for hb in held:
+            if hb["anchor"] == 0:
+                out.extend(hb["lines"])
+        for i, l in enumerate(clean):
+            out.append(l)
+            for hb in held:
+                if hb["anchor"] == i + 1:
+                    blk = hb["lines"]
+                    out.extend(blk if blk and blk[0].strip() == "" else [""] + blk)
+        recs = self.manifest.get("repairs", [])
+        for mv in moved:
+            if mv["kind"] == "embed":
+                cands = [r for r in recs if r.get("asset") == mv["key"]]
+            else:
+                cands = [r for r in recs if r.get("id") == mv["key"]]
+            if len(cands) != 1:
+                mv["record"] = "ambiguous" if len(cands) > 1 else "none"
                 continue
-            start = k - 1 if k > 0 and lines[k - 1].strip() == "" else k
-            end = k + 2                       # exclusive
-            above = next((j for j in range(start - 1, -1, -1) if lines[j].strip()), None)
-            below = next((j for j in range(end, len(lines)) if lines[j].strip()), None)
-            inside = (above is not None and lines[above].lstrip().startswith("|")
-                      and below is not None and lines[below].lstrip().startswith("|"))
-            if not inside:
-                k = end
-                continue
-            pair = lines[start:end]
-            del lines[start:end]
-            span = self._table_span(lines, start)      # the row that followed the pair now sits at `start`
-            new_at = span[1] + 1                       # after the table's last row
-            lines[new_at:new_at] = pair
-            asset = pair[1 if pair[0] == "" else 0][len("![[assets/"):].rstrip("]")
-            rec = next((r for r in self.manifest.get("repairs", []) if r.get("asset") == asset), None)
-            others = sum(self._record_shift(r) for r in self.manifest.get("repairs", [])
-                         if r is not rec and r.get("at_line_orig", r.get("zone_line", 0)) < new_at)
-            if rec is not None:
-                rec["at_line_orig"] = new_at - others
-                rec["placed_after_table"] = [span[0] + 1, span[1] + 1]
-                rec["unsplit"] = _now_iso()
-            moved.append({"asset": asset, "from_after_line": start, "to_after_line": new_at,
-                          "table": [span[0] + 1, span[1] + 1]})
-            k = new_at + len(pair)
-        if moved:
-            self._write_body("\n".join(lines), gesture="unsplit-table",
-                             note="moved %d repair(s) out of a table to its end (S149)" % len(moved),
-                             extra={"moved": moved})
-            self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
-                                          encoding="utf-8")
+            rec = cands[0]
+            others = sum(self._record_shift(r) for r in recs
+                         if r is not rec and r.get("at_line_orig", r.get("zone_line", 0)) < mv["to_after_line"])
+            rec["at_line_orig"] = mv["to_after_line"] - others
+            rec["placed_after_table"] = mv["table"]
+            rec["unsplit"] = _now_iso()
+            mv["record"] = rec.get("id") or "re-anchored (a record from before OK-0, no id)"
+        self._write_body("\n".join(out), gesture="unsplit-table",
+                         note="moved %d repair block(s) out of a table to its end (S149)" % len(moved),
+                         extra={"moved": moved})
+        self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n", encoding="utf-8")
         return {"moved": moved}
 
     # ---- the transcribe gesture (S71, docs/23 built): the crop gains a reading eye ----------
@@ -1698,7 +1780,9 @@ class Bench:
                "ts": _now_iso(), "zone_line": zone_line, "page": page, "asset": None,
                "mode": "transcribe", "model": "granite-docling-258M", "lines": len(inserted),
                "gates": gates or {}, "secs": secs, "by": "repair-bench",
-               "dpi": CROP_DPI, "rect": rect}
+               "dpi": CROP_DPI, "rect": rect,
+               "at_line_orig": at - (adjusted - zone_line),      # S149: where the lines really went (the drift ledger compares it)
+               **({"placed_after_table": placed_after_table} if placed_after_table else {})}
         self.manifest.setdefault("repairs", []).append(rec)
         self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
                                       encoding="utf-8")

@@ -2518,76 +2518,102 @@ addEventListener("resize", () => { const z = $("zoom").value; if (z === "fit" ||
 // in the view. Both read the same text the save would write (ctxText()).
 let viewOn = false, _mdit = null;
 function mdit() {
-  if (_mdit === null) _mdit = window.markdownit ? window.markdownit({ html: true, linkify: false, breaks: false }) : false;
+  // html:false — a book's markdown is untrusted text and the view is innerHTML in the page that holds the write token;
+  // the one HTML the converter writes into cells, <br>, is restored after the render (a literal whitelist of one)
+  if (_mdit === null) _mdit = window.markdownit ? window.markdownit({ html: false, linkify: false, breaks: false }) : false;
   return _mdit;
 }
-function tableSpanJS(lines, i) {
-  if (i < 0 || i >= lines.length || !lines[i].trimStart().startsWith("|")) return null;
-  let s = i, e = i;
-  while (s > 0 && lines[s - 1].trimStart().startsWith("|")) s--;
-  while (e + 1 < lines.length && lines[e + 1].trimStart().startsWith("|")) e++;
-  return [s, e];
+// S149-HEALTH-BEGIN — the same reading as bench.py's _table_blocks: a table is a header line holding a `|` whose
+// next line is a delimiter row, then every following non-blank line until a blank; fenced code never counts.
+// test_table_health.js runs these functions against the vendored renderer (node).
+const DELIM = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
+function fenceMask(lines) {
+  const m = []; let f = null;
+  for (const l of lines) {
+    const s = l.trimStart();
+    if (f === null && (s.startsWith("```") || s.startsWith("~~~"))) { f = s.slice(0, 3); m.push(true); continue; }
+    if (f !== null) { m.push(true); if (s.startsWith(f)) f = null; continue; }
+    m.push(false);
+  }
+  return m;
 }
+function hasPipe(l) { return l.replace(/\\\|/g, "").indexOf("|") >= 0; }
 function cellCount(row) {
-  // cells between pipes; a leading/trailing pipe is the table's edge, not a cell; an escaped \| is text
-  const t = row.trim().replace(/\\\|/g, " ");
+  // cells between pipes; a leading/trailing pipe is the table's edge; an escaped \| and a pipe inside a code span are text
+  const t = row.trim().replace(/\\\|/g, " ").replace(/`[^`]*`/g, (m) => m.replace(/\|/g, " "));
   const parts = t.split("|");
   if (parts.length && parts[0].trim() === "") parts.shift();
   if (parts.length && parts[parts.length - 1].trim() === "") parts.pop();
   return parts.length;
 }
-const DELIM = /^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$/;
 function isRepairLine(l) { return l.startsWith("![[assets/_repair") || l.startsWith("<!-- repair ") || l.startsWith("<!-- transcribed "); }
+function tableBlocks(lines) {
+  const mask = fenceMask(lines), out = []; let i = 0;
+  while (i < lines.length - 1) {
+    if (!mask[i] && lines[i].trim() && hasPipe(lines[i]) && !mask[i + 1] && DELIM.test(lines[i + 1])) {
+      let e = i + 1;
+      while (e + 1 < lines.length && lines[e + 1].trim()) e++;
+      out.push([i, i + 1, e]); i = e + 1;
+    } else i++;
+  }
+  return out;
+}
+function tableSpanJS(lines, i) { for (const [h, d, e] of tableBlocks(lines)) if (h <= i && i <= e) return [h, e]; return null; }
 function tableHealth(lines) {
-  const issues = [];
-  let i = 0;
-  while (i < lines.length) {
-    if (!lines[i].trimStart().startsWith("|")) { i++; continue; }
-    const [s, e] = tableSpanJS(lines, i);
-    const n = e - s + 1;
-    if (n === 1 || !DELIM.test(lines[s + 1])) {
-      // a header row with no delimiter row directly under it — not a table to a renderer
-      let why = DELIM.test(lines[s]) ? "a delimiter row (|---|) with no header row directly above it — the rows below render as plain text"
-              : n === 1 ? "a lone pipe row — no delimiter row under it, so a renderer shows plain text"
-                        : "the row under the header is not a delimiter row (|---|), so a renderer shows plain text";
-      // the S149 case: the delimiter exists but something sits between the header and it
-      let j = e + 1;
-      while (j < lines.length && (lines[j].trim() === "" || isRepairLine(lines[j]))) j++;
-      if (j < lines.length && lines[j].trimStart().startsWith("|") && j > e + 1) {
-        for (let k = e + 1; k < j; k++) issues.push({ line: k + 1, reason: "a non-table line inside the table — the table ends here for a renderer (the S149 split)" });
-        why = "the table continues below the lines above — a renderer stops it here";
-      }
-      issues.push({ line: s + 1, reason: why });
-      i = e + 1; continue;
+  const issues = [], mask = fenceMask(lines), covered = new Set();
+  const isPipeRow = (k) => k < lines.length && !mask[k] && lines[k].trimStart().startsWith("|");
+  for (const [h, d, e] of tableBlocks(lines)) {
+    for (let k = h; k <= e; k++) covered.add(k);
+    const want = cellCount(lines[h]), dc = cellCount(lines[d]);
+    if (want !== dc) { issues.push({ line: h + 1, reason: `the header has ${want} cells and the delimiter row ${dc} — a renderer does not treat this as a table at all` }); continue; }
+    for (let k = d + 1; k <= e; k++) {
+      const l = lines[k];
+      if (isRepairLine(l) || !hasPipe(l)) issues.push({ line: k + 1, reason: "this line touches the table's last row, so a renderer folds it in as a garbled row — put a blank line before it" });
+      else { const c = cellCount(l); if (c !== want) issues.push({ line: k + 1, reason: `row has ${c} cells, the header has ${want}` + (c > want ? " — the extra cells are dropped" : " — the missing cells are blank") }); }
     }
-    const want = cellCount(lines[s]);
-    for (let k = s + 1; k <= e; k++) {
-      const c = cellCount(lines[k]);
-      if (c !== want) issues.push({ line: k + 1, reason: `row has ${c} cells, the header has ${want}` });
-    }
-    // the run ended — was it ended by a blank or a repair line with more pipe rows after it?
+    // rows that resume after a blank / repair gap without their own header: plain text to a renderer (the S149 split)
     let j = e + 1;
     while (j < lines.length && (lines[j].trim() === "" || isRepairLine(lines[j]))) j++;
-    if (j < lines.length && lines[j].trimStart().startsWith("|") && j > e + 1 && !DELIM.test(lines[j + 1] || "")) {
-      for (let k = e + 1; k < j; k++) issues.push({ line: k + 1, reason: "a non-table line inside the table — the rows below it render as plain text" });
+    if (j > e + 1 && isPipeRow(j) && !(j + 1 < lines.length && DELIM.test(lines[j + 1]))) {
+      for (let k = e + 1; k < j; k++) if (lines[k].trim()) issues.push({ line: k + 1, reason: "a non-table line inside the table — the table ends here for a renderer (the S149 split)" });
+      let q = j; while (isPipeRow(q)) { covered.add(q); q++; }
+      issues.push({ line: j + 1, reason: "these rows are cut off from their header — a renderer shows them as plain text" });
     }
-    i = e + 1;
   }
+  // pipe rows outside any table: a header cut from its delimiter (the S149 split), a header with no delimiter, a delimiter with no header, a lone row
+  for (let i = 0; i < lines.length; i++) {
+    if (covered.has(i) || !isPipeRow(i)) continue;
+    let e = i; while (isPipeRow(e + 1)) e++;
+    for (let k = i; k <= e; k++) covered.add(k);
+    let j = e + 1; while (j < lines.length && (lines[j].trim() === "" || isRepairLine(lines[j]))) j++;
+    if (e === i && j > e + 1 && j < lines.length && DELIM.test(lines[j]) && !mask[j]) {
+      issues.push({ line: i + 1, reason: "the table's header is cut from its delimiter row by the lines under it — a renderer shows plain text (the S149 split)" });
+      for (let k = e + 1; k < j; k++) if (lines[k].trim()) issues.push({ line: k + 1, reason: "a non-table line inside the table — the table ends here for a renderer (the S149 split)" });
+      i = e; continue;
+    }
+    const why = DELIM.test(lines[i]) ? "a delimiter row (|---|) with no header row directly above it — the rows below render as plain text"
+      : (e === i ? "a lone pipe row — no delimiter row under it, so a renderer shows plain text"
+                 : "the row under the header is not a delimiter row (|---|), so a renderer shows plain text");
+    issues.push({ line: i + 1, reason: why });
+    i = e;
+  }
+  issues.sort((a, b) => a.line - b.line);
   return issues;
 }
 function markTableHealth() {
-  const ctx = $("ctx"), lines = ctxText().split("\n"), issues = tableHealth(lines);
-  const bad = new Map(issues.map((x) => [x.line, x.reason]));
-  const rows = ctx.querySelectorAll(".cl");
+  const ctx = $("ctx"), lines = ctxText().split("\n"), rows = ctx.querySelectorAll(".cl");
+  const t = $("md-title"), base = t.textContent.replace(/ · ⚠ \d+ table issue\(s\)$/, "");
+  if (rows.length !== lines.length) { t.textContent = base; return []; }   // the DOM and the text disagree mid-edit: mark nothing rather than the wrong rows
+  const issues = tableHealth(lines), bad = new Map(issues.map((x) => [x.line, x.reason]));
   rows.forEach((el, k) => {
     const why = bad.get(k + 1);
     el.classList.toggle("tb-bad", !!why);
     if (why) el.title = "⚠ " + why; else if (el.title && el.title.startsWith("⚠ ")) el.removeAttribute("title");
   });
-  const t = $("md-title"), base = t.textContent.replace(/ · ⚠ \d+ table issue\(s\)$/, "");
   t.textContent = issues.length ? `${base} · ⚠ ${issues.length} table issue(s)` : base;
   return issues;
 }
+// S149-HEALTH-END
 function renderView() {
   const v = $("mdview"), m = mdit();
   if (!m) { v.innerHTML = '<p class="side-note">the renderer did not load (/vendor/markdown-it.min.js) — the view needs it; the lines are unaffected</p>'; return; }
@@ -2608,7 +2634,7 @@ function renderView() {
     ? `<div class="tb-banner">⚠ ${issues.length} table issue(s) — ` +
       issues.slice(0, 6).map((x) => `line ${x.line}: ${x.reason}`).join(" · ") + (issues.length > 6 ? " · …" : "") + "</div>"
     : "";
-  v.innerHTML = banner + m.render(src);
+  v.innerHTML = banner + m.render(src).replace(/&lt;br\s*\/?&gt;/gi, "<br>");
   const a = v.querySelector("#fp-zone-anchor");
   if (a) a.scrollIntoView({ block: "start" });
 }
@@ -2626,7 +2652,10 @@ $("view").onclick = () => toggleView();
 // every render of the lines re-reads the table health; a zone change while the view is on re-renders it
 {
   const _edit = $("edit").onclick;
-  $("edit").onclick = () => { if (viewOn) toggleView(false); _edit(); };
+  $("edit").onclick = () => {
+    if (viewOn) { toggleView(false); if ($("ctx").hasAttribute("contenteditable")) { $("ctx").focus(); return; } }   // already editing: just come back to the lines
+    _edit();
+  };
   const _renderCtx = renderCtx, _renderCtxPlain = renderCtxPlain;
   renderCtx = function () { _renderCtx(); markTableHealth(); if (viewOn) renderView(); };
   renderCtxPlain = function () { _renderCtxPlain(); markTableHealth(); if (viewOn) renderView(); };

@@ -1,5 +1,7 @@
-"""S149 — the insertion rule and the un-split, exercised on a temp bundle through the bench's own class (no server).
-Run from the scratch bench directory with the marker-env interpreter (bench imports fitz)."""
+"""S149 — the insertion rule, the un-split and the three refuters' cases, exercised on temp bundles through the bench's
+own class (no server). Run from prototypes/repair-bench with the marker-env interpreter (bench imports fitz):
+    C:/Users/Bndit/ml/marker-env/Scripts/python.exe test_table_boundary.py
+The page-side twin is test_table_health.js (node)."""
 import base64
 import json
 import os
@@ -116,6 +118,104 @@ class S149TableBoundary(unittest.TestCase):
         b = bench.Bench(self.tmp)
         self.assertEqual(b.unsplit_tables()["moved"], [])
         self.assertEqual(self.body_lines(), ok)
+
+
+class S149Refuted(unittest.TestCase):
+    """The three refuters' findings, each a tripwire now."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-s149r-"))
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def bundle(self, body_lines, repairs=None):
+        (self.tmp / "book.md").write_text("---\ntitle: t\n---\n" + "\n".join(body_lines), encoding="utf-8")
+        (self.tmp / "manifest.json").write_text(json.dumps({"repairs": repairs or []}), encoding="utf-8")
+        return bench.Bench(self.tmp)
+
+    def body(self):
+        fm, body = bench.split_frontmatter((self.tmp / "book.md").read_text(encoding="utf-8"))
+        return body.split("\n")
+
+    def test_two_blocks_trapped_in_one_table_both_leave_in_one_pass(self):
+        split = ["# T", "", "| a | b |", "|---|---|", "| 1 | 2 |", "", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->",
+                 "| 3 | 4 |", "", "![[assets/_repair_p1_2.png]]", "<!-- repair p1 · repair-bench -->", "| 5 | 6 |", "| 7 | 8 |", "", "tail"]
+        b = self.bundle(split, [{"id": "fpr-1", "zone_line": 3, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop"},
+                                {"id": "fpr-2", "zone_line": 4, "page": 1, "asset": "_repair_p1_2.png", "mode": "crop"}])
+        r = b.unsplit_tables()
+        self.assertEqual(len(r["moved"]), 2)
+        lines = self.body()
+        self.assertEqual(lines[2:8], ["| a | b |", "|---|---|", "| 1 | 2 |", "| 3 | 4 |", "| 5 | 6 |", "| 7 | 8 |"], "one unbroken run")
+        self.assertEqual(lines[8], "")
+        self.assertTrue(lines[9].startswith("![[assets/_repair_p1_1.png"))
+        self.assertTrue(lines[12].startswith("![[assets/_repair_p1_2.png"))
+        self.assertEqual(bench.Bench(self.tmp).unsplit_tables()["moved"], [], "converged: the second pass moves nothing")
+        self.assertEqual(bench.Bench._table_blocks(self.body()), [(2, 3, 7)])
+
+    def test_pipes_inside_a_code_fence_are_not_a_table(self):
+        body = ["# T", "", "```", "| not | a | table |", "| still | code |", "```", "", "para", "", "| a | b |", "|---|---|", "| 1 | 2 |"]
+        b = self.bundle(body)
+        self.assertIsNone(bench.Bench._table_span(body, 3))
+        self.assertEqual(bench.Bench._table_span(body, 10), (9, 11))
+        r = b.repair(zone_line=4, page=1, image_b64=png1x1())   # a zone on a fence line: no redirect
+        self.assertIsNone(r["placed_after_table"])
+        self.assertEqual(r["inserted_after_line"], 4)
+        # and the un-split leaves a block inside a fence alone
+        split = ["```", "| x |", "", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->", "| y |", "```"]
+        b2 = self.bundle(split, [{"id": "fpr-1", "zone_line": 2, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop"}])
+        self.assertEqual(b2.unsplit_tables()["moved"], [])
+        self.assertEqual(self.body(), split)
+
+    def test_a_table_without_leading_pipes_is_a_table(self):
+        body = ["a | b", "--- | ---", "1 | 2", "3 | 4", "", "tail"]
+        b = self.bundle(body)
+        self.assertEqual(bench.Bench._table_blocks(body), [(0, 1, 3)])
+        r = b.repair(zone_line=1, page=1, image_b64=png1x1())
+        self.assertEqual(r["placed_after_table"], [1, 4])
+        self.assertEqual(self.body()[0:4], body[0:4])
+
+    def test_a_transcription_record_carries_its_anchor(self):
+        body = ["# T", "", "para", "", "| a | b |", "|---|---|", "| 1 | 2 |", "| 3 | 4 |", "", "tail"]
+        b = self.bundle(body)
+        r = b.transcribe_apply(zone_line=5, page=1, markdown="read text")
+        rec = r["record"]
+        self.assertEqual(rec["at_line_orig"], 8)
+        self.assertEqual(rec["placed_after_table"], [5, 8])
+        self.assertEqual(b._adjusted_line(7), 7, "a row above the moved block does not shift")
+        self.assertEqual(b._adjusted_line(9), 9 + rec["lines"])
+
+    def test_a_duplicate_asset_name_is_reported_not_stomped(self):
+        split = ["| a | b |", "|---|---|", "", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->", "| 1 | 2 |", "", "tail"]
+        b = self.bundle(split, [{"id": "fpr-OLD", "zone_line": 1, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop", "at_line_orig": 1},
+                                {"id": "fpr-REAL", "zone_line": 1, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop"}])
+        r = b.unsplit_tables()
+        self.assertEqual(r["moved"][0]["record"], "ambiguous")
+        self.assertEqual(b.manifest["repairs"][0]["at_line_orig"], 1, "the old record untouched")
+        self.assertNotIn("at_line_orig", b.manifest["repairs"][1])
+        self.assertEqual(self.body()[0:3], ["| a | b |", "|---|---|", "| 1 | 2 |"], "the table still healed")
+
+    def test_a_moved_block_always_gets_its_blank_line(self):
+        split = ["| a | b |", "|---|---|", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->", "| 1 | 2 |", "", "tail"]
+        b = self.bundle(split, [{"id": "fpr-1", "zone_line": 1, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop"}])
+        b.unsplit_tables()
+        lines = self.body()
+        self.assertEqual(lines[0:3], ["| a | b |", "|---|---|", "| 1 | 2 |"])
+        self.assertEqual(lines[3], "", "a blank before the block: a line touching the last row would become a row")
+        self.assertTrue(lines[4].startswith("![[assets/"))
+
+    def test_a_transcription_block_trapped_in_a_table_is_moved(self):
+        split = ["| a | b |", "|---|---|", "", "read line one", "read line two", "<!-- transcribed p1 · granite-docling-258M · repair-bench -->",
+                 "| 1 | 2 |", "", "tail"]
+        b = self.bundle(split, [{"id": "fpr-T", "zone_line": 1, "page": 1, "asset": None, "mode": "transcribe", "lines": 4}])
+        r = b.unsplit_tables()
+        self.assertEqual(len(r["moved"]), 1)
+        self.assertEqual(r["moved"][0]["kind"], "transcribe")
+        lines = self.body()
+        self.assertEqual(lines[0:3], ["| a | b |", "|---|---|", "| 1 | 2 |"])
+        self.assertEqual(lines[3], "")
+        self.assertEqual(lines[4:7], ["read line one", "read line two", "<!-- transcribed p1 · granite-docling-258M · repair-bench -->"])
+        self.assertEqual(b.manifest["repairs"][0]["at_line_orig"], 3)
 
 
 if __name__ == "__main__":
