@@ -51,6 +51,18 @@ LIPSTICK = ("|  | Lipstick on a Pig | Reputation Builder |\n|---|---|---|\n| H<b
 FIRST_HALF_COL1 = ["", "", "", "", "_", "S", "A", "R<br>T<br>E<br>G", "Ϋ́", "", "", "", "F.", "N<br>A<br>N", "Č.", "Ĺ"]
 FIRST_HALF = ("|  |  | Start | with th | s sour | ce to ir |\n|---|---|---|---|---|---|\n|  | Questions to be investigated | Company documents | Market data | Industry | Economic |\n"
               + "\n".join("| %s | question %d | • |  | • |  |" % (c, i) for i, c in enumerate(FIRST_HALF_COL1)) + "\n\ntail")
+# Valentine p.1552 as the anchor copy has it (S151 E3): the WHOLE title chopped into eleven header cells over the real header
+CHOPPED = ("|  |  | Start | with th | s sour | ce to ir | vestic | ate be | ore m | etina | manag | ement | 1 |\n"
+           "|---|---|---|---|---|---|---|---|---|---|---|---|---|\n"
+           "|  | Questions to be investigated | Company documents,<br>data, and website | Market data & news<br>provider | Industry trade journal or<br>website | Economic data | Company investor relations contact | Sell-side report or model<br>(for buy-side analysts) | Customer of or supplier<br>to the company | Information from<br>forecasting service | Consultant, expert, or company retiree | Sell-side analyst<br>(for the buy-side) | Appropriate to ask executives at meeting |\n"
+           "|  | How does the company create value for its customers and shareholders? | • |  |  |  | ٠ |  | ٠ |  | • | ٠ |  |\n"
+           "|  | What is the company's competitive advantage? | • |  |  |  | • |  | • |  | • | • |  |\n"
+           "|  | What are the risks to the company maintaining its competitive advantage/returns? | • |  |  |  | ٠ |  | • |  | • | • | • |\n\ntail")
+# Valentine p.2502: a regression output whose stacked column headings (`Standard | 1 | P- | Lower | Upper` over `Error | t Stat |
+# value | 95% | 95%`) have the fragment-row SHAPE — and are words the book uses
+REGRESS = ("|  |  | Standard | 1 | P- | Lower | Upper | Lower | Upper |\n|---|---|---|---|---|---|---|---|---|\n"
+           "|  | Coefficients | Error | t Stat | value | 95% | 95% | 95.0% | 95.0% |\n"
+           "| Intercept | 0.74 | 0.12 | 6.1 | 0.00 | 0.50 | 0.98 | 0.50 | 0.98 |\n| X Variable | 1.00 | 0.21 | 4.8 | 0.00 | 0.58 | 1.42 | 0.58 | 1.42 |\n\ntail")
 
 
 def main():
@@ -201,6 +213,44 @@ def main():
     props_bad = tg.propose(V, lambda letters, ctx: "SARTGEY", lex)
     check("a resolver's shuffle is refused by the lexicon: SARTGEY is not a word of the book (the unresolved proposal says so)",
           any(p["kind"] == "rail" and p["word"] is None and "not a word of the book" in (p["refused"] or "") for p in props_bad), str([p for p in props_bad if p["kind"] == "rail"]))
+    print("[6] the title chopped into header fragments (S151 E3)")
+    fh2 = tg.census(FIRST_HALF.split("\n"))[0]
+    check("the fragment title row is seen (title_fragments) and is not the one-cell title shape", fh2["title_fragments"] is True and fh2["title_row"] is False)
+    ch = tg.census(CHOPPED.split("\n"))[0]
+    check("the anchor's p.1552 shape: thirteen columns, eleven fragments read as a chopped title", ch["cols"] == 13 and ch["title_fragments"] is True and ch["title_row"] is False, str((ch["cols"], ch["title_fragments"])))
+    check("a regression's stacked headings have the same SHAPE (the reading half says so; the proposer must refuse them)",
+          tg.census(REGRESS.split("\n"))[0]["title_fragments"] is True)
+    title = "Start with this source to investigate before meeting management"
+    stream = "Startwiththssourcetoirvesticatebeoremetinamanagement1"
+    ph, why = tg.best_phrase(stream, [title, "Questions to Investigate before or during Interviews with Management", "Exhibit 8.3 includes a list of the documents"])
+    check("best_phrase: the book's own title holds the fragments' letters in order (a decoy title does not)", ph == title and "of 53 letters" in why, str((ph, why)))
+    check("best_phrase NEGATIVE: a row of short headings is too short for a phrase; two alike phrases are a tie",
+          tg.best_phrase("DfSSMSF", [title])[0] is None and tg.best_phrase(stream, [title, title + "s"])[0] is None)
+    pieces, ex, tot = tg.words_from_stream("Startwiththssource1", {"start": 5, "with": 5, "this": 5, "source": 5, "the": 9})
+    check("words_from_stream: a short stream read as the book's words, the footnote digit set aside", pieces == ["start", "with", "this", "source", "1"] and ex == 18 and tot == 19, str((pieces, ex, tot)))
+    check("words_from_stream NEGATIVE: a word the book uses once (a fragment of itself) does not explain the stream",
+          tg.words_from_stream("vesticate", {"vestic": 1, "ate": 1, "investigate": 3})[0] != ["vestic", "ate"])
+    full = CHOPPED + "\n\n" + VALENTINE   # the continued half's title cell is the phrase the first half's fragments need
+    props6 = tg.propose(full.split("\n"), None, tg.lexicon(full.split("\n")))
+    cap6 = [p for p in props6 if p["kind"] == "caption" and p.get("fragments_joined")]
+    check("propose: the fragment title becomes the book's own phrase as the caption, the raw join kept on the record",
+          len(cap6) == 1 and cap6[0]["text"] == title and cap6[0]["raw"].startswith("Start with th s sour") and "own phrase" in cap6[0]["how"], str(cap6))
+    text6, rec6 = tg.geometry_pass(full, None)
+    L6 = text6.split("\n")
+    check("geometry_pass: the fragment caption admitted by the invariant; the real header row now heads the table",
+          any(c.get("fragments_joined") and c["text"] == title for c in rec6["captions"]) and L6[0] == title and L6[1] == "" and "Questions to be investigated" in L6[2] and tg.DELIM.match(L6[3]) is not None,
+          str((rec6["captions"], rec6["refusals"], L6[:4])))
+    lonely = FIRST_HALF.split("\n")   # no continued half: no phrase, the words along the stream are a soup → the raw join (≥ 5 fragments)
+    props7 = tg.propose(lonely, None, tg.lexicon(lonely))
+    cap7 = [p for p in props7 if p["kind"] == "caption"]
+    check("without the book's phrase the fragments are joined as read and said so (the header freed, the text left as the OCR left it)",
+          len(cap7) == 1 and cap7[0]["text"] == "Start with th s sour ce to ir" and "joined as read" in cap7[0]["how"], str(cap7))
+    lexr = tg.lexicon((REGRESS + "\n\nThe standard error and the lower and upper bounds. Standard, lower, upper.").split("\n"))
+    check("NEGATIVE: the regression's headings are words the book uses (Standard, Lower, Upper) — no caption, the header kept",
+          not any(p["kind"] == "caption" for p in tg.propose(REGRESS.split("\n"), None, lexr)))
+    regress = "|  |  |  |  | Si | gnificance |  |\n|---|---|---|---|---|---|---|\n|  | Df | SS | MS | F | F |  |\n| Regression | 1.00 | 0.74 | 0.74 | 100 | .63 | 0.00 |\n\ntail".split("\n")
+    check("NEGATIVE: a stacked column heading split in two (Si | gnificance) is not a fragment title and gets no caption",
+          tg.census(regress)[0]["title_fragments"] is False and not any(p["kind"] == "caption" for p in tg.propose(regress, None, {"significance": 3})))
     text3, rec3 = tg.geometry_pass(VALENTINE, lambda letters, ctx: "REVENUE")
     check("without the word in the book's prose the resolver's REVENUE is refused too (the book must say it)",
           not any(lb["word"] == "REVENUE" for lb in rec3["labels"]) and any("not a word of the book" in u["why"] for u in rec3["unresolved_rails"]), str((rec3["labels"], rec3["unresolved_rails"])))

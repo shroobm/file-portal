@@ -162,6 +162,7 @@ class TableReading:
     row_cell_counts: list[int] = field(default_factory=list)
     issues: list[dict] = field(default_factory=list)
     title_row: bool = False          # the first row holds ONE filled cell and the next row looks like the real header
+    title_fragments: bool = False    # S151 E3: the first row is a spanning title CHOPPED into short cells above the real header
     header_br_cells: int = 0         # header cells carrying <br> (a rotated or wrapped column header)
     letter_column: bool = False      # column 1 mostly empty, its filled cells letters or <br>-stacked letters
     letter_column_cells: int = 0
@@ -209,6 +210,11 @@ def read_table(lines: list[str], h: int, d: int, e: int) -> TableReading:
     title_shape = len(filled_first) == 1 or (len(filled_first) == 2 and len(_bare(filled_first[0])) <= 5 and len(filled_first[1]) >= 20)
     if body and title_shape and sum(1 for c in body[0] if c) >= max(3, len(filled_first) + 1):
         t.title_row = True
+    # S151 E3: the title chopped into fragments across the header cells (`Start | with th | s sour | ce to ir | …`): three or
+    # more filled cells, every one short (eight glyphs or fewer once bared), none a phrase, above a fuller real header
+    if (body and not t.title_row and len(filled_first) >= 3 and all(len(_bare(c)) <= 8 for c in filled_first)
+            and sum(1 for c in body[0] if c) >= len(filled_first) + 1):
+        t.title_fragments = True
     t.header_br_cells = sum(1 for c in header if BR.search(c))
     if t.title_row and body:
         t.header_br_cells = max(t.header_br_cells, sum(1 for c in body[0] if BR.search(c)))
@@ -460,6 +466,123 @@ def boundary_collapse(cell_letters: list[str]) -> list[str]:
     return out
 
 
+def _glyphs(letters: str) -> list[str]:
+    """The glyphs `read_pattern` keeps, one per pattern entry (NFKD, combining marks and whitespace dropped)."""
+    out = []
+    for ch in unicodedata.normalize("NFKD", letters):
+        if unicodedata.combining(ch) or ch.isspace():
+            continue
+        out.append(ch)
+    return out
+
+
+GAP_COST = 1.0   # a stream letter no word of the book explains
+
+
+def words_from_stream(letters: str, lex: dict, min_len: int = 3, min_count: int = 2) -> tuple:
+    """S151 E3: a stream of letters the OCR chopped into fragments (`Startwiththssourcetoirvesticatebeoremetinamanagement1`)
+    segmented into the book's words by a dynamic programme over the letter positions — each word fitted by `letters_fit`
+    over a stretch of the stream (two letters short to one long), scored by `fit_score`, an unexplained letter costing
+    GAP_COST and kept as read; a trailing digit (a footnote mark) is set aside and kept. Only words the book uses at least
+    `min_count` times count — the fragments themselves are tokens of the body (`vestic`, `etina`) and must not explain
+    themselves. Returns (pieces, explained, total): the words as the lexicon spells them and the gap letters in order;
+    explained counts the letters a word explains."""
+    tail = ""
+    while letters and letters[-1].isdigit():
+        tail = letters[-1] + tail
+        letters = letters[:-1]
+    glyphs = _glyphs(letters)
+    pat = read_pattern(letters)
+    n = len(pat)
+    by_first: dict = {}
+    for w, cnt in lex.items():
+        if len(w) >= min_len and cnt >= min_count:
+            by_first.setdefault(w[0], []).append(w)
+    best: list = [None] * (n + 1)   # best[p] = (score, explained, items)
+    best[0] = (0.0, 0, [])
+    for p in range(n):
+        if best[p] is None:
+            continue
+        s, ex, items = best[p]
+        gap = (s - GAP_COST, ex, items + [("g", glyphs[p])])
+        if best[p + 1] is None or gap[0] > best[p + 1][0]:
+            best[p + 1] = gap
+        firsts = pat[p] if isinstance(pat[p], str) else "abcdefghijklmnopqrstuvwxyz"
+        for f in set(firsts):
+            for w in by_first.get(f, ()):
+                for k in range(max(min_len, len(w) - 2), min(n - p, len(w) + 1) + 1):
+                    sub = "".join(glyphs[p:p + k])
+                    ok, why = letters_fit(sub, w)
+                    if not ok:
+                        continue
+                    placed = int(why.split(" of ")[0])
+                    sc = fit_score(k, placed, len(w))
+                    if sc < SEGMENT_MIN_SCORE:
+                        continue
+                    cand = (s + sc, ex + k, items + [("w", w)])
+                    if best[p + k] is None or cand[0] > best[p + k][0]:
+                        best[p + k] = cand
+    if best[n] is None:
+        return ([tail] if tail else []), 0, n + len(tail)
+    pieces: list = []
+    for kind, val in best[n][2]:
+        if kind == "w":
+            pieces.append(val)
+        elif pieces and isinstance(pieces[-1], list):
+            pieces[-1].append(val)
+        else:
+            pieces.append([val])
+    out = ["".join(x) if isinstance(x, list) else x for x in pieces]
+    if tail:
+        out.append(tail)
+    return out, best[n][1], n + len(tail)
+
+
+def phrases(lines: list[str]) -> list[str]:
+    """The book's own phrases a chopped title could be: every table cell of twenty characters or more and every heading line —
+    a continued exhibit repeats its title, and the repeat is the best reading of the fragments."""
+    out: dict = {}
+    mask = fence_mask(lines)
+    for k, ln in enumerate(lines):
+        if mask[k]:
+            continue
+        s = ln.strip()
+        if s.startswith("#") and len(s.lstrip("# ")) >= 20:
+            out[s.lstrip("# ").strip()] = 1
+        elif has_pipe(ln) and not DELIM.match(ln):
+            # every pipe row, a table's or an orphan's (the held copy's continued half is the S149 split: its title row is an
+            # orphan pipe row, and it is the phrase the first half's fragments need)
+            for c in cells(ln):
+                c = BR.sub(" ", c).strip()
+                if len(c) >= 20:
+                    out[c] = 1
+    return list(out)
+
+
+def best_phrase(stream: str, candidates: list[str], floor: float = 0.85) -> tuple:
+    """(phrase, why) — the ONE phrase of the book whose letters the fragment stream holds in order, `floor` of both lengths at
+    least (the confusions a chopped title carries — `th s` for this, `ir vestic ate` for investigate — are few against fifty
+    letters); a second phrase within two letters of the best is a tie, refused."""
+    pat = read_pattern(stream)
+    if len(pat) < 12:
+        return None, "the stream is too short for a phrase (%d letters)" % len(pat)
+    scored = []
+    for ph in candidates:
+        b = fold_letters(ph)
+        if not b or abs(len(b) - len(pat)) > 0.35 * len(pat):
+            continue
+        k = _lcs(pat, b)
+        if k >= floor * len(pat) and k >= floor * len(b):
+            scored.append((k, ph))
+    if not scored:
+        return None, "no phrase of the book holds the fragments' letters (%d) in order" % len(pat)
+    scored.sort(reverse=True)
+    if len(scored) > 1 and scored[0][0] - scored[1][0] < 2 and fold_letters(scored[0][1]) != fold_letters(scored[1][1]):
+        return None, "ambiguous: two phrases of the book fit the fragments alike"
+    k, ph = scored[0]
+    return ph, "the book's own phrase (%d of %d letters in order)" % (k, len(pat))
+
+
 def lexicon_segments(cell_letters: list[str], lex: dict, context=None) -> list:
     """A run of letter cells (their bared letters, one entry per cell, in row order) segmented into lexicon words: a list of
     (first_cell, last_cell, WORD, why) covering a prefix-free choice of cells; cells no word covers are left out (reported
@@ -519,6 +642,7 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
     Every rail proposal carries its letters, its word and how it was resolved, so the record can list every label."""
     issue_lines = {x["line"] for x in health(lines)}
     out = []
+    phrase_list = phrases(lines) if lex is not None else None
     for h, d, e in table_blocks(lines):
         if any(h + 1 <= ln <= e + 1 for ln in issue_lines):
             continue
@@ -532,6 +656,38 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
                 dropped = bool(frag) and _fragment_of(long, frag)
                 out.append({"kind": "caption", "table": [h + 1, e + 1], "line": h + 1,
                             "text": long if (not frag or dropped) else long + " " + frag, "fragment_dropped": dropped})
+        elif t.title_fragments and lex is not None:
+            # S151 E3: the fragments joined into one letter stream. Three readings in order of trust: (1) a phrase of the book
+            # itself (a continued exhibit repeats its title) holding the letters in order; (2) the book's words read along the
+            # stream, only when they explain seven letters in ten, three words or more, averaging five letters — a soup of short
+            # words ("thesis our ceo ive") is refused; (3) the fragments joined as read — the header freed, the text left as the
+            # OCR left it and said so. A row of short real headings (`Df | SS | MS | F`) reads as nothing and stays a header.
+            frags = [c for c in header if c]
+            stream = "".join(_bare(c) for c in frags)
+            raw = " ".join(frags)
+            # a stacked column heading (`Standard | 1 | P- | Lower | Upper` over `Error | t Stat | value | 95% | 95%`) has the same
+            # shape, and its cells are WORDS the book uses elsewhere; a chopped title's cells mostly are not (`th`, `sour`, `ce`,
+            # `ir`, `vesti`). Half or more of the three-letter cells being words the book uses twice → headings, no caption.
+            longish = [fold_letters(_bare(c)) for c in frags if len(_bare(c)) >= 3]
+            selfwords = sum(1 for w in longish if lex.get(w, 0) >= 2)
+            if longish and 2 * selfwords >= len(longish):
+                continue
+            ph, why = best_phrase(stream, phrase_list if phrase_list is not None else [])
+            if ph:
+                text, how = ph, why
+            else:
+                pieces, explained, total = words_from_stream(stream, lex)
+                words = [p for p in pieces if p in lex]
+                if total and explained >= 0.7 * total and len(words) >= 3 and sum(len(w) for w in words) / len(words) >= 5:
+                    text = " ".join(pieces)
+                    text, how = text[0].upper() + text[1:], "the book's words along the stream (%d of %d letters explained)" % (explained, total)
+                elif len(_bare(stream)) >= 20:
+                    text, how = raw, "the fragments joined as read — no phrase or words of the book explain them (%s)" % why
+                else:
+                    text = None
+            if text:
+                out.append({"kind": "caption", "table": [h + 1, e + 1], "line": h + 1, "text": text, "fragment_dropped": False,
+                            "fragments_joined": True, "raw": raw, "how": how})
         if t.letter_column:
             runs, run = [], []
             for k in range(d + 1, e + 1):
@@ -673,10 +829,19 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
     lifted = 0
     if len(ra) == len(rb) - 1:
         filled = sorted((c for c in rb[0] if c), key=len)
+        above_raw = "".join(x for x in after[:ha])
         above = "".join(_bare(x) for x in after[:ha]).lower()
+        frag_stream = "".join(_bare(c) for c in rb[0] if c)
+        frag_pat = read_pattern(frag_stream)
+        # a spanning title lifted whole (its bared text is above), or fragments joined and read as words (S151 E3: the letters
+        # the fragments hold are found in order, four in five, in the caption above)
         if filled and len(filled) <= 2 and _bare(filled[-1]).lower() and _bare(filled[-1]).lower() in above:
             lifted = 1
             facts["caption"] = filled[-1]
+            facts["caption_lines"] = ha
+        elif filled and len(filled) >= 3 and frag_pat and _lcs(frag_pat, fold_letters(above_raw)) >= 0.8 * len(frag_pat):
+            lifted = 1
+            facts["caption"] = " ".join(c for c in rb[0] if c)
             facts["caption_lines"] = ha
         else:
             reasons.append("a row was dropped (rows before %d, after %d) and no caption above carries the first row's text" % (len(rb), len(ra)))
@@ -795,7 +960,9 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True) -> tuple[s
         "refused": len(refused),
         "unresolved": len(unresolved),
         "labels": [{"rows": p["rows"], "letters": p["letters"], "word": p["word"], "how": p["how"]} for p in applied if p["kind"] == "rail"],
-        "captions": [{"line": p["line"], "text": p["text"], "fragment_dropped": p["fragment_dropped"]} for p in applied if p["kind"] == "caption"],
+        "captions": [{"line": p["line"], "text": p["text"], "fragment_dropped": p["fragment_dropped"],
+                      **({"fragments_joined": True, "raw": p["raw"], "how": p["how"]} if p.get("fragments_joined") else {})}
+                     for p in applied if p["kind"] == "caption"],
         "unresolved_rails": [{"rows": p["rows"], "letters": p["letters"], "why": p["refused"]} for p in unresolved],
         "refusals": [{"kind": p["kind"], "table": p["table"], "why": p["refused"]} for p in refused],
         "dots_fixed": dots_fixed,
