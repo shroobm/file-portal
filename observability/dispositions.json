@@ -337,6 +337,22 @@
     "converter:chunk_journal_dump": {
       "disposition": "EVIDENCE",
       "reason": "S141 (unread-surfaces/orphan-chunk-journal-dump-before-rmtree): manifest.analyst.chunk_journal_dump - the DUMPED id (or the UNREAD reason) of the chunk journal ledgered by dumps/dump.sh before the analyst rmtree's its work dir; dumps/ D0001 was this journal snapshotted by hand minutes before an rmtree, and SURF-12 (S140 second reading) found one orphaned 12 days. Evidence: a pointer to bytes + a ledger row, never a verdict."
+    },
+    "bench:placed_after_table": {
+      "disposition": "EVIDENCE",
+      "reason": "S149 (Rab's Obsidian find): a repair record's note that its lines were placed after a table's last row instead of directly after the zone's line, with the table's [first,last] rows — stored in manifest.repairs and on the ledger event so a reader of the record (and unsplit_tables) knows why the embed sits where it does. docs/29 §5.3 step 4: its home is the record itself and the ledger; the bench's ◫ view shows the outcome (the table whole) rather than the field."
+    },
+    "bench:at_line_orig": {
+      "disposition": "EVIDENCE",
+      "reason": "S149: the body line a repair's lines followed, in the zone's own numbering — the drift ledger (_adjusted_line) compares it instead of zone_line once an insertion is placed elsewhere (below a table). Read by the bench's own arithmetic on every zone lookup; stored in manifest.repairs; not a number a human acts on — its effect is the zone landing on the right line."
+    },
+    "bench:from_after_line": {
+      "disposition": "EVIDENCE",
+      "reason": "S149: on the unsplit-table ledger event, where a trapped repair block sat (after which line of the clean body) before the maintenance pass moved it — the pass prints the same list to the operator who ran it (--unsplit-tables) and the record's at_line_orig carries the destination; the event is the archival twin."
+    },
+    "bench:to_after_line": {
+      "disposition": "EVIDENCE",
+      "reason": "S149: on the unsplit-table ledger event, where the block went (after the table's last row, clean-body numbering) — printed by the maintenance pass at run time, kept on the event and in the record's at_line_orig; docs/29 §5.3 step 4: the record and the printed report are its homes."
     }
   },
   "census_dispositions": {
