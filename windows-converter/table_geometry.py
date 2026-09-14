@@ -173,6 +173,31 @@ class TableReading:
     stray_dot_glyphs: int = 0
     empty_cells: int = 0
     filled_cells: int = 0
+    wrapped_labels: list = field(default_factory=list)   # S152 E1: [[line, line+1]] — a row label wrapped over two rows
+
+
+_CONT_END = re.compile(r"(?:\(|-|\b(?:of|and|the|for|to|in|on|or|a|an|by|with|per|from))\s*$", re.I)
+
+
+def _wrapped_pair(a: list[str], b: list[str], ncols: int) -> bool:
+    """S152 E1 (the panel's finding on p.204 / p.206): a row label printed on two or three lines arrives as TWO rows — the first
+    holding only the label's first line (every data cell empty), the second the label's rest and the data. The second row's
+    label must READ as a continuation (a lowercase start or a closing bracket: `index)`, `and Benefits`) or the first must end
+    open (a bracket, a hyphen, a preposition); a section row (`II. Buy-Side Only Role` over `Inbound call…`, Title Case, no
+    signal) is not a wrap, nor is a label that ends a sentence. The table must hold a label column and at least two data
+    columns, and the first line must end in a letter or an open bracket / hyphen: the book's INDEX (two columns of entries
+    ending in page numbers, `leading of, 141–143` over `meeting documentation,`) has the shape and is not one — the first dry run
+    folded nine index entries into their neighbours and the rule was tightened on that measurement."""
+    if ncols < 3 or not a or not b or not a[0] or not b[0]:
+        return False
+    if any(c for c in a[1:]) or not any(c for c in b[1:]):
+        return False
+    la, lb = BR.sub(" ", a[0]).strip(), BR.sub(" ", b[0]).strip()
+    if not la or not lb or la.endswith((".", ":")):
+        return False
+    if not (la[-1].isalpha() or la[-1] in "(-["):
+        return False
+    return lb[0].islower() or lb[0] in ")]" or bool(_CONT_END.search(la))
 
 
 def _bare(cell: str) -> str:
@@ -243,6 +268,10 @@ def read_table(lines: list[str], h: int, d: int, e: int) -> TableReading:
             runs.append("".join(cur))
         t.letter_runs = runs
         t.letters_in_order = "".join(runs)
+    # S152 E1: a row label wrapped over two rows (the pair's 1-based file lines)
+    for i in range(len(body) - 1):
+        if _wrapped_pair(body[i], body[i + 1], len(header)):
+            t.wrapped_labels.append([d + 2 + i, d + 3 + i])
     # the dot matrix
     for r in rows:
         dots = sum(1 for c in r if c == DOT)
@@ -670,10 +699,13 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
             # `ir`, `vesti`). Half or more of the three-letter cells being words the book uses twice → headings, no caption.
             longish = [fold_letters(_bare(c)) for c in frags if len(_bare(c)) >= 3]
             selfwords = sum(1 for w in longish if lex.get(w, 0) >= 2)
-            if longish and 2 * selfwords >= len(longish):
-                continue
-            ph, why = best_phrase(stream, phrase_list if phrase_list is not None else [])
-            if ph:
+            headings = bool(longish) and 2 * selfwords >= len(longish)
+            # S152 E1: the guard refuses the CAPTION only — the table's other proposals (a fold, a rail, the dots) still stand;
+            # the first cut said `continue` here and a regression table lost its wrapped-label fold to it
+            ph, why = (None, "a stacked heading, not a title") if headings else best_phrase(stream, phrase_list if phrase_list is not None else [])
+            if headings:
+                text = None
+            elif ph:
                 text, how = ph, why
             else:
                 pieces, explained, total = words_from_stream(stream, lex)
@@ -688,6 +720,10 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
             if text:
                 out.append({"kind": "caption", "table": [h + 1, e + 1], "line": h + 1, "text": text, "fragment_dropped": False,
                             "fragments_joined": True, "raw": raw, "how": how})
+        for pair in t.wrapped_labels:
+            # S152 E1: the two rows folded into one — the label joined with a space, the data the second row's
+            out.append({"kind": "fold", "table": [h + 1, e + 1], "rows": list(pair),
+                        "why": "a wrapped row label: %r + %r" % (cells(lines[pair[0] - 1])[0][:40], cells(lines[pair[1] - 1])[0][:40])})
         if t.letter_column:
             runs, run = [], []
             for k in range(d + 1, e + 1):
@@ -775,13 +811,40 @@ def _render_row(cs: list[str]) -> str:
     return "| " + " | ".join(c if "`" in c else c.replace("|", "\\|") for c in cs) + " |"
 
 
+def _join_rows(a: list[str], b: list[str]) -> list[str]:
+    """Two rows joined column by column: an empty side yields the other; two filled cells join with one space."""
+    n = max(len(a), len(b))
+    a = list(a) + [""] * (n - len(a))
+    b = list(b) + [""] * (n - len(b))
+    return [(x if not y else (y if not x else x + " " + y)) for x, y in zip(a, b)]
+
+
+def _fold_allowed(a: list[str], b: list[str], header: bool) -> tuple[bool, str]:
+    """A body fold may join only where at most one side is filled outside column 1 (a wrapped label carries no data of its
+    own); a fold of the HEADER row with the first body row (S152 E3, a stacked heading) may join filled cells."""
+    if header:
+        return True, "a header fold"
+    for j in range(1, max(len(a), len(b))):
+        x = a[j] if j < len(a) else ""
+        y = b[j] if j < len(b) else ""
+        if x and y:
+            return False, "column %d is filled on both rows (%r / %r) — not a wrapped label" % (j + 1, x[:20], y[:20])
+    return True, "a wrapped label"
+
+
 def apply_table(lines: list[str], h: int, d: int, e: int, props: list[dict]) -> list[str]:
     """The table's lines (h..e, 0-based) with the given proposals applied; an unchanged row keeps its bytes."""
     grid = {k: cells(lines[k]) for k in range(h, e + 1) if k != d}
     before = {k: list(v) for k, v in grid.items()}
     caption = None
+    dropped: set = set()
     for p in props:
-        if p["kind"] == "rail" and p.get("word"):
+        if p["kind"] == "fold":
+            r0, r1 = p["rows"][0] - 1, p["rows"][1] - 1
+            if r0 in grid and r1 in grid and r1 not in dropped:
+                grid[r0] = _join_rows(grid[r0], grid[r1])
+                dropped.add(r1)
+        elif p["kind"] == "rail" and p.get("word"):
             r0, r1 = p["rows"][0] - 1, p["rows"][1] - 1
             if r0 in grid and r1 in grid and grid[r0]:
                 grid[r0][0] = p["word"]
@@ -803,6 +866,8 @@ def apply_table(lines: list[str], h: int, d: int, e: int, props: list[dict]) -> 
         out.append("")
         order = [d + 1, d] + list(range(d + 2, e + 1))
     for k in order:
+        if k in dropped:
+            continue
         if k == d or grid[k] == before[k]:
             out.append(lines[k])
         else:
@@ -827,7 +892,7 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
     rb = [cells(before[k]) for k in range(hb, eb + 1) if k != db]
     ra = [cells(after[k]) for k in range(ha, ea + 1) if k != da]
     lifted = 0
-    if len(ra) == len(rb) - 1:
+    if len(ra) < len(rb) and ha > 0:
         filled = sorted((c for c in rb[0] if c), key=len)
         above_raw = "".join(x for x in after[:ha])
         above = "".join(_bare(x) for x in after[:ha]).lower()
@@ -843,15 +908,39 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
             lifted = 1
             facts["caption"] = " ".join(c for c in rb[0] if c)
             facts["caption_lines"] = ha
+    # S152 E1: the rows still missing after a lift must be FOLDS — an after row equal to the exact column-by-column join of
+    # two adjacent before rows (nothing else may change in a fold; a body fold joins only where one side is empty, a
+    # header fold — the header row with the first body row — may join filled cells: the stacked heading)
+    rb2 = rb[lifted:]
+    facts["folds"] = []
+    if len(rb2) > len(ra):
+        merged: list = []
+        i = j = 0
+        while i < len(rb2):
+            if (j < len(ra) and i + 1 < len(rb2) and len(rb2) - i > len(ra) - j and rb2[i] != ra[j]
+                    and _join_rows(rb2[i], rb2[i + 1]) == ra[j]):
+                ok_fold, why = _fold_allowed(rb2[i], rb2[i + 1], header=(i == 0 and lifted == 0))
+                if ok_fold:
+                    facts["folds"].append({"rows": [i + 1 + lifted, i + 2 + lifted], "label": (ra[j][0] if ra[j] else "")[:40], "how": why})
+                    merged.append(ra[j])
+                    i += 2
+                    j += 1
+                    continue
+                reasons.append("rows %d-%d folded but not admitted: %s" % (i + 1 + lifted, i + 2 + lifted, why))
+            merged.append(rb2[i])
+            i += 1
+            j += 1
+        rb2 = merged
+    if len(rb2) != len(ra):
+        if lifted == 0 and len(ra) < len(rb):
+            reasons.append("a row was dropped (rows before %d, after %d) and no caption above carries the first row's text, no fold explains it" % (len(rb), len(ra)))
         else:
-            reasons.append("a row was dropped (rows before %d, after %d) and no caption above carries the first row's text" % (len(rb), len(ra)))
-    elif len(ra) != len(rb):
-        reasons.append("rows before %d, after %d" % (len(rb), len(ra)))
-    n = min(len(ra), len(rb) - lifted)
+            reasons.append("rows before %d, after %d (lifted %d, folds %d)" % (len(rb), len(ra), lifted, len(facts["folds"])))
+    n = min(len(ra), len(rb2))
     # every cell outside column 1, every row (a rail's rows included — the first version of this loop jumped over
     # them with the rail and compared 60 of 120 cells: the selftest's own negatives caught it)
     for i in range(n):
-        b, a = rb[i + lifted], ra[i]
+        b, a = rb2[i], ra[i]
         if len(a) != len(b):
             reasons.append("row %d has %d cells before and %d after" % (i + 1, len(b), len(a)))
             continue
@@ -866,7 +955,7 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
     # column 1: identical, a stray dot fixed, or a letter run become one label with blanks under it
     i = 0
     while i < n:
-        b, a = rb[i + lifted], ra[i]
+        b, a = rb2[i], ra[i]
         b1, a1 = (b[0] if b else ""), (a[0] if a else "")
         if b1 == a1:
             i += 1
@@ -880,8 +969,8 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
             i += 1
             continue
         k, letters = i, []
-        while k < n and rb[k + lifted] and rb[k + lifted][0] and _letterish(rb[k + lifted][0]) and (k == i or (ra[k] and ra[k][0] == "")):
-            letters.append(_bare(rb[k + lifted][0]))
+        while k < n and rb2[k] and rb2[k][0] and _letterish(rb2[k][0]) and (k == i or (ra[k] and ra[k][0] == "")):
+            letters.append(_bare(rb2[k][0]))
             k += 1
         ok, why = letters_fit("".join(letters), a1)
         if ok:
@@ -963,6 +1052,7 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True) -> tuple[s
         "captions": [{"line": p["line"], "text": p["text"], "fragment_dropped": p["fragment_dropped"],
                       **({"fragments_joined": True, "raw": p["raw"], "how": p["how"]} if p.get("fragments_joined") else {})}
                      for p in applied if p["kind"] == "caption"],
+        "folds": [{"rows": p["rows"], "why": p["why"]} for p in applied if p["kind"] == "fold"],   # S152 E1
         "unresolved_rails": [{"rows": p["rows"], "letters": p["letters"], "why": p["refused"]} for p in unresolved],
         "refusals": [{"kind": p["kind"], "table": p["table"], "why": p["refused"]} for p in refused],
         "dots_fixed": dots_fixed,

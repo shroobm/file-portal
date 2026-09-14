@@ -251,6 +251,47 @@ def main():
     regress = "|  |  |  |  | Si | gnificance |  |\n|---|---|---|---|---|---|---|\n|  | Df | SS | MS | F | F |  |\n| Regression | 1.00 | 0.74 | 0.74 | 100 | .63 | 0.00 |\n\ntail".split("\n")
     check("NEGATIVE: a stacked column heading split in two (Si | gnificance) is not a fragment title and gets no caption",
           tg.census(regress)[0]["title_fragments"] is False and not any(p["kind"] == "caption" for p in tg.propose(regress, None, {"significance": 3})))
+    print("[7] a row label wrapped over two rows is folded back into one (S152 E1)")
+    REG = ("|  |  | Standard | 1 | P- | Lower | Upper | Lower | Upper |\n|---|---|---|---|---|---|---|---|---|\n"
+           "|  | Coefficients | Error | t Stat | value | 95% | 95% | 95% | 95% |\n"
+           "| Intercept | -0.55 | 0.39 | -1.40 | 0.17 | -1.33 | 0.24 | -1.33 | 0.24 |\n"
+           "| lag1 (log of<br>BNI intermodal<br>revenue) | 0.86 | 0.06 | 14.63 | 0.00 | 0.74 | 0.98 | 0.74 | 0.98 |\n"
+           "| lag1 (log of<br>manufacturing |  |  |  |  |  |  |  |  |\n"
+           "| index) | 0.48 | 0.26 | 1.83 | 0.07 | -0.05 | 1.00 | -0.05 | 1.00 |\n\ntail")
+    RL = REG.split("\n")
+    c7 = tg.census(RL)[0]
+    check("the reading half sees the wrapped label as the pair of file lines 6 and 7", c7["wrapped_labels"] == [[6, 7]], str(c7["wrapped_labels"]))
+    props7 = tg.propose(RL, None, {"standard": 3, "lower": 3, "upper": 3, "error": 3, "value": 3})
+    folds7 = [p for p in props7 if p["kind"] == "fold"]
+    check("one fold proposed, naming both halves of the label", len(folds7) == 1 and folds7[0]["rows"] == [6, 7] and "manufacturing" in folds7[0]["why"] and "index)" in folds7[0]["why"], str(props7))
+    after7 = tg.apply_table(RL, 0, 1, 6, folds7)
+    check("applied: one row fewer, the label joined with a space, the data the second row's",
+          len(after7) == 6 and tg.cells(after7[5])[0] == "lag1 (log of<br>manufacturing index)" and tg.cells(after7[5])[1] == "0.48", str(after7[-1]))
+    ok7, why7, facts7 = tg.grid_invariant(RL[:7], after7)
+    check("the invariant admits the fold and names it (rows 5-6 of the table, a wrapped label)", ok7 and len(facts7["folds"]) == 1 and facts7["folds"][0]["how"] == "a wrapped label", str((why7, facts7.get("folds"))))
+    text7, rec7 = tg.geometry_pass(REG, None)
+    check("geometry_pass folds it and the record says so", rec7["applied"] >= 1 and len(rec7["folds"]) == 1 and "manufacturing index)" in text7 and text7.count("\n") == REG.count("\n") - 1, str((rec7["folds"], rec7["refusals"])))
+    SECTION = ("| Participants | Purpose of Discussion | Typical Time Limit |\n|---|---|---|\n"
+               "| I. Buy-Side and Sell-Side Roles |  |  |\n| Outgoing call to company management | A few follow-up questions | 10 to 30 minutes |\n"
+               "| II. Buy-Side Only Role |  |  |\n| Inbound call from your portfolio manager | You are responding to a question(s). | 1 to 10 minutes |\n\ntail")
+    check("NEGATIVE: a section row (Title Case, no continuation signal) over a data row is not a wrapped label — nothing proposed",
+          tg.census(SECTION.split("\n"))[0]["wrapped_labels"] == [] and not any(p["kind"] == "fold" for p in tg.propose(SECTION.split("\n"), None, {})))
+    DATA2 = RL[:5] + ["| Compensation | 1.47 |  |  |  |  |  |  |  |", "| and Benefits |  | 0.49 | 2.99 | 0.00 | 0.48 | 2.46 | 0.48 | 2.46 |", "", "tail"]
+    check("NEGATIVE: a first row that holds data of its own is not a wrap", tg.census(DATA2)[0]["wrapped_labels"] == [])
+    # the book's index (Observed on the first dry run: nine index entries folded into their neighbours — two columns of entries
+    # ending in page numbers, the next entry starting lowercase): two columns, or a first line ending in a digit, is never a wrap
+    INDEX = ("| timing/value of line item in, 200 | Information hub, 51-66 |\n|---|---|\n| leading of, 141–143 |  |\n| meeting documentation, | best practice skill for, 65-66 |\n"
+             "| Ratings change |  |\n| catalyst for, valuation comp table | collection of, 51-52, 65 |\n\ntail")
+    check("NEGATIVE: the index's two-column entries are not wrapped labels (two columns; a line ending in a page number)", tg.census(INDEX.split("\n"))[0]["wrapped_labels"] == [], str(tg.census(INDEX.split("\n"))[0]["wrapped_labels"]))
+    INDEX3 = ("| a | b | c |\n|---|---|---|\n| prioritization of, 27-42 |  |  |\n| series, chart data deception | 1 | 2 |\n\ntail")
+    check("NEGATIVE: three columns but a first line ending in a digit (an index entry) is not a wrap", tg.census(INDEX3.split("\n"))[0]["wrapped_labels"] == [])
+    smuggled = list(after7)
+    smuggled[5] = smuggled[5].replace("0.48", "0.84")
+    ok8, why8, _ = tg.grid_invariant(RL[:7], smuggled)
+    check("NEGATIVE: an edit smuggled into a fold is refused (the after row is not the exact join)", not ok8 and any("dropped" in w or "rows before" in w for w in why8), str(why8))
+    forced = tg.apply_table(RL, 0, 1, 6, [{"kind": "fold", "table": [1, 7], "rows": [4, 5], "why": "planted"}])
+    ok9, why9, _ = tg.grid_invariant(RL[:7], forced)
+    check("NEGATIVE: a fold of two rows that both hold data is refused by the invariant (a body fold joins only where one side is empty)", not ok9 and any("filled on both rows" in w for w in why9), str(why9))
     text3, rec3 = tg.geometry_pass(VALENTINE, lambda letters, ctx: "REVENUE")
     check("without the word in the book's prose the resolver's REVENUE is refused too (the book must say it)",
           not any(lb["word"] == "REVENUE" for lb in rec3["labels"]) and any("not a word of the book" in u["why"] for u in rec3["unresolved_rails"]), str((rec3["labels"], rec3["unresolved_rails"])))
