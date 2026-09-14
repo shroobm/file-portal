@@ -7405,3 +7405,17 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** One find, one investigation, five episodes; nothing on the pipeline touched; nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: "clear" when he is not mid-edit at the bench; then reopen and look at the view.
+
+## 2026-09-14T18:41Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0100⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, Claude Fable 5.1 ⟨claimed: Fable⟩.
+
+**What changed while you slept (Observed):** S150 closed at 40c2988 (row ee5d583) — the autonomy experiment's fifth sitting, on Rab's commission "build the new analyst, test that, and see what we gained, and lost, and what is still missing". The analyst as it stood was noted from the code (a table is one paragraph in one chunk under a prompt with no table sentence; the whitelist has no class for a shape repair; Valentine never met the analyst); the whole of Valentine was measured (80 / 81 tables, all render, the only break the S149 split; three rotated rails — REVENUE / COSTS / MGMT / VALUATION, STRATEGY / FINANCIAL with letters missing, HIGH / LOW); the table-geometry LAYER (`windows-converter/table_geometry.py`: caption · rail · dots, every repair held to `grid_invariant`) and CLASS (`edit_whitelist.FULL_TABLES`, rung `table-geometry`: a table judged whole, accepted or restored whole — the markup rung's dropped-pipe hole closed under it) were built with their tripwires (54/54 · 53/53 · 38/38), wired into `analyst.process(tables=…)` with the grid program `prompts/grid-word.txt`, and run DRY on both copies (nothing written, nothing shipped). **The lever `ANALYST_TABLES` is OFF and `FULL` is unchanged — Rab's slot.**
+
+**What is Rab's, unchanged:** the lever; D1; the experiment's end; his "clear" for the un-split of Valentine's held copy; the vision route for the rail boundaries; his Valentine session.
+
+**Navigation:** `sessions/S150-desktop-2026-09-14.md` (E1–E5); `docs/15` §12.4; the private evidence `measurement/evidence/s150-valentine-{before,after0,after}/`, the note `measurement/ANALYST-AS-IT-STANDS-2026-09-14.md`, the probes `table_census.py` and `table_dryrun.py`; the register rows `analyst/table-geometry-lever`, `analyst/rail-boundary-unread`, `analyst/title-fragments-unread`, `analyst/stray-glyph-outside-a-matrix`.
+
+**RECAP.** One commission, five episodes; the pipeline untouched (the lever off); nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: the lever is one word — "table-geometry into FULL" (or not); "clear" for the un-split when he is not mid-edit at the bench.
