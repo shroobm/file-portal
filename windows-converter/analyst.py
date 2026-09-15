@@ -808,7 +808,7 @@ def process(markdown: str, backend: str = "local",
 
 
 OLLAMA_SERVER_LOG = Path.home() / "AppData" / "Local" / "Ollama" / "server.log"   # ollama's own log on this machine
-OLLAMA_LOG_TAIL_LINES = 200
+OLLAMA_LOG_TAIL_LINES = 200  # lever-waiver: Rab's word only; 200 lines was set S157 E17 on the longest failure trace in Ollama's server.log that day (a cold load of qwen3:8b, under 150 lines) and decides nothing but how much of the log a backend failure carries into `_captures/`; moves when a capture is seen truncated
 
 
 def _capture_ollama_log(work_dir, i: int, run_key: str) -> str:

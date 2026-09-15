@@ -141,7 +141,7 @@ VECTOR_CLUSTER_GAP_PT = 18.0  # paths closer than this merge into one figure reg
 # S104 meaning. Measured before the change on the Book of Models: p.34 (27 arrow shafts each touching only its own
 # 5x10 pt arrowhead — 12 fragments, largest 541 pt²) and p.78 (two boxes joined by two lines — 2 clusters of 2 paths)
 # were invisible; with anchored lines both cluster past every size filter (E25's probe, `sittings/S157/e25_lines_probe.py`).
-ZERO_AREA_MIN_LEN_PT = 1.0  # a zero-area path shorter than this is a dot, not a line
+ZERO_AREA_MIN_LEN_PT = 1.0  # a zero-area path shorter than this is a dot, not a line. lever-waiver: none owed — this is the DEFAULT of the lever `zero_area_min_len_pt` in LEVER_SPEC (the operator's line moves it; its ceiling restores S104's drop — selftest case 38)
 # S157 E25: the table veto is DISQUALIFIED for a cluster that is not rectilinear — a ruled table is lines and rects; a
 # diagram has curves and diagonals. Counted over the drawings inside the cluster: curve items whose control points span
 # >= NONRECT_MIN_SPAN_PT (a bullet glyph is a 2 pt circle — IV p.944 draws 112 of them inside a real table) and line
@@ -150,8 +150,8 @@ ZERO_AREA_MIN_LEN_PT = 1.0  # a zero-area path shorter than this is a dot, not a
 # (S105's 0-for-11 class: a Watt engine, a time series, a room in perspective — every one a diagram), Investment
 # Valuation 0 of 144 (every one a ruled table). The threshold sits between 2 (Cyb p.40's two diagonals) and 8 (the
 # smallest diagram, Cyb p.74/75/77: 4 curves + 4 diagonals).
-VETO_TABLE_MAX_NONRECT = 3  # a cluster with this many sizable curves+diagonals is a drawing; no table may veto it
-NONRECT_MIN_SPAN_PT = 4.0
+VETO_TABLE_MAX_NONRECT = 3  # a cluster with this many sizable curves+diagonals is a drawing; no table may veto it. lever-waiver: none owed — the DEFAULT of the lever `table_max_nonrect` in LEVER_SPEC; set S157 E25 between 2 (Cyb p.40's two diagonals) and 8 (the smallest diagram); moves on a re-measured (cluster, table) census
+NONRECT_MIN_SPAN_PT = 4.0  # lever-waiver: none owed — the DEFAULT of the lever `nonrect_min_span_pt` in LEVER_SPEC; set S157 E25 above a bullet glyph's 2 pt circle (IV p.944 draws 112) and under the smallest diagram stroke measured; moves on a re-measured census
 
 # ── the text-density veto (S104) ──────────────────────────────────────────────
 # A shaded callout box and a flow diagram both cluster into a big vector region. The box is

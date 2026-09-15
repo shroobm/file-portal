@@ -1611,7 +1611,7 @@ def leak_pass(lines: list[str]) -> tuple[list[str], list[dict], list[dict]]:
 
 # ---- S157 E3: the trim pass — trailing columns nothing fills are Marker's padding, not the page's ------------------------
 
-TRIM_MIN_COLS = 2       # a table keeps at least two columns; a one-column table is a list, and a table whose every column
+TRIM_MIN_COLS = 2       # lever-waiver: Rab's word only; set S157 E3 — a table keeps at least two columns; a one-column table is a list, and a table whose every column
                         # but one is empty is a question for the reading, not a trim
 
 
