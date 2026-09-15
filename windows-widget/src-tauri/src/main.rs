@@ -617,9 +617,52 @@ fn hydrate_env_from_registry() {
     }
 }
 
+/// S157 E55 (B32 U02, Codex's 2026-08-27 audit, probed at HEAD S157 E51): the text the operator sees when the
+/// config cannot be read. `load_or_init` already names the file and the parse error; this adds the remedy and is
+/// pure so a test can read it. Kept separate from the dialog call, which a test cannot exercise.
+fn config_failure_text(why: &str) -> String {
+    format!(
+        "File Portal cannot start.\n\n{why}\n\nFix the file, or move it aside to get a fresh default on the next \
+         launch, then start File Portal again."
+    )
+}
+
+/// The one native dialog in the widget: a release build runs with `windows_subsystem = "windows"` (no console),
+/// so `expect(...)` on the config used to die where nobody could read it — U02's "console-less panic with no
+/// operator-visible remedy". MessageBoxW blocks until dismissed; the process exits after it.
+fn fatal_config_dialog(why: &str) {
+    use windows_sys::Win32::UI::WindowsAndMessaging::{MessageBoxW, MB_ICONERROR, MB_OK};
+    let text: Vec<u16> = config_failure_text(why)
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    let caption: Vec<u16> = "File Portal — config"
+        .encode_utf16()
+        .chain(std::iter::once(0))
+        .collect();
+    // a debug build still has a console; say it there too
+    eprintln!("{why}");
+    // SAFETY: both strings are NUL-terminated UTF-16 buffers that outlive the call; a null owner window is
+    // documented as valid for MessageBoxW.
+    unsafe {
+        MessageBoxW(
+            std::ptr::null_mut(),
+            text.as_ptr(),
+            caption.as_ptr(),
+            MB_OK | MB_ICONERROR,
+        );
+    }
+}
+
 fn main() {
     hydrate_env_from_registry();
-    let app_config = config::load_or_init().expect("failed to load config");
+    let app_config = match config::load_or_init() {
+        Ok(cfg) => cfg,
+        Err(why) => {
+            fatal_config_dialog(&why);
+            std::process::exit(2);
+        }
+    };
     tauri::Builder::default()
         // SYM-033 (signed docs/37 §3.2): nothing prevented a second full instance — two
         // watcher chains on one drop folder, SYM-022's crash precondition a double-click
@@ -744,4 +787,27 @@ fn main() {
         })
         .run(tauri::generate_context!())
         .expect("error while running File Portal widget");
+}
+
+#[cfg(test)]
+mod config_failure_tests {
+    use super::config_failure_text;
+
+    /// S157 E55 (B32 U02): the operator's text names the failure it was given AND a remedy; the negative control is
+    /// the old shape — a bare `why` with no remedy sentence — which this test would refuse.
+    #[test]
+    fn the_failure_text_carries_the_why_and_a_remedy() {
+        let why = r"failed to parse C:\Users\x\AppData\Roaming\file-portal\config.toml: expected `=` at line 3";
+        let text = config_failure_text(why);
+        assert!(
+            text.contains(why),
+            "the parse error and the file path reach the operator verbatim"
+        );
+        assert!(text.contains("move it aside"), "the remedy is spelled out");
+        assert!(text.starts_with("File Portal cannot start."));
+        assert!(
+            !why.contains("move it aside"),
+            "negative control: the bare error has no remedy of its own"
+        );
+    }
 }

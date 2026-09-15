@@ -20,7 +20,9 @@ toml = "0.8"
 dirs = "5"
 # S37: Windows Job Objects — so a force-killed / crashed widget can't orphan its watcher.
 # 0.61 is already in the lock (tauri pulls it), so this adds no new version.
-windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading"] }
+# S157 E55 (B32 U02): + Win32_UI_WindowsAndMessaging for the one MessageBoxW a release build (no console) shows
+# when the config cannot be read — the parse error used to die in a panic nobody could see.
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_Security", "Win32_System_JobObjects", "Win32_System_Threading", "Win32_UI_WindowsAndMessaging"] }
 
 [features]
 custom-protocol = ["tauri/custom-protocol"]
