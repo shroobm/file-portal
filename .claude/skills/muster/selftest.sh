@@ -1011,6 +1011,31 @@ out=$(PATH="$WORK/fakebin54:$PATH" FP_PY="/no/such/python.exe" FP_CRED_TIMEOUT_S
 if printf '%s' "$out" | grep -qE 'MEMORY +UNREAD — memory library is not a git repo'; then ok "B33 NEGATIVE CONTROL: a plain non-repo still reads 'not a git repo'"
 else bad "B33 NEGATIVE CONTROL: a non-repo must not read as ownership" "got: $(printf '%s' "$out" | grep -E '^ +MEMORY' | head -1)"; fi
 
+# CASE E60a/E60b — S157 E60 (the E47 Circle's recommendation). The property: a row corrupted BEYOND the tail — which
+# the push gate (J71) never reads — is visible at the open as a discard count that MOVED against the ledger's own
+# close. Fixture: commit Z (an empty README — the close every row names; its blob holds no rows, so the count at
+# the close is a clean 0), then seven rows all naming Z. Violate: row 1 loses its SHA cell in the working tree —
+# beyond the tail of 5, so [3b]'s tail alarm stays silent by design; the reading must say "+1 — an OLDER row
+# changed since the close" and the exit must STAY 0 (a reading, never a verdict). Control first: untouched → "unchanged".
+R="$WORK/c57"; mkdir -p "$R"; git -C "$R" init -q 2>/dev/null
+git -C "$R" config user.email t@t; git -C "$R" config user.name t
+printf '# CLAUDE_README\n' > "$R/CLAUDE_README.md"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm 'Z: the close every row names' >/dev/null 2>&1
+z57=$(git -C "$R" rev-parse --short HEAD)
+{ printf '# CLAUDE_README\n\n## Change Ledger\n\n| Date | Machine | Milestone | SHA |\n|---|---|---|---|\n'
+  for n in 1 2 3 4 5 6 7; do printf '| 2026-01-%02d | Desktop | S%s: row | %s |\n' "$n" "$((40 + n))" "$z57"; done; } > "$R/CLAUDE_README.md"
+git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm 'seven rows, all naming Z' >/dev/null 2>&1
+mklib "$WORK/l57" 12 S47 "$z57"
+out=$(run "$WORK/l57" "$R"); rc=$?
+if printf '%s' "$out" | grep -qE '\[3b\] LEDGER PARSE.*unchanged since the close'; then ok "CASE E60b NEGATIVE CONTROL: an untouched ledger reads 'unchanged since the close'"
+else bad "CASE E60b NEGATIVE CONTROL: must read 'unchanged since the close'" "got: $(printf '%s' "$out" | grep -E '^\[3b\]' | head -1)"; fi
+sed -i "s/| S41: row | $z57 |/| S41: row | |/" "$R/CLAUDE_README.md"
+out=$(run "$WORK/l57" "$R"); rc=$?
+if printf '%s' "$out" | grep -qE '\[3b\] LEDGER PARSE.*\+1 — an OLDER row changed since the close'; then ok "CASE E60a: an OLDER row corrupted after the close moves the discard count (+1) at the open"
+else bad "CASE E60a: the discard reading must say +1" "got: $(printf '%s' "$out" | grep -E '^\[3b\]' | head -1)"; fi
+if [[ "$rc" -eq 0 ]]; then ok "CASE E60a: …and the exit stays 0 — a reading, never a verdict (warn-only by construction)"
+else bad "CASE E60a: the reading must not change the exit code" "exit $rc: $(printf '%s' "$out" | grep '✗' | head -2)"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

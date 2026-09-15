@@ -336,3 +336,22 @@ DEPLOY STEP, still outstanding at the time of writing: `open.sh` [1] GROUND comp
 copy against `~/.claude/muster.sh` and will report DRIFT until that mirror is re-stamped. That
 is the guard working, not a defect — but until it is done, `open.sh` exits 1 for a second
 reason and selftest cases 14a/14b (which assert open.sh's exit code) go red.
+
+### Appended 2026-09-15 (S157 E60) — the discard READING, cases E60a/E60b
+
+PROVENANCE: written by the Fable lane (Claude Opus 5) alone; no second model has read this change.
+
+The S109 DEPLOY STEP above is done at every muster.sh change since: the mirror `~/.claude/muster.sh` is
+re-stamped by the same hand that edits the repo copy, and case 51 (one grammar, two doors) plus the
+open-exit cases go red until it is — which is what caught this change's first cut.
+
+`[3b]` now carries a **reading beside its count**: the discarded-row count compared to the count at
+the ledger's own close (`git show <ledger SHA>:CLAUDE_README.md`, parsed by the SAME `parse_ledger`
+function — the awk is one program, run twice). The E47 Circle found the hole: the push gate (J71)
+reads only the last five rows and the newest, so an OLDER row corrupted after a close joins the
+discards silently — 21 today, and a 22nd would have looked like the 21. Now it reads *"21 discarded
+… unchanged since the close d0e193b"* or *"+1 — an OLDER row changed since the close; the push gate
+reads only the tail"*. **A reading, never a verdict: the exit code is untouched**, by construction
+and by case E60a's third assertion. `selftest.sh` makes **113 assertions**: E60a plants a corrupted
+row 1 beyond the tail (the tail alarm stays silent by design) and sees +1 with exit 0; E60b is the
+negative control (untouched → unchanged). The number is the point; arming it is Rab's.

@@ -137,7 +137,12 @@ exp_sess=$(printf '%s\n' "$ts_block" | grep -oE 'S[0-9]+' | head -1)
 # and they are exempt from the [3b] tail alarm, because a foreign row near the tail is the
 # EXPECTED shape after a merge, not a malformed close.
 LANE="${MUSTER_LANE:-Desktop}"
-parsed=$(grep -E '^\| 20[0-9][0-9]-' "$README" 2>/dev/null | awk -F'|' -v lane="$LANE" '
+# S157 E60: the parse is ONE function, run on the working tree here and on the ledger's own blob below (the
+# discard reading). Its awk keeps the exact lines selftest case 51 extracts, so row_check.sh's verbatim copy
+# is still checked against it — one grammar, two doors.
+parse_ledger() { # stdin: a CLAUDE_README text → one verdict line per ledger row + 'rows N'
+  local out
+  out=$(grep -E '^\| 20[0-9][0-9]-' | awk -F'|' -v lane="$LANE" '
   {
     for (i = 1; i <= NF; i++) gsub(/^[ \t\r]+|[ \t\r]+$/, "", $i)
     sess = ""; sha = ""
@@ -152,6 +157,9 @@ parsed=$(grep -E '^\| 20[0-9][0-9]-' "$README" 2>/dev/null | awk -F'|' -v lane="
     print "skip", NR, why
   }
   END { print "rows", NR }')
+  printf '%s\n' "$out"
+}
+parsed=$(parse_ledger < "$README" 2>/dev/null)
 
 ledger=$(printf '%s\n' "$parsed" | awk '$1 == "ok"   { print $2, $3, $4 }')
 skipped=$(printf '%s\n' "$parsed" | awk '$1 == "skip" { print $2, $3 }')
@@ -183,6 +191,22 @@ else
     "$(printf '%s\n' "$ledger" | tail -1 | awk '{print $2}')"
 fi
 
+# S157 E60 (the E47 Circle's recommendation): the discard COUNT read against the count at the ledger's own
+# close — the push gate (J71) reads only the tail, so an OLDER row corrupted joins the discards silently;
+# here it is a number that moved. A READING, never a verdict: the exit code is untouched by it.
+skip_at_close="?"
+if [[ -n "$led_sha" ]] && git -C "$FP_REPO" cat-file -e "$led_sha^{commit}" 2>/dev/null; then
+  skip_at_close=$(git -C "$FP_REPO" show "$led_sha:CLAUDE_README.md" 2>/dev/null | parse_ledger | awk '$1 == "skip"' | wc -l | tr -d ' ')
+fi
+if [[ "$skip_at_close" == "?" ]]; then
+  discard_note=" · vs the close: UNREAD (the ledger SHA is not a commit here)"
+elif [[ "$rows_skip" -gt "$skip_at_close" ]]; then
+  discard_note=" · vs the close $led_sha: $skip_at_close (+$((rows_skip - skip_at_close)) — an OLDER row changed since the close; the push gate reads only the tail)"
+elif [[ "$rows_skip" -lt "$skip_at_close" ]]; then
+  discard_note=" · vs the close $led_sha: $skip_at_close (-$((skip_at_close - rows_skip)))"
+else
+  discard_note=" · unchanged since the close $led_sha"
+fi
 # [3b] LEDGER PARSE — discarded rows are COUNTED, and a discard near the TAIL is its own loud fault.
 #
 # The tail is the last TAIL_ROWS table rows. Justification: the ledger is append-below (that is
@@ -196,12 +220,12 @@ if [[ -n "$tail_bad" ]]; then
   printf '[3b] LEDGER PARSE  ✗ UNPARSEABLE ROW IN THE LAST %s: %s— a NEW row failed to parse; the\n' "$TAIL_ROWS" "$tail_bad"
   printf '                     selected session %s is the row BEFORE it, not the newest. Fix the row.\n' "$led_sess"; fail=1
 elif [[ "$rows_skip" -eq 0 ]]; then
-  printf '[3b] LEDGER PARSE  ✓ %s/%s rows parsed · 0 discarded%s\n' "$rows_ok" "$rows_total" "$lane_note"
+  printf '[3b] LEDGER PARSE  ✓ %s/%s rows parsed · 0 discarded%s%s\n' "$rows_ok" "$rows_total" "$discard_note" "$lane_note"
 else
   # Name the NEWEST discard, not just the count: that is the one that would move if the rot
   # ever crept toward the tail, and a count alone cannot show it moving.
-  printf '[3b] LEDGER PARSE  ✓ %s/%s rows parsed · %s discarded, newest at row %s · tail = last %s%s\n' \
-    "$rows_ok" "$rows_total" "$rows_skip" "$(printf '%s\n' "$skipped" | tail -1 | awk '{print $1}')" "$TAIL_ROWS" "$lane_note"
+  printf '[3b] LEDGER PARSE  ✓ %s/%s rows parsed · %s discarded, newest at row %s · tail = last %s%s%s\n' \
+    "$rows_ok" "$rows_total" "$rows_skip" "$(printf '%s\n' "$skipped" | tail -1 | awk '{print $1}')" "$TAIL_ROWS" "$discard_note" "$lane_note"
 fi
 
 # S78: a missing or non-git FP_REPO used to fall through `merge-base --is-ancestor ... 2>/dev/null`
