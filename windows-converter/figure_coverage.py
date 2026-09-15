@@ -165,6 +165,9 @@ LEVER_SPEC: dict[str, tuple[type, object, object]] = {
     #  key                  type    default                 admissible range (inclusive)
     "mode":               (str,   "caption",              TRIAGE_ALLOWED),
     "min_area_pt2":       (float, MIN_AREA_PT2,           (100.0, 100_000.0)),
+    # S157 E18 (B14): the two filters that could silently null a min_area_pt2 change are levers too, at their old constants
+    "min_side_pt":        (float, MIN_SIDE_PT,            (1.0, 400.0)),
+    "max_page_fraction":  (float, MAX_PAGE_FRACTION,      (0.10, 1.0)),
     "vector_min_paths":   (int,   VECTOR_MIN_PATHS,       (1, 200)),
     "cluster_gap_pt":     (float, VECTOR_CLUSTER_GAP_PT,  (0.0, 200.0)),
     "text_coverage":      (float, VETO_TEXT_COVERAGE,     (0.0, 1.0)),
@@ -453,6 +456,10 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
     digest_pages: dict[str, set] = {}
     captioned: set[int] = set()      # pages carrying a FIGURE N.N caption — the triage key
     vetoed = 0
+    # S157 E18 (B14): what each size filter KILLED after the filter before it admitted the region — the number that says
+    # whether a lever change reached the report or died at the next filter
+    killed = {"raster": {"min_area_pt2": 0, "min_side_pt": 0, "max_page_fraction": 0},
+              "vector": {"min_paths_or_area": 0, "min_side_pt": 0, "max_page_fraction": 0}}
     vetoed_tables = 0
     vetoed_frames = 0
     try:
@@ -487,8 +494,8 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
                 and min(
                     (i.get("bbox") or (0, 0, 0, 0))[2] - (i.get("bbox") or (0, 0, 0, 0))[0],
                     (i.get("bbox") or (0, 0, 0, 0))[3] - (i.get("bbox") or (0, 0, 0, 0))[1],
-                ) >= MIN_SIDE_PT
-                and not (parea and _rect_area(tuple(i.get("bbox") or (0, 0, 0, 0))) / parea > MAX_PAGE_FRACTION)
+                ) >= lv["min_side_pt"]
+                and not (parea and _rect_area(tuple(i.get("bbox") or (0, 0, 0, 0))) / parea > lv["max_page_fraction"])
                 for i in probe
             )
             infos = page.get_image_info(hashes=True) if (use_hashes and candidate) else probe
@@ -496,10 +503,13 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
                 bbox = tuple(info.get("bbox") or (0, 0, 0, 0))
                 area = _rect_area(bbox)
                 if area < lv["min_area_pt2"]:
+                    killed["raster"]["min_area_pt2"] += 1
                     continue
-                if min(bbox[2] - bbox[0], bbox[3] - bbox[1]) < MIN_SIDE_PT:
+                if min(bbox[2] - bbox[0], bbox[3] - bbox[1]) < lv["min_side_pt"]:
+                    killed["raster"]["min_side_pt"] += 1   # B14: admitted by area, killed by the side — counted, not silent
                     continue
-                if parea and area / parea > MAX_PAGE_FRACTION:
+                if parea and area / parea > lv["max_page_fraction"]:
+                    killed["raster"]["max_page_fraction"] += 1
                     continue  # full-page image = the scan itself
                 digest = (info.get("digest") or b"").hex() if info.get("digest") else ""
                 # Identity key for furniture-dedup: the md5 when hashing was paid for,
@@ -521,10 +531,13 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
             for bbox, npaths in _cluster(rects, lv["cluster_gap_pt"]):
                 area = _rect_area(bbox)
                 if npaths < lv["vector_min_paths"] or area < lv["min_area_pt2"]:
+                    killed["vector"]["min_paths_or_area"] += 1
                     continue
-                if min(bbox[2] - bbox[0], bbox[3] - bbox[1]) < MIN_SIDE_PT:
+                if min(bbox[2] - bbox[0], bbox[3] - bbox[1]) < lv["min_side_pt"]:
+                    killed["vector"]["min_side_pt"] += 1   # B14: the case the ticket measured — 18 Cybernetics clusters at min_area_pt2=100
                     continue
-                if parea and area / parea > MAX_PAGE_FRACTION:
+                if parea and area / parea > lv["max_page_fraction"]:
+                    killed["vector"]["max_page_fraction"] += 1
                     continue
                 # THE VETO, vector-only and deliberately so: a raster region is a real embedded
                 # image object, and vetoing one because prose overlaps it could hide an actual
@@ -576,7 +589,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
                     pages[pno] = kept
                 else:
                     del pages[pno]
-    return {"pages": pages, "page_count": n_pages, "vetoed_prose_regions": vetoed,
+    return {"pages": pages, "page_count": n_pages, "vetoed_prose_regions": vetoed, "filters_killed": killed,
             "captioned_pages": sorted(captioned & set(pages)),
             "vetoed_table_regions": vetoed_tables,
             "vetoed_framed_text_regions": vetoed_frames,
@@ -712,8 +725,11 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
             "levers_source": lever["source"],
             "levers_rejected": lever["rejected"],
             "min_area_pt2": lv["min_area_pt2"],
-            "min_side_pt": MIN_SIDE_PT,
-            "max_page_fraction": MAX_PAGE_FRACTION,
+            "min_side_pt": lv["min_side_pt"],
+            "max_page_fraction": lv["max_page_fraction"],
+            # B14 (S157 E18): the regions each size filter killed after the one before admitted them — a lever change that
+            # buys nothing reads here as a count on the next filter, never as a byte-identical report and silence
+            "filters_killed": src.get("filters_killed"),
             "vector_min_paths": lv["vector_min_paths"],
             "vector_cluster_gap_pt": lv["cluster_gap_pt"],
             "veto_text_coverage": lv["text_coverage"],

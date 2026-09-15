@@ -172,6 +172,7 @@
         "p1_page_coverage.assets_out_of_range",
         "p1_page_coverage.bundle",
         "p1_page_coverage.conditions",
+        "p1_page_coverage.conditions.filters_killed",
         "p1_page_coverage.conditions.image_identity",
         "p1_page_coverage.conditions.levers_rejected",
         "p1_page_coverage.conditions.levers_source",

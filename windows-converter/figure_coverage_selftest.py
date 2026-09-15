@@ -243,6 +243,32 @@ def main() -> int:
         check("LEVER: an operator's in-range number actually TAKES EFFECT",
               r["values"]["accounted_for"] == 0.50 and r["values"]["mode"] == "off",
               str(r))
+        # S157 E18 (B14): the two filters that could null a min_area_pt2 change are levers now, at the old constants
+        d18 = fc.levers(text="")["values"]
+        check("B14: min_side_pt and max_page_fraction are levers whose defaults are the old constants (nothing moves unwritten)",
+              d18["min_side_pt"] == 40.0 and d18["max_page_fraction"] == 0.92, str(d18))
+        r18 = fc.levers(text="min_side_pt=12\nmax_page_fraction=0.5\n")
+        check("B14: an operator's in-range side and fraction take effect", r18["values"]["min_side_pt"] == 12.0 and r18["values"]["max_page_fraction"] == 0.5 and r18["rejected"] == [], str(r18))
+        r18b = fc.levers(text="min_side_pt=0\nmax_page_fraction=3\n")
+        check("B14 BITES: an out-of-range side or fraction is refused, named, and the default stands",
+              r18b["values"]["min_side_pt"] == 40.0 and r18b["values"]["max_page_fraction"] == 0.92 and len(r18b["rejected"]) == 2, str(r18b))
+        # the count the ticket asked for: a lever change admitted by area and killed by the side is VISIBLE in the report
+        rules_pdf = tmp / "rules18.pdf"
+        doc18 = pymupdf.open()
+        pg18 = doc18.new_page(width=600, height=800)
+        for k in range(6):
+            pg18.draw_rect(pymupdf.Rect(60, 100 + 60 * k, 540, 108 + 60 * k), fill=(0, 0, 0))   # 480x8pt bars: area 3,840 each
+        doc18.save(rules_pdf)
+        doc18.close()
+        loose = fc.source_figure_regions(rules_pdf, lv=fc.levers(text="min_area_pt2=100\nvector_min_paths=1\n")["values"])
+        check("B14: at min_area_pt2=100 the bars pass the area filter and die on min_side_pt — the report COUNTS them",
+              loose["filters_killed"]["vector"]["min_side_pt"] >= 1 and not loose["pages"], str(loose["filters_killed"]))
+        strict = fc.source_figure_regions(rules_pdf, lv=fc.levers(text="")["values"])
+        check("B14 negative control: under the defaults the same bars die on area first, min_side_pt kills none",
+              strict["filters_killed"]["vector"]["min_side_pt"] == 0 and strict["filters_killed"]["vector"]["min_paths_or_area"] >= 1, str(strict["filters_killed"]))
+        rep18 = fc.coverage(rules_pdf, _bundle(tmp, [], "b18"), lv=fc.levers(text="min_area_pt2=100\nvector_min_paths=1\n")["values"])
+        check("B14: the report's conditions carry filters_killed and the EFFECTIVE side/fraction",
+              rep18["conditions"]["filters_killed"]["vector"]["min_side_pt"] >= 1 and rep18["conditions"]["min_side_pt"] == 40.0, str(rep18["conditions"].get("filters_killed")))
         r = fc.levers(text="accounted_for=7.5\n")
         check("LEVER BITES: an out-of-range number is REFUSED, falls back, and is NAMED",
               r["values"]["accounted_for"] == fc.VETO_ACCOUNTED_FOR and r["rejected"],
