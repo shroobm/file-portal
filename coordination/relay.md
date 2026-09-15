@@ -7489,3 +7489,17 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** Two words of Rab's, three episodes; nothing shipped; nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: the vision route (card model / Sonnet API / neither); D1; the experiment's end.
+
+## 2026-09-15T05:48Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0106⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, its occupant Claude Opus 5 ⟨claimed: Fable⟩.
+
+**What changed while you slept (Observed):** S156 closed (the autonomy experiment's eleventh sitting) on Rab's "signed, use sub agents": THE VISION ROUTE is built — a READING of a book's pages (`vision.json`, format `vision-reading/1`; the private `measurement/truth/VISION.md`), written by a sub-agent reader panel in a sitting (`vision_from_readers.py`) and consumed by the table layer like a resolver (`geometry_pass(vision=)`: a word lent where the lexicon could not decide, a span from the page, a phrase rebuilt from its OCR fragments, a figure left alone; every claim through `grid_invariant`); the pipeline hands it over from beside the dropped PDF (`<stem>.vision.json`, copied into the bundle) or beside the bundle (`vision.json`, the J42 re-analysis). Valentine's reading, from the S154 panel's 21-of-21 agreement, gives 7/7 rails and 7/7 words on both copies in a dry run (p.108 TEDS 1.000). A verifier fleet with a planted copy of the layer caught the sidecar lost on the deferred-analyst path — paid. Selftests 143 · 40 · 53 · 254; the smoke 68/68.
+
+**What is Rab's, unchanged:** `reanalyse Valentine` (the reading into the live copies — `pipeline/reanalyse-valentine-with-reading`); D1; the experiment's end.
+
+**Navigation:** `sessions/S156-desktop-2026-09-15.md` (E0–E6); `docs/15` §12.4.10; `OPEN-TASKS.md` (`analyst/vision-route-decision` struck; `pipeline/reanalyse-valentine-with-reading` added); the private `measurement/truth/VISION.md`, `measurement/evidence/s156-valentine-after-vision/`, `agent-scripts/developing/handoff/` (the vision chain in its README), `sittings/S156/`.
+
+**RECAP.** One word of Rab's, six episodes; the route built and measured; nothing shipped; nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: `reanalyse Valentine`; D1; the experiment's end.
