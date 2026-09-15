@@ -102,13 +102,15 @@ def test_ledger():
 test_ledger()  # at IMPORT: every process() in this file — through run() or direct — dumps into the throwaway (ERR-099: the first run wrote 36 fixture rows into the real ledger)
 
 
-def run(markdown, candidates, module=analyst):
-    """Run module.process() with _generate scripted; restores the real _generate after."""
+def run(markdown, candidates, module=analyst, tables=False):
+    """Run module.process() with _generate scripted; restores the real _generate after. tables=False by default since
+    S154 (the lever ANALYST_TABLES is ON in the module): the cases that are not about tables stay independent of the lever;
+    the table cases pass tables explicitly, and S154 (a) proves the module default."""
     test_ledger()
     real_gen = module._generate
     module._generate = scripted(candidates)
     try:
-        return module.process(markdown, backend="local")
+        return module.process(markdown, backend="local", tables=tables)
     finally:
         module._generate = real_gen
 
@@ -486,7 +488,7 @@ def _():
     real_gen = analyst._generate
     analyst._generate = refuse
     try:
-        out, meta = analyst.process(md, backend="local")
+        out, meta = analyst.process(md, backend="local", tables=False)   # S154: the resume key carries +tables under the lever
     finally:
         analyst._generate = real_gen
     assert meta["chunks_resumed"] == 1, meta
@@ -710,11 +712,30 @@ def _():
     assert meta["chunks_passed"] == 1 and seen["n"] == 1, (meta["chunks_passed"], seen)
 
 
-@case("S150-E3 (b) NEGATIVE CONTROL: the lever off (the default) — no layer, geometry None, the whitelist as shipped, the exhibit as it came")
+@case("S150-E3 (b) NEGATIVE CONTROL: the layer explicitly OFF (tables=False; the default was off S150–S153) — no layer, geometry None, the whitelist as shipped, the exhibit as it came")
 def _():
-    out, meta = run(S150_MD, [S150_MD])
+    out, meta = run(S150_MD, [S150_MD], tables=False)
     assert meta["geometry"] is None and "table-geometry" not in meta["edits"]["whitelist"], meta["edits"]
     assert "| R | pricing? | • | a |" in out and "٠" in out, out
+
+
+@case("S154 (a) THE LEVER: ANALYST_TABLES is True (Rab's word 'all signed', 2026-09-15) and process(tables=None) runs the layer by default — geometry recorded, table-geometry in the whitelist, the exhibit repaired")
+def _():
+    assert analyst.ANALYST_TABLES is True, analyst.ANALYST_TABLES
+    test_ledger()
+
+    def gen(prompt):
+        return prompt[len(analyst.load_program("readability")):]   # the model hands its chunk back unchanged
+    real_gen = analyst._generate
+    analyst._generate = gen
+    try:
+        out, meta = analyst.process(S151_MD, backend="local", resolver=lambda letters, ctx: "REVENUE")   # tables NOT passed: the lever decides
+    finally:
+        analyst._generate = real_gen
+    g = meta["geometry"]
+    assert g is not None and g["applied"] == 3 and g["refused"] == 0, g
+    assert "table-geometry" in meta["edits"]["whitelist"] and meta["edits"]["accepted"].get("table-geometry") == 3, meta["edits"]
+    assert "| REVENUE | pricing? | • | a |" in out and "٠" not in out, out
 
 
 @case("S150-E3 (c) the grid program's resolver: the backend's first word in capitals; `?`, a non-word, an empty reply and a backend error are None; the bound is 24 tokens and restored after")

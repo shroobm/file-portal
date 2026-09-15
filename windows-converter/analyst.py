@@ -130,9 +130,10 @@ DEFAULT_PROGRAM = "readability"
 # from the grid program below (one short call per rail, the same backend), checked against the letters by letters_fit.
 # The same invariant then guards every table through the acceptor (edit_whitelist.FULL_TABLES): a model's edit to a
 # table is accepted whole or restored whole. The record rides meta["geometry"] and the class counts in meta["edits"].
-# lever-waiver: OFF in the pipeline until Rab's word — the shipped whitelist is his slot (S119, S140); the dry run
-# (E4) passes tables=True explicitly.
-ANALYST_TABLES = False
+# lever-waiver: Rab's word only — OFF S150–S153 (the shipped whitelist is his slot, S119, S140; the dry run passes
+# tables=True explicitly); ON since S154 on his word "all signed" (chat, 2026-09-15 02:2xZ, over BRIEF-S153-OPUS §1.1);
+# the measure is the next book the watcher converts (census BEFORE/AFTER and the scorer on any table the panel truthed).
+ANALYST_TABLES = True
 GRID_PROGRAM = "grid-word"
 GRID_NUM_PREDICT = 32  # a word or a few (rails the OCR ran together answer as a phrase), never a paragraph
 
