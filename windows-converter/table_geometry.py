@@ -527,7 +527,7 @@ def fit_score(nread: int, placed: int, nword: int) -> float:
     return placed - (nread - placed) - (nword - placed) / 2.0
 
 
-SEGMENT_MIN_SCORE = 1.25   # a word must explain its read this much better than leaving it (MIGHT for `MGMT` scores 1: refused)
+SEGMENT_MIN_SCORE = 1.25   # a word must explain its read this much better than leaving it (MIGHT for `MGMT` scores 1: refused). lever-waiver: Rab's word only; set S151 E1 on Valentine's three rotated rails (the truth's rails column: zero wrong labels at 1.25, MIGHT admitted at 1.0); moves on a re-measured rails column (a right word scoring under it, or a wrong one over it), never by taste
 
 
 def boundary_collapse(cell_letters: list[str]) -> list[str]:
@@ -553,7 +553,7 @@ def _glyphs(letters: str) -> list[str]:
     return out
 
 
-GAP_COST = 1.0   # a stream letter no word of the book explains
+GAP_COST = 1.0   # a stream letter no word of the book explains. lever-waiver: Rab's word only; set S151 E1 with SEGMENT_MIN_SCORE on the same three rails (a gap costs one placed letter); moves on a re-measured rails column (letters a word should have taken kept as read, or the reverse), never by taste
 
 
 def words_from_stream(letters: str, lex: dict, min_len: int = 3, min_count: int = 2) -> tuple:
