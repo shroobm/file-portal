@@ -21,19 +21,28 @@ PY = sys.executable
 PASS = FAIL = 0
 
 
+# J61 (S121 §10, S129's second instance; fixed S157 E8): the child prints non-ASCII (em dashes, the ⟨claimed⟩ stamps) and
+# this parent used to decode its stdout with the host locale (cp1252 here) — an em dash in an assertion could not match, and a
+# U+FFFD reaching the console print crashed the parent. The reading-bench selftest's pattern: PYTHONIOENCODING=utf-8 in the
+# child's env, decode UTF-8 with errors=replace, reconfigure the parent's own stdout.
+CHILD_ENV = dict(os.environ, PYTHONIOENCODING="utf-8")
+if hasattr(sys.stdout, "reconfigure"):
+    sys.stdout.reconfigure(encoding="utf-8", errors="replace")
+
+
 def run(args, coord, expect=0, extra_env=None):
-    env = dict(os.environ, FP_COORD=str(coord))
+    env = dict(CHILD_ENV, FP_COORD=str(coord))
     env.update(extra_env or {})
-    r = subprocess.run([PY, GATE] + args, env=env, capture_output=True, text=True)
+    r = subprocess.run([PY, GATE] + args, env=env, capture_output=True, text=True, encoding="utf-8", errors="replace")
     return r
 
 
 def spawn(args, coord, extra_env=None):
     """Start a real gate CLI process for lock/transaction races."""
-    env = dict(os.environ, FP_COORD=str(coord), PYTHONDONTWRITEBYTECODE="1")
+    env = dict(CHILD_ENV, FP_COORD=str(coord), PYTHONDONTWRITEBYTECODE="1")
     env.update(extra_env or {})
     return subprocess.Popen([PY, GATE] + args, env=env, stdout=subprocess.PIPE,
-                            stderr=subprocess.PIPE, text=True)
+                            stderr=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
 
 
 def finish(process):
@@ -593,9 +602,9 @@ def main():
         # the same picture. SYM-031 inside the wake-up mechanism itself.
         codex_backup2 = io.open(coord / "ack-codex.json", encoding="utf-8").read()
         io.open(coord / "ack-codex.json", "w", encoding="utf-8", newline="\n").write("{ nope")
-        env = dict(os.environ, FP_COORD=str(coord))
+        env = dict(CHILD_ENV, FP_COORD=str(coord))
         pr = subprocess.Popen([PY, GATE, "watch", "--as", "Fable", "--interval", "0.2"],
-                              env=env, stdout=subprocess.PIPE, text=True)
+                              env=env, stdout=subprocess.PIPE, text=True, encoding="utf-8", errors="replace")
         line = ""
         try:
             line = (pr.stdout.readline() or "")
@@ -2356,6 +2365,10 @@ def main():
           "state=working (presumed dead)" in r.stdout)
         t("J52 T1: status is read-only - the sidecar bytes are unchanged by rendering",
           before_46 == after_46)
+        # J61 (S157 E8): the split above was the symptom — with the child on PYTHONIOENCODING=utf-8 and the parent decoding
+        # UTF-8, the literal em dash round-trips; this is the tripwire that would go red if run() fell back to the locale
+        t("J61: the gate's em dash round-trips through run() byte for byte (no ASCII split needed)",
+          "*** STALE — presumed dead (J52, Rab 2026-09-10) ***" in r.stdout)
 
         # T-J52-2 tripwire (negative control, the twin of T1): a beat 44 minutes old fires
         # NEITHER marker - the 45-minute lever, not "any old beat is suspect".
