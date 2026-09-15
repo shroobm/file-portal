@@ -30,7 +30,8 @@ if out=$(check_skill "$SKILL"); then ok "the tracked skill carries the three rul
 # CASE 1 — the mirror: the user-level copy is byte-identical to the tracked one (UNREAD when absent, never a pass)
 MIRROR="$HOME/.claude/skills/circle/SKILL.md"
 if [[ -f "$MIRROR" ]]; then
-  if cmp -s "$SKILL" "$MIRROR"; then ok "the user-level mirror is byte-identical to the tracked skill"; else bad "the mirror" "differs from the tracked copy — re-copy it"; fi
+  # compared with CR stripped: the tracked copy may be checked out CRLF while the mirror stays LF (the text is the contract)
+  if cmp -s <(tr -d "\r" < "$SKILL") <(tr -d "\r" < "$MIRROR"); then ok "the user-level mirror is identical to the tracked skill (CR-stripped)"; else bad "the mirror" "differs from the tracked copy — re-copy it"; fi
 else
   printf '  UNREAD the user-level mirror is absent at %s (not a pass)\n' "$MIRROR"; failed=$((failed+1))
 fi
