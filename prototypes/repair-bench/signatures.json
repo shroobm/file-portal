@@ -36,7 +36,6 @@
     "Seeded from Valentine's A-F bank (S78 §16), which is the scoring rubric for any rival",
     "engine (S78 §18.3: measure on the real corpus, score named defects, never vibes)."
   ],
-
   "signatures": [
     {
       "id": "E",
@@ -103,6 +102,17 @@
       "solution": "Do NOT delete the blank-looking columns — the • marks in them are the answer to 'which source do I use for this'. Read the sideways headings off the page and type them into the header row, leaving every • exactly where it is. If the headings are unreadable, crop the page in as an image and leave the table alone: a lost layout can be rebuilt, lost marks cannot. Before you edit any row here, print the whole row and look at it — sampling two cells is how a previous session concluded thirteen populated columns were empty and removed 418 marks.",
       "auto": "unknown — the one signature that has already caused data loss",
       "cite": "S78 §16 F · S78 §10.5"
+    },
+    {
+      "id": "G",
+      "name": "omission run — text that is not there",
+      "detect": "omission_run",
+      "tag": "Inferred",
+      "reason": "Words that are on the source page are absent from the converted text. The convert-time audit read the page's own text in short windows and found a run of adjacent windows that no window of the output matched — this entry is that run: its size in words, its page, and the first words that went missing. Nothing on this line is wrong; something that should be near it is not here at all. Two origins are known, with different remedies: the converter's layout step dropped a block it did not classify as text (a boxed paragraph, a caption, a list — usually under two hundred words), or, on books converted before 2026-09-12, the readability pass dropped a whole section of several hundred words and kept only its heading (the acceptor that now reverts such drops did not exist yet).",
+      "highlight": "Go to the page number this run names in the source PDF and find the run's first words there — the loss begins at that line and runs for about the words counted. In the converted text, the place is where the words BEFORE the run end and the words AFTER it begin without the run between them. If the page reads null, the audit could not place it: search the source for the first words instead.",
+      "solution": "Do not type the missing text from memory and do not smooth the join — the words are not here, and an invented paragraph is worse than a named gap. Transcribe the page region at the bench (the transcribe worker reads the page image) citing the page, or leave the gap marked and re-convert the book: a whole missing section (hundreds of words, a heading with no body) is the readability pass's loss and a re-analysis under the current acceptor restores it; a short boxed paragraph is the layout step's loss and needs the transcription or a re-conversion.",
+      "auto": "no — the content is absent; only a transcription from the page or a re-conversion can supply it",
+      "cite": "S76 SYM-026 (omission runs are damage) · S79 §18.5 (B15) · S157 E28/E31 (the two origins measured; the page and line box from the prose probe) · docs/29 §5.4"
     }
   ]
 }

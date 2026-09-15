@@ -349,7 +349,9 @@ class Bench:
     # only its shape is wrong". On S78 that exact mis-ranking is what made 13 populated columns
     # look phantom: they carried 418 • marks, two cells were sampled, and the edit preceded the
     # look. A signature that has already cost real data outranks a tidier explanation.
-    _ORDER = ("E", "C", "F", "B", "D", "A")
+    # S157 E44 (B15): G leads — a run-shaped site (words + excerpt) is an omission by construction, and the zone rules
+    # below read the run's NEIGHBOURHOOD and would call a missing paragraph a wrapped cell (A) or a merged row (D).
+    _ORDER = ("G", "E", "C", "F", "B", "D", "A")
 
     @classmethod
     def _bank(cls) -> list[dict]:
@@ -364,6 +366,14 @@ class Bench:
     def _detect(self, rule: str, site: dict, win: list[str]) -> str | None:
         """Return the EVIDENCE that fired this rule, or None. Never a bare True: the operator
         is owed what the machine actually saw, in the same breath as the conclusion."""
+        if rule == "omission_run":
+            # S157 E44 (B15): the site IS the audit's omission run — the evidence is what the audit measured, not the
+            # neighbourhood (a run has no markdown of its own: that is the defect). Fires only on run-shaped sites.
+            if site.get("words") is not None and site.get("excerpt") is not None:
+                pg = site.get("page")
+                head = str(site.get("excerpt") or "").strip()[:48]
+                return f"an omission run of {site.get('words')} words at page {pg if pg is not None else 'UNREAD (the audit could not place it)'}: '{head}…' — no output window matched"
+            return None
         if rule == "degeneration":
             mx, zl = site.get("max_trigram") or 0, site.get("zlib")
             if mx >= 40:

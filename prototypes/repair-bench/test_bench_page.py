@@ -264,6 +264,57 @@ class TestClaimDenominators(unittest.TestCase):
         self.assertFalse(claim_names_denominator(BAD_CLAIM_PY))
 
 
+class TestB15OmissionSignature(unittest.TestCase):
+    """B15 (S157 E44): an omission run diagnoses as G — reason, highlight, solution, with the run's own measurements as the
+    evidence — and a degeneration zone does NOT fire G (the negative control: the rule is run-shaped, never a catch-all)."""
+
+    def _bench(self) -> bench.Bench:
+        holder = tempfile.TemporaryDirectory(prefix="fp-test-b15-")
+        self.addCleanup(holder.cleanup)
+        root = Path(holder.name)
+        (root / "book.md").write_text(
+            "---\ntitle: B15 fixture\n---\n" +
+            "\n".join(f"line {i} alpha beta gamma delta epsilon" for i in range(1, 60)),
+            encoding="utf-8")
+        conv = {"kind": "digital",
+                "runs": [{"page": 757, "words": 154, "excerpt": "year. valuing famous using these inputs, you can estimate"},
+                         {"page": None, "words": 432, "excerpt": "the value of a firm has three components. the first"}],
+                "tripwires": {"degeneration": True,
+                              "degeneration_detail": {"flagged": True, "md_lines": 59,
+                                                      "worst": [{"line": 10, "chars": 900, "distinct_lines": 1, "max_trigram": 60, "zlib": 0.05,
+                                                                 "excerpt": "of the purpose of the purpose of the purpose"}]}}}
+        manifest = {"source": "b15.pdf", "pages": 1377, "fidelity": {"verdict": "fail", "convert": conv}}
+        (root / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+        return bench.Bench(root)
+
+    def test_an_omission_run_diagnoses_as_G_with_its_own_measurements_as_evidence(self):
+        st = self._bench().state()
+        runs = st["runs"]
+        self.assertEqual(len(runs), 2)
+        for r in runs:
+            d = r["diagnosis"]
+            self.assertEqual(d["signature"], "G", d)
+            self.assertEqual(d["tag"], "Inferred")
+            self.assertIn("omission run of %d words" % r["words"], d["matched_on"])
+            for key in ("reason", "highlight", "solution"):
+                self.assertTrue(len(d[key]) > 80, key)
+        placed, unplaced = runs[0]["diagnosis"]["matched_on"], runs[1]["diagnosis"]["matched_on"]
+        self.assertIn("page 757", placed)
+        self.assertIn("UNREAD", unplaced)   # a null page is the audit's blindness, said, never rendered as page 0
+
+    def test_negative_control_a_degeneration_zone_does_not_fire_G(self):
+        st = self._bench().state()
+        zones = st["zones"]
+        self.assertEqual(len(zones), 1)
+        self.assertNotEqual(zones[0]["diagnosis"]["signature"], "G", zones[0]["diagnosis"])
+        self.assertEqual(zones[0]["diagnosis"]["signature"], "E")   # the loop signature, as before
+
+    def test_the_bank_carries_G_after_the_six(self):
+        ids = [s["id"] for s in bench.Bench._bank()]
+        self.assertEqual(ids, ["E", "C", "A", "D", "B", "F", "G"])
+        self.assertEqual(bench.Bench._ORDER[0], "G")
+
+
 class TestM6Completeness(unittest.TestCase):
     """M6-R1: capped evidence is never mistaken for the complete review population."""
 
