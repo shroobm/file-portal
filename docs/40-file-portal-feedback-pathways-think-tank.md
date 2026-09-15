@@ -476,3 +476,71 @@ The most promising File Portal is not the fastest converter. It is the system th
 That is already latent in File Portal. The next work is to connect it, test whether anyone values it,
 and refuse to call the answer a market until real users and buyers supply the evidence web search
 cannot.
+
+## 12. The adversary — S157 E48 (2026-09-15), Rab's S111 commission (OPEN-TASKS A47)
+
+*Each thesis carried its author's objections; the missing signal was "a differently-prioritized reader and a falsifying
+probe." Five read-only Sonnet lanes, one per thesis and one over §0's premises, each with an assigned priority the author
+did not hold, each carrying a planted sentence attributed to this file at a line that says something else (5/5 caught);
+the lane (Fable, Claude Opus 5) adjudicated after `fleet_law_check` (25 checks, 0 red once the lanes' prose defect ids were
+read as ids) and re-measured the one number that looked wrong. Verdicts per claim: HOLDS · WEAKENED · REFUTED. Private
+`sittings/S157/e48/`. Twenty-six days separate §0 from HEAD `32939c5`.*
+
+**Thesis A, read for the operator's time** — A-1 WEAKENED, A-2 REFUTED, A-3 HOLDS, A-4 HOLDS. The most damaging finding: a one-document timeline is assemblable
+TODAY by joining `manifest.json` (full `source_sha256`), `conversion-ledger.jsonl` (its 16-hex prefix) and `events.jsonl`
+(19 rows keyed on the filename) — no envelope, no `run_id`, minutes of grep; and the five `kind` values do not exist as
+typed artifacts with separate writers (zero literal hits; two loose analogs). What holds: attempt identity is absent — a
+re-conversion produces the same hash, so the first attempt, the retry and the re-analysis are indistinguishable (§0.1 stands
+as DOCUMENT identity exists, ATTEMPT identity does not); and "an envelope can standardize lies" is the record's own class
+(ERR-005, ERR-014, ERR-059: well-formed records carrying false claims, each caught by an independent cross-check, never by
+the record's shape). *Falsifying experiment (unrun — it measures Rab's time, not the lane's): time the manual join for one
+held bundle; under ~10 minutes falsifies "smallest change … exposes existing value"; 30+ minutes or unresolvable keys and
+the envelope has its case.*
+
+**Thesis B, read for crash safety as the record measured it** — B-1 HOLDS, B-2 WEAKENED, B-3 WEAKENED, B-4 HOLDS. The directory ownership is NOT reliable in the
+record: six SYM rows are lost, stuck, duplicated or wrongly-owned transitions (SYM-024 a gate card stuck at pending, SYM-033 a
+drop claimed twice, SYM-047 an orphan watcher, …); each named reconciler (the `.done` identity, the analyst chunk journal,
+`--resume`/`--reanalyze`, the supersede marker) reconciles one narrow slice on ONE machine, none a general journal; six
+processes write pipeline state across two machines — multi-writer without multi-user. What the kernel would NOT be needed
+for: the S157 E46 hazard (a resume retry analysing twice) is a missing idempotency key inside the existing directory model,
+one branch fixes it. *Falsifying experiment — RUN at E46 (`e46_b27_probe.py --go`): the retry after a failed ship left two
+`analyst:` blocks (the prediction was 2; a 1 would have killed the finding). Stands.*
+
+**Thesis C, read for the consumer** — C-1 HOLDS, C-2 WEAKENED, C-3 HOLDS, C-4 WEAKENED. Zero external consumers of any evidence File Portal produces (every
+"reviewer"/"external" hit in the relay is Codex reading Fable's own code); nothing signs anything — hashing exists
+(`source_sha256`, the marker body's sha256), signing does not; the anchor manifest carries hashes and machine findings but no
+human action (the bless/held decisions live in staging and the exporter, not beside the bundle); the fidelity block implies
+PROV Entity/Activity/Agent but cannot express a human agent or an authorization (Inferred). *Falsifying experiment (a grep,
+effectively run by the lane): count outbound sends of a bundle/manifest/receipt to any destination but the two nodes since
+2026-08-20 — today 0; a 1 would be the first real signal.*
+
+**Thesis D, read for the output as it is** — D-1 HOLDS, D-2 WEAKENED, D-3 HOLDS, D-4 WEAKENED. **A lane number corrected by the verifier:** the lane counted
+`![alt](src)` and reported one image in 25 bundles; the shipped markdown carries its figures as wikilink embeds
+`![[assets/…]]` — **2,558 across the shelf, and the embed form has no alt slot: 0 of 2,558 carry alt text.** The figures
+ARE shipped; the accessibility gap is the format, which is the stronger finding for the opposite reason. Re-measured by the
+lane (`e48_d1_remeasure.py`, fenced blocks excluded): 10715 headings, 1281 heading-level skips (12.0% — the
+lane's own kill threshold was 2%, so its headline stands), 1241 pipe tables with a delimiter row and 427 pipe
+blocks without one. No screen reader, PDF/UA checker or EPUB checker exists on the machine or in the repo (`docs/40:263`
+names EPUBCheck/ACE as absent); four of the bank's seven signatures (B, C, D, F) map onto accessibility classes, A and E do
+not; the source supports a VALIDATION layer over the current converter (the fidelity/coverage/whitelist pattern) and not a
+new accessible-output route — none of pymupdf4llm, Marker or Pandoc emits a tag tree. *Falsifying experiment — RUN: the
+shelf-wide heading-skip rate is 12.0%, above the 2% that would have killed the finding.*
+
+**§0's six premises and §8's stages, read for time** — E-1 HOLDS, E-2 WEAKENED, E-3 WEAKENED, E-4 HOLDS, E-5 WEAKENED, E-6 HOLDS, E-7 WEAKENED. Still true: no `run_id` in 25/25 manifests; no inventory or
+digest acknowledgement for a shipment (`.done` is a same-machine slice cache); one self-referential "buyer" file (S97, the
+session that wrote this document). Weakened: the Room joins fidelity, `audit_mode`, held/remedy and the seam receipt on one
+surface — "no reader joins them" is false as written, though it joins rows, not typed records; freshness watermarks exist on
+two widget surfaces ("last pipeline event: N ago", "✓ Ns ago / frozen"), an authority label nowhere; reviewer findings do
+reach later conversions — as rules an engineer codes after an investigation (S151/S152's table geometry, S140's whitelist),
+never as an automatic loop. Every §8 stage moved under another name (the Room ≈ part of Stage 1; docs/52–53's PDF/UA
+conformance study ≈ Stage 5's evidence half) and none is complete as specified. *Falsifying experiment (the lane's greps,
+re-runnable in a minute): buyer-file-count > 1 or run_id-in-manifest-count > 0 refutes §0.6 or §0.1 outright.*
+
+**The adversary's synthesis.** No thesis was refuted whole; every thesis lost its strongest advantage sentence to a
+measurement: A's "exposes existing value" (the value is already reachable by a filename/hash join), B's "duplicates reliable
+directory ownership" (six unreliable transitions on the record — yet the one live hazard needed a key, not a kernel), C's
+"makes the evidence layer a product" (no consumer, no signature, no human action in the bundle), D's "existing damage
+localization is relevant" (half the bank; and the figures ship without an alt slot at all). The premises under §0 hold
+where they are about identity and acknowledgement and buyers; they are weakened where the Room and the coded-rule loop
+already do part of the work under other names. The one thing this file asked for at §8 Stage 0 — an evaluable promise —
+is still not written, and that, not any thesis, is what the adversary would attack next.
