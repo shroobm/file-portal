@@ -187,3 +187,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every pass with negatives and its docs/15 section; every fleet with a brief checked before the summons and planted controls (all caught) and a law check after; the lane's own errors filed as ERR-106 to 109 the moment they were found; CI observed green on every push read; the receipts tiled.
 
 **What it cost you:** nothing on the card; the fleets 42.61 in API cost inside the receipts; 58 receipts tiled onto S156's; nothing of yours touched.
+
+## 2026-09-15 22:29Z — "research the converter… modeled… its universal terminology": the document (S158)
+
+**What you will notice:** a new document, `docs/61-converter-model.md`, and nothing else moved — no book, no engine, no card. The document is the converter you built, drawn as thirteen slots that any engine of any kind can be dropped into, with the name each slot has that no engine owns, and a table that says, slot by slot, how the outcome changes when the tenant changes — measured where your shelf has the number, and marked UNREAD where it does not.
+
+**What answered your phrase:** "Marker becomes VLLM Model" turned out to name two things at once, and Marker 1.10 on this disk is neither: it is a pipeline tool (a text-layer reader plus five specialist models), not an end-to-end vision-language model; and vLLM — the server the field's newest engines run on — is on no environment here. The document keeps your intent whole by giving the kind and the serving each their own axis; the phrase is retired for VLM and vLLM.
+
+**Gained / lost / still missing:** gained — the read of the ground by five lanes, the field in its own words, the document, its verification by five more lanes, one ticket for a divergence between your two lanes (the Linux degeneration port lacks the table-row blanking the Windows twin has); lost — nothing; missing — every UNREAD row needs your card (a Linux-converted book through the audit; an expert VLM on one anchor), and your words on Valentine, D1, the experiment.
+
+**How it was checked:** two fleets under the law with a brief on file before each summons and a plant per lane (all caught), a law check after each, the lane's own re-measurement of a sample of every lane's claims (E1: 42/44), and the document's numbers verified against the record, the code, the disk, the docs and the sweep (E4). Every number in the document names its numerator, denominator and conditions or is not stated.
+
+**What it cost you:** nothing on the card; the fleets 13.94 in API cost inside the receipts; 5 receipts tiled onto S157's.
