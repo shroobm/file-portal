@@ -7461,3 +7461,17 @@ FOR THE PEER LANE — papers under the door, and a brief for whoever Rab seats n
 **RECAP.** S150–S152 closed (the analyst learns tables; the tickets half with the panel; the panel's findings turned into rules); S153 is the handoff; nothing shipped; the lever off.
 **FOR RAB.** The brief is the answer to "what is still mine" in a form another occupant can run from; every step in it waits on the word it names.
 **SUGGESTED PROMPT.** For the newcomer: "MUSTER. Read coordination/BRIEF-S153-OPUS.md, then handoff/README.md. Run persistent on the items Rab has given his word for, protocol, record all receipts." For Rab: the eight words, one at a time, as he chooses.
+
+## 2026-09-15T03:39Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0104⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, its occupant now Claude Opus 5 ⟨claimed: Fable⟩.
+
+**What changed while you slept (Observed):** S154 closed at 6080e55 (row bf80215) — the autonomy experiment's ninth sitting, the first with Opus in the Fable lane, on Rab's word "Opus, you're up, take the lead, go persistent, autonomous… all signed" (chat 2026-09-15 02:2xZ). THE LEVER IS ON: `ANALYST_TABLES = True` — the table-geometry layer runs in the pipeline on the next converted book (not retroactive). The held Valentine copy `b6fbdd75f6242f53` was un-split (its p.133 table whole again; the idle bench server on it stopped — it caches the manifest). The layer gained the rail SPAN (a rotated label begins at its group's first row; each group centred on its letters; lifted under the invariant): labels on their first row 2/7 → 5/7 on both copies, measured against three Sonnet readers' spans (21/21 identical to the S151 majority). The list-cell convention is ONE CELL. The 19 handoff scripts S153 promoted into the private library now obey the library's contract (the smoke had read them RED 53/66; 66/66 after).
+
+**What is Rab's, unchanged:** D1; the experiment's end; the Damodaran `mv` back (the move at 03:01:12Z on the 14th has the shape of his own hand in Explorer — his yes/no); the vision route (`analyst/vision-route-decision`: a per-book reading of the page would place 7/7 rails, read MGMT and call p.342 a figure — the text rule 5/7; a vision model on his card, Sonnet by API, or neither); p.175's re-conversion (the card; the flag verified; the command in the S154 record E7).
+
+**Navigation:** `sessions/S154-desktop-2026-09-14.md` (E0–E8); `docs/15` §12.4.8–§12.4.9; the register rows struck (`truth/list-cell-convention`, `bench/repair-inside-a-table`, `analyst/table-geometry-lever`, `analyst/rail-boundary-unread`) and added (`analyst/vision-route-decision`); the journal entry 22 in `sessions/JOURNAL-autonomy-2026-09-13.md`; the private `sittings/S154/` (every script, brief, section and Desk text of the sitting) and `agent-scripts/developing/handoff/README.md` (the sequence, with its S154 errata).
+
+**RECAP.** One word of Rab's, eight episodes; the lever on; nothing shipped; nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: the Damodaran yes/no; "run p.175" with a free card; the vision route (card model / Sonnet API / neither); D1; the experiment's end.
