@@ -2127,6 +2127,51 @@ def main():
           r_stage2.returncode == 0
           and codex_id2 in cached2.stdout and fable_id2 not in cached2.stdout)
 
+        # ---- J59 (S157 E21): stage is CUMULATIVE across lanes - the second lane's stage keeps the first's staged entry ----
+        j59_repo, j59_coord = _s120_mkrepo(Path(tmp) / "_s157_j59")
+        r_j59_f = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "fable-first",
+                       "--body", _s120_envelope_body(j59_coord, "**RECAP.** fable stages first")], j59_coord)
+        r_j59_c = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "codex-second",
+                       "--body", _s120_envelope_body(j59_coord, "**RECAP.** codex stages second")], j59_coord)
+        j59_fid = _s120_msg_id(r_j59_f.stdout, "MSG-FAB-")
+        j59_cid = _s120_msg_id(r_j59_c.stdout, "MSG-CDX-")
+        r_j59_s1 = run(["stage", "--as", "Fable"], j59_coord)
+        r_j59_s2 = run(["stage", "--as", "Codex"], j59_coord)
+        j59_idx = subprocess.run(["git", "-C", str(j59_repo), "show", ":coordination/relay.md"],
+                                 capture_output=True).stdout.decode("utf-8", errors="replace")
+        t("J59 positive: Fable stages, then Codex stages before any commit - the index holds BOTH entries (the first not replaced)",
+          r_j59_s1.returncode == 0 and r_j59_s2.returncode == 0 and j59_fid in j59_idx and j59_cid in j59_idx)
+        t("J59: the second stage says it kept the peer's staged entry",
+          "cumulative (J59)" in r_j59_s2.stdout and j59_fid in r_j59_s2.stdout)
+        j59_work = (j59_coord / "relay.md").read_text(encoding="utf-8")
+        t("J59: the working tree is untouched by either stage", j59_fid in j59_work and j59_cid in j59_work)
+        # the reverse order on a fresh repo
+        j59b_repo, j59b_coord = _s120_mkrepo(Path(tmp) / "_s157_j59_rev")
+        r_j59b_f = run(["post", "--as", "Fable", "--to", "Codex", "--subject", "f",
+                        "--body", _s120_envelope_body(j59b_coord, "**RECAP.** f")], j59b_coord)
+        r_j59b_c = run(["post", "--as", "Codex", "--to", "Fable", "--subject", "c",
+                        "--body", _s120_envelope_body(j59b_coord, "**RECAP.** c")], j59b_coord)
+        run(["stage", "--as", "Codex"], j59b_coord)
+        r_j59b_s2 = run(["stage", "--as", "Fable"], j59b_coord)
+        j59b_idx = subprocess.run(["git", "-C", str(j59b_repo), "show", ":coordination/relay.md"],
+                                  capture_output=True).stdout.decode("utf-8", errors="replace")
+        t("J59 symmetric: Codex first, Fable second - both in the index",
+          r_j59b_s2.returncode == 0 and _s120_msg_id(r_j59b_f.stdout, "MSG-FAB-") in j59b_idx
+          and _s120_msg_id(r_j59b_c.stdout, "MSG-CDX-") in j59b_idx)
+        # negative: a diverged INDEX (a staged blob that is not an append of HEAD) refuses, index untouched
+        j59n_repo, j59n_coord = _s120_mkrepo(Path(tmp) / "_s157_j59_neg")
+        run(["post", "--as", "Fable", "--to", "Codex", "--subject", "f",
+             "--body", _s120_envelope_body(j59n_coord, "**RECAP.** f")], j59n_coord)
+        forged = subprocess.run(["git", "-C", str(j59n_repo), "hash-object", "-w", "--stdin"],
+                                input=b"# a different preamble\n\nforged\n", capture_output=True).stdout.decode().strip()
+        subprocess.run(["git", "-C", str(j59n_repo), "update-index", "--cacheinfo",
+                        f"100644,{forged},coordination/relay.md"], check=True)
+        r_j59n = run(["stage", "--as", "Fable"], j59n_coord)
+        j59n_idx = subprocess.run(["git", "-C", str(j59n_repo), "show", ":coordination/relay.md"],
+                                  capture_output=True).stdout
+        t("J59 negative: an index holding a diverged log REFUSES (UNREAD) and the index is left as it was",
+          r_j59n.returncode == 1 and "diverged" in r_j59n.stderr and j59n_idx == b"# a different preamble\n\nforged\n")
+
         # negative: a working copy whose HEAD-prefix was altered refuses, index untouched
         b7_bad_repo, b7_bad_coord = _s120_mkrepo(Path(tmp) / "_s120_l2_b7_bad")
         run(["post", "--as", "Fable", "--to", "Codex", "--subject", "will-be-corrupted",

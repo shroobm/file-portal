@@ -2566,13 +2566,47 @@ def cmd_stage(a):
     # carries a header line twice under one id (a quoted header inside a body splits like a real
     # one), and an id-keyed comparison read the first occurrence against the last and called an
     # untouched August entry "edited" (2026-09-10T00:19Z, the first live run of this rule).
+    # J59 (S157 E21): CUMULATIVE across lanes. The index may already hold the PEER's staged, uncommitted entries (it staged
+    # before I did and nobody committed yet); rebuilding from HEAD + mine replaced them (S120 §10, L2's declared residue).
+    # The base is the index blob when it differs from HEAD: its entries beyond HEAD's are kept too, matched as an ordered
+    # subsequence of the working copy like HEAD's. An index that is not a faithful append of HEAD, or not a subsequence
+    # of the working copy, is a diverged log: REFUSED, UNREAD, never quietly overwritten.
+    staged_extra: list = []
+    idx = _git(repo_root, ["show", f":{relay_git_path}"])
+    if idx.returncode == 0 and idx.stdout.replace(b"\r\n", b"\n") != head_norm:
+        try:
+            idx_pre, idx_entries, idx_ok = _split_relay_document(idx.stdout.replace(b"\r\n", b"\n").decode("utf-8"))
+        except UnicodeDecodeError:
+            idx_ok = False
+            idx_pre, idx_entries = "", []
+        if not idx_ok or idx_pre.rstrip("\n") != head_pre.rstrip("\n"):
+            print(f"REFUSED: UNREAD - the index already holds a diverged {relay_git_path} (malformed, or its preamble is "
+                  f"not HEAD's); refusing to stage over it. Index left untouched.", file=sys.stderr)
+            return 1
+        ip = 0
+        for _lane, _eid, text, _raw in idx_entries:
+            if ip < len(head_entries) and canonical(head_entries[ip][2]) == canonical(text):
+                ip += 1
+            else:
+                staged_extra.append(text)
+        if ip < len(head_entries):
+            print(f"REFUSED: UNREAD - the index's {relay_git_path} is not an append of HEAD (HEAD entry "
+                  f"{head_entries[ip][1]} missing, edited or reordered there); refusing to stage over it. "
+                  f"Index left untouched.", file=sys.stderr)
+            return 1
     hp = 0
-    kept, new_mine, left, keep_flags = [], [], [], []
+    xp = 0
+    kept, new_mine, left, keep_flags, kept_peer = [], [], [], [], []
     for lane, eid, text, raw in work_entries:
         if hp < len(head_entries) and canonical(head_entries[hp][2]) == canonical(text):
             kept.append((lane, text, raw))
             keep_flags.append(True)
             hp += 1
+        elif xp < len(staged_extra) and canonical(staged_extra[xp]) == canonical(text):
+            kept.append((lane, text, raw))   # the peer's entry, already staged by its own hand — kept, not replaced
+            keep_flags.append(True)
+            kept_peer.append((lane, text))
+            xp += 1
         elif lane == a.as_model:
             kept.append((lane, text, raw))
             new_mine.append((lane, text))
@@ -2580,6 +2614,11 @@ def cmd_stage(a):
         else:
             left.append((lane, text))
             keep_flags.append(False)
+    if xp < len(staged_extra):
+        print(f"REFUSED: UNREAD - the index holds a staged entry that is not in the working copy in order "
+              f"({_stage_entry_id(staged_extra[xp])}); refusing to stage over a diverged index. Index left untouched.",
+              file=sys.stderr)
+        return 1
     if hp < len(head_entries):
         stalled = head_entries[hp][1]
         print(f"REFUSED: UNREAD - {relay_git_path} is append-only and the working copy breaks it: "
@@ -2616,6 +2655,9 @@ def cmd_stage(a):
               f"{added.stderr.decode(errors='replace').strip()}", file=sys.stderr)
 
     kept_ids = [_stage_entry_id(t) for _, t in new_mine]
+    if kept_peer:
+        print(f"[gate] stage: kept {len(kept_peer)} entr{'y' if len(kept_peer) == 1 else 'ies'} the peer had already staged "
+              f"({', '.join(_stage_entry_id(t) for _, t in kept_peer)}) - cumulative (J59)")
     left_ids = [_stage_entry_id(t) for _, t in left]
     print(f"staged {a.as_model}: {', '.join(kept_ids) or '(none)'} · HEAD's {len(head_entries)} entries kept "
           f"in the working copy's order")
