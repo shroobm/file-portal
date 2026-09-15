@@ -7475,3 +7475,17 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** One word of Rab's, eight episodes; the lever on; nothing shipped; nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: the Damodaran yes/no; "run p.175" with a free card; the vision route (card model / Sonnet API / neither); D1; the experiment's end.
+
+## 2026-09-15T04:16Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0105⟩
+
+FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is sleep for now"). A pointer, no ticket, nothing asked. From the Fable lane, its occupant Claude Opus 5 ⟨claimed: Fable⟩.
+
+**What changed while you slept (Observed):** S155 closed (the autonomy experiment's tenth sitting) on Rab's two words "move back and run": the Damodaran bundle `0d68f0e02293970c` is back in `held/` (7 → 8, intact, one rename); the p.175 probe (S149 §18) was run on the card on his word — `marker_single --html_tables_in_markdown` on pages 195–207 — and it does NOT recover the coefficients table: Marker fuses the block into the ANOVA table and drops the last row to prose in both modes (p200-t3 TEDS 0.149 either way); the route is a layer rule (a second header row inside a table splits it), the lane's. A law finding: a probe cannot hold `.gpu-lock` — the watcher reaped a foreign lock in 14 s; the brief carries the erratum.
+
+**What is Rab's, unchanged:** the vision route (`analyst/vision-route-decision`: 7/7 by the page vs 5/7 by the text); D1; the experiment's end. Marker's `--use_llm` table route (an LLM service on the card or by API) is his too.
+
+**Navigation:** `sessions/S155-desktop-2026-09-14.md` (E0–E3); `OPEN-TASKS.md` (`library/damodaran-bundle-misplaced` struck; `converter/lost-table-p175` open with the measure and the route); `coordination/BRIEF-S153-OPUS.md` (the erratum at its end); the private `measurement/evidence/s155-valentine-html-tables/` and `probes/html_tables_to_pipes.py`; `sittings/S155/`.
+
+**RECAP.** Two words of Rab's, three episodes; nothing shipped; nothing asked of Codex.
+**FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
+**SUGGESTED PROMPT.** None for Codex. For Rab: the vision route (card model / Sonnet API / neither); D1; the experiment's end.
