@@ -1633,7 +1633,7 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
                      for p in applied if p["kind"] == "caption"],
         "folds": [{"rows": p["rows"], "why": p["why"]} for p in applied if p["kind"] == "fold"],   # S152 E1
         "splits": [{"table": p["table"], "at": p["at"], "header": p["header"], "why": p["why"],
-                    "rejoined": ({"row": p["rejoin"]["row"], "consumed_lines": p["rejoin"]["consumed"]} if p.get("rejoin") else None)} for p in splits_applied],   # S157 E1
+                    "rejoined": ({"row": p["rejoin"]["row"], "consumed_lines": [k + 1 for k in p["rejoin"]["consumed"]]} if p.get("rejoin") else None)} for p in splits_applied],   # S157 E1; the lines 1-based like every other number in the record (E5's skeptic read them 0-based — they were)
         "splits_refused": [{"table": p["table"], "at": p["at"], "why": p["refused"]} for p in splits_refused],
         "trims": [{"table": p["table"], "cols": p["cols"], "drop": p["drop"], "why": p["why"]} for p in trims_applied],   # S157 E3
         "trims_refused": [{"table": p["table"], "cols": p["cols"], "drop": p["drop"], "why": p["refused"]} for p in trims_refused],

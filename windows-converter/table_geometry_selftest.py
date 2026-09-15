@@ -514,7 +514,8 @@ def main():
           len(ap13) == 1 and not rf13 and len(tb) == 2 and tg.cells(new13[tb[1][0]])[1] == "Coefficients" and tb[1][2] - tb[1][1] == 2
           and (chr(10) + "indev)" + chr(10)) not in chr(10).join(new13) and (chr(10) + "3.58 0.36") not in chr(10).join(new13) and "Copyright McGraw-Hill" in chr(10).join(new13), str((ap13, rf13, tb)))
     tt, rr = tg.geometry_pass(P175, None)
-    check("geometry_pass runs the split first and records it; the two tables then get the ordinary pass (no refusal)", rr["splits"] and rr["splits"][0]["rejoined"]["row"][0] == "log /manufacturin indev)" and rr["splits_refused"] == [] and rr["refused"] == 0, str((rr["splits"], rr["splits_refused"], rr["refused"])))
+    check("geometry_pass runs the split first and records it; the two tables then get the ordinary pass (no refusal)", rr["splits"] and rr["splits"][0]["rejoined"]["row"][0] == "log /manufacturin indev)" and rr["splits_refused"] == [] and rr["refused"] == 0
+          and rr["splits"][0]["rejoined"]["consumed_lines"] == [P175.split(chr(10)).index("indev)") + 1, P175.split(chr(10)).index("indev)") + 2, P175.split(chr(10)).index("3.58 0.36 10.03 0.00 2.86 4.29 2.86 4.29") + 1], str((rr["splits"], rr["splits_refused"], rr["refused"])))
     # negatives
     NUMPAIR = P175.replace("| | | Standard | | P- | Lower | Upper | Lower | Upper |", "| | 1.5 | Standard | | P- | Lower | Upper | Lower | Upper |")
     check("NEGATIVE: a number in the pair — no split", tg.propose_splits(NUMPAIR.split(chr(10)), lx) == [])
