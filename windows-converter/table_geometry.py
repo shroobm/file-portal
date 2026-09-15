@@ -251,6 +251,12 @@ def _pieces(cell: str) -> list[str]:
     return [_bare(p) for p in re.split(r"<br\s*/?>|\s+", cell, flags=re.I) if p != ""]
 
 
+def _stray_mark(cell: str) -> bool:
+    """S154 E6 — a rail-column cell that is a mark and no letter (`_`, `.`, `-`: the OCR's read of a rotated label's stem or
+    rule), so nothing survives baring; a label lifted over it clears it. A bullet-shaped glyph is the dots repair's, not this."""
+    return bool(cell) and cell not in STRAY_DOTS and cell != DOT and _bare(cell) == ""
+
+
 def _letterish(cell: str) -> bool:
     """A rotated letter read on its own: every piece of the cell is ONE glyph once bared (`R`, `l v`, `Ė<br>N`, `6` for C,
     `F.`, `Ϋ́`, `M<br>G<br>M<br>T`) and at least one glyph survives. `PEG`, `P/E` and `Yes` are tokens, never rail letters
@@ -708,6 +714,26 @@ def _fragment_of(long: str, frag: str) -> bool:
     return bool(f) and len(f) <= 5 and _bare(long).lower().endswith(f)
 
 
+def _tile_spans(rails: list[dict], first_row: int, last_row: int) -> None:
+    """S154 E6 — a rotated label is printed to begin at its GROUP's first row, not at the row the OCR put its first letter
+    (Valentine p.108: REVENUE's letters sit on rows 2–5 of a group that begins at row 1; the scorer's placement measure read
+    2 of 7 labels on their first row). The labels' spans tile the body rows in order: the first from the first body row, the
+    last to the last, each group centred on its letters (the first cut split the blank rows between two runs at their midpoint
+    and placed FINANCIAL a row early on p.107 — the scorer read it absent; measured into this shape). A run's letter rows never move. Sets p["span"] = [first, last] (1-based lines, like
+    p["rows"]) on every rail proposal, resolved or not — an unresolved run still bounds its neighbours."""
+    rs = sorted(rails, key=lambda p: p["rows"][0])
+    for k, p in enumerate(rs):
+        a, b = p["rows"]
+        start = min(first_row if k == 0 else rs[k - 1]["span"][1] + 1, a)
+        if k + 1 < len(rs):
+            # a rotated label is printed CENTRED in its group (Valentine pp.107–108, every span read by the S154 panel):
+            # the group runs below the letters by as much as it runs above them, never past the next run's first letter
+            end = min(max(b + (a - start), b), rs[k + 1]["rows"][0] - 1)
+        else:
+            end = last_row
+        p["span"] = [start, max(end, b)]
+
+
 def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[dict]:
     """The shape repairs a table asks for, table by table, without touching a byte: a `caption` (a spanning title lifted
     above the table), a `rail` per letter run (the letters → the word the resolver gives, placed on the run's first row),
@@ -796,6 +822,7 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
             out.append({"kind": "fold", "table": [h + 1, e + 1], "rows": list(pair),
                         "why": "a wrapped row label: %r + %r" % (cells(lines[pair[0] - 1])[0][:40], cells(lines[pair[1] - 1])[0][:40])})
         if t.letter_column:
+            rails: list = []
             runs, run = [], []
             for k in range(d + 1, e + 1):
                 c = cells(lines[k])
@@ -823,8 +850,8 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
                     covered = set()
                     for c0, c1, word, why in segs:
                         covered.update(range(c0, c1 + 1))
-                        out.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[c0] + 1, r[c1] + 1],
-                                    "letters": "".join(cell_letters[c0:c1 + 1]), "word": word, "how": why, "refused": None})
+                        rails.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[c0] + 1, r[c1] + 1],
+                                      "letters": "".join(cell_letters[c0:c1 + 1]), "word": word, "how": why, "refused": None})
                     left = [i for i in range(len(r)) if i not in covered]
                     if not left:
                         continue
@@ -853,8 +880,8 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
                                     refused = "the word %r does not fit the letters %r: %s" % (got, lt, why)
                             elif got:
                                 refused = "the word %r is not a word of the book" % got
-                        out.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[st[0]] + 1, r[st[-1]] + 1],
-                                    "letters": lt, "word": word, "how": how, "refused": refused})
+                        rails.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[st[0]] + 1, r[st[-1]] + 1],
+                                      "letters": lt, "word": word, "how": how, "refused": refused})
                     continue
                 word, how, refused = None, "unresolved", None
                 if len(letters) < 2:
@@ -871,8 +898,13 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
                             word, how = got, "resolver (%s)" % why
                         else:
                             refused = "the word %r does not fit the letters %r: %s" % (got, letters, why)
-                out.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[0] + 1, r[-1] + 1], "letters": letters,
-                            "word": word, "how": how, "refused": refused})
+                rails.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[0] + 1, r[-1] + 1], "letters": letters,
+                              "word": word, "how": how, "refused": refused})
+            # S154 E6: the spans, 1-based lines — the body runs from d+1 (0-based) to e; under a title row the real header sits
+            # at d+1 and the body begins at d+2 (the first cut lifted REVENUE onto the header row: the selftest caught it)
+            has_cap = any(p["kind"] == "caption" and p["table"] == [h + 1, e + 1] for p in out)   # by the title row OR the pieces route
+            _tile_spans(rails, d + 2 + (1 if has_cap else 0), e + 1)
+            out.extend(rails)
         if t.dots_total and t.stray_dot_glyphs:
             out.append({"kind": "dots", "table": [h + 1, e + 1], "cells": t.stray_dot_glyphs})
     return out
@@ -931,6 +963,8 @@ def apply_table(lines: list[str], h: int, d: int, e: int, props: list[dict]) -> 
     before = {k: list(v) for k, v in grid.items()}
     caption = None
     dropped: set = set()
+    # S154 E6: a lifted label never lands on the header row — nor on the row that becomes the header under a caption
+    floor = d + 2 if any(p["kind"] == "caption" for p in props) else d + 1
     for p in props:
         if p["kind"] == "fold":
             r0, r1 = p["rows"][0] - 1, p["rows"][1] - 1
@@ -939,11 +973,16 @@ def apply_table(lines: list[str], h: int, d: int, e: int, props: list[dict]) -> 
                 dropped.add(r1)
         elif p["kind"] == "rail" and p.get("word"):
             r0, r1 = p["rows"][0] - 1, p["rows"][1] - 1
-            if r0 in grid and r1 in grid and grid[r0]:
-                grid[r0][0] = p["word"]
-                for k in range(r0 + 1, r1 + 1):
+            s0 = p["span"][0] - 1 if p.get("span") else r0   # S154 E6: the group's first row, when the rail is blank down to the run
+            s0 = max(s0, floor)
+            if s0 < r0 and not all(grid.get(k) and (grid[k][0] == "" or _stray_mark(grid[k][0])) for k in range(s0, r0)):
+                s0 = r0
+            if r0 in grid and r1 in grid and grid[r0] and s0 in grid and grid[s0]:
+                grid[s0][0] = p["word"]
+                for k in range(s0 + 1, r1 + 1):
                     if grid.get(k):
                         grid[k][0] = ""
+                p["placed"] = s0 + 1
         elif p["kind"] == "dots":
             for cs in grid.values():
                 for j, c in enumerate(cs):
@@ -1058,6 +1097,34 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
             facts["dots_fixed"] += 1
             i += 1
             continue
+        if (b1 == "" or _stray_mark(b1)) and a1:
+            # S154 E6: a label LIFTED onto the blank rows above its letter run (the group's first row): admitted only when
+            # every row between is blank (or a stray mark, cleared) before and blank after, the run's letters fit the word,
+            # and the run's cells are blank after
+            if i == 0:
+                reasons.append("column 1 row 1: %r placed on the header row" % a1[:40])
+                i += 1
+                continue
+            m = i + 1
+            strays = 1 if _stray_mark(b1) else 0
+            while m < n and ((rb2[m][0] if rb2[m] else "") == "" or _stray_mark(rb2[m][0])) and (ra[m][0] if ra[m] else "") == "":
+                strays += 1 if _stray_mark(rb2[m][0]) else 0
+                m += 1
+            if m < n and rb2[m] and rb2[m][0] and _letterish(rb2[m][0]) and ra[m] and ra[m][0] == "":
+                k, letters = m, []
+                while k < n and rb2[k] and rb2[k][0] and _letterish(rb2[k][0]) and ra[k] and ra[k][0] == "":
+                    letters.append(_bare(rb2[k][0]))
+                    k += 1
+                ok, why = letters_fit("".join(letters), a1)
+                if ok:
+                    facts["labels"].append({"row": i + 1, "letters": "".join(letters), "word": a1, "fit": why, "lifted": m - i, "strays_cleared": strays})
+                else:
+                    reasons.append("column 1 rows %d-%d: the lifted label %r does not fit the letters %r (%s)" % (i + 1, k, a1[:40], "".join(letters), why))
+                i = k
+                continue
+            reasons.append("column 1 row %d: %r placed on a blank row with no letter run beneath it" % (i + 1, a1[:40]))
+            i += 1
+            continue
         if not (b1 and _letterish(b1) and a1):
             reasons.append("column 1 row %d changed: %r -> %r" % (i + 1, b1[:40], a1[:40]))
             i += 1
@@ -1142,7 +1209,8 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True) -> tuple[s
         "applied": len(applied),
         "refused": len(refused),
         "unresolved": len(unresolved),
-        "labels": [{"rows": p["rows"], "letters": p["letters"], "word": p["word"], "how": p["how"]} for p in applied if p["kind"] == "rail"],
+        "labels": [{"rows": p["rows"], "span": p.get("span"), "placed": p.get("placed", p["rows"][0]), "letters": p["letters"], "word": p["word"],
+                    "how": p["how"]} for p in applied if p["kind"] == "rail"],
         "captions": [{"line": p["line"], "text": p["text"], "fragment_dropped": p["fragment_dropped"],
                       **({"fragments_joined": True, "raw": p["raw"], "how": p["how"]} if p.get("fragments_joined") else {})}
                      for p in applied if p["kind"] == "caption"],

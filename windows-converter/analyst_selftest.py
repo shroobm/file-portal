@@ -703,7 +703,7 @@ def _():
         analyst._generate = real_gen
     g = meta["geometry"]
     assert g and g["applied"] == 3 and g["refused"] == 0 and g["unresolved"] == 0, g
-    assert g["labels"] == [{"rows": [6, 8], "letters": "RlvĖN", "word": "REVENUE", "how": g["labels"][0]["how"]}] and g["labels"][0]["how"].startswith("lexicon"), g
+    assert [{k: lb[k] for k in ("rows", "letters", "word")} for lb in g["labels"]] == [{"rows": [6, 8], "letters": "RlvĖN", "word": "REVENUE"}] and g["labels"][0]["how"].startswith("lexicon") and "span" in g["labels"][0] and "placed" in g["labels"][0], g   # S154: the record carries span and placed too
     assert g["resolver_calls"] == 0 and g["lexicon_words"] >= 5, g  # the book's own word, no model asked
     assert g["captions"][0]["text"] == "Start with this source to investigate before meeting management" and g["dots_fixed"] == 1 and g["program"] == "resolver", g
     assert "table-geometry" in meta["edits"]["whitelist"] and meta["edits"]["accepted"].get("table-geometry") == 3, meta["edits"]

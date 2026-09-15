@@ -139,8 +139,10 @@ def main():
     L2 = text.split("\n")
     check("the caption above the table, a blank between, the real header then the delimiter",
           L2[2].startswith("Start with this source") and L2[3] == "" and "Questions to be investigated" in L2[4] and tg.DELIM.match(L2[5]) is not None, repr(L2[2:6]))
-    check("REVENUE on the run's first row, the rail's other cells blank, the question cells untouched",
-          tg.cells(L2[7])[0] == "REVENUE" and all(tg.cells(L2[k])[0] == "" for k in (8, 9, 10)) and tg.cells(L2[7])[1] == "How does the company set pricing?")
+    check("S154: REVENUE LIFTED onto its group's first row (the 'Does the company…' row, one above its first letter), the run's cells blank, the questions untouched",
+          tg.cells(L2[6])[0] == "REVENUE" and all(tg.cells(L2[k])[0] == "" for k in (7, 8, 9, 10)) and tg.cells(L2[6])[1].startswith("Does the company")
+          and tg.cells(L2[7])[1] == "How does the company set pricing?", repr([L2[k][:30] for k in (6, 7)]))
+    check("S154 NEGATIVE (the old placement): REVENUE is no longer on the run's first letter row", tg.cells(L2[7])[0] == "", repr(L2[7][:30]))
     B, A = V[2:14], L2[2:15]
     ok, reasons, facts = tg.grid_invariant(B, A)
     check("the invariant holds on the pass's own output (caption seen, 2 labels, 1 dot fixed, 120 cells compared)",
@@ -160,13 +162,13 @@ def main():
         rows = list(rows)
         rows[idx] = fn(rows[idx])
         return rows
-    # A[4] is the "Does the company…" row (row 2 of the table), A[5] the REVENUE row, A[6] the wins/losses row inside the rail
-    check("the fixture's rows are where the negatives expect them", "pricing power" in A[4] and A[5].startswith("| REVENUE") and "customer wins" in A[6], repr(A[4:7]))
+    # A[4] is the "Does the company…" row (row 2 of the table) and carries REVENUE since S154 (lifted), A[5] the first letter row (blank now), A[6] the wins/losses row inside the rail
+    check("the fixture's rows are where the negatives expect them", "pricing power" in A[4] and A[4].startswith("| REVENUE") and tg.cells(A[5])[0] == "" and "customer wins" in A[6], repr(A[4:7]))
     check("invariant NEGATIVE: a cell outside column 1 reworded", not tg.grid_invariant(B, mutate(A, 4, lambda s: s.replace("pricing power", "pricing")))[0])
     check("invariant NEGATIVE: a • dropped (on a row inside the rail)", not tg.grid_invariant(B, mutate(A, 6, lambda s: s.replace("| • |", "|  |", 1)))[0])
     check("invariant NEGATIVE: a row dropped", not tg.grid_invariant(B, A[:6] + A[7:])[0])
     check("invariant NEGATIVE: a pipe dropped (the cell count changes)", not tg.grid_invariant(B, mutate(A, 4, lambda s: s.replace("| •", "•", 1)))[0])
-    check("invariant NEGATIVE: a label that does not fit its letters (REVENUE -> COSTS)", not tg.grid_invariant(B, mutate(A, 5, lambda s: s.replace("REVENUE", "COSTS")))[0])
+    check("invariant NEGATIVE: a label that does not fit its letters (REVENUE -> COSTS, on the lifted row)", not tg.grid_invariant(B, mutate(A, 4, lambda s: s.replace("REVENUE", "COSTS")))[0])
     check("invariant NEGATIVE: a cell inside the rail's rows reworded (the rows a rail spans are compared too)", not tg.grid_invariant(B, mutate(A, 6, lambda s: s.replace("customer wins", "wins")))[0])
     check("invariant NEGATIVE: the title row dropped with no caption above", not tg.grid_invariant(B, A[4:])[0])
     check("invariant: an unchanged table is admitted", tg.grid_invariant(B, B)[0])
@@ -388,6 +390,48 @@ def main():
     check("apply_admitted: the admitted table passes the invariant and keeps the wrong label's cells as they were",
           tg.grid_invariant(V[h0:e0 + 1], new)[0] and tg.cells(new[5])[0] == "R", repr(new[5][:24]))
 
+    print("[11] S154 E6 — a rotated label begins at its GROUP's first row: the spans tile the body, the word is lifted, the invariant admits only that")
+    rp = [p for p in tg.propose(V, resolver) if p["kind"] == "rail"]
+    check("spans tile the body under the title row: REVENUE [6, 11] (from the first body row; the one blank row before COSTS goes up), COSTS MGMT [12, 14] (to the last row)",
+          [(p["word"], p["rows"], p["span"]) for p in rp] == [("REVENUE", [7, 10], [6, 11]), ("COSTS MGMT", [12, 14], [12, 14])], str([(p["word"], p["rows"], p.get("span")) for p in rp]))
+    check("the record says where each label was placed and its span", [(lb["word"], lb["placed"], lb["span"]) for lb in rec["labels"]] == [("REVENUE", 6, [6, 11]), ("COSTS MGMT", 12, [12, 14])], str(rec["labels"]))
+    check("the invariant names the lift: REVENUE at row 2 of the table, lifted 1 row onto its run", facts["labels"][0]["word"] == "REVENUE" and facts["labels"][0]["row"] == 2 and facts["labels"][0]["lifted"] == 1, str(facts["labels"]))
+    # the negatives, each a shape the first cut produced or could: onto the header row; onto a blank row with no run beneath; over another run's letters; over a filled cell
+    def put(row, word):   # the row with its first cell set to word
+        return "| " + word + " |" + row.split("|", 2)[2]
+    hdr = list(A)
+    hdr[2] = put(hdr[2], "REVENUE")
+    hdr[4] = put(hdr[4], "")
+    okh, whyh, _ = tg.grid_invariant(B, hdr)
+    check("invariant NEGATIVE: a label on the HEADER row is refused (the first cut lifted REVENUE onto it under the title row — the selftest caught it)", not okh and any("header row" in w for w in whyh), str(whyh))
+    norun = list(A)
+    norun[4] = put(norun[4], "")
+    norun[11] = put(norun[11], "REVENUE")
+    okn, whyn, _ = tg.grid_invariant(B, norun)
+    check("invariant NEGATIVE: a label on a blank row with no letter run beneath it is refused", not okn and any("no letter run" in w or "changed" in w for w in whyn), str(whyn))
+    over = list(A)
+    over[4] = put(over[4], "COSTS")
+    okc, whyc, _ = tg.grid_invariant(B, over)
+    check("invariant NEGATIVE: a label lifted over another run's letters is refused (COSTS over R-l-v-Ė-N-U-E)", not okc and any("does not fit" in w for w in whyc), str(whyc))
+    Vf = list(V)
+    Vf[5] = Vf[5].replace("|                  |", "| Note             |", 1)
+    assert "pricing power" in Vf[5], Vf[5]
+    tf, rf = tg.geometry_pass(chr(10).join(Vf), resolver, use_lexicon=False)
+    Lf = tf.split(chr(10))
+    check("apply never lifts over a filled, non-letter cell: with 'Note' on the group's first row REVENUE stays on its letter row, and the invariant still admits the pass",
+          tg.cells(Lf[6])[0] == "Note" and tg.cells(Lf[7])[0] == "REVENUE" and rf["labels"][0]["placed"] == 7 and rf["refused"] == 0, str((Lf[6][:30], Lf[7][:30], rf["labels"], rf["refused"])))
+    check("idempotent after the lift: a second pass proposes nothing", tg.propose(L2, resolver) == [])
+    # p.107's shape: a stray mark (the OCR's read of the label's stem, an underscore) on the row above the letters
+    Vs = list(V)
+    Vs[5] = Vs[5].replace("|                  |", "| _                |", 1)
+    assert "pricing power" in Vs[5], Vs[5]
+    ts_, rs_ = tg.geometry_pass(chr(10).join(Vs), resolver, use_lexicon=False)
+    Ls = ts_.split(chr(10))
+    oks, whys, fs = tg.grid_invariant(Vs[2:14], Ls[2:15])
+    check("a lift passes over a STRAY MARK (an underscore alone in the rail column) and clears it: REVENUE on the group's first row, the invariant names one stray cleared",
+          tg.cells(Ls[6])[0] == "REVENUE" and rs_["labels"][0]["placed"] == 6 and oks and fs["labels"][0].get("strays_cleared") == 1, str((Ls[6][:30], rs_["labels"][0], oks, whys, fs["labels"])))
+    check("_stray_mark: an underscore, a dot, a dash are marks; a letter, a bullet, an empty cell are not",
+          all(tg._stray_mark(c) for c in ("_", ".", "-")) and not any(tg._stray_mark(c) for c in ("S", "F.", "•", "", "٠")))
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 
