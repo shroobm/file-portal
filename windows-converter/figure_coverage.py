@@ -49,6 +49,12 @@ KNOWN LIMITATIONS, measured rather than guessed (S104)
       does not. Measured on every anchor (private `sittings/S157/e25/anchors_diff.json`): the
       Book of Models gains exactly p.34 and p.78 as uncovered (1 -> 3) and nothing else moves on
       any book (IV: 0 zero-area paths; DDIA: 572 clustered, all on raster pages already flagged).**
+      **CORRECTED S157 E39 (a verifier lane, V1-06): the E25 residue said Cyb p.40 (a rectilinear
+      thermostat chart) "still reads as a table". It does not: under the shipped code its 46 anchored
+      lines bring the axis arrows into one 54-path cluster with 6 non-rectilinear items, the table veto
+      is disqualified, and p.40 is REPORTED — the book's vetoed-table count after the change is 0, as
+      the anchors diff said all along; the residue had read the PRE-change probe. No rectilinear-chart
+      residue is known on the measured corpus.**
     · **A regular grid of labelled boxes reads as a table** to `find_tables()` and is vetoed.
       ~~Org charts and matrix diagrams are the risk class.~~ **S105 CORRECTION: this class was
       called "not measured on a real specimen" and it had in fact already fired 15 times in the
@@ -74,7 +80,7 @@ KNOWN LIMITATIONS, measured rather than guessed (S104)
       that two Sonnet readers had adjudicated NOT figures (every uncovered vector page of the
       two Investment Valuation bundles — all ILLUSTRATION boxes) against 203 surviving vector
       regions on the diagram books (Book of Models 90, Ashby 8, DDIA 105 — figures or figure
-      frames, every one covered by its asset): boxes min/median/max 0.025 / 0.448 / 0.595,
+      frames, every one covered by its asset): boxes min/median/max 0.025 / 0.448–0.449 (the two middle values of 104) / 0.595,
       figures 0.0 / 0.0 / 0.269. A lever line `accounted_for=0.35` would veto 63 of the 104
       boxes and hide 0 of the 203 figures, with 0.08 of margin over the figures' maximum;
       0.30 vetoes 80 and hides 0 with 0.03 of margin; 0.25 hides two (Cyb p.81, Ashby p.126).
