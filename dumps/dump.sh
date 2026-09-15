@@ -23,7 +23,11 @@
 set -u
 
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
-PY="/c/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe"
+# S157 E49 (A29's first ubuntu reading): this path is the Desktop's uv interpreter and exists nowhere else — on the CI
+# runner the twin-row write died before it began and ledger_check_selftest's `--ref dump` case read exit 1. The Desktop
+# path stays first (unchanged behaviour here); FP_PY overrides; a runner without it falls back to python3 on PATH.
+PY="${FP_PY:-/c/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe}"
+[ -x "$PY" ] || PY="$(command -v python3 || command -v python || echo "$PY")"
 
 die() { printf 'dump: %s\n' "$1" >&2; exit 1; }
 

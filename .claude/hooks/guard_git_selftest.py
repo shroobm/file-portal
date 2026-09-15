@@ -12,6 +12,7 @@ Run:  python .claude/hooks/guard_git_selftest.py
 import io
 import json
 import os
+import re
 import shutil
 import subprocess
 import sys
@@ -83,7 +84,14 @@ def main():
         sh(["git", "config", "alias.boom", "!echo boom"], main_repo)
         assert os.path.isfile(os.path.join(wt, ".git")), "the linked worktree's .git must be a FILE"
         assert os.path.isdir(os.path.join(main_repo, ".git")), "the main checkout's .git must be a DIRECTORY"
-        msys_main = "/" + main_repo[0].lower() + "/" + main_repo[3:].replace("\\", "/")
+        # S157 E49 (A29's first ubuntu reading): the MSYS spelling `/c/…` exists only for a drive-lettered path; on a
+        # POSIX runner `main_repo` is `/tmp/…` and the old line built `//p/…` — a path naming nothing guarded — so the
+        # eight "from elsewhere" cases read ALLOW and the deny-count case followed (172/181 on run 35002913762). A
+        # fixture assumption, not a guard hole: without a drive letter the guarded path IS its own spelling.
+        if re.match(r"^[A-Za-z]:[\\/]", main_repo):
+            msys_main = "/" + main_repo[0].lower() + "/" + main_repo[3:].replace("\\", "/")
+        else:
+            msys_main = main_repo
 
         print("guard_git selftest — throwaway repo", tmp)
         case("positive control: git status in the guarded main", "allow", bash("git status"))
