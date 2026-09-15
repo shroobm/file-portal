@@ -22,8 +22,21 @@ SERVICE_DST="$HOME/.config/systemd/user/file-portal-converter.service"
 sed "s|__WORKDIR__|$(pwd)|; s|__EXEC_PATH__|$(pwd)/.venv/bin/python|" \
   "$SERVICE_SRC" > "$SERVICE_DST"
 
+# S157 E51 (B32 U03, Codex's 2026-08-27 completion audit, probed at HEAD): the vault-fixity service and timer
+# shipped in systemd/ with the same __WORKDIR__/__EXEC_PATH__ placeholders — and their own comment said this
+# script substituted them — while this script installed only the converter, so a fresh machine had no weekly
+# fixity check unless someone hand-installed the units. The service is templated like the converter's; the
+# timer carries no placeholder and is copied as is; the TIMER is what gets enabled (the service is its oneshot).
+FIXITY_SRC="systemd/file-portal-vault-fixity.service"
+FIXITY_DST="$HOME/.config/systemd/user/file-portal-vault-fixity.service"
+sed "s|__WORKDIR__|$(pwd)|; s|__EXEC_PATH__|$(pwd)/.venv/bin/python|" \
+  "$FIXITY_SRC" > "$FIXITY_DST"
+cp "systemd/file-portal-vault-fixity.timer" "$HOME/.config/systemd/user/file-portal-vault-fixity.timer"
+
 systemctl --user daemon-reload
 systemctl --user enable --now file-portal-converter
+systemctl --user enable --now file-portal-vault-fixity.timer
 
 echo "Installed. Check status with: systemctl --user status file-portal-converter"
 echo "Tail logs with: journalctl --user -u file-portal-converter -f"
+echo "Weekly vault fixity: systemctl --user list-timers file-portal-vault-fixity.timer"
