@@ -465,7 +465,7 @@ def _score_row(i: int, status: str, reason: str | None = None,
 
 def process(markdown: str, backend: str = "local",
             program: str = DEFAULT_PROGRAM, tables: bool | None = None,
-            resolver=None) -> tuple[str, dict]:
+            resolver=None, vision: dict | None = None) -> tuple[str, dict]:
     """Returns (markdown_out, analyst_meta). On any per-chunk fence violation or error the
     original chunk is kept; meta records pass/reject counts for the frontmatter.
 
@@ -475,7 +475,10 @@ def process(markdown: str, backend: str = "local",
     tables: S150 E3 — run the table-geometry layer before the chunks and judge every table
     through the acceptor's table-geometry rung (None = ANALYST_TABLES, the lever). resolver:
     the word route for a rotated rail (letters, context) -> word | None; None = the grid
-    program on this backend.
+    program on this backend. vision: S156 E1 — a READING of the page (vision.json, a sub-agent
+    panel's sidecar: rails with their words and row spans, figure calls) the layer consults
+    the way it consults the resolver; None = the text rules alone. Its facts ride
+    meta["geometry"]["vision"].
     """
     prompt = load_program(program)
     generate = {"local": _generate, "gemini": _generate_gemini}[backend]
@@ -485,7 +488,7 @@ def process(markdown: str, backend: str = "local",
     geometry = None
     if tables:
         # the layer, on the fenced text (an image token inside a table is text to it): the record is the AFTER half
-        fenced, geometry = tg.geometry_pass(fenced, resolver if resolver is not None else _word_resolver(generate))
+        fenced, geometry = tg.geometry_pass(fenced, resolver if resolver is not None else _word_resolver(generate), vision=vision)
         geometry["program"] = GRID_PROGRAM if resolver is None else "resolver"
     rungs = ew.FULL_TABLES if tables else ew.FULL
     chunks = _chunks(fenced)

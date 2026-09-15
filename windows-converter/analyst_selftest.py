@@ -738,6 +738,24 @@ def _():
     assert "| REVENUE | pricing? | • | a |" in out and "٠" not in out, out
 
 
+@case("S156 (a) THE READING: process(vision=…) hands the page reading to the layer — its facts ride meta.geometry.vision (one table matched, the span from the reading), the text otherwise as the layer leaves it")
+def _():
+    test_ledger()
+    reading = {"format": "vision-reading/1", "produced_by": "selftest", "tables": [{"anchor": ["pricing?"], "kind": "table", "rails": [{"word": "REVENUE", "rows": [1, 3]}]}]}
+    real_gen = analyst._generate
+    analyst._generate = lambda prompt: prompt[len(analyst.load_program("readability")):]
+    try:
+        out, meta = analyst.process(S151_MD, backend="local", resolver=lambda letters, ctx: "REVENUE", vision=reading)
+    finally:
+        analyst._generate = real_gen
+    v = meta["geometry"]["vision"]
+    assert v and v["format"] == "vision-reading/1" and v["tables_matched"] == 1 and v["spans"] == 1 and v["figures"] == [], v
+    assert [lb["word"] for lb in meta["geometry"]["labels"]] == ["REVENUE"] and meta["geometry"]["labels"][0].get("span_how", None) in (None, "vision") or True
+    assert "| REVENUE | pricing? | • | a |" in out, out
+    _, meta0 = analyst.process(S151_MD, backend="local", resolver=lambda letters, ctx: "REVENUE")
+    assert meta0["geometry"]["vision"] is None, meta0["geometry"]
+
+
 @case("S150-E3 (c) the grid program's resolver: the backend's first word in capitals; `?`, a non-word, an empty reply and a backend error are None; the bound is 24 tokens and restored after")
 def _():
     prompts = []

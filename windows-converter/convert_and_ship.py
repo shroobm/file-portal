@@ -1841,7 +1841,12 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         # of them speaks (T7's standing rule).
         emit("analyst", "start", bundle=bundle_name, backend=analyst_backend,
              chars=len(marker_body))
-        body, analyst_meta = analyst.process(body, backend=analyst_backend)
+        # S156 E2: a reading of the pages that travelled with the dropped book (`<stem>.vision.json` beside it) is handed to the
+        # layer and kept in the bundle as vision.json, so the J42 re-analysis finds it there
+        reading = _vision_sidecar(src.parent / f"{src.stem}.vision.json")
+        if reading:
+            shutil.copy2(src.parent / f"{src.stem}.vision.json", tmp_dir / "vision.json")
+        body, analyst_meta = analyst.process(body, backend=analyst_backend, **({"vision": reading} if reading else {}))
         # `chars` is the PRE-analyst body — apply_analyst measures the body it HANDED to
         # process(), never the one that came back. Inline, `body` has already been rebound by
         # the line above, so the honest witness is marker_body (a len(body) here would report
@@ -1960,6 +1965,23 @@ def shell_quote(s: str) -> str:
     return "'" + s.replace("'", "'\\''") + "'"
 
 
+def _vision_sidecar(path: Path) -> dict | None:
+    """S156 E2 — the READING of a book's pages (a sub-agent panel's sidecar, `vision-reading/*`), if one travels with it:
+    beside the dropped PDF as `<stem>.vision.json`, beside a bundle as `vision.json`. Absent → None (the text rules alone). A
+    file that is not a reading is refused ALOUD and treated as absent — never half-read."""
+    try:
+        if not path.is_file():
+            return None
+        data = json.loads(path.read_text(encoding="utf-8"))
+        if not isinstance(data, dict) or not str(data.get("format", "")).startswith("vision-reading/") or not isinstance(data.get("tables"), list):
+            print(f"VISION sidecar {path.name}: not a vision-reading (format {data.get('format') if isinstance(data, dict) else type(data).__name__!r}) — ignored", flush=True)
+            return None
+        return data
+    except (OSError, ValueError) as exc:
+        print(f"VISION sidecar {path.name}: unreadable ({exc}) — ignored", flush=True)
+        return None
+
+
 def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     """Run the link-fenced analyst over an already-assembled bundle's markdown, updating
     the note's frontmatter and manifest in place. Used by the --resume (widget card) path."""
@@ -1969,7 +1991,8 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     raw = md_path.read_text(encoding="utf-8")
     head, body = raw.split("---\n", 2)[1], raw.split("---\n", 2)[2]
     emit("analyst", "start", bundle=bundle_name, backend=backend, chars=len(body))
-    new_body, meta = analyst.process(body, backend=backend)
+    reading = _vision_sidecar(bundle_dir / "vision.json")   # S156 E2: the page reading beside the bundle, if any
+    new_body, meta = analyst.process(body, backend=backend, **({"vision": reading} if reading else {}))
     emit("analyst", "done", bundle=bundle_name, chars=len(body), **{k: meta.get(k) for k in
          ("backend", "program", "chunks_passed", "chunks_rejected",
           "chunks_failed", "duration_s",

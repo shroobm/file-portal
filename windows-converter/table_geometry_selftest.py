@@ -432,6 +432,58 @@ def main():
           tg.cells(Ls[6])[0] == "REVENUE" and rs_["labels"][0]["placed"] == 6 and oks and fs["labels"][0].get("strays_cleared") == 1, str((Ls[6][:30], rs_["labels"][0], oks, whys, fs["labels"])))
     check("_stray_mark: an underscore, a dot, a dash are marks; a letter, a bullet, an empty cell are not",
           all(tg._stray_mark(c) for c in ("_", ".", "-")) and not any(tg._stray_mark(c) for c in ("S", "F.", "•", "", "٠")))
+    print("[12] S156 E1 — the reading of the page (vision.json, a sub-agent panel's sidecar) feeds the layer: a word, a span, a fragment label, a figure call")
+    READING = {"format": "vision-reading/1", "produced_by": "selftest", "tables": [
+        {"anchor": ["Does the company or its competitors have pricing power?"], "kind": "table",
+         "rails": [{"word": "REVENUE", "rows": [1, 6]}, {"word": "COSTS", "rows": [7, 8]}, {"word": "MGMT", "rows": [9, 9]}]}]}
+    tv, rv = tg.geometry_pass(VALENTINE + chr(10) + chr(10) + prose[0], None, vision=READING)   # the lexicon without MGMT: the reading lends it
+    Lv = tv.split(chr(10))
+    labs = {lb["word"]: lb for lb in rv["labels"]}
+    check("the reading lends MGMT its word where the lexicon refused (letters fit): applied, how says vision",
+          "MGMT" in labs and labs["MGMT"]["how"].startswith("vision") and rv["unresolved"] == 0, str((rv["labels"], rv["unresolved_rails"])))
+    check("the reading's spans override the tiled spans: REVENUE [6, 11] from rows [1, 6], COSTS [12, 13], MGMT [14, 14]; the record counts them",
+          labs["REVENUE"]["span"] == [6, 11] and labs["COSTS"]["span"] == [12, 13] and labs["MGMT"]["span"] == [14, 14] and rv["vision"]["spans"] == 3 and rv["vision"]["words"] == 1,
+          str((labs, rv["vision"])))
+    check("the record names the reading: format, tables_matched 1, no figure, nothing unmatched",
+          rv["vision"]["format"] == "vision-reading/1" and rv["vision"]["tables_matched"] == 1 and rv["vision"]["figures"] == [] and rv["vision"]["unmatched"] == [], str(rv["vision"]))
+    check("the invariant holds on the reading's output (three labels)", tg.grid_invariant(V[2:14], Lv[2:15])[0] and len(tg.grid_invariant(V[2:14], Lv[2:15])[2]["labels"]) == 3,
+          str(tg.grid_invariant(V[2:14], Lv[2:15])[1]))
+    # a reading that matches nothing changes nothing and says so
+    NOPE = {"format": "vision-reading/1", "tables": [{"anchor": ["a sentence this book never printed"], "kind": "table", "rails": [{"word": "MGMT", "rows": [9, 9]}]}]}
+    tn, rn = tg.geometry_pass(VALENTINE + chr(10) + chr(10) + prose[0], None, vision=NOPE)
+    check("a reading with no matching anchor: tables_matched 0, MGMT stays unresolved, the text as without a reading",
+          rn["vision"]["tables_matched"] == 0 and rn["unresolved"] == 1 and tn == tg.geometry_pass(VALENTINE + chr(10) + chr(10) + prose[0], None)[0], str(rn["vision"]))
+    check("without a reading the record's vision is None", tg.geometry_pass(VALENTINE, None)[1]["vision"] is None)
+    # the fragments: p.72's shape — a rotated phrase the OCR read in three pieces
+    FRAG = chr(10).join(["Intro.", "", "|  | New and Unknown | Experienced and Bad |", "|---|---|---|",
+                         "| y Stocks | Critical to My Stocks | Do the thing |", "| impact the Topics They Discuss Have on My Stocks | Could Be Critical | Do more |",
+                         "| Impact t | Not Critical | Ignore |", "", "Outro."])
+    RF = {"format": "vision-reading/1", "tables": [{"anchor": ["Critical to My Stocks"], "kind": "table",
+                                                    "rails": [{"word": "Impact the Topics They Discuss Have on My Stocks", "rows": [1, 3]}]}]}
+    tf, rf = tg.geometry_pass(FRAG, None, vision=RF)
+    Lf = tf.split(chr(10))
+    check("a rail the OCR read as three FRAGMENTS is proposed from the reading (every fragment a substring of the label), applied on row 1, the pieces blanked",
+          rf["applied"] == 1 and rf["labels"][0]["how"].startswith("vision (fragments") and rf["vision"]["fragment_rails"] == 1
+          and tg.cells(Lf[4])[0] == "Impact the Topics They Discuss Have on My Stocks" and tg.cells(Lf[5])[0] == "" and tg.cells(Lf[6])[0] == "",
+          str((rf["labels"], rf["vision"], Lf[4][:60], Lf[5][:30])))
+    check("the invariant admits the fragment run and names it", tg.grid_invariant(FRAG.split(chr(10))[2:7], Lf[2:7])[0]
+          and tg.grid_invariant(FRAG.split(chr(10))[2:7], Lf[2:7])[2]["labels"][0].get("fragments") == 3, str(tg.grid_invariant(FRAG.split(chr(10))[2:7], Lf[2:7])[1]))
+    PLANT = FRAG.replace("Have on My Stocks | Could", "Have on My Bonds | Could", 1)   # the S154 panel's own plant: a fragment the label does not contain
+    tp, rp = tg.geometry_pass(PLANT, None, vision=RF)
+    check("NEGATIVE (the plant): a fragment the label does not contain — 'Bonds' — is never proposed; the table stays as it came; the reading notes it unmatched",
+          rp["applied"] == 0 and tp == PLANT and rp["vision"]["unmatched"] and "fragments" in rp["vision"]["unmatched"][0]["why"], str((rp["applied"], rp["vision"])))
+    bad = list(Lf)
+    bad[5] = "| Bonds | Could Be Critical | Do more |"
+    okp, whyp, _ = tg.grid_invariant(FRAG.split(chr(10))[2:7], bad[2:7])
+    check("invariant NEGATIVE: a fragment run whose after row carries a piece not in the label is refused", not okp and any("not all pieces" in w for w in whyp), str(whyp))
+    # the figure call: the quadrant's HIGH / LOW are axis labels, not rails — the reading silences the table
+    FIG = chr(10).join(["Text.", "", "|  | Lipstick on a Pig | Reputation Builder |", "|---|---|---|", "| H<br>G<br>H | prose one | prose two |", "| L<br>O | prose three | prose four |", "", "More."])
+    RG = {"format": "vision-reading/1", "tables": [{"anchor": ["Lipstick on a Pig"], "kind": "figure", "rails": []}]}
+    tg_, rg = tg.geometry_pass(FIG + chr(10) + "The market is high and the mood is low and high again.", lambda letters, ctx: "HIGH", vision=RG)
+    check("a table the reading calls a FIGURE gets no repair: applied 0, its rotated axis letters untouched, the record names the figure",
+          rg["applied"] == 0 and rg["vision"]["figures"] == [[3, 6]] and "H<br>G<br>H" in tg_, str((rg["applied"], rg["vision"], rg["unresolved"])))
+    tg2, rg2 = tg.geometry_pass(FIG + chr(10) + "The market is high and the mood is low and high again.", lambda letters, ctx: "HIGH", vision=None)
+    check("NEGATIVE CONTROL: without the reading the same table IS repaired (HIGH resolved) — the figure call is the reading's alone", rg2["applied"] >= 1 and "HIGH" in tg2, str((rg2["applied"], rg2["labels"])))
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 

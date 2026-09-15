@@ -784,6 +784,67 @@ def drive_marker_body(module, work_name: str, use_analyst: bool, fake=None):
     return tmp_dir, bundle, manifest, rec
 
 
+# S156 E2: the page reading travels with the book — beside the dropped PDF at conversion (copied into the bundle), beside the
+# bundle at the J42 re-analysis; handed to analyst.process ONLY when present; a file that is not a reading is refused aloud.
+class VisionFakeAnalyst(MarkerBodyFakeAnalyst):
+    def __init__(self):
+        super().__init__()
+        self.kwargs = []
+
+    def process(self, body, backend="local", **kw):
+        self.kwargs.append(kw)
+        return super().process(body, backend=backend)
+
+
+_vfx = VisionFakeAnalyst()
+_vwork = QUARANTINE / "t18v-vision"
+_vwork.mkdir(parents=True, exist_ok=True)
+_vpdf = _born_digital_pdf(QUARANTINE / "t18v-vision-inline.pdf")
+(_vpdf.parent / f"{_vpdf.stem}.vision.json").write_text(json.dumps({"format": "vision-reading/1", "produced_by": "selftest", "tables": []}), encoding="utf-8")
+_vrec = EmitRecorder()
+cas._run_marker = MarkerStub()
+cas.emit = _vrec
+cas._ollama_unload = lambda: None
+_vprior = sys.modules.get("analyst")
+sys.modules["analyst"] = _vfx
+try:
+    _vtmp, _vbundle, _vmanifest = cas.convert(_vpdf, _vwork, use_analyst=True, analyst_backend="local")
+finally:
+    if _vprior is not None:
+        sys.modules["analyst"] = _vprior
+    else:
+        sys.modules.pop("analyst", None)
+check(len(_vfx.kwargs) == 1 and _vfx.kwargs[0].get("vision", {}).get("format") == "vision-reading/1",
+      "S156: a <stem>.vision.json beside the dropped PDF reaches analyst.process as vision=")
+check((_vtmp / "vision.json").is_file() and json.loads((_vtmp / "vision.json").read_text(encoding="utf-8"))["format"] == "vision-reading/1",
+      "S156: the reading is copied into the bundle as vision.json for the re-analysis")
+_vbad = QUARANTINE / "t18v-bad"
+_vbad.mkdir(parents=True, exist_ok=True)
+(_vbad / "vision.json").write_text("{not json", encoding="utf-8")
+check(cas._vision_sidecar(_vbad / "vision.json") is None, "S156 NEGATIVE: a malformed vision.json is refused (None), never half-read")
+(_vbad / "vision.json").write_text(json.dumps({"format": "something-else/1", "tables": []}), encoding="utf-8")
+check(cas._vision_sidecar(_vbad / "vision.json") is None, "S156 NEGATIVE: a JSON that is not a vision-reading is refused (None)")
+check(cas._vision_sidecar(_vbad / "absent.json") is None, "S156: an absent sidecar is None (the text rules alone)")
+_vfx2 = VisionFakeAnalyst()
+_vbd = QUARANTINE / "t18v-bundle"
+_vbd.mkdir(parents=True, exist_ok=True)
+(_vbd / "book.md").write_text("---\ntitle: book\n---\nA body with words in it.\n", encoding="utf-8")
+(_vbd / "manifest.json").write_text(json.dumps({"repairs": []}), encoding="utf-8")
+(_vbd / "vision.json").write_text(json.dumps({"format": "vision-reading/1", "tables": []}), encoding="utf-8")
+sys.modules["analyst"] = _vfx2
+try:
+    cas.emit = EmitRecorder()
+    cas.apply_analyst(_vbd, "book", "local")
+except Exception as exc:  # noqa: BLE001 — the harness names what apply_analyst needs beyond the fake
+    _vfx2.kwargs.append({"error": repr(exc)})
+finally:
+    if _vprior is not None:
+        sys.modules["analyst"] = _vprior
+    else:
+        sys.modules.pop("analyst", None)
+check(bool(_vfx2.kwargs) and _vfx2.kwargs[0].get("vision", {}).get("format") == "vision-reading/1",
+      "S156: apply_analyst hands <bundle>/vision.json to analyst.process as vision=  (%s)" % (_vfx2.kwargs[:1],))
+
 # (a) + (b): the sidecar equals what analyst.process was HANDED, not what it returned; the
 # manifest's bytes + sha256 match the file actually on disk.
 fake18 = MarkerBodyFakeAnalyst()

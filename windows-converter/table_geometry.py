@@ -714,6 +714,25 @@ def _fragment_of(long: str, frag: str) -> bool:
     return bool(f) and len(f) <= 5 and _bare(long).lower().endswith(f)
 
 
+def _fold_text(t: str) -> str:
+    """Lower-cased, whitespace-collapsed text for the reading's anchors and fragments."""
+    return " ".join(t.lower().split())
+
+
+def _vision_entry(lines: list[str], h: int, e: int, vision: dict | None):
+    """S156 E1 — the reading's entry for this table block: the one whose every `anchor` snippet appears in the block's own
+    text (case-folded, whitespace-collapsed) — never a line number, which the copy does not keep. None when no entry matches;
+    the first match when several do (the writer keeps anchors distinctive)."""
+    if not vision:
+        return None
+    blob = _fold_text(" ".join(lines[h:e + 1]))
+    for entry in vision.get("tables", []):
+        anchors = entry.get("anchor") or []
+        if anchors and all(_fold_text(a) in blob for a in anchors):
+            return entry
+    return None
+
+
 def _tile_spans(rails: list[dict], first_row: int, last_row: int) -> None:
     """S154 E6 — a rotated label is printed to begin at its GROUP's first row, not at the row the OCR put its first letter
     (Valentine p.108: REVENUE's letters sit on rows 2–5 of a group that begins at row 1; the scorer's placement measure read
@@ -734,7 +753,7 @@ def _tile_spans(rails: list[dict], first_row: int, last_row: int) -> None:
         p["span"] = [start, max(end, b)]
 
 
-def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[dict]:
+def propose(lines: list[str], resolver=None, lex: dict | None = None, vision: dict | None = None, notes: dict | None = None) -> list[dict]:
     """The shape repairs a table asks for, table by table, without touching a byte: a `caption` (a spanning title lifted
     above the table), a `rail` per letter run (the letters → the word the resolver gives, placed on the run's first row),
     a `dots` fix (stray bullet glyphs → `•` inside a table that has a bullet matrix). A table with a health issue is never
@@ -821,8 +840,9 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
             # S152 E1: the two rows folded into one — the label joined with a space, the data the second row's
             out.append({"kind": "fold", "table": [h + 1, e + 1], "rows": list(pair),
                         "why": "a wrapped row label: %r + %r" % (cells(lines[pair[0] - 1])[0][:40], cells(lines[pair[1] - 1])[0][:40])})
+        rails: list = []
+        has_cap = any(p["kind"] == "caption" and p["table"] == [h + 1, e + 1] for p in out)   # by the title row OR the pieces route
         if t.letter_column:
-            rails: list = []
             runs, run = [], []
             for k in range(d + 1, e + 1):
                 c = cells(lines[k])
@@ -902,11 +922,71 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None) -> list[di
                               "word": word, "how": how, "refused": refused})
             # S154 E6: the spans, 1-based lines — the body runs from d+1 (0-based) to e; under a title row the real header sits
             # at d+1 and the body begins at d+2 (the first cut lifted REVENUE onto the header row: the selftest caught it)
-            has_cap = any(p["kind"] == "caption" and p["table"] == [h + 1, e + 1] for p in out)   # by the title row OR the pieces route
             _tile_spans(rails, d + 2 + (1 if has_cap else 0), e + 1)
-            out.extend(rails)
+        entry = _vision_entry(lines, h, e, vision)
+        if entry is not None and notes is not None:
+            notes.setdefault("matched", []).append({"table": [h + 1, e + 1], "kind": entry.get("kind", "table")})
+        if entry is not None and entry.get("kind", "table") == "table" and entry.get("rails"):
+            # S156 E1 — the reading of the page lends a rail its WORD (where the lexicon and the resolver did not decide) and
+            # its SPAN (the reading's rows, 1-based body rows under the real header, mapped onto the copy's rows); a rail the
+            # reading names with no letter run beneath is proposed from its FRAGMENTS when every rail cell on those rows is a
+            # substring of the label. Every claim still goes through the invariant.
+            first_body = d + 1 + (1 if has_cap else 0)
+            for vr in entry["rails"]:
+                word = str(vr.get("word", "")).strip()
+                rows = vr.get("rows") or []
+                if not word or len(rows) != 2:
+                    continue
+                l0, l1 = first_body + int(rows[0]) - 1, first_body + int(rows[1]) - 1
+                if l0 < first_body or l1 > e or l0 > l1:
+                    if notes is not None:
+                        notes.setdefault("unmatched", []).append({"table": [h + 1, e + 1], "word": word, "why": "rows outside the copy's body"})
+                    continue
+                hit = None
+                for p in rails:
+                    if letters_fit(p["letters"], word)[0] and (p["word"] is None or fold_letters(p["word"]) == fold_letters(word)):
+                        hit = p
+                        break
+                if hit is None:
+                    for p in rails:
+                        if p["word"] is None and not (p["rows"][1] < l0 + 1 or p["rows"][0] > l1 + 1):
+                            hit = p if letters_fit(p["letters"], word)[0] else None
+                            break
+                if hit is not None:
+                    if hit["word"] is None:
+                        hit["word"], hit["how"], hit["refused"] = word, "vision (a reading of the page; the letters fit)", None
+                        if notes is not None:
+                            notes["words"] = notes.get("words", 0) + 1
+                    hit["span"] = [l0 + 1, l1 + 1]
+                    hit["span_how"] = "vision"
+                    if notes is not None:
+                        notes["spans"] = notes.get("spans", 0) + 1
+                    continue
+                frags = [(k, _bare(cells(lines[k])[0]) and cells(lines[k])[0]) for k in range(l0, l1 + 1) if cells(lines[k]) and cells(lines[k])[0]]
+                frags = [(k, c) for k, c in frags if c]
+                label = _fold_text(word)
+                if frags and all(not _letterish(c) and _fold_text(c) in label for _, c in frags):
+                    rails.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [frags[0][0] + 1, frags[-1][0] + 1],
+                                  "letters": " / ".join(c for _, c in frags), "word": word, "how": "vision (fragments of the label)",
+                                  "refused": None, "span": [l0 + 1, l1 + 1], "span_how": "vision", "fragments": len(frags)})
+                    if notes is not None:
+                        notes["fragment_rails"] = notes.get("fragment_rails", 0) + 1
+                elif notes is not None:
+                    notes.setdefault("unmatched", []).append({"table": [h + 1, e + 1], "word": word, "why": "no letter run fits it and its rows are not fragments of it"})
+        out.extend(rails)
         if t.dots_total and t.stray_dot_glyphs:
             out.append({"kind": "dots", "table": [h + 1, e + 1], "cells": t.stray_dot_glyphs})
+    if vision:
+        # S156 E1 — a table the reading calls a FIGURE gets no repair at all (its rotated axis labels are not rails)
+        figures = set()
+        for h, d, e in table_blocks(lines):
+            entry = _vision_entry(lines, h, e, vision)
+            if entry is not None and entry.get("kind") == "figure":
+                figures.add((h + 1, e + 1))
+        if figures:
+            if notes is not None:
+                notes["figures"] = [list(x) for x in sorted(figures)]
+            out = [p for p in out if tuple(p["table"]) not in figures]
     return out
 
 
@@ -1125,6 +1205,22 @@ def grid_invariant(before: list[str], after: list[str]) -> tuple[bool, list[str]
             reasons.append("column 1 row %d: %r placed on a blank row with no letter run beneath it" % (i + 1, a1[:40]))
             i += 1
             continue
+        if b1 and not _letterish(b1) and not _stray_mark(b1) and a1 and a1 != b1:
+            # S156 E1 — a FRAGMENT run (the OCR's pieces of a rotated phrase, `y Stocks` / `impact the Topics…` / `Impact t`)
+            # replaced by one label and blanks: admitted only when every fragment is a substring of the label (case-folded,
+            # whitespace-collapsed) — a fragment the label does not contain refuses the whole run
+            k, frags = i, []
+            while k < n and rb2[k] and rb2[k][0] and not _letterish(rb2[k][0]) and not _stray_mark(rb2[k][0]) and (k == i or (ra[k] and ra[k][0] == "")):
+                frags.append(rb2[k][0])
+                k += 1
+            label = _fold_text(a1)
+            bad = [f for f in frags if _fold_text(f) not in label]
+            if frags and not bad:
+                facts["labels"].append({"row": i + 1, "letters": " / ".join(frags), "word": a1, "fit": "fragments of the label (%d)" % len(frags), "fragments": len(frags)})
+            else:
+                reasons.append("column 1 rows %d-%d: the fragments %r are not all pieces of the label %r" % (i + 1, k, [f[:20] for f in (bad or frags)], a1[:40]))
+            i = max(k, i + 1)
+            continue
         if not (b1 and _letterish(b1) and a1):
             reasons.append("column 1 row %d changed: %r -> %r" % (i + 1, b1[:40], a1[:40]))
             i += 1
@@ -1165,7 +1261,7 @@ def apply_admitted(lines: list[str], h: int, d: int, e: int, props: list[dict]) 
     return new, kept, refused, checks, dots
 
 
-def geometry_pass(text: str, resolver=None, use_lexicon: bool = True) -> tuple[str, dict]:
+def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: dict | None = None) -> tuple[str, dict]:
     """The layer over a whole markdown text: propose per table, apply on a copy, keep only what the invariant admits.
     Returns (text, record): the record counts tables, proposals, applied, refused and unresolved, lists every label and
     caption, and names the invariant's own tallies — the AFTER half of the measurement, written by the act itself.
@@ -1178,7 +1274,8 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True) -> tuple[s
         return resolver(letters, context)
 
     lex = lexicon(lines) if use_lexicon else None
-    props = propose(lines, counted if resolver is not None else None, lex)
+    vnotes: dict = {}
+    props = propose(lines, counted if resolver is not None else None, lex, vision=vision, notes=vnotes if vision else None)
     blocks = {(h + 1, e + 1): (h, d, e) for h, d, e in table_blocks(lines)}
     by_table: dict = {}
     for p in props:
@@ -1221,5 +1318,9 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True) -> tuple[s
         "invariant_checks": checks,
         "resolver_calls": calls["n"],
         "lexicon_words": len(lex) if lex is not None else None,
+        # S156 E1 — what the reading of the page (vision.json, a sub-agent panel's sidecar) did here, or None without one
+        "vision": ({"format": vision.get("format"), "produced_by": vision.get("produced_by"), "tables_matched": len(vnotes.get("matched", [])),
+                    "words": vnotes.get("words", 0), "spans": vnotes.get("spans", 0), "fragment_rails": vnotes.get("fragment_rails", 0),
+                    "figures": vnotes.get("figures", []), "unmatched": vnotes.get("unmatched", [])} if vision else None),
     }
     return "\n".join(out_lines), record
