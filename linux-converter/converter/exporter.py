@@ -451,7 +451,16 @@ class Exporter:
             if len(matches) == 1:
                 self._record_blocks(bundle_dir, manifest)  # J28: before any vault write
                 self._record_marker_body(bundle_dir, manifest)  # J33: same, before any write
-                self._supersede_replace(bundle_dir, supersede, Path(matches[0]))
+                # J40 (S157 E11): the EFFECTIVE verdict with its cause rides the log line and the commit
+                # message -- a blessed flag is "flag (blessed by <who>)", never "pass" (the first real
+                # supersede-with-bless, Cybernetics 2026-09-06, wrote "fail->pass" over a manifest that
+                # said flag + blessed{by rab}; the data was right, the two strings outran it)
+                effective = (
+                    f"flag (blessed by {blessed.get('by', '?')})"
+                    if blessed is not None
+                    else str(verdict)
+                )
+                self._supersede_replace(bundle_dir, supersede, Path(matches[0]), effective)
                 return
             # 0 matches: intent said supersede but nothing is vaulted -> fall through to a normal
             # create (do NOT run the dedup skip -- the sha is absent, it would not skip anyway).
@@ -594,7 +603,9 @@ class Exporter:
             **extra,
         )
 
-    def _supersede_replace(self, bundle_dir: Path, supersede: dict, manifest_rel: Path) -> None:
+    def _supersede_replace(
+        self, bundle_dir: Path, supersede: dict, manifest_rel: Path, effective: str = "pass"
+    ) -> None:
         """Replace an already-vaulted note in place with a passing remedy re-convert (docs/15
         §14). Identity is preserved: the live note's existing `.md` filename and folder stay put
         (a re-convert may compute a different slug, and a rename would break `[[wikilinks]]` and
@@ -711,16 +722,17 @@ class Exporter:
                 *GIT_IDENTITY,
                 "commit",
                 "-m",
-                f"supersede: {target_rel.name} ({reason}, {from_verdict}→pass)",
+                f"supersede: {target_rel.name} ({reason}, {from_verdict}→{effective})",
                 "--",
                 target_rel.as_posix(),
             )
             logger.info(
-                "EXPORT-SUPERSEDE %s -> %s (%s, %s->pass)",
+                "EXPORT-SUPERSEDE %s -> %s (%s, %s->%s)",
                 bundle_dir.name,
                 target_rel,
                 reason,
                 from_verdict,
+                effective,
             )
 
         _git_check(vault_work, "push", "origin", VAULT_BRANCH)

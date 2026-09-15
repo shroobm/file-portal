@@ -280,6 +280,22 @@ def test_bless_written_inside_a_held_bundle_re_exports_it_without_a_restart(path
     assert not held.exists(), "the blessed remedy shipped on the closed event -- no restart"
     assert bare_commits(paths) == 3, "exactly one supersede commit"
     assert "blessed body" in bare_show(paths, f"Inbox/paper--{SHA_A[:8]}/paper.md")
+    # J40 (S157 E11): the commit message names the EFFECTIVE verdict with its cause -- a blessed flag
+    # is never written as "pass" (the 2026-09-06 Cybernetics supersede had said "fail->pass")
+    subject = git(paths.vault_bare, "log", "-1", "--format=%s", "main")
+    assert subject == f"supersede: paper--{SHA_A[:8]} (audit-remedy, fail→flag (blessed by rab))", (
+        subject
+    )
+
+
+def test_supersede_on_merit_still_says_pass(paths):
+    """J40's negative control: a remedy that PASSED on its own audit keeps the plain arrow."""
+    exp = Exporter(paths)
+    exp.export(make_bundle(paths, "paper", SHA_A))
+    exp.export(make_supersede_bundle(paths, "paper", SHA_A, verdict="pass", body="fixed on merit"))
+    assert bare_commits(paths) == 3
+    subject = git(paths.vault_bare, "log", "-1", "--format=%s", "main")
+    assert subject == f"supersede: paper--{SHA_A[:8]} (audit-remedy, fail→pass)", subject
 
 
 def test_bless_outside_a_top_level_bundle_is_ignored(paths):
