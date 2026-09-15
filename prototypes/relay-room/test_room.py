@@ -62,8 +62,10 @@ NOT_YET = ["T3", "T4", "T12", "T20", "T21", "T24", "T25", "T26", "T27_live", "T2
 # S157 E52 (J5, 2026-09-15): the list above is what THIS FILE does not cover, and it is still true of this file. Where
 # the rest live now, so the register does not read them as unbuilt: T24, T25, T26, T27 — test_room_c.py (a driven
 # catcher with the real gate); T3, T4, T12, T21 and T28 (the end-to-end: say → claim → model-state → reply → trail,
-# a catcher subprocess, the live state/ proven untouched) — `room.py selftest` on an ephemeral port, 20 checks. Still
-# unexercised by anything live: T20 (an SSE client reading `event: hello` and JSON frames from /api/events).
+# a catcher subprocess, the live state/ proven untouched) — `room.py selftest` on an ephemeral port, 20 checks; T20 (an
+# SSE client: `event: hello` first, JSON frames without a raw newline, an `entry` frame within 3 s of a say, the
+# newline control) joined it at S157 E59 — 27 checks. Nothing in NOT_YET is unexercised anywhere now; the list stays
+# true of THIS file.
 
 SRC = {p.name: p.read_text(encoding="utf-8", errors="replace")
        for p in ROOT.glob("*.py")}

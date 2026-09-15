@@ -1257,6 +1257,85 @@ def cmd_selftest(a) -> int:
                      if s.get("reached")]
             record("the trail reaches replied", "replied" in names, f"reached: {names}")
 
+        # S157 E59 — T20, the live SSE check (the last of J5's NOT_YET): connect to /api/events on the throwaway
+        # tree; the FIRST frame is `event: hello` (the stream is a change notifier, never a backlog); every `data:`
+        # line parses as JSON with no raw newline; an entry appended while connected produces an `entry` frame
+        # within 3 s. The control the contract names — a payload with an embedded newline must fail the parse — is
+        # planted through _emit's own escape on a copy of the text, not on the live wire.
+        frames = []
+        sse_err = None
+        try:
+            sconn = http.client.HTTPConnection("127.0.0.1", port, timeout=6)
+            sconn.request("GET", "/api/events")
+            sresp = sconn.getresponse()
+            record("T20 /api/events answers text/event-stream",
+                   sresp.status == 200 and "text/event-stream" in (sresp.getheader("Content-Type") or ""),
+                   f"status {sresp.status} content-type {sresp.getheader('Content-Type')!r}")
+
+            def read_frame(deadline_s):
+                """One SSE frame: the lines up to a blank line; None on the deadline."""
+                t_end = time.time() + deadline_s
+                name, data = None, None
+                while time.time() < t_end:
+                    line = sresp.fp.readline().decode("utf-8", "replace")
+                    if not line:
+                        return None
+                    line = line.rstrip("\r\n")
+                    if line == "":
+                        if name is not None or data is not None:
+                            return name, data
+                        continue
+                    if line.startswith("event: "):
+                        name = line[len("event: "):]
+                    elif line.startswith("data: "):
+                        data = line[len("data: "):]
+                return None
+
+            first = read_frame(5)
+            frames.append(first)
+            record("T20 the first frame is `event: hello`", bool(first) and first[0] == "hello", f"got {first!r}"[:160])
+            hello_ok = False
+            if first and first[1] is not None:
+                try:
+                    hello = json.loads(first[1])
+                    hello_ok = isinstance(hello, dict) and "cursor" in hello and "note" in hello
+                except ValueError:
+                    hello_ok = False
+            record("T20 the hello's data parses as JSON and names the cursor and the note", hello_ok, f"{(first or ('', ''))[1]!r}"[:160])
+            # an entry appended while connected → an `entry` frame within 3 s
+            st_e, body_e, _h = call("POST", "/api/say", {"from": "Rab", "to": "Codex",
+                                                       "body": "selftest: a message while the stream is open."}, hdr)
+            record("T20 a say lands while a stream is open", st_e == 200, f"got {st_e}")
+            got_entry = None
+            t_end = time.time() + 3.0
+            while time.time() < t_end:
+                fr = read_frame(max(0.2, t_end - time.time()))
+                if fr is None:
+                    break
+                frames.append(fr)
+                if fr[0] == "entry":
+                    got_entry = fr
+                    break
+            record("T20 the appended entry reaches the stream as an `entry` frame within 3 s", got_entry is not None,
+                   f"frames seen: {[f[0] for f in frames if f]}")
+            record("T20 every data line so far parses as JSON with no raw newline",
+                   all(f is not None and f[1] is not None and json.loads(f[1]) is not None and "\n" not in f[1] for f in frames),
+                   f"{len(frames)} frame(s)")
+            # the CONTROL: a payload carrying a raw newline is escaped by _emit's own rule; the un-escaped form would
+            # split the frame — planted on a copy of the encoder's text, never sent
+            # (json.dumps never emits a raw newline for a string — the hazard is a producer that serialises by hand;
+            # the control plants that text directly)
+            raw_bad = '{"note":"line one\nline two"}'
+            escaped = raw_bad.replace("\r", "\\r").replace("\n", "\\n")
+            record("T20 CONTROL: a payload with an embedded newline would split a frame; _emit's escape removes it",
+                   ("\n" in raw_bad) and ("\n" not in escaped) and json.loads(escaped)["note"] == "line one\nline two",
+                   f"raw has newline: {chr(10) in raw_bad}")
+            sconn.close()
+        except Exception as exc:                                     # noqa: BLE001
+            sse_err = f"{type(exc).__name__}: {exc}"
+        if sse_err:
+            results.append(("T20 the SSE checks could run", "UNREAD", sse_err + " - the stream could not be read; this is not a pass"))
+
         # the catcher half of T28 - reported, never assumed
         if (ROOT / "catcher.py").exists():
             r = subprocess.run([sys.executable, str(ROOT / "catcher.py"), "--lane", "Fable",
