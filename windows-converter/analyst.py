@@ -546,6 +546,7 @@ def process(markdown: str, backend: str = "local",
     # J41 (signed Rab 2026-09-09): one row per finished chunk, in chunk order, surviving into
     # meta["chunk_scores"] — see _score_row and the rmtree comment below.
     chunk_scores: list[dict] = []
+    backend_failures: list[dict] = []   # S157 E17: each failed call — chunk, error class, the ollama log capture's id
     t0 = time.perf_counter()
 
     # S61: pick up whatever a previous run finished before it died.
@@ -618,13 +619,17 @@ def process(markdown: str, backend: str = "local",
             _call_bound["num_predict"] = _num_predict_for(chunk) if backend == "local" else None
             try:
                 candidate = generate(prompt + chunk)
-            except Exception:
+            except Exception as exc:  # noqa: BLE001 — every backend error ships the original; the class and the log are the evidence
                 out.append(chunk)  # API/backend error -> ship the un-analyzed original
                 failed += 1
                 generated += 1
                 # J41: nothing was computed for a failed call — no survival, no ratio, just the
                 # index and the reason, same shape rule as the passed/rejected rows below.
                 chunk_scores.append({"i": i, "x": "failed"})
+                # S157 E17 (B12 / SYM-034): the server's side of a failed call — Ollama's own log tail, ledgered; the
+                # error's class beside it. A stall the client timed out on is no longer "no error anywhere".
+                backend_failures.append({"i": i, "error": type(exc).__name__, "detail": str(exc)[:120],
+                                         "ollama_log": _capture_ollama_log(work_dir, i, work_dir.name) if backend == "local" else "n/a (gemini)"})
                 # DELIBERATELY NOT JOURNALLED. A failure here means the backend errored — an
                 # ollama restart, a VRAM blip, a 5xx — which is exactly the kind of thing the
                 # next run would succeed at. Persisting it would bake a transient hiccup into
@@ -786,6 +791,9 @@ def process(markdown: str, backend: str = "local",
         # applied (docs/34: a number without its conditions is not a measurement; every survival score above was decoded
         # under these). The values are the lever ANALYST_SAMPLER: Rab's word.
         "sampler": sampler_record(backend),
+        # S157 E17 (B12 / SYM-034): every backend failure by chunk, its error class and the DUMPED id (or UNREAD reason) of
+        # the ollama server.log tail captured at that moment — the server-side evidence a stall never had
+        "backend_failures": backend_failures,
         # S141 (unread-surfaces/orphan-chunk-journal-dump-before-rmtree): the journal's bytes ledgered by dumps/dump.sh BEFORE the
         # work dir goes (dumps/ D0001 was this journal snapshotted by hand minutes before an rmtree; SURF-12 found one orphaned
         # 12 days) — the DUMPED id, or the UNREAD reason; a failure to dump is said, never fatal. In the literal so the glass
@@ -797,6 +805,46 @@ def process(markdown: str, backend: str = "local",
     # live on in meta["chunk_scores"] above, so a book that PASSES no longer loses them too.
     shutil.rmtree(work_dir, ignore_errors=True)  # after the dump above
     return unfence("\n\n".join(out), embeds), meta
+
+
+OLLAMA_SERVER_LOG = Path.home() / "AppData" / "Local" / "Ollama" / "server.log"   # ollama's own log on this machine
+OLLAMA_LOG_TAIL_LINES = 200
+
+
+def _capture_ollama_log(work_dir, i: int, run_key: str) -> str:
+    """S157 E17 (B12 / SYM-034): the tail of Ollama's OWN server log at the moment a local call failed — the server-side half
+    the symptom row said did not exist (a hung /api/generate: the client sees a timeout, the server's story is in its log).
+    Written beside the work dir as `ollama-<i>-<ts>.log` and ledgered through dumps/dump.sh; returns the DUMPED id or an
+    UNREAD reason. Never raises; never a statement about the cause."""
+    try:
+        if not OLLAMA_SERVER_LOG.is_file():
+            return "UNREAD: no ollama server.log at %s" % OLLAMA_SERVER_LOG
+        with open(OLLAMA_SERVER_LOG, "rb") as f:
+            f.seek(0, 2)
+            size = f.tell()
+            f.seek(max(0, size - 400_000))
+            tail = f.read().decode("utf-8", errors="replace").splitlines()[-OLLAMA_LOG_TAIL_LINES:]
+        ts = time.strftime("%Y%m%dT%H%M%SZ", time.gmtime())
+        # beside the work dirs, not inside one: the work dir is rmtree'd at assembly (J41) and the ledger's --ref mode keeps a
+        # reference, not bytes — the capture must outlive the run on its own
+        out = Path(work_dir).parent / "_captures" / ("ollama-%s-%d-%s.log" % (run_key[:16], i, ts))
+        out.parent.mkdir(parents=True, exist_ok=True)
+        open(out, "w", encoding="utf-8", newline="\n").write(
+            "# ollama server.log tail (%d lines) captured at %s after chunk %d of run %s failed\n" % (len(tail), ts, i, run_key[:40]) + "\n".join(tail) + "\n")
+        dump_sh = Path(__file__).resolve().parent.parent / "dumps" / "dump.sh"
+        if not dump_sh.is_file():
+            return "UNREAD: captured to %s; dumps/dump.sh not beside this checkout" % out.name
+        args = ["bash", str(dump_sh)]
+        test_ledger = os.environ.get("FP_DUMP_LEDGER")
+        if test_ledger:
+            args += ["--ref", "--ledger", test_ledger]
+        p = subprocess.run(args + ["evidence", "ollama server.log tail at a failed call - chunk %d run %s" % (i, run_key[:40]), str(out)],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60,
+                           env=dict(os.environ, DUMP_LANE="pipeline"))
+        line = next((ln for ln in p.stdout.splitlines() if ln.startswith("DUMPED")), "")
+        return line if p.returncode == 0 and line else "UNREAD: captured to %s; dump.sh exited %s" % (out.name, p.returncode)
+    except Exception as e:  # noqa: BLE001 — the capture is evidence beside a failure; it must never become a second failure
+        return "UNREAD: the capture did not run (%s)" % e
 
 
 def _dump_journal(journal_path, run_key: str) -> str:

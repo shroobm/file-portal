@@ -902,6 +902,61 @@ def _():
     assert analyst.urllib.request.urlopen is _no_network, "a case replaced the network guard and did not restore it"
 
 
+@case("S157-E17 (a) B12/SYM-034: a failed local call captures Ollama's own log tail, ledgers it, and meta.backend_failures names chunk, class and id")
+def _():
+    import tempfile
+    test_ledger()
+    tmp = Path(tempfile.mkdtemp(prefix="ollama-log-"))
+    fake_log = tmp / "server.log"
+    fake_log.write_text("".join("line %d of a planted ollama log\n" % k for k in range(1, 301)), encoding="utf-8")
+    saved_log, saved_gen = analyst.OLLAMA_SERVER_LOG, analyst._generate
+    analyst.OLLAMA_SERVER_LOG = fake_log
+
+    def boom(prompt):
+        raise TimeoutError("planted stall")
+    analyst._generate = boom
+    try:
+        out, meta = analyst.process(words(60), backend="local", tables=False)
+    finally:
+        analyst.OLLAMA_SERVER_LOG, analyst._generate = saved_log, saved_gen
+    assert meta["chunks_failed"] == 1 and out.strip() == words(60).strip(), (meta["chunks_failed"], "the original must ship")
+    bf = meta["backend_failures"]
+    assert len(bf) == 1 and bf[0]["i"] == 1 and bf[0]["error"] == "TimeoutError" and "planted stall" in bf[0]["detail"], bf
+    assert bf[0]["ollama_log"].startswith("DUMPED"), bf[0]["ollama_log"]
+    caps = sorted(analyst.ANALYST_WORK.glob("_captures/ollama-*-1-*.log"), key=lambda p: p.stat().st_mtime)
+    assert caps, "the capture file was not written beside the work dir"
+    text = caps[-1].read_text(encoding="utf-8")
+    assert text.splitlines()[0].startswith("# ollama server.log tail (200 lines)") and "line 300 of a planted ollama log" in text and "line 100 of" not in text, text[:120]
+    assert meta["chunk_scores"] == [{"i": 1, "x": "failed"}], meta["chunk_scores"]
+
+
+@case("S157-E17 (b) NEGATIVE CONTROL: a run with no failure has an empty backend_failures and writes no capture")
+def _():
+    before = len(list(analyst.ANALYST_WORK.glob("_captures/ollama-*.log")))
+    out, meta = run(words(60), [words(60)])
+    assert meta["backend_failures"] == [] and meta["chunks_failed"] == 0, meta["backend_failures"]
+    assert len(list(analyst.ANALYST_WORK.glob("_captures/ollama-*.log"))) == before, "a capture was written with nothing failed"
+
+
+@case("S157-E17 (c) no server.log at the path -> the row reads UNREAD (never a fabricated id); the error still named; the original ships")
+def _():
+    import tempfile
+    test_ledger()
+    saved_log, saved_gen = analyst.OLLAMA_SERVER_LOG, analyst._generate
+    analyst.OLLAMA_SERVER_LOG = Path(tempfile.mkdtemp(prefix="no-log-")) / "server.log"
+
+    def boom(prompt):
+        raise ConnectionRefusedError("planted refusal")
+    analyst._generate = boom
+    try:
+        out, meta = analyst.process(words(60), backend="local", tables=False)
+    finally:
+        analyst.OLLAMA_SERVER_LOG, analyst._generate = saved_log, saved_gen
+    bf = meta["backend_failures"]
+    assert len(bf) == 1 and bf[0]["error"] == "ConnectionRefusedError" and bf[0]["ollama_log"].startswith("UNREAD: no ollama server.log"), bf
+    assert out.strip() == words(60).strip()
+
+
 print()
 if failed:
     print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")
