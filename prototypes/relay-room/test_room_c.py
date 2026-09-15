@@ -329,7 +329,7 @@ class TestTrails(Fixture):
     def test_T15_an_entry_with_no_flight_file_is_UNREAD_not_typed(self):
         e = roomlog.append_entry(frm="Rab", to="Fable", body="a question")
         log = roomlog.read_log()
-        t = roomlog.render_trail(e.id, log, now=self.now)
+        t = roomlog.render_trails(e.id, log=log, now=self.now)   # S157 E52: the §5.4 object is render_trails
         lane = t["trails"]["Fable"]
         self.assertEqual(lane["rendered"], "UNREAD")
         self.assertNotEqual(lane["rendered"], "typed")

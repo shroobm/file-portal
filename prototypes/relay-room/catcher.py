@@ -423,7 +423,9 @@ class Catcher:
         """(whole trail object, this lane's sub-trail or None). render_trail is Builder A's; only
         its documented keys are touched (CONTRACT §5.4)."""
         try:
-            t = roomlog.render_trail(mid, log, now=now, stall_after_s=self.stall_after_s)
+            # S157 E52 (J5): render_trail is per LANE; the whole object is render_trails — this call passed the log as
+            # the lane, the TypeError was swallowed below, and every cycle read `state: error` (T25 measured it).
+            t = roomlog.render_trails(mid, log=log, now=now, stall_after_s=self.stall_after_s)
         except Exception as exc:
             return None, None, f"{type(exc).__name__}: {status.clip(exc, 120)}"
         lane_t = ((t or {}).get("trails") or {}).get(self.lane)

@@ -35,7 +35,11 @@ from pathlib import Path
 # ---------- locations (L5: everything is under ROOT, and it is enforced, not promised) ----------
 
 ROOT = Path(__file__).resolve().parent
-STATE = ROOT / "state"
+# S157 E52 (J5): FP_ROOM_STATE relocates the whole tree for a SUBPROCESS (the catcher `room.py selftest` spawns) — the
+# selftest's in-process redirect could not reach a child's own import, and the child wrote the LIVE state/ while the
+# harness reported "the quarantined relay is the only one written". Absent, the live tree as before. Still under ROOT:
+# assert_inside enforces L5 on whatever this resolves to.
+STATE = Path(os.environ["FP_ROOM_STATE"]) if os.environ.get("FP_ROOM_STATE") else ROOT / "state"
 COORD = STATE / "coord"                 # this prototype's OWN relay-gate bus (FP_COORD points here)
 ROOM_MD = STATE / "room.md"
 FLIGHT_DIR = STATE / "flight"
@@ -306,9 +310,12 @@ def _last_byte_lead(path: Path) -> str:
     return ""
 
 
-def append_entry(*, frm, to, body, re_=None, kind="say", path=ROOM_MD,
+def append_entry(*, frm, to, body, re_=None, kind="say", path=None,
                  nonce=lambda: secrets.token_hex(8)) -> Entry:
-    path = assert_inside(path)
+    # S157 E52 (J5): `path=ROOM_MD` as a DEFAULT bound the live file at import — `room.py selftest`'s redirect of the
+    # module constant never reached it, and the server half wrote the live room.md from a "throwaway" tree. Resolved at
+    # call time now, like every other constant this module reads.
+    path = assert_inside(ROOM_MD if path is None else path)
     if frm not in SPEAKERS:
         raise ValueError(f"from must be one of {SPEAKERS}, got {frm!r}")
     if to not in SPEAKERS + ("all",):
@@ -330,7 +337,10 @@ def append_entry(*, frm, to, body, re_=None, kind="say", path=ROOM_MD,
     # every test fixture, every probe file - contended on the real log's lock and serialised
     # against writers it had nothing to do with. state/room.lock stays the named lock for the
     # real log, exactly as §2.6 says; anything else locks beside itself.
-    lock_dir = ROOM_LOCK if path == assert_inside(ROOM_MD) else path.with_name(path.name + ".lock")
+    # S157 E52: the named lock is derived from the log's CURRENT location (ROOM_MD.with_name — `state/room.lock` for
+    # the live tree, exactly as before), never from the import-time ROOM_LOCK: a redirected tree (the selftest's, a
+    # unittest fixture's) otherwise locked the LIVE tree's file and assert_inside refused it.
+    lock_dir = ROOM_MD.with_name("room.lock") if path == assert_inside(ROOM_MD) else path.with_name(path.name + ".lock")
     lock_owner = f"append:{frm}"
     with Lock(lock_dir, owner=lock_owner):
         # The critical section is deliberately CHEAP. The first cut decoded the whole log to str
@@ -368,8 +378,8 @@ def append_entry(*, frm, to, body, re_=None, kind="say", path=ROOM_MD,
                  start_line=-1)
 
 
-def read_log(path=ROOM_MD) -> LogRead:
-    path = Path(path)
+def read_log(path=None) -> LogRead:
+    path = Path(ROOM_MD if path is None else path)   # S157 E52: resolved at call time (see append_entry)
     read_at = utc_now()
     if not path.exists():
         return LogRead("MISSING",
@@ -550,6 +560,22 @@ def _read_flight(mid):
             continue
         rows.append(row)
     return "ok", rows, torn, invalid
+
+
+def render_trails(mid, *, log=None, now=None, stall_after_s=None):
+    """§5.4 the trail OBJECT for one message: the header, the lanes it is addressed to, one render_trail per lane
+    under `trails`. S157 E52 (J5): Builder A wrote render_trail per LANE; Builder C's catcher (`trail_for`) and its
+    test T15 called `render_trail(mid, log)` expecting THIS object, and room.py's routes did the same — the LogRead
+    landed in `lane`, the claim route answered 500, the catcher swallowed a TypeError into `state: error`, and
+    /api/flight never carried `trails`. The contract's document lives here now, once."""
+    log = read_log() if log is None else log
+    hit = next((e for e in log.entries if e.id == mid), None)
+    if hit is None:
+        raise KeyError(f"{mid} is not in the log")
+    lanes = list(LANES) if hit.to == "all" else ([hit.to] if hit.to in LANES else [])
+    return {"id": hit.id, "from": hit.frm, "to": hit.to, "utc": hit.utc, "subject": subject(hit.body),
+            "lanes": lanes,
+            "trails": {lane: render_trail(mid, lane, log=log, now=now, stall_after_s=stall_after_s) for lane in lanes}}
 
 
 def render_trail(mid, lane, *, log=None, now=None, stall_after_s=None, lane_reading=None):

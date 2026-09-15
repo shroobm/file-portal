@@ -363,7 +363,9 @@ def op_claim(*, lane, mid, note=None) -> dict:
         raise Refused(400, str(exc))
     except roomlog.LockTimeout:
         raise Refused(503, _lock_detail(roomlog.FLIGHT_DIR / f"{mid}.lock"))
-    return roomlog.render_trail(mid, roomlog.read_log())
+    # S157 E52 (J5): the claim answers with §5.4's trail OBJECT (see trail_document) — the old call passed the LogRead
+    # positionally into render_trail's `lane` and the route answered 500.
+    return trail_document(mid, roomlog.read_log())
 
 
 def op_model_state(*, lane, state, ticket=None, note=None) -> dict:
@@ -483,6 +485,18 @@ def board_document(srv=None) -> dict:
     return board
 
 
+def trail_document(mid: str, read) -> dict:
+    """§5.4 the trail OBJECT for one message (roomlog.render_trails). S157 E52 (J5): room.py called
+    `roomlog.render_trail(mid, read)` — the LogRead landed in the `lane` parameter (a call written against a
+    multi-lane signature that roomlog never had) — so `/api/flight` never carried §5.4's `trails` and the claim route
+    answered 500. `room.py selftest` (T28's server half) read both: "claim reaches stage delivered: got 500", "the
+    trail reaches replied: reached []". A message not in the log is a 404 here, as before."""
+    try:
+        return roomlog.render_trails(mid, log=read)
+    except KeyError:
+        raise Refused(404, f"no such message: {mid} - it is not in room.md.")
+
+
 def flight_document(mid=None) -> dict:
     """§3.3 GET /api/flight."""
     read = roomlog.read_log()
@@ -493,12 +507,10 @@ def flight_document(mid=None) -> dict:
             doc["flight"] = None
         return doc
     if mid:
-        if not any(e.id == mid for e in read.entries):
-            raise Refused(404, f"no such message: {mid} - it is not in room.md.")
-        return {"flight": roomlog.render_trail(mid, read), "log_status": "ok",
+        return {"flight": trail_document(mid, read), "log_status": "ok",
                 "read_utc": read.read_utc}
     says = [e for e in read.entries if e.kind == "say"][-50:]
-    return {"flights": {e.id: roomlog.render_trail(e.id, read) for e in says},
+    return {"flights": {e.id: trail_document(e.id, read) for e in says},
             "log_status": "ok", "reason": None, "read_utc": read.read_utc}
 
 
@@ -751,7 +763,7 @@ class RoomHandler(BaseHTTPRequestHandler):
         if read.status == "ok":
             for e in [x for x in read.entries if x.kind == "say"][-50:]:
                 try:
-                    flight_sigs[e.id] = _strip(roomlog.render_trail(e.id, read))
+                    flight_sigs[e.id] = _strip(trail_document(e.id, read))   # S157 E52: the trail OBJECT, not one lane
                 except Exception:                    # noqa: BLE001
                     flight_sigs[e.id] = None
         last_ping = time.monotonic()
@@ -800,7 +812,7 @@ class RoomHandler(BaseHTTPRequestHandler):
                 if cached.status == "ok":
                     for e in [x for x in cached.entries if x.kind == "say"][-50:]:
                         try:
-                            trail = roomlog.render_trail(e.id, cached)
+                            trail = trail_document(e.id, cached)   # S157 E52: was render_trail(e.id, cached) — the LogRead in the lane slot
                         except Exception as exc:                  # noqa: BLE001
                             trail = {"id": e.id, "file_status": "UNREAD",
                                      "reason": f"the trail could not be rendered "
@@ -1115,6 +1127,22 @@ def _snapshot(d: Path):
         return f"UNREAD:{type(exc).__name__}"
 
 
+def _snapshot_tree(d: Path):
+    """S157 E52: the whole live state/ tree (every file at any depth, relative path + mtime + size), skipping the
+    throwaway trees this harness and test_room.py make (`selftest-*`, `_test-*`) — the property T28 must not break."""
+    try:
+        out = []
+        for p in d.rglob("*"):
+            rel = p.relative_to(d)
+            if rel.parts and (rel.parts[0].startswith("selftest-") or rel.parts[0].startswith("_test-")):
+                continue
+            if p.is_file():
+                out.append((str(rel), p.stat().st_mtime_ns, p.stat().st_size))
+        return sorted(out)
+    except OSError as exc:
+        return f"UNREAD:{type(exc).__name__}"
+
+
 def cmd_selftest(a) -> int:
     import http.client
 
@@ -1126,9 +1154,15 @@ def cmd_selftest(a) -> int:
 
     real_coord = Path(roomlog.GATE_PY).resolve().parents[3] / "coordination"
     before = _snapshot(real_coord)
+    # S157 E52 (J5): the LIVE prototype tree is the property this run must not break — measured, not assumed. Two runs
+    # on 2026-09-15 wrote the live room.md, status-fable.json, ack-fable.json, flight/ and handoff/ while the check below
+    # ("the quarantined relay is the only one written") passed: it looked at the throwaway coord, never at the live tree.
+    live_state = ROOT / "state"
+    live_before = _snapshot_tree(live_state)
 
     base = roomlog.assert_inside(roomlog.STATE / f"selftest-{os.getpid()}-{int(time.time())}")
     missing = _redirect_state(base)
+    os.environ["FP_ROOM_STATE"] = str(base)   # the catcher SUBPROCESS binds its own roomlog to the same throwaway tree
     if missing:
         results.append(("frozen constants present", "UNREAD",
                         "roomlog is missing " + ", ".join(missing)))
@@ -1243,6 +1277,10 @@ def cmd_selftest(a) -> int:
                (roomlog.COORD / "relay.md").exists() or
                any((roomlog.COORD).glob("ack-*.json")),
                str(roomlog.COORD))
+        live_after = _snapshot_tree(live_state)
+        record("the LIVE state/ tree is byte-for-byte unchanged (files, sizes, mtimes; selftest-*/_test-* excluded)",
+               live_before == live_after and not isinstance(live_before, str),
+               "changed: %s" % sorted(set(live_after) ^ set(live_before))[:6] if not isinstance(live_before, str) else live_before)
     finally:
         if srv is not None:
             srv.stopping.set()
