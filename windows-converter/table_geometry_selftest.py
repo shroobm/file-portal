@@ -634,6 +634,37 @@ def main():
           [lb["word"] for lb in rc["labels"]] == ["COSTS"], str((rc["labels"], rc["unresolved_rails"])))
     check("positive control: the FIG fixture's stacked rail beside prose is not 'merged rows' (R3 counts <br> stacking, not words)",
           tg._index_run(FIG.split(chr(10)), 2, [4], ["H<br>G<br>H"]) is None and tg._index_run(FIG.split(chr(10)), 2, [5], ["L<br>O"]) is None, "")
+    print("[16] S157 E20 — a tail that duplicates the next table's head is the next table's (p.200's leaked ANOVA head)")
+    P200 = chr(10).join(["Exhibit 12.7 Regression Output", "",
+        "| Multiple R | 0.81 | |", "|--------------------|-------|--------------|", "| R-squared | 0.66 | |", "| Adjusted R-squared | 0.65 | |",
+        "| Standard Error | 0.09 | |", "| Observations | 54.00 | |", "| ANOVA | | |", "| | | Significance |", "",
+        "| ANOVA | | | | | | |", "|---|---|---|---|---|---|---|", "| | | | | | Sig | gnificance |", "| | Df | SS | MS | F | | F |",
+        "| Regression | 1.00 | 0.74 | 0.74 | 100 | .63 | 0.00 |", "| Residual | 52.00 | 0.38 | 0.01 | | | |", "", "After."])
+    lp = tg.propose_leaks(P200.split(chr(10)))
+    check("one leak proposed: the two tail rows (ANOVA; Significance) duplicate the next table's head, the title anchoring it",
+          len(lp) == 1 and lp[0]["drop"] == [9, 10] and lp[0]["table"] == [3, 10] and lp[0]["next"] == [12, 17], str(lp))
+    n16, ap16, rf16 = tg.leak_pass(P200.split(chr(10)))
+    tb16 = tg.table_blocks(n16)
+    check("applied: the statistics table ends at Observations, the ANOVA table untouched, nothing else moved",
+          len(ap16) == 1 and not rf16 and len(tb16) == 2 and tg.cells(n16[tb16[0][2]])[0] == "Observations" and n16[tb16[1][0]].startswith("| ANOVA |")
+          and "| | | Significance |" not in n16 and "| | | | | | Sig | gnificance |" in n16 and n16[-1] == "After.", chr(10).join(n16))
+    t16, r16 = tg.geometry_pass(P200, None)
+    check("geometry_pass: the leak first, then the trim drops the emptied third column — 2 columns, 5 rows; the ANOVA keeps its 7",
+          r16["leaks"] and r16["leaks_refused"] == [] and any(tr["table"][0] == 3 and tr["drop"] == 1 for tr in r16["trims"])
+          and "| Observations | 54.00 |" in t16 and "| Multiple R | 0.81 |" in t16, str((r16["leaks"], r16["trims"])))
+    check("idempotent: a second pass proposes no leak", tg.propose_leaks(n16) == [])
+    # negatives
+    NUM = P200.replace("| ANOVA | | |" + chr(10) + "| | | Significance |", "| Total | 53.00 | |" + chr(10) + "| | | Significance |")
+    check("NEGATIVE: a tail row with a number is never a leak", tg.propose_leaks(NUM.split(chr(10))) == [])
+    NOTITLE = P200.replace("| ANOVA | | |" + chr(10) + "| | | Significance |", "| Notes | | |" + chr(10) + "| | | Significance |")   # the tail line only (a bare replace also hit the next header)
+    check("NEGATIVE: a tail row that is not the next table's title does not anchor a leak (Notes)", tg.propose_leaks(NOTITLE.split(chr(10))) == [])
+    FAR = P200.replace("| | | Significance |" + chr(10) + "", "| | | Significance |" + chr(10) + chr(10) + "Some prose between." + chr(10) + chr(10) + "")
+    check("NEGATIVE: a next table more than three lines away is not a neighbour", tg.propose_leaks(FAR.split(chr(10))) == [])
+    bad = list(n16)
+    bad[tb16[0][2]] = "| Observations | 54.01 | |"
+    okl, whyl = tg.leak_invariant(P200.split(chr(10))[2:17], bad[2:15], lp[0])
+    check("invariant NEGATIVE: a kept cell changed is refused", not okl and any("not the before table cut" in w for w in whyl), str(whyl))
+    check("no leak on the healthy fixtures or p.175's split shape", tg.propose_leaks(HEALTHY.split(chr(10))) == [] and tg.propose_leaks(P175.split(chr(10))) == [], "")
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 

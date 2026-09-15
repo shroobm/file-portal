@@ -1507,6 +1507,108 @@ def split_pass(lines: list[str], lex: dict | None = None) -> tuple[list[str], li
     return lines, applied, refused
 
 
+# ---- S157 E20: the leaked head — a tail that duplicates the next table's head belongs to the next table ---------------
+
+def _head_streams(lines: list[str], h2: int, d2: int, e2: int) -> tuple[set[str], str]:
+    """The next table's head as (the set of its folded cells, its letters as one stream with doubled letters collapsed):
+    the header and the first two body rows."""
+    rows = [cells(lines[h2])] + [cells(lines[k]) for k in range(d2 + 1, min(e2, d2 + 2) + 1)]
+    folded = {_fold_text(_bare_text(c)) for r in rows for c in r if c.strip()}
+    stream = collapse_doubles("".join(fold_letters(_bare(c)) for r in rows for c in r if c.strip()))
+    return folded, stream
+
+
+def _bare_text(cell: str) -> str:
+    return BR.sub(" ", cell).strip()
+
+
+def _cell_in_head(cell: str, folded: set[str], stream: str) -> bool:
+    t = _fold_text(_bare_text(cell))
+    if not t:
+        return True
+    if t in folded:
+        return True
+    letters = collapse_doubles(fold_letters(_bare(cell)))
+    return len(letters) >= 3 and letters in stream
+
+
+def propose_leaks(lines: list[str]) -> list[dict]:
+    """One proposal per table whose tail duplicates the next table's head (Marker's fusion of stacked tables, p.200 of
+    Valentine): the rows to drop, 1-based, and why."""
+    out = []
+    blocks = table_blocks(lines)
+    issue_lines = {x["line"] for x in health(lines)}
+    for (h, d, e), (h2, d2, e2) in zip(blocks, blocks[1:]):
+        if h2 - e > 3 or any(h + 1 <= ln <= e + 1 for ln in issue_lines):
+            continue
+        folded, stream = _head_streams(lines, h2, d2, e2)
+        next_first = next((_fold_text(_bare_text(c)) for c in cells(lines[h2]) if c.strip()), "")
+        rows = [cells(lines[k]) for k in range(d + 1, e + 1)]
+        cut = len(rows)
+        while cut > 1:
+            r = rows[cut - 1]
+            filled = [c for c in r if c.strip()]
+            if not filled or any(_is_num(c) for c in filled) or not all(_cell_in_head(c, folded, stream) for c in filled):
+                break
+            cut -= 1
+        if cut == len(rows):
+            continue
+        top_first = next((_fold_text(_bare_text(c)) for c in rows[cut] if c.strip()), "")
+        if not next_first or top_first != next_first:
+            continue   # the leaked TITLE must anchor the leak: the topmost dropped row opens with the next table's own first cell
+        out.append({"kind": "leak", "table": [h + 1, e + 1], "drop": [d + 1 + cut + 1, e + 1], "next": [h2 + 1, e2 + 1],
+                    "why": "%d tail row(s) duplicate the next table's head (title %r)" % (len(rows) - cut, next_first[:30])})
+    return out
+
+
+def apply_leak(lines: list[str], p: dict) -> list[str]:
+    a, b = p["drop"][0] - 1, p["drop"][1] - 1
+    return lines[:a] + lines[b + 1:]
+
+
+def leak_invariant(before: list[str], after: list[str], p: dict) -> tuple[bool, list[str]]:
+    """Admit a leak only as the exact cut: the table's header, delimiter and rows above the drop unchanged; the dropped rows
+    exactly the tail; every dropped filled cell non-numeric and found in the next table's head; one body row kept at least.
+    `before` runs from the table's header through the next table's last line; `after` the same span after the cut."""
+    reasons = []
+    tb, ta = table_blocks(before), table_blocks(after)
+    if len(tb) != 2 or len(ta) != 2:
+        return False, ["expected two tables before and after, saw %d and %d" % (len(tb), len(ta))]
+    (hb, db, eb), (h2b, d2b, e2b) = tb
+    (ha, da, ea), (h2a, d2a, e2a) = ta
+    n_drop = p["drop"][1] - p["drop"][0] + 1
+    keep = (eb - db) - n_drop
+    if keep < 1:
+        reasons.append("no body row kept")
+    if [before[k] for k in range(hb, db + 1 + keep)] != [after[k] for k in range(ha, ea + 1)]:
+        reasons.append("the kept table is not the before table cut at the tail")
+    if [before[k] for k in range(h2b, e2b + 1)] != [after[k] for k in range(h2a, e2a + 1)]:
+        reasons.append("the next table changed")
+    folded, stream = _head_streams(before, h2b, d2b, e2b)
+    for k in range(db + 1 + keep, eb + 1):
+        for c in cells(before[k]):
+            if c.strip() and (_is_num(c) or not _cell_in_head(c, folded, stream)):
+                reasons.append("dropped cell %r is not the next table's head" % c[:30])
+    return not reasons, reasons
+
+
+def leak_pass(lines: list[str]) -> tuple[list[str], list[dict], list[dict]]:
+    props = propose_leaks(lines)
+    applied, refused = [], []
+    for p in sorted(props, key=lambda x: -x["table"][0]):
+        h, e2 = p["table"][0] - 1, p["next"][1] - 1
+        new = apply_leak(lines, p)
+        n_drop = p["drop"][1] - p["drop"][0] + 1
+        ok, why = leak_invariant(lines[h:e2 + 1], new[h:e2 + 1 - n_drop], p)
+        if ok:
+            lines = new
+            applied.append(dict(p, admitted=True))
+        else:
+            refused.append(dict(p, refused="; ".join(why)))
+    return lines, applied, refused
+
+
+
 # ---- S157 E3: the trim pass — trailing columns nothing fills are Marker's padding, not the page's ------------------------
 
 TRIM_MIN_COLS = 2       # a table keeps at least two columns; a one-column table is a list, and a table whose every column
@@ -1629,6 +1731,9 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
     # S157 E3: the TRIM pass next — trailing columns nothing fills (Marker's padding: 15 of 82 Valentine tables) dropped,
     # each admitted by trim_invariant; after the split so a table born of it is trimmed too, before the proposals so a
     # caption or a rail is read on the page's own columns
+    # S157 E20: the LEAKED HEAD before the trim — a tail that duplicates the next table's head is the next table's (p.200's
+    # regression statistics carried the ANOVA's title and half its heading); the trim then sees the emptied column
+    lines, leaks_applied, leaks_refused = leak_pass(lines)
     lines, trims_applied, trims_refused = trim_pass(lines)
     vnotes: dict = {}
     props = propose(lines, counted if resolver is not None else None, lex, vision=vision, notes=vnotes if vision else None)
@@ -1673,6 +1778,8 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
         "splits_refused": [{"table": p["table"], "at": p["at"], "why": p["refused"]} for p in splits_refused],
         "trims": [{"table": p["table"], "cols": p["cols"], "drop": p["drop"], "why": p["why"]} for p in trims_applied],   # S157 E3
         "trims_refused": [{"table": p["table"], "cols": p["cols"], "drop": p["drop"], "why": p["refused"]} for p in trims_refused],
+        "leaks": [{"table": p["table"], "drop": p["drop"], "next": p["next"], "why": p["why"]} for p in leaks_applied],   # S157 E20
+        "leaks_refused": [{"table": p["table"], "drop": p["drop"], "why": p["refused"]} for p in leaks_refused],
         "unresolved_rails": [{"rows": p["rows"], "letters": p["letters"], "why": p["refused"]} for p in unresolved],
         "refusals": [{"kind": p["kind"], "table": p["table"], "why": p["refused"]} for p in refused],
         "dots_fixed": dots_fixed,
