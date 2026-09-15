@@ -210,6 +210,10 @@ let lineVisible = false;
 function pfEtaOne(s) {
   return s < 90 ? `${s}s` : `${Math.round(s / 60)}m`;
 }
+// S157 E53 (J16): an AGE, hours past ninety minutes — a PDF that sat in drop/ for three hours reads 3.0h, not 180m.
+function pfAge(s) {
+  return s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`;
+}
 function pfEta(backendInfo) {
   const r = backendInfo?.eta_range_s;
   if (r && r.length === 2 && r[0] !== r[1]) return `~${pfEtaOne(r[0])}–${pfEtaOne(r[1])}`;
@@ -426,7 +430,16 @@ async function lineLoop() {
       const phaseNote = ls.intake_state === "fresh"
         ? (["receiving", "settling", "ready", "deferred"].find((p) => phases[p]) || "")
         : "UNREAD";
-      const dropText = `${ls.drop_waiting}${phaseNote ? ` ${phaseNote}` : ""}`;
+      // S157 E53 (J16): the oldest wait on the Dock — the intake's own wait_s when the receipt is fresh, else the
+      // age from mtime_ns the line ships on every row (line.rs) — so a PDF that has sat in drop/ for three hours
+      // reads here, not only in the Room (SYM-024's scenario). A queue with neither is UNREAD, never silent.
+      const oldest = (ls.queue || []).reduce((m, row) => {
+        const w = row.wait_s != null ? row.wait_s
+          : (row.mtime_ns != null ? Math.max(0, Math.round(Date.now() / 1000 - row.mtime_ns / 1e9)) : null);
+        return w == null ? m : (m == null || w > m ? w : m);
+      }, null);
+      const waitNote = (ls.queue || []).length ? (oldest != null ? ` · oldest ${pfAge(oldest)}` : " · wait UNREAD") : "";
+      const dropText = `${ls.drop_waiting}${phaseNote ? ` ${phaseNote}` : ""}${waitNote}`;
       stSet(stDrop, failed ? `${dropText} (+${failed}✗)` : dropText,
         failed ? "has-failed" : "");
       stDrop.classList.toggle("has-failed", failed > 0);
@@ -931,7 +944,10 @@ function assayRender(st) {
       ? `<button class="ac-bless" data-src="${escHtml(st.bundle)}">✓ bless</button>` : "";
     foot = `<div class="ac-foot"><button class="ac-remedy" data-src="${escHtml(st.bundle)}">⟳ re-convert</button>` +
       `<button class="ac-reanalyze" data-src="${escHtml(st.bundle)}">⟲ re-analyze</button>${blessBtn}` +
-      `<span class="ac-swapnote">swap: <b>manual</b> — supersede flow pending</span></div>`;
+      // S157 E53 (B11, SYM-043): the note used to say "manual — supersede flow pending" while ⟳ authored the
+      // supersede intent (assay.rs reconvert) and the exporter replaced the vaulted note on a passing candidate
+      // (exporter.py, the supersede guard, live-fired S50/S56) — projection drift, docs/40 §3.1. The truth:
+      `<span class="ac-swapnote">swap: <b>automatic</b> — a passing ⟳ re-convert supersedes the vaulted note (exporter guard)</span></div>`;
   }
 
   // S52 (the S50 shadowing fix): every held bundle renders its OWN remedy button — the card's

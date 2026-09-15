@@ -27,6 +27,9 @@ const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const words = (s, n) => String(s ?? "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
 const etaText = (s) => (s == null ? "—" : s < 90 ? `${s}s` : `${Math.round(s / 60)}m`);
+// S157 E53 (J16): an AGE with hours past ninety minutes — when the intake receipt is stale, wait_s is null and the
+// row's mtime_ns (line.rs ships it always) is the only reading of how long a PDF has sat in drop/ (SYM-024's scenario).
+const ageText = (s) => (s == null ? "UNREAD" : s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
 let roomEl = null;
@@ -170,7 +173,7 @@ function queuePanel(d) {
   const rows = q.map((f, i) =>
     `<div class="q-row"><span class="q-pos">${i + 1}</span><span class="q-name">${esc(f.name)}</span>` +
     `<span class="q-meta">${fmtB(f.bytes)} · ${esc(f.phase || "UNREAD")}` +
-    `${f.wait_s != null ? ` · waiting ${etaText(f.wait_s)}` : ""}${i === 0 && !conv && f.phase === "ready" ? " · next" : ""}</span></div>`).join("");
+    `${f.wait_s != null ? ` · waiting ${etaText(f.wait_s)}` : f.mtime_ns != null ? ` · sat ${ageText(Math.max(0, Math.round(Date.now() / 1000 - f.mtime_ns / 1e9)))}` : " · wait UNREAD"}${i === 0 && !conv && f.phase === "ready" ? " · next" : ""}</span></div>`).join("");
   const note = (q.length || conv)
     ? `<div class="rp-note">intake receipt: <b>${esc(ls.intake_state || "UNREAD")}</b>` +
       `${ls.intake_state_age_s != null ? ` · ${ls.intake_state_age_s}s old` : ""}` +
@@ -459,7 +462,9 @@ function assayPanel(d) {
   const foot = (av === "fail" || av === "flag" || held.length)
     ? `<div class="ac-foot"><button class="ac-remedy" data-src="${esc(a.bundle)}">⟳ re-convert</button>` +
       `<button class="ac-reanalyze" data-src="${esc(a.bundle)}">⟲ re-analyze</button>${bless}` +
-      `<span class="ac-swapnote">swap: <b>manual</b> — supersede pending</span></div>` : "";
+      // S157 E53 (B11, SYM-043): "manual — supersede pending" was projection drift — ⟳ authors the supersede intent
+      // (assay.rs reconvert) and the exporter replaces the vaulted note on a passing candidate (live-fired S50/S56).
+      `<span class="ac-swapnote">swap: <b>automatic</b> — a passing ⟳ re-convert supersedes the vaulted note (exporter guard)</span></div>` : "";
   // S52 (the S50 shadowing fix): per-held-item remedy buttons — same .ac-remedy class, so the
   // existing click wiring covers them; data-src = the manifest source filename, per contract.
   // Stage C2 (docs/19 §3.2): ⟲ re-analyze and ✓ bless join them per row, so no remedy needs the
@@ -1004,7 +1009,10 @@ function renderWall(vm) {
       : (s.n === "Assay" && assay.verdict === "fail") ? " wl-glow" + glowMods(assayVol, assayAge, mM) : "";
     return `<div class="wl-st"><div class="wl-dot${glow}${fail}" style="color:${col};border-color:${col};opacity:${lit ? 1 : 0.4}">${s.g}</div><div class="wl-nm">${s.n}</div></div>`;
   }).join("<span class='wl-link'></span>");
-  const latest = (vm.shift?.tail || []).slice(-1)[0];
+  // S157 E53 (B32 U04, Codex's 2026-08-27 audit): the tail arrives NEWEST-FIRST (events.rs `.rev().take(40)`), so
+  // `.slice(-1)[0]` was the OLDEST of forty — the Wall's event line showed the previous book's last event during a
+  // live one. The numerations panel had the same fix (review M1); the Wall did not.
+  const latest = (vm.shift?.tail || [])[0];
   const evtLine = latest ? eventMsg(latest) : "";
   roomEl.className = "wall-mode";
   roomEl.innerHTML =

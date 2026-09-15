@@ -178,6 +178,11 @@ jobs:
         continue-on-error: true
         timeout-minutes: 15
         run: bash .claude/skills/muster/selftest.sh
+      # S157 E53: the widget projection tripwires (SYM-043 B11, B32 U04, J16) — stdlib, reads main.js/room.js beside
+      # itself; source proxies for rendered properties, each with a negative control; 12/12 on the Desktop 2026-09-15.
+      - name: Governance suites (A29, warn-only) — widget projection
+        continue-on-error: true
+        run: python windows-widget/src/projection_selftest.py
 
   rust:
     # SYM-020 (found S67, cleared S68 2026-08-10): fmt drift across 8 files had accumulated while
