@@ -1262,6 +1262,215 @@ def apply_admitted(lines: list[str], h: int, d: int, e: int, props: list[dict]) 
     return new, kept, refused, checks, dots
 
 
+# ---- S157 E1: the split pass — a second stacked heading inside a table's body is a second table -------------------------
+
+_NUMTOK = re.compile(r"^[-+]?\d[\d,]*(\.\d+)?%?$|^[-+]?\.\d+%?$")
+
+
+def _is_num(cell: str) -> bool:
+    return bool(_NUMTOK.match(cell.strip()))
+
+
+def _heading_pair(a: list[str], b: list[str], above: list[str], lex: dict | None) -> tuple[bool, list[str], str]:
+    """Two body rows that are a STACKED HEADING of a second table (p.175: `Standard | | P- | Lower | Upper …` over
+    `Coefficients | Error | t Stat | value | 95% …`): the first cell empty in both, no numeric cell in either, a data row
+    (one numeric cell at least) directly above, and the joined heading's longer cells half or more the book's own words
+    (S152 E3's test; without a lexicon a pair of at least three two-part headings is taken)."""
+    if not a or not b or a[0].strip() or b[0].strip():
+        return False, [], "the first cell is not empty"
+    if any(_is_num(c) and not c.strip().endswith("%") for c in a + b):   # a heading may carry a percent (`Lower 95%`)
+        return False, [], "a number in the pair"
+    if not any(_is_num(c) for c in above):
+        return False, [], "no data row above"
+    joined = _join_heading(a, b)
+    heads = [c for c in joined[1:] if c.strip()]
+    if len(heads) < 3:
+        return False, [], "fewer than three headings"
+    if lex is not None:
+        # the pair's own words (S152 E3 tested fragment cells, not joined ones): `Standard`, `Error`, `Coefficients`, `Stat`…
+        longish = [fold_letters(w) for c in a[1:] + b[1:] for w in re.findall(r"[A-Za-z]{3,}", c)]
+        words = sum(1 for w in longish if lex.get(w, 0) >= 2)
+        if not longish or 2 * words < len(longish):
+            return False, [], "the pair's words are not the book's words (%d of %d)" % (words, len(longish))
+    pairs = sum(1 for x, y in zip(a[1:], b[1:]) if x.strip() and y.strip())
+    if pairs < 2:
+        return False, [], "fewer than two stacked pairs"
+    return True, joined, "a stacked heading of %d headings (%d stacked pairs)" % (len(heads), pairs)
+
+
+def _heading_row_br(a: list[str], above: list[str], lex: dict | None) -> tuple[bool, list[str], str]:
+    """One body row that is a second table's heading already stacked by the OCR with `<br>` (the held Valentine copy's
+    `Standard<br>Error | t Stat | P.<br>value | Lower<br>95%`): the first cell empty, no plain number, two or more cells with
+    `<br>`, a data row above, the words the book's own."""
+    if not a or a[0].strip() or not any(_is_num(c) for c in above):
+        return False, [], "shape"
+    if any(_is_num(c) and not c.strip().endswith("%") for c in a):
+        return False, [], "a number in the row"
+    if sum(1 for c in a if "<br>" in c) < 2:
+        return False, [], "fewer than two stacked cells"
+    joined = [" ".join(c.replace("<br>", " ").split()) for c in a]
+    heads = [c for c in joined[1:] if c.strip()]
+    if len(heads) < 3:
+        return False, [], "fewer than three headings"
+    if lex is not None:
+        longish = [fold_letters(w) for c in a[1:] for w in re.findall(r"[A-Za-z]{3,}", c)]
+        words = sum(1 for w in longish if lex.get(w, 0) >= 2)
+        if not longish or 2 * words < len(longish):
+            return False, [], "the row's words are not the book's words (%d of %d)" % (words, len(longish))
+    return True, joined, "a stacked heading in one row (%d cells with <br>)" % sum(1 for c in a if "<br>" in c)
+
+
+def _tail_rejoin(lines: list[str], rows: list[list[str]], k0: int, e: int, ncols: int) -> dict | None:
+    """The second table's tail: label-only rows from k0 on (only the first cell filled), then — past blank lines and at most
+    one short non-table line without a digit (a page footer) — a lone short line and a numbers line of exactly ncols − 1 numeric
+    tokens. Returns {row, label_rows, consumed} or None."""
+    tail = rows[k0:]
+    if not tail or not all(r and r[0].strip() and not any(c.strip() for c in r[1:]) for r in tail):
+        return None
+    j, skipped, consumed = e + 1, 0, []
+    while j < len(lines):
+        ln = lines[j].strip()
+        if ln == "":
+            j += 1
+            continue
+        if ln.startswith("|"):
+            return None
+        if skipped == 0 and len(ln) <= 60 and not re.search(r"\d", ln) and " " in ln:
+            skipped, j = 1, j + 1
+            continue
+        break
+    if j >= len(lines):
+        return None
+    lone = lines[j].strip()
+    if not lone or " " in lone or len(lone) > 24 or lone.startswith("|"):
+        return None
+    m = j + 1
+    while m < len(lines) and lines[m].strip() == "":
+        m += 1
+    if m >= len(lines):
+        return None
+    toks = lines[m].strip().split()
+    if len(toks) != ncols - 1 or not all(_is_num(t) for t in toks):
+        return None
+    label = " ".join(r[0].strip() for r in tail) + " " + lone
+    consumed = list(range(j, m + 1))
+    return {"row": [label] + toks, "label_rows": [k0 + 1, len(rows)], "consumed": consumed, "lone": lone, "numbers": toks}
+
+
+def propose_splits(lines: list[str], lex: dict | None = None) -> list[dict]:
+    """One proposal per table that holds a second stacked heading in its body: where to split, the second table's header, and
+    the tail re-join if the shape is there. Line numbers 1-based like every other proposal."""
+    out = []
+    for h, d, e in table_blocks(lines):
+        rows = [cells(lines[k]) for k in range(d + 1, e + 1)]
+        if len(rows) < 4:
+            continue
+        ncols = len(cells(lines[h]))
+        for i in range(1, len(rows)):
+            pair = 2
+            ok, joined, why = (False, [], "") if i + 1 >= len(rows) else _heading_pair(rows[i], rows[i + 1], rows[i - 1], lex)
+            if not ok:
+                ok, joined, why = _heading_row_br(rows[i], rows[i - 1], lex)
+                pair = 1
+            if not ok:
+                continue
+            body2 = rows[i + pair:]
+            if not body2:
+                break
+            rej = None
+            for k0 in range(len(body2)):
+                rej = _tail_rejoin(lines, body2, k0, e, ncols)
+                if rej:
+                    rej["label_rows"] = [d + 1 + i + pair + k0 + 1, e + 1]
+                    break
+            out.append({"kind": "split", "table": [h + 1, e + 1], "at": [d + 1 + i + 1, d + 1 + i + pair], "pair": pair, "header": joined,
+                        "why": why, "rejoin": rej})
+            break
+    return out
+
+
+def apply_split(lines: list[str], p: dict) -> tuple[list[str], int, int]:
+    """The lines with one split applied: (new_lines, region_start, region_end_exclusive) of the rewritten span (0-based)."""
+    h, e = p["table"][0] - 1, p["table"][1] - 1
+    i0 = p["at"][0] - 1
+    d = h + 1
+    a_rows = [lines[k] for k in range(d + 1, i0)]
+    b_header = _render_row(p["header"])
+    b_delim = "|" + "---|" * len(p["header"])
+    b_rows_idx = list(range(i0 + p.get("pair", 2), e + 1))
+    rej = p.get("rejoin")
+    end = e + 1
+    if rej:
+        cut = rej["label_rows"][0] - 1
+        b_rows = [lines[k] for k in b_rows_idx if k < cut] + [_render_row(rej["row"])]
+        end = max(rej["consumed"]) + 1
+        between = [lines[k] for k in range(e + 1, rej["consumed"][0])]   # blank lines and the footer, kept after the table
+    else:
+        b_rows = [lines[k] for k in b_rows_idx]
+        between = []
+    new = [lines[h], lines[d]] + a_rows + [""] + [b_header, b_delim] + b_rows + between
+    return lines[:h] + new + lines[end:], h, h + len(new)
+
+
+def split_invariant(before: list[str], after: list[str], p: dict) -> tuple[bool, list[str]]:
+    """Admit a split only as the exact re-partition of the before table: table A = the before header and the rows above the
+    pair; table B's header = the pair's fold; table B's rows = the rest, or the rest up to the label rows plus ONE row that is
+    the label pieces joined with the lone word and the prose numbers in order; nothing else anywhere."""
+    reasons = []
+    bt = table_blocks(before)
+    at = table_blocks(after)
+    if len(bt) != 1 or len(at) != 2:
+        return False, ["expected one table before and two after, saw %d and %d" % (len(bt), len(at))]
+    (bh, bd, be), = bt
+    (ah, ad, ae), (bh2, bd2, be2) = at
+    brows = [cells(before[k]) for k in range(bd + 1, be + 1)]
+    arows = [cells(after[k]) for k in range(ad + 1, ae + 1)]
+    b2rows = [cells(after[k]) for k in range(bd2 + 1, be2 + 1)]
+    i = p["at"][0] - p["table"][0] - 2   # the pair's first row, as a body index
+    if cells(after[ah]) != cells(before[bh]):
+        reasons.append("table A's header changed")
+    if arows != brows[:i]:
+        reasons.append("table A's rows are not the before rows above the pair")
+    pair = p.get("pair", 2)
+    want_hdr = _join_heading(brows[i], brows[i + 1]) if pair == 2 else [" ".join(c.replace("<br>", " ").split()) for c in brows[i]]
+    if cells(after[bh2]) != want_hdr:
+        reasons.append("table B's header is not the fold of the pair" if pair == 2 else "table B's header is not the <br> row unstacked")
+    rest = brows[i + pair:]
+    rej = p.get("rejoin")
+    if rej:
+        cut = (rej["label_rows"][0] - p["table"][0] - 2) - (i + pair)   # the first label row, as an index into the rest
+        want = rest[:cut] + [rej["row"]]
+        label = " ".join(r[0].strip() for r in rest[cut:]) + " " + rej["lone"]
+        if rej["row"] != [label] + rej["numbers"]:
+            reasons.append("the re-joined row is not the label pieces + the lone word + the prose numbers")
+        if not all(r and r[0].strip() and not any(c.strip() for c in r[1:]) for r in rest[cut:]):
+            reasons.append("the rows re-joined were not label-only rows")
+    else:
+        want = rest
+    if b2rows != want:
+        reasons.append("table B's rows are not the rest of the before rows (with the one re-joined row)")
+    return not reasons, reasons
+
+
+def split_pass(lines: list[str], lex: dict | None = None) -> tuple[list[str], list[dict], list[dict]]:
+    """Every split admitted by split_invariant applied, bottom-up so line numbers hold. Returns (lines, applied, refused)."""
+    props = propose_splits(lines, lex)
+    applied, refused = [], []
+    for p in sorted(props, key=lambda x: -x["table"][0]):
+        h, e = p["table"][0] - 1, p["table"][1] - 1
+        end = e + 1
+        if p.get("rejoin"):
+            end = max(p["rejoin"]["consumed"]) + 1
+        new, s, t = apply_split(lines, p)
+        ok, why = split_invariant(lines[h:end], new[s:t], p)
+        if ok:
+            lines = new
+            applied.append(dict(p, admitted=True))
+        else:
+            refused.append(dict(p, refused="; ".join(why)))
+    return lines, applied, refused
+
+
 def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: dict | None = None) -> tuple[str, dict]:
     """The layer over a whole markdown text: propose per table, apply on a copy, keep only what the invariant admits.
     Returns (text, record): the record counts tables, proposals, applied, refused and unresolved, lists every label and
@@ -1275,6 +1484,10 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
         return resolver(letters, context)
 
     lex = lexicon(lines) if use_lexicon else None
+    # S157 E1: the SPLIT pass first — a second stacked heading inside a body is a second table (p.175's coefficients under the
+    # ANOVA); the tail re-joined from the prose it fell into; each admitted by split_invariant; the two tables then get the
+    # ordinary repairs below
+    lines, splits_applied, splits_refused = split_pass(lines, lex)
     vnotes: dict = {}
     props = propose(lines, counted if resolver is not None else None, lex, vision=vision, notes=vnotes if vision else None)
     blocks = {(h + 1, e + 1): (h, d, e) for h, d, e in table_blocks(lines)}
@@ -1313,6 +1526,9 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
                       **({"fragments_joined": True, "raw": p["raw"], "how": p["how"]} if p.get("fragments_joined") else {})}
                      for p in applied if p["kind"] == "caption"],
         "folds": [{"rows": p["rows"], "why": p["why"]} for p in applied if p["kind"] == "fold"],   # S152 E1
+        "splits": [{"table": p["table"], "at": p["at"], "header": p["header"], "why": p["why"],
+                    "rejoined": ({"row": p["rejoin"]["row"], "consumed_lines": p["rejoin"]["consumed"]} if p.get("rejoin") else None)} for p in splits_applied],   # S157 E1
+        "splits_refused": [{"table": p["table"], "at": p["at"], "why": p["refused"]} for p in splits_refused],
         "unresolved_rails": [{"rows": p["rows"], "letters": p["letters"], "why": p["refused"]} for p in unresolved],
         "refusals": [{"kind": p["kind"], "table": p["table"], "why": p["refused"]} for p in refused],
         "dots_fixed": dots_fixed,

@@ -493,6 +493,61 @@ def main():
           rg["applied"] == 0 and rg["vision"]["figures"] == [[3, 6]] and "H<br>G<br>H" in tg_, str((rg["applied"], rg["vision"], rg["unresolved"])))
     tg2, rg2 = tg.geometry_pass(FIG + chr(10) + "The market is high and the mood is low and high again.", lambda letters, ctx: "HIGH", vision=None)
     check("NEGATIVE CONTROL: without the reading the same table IS repaired (HIGH resolved) — the figure call is the reading's alone", rg2["applied"] >= 1 and "HIGH" in tg2, str((rg2["applied"], rg2["labels"])))
+    print("[13] S157 E1 — a second stacked heading inside a body SPLITS the table; the tail re-joined from the prose (p.175's shape)")
+    P175 = chr(10).join(["Text above.", "",
+        "| ANOVA | | | | | | | | |", "|---|---|---|---|---|---|---|---|---|",
+        "| | | | | | Sig | gnificance | | |", "| | Df | SS | MS | F | | F | | |",
+        "| Regression | 1.00 | 0.74 | 0.74 | 100 | .63 | 0.00 | | |", "| Residual | 52.00 | 0.38 | 0.01 | | | | | |", "| Total | 53.00 | 1.12 | | | | | | |",
+        "| | | Standard | | P- | Lower | Upper | Lower | Upper |", "| | Coefficients | Error | t Stat | value | 95% | 95% | 95% | 95% |",
+        "| Intercept | -4.26 | 0.71 | -5.96 | 0.00 | -5.69 | -2.82 | -5.69 | -2.82 |", "| log | | | | | | | | |", "| /manufacturin | | | | | | | | |",
+        "", "Copyright McGraw-Hill and AnalystSolutions", "", "indev)", "", "3.58 0.36 10.03 0.00 2.86 4.29 2.86 4.29", "",
+        "Using the regression tool, the standard error, the coefficients and the t stat matter; the value and the lower and upper bounds too.",
+        "The standard error and the coefficients: the lower value, the upper value, the stat."])
+    lx = tg.lexicon(P175.split(chr(10)))
+    sp = tg.propose_splits(P175.split(chr(10)), lx)
+    check("one split proposed at the stacked pair, the header the pair's fold, the tail re-joined from the label rows + the lone word + the numbers",
+          len(sp) == 1 and sp[0]["header"] == ["", "Coefficients", "Standard Error", "t Stat", "P-value", "Lower 95%", "Upper 95%", "Lower 95%", "Upper 95%"]
+          and sp[0]["rejoin"] and sp[0]["rejoin"]["row"] == ["log /manufacturin indev)", "3.58", "0.36", "10.03", "0.00", "2.86", "4.29", "2.86", "4.29"], str(sp))
+    new13, ap13, rf13 = tg.split_pass(P175.split(chr(10)), lx)
+    tb = tg.table_blocks(new13)
+    check("applied: two tables after (ANOVA with its three rows; the coefficients with the Intercept row and the re-joined row), the prose lines consumed, the footer kept",
+          len(ap13) == 1 and not rf13 and len(tb) == 2 and tg.cells(new13[tb[1][0]])[1] == "Coefficients" and tb[1][2] - tb[1][1] == 2
+          and (chr(10) + "indev)" + chr(10)) not in chr(10).join(new13) and (chr(10) + "3.58 0.36") not in chr(10).join(new13) and "Copyright McGraw-Hill" in chr(10).join(new13), str((ap13, rf13, tb)))
+    tt, rr = tg.geometry_pass(P175, None)
+    check("geometry_pass runs the split first and records it; the two tables then get the ordinary pass (no refusal)", rr["splits"] and rr["splits"][0]["rejoined"]["row"][0] == "log /manufacturin indev)" and rr["splits_refused"] == [] and rr["refused"] == 0, str((rr["splits"], rr["splits_refused"], rr["refused"])))
+    # negatives
+    NUMPAIR = P175.replace("| | | Standard | | P- | Lower | Upper | Lower | Upper |", "| | 1.5 | Standard | | P- | Lower | Upper | Lower | Upper |")
+    check("NEGATIVE: a number in the pair — no split", tg.propose_splits(NUMPAIR.split(chr(10)), lx) == [])
+    NOABOVE = P175.replace("| Total | 53.00 | 1.12 | | | | | | |", "| Total | | | | | | | | |")
+    check("NEGATIVE: no data row above the pair — no split", tg.propose_splits(NOABOVE.split(chr(10)), lx) == [])
+    WRONGCOUNT = P175.replace("3.58 0.36 10.03 0.00 2.86 4.29 2.86 4.29", "3.58 0.36 10.03 0.00 2.86 4.29 2.86")
+    spw = tg.propose_splits(WRONGCOUNT.split(chr(10)), lx)
+    check("NEGATIVE: a prose line with the wrong token count — the split still proposed, the tail NOT re-joined (the label rows stay, the prose stays)", len(spw) == 1 and spw[0]["rejoin"] is None, str(spw))
+    tw, rw = tg.geometry_pass(WRONGCOUNT, None)
+    check("… and applied that way: two tables, the label rows kept, the prose kept", len(tg.table_blocks(tw.split(chr(10)))) == 2 and "3.58 0.36 10.03 0.00 2.86 4.29 2.86" in tw and "| /manufacturin |" in tw, str(rw["splits"]))
+    bad = list(new13)
+    kb = next(k for k, ln in enumerate(bad) if ln.startswith("| log /manufacturin indev) |"))
+    bad[kb] = bad[kb].replace("| 3.58 |", "| 3.59 |", 1)
+    okb, whyb = tg.split_invariant(P175.split(chr(10))[2:21], bad[2:tb[1][2] + 1], sp[0])
+    check("invariant NEGATIVE: a re-joined number changed is refused", not okb and any("re-joined row" in w or "table B" in w for w in whyb), str(whyb))
+    # the held copy's shape: the heading already stacked by the OCR in ONE row with <br>; the tail scattered over two prose lines
+    # with a number lost — the split happens, the tail is NOT re-joined (a re-join would invent a number)
+    P175B = chr(10).join(["indev)", "", "| | | | | | Si | gnificance | | |", "|---|---|---|---|---|---|---|---|---|", "| | Df | SS | MS | F | | F | | |",
+        "| Regression | 1.00 | 0.74 | 0.74 | 100 | .63 | 0.00 | | |", "| Residual | 52.00 | 0.38 | 0.01 | | | | | |", "| Total | 53.00 | 1.12 | | | | | | |",
+        "| | Coefficients | Standard<br>Error | t Stat | P.<br>value | Lower<br>95% | Upper<br>95% | Lower<br>95% | Upper<br>95% |",
+        "| Intercept | -4.26 | 0.71 | -5.96 | 0.00 | -5.69 | -2.82 | -5.69 | -2.82 |", "| log<br>(manufacturing | | | | | | | | |", "",
+        "0.00 2.86 4.29 2.86 4.29", "", "Copyright McGraw-Hill and AnalystSolutions", "", "3.58 0.36", "",
+        "Using the regression tool, the standard error, the coefficients and the t stat matter; the value and the lower and upper bounds too.",
+        "The standard error and the coefficients: the lower value, the upper value, the stat."])
+    lxb = tg.lexicon(P175B.split(chr(10)))
+    spb = tg.propose_splits(P175B.split(chr(10)), lxb)
+    check("the held copy's shape: a ONE-row <br> heading splits the table (pair 1), the header unstacked, the scattered tail NOT re-joined",
+          len(spb) == 1 and spb[0]["pair"] == 1 and spb[0]["header"][2] == "Standard Error" and spb[0]["header"][4] == "P. value" and spb[0]["rejoin"] is None, str(spb))
+    newb, apb, rfb = tg.split_pass(P175B.split(chr(10)), lxb)
+    check("… applied: two tables, the label row kept, both prose lines kept (nothing invented)", len(apb) == 1 and not rfb and len(tg.table_blocks(newb)) == 2
+          and "| log<br>(manufacturing |" in chr(10).join(newb) and "0.00 2.86 4.29 2.86 4.29" in newb and "3.58 0.36" in newb, str((apb, rfb)))
+    check("idempotent: a second split pass proposes nothing", tg.propose_splits(new13, lx) == [] and tg.propose_splits(newb, lxb) == [])
+    check("a healthy table with a numeric body proposes no split", tg.propose_splits(HEALTHY.split(chr(10)), lx) == [] and tg.propose_splits(VALENTINE.split(chr(10)), lx) == [])
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 
