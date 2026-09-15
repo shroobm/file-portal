@@ -136,6 +136,48 @@ jobs:
       # negative controls. stdlib only; it never imports converter code or reads live paths.
       - name: Schema registry parity (A4, hard gate)
         run: python observability/schema_registry_selftest.py
+      # S157 E49 (register A29, the Linux-runnable slice; Rab's 16:05Z 'Go. Auto. … Signed.'): the
+      # governance suites that check the layer that checks everything, each WARN-ONLY per the S108
+      # standard (continue-on-error) until the ubuntu/py3.11 triple is observed green in the job LOG
+      # (SYM-075: never a continue-on-error step's API `conclusion`); arming is Rab's signature, as
+      # S116's was. Each ran on the Desktop 2026-09-15 (py3.12 / Git Bash) before this edit — the
+      # counts here are that run's: relay-gate 204/204 (60 s), guard_git 181/181 (21 s; builds temp
+      # repos + a linked worktree — needs git), guard_record 16/16, ledger_check 11/11, echo 5/5,
+      # circle 4/4, wiki 11/11, coordination 20/20 (reads the checked-out relay), muster 110/110
+      # (~6 min on the Desktop; fakebin shims for tasklist/nvidia-smi/query — the case most likely
+      # to differ on ubuntu, which is why it is here: A29's row asked for exactly this observation).
+      # EXCLUDED, deliberately: coordination/relay_watch_selftest.sh (`uv run python`; no uv on the
+      # runner), card_mutex_selftest.py (a Windows OS mutex), deferral_gate_selftest.py (launches
+      # the real watcher), the private desk skill (not in this repo). All stdlib/bash/git; no
+      # installs; every fixture in a temp dir; nothing reads a live pipeline path.
+      - name: Governance suites (A29, warn-only) — relay-gate
+        continue-on-error: true
+        run: python .claude/skills/relay-gate/selftest.py
+      - name: Governance suites (A29, warn-only) — guard_git
+        continue-on-error: true
+        run: python .claude/hooks/guard_git_selftest.py
+      - name: Governance suites (A29, warn-only) — guard_record
+        continue-on-error: true
+        run: python .claude/hooks/guard_record_selftest.py
+      - name: Governance suites (A29, warn-only) — ledger_check
+        continue-on-error: true
+        run: python dumps/ledger_check_selftest.py
+      - name: Governance suites (A29, warn-only) — echo
+        continue-on-error: true
+        run: bash .claude/skills/echo/selftest.sh
+      - name: Governance suites (A29, warn-only) — circle
+        continue-on-error: true
+        run: bash .claude/skills/circle/selftest.sh
+      - name: Governance suites (A29, warn-only) — wiki
+        continue-on-error: true
+        run: bash .claude/skills/wiki/selftest.sh
+      - name: Governance suites (A29, warn-only) — coordination
+        continue-on-error: true
+        run: bash coordination/selftest.sh
+      - name: Governance suites (A29, warn-only) — muster
+        continue-on-error: true
+        timeout-minutes: 15
+        run: bash .claude/skills/muster/selftest.sh
 
   rust:
     # SYM-020 (found S67, cleared S68 2026-08-10): fmt drift across 8 files had accumulated while
