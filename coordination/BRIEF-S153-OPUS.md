@@ -70,3 +70,7 @@ Rab's words: "protocol" alone = the persistent method — each category an episo
 ## 7. What this brief cannot see
 
 It cannot see Rab's intent for you (which lane, which grant); it cannot see the ThinkPad (UNREAD at every S15x open); it was written by the lane that did the work, so its residue list is that lane's — the S152 §10 list stands; a reader who finds a path or a command here wrong should fix the brief and say so in the record, not work around it.
+
+## Erratum (S155 E2, 2026-09-15, the Fable lane's occupant Claude Opus 5)
+
+§0's GPU-law line and §1.5's steps say to take `.gpu-lock` for a probe on the card. Measured: `.gpu-lock` is a busy SIGNAL only the watcher's own convert may hold (SYM-032) — a probe's `.gpu-lock` was REAPED by the watcher as stale 14 s after it was written (`watcher.log` 2026-09-15 00:02:42 local). For a probe: read the lock (present = a conversion is running, do not start), `nvidia-smi` and `query user`, then ONE process; nothing can hold the signal for you. §1.5's probe was run on his word `move back and run`: `--html_tables_in_markdown` does not recover p.175's table (`OPEN-TASKS.md` `converter/lost-table-p175` carries the measure and the route).
