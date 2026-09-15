@@ -52,6 +52,23 @@ import text_norm as tn  # noqa: E402
 
 analyst.unload = lambda: None  # never touch a real ollama server
 
+
+# S157 E9 — THE NETWORK GUARD. "Never touch a real ollama server" was a comment, not a guard: the S156 (a) negative control
+# called process() with the real _generate and every run of this file since S156 loaded qwen3:8b on Rab's card for 30
+# minutes (Ollama's log, ten times on 2026-09-15; found by the fleet process census, J3). process() swallows a backend
+# error as a failed chunk, so a raise alone is silent — every urlopen reached is COUNTED here and refused, and the last case
+# reds when the count is not zero. A case that fakes urlopen itself (S146-E5 (b)) replaces this guard and restores it.
+_NET_CALLS: list[str] = []
+
+
+def _no_network(req, timeout=None):
+    url = getattr(req, "full_url", None) or str(req)
+    _NET_CALLS.append(url)
+    raise RuntimeError("analyst_selftest reached the network: " + url + " (the GPU law: no case may load a model)")
+
+
+analyst.urllib.request.urlopen = _no_network
+
 failed: list[str] = []
 ran: list[str] = []
 
@@ -752,7 +769,14 @@ def _():
     assert v and v["format"] == "vision-reading/1" and v["tables_matched"] == 1 and v["spans"] == 1 and v["figures"] == [], v
     assert [lb["word"] for lb in meta["geometry"]["labels"]] == ["REVENUE"] and meta["geometry"]["labels"][0]["span_how"] == "vision", meta["geometry"]["labels"]   # S156 E5: a lens found the first cut's `… or True` was a no-op
     assert "| REVENUE | pricing? | • | a |" in out, out
-    _, meta0 = analyst.process(S151_MD, backend="local", resolver=lambda letters, ctx: "REVENUE")
+    # the negative control (no reading → no vision facts) — S157 E9: scripted like the positive; the first cut called the
+    # real _generate here and loaded the model on the card at every run
+    real_gen = analyst._generate
+    analyst._generate = lambda prompt: prompt[len(analyst.load_program("readability")):]
+    try:
+        _, meta0 = analyst.process(S151_MD, backend="local", resolver=lambda letters, ctx: "REVENUE")
+    finally:
+        analyst._generate = real_gen
     assert meta0["geometry"]["vision"] is None, meta0["geometry"]
 
 
@@ -870,6 +894,12 @@ def _():
         analyst.ANALYST_SAMPLER.clear()
         analyst.ANALYST_SAMPLER.update(saved)
         analyst._call_bound.clear()
+
+
+@case("S157-E9 NETWORK: no case reached urlopen — the selftest never touches a real Ollama (the GPU law; S156 (a)'s control had)")
+def _():
+    assert _NET_CALLS == [], "urlopen reached %d time(s): %s" % (len(_NET_CALLS), _NET_CALLS[:3])
+    assert analyst.urllib.request.urlopen is _no_network, "a case replaced the network guard and did not restore it"
 
 
 print()
