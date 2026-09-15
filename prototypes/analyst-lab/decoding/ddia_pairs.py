@@ -22,7 +22,10 @@ import pathlib
 import re
 import sys
 
-WC = r"C:\Users\Bndit\Projects\file-portal\.claude\worktrees\wf_cd7e80f0-d5a-2\windows-converter"
+# S157 E50 (J44 re-measured): this bound the S119 fleet's WORKTREE (`.claude/worktrees/wf_cd7e80f0-d5a-2/…`), which no
+# longer exists — the probe that sized J44's rungs could not run again (a script carrying its birthplace, S154's class).
+# The repo's own windows-converter, found from this file; FP_WC overrides for a worktree run.
+WC = os.environ.get("FP_WC") or str(pathlib.Path(__file__).resolve().parents[3] / "windows-converter")
 sys.path.insert(0, WC)
 os.environ.setdefault("FP_PIPELINE", os.path.join(os.environ.get("TEMP", r"C:\Temp"), "r2-quarantine"))
 import analyst  # noqa: E402
