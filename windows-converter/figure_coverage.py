@@ -69,6 +69,25 @@ KNOWN LIMITATIONS, measured rather than guessed (S104)
       totalling 0.53 against a 0.60 threshold. Catching them needs 0.50 — which would be
       tuning to a sample of two with no held-out set — or the real fix, which is clustering
       that does not let a frame border swallow its contents.
+      **S157 E35 (2026-09-15): CALIBRATED, not tuned.** The veto's own number, accounted =
+      min(1, text_coverage + covered_frac(tables)), measured on 104 uncovered vector regions
+      that two Sonnet readers had adjudicated NOT figures (every uncovered vector page of the
+      two Investment Valuation bundles — all ILLUSTRATION boxes) against 203 surviving vector
+      regions on the diagram books (Book of Models 90, Ashby 8, DDIA 105 — figures or figure
+      frames, every one covered by its asset): boxes min/median/max 0.025 / 0.448 / 0.595,
+      figures 0.0 / 0.0 / 0.269. A lever line `accounted_for=0.35` would veto 63 of the 104
+      boxes and hide 0 of the 203 figures, with 0.08 of margin over the figures' maximum;
+      0.30 vetoes 80 and hides 0 with 0.03 of margin; 0.25 hides two (Cyb p.81, Ashby p.126).
+      The default stays 0.60 — the value is the operator's line (private
+      `sittings/S157/e35/frame_probe.json`). The 41 boxes under 0.35 are mostly-empty frames
+      (a heading and a paragraph over blank space, e.g. IV UE p.805/940/945): no text-density
+      threshold reaches them; the region kind does — see `uncovered_by_kind`.
+    · **On the adjudicated Damodaran corpus the region KIND is the verdict (S157 E24/E30):**
+      every uncovered page whose regions were raster was a lost figure (21 of 21 across both
+      bundles — absent or flattened into a table/prose) and every vector-only uncovered page was
+      an ILLUSTRATION box, not a figure (104 of 104). The report's `uncovered_by_kind` counts
+      them; read a vector-only uncovered page on this typesetting as a box until a reader says
+      otherwise. Not a rule for diagram books, where vector IS the figure.
     · **THE VERDICT IS ONLY AS GOOD AS THE BUNDLE'S PAGE MAP (S105, SYM-050).** On a pre-S60
       doubled-offset bundle every per-page verdict is noise: the figures ARE in the bundle,
       filed under doubled ids. Measured on Investment Valuation — **19 of 20 adjudicated
@@ -750,6 +769,12 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
     triage_on = lv["mode"] == "caption"
     unc_capt = [p for p in uncovered if p in captioned] if triage_on else []
     unc_rest = [p for p in uncovered if p not in captioned] if triage_on else list(uncovered)
+    # S157 E35: the uncovered pages by region kind — on the adjudicated Damodaran corpus raster <=> a lost figure (21/21) and
+    # vector-only <=> an ILLUSTRATION box (104/104); a count, never a verdict (a diagram book's figures are vector)
+    by_kind: dict[str, int] = {}
+    for p in uncovered:
+        k = "+".join(sorted({r["kind"] for r in src["pages"].get(p, [])})) or "none"
+        by_kind[k] = by_kind.get(k, 0) + 1
 
     # The SYM-050 block travels in BOTH output forms. S104 harvested its poisoned headline in
     # `--json`, where the human branch's warning never appeared — carrying the map's state into
@@ -800,6 +825,7 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
         "triage_mode": lv["mode"],
         "uncovered_captioned": unc_capt,
         "uncovered_other": unc_rest,
+        "uncovered_by_kind": by_kind,
         "output_asset_pages": len(per_page),
         "output_assets_total": sum(per_page.values()),
         "assets_out_of_range": out_of_range,

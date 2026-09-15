@@ -419,6 +419,10 @@ def main() -> int:
         check("_nonrect_items: twelve bullet glyphs count 0 (below the span); a circle + two diagonals count >= 3",
               nb == 0 and nd >= 3, f"bullets={nb} diagram={nd}")
         rep25 = fc.coverage(dia, _bundle(tmp, [], "e25"), lv=fc.levers(text="table_max_nonrect=7\nzero_area_min_len_pt=2.5")["values"])["conditions"]
+        # S157 E35: the uncovered pages counted by region kind (the Damodaran finding: raster <=> lost, vector-only <=> a box)
+        rep35 = fc.coverage(dia, _bundle(tmp, [], "e35"))
+        check("E35: the report counts the uncovered pages by region kind (the diagram-over-grid page is one vector page)",
+              rep35["uncovered_by_kind"] == {"vector": 1}, str(rep35.get("uncovered_by_kind")))
         check("LEVER: the report states the three E25 levers' EFFECTIVE values",
               rep25["veto_table_max_nonrect"] == 7 and rep25["zero_area_min_len_pt"] == 2.5 and rep25["nonrect_min_span_pt"] == fc.NONRECT_MIN_SPAN_PT,
               str({k: rep25[k] for k in ("veto_table_max_nonrect", "zero_area_min_len_pt", "nonrect_min_span_pt")}))

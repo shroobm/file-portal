@@ -204,6 +204,7 @@
         "p1_page_coverage.sym050_doubled_offset.detected",
         "p1_page_coverage.table_vetoes_disqualified",
         "p1_page_coverage.triage_mode",
+        "p1_page_coverage.uncovered_by_kind",
         "p1_page_coverage.uncovered_captioned",
         "p1_page_coverage.uncovered_detail",
         "p1_page_coverage.uncovered_other",
