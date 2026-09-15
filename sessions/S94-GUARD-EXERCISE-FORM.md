@@ -22,6 +22,7 @@ Exe under test (sha256 first-8): ______________  ·  Date: ____________  ·  Rev
 
 Verdict (circle): **WITHSTOOD / BLOCKED** — "held" is retired per the S108 circle rules.
 ⟨correction 2026-09-05 (S115): "held" is NOT retired — the circle skill (`~/.claude/skills/circle/SKILL.md`, unchanged since 2026-08-13) still returns HELD as a verdict (line 101); the S108 circle rules were never imported (J37). The line above stands as written.⟩
+⟨2026-09-15 (S157 E14): BUILT — J37: the three S108 rules are in `.claude/skills/circle/SKILL.md` (tracked) and its user-level mirror (`~/.claude/skills/circle/SKILL.md`, byte-identical): frozen-commit immutable audit records, the aborted-lane law, and "HELD" retired as a verdict word (the vocabulary reads WITHSTOOD / BLOCKED); `.claude/skills/circle/selftest.sh` asserts it with two negative controls, 4/4. The sentence stands as written; as of this note it is true.⟩
 
 On completion: strike register rows D8 and P-0's acceptance line in the same commit that
 records this form's result (OPEN-TASKS §H rule 1).
