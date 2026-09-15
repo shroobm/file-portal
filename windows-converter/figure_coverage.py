@@ -43,6 +43,12 @@ KNOWN LIMITATIONS, measured rather than guessed (S104)
       VECTOR_MIN_PATHS 4). Neither shipped an asset; P-1 is silent on both. Control that proves
       the mechanism: p35's visually-similar diagram DOES flag, because it contains one curved
       path with non-zero area. Not fixed: the fix is clustering that follows stroke geometry.
+      **S157 E25 (2026-09-15): FIXED by the smaller move — a zero-area path is clustered when it
+      is ANCHORED (within the gap of a positive-area path or a perpendicular line; see
+      `_anchored_lines`), so a connector joins what it connects and a stack of bare rules still
+      does not. Measured on every anchor (private `sittings/S157/e25/anchors_diff.json`): the
+      Book of Models gains exactly p.34 and p.78 as uncovered (1 -> 3) and nothing else moves on
+      any book (IV: 0 zero-area paths; DDIA: 572 clustered, all on raster pages already flagged).**
     · **A regular grid of labelled boxes reads as a table** to `find_tables()` and is vetoed.
       ~~Org charts and matrix diagrams are the risk class.~~ **S105 CORRECTION: this class was
       called "not measured on a real specimen" and it had in fact already fired 15 times in the
@@ -52,6 +58,12 @@ KNOWN LIMITATIONS, measured rather than guessed (S104)
       The class is broader than "grids of boxes": any axis-tick chart or shaded technical drawing
       can trip it. No loss resulted (all 11 shipped anyway) — this costs SENSITIVITY, and it is
       the same page-class as the p34/p78 losses above.**
+      **S157 E25: the veto is DISQUALIFIED for a non-rectilinear cluster (`_nonrect_items` >=
+      VETO_TABLE_MAX_NONRECT sizable curves + diagonals). Measured over every (cluster, vetoing
+      table) pair on the vector anchors: Book of Models 14 of 15 pairs non-rectilinear (every one
+      a diagram: the engine, the time series, the room), Investment Valuation 0 of 144 (every one
+      a ruled table; p.944's 112 bullet glyphs are 2 pt circles, under the span). After: the Book
+      of Models' vetoed-table count 15 -> 0 and its figure pages 57 -> 71, all fourteen covered.**
     · **Damodaran's "ILLUSTRATION N.N" frames still survive all three vetoes** (p63, p73): the
       frame is clustered as one region, the table inside covers ~21 % of it and the prose ~32 %,
       totalling 0.53 against a 0.60 threshold. Catching them needs 0.50 — which would be
@@ -104,6 +116,23 @@ MIN_SIDE_PT = 40.0  # a figure is not 3pt tall; kills rules, underlines, table b
 MAX_PAGE_FRACTION = 0.92  # a region covering ~the whole page is the SCAN ITSELF, not a figure
 VECTOR_MIN_PATHS = 4  # a cluster needs real drawing activity, not one stray line
 VECTOR_CLUSTER_GAP_PT = 18.0  # paths closer than this merge into one figure region
+# S157 E25 (SYM-049): a zero-area path — a connector line, an arrow shaft, an axis — is CLUSTERED, not dropped, when it
+# is ANCHORED: within the gap of a positive-area path or of a zero-area line of the other orientation. A stack of
+# parallel rules (underlines, a ruled form) touches neither and stays out, so the min-side/min-area filters keep their
+# S104 meaning. Measured before the change on the Book of Models: p.34 (27 arrow shafts each touching only its own
+# 5x10 pt arrowhead — 12 fragments, largest 541 pt²) and p.78 (two boxes joined by two lines — 2 clusters of 2 paths)
+# were invisible; with anchored lines both cluster past every size filter (E25's probe, `sittings/S157/e25_lines_probe.py`).
+ZERO_AREA_MIN_LEN_PT = 1.0  # a zero-area path shorter than this is a dot, not a line
+# S157 E25: the table veto is DISQUALIFIED for a cluster that is not rectilinear — a ruled table is lines and rects; a
+# diagram has curves and diagonals. Counted over the drawings inside the cluster: curve items whose control points span
+# >= NONRECT_MIN_SPAN_PT (a bullet glyph is a 2 pt circle — IV p.944 draws 112 of them inside a real table) and line
+# items with both dx and dy >= 0.5 pt and length >= NONRECT_MIN_SPAN_PT. Measured on every (cluster, vetoing table)
+# pair of the vector anchors (`sittings/S157/e25_curves_probe.py`): the Book of Models 14 of 15 pairs non-rectilinear
+# (S105's 0-for-11 class: a Watt engine, a time series, a room in perspective — every one a diagram), Investment
+# Valuation 0 of 144 (every one a ruled table). The threshold sits between 2 (Cyb p.40's two diagonals) and 8 (the
+# smallest diagram, Cyb p.74/75/77: 4 curves + 4 diagonals).
+VETO_TABLE_MAX_NONRECT = 3  # a cluster with this many sizable curves+diagonals is a drawing; no table may veto it
+NONRECT_MIN_SPAN_PT = 4.0
 
 # ── the text-density veto (S104) ──────────────────────────────────────────────
 # A shaded callout box and a flow diagram both cluster into a big vector region. The box is
@@ -170,6 +199,12 @@ LEVER_SPEC: dict[str, tuple[type, object, object]] = {
     "max_page_fraction":  (float, MAX_PAGE_FRACTION,      (0.10, 1.0)),
     "vector_min_paths":   (int,   VECTOR_MIN_PATHS,       (1, 200)),
     "cluster_gap_pt":     (float, VECTOR_CLUSTER_GAP_PT,  (0.0, 200.0)),
+    # S157 E25: the two mechanisms measured that episode, each with the lever that turns it back into the S104 behaviour
+    # (zero_area_min_len_pt above any page height = no line is ever clustered; table_max_nonrect at its ceiling = every
+    # table vetoes as before)
+    "zero_area_min_len_pt": (float, ZERO_AREA_MIN_LEN_PT, (0.0, 100_000.0)),
+    "table_max_nonrect":  (int,   VETO_TABLE_MAX_NONRECT, (1, 1_000_000)),
+    "nonrect_min_span_pt": (float, NONRECT_MIN_SPAN_PT,   (0.0, 1000.0)),
     "text_coverage":      (float, VETO_TEXT_COVERAGE,     (0.0, 1.0)),
     "words_per_line":     (float, VETO_WORDS_PER_LINE,    (0.0, 100.0)),
     "table_overlap":      (float, VETO_TABLE_OVERLAP,     (0.0, 1.0)),
@@ -357,6 +392,47 @@ def _cluster(rects, gap: float):
     return boxes
 
 
+def _anchored_lines(rects, lines, gap: float) -> list:
+    """S157 E25 (SYM-049): the zero-area paths admitted to the clustering — each as a thin rect (its zero side padded by
+    0.5 pt so the merge arithmetic has a box) — when it lies within `gap` of a positive-area path or of a zero-area line of
+    the OTHER orientation. Parallel rules with nothing else near them are excluded on purpose: they are the false-positive
+    class the S104 min-side filter exists for, and clustering them would hand it a 4-path region taller than 40 pt."""
+    out = []
+    horiz = [r for r in lines if r[3] == r[1]]
+    vert = [r for r in lines if r[2] == r[0]]
+    for r in lines:
+        others = vert if r[3] == r[1] else horiz
+        if any(_touches(r, o, gap) for o in rects) or any(_touches(r, o, gap) for o in others if o is not r):
+            out.append((r[0], r[1], r[2] + (0.5 if r[2] == r[0] else 0.0), r[3] + (0.5 if r[3] == r[1] else 0.0)))
+    return out
+
+
+def _nonrect_items(drawings, bbox, min_span: float) -> int:
+    """S157 E25: how many sizable CURVES and DIAGONAL line items the drawings inside `bbox` carry — zero for a ruled table,
+    dozens for a diagram. A drawing counts as inside when at least half its rect lies in the box (a zero-area path: its
+    first corner does). Curve span = the extent of its four control points; a diagonal needs both dx and dy >= 0.5 pt."""
+    r = pymupdf.Rect(bbox)
+    n = 0
+    for d in drawings:
+        dr = pymupdf.Rect(d.get("rect") or (0, 0, 0, 0))
+        if dr.get_area() > 0:
+            inter = r & dr
+            if inter.is_empty or inter.get_area() < 0.5 * dr.get_area():
+                continue
+        elif not r.contains(pymupdf.Point(dr.x0, dr.y0)):
+            continue
+        for it in d.get("items", []):
+            if it[0] == "c":
+                pts = it[1:5]
+                if max(max(p.x for p in pts) - min(p.x for p in pts), max(p.y for p in pts) - min(p.y for p in pts)) >= min_span:
+                    n += 1
+            elif it[0] == "l":
+                p, q = it[1], it[2]
+                if abs(p.x - q.x) >= 0.5 and abs(p.y - q.y) >= 0.5 and max(abs(p.x - q.x), abs(p.y - q.y)) >= min_span:
+                    n += 1
+    return n
+
+
 def region_text_stats(page, bbox) -> dict:
     """Is the text inside this region PROSE, or scattered labels?
 
@@ -462,6 +538,8 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
               "vector": {"min_paths_or_area": 0, "min_side_pt": 0, "max_page_fraction": 0}}
     vetoed_tables = 0
     vetoed_frames = 0
+    lines_clustered = 0            # S157 E25: zero-area paths admitted to the clustering (anchored)
+    table_veto_disqualified = 0    # S157 E25: clusters a table would have vetoed but for their curves/diagonals
     try:
         for pno in range(doc.page_count):
             page = doc[pno]
@@ -523,12 +601,19 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
 
             tcache: dict = {}
             rects = []
-            for d in page.get_drawings():
+            lines = []
+            drawings = page.get_drawings()
+            for d in drawings:
                 r = tuple(d.get("rect") or (0, 0, 0, 0))
                 if _rect_area(r) <= 0:
+                    # S157 E25 (SYM-049): a zero-area path is a LINE, kept for the anchoring test below, not dropped
+                    if (r[2] - r[0]) + (r[3] - r[1]) >= lv["zero_area_min_len_pt"]:
+                        lines.append(r)
                     continue
                 rects.append(r)
-            for bbox, npaths in _cluster(rects, lv["cluster_gap_pt"]):
+            anchored = _anchored_lines(rects, lines, lv["cluster_gap_pt"]) if lines else []
+            lines_clustered += len(anchored)
+            for bbox, npaths in _cluster(rects + anchored, lv["cluster_gap_pt"]):
                 area = _rect_area(bbox)
                 if npaths < lv["vector_min_paths"] or area < lv["min_area_pt2"]:
                     killed["vector"]["min_paths_or_area"] += 1
@@ -549,7 +634,13 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
                     continue
                 # Second veto: structure, not text shape. A table survives the prose test
                 # because its cells are short — see the note on VETO_TABLE_OVERLAP.
+                # S157 E25: and no table may veto a cluster that is not rectilinear — find_tables() calls a Watt engine
+                # a 16x18 table (Cyb p.26) and a room in perspective a 3x3 one (p.42); their curves and diagonals say
+                # otherwise. The disqualified table also leaves the frame sum below: a drawing is not "accounted for".
                 tabs = _table_rects(page, tcache)
+                if tabs and _nonrect_items(drawings, bbox, lv["nonrect_min_span_pt"]) >= lv["table_max_nonrect"]:
+                    tabs = []
+                    table_veto_disqualified += 1
                 if _covered_by(bbox, tabs, lv["table_overlap"]):
                     vetoed_tables += 1
                     continue
@@ -593,6 +684,8 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
             "captioned_pages": sorted(captioned & set(pages)),
             "vetoed_table_regions": vetoed_tables,
             "vetoed_framed_text_regions": vetoed_frames,
+            "zero_area_paths_clustered": lines_clustered,
+            "table_vetoes_disqualified": table_veto_disqualified,
             "furniture_digests": len(
                 {d for d, ps in digest_pages.items() if len(ps) > max(3, int(0.25 * n_pages))}
             )}
@@ -715,6 +808,10 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
         "vetoed_prose_regions": src.get("vetoed_prose_regions", 0),
         "vetoed_table_regions": src.get("vetoed_table_regions", 0),
         "vetoed_framed_text_regions": src.get("vetoed_framed_text_regions", 0),
+        # S157 E25 (SYM-049): the two counts that say the mechanisms fired — zero-area paths clustered (anchored lines), and
+        # table vetoes disqualified by a cluster's curves and diagonals
+        "zero_area_paths_clustered": src.get("zero_area_paths_clustered", 0),
+        "table_vetoes_disqualified": src.get("table_vetoes_disqualified", 0),
         "uncovered_detail": detail,
         "conditions": {
             "unit": "PER PAGE — a page with N source figures and >=1 output asset counts as "
@@ -736,6 +833,9 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
             "veto_words_per_line": lv["words_per_line"],
             "veto_table_overlap": lv["table_overlap"],
             "veto_accounted_for": lv["accounted_for"],
+            "zero_area_min_len_pt": lv["zero_area_min_len_pt"],
+            "veto_table_max_nonrect": lv["table_max_nonrect"],
+            "nonrect_min_span_pt": lv["nonrect_min_span_pt"],
             "image_identity": "md5" if use_hashes else "none (furniture-dedup disabled)",
             "verdict_effect": "NONE — report-only by docs/15 §6; writes nothing",
         },

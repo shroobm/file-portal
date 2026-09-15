@@ -324,6 +324,105 @@ def main() -> int:
               "promoted, while a genuine caption on the next page is",
               capt == [2], f"captioned_pages={capt}, expected [2]")
 
+        # ── S157 E25 (SYM-049): zero-area paths clustered when ANCHORED; the table veto disqualified by curves ──
+        # The S104 note above records why the first synthetic diagram never clustered: its connectors were zero-area
+        # lines and were dropped. That drop is the SYM-049 mechanism (Cyb p.34, p.78 measured lost at S105). The
+        # fixtures below are the S105 specimens' SHAPES, not their bytes; the corpus measure is the E25 record.
+        def _grid(pg, x0=100, y0=100, cols=4, rows=5, w=90, h=30):
+            for i in range(cols + 1):
+                pg.draw_line(pymupdf.Point(x0 + i * w, y0), pymupdf.Point(x0 + i * w, y0 + rows * h), color=(0, 0, 0))
+            for j in range(rows + 1):
+                pg.draw_line(pymupdf.Point(x0, y0 + j * h), pymupdf.Point(x0 + cols * w, y0 + j * h), color=(0, 0, 0))
+            for i in range(cols):
+                for j in range(rows):
+                    pg.insert_text(pymupdf.Point(x0 + i * w + 6, y0 + j * h + 20), "c%d%d" % (i, j), fontsize=9)
+
+        # 37 — Cyb p.78's shape: two boxes joined by two connector lines. Dropped lines = two 1-path clusters = silence.
+        doc = pymupdf.open()
+        pg = doc.new_page()
+        pg.draw_rect(pymupdf.Rect(100, 100, 150, 150), color=(0, 0, 0))
+        pg.draw_rect(pymupdf.Rect(400, 100, 450, 150), color=(0, 0, 0))
+        pg.draw_line(pymupdf.Point(150, 115), pymupdf.Point(400, 115), color=(0, 0, 0))
+        pg.draw_line(pymupdf.Point(150, 135), pymupdf.Point(400, 135), color=(0, 0, 0))
+        p78 = tmp / "p78shape.pdf"
+        doc.save(p78)
+        doc.close()
+        s78 = fc.source_figure_regions(p78)
+        check("SYM-049: two boxes joined by zero-area connector lines cluster into ONE vector region (p.78's shape)",
+              1 in s78["pages"] and [r["paths"] for r in s78["pages"][1]] == [4] and s78["zero_area_paths_clustered"] == 2,
+              f"pages={s78['pages']} clustered={s78['zero_area_paths_clustered']}")
+        s78off = fc.source_figure_regions(p78, lv=fc.levers(text="zero_area_min_len_pt=100000")["values"])
+        check("SYM-049 NEGATIVE CONTROL: with no line ever admitted (the lever at its ceiling) the S104 silence returns",
+              s78off["pages"] == {} and s78off["zero_area_paths_clustered"] == 0, f"pages={s78off['pages']}")
+
+        # 38 — the flood guard: six parallel rules 10 pt apart (a ruled block 448x50) touch nothing and stay OUT
+        doc = pymupdf.open()
+        pg = doc.new_page()
+        for k in range(6):
+            pg.draw_line(pymupdf.Point(72, 200 + 10 * k), pymupdf.Point(520, 200 + 10 * k), color=(0, 0, 0))
+        ruled = tmp / "ruled.pdf"
+        doc.save(ruled)
+        doc.close()
+        sr = fc.source_figure_regions(ruled)
+        check("SYM-049 flood guard: a stack of parallel rules with nothing else near them is NOT clustered (unanchored)",
+              sr["pages"] == {} and sr["zero_area_paths_clustered"] == 0, f"pages={sr['pages']} clustered={sr['zero_area_paths_clustered']}")
+
+        # 39 — a ruled TABLE drawn with lines only: its lines anchor each other (perpendiculars), it clusters, and the
+        # table veto — still allowed, the cluster is rectilinear — removes it. The S104 report was silent by accident
+        # (the lines never clustered); it is silent by the veto now, and the report says which.
+        doc = pymupdf.open()
+        pg = doc.new_page()
+        _grid(pg)
+        tab = tmp / "linetable.pdf"
+        doc.save(tab)
+        doc.close()
+        st = fc.source_figure_regions(tab)
+        check("a ruled table drawn with lines clusters (perpendiculars anchor) and is vetoed AS A TABLE, not reported",
+              st["pages"] == {} and st["zero_area_paths_clustered"] == 11 and st["vetoed_table_regions"] == 1
+              and st["table_vetoes_disqualified"] == 0, f"{st['pages']} clustered={st['zero_area_paths_clustered']} vetoed={st['vetoed_table_regions']}")
+
+        # 40 — the same grid with a DIAGRAM over it (a circle and two diagonals): find_tables still calls it a table,
+        # the cluster's curves and diagonals disqualify the veto, the region is REPORTED (Cyb p.42's mechanism)
+        doc = pymupdf.open()
+        pg = doc.new_page()
+        _grid(pg)
+        pg.draw_circle(pymupdf.Point(280, 175), 60, color=(0, 0, 0))
+        pg.draw_line(pymupdf.Point(100, 100), pymupdf.Point(460, 250), color=(0, 0, 0))
+        pg.draw_line(pymupdf.Point(100, 250), pymupdf.Point(460, 100), color=(0, 0, 0))
+        dia = tmp / "diagram-over-grid.pdf"
+        doc.save(dia)
+        doc.close()
+        sd = fc.source_figure_regions(dia)
+        check("the table veto is DISQUALIFIED on a cluster with curves and diagonals: the diagram over a grid is reported",
+              1 in sd["pages"] and sd["table_vetoes_disqualified"] == 1 and sd["vetoed_table_regions"] == 0,
+              f"{sd['pages']} disq={sd['table_vetoes_disqualified']} vetoed={sd['vetoed_table_regions']}")
+        sdoff = fc.source_figure_regions(dia, lv=fc.levers(text="table_max_nonrect=1000000")["values"])
+        check("NEGATIVE CONTROL: with the disqualifier's lever at its ceiling the S104 table veto swallows the diagram again",
+              sdoff["pages"] == {} and sdoff["vetoed_table_regions"] == 1 and sdoff["table_vetoes_disqualified"] == 0,
+              f"{sdoff['pages']} vetoed={sdoff['vetoed_table_regions']}")
+
+        # 41 — the helper's own arithmetic: bullets (2 pt circles) are not curves; a 4 pt diagonal is; the report names
+        # the three E25 levers with their effective values
+        doc = pymupdf.open()
+        pg = doc.new_page()
+        for k in range(12):
+            pg.draw_circle(pymupdf.Point(110, 120 + 14 * k), 1.2, color=(0, 0, 0), fill=(0, 0, 0))   # a bullet column
+        bul = tmp / "bullets.pdf"
+        doc.save(bul)
+        doc.close()
+        dbul = pymupdf.open(bul)
+        nb = fc._nonrect_items(dbul[0].get_drawings(), (0, 0, 612, 792), fc.NONRECT_MIN_SPAN_PT)
+        dbul.close()
+        ddia = pymupdf.open(dia)
+        nd = fc._nonrect_items(ddia[0].get_drawings(), (0, 0, 612, 792), fc.NONRECT_MIN_SPAN_PT)
+        ddia.close()
+        check("_nonrect_items: twelve bullet glyphs count 0 (below the span); a circle + two diagonals count >= 3",
+              nb == 0 and nd >= 3, f"bullets={nb} diagram={nd}")
+        rep25 = fc.coverage(dia, _bundle(tmp, [], "e25"), lv=fc.levers(text="table_max_nonrect=7\nzero_area_min_len_pt=2.5")["values"])["conditions"]
+        check("LEVER: the report states the three E25 levers' EFFECTIVE values",
+              rep25["veto_table_max_nonrect"] == 7 and rep25["zero_area_min_len_pt"] == 2.5 and rep25["nonrect_min_span_pt"] == fc.NONRECT_MIN_SPAN_PT,
+              str({k: rep25[k] for k in ("veto_table_max_nonrect", "zero_area_min_len_pt", "nonrect_min_span_pt")}))
+
     finally:
         shutil.rmtree(tmp, ignore_errors=True)
 
