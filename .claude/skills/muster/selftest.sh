@@ -960,6 +960,26 @@ out=$(MEMORY_LIB="$WORK/l57" FP_REPO="$R" PIPE_ROOT="$P57" VAULT_DIR="$WORK/nope
 if printf '%s' "$out" | grep -E '^ +intake' | grep -q 'STALE'; then ok "S141 intake: a receipt older than 60 s renders STALE (the watcher rewrites it every poll)"
 else bad "S141 intake: an old receipt renders STALE" "got: $(printf '%s' "$out" | grep -E '^ +intake' | head -1)"; fi
 
+# CASE 37 — J36 (S157 E12), THE ADOPTION RECEIPT. The property: the card compares the newest adopted receipt to the
+# exe it measured. Violate three ways: (a) a receipt that matches a planted exe must read MATCH; (b) a receipt naming a
+# different hash must read DRIFT (the guard must be able to shout); (c) no receipt file must read UNREAD, never "no
+# adoption" and never MATCH.
+printf 'planted widget bytes\n' > "$WORK/fake.exe"
+fake8=$(sha256sum "$WORK/fake.exe" | cut -c1-8 | tr 'a-f' 'A-F')
+mkdir -p "$R/coordination"
+printf '{"ts": "2026-09-15T07:00:00Z", "state": "adopted", "sha8": "%s", "by": "rab", "evidence": "fixture"}\n' "$fake8" > "$R/coordination/adoptions.jsonl"
+out=$(MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/fake.exe" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE "adoption +$fake8 .*installed $fake8 — MATCH"; then ok "J36 (a): a receipt matching the installed exe reads MATCH"
+else bad "J36 (a): MATCH" "got: $(printf '%s' "$out" | grep -E '^ +adoption' | head -1)"; fi
+printf '{"ts": "2026-09-15T07:00:00Z", "state": "adopted", "sha8": "DEADBEEF", "by": "rab", "evidence": "fixture"}\n' > "$R/coordination/adoptions.jsonl"
+out=$(MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/fake.exe" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE "adoption +DEADBEEF .*installed $fake8 — \*\*\* DRIFT"; then ok "J36 (b): a receipt naming another hash reads DRIFT"
+else bad "J36 (b): DRIFT" "got: $(printf '%s' "$out" | grep -E '^ +adoption' | head -1)"; fi
+rm -f "$R/coordination/adoptions.jsonl"
+out=$(MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/fake.exe" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
+if printf '%s' "$out" | grep -qE 'adoption +UNREAD' && ! printf '%s' "$out" | grep -qE 'adoption +.*MATCH'; then ok "J36 (c): no receipt file reads UNREAD, never MATCH"
+else bad "J36 (c): UNREAD" "got: $(printf '%s' "$out" | grep -E '^ +adoption' | head -1)"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

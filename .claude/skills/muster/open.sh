@@ -391,10 +391,36 @@ else
   row "processes" "UNREAD — process-table probe failed (rc=$ps_rc); NOT a statement that anything is down"
 fi
 
+exe_sha8=""
 if [[ -f "$WIDGET_EXE" ]]; then
-  row "installed exe" "$(sha256sum "$WIDGET_EXE" | cut -c1-8 | tr 'a-f' 'A-F')  (adoption is Rab's hand — docs/19 §0.3)"
+  exe_sha8=$(sha256sum "$WIDGET_EXE" | cut -c1-8 | tr 'a-f' 'A-F')
+  row "installed exe" "$exe_sha8  (adoption is Rab's hand — docs/19 §0.3)"
 else
   row "installed exe" "UNREAD — not at $WIDGET_EXE"
+fi
+# J36 (S157 E12): the ADOPTION RECEIPT — coordination/adoptions.jsonl, one JSON row per adoption by his hand (the
+# private adoption_receipt.py writes it and refuses a claimed hash the installed exe does not measure). The newest row
+# whose state is "adopted" is the current adoption; the card reads it against the exe measured above. A missing receipt
+# file, or one with no adopted row, is UNREAD (a reading; it does not change the exit) — never "no adoption".
+ADOPTIONS="$FP_REPO/coordination/adoptions.jsonl"
+if [[ -f "$ADOPTIONS" ]]; then
+  adopt_line=$(grep -U '"state": "adopted"' "$ADOPTIONS" 2>/dev/null | tail -n 1 | tr -d '\r')
+  if [[ -n "$adopt_line" ]]; then
+    adopt_sha8=$(printf '%s' "$adopt_line" | sed -n 's/.*"sha8": "\([A-Fa-f0-9]*\)".*/\1/p')
+    adopt_ts=$(printf '%s' "$adopt_line" | sed -n 's/.*"ts": "\([^"]*\)".*/\1/p')
+    adopt_by=$(printf '%s' "$adopt_line" | sed -n 's/.*"by": "\([^"]*\)".*/\1/p')
+    if [[ -z "$exe_sha8" ]]; then
+      row "adoption" "$adopt_sha8 ($adopt_ts, by $adopt_by) · installed UNREAD — cannot compare"
+    elif [[ "$adopt_sha8" == "$exe_sha8" ]]; then
+      row "adoption" "$adopt_sha8 ($adopt_ts, by $adopt_by) · installed $exe_sha8 — MATCH"
+    else
+      row "adoption" "$adopt_sha8 ($adopt_ts, by $adopt_by) · installed $exe_sha8 — *** DRIFT: the exe on disk is not the adopted one ***"
+    fi
+  else
+    row "adoption" "UNREAD — $ADOPTIONS carries no adopted row"
+  fi
+else
+  row "adoption" "UNREAD — no coordination/adoptions.jsonl (J36: the receipt half was never built before S157 E12)"
 fi
 
 if [[ -d "$VAULT_DIR" ]]; then
