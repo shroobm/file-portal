@@ -315,6 +315,80 @@ class TestB15OmissionSignature(unittest.TestCase):
         self.assertEqual(bench.Bench._ORDER[0], "G")
 
 
+class TestB13BenchButtons(unittest.TestCase):
+    """B13 (S157 E57): the page reaches /api/triage, /api/report and /api/ledger — the three endpoints S76 §18.4 proved and
+    the glass never carried. Half source (the markup and the handlers exist, the page offers ONLY the human-only outcomes),
+    half wire (the three routes answer, through the real handler, on a temp bundle: a dismissal needs a reason, the manifest
+    gains the triage, the ledger reads as a list, the report is markdown and writes only when asked). Negative controls: a
+    copy of the page without a button fails the source check; a dismissal without a reason is refused by the server."""
+
+    def test_the_page_carries_the_three_controls_and_their_handlers(self):
+        for needle in ('id="ledger-btn"', 'id="report-btn"', 'id="report-write"', 'id="ledger"', 'id="report"',
+                       'api("/api/ledger")', 'api("/api/report", { write: !!write })', 'api("/api/triage", { key: site.key, outcome, reason })',
+                       "function triageRow(site)", "async function triage(site, outcome)"):
+            self.assertIn(needle, BENCH_HTML, needle)
+
+    def test_the_page_offers_only_the_human_only_outcomes(self):
+        m = re.search(r'const TRIAGE_MANUAL = \[([^\]]*)\];', BENCH_HTML)
+        self.assertIsNotNone(m)
+        offered = sorted(x.strip().strip('"') for x in m.group(1).split(","))
+        self.assertEqual(offered, sorted(bench.OUTCOMES_MANUAL))
+        # the derived outcomes are shown (outcomeTag) and never offered as buttons
+        for derived in ("collapsed", "image-restored", "text-restored"):
+            self.assertNotIn(f'data-triage="{derived}"', BENCH_HTML)
+
+    def test_negative_control_a_page_without_the_ledger_button_fails_the_source_check(self):
+        planted = BENCH_HTML.replace('id="ledger-btn"', 'id="ledger-btm"', 1)
+        self.assertNotIn('id="ledger-btn"', planted)
+
+    def _bundle(self) -> "bench.Bench":
+        holder = tempfile.TemporaryDirectory(prefix="fp-test-b13-")
+        self.addCleanup(holder.cleanup)
+        root = Path(holder.name)
+        (root / "book.md").write_text("---\ntitle: b13\n---\n" + "\n".join(f"line {i} alpha beta gamma" for i in range(1, 40)), encoding="utf-8")
+        conv = {"kind": "digital", "runs": [{"page": 7, "words": 40, "excerpt": "the missing paragraph begins"}],
+                "tripwires": {"degeneration": False}}
+        (root / "manifest.json").write_text(json.dumps({"source": "b13.pdf", "pages": 20, "fidelity": {"verdict": "fail", "convert": conv}}), encoding="utf-8")
+        return bench.Bench(root)
+
+    def test_the_three_routes_answer_through_the_real_handler(self):
+        subject = self._bundle()
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), bench.make_handler(subject))
+        port = httpd.server_address[1]
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        try:
+            key = subject.state()["runs"][0]["key"]
+            st, body = _post(port, "/api/triage", {"key": key, "outcome": "dismissed-noise", "reason": ""})
+            self.assertNotEqual(st, 200, "NEGATIVE CONTROL: a dismissal without a reason is refused")
+            self.assertIn("reason", json.dumps(body))
+            st, body = _post(port, "/api/triage", {"key": key, "outcome": "dismissed-noise", "reason": "witness noise: a running header"})
+            self.assertEqual(st, 200, body)
+            self.assertEqual(body["outcome"], "dismissed-noise")
+            manifest = json.loads((subject.dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertEqual(manifest["triage"][key]["outcome"], "dismissed-noise")
+            st, raw = _get(port, "/api/ledger")
+            self.assertEqual(st, 200)
+            doc = json.loads(raw)
+            self.assertIsInstance(doc["events"], list)   # {events, audit, coverage} — the page reads all three
+            self.assertTrue(doc["audit"]["intact"])
+            self.assertEqual(doc["coverage"]["tally"]["dismissed-noise"], 1)
+            st, body = _post(port, "/api/report", {"write": False})
+            self.assertEqual(st, 200, body)
+            self.assertIn("markdown", body)
+            self.assertFalse(body["written"])
+            self.assertFalse((subject.dir / "REPAIRS.md").exists(), "a preview writes nothing")
+            st, body = _post(port, "/api/report", {"write": True})
+            self.assertEqual(st, 200, body)
+            self.assertTrue(body["written"] and (subject.dir / "REPAIRS.md").exists())
+            st, body = _post(port, "/api/triage", {"key": key, "outcome": "open", "reason": ""})
+            self.assertEqual(st, 200)
+            manifest = json.loads((subject.dir / "manifest.json").read_text(encoding="utf-8"))
+            self.assertNotIn(key, manifest.get("triage", {}), "reopen withdraws the dismissal")
+        finally:
+            httpd.shutdown()
+            httpd.server_close()
+
+
 class TestM6Completeness(unittest.TestCase):
     """M6-R1: capped evidence is never mistaken for the complete review population."""
 

@@ -85,6 +85,12 @@
   .chip.fail { color:var(--clay); background:var(--clay-bg); font-weight:600; }
   .chip.sandbox { color:var(--warn); background:var(--warn-bg); }
   .chip.okc { color:var(--ok); background:var(--ok-bg); }
+  /* S157 E57 (B13) */
+  .triage { display:flex; align-items:center; gap:10px; margin-top:8px; font-size:12px; }
+  .tri-cur b { font-weight:600; }
+  .tri-derived { font-size:11px; opacity:.7; }
+  .ledger-t { border-collapse:collapse; font-size:12px; } .ledger-t th, .ledger-t td { text-align:left; padding:2px 8px; border-bottom:1px solid var(--fill-2); }
+  .report-pre { white-space:pre-wrap; font-size:12px; }
   .chip.reader { color:var(--accent); background:var(--accent-bg); }
   .grow { flex:1; }
   #info-btn { font-weight:600; }
@@ -661,6 +667,10 @@
   </span>
   <span class="grow"></span>
   <button id="info-btn" title="everything about this patient — source, hashes, audit, repairs">ⓘ</button>
+  <!-- S157 E57 (B13): the three endpoints the page never reached — /api/ledger, /api/report, /api/triage (the
+       triage row lives under the diagnosis of the selected site). -->
+  <button id="ledger-btn" title="every recorded change to this body, oldest first (/api/ledger)">≡ ledger</button>
+  <button id="report-btn" title="what was done to this book, by whom, and what is still open — a preview; writing REPAIRS.md asks first (/api/report)">▤ report</button>
   <button id="evidence-btn" title="OK-15 read-only source evidence — warnings, labels, reading order, layers, embedded thumbnails">◉ evidence</button>
   <button id="guide-btn" title="the step-by-step repair coach">☰ guide</button>
   <button id="help-btn" title="what everything is and how a repair works">?</button>
@@ -807,6 +817,22 @@
   </div>
 </div>
 
+<div class="modal" id="ledger" hidden>
+  <div class="backdrop" data-close="ledger"></div>
+  <div class="sheet">
+    <div class="sheet-head">The ledger — every recorded change, oldest first<span class="grow"></span><button data-close="ledger">✕ close</button></div>
+    <div class="sheet-body" id="ledger-body"></div>
+  </div>
+</div>
+
+<div class="modal" id="report" hidden>
+  <div class="backdrop" data-close="report"></div>
+  <div class="sheet">
+    <div class="sheet-head">The repairs report — a preview, in memory<span class="grow"></span><button id="report-write" title="write REPAIRS.md beside the bundle — asks first">✎ write REPAIRS.md</button><button data-close="report">✕ close</button></div>
+    <div class="sheet-body" id="report-body"></div>
+  </div>
+</div>
+
 <div class="modal" id="evidence" hidden>
   <div class="backdrop" data-close="evidence"></div>
   <div class="sheet ev-sheet">
@@ -937,10 +963,43 @@ async function api(path, body) {
 document.querySelectorAll("[data-close]").forEach((b) => b.onclick = () => { $(b.dataset.close).hidden = true; });
 addEventListener("keydown", (e) => {
   if (e.key !== "Escape") return;
-  ["help","picker","info","evidence"].forEach((id) => $(id).hidden = true);
+  ["help","picker","info","evidence","ledger","report"].forEach((id) => $(id).hidden = true);
   if (trimSelecting) { trimSelecting = false; status("⛶ trim-select cancelled — nothing changed"); }
 });
 $("help-btn").onclick = () => { $("help").hidden = false; };
+// S157 E57 (B13): the ledger and the report, from the endpoints test_bench_page.py already proves.
+$("ledger-btn").onclick = async () => {
+  const body = $("ledger-body"); body.innerHTML = "reading the ledger…"; $("ledger").hidden = false;
+  try {
+    // the route answers {events, audit, coverage}: the events oldest first, the chain audit (a write that bypassed
+    // the ledger breaks it), and the coverage tally the report also reads
+    const doc = await api("/api/ledger");
+    const evs = doc.events || [];
+    const aud = doc.audit || {};
+    const cov = doc.coverage || {};
+    const chain = aud.intact === false ? `<p class="dcaution">⚠ chain BROKEN — a write bypassed the ledger (${esc(String((aud.breaks || []).length))} break(s))</p>`
+      : `<p>chain intact · ${esc(String(aud.writes ?? "—"))} write(s) · triage ${esc(String(cov.addressed_shown ?? "—"))} of ${esc(String(cov.total ?? "—"))} sites addressed</p>`;
+    if (!evs.length) { body.innerHTML = chain + "<p>no recorded change yet — the ledger is empty, which is a reading, not a silence</p>"; return; }
+    body.innerHTML = chain + `<p>${evs.length} event(s), oldest first</p><table class="ledger-t"><tr><th>when</th><th>gesture</th><th>−</th><th>+</th><th>where</th></tr>` +
+      evs.map((e) => `<tr><td>${esc(e.ts || "")}</td><td>${esc(e.gesture || "")}</td>` +
+        `<td>${esc(String((e.chars || {}).removed ?? "—"))}</td><td>${esc(String((e.chars || {}).added ?? "—"))}</td>` +
+        `<td>${esc(e.zone_line != null ? "zone line " + e.zone_line : ((e.at || {}).before ? "lines " + e.at.before.join("–") : (e.kind || "")))}${e.note ? " · " + esc(e.note) : ""}</td></tr>`).join("") + "</table>";
+  } catch (e) { body.innerHTML = `<p>✗ the ledger could not be read: ${esc(e.message)} — UNREAD, not empty</p>`; }
+};
+async function showReport(write) {
+  const body = $("report-body"); body.innerHTML = write ? "writing REPAIRS.md…" : "building the report…"; $("report").hidden = false;
+  try {
+    const r = await api("/api/report", { write: !!write });
+    const text = r.markdown || JSON.stringify(r, null, 2);
+    body.innerHTML = (write ? `<p>✎ written: ${esc(r.path || "REPAIRS.md")}</p>` : "") + `<pre class="report-pre">${esc(text)}</pre>`;
+    status(write ? "✎ REPAIRS.md written" : "▤ report built in memory — nothing written");
+  } catch (e) { body.innerHTML = `<p>✗ the report could not be built: ${esc(e.message)}</p>`; }
+}
+$("report-btn").onclick = () => showReport(false);
+$("report-write").onclick = () => {
+  if (st && st.pdf_only) { status("reading mode — nothing here can write"); return; }
+  if (confirm("Write REPAIRS.md beside the bundle? It records what was done to this book and what is still open.")) showReport(true);
+};
 
 /* ---- boot / reload for the current (or freshly opened) patient ---- */
 async function load() {
@@ -1040,10 +1099,45 @@ function outcomeTag(site) {
 // The TAG is on the glass on purpose. A banked signature is a pattern match, not a sighting,
 // and this project's most expensive edit came from acting on an inference dressed as an
 // observation. The operator gets to see which one they are holding before they touch anything.
+// S157 E57 (B13): the operator's judgment on the selected site reaches the manifest through /api/triage. Only the
+// human-only outcomes are offered (bench.py OUTCOMES_MANUAL = open, dismissed-noise); collapsed / restored are
+// derived from provenance — shown by outcomeTag, never set here. A bare PDF (reading mode) can write nothing.
+const TRIAGE_MANUAL = ["open", "dismissed-noise"];
+function triageRow(site) {
+  if (!site || !site.key || (st && st.pdf_only)) return "";
+  const cur = site.outcome || "open";
+  const why = site.outcome_reason ? ` — ${esc(site.outcome_reason)}` : "";
+  const dismiss = cur === "dismissed-noise"
+    ? `<button class="tri" data-triage="open" title="reopen — the dismissal is withdrawn">↺ reopen</button>`
+    : (cur === "open"
+        ? `<button class="tri" data-triage="dismissed-noise" title="dismiss as witness noise — a reason is required">∅ dismiss as noise</button>`
+        : `<span class="tri-derived" title="this outcome is derived from the ledger, not declared">derived</span>`);
+  return `<div class="triage"><span class="tri-cur">outcome: <b>${esc(cur)}</b>${why}</span>${dismiss}</div>`;
+}
+async function triage(site, outcome) {
+  let reason = "";
+  if (outcome === "dismissed-noise") {
+    reason = (prompt("Dismiss this site as witness noise — why? (the server refuses an empty reason)") || "").trim();
+    if (!reason) { status("∅ not dismissed — a reason is required"); return; }
+  }
+  try {
+    const r = await api("/api/triage", { key: site.key, outcome, reason });
+    st = await api("/api/state");
+    renderZones();
+    const again = (st.zones || []).find((z) => z.key === site.key) || (st.runs || []).find((x) => x.key === site.key) || null;
+    renderDiagnosis(again);
+    status(`triage: ${r.key} → ${r.outcome}${r.reason ? " — " + r.reason : ""}`);
+  } catch (e) { status("✗ triage refused: " + e.message); }
+}
 function renderDiagnosis(site) {
   const el = $("diag");
   const d = site && site.diagnosis;
-  if (!d) { el.className = ""; el.innerHTML = ""; return; }
+  const tri = triageRow(site);
+  if (!d) {
+    el.className = tri ? "on" : ""; el.innerHTML = tri;
+    el.querySelectorAll("[data-triage]").forEach((b) => b.onclick = () => triage(site, b.dataset.triage));
+    return;
+  }
   const obs = d.tag === "Observed" ? " obs" : "";
   const sig = d.signature ? `<span class="dsig">${esc(d.signature)}</span>` : "";
   const also = (d.also || []).length ? ` · also ${(d.also).map(esc).join(", ")}` : "";
@@ -1057,7 +1151,8 @@ function renderDiagnosis(site) {
     `<dt>solution</dt><dd>${esc(d.solution)}</dd>` +
     `<dt>auto</dt><dd>${esc(d.auto || "—")}</dd></dl>` +
     (d.caution ? `<div class="dcaution">⚠ ${esc(d.caution)}</div>` : "") +
-    (d.cite ? `<div class="dcite">${esc(d.cite)}</div>` : "");
+    (d.cite ? `<div class="dcite">${esc(d.cite)}</div>` : "") + tri;
+  el.querySelectorAll("[data-triage]").forEach((b) => b.onclick = () => triage(site, b.dataset.triage));
 }
 
 function renderZones() {
