@@ -618,12 +618,15 @@ def main():
     r2 = [p for p in tg.propose(ASHBY2.split(chr(10)), None, lx2) if p["kind"] == "rail"]
     check("R3: a stacked letter cell whose row is stacked alike across every column is refused as merged rows (a<br>b beside α<br>β)",
           r2 and all(p["word"] is None and "merged rows" in (p["refused"] or "") for p in r2), str(r2))
-    ASHBY3 = chr(10).join(["| ↓ | a | b | c |", "|---|---|---|---|", "| a | b | c | a |", "| b | c | a | b |", "| c | a | b | c |", "",
-        "The abc rule; ABC; abc; the ABC of it."])
+    # E22's verifier V1 found the first fixture never fired the rail signature (no blank between the runs) and the check passed
+    # vacuously on `(not r3) or …` — the fixture is now the real Ashby shape (p.4455: a / blank / b / blank / c with the
+    # probabilities split over two rows), the runs fire, and the check REQUIRES them refused
+    ASHBY3 = chr(10).join(["| ↓ | a | b | c |", "|---|---|---|---|", "| a | 0. | 0. | 0. |", "| | 2 | 3 | 1 |", "| b | 0. | 0. | 0. |",
+        "| | 8 | 7 | 5 |", "| c | | | 0.<br>4 |", "", "The abc rule; ABC; abc; the ABC of it."])
     lx3 = tg.lexicon(ASHBY3.split(chr(10)))
     r3 = [p for p in tg.propose(ASHBY3.split(chr(10)), None, lx3) if p["kind"] == "rail"]
-    check("R2: a run whose every glyph is one of the table's own column headings is refused as a matrix index",
-          (not r3) or all(p["word"] is None and "matrix index" in (p["refused"] or "") for p in r3), str(r3))
+    check("R2: a run whose every glyph is one of the table's own column headings is refused as a matrix index (three runs a, b, c — each fired, each refused)",
+          len(r3) == 3 and all(p["word"] is None and "matrix index" in (p["refused"] or "") for p in r3), str(r3))
     # positive control: one digit among five glyphs is still a rail (6OSTs -> COSTS); the fixture's text holds the word
     COSTS = chr(10).join(["|  | Questions to be investigated | Company documents | Market data |", "|---|---|---|---|",
         "| 6 | Are there any major productivity initiatives? | • |  |", "| O<br>S<br>T | Where is the company making its major investments? | • | • |",
