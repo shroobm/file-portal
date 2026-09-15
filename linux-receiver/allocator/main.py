@@ -64,8 +64,24 @@ class InboxHandler(FileSystemEventHandler):
         # observer thread and stop the service.
         try:
             self._allocate(file_path)
-        except Exception:
+        except Exception as exc:
             logger.exception("failed to allocate %s", file_path)
+            # S157 E54 (B32 U05, Codex's 2026-08-27 audit): the exception used to be logged and NOTHING written to
+            # status.json, so the widget waited forever on a job that had already died. A failed allocation is a
+            # terminal outcome and is recorded as one — `rejected` is the action the installed glass renders as ✗
+            # with the reason; the reason says the file was NOT moved (unlike a quarantine). A file that vanished
+            # between the check and the move was handled by the other path (the sweep vs the observer) and is not
+            # a failure — exactly-once, said in the log, no record.
+            if not file_path.exists():
+                logger.info("%s is gone — allocated by another path, no record", file_path)
+                return
+            category = file_path.parent.name
+            self.status.record(
+                "rejected",
+                file_path.name,
+                category,
+                reason=f"allocation failed: {type(exc).__name__}: {str(exc)[:160]} (file left in inbox/{category})",
+            )
 
     def _allocate(self, file_path: Path):
         if not file_path.exists():
@@ -153,6 +169,23 @@ class InboxHandler(FileSystemEventHandler):
             time.sleep(interval)
 
 
+def sweep_inbox(handler: InboxHandler, paths: Paths) -> int:
+    """S157 E54 (B32 U01, Codex's 2026-08-27 audit): files that arrived while the service was down sat in
+    inbox/<category>/ until something touched them — run() armed the watch and never looked. Called once at
+    startup AFTER the observer is armed, so nothing arriving during the sweep is missed; a file the observer
+    allocates first vanishes under the sweep and is not recorded twice (see _handle). Dot-prefixed files are
+    in-progress transfers (their rename arrives as on_moved); quarantine/ is outside the inbox by design.
+    Returns the number of files handed to the handler."""
+    n = 0
+    for category_dir in sorted(p for p in paths.inbox.iterdir() if p.is_dir()):
+        for file_path in sorted(p for p in category_dir.iterdir() if p.is_file()):
+            if file_path.name.startswith("."):
+                continue
+            handler._handle(file_path)
+            n += 1
+    return n
+
+
 def _observer_emits_close_events(observer) -> bool:
     """True when the platform observer delivers on_closed (inotify's IN_CLOSE_WRITE).
 
@@ -197,6 +230,9 @@ def run(root: Path, rules_path: Path):
     observer.schedule(handler, str(paths.inbox), recursive=True)
     observer.start()
     logger.info("watching %s", paths.inbox)
+    # S157 E54 (U01): the backlog that arrived while the service was down, allocated exactly once.
+    swept = sweep_inbox(handler, paths)
+    logger.info("startup sweep: %d pre-existing file(s) handed to the allocator", swept)
 
     # READY after the watch is armed -- under Type=notify this line IS the startup contract.
     sd_notify("READY=1")
