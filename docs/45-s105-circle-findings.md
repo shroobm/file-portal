@@ -216,3 +216,12 @@ that happen twice.** This section exists to be collected, not admired.
    uncovered pages were not adjudicated; the other four anchors were not measured at all; the
    fragmentation class (SYM-049) is verified for Cybernetics only; and CI's conclusion for
    S104's own commits was never observed by anyone.
+
+## §7 Collected — S157 (2026-09-15), not by a Circle
+
+*The §6 bequest said "this section exists to be collected, not admired." Items 3, 4 and 5 were collected by the long autonomous sitting's episodes, not by a Circle; items 1 and 2 remain the next Circle's.*
+
+- **§6.3 P-1 re-measured on a CLEAN bundle:** done (S157 E24) — the University Edition, SYM-050 not detected: 76 uncovered of 1,377 pages; the 4e (2025) bundle 49 under the in-memory repair. Every number about Investment Valuation from S102–S106 is superseded by these two.
+- **§6.4 the four P-2 specimens:** now an enumeration — 12 figures on 11 pages (UE) and 10 on 10 (4e), nine in common (E24, E30); IV p.81's "raster figure destroyed in place" is FIGURE 3.1 flattened into a garbled table on both editions; Cyb p.34 and p.78 (SYM-049) surface to the instrument since E25; Cyb p.84 stays the vector-diagram-as-prose specimen.
+- **§6.5 the UNREADs:** the 219 never-adjudicated pages — adjudicated on both bundles (E24, E30); the other four anchors — every anchor measured (E24, `sittings/S157/e24/anchors_table.json`; the scan-lane books NOT APPLICABLE, said); SYM-049 — fixed and measured on every anchor (E25); CI's conclusion for S104's own commits — still unobserved (Historical; nothing this sitting can do about a run from August).
+- **Not collected:** §6.1 (docs/32 §6's prediction re-checked) and §6.2 (Family 1's check) — the next Circle's, still.
