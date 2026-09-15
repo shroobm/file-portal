@@ -823,6 +823,55 @@ def _():
     assert meta2["geometry"]["labels"] == [] and "not a word of the book" in meta2["geometry"]["unresolved_rails"][0]["why"], meta2["geometry"]
 
 
+@case("S157-E6 (a) the record names the readability pass's SAMPLER: nothing sent today -> None + whose recipe applied (J49's mechanical half)")
+def _():
+    saved = dict(analyst.ANALYST_SAMPLER)
+    try:
+        analyst.ANALYST_SAMPLER.update({"temperature": None, "seed": None})
+        out, meta = run(words(60), [words(60)])
+        s = meta["sampler"]
+        assert s["temperature"] is None and s["seed"] is None and s["source"] == "model default" and "Modelfile" in s["note"] and s["num_ctx"] == analyst.NUM_CTX, s
+        analyst._call_bound.clear()   # process() leaves the last chunk's generation bound behind for the next call
+        assert analyst._request_options(None) == {"num_ctx": analyst.NUM_CTX}, analyst._request_options(None)   # today's request, byte for byte
+    finally:
+        analyst.ANALYST_SAMPLER.clear()
+        analyst.ANALYST_SAMPLER.update(saved)
+
+
+@case("S157-E6 (b) the lever's values ride the local request and the record (temperature 0, seed 7) — the values are Rab's, the plumbing is proved here")
+def _():
+    saved = dict(analyst.ANALYST_SAMPLER)
+    try:
+        analyst.ANALYST_SAMPLER.update({"temperature": 0.0, "seed": 7})
+        analyst._call_bound.clear()
+        assert analyst._request_options(512) == {"num_ctx": analyst.NUM_CTX, "num_predict": 512, "temperature": 0.0, "seed": 7}, analyst._request_options(512)
+        out, meta = run(words(60), [words(60)])
+        s = meta["sampler"]
+        assert s["temperature"] == 0.0 and s["seed"] == 7 and s["source"].startswith("request"), s
+    finally:
+        analyst.ANALYST_SAMPLER.clear()
+        analyst.ANALYST_SAMPLER.update(saved)
+        analyst._call_bound.clear()
+
+
+@case("S157-E6 (c) NEGATIVE CONTROL: the grid program's per-call 0.0 keeps precedence over the lever, and the Gemini record pins its 0.2")
+def _():
+    saved = dict(analyst.ANALYST_SAMPLER)
+    try:
+        analyst.ANALYST_SAMPLER.update({"temperature": 0.9, "seed": None})
+        analyst._call_bound["temperature"] = 0.0
+        o = analyst._request_options(64)
+        assert o["temperature"] == 0.0 and "seed" not in o, o
+        analyst._call_bound.clear()
+        assert analyst._request_options(64)["temperature"] == 0.9
+        g = analyst.sampler_record("gemini")
+        assert g["temperature"] == 0.2 and g["seed"] is None, g
+    finally:
+        analyst.ANALYST_SAMPLER.clear()
+        analyst.ANALYST_SAMPLER.update(saved)
+        analyst._call_bound.clear()
+
+
 print()
 if failed:
     print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")

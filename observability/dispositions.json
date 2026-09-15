@@ -357,6 +357,10 @@
     "bench:to_after_line": {
       "disposition": "EVIDENCE",
       "reason": "S149: on the unsplit-table ledger event, where the block went (after the table's last row, clean-body numbering) — printed by the maintenance pass at run time, kept on the event and in the record's at_line_orig; docs/29 §5.3 step 4: the record and the printed report are its homes."
+    },
+    "converter:sampler": {
+      "disposition": "EVIDENCE",
+      "reason": "S157 E6 (J49's mechanical half, the lane's own task under the autonomy experiment; the VALUES are Rab's word): manifest.analyst.sampler - the readability pass's sampling conditions as sent (temperature, seed, num_ctx, think) or, when nothing was sent (today: ANALYST_SAMPLER = {temperature: None, seed: None}), the note that the model's own Modelfile recipe applied (qwen3:8b under ollama 0.33.2 read temperature 0.6 / top_p 0.95 / top_k 20 at S119 R2 - Historical, not re-read by the pipeline). docs/34: every survival score in chunk_scores was decoded under these conditions and the record did not say so. Gemini: the request's pinned 0.2. Manifest-only like chunk_scores (the analyst/done event's key set stays pinned by T17); nothing renders it - evidence beside the audit, never a verdict."
     }
   },
   "census_dispositions": {

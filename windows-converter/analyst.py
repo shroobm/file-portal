@@ -99,6 +99,45 @@ ANALYST_CHUNK_INFLATION_MAX = 1.5  # lever-waiver: Rab's word only ("J34 1.5x re
 ANALYST_NUM_PREDICT_FACTOR = 2.0
 ANALYST_NUM_PREDICT_MIN = 512
 _call_bound: dict = {}  # process() -> _generate(): the bound for the NEXT local call (the twin of _last_call)
+# S157 E6 (J49, the mechanical half): the readability pass's SAMPLER. None = the option is NOT sent and the model's own
+# Modelfile recipe decides (qwen3:8b under ollama 0.33.2 read `temperature 0.6, top_p 0.95, top_k 20, repeat_penalty 1` at
+# S119 R2 — Historical; the pipeline does not re-read it). The grid program's calls pin 0.0 through _call_bound regardless.
+# lever-waiver: Rab's word on the values (J49: "temperature 0 + seed <fixed>" measured on the 40 hardest DDIA chunks —
+# 28/40 byte-identical, 7 of 12 paragraph deletions reproduced under both settings; the full greedy run is the measurement
+# the ticket still owes). Until his word the values stay None: the record names the conditions, the behaviour is unchanged.
+ANALYST_SAMPLER: dict = {"temperature": None, "seed": None}
+SAMPLER_DEFAULT_NOTE = ("not sent: the model's Modelfile recipe applied (qwen3:8b, ollama 0.33.2, read at S119 R2: temperature 0.6, "
+                        "top_p 0.95, top_k 20, repeat_penalty 1 — Historical, not re-read by the pipeline)")
+
+
+def _request_options(num_predict: int | None = None) -> dict:
+    """The local request's `options`, built in one place: num_ctx; the generation bound (S146 E5) from the argument or the
+    per-call bound; the temperature — the per-call bound (the grid program's 0.0) first, else the lever ANALYST_SAMPLER,
+    else nothing; the seed from the lever, else nothing."""
+    if num_predict is None:
+        num_predict = _call_bound.get("num_predict")  # set by process() for the next local call
+    options = {"num_ctx": NUM_CTX}
+    if num_predict is not None:
+        options["num_predict"] = int(num_predict)
+    if _call_bound.get("temperature") is not None:  # S150 E4b: the grid program's calls are deterministic; the readability pass is unchanged
+        options["temperature"] = float(_call_bound["temperature"])
+    elif ANALYST_SAMPLER.get("temperature") is not None:
+        options["temperature"] = float(ANALYST_SAMPLER["temperature"])
+    if ANALYST_SAMPLER.get("seed") is not None:
+        options["seed"] = int(ANALYST_SAMPLER["seed"])
+    return options
+
+
+def sampler_record(backend: str) -> dict:
+    """What the record says about the readability pass's sampling (docs/34: the conditions ride with the number). Local: the
+    lever's values as sent, None where nothing was sent and the note saying whose recipe applied then; Gemini: the request's
+    pinned 0.2."""
+    if backend == "gemini":
+        return {"temperature": 0.2, "seed": None, "source": "request (generationConfig)", "note": "seed: not offered on this route"}
+    t, seed = ANALYST_SAMPLER.get("temperature"), ANALYST_SAMPLER.get("seed")
+    return {"temperature": t, "seed": seed, "num_ctx": NUM_CTX, "think": False,
+            "source": "request (ANALYST_SAMPLER)" if t is not None or seed is not None else "model default",
+            "note": SAMPLER_DEFAULT_NOTE if t is None else "temperature sent on every readability call; the grid program's own calls pin 0.0"}
 
 
 def _num_predict_for(chunk: str) -> int:
@@ -298,13 +337,7 @@ def _generate(prompt: str, num_predict: int | None = None) -> str:
     # guard anyway, so the bound loses no acceptable chunk — it only stops paying for a
     # rejection. A reply that stopped on the bound reports done_reason "length"; process()
     # rejects it as "truncated" (the original ships, like every other rejection).
-    if num_predict is None:
-        num_predict = _call_bound.get("num_predict")  # set by process() for the next local call
-    options = {"num_ctx": NUM_CTX}
-    if num_predict is not None:
-        options["num_predict"] = int(num_predict)
-    if _call_bound.get("temperature") is not None:  # S150 E4b: the grid program's calls are deterministic; the readability pass is unchanged
-        options["temperature"] = float(_call_bound["temperature"])
+    options = _request_options(num_predict)   # S157 E6: one place; the sampler lever and the per-call bound
     body = json.dumps({
         "model": MODEL, "stream": False, "keep_alive": KEEP_ALIVE_HOLD, "prompt": prompt,
         "options": options,
@@ -749,6 +782,10 @@ def process(markdown: str, backend: str = "local",
         # J41 (signed Rab 2026-09-09): manifest-only — the analyst/done event's key set stays
         # pinned by T17, and no frontmatter line is added; see the rmtree comment below.
         "chunk_scores": chunk_scores,
+        # S157 E6 (J49's mechanical half): the readability pass's SAMPLER, as sent — or, when nothing was sent, whose recipe
+        # applied (docs/34: a number without its conditions is not a measurement; every survival score above was decoded
+        # under these). The values are the lever ANALYST_SAMPLER: Rab's word.
+        "sampler": sampler_record(backend),
         # S141 (unread-surfaces/orphan-chunk-journal-dump-before-rmtree): the journal's bytes ledgered by dumps/dump.sh BEFORE the
         # work dir goes (dumps/ D0001 was this journal snapshotted by hand minutes before an rmtree; SURF-12 found one orphaned
         # 12 days) — the DUMPED id, or the UNREAD reason; a failure to dump is said, never fatal. In the literal so the glass
