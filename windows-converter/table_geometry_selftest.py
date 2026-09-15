@@ -597,6 +597,43 @@ def main():
           rr2["splits"] and len(rr2["trims"]) == 1 and rr2["trims"][0]["cols"] == 9 and rr2["trims"][0]["drop"] == 2
           and anova and len(tg.cells(anova[0])) == 7 and "| log /manufacturin indev) | 3.58 | 0.36 | 10.03 | 0.00 | 2.86 | 4.29 | 2.86 | 4.29 |" in tt2, str((rr2["trims"], anova)))
     check("no trim on a healthy table, on the rails fixture, on the reading fixture", tg.propose_trims(HEALTHY.split(chr(10))) == [] and tg.propose_trims(VALENTINE.split(chr(10))) == [], "")
+    print("[15] S157 E15 — a run that is an INDEX is not a rail (Ashby's transition matrices; the shelf probe's false labels)")
+    ASHBY1 = chr(10).join(["The matrix of transitions.", "",
+        "| $\\downarrow$ | <br>3   | 4   | 5   | 6                      |", "|--------------|---------|-----|-----|------------------------|",
+        "|              | <br>    |     |     | <br>0<br>0<br>0<br>1/2 |", "| 3            | <br>1/2 | 0   | 0   | 0                      |",
+        "| 4            | <br>1/2 | 1/2 | 0   | 0                      |", "| 5            | <br>0   | 1/2 | 1/2 | 0                      |",
+        "| 6            | <br>0   | 0   | 1/2 | 1/2                    |", "|              | <br>    |     |     |                        |", "",
+        "The elastic band is elastic; elastic ideas add; ideas adds adds. Elastic ideas."])
+    lx15 = tg.lexicon(ASHBY1.split(chr(10)))
+    ps15 = tg.propose(ASHBY1.split(chr(10)), None, lx15)
+    rails15 = [p for p in ps15 if p["kind"] == "rail"]
+    check("R1: the row labels 3 4 5 6 are refused as digits, no word sought (the lexicon holds ELASTIC and the glyphs 3,4,5 read e,a,s)",
+          rails15 and all(p["word"] is None and "digits" in (p["refused"] or "") for p in rails15), str(rails15))
+    t15, r15 = tg.geometry_pass(ASHBY1, None)
+    check("… and the pass leaves the matrix's row labels in place", "| 3            | <br>1/2 |" in t15 and "ELASTIC" not in t15 and r15["labels"] == [], str(r15["labels"]))
+    ASHBY2 = chr(10).join(["Table 13/7/1.", "", "| ↓      | α      | β      | γ      |", "|--------|--------|--------|--------|",
+        "| a<br>b | α<br>β | α<br>β | α<br>β |", "| c      | γ      | γ      | γ      |", "",
+        "The ABC of regulation: ABC, abc and ABC again; the abc rule."])
+    lx2 = tg.lexicon(ASHBY2.split(chr(10)))
+    r2 = [p for p in tg.propose(ASHBY2.split(chr(10)), None, lx2) if p["kind"] == "rail"]
+    check("R3: a stacked letter cell whose row is stacked alike across every column is refused as merged rows (a<br>b beside α<br>β)",
+          r2 and all(p["word"] is None and "merged rows" in (p["refused"] or "") for p in r2), str(r2))
+    ASHBY3 = chr(10).join(["| ↓ | a | b | c |", "|---|---|---|---|", "| a | b | c | a |", "| b | c | a | b |", "| c | a | b | c |", "",
+        "The abc rule; ABC; abc; the ABC of it."])
+    lx3 = tg.lexicon(ASHBY3.split(chr(10)))
+    r3 = [p for p in tg.propose(ASHBY3.split(chr(10)), None, lx3) if p["kind"] == "rail"]
+    check("R2: a run whose every glyph is one of the table's own column headings is refused as a matrix index",
+          (not r3) or all(p["word"] is None and "matrix index" in (p["refused"] or "") for p in r3), str(r3))
+    # positive control: one digit among five glyphs is still a rail (6OSTs -> COSTS); the fixture's text holds the word
+    COSTS = chr(10).join(["|  | Questions to be investigated | Company documents | Market data |", "|---|---|---|---|",
+        "| 6 | Are there any major productivity initiatives? | • |  |", "| O<br>S<br>T | Where is the company making its major investments? | • | • |",
+        "| s | What are the costs of the plan? |  | • |", "|  | How do the costs compare? | • |  |", "",
+        "The costs of the plan; costs matter; the costs again."])
+    tc, rc = tg.geometry_pass(COSTS, None)
+    check("positive control: a digit among letters (6OSTs) is an OCR glyph, not a number — COSTS still resolves under R1",
+          [lb["word"] for lb in rc["labels"]] == ["COSTS"], str((rc["labels"], rc["unresolved_rails"])))
+    check("positive control: the FIG fixture's stacked rail beside prose is not 'merged rows' (R3 counts <br> stacking, not words)",
+          tg._index_run(FIG.split(chr(10)), 2, [4], ["H<br>G<br>H"]) is None and tg._index_run(FIG.split(chr(10)), 2, [5], ["L<br>O"]) is None, "")
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 

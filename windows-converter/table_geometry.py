@@ -733,6 +733,35 @@ def _vision_entry(lines: list[str], h: int, e: int, vision: dict | None):
     return None
 
 
+def _index_run(lines: list[str], h: int, r: list[int], cell_letters: list[str]) -> str | None:
+    """S157 E15 — a letter run that is NOT a rotated label, said before any word is sought (Ashby's transition matrices:
+    the row labels `3 4 5 6` read as ELASTIC through the glyph readings that rescue `6OSTs` → COSTS; `a<br>b` / `c` beside
+    `α<br>β` / `γ` read as ABC). Returns the reason, or None when the run may be a rail.
+    R1 more than half the glyphs are digits — numbers, not a rotated word (one digit in five, `6OSTs`, stays a rail);
+    R2 every glyph is one of the table's own column headings — a matrix index (rows 3..6 under headings 3..6);
+    R3 a stacked letter cell whose row's other cells are stacked to the same depth — merged rows, not a rail."""
+    glyphs = "".join(_bare(c) for c in cell_letters)   # bared: spaces and <br> are not glyphs (the first cut counted a space and let 4 / D 5 through as ADDS)
+    if glyphs:
+        digits = sum(1 for ch in glyphs if ch.isdigit())
+        if 2 * digits > len(glyphs):
+            return "not a rotated word: %d of %d glyphs are digits" % (digits, len(glyphs))
+    heads = {fold_letters(_bare(c)) for c in cells(lines[h])[1:] if _bare(c).strip()}
+    pieces = [fold_letters(p) for c in cell_letters for p in (_pieces(c) or [c]) if p.strip()]
+    if heads and pieces and all(p in heads for p in pieces):
+        return "the run's glyphs are the table's own column headings (a matrix index)"
+    # R3 counts <br> STACKING only (a prose cell's words are not pieces of a stack): every other filled cell of the row
+    # stacked to the same depth, each of its parts short — a matrix's entries (`α<br>β`, `0.<br>4`), never wrapped prose
+    def stack(cell):
+        return [p.strip() for p in re.split(r"<br\s*/?>", cell, flags=re.I) if p.strip()]
+    for k in r:
+        cs = cells(lines[k])
+        depth = len(stack(cs[0])) if cs else 0
+        others = [stack(c) for c in cs[1:] if c.strip()]
+        if depth >= 2 and others and all(len(o) == depth and all(len(p) <= 12 for p in o) for o in others):
+            return "the row is stacked alike across every column (%d pieces): merged rows, not a rail" % depth
+    return None
+
+
 def _tile_spans(rails: list[dict], first_row: int, last_row: int) -> None:
     """S154 E6 — a rotated label is printed to begin at its GROUP's first row, not at the row the OCR put its first letter
     (Valentine p.108: REVENUE's letters sit on rows 2–5 of a group that begins at row 1; the scorer's placement measure read
@@ -858,6 +887,13 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None, vision: di
                 cell_letters = [_bare(cells(lines[k])[0]) for k in r]
                 letters = "".join(cell_letters)
                 context = [(cells(lines[k])[1] if len(cells(lines[k])[1:]) else "") for k in r[:3]]
+                # S157 E15: a run that is an INDEX, not a rail — refused before any word is sought, on the record
+                index_why = _index_run(lines, h, r, [cells(lines[k])[0] for k in r])
+                if index_why is not None:
+                    rails.append({"kind": "rail", "table": [h + 1, e + 1], "rows": [r[0] + 1, r[-1] + 1], "letters": letters,
+                                  "word": None, "how": "unresolved", "refused": index_why})
+                    prev_end = r[-1]
+                    continue
                 if lex is not None:
                     # the group's own words (every cell but the rail's, on the rows from the previous run's end to this run's
                     # end — a rotated label starts above its first letter cell): a group label echoes its rows' vocabulary
