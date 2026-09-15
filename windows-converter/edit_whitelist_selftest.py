@@ -89,6 +89,16 @@ t, lg = rec("para one.\n\npara two.\n\npara three.", "para one.\n\npara three.")
 case("deletion of a paragraph is reverted with its paragraphing", t == "para one.\n\npara two.\n\npara three.")
 t, lg = rec("the end", "the")
 case("deletion at the chunk end is reverted", t == "the end")
+# S157 E28: the WHOLE-SECTION class measured on the shelf — the two 2026-08-31/09-01 conversions of the IV University Edition
+# (before this acceptor existed) each lost different sections of 300-600 words at the analyst stage (p.1174's postscript, 422
+# words; the bitcoin pathways, 588) while Marker's own largest run was 154 words. The alignment labels such a drop a
+# substitution, not a deletion; either way it is reverted whole.
+head = "## A heading" + chr(10) * 2 + "Para before." + chr(10) * 2
+body = chr(10).join("Sentence %d of a long section that carries %d words of argument and must survive." % (k, 12) for k in range(40))
+tail = chr(10) * 2 + "## Conclusion" + chr(10) * 2 + "Para after."
+t, lg = rec(head + body + tail, head + tail.lstrip(chr(10)))
+case("a dropped SECTION of hundreds of words (S157 E28, IV p.1174's class) is reverted whole — the heading keeps its body",
+     t == head + body + tail and not any(a for _, a, *_ in lg), "%d words back, log %s" % (len(t.split()), [(e[0], e[1]) for e in lg][:3]))
 t, lg = rec("a heading here", "a heading here /no_think")
 case("insertion: a leaked `/no_think` is reverted and named", t == "a heading here" and not lg[0][1] and lg[0][0] == "insertion")
 t, lg = rec("cost (minimizing risk)", "cost (minim,izing risk)")
