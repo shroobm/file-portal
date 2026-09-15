@@ -948,9 +948,10 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None, vision: di
                         hit = p
                         break
                 if hit is None:
+                    # S156 E5: every unresolved run overlapping the reading's rows is tried (the first cut stopped at the first)
                     for p in rails:
-                        if p["word"] is None and not (p["rows"][1] < l0 + 1 or p["rows"][0] > l1 + 1):
-                            hit = p if letters_fit(p["letters"], word)[0] else None
+                        if p["word"] is None and not (p["rows"][1] < l0 + 1 or p["rows"][0] > l1 + 1) and letters_fit(p["letters"], word)[0]:
+                            hit = p
                             break
                 if hit is not None:
                     if hit["word"] is None:
@@ -1306,8 +1307,8 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
         "applied": len(applied),
         "refused": len(refused),
         "unresolved": len(unresolved),
-        "labels": [{"rows": p["rows"], "span": p.get("span"), "placed": p.get("placed", p["rows"][0]), "letters": p["letters"], "word": p["word"],
-                    "how": p["how"]} for p in applied if p["kind"] == "rail"],
+        "labels": [{"rows": p["rows"], "span": p.get("span"), "span_how": p.get("span_how", "tiled"), "placed": p.get("placed", p["rows"][0]),
+                    "letters": p["letters"], "word": p["word"], "how": p["how"]} for p in applied if p["kind"] == "rail"],
         "captions": [{"line": p["line"], "text": p["text"], "fragment_dropped": p["fragment_dropped"],
                       **({"fragments_joined": True, "raw": p["raw"], "how": p["how"]} if p.get("fragments_joined") else {})}
                      for p in applied if p["kind"] == "caption"],

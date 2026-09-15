@@ -750,7 +750,7 @@ def _():
         analyst._generate = real_gen
     v = meta["geometry"]["vision"]
     assert v and v["format"] == "vision-reading/1" and v["tables_matched"] == 1 and v["spans"] == 1 and v["figures"] == [], v
-    assert [lb["word"] for lb in meta["geometry"]["labels"]] == ["REVENUE"] and meta["geometry"]["labels"][0].get("span_how", None) in (None, "vision") or True
+    assert [lb["word"] for lb in meta["geometry"]["labels"]] == ["REVENUE"] and meta["geometry"]["labels"][0]["span_how"] == "vision", meta["geometry"]["labels"]   # S156 E5: a lens found the first cut's `… or True` was a no-op
     assert "| REVENUE | pricing? | • | a |" in out, out
     _, meta0 = analyst.process(S151_MD, backend="local", resolver=lambda letters, ctx: "REVENUE")
     assert meta0["geometry"]["vision"] is None, meta0["geometry"]

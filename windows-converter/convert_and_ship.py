@@ -1824,6 +1824,11 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # J33: the PRE-analyst body, byte-for-byte what audit_analyst will treat as `marker_body`
     # below (or what a --resume/--defer-analyst later run will need as J31's reference) —
     # written BEFORE the analyst branch so an un-analysed book gets the sidecar too.
+    # S156 E2/E5: a READING of the pages that travelled with the dropped book (`<stem>.vision.json` beside it) is kept in
+    # the bundle as vision.json whether the analyst runs now or later (the deferred flow's apply_analyst reads it there)
+    reading = _vision_sidecar(src.parent / f"{src.stem}.vision.json")
+    if reading:
+        shutil.copy2(src.parent / f"{src.stem}.vision.json", tmp_dir / "vision.json")
     _write_marker_body_safe(tmp_dir, bundle_name, body, manifest, src.name)
     if use_analyst:
         # Marker has exited: the GPU is free for the analyst (Phase 2 serialization).
@@ -1841,11 +1846,9 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         # of them speaks (T7's standing rule).
         emit("analyst", "start", bundle=bundle_name, backend=analyst_backend,
              chars=len(marker_body))
-        # S156 E2: a reading of the pages that travelled with the dropped book (`<stem>.vision.json` beside it) is handed to the
-        # layer and kept in the bundle as vision.json, so the J42 re-analysis finds it there
-        reading = _vision_sidecar(src.parent / f"{src.stem}.vision.json")
-        if reading:
-            shutil.copy2(src.parent / f"{src.stem}.vision.json", tmp_dir / "vision.json")
+        # S156 E2: a reading of the pages that travelled with the dropped book is handed to the layer (the copy into the
+        # bundle happened above, before this branch — S156 E5: a lens found it inside this branch, where the deferred-analyst
+        # flow never entered, so the widget's later apply_analyst would have found no vision.json beside the bundle)
         body, analyst_meta = analyst.process(body, backend=analyst_backend, **({"vision": reading} if reading else {}))
         # `chars` is the PRE-analyst body — apply_analyst measures the body it HANDED to
         # process(), never the one that came back. Inline, `body` has already been rebound by

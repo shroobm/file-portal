@@ -476,6 +476,15 @@ def main():
     bad[5] = "| Bonds | Could Be Critical | Do more |"
     okp, whyp, _ = tg.grid_invariant(FRAG.split(chr(10))[2:7], bad[2:7])
     check("invariant NEGATIVE: a fragment run whose after row carries a piece not in the label is refused", not okp and any("not all pieces" in w for w in whyp), str(whyp))
+    # S156 E5 (a lens's finding): the negatives above do not tell an inverted containment test from the real one — a run of ONE
+    # fragment does: real refuses "Bonds" for "Stocks" and admits "y Stocks"; an inverted test would do the opposite
+    one_b = ["|  | New | Bad |", "|---|---|---|", "| Bonds | Critical to My Stocks | Do |"]
+    one_a = ["|  | New | Bad |", "|---|---|---|", "| Impact the Topics They Discuss Have on My Stocks | Critical to My Stocks | Do |"]
+    ok1, why1, _ = tg.grid_invariant(one_b, one_a)
+    one_g = ["|  | New | Bad |", "|---|---|---|", "| y Stocks | Critical to My Stocks | Do |"]
+    ok2, why2, f2 = tg.grid_invariant(one_g, one_a)
+    check("invariant, one fragment: 'Bonds' under the label 'Impact … My Stocks' is REFUSED and 'y Stocks' is ADMITTED — the pair that tells an inverted containment test from the real one",
+          not ok1 and any("not all pieces" in w for w in why1) and ok2 and f2["labels"] and f2["labels"][0].get("fragments") == 1, str((why1, why2, f2["labels"])))
     # the figure call: the quadrant's HIGH / LOW are axis labels, not rails — the reading silences the table
     FIG = chr(10).join(["Text.", "", "|  | Lipstick on a Pig | Reputation Builder |", "|---|---|---|", "| H<br>G<br>H | prose one | prose two |", "| L<br>O | prose three | prose four |", "", "More."])
     RG = {"format": "vision-reading/1", "tables": [{"anchor": ["Lipstick on a Pig"], "kind": "figure", "rails": []}]}
