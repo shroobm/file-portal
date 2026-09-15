@@ -548,6 +548,54 @@ def main():
           and "| log<br>(manufacturing |" in chr(10).join(newb) and "0.00 2.86 4.29 2.86 4.29" in newb and "3.58 0.36" in newb, str((apb, rfb)))
     check("idempotent: a second split pass proposes nothing", tg.propose_splits(new13, lx) == [] and tg.propose_splits(newb, lxb) == [])
     check("a healthy table with a numeric body proposes no split", tg.propose_splits(HEALTHY.split(chr(10)), lx) == [] and tg.propose_splits(VALENTINE.split(chr(10)), lx) == [])
+    print("[14] S157 E3 — trailing columns nothing fills are TRIMMED (p204-t1's shape: 2 real columns + 3 empty); nothing else")
+    P204 = chr(10).join(["Exhibit 12.10 Regression Output for Lagged Values", "",
+        "| Regression Statistics | |  |  |  |", "|-----------------------|-------|--|--|--|",
+        "| Multiple R | 0.97  |  |  |  |", "| R-squared | 0.94  |  |  |  |", "| Adjusted R-square | 0.94  |  |  |  |",
+        "| Standard Error | 0.03  |  |  |  |", "| Observations | 53.00 |  |  |  |", "", "The regression says little."])
+    tp = tg.propose_trims(P204.split(chr(10)))
+    check("one trim proposed: the last 3 of 5 columns", len(tp) == 1 and tp[0]["cols"] == 5 and tp[0]["drop"] == 3 and tp[0]["table"] == [3, 9], str(tp))
+    new14, ap14, rf14 = tg.trim_pass(P204.split(chr(10)))
+    tb14 = tg.table_blocks(new14)
+    check("applied: one table of two columns, six rows, every cell kept, the delimiter's two segments the before's first two",
+          len(ap14) == 1 and not rf14 and len(tb14) == 1 and all(len(tg.cells(new14[k])) == 2 for k in range(tb14[0][0], tb14[0][2] + 1) if k != tb14[0][1])
+          and tg.cells(new14[tb14[0][2]]) == ["Observations", "53.00"] and new14[tb14[0][1]] == "|-----------------------|-------|"
+          and new14[0] == "Exhibit 12.10 Regression Output for Lagged Values" and new14[-1] == "The regression says little.", chr(10).join(new14))
+    tt, rr = tg.geometry_pass(P204, None)
+    check("geometry_pass records the trim; no refusal; the table then passes the ordinary pass unchanged",
+          rr["trims"] == [{"table": [3, 9], "cols": 5, "drop": 3, "why": "the last 3 of 5 columns hold nothing in 6 rows"}] and rr["trims_refused"] == [] and rr["refused"] == 0
+          and "| Observations | 53.00 |" in tt and "|  |  |  |" not in tt, str((rr["trims"], rr["trims_refused"], rr["refused"])))
+    check("idempotent: a second trim pass proposes nothing", tg.propose_trims(new14) == [])
+    # negatives
+    DOT = chr(10).join(["| a | b | |", "|---|---|---|", "| 1 | 2 | " + chr(8226) + " |", "| 3 | 4 | |"])
+    check("NEGATIVE: a glyph in the last column (S78's 418 dots) — no trim", tg.propose_trims(DOT.split(chr(10))) == [])
+    LEAD = chr(10).join(["| | b | c |", "|---|---|---|", "| | 2 | 3 |", "| | 4 | 5 |"])
+    check("NEGATIVE: a leading empty column (a rail's column) — no trim", tg.propose_trims(LEAD.split(chr(10))) == [])
+    RAG = chr(10).join(["| a | b | |", "|---|---|---|", "| 1 | 2 |", "| 3 | 4 | |"])
+    check("NEGATIVE: ragged rows — no trim", tg.propose_trims(RAG.split(chr(10))) == [])
+    FLOOR = chr(10).join(["| a | | |", "|---|---|---|", "| 1 | | |", "| 3 | | |"])
+    fp = tg.propose_trims(FLOOR.split(chr(10)))
+    check("the floor: a table whose every column but one is empty keeps two (one column dropped, not two)", len(fp) == 1 and fp[0]["drop"] == 1, str(fp))
+    check("NEGATIVE: a table with a health issue is left alone", tg.propose_trims(["| a | b | |", "|---|---|", "| 1 | 2 | |"]) == []
+          or not tg.health(["| a | b | |", "|---|---|", "| 1 | 2 | |"]), "health: " + str(tg.health(["| a | b | |", "|---|---|", "| 1 | 2 | |"])))
+    bad = list(new14)
+    bad[tb14[0][2]] = "| Observations | 53.01 |"
+    okb, whyb = tg.trim_invariant(P204.split(chr(10))[2:9], bad[2:9], tp[0])
+    check("invariant NEGATIVE: a kept cell changed is refused", not okb and any("not the before row cut" in w for w in whyb), str(whyb))
+    bad2 = list(new14)
+    bad2[tb14[0][1]] = "|---|---|"
+    okc, whyc = tg.trim_invariant(P204.split(chr(10))[2:9], bad2[2:9], tp[0])
+    check("invariant NEGATIVE: the delimiter's kept segments changed is refused", not okc and any("delimiter" in w for w in whyc), str(whyc))
+    P204X = P204.replace("| Observations | 53.00 |  |  |  |", "| Observations | 53.00 |  | x |  |")
+    okd, whyd = tg.trim_invariant(P204X.split(chr(10))[2:9], new14[2:9], tp[0])
+    check("invariant NEGATIVE: a removed cell that was not blank is refused", not okd and any("not blank" in w for w in whyd), str(whyd))
+    # the split's second table is trimmed after the split (the ANOVA of p.175 keeps 9 columns, 2 of them empty)
+    tt2, rr2 = tg.geometry_pass(P175, None)
+    anova = [ln for ln in tt2.split(chr(10)) if ln.startswith("| Regression |")]
+    check("after the split, the ANOVA table's two empty trailing columns are trimmed (9 -> 7); the coefficients table keeps its 9",
+          rr2["splits"] and len(rr2["trims"]) == 1 and rr2["trims"][0]["cols"] == 9 and rr2["trims"][0]["drop"] == 2
+          and anova and len(tg.cells(anova[0])) == 7 and "| log /manufacturin indev) | 3.58 | 0.36 | 10.03 | 0.00 | 2.86 | 4.29 | 2.86 | 4.29 |" in tt2, str((rr2["trims"], anova)))
+    check("no trim on a healthy table, on the rails fixture, on the reading fixture", tg.propose_trims(HEALTHY.split(chr(10))) == [] and tg.propose_trims(VALENTINE.split(chr(10))) == [], "")
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 

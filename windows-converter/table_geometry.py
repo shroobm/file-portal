@@ -1471,6 +1471,108 @@ def split_pass(lines: list[str], lex: dict | None = None) -> tuple[list[str], li
     return lines, applied, refused
 
 
+# ---- S157 E3: the trim pass — trailing columns nothing fills are Marker's padding, not the page's ------------------------
+
+TRIM_MIN_COLS = 2       # a table keeps at least two columns; a one-column table is a list, and a table whose every column
+                        # but one is empty is a question for the reading, not a trim
+
+
+def propose_trims(lines: list[str]) -> list[dict]:
+    """One proposal per table whose last column(s) hold nothing — the header cell and every body cell blank — down to
+    TRIM_MIN_COLS columns. A table with a health issue or ragged rows (a row with a different cell count) is left alone;
+    a LEADING empty column is never touched (p097/p132/p133: the rail column is empty in the truth's body and letters in
+    the copy). Line numbers 1-based like every other proposal."""
+    issue_lines = {x["line"] for x in health(lines)}
+    out = []
+    for h, d, e in table_blocks(lines):
+        if any(h + 1 <= ln <= e + 1 for ln in issue_lines):
+            continue
+        rows = [cells(lines[k]) for k in range(h, e + 1) if k != d]
+        if not rows:
+            continue
+        nc = len(rows[0])
+        if nc <= TRIM_MIN_COLS or any(len(r) != nc for r in rows):
+            continue
+        k = 0
+        while nc - k > TRIM_MIN_COLS and all(not r[nc - 1 - k].strip() for r in rows):
+            k += 1
+        if k:
+            out.append({"kind": "trim", "table": [h + 1, e + 1], "cols": nc, "drop": k,
+                        "why": "the last %d of %d columns hold nothing in %d rows" % (k, nc, len(rows))})
+    return out
+
+
+def _delim_segments(row: str) -> list[str]:
+    s = row.strip()
+    if s.startswith("|"):
+        s = s[1:]
+    if s.endswith("|"):
+        s = s[:-1]
+    return [x.strip() for x in s.split("|")]
+
+
+def apply_trim(lines: list[str], p: dict) -> list[str]:
+    """The lines with one trim applied: every row of the table re-rendered without its last `drop` cells; the delimiter
+    row keeps its first (cols - drop) segments (an alignment mark stays with its column)."""
+    h, e = p["table"][0] - 1, p["table"][1] - 1
+    d = h + 1
+    keep = p["cols"] - p["drop"]
+    new = []
+    for k in range(h, e + 1):
+        if k == d:
+            new.append("|" + "|".join(_delim_segments(lines[k])[:keep]) + "|")
+        else:
+            new.append(_render_row(cells(lines[k])[:keep]))
+    return lines[:h] + new + lines[e + 1:]
+
+
+def trim_invariant(before: list[str], after: list[str], p: dict) -> tuple[bool, list[str]]:
+    """Admit a trim only as the exact cut: one table on both sides with the same number of rows; every after row equal to
+    its before row with the last `drop` cells removed; every removed cell blank; at least TRIM_MIN_COLS columns kept; the
+    delimiter's kept segments unchanged."""
+    reasons = []
+    tb, ta = table_blocks(before), table_blocks(after)
+    if len(tb) != 1 or len(ta) != 1:
+        return False, ["expected one table before and after, saw %d and %d" % (len(tb), len(ta))]
+    (hb, db, eb), (ha, da, ea) = tb[0], ta[0]
+    keep = p["cols"] - p["drop"]
+    if keep < TRIM_MIN_COLS:
+        reasons.append("fewer than %d columns would be kept" % TRIM_MIN_COLS)
+    if eb - hb != ea - ha:
+        reasons.append("rows before %d, after %d" % (eb - hb, ea - ha))
+        return False, reasons
+    if _delim_segments(after[da]) != _delim_segments(before[db])[:keep]:
+        reasons.append("the delimiter row's kept segments changed")
+    for i, (kb, ka) in enumerate(zip(range(hb, eb + 1), range(ha, ea + 1))):
+        if kb == db:
+            continue
+        b, a = cells(before[kb]), cells(after[ka])
+        if len(b) != p["cols"]:
+            reasons.append("row %d has %d cells before, not %d" % (i + 1, len(b), p["cols"]))
+            continue
+        if a != b[:keep]:
+            reasons.append("row %d is not the before row cut to %d cells" % (i + 1, keep))
+        if any(c.strip() for c in b[keep:]):
+            reasons.append("row %d: a removed cell was not blank (%r)" % (i + 1, [c[:20] for c in b[keep:] if c.strip()]))
+    return not reasons, reasons
+
+
+def trim_pass(lines: list[str]) -> tuple[list[str], list[dict], list[dict]]:
+    """Every trim admitted by trim_invariant applied. Returns (lines, applied, refused)."""
+    props = propose_trims(lines)
+    applied, refused = [], []
+    for p in sorted(props, key=lambda x: -x["table"][0]):
+        h, e = p["table"][0] - 1, p["table"][1] - 1
+        new = apply_trim(lines, p)
+        ok, why = trim_invariant(lines[h:e + 1], new[h:e + 1], p)
+        if ok:
+            lines = new
+            applied.append(dict(p, admitted=True))
+        else:
+            refused.append(dict(p, refused="; ".join(why)))
+    return lines, applied, refused
+
+
 def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: dict | None = None) -> tuple[str, dict]:
     """The layer over a whole markdown text: propose per table, apply on a copy, keep only what the invariant admits.
     Returns (text, record): the record counts tables, proposals, applied, refused and unresolved, lists every label and
@@ -1488,6 +1590,10 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
     # ANOVA); the tail re-joined from the prose it fell into; each admitted by split_invariant; the two tables then get the
     # ordinary repairs below
     lines, splits_applied, splits_refused = split_pass(lines, lex)
+    # S157 E3: the TRIM pass next — trailing columns nothing fills (Marker's padding: 15 of 82 Valentine tables) dropped,
+    # each admitted by trim_invariant; after the split so a table born of it is trimmed too, before the proposals so a
+    # caption or a rail is read on the page's own columns
+    lines, trims_applied, trims_refused = trim_pass(lines)
     vnotes: dict = {}
     props = propose(lines, counted if resolver is not None else None, lex, vision=vision, notes=vnotes if vision else None)
     blocks = {(h + 1, e + 1): (h, d, e) for h, d, e in table_blocks(lines)}
@@ -1529,6 +1635,8 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
         "splits": [{"table": p["table"], "at": p["at"], "header": p["header"], "why": p["why"],
                     "rejoined": ({"row": p["rejoin"]["row"], "consumed_lines": p["rejoin"]["consumed"]} if p.get("rejoin") else None)} for p in splits_applied],   # S157 E1
         "splits_refused": [{"table": p["table"], "at": p["at"], "why": p["refused"]} for p in splits_refused],
+        "trims": [{"table": p["table"], "cols": p["cols"], "drop": p["drop"], "why": p["why"]} for p in trims_applied],   # S157 E3
+        "trims_refused": [{"table": p["table"], "cols": p["cols"], "drop": p["drop"], "why": p["refused"]} for p in trims_refused],
         "unresolved_rails": [{"rows": p["rows"], "letters": p["letters"], "why": p["refused"]} for p in unresolved],
         "refusals": [{"kind": p["kind"], "table": p["table"], "why": p["refused"]} for p in refused],
         "dots_fixed": dots_fixed,
