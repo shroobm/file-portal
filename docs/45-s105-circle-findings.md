@@ -225,3 +225,42 @@ that happen twice.** This section exists to be collected, not admired.
 - **§6.4 the four P-2 specimens:** now an enumeration — 12 figures on 11 pages (UE) and 10 on 10 (4e), nine in common (E24, E30); IV p.81's "raster figure destroyed in place" is FIGURE 3.1 flattened into a garbled table on both editions; Cyb p.34 and p.78 (SYM-049) surface to the instrument since E25; Cyb p.84 stays the vector-diagram-as-prose specimen.
 - **§6.5 the UNREADs:** the 219 never-adjudicated pages — adjudicated on both bundles (E24, E30); the other four anchors — every anchor measured (E24, `sittings/S157/e24/anchors_table.json`; the scan-lane books NOT APPLICABLE, said); SYM-049 — fixed and measured on every anchor (E25); CI's conclusion for S104's own commits — still unobserved (Historical; nothing this sitting can do about a run from August).
 - **Not collected:** §6.1 (docs/32 §6's prediction re-checked) and §6.2 (Family 1's check) — the next Circle's, still.
+
+## §8 Collected — S157 E47 (2026-09-15), by a Circle: §6.1 and §6.2
+
+*Five read-only Sonnet lanes, each with a planted control (5/5 caught), over every guard-shaped file changed since `40a643a`
+(44), every SYMPTOM-INDEX row observed since S105 (78), every ERROR-BIN row (108), and the mechanisms
+that might compare a claim to its probe; the lane (Fable, Claude Opus 5) adjudicated after `fleet_law_check` and re-read ten
+CONFIRMS in the rows' own cells (10/10 hold). Private `sittings/S157/e47/`.*
+
+- **§6.1 — the prediction, scored.** docs/32 §6 said the next instance would appear in whatever was built next to enforce the
+  rules. Since S105 the two registers carry **55 rows** in which a guard passed, was green, or was trusted while the
+  property it stands for was broken — **24** SYM rows (SYM-054, SYM-055, SYM-056, SYM-057, SYM-062, SYM-066, SYM-070, SYM-073, SYM-090, SYM-091, SYM-096, SYM-098, SYM-100, SYM-101, SYM-104, SYM-113, SYM-115, SYM-116, SYM-119, SYM-120, SYM-121, SYM-122, SYM-126, SYM-133) and **31** ERR rows (…014, 017, 018, 019, 020, 022, 024, 025, 027, 031, 032, 034, 035, 036, 049, 050, 051, 058, 059, 065, 070, 075, 077, 079, 088, 092, 099, 101, 104, 106, 108). At least twenty
+  are inside the governance guards themselves: `close.sh` six times (the LEVERS gate under-reports its class, SYM-096; the CI
+  scan scrolled past its reference run, SYM-098; a green close beside a three-cell row, SYM-113; the chain past a register red and
+  past `close.sh`'s exit code, ERR-075/088; the chain's `exit 0` under `conclusion=failure`, ERR-092 — built by ERR-088's own fix),
+  `guard_git` three times (SYM-116/120/121), the open card's SOFT clock (SYM-100), the schema-registry check (SYM-126), the
+  deferral-gate selftest (SYM-122), the relay-gate suites ten times (SYM-055/062, ERR-020…036), the analyst selftest's isolation
+  (ERR-099/106), the fleet harness (SYM-054), the tracker's receipt (ERR-104). And one inside this Circle: its own brief told a
+  lane ERROR-BIN.md was LF; it is CRLF (660 CR lines, re-measured after the lane said so). *"If it confirms again, stop treating it
+  as a prediction and treat it as a law"* — the count is here; docs/32 §7 says the rules are not signed, and the signature is Rab's.
+- **§6.2 — Family 1's check.** Five narrow claim kinds now have a comparator: a hash or SHA identity (`gate.py beat --verified
+  --probe`, `row_check.sh`, `adoption_receipt.py`, `ledger_check.py`), a file-touched claim (`journal_check.py code_paths_check`;
+  the code-notes-vs-`git diff` `comm` at E32), a fleet's self-report (`fleet_law_check.py`), a register status (`e40_reconcile.py`),
+  and a whole record's sentences by the verifier-fleet method (E22/E39 — five lanes, a planted false sentence, HELD/BROKEN/UNREAD
+  per claim; at E39 it caught seven slides of exactly this family) — the last only when a Circle commissions it. Of §1's seven
+  rows, two would be caught today (F1-1 at the close, where `close.sh` prints the scoped value and the sentence cannot be typed;
+  F1-6 by the file-touched comparators); **F1-2, F1-3, F1-4, F1-5 and F1-7 still slide past every mechanism** — nothing reads a
+  sentence's referent or scope against the scope of the number it quotes. That is the honest state: the class has an instrument
+  (a differently-shaped second reader with a plant), not a check.
+- **The guard inventory (rules 1 and 2).** 44 guard-shaped files: 39 state their property in the code and carry a tripwire that
+  violates it; 3 state it without one (`.claude/hooks/check_coordination.py`, `.claude/hooks/warn_heredoc.py`, `prototypes/analyst-lab/edit-whitelist/promotion_check.py`); 2 are not guards. Holes the inventory surfaced, each re-read in the code:
+  `check_coordination.py` exits 0 silently on a failed probe (by stated intent — still indistinguishable from clean outside);
+  `record_missing()` accepts a zero-byte record (a glob); the J71 push gate triggers on any change to the ledger file but reads only
+  the last five rows and the newest — an older row corrupted joins the 21 rows `[3b]` already discards, and that count is printed,
+  not pinned. Recommendations, not builds (an assessment Circle; every gate change is warn-only first and his): pin the discard
+  count the way the DEBT gate pins open SYMs; a selftest case with an empty record; a tripwire for the two warn-only hooks.
+- **Residue.** The lanes classified from the rows' own words and did not re-run the guards; L4 answered 108 of 109 rows
+  (ERR-2026-09-12-097 unanswered); L5 answered the seven F1 rows in prose, not as entries; overlaps between the two registers
+  (the same incident filed as a SYM and an ERR) were not de-duplicated — the 55 is rows, not incidents. What the next Circle
+  inherits: the count as a baseline; whether the prediction is a law is signed or it is not.

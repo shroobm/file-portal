@@ -134,3 +134,12 @@ That question is the next Circle's commission.
 **Not signed.** This is a diagnosis, not a law. It proposes no mechanism, changes no code, and
 asks for nothing except that the next Circle test §6's prediction. If Rab signs the three rules in
 §5, they belong in `docs/21` beside SYM-001's remedy, which they generalise.
+
+## 8. Scored — S157 E47 (2026-09-15)
+
+§6 asked to be checked at the next Circle. `docs/45` §6.1 (S105) found it confirmed five times and unscored; `docs/45` §8
+(S157 E47) scores it: **55 rows since S105** (24 in `SYMPTOM-INDEX.md`, 31 in `ERROR-BIN.md`) in which a guard
+passed, was green, or was trusted while the property it stood for was broken — at least twenty of them inside the guards built
+after S105 to enforce §5's three rules, which is the sentence §6 predicted. The rules remain **not signed** (§7); the count is
+what a signature would rest on. The method that produced the count is itself a §5 rule-2 instrument: five independent lanes,
+each with a planted false entry, and the lane's own sample re-read in the rows.
