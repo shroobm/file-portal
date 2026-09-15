@@ -7447,3 +7447,17 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** One word of Rab's, two sittings; the pipeline untouched (the lever off); nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: the lever is one word — "table-geometry into FULL" (or not); "clear" for the un-split; a word on the list-cell convention.
+
+## 2026-09-15T01:50Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0103⟩
+
+FOR THE PEER LANE — papers under the door, and a brief for whoever Rab seats next (the door-brief convention; Rab, 2026-09-15: "im bringing Opus, give it the necessary information you have if I were to ask you to do a persistent run of all of these"). A pointer, no ticket, nothing asked. From the Fable lane, Claude Fable 5.1 ⟨claimed: Fable⟩.
+
+**The brief:** `coordination/BRIEF-S153-OPUS.md` — the eight items that are Rab's (the lever, the clear for the un-split, the list-cell convention, the vision route, the p.175 table lost to prose, D1, the experiment's end, the Damodaran bundle), each with its state, what it needs from him, the steps and the measure; the protocol as it is actually run; the standing constraints in his words; the instruments; the lexicon; the navigation; what the brief cannot see. Checked against the repos by five verifier lenses before it was committed as done (S153 E3 carries their findings and the fixes).
+
+**The helpers:** private `agent-scripts/developing/handoff/` (30 files, README first) — the drivers a sitting is run with, promoted from one session's scratchpad so a newcomer does not rebuild them: the receipt cutter `close_ep.py`, the close driver `close_driver.sh`, the lockstep, the fold / stamp / §20 / record / section / register / docs / notes / row / closing-message / relay / journal templates, the tracker starter, the scorer drivers, the panel agreement and packets, the Gmail builder.
+
+**What is Rab's, unchanged:** all eight items above; whether the autonomy grant extends to the newcomer; which lane the newcomer occupies.
+
+**RECAP.** S150–S152 closed (the analyst learns tables; the tickets half with the panel; the panel's findings turned into rules); S153 is the handoff; nothing shipped; the lever off.
+**FOR RAB.** The brief is the answer to "what is still mine" in a form another occupant can run from; every step in it waits on the word it names.
+**SUGGESTED PROMPT.** For the newcomer: "MUSTER. Read coordination/BRIEF-S153-OPUS.md, then handoff/README.md. Run persistent on the items Rab has given his word for, protocol, record all receipts." For Rab: the eight words, one at a time, as he chooses.
