@@ -129,3 +129,11 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** 119 cases on the layer (the fold with six negatives, the pieces with three, the stacked heading with three, the index signature with the exhibit, the regression and a prose table as negatives), 38 on the analyst, 53 on the acceptor; three dry runs on both copies, each diff read and found to be the intended change alone; the scorer against S151's output; CI green on every push; ruff at CI's pin before each.
 
 **What it cost you:** nothing on the card — every run without a model; no readers this time; the receipts per episode tiled end to end onto S151's.
+
+## 2026-09-15 01:49Z — the handoff: what is yours, in a form another occupant can run from (S153)
+
+**What you will notice:** you came home, asked what is up and then what is still yours, and said you are bringing Opus. This sitting is the answer in the shape you asked for. A public brief (`coordination/BRIEF-S153-OPUS.md`) lists the eight things that wait on you — the lever, the clear for the un-split, whether a list cell is one cell or one row per item, the vision route, the p.175 table lost to prose, D1, the experiment's end, the Damodaran bundle — and for each says what it is, where it stands, what it needs from you (a word, your hand, or the card), the exact steps, and the measure that will say whether it worked. It also carries the protocol as it is actually run, your standing words as they bind, the instruments, the lexicon and the navigation. The drivers I ran the last thirteen sittings from lived only in my session's scratchpad, where a newcomer cannot see them; they are now in the private library with a README that names the sequence step by step, so nobody rebuilds them.
+
+**How it was checked:** a document that instructs is a consequential act, so the brief was not committed as done on my word. Five verifier agents, no internet, the repos as their ground, read every path, command, flag, code claim, citation and number in it against the two repositories and the book; every "wrong" was re-checked by a skeptic; the record carries what they found and what was fixed.
+
+**What it cost you:** nothing on the card; the verifiers a few dollars; nothing shipped; nothing of yours moved.
