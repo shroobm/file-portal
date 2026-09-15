@@ -143,8 +143,18 @@ fi
 # (S103 uses 534a6c0, red on Format check) and watch the red path actually fire.
 sha="${FP_CI_SHA:-$(git -C "$FP_REPO" rev-parse HEAD 2>/dev/null || echo "")}"
 ahead=$(git -C "$FP_REPO" rev-list --count '@{u}..HEAD' 2>/dev/null || echo "?")
-tok=$(printf 'protocol=https\nhost=github.com\n\n' | git -C "$FP_REPO" credential fill 2>/dev/null | sed -n 's/^password=//p')
-if [ -z "$tok" ]; then
+# B33 (S157 E42; SYM-064): the S111 close hung ~14 minutes here — `git credential fill` launched git-askpass and waited
+# off-screen, and the `curl --max-time 25` further down could not stop a hang that happened before it. The lookup is now
+# forced NONINTERACTIVE (no terminal prompt, no credential-manager UI) and BOUNDED (FP_CRED_TIMEOUT_S, default 20 s); a
+# helper that does not return reads UNREAD and names the hang — never a green, never a silent wait. Tripwire: selftest
+# CASE 53 (a helper that sleeps past the bound).
+cred_timeout="${FP_CRED_TIMEOUT_S:-20}"
+cred_out=$(printf 'protocol=https\nhost=github.com\n\n' | GIT_TERMINAL_PROMPT=0 GCM_INTERACTIVE=never GIT_ASKPASS=/bin/true SSH_ASKPASS=/bin/true \
+           timeout "$cred_timeout" git -C "$FP_REPO" credential fill 2>/dev/null); cred_rc=$?
+tok=$(printf '%s\n' "$cred_out" | sed -n 's/^password=//p')
+if [ "$cred_rc" -eq 124 ]; then
+  row "CI" "UNREAD — the credential lookup did not return in ${cred_timeout}s (an interactive helper? — bounded, not waited for); NOT a statement that CI is green"
+elif [ -z "$tok" ]; then
   row "CI" "UNREAD — no stored credential; NOT a statement that CI is green"
 elif ! command -v curl >/dev/null 2>&1; then
   row "CI" "UNREAD — curl absent; NOT a statement that CI is green"
@@ -429,8 +439,15 @@ fi
 MEM_LIB="${MEMORY_LIB:-$HOME/.claude/projects/C--Users-Bndit-Documents-Claude-Code-Memory-Backup/memory}"
 if [ ! -d "$MEM_LIB" ]; then
   row "MEMORY" "UNREAD — no memory library at $MEM_LIB; NOT a statement that it is committed"
-elif ! git -C "$MEM_LIB" rev-parse --is-inside-work-tree >/dev/null 2>&1; then
-  row "MEMORY" "UNREAD — memory library is not a git repo; nothing can vouch for its durability"
+elif ! mem_err=$(git -C "$MEM_LIB" rev-parse --is-inside-work-tree 2>&1 >/dev/null); then
+  # B33 (S157 E42; SYM-063): "not a git repository" and git REFUSING a repository it can see (dubious ownership /
+  # safe.directory unresolved) are different facts with different remedies; the S111 close rendered the second as the
+  # first. Both stay UNREAD (a close is never held hostage to another repo), but the row names which. Tripwire: CASE 54.
+  if printf '%s' "$mem_err" | grep -qiE 'dubious ownership|safe\.directory'; then
+    row "MEMORY" "UNREAD — git REFUSES the memory library (ownership / safe.directory unresolved: $(printf '%s' "$mem_err" | tr -d '\r' | head -1 | cut -c1-90)); NOT a statement about its durability"
+  else
+    row "MEMORY" "UNREAD — memory library is not a git repo; nothing can vouch for its durability"
+  fi
 else
   mem_dirty=$(git -C "$MEM_LIB" status --porcelain 2>/dev/null | grep -c . || true)
   if [ "${mem_dirty:-0}" -eq 0 ]; then

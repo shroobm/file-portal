@@ -980,6 +980,37 @@ out=$(MEMORY_LIB="$WORK/l6" FP_REPO="$R" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK
 if printf '%s' "$out" | grep -qE 'adoption +UNREAD' && ! printf '%s' "$out" | grep -qE 'adoption +.*MATCH'; then ok "J36 (c): no receipt file reads UNREAD, never MATCH"
 else bad "J36 (c): UNREAD" "got: $(printf '%s' "$out" | grep -E '^ +adoption' | head -1)"; fi
 
+# ── CASES 53–54: B33 (S157 E42) — the two S111 close-gate evidence boundaries ────────────────
+# CASE 53 — SYM-064. The property: an INTERACTIVE credential helper cannot hang the close. Violate: a fixture repo whose
+# credential.helper sleeps past the bound; close.sh must return inside FP_CRED_TIMEOUT_S and say the lookup did not return.
+# The global helper (the stored credential) is shut out with GIT_CONFIG_GLOBAL=/dev/null, else it answers before the fixture's.
+# Negative control: with the same fixture and a helper that answers at once, the row does NOT claim a hang.
+B33=$(mktemp -d "$WORK/b33.XXXX"); git -C "$B33" init -q; git -C "$B33" config user.email t@t; git -C "$B33" config user.name t
+printf 'x\n' > "$B33/f"; git -C "$B33" add f; git -C "$B33" commit -q -m one
+git -C "$B33" config credential.helper '!f() { sleep 30; }; f'
+t0=$(date +%s)
+out=$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 FP_PY="/no/such/python.exe" FP_CRED_TIMEOUT_S=2 MEMORY_LIB="$WORK/l6" FP_REPO="$B33" bash "$CLOSE" HEAD 2>&1)
+dt=$(( $(date +%s) - t0 ))
+if printf '%s' "$out" | grep -qE 'CI +UNREAD — the credential lookup did not return in 2s' && [ "$dt" -lt 20 ]; then ok "B33 (SYM-064): a blocking credential helper is BOUNDED — the close returns in ${dt}s and names the hang as UNREAD"
+else bad "B33 (SYM-064): a blocking helper must be bounded and named" "took ${dt}s; got: $(printf '%s' "$out" | grep -E '^ +CI' | head -1)"; fi
+git -C "$B33" config credential.helper '!f() { echo password=; }; f'
+out=$(GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 FP_PY="/no/such/python.exe" FP_CRED_TIMEOUT_S=2 MEMORY_LIB="$WORK/l6" FP_REPO="$B33" bash "$CLOSE" HEAD 2>&1)
+if printf '%s' "$out" | grep -qE 'CI +UNREAD — no stored credential'; then ok "B33 NEGATIVE CONTROL: a helper that answers at once is not called a hang"
+else bad "B33 NEGATIVE CONTROL: a prompt helper must not read as a hang" "got: $(printf '%s' "$out" | grep -E '^ +CI' | head -1)"; fi
+
+# CASE 54 — SYM-063. The property: git REFUSING the memory library over ownership reads as ownership, not as "not a git
+# repo". Violate: a git shim on PATH that answers `dubious ownership` for one path and delegates everything else to the
+# real git. Negative control: the same shim with a plain non-repo path — the row must still read "not a git repo".
+REALGIT=$(command -v git); mkdir -p "$WORK/fakebin54"
+printf '#!/bin/sh\nfor a in "$@"; do case "$a" in *l54dubious*) echo "fatal: detected dubious ownership in repository at '"'"'$a'"'"'" >&2; exit 128;; esac; done\nexec "%s" "$@"\n' "$REALGIT" > "$WORK/fakebin54/git"
+chmod +x "$WORK/fakebin54/git"; mkdir -p "$WORK/l54dubious" "$WORK/l54plain"
+out=$(PATH="$WORK/fakebin54:$PATH" FP_PY="/no/such/python.exe" FP_CRED_TIMEOUT_S=2 MEMORY_LIB="$WORK/l54dubious" FP_REPO="$B33" bash "$CLOSE" HEAD 2>&1)
+if printf '%s' "$out" | grep -qE 'MEMORY +UNREAD — git REFUSES the memory library \(ownership'; then ok "B33 (SYM-063): a dubious-ownership refusal is named as ownership, still UNREAD"
+else bad "B33 (SYM-063): ownership refusal must be named" "got: $(printf '%s' "$out" | grep -E '^ +MEMORY' | head -1)"; fi
+out=$(PATH="$WORK/fakebin54:$PATH" FP_PY="/no/such/python.exe" FP_CRED_TIMEOUT_S=2 MEMORY_LIB="$WORK/l54plain" FP_REPO="$B33" bash "$CLOSE" HEAD 2>&1)
+if printf '%s' "$out" | grep -qE 'MEMORY +UNREAD — memory library is not a git repo'; then ok "B33 NEGATIVE CONTROL: a plain non-repo still reads 'not a git repo'"
+else bad "B33 NEGATIVE CONTROL: a non-repo must not read as ownership" "got: $(printf '%s' "$out" | grep -E '^ +MEMORY' | head -1)"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
