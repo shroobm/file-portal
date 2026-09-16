@@ -137,6 +137,51 @@ else
   done
 fi
 
+# ── [3c] CONVERTER — the hermetic suites, only when this session touched the converter or the bench; WARN-ONLY ──
+# S164 (2026-09-16), register row close/run-the-hermetic-converter-suites: none of the converter's own selftests is run
+# by CI (they need marker-env: fitz, pymupdf — figure_coverage_selftest is the one CI carries) and none was run here, so
+# every tripwire born S157–S163 (T23–T25, SYM-125, SYM-030, the table layer's 208…) was proof only when a lane ran it
+# by hand — docs/32 §5's "proxy with a reputation". Each suite below is hermetic by construction (a temp FP_PIPELINE
+# set before import, every Marker run a stub, no GPU, no live dir); deferral_gate_selftest.py (launches the REAL
+# watcher) and card_mutex_selftest.py (an OS mutex) are OUT by name, as CI keeps them. WARN-ONLY per the S108
+# standard: a RED row prints, the exit does not move — arming is Rab's signature (FP_CONV_ARMED=1, or this line).
+# FP_CONV_SUITES overrides the list (space-separated, paths relative to FP_REPO) so selftest.sh can plant a failing
+# suite in a fixture repo and watch this row go red without touching the real suites.
+touched_conv=0
+if [ -n "$PIN" ] && git -C "$FP_REPO" rev-parse --verify "$PIN^{commit}" >/dev/null 2>&1; then
+  git -C "$FP_REPO" diff --name-only "$PIN"..HEAD | grep -qE '^(windows-converter|prototypes/repair-bench)/' && touched_conv=1
+fi
+CONV_SUITES="${FP_CONV_SUITES:-windows-converter/convert_and_ship_selftest.py windows-converter/watch_and_convert_selftest.py windows-converter/table_geometry_selftest.py windows-converter/marker_blocks_selftest.py windows-converter/degeneration_selftest.py windows-converter/analyst_selftest.py prototypes/repair-bench/test_table_boundary.py prototypes/repair-bench/test_generated_md.py}"
+if [ "$touched_conv" -eq 0 ]; then
+  row "CONVERTER" "skipped — no windows-converter/ or prototypes/repair-bench/ change since $PIN"
+elif ! { [ -x "$PY" ] || [ -f "$PY" ]; }; then
+  row "CONVERTER" "UNREAD — interpreter not found at $PY; NOT a statement that the suites are green"
+else
+  conv_red=0
+  for suite in $CONV_SUITES; do
+    name="$(basename "$suite" .py)"
+    if [ ! -f "$FP_REPO/$suite" ]; then
+      row "CONV $name" "UNREAD — $suite not in the tree; NOT a statement that it is green"
+      continue
+    fi
+    if out=$(cd "$FP_REPO/$(dirname "$suite")" && PYTHONIOENCODING=utf-8 "$PY" "$(basename "$suite")" 2>&1); then
+      tally=$(printf '%s' "$out" | grep -oE '(GREEN \([0-9]+/[0-9]+\)|ALL OK: [0-9]+/[0-9]+|ALL TRIPWIRES FIRED — [0-9]+/[0-9]+|SELFTEST PASS|Ran [0-9]+ tests|[0-9]+/[0-9]+ green)' | tail -1)
+      row "CONV $name" "clean${tally:+ — $tally}"
+    else
+      row "CONV $name" "RED (warn-only — the S108 standard; arming is Rab's) — run it and read the output"
+      conv_red=1
+    fi
+  done
+  if [ "$conv_red" -eq 1 ]; then
+    if [ "${FP_CONV_ARMED:-0}" = "1" ]; then
+      row "CONVERTER" "RED — a suite is red and the row is ARMED: the close stops here"
+      red=1
+    else
+      row "CONVERTER" "RED but WARN-ONLY — the exit code does not carry this; read the rows above (SYM-046: a 0 here is not the suites' green)"
+    fi
+  fi
+fi
+
 # ── [4] CI — the check whose absence let two sessions close green on a red build ────────────
 # Route is docs/37 §4's pre-resolution: the stored git credential, FULL sha to head_sha.
 # FP_CI_SHA exists so the tripwire can point this branch at a KNOWN-RED historical run

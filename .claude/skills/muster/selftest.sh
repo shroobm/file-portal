@@ -1036,6 +1036,52 @@ else bad "CASE E60a: the discard reading must say +1" "got: $(printf '%s' "$out"
 if [[ "$rc" -eq 0 ]]; then ok "CASE E60a: …and the exit stays 0 — a reading, never a verdict (warn-only by construction)"
 else bad "CASE E60a: the reading must not change the exit code" "exit $rc: $(printf '%s' "$out" | grep '✗' | head -2)"; fi
 
+# ── CASES 61–63: close.sh [3c] CONVERTER (S164, register row close/run-the-hermetic-converter-suites) ─────────
+# The property: when this session touched windows-converter/ or prototypes/repair-bench/, the close RUNS the converter's
+# hermetic suites and a red suite is SEEN as a red row — but the row is WARN-ONLY (the S108 standard): the exit code does
+# not move until Rab arms it. Three fixtures, each violating one side: a planted FAILING suite must print RED and keep
+# exit 0 (61); a passing suite must read clean (62, the positive control); an untouched converter must read skipped and
+# run nothing (63). The interpreter is the fixture's own python (FP_PY) so no marker-env is needed to fire the guard.
+CLOSE="$HERE/close.sh"
+CONV="$WORK/conv"; mkdir -p "$CONV/windows-converter"
+git -C "$CONV" init -q 2>/dev/null
+printf 'x\n' > "$CONV/f.txt"
+git -C "$CONV" add -A >/dev/null 2>&1
+git -C "$CONV" -c user.email=t@t -c user.name=t commit -qm base >/dev/null 2>&1
+conv_pin=$(git -C "$CONV" rev-parse HEAD)
+printf 'y = 1\n' > "$CONV/windows-converter/thing.py"
+printf 'import sys\nprint("planted RED")\nsys.exit(1)\n' > "$CONV/windows-converter/fail_selftest.py"
+printf 'print("GREEN (3/3)")\n' > "$CONV/windows-converter/ok_selftest.py"
+git -C "$CONV" add -A >/dev/null 2>&1
+git -C "$CONV" -c user.email=t@t -c user.name=t commit -qm touch >/dev/null 2>&1
+# The fixture's interpreter: a REAL python (the marker-env one where it exists, else the uv python, else PATH's) — bare
+# `python`/`python3` on this desktop can be the Store stub that exits 49 (the muster skill's own note), and a stub makes
+# a planted RED pass for the wrong reason; CASE 62's positive control is what catches that, and did on the first run.
+FIXPY="$HOME/ml/marker-env/Scripts/python.exe"
+[ -f "$FIXPY" ] || FIXPY="$(ls "$HOME"/AppData/Roaming/uv/python/cpython-3.*/python.exe 2>/dev/null | head -1)"
+[ -n "$FIXPY" ] && [ -f "$FIXPY" ] || FIXPY="$(command -v python3 || command -v python)"
+# CASE 61 — the planted failing suite: the row reads RED, the exit stays 0 (warn-only), and the RED says so.
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/fail_selftest.py" bash "$CLOSE" "$conv_pin" 2>&1); rc=$?
+if printf '%s' "$out" | grep -q 'CONV fail_selftest  *RED (warn-only'; then ok "CASE 61: a planted failing converter suite reads RED on its row"
+else bad "CASE 61: the failing suite must read RED on its row" "got: $(printf '%s' "$out" | grep -E 'CONV' | head -2)"; fi
+if printf '%s' "$out" | grep -q 'CONVERTER  *RED but WARN-ONLY'; then ok "CASE 61: …and the summary row says WARN-ONLY out loud (SYM-046: a 0 is not the suites green)"
+else bad "CASE 61: the summary row must say WARN-ONLY" "got: $(printf '%s' "$out" | grep -E 'CONVERTER' | head -2)"; fi
+rc_fail=$rc
+FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" bash "$CLOSE" "$conv_pin" >/dev/null 2>&1; rc_ok=$?
+if [[ "$rc_fail" -eq "$rc_ok" ]]; then ok "CASE 61: …and the exit code is the SAME with the red suite as with a green one (warn-only by construction — the differential reading, whatever the fixture's other rows say)"
+else bad "CASE 61: a warn-only red must not move the exit code" "exit with the red suite $rc_fail vs with a green one $rc_ok"; fi
+# CASE 61b — ARMED: the same fixture with FP_CONV_ARMED=1 must exit 1 — the arming is the one line that gives the row teeth.
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/fail_selftest.py" FP_CONV_ARMED=1 bash "$CLOSE" "$conv_pin" 2>&1); rc=$?
+assert "CASE 61b: ARMED (FP_CONV_ARMED=1), the same red suite stops the close" 1 'CONVERTER  *RED — a suite is red and the row is ARMED' "$rc" "$out"
+# CASE 62 — the positive control: a passing suite reads clean with its own tally.
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" bash "$CLOSE" "$conv_pin" 2>&1)
+if printf '%s' "$out" | grep -q 'CONV ok_selftest  *clean — GREEN (3/3)'; then ok "CASE 62 POSITIVE CONTROL: a passing suite reads clean with its tally"
+else bad "CASE 62: a passing suite must read clean with its tally" "got: $(printf '%s' "$out" | grep -E 'CONV' | head -2)"; fi
+# CASE 63 — nothing under the two dirs changed since the pin: the row reads skipped and no suite runs.
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/fail_selftest.py" bash "$CLOSE" HEAD 2>&1)
+if printf '%s' "$out" | grep -q 'CONVERTER  *skipped — no windows-converter/' && ! printf '%s' "$out" | grep -q 'planted RED'; then ok "CASE 63: an untouched converter reads skipped and runs no suite"
+else bad "CASE 63: the untouched case must read skipped and run nothing" "got: $(printf '%s' "$out" | grep -E 'CONV' | head -2)"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
