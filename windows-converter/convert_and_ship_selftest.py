@@ -24,6 +24,12 @@ Each tripwire names what breaks if it fires:
                                      nobody, or the ceiling moment is lost or overwritten
   T22 ship move-aside              — a reship nests inside a copy still sitting under the same
                                      staging name (SYM-128), or the displaced copy goes unnamed
+  T23 tree kill                    — _kill_tree leaves a grandchild alive holding the card (SYM-006,
+                                     the S48 orphan class); the negative control is the bare kill
+  T24 batch lever in argv          — _with_batch fails to replace or append the recognition batch
+                                     (SYM-041 / F-09): a slice runs at a size nobody chose
+  T25 held occupant with repairs   — _enforce_hold rmtrees a held bundle that carries a human's repairs
+                                     to park the incoming one (SYM-009); the control: a bare occupant IS replaced
 """
 
 import ast
@@ -1942,6 +1948,151 @@ except Exception:  # noqa: BLE001 — not installed in this environment: the bra
     _real = None
 check(cas.marker_version_stamp(_stub_none) == (_real or "unknown"),
       "SYM-044 (e) the default lookup reads the installed marker-pdf (%s here) or \"unknown\" where it is not installed" % (_real or "not installed"))
+
+# ---------- T23: _kill_tree reaches the grandchild (S163 E1, SYM-006 — the S48 orphan class) ----------
+# The defect: `proc.kill()` on Windows kills the venv launcher / console script only; the real python
+# underneath survives and keeps the GPU. `_kill_tree` walks the tree with taskkill /T. This case builds
+# a real three-deep tree (this interpreter -> a child python -> a grandchild python that sleeps), kills
+# the CHILD both ways, and watches the grandchild: dead under _kill_tree, ALIVE under the bare kill
+# (the negative control — the defect's exact shape). No GPU, no Marker; the grandchild is a sleep.
+import subprocess as _t23_sp  # noqa: E402 — the case's own imports beside the case
+import time as _t23_time  # noqa: E402
+
+_T23_GRANDCHILD = "import time; time.sleep(120)"
+_T23_CHILD = ("import subprocess, sys, time; p = subprocess.Popen([sys.executable, '-c', %r]); "
+              "print(p.pid, flush=True); time.sleep(120)" % _T23_GRANDCHILD)
+
+
+def _t23_tree():
+    """Spawn child -> grandchild; return (child_proc, grandchild_pid) once the grandchild's pid is printed."""
+    child = _t23_sp.Popen([sys.executable, "-c", _T23_CHILD], stdout=_t23_sp.PIPE, text=True)
+    line = child.stdout.readline().strip()
+    return child, int(line)
+
+
+def _t23_alive(pid: int) -> bool:
+    r = _t23_sp.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"], capture_output=True, text=True)
+    return str(pid) in r.stdout
+
+
+def _t23_reap(*pids):
+    for pid in pids:
+        _t23_sp.run(["taskkill", "/pid", str(pid), "/t", "/f"], capture_output=True)
+
+
+child, grandchild = _t23_tree()
+check(_t23_alive(grandchild), "T23 fixture: the grandchild is alive before the kill")
+cas._kill_tree(child.pid)
+_t23_time.sleep(1.0)
+gone = not _t23_alive(grandchild)
+check(gone, "T23 (a) _kill_tree(child) reaches the GRANDCHILD — no orphan holds the card (SYM-006)")
+_t23_reap(grandchild, child.pid)
+
+child2, grandchild2 = _t23_tree()
+child2.kill()   # the defect's shape: the bare kill
+_t23_time.sleep(1.0)
+survived = _t23_alive(grandchild2)
+check(survived, "T23 (b) NEGATIVE CONTROL: the bare proc.kill() leaves the grandchild ALIVE — the orphan class the fix exists for")
+_t23_reap(grandchild2, child2.pid)
+check(not _t23_alive(grandchild2), "T23 (c) the control's orphan reaped by the test (taskkill /T on the grandchild) — nothing left behind")
+
+# ---------- T24: _with_batch puts the slice lever into Marker's argv (S163 E1, SYM-041 / F-09) ----------
+# The defect: a slice runs at a recognition batch nobody chose because the lever's value never
+# reached argv (replaced when present, appended when absent) — the record then says "batch 16"
+# while Marker ran at its own default. Pure function; both branches and a non-mutation check.
+check(cas._with_batch(["--recognition_batch_size", "32", "--x", "1"], 8) == ["--recognition_batch_size", "8", "--x", "1"],
+      "T24 (a) _with_batch REPLACES an existing --recognition_batch_size in place")
+check(cas._with_batch(["--x", "1"], 16) == ["--x", "1", "--recognition_batch_size", "16"],
+      "T24 (b) _with_batch APPENDS the flag and the value when absent")
+_t24_src = ["--recognition_batch_size", "32"]
+cas._with_batch(_t24_src, 4)
+check(_t24_src == ["--recognition_batch_size", "32"], "T24 (c) the caller's list is not mutated (a copy is returned)")
+check(cas._with_batch(["--recognition_batch_size", "32"], 8)[1] != "32",
+      "T24 (d) NEGATIVE CONTROL: the value 32 does NOT survive a call with 8 — a no-op implementation would fail here")
+
+# ---------- T25: a held occupant with repairs keeps its slot (S163 E2, SYM-009) ----------
+# The defect (2026-08-07, hours before a live re-run would have rmtree'd Valentine's first repair):
+# `_enforce_hold` parked an incoming failed bundle by rmtree-ing whatever sat in held/<sha16>/ —
+# including a bundle carrying Repair Bench repairs. The fix: a repairs-bearing occupant (manifest
+# "repairs", or a *.bench-bak beside it) keeps its slot and the incoming copy parks BESIDE it,
+# timestamped `--superseded-<stamp>`; a bare occupant is still replaced (the control — the branch
+# must discriminate, or "keep everything" would pass by accident). Enforce mode set through the
+# writer (T20's route), restored in `finally`; every path under the quarantine (FP_PIPELINE).
+print("T25 held occupant with repairs")
+_saved_emit_t25 = cas.emit
+_rec25 = EmitRecorder()
+cas.emit = _rec25
+_t25_root = QUARANTINE / "t25"
+
+
+def _t25_bundle(name: str, verdict: str = "fail") -> Path:
+    d = _t25_root / name
+    shutil.rmtree(d, ignore_errors=True)
+    d.mkdir(parents=True)
+    (d / "manifest.json").write_text(json.dumps({"source": name + ".pdf", "fidelity": {"verdict": verdict}}), encoding="utf-8")
+    (d / (name + ".md")).write_text("# " + name, encoding="utf-8")
+    return d
+
+
+def _t25_occupant(sha16: str, repairs: bool, bench_bak: bool) -> Path:
+    o = cas.HELD / sha16
+    shutil.rmtree(o, ignore_errors=True)
+    o.mkdir(parents=True)
+    m = {"source": "old.pdf", "fidelity": {"verdict": "fail"}}
+    if repairs:
+        m["repairs"] = [{"zone": 1, "by": "Rab", "note": "a human's hour"}]
+    (o / "manifest.json").write_text(json.dumps(m), encoding="utf-8")
+    (o / "KEEP.txt").write_text("the human's work", encoding="utf-8")
+    if bench_bak:
+        (o / "old.md.bench-bak").write_text("backup", encoding="utf-8")
+    return o
+
+
+try:
+    cas.AUDIT_MODE_FILE.parent.mkdir(parents=True, exist_ok=True)
+    cas.set_audit_mode("enforce", "selftest T25", "the hold branch under test")
+    # (a) an occupant WITH repairs keeps its slot; the incoming parks beside it, timestamped
+    sha_a = "a" * 16
+    occ_a = _t25_occupant(sha_a, repairs=True, bench_bak=False)
+    inc_a = _t25_bundle("inc-a")
+    held_a = cas._enforce_hold(inc_a, "inc-a", sha_a + "ffff")
+    beside_a = [p for p in cas.HELD.glob(sha_a + "--superseded-*") if p.is_dir()]
+    check(held_a is True and (occ_a / "KEEP.txt").exists() and json.loads((occ_a / "manifest.json").read_text(encoding="utf-8")).get("repairs"),
+          "T25 (a) a repairs-bearing occupant KEEPS its slot — the human's file and its repairs manifest survive the park")
+    check(len(beside_a) == 1 and (beside_a[0] / "inc-a.md").exists(),
+          "T25 (b) the incoming failed bundle parks BESIDE it as <sha16>--superseded-<stamp>, whole")
+    check(len(_rec25.named("audit/held")) == 1 and _rec25.named("audit/held")[0].get("audit_mode") == "enforce",
+          "T25 (c) audit/held emitted once, naming the mode it acted under")
+    # (d) an occupant with only a .bench-bak (no repairs key) is protected the same way
+    sha_b = "b" * 16
+    occ_b = _t25_occupant(sha_b, repairs=False, bench_bak=True)
+    inc_b = _t25_bundle("inc-b")
+    cas._enforce_hold(inc_b, "inc-b", sha_b + "ffff")
+    check((occ_b / "KEEP.txt").exists() and len(list(cas.HELD.glob(sha_b + "--superseded-*"))) == 1,
+          "T25 (d) a .bench-bak beside the occupant protects it the same way (a backup is a human's work too)")
+    # (e) NEGATIVE CONTROL — the defect's shape on a bare occupant: replaced in place, nothing parks beside
+    sha_c = "c" * 16
+    occ_c = _t25_occupant(sha_c, repairs=False, bench_bak=False)
+    inc_c = _t25_bundle("inc-c")
+    held_c = cas._enforce_hold(inc_c, "inc-c", sha_c + "ffff")
+    check(held_c is True and not (occ_c / "KEEP.txt").exists() and (occ_c / "inc-c.md").exists()
+          and len(list(cas.HELD.glob(sha_c + "--superseded-*"))) == 0,
+          "T25 (e) NEGATIVE CONTROL: a BARE occupant (no repairs, no .bench-bak) is replaced in place — the branch discriminates; 'keep everything' would fail here")
+    # (f) report mode: the hold is a no-op (the lever's default) — nothing parked, nothing touched
+    cas.set_audit_mode("report", "selftest T25", "the lever's default")
+    sha_d = "d" * 16
+    occ_d = _t25_occupant(sha_d, repairs=True, bench_bak=False)
+    inc_d = _t25_bundle("inc-d")
+    held_d = cas._enforce_hold(inc_d, "inc-d", sha_d + "ffff")
+    check(held_d is False and (occ_d / "KEEP.txt").exists() and len(list(cas.HELD.glob(sha_d + "--superseded-*"))) == 0,
+          "T25 (f) report mode: _enforce_hold returns False and parks nothing (docs/15 §12's lever; the alarm is raised regardless)")
+finally:
+    cas.emit = _saved_emit_t25
+    cas.AUDIT_MODE_FILE.write_text("report\n", encoding="utf-8")
+    for sha in ("a" * 16, "b" * 16, "c" * 16, "d" * 16):
+        for p in list(cas.HELD.glob(sha + "*")):
+            shutil.rmtree(p, ignore_errors=True)
+    shutil.rmtree(_t25_root, ignore_errors=True)
 
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
