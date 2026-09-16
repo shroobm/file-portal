@@ -5,6 +5,7 @@ verified live on the service rather than here; these tests pin the routing decis
 
 import json
 import re
+import time
 
 import pymupdf
 import pytest
@@ -221,3 +222,101 @@ class TestQuarantine:
         handler._convert(paths.convert_inbox / "never-existed.pdf")
         assert dotfile.exists()  # untouched
         assert not (paths.logs / "status.json").exists()
+
+
+class _Event:
+    """The shape watchdog hands a handler: is_directory + src_path (dest_path for a move)."""
+
+    def __init__(self, path, is_directory=False):
+        self.src_path = str(path)
+        self.dest_path = str(path)
+        self.is_directory = is_directory
+
+
+class TestAllocatorHop:
+    """SYM-011 (S166): the allocator's cross-watch rename is an UNPAIRED IN_MOVED_TO, which
+    inotify/watchdog surface as a plain `created` event -- never `moved`, never `close_write`.
+    A handler that only listened to moved/closed would never fire on a file the allocator
+    just delivered. So `on_created` must convert, after a size-stability wait."""
+
+    def test_created_event_converts_the_hop_after_the_stability_wait(
+        self, handler, paths, monkeypatch
+    ):
+        waited = []
+        real_wait = ConvertHandler._wait_until_stable
+        monkeypatch.setattr(
+            ConvertHandler,
+            "_wait_until_stable",
+            staticmethod(
+                lambda p, interval=0.05, timeout=5.0: (
+                    waited.append(p),
+                    real_wait(p, interval, timeout),
+                )
+            ),
+        )
+        src = paths.convert_inbox / "hopped.pdf"
+        _write_text_pdf(src)
+
+        handler.on_created(_Event(src))
+
+        assert waited == [src]  # the wait ran, on this file, before the conversion
+        assert not src.exists()  # consumed: the hop was converted
+        assert (paths.anchor / "hopped" / "hopped.md").exists()
+
+    def test_created_event_for_a_directory_converts_nothing(self, handler, paths):
+        sub = paths.convert_inbox / "a-folder"
+        sub.mkdir()
+        handler.on_created(_Event(sub, is_directory=True))
+        assert sub.exists()
+        assert not (paths.anchor / "a-folder").exists()
+        assert not (paths.logs / "status.json").exists()
+
+    def test_stability_wait_returns_only_once_the_size_holds(self, tmp_path):
+        import threading
+
+        target = tmp_path / "growing.bin"
+        target.write_bytes(b"x" * 100)
+
+        def grow():
+            for _ in range(3):
+                time.sleep(0.03)
+                with open(target, "ab") as f:
+                    f.write(b"y" * 100)
+
+        t = threading.Thread(target=grow)
+        t.start()
+        ConvertHandler._wait_until_stable(target, interval=0.2, timeout=5.0)
+        t.join()
+        # The wait returned only after a whole interval passed with no growth: by then the
+        # writer (three appends 30 ms apart) had finished, so the size it settled on is final.
+        assert target.stat().st_size == 400
+
+    def test_stability_wait_returns_at_once_for_a_missing_file(self, tmp_path):
+        started = time.monotonic()
+        ConvertHandler._wait_until_stable(tmp_path / "gone.pdf", interval=0.5, timeout=5.0)
+        assert time.monotonic() - started < 0.4
+
+    def test_negative_control_without_the_wait_a_half_written_hop_is_seen_partial(
+        self, handler, paths, monkeypatch
+    ):
+        # What the wait exists for: a stub that returns at once lets `_convert` open a file that
+        # is still being written. Here the "still writing" state is a truncated PDF; without
+        # the wait the handler acts on it (quarantined as corrupt), the ordinary outcome of
+        # acting on partial bytes. With the real wait and a finished file (the case above) the
+        # same route converts. The two together show the wait is load-bearing.
+        monkeypatch.setattr(
+            ConvertHandler,
+            "_wait_until_stable",
+            staticmethod(lambda p, interval=0.5, timeout=60.0: None),
+        )
+        src = paths.convert_inbox / "half.pdf"
+        whole = paths.convert_inbox / "whole.pdf"
+        _write_text_pdf(whole)
+        src.write_bytes(whole.read_bytes()[:200])
+        whole.unlink()
+
+        handler.on_created(_Event(src))
+
+        assert (paths.quarantine / "half.pdf").exists()
+        (event,) = _events(paths)
+        assert event["action"] == "rejected"

@@ -75,3 +75,50 @@ class TestMarkdownYield:
 
     def test_zero_pages_does_not_divide_by_zero(self):
         assert engines.chars_per_page_of_markdown("abc", 0) == 3.0
+
+
+class TestOcrMode:
+    """SYM-012 (S166): the Scan lane must DROP a source's prior OCR text, not keep it. pymupdf4llm's
+    `force_ocr=True` spells FORCE_KEEP_OLD -- the opposite of what the name implies -- so the
+    lane's flag is asserted by identity against the enum, with the engine call captured."""
+
+    @pytest.fixture
+    def captured(self, monkeypatch):
+        calls = []
+
+        def fake_to_markdown(path, **kwargs):
+            calls.append((path, kwargs))
+            return "# stub\n"
+
+        monkeypatch.setattr(engines.pymupdf4llm, "to_markdown", fake_to_markdown)
+        return calls
+
+    @pytest.fixture
+    def settings(self):
+        from converter.config import Settings
+
+        return Settings(min_chars_per_page=100, ocr_dpi=300, ocr_language="eng", image_dpi=96)
+
+    def test_scan_lane_drops_prior_ocr_at_our_resolution(self, tmp_path, captured, settings):
+        assert (
+            engines.run_pymupdf(tmp_path / "s.pdf", tmp_path / "assets", "scan", settings)
+            == "# stub\n"
+        )
+        ((_, kwargs),) = captured
+        assert kwargs["use_ocr"] is engines.OCRMode.FORCE_DROP_OLD
+        assert kwargs["ocr_dpi"] == settings.ocr_dpi
+        assert kwargs["ocr_language"] == settings.ocr_language
+        assert kwargs["write_images"] is True and kwargs["dpi"] == settings.image_dpi
+
+    def test_clean_lane_keeps_the_text_layer_and_sets_no_ocr_dpi(
+        self, tmp_path, captured, settings
+    ):
+        engines.run_pymupdf(tmp_path / "c.pdf", tmp_path / "assets", "clean", settings)
+        ((_, kwargs),) = captured
+        assert kwargs["use_ocr"] is engines.OCRMode.SELECT_KEEP_OLD
+        assert "ocr_dpi" not in kwargs
+
+    def test_the_discriminator_the_plan_docs_spelling_is_a_different_mode(self):
+        # `force_ocr=True` maps to FORCE_KEEP_OLD; the assertion above would fail on it.
+        assert engines.OCRMode.FORCE_KEEP_OLD is not engines.OCRMode.FORCE_DROP_OLD
+        assert engines.OCRMode.FORCE_KEEP_OLD != engines.OCRMode.FORCE_DROP_OLD
