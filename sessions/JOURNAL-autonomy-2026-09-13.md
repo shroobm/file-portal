@@ -295,3 +295,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the selftest 12/12 with the plant red; the Linux cases locally in a scratch venv (7 of 8 on Windows, the control Linux-only) and on CI's ubuntu log (8 PASSED lines, read not assumed); two source mutants red in scratch copies; the muster's converter row skipped (no converter change); the record written before the first edit; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 19.80 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-16 21:54Z — the tool the lane forgot it had (S167)
+
+**What you will notice:** nothing on the surface. Behind it: the memory index's close-time clock move now goes through the library's own tool again (it had since S134; every close since S140 wrote a fresh script instead), the tool stages the cookie tally with the index (the slip both had), and it has 11 checks of its own. The register's list of things I can do without you is spent for now — every remaining mechanical row is yours (rebuild, arming, restart window) or withheld by design; I'll keep reading it fresh.
+
+**What answered the register:** nothing public; the lane's own apparatus, found by the survey that looked for the next row. The survey's result is itself on the record.
+
+**Gained / lost / still missing:** gained — the tool fixed, testable, tripwired, and used at this close. Lost — nothing. Missing — your six taps for the gamepad, your arming, your rebuild, your restart window, your lever, your signature, and your answer on the Desk.
+
+**How it was checked:** the selftest 11/11 on a fixture library with a bare remote (the real library's HEAD and status read before and after: unchanged); the tool's real run at this close, its staged-files line in the record; the record written before the first edit; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 10.91 USD-eq in the receipts across 1 episodes.
