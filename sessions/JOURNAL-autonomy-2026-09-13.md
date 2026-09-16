@@ -211,3 +211,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** three fleets under the law with briefs on file before each summons and a plant per lane (thirteen plants, twelve caught by id, one seen and misfiled), the lane's own probes at every cited line (27/27), the second fleet over the first's text (45 of 48), the Circle's lanes against ~75 receipts (exact), and the one conflict between lanes resolved by reading the code. Every number names its numerator, denominator and conditions or is UNREAD by name.
 
 **What it cost you:** nothing on the card; the fleets 27.38 in API cost inside the receipts; 5 receipts tiled onto S158's.
+
+## 2026-09-16 17:58Z — "change your idea of what auto is": the register worked while the conversation waits (S160)
+
+**What you will notice:** nothing waited. Your correction at 1:06pm became a rule in memory at 1:07 and a sitting on the register at 1:10; seven episodes in forty-six minutes, three symptom rows closed, one pass built with its switch off for you, and every Desk line written plain, in your time, with the ask named. The other thing you will notice is what did NOT move: the register count (100 — five rows annotated, none struck, because every strike left waits on a hand of yours), the card, and your files.
+
+**What answered your word:** the register itself, read whole at HEAD and sorted by the one thing each row needs — your hand, the card, a live file, Codex, or nothing. Six needed nothing. The relay gate's fingerprint test now checks the property its label claims (a swap of the right length fails exactly the two new cases and nothing else); the episode receipts stop counting the self-test's pokes as refusals; the boot log's row caught up with a fix four days old; the Room gets the two phrases the ThinkPad's index station asked for (on your next rebuild); and the 64 header-only tables got their unframe pass — whose first dry run over the shelf showed that 35 of them are not captions in a frame but whole tables' worth of text over grids of empty rows, so the pass now tells the two apart and touches neither until you flip the switch.
+
+**Gained / lost / still missing:** gained — SYM-055, SYM-127, SYM-112 fixed; the unframe pass and the frame/trace split; two phrases; four rows measured; a rule. Lost — nothing. Missing — your switch, your rebuild, the ThinkPad's restart, and your answer to the one question on the Desk: when you read a report in the morning, do you want to know first whether anything broke, or what you have to decide?
+
+**How it was checked:** every guard born today was stepped on today — two mutants for the digest (one caught by an older shape check, one by the new cases alone), a real deny beside the smoke rows, the invariant's five refusals, the lever both ways, the traces byte-identical; the suites' own counts before and after (204→208, 25→27, 184→208); ruff at CI's pin; the shelf measured in memory with nothing written; the clock read before each heading after the first two were guessed.
+
+**What it cost you:** nothing on the card; no fleet; 102.24 USD-eq in the receipts across 7 episodes.
