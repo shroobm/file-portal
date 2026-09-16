@@ -223,3 +223,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every guard born today was stepped on today — two mutants for the digest (one caught by an older shape check, one by the new cases alone), a real deny beside the smoke rows, the invariant's five refusals, the lever both ways, the traces byte-identical; the suites' own counts before and after (204→208, 25→27, 184→208); ruff at CI's pin; the shelf measured in memory with nothing written; the clock read before each heading after the first two were guessed.
 
 **What it cost you:** nothing on the card; no fleet; 102.24 USD-eq in the receipts across 7 episodes.
+
+## 2026-09-16 18:38Z — "What tickets are available for you?": the register worked down (S161)
+
+**What you will notice:** the open-tasks count fell for the first time since S157 — 100 to 96 — and the symptom count 31 to 29, in eighteen minutes, with nothing of yours touched. One of the strikes was your own line ("Keep codex .agents"); the other three were rows whose work had been done for weeks and never re-read. And one correction of my own: the ticket list's #1 was a route my S157 self had withheld for a reason that still holds, so I said so and moved down.
+
+**What answered your word:** the list itself, re-read row by row. The protocol's "missing" post-close form has existed in practice since S109 — now docs/21 §9 says it. Two converter numbers nobody displays were signed as evidence with the reasons on file, and the acceptance gate's expectations corrected. A four-week-old contradiction between my memory and a session record was settled by reading the record. S96's leftover list was closed item by item. And the Dock's assay card learned to say WHICH survival it prints and to show the analyst's own score beside it — visible after your next rebuild.
+
+**Gained / lost / still missing:** gained — four strikes, a resolved conflict, two symptom rows fixed at the source with tripwires. Lost — nothing. Missing — your rebuild (six source fixes now wait for it), a restart window for one Python field (so the card can say which stage the verdict blamed), the lever, the signature, and the question on the Desk.
+
+**How it was checked:** every strike carries its measurement in the row; the acceptance gate 185/0 and the glass detector clean after the dispositions; the projection tripwires 12 → 17 with planted controls; the analyst line exercised under node on five payload shapes; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 40.87 USD-eq in the receipts across 4 episodes.
