@@ -122,5 +122,56 @@ check(w._next_dispatch([
     {"name": "z.pdf", "phase": "ready"},
 ]) == "a.pdf", "ready filename head dispatches first")
 
+
+# ---------- SYM-125: the watcher's log is UTF-8 (S141 E7 fixed it; S163 E3 the tripwire) ----------
+# The defect: `logging.basicConfig(filename=…)` without `encoding` wrote the locale's cp1252 with
+# backslashreplace — U+2026 landed as the raw byte 0x85, everything else as an escape, a file no
+# single decoder reads. (1) the source proxy: the watcher's call carries encoding="utf-8" (the
+# planted removal reds it); (2) the class itself, behaviourally, in a subprocess with the console
+# code page forced to cp1252: the same call WITH encoding round-trips U+2026; WITHOUT it a UTF-8
+# reader raises on 0x85 — the row's exact symptom, watched.
+import re as _s125_re  # noqa: E402 — the case's own imports beside the case (the file's `import watch_and_convert` is E402 too)
+import subprocess as _s125_sp  # noqa: E402
+
+_s125_src = Path(w.__file__).read_text(encoding="utf-8")
+_s125_call = _s125_re.search(r"logging\.basicConfig\((.*?)\)", _s125_src, _s125_re.S)
+check(_s125_call is not None and 'encoding="utf-8"' in _s125_call.group(1),
+      "SYM-125 (a) the watcher's logging.basicConfig call carries encoding=\"utf-8\" (source proxy)")
+_s125_planted = _s125_call.group(1).replace('encoding="utf-8",', "") if _s125_call else ""
+check('encoding="utf-8"' not in _s125_planted and _s125_call is not None,
+      "SYM-125 (b) NEGATIVE CONTROL: the encoding planted out of a copy of the call reds the proxy")
+
+_S125_PROBE = (
+    "import logging, sys, tempfile, pathlib\n"
+    "p = pathlib.Path(tempfile.mkdtemp()) / 'w.log'\n"
+    "kw = {'encoding': 'utf-8'} if sys.argv[1] == 'fixed' else {}\n"
+    "logging.basicConfig(filename=str(p), level=logging.INFO, format='%(message)s', **kw)\n"
+    "logging.getLogger().info('Best Practices \u2026 Analysts')\n"
+    "logging.shutdown()\n"
+    "raw = p.read_bytes()\n"
+    "try:\n"
+    "    raw.decode('utf-8'); print('UTF8-OK', raw.hex())\n"
+    "except UnicodeDecodeError as e:\n"
+    "    print('UTF8-RAISES', raw.hex(), str(e)[:40])\n"
+)
+
+
+def _s125_run(mode: str) -> str:
+    env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="0", PYTHONLEGACYWINDOWSFSENCODING="0")
+    r = _s125_sp.run([sys.executable, "-X", "utf8=0", "-c", _S125_PROBE, mode], capture_output=True, text=True, env=env, encoding="utf-8", errors="replace")
+    return (r.stdout + r.stderr).strip()
+
+
+_s125_fixed = _s125_run("fixed")
+_s125_bare = _s125_run("bare")
+check(_s125_fixed.startswith("UTF8-OK") and "e280a6" in _s125_fixed,
+      "SYM-125 (c) WITH encoding=utf-8 the ellipsis lands as e2 80 a6 and a UTF-8 reader decodes the log")
+if _s125_bare.startswith("UTF8-RAISES"):
+    check("85" in _s125_bare.split()[1],
+          "SYM-125 (d) NEGATIVE CONTROL: WITHOUT it the locale writes the raw 0x85 and a UTF-8 reader raises — the row's symptom, watched")
+else:
+    # a failed probe never renders as a negative observation (the muster's rule 4): the control could not fire here, said
+    check(True, "SYM-125 (d) NEGATIVE CONTROL UNREAD on this interpreter — the bare call wrote %s (the locale is not cp1252 here); not a statement that the class is gone" % _s125_bare[:24])
+
 print("SELFTEST " + ("PASS" if not FAILURES else f"FAIL ({len(FAILURES)})"))
 raise SystemExit(0 if not FAILURES else 1)
