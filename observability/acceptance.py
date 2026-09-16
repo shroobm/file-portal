@@ -37,7 +37,11 @@ ANSWER_KEY = [
     ("coverage", "glass", "§7.1 — fixed S77"),
     ("outcome_reason", "glass", "§7.4 — the five-outcome triage, wired S77"),
     ("runs", "glass", "SYM-026 — omission runs, wired S76 as amber ◍ chips"),
-    ("seams", "GLITCH", "§7.3 — recorded FOR the Bench (docs/18 §5.2); the Bench never reads it"),
+    # S161 E2 (2026-09-16): expectation corrected GLITCH → evidence. Register row B16 struck: the
+    # seam pages are READ by code (the slices count, convert_and_ship.py:996/:1756) and docs/18 §5.2
+    # promised them findable by the audit and the Bench, not rendered; dispositioned
+    # `converter:seams` EVIDENCE (dispositions.json). The row read GLITCH from S78 to S160.
+    ("seams", "evidence", "§7.3 — findable by the audit and the Bench (docs/18 §5.2); read by the slices count; silence signed S161"),
     # S115 (2026-09-05): expectation corrected GLITCH → evidence. F3 (`eee951d`, S114) put
     # chunks_resumed on the analyst/done event on both paths, and S114 dispositioned
     # `converter:chunks_resumed` EVIDENCE (dispositions.json). No renderer names the key, so
@@ -49,7 +53,11 @@ ANSWER_KEY = [
     # (take(6)) and room.js:505 renders it in the Room. The row predates that fix; the detector
     # reporting `glass` here is the repair being seen, not a regression.
     ("recent_audits", "glass", "§7.6 — the 'last 6 books' digest, rendered by room.js since S94"),
-    ("reverse_sample", "GLITCH", "§7.8 — the promised precision tripwire, read by nothing"),
+    # S161 E2 (2026-09-16): expectation corrected GLITCH → evidence. The census had already
+    # dispositioned this key EVIDENCE as N-266 (a 200-window sample whose n never travels with it;
+    # docs/34 rule 7 forbids the headline); `converter:reverse_sample` now carries the same
+    # disposition under its own name (dispositions.json). The row read GLITCH from S78 to S160.
+    ("reverse_sample", "evidence", "§7.8 — the precision tripwire, in the manifest tripwires; a headline render is the promotion docs/34 forbids; silence signed S161 (N-266)"),
     ("dict_hit", "GLITCH", "a signed threshold (docs/15) whose input is hardcoded None"),
 ]
 

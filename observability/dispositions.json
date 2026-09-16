@@ -122,6 +122,14 @@
       "disposition": "EVIDENCE",
       "reason": "NUM-5 (census N-054): the OCR routing vote's numerator — home is manifest.probe_evidence + the convert/probe event (convert_and_ship.py:698-699, :1340); no ambient renderer by design, the Assay drill is the eventual reader."
     },
+    "converter:seams": {
+      "disposition": "EVIDENCE",
+      "reason": "S161 E2 (2026-09-16), register row B16: the seam pages of a chunked conversion, written by _convert_chunked (convert_and_ship.py:1633) into manifest.chunking.seams and READ by code — the slices count (convert_and_ship.py:996, :1756) is len(seams)+1 on both the ship and the estimate paths. docs/18 SS5.2 promised them findable forever by the audit and the Repair Bench, not rendered: the Bench opens the manifest (bench.py:237) and a seam lookup is one key away when a repair needs it. No renderer by design; the count reaches the operator as slices (glass). Signed under the autonomy experiment (Fable), reversible by editing this entry."
+    },
+    "converter:reverse_sample": {
+      "disposition": "EVIDENCE",
+      "reason": "S161 E2 (2026-09-16), register row B16: the anti-hallucination containment sample (fidelity_audit.py:350 reverse_sample, written at :512 into fidelity.convert.tripwires) — the census already dispositioned it EVIDENCE as N-266 (docs/51 SS163: a 200-window sample that stands in for the whole output; the sample size never travels with it, so docs/34 rule 7 forbids promoting it to a headline) and N-328 names its rendering hazard (a bare fraction beside doc_survival). Home: the manifest tripwires (docs/15:159). Rendering it as a headline would be the promotion docs/34 forbids; rendering it with its n is a widget change for his rebuild slot. Signed under the autonomy experiment (Fable), reversible by editing this entry."
+    },
     "converter:total_spans": {
       "disposition": "EVIDENCE",
       "reason": "NUM-5: the vote's denominator, same home as invisible_spans (manifest.probe_evidence + convert/probe event)."
