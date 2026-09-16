@@ -319,3 +319,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the validator's 12 cases including its plant and the Codex control; the census reproducing MSG-CDX-0014's 127/66 to the digit; the run's 182-chunk count reproduced from the bundle; the smoke's write tripwires unchanged; the record written before the first edit; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 29.12 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-16 22:56Z — room in the index, a row struck, a checker, and an alarm set to ring the day the audit file changes (S169)
+
+**What you will notice:** nothing on the surface. Behind it: the memory index that was 3 bytes from its limit has 800 bytes of room (twenty lines of old residue folded to five, every commit hash and rule checked back in); the register row about the lockstep tool is struck on its measure; the LaTeX validator's own test runs at every converter-touching close; a checker now catches "a file changed but not explained" before the close instead of after; and the audit's "perfect score for a book it couldn't measure" (SYM-057) has an alarm in waiting — it asserts the defect is there today and flips to assert the fix the day you open the restart window.
+
+**What answered the register:** the lockstep row (struck), the CONVERTER row's list, and the symptom index's third cut (six `none`-guard rows: five yours, one guarded in waiting).
+
+**Gained / lost / still missing:** gained — 808 bytes of room, a strike, a tenth suite on the row, a 7-case checker, a 4-case alarm in waiting. Lost — nothing. Missing — your restart window (three fixes now wait on it), your six taps, your arming, your rebuild, your lever, your signature, your answer on the Desk.
+
+**How it was checked:** the fold's read-back (0 missing of 52 SHAs and rules; the tail byte-equal); close.sh live against the previous pin (ten rows clean); the checker's 7 cases with a plant; the converter suite 272/272 under marker-env; the record written before the first edit; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 25.36 USD-eq in the receipts across 2 episodes.
