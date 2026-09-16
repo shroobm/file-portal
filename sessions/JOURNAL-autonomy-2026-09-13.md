@@ -199,3 +199,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** two fleets under the law with a brief on file before each summons and a plant per lane (all caught), a law check after each, the lane's own re-measurement of a sample of every lane's claims (E1: 42/44), and the document's numbers verified against the record, the code, the disk, the docs and the sweep (E4). Every number in the document names its numerator, denominator and conditions or is not stated.
 
 **What it cost you:** nothing on the card; the fleets 13.94 in API cost inside the receipts; 5 receipts tiled onto S157's.
+
+## 2026-09-16 03:15Z — "scope on and against evidences, discover root origins and correct terminology and reasoning": the three things (S159)
+
+**What you will notice:** the converter's document grew a tenth section and a sibling — `docs/61` §10 and `docs/62` — and nothing else of yours moved. The desk had lost power eleven minutes after S158 closed; nothing was lost, your boot scripts brought everything back, and your two "Update me" posts sat an hour because the lane's watcher died with the app — said, and answered.
+
+**What answered your word:** the shelf itself. Read whole, its manifests say the numbers the model had called the engine's loss are its index columns and contents pages, a formula block, a corrupt witness, an unfinished template — your own signed sentence in docs/15 §12 already said survival "localizes, it does not judge". A fleet then traced every failure class to the stage and the line where it is born: the loop runs until a cap of 2,048 tokens with the engine's own discard switch shipped off; a page is OCR'd whole on any of four gates; table fusion is a block boundary and padding is a grid; the sections the analyst lost were lost before any gate existed. A second fleet checked the section against the code and the shelf; a third — the Circle — checked the record against its receipts, the symptom rows against the code, and the numbers against your laws. It found the record strong where it has receipts, two of my own sentences wrong, one of yours to sign, and one class of error the append-only rule needs a pointer for.
+
+**Gained / lost / still missing:** gained — §10 and its corrections, docs/62, two register rows for your hand, three dated notes; lost — nothing; missing — your signature on docs/15 §12.5, every UNREAD that needs the card (a dry run of the discard switch on one anchor; a re-audit of the pre-fix manifests), the Circle's residue for a second Circle.
+
+**How it was checked:** three fleets under the law with briefs on file before each summons and a plant per lane (thirteen plants, twelve caught by id, one seen and misfiled), the lane's own probes at every cited line (27/27), the second fleet over the first's text (45 of 48), the Circle's lanes against ~75 receipts (exact), and the one conflict between lanes resolved by reading the code. Every number names its numerator, denominator and conditions or is UNREAD by name.
+
+**What it cost you:** nothing on the card; the fleets 27.38 in API cost inside the receipts; 5 receipts tiled onto S158's.
