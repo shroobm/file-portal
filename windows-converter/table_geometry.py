@@ -1711,6 +1711,107 @@ def trim_pass(lines: list[str]) -> tuple[list[str], list[dict], list[dict]]:
     return lines, applied, refused
 
 
+UNFRAME_STUBS = False   # lever-waiver: Rab's word only; set S160 E6 OFF — a STUB (a header whose body has no filled cell: a caption box, a
+                        # chopped heading, a footnote framed as a table — 64 of the shelf's 2,513, S157 E5) may also be the trace of a
+                        # lost table body (S157 E7's judgement), and unframing would hide the trace; OFF the pass PROPOSES and the record
+                        # names every stub with the line it would become, ON it applies what unframe_invariant admits; moves on his word
+
+
+STUB_TRACE_ROWS = 2     # lever-waiver: Rab's word only; set S160 E6 from the shelf's own split — of its 64 stubs, 32 have 0–1 blank body
+                        # rows (a caption, a chopped heading, a footnote, framed) and 32 have 10–37 (a grid table_rec detected whose
+                        # cells came back empty: the trace of a lost body, or the crammed cell's 25 empty rows under its one stacked
+                        # cell); nothing between. A stub at or over this many blank rows is a TRACE, named and never unframed
+STUB_TRACE_PIECES = 3   # lever-waiver: Rab's word only; set S160 E6 from the shelf: a header cell stacked into this many non-blank `<br>`
+                        # pieces is a table's worth of values in one cell (the crammed 8.2: 99 pieces; an exercise's ten-column head:
+                        # 6) — the crammed class, a trace; a two-piece cell is a caption Marker broke in two (`TABLE<br>25.2`), a frame
+
+
+def find_stubs(lines: list[str]) -> list[dict]:
+    """Every STUB table — a header + delimiter whose body has no filled cell (no body rows, or every body row blank in every
+    cell) — classed: `frame` when the header is the whole content (fewer than STUB_TRACE_ROWS blank rows, no cell stacked into
+    STUB_TRACE_PIECES or more `<br>` pieces) and may be unframed; `trace` when a header cell is stacked that deep (the crammed
+    class, `converter/table-crammed-into-one-cell`) or the body is a grid of blank rows — the trace of a lost body (S157 E7),
+    named in the record and never touched. `text` is the header's non-empty cells (`<br>` as a space, whitespace collapsed)
+    joined by one space; nothing is guessed (`Phi loson hv` stays chopped — the S151 fragments route is a different pass). A
+    header with no non-empty cell says nothing and is not a stub. Line numbers 1-based like every other proposal."""
+    out = []
+    for h, d, e in table_blocks(lines):
+        body = [cells(lines[k]) for k in range(d + 1, e + 1)]
+        if any(c.strip() for r in body for c in r):
+            continue
+        raw = cells(lines[h])
+        head = [re.sub(r"\s+", " ", BR.sub(" ", c)).strip() for c in raw]
+        words = [c for c in head if c]
+        if not words:
+            continue
+        pieces = max((len([x for x in BR.split(c) if x.strip()]) for c in raw), default=0)
+        klass = "trace" if (pieces >= STUB_TRACE_PIECES or len(body) >= STUB_TRACE_ROWS) else "frame"
+        out.append({"kind": "unframe", "table": [h + 1, e + 1], "cols": len(head), "body_rows": len(body), "br_pieces": pieces,
+                    "class": klass, "text": " ".join(words),
+                    "why": "a header of %d cells with no filled body cell (%d blank row(s); %d stacked piece(s))" % (len(head), len(body), pieces)})
+    return out
+
+
+def propose_unframes(lines: list[str]) -> list[dict]:
+    """One proposal per `frame` stub (find_stubs): unframed, the header's cells become one prose line and the delimiter and the
+    blank row go. The `trace` stubs are never proposed."""
+    return [p for p in find_stubs(lines) if p["class"] == "frame"]
+
+
+def apply_unframe(lines: list[str], p: dict) -> list[str]:
+    """The lines with one unframe applied: the table's lines replaced by the one prose line the proposal carries."""
+    h, e = p["table"][0] - 1, p["table"][1] - 1
+    return lines[:h] + [p["text"]] + lines[e + 1:]
+
+
+def unframe_invariant(before: list[str], after: list[str], p: dict) -> tuple[bool, list[str]]:
+    """Admit an unframe only as the exact unframing: one table before and none after; exactly one line after; that line equals the
+    before header's non-empty cells (`<br>` as a space, whitespace collapsed) joined by a single space — every letter of the
+    header survives, in order, and nothing else appears; every before body cell blank."""
+    reasons = []
+    tb = table_blocks(before)
+    if len(tb) != 1:
+        return False, ["expected one table before, saw %d" % len(tb)]
+    if table_blocks(after):
+        reasons.append("a table remains after")
+    if len(after) != 1:
+        reasons.append("expected one line after, saw %d" % len(after))
+    h, d, e = tb[0]
+    head = [re.sub(r"\s+", " ", BR.sub(" ", c)).strip() for c in cells(before[h])]
+    want = " ".join(c for c in head if c)
+    if not want:
+        reasons.append("the header says nothing")
+    if after and after[0] != want:
+        reasons.append("the line is not the header's cells joined (%r vs %r)" % (after[0][:40], want[:40]))
+    if any(c.strip() for k in range(d + 1, e + 1) for c in cells(before[k])):
+        reasons.append("a body cell was not blank")
+    if after and re.sub(r"\s+", "", after[0]) != re.sub(r"\s+", "", "".join(head)):
+        reasons.append("the letters of the header and the line differ")
+    return not reasons, reasons
+
+
+def unframe_pass(lines: list[str], apply: bool | None = None) -> tuple[list[str], list[dict], list[dict], list[dict], list[dict]]:
+    """With the lever on (`apply`, default UNFRAME_STUBS), every `frame` unframe admitted by unframe_invariant applied; with it
+    off, nothing changes and every `frame` proposal comes back as proposed. The `trace` stubs come back named either way and
+    are never touched. Returns (lines, applied, refused, proposed, traces)."""
+    stubs = find_stubs(lines)
+    traces = [p for p in stubs if p["class"] == "trace"]
+    props = [p for p in stubs if p["class"] == "frame"]
+    if not (UNFRAME_STUBS if apply is None else apply):
+        return lines, [], [], [dict(p, proposed=True) for p in props], traces
+    applied, refused = [], []
+    for p in sorted(props, key=lambda x: -x["table"][0]):
+        h, e = p["table"][0] - 1, p["table"][1] - 1
+        new = apply_unframe(lines, p)
+        ok, why = unframe_invariant(lines[h:e + 1], new[h:h + 1], p)
+        if ok:
+            lines = new
+            applied.append(dict(p, admitted=True))
+        else:
+            refused.append(dict(p, refused="; ".join(why)))
+    return lines, applied, refused, [], traces
+
+
 def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: dict | None = None) -> tuple[str, dict]:
     """The layer over a whole markdown text: propose per table, apply on a copy, keep only what the invariant admits.
     Returns (text, record): the record counts tables, proposals, applied, refused and unresolved, lists every label and
@@ -1735,6 +1836,9 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
     # regression statistics carried the ANOVA's title and half its heading); the trim then sees the emptied column
     lines, leaks_applied, leaks_refused = leak_pass(lines)
     lines, trims_applied, trims_refused = trim_pass(lines)
+    # S160 E6: the STUBS after the trim — a header with no filled body cell; the record names each with the prose line it would
+    # become; the pass applies only under UNFRAME_STUBS (his word; OFF), each admitted by unframe_invariant
+    lines, unframes_applied, unframes_refused, unframes_proposed, stub_traces = unframe_pass(lines)
     vnotes: dict = {}
     props = propose(lines, counted if resolver is not None else None, lex, vision=vision, notes=vnotes if vision else None)
     blocks = {(h + 1, e + 1): (h, d, e) for h, d, e in table_blocks(lines)}
@@ -1780,6 +1884,13 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
         "trims_refused": [{"table": p["table"], "cols": p["cols"], "drop": p["drop"], "why": p["refused"]} for p in trims_refused],
         "leaks": [{"table": p["table"], "drop": p["drop"], "next": p["next"], "why": p["why"]} for p in leaks_applied],   # S157 E20
         "leaks_refused": [{"table": p["table"], "drop": p["drop"], "why": p["refused"]} for p in leaks_refused],
+        # S160 E6: every stub named — the `frame` ones (the lever OFF: proposed, the text untouched; ON: applied or refused) and
+        # the `trace` ones (a stacked cell or a grid of blank rows: the trace of a lost body, never touched)
+        "stubs": len(unframes_applied) + len(unframes_refused) + len(unframes_proposed) + len(stub_traces),
+        "unframes": [{"table": p["table"], "cols": p["cols"], "body_rows": p["body_rows"], "text": p["text"][:120]} for p in unframes_applied],
+        "unframes_refused": [{"table": p["table"], "cols": p["cols"], "why": p["refused"]} for p in unframes_refused],
+        "unframes_proposed": [{"table": p["table"], "cols": p["cols"], "body_rows": p["body_rows"], "text": p["text"][:120]} for p in unframes_proposed],
+        "stub_traces": [{"table": p["table"], "cols": p["cols"], "body_rows": p["body_rows"], "br_pieces": p["br_pieces"], "text": p["text"][:80]} for p in stub_traces],
         "unresolved_rails": [{"rows": p["rows"], "letters": p["letters"], "why": p["refused"]} for p in unresolved],
         "refusals": [{"kind": p["kind"], "table": p["table"], "why": p["refused"]} for p in refused],
         "dots_fixed": dots_fixed,

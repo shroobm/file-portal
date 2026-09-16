@@ -668,6 +668,113 @@ def main():
     okl, whyl = tg.leak_invariant(P200.split(chr(10))[2:17], bad[2:15], lp[0])
     check("invariant NEGATIVE: a kept cell changed is refused", not okl and any("not the before table cut" in w for w in whyl), str(whyl))
     check("no leak on the healthy fixtures or p.175's split shape", tg.propose_leaks(HEALTHY.split(chr(10))) == [] and tg.propose_leaks(P175.split(chr(10))) == [], "")
+
+    # ---- S160 E6: the STUBS — a header with no filled body cell, unframed to the prose it is; the lever OFF by default ----
+    STUBS = "\n".join([
+        "Some prose above.",
+        "",
+        "| Figure 7.5 Default Spreads and Ratings |",          # a caption box, header only (table 3-4)
+        "|---|",
+        "",
+        "| Phi | loson | hv |",                                 # a chopped heading, three cells (table 6-7)
+        "|---|---|---|",
+        "",
+        "| Announce ment Date |",                               # a chopped heading (the shelf's own shape), one all-blank body row (table 9-11)
+        "|---|",
+        "|  |",
+        "",
+        "| Company | Beta |",                                   # NEGATIVE: one filled body cell — a real table, not a stub (table 13-15)
+        "|---|---|",
+        "| Nike | 0.9 |",
+        "",
+        "|  |  |",                                              # NEGATIVE: a header of empty cells says nothing (table 17-18)
+        "|---|---|",
+        "",
+        "Some prose below.",
+    ])
+    sl = STUBS.split(chr(10))
+    up = tg.propose_unframes(sl)
+    # the TRACE class — never proposed, always named: a stacked <br> cell (the crammed table's one cell) and a grid of blank rows
+    TRACES = "\n".join([
+        "| Company Name<br>Beta<br>Nike<br>0.9<br>Adidas<br>1.1 |",   # the crammed cell: 6 stacked pieces, 3 blank rows (table 1-5)
+        "|---|",
+        "|  |",
+        "|  |",
+        "|  |",
+        "",
+        "| 7 Buildings of better quality should command higher rents. |",   # a footnote with a grid of 12 blank rows (table 7-19)
+        "|---|",
+    ] + ["|  |"] * 12 + [
+        "",
+        "| TABLE 25.2<br> |",                                    # one non-blank piece and a trailing <br>: a FRAME, not a trace (table 21-23)
+        "|---|",
+        "|  |",
+    ])
+    tl = TRACES.split(chr(10))
+    st = tg.find_stubs(tl)
+    check("find_stubs classes the stacked cell and the blank grid as traces, the trailing-<br> caption as a frame",
+          [(p["table"], p["class"], p["body_rows"], p["br_pieces"]) for p in st] == [([1, 5], "trace", 3, 6), ([7, 20], "trace", 12, 1), ([22, 24], "frame", 1, 1)],
+          str([(p["table"], p["class"], p["body_rows"], p["br_pieces"]) for p in st]))
+    check("the trace threshold is the shelf's split: STUB_TRACE_ROWS 2 (0–1 blank rows a frame; the shelf's traces start at 10)", tg.STUB_TRACE_ROWS == 2, str(tg.STUB_TRACE_ROWS))
+    check("NEGATIVE: a trace is never proposed — only the frame is", [p["table"] for p in tg.propose_unframes(tl)] == [[22, 24]], str(tg.propose_unframes(tl)))
+    tl_on, ta, tr, tp, tt = tg.unframe_pass(tl, apply=True)
+    check("lever ON over the traces: the two traces stand byte-identical and are returned named; the frame is unframed to 'TABLE 25.2'",
+          tl_on[:20] == tl[:20] and len(tt) == 2 and len(ta) == 1 and tl_on[21] == "TABLE 25.2" and len(tl_on) == 22, str((len(tt), len(ta), tl_on[20:])))
+    tt_off, r_tr = tg.geometry_pass(TRACES, None)
+    check("geometry_pass names the traces in the record (stub_traces, with body_rows and br_pieces) and counts them in stubs",
+          r_tr["stubs"] == 3 and [(x["body_rows"], x["br_pieces"]) for x in r_tr["stub_traces"]] == [(3, 6), (12, 1)] and len(r_tr["unframes_proposed"]) == 1
+          and tt_off == TRACES, str((r_tr["stubs"], r_tr["stub_traces"])))
+    check("three stubs proposed and only three: the caption box, the chopped heading, the chopped heading with a blank row",
+          [p["table"] for p in up] == [[3, 4], [6, 7], [9, 11]], str([p["table"] for p in up]))
+    check("the caption box becomes its own line; a chopped heading stays chopped (space-joined, never guessed)",
+          [p["text"] for p in up] == ["Figure 7.5 Default Spreads and Ratings", "Phi loson hv", "Announce ment Date"], str([p["text"] for p in up]))
+    check("a caption Marker broke in two (`TABLE<br>25.2`, two pieces — the 4e's own) is a frame and reads `TABLE 25.2`",
+          [(p["class"], p["br_pieces"], p["text"]) for p in tg.find_stubs(["| TABLE<br>25.2 |  |", "|---|---|", "|  |  |"])] == [("frame", 2, "TABLE 25.2")],
+          str(tg.find_stubs(["| TABLE<br>25.2 |  |", "|---|---|", "|  |  |"])))
+    check("NEGATIVE: a cell stacked THREE deep (`Company<br>Beta<br>Nike`) is a trace — the crammed class's signature (STUB_TRACE_PIECES 3)",
+          tg.STUB_TRACE_PIECES == 3 and [(p["class"], p["br_pieces"]) for p in tg.find_stubs(["| Company<br>Beta<br>Nike |", "|---|", "|  |"])] == [("trace", 3)], "")
+    check("body_rows counts the blank rows: 0, 0, 1", [p["body_rows"] for p in up] == [0, 0, 1], str([p["body_rows"] for p in up]))
+    check("NEGATIVE: a table with one filled body cell is not a stub; NEGATIVE: an all-empty header is not proposed (nothing to write)",
+          all(p["table"] not in ([13, 15], [17, 18]) for p in up), "")
+    check("the lever is OFF (UNFRAME_STUBS False) — the module's default, his word to move", tg.UNFRAME_STUBS is False, str(tg.UNFRAME_STUBS))
+    l_off, a_off, r_off, p_off, t_off0 = tg.unframe_pass(sl)
+    check("lever OFF: nothing changes and every stub comes back proposed; no trace among these", l_off == sl and a_off == [] and r_off == [] and len(p_off) == 3 and t_off0 == [], str((len(a_off), len(p_off))))
+    l_on, a_on, r_on, p_on, _t_on = tg.unframe_pass(sl, apply=True)
+    check("lever ON: three unframes applied, none refused; the tables are gone and the prose stands",
+          len(a_on) == 3 and r_on == [] and p_on == [] and tg.table_blocks(l_on) == [(8, 9, 10), (12, 13, 13)]
+          and "Figure 7.5 Default Spreads and Ratings" in l_on and "Phi loson hv" in l_on and "Announce ment Date" in l_on
+          and "| Nike | 0.9 |" in l_on, str((len(a_on), r_on, tg.table_blocks(l_on))))
+    check("lever ON: the surviving lines are exactly the before lines with each stub's lines replaced by its one line",
+          l_on == ["Some prose above.", "", "Figure 7.5 Default Spreads and Ratings", "", "Phi loson hv", "", "Announce ment Date", "",
+                   "| Company | Beta |", "|---|---|", "| Nike | 0.9 |", "", "|  |  |", "|---|---|", "", "Some prose below."], str(l_on))
+    before3 = sl[5:7]
+    ok_u, why_u = tg.unframe_invariant(before3, ["Phi loson hv"], up[1])
+    check("invariant admits the exact unframing", ok_u, str(why_u))
+    ok_m1, why_m1 = tg.unframe_invariant(before3, ["Phi hv"], up[1])
+    check("invariant NEGATIVE: a header cell dropped is refused", not ok_m1 and any("letters" in w for w in why_m1), str(why_m1))
+    ok_m2, why_m2 = tg.unframe_invariant(before3, ["Philosophy"], up[1])
+    check("invariant NEGATIVE: a guessed word (letters that were not there) is refused", not ok_m2, str(why_m2))
+    ok_m3, why_m3 = tg.unframe_invariant(before3, ["Phi loson hv", ""], up[1])
+    check("invariant NEGATIVE: two lines after is refused", not ok_m3 and any("one line" in w for w in why_m3), str(why_m3))
+    ok_m4, why_m4 = tg.unframe_invariant(sl[12:15], ["Company Beta"], {"table": [13, 15]})
+    check("invariant NEGATIVE: a filled body cell is refused (the table is not a stub)", not ok_m4 and any("not blank" in w for w in why_m4), str(why_m4))
+    t_off, r_rec = tg.geometry_pass(STUBS, None)
+    check("geometry_pass with the lever OFF: the text is byte-identical, the record names 3 stubs as proposed, 0 applied",
+          t_off == STUBS and r_rec["stubs"] == 3 and len(r_rec["unframes_proposed"]) == 3 and r_rec["unframes"] == [] and r_rec["unframes_refused"] == [],
+          str((t_off == STUBS, r_rec["stubs"], len(r_rec["unframes_proposed"]))))
+    check("geometry_pass: the proposed record carries the line each stub would become",
+          [x["text"] for x in r_rec["unframes_proposed"]] == ["Figure 7.5 Default Spreads and Ratings", "Phi loson hv", "Announce ment Date"], str(r_rec["unframes_proposed"]))
+    saved = tg.UNFRAME_STUBS
+    try:
+        tg.UNFRAME_STUBS = True
+        t_on, r_on2 = tg.geometry_pass(STUBS, None)
+        check("geometry_pass with the lever ON: 3 applied, 0 refused, 0 proposed; the stubs are prose; the real table untouched",
+              r_on2["stubs"] == 3 and len(r_on2["unframes"]) == 3 and r_on2["unframes_refused"] == [] and r_on2["unframes_proposed"] == []
+              and "| Figure 7.5" not in t_on and "Figure 7.5 Default Spreads and Ratings" in t_on and "| Nike | 0.9 |" in t_on, str(r_on2["unframes"]))
+    finally:
+        tg.UNFRAME_STUBS = saved
+    check("no stub on the healthy fixtures, Valentine's exhibit, p.175, p.200, p.204",
+          all(tg.propose_unframes(x.split(chr(10))) == [] for x in (HEALTHY, VALENTINE, P175, P200, P204)), "")
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 
