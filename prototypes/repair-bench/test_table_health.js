@@ -50,5 +50,34 @@ check("a header with a non-delimiter under it is flagged", flags("| a | b |\n| 1
 check("tableSpanJS finds the block from any row", JSON.stringify(tableSpanJS(L("x\n| a |\n|---|\n| 1 |\n| 2 |\n\ny"), 3)) === "[1,4]" && tableSpanJS(L("x\n| a |\n|---|\n| 1 |"), 0) === null);
 check("CRLF endings do not break the reading", flags("| a | b |\r\n|---|---|\r\n| 1 | 2 |\r\n".replace(/\r\n/g, "\n")).length === 0);
 
+// S165 — SYM-052: the #ctx renderer shows a line WHOLE (both `esc(l).slice(0, 400)` sites removed in 4d06588) and a line is
+// ONE unwrapped row (`#ctx .cl { white-space:pre }`, never `pre-wrap` + `word-break:break-word`). The PROPERTY is tested,
+// not the string — a `.substring`, another N, or a re-wrapped rule would all pass a grep. `linesHtml` and `esc` are read
+// out of bench.html the way the health block is (the page is the source of truth); the CSS is a rule-text check, said as
+// such (node has no layout engine). Each guard is watched firing on a planted mutant in the same run — a guard that has
+// never gone red is a proxy with a reputation (docs/32 §5).
+const escM = html.match(/^const esc = .*$/m);
+const lhA = html.indexOf("function linesHtml(text, highlight) {");
+const lhEnd = lhA < 0 ? null : html.slice(lhA).match(/\r?\n\}\r?\n/);
+if (!escM || lhA < 0 || !lhEnd) { console.error("esc / linesHtml not found in bench.html — the SYM-052 cases cannot run (UNREAD, not green)"); process.exit(2); }
+const linesHtmlSrc = html.slice(lhA, lhA + lhEnd.index + lhEnd[0].length);
+const mkLinesHtml = (src) => new Function(escM[0] + "\n" + src + "\n;return linesHtml;")();
+const unesc = (s) => s.replace(/&quot;/g, '"').replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&");
+const spanTexts = (out) => Array.from(out.matchAll(/<span class="([^"]*)" id="L(\d+)">([\s\S]*?)<\/span>/g)).map((m) => [Number(m[2]), unesc(m[3].replace(/​/g, "")), m[1]]);
+const wide = "| " + Array.from({ length: 60 }, (_, i) => "cell" + String(i).padStart(3, "0") + " a value with some words in it" ).join(" | ") + " |";
+const renderWhole = (fn) => { const t = spanTexts(fn(wide + "\nshort", 0)); return t.length === 2 && t[0][0] === 1 && t[0][1] === wide && t[1][1] === "short"; };
+check("SYM-052 the fixture row is wide enough to be cut by the old slice", wide.length > 2000, "len=" + wide.length);
+const live = mkLinesHtml(linesHtmlSrc);
+check("SYM-052 linesHtml renders a 2,000+ char pipe row WHOLE — no slice, the last cell present", renderWhole(live) && spanTexts(live(wide, 0))[0][1].endsWith("words in it |"), JSON.stringify(spanTexts(live(wide, 0)).map((x) => [x[0], x[1].length])));
+const five = spanTexts(live("a\n\nc\n| d |\n", 3));
+check("SYM-052 every line is its own numbered row (1:1), an empty line included, the highlight on its own line", five.length === 5 && five.map((x) => x[0]).join(",") === "1,2,3,4,5" && five[1][1] === "" && five[2][2] === "cl zl" && five[4][1] === "", JSON.stringify(five));
+const cut = linesHtmlSrc.replace("${esc(lines[i]) ||", "${esc(lines[i]).slice(0, 400) ||");
+check("SYM-052 NEGATIVE CONTROL: the 400-char slice planted back makes the whole-row case FAIL", cut !== linesHtmlSrc && !renderWhole(mkLinesHtml(cut)) && spanTexts(mkLinesHtml(cut)(wide, 0))[0][1].length === 400, cut === linesHtmlSrc ? "the plant did not land — the anchor moved" : "");
+const ruleCl = (html.match(/#ctx \.cl \{([^}]*)\}/) || [])[1], ruleCtx = (html.match(/\n\s*#ctx \{([^}]*)\}/) || [])[1];
+const cssOk = (cl, ctx) => typeof cl === "string" && typeof ctx === "string" && /white-space:\s*pre\s*;/.test(cl) && !/pre-wrap|break-word/.test(cl) && !/pre-wrap|break-word/.test(ctx);
+check("SYM-052 the stylesheet: `#ctx .cl` is white-space:pre (one line = one row, never wrapped); no pre-wrap / break-word on #ctx (rule-text check)", cssOk(ruleCl, ruleCtx), JSON.stringify({ cl: ruleCl, ctx: ruleCtx }));
+const wrapped = typeof ruleCl === "string" ? ruleCl.replace(/white-space:\s*pre\s*;/, "white-space:pre-wrap; word-break:break-word;") : ruleCl;
+check("SYM-052 NEGATIVE CONTROL: pre-wrap + break-word planted back on `.cl` makes the stylesheet case FAIL", wrapped !== ruleCl && !cssOk(wrapped, ruleCtx), wrapped === ruleCl ? "the plant did not land — the rule moved" : "");
+
 console.log(fails ? `TABLE HEALTH: ${fails} of ${n} FAILED` : `TABLE HEALTH: ${n}/${n} ok`);
 process.exit(fails ? 1 : 0);
