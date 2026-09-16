@@ -385,6 +385,10 @@
     "converter:detail": {
       "disposition": "EVIDENCE",
       "reason": "S157 E17 (B12): the field inside each backend_failures row - the exception text, first 120 characters, as the client saw it. Manifest-only; evidence beside error and ollama_log."
+    },
+    "bench:delta": {
+      "disposition": "INTERNAL",
+      "reason": "S168 (2026-09-16), the close's GLASS row: `bench:delta` (prototypes/repair-bench/bench.py:1875, the collapse repair record's SIGNED line delta) surfaced as an unsigned glitch only because windows-converter/latex_structure.py added the generic string literal \"delta\" and added_keys_since matches key TEXT (the detector's own docstring: generic key names find an incidental match). The key HAS a home inside the bench: bench.py:1343 `_record_shift` reads `r.get(\"delta\")` to shift every later zone's line by a collapse's removed lines (the docstring there says why `delta`, not `lines`). HOME: the bundle manifest's repairs[] record, read back by the bench at every restart."
     }
   },
   "census_dispositions": {
