@@ -78,6 +78,33 @@ case("J16 NEGATIVE CONTROL: the Dock readout without its wait note reds the chec
 case("J16 main.js defines pfAge with an hours rung (a three-hour wait is not '180m')",
      re.search(r"function pfAge\(s\) \{\s*return s < 90 \? `\$\{s\}s` : s < 5400 \? `\$\{Math\.round\(s / 60\)\}m` : `\$\{\(s / 3600\)\.toFixed\(1\)\}h`;", MAIN) is not None)
 
+# ---- S161 E4: SYM-058 (the number names its phase) and SYM-060 (the analyst's evidence rendered) ----
+VERDICT_SPAN = re.compile(r'<span class="nm">(.*?)</span>', re.S)
+
+
+def sym058_phase_named(src: str) -> bool:
+    """The assay card's survival span names the CONVERT phase; a bare `survival ${...}` is the drift (SYM-058)."""
+    spans = VERDICT_SPAN.findall(src)
+    if not spans:
+        return False
+    return all(not re.match(r"\s*survival\s+\$", s) for s in spans) and any("convert survival ${" in s for s in spans)
+
+
+def sym060_analyst_rendered(src: str) -> bool:
+    """analystLine(st) reads st.analyst and the card template calls it (SYM-060: the exported field has a renderer)."""
+    return ("function analystLine(st)" in src and "const a = st.analyst;" in src
+            and "analystLine(st) +" in src and "analyst survival <b>" in src)
+
+
+case("SYM-058 main.js: the assay card's survival span says 'convert survival', never a bare 'survival' (source proxy)", sym058_phase_named(MAIN))
+case("SYM-058 NEGATIVE CONTROL: the bare 'survival ${' planted back reds the check",
+     not sym058_phase_named(MAIN.replace("convert survival ${", "survival ${", 1)))
+case("SYM-060 main.js: analystLine reads st.analyst and the card renders it (source proxy)", sym060_analyst_rendered(MAIN))
+case("SYM-060 NEGATIVE CONTROL: the call removed from the template reds the check",
+     not sym060_analyst_rendered(MAIN.replace("analystLine(st) +", "", 1)))
+case("SYM-060 the analyst line carries both sides (runs 'n of total', docs/34) and says nothing when the block is absent",
+     "${shown} of ${total} runs" in MAIN and 'if (!a || typeof a !== "object") return "";' in MAIN)
+
 red = [r for r in results if not r[1]]
 controls = [r for r in results if "CONTROL" in r[0]]
 print("projection selftest: %d/%d · controls %d/%d fired" % (len(results) - len(red), len(results), sum(1 for c in controls if c[1]), len(controls)))

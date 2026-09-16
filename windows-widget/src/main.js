@@ -861,6 +861,26 @@ function assetLedgerLine(st) {
   return `<div class="ac-caption ac-assets" title="${escHtml(tip)}">figures <b>${out}</b> out / ` +
     `<b>${emb}</b> in source <span class="dim">(Δ${d > 0 ? "+" : ""}${d}, count only)</span></div>`;
 }
+// SYM-060 (S161 E4): the analyst's evidence, rendered. assay.rs has exported `analyst` (the
+// fidelity block's analyst sub-block: doc_survival over the Marker doc as the reference, its
+// omission runs, runs_total) since S111 and nothing on the Dock read it — a producer could change
+// the field with no visible effect, and the composite verdict's other lane was invisible beside
+// "survival". Both sides travel (docs/34): the survival is over the ANALYST's windows, the runs
+// are "n of total" (NUM-3). Absent on a convert-only audit; nothing is invented (docs/13).
+function analystLine(st) {
+  const a = st.analyst;
+  if (!a || typeof a !== "object") return "";
+  const surv = a.doc_survival != null ? Number(a.doc_survival).toFixed(3) : "—";
+  const shown = Array.isArray(a.runs) ? a.runs.length : 0;
+  const total = a.runs_total != null ? Number(a.runs_total) : null;
+  const runsText = total == null ? `${shown} runs` : `${shown} of ${total} runs`;
+  const tip = `analyst survival: near-exact containment of the Marker doc's windows in the analyst's output ` +
+    `(docs/15 §9.4) — a different reference from convert survival; runs are omission runs, ${runsText} listed.`;
+  // reference_masked is {blocks: [...], words: n} (S131): say how many words of the reference were masked, when any
+  const masked = a.reference_masked && Number(a.reference_masked.words) > 0 ? `, ${Number(a.reference_masked.words)} reference words masked` : "";
+  return `<div class="ac-caption ac-analyst" title="${escHtml(tip)}">analyst survival <b>${surv}</b> ` +
+    `<span class="dim">(${runsText}${masked})</span></div>`;
+}
 function firstWords(s, n) {
   return String(s ?? "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
 }
@@ -975,8 +995,12 @@ function assayRender(st) {
     `<div class="ac-head"><span class="spark">◎</span>` +
     `<span class="ttl">${escHtml(st.bundle || "last convert")}</span><span class="grow"></span>${toggle}</div>` +
     `<div class="ac-body"><div class="ac-verdict">` +
-    `<span class="nm">survival ${st.doc_survival != null ? Number(st.doc_survival).toFixed(3) : "—"}</span>` +
+    // SYM-058 (S161 E4): the number names its phase — `doc_survival` here is the CONVERT stage's
+    // (assay.rs exports conv["doc_survival"]); a bare "survival" beside a composite verdict let an
+    // analyst failure read as a bad conversion.
+    `<span class="nm">convert survival ${st.doc_survival != null ? Number(st.doc_survival).toFixed(3) : "—"}</span>` +
     `<span class="meter"><i class="${cls}" style="width:${pct}%"></i></span>${badge}</div>` +
+    analystLine(st) +
     assetLedgerLine(st) +
     map + list + foot + `</div>` + heldHtml;
 
