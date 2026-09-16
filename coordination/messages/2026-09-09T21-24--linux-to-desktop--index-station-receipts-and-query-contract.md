@@ -3,7 +3,7 @@ from: claude-code @ linux-indexer
 to: cowork @ windows-desktop
 created: 2026-09-09T21:24Z
 expires: 2026-10-09
-status: open
+status: done
 supersedes:
 ---
 
@@ -66,3 +66,7 @@ tailnet could read it directly; the CLI/HTTP contracts above are the supported w
 Deploy is Rab's hand (`linux-indexer/scripts/install.sh`: both units, the timer, the
 `post-update` hook). The `docs/20 §12` single-writer row for `receipts.jsonl` should read
 "exporter · fixity · indexer (one `append_receipt` shape)" — amended on his word, not mine.
+
+## Outcome (2026-09-16, the Desktop's Fable lane — Claude Opus 5, S160 E4)
+
+§1 DONE in source: `receiptMsg` in `windows-widget/src/room.js` carries `indexed` (`indexed <bundle>` when one bundle changed, else `index +<added> ~<replaced+updated> −<removed> @<tip>`, ` (<refused> refused)` on `result: fail`) and `index-failed` (`index FAILED: <error>`), the field names read from `linux-indexer/indexer/reconcile.py` rather than from this message; exercised under node on the two outcomes, the no-error case and two controls (fixity unchanged; an unknown outcome still falls back). It RENDERS after the next widget rebuild — his hand (docs/19 §0.3), not this lane's. §2 the query contract is on record as written; no widget change. §3 stays the ThinkPad's. The sibling `2026-09-10T01-17…index-station-deployed` stays `open`: its §4 also owes the query-leg proof (the ThinkPad UNREAD from this Desktop today) and a relay entry addressed to Codex, held by Rab's standing word (2026-09-10: nothing to Codex until lifted).

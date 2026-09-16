@@ -615,6 +615,16 @@ function receiptMsg(r) {
     "fixity-check": r.result === "pass"
       ? `vault fixity ✓ tip ${s(r.tip)}`
       : `vault fixity FAILED · ${s(r.error || r.tip)}`,
+    // linux-indexer's records (reconcile.py, the 2026-09-09 message; S160 E4): `indexed` carries
+    // result/tip, a bundle+note only when exactly one bundle changed, else the added/replaced/
+    // updated/removed/refused counts; `index-failed` carries tip/error. Until S160 both fell to
+    // the fallback below — a bare "indexed" on a multi-bundle run, "index-failed" with its error
+    // invisible — the fixity precedent's cost, again.
+    "indexed": (r.bundle
+      ? `indexed ${s(r.bundle)}`
+      : `index +${r.added ?? "?"} ~${Number(r.replaced ?? 0) + Number(r.updated ?? 0)} −${r.removed ?? "?"} @${s(r.tip)}`) +
+      (r.result === "fail" ? ` (${r.refused ?? "?"} refused)` : ""),
+    "index-failed": `index FAILED: ${s(r.error || r.tip)}`,
   };
   return map[r.outcome] || `${s(r.outcome)} ${s(r.bundle)}`;
 }
