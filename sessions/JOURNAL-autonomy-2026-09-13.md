@@ -307,3 +307,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the selftest 11/11 on a fixture library with a bare remote (the real library's HEAD and status read before and after: unchanged); the tool's real run at this close, its staged-files line in the record; the record written before the first edit; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 10.91 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-16 22:27Z — the library smoked whole; the unterminated arrays counted on the shelf, and the timed-out chunks read (S168)
+
+**What you will notice:** a new checker in the converter's folder that reads a book's markdown and says whether every LaTeX environment that opens also closes (the S109 Ashby finding — 40 unterminated arrays and three 15-minute chunks). Run over the whole shelf tonight: 9 of 33 bundles are structurally invalid — Ashby 61 open arrays (the cross-vendor number, to the digit), the two Damodaran editions a handful each — and the three chunks that timed out in August: two of them carry an open array, the third carries none. It is not wired in yet; where it sits and what a flag does are yours with the restart window. Also: the library's own smoke test ran whole for the first time since S139 — all green.
+
+**What answered the register:** J14's measurement debt and SYM-056's guard cell ("none, and none exists") — the validator built and the shelf measured; and the smoke the library's brief asks for at every close.
+
+**Gained / lost / still missing:** gained — a validator with 12 tripwires, a shelf census, a causal claim closed 2 of 3, two smoke runs green. Lost — nothing. Missing — the wiring (yours), your six taps, your arming, your rebuild, your restart window, your lever, your signature, your answer on the Desk.
+
+**How it was checked:** the validator's 12 cases including its plant and the Codex control; the census reproducing MSG-CDX-0014's 127/66 to the digit; the run's 182-chunk count reproduced from the bundle; the smoke's write tripwires unchanged; the record written before the first edit; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 29.12 USD-eq in the receipts across 1 episodes.
