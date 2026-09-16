@@ -2457,6 +2457,43 @@ def main():
           r.returncode == 0)
         # ======================= S121 J52 (end) =======================
 
+        # ======================= S160 SYM-055 (2026-09-16) =======================
+        # SYM-055 (Verified S109): every digest assertion above compares gate.py's output to gate.py's
+        # output, so a sha256->md5 swap that still labels itself "sha256:" passed 83/83. These cases check
+        # the PROPERTY the label names - against an independent hashlib computation and a vector pinned
+        # apart from gate.py - and prove the check can fail by running it on the S109 md5 mutant's shape.
+        import hashlib as _s055_hashlib
+        import importlib as _s055_importlib
+        sys.path.insert(0, str(Path(GATE).parent))
+        g055 = _s055_importlib.import_module("gate")
+        _s055_text = "hello relay"
+        # hashlib.sha256(b"hello relay").hexdigest(), computed outside gate.py (canonical() leaves this text as is)
+        _s055_pinned = "sha256:d6d73b3e899f235e4c4540a978ac34c5bcd2dea1437991da046282f41844692b"
+        _s055_hex = set("0123456789abcdef")
+
+        def _s055_shape_ok(d):
+            return d.startswith("sha256:") and len(d) == len("sha256:") + 64 and set(d[7:]) <= _s055_hex
+
+        def _s055_independent(fn):
+            return fn(_s055_text) == "sha256:" + _s055_hashlib.sha256(
+                g055.canonical(_s055_text).encode("utf-8")).hexdigest()
+
+        _s055_d = g055.digest(_s055_text)
+        t("SYM-055 T1: digest() is 'sha256:' + 64 hex chars", _s055_shape_ok(_s055_d))
+        t("SYM-055 T2: digest() equals an independent hashlib.sha256 of canonical(text)",
+          _s055_independent(g055.digest))
+        t("SYM-055 T3: digest('hello relay') equals the vector pinned apart from gate.py", _s055_d == _s055_pinned)
+
+        def _s055_mutant(s):
+            # the S109 mutation: md5 under the sha256 label - 32 hex chars, "sha256:acc77fb3..."
+            return "sha256:" + _s055_hashlib.md5(g055.canonical(s).encode("utf-8")).hexdigest()
+
+        t("SYM-055 T4 (negative control): the S109 md5 mutant, labelled sha256, FAILS T1-T3's checks",
+          _s055_mutant(_s055_text) == "sha256:acc77fb37d3a408f8e23caa793e65dfa"
+          and not _s055_shape_ok(_s055_mutant(_s055_text)) and not _s055_independent(_s055_mutant)
+          and _s055_mutant(_s055_text) != _s055_pinned)
+        # ======================= S160 SYM-055 (end) =======================
+
     total = PASS + FAIL
     print()
     if FAIL == 0:
