@@ -355,3 +355,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the fold's read-back (0 missing of 66; the tail byte-equal); the hook's advisory quoted from the live call and the receipt's harness count; the projection suite 20/20 with 8 controls fired; the smoke 79/79 with its write tripwires unchanged; the record written before the first edit; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 19.03 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-16 23:56Z — the ThinkPad on, the allocator's startup sweep deployed and proved live (S172)
+
+**What you will notice:** the allocator on the ThinkPad now sweeps its inbox when it starts — a file that arrived while the service was down no longer waits forever (the fix was written on September 15th and had never reached the box; its clone was 300 commits behind). You said "Thinkpad is on" at 7:44pm and "Touch thinkpad" at 7:50pm; by 7:52pm the clone was current, the service restarted, and a planted empty file had been swept into sorted/documents and removed — one "allocated" event for it sits in your status feed. The converter service on the box was not restarted (its code on disk is newer now; the running one is unchanged).
+
+**What answered the register:** B32's ThinkPad half (U01/U05 deployed); the row stays open for the widget half only.
+
+**Gained / lost / still missing:** gained — a deploy with its undo, a live proof, two readings (the fixity timer active; the 08-17 message the ThinkPad lane's). Lost — nothing. Missing — your rebuild (B32's other half), your restart window, your six taps, your arming, your lever, your signature, your answer on the Desk.
+
+**How it was checked:** the ThinkPad read before and after (the clone's commit, the service's pid and start time, the journal's lines); the pull's blast radius read from git before the pull; the journal's `startup sweep:` line twice (0 on the real inbox, 1 on the plant); the record written before the act; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 20.05 USD-eq in the receipts across 1 episodes.
