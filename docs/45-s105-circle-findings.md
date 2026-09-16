@@ -264,3 +264,7 @@ CONFIRMS in the rows' own cells (10/10 hold). Private `sittings/S157/e47/`.*
   (ERR-2026-09-12-097 unanswered); L5 answered the seven F1 rows in prose, not as entries; overlaps between the two registers
   (the same incident filed as a SYM and an ERR) were not de-duplicated — the 55 is rows, not incidents. What the next Circle
   inherits: the count as a baseline; whether the prediction is a law is signed or it is not.
+
+---
+
+**Note appended 2026-09-16 (S159 E5, the Circle over the converter's evidence — a dated note, never a rewrite):** F8's shipped cost — "IV 37 ms/page · Cybernetics 72 ms/page · BRAIN OF THE FIRM (scan) 4.6 ms/page" — has no receipt on this machine but the S104 record's own prose (`sessions/S104-desktop-2026-08-20.md:162`); the private receipts convention began at S154, and no timing log or JSON for these three numbers exists under `measurement/` or `sittings/`. The sentence names its method (wall seconds / pages_total, PyMuPDF 1.28.0, warm FS, CPU-only, one process per book) and stands as Historical; it is UNREAD until re-measured, which is a run on Rab's card.

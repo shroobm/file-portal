@@ -43,3 +43,8 @@ Provenance and guards first (2.5, 2.1 — small code, tripwired, reversible by o
 ## 4. What this is not
 
 Not a plan to train a model: the gauge says what a model would have to read before one is trained, and the label corpus is the precondition. Not a lifting of the tag law or the record-first rule — the experiment removes Rab's signature from the loop, not the record from before the act. Not a claim about the phone (2.4 of his star): the Desk is the surface; the dispatch remains his build.
+
+## 3. Corrections (appended 2026-09-16, S159 E5 — the Circle over the converter's evidence; the sections above stand as written)
+
+- **§2.2's "Today a scan-lane book CANNOT pass: the audit's agreement witness on a scan is the embedded OCR layer, which a scan does not have"** is overstated. A FRESH scan has no layer (Valentine: 1 of 465 pages scored, the floor caps the verdict at flag). An OLD scan with an embedded layer IS scored — Diagnosing (scan lane, `lane_reason untrusted_ocr_layer`) scores 156 of 184 pages, well past the 0.50 floor, and fails on degeneration, not on the floor; its witness is the corrupt layer itself ("the witness lies", docs/61 §10.2). The scan lane has two failure classes, not one, and the gauge remedy fits the first.
+- **§2.2's "pairs 0.930 over 442 pages, control 0.252"** names the page sample where docs/34 wants the denominator: the reading is **115,126 witness word-pairs found in the body of 123,791 = 0.9300**, over 442 of 465 pages scored (S144 E3, `agreement_probe.py`); the control 0.2524 is the same instrument against Zero to One's body. "442 pages" is where the pairs came from, not what 0.930 is a share of.
