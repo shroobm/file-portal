@@ -235,3 +235,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every strike carries its measurement in the row; the acceptance gate 185/0 and the glass detector clean after the dispositions; the projection tripwires 12 → 17 with planted controls; the analyst line exercised under node on five payload shapes; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 40.87 USD-eq in the receipts across 4 episodes.
+
+## 2026-09-16 19:20Z — the second Circle: does a fix outlive its row? (S162)
+
+**What you will notice:** a new document, docs/63, and a new paragraph at the top of the symptom index telling a reader which end of a status cell to trust. Nothing else of yours moved. The register went up by one — deliberately: the Circle found nine "fixed" rows whose fix has never been broken on purpose, and that debt now has a row of its own.
+
+**What answered the day's lesson:** four times today a register row's first sentence had outlived its fix. So four agents asked the inverse of every fixed row in the symptom index — is the fix still there, at the place the row says, with a test that would catch it coming back? Of 104 rows, 79 hold with a test; none is dead (the only "dead" verdicts were the four fake rows I planted, all caught); fifteen have the fix but no test; ten have drifted — six cite a line that moved, four are worded so their own last sentence says "open" under a "fixed" header. The document that binds our terminology turned out to call one book by two names.
+
+**Gained / lost / still missing:** gained — docs/63, six corrections in docs/61, six cells annotated, a reading rule for the index, one honest debt row. Lost — nothing. Missing — the nine tests (the lane's, next), one private file's test, your rebuild, your restart window, your lever, your signature, and your answer on the Desk.
+
+**How it was checked:** the law before and after the fleet (21 checks; the two reds were five rows two agents dropped — I checked those five by hand); every drift the agents named re-read at the file; every plant caught by id; the fleet's own process census clean; the clock read before every heading.
+
+**What it cost you:** nothing on the card; one read-only fleet; 41.16 USD-eq in the receipts across 1 episodes.
