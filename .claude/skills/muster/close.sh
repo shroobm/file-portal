@@ -172,6 +172,30 @@ else
       conv_red=1
     fi
   done
+  # S165: the one non-python suite — the bench's test_table_health.js (S149's health functions, S165's SYM-052 cases)
+  # had the same gap. It runs under node from its own dir; a missing node reads UNREAD, never clean (a failed probe is
+  # not a negative observation). FP_CONV_NODE names the runner (a fixture may point it at any interpreter that runs the
+  # file, or at nothing to prove the UNREAD reading); FP_CONV_NODE_SUITES overrides the list. Same warn-only summary.
+  CONV_NODE_SUITES="${FP_CONV_NODE_SUITES:-prototypes/repair-bench/test_table_health.js}"
+  NODE_BIN="${FP_CONV_NODE:-node}"
+  for suite in $CONV_NODE_SUITES; do
+    name="$(basename "$suite" .js)"
+    if [ ! -f "$FP_REPO/$suite" ]; then
+      row "CONV $name" "UNREAD — $suite not in the tree; NOT a statement that it is green"
+      continue
+    fi
+    if ! command -v "$NODE_BIN" >/dev/null 2>&1; then
+      row "CONV $name" "UNREAD — runner not found ($NODE_BIN); NOT a statement that the suite is green"
+      continue
+    fi
+    if out=$(cd "$FP_REPO/$(dirname "$suite")" && "$NODE_BIN" "$(basename "$suite")" 2>&1); then
+      tally=$(printf '%s' "$out" | grep -oE '[A-Z][A-Z ]*: [0-9]+/[0-9]+ ok' | tail -1)
+      row "CONV $name" "clean${tally:+ — $tally}"
+    else
+      row "CONV $name" "RED (warn-only — the S108 standard; arming is Rab's) — run it and read the output"
+      conv_red=1
+    fi
+  done
   if [ "$conv_red" -eq 1 ]; then
     if [ "${FP_CONV_ARMED:-0}" = "1" ]; then
       row "CONVERTER" "RED — a suite is red and the row is ARMED: the close stops here"

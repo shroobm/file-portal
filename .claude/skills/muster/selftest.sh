@@ -1082,6 +1082,34 @@ out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/fail_self
 if printf '%s' "$out" | grep -q 'CONVERTER  *skipped — no windows-converter/' && ! printf '%s' "$out" | grep -q 'planted RED'; then ok "CASE 63: an untouched converter reads skipped and runs no suite"
 else bad "CASE 63: the untouched case must read skipped and run nothing" "got: $(printf '%s' "$out" | grep -E 'CONV' | head -2)"; fi
 
+# ── CASES 64–65: close.sh [3c] CONVERTER, the node suite (S165) ───────────────────────────────────────────────
+# The same property for the one non-python suite (the bench's test_table_health.js): a planted failing suite reads RED,
+# warn-only (64); a passing one reads clean with its tally (64b, the positive control); and a runner that is not there
+# reads UNREAD, never clean (65 — the rule of case 7 applied to this row). The runner is FP_CONV_NODE; the fixture points
+# it at the fixture's own python so the row's LOGIC is under test whether or not node is on this machine's PATH — the
+# real node run is the live close's (S165's own close ran it against the real suite), not this suite's.
+mkdir -p "$CONV/prototypes/repair-bench"
+printf 'import sys\nprint("planted RED")\nsys.exit(1)\n' > "$CONV/prototypes/repair-bench/fail.js"
+printf 'print("TABLE HEALTH: 2/2 ok")\n' > "$CONV/prototypes/repair-bench/ok.js"
+git -C "$CONV" add -A >/dev/null 2>&1
+git -C "$CONV" -c user.email=t@t -c user.name=t commit -qm node-fixtures >/dev/null 2>&1
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" FP_CONV_NODE="$FIXPY" FP_CONV_NODE_SUITES="prototypes/repair-bench/fail.js" bash "$CLOSE" "$conv_pin" 2>&1); rc_nfail=$?
+if printf '%s' "$out" | grep -q 'CONV fail  *RED (warn-only'; then ok "CASE 64: a planted failing node suite reads RED on its row"
+else bad "CASE 64: the failing node suite must read RED on its row" "got: $(printf '%s' "$out" | grep -E 'CONV' | head -3)"; fi
+if printf '%s' "$out" | grep -q 'CONVERTER  *RED but WARN-ONLY'; then ok "CASE 64: …and the summary row says WARN-ONLY (the python rows were green — one red suite of any kind is the row's red)"
+else bad "CASE 64: the summary row must say WARN-ONLY" "got: $(printf '%s' "$out" | grep -E 'CONVERTER' | head -2)"; fi
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" FP_CONV_NODE="$FIXPY" FP_CONV_NODE_SUITES="prototypes/repair-bench/ok.js" bash "$CLOSE" "$conv_pin" 2>&1); rc_nok=$?
+if printf '%s' "$out" | grep -q 'CONV ok  *clean — TABLE HEALTH: 2/2 ok'; then ok "CASE 64b POSITIVE CONTROL: a passing node suite reads clean with its tally"
+else bad "CASE 64b: a passing node suite must read clean with its tally" "got: $(printf '%s' "$out" | grep -E 'CONV ok' | head -2)"; fi
+if [[ "$rc_nfail" -eq "$rc_nok" ]]; then ok "CASE 64: …and the exit code is the SAME with the red node suite as with a green one (warn-only, the differential reading)"
+else bad "CASE 64: a warn-only red must not move the exit code" "exit with the red suite $rc_nfail vs with a green one $rc_nok"; fi
+# CASE 65 — the runner is not there: UNREAD on the row, never clean, and the exit unchanged.
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" FP_CONV_NODE="$WORK/no-such-runner" FP_CONV_NODE_SUITES="prototypes/repair-bench/ok.js" bash "$CLOSE" "$conv_pin" 2>&1); rc_nun=$?
+if printf '%s' "$out" | grep -q 'CONV ok  *UNREAD — runner not found' && ! printf '%s' "$out" | grep -q 'CONV ok  *clean'; then ok "CASE 65: a missing runner reads UNREAD on the node row, never clean (a failed probe is not a green)"
+else bad "CASE 65: a missing runner must read UNREAD, never clean" "got: $(printf '%s' "$out" | grep -E 'CONV ok' | head -2)"; fi
+if [[ "$rc_nun" -eq "$rc_nok" ]]; then ok "CASE 65: …and UNREAD does not move the exit code (UNREAD never blocks and never claims clean)"
+else bad "CASE 65: UNREAD must not move the exit code" "exit with the missing runner $rc_nun vs with a green one $rc_nok"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
