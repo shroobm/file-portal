@@ -271,3 +271,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the muster's selftest 113 → 119 (all green); close.sh run live on this tree (skipped — the converter did not change) and against the S163 pin (eight rows clean); the clock read before every heading; the record written before the first edit this time.
 
 **What it cost you:** nothing on the card; no fleet; 22.23 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-16 21:07Z — the bench's own alarm, and its runner (S165)
+
+**What you will notice:** the bench's JavaScript test suite now has six checks that would have caught the cut-off-at-400-characters bug you found from a screenshot in August (a wide table row that looked whole and wasn't); and the close-time row from yesterday now runs that suite too, with node, printing its count — this sitting's close card shows nine suites clean. Still warn-only: arming is one line, yours.
+
+**What answered the register:** the owed-tripwires row (six of nine now; the last three need CI's Linux log or your rebuild) and the runner row (its list was python-only; the one JavaScript suite was outside it). Each check was watched going red on a planted defect before it was trusted.
+
+**Gained / lost / still missing:** gained — six page-side checks with three plants, a node loop in the runner with three cases, one live run of nine suites in 47 seconds. Lost — nothing. Missing — your arming, the three remaining tests, your rebuild, your restart window, your lever, your signature, and your answer on the Desk.
+
+**How it was checked:** the JS suite 18 → 24 (all green) and 4 of 24 red on a scratch copy of the page with both defects put back; the muster's selftest 119 → 125 (all green); close.sh run live on this tree (nine rows clean); the record written before the first edit; the clock read before every heading (one placeholder caught before its commit).
+
+**What it cost you:** nothing on the card; no fleet; 9.10 USD-eq in the receipts across 2 episodes.
