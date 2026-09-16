@@ -1110,6 +1110,30 @@ else bad "CASE 65: a missing runner must read UNREAD, never clean" "got: $(print
 if [[ "$rc_nun" -eq "$rc_nok" ]]; then ok "CASE 65: …and UNREAD does not move the exit code (UNREAD never blocks and never claims clean)"
 else bad "CASE 65: UNREAD must not move the exit code" "exit with the missing runner $rc_nun vs with a green one $rc_nok"; fi
 
+# ── CASE 66: the REAL CONVERTER lists name files that exist (S170) ───────────────────────────────────────────
+# Cases 61–65 plant their own lists through FP_CONV_SUITES / FP_CONV_NODE_SUITES; nothing read the real defaults. A typo or
+# a moved suite on the real line reads UNREAD at a close — never clean, but never caught until a close touched the converter.
+# This case reads both default lists out of close.sh and asserts every path exists under this checkout; the NEGATIVE CONTROL
+# appends a name that does not exist to a COPY of the list and watches the same reading go red.
+REAL_LISTS="$(grep -oE 'FP_CONV(_NODE)?_SUITES:-[^}]*' "$CLOSE" | sed -E 's/^FP_CONV(_NODE)?_SUITES:-//' | tr ' ' '\n' | sed '/^$/d')"
+missing66=""
+n66=0
+while IFS= read -r p; do
+  [[ -z "$p" ]] && continue
+  n66=$((n66 + 1))
+  [[ -f "$HERE/../../../$p" ]] || missing66="$missing66 $p"
+done <<< "$REAL_LISTS"
+if [[ "$n66" -ge 9 && -z "$missing66" ]]; then ok "CASE 66: every path on close.sh's REAL converter lists exists in this checkout ($n66 suites)"
+else bad "CASE 66: a name on the real converter list has no file" "read $n66 name(s); missing:$missing66"; fi
+missing66b=""
+while IFS= read -r p; do
+  [[ -z "$p" ]] && continue
+  [[ -f "$HERE/../../../$p" ]] || missing66b="$missing66b $p"
+done <<< "$REAL_LISTS
+windows-converter/no_such_selftest.py"
+if [[ "$missing66b" == " windows-converter/no_such_selftest.py" ]]; then ok "CASE 66 NEGATIVE CONTROL: a planted name with no file is the one the reading names"
+else bad "CASE 66 NEGATIVE CONTROL: the planted name must be named missing" "got:$missing66b"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

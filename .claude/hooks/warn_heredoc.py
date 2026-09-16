@@ -38,27 +38,44 @@ cmd = (payload.get("tool_input") or {}).get("command") or ""
 # A heredoc: << or <<- , optional quote, then the delimiter word.
 HEREDOC = re.compile(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?")
 marks = list(HEREDOC.finditer(cmd))
-if not marks:
+
+# S170 (ERR-053 / ERR-054's mechanical half, the same shape one layer over): a `python -c "…"` / `python.exe -c '…'` whose
+# program text carries a backslash, a backtick or a `$` is the heredoc case without the heredoc — the S1xx rule said "NO
+# Markdown or code text in a `python -c` or heredoc, ever — a FILE", and it lived in memory only. Same posture: warn, never
+# block; additive to the heredoc rule, which is left exactly as Rab signed it.
+DASH_C = re.compile(r"(?:^|[\s;&|(])(?:[\w./\\:-]*python[\w.]*|py)\s+(?:-[A-Za-z]+\s+)*-c\s+(['\"])(.*?)\1", re.S)
+dash_c = [m.group(2) for m in DASH_C.finditer(cmd)]
+DASH_RISK = re.compile(r"\\|`|\$")
+dash_hits = sorted({h for prog in dash_c for h in DASH_RISK.findall(prog)})
+
+if not marks and not dash_hits:
     sys.exit(0)
 
 # Risky content, drawn from the three ERR-009 instances rather than invented:
 #   \\  \(  \|  \'  \"      escape sequences the shell or Python may eat
 #   (?<! (?= (?:            regex constructs that carry backslashes
 RISK = re.compile(r"\\[\\()|'\"nrt]|\(\?[<=:!]")
-hits = RISK.findall(cmd)
-if not hits:
+hits = RISK.findall(cmd) if marks else []
+if not hits and not dash_hits:
     sys.exit(0)
 
-delims = ", ".join(sorted({m.group(1) for m in marks}))
-sample = ", ".join(sorted(set(hits))[:6])
-
-msg = (
-    "ERR-009 (QUOTING): this Bash call puts backslash escapes or regex inside a "
-    "heredoc (<<{d}). Found: {s}. That exact combination has failed at least five "
-    "times today, twice AFTER the rule was filed. ERR-009's own remedy: write it to "
-    "a file with the Write tool and run the file. Not blocking - if you have already "
-    "considered this, proceed."
-).format(d=delims, s=sample)
+if hits:
+    delims = ", ".join(sorted({m.group(1) for m in marks}))
+    sample = ", ".join(sorted(set(hits))[:6])
+    msg = (
+        "ERR-009 (QUOTING): this Bash call puts backslash escapes or regex inside a "
+        "heredoc (<<{d}). Found: {s}. That exact combination has failed at least five "
+        "times today, twice AFTER the rule was filed. ERR-009's own remedy: write it to "
+        "a file with the Write tool and run the file. Not blocking - if you have already "
+        "considered this, proceed."
+    ).format(d=delims, s=sample)
+else:
+    msg = (
+        "ERR-054 (QUOTING): this Bash call puts a program with {s} inside a `python -c` string. "
+        "ERR-053/054's own rule: no path, Markdown or code text in a `python -c` — anything with a "
+        "backslash, a backtick or a $ is a FILE written with the Write tool and run by its path. "
+        "Not blocking - if you have already considered this, proceed."
+    ).format(s=", ".join(repr(h) for h in dash_hits))
 
 print(json.dumps({
     "systemMessage": msg,
