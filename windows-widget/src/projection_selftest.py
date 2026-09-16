@@ -105,6 +105,27 @@ case("SYM-060 NEGATIVE CONTROL: the call removed from the template reds the chec
 case("SYM-060 the analyst line carries both sides (runs 'n of total', docs/34) and says nothing when the block is absent",
      "${shown} of ${total} runs" in MAIN and 'if (!a || typeof a !== "object") return "";' in MAIN)
 
+# ---- S171 E2: docs/18 §2 "One truth source per fact. The ⏻ and the Room header must derive from the same read." ----
+# The fifth cut of the register (the docs' standing rules) found this one unguarded. Both surfaces read the watcher's
+# liveness through the ONE Rust command `watcher_status` (main.js: `invoke("watcher_status")`; room.js: `call("watcher_status")`
+# into `d.watcher`). A SOURCE proxy, said so: the check is that no OTHER liveness source is read in either file — no
+# `watcher_alive`/`watcher_pid`/`is_running` command, no pid-file read — and that both files invoke `watcher_status`.
+OTHER_SOURCE = re.compile(r'(?:invoke|call)\("(?:watcher_alive|watcher_pid|watcher_running|is_watcher_running|read_pid_file)"\)|\.pid"\)|readTextFile\([^)]*pid', re.I)
+
+
+def one_truth_source(main, room):
+    """Both surfaces invoke watcher_status; neither reads a second liveness source (docs/18 §2, source proxy)."""
+    return ('invoke("watcher_status")' in main and 'call("watcher_status")' in room
+            and not OTHER_SOURCE.search(main) and not OTHER_SOURCE.search(room))
+
+
+case("docs/18 one truth source: the ⏻ (main.js) and the Room header (room.js) both read `watcher_status` and nothing else for liveness (source proxy)",
+     one_truth_source(MAIN, ROOM))
+case("docs/18 NEGATIVE CONTROL: a second liveness source planted into room.js (`call(\"watcher_alive\")`) reds the check",
+     not one_truth_source(MAIN, ROOM.replace('call("watcher_status")', 'call("watcher_alive")', 1)))
+case("docs/18 NEGATIVE CONTROL: a pid-file read planted into main.js reds the check",
+     not one_truth_source(MAIN + '\nconst raw = await readTextFile("watcher.pid");\n', ROOM))
+
 red = [r for r in results if not r[1]]
 controls = [r for r in results if "CONTROL" in r[0]]
 print("projection selftest: %d/%d · controls %d/%d fired" % (len(results) - len(red), len(results), sum(1 for c in controls if c[1]), len(controls)))
