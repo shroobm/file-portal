@@ -283,3 +283,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the JS suite 18 → 24 (all green) and 4 of 24 red on a scratch copy of the page with both defects put back; the muster's selftest 119 → 125 (all green); close.sh run live on this tree (nine rows clean); the record written before the first edit; the clock read before every heading (one placeholder caught before its commit).
 
 **What it cost you:** nothing on the card; no fleet; 9.10 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-16 21:37Z — the last of the owed alarms, and the clock's own guard (S166)
+
+**What you will notice:** nothing on the surface — three more alarms exist that did not this morning: the private script that stamps the memory index's date at every close now has a test that plants the old typed date back and watches the check go red; and the two Linux converter behaviours you filed in July (the allocator's hand-off arriving as a plain "created" event, and the scan lane discarding a source's bad prior OCR text) have cases that CI runs on Linux — read from CI's own log, which needed a reader I wrote today. Eight of the nine owed alarms are built; the last rides your rebuild. Your gamepad question got its answer on the Desk: the driver is there, its device is not, six taps through Moonlight on your phone.
+
+**What answered the register:** the owed-tripwires row (eight of nine) and S117's own row; plus the memory index's room (25 lines of old residue folded to 16 with every SHA kept — the index was 10 bytes from its limit).
+
+**Gained / lost / still missing:** gained — a 12-case selftest with its plant, 8 Linux cases with two source mutants and CI's log as proof, a green-log reader, room in the index. Lost — nothing. Missing — your six taps for the gamepad, your arming, your rebuild, your restart window, your lever, your signature, and your answer on the Desk.
+
+**How it was checked:** the selftest 12/12 with the plant red; the Linux cases locally in a scratch venv (7 of 8 on Windows, the control Linux-only) and on CI's ubuntu log (8 PASSED lines, read not assumed); two source mutants red in scratch copies; the muster's converter row skipped (no converter change); the record written before the first edit; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 19.80 USD-eq in the receipts across 2 episodes.
