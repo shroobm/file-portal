@@ -343,3 +343,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the driver run for real against a planted notes file (exit 4, HEAD unmoved); CASE 66's ten names read out of close.sh and each file found; the hook's 11 cases on stdin with two negative controls; the muster selftest whole in the background; the record written before the first edit; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 18.94 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-16 23:37Z — the hook proved live, the docs' rules cut, one rule given its test (S171)
+
+**What you will notice:** nothing on the surface. Behind it: the memory index has a thousand bytes of room again (three old blocks folded, every hash checked back in); the new warning hook fired for real on a deliberate probe (and the probe showed why the rule exists — the shell ate the backslash); the docs' standing rules were read for the ones with no test — nearly all are disciplines or already mechanised — and the one real gap, "the ⏻ and the Room header must derive from the same read", now has a test that goes red if either file grows a second source.
+
+**What answered the register:** the live-proof row (struck on its measure) and the fifth cut (the docs), which found docs/18 §2 and filed docs/18 §38 to your restart window.
+
+**Gained / lost / still missing:** gained — 1,007 bytes of room, a live proof and a strike, a 3-case tripwire on the widget's source, the smoke green at the close (79/79). Lost — nothing. Missing — your restart window (four items now), your six taps, your arming, your rebuild, your lever, your signature, your answer on the Desk.
+
+**How it was checked:** the fold's read-back (0 missing of 66; the tail byte-equal); the hook's advisory quoted from the live call and the receipt's harness count; the projection suite 20/20 with 8 controls fired; the smoke 79/79 with its write tripwires unchanged; the record written before the first edit; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 19.03 USD-eq in the receipts across 2 episodes.
