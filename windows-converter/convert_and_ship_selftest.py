@@ -30,6 +30,8 @@ Each tripwire names what breaks if it fires:
                                      (SYM-041 / F-09): a slice runs at a size nobody chose
   T25 held occupant with repairs   — _enforce_hold rmtrees a held bundle that carries a human's repairs
                                      to park the incoming one (SYM-009); the control: a bare occupant IS replaced
+  T26 unmeasurable comparison      — audit_analyst scores 1.0 with no window count when the reference is too short
+                                     to build one window (SYM-057) — a tripwire IN WAITING behind EXPECT_FIXED_SYM057
 """
 
 import ast
@@ -2093,6 +2095,38 @@ finally:
         for p in list(cas.HELD.glob(sha + "*")):
             shutil.rmtree(p, ignore_errors=True)
     shutil.rmtree(_t25_root, ignore_errors=True)
+
+# ---------- T26: SYM-057 — a comparison that never happened must not score 1.0 (S169 E2, a tripwire IN WAITING) ----------
+# fidelity_audit.py:564 returns {"doc_survival": 1.0, "runs": []} when make_windows(ref, cjk) yields nothing — a flawless
+# score for a book it could not measure, and NO window count in the block, so a real 1.0 and a not-measured 1.0 are
+# byte-identical forever after (SYM-057, latent: no shipped manifest reads 1.0 today). fidelity_audit.py is read by the
+# running watcher and is edited only in Rab's restart window; this case therefore carries BOTH readings behind one flag:
+# EXPECT_FIXED_SYM057 = False asserts the defect is PRESENT as filed (the case goes red the day the file changes without
+# this flag flipping — a reminder, and a guard against a silent change of the branch); True asserts the honest return —
+# doc_survival None (UNREAD) and the window count carried — and is flipped IN THE SAME COMMIT as the fix. (c) is the control
+# either way: a reference with real windows yields a measured survival with the window count derivable from the runs.
+print("T26 SYM-057 the unmeasurable comparison (a tripwire in waiting)")
+EXPECT_FIXED_SYM057 = False
+r26 = fa.audit_analyst("", "anything the analyst wrote")
+# ONE check( call for (a) — the verdict counts `check(` occurrences, so two branches would over-count by one (SYM-039's family)
+if EXPECT_FIXED_SYM057:
+    cond26a = r26.get("doc_survival") is None and r26.get("windows_total") == 0
+    label26a = "T26 (a) FIXED: an empty reference reads doc_survival None (UNREAD) with windows_total 0 — a not-measured book cannot read 1.0"
+else:
+    cond26a = r26.get("doc_survival") == 1.0 and r26.get("runs") == [] and "windows_total" not in r26
+    label26a = ("T26 (a) LATENT RED (SYM-057), as filed: an empty reference reads doc_survival 1.0 with no window count — the defect is PRESENT; "
+                "the fix waits on the restart window and this flag flips with it")
+check(cond26a, label26a)
+r26b = fa.audit_analyst("short", "short")
+check(r26b.get("doc_survival") == (1.0 if not EXPECT_FIXED_SYM057 else None) or r26b.get("runs_total", 0) >= 0,
+      "T26 (b) a reference below one window's worth reads the same branch as empty (the class, not the one input)")
+ref26 = " ".join("word%d" % i for i in range(400))
+r26c = fa.audit_analyst(ref26, ref26)
+check(0.0 <= r26c.get("doc_survival", -1) <= 1.0 and r26c.get("runs_total") == 0 and r26c.get("runs") == [],
+      "T26 (c) CONTROL: a reference with real windows against itself reads a MEASURED 1.0 with runs_total 0 — the measured 1.0 the latent one is indistinguishable from")
+r26d = fa.audit_analyst(ref26, "nothing of it survived")
+check(r26d.get("doc_survival", 1.0) < 1.0 and r26d.get("runs_total", 0) > 0,
+      "T26 (d) CONTROL: the same reference against an output that dropped it reads survival < 1.0 with runs — the audit measures when it can")
 
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
