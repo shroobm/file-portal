@@ -410,3 +410,11 @@ Zero to One's page-1 extraction method (pdftext or surya) · whether the shelf's
 ### 10.9 Provenance and the lane's own errors
 
 S159 E1 (the shelf read whole; the evidence map), E2 (the fleet: five lanes, five plants — four caught by id, D-07 refuted and misfiled; the lane's 27 probes), the record `sessions/S159-desktop-2026-09-15.md`. The lane's own errors, named by the lanes: a page mapping carried backwards from S157 E31 (corrected by S157's V3-08 and again here); an "adds" framing on an Ashby block that was already in the first manifest; a fourth worst entry omitted from a specimen; two Cybernetics fragments juxtaposed as one; a wrong section pointer. Nothing was run; no PDF was opened; the anchor shelf was read, never written.
+
+### 10.10 Corrections after the verifier fleet (S159 E4, appended 02:5xZ — the lines above stand)
+
+Five Sonnet lanes checked 48 claims quoted from §10 against the code, the manifests, the bundles and the record (every plant caught by id; 45 VERIFIED). Three sentences above are wrong by their letter, each confirmed by the lane's own count:
+1. **§10.3, IV 4e's 08-01 copy**: not "four pipe-table rows" — the manifest's worst list holds **ten** entries, every one a pipe-table row (`degeneration_detail.worst`, 10 of 10 starting with `|`); J29's own sweep counted 26 false blocks on this book. The "four" came from a lane's "plus three more" written without counting the array.
+2. **§10.3, Ashby's primed protocol**: not "~495 tokens" — the run is **988 single-letter A/B tokens in 1,975 characters** (line 3248 of the bundle; `grep -o` on the line). A lane's `grep -o` counted pairs; the number is halved as written.
+3. **§10.6, the flattened figure**: "6 of 10 on the 4e" is wrong — the S157 record's residue says **five on the 4e** (its E30 adjudicated 10 losses on 10 pages; "half" is 5). Six of eleven on the University Edition stands.
+And one footnote owed: **§10.2's ρ ≈ −0.68** is Spearman's rank correlation over **n = 7** — the two Damodaran editions counted as two books, Diagnosing excluded (no probe; the table marks it) — between survival (higher = better) and the missing-line share (higher = worse), so a perfect concordance would read −1; a reader who averages the two editions and drops Diagnosing gets −0.71 at n = 6. The sign and the counting rule were not stated above; they are now.
