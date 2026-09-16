@@ -331,3 +331,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the fold's read-back (0 missing of 52 SHAs and rules; the tail byte-equal); close.sh live against the previous pin (ten rows clean); the checker's 7 cases with a plant; the converter suite 272/272 under marker-env; the record written before the first edit; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 25.36 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-16 23:16Z — the close refuses an unexplained file; a rule that lived in memory became a hook (S170)
+
+**What you will notice:** a close now stops itself, before it commits anything, if a changed file has no note (the thing that slipped past the last two closes); the muster's selftest checks the converter row's real list against the disk; and the warning that flags heredocs with escapes also flags a `python -c` program with a backslash, a backtick or a dollar sign — the rule you'd find in the error bin from September 4th, mechanical now, warn-only, your signed over-sensitivity intact. Your "how many things" question got its tally on the Desk.
+
+**What answered the register:** the error bin's fourth cut (29 rules naming a mechanism, one missing — built); S169's carry-over items 1 and 4.
+
+**Gained / lost / still missing:** gained — a driver gate with a plant, CASE 66, an 11-case hook selftest, ERR-054's hook half. Lost — nothing. Missing — your restart window (three fixes), your six taps, your arming, your rebuild, your lever, your signature, your answer on the Desk.
+
+**How it was checked:** the driver run for real against a planted notes file (exit 4, HEAD unmoved); CASE 66's ten names read out of close.sh and each file found; the hook's 11 cases on stdin with two negative controls; the muster selftest whole in the background; the record written before the first edit; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 18.94 USD-eq in the receipts across 1 episodes.
