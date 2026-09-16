@@ -213,3 +213,34 @@ report ("the page numbers are lying") reaches its cause in one grep.
 
 It is failing when: closeouts are long and the index is empty; tags are uniformly high; or the
 next session opens by asking "where were we?"
+
+## 9. Post-close work — the form (appended 2026-09-16, S161 E1; register row F2)
+
+*(Gap found 2026-08-22 by the register's first sweep — S106's four post-close commits "reach no permanent surface" — and left
+open for three weeks while the form built itself in practice. Written down here from what the records already do, not designed.)*
+
+**The problem.** The ledger row is written AFTER the closing commit, so any commit the close's own gates force afterwards (the CI
+reading, the memory lockstep, a §20) lands below the row and the row cannot name it. A closeout that stops at the row loses those
+commits; a closeout that amends the row orphans the SHA it just wrote (§7's `--amend` rule).
+
+**The form, as practised (Observed 2026-09-16: 49 of the records in `sessions/` carry a `## §20` — the first S109, 2026-08-24;
+every Desktop record from S115 on; S111–S114 and the other lanes' records lack it — and 143 commits on this branch say "post-close"
+in their message, the first at S99, 2026-08-20):**
+
+1. **§19 Close values** — the close script's output, verbatim, appended to the record by the chain BEFORE the closing commit
+   (`close_parts.py <N> s19`). Derived, never typed.
+2. **The closing commit, then the row** — the row names the closing SHA; the row's own commit is never amended.
+3. **§20 Post-close (UTC)** — appended AFTER the row by `close_parts.py <N> s20 <row_sha> "<ci>" <memory_sha> <memory_bytes>`
+   and the sitting's own adder: CI's conclusion for the ROW commit (observed, with the run id — never "pushed"); the memory library's
+   lockstep commit and byte count; both clocks read; the receipts (calls, cost, code — with any revision named); the register's net
+   (struck / added) SAID, not implied; the card, the seat and the monitors at the close; the principal's words that sitting, each
+   answered where it landed. Every value read from the chain's files, never typed.
+4. **The post-close commit** — its message begins `S<N> post-close:` and names the row's CI run; it is pushed and gets ITS OWN CI
+   run, which the NEXT sitting's §3 (Inherited, `Historical`) reports with the run id — the one line the post-close cannot write
+   about itself. Nothing else lands after the row but §20's commit and, on the private side, the receipts and the carry-over.
+5. **The marker last** — `coordination/private/session.current` is removed after the post-close commit; a commit after its removal is
+   refused by the guard (J63), which is what keeps step 4 the LAST tracked write of a sitting.
+
+**Tripwire.** `close_parts.py`'s `s20` refuses a record that already carries a §20; the guard refuses a tracked commit after the
+marker; the next open's §3 line is the reader's check that the post-close's CI was read. A post-close commit that carries anything
+but §20 (a code change, a register strike) is the anti-pattern §6 names — work after the close, outside the close's gates.
