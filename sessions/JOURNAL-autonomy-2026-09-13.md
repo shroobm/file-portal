@@ -247,3 +247,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the law before and after the fleet (21 checks; the two reds were five rows two agents dropped — I checked those five by hand); every drift the agents named re-read at the file; every plant caught by id; the fleet's own process census clean; the clock read before every heading.
 
 **What it cost you:** nothing on the card; one read-only fleet; 41.16 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-16 19:45Z — the tripwires owed: five fixes broken on purpose and watched (S163)
+
+**What you will notice:** nothing on any screen — this sitting wrote tests. Five "fixed" symptom rows that had never been broken on purpose now have a test that breaks them and watches the alarm: the process-tree kill that used to leave a python holding your card, the slice batch that used to run at a size nobody chose, the held book whose repairs a re-run used to erase, the watcher log a "…" used to corrupt, the bench folder a finished report used to lock. And one honest count up on the register: none of the converter's own test suites is run by CI or by the close — they run when I remember — so that gap is now a row of its own, to be built warn-only and armed by you.
+
+**What answered the register:** the second Circle's debt row, taken in order. Each test reproduces the row's own failure — the naive kill really leaves the grandchild alive, the bare occupant really is replaced, the log really carries the raw 0x85 without the encoding — so a green is a watched alarm, not a promise. Four of the nine wait: two Linux tests only CI can prove, one Rust test that rides your rebuild, one bench JS test.
+
+**Gained / lost / still missing:** gained — five tripwires (268, 22 and 4 checks in their suites), five cells annotated, one runner row. Lost — nothing (the live held/ untouched; the watcher's file only imported). Missing — the runner (next), the four remaining tests, your rebuild, your restart window, your lever, your signature, and your answer on the Desk.
+
+**How it was checked:** every suite run before and after with its count read (254 → 268; 18 → 22; 4/4; the bench's 14/14 still); every negative control watched firing; ruff at CI's pin; no python left alive after the tree tests; the clock read before every heading. One slip filed: the first test insert ran before the sitting's record existed — the guard caught the next write.
+
+**What it cost you:** nothing on the card; no fleet; 33.86 USD-eq in the receipts across 2 episodes.
