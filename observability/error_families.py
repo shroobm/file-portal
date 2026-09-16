@@ -83,7 +83,7 @@ METHOD = {
         "a read-only or private act (a lock, a manifest read, a planted decoy) left residue in the tracked tree or "
         "reached an audience it was meant to be hidden from",
         "diff the scope boundary (git status; the audience list) immediately before and after the 'inert' step",
-        ["RUNTIME-RESIDUE", "CONTROL-LEAK"],
+        ["RUNTIME-RESIDUE", "CONTROL-LEAK", "EDIT-UNDER-EXECUTION"],  # S168: EDIT-UNDER-EXECUTION (ERR-2026-09-15-109, S157 E24) — an edit to a script file reached the bash that was reading it by byte offset; filed without a family, found by the library smoke
     ),
     "M9 CONTEXT-BECAME-THE-REQUEST": (
         "benign work refused because the agent's name, inherited priming or adversarial verbs became part of the "
@@ -199,7 +199,7 @@ MECHANISM = {
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
         "one-directional metric cannot see gain); moderate real loss passes at the margin",
         "plant a defect one notch below the guard's resolution — does it pass?",
-        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110", "SYM-116", "SYM-120"],  # S141: 120 cd - / cd ~ no-ops; S137: 116 the heredoc bypass beside the false deny; S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies
+        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110", "SYM-116", "SYM-120", "SYM-133"],  # S168: 133 the table layer's invariant admits a digit column rewritten into a word (the letters fit; the guard cannot see a label's identity) — filed S157 E15 without a family, found by the library smoke; S141: 120 cd - / cd ~ no-ops; S137: 116 the heredoc bypass beside the false deny; S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies
     ),
 }
 
