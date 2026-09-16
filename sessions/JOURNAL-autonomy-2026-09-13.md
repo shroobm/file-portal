@@ -259,3 +259,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every suite run before and after with its count read (254 → 268; 18 → 22; 4/4; the bench's 14/14 still); every negative control watched firing; ruff at CI's pin; no python left alive after the tree tests; the clock read before every heading. One slip filed: the first test insert ran before the sitting's record existed — the guard caught the next write.
 
 **What it cost you:** nothing on the card; no fleet; 33.86 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-16 20:34Z — the runner: the converter's own tests at every close, warn-only (S164)
+
+**What you will notice:** the next close card that follows a converter change will carry eight new rows — one per test suite, each with its own count — and, if one is red, a line that says RED in words and that the exit code does not yet carry it. Arming is yours: one variable, once you have seen the rows. Nothing else of yours moved; the register stands at 98.
+
+**What answered the register:** S163's finding that the converter's own suites ran only when I remembered. Now the close runs them whenever the converter or the bench changed since the pin. The muster's selftest gained six cases: a planted failing suite reads RED and the exit stays what it was; armed, the same red stops the close; a passing suite reads clean; an untouched converter skips. The passing-suite control earned its keep on the first run — the fixture had picked up the Windows Store's fake python, so the planted failure "worked" for the wrong reason, and the control said so.
+
+**Gained / lost / still missing:** gained — the runner (warn-only), six tripwires, one live run of eight suites in 57 seconds. Lost — nothing. Missing — your arming, the four remaining tests, your rebuild, your restart window, your lever, your signature, and your answer on the Desk.
+
+**How it was checked:** the muster's selftest 113 → 119 (all green); close.sh run live on this tree (skipped — the converter did not change) and against the S163 pin (eight rows clean); the clock read before every heading; the record written before the first edit this time.
+
+**What it cost you:** nothing on the card; no fleet; 22.23 USD-eq in the receipts across 1 episodes.
