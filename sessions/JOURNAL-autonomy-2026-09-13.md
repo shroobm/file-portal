@@ -751,3 +751,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** ten tripwire cases (a model image reads NOT IDLE; a widget path reads TOUCHED; a missing source reads UNREAD, never clean); the reader's first his-dirs list caught counting the lanes' own dirs as yours, and narrowed.
 
 **What it cost you:** no card time; no fleet; 15.81 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 23:42Z — the reader at the open; the widget's line was your hand (S205)
+
+**What you will notice:** the sitting's record opens with three read lines about the sitting before it — idle, untouched, nothing written — instead of a sentence; and S194's record ends with a line saying the one file that moved that afternoon was the widget logging your resize of its wall at 18:28Z. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold (seven clauses retired, their homes read — two homes corrected on the way); the reader at the open; the S194 residue read and appended; the reader row's first of three.
+
+**Gained / lost / still missing:** gained — the open reads before the close asserts; lost — nothing of yours; missing — your decision on the S198 proposal, the study's rule on revisions, your Gmail reconnect (twelve drafts wait), and your list.
+
+**How it was checked:** the receipt finalized before it was read (clean stop); the fold's check (missing 0, the tail unchanged); the widget's epoch converted, not guessed (1789669711 = 18:28:31Z).
+
+**What it cost you:** no card time; no fleet; 13.99 USD-eq in the receipts across 1 episode(s).
