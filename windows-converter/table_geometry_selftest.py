@@ -775,6 +775,25 @@ def main():
         tg.UNFRAME_STUBS = saved
     check("no stub on the healthy fixtures, Valentine's exhibit, p.175, p.200, p.204",
           all(tg.propose_unframes(x.split(chr(10))) == [] for x in (HEALTHY, VALENTINE, P175, P200, P204)), "")
+    # S186 E1 (SYM-134): the header fused into the first DATA row — the specimen from held Data Science for Business, Table 10-2
+    T102_BEFORE = ["*Table 10-2. Term count representation.*", "",
+                   "|    | a | explain | hard | has | is | jazz | music | natural | rhythm | swing | to |",
+                   "|----|---|---------|------|-----|----|------|-------|---------|--------|-------|----|",
+                   "| d1 | 1 | 0       | 0    | 1   | 0  | 1    | 1     | 0       | 1      | 1     | 0  |",
+                   "| d2 | 0 | 1       | 1    | 0   | 1  | 0    | 0     | 0       | 0      | 1     | 1  |",
+                   "| d3 | 1 | 0       | 0    | 0   | 1  | 0    | 0     | 1       | 2      | 1     | 0  |"]
+    T102_FUSED = ["*Table 10-2. Term count representation.*", "",
+                  "| d1 | a 1 | explain 0 | hard 0 | has 1 | is 0 | jazz 1 | music 1 | natural 0 | rhythm 1 | swing 1 | to 0 |",
+                  "|----|---|---------|------|-----|----|------|-------|---------|--------|-------|----|",
+                  "| d2 | 0 | 1       | 1    | 0   | 1  | 0    | 0     | 0       | 0      | 1     | 1  |",
+                  "| d3 | 1 | 0       | 0    | 0   | 1  | 0    | 0     | 1       | 2      | 1     | 0  |"]
+    ok134, why134, _f = tg.grid_invariant(T102_BEFORE, T102_FUSED)
+    check("SYM-134: a header row fused into the first DATA row is REFUSED by the invariant, the reason naming data",
+          not ok134 and any("data" in w and "SYM-134" in w for w in why134), str(why134))
+    check("SYM-134 POSITIVE CONTROL: a real stacked heading (letters under letters) is still a header fold",
+          tg._fold_allowed(["", "Standard", "", "P-", "Lower"], ["Coefficients", "Error", "t Stat", "value", "95%"], header=True)[0], "")
+    check("SYM-134 the refusal names the rule: `_fold_allowed(header=True)` on a numeric lower row",
+          not tg._fold_allowed(["", "a", "explain"], ["d1", "1", "0"], header=True)[0], "")
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 

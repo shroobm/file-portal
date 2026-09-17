@@ -477,8 +477,13 @@ def convert_one(pdf: Path) -> str:
         # A timed-out convert used to leave marker's python holding ~9.7 GB of VRAM with no
         # `failed` event and the PDF still in drop/, so the next poll started a SECOND
         # converter beside the orphan (review 2026-08-30, the worst path in this file).
+        # S187 E3 (SYM-135): the child's OWN stdout encoding is the child's env's business — the widget's spawn sets
+        # PYTHONIOENCODING for this watcher (watcher.rs) but a watcher spawned another way (the lane's S175 WMI respawn)
+        # did not, and the child died at a print on a non-cp1252 character. Pass it explicitly; convert_and_ship also
+        # reconfigures its streams at import, so either half alone would do — both are kept.
         child = subprocess.Popen(args, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
-                                 text=True, encoding="utf-8", errors="replace")
+                                 text=True, encoding="utf-8", errors="replace",
+                                 env={**os.environ, "PYTHONIOENCODING": "utf-8"})
         try:
             out, err = child.communicate(timeout=TIMEOUT_S)
         except subprocess.TimeoutExpired:

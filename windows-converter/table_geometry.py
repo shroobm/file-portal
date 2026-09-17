@@ -1065,6 +1065,13 @@ def _fold_allowed(a: list[str], b: list[str], header: bool) -> tuple[bool, str]:
     """A body fold may join only where at most one side is filled outside column 1 (a wrapped label carries no data of its
     own); a fold of the HEADER row with the first body row (S152 E3, a stacked heading) may join filled cells."""
     if header:
+        # S186 E1 (SYM-134): a stacked heading's lower row carries WORDS (`Error` under `Standard`, `95%` under `Lower`); a lower
+        # row whose filled cells outside column 1 are ALL numbers is the first DATA row — the model fused Table 10-2's header
+        # (`a | explain | …`) with `d1 | 1 | 0 | …` into `d1 | a 1 | explain 0 | …` and this rule admitted it as a heading, so the
+        # rung built to protect tables shipped a corrupted one that the plain acceptor would have reverted (held DSB, 2026-09-17).
+        filled = [x for x in b[1:] if x and x.strip()]
+        if filled and all(_is_num(x) for x in filled):
+            return False, "the lower row is data (every filled cell outside column 1 is a number) — not a stacked heading (SYM-134)"
         return True, "a header fold"
     for j in range(1, max(len(a), len(b))):
         x = a[j] if j < len(a) else ""

@@ -39,6 +39,23 @@ import fp_paths
 import marker_blocks
 from events import emit
 
+
+def _console_utf8() -> None:
+    """S187 E3 (SYM-135): a print must never kill a run. On Windows a child whose spawner set no PYTHONIOENCODING gets a
+    cp1252 stdout, and the first character outside that page in a print — a clock emoji in Automate the Boring Stuff's
+    analyst meta, 2026-09-17 — raised UnicodeEncodeError at `ANALYST done:` and lost a 75-minute pass at its last line.
+    The widget's spawn sets PYTHONIOENCODING (watcher.rs); the lane's S175 WMI respawn did not; Rab's by-hand runs may not.
+    Reconfigure both streams to UTF-8 with `replace` whenever they are not UTF-8 already (never on a stream that cannot)."""
+    for stream in (sys.stdout, sys.stderr):
+        try:
+            if stream is not None and (stream.encoding or "").lower().replace("-", "") != "utf8":
+                stream.reconfigure(encoding="utf-8", errors="replace")
+        except (AttributeError, ValueError, OSError):
+            pass
+
+
+_console_utf8()
+
 # ---------- Survival Audit hooks (docs/15) — report-only, never raise ----------
 
 def _audit_convert_safe(src, body: str, lane: str, tmp_dir: Path, manifest: dict) -> None:

@@ -2243,6 +2243,23 @@ cas._latex_structure_safe("\\begin{array}{cc}\n1\n\\end{array}\n\\end{array}\n",
 check(m28d["latex_structure"]["valid"] is False and m28d["latex_structure"]["unopened"] == 1,
       "T28 (d) an end that closes nothing reads unopened 1 (the walk, not the count alone)")
 
+# ---------- SYM-135 (S187 E3): a print must never kill a run — the child's console is UTF-8 whoever spawned it ----------
+print("SYM-135 console utf-8")
+import subprocess as _s135  # noqa: E402
+_env135 = {k: v for k, v in os.environ.items() if k not in ("PYTHONIOENCODING", "PYTHONUTF8")}
+_env135["PYTHONLEGACYWINDOWSSTDIO"] = "0"
+_env135["FP_PIPELINE"] = str(QUARANTINE)
+_env135["FP_DUMP_LEDGER"] = str(QUARANTINE / "dump-ledger")
+_code135 = ("import sys; sys.path.insert(0, %r); import types; sys.modules.setdefault('marker', types.SimpleNamespace(__version__='test')); "
+            "import convert_and_ship; print('ANALYST done: {\"clock\": \"\U0001f55c\"}', flush=True); print('enc', sys.stdout.encoding)" % str(HERE))
+_r135 = _s135.run([sys.executable, "-X", "utf8=0", "-c", _code135], capture_output=True, env=_env135, timeout=180)
+check(_r135.returncode == 0 and "\U0001f55c".encode("utf-8") in _r135.stdout,
+      "SYM-135: a child spawned WITHOUT PYTHONIOENCODING (utf8 mode off) imports the module and prints the clock emoji that killed "
+      "Automate's run — exit 0, the bytes UTF-8 (stderr: %s)" % _r135.stderr.decode("utf-8", "replace")[-160:].strip())
+_r135b = _s135.run([sys.executable, "-X", "utf8=0", "-c", "import sys; print('\U0001f55c')"], capture_output=True, env=_env135, timeout=60)
+check(_r135b.returncode != 0 or b"\xf0\x9f\x95\x9c" not in _r135b.stdout,
+      "SYM-135 NEGATIVE CONTROL: the same child WITHOUT the module's guard cannot print it (the crash reproduced: rc %d)" % _r135b.returncode)
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

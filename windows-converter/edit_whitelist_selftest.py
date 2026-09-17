@@ -178,6 +178,16 @@ tl = ew.tally([("table-geometry", True, "a", "b"), ("table-geometry", False, "a"
 case("tally counts the class on both sides", tl == {"accepted": {"table-geometry": 1, "hyphen": 1}, "reverted": {"table-geometry": 1}})
 case("the class is named in CLASSES and in FULL_TABLES, not in FULL (Rab's slot)", "table-geometry" in ew.CLASSES and "table-geometry" in ew.FULL_TABLES and "table-geometry" not in ew.FULL)
 
+# S186 E1 (SYM-134): the acceptor's table rung restores a table whose header the model fused into its first data row
+_T134_IN = ("*Table 10-2. Term count representation.*\n\n"
+            "|    | a | explain | hard |\n|----|---|---------|------|\n| d1 | 1 | 0       | 0    |\n| d2 | 0 | 1       | 1    |\n\nAfter the table.\n")
+_T134_CAND = ("*Table 10-2. Term count representation.*\n\n"
+              "| d1 | a 1 | explain 0 | hard 0 |\n|----|---|---------|------|\n| d2 | 0 | 1       | 1    |\n\nAfter the table.\n")
+_t134, _l134 = ew.reconcile(_T134_IN, _T134_CAND, rungs=ew.FULL_TABLES)
+case("SYM-134: a header fused into the first data row is restored whole by the table rung (the header row is back, the fused row gone)",
+     "| d1 | a 1 |" not in _t134 and "|    | a | explain | hard |" in _t134 and any(lbl == "table-geometry" and not acc for lbl, acc, _, _ in _l134),
+     _t134[:200])
+
 n, ok = len(results), sum(results)
 print("edit_whitelist selftest: %d/%d green%s" % (ok, n, "" if ok == n else "  *** RED ***"))
 sys.exit(0 if ok == n else 1)
