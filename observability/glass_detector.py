@@ -193,6 +193,35 @@ _RS_FIELD_ADDED = re.compile(r"^\+\s*pub(?:\([^)]*\))?\s+([a-z_][a-z0-9_]*)\s*:"
 _DICT_KEY_ADDED = re.compile(r'(?:[{,(]|^\+)\s*"([A-Za-z_][A-Za-z0-9_]*)"\s*:')
 
 
+def branch_keys_from_python(path: Path) -> list[tuple[str, int, str]]:
+    """S177 (register row observability/glass-subscript-blind, measured S176 E3): the keys a producer hangs on a BRANCH by
+    subscript — `x["key"] = …`, `x["key"] += …`, `x.setdefault("key", …)` — which _PyProducer never sees (it harvests dict
+    LITERALS that leave a function; 30 such keys in the converter's three producers, the manifest's own `fidelity`, `analyst`,
+    `final`, `supersede` among them). Listed WARN-ONLY by main(): never a glitch, never fatal under --enforce — the gate is his
+    once the keys carry dispositions. Keys shorter than MIN_KEY_LEN are skipped like the census's."""
+    try:
+        tree = ast.parse(path.read_text(encoding="utf-8"))
+    except (SyntaxError, UnicodeDecodeError):
+        return []
+    found: list[tuple[str, int, str]] = []
+    for fn in ast.walk(tree):
+        if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
+            continue
+        for n in ast.walk(fn):
+            targets: list = []
+            if isinstance(n, ast.Assign):
+                targets = list(n.targets)
+            elif isinstance(n, ast.AugAssign):
+                targets = [n.target]
+            for t in targets:
+                if isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant) and isinstance(t.slice.value, str):
+                    found.append((t.slice.value, t.lineno, fn.name))
+            if (isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == "setdefault"
+                    and n.args and isinstance(n.args[0], ast.Constant) and isinstance(n.args[0].value, str)):
+                found.append((n.args[0].value, n.lineno, fn.name))
+    return found
+
+
 def keys_from_rust(path: Path) -> list[tuple[str, int, str]]:
     """Rust producers speak two dialects: `json!({...})` literals and `#[derive(Serialize)]`
     structs. Both cross the same wire to the same JS."""
@@ -377,6 +406,7 @@ def main() -> int:
 
     report: dict[str, dict] = {}
     glitches: list[tuple[str, str, int, str, str]] = []
+    subscript_warn: list[tuple[str, str, int, str, str]] = []  # S177: branch keys, warn-only
     used_signatures: set[str] = set()
     empty_globs: list[str] = []
 
@@ -429,6 +459,18 @@ def main() -> int:
                         "verdict": verdict,
                     }
                 )
+        # S177: the branch keys, WARN-ONLY — those the census did not harvest, no renderer names and no disposition signs
+        harvested = {r["key"] for r in lane_rows}
+        for prod in producers:
+            if prod.suffix != ".py":
+                continue
+            for key, lineno, ctx in branch_keys_from_python(prod):
+                sig = f"{lane['name']}:{key}"
+                if len(key) < MIN_KEY_LEN or key in harvested or sig in signed or referenced(key, blob, cache):
+                    continue
+                if only_added is not None and key not in only_added:
+                    continue
+                subscript_warn.append((lane["name"], key, lineno, rel(prod), ctx))
         report[lane["name"]] = {
             "producers": [rel(p) for p in producers],
             "renderers": [rel(p) for p in renderers],
@@ -457,12 +499,22 @@ def main() -> int:
                     "empty_globs": empty_globs,
                     "since": args.since,
                     "since_fell_back": since_fell_back,
+                    "subscript_warn": subscript_warn,  # S177: never in glitches; --enforce ignores it
                 },
                 indent=2,
             )
         )
     else:
         _print_census(report, glitches, distinct_glitches, stale, empty_globs, since_fell_back, args)
+        if subscript_warn:
+            distinct = sorted({(w[0], w[1]) for w in subscript_warn})
+            print(f"\n  ▸ {len(distinct)} subscript-hung key(s) at {len(subscript_warn)} site(s) — WARN-ONLY (S177; docs/29 §5.3:")
+            print("    the census sees a block's literal keys, never the branch a subscript hangs them on; these are")
+            print("    computed and stored under a name no renderer and no disposition names. Not fatal under --enforce")
+            print("    until each carries a disposition — the gate is Rab's):")
+            for lane_name, key in distinct:
+                sites = [w for w in subscript_warn if w[0] == lane_name and w[1] == key]
+                print(f"      {lane_name}:{key}  " + "; ".join(f"{w[3]}:{w[2]} ({w[4]})" for w in sites[:3]))
 
     if args.enforce and (glitches or stale or empty_globs):
         return 1

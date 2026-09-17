@@ -150,6 +150,7 @@ def main() -> int:
 
     print("\n  [4] the guard fires on a planted glitch")
     check("negative test: a planted unreferenced key is reported", _planted_glitch_is_caught())
+    check("S177: a planted SUBSCRIPT-hung key is LISTED (subscript_warn) and is NOT a glitch — --enforce still exits 0 for it", _planted_branch_is_listed_not_fatal())
 
     # §5.4's mode is the one that PREVENTS the class rather than finding it late, so it needs
     # proof the filter is applied at all — a `--since` that silently ignored its argument would
@@ -373,6 +374,34 @@ def _planted_glitch_is_caught() -> bool:
         keys = {k for _, k, _, _, _ in out["glitches"]}
         # the planted key is caught, and the rendered one is NOT falsely accused
         return keys == {"zz_planted_glitch_never_rendered"}
+
+
+def _planted_branch_is_listed_not_fatal() -> bool:
+    """S177 (register row observability/glass-subscript-blind): a producer that hangs a key on a branch by subscript
+    (`m["zz_planted_branch"] = 1`) is invisible to the census; the detector now LISTS it as subscript_warn — and the
+    listing is warn-only: --enforce returns 0 for a lane whose only unseen key is a branch key. Both halves are the case."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as td:
+        d = Path(td)
+        (d / "producer.py").write_text(
+            'def state(m):\n    m["zz_planted_branch_never_rendered"] = 1\n    return {"shared": 2}\n',
+            encoding="utf-8",
+        )
+        (d / "renderer.html").write_text("<p>shared</p>\n", encoding="utf-8")
+        cfg = {"lanes": [{"name": "planted", "producers": [str(d / "producer.py")], "renderers": [str(d / "renderer.html")]}], "dispositions": {}}
+        cfgp = d / "cfg.json"
+        cfgp.write_text(json.dumps(cfg), encoding="utf-8")
+        proc = subprocess.run(
+            [sys.executable, str(DETECTOR), "--config", str(cfgp), "--enforce", "--json"],
+            capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT),
+        )
+        if proc.returncode != 0:  # warn-only: the branch key must not be fatal
+            return False
+        out = json.loads(proc.stdout)
+        listed = {k for _, k, _, _, _ in out.get("subscript_warn", [])}
+        glitch_keys = {k for _, k, _, _, _ in out["glitches"]}
+        return listed == {"zz_planted_branch_never_rendered"} and not glitch_keys
 
 
 if __name__ == "__main__":
