@@ -798,7 +798,7 @@ def _attach_blocks_safe(tmp_dir: Path, manifest: dict, chunk_stats: dict, name: 
 
 # ---------- J33: the Marker body sidecar (signed Rab 2026-09-05) ----------
 
-def _latex_structure_safe(body: str, manifest: dict, name: str = "") -> None:
+def _latex_structure_safe(body: str, manifest: dict, name: str = "") -> dict | None:
     """S175 E4 (his word 8ca8279b; SYM-056's validator, built S168, wired here): latex_structure.check() over the
     PRE-analyst Marker body — every begin{X} against its end{X}, the nesting walked, runaway column specs
     above MAX_SPEC_COLS — recorded in the manifest as COUNTS under `latex_structure` (`valid` and the check's
@@ -806,19 +806,24 @@ def _latex_structure_safe(body: str, manifest: dict, name: str = "") -> None:
     what a flag DOES (reject / strip / bench) is a design his; the analyst runs regardless. No event: the manifest
     key is the record (J33's choice). Never raises; on any fault the key is absent and the book converts as
     before (docs/15 §8). Runs before the analyst because the S109 specimen — an unterminated `array` with a
-    36-column spec — is what the analyst ran fifteen minutes on (SYM-056)."""
+    36-column spec — is what the analyst ran fifteen minutes on (SYM-056). The record is a dict LITERAL that is
+    RETURNED as well as written: glass's census harvests literals that leave a function, and a key assigned by
+    subscript is invisible to it and to --since (register row observability/glass-subscript-blind, S175)."""
     try:
         import latex_structure
         res = latex_structure.check(body)
         rec = {k: (len(v) if isinstance(v, (list, dict)) else v) for k, v in res.items()}
         rec["max_spec_cols"] = latex_structure.MAX_SPEC_COLS
         rec["mode"] = "flag"
-        manifest["latex_structure"] = rec
+        out = {"latex_structure": rec}
+        manifest.update(out)
         if not rec["valid"]:
             print(f"LATEX STRUCTURE: INVALID for {name} — unterminated {rec['unterminated']}, unopened {rec['unopened']}, "
                   f"misordered {rec['misordered']}, runaway {rec['runaway']} (flag only; nothing gated)", flush=True)
+        return out
     except Exception as exc:  # noqa: BLE001
         print(f"LATEX STRUCTURE: check failed ({str(exc)[:120]}) — key absent, the book converts as before", flush=True)
+        return None
 
 
 def _write_marker_body_safe(tmp_dir: Path, bundle_name: str, body: str, manifest: dict,
