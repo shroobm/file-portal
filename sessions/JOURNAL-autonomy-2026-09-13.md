@@ -427,3 +427,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the segmenter's specimen probed before and after the fix; three cases on it (61/61); the revisions diffed sitting by sitting (the headline kinds and the used tables) and `journal_check --all` reading `revisions without a row: 0`; the glass listing's case planted and asserted both ways (192/192); the anchor counted before and after; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 29.58 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-17 02:58Z — what is already good, everything: docs/64 on your fourth word (S178)
+
+**What you will notice:** a new public document, docs/64, answers your question of 02:35Z with evidence instead of adjectives: 24 strengths in five layers — the front door, the lane probe, the chunked conversion and the sidecars on top of Marker; the fidelity number with its denominators, the degeneration alarm, the rewrite gate, the verdict with its phase, the hold, the bless, the LaTeX flag, the reaudit road; the git vault with dedup, the fail-closed supersede and fixity; the typed events, glass, the Dock and the bench, the receipts; the registers, the mechanical open and close with CI observed, the tripwires, the autonomy apparatus — each row with the number or the guard that proves it and when it was measured. Beside it, one honest paragraph: only 1 of your 11 books passes; the degeneration alarm fires on 20 of 29 conversions and whether every one is a real loop is the open question; the visual half is unmeasured until the twin. Chandra was never run; the doc says so rather than pretend.
+
+**What answered the register:** nothing struck, nothing added — the sitting was your commission; the register's net is zero and says so. The index folded (17,441 → 17,030).
+
+**Gained / lost / still missing:** gained — docs/64 with its re-measured corpus (33 conversions, 11 books, 5,127 pages), the strengths argued from your goal, the gaps named beside them. Lost — nothing. Missing — your reading of the doc (name a product and the market paragraph becomes measured), your "twin", your rebuild, your flag design, your six taps, your arming, your lever, your signature, your answer on the Desk, which models you meant.
+
+**How it was checked:** every number by a read-only script over the manifests and the source (its output kept), the lane's two first-draft misreadings caught before use (a count that would have read a dict as true; two ledgers summed as one), the thresholds and the gates read as source lines, the cards of the night cited with their times; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 17.45 USD-eq in the receipts across 1 episodes.
