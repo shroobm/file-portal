@@ -69,6 +69,11 @@
       "env": "FP_PIPELINE",
       "role": "survival-audit mode lever: report | enforce (docs/15 s12)"
     },
+    "ladder": {
+      "path": "ladder.txt",
+      "env": "FP_PIPELINE",
+      "role": "normalisation-ladder USER LEVER (J44, SYM-076; S182): j32a-v2 (the default when the file is absent or unreadable) | j32a-v3 - re-read per audit and per analyst pass; the ON position is Rab's word, the manifest's regex_id names the ladder that RAN"
+    },
     "gpu_lock": {
       "path": ".gpu-lock",
       "env": "FP_PIPELINE",

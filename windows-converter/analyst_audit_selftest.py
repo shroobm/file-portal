@@ -27,8 +27,19 @@ Run with the marker-env interpreter (fidelity_audit imports pymupdf/rapidfuzz):
   (l) S131: a CRLF reference masks the same block as its LF twin (the fleet's refutation,
       closed in the mask; degeneration() itself is untouched)
 """
-import text_norm as tn
-import fidelity_audit as fa
+import os
+import shutil
+import tempfile
+
+# J44 (S182): the ladder lever is a file under the pipeline root -- this suite must never read the LIVE tree's
+# lever (a `j32a-v3` there would silently run every case under v3). A throwaway root, removed at the end.
+_QUARANTINE = tempfile.mkdtemp(prefix="fp-ladder-selftest-")
+os.environ["FP_PIPELINE"] = _QUARANTINE
+
+import text_norm as tn  # noqa: E402  (env must be set first)
+import fidelity_audit as fa  # noqa: E402
+import ladder_lever  # noqa: E402
+import fp_paths  # noqa: E402
 
 failed: list[str] = []
 ran: list[str] = []
@@ -286,6 +297,99 @@ def _():
     clean_crlf = (PARA_A + "\n\n" + PARA_B).replace("\n", "\r\n")
     assert fa.mask_degenerate_reference(clean_crlf) == (clean_crlf, {"blocks": [], "words": 0})
 
+
+# ---------------------------------------------------------------- J44 (S182): ladder v3 behind a lever, OFF
+SYM076_REF = "the planner rewrites the call to within\\_recursive before the optimiser sees the subquery plan at all here"
+SYM076_OUT = "the planner rewrites the call to within_recursive before the optimiser sees the subquery plan at all here"
+
+
+@case("(m) J44 rung 1: the SYM-076 specimen -- `within\\_recursive` vs `within_recursive` reads 0.0 under v2 "
+      "(the defect reproduced) and 1.0 under v3 (the escape set gains the underscore)")
+def _():
+    assert fa.audit_analyst(SYM076_REF, SYM076_OUT, ladder="j32a-v2")["doc_survival"] == 0.0
+    v3 = fa.audit_analyst(SYM076_REF, SYM076_OUT, ladder="j32a-v3")
+    assert v3["doc_survival"] == 1.0 and v3["normalisation"]["regex_id"] == "j32a-v3", v3
+
+
+@case("(n) J44 keeps R5 under v3: `\\rm` vs `rm` is STILL a real loss (1 of 2 windows) under both ladders -- the underscore is the only "
+      "addition to the escape set")
+def _():
+    ref = "the macro expands to \\rm before the layout pass and the renderer then reads it back as text"
+    out = "the macro expands to rm before the layout pass and the renderer then reads it back as text"
+    v3, v2 = fa.audit_analyst(ref, out, ladder="j32a-v3"), fa.audit_analyst(ref, out, ladder="j32a-v2")
+    # 18 words = two windows (12 + a kept 6); the first carries `\\rm` and fails under BOTH ladders: 1 of 2 survives
+    assert v3["doc_survival"] == v2["doc_survival"] == 0.5 and v3["windows_total"] == 2, (v3, v2)
+
+
+CITE_REF = ("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu [\\[2\\]](#page-49-0) "
+            "nu xi omicron pi rho sigma tau upsilon phi chi psi omega")
+CITE_OUT = ("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu [2](#page-49-0) "
+            "nu xi omicron pi rho sigma tau upsilon phi chi psi omega")
+
+
+@case("(o) J44 rung 3: Marker's `[\\[n\\]](#page-N-K)` vs the model's `[n](#page-N-K)` -- a failed window under v2, "
+      "1.0 under v3; and a DELETED tail under v3 still fails (the rung rescues no deletion)")
+def _():
+    assert fa.audit_analyst(CITE_REF, CITE_OUT, ladder="j32a-v2")["doc_survival"] < 1.0
+    assert fa.audit_analyst(CITE_REF, CITE_OUT, ladder="j32a-v3")["doc_survival"] == 1.0
+    deleted = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu [2](#page-49-0)"
+    assert fa.audit_analyst(CITE_REF, deleted, ladder="j32a-v3")["doc_survival"] == 0.5
+
+
+@case("(o') negative control: v3's rungs disabled (prepare_for reverted to prepare_output) -> (m) and (o) FAIL under "
+      "the v3 id -- the rungs, not the id, are what passes them (watched)")
+def _():
+    saved = fa.prepare_for
+    fa.prepare_for = lambda md, ladder="j32a-v2": tn.prepare_output(md)
+    try:
+        assert fa.audit_analyst(SYM076_REF, SYM076_OUT, ladder="j32a-v3")["doc_survival"] == 0.0
+        assert fa.audit_analyst(CITE_REF, CITE_OUT, ladder="j32a-v3")["doc_survival"] < 1.0
+    finally:
+        fa.prepare_for = saved
+
+
+@case("(p) J44 the lever: absent -> v2; garbage -> v2; `J32A-V3` (case, whitespace) -> v3; audit_analyst with no "
+      "ladder named READS the file; chunk_survival takes the same id; an unknown id given by hand RAISES")
+def _():
+    lever = fp_paths.root("ladder")
+    lever.unlink(missing_ok=True)
+    assert ladder_lever.read_ladder() == "j32a-v2"
+    lever.write_text("j32a-v9\n", encoding="utf-8")
+    assert ladder_lever.read_ladder() == "j32a-v2"
+    lever.write_text("  J32A-V3 \n", encoding="utf-8")
+    assert ladder_lever.read_ladder() == "j32a-v3"
+    block = fa.audit_analyst(SYM076_REF, SYM076_OUT)
+    assert block["doc_survival"] == 1.0 and block["normalisation"]["regex_id"] == "j32a-v3", block
+    assert tn.chunk_survival(SYM076_REF, SYM076_OUT, ladder="j32a-v3") == 1.0
+    assert tn.chunk_survival(SYM076_REF, SYM076_OUT) == 0.0  # the pure function's default is v2, always
+    lever.unlink()
+    block = fa.audit_analyst(SYM076_REF, SYM076_OUT)
+    assert block["doc_survival"] == 0.0 and block["normalisation"]["regex_id"] == "j32a-v2", block
+    try:
+        tn.prepare_for("x", "j32a-v9")
+        raise AssertionError("an unknown ladder id must raise in the pure function")
+    except ValueError:
+        pass
+
+
+@case("(q) POSITIVE CONTROL: under v2 -- the default, the lever absent -- every shape the suite knows is BYTE-IDENTICAL "
+      "to prepare_output, chunk_survival and audit_analyst read what they read before J44 (the shipped numbers do not move)")
+def _():
+    shapes = [
+        "the committee met in \\(1960-2023\\) to review the annual budget carefully",
+        "a heading\n\n# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nsee [the paper](http://x/y) and ![img](a.png) plus `code` and *em*",
+        SYM076_REF, CITE_REF, "漢字の文章は空白なしで続きます。これは十分に長い文である。",
+        "the macro expands to \\rm before the layout pass",
+    ]
+    for s in shapes:
+        assert tn.prepare_for(s, "j32a-v2") == tn.prepare_output(s) == tn.prepare_for(s), s
+    for a, b in ((SYM076_REF, SYM076_OUT), (CITE_REF, CITE_OUT), (shapes[0], shapes[0].replace("\\", ""))):
+        assert tn.chunk_survival(a, b) == tn.chunk_survival(a, b, ladder="j32a-v2")
+        blk = fa.audit_analyst(a, b)
+        assert blk == fa.audit_analyst(a, b, ladder="j32a-v2") and blk["normalisation"]["regex_id"] == "j32a-v2"
+
+
+shutil.rmtree(_QUARANTINE, ignore_errors=True)
 
 print()
 if failed:

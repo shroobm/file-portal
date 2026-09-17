@@ -184,7 +184,46 @@ def space_free(t: str) -> str:
     return _WS.sub("", t)
 
 
-def chunk_survival(input_text: str, output_text: str) -> float | None:
+# ---------------------------------------------------------------------------
+# J44 (SYM-076; measured S118/S119 on held DDIA with the REAL audit_analyst; BUILT S182 behind a
+# lever that reads OFF). The v2 ladder above counts two of the model's REPAIRS as loss:
+#   rung 1 -- Marker escapes an underscore inside an identifier (`within\_recursive`); the model
+#     writes `within_recursive`. prepare_output strips the `_` as MARKDOWN before unescape() runs,
+#     so the reference reads `within\recursive` (a backslash before a LETTER, which R5 protects
+#     for `\rm`) and the output `withinrecursive`: a 15-word probe reads survival 0.0. v3 runs an
+#     unescape that INCLUDES `_` in its lookahead BEFORE the markdown strip. `\rm` vs `rm` stays
+#     0.0 (R5 kept) -- the escape set gains only the underscore.
+#   rung 3 -- Marker's citation `[\[n\]](#page-N-K)`, canonicalised by the model to `[n](#page-N-K)`
+#     (844 of 1,396 in the DDIA sidecar; the LARGEST failed-window class, S119 both lanes): the
+#     link strip cannot see through the escaped brackets, so the anchor survives on one side only.
+#     v3 strips the `(#page-N-K)` target on BOTH sides before the markdown strip. A ONE-sided form
+#     makes the audit WORSE (0.9234/283 measured) -- both sides or neither, which prepare_for
+#     guarantees by construction: the same function, the same ladder id, on ref and out alike.
+#   rung 2 (ligature-blind) is NOT here: counterfactual until gated on a garble glyph in the input
+#     (Codex MSG-CDX-0047, accepted); a later sitting, with the acceptor's gate (edit_whitelist).
+# The lever (ladder_lever.read_ladder; roots.json `ladder` -> ladder.txt under the pipeline root)
+# is read by the CALLERS -- this module stays pure. Absent, unreadable or unknown reads v2, and
+# prepare_for(x, LADDER_V2) is prepare_output(x) byte for byte: the shipped numbers do not move
+# until the file says `j32a-v3` (Rab's word). The manifest's `regex_id` names the ladder that RAN.
+LADDER_V2 = "j32a-v2"
+LADDER_V3 = "j32a-v3"
+LADDERS = (LADDER_V2, LADDER_V3)
+V3_UNESCAPE = re.compile(r"\\(?=[^\w\s]|_)")   # _UNESCAPE + the underscore (S118 ladder_v3_probe)
+CITE_ANCHOR = re.compile(r"\(#page-[\d-]+\)")   # Marker's citation link target (S119 ladder_probe CITE)
+
+
+def prepare_for(markdown: str, ladder: str = LADDER_V2) -> str:
+    """prepare_output under the named ladder. v2 = prepare_output unchanged; v3 = the escape-first
+    and cite-anchor rungs BEFORE the markdown strip. An unknown id raises -- the lever reader is the
+    one place that turns garbage into the default, so a typo cannot silently select a ladder."""
+    if ladder == LADDER_V2:
+        return prepare_output(markdown)
+    if ladder == LADDER_V3:
+        return prepare_output(CITE_ANCHOR.sub("", V3_UNESCAPE.sub("", markdown)))
+    raise ValueError(f"unknown ladder {ladder!r}; one of {LADDERS}")
+
+
+def chunk_survival(input_text: str, output_text: str, ladder: str = LADDER_V2) -> float | None:
     """J32-B's per-chunk accept-time guard (analyst.py:299 process(), after the fence check
     passes): the fraction of the INPUT chunk's 12-word windows, built on the SAME normalisation
     ladder as J32-A's analyst-stage audit, that survive space-free containment in the
@@ -197,8 +236,8 @@ def chunk_survival(input_text: str, output_text: str) -> float | None:
     SYM-057's rule is that an unmeasurable result must never read as a clean one, and here the
     caller's rule is the mirror image -- an unmeasurable result must never read as a FAILING
     one either, so `survival is None` must never be rejected."""
-    ref = punct_free(unescape(prepare_output(input_text)))
-    out = punct_free(unescape(prepare_output(output_text)))
+    ref = punct_free(unescape(prepare_for(input_text, ladder)))
+    out = punct_free(unescape(prepare_for(output_text, ladder)))
     cjk = is_cjk(ref[:4000])
     windows = make_windows(ref, cjk)
     if not windows:

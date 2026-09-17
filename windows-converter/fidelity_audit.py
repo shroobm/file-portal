@@ -41,8 +41,10 @@ from text_norm import (  # noqa: F401 -- re-exported, not merely used below
     WINDOW_WORDS, WINDOW_MIN_WORDS, CJK_WINDOW_CHARS, CJK_WINDOW_MIN,
     prepare_output, is_cjk, make_windows, _merge_runs,
     unescape, punct_free, space_free,
+    prepare_for,  # J44 (S182): the ladder-aware prepare; v2 == prepare_output byte for byte
     _common, _finalize,  # prepare_witness (witness-side only) still calls these directly
 )
+import ladder_lever  # J44 (S182): the lever's one reader (roots.json `ladder` -> ladder.txt)
 
 # ---------------------------------------------------------------------------
 # Constants. Thresholds calibrated over the vaulted corpus (docs/15 §9.1). Per the
@@ -541,10 +543,14 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
 # v2 (verifier GO_AMENDED, 2026-09-05): text_norm._PUNCT changed (`[^\w\s]` -> `[^\w\s\\]`, R5)
 # to stop deleting a backslash unconditionally -- see text_norm.py's v2 note. A regex change
 # bumps this id per the ticket's own rule.
+#
+# J44 (S182): the id is the LADDER that ran -- `j32a-v2` (this pair, unchanged) or `j32a-v3`
+# (text_norm.prepare_for's escape-first + cite-anchor rungs) -- read from the lever per call
+# when the caller does not name one. _REGEX_ID stays as v2's name for readers that import it.
 _REGEX_ID = "j32a-v2"
 
 
-def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
+def audit_analyst(marker_markdown: str, analyst_markdown: str, ladder: str | None = None) -> dict:
     """Near-exact containment: the Marker doc IS the reference (docs/15 §6/§9.4). No fuzzy.
     S131 (docs/15 §12.1): blocks of the reference that degeneration() flags are masked first.
     Both sides run the J32-A normalisation ladder (unescape -> punct_free) before windowing;
@@ -555,10 +561,12 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
     # mask_degenerate_reference); `reference_masked` says what left, so a verdict that leaned
     # on the mask can be read as such.
     masked_ref, reference_masked = mask_degenerate_reference(marker_markdown)
-    ref = punct_free(unescape(prepare_output(masked_ref)))
-    out = punct_free(unescape(prepare_output(analyst_markdown)))
+    if ladder is None:
+        ladder = ladder_lever.read_ladder()  # J44 (S182): the lever, re-read per audit; absent = v2
+    ref = punct_free(unescape(prepare_for(masked_ref, ladder)))
+    out = punct_free(unescape(prepare_for(analyst_markdown, ladder)))
     normalisation = {"unescape": True, "punct_free": True, "space_free": True,
-                     "regex_id": _REGEX_ID}
+                     "regex_id": ladder}
     cjk = is_cjk(ref[:4000])
     windows = make_windows(ref, cjk)
     if not windows:

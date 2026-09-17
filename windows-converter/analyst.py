@@ -23,6 +23,7 @@ from pathlib import Path
 
 import edit_whitelist as ew  # J46 (S140): the diff-whitelist acceptor — faithfulness by construction
 import fp_paths
+import ladder_lever  # J44 (S182): the per-chunk guard runs the SAME ladder the document audit will
 import table_geometry as tg  # S150 E3: the table-geometry layer (propose → invariant → apply) and the class's law
 import text_norm as tn
 
@@ -516,6 +517,7 @@ def process(markdown: str, backend: str = "local",
     prompt = load_program(program)
     generate = {"local": _generate, "gemini": _generate_gemini}[backend]
     fenced, embeds = fence(markdown)
+    _ladder = ladder_lever.read_ladder()  # J44 (S182): the lever, re-read per pass; absent = j32a-v2 (today's guard)
     if tables is None:
         tables = ANALYST_TABLES
     geometry = None
@@ -678,7 +680,7 @@ def process(markdown: str, backend: str = "local",
                 # threshold 0.50, action reject) checks the OTHER failure mode the fence
                 # cannot see — a deleted paragraph or a runaway inflation — by measuring how
                 # much of the INPUT chunk's own windows still turn up in the candidate.
-                survival = tn.chunk_survival(chunk, candidate)
+                survival = tn.chunk_survival(chunk, candidate, ladder=_ladder)
                 if survival is not None and survival < ANALYST_CHUNK_SURVIVAL_MIN:
                     out.append(chunk)  # survival guard tripped -> ship the un-analyzed original
                     rejected += 1
