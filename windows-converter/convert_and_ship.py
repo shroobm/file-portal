@@ -94,12 +94,14 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
         if fid and "convert" in fid:
             fid["analyst"] = an
             fid["verdict"], fid["verdict_phase"] = fa.verdict_with_phase(fid["convert"], an)  # S175: the phase beside it
+            fid["verdict_phases"] = fa.fail_phases(fid["convert"], an)  # S188 E6: every failing phase, in order
         else:
             # SYM-057 (S175): doc_survival None = not measured (no windows); it fails nothing here either
             verdict = "fail" if ((an["doc_survival"] is not None and an["doc_survival"] < fa.ANALYST_DOC_FAIL)
                                  or any(r["words"] >= fa.ANALYST_RUN_WORDS for r in an["runs"])) else "pass"
             manifest["fidelity"] = {"version": fa.SCHEMA_VERSION, "analyst": an, "verdict": verdict,
-                                    "verdict_phase": "analyst" if verdict == "fail" else None}  # S175
+                                    "verdict_phase": "analyst" if verdict == "fail" else None,  # S175
+                                    "verdict_phases": ["analyst"] if verdict == "fail" else []}  # S188 E6
         emit("audit", "scored", source=name, phase="analyst",
              doc_survival=an["doc_survival"], runs=len(an["runs"]),
              runs_total=an.get("runs_total"),  # M2: None over a masquerading fallback
@@ -2468,6 +2470,7 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
         fid["final"] = final
         fid["verdict"] = verdict
         fid["verdict_phase"] = verdict_phase
+        fid["verdict_phases"] = fa.fail_phases(conv, an)  # S188 E6: every failing phase, in order
 
         # S133: the Repair Bench's ledger is `repairs.jsonl` beside the manifest (bench.py's chokepoint
         # writes it, fsynced, one JSON per edit with a sha chain); no bench writes a `repairs` manifest

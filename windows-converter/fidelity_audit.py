@@ -650,11 +650,30 @@ def verdict_with_phase(convert_block: dict, analyst_block: dict | None) -> tuple
     return "pass", None
 
 
+def fail_phases(convert_block: dict, analyst_block: dict | None) -> list:
+    """S188 E6: EVERY phase whose FAIL signal fired, in pipeline order — `["convert"]` on degeneration, `["analyst"]` on the
+    near-exact gate, `["convert", "analyst"]` on both, `[]` on a pass or a flag (a flag is a localiser, not a fail).
+    `verdict_with_phase` names ONE deciding phase in the signed order (the analyst gate first), so a book whose convert
+    phase degenerated AND whose analyst audit fell under the gate read `analyst` alone (Automate the Boring Stuff, S187:
+    the loop a bench reader looks for first is the convert phase's). The verdict and the deciding phase are unchanged;
+    this is the attribution beside them. The same two signals as the verdict — nothing new fails here."""
+    phases = []
+    if (convert_block.get("tripwires") or {}).get("degeneration"):
+        phases.append("convert")
+    if analyst_block is not None:
+        a_doc = analyst_block.get("doc_survival", 1.0)
+        if ((a_doc is not None and a_doc < ANALYST_DOC_FAIL)
+                or any(r["words"] >= ANALYST_RUN_WORDS for r in analyst_block.get("runs", []))):
+            phases.append("analyst")
+    return phases
+
+
 def build_fidelity_block(convert_block: dict, analyst_block: dict | None = None) -> dict:
     block = {"version": SCHEMA_VERSION, "convert": convert_block}
     if analyst_block is not None:
         block["analyst"] = analyst_block
     block["verdict"], block["verdict_phase"] = verdict_with_phase(convert_block, analyst_block)  # S175: the phase beside it
+    block["verdict_phases"] = fail_phases(convert_block, analyst_block)  # S188 E6: every failing phase, in order
     return block
 
 

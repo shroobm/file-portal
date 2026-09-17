@@ -2219,6 +2219,22 @@ check((b27d["verdict"], b27d["verdict_phase"]) == ("flag", "convert") and (b27e[
       "T27 (d) every localiser — low convert survival, the witness-coverage floor — flags with the convert phase")
 check(fa.compute_verdict(c27, {"doc_survival": fa.ANALYST_DOC_FAIL - 0.01, "runs": []}) == "fail" and isinstance(fa.compute_verdict(c27, None), str),
       "T27 (e) CONTROL: compute_verdict still returns the bare string every caller expects")
+# S188 E6: EVERY failing phase travels beside the one deciding phase. verdict_with_phase reads the analyst gate first, so a
+# book that degenerated in the convert phase AND fell under the analyst gate read `analyst` alone (Automate the Boring Stuff,
+# S187 — the loop is the convert phase's); `verdict_phases` names both, in pipeline order. The verdict and the deciding
+# phase must read exactly what they read before on every case above — the CONTROL in (h).
+b27f = fa.build_fidelity_block(dict(c27, tripwires={"degeneration": True}),
+                               {"doc_survival": fa.ANALYST_DOC_FAIL - 0.01, "runs": [], "windows_total": 5})
+check((b27f["verdict"], b27f["verdict_phase"], b27f["verdict_phases"]) == ("fail", "analyst", ["convert", "analyst"]),
+      "T27 (f) both phases failed: the deciding phase stays `analyst` (the signed order), verdict_phases names both in pipeline order")
+check(b27c["verdict_phases"] == ["convert"] and b27b["verdict_phases"] == ["analyst"] and b27["verdict_phases"] == []
+      and b27d["verdict_phases"] == [] and b27e["verdict_phases"] == [],
+      "T27 (g) one phase names one; a pass and every flag (a localiser, not a fail) name none")
+b27h = fa.build_fidelity_block(dict(c27, tripwires={"degeneration": True}),
+                               {"doc_survival": 1.0, "runs": [{"words": fa.ANALYST_RUN_WORDS, "start": 0}], "windows_total": 5})
+check((b27h["verdict"], b27h["verdict_phase"], b27h["verdict_phases"]) == ("fail", "analyst", ["convert", "analyst"])
+      and fa.fail_phases(c27, None) == [] and fa.fail_phases(dict(c27, tripwires={"degeneration": True}), None) == ["convert"],
+      "T27 (h) the run gate counts as the analyst's fail signal; no analyst block = the convert phase alone or nothing — and (b)–(e) above read as before (CONTROL by their own checks)")
 
 # ---------- T28: SYM-056's validator WIRED — the LaTeX structure flag in the manifest, warn-only (S175 E4, his word 8ca8279b) ----------
 # _latex_structure_safe runs latex_structure.check() over the pre-analyst body and records COUNTS under manifest["latex_structure"];
