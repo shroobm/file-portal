@@ -203,6 +203,8 @@
         "p1_page_coverage.sym050_doubled_offset",
         "p1_page_coverage.sym050_doubled_offset.detected",
         "p1_page_coverage.table_vetoes_disqualified",
+        "p1_page_coverage.triage_captioned_pages",
+        "p1_page_coverage.triage_convention",
         "p1_page_coverage.triage_mode",
         "p1_page_coverage.uncovered_by_kind",
         "p1_page_coverage.uncovered_captioned",
