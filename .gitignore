@@ -114,3 +114,8 @@ prototypes/relay-desk/
 # S134 (Rab, 2026-09-12): "scripts should NEVER BE PUBLIC" - the agent-scripts library lives in the PRIVATE repo
 # (file-portal-private, branch workshop) and is reached here through a directory junction. Never tracked here.
 agent-scripts/
+
+# S193 (Rab, 2026-09-17: "prototype-institutions ... the full thing"): the institution prototype lives in the PRIVATE repo
+# (file-portal-private, branch workshop, institutions/) and is reached here through a directory junction, like the three
+# above. Scripts are never public (S130/S134); a copy is published only on his word. Never tracked here.
+prototypes/institutions/
