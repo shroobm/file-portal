@@ -71,3 +71,16 @@ from scratch.*
 - Any transfer path that doesn't go through Tailscale (no public internet fallback) — that would
   reopen exactly the exposure this design avoids.
 - Content scanning of transferred files (see [`06-security-model.md`](06-security-model.md)).
+
+## Appended 2026-09-17 (S181 E2) — the two unticked boxes were met in the field
+
+*The v0 and v1.5 checkboxes above ("End-to-end manual test on real hardware") were never ticked. Read
+from the ThinkPad's own records on 2026-09-17 (register row B31, struck with this reading): the
+allocator's `logs/status.json` holds 41 events since 2026-07-05 — 34 `allocated` and 6 `rejected` in
+July, one `allocated` on 2026-08-07, one on 2026-09-16 (a sweep plant of the lane's); the sorted tree
+holds 15 photos and 5 misc files of Rab's plus one quarantined PDF, all routed under the tiles' category
+names over Tailscale. On 2026-08-07 at 04:36:35 UTC a widget screenshot was allocated into
+`sorted/photos/2026/08/`, and at 04:37:42 UTC the GTK dashboard wrote its `dashboard.toml` — the app
+alive 67 seconds after an allocation, in a desktop session that opened at 04:34:44 UTC. That is the
+v1.5 test, done by Rab's hand at S65's dawn and recorded nowhere until now. The boxes are left as
+written; this note is the record. A re-run watched end to end is his to call.*
