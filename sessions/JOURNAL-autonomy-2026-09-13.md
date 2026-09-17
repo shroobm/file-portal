@@ -559,3 +559,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every rule run against the ledger's own rows, each book predicted from the others; the child's own `estimate_from_ledger` called on the live file before and after the retirement; the twelve held manifests re-read through the new function; 4,649 asset files measured; the field's specimens through the shipped CLI (Beer exits 1 naming the strip); every suite green (295, 10, 133); the record before each act; no process edited while it ran.
 
 **What it cost you:** no card time; no fleet; 33.53 USD-eq in the receipts across 7 episodes.
+
+## 2026-09-17 12:46Z — the register with the card free: three instruments told to say what they cannot see (S189)
+
+**What you will notice:** nothing ran on the card. The figure-coverage report on your Cybernetics book now says TRIAGE INERT — its read-first list was empty because the book does not caption figures as "FIGURE N.N", not because coverage was fine. The converter's blank-crop flag has a second band after I opened the four "near-blank" pictures: three are scanned blank pages of DIAGNOSING (the recto bleeding through), one is Automate's dedication — "For my nephew Jack" — five words that live only inside a picture and nowhere in the text; both classes are named for your gate. And the close prints a PROMISES row from now on — the Dock's promise against the actual, every conversion: on your corpus the last nine promises were within 2× only twice. SYM-094 turned out to have been answered at S157 under another name; stamped with today's reading.
+
+**What answered the register:** SYM-095 fixed; SYM-094 stamped fixed-by-S157; SYM-053's two classes; docs/18 §3.7 mechanised; two suites onto the runner list.
+
+**Gained / lost / still missing:** gained — three instruments that declare their own blind spots. Lost — nothing of yours; my slips are in §8 (a typed number in a tripwire the instrument corrected; a typed line-ending claim; a first draft that mistook a resumed run for a broken promise). Missing — your word on the estimator's shape, the lever, the bench, and what a blank or near-blank page should do.
+
+**How it was checked:** the row's own specimen through the shipped CLI (Cybernetics: TRIAGE INERT, 0 vetoed tables, 71 figure pages); the four pictures opened and looked at; the field's events read by the new instrument; every suite green (51, 15, 295, 11, 137); the record before each act; no process edited while it ran.
+
+**What it cost you:** no card time; no fleet; 29.80 USD-eq in the receipts across 3 episodes.
