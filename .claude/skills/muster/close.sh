@@ -149,11 +149,15 @@ fi
 # suite in a fixture repo and watch this row go red without touching the real suites.
 # S169: latex_structure_selftest.py (S168, SYM-056's validator — stdlib, hermetic) joins the named list; its tally line
 # is `GREEN (12/12)`, the shape the grep below already reads.
+# S183: analyst_audit_selftest.py (J32-A/J44 — the normalisation ladder's suite; FP_PIPELINE quarantined at its top since
+# S182) and edit_whitelist_selftest.py (J46 — the acceptor's; pure functions) join the list: the S182 close ran ten suites
+# and not the one that guards the ladder it had just built — the lane ran it by hand (20/20). Their tally lines
+# (`ALL TRIPWIRES FIRED — n/n`, `n/n green`) are shapes the grep below already reads.
 touched_conv=0
 if [ -n "$PIN" ] && git -C "$FP_REPO" rev-parse --verify "$PIN^{commit}" >/dev/null 2>&1; then
   git -C "$FP_REPO" diff --name-only "$PIN"..HEAD | grep -qE '^(windows-converter|prototypes/repair-bench)/' && touched_conv=1
 fi
-CONV_SUITES="${FP_CONV_SUITES:-windows-converter/convert_and_ship_selftest.py windows-converter/watch_and_convert_selftest.py windows-converter/table_geometry_selftest.py windows-converter/marker_blocks_selftest.py windows-converter/degeneration_selftest.py windows-converter/analyst_selftest.py prototypes/repair-bench/test_table_boundary.py prototypes/repair-bench/test_generated_md.py windows-converter/latex_structure_selftest.py}"
+CONV_SUITES="${FP_CONV_SUITES:-windows-converter/convert_and_ship_selftest.py windows-converter/watch_and_convert_selftest.py windows-converter/table_geometry_selftest.py windows-converter/marker_blocks_selftest.py windows-converter/degeneration_selftest.py windows-converter/analyst_selftest.py prototypes/repair-bench/test_table_boundary.py prototypes/repair-bench/test_generated_md.py windows-converter/latex_structure_selftest.py windows-converter/analyst_audit_selftest.py windows-converter/edit_whitelist_selftest.py}"
 if [ "$touched_conv" -eq 0 ]; then
   row "CONVERTER" "skipped — no windows-converter/ or prototypes/repair-bench/ change since $PIN"
 elif ! { [ -x "$PY" ] || [ -f "$PY" ]; }; then
