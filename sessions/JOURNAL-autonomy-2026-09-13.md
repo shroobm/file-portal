@@ -499,3 +499,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every number from the events file, the state file, the manifests and the chunk journals; the held book re-read with the real audit under both ladders by name; the ThinkPad read after the ship; every suite the close runs green.
 
 **What it cost you:** ~50 minutes of your card for three books; no fleet; 34.72 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 06:55Z — a fourth book in the vault; a fifth held by an alarm that was right (S184)
+
+**What you will notice:** Naked Statistics is in the vault. Data Science with R is in held/ — and this time the alarm was right: one equation in it came out of the converter with its last term written eighty-five times, a real loop; the book is whole, the one equation is a bench job. The lever question stands where it stood: it would free the first book and would not touch this one.
+
+**What answered the register:** SYM-096 fixed — the close card's LEVERS gate now lists the number shapes its regex could not see, warn-only, with its own eleven tripwires and a fixture case on the close script (131/131). Nothing struck, nothing added.
+
+**Gained / lost / still missing:** gained — two more books through the road, an alarm proved on a real loop, a gate that sees more. Lost — nothing. Missing — your line in the lever file; the two big books (one converting now); the bench click on the R book's equation.
+
+**How it was checked:** every number from the events file, the state file, the manifests, the chunk journals; the loop read with the audit's own block walker; the ThinkPad read after the ship; the census's own suite and the muster's; nothing the running converter imports was edited.
+
+**What it cost you:** ~70 minutes of your card; no fleet; 27.31 USD-eq in the receipts across 2 episodes.
