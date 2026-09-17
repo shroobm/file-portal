@@ -643,3 +643,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the tracker's selftest, run before and after — `34/34 green` → `42/42 green`; the eight new cases each with a positive and a negative control; every existing case (the live poll runs, the categorizer, the episode grouping) still green.
 
 **What it cost you:** no card time; no fleet; 27.33 USD-eq in the receipts across 1 episode(s).
+
+## 2026-09-17 20:17Z — the register read by a fleet that could not write; the lane's own claim corrected (S196)
+
+**What you will notice:** four rows of `OPEN-TASKS.md` struck, SYM-111 marked FIXED, and a correction in my own hand: I told you at S195 that your boot was owed before the tracker's fix could land — it was not; the service loads the library fresh at every session gate, and the fix has been running since this sitting opened. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** a read-only survey of the 61 open rows (one lane each, a struck row as the control, an adversarial verifier per candidate); the four strikes and the marker; the crammed counter re-measured on your seven new books and taught to tell a table from a frame, with its tripwire.
+
+**Gained / lost / still missing:** gained — the owners of every open row read from the rows' own words (42 yours, 10 the card's, 7 mine, 2 Codex's), a corrected claim, a discriminating counter; lost — nothing of yours, 45 USD-eq of fleet in the receipt; missing — your Gmail reconnect (three close drafts wait), an elevated events-mode run of the tracker, and your list.
+
+**How it was checked:** the fleet's control read a strike as a strike; every survivor re-read by me against the files; the tracker finding verified by two differently-shaped reads of both receipts; the census's new selftest `table_census_selftest: 5/5` (it fails against the old code) and the live read `3/3`.
+
+**What it cost you:** no card time; 82.97 USD-eq in the receipts across 4 episodes (fleets 45.44).
