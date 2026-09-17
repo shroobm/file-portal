@@ -391,3 +391,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the park's sha on both machines; the selftest's 13 on a planted index with a weakened copy as the control; the smoke's own tripwires unchanged; the gates timed one by one under the game; the record written before each act; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 23.26 USD-eq in the receipts across 3 episodes.
+
+## 2026-09-17 01:40Z — the restart window opened on your word: the converter fixed, restarted and proved live (S175)
+
+**What you will notice:** the converter no longer calls an unmeasured book perfect — when the analyst's comparison cannot be built, the survival reads unread with the window count beside it (before tonight a real 1.0 and a not-measured 1.0 were the same bytes). Every verdict now says which phase decided it, and the Dock's badge will read "fail · analyst" or "fail · convert" after your next rebuild. A LaTeX structure check runs before the analyst and writes its counts into the manifest — a flag only; what a flag should do is your call. The watcher was restarted onto this code (your ⏻ still stops it), and two PDFs of mine went through the real engine and the real local model to prove it — nothing shipped, both sit in anchor/ under s175-live-proof-*. Earlier: the receipt's "Rab's mid-turn words" line no longer counts the watcher's own notices as yours; the code receipt has its own test.
+
+**What answered the register:** one row added (glass cannot see a manifest key written by subscript — found wiring the validator, with its measure); SYM-057 struck from the open symptoms (29 → 28); the restart window's three converter acts done.
+
+**Gained / lost / still missing:** gained — SYM-057 fixed and proved live, the verdict's phase, the validator wired, the watcher on current code, three suites grown (282, 56, 14). Lost — nothing; two synthetic bundles left in anchor/. Missing — your rebuild (the badge), your design for what a flag does, your six taps, your arming, your lever, your signature, your answer on the Desk.
+
+**How it was checked:** every change by a script that asserts its anchors once; the converter suite under the marker-env interpreter after each act (273 → 278 → 282); fmt, clippy and 37 tests on the widget source; glass and acceptance before each commit; the watcher's preconditions re-read in the script with a STOP and the undo named; the manifests of both live runs read by a script, the null and the 32 windows in them; the clock read before every heading.
+
+**What it cost you:** two Marker runs and two analyst runs on the card (70 s + 92 s; 20 s + ~10 s), the model unloaded after; no fleet; 39.17 USD-eq in the receipts across 5 episodes.
