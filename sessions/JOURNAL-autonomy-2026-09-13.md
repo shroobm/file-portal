@@ -523,3 +523,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the promises and actuals joined from the events file, the images counted from the PDFs; the held book re-read with the real audit under both ladders by name; the close script's own suite (133/133); nothing the running converter imports was edited.
 
 **What it cost you:** ~50 minutes of your card plus the convert in flight; no fleet; 22.28 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 08:20Z — why the sixth book is really held: the table rung let a fused header through (S186)
+
+**What you will notice:** nothing new on the Dock — the last giant is still in its analyst. But the reason Data Science for Business sits in held/ is now exact: the analyst fused one table's header row into its first data row, and the rung built to protect tables accepted that. One unconditional line. The fix is written and proved on its anchors and goes in the moment the card is free; then that book's road is a re-analysis, which is yours to say.
+
+**What answered the register:** a new symptom (SYM-134) with its row — the debt rose by one found defect, said; nothing struck.
+
+**Gained / lost / still missing:** gained — the cause of a hold made exact, the class weighed (1 table in 204 today, none in the vault's books). Lost — nothing. Missing — the last landing; the fix applied; your word on the lever, the bench, and the re-analysis.
+
+**How it was checked:** the run read at its place in the Marker body and the shipped note; the two tables pushed through the real invariant and the real acceptor (the fused row ships with the table rung, reverts without it); the six notes' 204 tables compared to their sidecars; nothing the running converter imports was edited.
+
+**What it cost you:** the card for the last giant's analyst, in flight; no fleet; 19.72 USD-eq in the receipts across 1 episodes.
