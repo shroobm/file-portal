@@ -352,6 +352,38 @@ def _():
     out, meta = run(INF_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
     assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
+
+
+# S180 (2026-09-17): THE 2026-08-31 SPECIMEN — Investment Valuation University's markdown (anchor copy converted 08-31, line 8765)
+# carries a `</think>` leak followed by a 52,324-char HTML document ("Math Equation Display": <!DOCTYPE html>, a <style> block, the
+# chunk's own prose and its $$…$$ inside a <pre>), written by qwen3:8b BEFORE SYM-074's think_leak gate and J34's inflation gate
+# existed (both 2026-09-05); the 09-01 conversion of the same book carries none (a non-deterministic writer — the model). The
+# survival gate is blind to it by construction (the chunk's windows sit inside the document). These two cases hold the specimen's
+# two faces against the CURRENT ladder: the whole shape trips think_leak first; the document alone trips inflation.
+HTML_DOC = ("```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta charset=\"UTF-8\">\n  <title>Math Equation Display</title>\n  <style>\n"
+            + "    body { font-family: Arial, sans-serif; padding: 20px; background-color: #f9f9f9; color: #333; }\n" * 40
+            + "  </style>\n</head>\n<body>\n<h1>Math Equation Display</h1>\n<div class=\"equation\"><pre><code>\n")
+
+
+@case("S180 (a) the 2026-08-31 specimen — a </think> leak then an HTML document wrapping the chunk -> rejected, think_leak (the first gate)")
+def _():
+    candidate = "\\rm Int(1-t)/E \\\\ & - & \\rm Int(1-t)/E\n</think>\n\n" + HTML_DOC + INF_MD + "\n</code></pre></div>\n</body>\n</html>\n```\n"
+    out, meta = run(INF_MD, [candidate])
+    assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 1, "inflation": 0, "truncated": 0}, meta
+    assert out.strip() == INF_MD.strip(), "the ORIGINAL chunk must ship, not the document"
+
+
+@case("S180 (b) the HTML document alone (no think tag) — survival 1.0 by construction — -> rejected, inflation (the ratio far above 1.5x)")
+def _():
+    candidate = HTML_DOC + INF_MD + "\n</code></pre></div>\n</body>\n</html>\n```\n"
+    fenced, _ = analyst.fence(INF_MD)
+    assert tn.chunk_survival(fenced, candidate) == 1.0, "the document wraps every input window — the survival gate cannot see it"
+    assert tn.word_ratio(fenced, candidate) > analyst.ANALYST_CHUNK_INFLATION_MAX, tn.word_ratio(fenced, candidate)
+    out, meta = run(INF_MD, [candidate])
+    assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1, "truncated": 0}, meta
+    assert out.strip() == INF_MD.strip(), "the ORIGINAL chunk must ship, not the document"
     assert out.strip() == INF_MD.strip(), "the ORIGINAL chunk must ship, not the candidate"
 
 
