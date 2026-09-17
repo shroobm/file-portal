@@ -631,3 +631,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the controls from the suites' own tally lines — Windows every case fires; the platform override skips 13 at exit 0; an absent mirror skips 1; a differing mirror still fails; the SIGPIPE override skips case 13; CI on the commit observed by the LOG after the push.
 
 **What it cost you:** no card time; no fleet; 39.45 USD-eq in the receipts across 1 episode(s).
+
+## 2026-09-17 19:10Z — the process tracker's events mode says what it could not see (S195)
+
+**What you will notice:** after your next boot, the tracker's receipts (`proc-feed/proc_events/receipt-*.md`) will say `UNREAD (no command line captured)` where they used to leave an empty cell, and a parent whose pid was reused will read `UNREAD (pid reused)` instead of a wrong name. Until that boot the running service writes the old shape — nothing running was edited underneath. **Where to look:** SYM-111's row (its S195 Update); `sittings/S195/e1_selftest_after.txt`; the task row `tracker/sym-111-lands-at-his-next-boot`.
+
+**What answered the register:** SYM-111's four owed mechanisms built (the marker stays OPEN until your boot); one SEMANTIC row added; the index folded first.
+
+**Gained / lost / still missing:** gained — a tracker that names what it could not read, with a claim window, an identity beyond the pid, and parents by creation time; lost — nothing of yours; missing — your boot (or your word to restart the service), and the rest of your list.
+
+**How it was checked:** the tracker's selftest, run before and after — `34/34 green` → `42/42 green`; the eight new cases each with a positive and a negative control; every existing case (the live poll runs, the categorizer, the episode grouping) still green.
+
+**What it cost you:** no card time; no fleet; 27.33 USD-eq in the receipts across 1 episode(s).
