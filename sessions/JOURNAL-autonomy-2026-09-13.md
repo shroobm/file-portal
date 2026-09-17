@@ -415,3 +415,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the degenerate page's verdict hermetically, then in a dry run, then through the intake — three readings of the same fail; the events counted (13, no ship); the ThinkPad read after; the flag's counts read from the manifest; the receipts' regexes read side by side and the S175 window re-read with the fix; every change by a script that asserts its anchors once; the clock read before every heading.
 
 **What it cost you:** three Marker runs and two analyst runs on the card (22 s + 45 s; 32 s + ~40 s; 24 s), the model unloaded after; no fleet; 31.20 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 02:38Z — four words of yours in twelve minutes; the mess fixed first; the receipts made honest for 23 sittings (S177)
+
+**What you will notice:** your four words are in the record verbatim and in memory as standing rules. The five test bundles are out of your anchor. The receipts you read at every close had been blind to the handoff scripts since S153 and, for any command with a multi-line commit message, to every tool after it — both fixed, and all 23 sittings' receipts re-issued beside their originals with a correction row each (S157: 164 preloaded calls were really 256). Glass now lists the ten keys the converter hangs on a branch by subscript — a warning, not a gate. A test's banner said 12 for 11 cases; it counts now. The twin proposal — keep the page images and the block geometry so a vault note can be re-rendered to any format — is on the Desk for your word.
+
+**What answered the register:** one row struck (`observability/glass-subscript-blind` — measured S176, the mechanism landed warn-only); none added; 99 → 98. Forty-six correction rows in the private CORRECTIONS ledger; nothing erased.
+
+**Gained / lost / still missing:** gained — four standing words, a segmenter that keeps its quotes, 23 honest receipts, a glass that sees branches, the twin idea in your hands. Lost — nothing. Missing — your "twin", your rebuild, your flag design, your six taps, your arming, your lever, your signature, your answer on the Desk, which models you meant; docs/64 (your fourth word) is next.
+
+**How it was checked:** the segmenter's specimen probed before and after the fix; three cases on it (61/61); the revisions diffed sitting by sitting (the headline kinds and the used tables) and `journal_check --all` reading `revisions without a row: 0`; the glass listing's case planted and asserted both ways (192/192); the anchor counted before and after; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 29.58 USD-eq in the receipts across 1 episodes.
