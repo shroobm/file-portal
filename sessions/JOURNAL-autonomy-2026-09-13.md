@@ -583,3 +583,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the mutex re-run (7/7); every dropped SHA resolved as a commit of the repo before the index was written; the read-back check after; the suites green; the record before each act.
 
 **What it cost you:** no card time; no fleet; 20.53 USD-eq in the receipts across 3 episodes.
+
+## 2026-09-17 13:38Z — the thirty-six unsigned keys, one judgment at a time; the census reads zero (S191)
+
+**What you will notice:** nothing ran on the card. The "glitch" class you named at S77 — values the pipeline computes and stores that no surface shows — is dispositioned to the last key: 36 judgments, each read at its producer and its consumer, each naming its home (shown, opened, reported, control flow); the whole-repo census reads 0 unsigned; SYM-027 reads FIXED by its own three criteria. Nine of the widget's thirteen turned out to be config fields you wrote yourself, read to act and rendered by presence. One is a signed gate that was never fed (docs/15's dictionary hit) — its null is now recorded as exactly that; deleting or feeding it is your signature. Four entries say a print is owed at the next build (the locator's confidence should show its two sides; the ledger view should say whether the body on disk matches its chain) — the bench's build, next.
+
+**What answered the register:** the row struck; SYM-027 fixed; the S190 miscount corrected (16 · 13 · 7).
+
+**Gained / lost / still missing:** gained — a silence that is signed everywhere, with reasons a reader can check. Lost — nothing of yours. Missing — your word on the estimator's shape, the lever, the bench, the blank/near-blank consequence, and the dictionary gate's slot.
+
+**How it was checked:** each key's producer line and consumer line read before its entry was written; the census re-run after each batch (36 → 29 → 0), the acceptance suite after (230, 288); `--enforce` exit 0; the record before each act.
+
+**What it cost you:** no card time; no fleet; 22.43 USD-eq in the receipts across 2 episodes.
