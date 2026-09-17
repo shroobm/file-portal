@@ -379,3 +379,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the suites' own counts on the box; the restart's preconditions re-read in the script with a STOP; the service's pid and start time before and after; the journal's `watching` lines; the record written before the act; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 15.70 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-17 00:45Z — the park read on both sides; the fold tool gets its test; a game on the seat read as the cause (S174)
+
+**What you will notice:** the held-fail parked on the ThinkPad was read against the desktop's copy and the vault — it is the same book (Zero-to-One's 09-12 reship), three copies, nothing waiting, and its row on the register is struck with that reading. The tool that folds the memory index at every close — used four times by hand — now has its own test (13 cases, including the failure its brief warned about). The library's 67 briefs were checked against their tests: 12 scripts have one, 49 don't, and the ones that matter are named. The smoke ran while Ready or Not was on your desktop and reported one timeout; the gates were green, the machine was busy — the smoke now knows that tool needs more time, and nothing of mine touched your game.
+
+**What answered the register:** one row struck (`thinkpad/held-fail-park-unread`, with the reading); 99 → 98.
+
+**Gained / lost / still missing:** gained — the park's reading, the sixth cut, a tested fold tool, a smoke that reads load, 511 bytes of room. Lost — nothing. Missing — your rebuild (B32's other half), your restart window, your six taps, your arming, your lever, your signature, your answer on the Desk; the lane's eight uncovered sentences and `code_journal.py`'s test.
+
+**How it was checked:** the park's sha on both machines; the selftest's 13 on a planted index with a weakened copy as the control; the smoke's own tripwires unchanged; the gates timed one by one under the game; the record written before each act; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 23.26 USD-eq in the receipts across 3 episodes.
