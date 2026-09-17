@@ -655,3 +655,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the fleet's control read a strike as a strike; every survivor re-read by me against the files; the tracker finding verified by two differently-shaped reads of both receipts; the census's new selftest `table_census_selftest: 5/5` (it fails against the old code) and the live read `3/3`.
 
 **What it cost you:** no card time; 82.97 USD-eq in the receipts across 4 episodes (fleets 45.44).
+
+## 2026-09-17 20:42Z — the register says who owns what; SYM-111 confirmed on a final (S197)
+
+**What you will notice:** your 14:08Z Desk entry is finally marked done (it had been answered at 14:13Z as a post beside yours); `OPEN-TASKS.md`'s own register row now carries the roll-call — 42 rows yours, 10 the card's, 2 Codex's, 3 mine; and SYM-111's FIXED marker rests on the tracker's FINAL S196 receipt, not the partial. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold (with a correction in the index's own line: your boot was never owed); the FINAL receipt read with both controls; F11's roll-call, every number read by the script.
+
+**Gained / lost / still missing:** gained — a register that names its owners, a marker on a final, an index that tells the truth about your boot; lost — nothing of yours; missing — your Gmail reconnect (four close drafts wait), an elevated events-mode run, and your list.
+
+**How it was checked:** the fold's check (missing 0, the tail unchanged); the FINAL receipt's positive and negative controls (records 1281 · with cmdline_state 1281 · EMPTY cmdline 0 · UNREAD cmdline 350 · header tot); the roll-call asserted equal to the survey's 61 − 4.
+
+**What it cost you:** no card time; no fleet; 13.58 USD-eq in the receipts across 3 episodes.
