@@ -595,3 +595,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** each key's producer line and consumer line read before its entry was written; the census re-run after each batch (36 → 29 → 0), the acceptance suite after (230, 288); `--enforce` exit 0; the record before each act.
 
 **What it cost you:** no card time; no fleet; 22.43 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 14:03Z — the bench says what it knew; the CI reader reads the log, and finds three reds every close had called green (S192)
+
+**What you will notice:** nothing ran on the card. On the Repair Bench the locator says "confidence 0.75 = 3/4 needles", the ledger view says whether the body on disk still matches its chain, the search head counts pages and hits, the undo line says what came back. And a finding about my own tools: the close's CI reader had been printing "success" for ten warn-only governance suites at every close since S157 — the exact trap SYM-075 names, whose row said it had no live instance. The reader downloads the logs now and prints each step's real verdict; the first reading found three suites red in CI (circle, coordination, muster), all platform-shaped — the runner has no ~/.claude mirror, reports a SIGPIPE differently, and cannot run Windows probes. Their SKIPPED-on-this-platform readings are next on my side; arming the suites stays your signature.
+
+**What answered the register:** six dispositions to GLASS; A29's cell measured (7 of 10 green, 3 red with causes); SYM-075 updated — the guard is a mechanism now.
+
+**Gained / lost / still missing:** gained — a bench that names both sides of its numbers; a reader that reads. Lost — nothing of yours; my blind spot said. Missing — your word on the estimator's shape, the lever, the bench, the blank/near-blank consequence, the dictionary gate's slot, and arming A29.
+
+**How it was checked:** the bench's five suites green (95 page tests, boundary, generated-md, acceptance 85/85, table health 24/24); the observer's selftest with a planted failing step; the ten logs read from the run's own zip; the three reds' log tails read to their cause; the record before each act.
+
+**What it cost you:** no card time; no fleet; 31.87 USD-eq in the receipts across 2 episodes.
