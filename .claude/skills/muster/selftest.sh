@@ -1174,6 +1174,25 @@ out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selfte
 if printf '%s' "$out" | grep -q 'LIMIT68B'; then ok "CASE 68 POSITIVE CONTROL: the same line in a non-selftest file IS named — the exemption did not silence the row"
 else bad "CASE 68 POSITIVE CONTROL: a module's unlevered constant must still be named" "got: $(printf '%s' "$out" | grep -E 'LEVERS' | head -2)"; fi
 
+# ── CASE 69: close.sh [5b] PROMISES — docs/18 §3.7's line filed at every close (S189 E3) ─────────────────────
+# The property: the row reads the converted events' promise beside the actual (a planted events file through FP_EVENTS:
+# two promised conversions at 0.50x and 4.00x) and prints the summary — median, within 2×, the worst named; a missing file
+# reads UNREAD, never clean; and the exit code is the same either way (warn-only by construction).
+cp "$HERE/../../../observability/promise_audit.py" "$CONV/observability/promise_audit.py"
+printf '{"ts":"2026-09-17T05:00:00+00:00","pid":1,"stage":"convert","event":"converted","source":"p69a.pdf","pages":100,"s_per_page":2.0,"promised_s_per_page":1.0,"estimate_basis":"similar","estimate_samples":3}\n{"ts":"2026-09-17T06:00:00+00:00","pid":1,"stage":"convert","event":"converted","source":"p69b.pdf","pages":100,"s_per_page":0.5,"promised_s_per_page":2.0,"estimate_basis":"similar","estimate_samples":3}\n' > "$WORK/events69.jsonl"
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_EVENTS="$WORK/events69.jsonl" FP_CONV_SUITES="windows-converter/ok_selftest.py" bash "$CLOSE" "$conv_pin" 2>&1); rc_p=$?
+# the median of [0.50, 4.00] is 2.25 (the arithmetic median, docs/34's plain reading) and 0.50 sits ON the 2× bound, inside —
+# the first draft of this case typed 1.41x / 0 of 2 (a geometric guess) and the instrument corrected it (S189 E3)
+if printf '%s' "$out" | grep -q 'PROMISES  *promise/actual over the last 2 promised conversion(s): median 2.25x .* within 2x 1 of 2'; then ok "CASE 69: the PROMISES row reads the planted events — 2 promised, median 2.25x, within 2x 1 of 2"
+else bad "CASE 69: the PROMISES row must summarise the planted events" "got: $(printf '%s' "$out" | grep -E 'PROMISES' | head -2)"; fi
+if printf '%s' "$out" | grep -q 'worst 4.00x p69b.pdf'; then ok "CASE 69: …and names the worst promise (4.00x p69b.pdf)"
+else bad "CASE 69: the worst promise must be named" "got: $(printf '%s' "$out" | grep -E 'PROMISES' | head -2)"; fi
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_EVENTS="$WORK/no-such-events.jsonl" FP_CONV_SUITES="windows-converter/ok_selftest.py" bash "$CLOSE" "$conv_pin" 2>&1); rc_pu=$?
+if printf '%s' "$out" | grep -q 'PROMISES  *UNREAD'; then ok "CASE 69 NEGATIVE CONTROL: a missing events file reads UNREAD, never clean"
+else bad "CASE 69 NEGATIVE CONTROL: a failed probe must read UNREAD" "got: $(printf '%s' "$out" | grep -E 'PROMISES' | head -2)"; fi
+if [[ "$rc_p" -eq "$rc_pu" ]]; then ok "CASE 69: …and the exit code is the SAME read or UNREAD (warn-only by construction; what the Dock promises is Rab's)"
+else bad "CASE 69: the row must not move the exit code" "read $rc_p vs UNREAD $rc_pu"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

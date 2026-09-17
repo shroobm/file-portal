@@ -332,6 +332,18 @@ else
   row "LEVERS" "UNREAD — pin $PIN unresolvable; NOT a statement that none were added"
 fi
 
+# ── [5b] PROMISES — docs/18 §3.7 "promises never audited" (S189 E3) ───────────────────────────────
+# The converted events carry the estimator's promise beside the actual (OK-17); nothing read them back at a close until
+# now. observability/promise_audit.py prints the last ten promised conversions' promise/actual — median, within 2×, the
+# worst named. WARN-ONLY: a reading at every close, the exit code untouched (what the Dock promises is the E2/S188
+# proposal, Rab's). The events file is the pipeline's (FP_EVENTS overrides it for the tripwires); absent → UNREAD.
+PROM_EVENTS="${FP_EVENTS:-$HOME/ml/library/events.jsonl}"
+if pa_out=$("$PY" "$FP_REPO/observability/promise_audit.py" --events "$PROM_EVENTS" --last 10 2>&1); then
+  row "PROMISES" "$(printf '%s' "$pa_out" | tail -n 1 | cut -c1-200)"
+else
+  row "PROMISES" "UNREAD — promise_audit.py did not run ($(printf '%s' "$pa_out" | tail -n 1 | cut -c1-80)); NOT a statement that the promises were kept"
+fi
+
 # ── [6] DOCTOR — the artifact vs the measurement that justified it (S108, atlas rank 1) ─────
 # S108: warn-only for one session, arm next close. ARMED 2026-09-05 (S116; S108 sign sheet item
 # 9, signed by Rab "arm DOCTOR/CENSUS"): a MISSING lever name is now red=1. The UNREAD shapes
