@@ -403,3 +403,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every change by a script that asserts its anchors once; the converter suite under the marker-env interpreter after each act (273 → 278 → 282); fmt, clippy and 37 tests on the widget source; glass and acceptance before each commit; the watcher's preconditions re-read in the script with a STOP and the undo named; the manifests of both live runs read by a script, the null and the 32 windows in them; the clock read before every heading.
 
 **What it cost you:** two Marker runs and two analyst runs on the card (70 s + 92 s; 20 s + ~10 s), the model unloaded after; no fleet; 39.17 USD-eq in the receipts across 5 episodes.
+
+## 2026-09-17 02:10Z — the front door proved live with a book built to fail; the receipts' own blind spot fixed (S176)
+
+**What you will notice:** the pipeline's own intake was proved end to end on the restarted code — a one-page PDF written to trip the degeneration tripwire went into your drop folder, the watcher took it in one second, converted it, ran the analyst, failed it and held it; nothing shipped, the ThinkPad's staging and vault did not move, and I took my fake failed book back off your held list. A drawn matrix went through Marker and came out as real LaTeX, and the new structure check counted it. The receipts you read at every close had been blind to every script under the handoff directory since it was born — the close chain, the driver, the Desk posts read as "inferred" and were never counted as used; fixed, with cases, and last sitting's receipt re-read shows the difference (preloaded 32 → 43). Nothing of yours moved except the one file I put in drop/ and took back.
+
+**What answered the register:** the glass blind-spot row measured (its numbers in the cell: 30 keys the census never asks about); no row struck, none added — the register's net is zero and says so; IB-020 filed in the private instrument-bug register.
+
+**Gained / lost / still missing:** gained — the intake path proved, the flag on a real page, the glass measure, the receipts' fix (58/58, 10/10), 461 bytes of room. Lost — nothing; three more synthetic bundles in anchor/ (five in all, named — say the word and they go). Missing — your rebuild (the badge), your design for what a flag does, your six taps, your arming, your lever, your signature, your answer on the Desk, and which models you meant.
+
+**How it was checked:** the degenerate page's verdict hermetically, then in a dry run, then through the intake — three readings of the same fail; the events counted (13, no ship); the ThinkPad read after; the flag's counts read from the manifest; the receipts' regexes read side by side and the S175 window re-read with the fix; every change by a script that asserts its anchors once; the clock read before every heading.
+
+**What it cost you:** three Marker runs and two analyst runs on the card (22 s + 45 s; 32 s + ~40 s; 24 s), the model unloaded after; no fleet; 31.20 USD-eq in the receipts across 2 episodes.
