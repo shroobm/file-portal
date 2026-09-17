@@ -667,3 +667,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the fold's check (missing 0, the tail unchanged); the FINAL receipt's positive and negative controls (records 1281 · with cmdline_state 1281 · EMPTY cmdline 0 · UNREAD cmdline 350 · header tot); the roll-call asserted equal to the survey's 61 − 4.
 
 **What it cost you:** no card time; no fleet; 13.58 USD-eq in the receipts across 3 episodes.
+
+## 2026-09-17 21:04Z — the error bin read against my own hand; a proposal for you (S198)
+
+**What you will notice:** a proposal on the Desk — one deny in the heredoc hook for the one shape that actually failed today, your over-sensitivity untouched, nothing changed until you say; and in `ERROR-BIN.md`, ERR-009's own row now carries the day's count in its remedy cell. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold (a real cut — the index had pointed twice at four memory files); the day's hook advisories counted from the transcripts with two controls; the count into the bin's rows; the proposal.
+
+**Gained / lost / still missing:** gained — a measured rule (26 fired, 21 right, 4 another guard's, 1 real) and the finding that the hand, not the threshold, is the thing; lost — nothing of yours, and the hook fired once more while the sitting closed, said; missing — your decision on the proposal, your Gmail reconnect (five drafts wait), and your list.
+
+**How it was checked:** the census's positive control (a known flagged call found) and negative control (no advisory on a Write call); the five failures each read to their reason; the fold's check (missing 0, the tail unchanged).
+
+**What it cost you:** no card time; no fleet; 10.64 USD-eq in the receipts across 2 episodes.
