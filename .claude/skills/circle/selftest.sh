@@ -6,7 +6,11 @@
 set -u
 HERE="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 SKILL="$HERE/SKILL.md"
-pass=0; failed=0
+pass=0; failed=0; skipped=0
+# S194 E1: a case whose object is ABSENT on this platform reads SKIP — its own tally, never a pass and never a fail (the mirror
+# case read UNREAD-and-failed on the CI runner, where no user-level ~/.claude exists). CIRCLE_MIRROR names the mirror for the
+# controls: absent → SKIP; present and differing → still FAIL (a skip is for absence, not for difference).
+skip() { printf '  SKIP %s — %s\n' "$1" "$2"; skipped=$((skipped+1)); }
 ok()  { printf '  ok   %s\n' "$1"; pass=$((pass+1)); }
 bad() { printf '  BAD  %s — %s\n' "$1" "$2"; failed=$((failed+1)); }
 
@@ -28,12 +32,12 @@ check_skill() {  # $1 = path; prints reasons, returns 1 on any
 if out=$(check_skill "$SKILL"); then ok "the tracked skill carries the three rules and no HELD verdict"; else bad "the tracked skill" "$out"; fi
 
 # CASE 1 — the mirror: the user-level copy is byte-identical to the tracked one (UNREAD when absent, never a pass)
-MIRROR="$HOME/.claude/skills/circle/SKILL.md"
+MIRROR="${CIRCLE_MIRROR:-$HOME/.claude/skills/circle/SKILL.md}"
 if [[ -f "$MIRROR" ]]; then
   # compared with CR stripped: the tracked copy may be checked out CRLF while the mirror stays LF (the text is the contract)
   if cmp -s <(tr -d "\r" < "$SKILL") <(tr -d "\r" < "$MIRROR"); then ok "the user-level mirror is identical to the tracked skill (CR-stripped)"; else bad "the mirror" "differs from the tracked copy — re-copy it"; fi
 else
-  printf '  UNREAD the user-level mirror is absent at %s (not a pass)\n' "$MIRROR"; failed=$((failed+1))
+  skip "the user-level mirror" "absent at $MIRROR — no mirror to compare on this platform (not a pass, not a fail)"
 fi
 
 # CASE 2 — NEGATIVE CONTROL: plant HELD back as a verdict bullet on a copy; the check must go red for that reason
@@ -50,5 +54,5 @@ if out=$(check_skill "$W/norule.md"); then bad "negative control (rule 2 removed
 fi
 
 printf '\n'
-if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
-else printf 'TRIPWIRES DISARMED — %s failed of %s\n' "$failed" "$((pass+failed))"; exit 1; fi
+if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s · fired %s / skipped %s / silent 0\n' "$pass" "$((pass+failed))" "$pass" "$skipped"; exit 0
+else printf 'TRIPWIRES DISARMED — %s failed of %s · fired %s / skipped %s / silent %s\n' "$failed" "$((pass+failed))" "$pass" "$skipped" "$failed"; exit 1; fi

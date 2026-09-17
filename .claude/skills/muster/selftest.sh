@@ -25,6 +25,14 @@ trap 'rm -rf "$WORK"' EXIT
 pass=0; failed=0
 ok()   { printf '  \033[32mok\033[0m   %s\n' "$1"; pass=$((pass+1)); }
 bad()  { printf '  \033[31mFAIL\033[0m %s\n     %s\n' "$1" "$2"; failed=$((failed+1)); }
+# S194 E1: a case whose probe CANNOT run on this platform reads SKIP — its own tally, never a pass and never a fail (S192 read
+# three governance suites red in CI for platform reasons that every close had called green; SYM-075's shape one door over).
+# The platform is uname's reading; MUSTER_SELFTEST_PLATFORM=linux|windows overrides it for the CONTROLS: on the platform that
+# CAN run a case, the case still fires (the positive control); off it, the case is counted skipped, and the suite's exit reads
+# the fired cases only. `skip <name> <why> <n>` counts n assertions not run.
+skipped=0
+skip() { printf '  \033[33mSKIP\033[0m %s (%s assertion(s) not run)\n     %s\n' "$1" "$3" "$2"; skipped=$((skipped+$3)); }
+on_windows() { local p="${MUSTER_SELFTEST_PLATFORM:-$(uname -s 2>/dev/null)}"; case "$p" in windows|MINGW*|MSYS*|CYGWIN*) return 0;; *) return 1;; esac; }
 
 # assert <name> <expected-exit: 0|1> <must-match regex|-> <actual-exit> <output>
 assert() {
@@ -711,6 +719,11 @@ assert "…and no 'received' phrase at all fires UNREAD, not DRIFT" 1 'UNREAD ho
 if printf '%s' "$out" | grep -q 'DRIFT'; then
   bad "…and does not say DRIFT when there is no hook at all" "printed DRIFT where UNREAD was expected"
 else ok "…and does not say DRIFT when there is no hook at all"; fi
+# S194 E1: cases 40–43 plant `S43-desktop-*.md` and open.sh names the machine from uname — off Windows the file reads as
+# another machine's (a COLLISION by design), so the eight assertions are Windows-shaped: SKIPPED off it, fired on it.
+# (The first cut closed the function after case 44 — the CLOSE B7 block, platform-independent — and the linux control
+#  read 13 assertions unrun where 7 were typed; the count below is READ from the span by e1_fix_span.py.)
+windows_cases_40_43() {
 # CASE 40 — SYM-072, filed S114. The property: [3] PIN tells CONTINUITY from COLLISION by the
 # file's own ⟨claimed:⟩ stamp and machine, not by the date in its name. Violate the old way: the
 # fixture's ledger ends at S42, so this session is S43 and today's closeout would be
@@ -773,6 +786,8 @@ printf '# S43\n\nclaimed: Fable lane · S43 · 2026-01-05 (no delimiters)\n' > "
 out=$(runopen 43n); rc=$?
 assert "…and a bare 'claimed: … S43' with no ⟨ ⟩ delimiters is still a COLLISION (no stamp)" 1 'COLLISION — S43-desktop-2026-01-05.md \(no ⟨claimed: … S43⟩ stamp\)' "$rc" "$out"
 
+}
+if on_windows; then windows_cases_40_43; else skip "CASES 40–43 (SYM-072): the fixture's S43-desktop-*.md reads as another machine's off Windows" "platform $(uname -s 2>/dev/null) (MUSTER_SELFTEST_PLATFORM=${MUSTER_SELFTEST_PLATFORM:-unset})" 8; fi
 # ── CASE 44: close.sh DIFF, B7 (S120) — attribute every dirty tracked file to a writer ───────
 # Two lanes (Fable/Codex) share one checkout. Pre-fix, close.sh's [1] DIFF counted EVERY tracked
 # change as this lane's ("dirty = every tracked change; dirty > 0 -> red"), so a Fable close went
@@ -837,6 +852,9 @@ R="$WORK/c45"; sha=$(mkrepo "$R" '| 2026-01-01 | Desktop | S41: first | 1111111 
 sed -i "s/SHAPLACEHOLDER/$sha/" "$R/CLAUDE_README.md"
 git -C "$R" add -A >/dev/null 2>&1; git -C "$R" commit -qm c45 >/dev/null 2>&1
 mklib "$WORK/l45" 12 S42 "$sha"
+# S194 E1: the `widget autostart` row is a desktop-only powershell probe (open.sh prints it for machine=desktop) — the five
+# assertions of cases 45–46 are Windows-shaped: SKIPPED off it, fired on it. The c45 fixture above stays: case 47 reads it.
+windows_cases_45_46() {
 mkdir -p "$WORK/fakeps45a"; printf '#!/bin/sh\nexit 9\n' > "$WORK/fakeps45a/ps.sh"; chmod +x "$WORK/fakeps45a/ps.sh"
 out=$(FP_PS_EXE="$WORK/fakeps45a/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE_ROOT="$WORK/nope" \
       VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
@@ -863,6 +881,8 @@ out=$(FP_PS_EXE="$WORK/fakeps46c/ps.sh" MEMORY_LIB="$WORK/l45" FP_REPO="$R" PIPE
       VAULT_DIR="$WORK/nope" WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1)
 if printf '%s' "$out" | grep -qE "auto-logon OFF"; then ok "J62: an empty AUTOLOGON reads OFF (the hand that remains, named)"
 else bad "J62: an empty AUTOLOGON reads OFF" "got: $(printf '%s' "$out" | grep -E 'widget autostart' | head -1)"; fi
+}
+if on_windows; then windows_cases_45_46; else skip "CASES 45–46 (J57/J62): the widget-autostart row is a desktop-only powershell probe, absent off Windows" "platform $(uname -s 2>/dev/null) (MUSTER_SELFTEST_PLATFORM=${MUSTER_SELFTEST_PLATFORM:-unset})" 5; fi
 
 # CASE 47 — J63 (S127). The property: the open PUBLISHES the session number for the hooks. After open.sh on the c45
 # fixture (Desktop rows S41, S42 → this session S43), coordination/private/session.current must hold `S43`, and the
@@ -1194,5 +1214,6 @@ if [[ "$rc_p" -eq "$rc_pu" ]]; then ok "CASE 69: …and the exit code is the SAM
 else bad "CASE 69: the row must not move the exit code" "read $rc_p vs UNREAD $rc_pu"; fi
 
 printf '\n%s\n' "────────────────────────────────"
-if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
-else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
+# S194 E1: three tallies — fired (pass) / skipped (not run here, said) / silent (failed) — and the exit reads the fired cases only.
+if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s · fired %s / skipped %s / silent 0%s\n' "$pass" "$((pass+failed))" "$pass" "$skipped" "$([[ $skipped -gt 0 ]] && printf ' (a skip is not a pass: %s assertion(s) could not run on this platform)' "$skipped")"; exit 0
+else printf 'TRIPWIRES DISARMED — %s failed of %s · fired %s / skipped %s / silent %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))" "$pass" "$skipped" "$failed"; exit 1; fi
