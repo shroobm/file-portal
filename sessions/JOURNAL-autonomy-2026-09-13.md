@@ -439,3 +439,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every number by a read-only script over the manifests and the source (its output kept), the lane's two first-draft misreadings caught before use (a count that would have read a dict as true; two ledgers summed as one), the thresholds and the gates read as source lines, the cards of the night cited with their times; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 17.45 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-17 03:22Z — the degeneration alarm read, book by book; one gate change proposed, not made (S179)
+
+**What you will notice:** the alarm that parks a book as corrupted has been read on your own corpus, block by block: of the 14 conversions it flags today, 11 are real loops — Diagnosing's "the state of the state of the state…", Zero-to-One's "AND ROUTE AND ROUTE…" before its repair, a 47 KB HTML document Marker left inside Investment Valuation's markdown, Equity Research's stutter hidden in the tail of a list item, and Brain of the Firm confirmed — and 3 are false alarms, all one book, Ashby's own Markov-chain exercise protocols. Six older TRUEs were table rows you already fixed. The false-alarm rate is 3 of 14 conversions, 1 of 6 books; the old "zero false positives" claim holds on prose, not on symbol sequences. docs/15 §9.5 carries the table. A one-rule exemption is proposed on the Desk — measured first: it clears exactly Ashby and none of the 33 loop blocks — and waits for your word; nothing in the audit changed.
+
+**What answered the register:** the calibration row struck with its measure (99 → 98); none added.
+
+**Gained / lost / still missing:** gained — a calibration on record for this corpus, the eleven loops named, the one false-alarm shape named, a remedy measured and offered, 677 bytes of room. Lost — nothing. Missing — your word on the exemption, your reading of docs/64, your "twin", your rebuild, your flag design, your six taps, your arming, your lever, your signature, your answer on the Desk, which models you meant; who wrote the HTML block.
+
+**How it was checked:** the tripwire re-run on all 33 markdowns by its own function; the manifests compared one by one; every flagged block read in its markdown context with its most repeated 8-gram counted (Equity Research's verdict changed on that count); the exemption applied to every flagged block with the share of short tokens printed; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 20.65 USD-eq in the receipts across 1 episodes.
