@@ -2136,6 +2136,28 @@ r26f = fa.compute_verdict({"kind": "fidelity", "doc_survival": 0.99, "tripwires"
 check(r26c.get("windows_total", 0) > 0 and r26e == "pass" and r26f == "fail",
       "T26 (e) FIXED: the measured block carries windows_total; a None survival reads 'pass' through compute_verdict (no TypeError, no new gate) and the run gate still fails beside it")
 
+# ---------- T27: SYM-059/061's converter half — the writer carries the phase that decided the verdict (S175 E4, his word 8ca8279b) ----------
+# S161 E4's design: the Dock cannot name the deciding phase from its side (the thresholds live in fidelity_audit), so
+# build_fidelity_block writes verdict_phase beside verdict — "analyst" when the near-exact gate fired, "convert" for
+# degeneration and every localiser, None on a pass. compute_verdict's string contract is unchanged for every caller.
+print("T27 SYM-059/061 the deciding phase travels with the verdict")
+c27 = {"kind": "fidelity", "doc_survival": 0.99, "tripwires": {}, "runs": []}
+b27 = fa.build_fidelity_block(c27, {"doc_survival": 1.0, "runs": [], "windows_total": 5})  # 1.0: 0.99 is under ANALYST_DOC_FAIL (0.995) — the first draft planted a fail by mistake
+check(b27["verdict"] == "pass" and b27.get("verdict_phase", "MISSING") is None and "verdict_phase" in b27,
+      "T27 (a) a pass carries verdict_phase None — the key present, the phase absent")
+b27b = fa.build_fidelity_block(c27, {"doc_survival": fa.ANALYST_DOC_FAIL - 0.01, "runs": [], "windows_total": 5})
+check((b27b["verdict"], b27b["verdict_phase"]) == ("fail", "analyst"),
+      "T27 (b) the analyst near-exact gate names its phase: fail · analyst")
+b27c = fa.build_fidelity_block(dict(c27, tripwires={"degeneration": True}), {"doc_survival": 1.0, "runs": []})
+check((b27c["verdict"], b27c["verdict_phase"]) == ("fail", "convert"),
+      "T27 (c) degeneration names the convert phase: fail · convert (the analyst block clean beside it)")
+b27d = fa.build_fidelity_block(dict(c27, doc_survival=fa.CLEAN_DOC_FLAG - 0.01), None)
+b27e = fa.build_fidelity_block(dict(c27, pages_total=100, pages_scored=int(100 * fa.WITNESS_COVERAGE_FLOOR) - 1), None)
+check((b27d["verdict"], b27d["verdict_phase"]) == ("flag", "convert") and (b27e["verdict"], b27e["verdict_phase"]) == ("flag", "convert"),
+      "T27 (d) every localiser — low convert survival, the witness-coverage floor — flags with the convert phase")
+check(fa.compute_verdict(c27, {"doc_survival": fa.ANALYST_DOC_FAIL - 0.01, "runs": []}) == "fail" and isinstance(fa.compute_verdict(c27, None), str),
+      "T27 (e) CONTROL: compute_verdict still returns the bare string every caller expects")
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

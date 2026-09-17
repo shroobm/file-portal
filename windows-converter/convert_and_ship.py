@@ -76,12 +76,13 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
         fid = manifest.get("fidelity")
         if fid and "convert" in fid:
             fid["analyst"] = an
-            fid["verdict"] = fa.compute_verdict(fid["convert"], an)
+            fid["verdict"], fid["verdict_phase"] = fa.verdict_with_phase(fid["convert"], an)  # S175: the phase beside it
         else:
             # SYM-057 (S175): doc_survival None = not measured (no windows); it fails nothing here either
             verdict = "fail" if ((an["doc_survival"] is not None and an["doc_survival"] < fa.ANALYST_DOC_FAIL)
                                  or any(r["words"] >= fa.ANALYST_RUN_WORDS for r in an["runs"])) else "pass"
-            manifest["fidelity"] = {"version": fa.SCHEMA_VERSION, "analyst": an, "verdict": verdict}
+            manifest["fidelity"] = {"version": fa.SCHEMA_VERSION, "analyst": an, "verdict": verdict,
+                                    "verdict_phase": "analyst" if verdict == "fail" else None}  # S175
         emit("audit", "scored", source=name, phase="analyst",
              doc_survival=an["doc_survival"], runs=len(an["runs"]),
              runs_total=an.get("runs_total"),  # M2: None over a masquerading fallback
@@ -2398,7 +2399,7 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
         conv = fa.audit_convert(pdf_path, body, manifest.get("lane", "clean"),
                                  asset_count=asset_count)
         an = fa.audit_analyst(reference_text, body) if reference_text is not None else None
-        verdict = fa.compute_verdict(conv, an)
+        verdict, verdict_phase = fa.verdict_with_phase(conv, an)  # S175: the phase beside it
 
         fid = manifest.setdefault("fidelity", {})
         old_convert = fid.get("convert") or {}  # HISTORY — read only, never overwritten below
@@ -2407,6 +2408,7 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
             final["analyst"] = an
         fid["final"] = final
         fid["verdict"] = verdict
+        fid["verdict_phase"] = verdict_phase
 
         # S133: the Repair Bench's ledger is `repairs.jsonl` beside the manifest (bench.py's chokepoint
         # writes it, fsynced, one JSON per edit with a sha chain); no bench writes a `repairs` manifest

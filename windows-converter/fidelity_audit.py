@@ -9,6 +9,7 @@ Public API (imported by convert_and_ship.py, all crash-wrapped by the caller):
   audit_convert(pdf_path, markdown, lane, asset_count=None) -> dict   # the "convert" sub-block
   audit_analyst(marker_markdown, analyst_markdown)          -> dict   # the "analyst" sub-block
   compute_verdict(convert_block, analyst_block)             -> str    # "pass"|"flag"|"fail"
+  verdict_with_phase(convert_block, analyst_block)          -> (str, str|None)  # + the phase that decided (S175)
   build_fidelity_block(convert_block, analyst_block=None)   -> dict   # the manifest "fidelity" object
 
 Run standalone (marker-env interpreter):
@@ -580,7 +581,17 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
 
 
 def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
-    """Verdict per the SIGNED enforcement policy (docs/15 §12, signed 2026-07-20).
+    """The verdict string (every caller's contract); the phase that decided it is verdict_with_phase()'s second value."""
+    return verdict_with_phase(convert_block, analyst_block)[0]
+
+
+def verdict_with_phase(convert_block: dict, analyst_block: dict | None) -> tuple:
+    """Verdict per the SIGNED enforcement policy (docs/15 §12, signed 2026-07-20), WITH THE PHASE THAT DECIDED IT.
+
+    S175 (SYM-059/061's converter half; S161 E4's design): the Dock cannot name the deciding phase honestly from its side —
+    the thresholds live here — so the writer carries it: ("fail", "analyst") when the analyst near-exact gate fired,
+    ("fail", "convert") on degeneration, ("flag", "convert") for every localiser (they all read the convert block, the
+    witness-coverage floor included), ("pass", None). The verdict logic below is UNCHANGED — only the tuple is new.
 
     Two signals — and only two — reach "fail":
       * degeneration — OCR/LLM repetition-loop corruption. Unambiguous and witness-free,
@@ -601,12 +612,12 @@ def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
         a_doc = analyst_block.get("doc_survival", 1.0)  # SYM-057: None = not measured (no windows) — it fails nothing
         if ((a_doc is not None and a_doc < ANALYST_DOC_FAIL)
                 or any(r["words"] >= ANALYST_RUN_WORDS for r in a_runs)):
-            return "fail"
+            return "fail", "analyst"
 
     tw = convert_block.get("tripwires", {})
     # Degeneration is corruption regardless of witness quality → fail on either lane.
     if tw.get("degeneration"):
-        return "fail"
+        return "fail", "convert"
 
     # Remaining signals are report-only LOCALIZERS → "flag" at most (docs/15 §12).
     doc = convert_block.get("doc_survival", 1.0)
@@ -615,11 +626,11 @@ def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
         gr = tw.get("garbage_rate")
         if (convert_block.get("pages_flagged")
                 or (gr is not None and gr > SCAN_GARBAGE_FLAG)):
-            return "flag"
+            return "flag", "convert"
     else:                                              # clean lane
         if (doc < CLEAN_DOC_FLAG or convert_block.get("pages_flagged")
                 or any(r["words"] >= CLEAN_RUN_WORDS for r in runs)):
-            return "flag"
+            return "flag", "convert"
     # S144 (audit/verdict-weighs-denominator; Rab's word, Desk bf4d5d05 2026-09-13; docs/15 §12.3): a witness that scored
     # under WITNESS_COVERAGE_FLOOR of the book's pages localises nothing — its survival is a number over the pages it saw,
     # not over the book — so the verdict is at most `flag` (a localiser, never a fail: §12's two fail signals stand above).
@@ -627,15 +638,15 @@ def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
     pages_total = convert_block.get("pages_total")
     pages_scored = convert_block.get("pages_scored")
     if pages_total and pages_scored is not None and pages_scored / pages_total < WITNESS_COVERAGE_FLOOR:
-        return "flag"
-    return "pass"
+        return "flag", "convert"
+    return "pass", None
 
 
 def build_fidelity_block(convert_block: dict, analyst_block: dict | None = None) -> dict:
     block = {"version": SCHEMA_VERSION, "convert": convert_block}
     if analyst_block is not None:
         block["analyst"] = analyst_block
-    block["verdict"] = compute_verdict(convert_block, analyst_block)
+    block["verdict"], block["verdict_phase"] = verdict_with_phase(convert_block, analyst_block)  # S175: the phase beside it
     return block
 
 

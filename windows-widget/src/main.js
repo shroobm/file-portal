@@ -990,7 +990,11 @@ function assayRender(st) {
         `<span class="ac-held-name">${escHtml(h.bundle)}</span></div>`).join("");
   }
 
-  const badge = v ? `<span class="badge ${cls}">${verdict} ${v.sym}</span>` : "";
+  // SYM-059/061 (S175): the badge names the phase the WRITER says decided it (`fail · analyst`) — the
+  // thresholds live in fidelity_audit.compute_verdict, so the JS never infers the phase (SYM-096's class);
+  // a legacy manifest has no phase and the badge reads as before.
+  const phase = st.verdict_phase ? ` · ${escHtml(String(st.verdict_phase))}` : "";
+  const badge = v ? `<span class="badge ${cls}">${verdict}${phase} ${v.sym}</span>` : "";
   assayCard.innerHTML =
     `<div class="ac-head"><span class="spark">◎</span>` +
     `<span class="ttl">${escHtml(st.bundle || "last convert")}</span><span class="grow"></span>${toggle}</div>` +

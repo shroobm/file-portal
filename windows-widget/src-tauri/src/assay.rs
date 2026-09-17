@@ -154,6 +154,9 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "available": true,
         "mode": mode,
         "verdict": fid["verdict"],
+        // S175 (SYM-059/061): the phase that decided the verdict, written by fidelity_audit —
+        // "analyst" / "convert" / null; Null on manifests audited before it existed.
+        "verdict_phase": fid["verdict_phase"],
         "bundle": manifest["source"],
         "kind": conv["kind"],
         "doc_survival": conv["doc_survival"],
