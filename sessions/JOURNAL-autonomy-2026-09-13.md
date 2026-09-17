@@ -451,3 +451,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the tripwire re-run on all 33 markdowns by its own function; the manifests compared one by one; every flagged block read in its markdown context with its most repeated 8-gram counted (Equity Research's verdict changed on that count); the exemption applied to every flagged block with the share of short tokens printed; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 20.65 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-17 03:44Z — the HTML page's author found; the census reads syntax; the last unseen keys signed (S180)
+
+**What you will notice:** the 47 KB web page sitting inside your Investment Valuation markdown was written by the analyst model on Aug 31 — a leaked thinking tag and then a whole 'Math Equation Display' page wrapping the chunk's own text — ten days before the two gates that refuse such output existed; both gates are now proved on that exact specimen in the analyst's own tests, and the same book converted a day later has no such page (that copy is the honest one; a re-analyse of the first is a GPU run and yours). The tool census now reads a script's syntax instead of the words in its comments (759 files, none changed class — the limit was real and its fix harmless). The ten keys the glass detector could not see are each signed with their reader named; its warning list is empty.
+
+**What answered the register:** nothing struck, nothing added — the three items were the carry-over's candidates, not rows; the register's net is zero and says so (the close gate may want an act; if it stops, the honest add is named in §20).
+
+**Gained / lost / still missing:** gained — a historical defect closed by two cases on today's gates, a census that reads syntax, ten signatures and an empty listing. Lost — nothing. Missing — your word on the exemption, your reading of docs/64, your "twin", your rebuild, your flag design, your six taps, your arming, your lever, your signature, your answer on the Desk, which models you meant, the two GPU reanalyses.
+
+**How it was checked:** the block read whole with its tags counted and the other copy of the same book beside it; the gates' dates read from the source; the two cases run against the analyst's ladder with a fake backend (49/49); the census rule run before and after over every tracked .py (759, 0 changed); acceptance 212/212 with the branch-key case's both halves; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 22.91 USD-eq in the receipts across 1 episodes.
