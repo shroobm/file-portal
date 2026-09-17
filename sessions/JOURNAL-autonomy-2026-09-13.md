@@ -703,3 +703,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the walker's negative control (a change it must see, seen); the ignored count ≥ 1 on every trial; the five re-cut rows' tracker field read before and after.
 
 **What it cost you:** no card time; no fleet; 15.63 USD-eq in the receipts across 1 episode(s).
+
+## 2026-09-17 22:11Z — a number kept out of the wrong slot (S201)
+
+**What you will notice:** nothing changed in the baseline table for S196 — on purpose: the survey's verifiers refuted 2 of 5 candidates, the table's `refuter` column means something else (findings reproduced by a refuter lane), and writing 2/5 there would have read as a different fact. A row on the register names the slot the instrument needs. The index folded by retiring four clauses whose homes were read first. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold; the refuter field taken to its source and left UNREAD with the reason; S200's row re-cut with its receipt; one row added for the verifier field.
+
+**Gained / lost / still missing:** gained — a table that still means what its headers say; lost — nothing of yours; missing — your decision on the S198 proposal, the study's rule on revisions, your Gmail reconnect (eight drafts wait), and your list.
+
+**How it was checked:** the trial diff on S196 was clean (the number would have landed without moving anything else — the reason not to write it was semantic, not mechanical); the fold's check read missing 0 with the tail unchanged.
+
+**What it cost you:** no card time; no fleet; 11.15 USD-eq in the receipts across 1 episode(s).
