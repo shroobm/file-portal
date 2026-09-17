@@ -630,6 +630,40 @@ def _():
 
 
 # ---------------------------------------------------------------------------
+# S183 E1 — SYM-091 and SYM-104 read against J46: the guard's blind zone is real and UNCHANGED (the lever his); the
+# acceptor is what stops the defect SHIPPING. Each case reads the guard's own number first, then the shipped text.
+# ---------------------------------------------------------------------------
+S183_PARAS = [words(24, f"s183p{i}") for i in range(1, 6)]   # five paragraphs of two windows each: ten windows
+S183_MD = "\n\n".join(S183_PARAS)
+
+
+@case("S183 (SYM-091) one paragraph of five dropped: the per-chunk guard reads 0.8 and PASSES it (the blind zone, unchanged) "
+      "-- the acceptor reverts the deletion and the shipped chunk carries all five paragraphs")
+def _():
+    candidate = "\n\n".join(S183_PARAS[:2] + S183_PARAS[3:])   # the third paragraph gone
+    fenced, _ = analyst.fence(S183_MD)
+    guard = tn.chunk_survival(fenced, candidate)
+    assert guard == 0.8 and guard >= analyst.ANALYST_CHUNK_SURVIVAL_MIN, ("the blind zone must be real for the case to mean anything", guard)
+    out, meta = run(S183_MD, [candidate])
+    assert meta["chunks_passed"] == 1 and meta["rejections"]["survival"] == 0, meta   # the guard did NOT catch it
+    assert all(p in out for p in S183_PARAS), "a paragraph the guard let go must come back through the acceptor"
+    assert meta["edits"]["reverted"] == {"deletion": 1}, meta["edits"]
+
+
+@case("S183 (SYM-104) `100` -> `10` in a many-window chunk: ONE window of nine fails, the guard reads 0.8889 and PASSES "
+      "(the blind zone: a digit moves the fraction less than the lever) -- the acceptor reverts the numeral and `100` ships")
+def _():
+    md = "\n\n".join(S183_PARAS[:4]) + " the sample held 100 units in total"   # 96 + 7 words: eight windows + a kept 7-word tail
+    candidate = md.replace("100 units", "10 units")
+    fenced, _ = analyst.fence(md)
+    guard = tn.chunk_survival(fenced, candidate)
+    assert guard == round(8 / 9, 4) and guard >= analyst.ANALYST_CHUNK_SURVIVAL_MIN, ("one window of nine must fail and the chunk still pass", guard)
+    out, meta = run(md, [candidate])
+    assert meta["chunks_passed"] == 1 and "100 units" in out and "10 units" not in out.replace("100 units", ""), out
+    assert meta["edits"]["reverted"] == {"numeral": 1}, meta["edits"]
+
+
+# ---------------------------------------------------------------------------
 # S146 E5 (SYM-129): the generation bound and the truncated rejection
 # ---------------------------------------------------------------------------
 @case("S146-E5 (a) the bound is 2x the chunk's estimated tokens, never under 512, never over NUM_CTX")
