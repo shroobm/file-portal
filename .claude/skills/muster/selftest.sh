@@ -1134,6 +1134,29 @@ windows-converter/no_such_selftest.py"
 if [[ "$missing66b" == " windows-converter/no_such_selftest.py" ]]; then ok "CASE 66 NEGATIVE CONTROL: a planted name with no file is the one the reading names"
 else bad "CASE 66 NEGATIVE CONTROL: the planted name must be named missing" "got:$missing66b"; fi
 
+# ── CASE 67: close.sh [5] LEVERS, the AST sub-row (S184, SYM-096) ────────────────────────────────────────
+# The property: a numeric literal the regex gate cannot see (a call default, a dict value, a tuple element, a comparison
+# operand) ADDED since the pin is LISTED beneath the LEVERS row by observability/lever_census.py, warn-only — and a fixture
+# where the census cannot run reads UNREAD, never clean (the rule of case 7 applied to this sub-row). The fixture repo is
+# the CONV one (its windows-converter/thing.py is an added file); the census module is copied in for (a) and absent for (b).
+mkdir -p "$CONV/observability"
+cp "$HERE/../../../observability/lever_census.py" "$CONV/observability/lever_census.py"
+printf 'def g(x, floor=0.77):\n    return x < floor\n' >> "$CONV/windows-converter/thing.py"
+git -C "$CONV" add -A >/dev/null 2>&1
+git -C "$CONV" -c user.email=t@t -c user.name=t commit -qm lever-plant >/dev/null 2>&1
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" bash "$CLOSE" "$conv_pin" 2>&1); rc_lit=$?
+if printf '%s' "$out" | grep -q 'lever census (AST, warn-only): 1 numeric literal'; then ok "CASE 67: a call-default literal added since the pin is LISTED beneath LEVERS (1 numeric literal)"
+else bad "CASE 67: the AST sub-row must list the planted literal" "got: $(printf '%s' "$out" | grep -E 'lever census|LEVERS' | head -3)"; fi
+if printf '%s' "$out" | grep -q 'LEVERS  *no unlevered threshold constants'; then ok "CASE 67: …while the regex row above it still reads none (the blind class, by construction)"
+else bad "CASE 67: the regex row must not see a call default" "got: $(printf '%s' "$out" | grep -E 'LEVERS' | head -2)"; fi
+rm -f "$CONV/observability/lever_census.py"
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" bash "$CLOSE" "$conv_pin" 2>&1); rc_unread=$?
+if printf '%s' "$out" | grep -q 'lever census UNREAD'; then ok "CASE 67 NEGATIVE CONTROL: with no census module the sub-row reads UNREAD, never clean"
+else bad "CASE 67 NEGATIVE CONTROL: a failed probe must read UNREAD" "got: $(printf '%s' "$out" | grep -E 'lever census' | head -2)"; fi
+if [[ "$rc_lit" -eq "$rc_unread" ]]; then ok "CASE 67: …and the exit code is the SAME listed or UNREAD (warn-only by construction; arming is Rab's)"
+else bad "CASE 67: the sub-row must not move the exit code" "listed $rc_lit vs UNREAD $rc_unread"; fi
+cp "$HERE/../../../observability/lever_census.py" "$CONV/observability/lever_census.py"
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi
