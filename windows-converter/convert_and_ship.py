@@ -2116,11 +2116,23 @@ def resume(pend_id: str, backend: str) -> None:
     json_path.write_text(json.dumps(card, indent=2) + "\n", encoding="utf-8")
     try:
         if backend in ("local", "gemini"):
-            meta = apply_analyst(bundle_dir, card["bundle_name"], backend)
-            print(f"ANALYST done: {meta}", flush=True)
-            # Refresh the anchor copy so it matches what ships.
-            anchor_dest = unique_anchor(ANCHOR / f"{card['bundle_name']} [analyst-{backend}]")
-            shutil.copytree(bundle_dir, anchor_dest)
+            # S157 E46 (B27, "resume auto-detect-analyzed"), applied S181 E1: a parked bundle that is ALREADY analyst
+            # output — the retry click after a ship failure past the analyst step — is not analysed twice. Measured on a
+            # fixture: the note carried two `analyst:` blocks, the body two passes, the anchor two copies, the card two
+            # runs. Same backend: ship the pass that is there. A different backend is --reanalyze's road (J42), refused.
+            prior = (json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8")).get("analyst") or {})
+            if prior.get("backend") == backend:
+                emit("analyst", "skipped", bundle=card["bundle_name"], backend=backend, reason="already analysed — a retry")
+                print(f"ANALYST already applied ({backend}): shipping the parked pass", flush=True)
+            elif prior:
+                raise RuntimeError(f"parked bundle is already {prior.get('backend')!r} analyst output; "
+                                   f"a {backend!r} pass is --reanalyze's road (J42), not a resume")
+            else:
+                meta = apply_analyst(bundle_dir, card["bundle_name"], backend)
+                print(f"ANALYST done: {meta}", flush=True)
+                # Refresh the anchor copy so it matches what ships.
+                anchor_dest = unique_anchor(ANCHOR / f"{card['bundle_name']} [analyst-{backend}]")
+                shutil.copytree(bundle_dir, anchor_dest)
         if _enforce_hold(bundle_dir, card["bundle_name"], card["source_sha256"]):
             shutil.rmtree(bundle_dir)
             json_path.unlink()

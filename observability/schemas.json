@@ -258,6 +258,10 @@
           "duration_s",
           "program"
         ],
+        "analyst/skipped": [
+          "backend",
+          "bundle"
+        ],
         "analyst/start": [
           "backend",
           "bundle"
@@ -482,6 +486,18 @@
             "pid",
             "reason",
             "source",
+            "stage",
+            "ts"
+          ]
+        },
+        "analyst/skipped": {
+          "optional_keys": [],
+          "required_keys": [
+            "backend",
+            "bundle",
+            "event",
+            "pid",
+            "reason",
             "stage",
             "ts"
           ]

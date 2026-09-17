@@ -77,6 +77,8 @@ export function eventPhrase(e, { compact = false, unknown = null } = {}) {
     "gate/failed": `${icon("✗")}routing failed: ${s(e.error)} — pick a route to retry`,
     "analyst/start": `${icon("🧠")}analyzing ${s(e.bundle)} (${e.backend})…`,
     "analyst/done": `${icon("🧠")}analysis done · ${e.chunks_passed ?? "?"}✓ ${e.chunks_rejected || 0} protected`,
+    // B27 (S181): a retry after a ship failure past the analyst ships the pass already there — no second run
+    "analyst/skipped": `${icon("🧠")}${s(e.bundle)} — already analysed (${e.backend}), shipping the parked pass`,
     "ship/shipped": `${icon("⇈")}${s(e.bundle)} — shipped to vault ✓`,
     "ship/failed": `${icon("✗")}ship failed: ${s(e.error)}`,
   };

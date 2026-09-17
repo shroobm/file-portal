@@ -1718,6 +1718,68 @@ for n in ("j42good", "j42stale", "j42none"):
     shutil.rmtree(cas.ANCHOR / n, ignore_errors=True)
 
 
+# ---------- B27 (S157 E46, applied S181 E1): a resume retried after a ship failure does NOT analyse twice ----------
+print("B27 resume auto-detect-analyzed")
+cas.PENDING.mkdir(parents=True, exist_ok=True)
+_b27d = cas.PENDING / "b27b27b27b27b27b"
+_b27d.mkdir(parents=True, exist_ok=True)
+(_b27d / "book.md").write_text("---\ntitle: book\n---\nA body.\n", encoding="utf-8")
+(_b27d / "manifest.json").write_text(json.dumps({"source": "x.pdf", "source_sha256": "b27" * 22, "repairs": []}), encoding="utf-8")
+(cas.PENDING / "b27b27b27b27b27b.json").write_text(json.dumps({"bundle_name": "book", "source_sha256": "b27" * 22, "state": "pending"}), encoding="utf-8")
+_b27calls = []
+
+
+def _b27_apply(bundle_dir, bundle_name, backend):
+    _b27calls.append(backend)
+    md = bundle_dir / f"{bundle_name}.md"
+    raw = md.read_text(encoding="utf-8")
+    head, body = raw.split("---\n", 2)[1], raw.split("---\n", 2)[2]
+    md.write_text("---\nanalyst:\n  backend: %s\n" % backend + head + "---\n" + body + "\n\nPASS", encoding="utf-8")
+    mp = bundle_dir / "manifest.json"
+    m = json.loads(mp.read_text(encoding="utf-8"))
+    m["analyst"] = {"backend": backend}
+    mp.write_text(json.dumps(m), encoding="utf-8")
+    return m["analyst"]
+
+
+_b27ships = []
+
+
+def _b27_ship(*a, **k):
+    _b27ships.append(1)
+    if len(_b27ships) == 1:
+        raise RuntimeError("offline")  # the ThinkPad away on the first attempt — the card flips `failed`
+
+
+saved = (cas.apply_analyst, cas.ship, cas._enforce_hold, cas.emit)
+cas.apply_analyst, cas.ship, cas._enforce_hold, cas.emit = _b27_apply, _b27_ship, (lambda *a, **k: False), EmitRecorder()
+try:
+    try:
+        cas.resume("b27b27b27b27b27b", "local")
+    except RuntimeError:
+        pass
+    cas.resume("b27b27b27b27b27b", "local")                       # the retry click
+    check(_b27calls == ["local"], "B27: the retry after a failed ship does NOT run the analyst again (%s)" % _b27calls)
+    check(any(k == "analyst/skipped" for k, _ in cas.emit.events), "B27: the skip is an event, not silence")
+    # NEGATIVE CONTROL: a different backend on an analysed parked bundle is refused, never silently shipped
+    _b27d.mkdir(parents=True, exist_ok=True)   # resume() removed it on success — re-park an analysed copy
+    (_b27d / "book.md").write_text("---\nanalyst:\n  backend: local\ntitle: book\n---\nA body.\n\nPASS", encoding="utf-8")
+    (_b27d / "manifest.json").write_text(json.dumps({"source": "x.pdf", "source_sha256": "b27" * 22, "analyst": {"backend": "local"}}), encoding="utf-8")
+    (cas.PENDING / "b27b27b27b27b27b.json").write_text(json.dumps({"bundle_name": "book", "source_sha256": "b27" * 22, "state": "pending"}), encoding="utf-8")
+    refused = False
+    try:
+        cas.resume("b27b27b27b27b27b", "gemini")
+    except RuntimeError as exc:
+        refused = "reanalyze" in str(exc)
+    check(refused, "B27 NEGATIVE: a gemini click on a local-analysed parked bundle is refused toward --reanalyze")
+    check(_b27calls == ["local"], "B27 NEGATIVE: the refusal ran no analyst")
+    vocab_b27 = (HERE.parent / "windows-widget" / "src" / "event-vocab.js").read_text(encoding="utf-8")
+    check('"analyst/skipped"' in vocab_b27, "B27: shared event-vocab.js speaks analyst/skipped (the Dock and the Room render it, not `unknown`)")
+finally:
+    cas.apply_analyst, cas.ship, cas._enforce_hold, cas.emit = saved
+    shutil.rmtree(_b27d, ignore_errors=True)
+    (cas.PENDING / "b27b27b27b27b27b.json").unlink(missing_ok=True)
+
 # ---------- T20: the lever's provenance (S146 E2, SYM-131) ----------
 print("T20 audit-mode provenance")
 _saved_emit_t11 = cas.emit
