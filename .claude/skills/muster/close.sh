@@ -312,6 +312,15 @@ EOF
   else
     row "LEVERS" "no unlevered threshold constants added since $PIN"
   fi
+  # S184 (SYM-096): the regex above cannot see a number inside a dict literal, a call default, a tuple or a comparison —
+  # docs/18 §2 does not care how the number is written. observability/lever_census.py walks the ADDED lines' Python AST
+  # for exactly those classes (selftests exempt, POLICY law 2; 0/1/-1/2 never counted; the same in-line waiver form).
+  # WARN-ONLY: a listing beneath the row, the exit code untouched — arming is Rab's. A failed probe reads UNREAD.
+  if lc_out=$("$PY" "$FP_REPO/observability/lever_census.py" --since "$PIN" --count 2>&1); then
+    row "" "$lc_out (run without --count for the lines)"
+  else
+    row "" "lever census UNREAD — lever_census.py did not run ($(printf '%s' "$lc_out" | tail -n 1 | cut -c1-80)); NOT a statement that the blind classes are clean"
+  fi
 else
   row "LEVERS" "UNREAD — pin $PIN unresolvable; NOT a statement that none were added"
 fi
