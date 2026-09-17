@@ -62,6 +62,46 @@
       "disposition": "EVIDENCE",
       "reason": "S175 E4 (2026-09-17, his word Desk 8ca8279b; SYM-056's validator wired): manifest['latex_structure'] — latex_structure.check()'s COUNTS over the pre-analyst Marker body (valid, begin, end, delta, unterminated, unopened, misordered, runaway, max_spec_cols, mode 'flag'), written by convert_and_ship._latex_structure_safe before the analyst. A warn-only flag: the verdict does not read it; what a flag does (reject / strip / bench) is his design. Its home is the manifest beside the fidelity block, read by whoever opens the bundle (the bench, a reaudit, SYM-056's row); no surface renders it — the day the Dock's card shows 'LaTeX: N unterminated' it becomes GLASS. Entered BY HAND: glass's census harvests dict literals that leave a function and its --since regex reads \"key\": in added lines — a key written by subscript is invisible to both (register row observability/glass-subscript-blind, S175)."
     },
+    "bench:unsplit": {
+      "disposition": "EVIDENCE",
+      "reason": "S180 E3 (2026-09-17; read at bench.py:1692, unsplit_tables): the timestamp the repair ledger's record gains when an unsplit-tables move is placed back — a field of the ledger entry (repairs.jsonl), read by whoever reads the ledger (the reaudit, a reviewer); the same disposition as bench:truncated. Never rendered live; the ledger is the surface."
+    },
+    "converter:blocks_path": {
+      "disposition": "INTERNAL",
+      "reason": "S180 E3 (read at convert_and_ship.py:1682 and :1755): the path of the merged blocks.json in the chunk stats — control flow only; it feeds _attach_blocks_safe, which writes the manifest's `blocks` COUNTS (bytes, sha, records). The path itself is a temp-dir location a human never wants."
+    },
+    "converter:ceiling_mib": {
+      "disposition": "EVIDENCE",
+      "reason": "S180 E3 (read at convert_and_ship.py:1233/1246, _run_marker): the VRAM ceiling the run was under when Marker was killed, written into the death certificate (the GPU signature `sig`, S146 E3) that the stall/kill event carries — read by a human at the post-mortem of a stalled book (events.jsonl); never live."
+    },
+    "converter:ceiling_top": {
+      "disposition": "EVIDENCE",
+      "reason": "S180 E3 (read at convert_and_ship.py:1234/1247): the process that held the card's top when the ceiling was hit — the death certificate's `who` (S146 E3: 'the death certificate names WHO held the card'); the same reader as ceiling_mib."
+    },
+    "converter:gpu_top": {
+      "disposition": "EVIDENCE",
+      "reason": "S180 E3 (read at convert_and_ship.py:532, _gpu_signature): the card's committers at the signature's moment, on the death certificate only (with_processes=True) — the post-mortem's reader; the Dock shows the card's live state from nvidia-smi, not from this."
+    },
+    "converter:inflation": {
+      "disposition": "EVIDENCE",
+      "reason": "S180 E3 (read at analyst.py:697, process): the per-reason rejection count `rejections.inflation` (J34) in the manifest's analyst block — opened on the assay card's analyst line as the rejected count; the per-reason split is read in the manifest and the chunk journal by a reviewer (S180 E1 read it to place the 2026-08-31 specimen)."
+    },
+    "converter:think_leak": {
+      "disposition": "EVIDENCE",
+      "reason": "S180 E3 (read at analyst.py:674): the per-reason rejection count `rejections.think_leak` (SYM-074) — the same block and readers as converter:inflation."
+    },
+    "converter:max_spec_cols": {
+      "disposition": "EVIDENCE",
+      "reason": "S180 E3 (read at convert_and_ship.py:816, _latex_structure_safe): the lever's value carried inside the manifest's `latex_structure` record so a reader knows which width the runaway count was judged against — the same disposition and readers as converter:latex_structure (S175)."
+    },
+    "converter:num_predict": {
+      "disposition": "INTERNAL",
+      "reason": "S180 E3 (read at analyst.py:121/196/203/619): the ollama request option — the generation bound per chunk (_num_predict_for) — an outbound parameter, the same class as bench:keep_alive and bench:stream; it is carried into the chunk journal for a rejected chunk, which is the reviewer's surface, not a live one."
+    },
+    "converter:table-geometry": {
+      "disposition": "EVIDENCE",
+      "reason": "S180 E3 (read at analyst.py:542/544, process): the edit whitelist's tally for the table-geometry layer (J46 + S150) in the manifest's analyst `edits.accepted` / `edits.reverted` — the same block as the other whitelist classes (escape, hyphen, ligature, link, markup), which are written by a loop over the tally and were never literal keys either; read in the manifest and the chunk journal by a reviewer."
+    },
     "converter:reference_masked": {
       "disposition": "EVIDENCE",
       "reason": "S131 (Rab signed 2026-09-12; docs/15 §12.1): the analyst block's record of the reference blocks the near-exact gate masked before its windows were built (per block: line, line_end, chars, zlib, max_trigram, excerpt; plus the words removed). A verdict that leaned on the mask must be readable as such, and it is: docs/29 §5.3 step 4 — HOME = the manifest's fidelity.analyst / fidelity.final.analyst block, the card the assay and the Repair Bench open (fidelity_audit.py audit_analyst; first specimen the Zero to One reaudit, vault 8d7cc85, one block of 408 words). Not GLASS: a masked block is Marker's disease, already surfaced by the convert gate's degeneration tripwire and its damage map; this key only says the analyst gate did not count the same disease twice. If a second book needs it at a glance, a 'reference masked: N words' chip on the assay card is the next home."

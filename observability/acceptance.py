@@ -401,7 +401,20 @@ def _planted_branch_is_listed_not_fatal() -> bool:
         out = json.loads(proc.stdout)
         listed = {k for _, k, _, _, _ in out.get("subscript_warn", [])}
         glitch_keys = {k for _, k, _, _, _ in out["glitches"]}
-        return listed == {"zz_planted_branch_never_rendered"} and not glitch_keys
+        if not (listed == {"zz_planted_branch_never_rendered"} and not glitch_keys):
+            return False
+        # S180: the second half — a disposition for the branch key is a LIVE signature: the listing drops it, --enforce still
+        # exits 0, and no stale signature is named (before S180 the literal census never knew the key and read the signature as stale)
+        cfg["dispositions"] = {"planted:zz_planted_branch_never_rendered": {"disposition": "INTERNAL", "reason": "the S180 case"}}
+        cfgp.write_text(json.dumps(cfg), encoding="utf-8")
+        proc2 = subprocess.run(
+            [sys.executable, str(DETECTOR), "--config", str(cfgp), "--enforce", "--json"],
+            capture_output=True, text=True, encoding="utf-8", cwd=str(ROOT),
+        )
+        if proc2.returncode != 0:
+            return False
+        out2 = json.loads(proc2.stdout)
+        return not out2.get("subscript_warn") and not out2.get("stale")
 
 
 if __name__ == "__main__":

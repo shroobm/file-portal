@@ -466,7 +466,11 @@ def main() -> int:
                 continue
             for key, lineno, ctx in branch_keys_from_python(prod):
                 sig = f"{lane['name']}:{key}"
-                if len(key) < MIN_KEY_LEN or key in harvested or sig in signed or referenced(key, blob, cache):
+                if len(key) < MIN_KEY_LEN:
+                    continue
+                if sig in signed:
+                    used_signatures.add(sig)  # S180: a signed branch key is a LIVE signature, never stale (the literal census never knew it)
+                if key in harvested or sig in signed or referenced(key, blob, cache):
                     continue
                 if only_added is not None and key not in only_added:
                     continue
