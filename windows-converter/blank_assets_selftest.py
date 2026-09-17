@@ -81,9 +81,34 @@ with tempfile.TemporaryDirectory() as td:
     r_none = ba.scan(os.path.join(td, "no-such-assets"), body)
     check(r_none["assets"] == 0 and r_none["blank_total"] == 0 and r_none["blank_referenced"] == 0 and set(r_none) == set(r),
           "(h) no assets/ dir: zero assets, every key present (the record's shape never depends on the count)")
+    # S189 E2: the second band — a SCANNED blank page (paper texture + bleed-through, sd 2–3) and a text-only page (sd < 4)
+    # are near-blank, not blank; the flat specimen is blank, not near-blank; an image is in at most one band.
+    verso = Image.new("L", (200, 300), 245)
+    px = verso.load()
+    for y in range(0, 300, 7):          # faint bleed-through: every seventh row slightly darker
+        for x in range(60, 140):
+            px[x, y] = 232
+    _write(os.path.join(assets, "_page_27_Picture_0.jpeg"), verso)
+    body2 = body + "![](assets/_page_27_Picture_0.jpeg)\n"
+    r2 = ba.scan(assets, body2)
+    near_names = {b["name"]: b for b in r2["near_blank"]}
+    blank_names2 = {b["name"] for b in r2["blank"]}
+    v = near_names.get("_page_27_Picture_0.jpeg")
+    check(v is not None and ba.BLANK_SD <= v["sd"] < ba.NEAR_BLANK_SD and v["referenced"] is True
+          and "_page_27_Picture_0.jpeg" not in blank_names2,
+          "(k) a scanned blank verso (paper with faint bleed-through, sd %s) reads NEAR-BLANK and referenced — not blank" % (v or {}).get("sd"))
+    check("_page_128_Picture_15.jpeg" in blank_names2 and "_page_128_Picture_15.jpeg" not in near_names
+          and "_page_3_Figure_1.png" not in near_names,
+          "(l) the flat specimen stays blank and is not near-blank; the gradient is in neither band")
+    check(r2["near_blank_total"] == 1 and r2["near_blank_referenced"] == 1 and r2["near_blank_sd"] == ba.NEAR_BLANK_SD
+          and r2["blank_total"] == 3 and r2["blank_referenced"] == 2,
+          "(m) the counts: near-blank 1 (1 referenced), blank 3 (2 referenced) — the first band's numbers unchanged by the second")
+    r_low = ba.scan(assets, body2, near_blank_sd=1.5)
+    check("_page_27_Picture_0.jpeg" not in {b["name"] for b in r_low["near_blank"]} and r_low["near_blank_sd"] == 1.5,
+          "(n) NEGATIVE CONTROL: with near_blank_sd lowered under the verso it is in neither band — the band is the lever's")
     # the CLI: a bundle dir with the body and the assets
     with open(os.path.join(td, "book.md"), "w", encoding="utf-8") as f:
-        f.write(body)
+        f.write(body2)  # S189 E2: the CLI's bundle references the verso too
     py = sys.executable
     here = os.path.join(os.path.dirname(os.path.abspath(__file__)), "blank_assets.py")
     p1 = subprocess.run([py, here, td], capture_output=True, text=True, encoding="utf-8", errors="replace")
@@ -98,6 +123,8 @@ with tempfile.TemporaryDirectory() as td:
     p2 = subprocess.run([py, here], capture_output=True, text=True, encoding="utf-8", errors="replace")
     check(p0.returncode == 0 and "blank=0" in p0.stdout and p2.returncode == 2,
           "(j) CLI: a clean bundle exits 0 (blank=0); usage exits 2")
+    check("near-blank=1 referenced=1" in p1.stdout and "_page_27_Picture_0.jpeg" in p1.stdout and "near-blank=0" in p0.stdout,
+          "(o) CLI: the near-blank band is printed with its count and names (1 on the planted bundle, 0 on the clean one)")
 
 print("%s (%d/%d)" % ("GREEN" if not silent else "RED", fired, fired + silent))
 sys.exit(1 if silent else 0)

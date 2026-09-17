@@ -859,9 +859,10 @@ def _blank_assets_safe(tmp_dir: Path, body: str, manifest: dict, name: str = "")
         rec = blank_assets.scan(str(tmp_dir / "assets"), body)
         out = {"blank_assets": rec}
         manifest.update(out)
-        if rec["blank_referenced"]:
-            print(f"BLANK ASSETS: {rec['blank_referenced']} referenced blank crop(s) of {rec['assets']} assets for {name} — "
-                  f"{', '.join(b['name'] for b in rec['blank'] if b['referenced'])} (flag only; nothing gated)", flush=True)
+        if rec["blank_referenced"] or rec.get("near_blank_referenced"):
+            print(f"BLANK ASSETS: {rec['blank_referenced']} referenced blank crop(s) and {rec.get('near_blank_referenced', 0)} "
+                  f"near-blank of {rec['assets']} assets for {name} — "
+                  f"{', '.join(b['name'] for b in rec['blank'] + rec.get('near_blank', []) if b['referenced'])} (flag only; nothing gated)", flush=True)
         return out
     except Exception as exc:  # noqa: BLE001
         print(f"BLANK ASSETS: scan failed ({str(exc)[:120]}) — key absent, the book converts as before", flush=True)
