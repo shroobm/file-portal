@@ -535,3 +535,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the run read at its place in the Marker body and the shipped note; the two tables pushed through the real invariant and the real acceptor (the fused row ships with the table rung, reverts without it); the six notes' 204 tables compared to their sidecars; nothing the running converter imports was edited.
 
 **What it cost you:** the card for the last giant's analyst, in flight; no fleet; 19.72 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-17 10:44Z — the last book landed through the crash that had lost it; the crash was mine (S187)
+
+**What you will notice:** all seven books you named have been through the widget — three in the vault, four in held/ with their reasons named at the line. Automate the Boring Stuff's first run died at its last print after 75 minutes: a clock emoji through a console the watcher I re-spawned at S175 had left on cp1252 — your widget's own spawn sets it right; mine didn't. Fixed both ways with a test that reproduces the crash, the watcher restarted with your environment, the book re-run from its cached slices; it is held on a real loop ("the proof of the proof…" ×148), and under yesterday's ladder its analyst audit would read 0.9993 — 97 % of what the audit called lost in a Python book were escaped identifiers. SYM-134's fix is in: the fused table header is refused; that book's road is a re-analysis, yours to say.
+
+**What answered the register:** SYM-134 fixed and struck; SYM-135 filed and fixed at birth; a lever row for the analyst running on a convert-phase fail (75 min of card, twice, for a book known to park).
+
+**Gained / lost / still missing:** gained — two fixes proved on the field's own specimens, a watcher that carries its environment, a lever reading that grows with the book. Lost — 75 minutes of your card, my error. Missing — your line in the lever file; your bench on three books; your word on the re-analysis and the analyst-on-fail lever.
+
+**How it was checked:** the traceback read from the watcher's log; the S175 respawn read beside the widget's Rust spawn; a child spawned without the variable printing the exact character (exit 0) and the same child without the guard dying (rc 1); the second run's `held` where the first run's `failed` had been; DSB's 50 tables before and after the table rule; every suite green; nothing the running converter imported was edited while it ran.
+
+**What it cost you:** ~2.5 h of the card (75 min of it my error); no fleet; 42.68 USD-eq in the receipts across 2 episodes.
