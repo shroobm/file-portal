@@ -607,3 +607,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the bench's five suites green (95 page tests, boundary, generated-md, acceptance 85/85, table health 24/24); the observer's selftest with a planted failing step; the ten logs read from the run's own zip; the three reds' log tails read to their cause; the record before each act.
 
 **What it cost you:** no card time; no fleet; 31.87 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 17:39Z — the institution: a folder anyone can copy, seat an agent in, and develop from (S193)
+
+**What you will notice:** a new prototype at `prototypes/institutions` (a junction into the private repo; the public repo ignores it): copy the folder, run `bootstrap.sh --lane <name> --occupant "<model>" --human <you>`, and it runs every one of its own tripwires, refuses if any is red or silent, generates MACHINE.md from probes, writes the first record, and prints a card that reads CLEAN. Its CLAUDE.md is the constitution — every law this project paid for, each with the sitting or the row that made it — and it cannot be edited in a copy; a bylaw row amends it. **Where to look:** `institutions/README.md` (copy · occupy · grow; what was left out and why), `docs/01–14`, the proof in `sittings/S193/e5_bootstrap_proof.txt`.
+
+**What answered the register:** one row ADDED (the institution; publishing a copy is yours); nothing struck; no symptom filed.
+
+**Gained / lost / still missing:** gained — the whole thing, top to bottom, on your word: 88 files, 24 green tripwire suites, a proved copy and a refused broken one. Lost — nothing of yours; no card time; seven defects of the build caught by their own tripwires before the next episode. Missing — your word on publishing a copy; a real tenant's lanes in one; the estimator, the blank-page consequence, the lever, arming the suites.
+
+**How it was checked:** every suite run by me after each part landed (the guard 178/178 here, 181/181 in a copy; muster 20/20 + 16/16; row_check 12/12; the chain 13/13; glass 8/8, levers 9/9, schema 5/5, promises 5/5, acceptance 7/7; the tools 8/8 · 7/7 · 4/4 · 4/4 · 4/4 · 5/5 · 3/3; bootstrap 15/15; the contract 15/15; echo 6/6; circle 8/8); a real copy bootstrapped in Temp (23 fired, 0 red); a copy with a never-denying guard refused.
+
+**What it cost you:** no card time; the harvest fleet (the chat's, inside E1) 40.33; 140.94 USD-eq in the receipts across 7 episodes.
