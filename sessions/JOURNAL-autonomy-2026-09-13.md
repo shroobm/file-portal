@@ -679,3 +679,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the census's positive control (a known flagged call found) and negative control (no advisory on a Write call); the five failures each read to their reason; the fold's check (missing 0, the tail unchanged).
 
 **What it cost you:** no card time; no fleet; 10.64 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 21:31Z — the tracker's receipts reach the journal again (S199)
+
+**What you will notice:** the baseline table (`measurement/baseline/README.md`, private) shows a tracker coverage number for today's sixteen sittings where it said UNREAD since S158 — the receipts had been there all along; two of my own scripts disagreed on a label's shape. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold; the journal's reader taught the service's label with a tripwire born the same episode; thirty-nine receipts journaled; sixteen rows re-cut; one mechanical row added for the twenty-three older rows (a trial diff first).
+
+**Gained / lost / still missing:** gained — forty sittings of process receipts readable from the journal, and a reader that will keep reading them; lost — nothing of yours; a wrong negative control of mine wrote a file from this sitting's own gate and was removed before any commit, said; missing — your decision on the S198 proposal, your Gmail reconnect (six drafts wait), and your list.
+
+**How it was checked:** the reader's suite `proc_receipt_selftest: 5/5` (and `proc_receipt_selftest: 4/5` against the old reader — the gate's form unseen); every re-cut row's tracker field read before and after; the true negative (a label with no receipt) reads UNREAD.
+
+**What it cost you:** no card time; no fleet; 14.95 USD-eq in the receipts across 2 episodes.
