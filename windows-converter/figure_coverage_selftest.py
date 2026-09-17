@@ -303,6 +303,44 @@ def main() -> int:
               fc.coverage(tri, empty, lv=fc.levers(text="accounted_for=0.42")["values"]
                           )["conditions"]["veto_accounted_for"] == 0.42)
 
+        # ---- S189 E1 (SYM-095): the instrument DECLARES when its FIGURE N.N convention is unmet ----
+        # A book that captions figures any other way put every uncovered page in `uncovered_other` and the READ-FIRST
+        # list read empty as if coverage were fine. The convention's state is a report field now: off / met / unmet.
+        check("SYM-095 POSITIVE CONTROL: a book with a FIGURE N.N page reads triage_convention met, captioned pages 1",
+              on["triage_convention"] == "met" and on["triage_captioned_pages"] == 1,
+              f"{on['triage_convention']} / {on['triage_captioned_pages']}")
+        check("SYM-095: mode=off reads off (the convention is not consulted)",
+              off["triage_convention"] == "off", off["triage_convention"])
+        doc = pymupdf.open()
+        pc = doc.new_page()
+        pc.insert_image(pymupdf.Rect(100, 100, 300, 300), stream=_png(200, 200))
+        pc.insert_text(pymupdf.Point(72, 400), "Fig. 3  A thing captioned some other way")
+        conv = tmp / "conv.pdf"
+        doc.save(conv)
+        doc.close()
+        empty_c = _bundle(tmp, [], name="conv")
+        unmet = fc.coverage(conv, empty_c, lv=fc.levers(text="mode=caption")["values"])
+        check("SYM-095 BITES: a figure page captioned 'Fig. 3' (another convention) reads UNMET, captioned pages 0, "
+              "the page in uncovered_other — the partition unchanged",
+              unmet["triage_convention"] == "unmet" and unmet["triage_captioned_pages"] == 0
+              and unmet["uncovered_captioned"] == [] and unmet["uncovered_other"] == [1],
+              f"{unmet['triage_convention']} / {unmet['triage_captioned_pages']} / {unmet['uncovered_other']}")
+        import subprocess
+        here = Path(__file__).resolve().parent / "figure_coverage.py"
+        cli = subprocess.run([sys.executable, str(here), "--pdf", str(conv), "--bundle", str(empty_c)],
+                             capture_output=True, text=True, encoding="utf-8", errors="replace")
+        check("SYM-095 SURFACE: the human branch prints TRIAGE INERT on the unmet book (and still prints both lists)",
+              "TRIAGE INERT" in cli.stdout and "READ FIRST" in cli.stdout and "the rest (1)" in cli.stdout,
+              cli.stdout[-400:] + cli.stderr[-200:])
+        cli_met = subprocess.run([sys.executable, str(here), "--pdf", str(tri), "--bundle", str(empty)],
+                                 capture_output=True, text=True, encoding="utf-8", errors="replace")
+        check("SYM-095 NEGATIVE CONTROL: the met book prints no TRIAGE INERT line",
+              "TRIAGE INERT" not in cli_met.stdout and "READ FIRST" in cli_met.stdout, cli_met.stdout[-300:])
+        cli_json = subprocess.run([sys.executable, str(here), "--pdf", str(conv), "--bundle", str(empty_c), "--json"],
+                                  capture_output=True, text=True, encoding="utf-8", errors="replace")
+        check("SYM-095: the JSON form carries triage_convention unmet",
+              json.loads(cli_json.stdout).get("triage_convention") == "unmet", cli_json.stdout[:200])
+
         # The ILLUSTRATION precedence. This exact rule was measured but NOT shipped in the
         # first S106 build: the code promoted 16 of 49 pages while the 83 % had been measured
         # on the 8 the precedence leaves. Caught by re-measuring shipped-vs-measured. The case

@@ -775,6 +775,17 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
     triage_on = lv["mode"] == "caption"
     unc_capt = [p for p in uncovered if p in captioned] if triage_on else []
     unc_rest = [p for p in uncovered if p not in captioned] if triage_on else list(uncovered)
+    # S189 E1 (SYM-095): the triage keys on the literal `FIGURE N.N` — an input-shape assumption the instrument never
+    # stated. A book that captions figures any other way (Cybernetics) put every uncovered page in `uncovered_other`
+    # and the READ-FIRST list read empty as if coverage were fine. The instrument now DECLARES the convention's state:
+    # "off" (mode=off), "met" (at least one page carries the convention), "unmet" (figure pages exist and none carries
+    # it — the triage is inert by convention, not by coverage). A report field, never a verdict; the partition is unchanged.
+    if not triage_on:
+        triage_convention = "off"
+    elif not figure_pages or captioned:
+        triage_convention = "met"
+    else:
+        triage_convention = "unmet"
     # S157 E35: the uncovered pages by region kind — on the adjudicated Damodaran corpus raster <=> a lost figure (21/21) and
     # vector-only <=> an ILLUSTRATION box (104/104); a count, never a verdict (a diagram book's figures are vector)
     by_kind: dict[str, int] = {}
@@ -829,6 +840,8 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
         "page_map": ("REPAIRED (SYM-050 doubled-offset)" if map_repaired else "as-shipped"),
         "sym050_doubled_offset": sym050,
         "triage_mode": lv["mode"],
+        "triage_convention": triage_convention,   # S189 E1 (SYM-095): off / met / unmet — declared, never inferred
+        "triage_captioned_pages": len(captioned),  # how many pages of the book carry the FIGURE N.N convention at all
         "uncovered_captioned": unc_capt,
         "uncovered_other": unc_rest,
         "uncovered_by_kind": by_kind,
@@ -905,6 +918,11 @@ def main() -> int:
               + (f" · IGNORED {c['levers_rejected']}" if c["levers_rejected"] else ""))
         det = {d["page"]: d for d in rep["uncovered_detail"]}
         if rep["triage_mode"] == "caption":
+            # S189 E1 (SYM-095): say when the convention is unmet — an empty READ-FIRST list must never read as
+            # "nothing to read first" on a book that captions its figures some other way.
+            if rep.get("triage_convention") == "unmet":
+                print("  TRIAGE INERT: no page of this book captions a figure as FIGURE N.N — READ FIRST is empty "
+                      "by convention, not by coverage; every uncovered page is below, unranked.")
             # READ THESE FIRST: the page's own text names a FIGURE, so it asserts one belongs
             # here. Both lists are always printed — triage orders, it never hides.
             print(f"  READ FIRST — uncovered pages whose text names a FIGURE "
