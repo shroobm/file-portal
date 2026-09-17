@@ -561,7 +561,11 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
     cjk = is_cjk(ref[:4000])
     windows = make_windows(ref, cjk)
     if not windows:
-        return {"doc_survival": 1.0, "runs": [], "runs_total": 0, "runs_capped_at": 25,
+        # SYM-057 (S175, his word 8ca8279b — the restart window): a comparison that never happened is UNREAD, never a
+        # flawless 1.0 — the two were byte-identical in every shipped manifest. windows_total 0 says why; compute_verdict
+        # and convert_and_ship's fallback branch read None as "not measured" (neither fail nor flag — the verdict's
+        # signals are docs/15 §12's two, and an unmeasured stage adds none; a flag for it would be a gate change, his).
+        return {"doc_survival": None, "windows_total": 0, "runs": [], "runs_total": 0, "runs_capped_at": 25,
                 "normalisation": normalisation, "reference_masked": reference_masked}
     out_flat = space_free(out)
     failed = [space_free(w) not in out_flat for w in windows]
@@ -569,7 +573,8 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str) -> dict:
     runs = [r for r in _merge_runs(windows, failed, page=None)]
     # NUM-3, both phases (review M2: repairing only the convert phase left the analyst event
     # ASSERTING that 25 is the total — strictly worse than the bare capped count)
-    return {"doc_survival": doc, "runs": sorted(runs, key=lambda r: -r["words"])[:25],
+    return {"doc_survival": doc, "windows_total": len(windows),  # SYM-057: the denominator travels with the ratio
+            "runs": sorted(runs, key=lambda r: -r["words"])[:25],
             "runs_total": len(runs), "runs_capped_at": 25, "normalisation": normalisation,
             "reference_masked": reference_masked}
 
@@ -593,7 +598,8 @@ def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
     # Analyst stage first: a perfect reference earns the ruthless near-exact gate.
     if analyst_block is not None:
         a_runs = analyst_block.get("runs", [])
-        if (analyst_block.get("doc_survival", 1.0) < ANALYST_DOC_FAIL
+        a_doc = analyst_block.get("doc_survival", 1.0)  # SYM-057: None = not measured (no windows) — it fails nothing
+        if ((a_doc is not None and a_doc < ANALYST_DOC_FAIL)
                 or any(r["words"] >= ANALYST_RUN_WORDS for r in a_runs)):
             return "fail"
 

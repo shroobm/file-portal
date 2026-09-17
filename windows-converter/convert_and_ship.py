@@ -78,7 +78,8 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
             fid["analyst"] = an
             fid["verdict"] = fa.compute_verdict(fid["convert"], an)
         else:
-            verdict = "fail" if (an["doc_survival"] < fa.ANALYST_DOC_FAIL
+            # SYM-057 (S175): doc_survival None = not measured (no windows); it fails nothing here either
+            verdict = "fail" if ((an["doc_survival"] is not None and an["doc_survival"] < fa.ANALYST_DOC_FAIL)
                                  or any(r["words"] >= fa.ANALYST_RUN_WORDS for r in an["runs"])) else "pass"
             manifest["fidelity"] = {"version": fa.SCHEMA_VERSION, "analyst": an, "verdict": verdict}
         emit("audit", "scored", source=name, phase="analyst",

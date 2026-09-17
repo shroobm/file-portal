@@ -2106,7 +2106,7 @@ finally:
 # doc_survival None (UNREAD) and the window count carried — and is flipped IN THE SAME COMMIT as the fix. (c) is the control
 # either way: a reference with real windows yields a measured survival with the window count derivable from the runs.
 print("T26 SYM-057 the unmeasurable comparison (a tripwire in waiting)")
-EXPECT_FIXED_SYM057 = False
+EXPECT_FIXED_SYM057 = True  # flipped S175 E4 in the same commit as the fix (his word 8ca8279b)
 r26 = fa.audit_analyst("", "anything the analyst wrote")
 # ONE check( call for (a) — the verdict counts `check(` occurrences, so two branches would over-count by one (SYM-039's family)
 if EXPECT_FIXED_SYM057:
@@ -2127,6 +2127,14 @@ check(0.0 <= r26c.get("doc_survival", -1) <= 1.0 and r26c.get("runs_total") == 0
 r26d = fa.audit_analyst(ref26, "nothing of it survived")
 check(r26d.get("doc_survival", 1.0) < 1.0 and r26d.get("runs_total", 0) > 0,
       "T26 (d) CONTROL: the same reference against an output that dropped it reads survival < 1.0 with runs — the audit measures when it can")
+# S175 E4 (the fix landed): the measured branch carries its denominator; a None survival reaches compute_verdict and the
+# fallback branch's arithmetic without a TypeError and fails nothing (the verdict's two signals are unchanged — a flag for
+# "not measured" would be a gate change, his); the analyst's run gate still fails through it.
+r26e = fa.compute_verdict({"kind": "fidelity", "doc_survival": 0.99, "tripwires": {}, "runs": []}, r26)
+r26f = fa.compute_verdict({"kind": "fidelity", "doc_survival": 0.99, "tripwires": {}, "runs": []},
+                          dict(r26, runs=[{"words": fa.ANALYST_RUN_WORDS, "start": 0}]))
+check(r26c.get("windows_total", 0) > 0 and r26e == "pass" and r26f == "fail",
+      "T26 (e) FIXED: the measured block carries windows_total; a None survival reads 'pass' through compute_verdict (no TypeError, no new gate) and the run gate still fails beside it")
 
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
