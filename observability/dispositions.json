@@ -151,16 +151,16 @@
       "reason": "S191 E2 (2026-09-17; read at line.rs:471 last_receipt and main.js:512–523): the ship event's timestamp inside the receipt the ⚓ station click opens — the status line prints the bundle, the convert line, the analyst line and the audit verdict, not the time; its home is the `ship/shipped` event in events.jsonl (and the receipts file) that the receipt is a projection of. 'shipped HH:MM' beside the bundle is one line of JS at the rebuild."
     },
     "bench:total_hits": {
-      "disposition": "EVIDENCE",
-      "reason": "S191 E3 (2026-09-17; read at bench.py:851 find and bench.html:1426–1435): the sum of the per-page hit counts of a text search — the page renders every hit with its own count (`p12 · 3×`), which sum to it; the total's home is the /api/find response the page opened by the operator's own query. A 'N hits on M pages' head is one line at the bench's next build."
+      "disposition": "GLASS",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:851 find and bench.html:1426–1435): the sum of the per-page hit counts of a text search — the page renders every hit with its own count (`p12 · 3×`), which sum to it; the total's home is the /api/find response the page opened by the operator's own query. A 'N hits on M pages' head is one line at the bench's next build. S192 E1: GLASS — the search head prints `Search (M pages · N hits)` from r.total_hits (bench.html:1442; test_bench_page.py TestS192OwedPrints)."
     },
     "bench:needles": {
-      "disposition": "EVIDENCE",
-      "reason": "S191 E3 (2026-09-17; read at bench.py:1132 locate_zone and bench.html:1260–1265): how many text needles the locator tried; the page renders `method`, `page` and `confidence` — and confidence = votes[best] / needles, so the count is the denominator behind a number the page shows (docs/34: a ratio prints both sides — owed at the bench's next build). Its home is the /api/locate response."
+      "disposition": "GLASS",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1132 locate_zone and bench.html:1260–1265): how many text needles the locator tried; the page renders `method`, `page` and `confidence` — and confidence = votes[best] / needles, so the count is the denominator behind a number the page shows (docs/34: a ratio prints both sides — owed at the bench's next build). Its home is the /api/locate response. S192 E1: GLASS — the locate status prints `confidence 0.75 = 3/4 needles` (bench.html:1273; the claim names both sides, test_bench_page.py)."
     },
     "bench:votes": {
-      "disposition": "EVIDENCE",
-      "reason": "S191 E3 (2026-09-17; read at bench.py:1134 and bench.html:1260–1265): the per-page vote map behind the locator's choice (the numerator of `confidence` and the runners-up); the page shows the chosen page and the confidence; the map is the evidence a reader opens when the location looks wrong. Its home is the /api/locate response."
+      "disposition": "GLASS",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1134 and bench.html:1260–1265): the per-page vote map behind the locator's choice (the numerator of `confidence` and the runners-up); the page shows the chosen page and the confidence; the map is the evidence a reader opens when the location looks wrong. Its home is the /api/locate response. S192 E1: GLASS — the chosen page's votes are the numerator of the same line (bench.html:1273: r.votes[String(r.page)])."
     },
     "bench:seq": {
       "disposition": "EVIDENCE",
@@ -183,16 +183,16 @@
       "reason": "S191 E3 (2026-09-17; read at bench.py:1226, :1296 undo_ledger, :1314–1326 ledger_audit — eight in-module reads): the body's sha after a write; the other half of the chain and the key the undo reverts by; the same home and readers as bench:sha_before."
     },
     "bench:regions": {
-      "disposition": "EVIDENCE",
-      "reason": "S191 E3 (2026-09-17; read at bench.py:1301 undo_ledger and bench.html:2066–2069): how many regions an undo restored — the page's status line says `↩ undone — byte-identical (N more available)` (undo_depth), not the region count; the count's home is the /api/undo response and the ledger's undo event. One more number on the status line at the bench's next build."
+      "disposition": "GLASS",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1301 undo_ledger and bench.html:2066–2069): how many regions an undo restored — the page's status line says `↩ undone — byte-identical (N more available)` (undo_depth), not the region count; the count's home is the /api/undo response and the ledger's undo event. One more number on the status line at the bench's next build. S192 E1: GLASS — the undo status prints `R region(s), C char(s) restored` (bench.html:2079)."
     },
     "bench:chars_restored": {
-      "disposition": "EVIDENCE",
-      "reason": "S191 E3 (2026-09-17; read at bench.py:1302): the characters an undo put back (the sum of the reverted events' chars.removed) — the same response and home as bench:regions; the status line prints the depth."
+      "disposition": "GLASS",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1302): the characters an undo put back (the sum of the reverted events' chars.removed) — the same response and home as bench:regions; the status line prints the depth. S192 E1: GLASS — the same undo line (bench.html:2079)."
     },
     "bench:matches_disk": {
-      "disposition": "EVIDENCE",
-      "reason": "S191 E3 (2026-09-17; read at bench.py:1314 (the empty-ledger branch, None) and :1326 ledger_audit, bench.html:976–981): whether the newest sha_after equals the body on disk — the second half of the chain check; the ≡ ledger view prints `chain intact` from `intact` (the per-write chain) and the write count; matches_disk is the disk half a reader opens the /api/ledger response for. Printing it beside `intact` is owed at the bench's next build (a chain intact but a body written around it is exactly the case it names)."
+      "disposition": "GLASS",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1314 (the empty-ledger branch, None) and :1326 ledger_audit, bench.html:976–981): whether the newest sha_after equals the body on disk — the second half of the chain check; the ≡ ledger view prints `chain intact` from `intact` (the per-write chain) and the write count; matches_disk is the disk half a reader opens the /api/ledger response for. Printing it beside `intact` is owed at the bench's next build (a chain intact but a body written around it is exactly the case it names). S192 E1: GLASS — the ≡ ledger view prints `disk matches the chain` / `⚠ DISK DIFFERS FROM THE CHAIN` beside the chain half (bench.html:983–988); null (an empty ledger) prints nothing, never 'matches'."
     },
     "bench:delta_lines": {
       "disposition": "EVIDENCE",

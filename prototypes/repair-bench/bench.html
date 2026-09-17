@@ -977,8 +977,13 @@ $("ledger-btn").onclick = async () => {
     const evs = doc.events || [];
     const aud = doc.audit || {};
     const cov = doc.coverage || {};
-    const chain = aud.intact === false ? `<p class="dcaution">⚠ chain BROKEN — a write bypassed the ledger (${esc(String((aud.breaks || []).length))} break(s))</p>`
-      : `<p>chain intact · ${esc(String(aud.writes ?? "—"))} write(s) · triage ${esc(String(cov.addressed_shown ?? "—"))} of ${esc(String(cov.total ?? "—"))} sites addressed</p>`;
+    // S192 E1 (bench:matches_disk → GLASS): the chain check has two halves — the per-write chain (`intact`) and whether the
+    // newest sha_after equals the body ON DISK (`matches_disk`); a chain intact beside a body written around the ledger is
+    // exactly the case the audit names, so the disk half is printed beside the chain half. Null (an empty ledger) prints nothing.
+    const disk = aud.matches_disk === true ? " · disk matches the chain"
+      : aud.matches_disk === false ? ` · <span class="dcaution">⚠ DISK DIFFERS FROM THE CHAIN — the body was written around the ledger</span>` : "";
+    const chain = aud.intact === false ? `<p class="dcaution">⚠ chain BROKEN — a write bypassed the ledger (${esc(String((aud.breaks || []).length))} break(s))${disk}</p>`
+      : `<p>chain intact · ${esc(String(aud.writes ?? "—"))} write(s)${disk} · triage ${esc(String(cov.addressed_shown ?? "—"))} of ${esc(String(cov.total ?? "—"))} sites addressed</p>`;
     if (!evs.length) { body.innerHTML = chain + "<p>no recorded change yet — the ledger is empty, which is a reading, not a silence</p>"; return; }
     body.innerHTML = chain + `<p>${evs.length} event(s), oldest first</p><table class="ledger-t"><tr><th>when</th><th>gesture</th><th>−</th><th>+</th><th>where</th></tr>` +
       evs.map((e) => `<tr><td>${esc(e.ts || "")}</td><td>${esc(e.gesture || "")}</td>` +
@@ -1262,7 +1267,10 @@ async function autoLocate(i) {
     st.zones[i].loc_conf = r.confidence;
     if (r.method === "text-evidence") {
       if (zone === i) goto(r.page);
-      status(`⌖ located: p${r.page} (confidence ${r.confidence})`);
+      // S192 E1 (docs/34, bench:needles / bench:votes → GLASS): the confidence names its two sides — the votes the chosen
+      // page got over the needles tried — so 0.75 reads as "3 of 4", never as a bare ratio.
+      const got = (r.votes && r.votes[String(r.page)]) ?? "?";
+      status(`⌖ located: p${r.page} (confidence ${r.confidence} = ${got}/${r.needles ?? "?"} needles)`);
     } else { status(r.note || "no text evidence — the ratio guess stands"); }
     if (zone === i) setLocBadge(st.zones[i]);
     renderZones();
@@ -1429,7 +1437,9 @@ async function runSearch() {
     if (!r.searchable) { $("qres").innerHTML = `<div class="side-note">this book has NO text layer (raw scan) — search cannot see it. Use Contents, Pages, and your eyes.</div>`; return; }
     hlQuery = q; $("hlclear").style.display = "";
     hitPages = r.pages.map((h) => h.page); hitPos = -1;
-    $("search-tab").textContent = `Search (${r.pages.length})`;
+    // S192 E1 (bench:total_hits → GLASS): the head names both counts — pages and hits — so "Search (3)" is never mistaken
+    // for three hits on a page that has thirty.
+    $("search-tab").textContent = r.pages.length ? `Search (${r.pages.length} pages · ${r.total_hits ?? "?"} hits)` : "Search (0)";
     $("q").classList.toggle("q-miss", !r.pages.length);
     $("qres").innerHTML = r.pages.length
       ? r.pages.map((h) => `<div class="hit" data-p="${h.page}"><span class="hp">p${h.page} · ${h.count}×</span>` +
@@ -2065,7 +2075,8 @@ $("aiundo").onclick = async () => {
   $("aiundo").disabled = true;
   try {
     const r = await api("/api/undo", {});
-    status(`↩ undone — byte-identical (${r.undo_depth} more available)`);
+    // S192 E1 (bench:regions / bench:chars_restored → GLASS): what came back, not only how many undos remain.
+    status(`↩ undone — byte-identical: ${r.regions ?? "?"} region(s), ${r.chars_restored ?? "?"} char(s) restored (${r.undo_depth} more available)`);
     await refreshAfterAi();
   } catch (e) { status(`↩ ${e.message}`); }
   $("aiundo").disabled = false;

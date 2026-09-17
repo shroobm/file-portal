@@ -264,6 +264,47 @@ class TestClaimDenominators(unittest.TestCase):
         self.assertFalse(claim_names_denominator(BAD_CLAIM_PY))
 
 
+class TestS192OwedPrints(unittest.TestCase):
+    """S192 E1: the four prints S191's dispositions named as owed — each response already carried the number, the page
+    now says it. Source truths (the DOM never loads here — B5's honest limit): the string is wired to the field."""
+
+    def test_locate_confidence_names_its_two_sides(self):
+        line = next(ln for ln in BENCH_HTML.splitlines() if "⌖ located: p" in ln)
+        self.assertTrue(claim_names_denominator(line),
+                        f"the locate confidence lost its two sides: {line.strip()!r}")
+        self.assertIn("r.needles", BENCH_HTML.split("⌖ located: p")[0][-600:] + line,
+                      "the denominator must be the response's needles count, not a literal")
+
+    def test_locate_negative_control_the_old_one_sided_string_fails(self):
+        old = "status(`⌖ located: p${r.page} (confidence ${r.confidence})`);"
+        self.assertFalse(claim_names_denominator(old))
+
+    def test_ledger_view_prints_the_disk_half_beside_the_chain(self):
+        src = BENCH_HTML
+        self.assertIn("aud.matches_disk === true", src)
+        self.assertIn("aud.matches_disk === false", src)
+        self.assertIn("DISK DIFFERS FROM THE CHAIN", src)
+        chain_line = next(ln for ln in src.splitlines() if "chain intact · " in ln)
+        self.assertIn("${disk}", chain_line, "the disk half must ride on the chain line, not elsewhere")
+
+    def test_search_head_names_pages_and_hits(self):
+        line = next(ln for ln in BENCH_HTML.splitlines() if '$("search-tab").textContent = r.pages.length' in ln)
+        self.assertIn("r.total_hits", line)
+        self.assertIn("pages ·", line)
+        self.assertIn("hits", line)
+
+    def test_undo_line_names_regions_and_chars(self):
+        line = next(ln for ln in BENCH_HTML.splitlines() if "↩ undone — byte-identical" in ln)
+        self.assertIn("r.regions", line)
+        self.assertIn("r.chars_restored", line)
+        self.assertIn("r.undo_depth", line)
+
+    def test_the_responses_carry_what_the_page_prints(self):
+        # bench.py untouched: the fields the page reads must be the ones the routes return
+        for key in ("\"needles\"", "\"votes\"", "\"matches_disk\"", "\"total_hits\"", "\"regions\"", "\"chars_restored\""):
+            self.assertIn(key, BENCH_PY, f"bench.py no longer returns {key}")
+
+
 class TestB15OmissionSignature(unittest.TestCase):
     """B15 (S157 E44): an omission run diagnoses as G — reason, highlight, solution, with the run's own measurements as the
     evidence — and a degeneration zone does NOT fire G (the negative control: the rule is run-shaped, never a catch-all)."""
