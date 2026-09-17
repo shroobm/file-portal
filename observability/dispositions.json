@@ -98,6 +98,122 @@
       "disposition": "EVIDENCE",
       "reason": "S191 E1 (2026-09-17; read at analyst.py:959, preflight, and convert_and_ship.py:2144): the card's VRAM in use at preflight, written into the pending gate card's `preflight` block beside gpu_busy — main.js:318 renders the busy FLAG ('⚠ GPU busy' / 'GPU free'), not the MiB. Its home is the pending card's JSON (pending/<id>.json), opened deliberately when a reader asks what 'busy' meant in numbers; the MiB on the card's face is the rebuild, his."
     },
+    "widget:acked": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at algedonic.rs:243 and room.js:136–160): the per-occurrence acknowledgement flag in algedonic_state's alerts[] — its HOME is the ack ledger algedonic-acks.jsonl (algedonic.rs:58 ack writes it, :77 state reads it back), and the Room shows it by ABSENCE: the banner lists only `escalated` = !acked && age ≥ M, so an acked occurrence leaves the list the moment the ⚑ ack button writes the ledger. A separate 'acked' mark on the glass is the rebuild, his."
+    },
+    "widget:unacked": {
+      "disposition": "INTERNAL",
+      "reason": "S191 E2 (2026-09-17; read at algedonic.rs:255 and room.js:1035): the count of unacknowledged alerts INCLUDING those younger than M — below the signed M line no action is owed (docs/18 §6, docs/19 §6 provisional), so the banner and the Wall show the `escalated` count by design; the young count is derivable from the alerts[] the same payload carries (each with acked and age_min). A 'quiet pain' counter is a design Rab has not asked for; if he does, it is one line of JS at the rebuild."
+    },
+    "widget:linux_host": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:19 and main.rs:50 status::fetch_events(&cfg.linux_host, &cfg.remote_user)): a config-file field the HUMAN wrote (the Tailscale name of the Linux box), read by the transport to act — an input, not a computed value; its home is the config file itself (docs/06's security model; S87's rule: verify config from the widget's BOOT LOG, never the writing surface). A surface that prints the host is the rebuild, his; the boot log and the file are where a reader looks today."
+    },
+    "widget:remote_user": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:21 and main.rs:50): the SSH user the transport signs in as (never root — docs/06); a human-written config field whose home is the config file; the same disposition and readers as widget:linux_host."
+    },
+    "widget:remote_inbox_root": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:23): the remote base directory the inbox/<category> folders live under — a human-written config field read by the transport when it ships; its home is the config file; the same disposition as widget:linux_host."
+    },
+    "widget:vault_library_dir": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:27): the local path of the vault's Library clone (Decision #4); EMPTY hides the Add-to-Library button — the Dock renders the field by presence (the button exists or not), which is the only render a path needs; the value's home is the config file."
+    },
+    "widget:gpu_pipeline_dir": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:37 and main.rs:59/71/84/105/124/135/145, algedonic.rs, assay.rs, line.rs): the pipeline root every Rust command reads its files from (pending/, drop/, anchor/, events.jsonl, the boot log at main.rs:427) — a human-written config field; empty hides the pre-flight card (rendered by presence). Its home is the config file; every surface the widget has is downstream of it."
+    },
+    "widget:gpu_python_exe": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:41 and assay.rs:289): the marker-env interpreter the card's route buttons spawn the converter with — a human-written config field read to act; both it and gpu_converter_dir are required for the buttons to act (the buttons' presence is the render); its home is the config file."
+    },
+    "widget:gpu_converter_dir": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:43 and assay.rs:288–): the repo's windows-converter folder the spawn runs in — a human-written config field; the same disposition and readers as widget:gpu_python_exe."
+    },
+    "widget:reader_obsidian": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:47 and the boot log's `reader_config: {obsidian: true, zennotes: true}` line, main.js:535): the launcher path/URI of a reader (docs/13 'the dock has doors'); the config file is the allowlist; the Dock renders it by PRESENCE (the door icon exists or not) and the boot log prints the presence flag. Its home is the config file."
+    },
+    "widget:reader_zennotes": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at config.rs:49, main.js:535): the same as widget:reader_obsidian — a reader's launcher, rendered by presence, the config file its home."
+    },
+    "widget:convert_frac": {
+      "disposition": "INTERNAL",
+      "reason": "S191 E2 (2026-09-17; read at line.rs:328 and room.js:330–352): the current Marker stage's fraction (the progress file's `frac`), copied into the line payload beside stage / n / total — room.js renders `stage · n/total` as text (:351) and draws the bar from elapsed ÷ the promise BY DESIGN (S42: the bar is monotonic; a per-stage fraction resets at every stage boundary and would run backwards). The number is derivable from n/total, which are rendered; it is control flow that the face chose not to draw. A per-stage bar is a design question for the rebuild, his."
+    },
+    "widget:shipped_ts": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E2 (2026-09-17; read at line.rs:471 last_receipt and main.js:512–523): the ship event's timestamp inside the receipt the ⚓ station click opens — the status line prints the bundle, the convert line, the analyst line and the audit verdict, not the time; its home is the `ship/shipped` event in events.jsonl (and the receipts file) that the receipt is a projection of. 'shipped HH:MM' beside the bundle is one line of JS at the rebuild."
+    },
+    "bench:total_hits": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:851 find and bench.html:1426–1435): the sum of the per-page hit counts of a text search — the page renders every hit with its own count (`p12 · 3×`), which sum to it; the total's home is the /api/find response the page opened by the operator's own query. A 'N hits on M pages' head is one line at the bench's next build."
+    },
+    "bench:needles": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1132 locate_zone and bench.html:1260–1265): how many text needles the locator tried; the page renders `method`, `page` and `confidence` — and confidence = votes[best] / needles, so the count is the denominator behind a number the page shows (docs/34: a ratio prints both sides — owed at the bench's next build). Its home is the /api/locate response."
+    },
+    "bench:votes": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1134 and bench.html:1260–1265): the per-page vote map behind the locator's choice (the numerator of `confidence` and the runners-up); the page shows the chosen page and the confidence; the map is the evidence a reader opens when the location looks wrong. Its home is the /api/locate response."
+    },
+    "bench:seq": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1214 _write_body): the write's sequence number in the repair ledger (repairs.jsonl, the chokepoint's fsynced record) — read back by ledger_audit and the ≡ ledger view (bench.html:976–981: chain intact · N write(s)); the same home and disposition as bench:unsplit / bench:truncated (S180)."
+    },
+    "bench:context_before": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1221 _write_body): the text before a changed region, written into the ledger record so a reviewer can place the change without the body; the ledger (repairs.jsonl) is the surface, read by the ≡ ledger view and the reaudit; never live."
+    },
+    "bench:context_after": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1223): the text after a changed region — the same record, home and readers as bench:context_before."
+    },
+    "bench:sha_before": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1226 and :1314–1326 ledger_audit, :1296 undo_ledger): the body's sha before a write — the ledger's CHAIN (each write's sha_before must equal the previous sha_after; ledger_audit reads it in-module and the ≡ ledger view prints `chain intact` / `chain BROKEN`). Its home is repairs.jsonl; the chain verdict is what the page shows."
+    },
+    "bench:sha_after": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1226, :1296 undo_ledger, :1314–1326 ledger_audit — eight in-module reads): the body's sha after a write; the other half of the chain and the key the undo reverts by; the same home and readers as bench:sha_before."
+    },
+    "bench:regions": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1301 undo_ledger and bench.html:2066–2069): how many regions an undo restored — the page's status line says `↩ undone — byte-identical (N more available)` (undo_depth), not the region count; the count's home is the /api/undo response and the ledger's undo event. One more number on the status line at the bench's next build."
+    },
+    "bench:chars_restored": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1302): the characters an undo put back (the sum of the reverted events' chars.removed) — the same response and home as bench:regions; the status line prints the depth."
+    },
+    "bench:matches_disk": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1314 (the empty-ledger branch, None) and :1326 ledger_audit, bench.html:976–981): whether the newest sha_after equals the body on disk — the second half of the chain check; the ≡ ledger view prints `chain intact` from `intact` (the per-write chain) and the write count; matches_disk is the disk half a reader opens the /api/ledger response for. Printing it beside `intact` is owed at the bench's next build (a chain intact but a body written around it is exactly the case it names)."
+    },
+    "bench:delta_lines": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1861 and :1882 collapse): the signed line delta of a collapse, written into the repair record (repairs[] in the manifest / repairs.jsonl) beside `delta` — bench:delta's own disposition (S168) names the home: the record the bench reads back at every restart (_record_shift); the same home here."
+    },
+    "bench:para_lines": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:1857 and :1882 collapse): the paragraph's line count before the collapse — the other half of delta_lines' ratio; the same record and home."
+    },
+    "bench:zones_with_repairs": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:2055 rescore_preview and bench.html:2197–2210): how many of the original zones carry a repair — the ◎ preview's status line prints the degeneration verdict, the zone count and the coverage (addressed/shown), from `coverage`; this count sits beside `repairs` in the same response as the provenance half's other reading. Its home is the /api/rescore response the operator opens; one more term in the status line at the bench's next build."
+    },
+    "bench:chars_added": {
+      "disposition": "REPORT",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:2128 repairs_report and bench.html:992–996): characters the repairs added — a field of the /api/report response whose `markdown` is REPAIRS.md, the ledger's final report (docs/28 §3), previewed in a <pre> and written beside the bundle on request; an end-of-run artifact, never polled — docs/29 §5.2's REPORT."
+    },
+    "bench:entropy_pct": {
+      "disposition": "REPORT",
+      "reason": "S191 E3 (2026-09-17; read at bench.py:2129 repairs_report): the share of the original body the repairs removed (removed / (body + removed)) — the same response and report as bench:chars_added; REPAIRS.md is its home."
+    },
     "bench:unsplit": {
       "disposition": "EVIDENCE",
       "reason": "S180 E3 (2026-09-17; read at bench.py:1692, unsplit_tables): the timestamp the repair ledger's record gains when an unsplit-tables move is placed back — a field of the ledger entry (repairs.jsonl), read by whoever reads the ledger (the reaudit, a reviewer); the same disposition as bench:truncated. Never rendered live; the ledger is the surface."
