@@ -739,3 +739,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the control (a number I had typed wrong on the Desk earlier tonight and corrected) read FALSE by the reader two ways; every surviving finding re-read by me against the file before a line was written.
 
 **What it cost you:** no card time; 32.88 USD-eq in the receipts across 2 episodes (fleets 16.34).
+
+## 2026-09-17 23:25Z — "nothing of yours touched" gets a file (S204)
+
+**What you will notice:** the sentence every close said to you — the card idle, nothing of yours touched — now comes from three files that exist: the tracker's receipt (which images ran), the git diff (which of your dirs changed), the pipeline's mtimes (what was written in the window). Run over the whole day: idle in all 11 windows, your tree untouched in all 11, and one file written in one window — the widget's own boot log during S194, a boot nobody wrote down. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold; the reader with its tripwire (10/10); the reader over the day; one row for its place at the open.
+
+**Gained / lost / still missing:** gained — a claim I made eleven times today that a file can now check; lost — nothing of yours; missing — your decision on the S198 proposal, the study's rule on revisions, your Gmail reconnect (eleven drafts wait), and your list.
+
+**How it was checked:** ten tripwire cases (a model image reads NOT IDLE; a widget path reads TOUCHED; a missing source reads UNREAD, never clean); the reader's first his-dirs list caught counting the lanes' own dirs as yours, and narrowed.
+
+**What it cost you:** no card time; no fleet; 15.81 USD-eq in the receipts across 2 episodes.
