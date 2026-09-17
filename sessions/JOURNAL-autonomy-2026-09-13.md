@@ -571,3 +571,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the row's own specimen through the shipped CLI (Cybernetics: TRIAGE INERT, 0 vetoed tables, 71 figure pages); the four pictures opened and looked at; the field's events read by the new instrument; every suite green (51, 15, 295, 11, 137); the record before each act; no process edited while it ran.
 
 **What it cost you:** no card time; no fleet; 29.80 USD-eq in the receipts across 3 episodes.
+
+## 2026-09-17 13:12Z — housekeeping the closes had been naming, and the index's own law read back at itself (S190)
+
+**What you will notice:** nothing ran on the card. A symptom row that has been fixed since S94 — the ".gpu-lock that locks nothing" — finally says so in its first word; the counter had been calling it open for 190 sittings. The whole-repo census of values computed and reaching nobody is a list now (36 keys — 19 of the Repair Bench's, 11 of the widget's config) and a task for a sitting of its own, each a judgment, not a batch. The memory index stopped carrying 34 commit SHAs the repo's ledger already holds — room for two sittings bought without a fold. The blank-crop flag's three constants carry their evidence.
+
+**What answered the register:** SYM-032's marker; SYM-027's measure; SYM-059/061 annotated with what the converter now writes; the LEVERS row's debt from two closes answered.
+
+**Gained / lost / still missing:** gained — a truer index and a truer counter. Lost — nothing of yours. Missing — your word on the estimator's shape, the lever, the bench, and what a blank or near-blank page should do.
+
+**How it was checked:** the mutex re-run (7/7); every dropped SHA resolved as a commit of the repo before the index was written; the read-back check after; the suites green; the record before each act.
+
+**What it cost you:** no card time; no fleet; 20.53 USD-eq in the receipts across 3 episodes.
