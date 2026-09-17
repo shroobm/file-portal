@@ -619,3 +619,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every suite run by me after each part landed (the guard 178/178 here, 181/181 in a copy; muster 20/20 + 16/16; row_check 12/12; the chain 13/13; glass 8/8, levers 9/9, schema 5/5, promises 5/5, acceptance 7/7; the tools 8/8 · 7/7 · 4/4 · 4/4 · 4/4 · 5/5 · 3/3; bootstrap 15/15; the contract 15/15; echo 6/6; circle 8/8); a real copy bootstrapped in Temp (23 fired, 0 red); a copy with a never-denying guard refused.
 
 **What it cost you:** no card time; the harvest fleet (the chat's, inside E1) 40.33; 140.94 USD-eq in the receipts across 7 episodes.
+
+## 2026-09-17 18:46Z — the three governance suites that were red in CI for platform reasons now say what they could not run (S194)
+
+**What you will notice:** in CI, the circle, coordination and muster governance steps' logs read clean instead of red — not because a case was loosened but because a case the runner cannot run (a mirror that does not exist there; a signal code its bash does not deliver; thirteen Windows-shaped probes) now prints SKIP with its own count, and the suite's exit reads the fired cases only. On this machine every case still fires (137/137 · 4/4 · 20/20). **Where to look:** `sittings/S194/e1_controls.txt`, `ci_observe_e1.txt`; A29's row in OPEN-TASKS.md.
+
+**What answered the register:** A29's cell measured (an in-cell Observed clause); nothing struck, nothing added — said.
+
+**Gained / lost / still missing:** gained — three honest suites and the tally form the institution was born with, carried back. Lost — nothing of yours; my first cut's boundary swallowed six assertions that were not Windows-shaped and the control caught it (13 unrun where 7 were typed) — corrected. Missing — your word on arming A29 (a bylaw, yours), and the rest of your list.
+
+**How it was checked:** the controls from the suites' own tally lines — Windows every case fires; the platform override skips 13 at exit 0; an absent mirror skips 1; a differing mirror still fails; the SIGPIPE override skips case 13; CI on the commit observed by the LOG after the push.
+
+**What it cost you:** no card time; no fleet; 39.45 USD-eq in the receipts across 1 episode(s).
