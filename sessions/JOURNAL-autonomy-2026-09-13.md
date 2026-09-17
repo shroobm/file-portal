@@ -691,3 +691,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the reader's suite `proc_receipt_selftest: 5/5` (and `proc_receipt_selftest: 4/5` against the old reader — the gate's form unseen); every re-cut row's tracker field read before and after; the true negative (a label with no receipt) reads UNREAD.
 
 **What it cost you:** no card time; no fleet; 14.95 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 21:54Z — a trial before a rewrite; a question named for your study (S200)
+
+**What you will notice:** five more baseline rows (S177–S181) show a tracker coverage; eighteen older ones still say UNREAD on purpose — a blind re-cut would have rewritten eight fields of each, because their receipts were revised after the rows were cut, and whether a row follows a revision is your study's rule to write, not mine to guess. Your three Desk questions this evening are answered on the Desk. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold (a real cut); the S199 row worked by its own words — the trial per row, five re-cut, eighteen named; S199's row re-cut.
+
+**Gained / lost / still missing:** gained — a trial that caught a silent rewrite before it happened; lost — nothing of yours; missing — your rule on revisions, your decision on the S198 proposal, your Gmail reconnect (seven drafts wait), and your list.
+
+**How it was checked:** the walker's negative control (a change it must see, seen); the ignored count ≥ 1 on every trial; the five re-cut rows' tracker field read before and after.
+
+**What it cost you:** no card time; no fleet; 15.63 USD-eq in the receipts across 1 episode(s).
