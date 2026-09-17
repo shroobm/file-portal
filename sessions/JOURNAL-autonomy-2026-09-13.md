@@ -463,3 +463,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the block read whole with its tags counted and the other copy of the same book beside it; the gates' dates read from the source; the two cases run against the analyst's ladder with a fake backend (49/49); the census rule run before and after over every tracked .py (759, 0 changed); acceptance 212/212 with the branch-key case's both halves; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 22.91 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-17 04:16Z — the retry that ran the analyst twice is fixed; the test you did in August is on the record (S181)
+
+**What you will notice:** when a ship fails after the analyst (the ThinkPad away) and you click retry, the card no longer spends ten minutes re-analysing its own output — it ships the pass already there and says so in the events file. Nothing to restart; the next retry uses it. And the roadmap's "end-to-end test on real hardware" box, unticked since June, turns out to be something you did on Aug 7 at half past midnight — the dashboard open a minute after a screenshot sorted itself — the machine remembered it, the record didn't; now it does.
+
+**What answered the register:** two rows struck — B27 (applied, proved both ways) and B31 (met in the field, read from three of the ThinkPad's records); 98 → 96.
+
+**Gained / lost / still missing:** gained — a fix drafted three days ago under a never-edit rule applied on your word, with a control that shows the old text failing and the new text passing; a fact about August recovered. Lost — nothing. Missing — your word on the exemption, the twin, docs/64, the models, the rebuild (the widget's phrase for the new event waits on it), and whether you want the August test re-run and watched.
+
+**How it was checked:** the fixture run twice in one process against the old and the new resume(); the suite under the marker-env interpreter (287/287); the registry regenerated and checked; glass and acceptance on the final tree; the ThinkPad read only, over the keyed channel, the shape of its status file read before its count.
+
+**What it cost you:** nothing on the card; no fleet; 25.98 USD-eq in the receipts across 2 episodes.
