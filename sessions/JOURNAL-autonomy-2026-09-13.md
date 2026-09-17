@@ -715,3 +715,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the trial diff on S196 was clean (the number would have landed without moving anything else — the reason not to write it was semantic, not mechanical); the fold's check read missing 0 with the tail unchanged.
 
 **What it cost you:** no card time; no fleet; 11.15 USD-eq in the receipts across 1 episode(s).
+
+## 2026-09-17 22:29Z — the number gets its own slot; a typed tally caught (S202)
+
+**What you will notice:** the baseline table's last column now reads `tickets / refuter / verifier`, and S196's row carries `2/5` there — the survey's verifiers' verdict, read from its file, in a field that means exactly that. And a small thing that matters more: the baseline suite's tally was a typed 23 — three new cases printed ok under a total that never moved — and it now counts what it runs (26/26). Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold (five retirements, homes read); the verifier slot built with its tripwire; S196's and S201's rows re-cut; the S201 row struck.
+
+**Gained / lost / still missing:** gained — an instrument that can hold a survey's verdict, and one that counts its own cases; lost — nothing of yours; missing — your decision on the S198 proposal, the study's rule on revisions, your Gmail reconnect (nine drafts wait), and your list.
+
+**How it was checked:** the three cases crash against the old instrument (a KeyError — the negative control); the trial walk on S196 moved nothing but the field being filled; the fold's check read missing 0.
+
+**What it cost you:** no card time; no fleet; 13.85 USD-eq in the receipts across 2 episodes.
