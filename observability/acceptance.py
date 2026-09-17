@@ -58,7 +58,11 @@ ANSWER_KEY = [
     # docs/34 rule 7 forbids the headline); `converter:reverse_sample` now carries the same
     # disposition under its own name (dispositions.json). The row read GLITCH from S78 to S160.
     ("reverse_sample", "evidence", "§7.8 — the precision tripwire, in the manifest tripwires; a headline render is the promotion docs/34 forbids; silence signed S161 (N-266)"),
-    ("dict_hit", "GLITCH", "a signed threshold (docs/15) whose input is hardcoded None"),
+    # S191 E1 (2026-09-17): expectation corrected GLITCH → evidence. The null is the RECORD that docs/15's
+    # dictionary-hit gate has no input (wordfreq absent); garbage_rate beside it is the scan lane's live
+    # substitute (N-267). Dispositioned `converter:dict_hit` EVIDENCE (dispositions.json) with that reason;
+    # deleting or feeding the slot is the signed threshold — Rab's. The row read GLITCH from S78 to S190.
+    ("dict_hit", "evidence", "a signed threshold (docs/15) whose input was never built — the null is the record of it; silence signed S191"),
 ]
 
 results: list[tuple[str, bool]] = []

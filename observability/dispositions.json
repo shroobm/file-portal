@@ -70,6 +70,34 @@
       "disposition": "EVIDENCE",
       "reason": "S188 E6 (2026-09-17): fidelity['verdict_phases'] — every phase whose FAIL signal fired, in pipeline order (fidelity_audit.fail_phases), written by build_fidelity_block and by subscript at convert_and_ship's three hand-set sites (the analyst audit's two branches, the reaudit path) beside the unchanged verdict / verdict_phase (S175). Its home is the manifest's fidelity block, read by whoever reads the verdict (the bench, a reaudit, the held sidecar's reader); the assay badge renders verdict_phase alone today (assay.rs:159, main.js:996) — the day it renders the list it becomes GLASS (the rebuild, his). Entered BY HAND for the subscript sites, as latex_structure was (register row observability/glass-subscript-blind)."
     },
+    "converter:from_lane": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E1 (2026-09-17; read at convert_and_ship.py:1108, estimate_from_ledger): the lane whose ledger rows made the promise, carried in the estimate's dict into .convert-estimate.json (the promise receipt, docs/29's A4 note) and never emitted on the wire — the Room renders eta_s / s_per_page / basis ×samples (room.js:345), not the lane. Its home is the receipt file a reader opens to audit a promise (promise_audit.py reads the events, the file names the lane); a render on the Room's promise line is the rebuild, his."
+    },
+    "converter:page_coverage": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E1 (2026-09-17; read at fidelity_audit.py:512, audit_convert): tripwires.page_coverage = {with_text, surviving} — the counts behind the page-level survival, in the manifest's fidelity.convert block beside doc_survival (docs/22 §634 names it; the mission-control prototype reads it as a numerator/denominator pair). Read by whoever opens the fidelity block (the bench, a reaudit); no live surface shows the pair — the Room shows the ratio. The same disposition as its siblings pages_total / windows_total (S144, S175)."
+    },
+    "converter:with_text": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E1 (2026-09-17; read at fidelity_audit.py:512): the denominator inside tripwires.page_coverage — pages with witness text — the same home and readers as converter:page_coverage; a denominator never travels without its ratio (docs/34)."
+    },
+    "converter:dict_hit": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E1 (2026-09-17; read at fidelity_audit.py:519): `dict_hit: None` — the slot of docs/15's dictionary-hit gate (flag below 0.80; N-267), whose input was never built (wordfreq absent; the comment says so) — the scan lane's live substitute is garbage_rate beside it. The null in the manifest is the RECORD that the input does not exist: a reader reads it as 'unbuilt', never as 0, and docs/29 §7 called it 'a dead gate' by that name. Deleting the slot or feeding it is docs/15's signed threshold — his; until then the null is evidence of an unfed gate, filed with every book. The acceptance harness's row for this key flips GLITCH → evidence with this reason (S161's pattern)."
+    },
+    "converter:garbage_rate": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E1 (2026-09-17; read at fidelity_audit.py:520 and :634): the scan lane's garbage-token rate (N-267), null on the clean lane — READ by verdict_with_phase in the producer's own module (`gr = tw.get(\"garbage_rate\")`, a localiser: flag above SCAN_GARBAGE_FLAG), which the detector cannot see (its renderer list is other files). Its home is the manifest's fidelity.convert tripwires beside the verdict it helps decide; the Room shows the verdict, not the rate."
+    },
+    "converter:generationConfig": {
+      "disposition": "INTERNAL",
+      "reason": "S191 E1 (2026-09-17; read at analyst.py:277, _generate_gemini): the Gemini request body's generationConfig ({temperature: 0.2}) — an OUTBOUND API parameter, the same class as converter:num_predict (S180) and bench:keep_alive: control flow of a request, never a value a human wants back."
+    },
+    "converter:gpu_vram_mib": {
+      "disposition": "EVIDENCE",
+      "reason": "S191 E1 (2026-09-17; read at analyst.py:959, preflight, and convert_and_ship.py:2144): the card's VRAM in use at preflight, written into the pending gate card's `preflight` block beside gpu_busy — main.js:318 renders the busy FLAG ('⚠ GPU busy' / 'GPU free'), not the MiB. Its home is the pending card's JSON (pending/<id>.json), opened deliberately when a reader asks what 'busy' meant in numbers; the MiB on the card's face is the rebuild, his."
+    },
     "bench:unsplit": {
       "disposition": "EVIDENCE",
       "reason": "S180 E3 (2026-09-17; read at bench.py:1692, unsplit_tables): the timestamp the repair ledger's record gains when an unsplit-tables move is placed back — a field of the ledger entry (repairs.jsonl), read by whoever reads the ledger (the reaudit, a reviewer); the same disposition as bench:truncated. Never rendered live; the ledger is the surface."
