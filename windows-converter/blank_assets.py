@@ -25,14 +25,14 @@ import sys
 # The lever: a crop whose grayscale standard deviation is under this is paper (or one flat tone). The S108 specimen reads
 # 0.00; Equity Research's blank first page 0.00; a real crop reads tens. Kept low on purpose — a faint scan with a real
 # drawing reads well above 1.0 — and named so the census (lever_census) and a reader can see it is a threshold.
-BLANK_SD = 1.0
+BLANK_SD = 1.0  # lever-waiver: a REPORT-ONLY band's edge (nothing reads it as a gate) — the S108 specimen and Equity's blank page read 0.00, a real crop tens (S188 E7's census over ~2,300 assets); becomes a lever the day a consequence reads it (his gate)
 # S189 E2: the second band. A SCANNED blank page is not flat — paper texture and the recto's bleed-through lift its
 # standard deviation to 2–3 (DIAGNOSING's three blank versos, 1699×2800, sd 2.33–2.86, looked at by eye), and a page
 # whose only content is a few words of text reads under 4 (Automate's dedication page, "For my nephew Jack", sd 3.89 —
 # words that live only inside the image). Reported as `near_blank` beside `blank`; BLANK_SD is untouched. A band, not a
 # verdict: what either class DOES is his gate.
-NEAR_BLANK_SD = 4.0
-BLANK_SHOWN_CAP = 25
+NEAR_BLANK_SD = 4.0  # lever-waiver: a REPORT-ONLY band's edge (nothing reads it as a gate), set by eye on four specimens S189 E2 (three scanned versos sd 2.33–2.86, a text-only page 3.89) under the census's own bound; moves on a re-measured census, and becomes a lever the day a consequence reads it (his gate)
+BLANK_SHOWN_CAP = 25  # lever-waiver: a display cap, NUM-3's shape — the TRUE total (`blank_total`, `near_blank_total`, `unread_total`) rides beside the shown list; it decides how much is printed, never what is counted
 IMAGE_EXT = (".jpeg", ".jpg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff")
 
 
