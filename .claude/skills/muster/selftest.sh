@@ -1157,6 +1157,23 @@ if [[ "$rc_lit" -eq "$rc_unread" ]]; then ok "CASE 67: …and the exit code is t
 else bad "CASE 67: the sub-row must not move the exit code" "listed $rc_lit vs UNREAD $rc_unread"; fi
 cp "$HERE/../../../observability/lever_census.py" "$CONV/observability/lever_census.py"
 
+# ── CASE 68: close.sh [5] LEVERS, the regex row exempts selftests (S185, POLICY law 2) ───────────────────────
+# The property: a `NAME = 0.42` added inside a *_selftest.py (an expected value, a fixture string) is NOT a lever and the
+# regex row must not name it — S184's close named `LIMIT` from a string in lever_census_selftest.py; the same line added in a
+# non-selftest file IS named (the positive control, so the exemption cannot have silenced the row).
+printf 'LIMIT68 = 0.42\n' > "$CONV/windows-converter/plant_selftest.py"
+git -C "$CONV" add -A >/dev/null 2>&1
+git -C "$CONV" -c user.email=t@t -c user.name=t commit -qm lever-selftest-plant >/dev/null 2>&1
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" bash "$CLOSE" "$conv_pin" 2>&1)
+if ! printf '%s' "$out" | grep -q 'LIMIT68'; then ok "CASE 68: a NAME = 0.42 added in a *_selftest.py is NOT named by the regex row (POLICY law 2)"
+else bad "CASE 68: the regex row must exempt a selftest's constants" "got: $(printf '%s' "$out" | grep -E 'LEVERS' | head -2)"; fi
+printf 'LIMIT68B = 0.42\n' > "$CONV/windows-converter/plant_module.py"
+git -C "$CONV" add -A >/dev/null 2>&1
+git -C "$CONV" -c user.email=t@t -c user.name=t commit -qm lever-module-plant >/dev/null 2>&1
+out=$(FP_PY="$FIXPY" FP_REPO="$CONV" FP_CONV_SUITES="windows-converter/ok_selftest.py" bash "$CLOSE" "$conv_pin" 2>&1)
+if printf '%s' "$out" | grep -q 'LIMIT68B'; then ok "CASE 68 POSITIVE CONTROL: the same line in a non-selftest file IS named — the exemption did not silence the row"
+else bad "CASE 68 POSITIVE CONTROL: a module's unlevered constant must still be named" "got: $(printf '%s' "$out" | grep -E 'LEVERS' | head -2)"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s\n' "$pass" "$((pass+failed))"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))"; exit 1; fi

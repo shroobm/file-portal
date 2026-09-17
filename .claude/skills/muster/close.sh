@@ -277,10 +277,17 @@ fi
 lev_added=""
 lev_n=0
 if git -C "$FP_REPO" rev-parse --verify -q "$PIN" >/dev/null 2>&1; then
+  lev_skip=0
   while IFS= read -r line; do
     case "$line" in
-      +++*|---*) continue ;;
+      # S185 (POLICY law 2): the `+++ b/<path>` line names the file the `+` lines below belong to; a selftest's expected values
+      # and fixture strings are assertions, not levers (S184's close named `LIMIT` from a string in lever_census_selftest.py).
+      # The AST sub-row below already exempts them; the regex row now reads the same scope. The diff is fed with `+++` lines
+      # kept (the grep keeps every line starting with `+`), so the file boundary is visible here.
+      +++*) case "${line#+++ b/}" in *_selftest.py|*/test_*.py|test_*.py|*/selftest.py|selftest.py) lev_skip=1 ;; *) lev_skip=0 ;; esac; continue ;;
+      ---*) continue ;;
     esac
+    [ "$lev_skip" -eq 1 ] && continue
     body="${line#+}"
     case "$body" in
       # docs/18 §2 step 5 requires a waiver to NAME who may change it and what evidence would
