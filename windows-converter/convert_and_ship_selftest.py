@@ -2259,6 +2259,33 @@ cas._latex_structure_safe("\\begin{array}{cc}\n1\n\\end{array}\n\\end{array}\n",
 check(m28d["latex_structure"]["valid"] is False and m28d["latex_structure"]["unopened"] == 1,
       "T28 (d) an end that closes nothing reads unopened 1 (the walk, not the count alone)")
 
+# ---------- T29: SYM-053's blank-crop flag WIRED — blank_assets in the manifest, warn-only (S188 E7) ----------
+# _blank_assets_safe runs blank_assets.scan() over <tmp_dir>/assets against the pre-analyst body and records the counts and the
+# capped list under manifest["blank_assets"]; a flag, never a gate: the fidelity verdict does not read it. Never raises.
+print("T29 SYM-053 the blank-crop flag, warn-only")
+with tempfile.TemporaryDirectory() as td29:
+    from PIL import Image as _Im29
+    d29 = Path(td29)
+    (d29 / "assets").mkdir()
+    _Im29.new("L", (511, 70), 240).save(d29 / "assets" / "_page_128_Picture_15.jpeg")
+    g29 = _Im29.new("L", (64, 8))
+    g29.putdata([x * 4 for y in range(8) for x in range(64)])
+    g29.save(d29 / "assets" / "_page_2_Figure_0.png")
+    m29 = {"fidelity": {"verdict": "pass"}}
+    cas._blank_assets_safe(d29, "![](assets/_page_128_Picture_15.jpeg)\n![](assets/_page_2_Figure_0.png)\n", m29, "beer.pdf")
+    b29 = m29.get("blank_assets") or {}
+    check(b29.get("assets") == 2 and b29.get("blank_total") == 1 and b29.get("blank_referenced") == 1 and b29.get("mode") == "flag"
+          and b29["blank"][0]["name"] == "_page_128_Picture_15.jpeg" and m29["fidelity"]["verdict"] == "pass",
+          "T29 (a) the S108 specimen's shape is recorded — assets 2, blank 1, referenced 1, mode flag — and the fidelity verdict beside it is untouched")
+    m29b = {}
+    cas._blank_assets_safe(d29 / "no-such-dir", "body", m29b, "empty.pdf")
+    check(m29b.get("blank_assets", {}).get("assets") == 0 and m29b["blank_assets"]["blank_total"] == 0,
+          "T29 (b) a bundle without assets/ records zero, the key present")
+    m29c = {}
+    cas._blank_assets_safe(None, "body", m29c, "fault.pdf")  # None / "assets" raises inside — the wrapper must not
+    check("blank_assets" not in m29c,
+          "T29 (c) never raises: a scan that faults leaves the key ABSENT and the conversion continues (docs/15 §8)")
+
 # ---------- SYM-135 (S187 E3): a print must never kill a run — the child's console is UTF-8 whoever spawned it ----------
 print("SYM-135 console utf-8")
 import subprocess as _s135  # noqa: E402

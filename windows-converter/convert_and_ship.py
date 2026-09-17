@@ -845,6 +845,29 @@ def _latex_structure_safe(body: str, manifest: dict, name: str = "") -> dict | N
         return None
 
 
+def _blank_assets_safe(tmp_dir: Path, body: str, manifest: dict, name: str = "") -> dict | None:
+    """S188 E7 (SYM-053's tripwire; the S175 pattern above): blank_assets.scan() over the bundle's assets/ against the
+    PRE-analyst body — every image's grayscale standard deviation; a crop under BLANK_SD is paper (the S108 specimen,
+    Beer p129's 511×70 strip at 240/240, reads 0.00), and a paper crop the body REFERENCES is a page that looks covered
+    while its drawing is gone. Recorded under manifest["blank_assets"] as counts and the capped list, `mode: "flag"`.
+    A FLAG, warn-only: the verdict does not read it, nothing is re-cropped, stripped or rejected — what a blank crop
+    DOES is a design his. Never raises; on a fault (no PIL, a bad dir) the key is absent and the book converts as
+    before (docs/15 §8). The census that sized it: two distinct blank assets in ~2,300 across the corpus, both
+    referenced (S188 E7). A dict LITERAL leaves the function for glass's census, as above."""
+    try:
+        import blank_assets
+        rec = blank_assets.scan(str(tmp_dir / "assets"), body)
+        out = {"blank_assets": rec}
+        manifest.update(out)
+        if rec["blank_referenced"]:
+            print(f"BLANK ASSETS: {rec['blank_referenced']} referenced blank crop(s) of {rec['assets']} assets for {name} — "
+                  f"{', '.join(b['name'] for b in rec['blank'] if b['referenced'])} (flag only; nothing gated)", flush=True)
+        return out
+    except Exception as exc:  # noqa: BLE001
+        print(f"BLANK ASSETS: scan failed ({str(exc)[:120]}) — key absent, the book converts as before", flush=True)
+        return None
+
+
 def _write_marker_body_safe(tmp_dir: Path, bundle_name: str, body: str, manifest: dict,
                              name: str = "") -> None:
     """Write the PRE-analyst Marker body beside the bundle as `<bundle_name>.marker.txt`,
@@ -1872,6 +1895,8 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     _audit_convert_safe(src, body, lane, tmp_dir, manifest)
     # S175: the LaTeX structure flag (SYM-056's validator), warn-only, on the same pre-analyst body.
     _latex_structure_safe(body, manifest, src.name)
+    # S188 E7: the blank-crop flag (SYM-053's tripwire), warn-only — the assets' pixels against the same body.
+    _blank_assets_safe(tmp_dir, body, manifest, src.name)
     # J33: the PRE-analyst body, byte-for-byte what audit_analyst will treat as `marker_body`
     # below (or what a --resume/--defer-analyst later run will need as J31's reference) —
     # written BEFORE the analyst branch so an un-analysed book gets the sidecar too.

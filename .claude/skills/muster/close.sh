@@ -157,7 +157,7 @@ touched_conv=0
 if [ -n "$PIN" ] && git -C "$FP_REPO" rev-parse --verify "$PIN^{commit}" >/dev/null 2>&1; then
   git -C "$FP_REPO" diff --name-only "$PIN"..HEAD | grep -qE '^(windows-converter|prototypes/repair-bench)/' && touched_conv=1
 fi
-CONV_SUITES="${FP_CONV_SUITES:-windows-converter/convert_and_ship_selftest.py windows-converter/watch_and_convert_selftest.py windows-converter/table_geometry_selftest.py windows-converter/marker_blocks_selftest.py windows-converter/degeneration_selftest.py windows-converter/analyst_selftest.py prototypes/repair-bench/test_table_boundary.py prototypes/repair-bench/test_generated_md.py windows-converter/latex_structure_selftest.py windows-converter/analyst_audit_selftest.py windows-converter/edit_whitelist_selftest.py}"
+CONV_SUITES="${FP_CONV_SUITES:-windows-converter/convert_and_ship_selftest.py windows-converter/watch_and_convert_selftest.py windows-converter/table_geometry_selftest.py windows-converter/marker_blocks_selftest.py windows-converter/degeneration_selftest.py windows-converter/analyst_selftest.py prototypes/repair-bench/test_table_boundary.py prototypes/repair-bench/test_generated_md.py windows-converter/latex_structure_selftest.py windows-converter/analyst_audit_selftest.py windows-converter/edit_whitelist_selftest.py windows-converter/blank_assets_selftest.py}"
 if [ "$touched_conv" -eq 0 ]; then
   row "CONVERTER" "skipped — no windows-converter/ or prototypes/repair-bench/ change since $PIN"
 elif ! { [ -x "$PY" ] || [ -f "$PY" ]; }; then
