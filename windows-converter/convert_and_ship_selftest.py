@@ -2158,6 +2158,29 @@ check((b27d["verdict"], b27d["verdict_phase"]) == ("flag", "convert") and (b27e[
 check(fa.compute_verdict(c27, {"doc_survival": fa.ANALYST_DOC_FAIL - 0.01, "runs": []}) == "fail" and isinstance(fa.compute_verdict(c27, None), str),
       "T27 (e) CONTROL: compute_verdict still returns the bare string every caller expects")
 
+# ---------- T28: SYM-056's validator WIRED — the LaTeX structure flag in the manifest, warn-only (S175 E4, his word 8ca8279b) ----------
+# _latex_structure_safe runs latex_structure.check() over the pre-analyst body and records COUNTS under manifest["latex_structure"];
+# a flag, never a gate: the analyst and the verdict do not read it. Never raises (docs/15 §8): on a fault the key is absent.
+print("T28 SYM-056 the LaTeX structure flag, warn-only")
+m28 = {}
+cas._latex_structure_safe("text\n\\begin{array}{" + "c" * 36 + "}\n1 & 2\n\nmore text with no end\n", m28, "s109.pdf")
+ls28 = m28.get("latex_structure") or {}
+check(ls28.get("valid") is False and ls28.get("unterminated") == 1 and ls28.get("runaway") == 1 and ls28.get("mode") == "flag"
+      and ls28.get("max_spec_cols") == 20 and isinstance(ls28.get("misordered"), int),
+      "T28 (a) the S109 specimen (an unterminated 36-column array) reads INVALID: unterminated 1, runaway 1 — counts, mode flag, the lever's value carried")
+m28b = {"fidelity": {"verdict": "pass"}}
+cas._latex_structure_safe("clean text\n\\begin{aligned}a&=b\\end{aligned}\n", m28b, "clean.pdf")
+check(m28b["latex_structure"]["valid"] is True and m28b["latex_structure"]["unterminated"] == 0 and m28b["fidelity"]["verdict"] == "pass",
+      "T28 (b) CONTROL: a balanced body reads valid; the fidelity verdict beside it is untouched (a flag, not a gate)")
+m28c = {}
+cas._latex_structure_safe(None, m28c, "fault.pdf")  # check() on a non-str raises inside — the wrapper must not
+check("latex_structure" not in m28c,
+      "T28 (c) never raises: a check that faults leaves the key ABSENT and the conversion continues (docs/15 §8)")
+m28d = {}
+cas._latex_structure_safe("\\begin{array}{cc}\n1\n\\end{array}\n\\end{array}\n", m28d, "unopened.pdf")
+check(m28d["latex_structure"]["valid"] is False and m28d["latex_structure"]["unopened"] == 1,
+      "T28 (d) an end that closes nothing reads unopened 1 (the walk, not the count alone)")
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)
