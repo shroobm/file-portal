@@ -487,3 +487,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the real audit function on the real held sidecar, the shipped number reproduced to the digit before the new one was read; a positive control that the OFF position is byte-identical on six shapes; the rungs disabled and the cases watched to fail; every converter suite green; glass and acceptance clean.
 
 **What it cost you:** nothing on the card; no fleet; 25.37 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 05:57Z — three of your books through the widget on your word; one reached the vault (S183)
+
+**What you will notice:** a new book in the vault — *Information Dashboard Design* — the first since Sep 13, with no hand on it from the drop to the commit (37 min, 18 of them queued behind the first book). *Document Layout Analysis* sits in held/ at 0.9921: its one failed run is a citation the audit could not read through — under the ladder built yesterday it reads 1.0; your one line into ladder.txt and a --reaudit ships it. The RAG guide landed after them (E5 says where). Four books remain, one at a time on your card.
+
+**What answered the register:** two symptom rows FIXED (a dropped paragraph and a rewritten number cannot ship — the acceptor you signed at S140, proved on the live path); the runner list; an estimator row added.
+
+**Gained / lost / still missing:** gained — the whole road proved live, the queue, the hold rail, the ship rail, the vault; a second book that the lever would free. Lost — nothing. Missing — your line in the lever file; the four books; B28's shape.
+
+**How it was checked:** every number from the events file, the state file, the manifests and the chunk journals; the held book re-read with the real audit under both ladders by name; the ThinkPad read after the ship; every suite the close runs green.
+
+**What it cost you:** ~50 minutes of your card for three books; no fleet; 34.72 USD-eq in the receipts across 2 episodes.
