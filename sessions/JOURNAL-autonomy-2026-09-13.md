@@ -511,3 +511,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** every number from the events file, the state file, the manifests, the chunk journals; the loop read with the audit's own block walker; the ThinkPad read after the ship; the census's own suite and the muster's; nothing the running converter imports was edited.
 
 **What it cost you:** ~70 minutes of your card; no fleet; 27.31 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 07:48Z — the sixth book held on a table; the lever read book by book; the last giant converting (S185)
+
+**What you will notice:** Data Science for Business is in held/ — not for the audit's own share this time: one table (10-2) the model re-ordered across 36 words. The lever would not free it; it would still free Document Layout Analysis. Automate the Boring Stuff is converting in four slices, the analyst after it for about two and a half hours.
+
+**What answered the register:** nothing struck, nothing added — the estimator row's cell now says its own proposed cause was wrong (images per page do not separate the slow book from the fast) and names the real one (a three-sample memory); the close card's two LEVERS rows read one scope.
+
+**Gained / lost / still missing:** gained — a measurement that killed a wrong idea before it was built; the lever's value read honestly per book; two gates aligned. Lost — nothing. Missing — your line in the lever file; your bench on two books; the last landing.
+
+**How it was checked:** the promises and actuals joined from the events file, the images counted from the PDFs; the held book re-read with the real audit under both ladders by name; the close script's own suite (133/133); nothing the running converter imports was edited.
+
+**What it cost you:** ~50 minutes of your card plus the convert in flight; no fleet; 22.28 USD-eq in the receipts across 2 episodes.
