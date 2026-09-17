@@ -727,3 +727,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the three cases crash against the old instrument (a KeyError — the negative control); the trial walk on S196 moved nothing but the field being filled; the fold's check read missing 0.
 
 **What it cost you:** no card time; no fleet; 13.85 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 23:03Z — the day read against its files (S203)
+
+**What you will notice:** six of the day's records end with a dated correction line, and A29's cell on your register carries a clause beside the one it supersedes — the fixed muster suite reads thirteen, not twelve. A fleet of ten readers checked 182 claims from the day's ten closing messages against the files; 149 held, six were wrong numbers I had typed from memory, none changed a decision. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold; the day read (ten readers, a known-false control, a verifier per finding); the six corrections by append.
+
+**Gained / lost / still missing:** gained — a day whose messages are now read, not just written, and the one live mismatch on your register corrected; lost — nothing of yours, 16 USD-eq of fleet; missing — your decision on the S198 proposal, the study's rule on revisions, your Gmail reconnect (ten drafts wait), and your list.
+
+**How it was checked:** the control (a number I had typed wrong on the Desk earlier tonight and corrected) read FALSE by the reader two ways; every surviving finding re-read by me against the file before a line was written.
+
+**What it cost you:** no card time; 32.88 USD-eq in the receipts across 2 episodes (fleets 16.34).
