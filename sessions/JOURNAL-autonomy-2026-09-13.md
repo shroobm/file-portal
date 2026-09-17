@@ -547,3 +547,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the traceback read from the watcher's log; the S175 respawn read beside the widget's Rust spawn; a child spawned without the variable printing the exact character (exit 0) and the same child without the guard dying (rc 1); the second run's `held` where the first run's `failed` had been; DSB's 50 tables before and after the table rule; every suite green; nothing the running converter imported was edited while it ran.
 
 **What it cost you:** ~2.5 h of the card (75 min of it my error); no fleet; 42.68 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 11:44Z — the register with the card free: two mechanisms, one mess of mine, three numbers for your decisions (S188)
+
+**What you will notice:** nothing ran on the card. A held book now names every phase that failed it (Automate: convert AND analyst — the loop was hiding behind the analyst's number). The converter reads its own pictures: a blank crop the body references is recorded on every conversion from now on — two such pages existed in everything converted so far (Beer's callout strip, Equity Research's blank first page); what to do about them is yours. The Dock's time promise had five of my own one-page test files in its memory and would have promised 77 minutes for an 8-minute book — retired, with the rule that a test file leaves the ledger the same sitting. On the Desk: a proposal for the promise in your form, with its numbers corrected once — a basis rewrite is worth one to three books in twenty-five; the book's own first slice predicts its rate six of six, and that half is the widget's.
+
+**What answered the register:** the estimator row measured (and the proofs found through it); the analyst-on-fail lever priced (~6.4 card-hours against one analysed body the bench ever used); SYM-105 sized (one book in twenty — the fix waits for a second); SYM-053's tripwire built report-only; SYM-024/035/111 read whole and declined with reasons.
+
+**Gained / lost / still missing:** gained — attribution the bench can use, a detector for a defect Codex found by eye, a cleaner ledger, three numbers where there was prose. Lost — nothing of yours; my slips are in §8 (typed clock values, a probe that matched itself, a number posted before its corpus was clean). Missing — your word on the estimator's shape, the lever, the bench, the blank crop's consequence.
+
+**How it was checked:** every rule run against the ledger's own rows, each book predicted from the others; the child's own `estimate_from_ledger` called on the live file before and after the retirement; the twelve held manifests re-read through the new function; 4,649 asset files measured; the field's specimens through the shipped CLI (Beer exits 1 naming the strip); every suite green (295, 10, 133); the record before each act; no process edited while it ran.
+
+**What it cost you:** no card time; no fleet; 33.53 USD-eq in the receipts across 7 episodes.
