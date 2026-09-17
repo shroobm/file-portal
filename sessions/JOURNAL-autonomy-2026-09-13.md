@@ -475,3 +475,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the fixture run twice in one process against the old and the new resume(); the suite under the marker-env interpreter (287/287); the registry regenerated and checked; glass and acceptance on the final tree; the ThinkPad read only, over the keyed channel, the shape of its status file read before its count.
 
 **What it cost you:** nothing on the card; no fleet; 25.98 USD-eq in the receipts across 2 episodes.
+
+## 2026-09-17 04:52Z — the audit's own share of the residual, measured; the switch is yours (S182)
+
+**What you will notice:** nothing yet — by design. The survival audit has been scoring two of the analyst's repairs as losses (an escaped underscore, a citation link); the fix is built and proved, but it sits behind a file that does not exist until you write one line into it, because turning it on can move a verdict. On your DDIA the audit's own miscount was 262 of 581 failed windows — 45 % — and the verdict still would not change. The Dock's "delivered / sorted / failed" feedback was measured to the second (it stops looking after 30 s; there is no toast) and two shapes costed for your word.
+
+**What answered the register:** nothing struck, nothing added; two cells measured — J44 (built, OFF) and B28 (the shapes).
+
+**Gained / lost / still missing:** gained — a measurement of the audit's own error, a lever, twenty tripwires. Lost — nothing. Missing — your line in the lever file; your shape for B28; the exemption, the twin, docs/64, the models, the rebuild.
+
+**How it was checked:** the real audit function on the real held sidecar, the shipped number reproduced to the digit before the new one was read; a positive control that the OFF position is byte-identical on six shapes; the rungs disabled and the cases watched to fail; every converter suite green; glass and acceptance clean.
+
+**What it cost you:** nothing on the card; no fleet; 25.37 USD-eq in the receipts across 2 episodes.
