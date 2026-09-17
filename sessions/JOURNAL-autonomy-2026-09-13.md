@@ -367,3 +367,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the ThinkPad read before and after (the clone's commit, the service's pid and start time, the journal's lines); the pull's blast radius read from git before the pull; the journal's `startup sweep:` line twice (0 on the real inbox, 1 on the plant); the record written before the act; the clock read before every heading.
 
 **What it cost you:** nothing on the card; no fleet; 20.05 USD-eq in the receipts across 1 episodes.
+
+## 2026-09-17 00:12Z — the ThinkPad's suites run where they live; the converter restarted onto the pulled code (S173)
+
+**What you will notice:** both Linux services on the ThinkPad now run the current code (the allocator since 7:51pm, the converter since 8:09pm), and both test suites ran on the box itself — 36 and 103 green, the OCR case with the box's real tesseract. The vault lane was read whole: the exporter lives inside the converter service, the indexer reconciles daily (last at 00:06Z), the fixity check is weekly, the last export was the Ashby revert on the 13th. Nothing was dropped, nothing converted, nothing exported.
+
+**What answered the register:** nothing struck or added — the sitting was the ThinkPad's unlocks under your word; the register's net is zero and says so.
+
+**Gained / lost / still missing:** gained — two suites proved on the box, a vault-lane reading, a converter restart with its undo, 702 bytes of room. Lost — nothing. Missing — your rebuild (B32's other half), your restart window, your six taps, your arming, your lever, your signature, your answer on the Desk.
+
+**How it was checked:** the suites' own counts on the box; the restart's preconditions re-read in the script with a STOP; the service's pid and start time before and after; the journal's `watching` lines; the record written before the act; the clock read before every heading.
+
+**What it cost you:** nothing on the card; no fleet; 15.70 USD-eq in the receipts across 1 episodes.
