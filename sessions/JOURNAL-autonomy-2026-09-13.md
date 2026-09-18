@@ -775,3 +775,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the receipt finalized before it was read; the fold's check (missing 0, the tail unchanged); the census read from the transcripts, the source-vs-fired part said as rough.
 
 **What it cost you:** no card time; no fleet; 16.11 USD-eq in the receipts across 1 episode(s).
+
+## 2026-09-18 00:16Z — the reader row struck; the open reads before the close asserts (S207)
+
+**What you will notice:** the register lost a row — the one that asked for the reader at the open — struck after three opens did it; from here the rule lives in the carry-over, and every record opens with the previous sitting read (idle, untouched, nothing written) before its close says so. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold (three retirements, homes read); the reader at the open (three of three); the row struck.
+
+**Gained / lost / still missing:** gained — a habit that outgrew its row; lost — nothing of yours; missing — your decision on the S198 proposal, the study's rule on revisions, your Gmail reconnect (fourteen drafts wait), and your list.
+
+**How it was checked:** the receipt finalized before it was read; the fold's check (missing 0 after one retirement, the tail unchanged); the strike asserted once and unstruck.
+
+**What it cost you:** no card time; no fleet; 13.42 USD-eq in the receipts across 1 episode(s).
