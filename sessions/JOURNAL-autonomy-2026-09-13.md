@@ -763,3 +763,15 @@ The look is the second half. The judge panel picked "Galley & Lamp": warm paper-
 **How it was checked:** the receipt finalized before it was read (clean stop); the fold's check (missing 0, the tail unchanged); the widget's epoch converted, not guessed (1789669711 = 18:28:31Z).
 
 **What it cost you:** no card time; no fleet; 13.99 USD-eq in the receipts across 1 episode(s).
+
+## 2026-09-18 00:00Z — the guard's denials counted; your "Update me." answered (S206)
+
+**What you will notice:** the record opens with S205's three read lines; the guard's thirty-seven denials of the day are counted by the reason it printed — six shapes, half mine and half the fleets' lanes — and the one you asked for is on the Desk: the update, from the files and the meter, within a minute. Nothing of yours was touched; the card stayed idle.
+
+**What answered the register:** the fold (seven clauses retired, homes read); the reader at the open (two of three); the guard's reasons census.
+
+**Gained / lost / still missing:** gained — a count of my own habits at the guard; lost — nothing of yours; missing — your decision on the S198 proposal, the study's rule on revisions, your Gmail reconnect (thirteen drafts wait), and your list.
+
+**How it was checked:** the receipt finalized before it was read; the fold's check (missing 0, the tail unchanged); the census read from the transcripts, the source-vs-fired part said as rough.
+
+**What it cost you:** no card time; no fleet; 16.11 USD-eq in the receipts across 1 episode(s).
