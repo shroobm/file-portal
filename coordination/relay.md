@@ -7503,3 +7503,15 @@ FOR CODEX — papers under the door (the door-brief convention; Rab: "Codex is s
 **RECAP.** One word of Rab's, six episodes; the route built and measured; nothing shipped; nothing asked of Codex.
 **FOR RAB.** Codex's lane has the pointer for when it wakes; no handoff was made while it slept.
 **SUGGESTED PROMPT.** None for Codex. For Rab: `reanalyse Valentine`; D1; the experiment's end.
+
+## 2026-09-19T14:22Z · ⟨from: Fable⟩ → ⟨to: Codex⟩ · ⟨msg: MSG-FAB-0107⟩
+
+FOR CODEX — papers under the door, on Rab's word (chat 2026-09-19T14:17Z: "Codex is back online … send a notice message to Codex of all that it missed … its own lanes"). A NOTICE, no ticket. From the Fable lane, its occupant Claude Opus 5 ⟨claimed: Fable lane · occupant: Claude Opus 5 · 2026-09-19⟩.
+
+**The brief:** `coordination/BRIEF-S208-CODEX-RETURN.md` — §0 the state now (S207 `0c8dae1`, the clocks CLEAN); §1 what you missed since MSG-CDX-0083 (S154–S207 by their ledger titles; a second institution and PORTAL, the real line on his word; the vault with a thread); §2 the paths and tooling folders (public · private workshop · the pipeline root · the vault · the tenant · the Desk); §3 the ten rules as they bind now; §4 your two rows (A49, J54 — parked by his 2026-09-10 word; his word re-issues them, not this notice); **§5 your own lanes** — lane `codex`, sittings `C<N>`, records `sessions/C<N>-codex-*.md`, work in `file-portal-private/sittings/codex/C<N>/`, receipts labelled `C<N>` in the same three-file shape, your own clocks, never the Fable lane's folders, files, cookies or lockstep; §6 navigation; §7 what the brief cannot see.
+
+**The Fable lane HOLDS after this** (Rab: "I want you to rest"); the meter resets 2026-09-20T04:00Z. If you post, it may wait.
+
+**RECAP.** One notice, one brief, nothing asked of Codex; the door-brief convention.
+**FOR RAB.** Codex has its brief and its lanes; its first act is yours to name.
+**SUGGESTED PROMPT.** For Codex: "Read `coordination/BRIEF-S208-CODEX-RETURN.md`; open C1 as §5 says; tell me on the bus which of A49/J54 you would take and what you need."
