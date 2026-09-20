@@ -24,6 +24,10 @@ def block(page, text):
     return {"page": page, "block_type": "Text", "html": "<p>%s</p>" % text}
 
 
+# the fixtures' pages are one sentence each — under the audit's PAGE_MIN_WORDS (15), the line survival draws for a near-blank
+# witness; cases 1–9 test the arithmetic, so the line is lowered to 1 for them and restored for case 10, which tests the line
+_SAVED_MIN = fa.PAGE_MIN_WORDS
+fa.PAGE_MIN_WORDS = 1
 W1 = "The regulator can block only as much disturbance as it has variety to match."
 W2 = "TLAC leverage ratio was 4.4 per cent in the third quarter of 2026."
 # 1 · a clean page: 0 invented, 0 lost
@@ -60,5 +64,12 @@ except Exception as e:  # noqa: BLE001
 r = fa.audit_inventions(["The amalga-\nmation of the two banks was approved by the regu-\nlator in the third quarter."],
                         [block(0, "The amalgamation of the two banks was approved by the regulator in the third quarter.")])
 case("a word the layer broke at a line end (amalga-/mation) and Marker joined counts 0 invented / 0 lost", r["invented_total"] == 0 and r["lost_total"] == 0, r)
+# 10 · a near-blank witness page (a chart baked into an image) is not judged: Marker's OCR of the picture is not garble
+fa.PAGE_MIN_WORDS = _SAVED_MIN          # the audit's real line (15) for this case
+chart = " ".join(["billion over years infrastructure starting housing defence transit"] * 10)
+W3 = W1 + " " + W2                     # 19 words — a real page above the line; page 2 is a chart with a 2-word witness
+r = fa.audit_inventions([W3, "Figure 2.3"], [block(0, W3), block(1, chart)])
+case("a witness page under PAGE_MIN_WORDS is counted apart (pages_witness_blank 1, its Marker words noted) and adds 0 inventions",
+     r["pages_witness_blank"] == 1 and r["blank_marker_words"] == 80 and r["invented_total"] == 0 and r["pages_measured"] == 1, r)
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

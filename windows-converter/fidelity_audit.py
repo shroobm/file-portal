@@ -479,14 +479,22 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         by_page.setdefault(int(p) + 1, []).extend(w.lower() for w in word_re.findall(text))
     pages: dict[int, dict] = {}
     inv_total = words_total = lost_total = wit_total = measured = 0
+    blank_pages = blank_marker_words = 0
     for pnum, raw in enumerate(pages_raw, start=1):
         mw = by_page.get(pnum)
         if not mw:
             continue
-        measured += 1
         # the layer breaks words at line ends ("amalga-\nmation"); Marker joins them — joined first, so a rejoined word is
         # neither an invention nor a loss (C-31's first run read 1.16 % invented, most of it the layer's own hyphenation)
         lw = [w.lower() for w in word_re.findall(re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", raw or ""))]
+        if len(lw) < PAGE_MIN_WORDS:
+            # a near-blank witness page (a chart baked into an image) cannot judge inventions: Marker's words there are
+            # its OCR of the picture — text the layer never had, a gain if right — not garble (the SEU's p.73: 74 of 77
+            # "invented"). Counted apart, never in the ratio, exactly as survival skips such pages.
+            blank_pages += 1
+            blank_marker_words += len(mw)
+            continue
+        measured += 1
         ls, ms = set(lw), set(mw)
         invented = [w for w in mw if w not in ls]
         lost = [w for w in lw if w not in ms]
@@ -508,6 +516,8 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         "lost_total": lost_total,
         "witness_words_total": wit_total,
         "pages_with_inventions": len(pages),
+        "pages_witness_blank": blank_pages,            # witness under PAGE_MIN_WORDS: OCR of pictures, not judged
+        "blank_marker_words": blank_marker_words,
         "worst": [dict(page=p, **v) for p, v in worst],
     }
 
