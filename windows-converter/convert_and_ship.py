@@ -987,8 +987,11 @@ def rewrite_image_links(markdown: str) -> str:
 
 
 def clamp_name(name: str, max_bytes: int = 80) -> str:
+    # S209 E8 (SYM-137): Windows drops trailing spaces and dots when it CREATES a directory, so a bundle name ending in
+    # either ships into a folder that exists under another name — the Spring Economic Update's 80-char drop stem ended
+    # "… 2026 - " and its ship died on WinError 3 after a 28-minute analyst pass. The short branch rstrips too.
     if len(name.encode("utf-8")) <= max_bytes:
-        return name
+        return name.rstrip(" .") or "untitled"
     clamped = name.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
     return clamped.rstrip(" .") or "untitled"
 
