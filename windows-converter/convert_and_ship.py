@@ -1882,10 +1882,10 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # 1377 for a 1-second resume).
     true_run_pages = chunk_stats.get("pages_converted_this_run", pages)
     run_pages = true_run_pages or pages
-    manifest["ocr"] = ocr_dial(pages)          # S209 E8, B33's dial: what Marker chose to OCR, recorded — never a verdict
+    ocr = ocr_dial(pages)          # S209 E8, B33's dial: what Marker chose to OCR, recorded — never a verdict (the manifest gets it below)
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
          s_per_page=round(wall / pages, 2), pages=pages,
-         ocr_lines=manifest["ocr"]["lines"], ocr_lines_per_page=manifest["ocr"]["lines_per_page"],
+         ocr_lines=ocr["lines"], ocr_lines_per_page=ocr["lines_per_page"],
          # S146 E8 (SYM-132, found live on Beer): a single-call run (no slices) projected its
          # ceiling moment only in a death certificate — Beer sat at 9.5 GB through recognition
          # and survived, and nothing carried the split. The converted event names the run's
@@ -1945,6 +1945,9 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         "converter_version": CONVERTER_VERSION,
         "marker_version": marker_version_stamp(marker),
         "converted_at": converted_at.isoformat(timespec="seconds"),
+        # S209 E8, B33's dial: what Marker chose to OCR on this run — {lines, bars, lines_per_page}; the ledger row and
+        # the estimator read it; no verdict does
+        "ocr": ocr,
     }
     # Stage D: the seams travel WITH the book, forever. The audit scores the merged whole, and
     # the Repair Bench needs to know where the cuts were when a figure or a sentence looks wrong
