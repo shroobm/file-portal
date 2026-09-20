@@ -466,6 +466,34 @@
       "disposition": "EVIDENCE",
       "reason": "S209 E8 (2026-09-20), register row B35 — THE AUDIT'S BLIND SIDE: fidelity_audit.audit_inventions (the words Marker's page-labelled blocks carry that the source's own text layer does not — a re-OCR'd clean page invents; RBC Q3 0.25 % of ten pages' words, CIBC 0 as the control), written by audit_convert into fidelity.convert.inventions BESIDE survival, unseen by compute_verdict (report-only; the threshold is Rab's). Its home is the manifest and the record that reads it (sessions/S209 E5, E8; the sourcing line's post-mortem); no renderer projects it yet — a card row is the next cut once the number has a signed threshold, and this entry retires then."
     },
+    "converter:pages_measured": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): the count of witness pages that had Marker blocks — the base every ratio below stands on (docs/34: the denominator rides beside the numerator). Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
+    },
+    "converter:invented_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): the words Marker's blocks carry that the witness page does not, summed over the measured pages — the numerator of the audit's blind side. Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
+    },
+    "converter:marker_words_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): the words in Marker's blocks over the measured pages — invented_total's base. Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
+    },
+    "converter:invented_ratio": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): invented_total ÷ marker_words_total (None when nothing was measured, never 0) — the one number a card row will show once Rab signs its threshold. Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
+    },
+    "converter:lost_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): the witness's words Marker's blocks lack, summed — survival's own view riding beside the inventions so the two are never confused. Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
+    },
+    "converter:witness_words_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): the witness pages' words over the measured pages — lost_total's base. Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
+    },
+    "converter:pages_with_inventions": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): how many measured pages carried at least one invented word — the spread (one garbled page or every page). Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
+    },
     "converter:unterminated_total": {
       "disposition": "EVIDENCE",
       "reason": "SYM-056: the NUMERATOR of converter:latex_balance - \\begin tokens left unmatched, summed over environments (fidelity_audit.py:431). docs/34 forbids a bare count, so it travels with its denominator begins_seen and never alone. Same report-only signature, same intended reader (Repair Bench, unwired) as converter:latex_balance; see that entry for the full step-4 walk."
