@@ -46,6 +46,7 @@ from text_norm import (  # noqa: F401 -- re-exported, not merely used below
 )
 import ladder_lever  # J44 (S182): the lever's one reader (roots.json `ladder` -> ladder.txt)
 import table_shape  # S209 E11: the source's table geometry inside Marker's table boxes (report-only, beside survival)
+import figure_text  # S209 E13: the source's words inside Marker's figure boxes — chart text as text (report-only)
 
 # ---------------------------------------------------------------------------
 # Constants. Thresholds calibrated over the vaulted corpus (docs/15 §9.1). Per the
@@ -634,6 +635,11 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # shape is credible, tables_disagree / tables_unread for the rest, the scan lane unread with its reason. Beside
         # survival, unseen by compute_verdict; None = not measured (no blocks handed in), never 0.
         "tables": table_shape.table_shape(pdf_path, blocks, lane) if blocks is not None else None,
+        # S209 E13, REPORT-ONLY: CHART TEXT AS TEXT — the words the source's layer carries inside each Marker figure box
+        # (a chart's legend, axis labels, data labels) against the words Marker shipped for the figure; a silent figure has
+        # layer words and no shipped words (the AI Index: 10,551 layer words inside 479 figures, 680 shipped, 67 silent).
+        # Beside survival, unseen by compute_verdict; None = not measured (no blocks handed in); the scan lane unread.
+        "figures": figure_text.figure_text(pdf_path, blocks, lane) if blocks is not None else None,
     }
     return block
 

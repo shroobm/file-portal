@@ -43,7 +43,8 @@
         "windows-converter/convert_and_ship.py",
         "windows-converter/fidelity_audit.py",
         "windows-converter/analyst.py",
-        "windows-converter/table_shape.py"
+        "windows-converter/table_shape.py",
+        "windows-converter/figure_text.py"
       ],
       "renderers": [
         "prototypes/repair-bench/bench.py",
@@ -362,6 +363,46 @@
     "converter:tables_total": {
       "disposition": "EVIDENCE",
       "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival. tables_total: every Table block Marker wrote with a page and a box — the population beside tables_witnessed_lines / _text / tables_disagree / tables_unread (docs/34: a count says its population; the four parts sum to it)."
+    },
+    "converter:figures": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). The block: the words the source's layer carries inside each Marker figure box against the words Marker shipped for the figure (the AI Index: 10,551 inside 479 figures, 680 shipped, 67 silent; the MPR 409 vs 8)."
+    },
+    "converter:figures_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). Every Figure / Picture block Marker wrote with a page and a box — the population beside the counts (docs/34)."
+    },
+    "converter:figures_with_layer_words": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). Figures whose box holds at least one layer word — the figures that carry text the reader could get."
+    },
+    "converter:layer_words_in_figures": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). The layer's words inside the figure boxes, summed — what the source has as text in its charts."
+    },
+    "converter:marker_words_for_figures": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). The words Marker shipped for those figures (captions, alt text), summed — what the reader gets of it."
+    },
+    "converter:figures_silent": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). Figures with layer words and no shipped words — the chart the reader gets as a picture only."
+    },
+    "converter:figures_unread": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). Figures the library could not read (a page past the document, an empty box, the scan lane) — UNREAD, never a negative."
+    },
+    "converter:layer_words": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: the layer's words inside its figures — the specimen beside the count."
+    },
+    "converter:marker_words": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: the words Marker shipped for its figures — the specimen beside the count."
+    },
+    "converter:sample": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: up to eight of the layer's words inside its figures, in reading order — what the reader never gets, shown."
     },
     "converter:cell_agree_floor": {
       "disposition": "EVIDENCE",

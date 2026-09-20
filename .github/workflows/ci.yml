@@ -152,6 +152,12 @@ jobs:
       - name: Selftest (windows-converter table_shape)
         working-directory: windows-converter
         run: python table_shape_selftest.py
+      # S209 E13 (2026-09-20): chart text as text — the fixture PDF is DRAWN by pymupdf in the test (a chart's legend words
+      # inside a rectangle, prose outside), never read from disk; no pipeline, no GPU. Desktop run 2026-09-20 (marker-env,
+      # py3.12): "==== figure_text selftest: 6/6 ====", exit 0.
+      - name: Selftest (windows-converter figure_text)
+        working-directory: windows-converter
+        run: python figure_text_selftest.py
       # S108 (lane B2), register A29's smallest slice: the governance acceptance suite runs
       # where a human will see it. stdlib+ast only — no installs. Desktop run 2026-08-23
       # (py3.12): "PASS — 41/41 checks", exit 0. Needs the deepened checkout above for its
