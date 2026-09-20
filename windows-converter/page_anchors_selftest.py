@@ -109,5 +109,26 @@ md15 = "%s\n\n| Premium revenues for the operating account | 31.5 |\n|---|---|\n
 out15, a15, t15 = pa.anchor_markdown(md15, [block(0, P1), block(1, TA, "Table"), block(2, TB, "Table")])
 case("a table spanning two pages carries one id — the first page's; the continuation page counts unanchored",
      a15 == 2 and t15 == 3 and out15.count("^p") == 2 and out15.rstrip().endswith("^p2") and "^p3" not in out15, out15)
+# 16 · S209 E10 (NBC): a page whose only text is a footnote that recurs later in the book, its own instance absent from the
+# markdown — the recurring key must not be taken at the later page's instance (the cursor would overshoot and every page
+# after would read no-hit); the page stays unanchored, the pages after it anchor on their own text
+FN = "See the Financial Reporting Method section on pages 5 to 12 for additional information on these measures."
+P4 = "Provisions for credit losses stood at 117 million compared to 98 million in the same quarter last year."
+md16 = "%s\n\n%s\n\n%s\n\n%s\n" % (P1, P2, P3, FN)
+out16, a16, t16 = pa.anchor_markdown(md16, [block(0, P1), block(1, FN, "Footnote"), block(2, P2), block(3, P3), block(3, FN, "Footnote")])
+case("a recurring footnote whose own instance is absent does not drag the cursor to a later page's; the page after anchors right",
+     a16 == 3 and t16 == 4 and "^p2" not in out16 and (P2 + " ^p3") in out16 and (P3 + " ^p4") in out16, out16)
+# 17 · the fence holds the table path too: a table whose rows recur on a later page, its own instance absent
+TT = "<table><tr><td>Total assets under administration</td><td>100</td><td>200</td></tr></table>"
+md17 = "%s\n\n%s\n\n| Total assets under administration | 100 | 200 |\n|---|---|---|\n" % (P1, P4)
+out17, a17, t17 = pa.anchor_markdown(md17, [block(0, P1), block(1, TT, "Table"), block(2, P4), block(3, TT, "Table")])
+case("a table whose rows recur is not anchored past the next page's own text; the later page's table takes the id",
+     a17 == 3 and t17 == 4 and "^p2" not in out17 and (P4 + " ^p3") in out17 and out17.rstrip().endswith("^p4"), out17)
+# 18 · a once-only key can stand on the WRONG page (its own instance lost, an earlier page's kept): it must neither lead nor
+# fence — NBC's p.13 footnote survived only at p.3's line and fenced pages 2–12 out
+md18 = "%s\n\n%s\n\n%s\n\n%s\n" % (P1, FN, P2, P3)
+out18, a18, t18 = pa.anchor_markdown(md18, [block(0, P1), block(0, FN, "Footnote"), block(1, P2), block(2, P3), block(3, FN, "Footnote")])
+case("a once-only key whose only instance is on an earlier page neither fences the pages before it nor anchors its own",
+     a18 == 3 and t18 == 4 and (P1 + " ^p1") in out18 and (P2 + " ^p2") in out18 and (P3 + " ^p3") in out18 and "^p4" not in out18, out18)
 print("==== page_anchors selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

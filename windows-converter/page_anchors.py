@@ -22,6 +22,7 @@ convert_and_ship.py (`anchors_at_ship()`), not here — this module is pure.
 """
 from __future__ import annotations
 
+import bisect
 import io
 import json
 import re
@@ -52,6 +53,28 @@ def _norm(s: str):
 
 def _plain(html: str) -> str:
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html or "")).strip()
+
+
+def _increasing_run(seq: list[int]) -> list[int]:
+    """Indices of one longest strictly increasing subsequence of `seq` (patience sorting, stdlib only)."""
+    tails: list[int] = []
+    tails_idx: list[int] = []
+    parent = [-1] * len(seq)
+    for i, v in enumerate(seq):
+        k = bisect.bisect_left(tails, v)
+        if k == len(tails):
+            tails.append(v)
+            tails_idx.append(i)
+        else:
+            tails[k] = v
+            tails_idx[k] = i
+        parent[i] = tails_idx[k - 1] if k > 0 else -1
+    out = []
+    i = tails_idx[-1] if tails_idx else -1
+    while i >= 0:
+        out.append(i)
+        i = parent[i]
+    return out[::-1]
 
 
 def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
@@ -102,6 +125,46 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     def is_row(i: int) -> bool:
         return lines[i].lstrip().startswith("|")
 
+    # S209 E10 (NBC, 25 of 84 anchored and 13 of those on the WRONG page): a key that recurs in the book — a footnote
+    # repeated on every segment page, a running section head — was taken at its nearest instance after the cursor, which
+    # is a LATER page's when this page's own instance is absent (a table page whose text blocks are only its footnotes);
+    # the cursor overshot and every page after read no-hit. Two rules: a key that occurs ONCE in the book leads and is
+    # searched from the top (its position is its page's, wherever the cursor stands); and NO hit may pass the first
+    # once-only text of any later page — the next page's own words are the fence. A page the fence empties stays
+    # unanchored, which is honest; an anchor on another page's text is not.
+    counts: dict[str, int] = {}
+
+    def occurrences(key: str) -> int:
+        if key not in counts:
+            counts[key] = norm.count(key)
+        return counts[key]
+
+    def key_of(b: dict) -> str:
+        key, _ = _norm(_plain(b.get("html", "")))
+        return key[:KEY_LEN]
+
+    # a once-only key can itself stand on the wrong page — the page's own instance lost, one instance on another page
+    # kept (NBC's p.13 footnote survives only at p.3's) — and one such key would fence every page before it; the TRUSTED
+    # once-only keys are the longest run whose positions increase with the pages, and only those lead or fence
+    once_keys = []                        # (page, position, key), page order then position
+    for p in pages:
+        for b in by_page.get(p, []):
+            key = key_of(b)
+            if len(key) >= MIN_KEY_UNIQUE and occurrences(key) == 1:
+                once_keys.append((p, norm.find(key), key))
+    once_keys.sort()
+    trusted = {(once_keys[i][0], once_keys[i][2]) for i in _increasing_run([pos for _, pos, _ in once_keys])}
+    unique_at: dict[int, int] = {}
+    for p, at, key in once_keys:
+        if (p, key) in trusted and (p not in unique_at or at < unique_at[p]):
+            unique_at[p] = at
+    fence: dict[int, int] = {}
+    ahead = len(norm) + 1
+    for p in reversed(pages):
+        fence[p] = ahead
+        if p in unique_at:
+            ahead = min(ahead, unique_at[p])
+
     seen_keys = set()
     inserts = []                          # (after_line, human): the structured form, applied last so line numbers hold
     table_ends = set()                    # tables already given an id (a table spanning pages is one markdown block)
@@ -109,23 +172,25 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     anchored = 0
     for p in pages:
         human = p + 1
-        # every text block of the page is a candidate, each searched forward from the cursor; the NEAREST hit leads — a
-        # repeated running head or a phrase that recurs later in the book must not drag the cursor past the page's real text
+        # every text block of the page is a candidate: a once-only key from the top, a recurring one forward from the
+        # cursor; the once-only keys lead, then the NEAREST hit — a repeated running head or a phrase that recurs later
+        # in the book must not drag the cursor past the page's real text, and nothing may pass the fence
         hits = []
         for b in by_page.get(p, []):
-            key, _ = _norm(_plain(b.get("html", "")))
-            key = key[:KEY_LEN]
+            key = key_of(b)
             if len(key) < MIN_KEY_UNIQUE or key in seen_keys:
                 continue
-            hit = norm.find(key, cursor)
-            if hit < 0:
+            once = (p, key) in trusted
+            hit = norm.find(key) if once else norm.find(key, cursor)
+            if hit < 0 or hit >= fence[p]:
                 continue
-            if len(key) < MIN_KEY and norm.find(key, hit + 1) >= 0:
+            if not once and len(key) < MIN_KEY and norm.find(key, hit + 1) >= 0:
                 continue                  # a short key must be unique from here on, or it is a label that recurs
-            hits.append((hit, key))
+            hits.append((0 if once else 1, hit, key))
         hits.sort()
+        hits = [(hit, key) for _, hit, key in hits]
         if hits:
-            cursor = hits[0][0] + len(hits[0][1])
+            cursor = max(cursor, hits[0][0] + len(hits[0][1]))
             seen_keys.add(hits[0][1])
         if human in have:
             continue
@@ -160,6 +225,8 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
                 if len(key) < MIN_KEY:
                     continue
                 hit = norm.find(key, cursor)
+                if hit >= fence[p]:
+                    hit = -1              # a row that recurs (a Total line) found only past the next page's own text
                 if hit >= 0:
                     break
             if hit < 0:
