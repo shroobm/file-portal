@@ -391,6 +391,25 @@ def _():
 
 shutil.rmtree(_QUARANTINE, ignore_errors=True)
 
+@case("(v) SYM-138: a stacked table header the analyst merged into one row reads as a REORDER (report-only), a deleted one as an omission")
+def _():
+    pre, post = words(24, "pre"), words(24, "post")
+    raw = ("| | Less than | 1 to 3 | | 3 to 6 | 6 months | Up to 1 | Over 1 to | Over |\n"
+           "| | 1 month | months | | months | to 1 year | year | 2 years | 2 years |")
+    merged = "| | Less than 1 month | 1 to 3 months | | 3 to 6 months | 6 months to 1 year | Up to 1 year | Over 1 to 2 years | Over 2 years | Total | Total |"
+    ref = pre + "\n" + raw + "\n" + post
+    block = fa.audit_analyst(ref, pre + "\n" + merged + "\n" + post)
+    assert block["runs_total"] == 1, block
+    run = block["runs"][0]
+    assert run["reorder"] is True and run["words"] >= 24, block
+    assert block["runs_reorder"] == 1 and block["words_reorder"] == run["words"], block
+    assert block["doc_survival"] < 1.0, block          # report-only: the run still counts against the number
+    ctl = fa.audit_analyst(ref, pre + "\n" + post)      # the control: the two rows DELETED — an omission, never a reorder
+    assert ctl["runs_total"] == 1 and ctl["runs"][0]["reorder"] is False and ctl["runs_reorder"] == 0 and ctl["words_reorder"] == 0, ctl
+    clean = fa.audit_analyst(ref, ref)
+    assert clean["runs_reorder"] == 0 and clean["words_reorder"] == 0 and clean["runs"] == [], clean
+
+
 print()
 if failed:
     print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")

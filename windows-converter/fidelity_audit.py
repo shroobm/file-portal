@@ -80,6 +80,11 @@ SCAN_PAGE_FLAG = 0.70
 SCAN_GARBAGE_FLAG = 0.20   # 1 - dict_hit prior; garbage-token rate above this flags
 ANALYST_DOC_FAIL = 0.995
 ANALYST_RUN_WORDS = 25
+# SYM-138 (S209 E10): a failed run re-tested as a BAG of words within one span of the output — a reordering (a stacked
+# table header the analyst merged into one row, cells moved), not an omission. Report-only: the run is marked, the block
+# counts it, the verdict still counts the run — the gate is signed (docs/15 §12) and the rescue waits for his word.
+REORDER_SPAN = 4           # the span searched, in multiples of the run's own length (chars) each side of its rarest word
+REORDER_ANCHOR_CAP = 50    # occurrences of the rarest word probed
 WITNESS_COVERAGE_FLOOR = 0.50  # lever-waiver: Rab's word 2026-09-13 (Desk bf4d5d05, S144 E2); a verdict floor is a rule (docs/15 §12.3), not a lever   # S144: pages_scored / pages_total under this -> the convert gate reads flag, never pass
 
 
@@ -161,6 +166,27 @@ def _fuzzy_hit(window: str, output_search: str, idx: dict, freq: dict, cjk: bool
     for off in idx[rare][:FUZZY_ANCHOR_CAP]:
         seg = output_search[max(0, off - span): off + span + len(rare)]
         if fuzz.partial_ratio(window, seg) >= FUZZY_PASS:
+            return True
+    return False
+
+
+def _reorder(run_text: str, out: str, idx: dict, freq: dict) -> bool:
+    """SYM-138: True when every word of a failed run occurs, as a bag (each at least as often as in the run), inside one
+    span of the output REORDER_SPAN × the run's length each side of an occurrence of the run's rarest word — the words are
+    there in another order (a merged stacked header, moved cells). A word the output lacks anywhere is an omission: False."""
+    need: dict[str, int] = {}
+    for w in run_text.split():
+        need[w] = need.get(w, 0) + 1
+    if not need or any(freq.get(w, 0) < n for w, n in need.items()):
+        return False
+    rare = min(need, key=lambda w: freq[w])
+    span = REORDER_SPAN * len(run_text)
+    for off in idx[rare][:REORDER_ANCHOR_CAP]:
+        have: dict[str, int] = {}
+        for w in out[max(0, off - span): off + span].split():
+            if w in need:
+                have[w] = have.get(w, 0) + 1
+        if all(have.get(w, 0) >= n for w, n in need.items()):
             return True
     return False
 
@@ -647,11 +673,40 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str, ladder: str | Non
     failed = [space_free(w) not in out_flat for w in windows]
     doc = round(failed.count(False) / len(windows), 4)
     runs = [r for r in _merge_runs(windows, failed, page=None)]
+    # SYM-138 (S209 E10; TD Q3 2026 HELD at 0.9994): the analyst merged a STACKED table header — two rows Marker wrote for
+    # one header because the source's columns are narrow — into one row, a better table with every word kept, and the
+    # windows over the two raw rows read as a 36-word omission that FAILED the document. Each run is re-tested as a bag
+    # of words within one span of the output (_reorder): a reordering is marked `reorder` and counted (runs_reorder,
+    # words_reorder) — REPORT-ONLY: the verdict still counts the run; the gate is signed (docs/15 §12) and the rescue
+    # waits for his word. The CJK path is not re-tested (None: unread, never a negative). The runs walk `failed` left to
+    # right exactly as _merge_runs does, so the flags pair with the runs by position.
+    if not cjk:
+        r_idx, r_freq = _build_index(out)
+        flags, i = [], 0
+        while i < len(windows):
+            if failed[i]:
+                j = i
+                while j < len(windows) and failed[j]:
+                    j += 1
+                if j - i >= RUN_MIN_WINDOWS:
+                    flags.append(_reorder(" ".join(windows[i:j]), out, r_idx, r_freq))
+                i = j
+            else:
+                i += 1
+        assert len(flags) == len(runs), (len(flags), len(runs))
+        for r, f in zip(runs, flags):
+            r["reorder"] = f
+    else:
+        for r in runs:
+            r["reorder"] = None
+    runs_reorder = sum(1 for r in runs if r["reorder"] is True)
+    words_reorder = sum(r["words"] for r in runs if r["reorder"] is True)
     # NUM-3, both phases (review M2: repairing only the convert phase left the analyst event
     # ASSERTING that 25 is the total — strictly worse than the bare capped count)
     return {"doc_survival": doc, "windows_total": len(windows),  # SYM-057: the denominator travels with the ratio
             "runs": sorted(runs, key=lambda r: -r["words"])[:25],
             "runs_total": len(runs), "runs_capped_at": 25, "normalisation": normalisation,
+            "runs_reorder": runs_reorder, "words_reorder": words_reorder,  # SYM-138: report-only, beside the runs
             "reference_masked": reference_masked}
 
 

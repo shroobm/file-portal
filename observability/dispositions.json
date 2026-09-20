@@ -350,6 +350,18 @@
       "disposition": "EVIDENCE",
       "reason": "NUM-3: names the [:25] cap beside runs_total in the fidelity block (fidelity_audit.py) — a cap that declares itself, per SYM-066's repair; renderers read runs_total, the cap constant is record-keeping."
     },
+    "converter:runs_reorder": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E10 (2026-09-20; SYM-138): REPORT-ONLY count of the analyst block's omission runs whose every word occurs, as a bag, within one span of the analyst's output (fidelity_audit._reorder) — a reordering (TD Q3 2026: a stacked table header the analyst merged into one row, read by the windows as a 36-word omission that FAILED the document), not an omission. The verdict still counts the run: docs/15 §12's gate is signed and the rescue waits for his word (then a lever). Read in the manifest beside runs_total; the row-level flag is `reorder` on each run."
+    },
+    "converter:words_reorder": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E10 (2026-09-20; SYM-138): the words inside the runs runs_reorder counts — the size of what the rescue would give back, beside the run's own words (docs/34: a count says its population). Report-only, as runs_reorder."
+    },
+    "converter:reorder": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E10 (2026-09-20; SYM-138): on each run of the analyst block — True when the run's words all occur in one span of the output as a bag (a reordering), False when a word is missing anywhere (an omission), None on the CJK path (not re-tested; unread, never a negative). Report-only; the verdict reads the run's words, not this flag."
+    },
     "converter:worst_capped_at": {
       "disposition": "EVIDENCE",
       "reason": "NUM-3: names the [:10] exemplar cap beside blocks_total in degeneration_detail — same declared-cap discipline."

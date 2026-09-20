@@ -139,6 +139,13 @@ jobs:
       - name: Selftest (windows-converter inventions)
         working-directory: windows-converter
         run: python inventions_selftest.py
+      # S209 E10 (2026-09-20): the analyst-stage audit's tripwires (the J32-A ladder cases and SYM-138's reorder rung —
+      # a stacked table header merged into one row reads as a reorder, report-only). Hermetic: a tempdir root, no
+      # pipeline, no GPU; imports fidelity_audit (pymupdf, rapidfuzz — both installed above). Desktop run 2026-09-20
+      # (py3.12): "ALL TRIPWIRES FIRED — 21/21", exit 0.
+      - name: Selftest (windows-converter analyst_audit)
+        working-directory: windows-converter
+        run: python analyst_audit_selftest.py
       # S108 (lane B2), register A29's smallest slice: the governance acceptance suite runs
       # where a human will see it. stdlib+ast only — no installs. Desktop run 2026-08-23
       # (py3.12): "PASS — 41/41 checks", exit 0. Needs the deepened checkout above for its
