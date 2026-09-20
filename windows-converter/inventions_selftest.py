@@ -1,0 +1,60 @@
+# -*- coding: utf-8 -*-
+"""inventions_selftest.py — the tripwires for fidelity_audit.audit_inventions (S209 B35, report-only). Hermetic: witness pages
+as strings, blocks as dicts — no PDF, no pipeline. Each case violates the property its rule stands for: a clean page counts
+0 invented and 0 lost; a planted invented word is counted with its specimen and its page; the witness's word the blocks lack
+counts as lost, never as invented; a page with no blocks is not measured (pages_measured says so; the ratio's base is
+Marker's words, never the witness's); an html entity is not a word; a short token (< 3 letters) and a number are not words;
+the scan lane names its meaning as disagreement; no blocks at all → a measured zero over zero reads None, not 0.
+Prints `==== inventions selftest: N/N ====`, exit 0 green · 1 red."""
+import sys
+
+import fidelity_audit as fa
+
+ok = n = 0
+
+
+def case(name, cond, detail=""):
+    global ok, n
+    n += 1
+    ok += 1 if cond else 0
+    print("  [%d] %s %s%s" % (n, "ok " if cond else "RED", name, ("  <- " + str(detail)[:160]) if (detail and not cond) else ""))
+
+
+def block(page, text):
+    return {"page": page, "block_type": "Text", "html": "<p>%s</p>" % text}
+
+
+W1 = "The regulator can block only as much disturbance as it has variety to match."
+W2 = "TLAC leverage ratio was 4.4 per cent in the third quarter of 2026."
+# 1 · a clean page: 0 invented, 0 lost
+r = fa.audit_inventions([W1, W2], [block(0, W1), block(1, W2)])
+case("two clean pages count 0 invented / 0 lost, ratio 0.0, both measured",
+     r["invented_total"] == 0 and r["lost_total"] == 0 and r["invented_ratio"] == 0.0 and r["pages_measured"] == 2 and r["pages_with_inventions"] == 0, r)
+# 2 · a planted invention on page 2, with its specimen and page
+r = fa.audit_inventions([W1, W2], [block(0, W1), block(1, "TLAC loverage satio was 4.4 per cent in the third guarter of 2026.")])
+w = r["worst"][0] if r["worst"] else {}
+case("three invented words on page 2 are counted with their specimens; page 1 clean",
+     r["invented_total"] == 3 and r["pages_with_inventions"] == 1 and w.get("page") == 2 and set(w.get("specimens", [])) == {"loverage", "satio", "guarter"}, r)
+case("the three replaced words read as lost on the same page (survival's view), not as invented",
+     w.get("lost") == 3 and r["lost_total"] == 3, w)
+# 3 · a page with no blocks is not measured; the ratio's base is Marker's words
+r = fa.audit_inventions([W1, W2, "A third page the converter dropped entirely."], [block(0, W1), block(1, W2)])
+case("a witness page with no blocks is not measured (2 of 3) and adds nothing to the base (19 Marker words)", r["pages_measured"] == 2 and r["marker_words_total"] == 19, r)
+# 4 · an entity is not a word; short tokens and numbers are not words
+r = fa.audit_inventions(["Fees &amp; commissions of 12 per cent."], [block(0, "Fees &amp; commissions of 12 per cent.")])
+case("an html entity, a number and a 2-letter token are not words on either side (Fees, commissions, per, cent = 4)", r["invented_total"] == 0 and r["marker_words_total"] == 4, r)
+# 5 · the scan lane's meaning is disagreement
+r = fa.audit_inventions([W1], [block(0, W1)], kind="agreement")
+case("the scan lane names its number disagreement, not invention", "disagreement" in r["meaning"], r["meaning"])
+# 6 · no blocks at all: None, never 0
+r = fa.audit_inventions([W1, W2], [])
+case("no blocks → pages_measured 0 and invented_ratio None (not measured, never 0)", r["pages_measured"] == 0 and r["invented_ratio"] is None, r)
+# 7 · audit_convert without blocks leaves the key None (not measured), never a zero-shaped block
+try:
+    import inspect
+    sig = inspect.signature(fa.audit_convert)
+    case("audit_convert takes `blocks` (default None → the key reads None, said in the block)", "blocks" in sig.parameters and sig.parameters["blocks"].default is None, str(sig))
+except Exception as e:  # noqa: BLE001
+    case("audit_convert takes `blocks`", False, e)
+print("==== inventions selftest: %d/%d ====" % (ok, n))
+sys.exit(0 if ok == n else 1)

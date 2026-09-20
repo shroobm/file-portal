@@ -459,7 +459,58 @@ def latex_balance(markdown: str) -> dict:
 # ---------------------------------------------------------------------------
 # Stage audits (docs/15 §4/§6/§7).
 # ---------------------------------------------------------------------------
-def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = None) -> dict:
+def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fidelity") -> dict:
+    """S209 B35 (2026-09-20) — THE AUDIT'S BLIND SIDE, report-only. Survival counts what the output LOST against the
+    witness; a re-OCR'd clean page can also INVENT words the layer never had (RBC Q3, Marker's own re-OCR of a born-digital
+    report: `TLAC loverage satio`, `last guarter` — 0.25 % of ten pages' words; CIBC, not re-OCR'd, 0 on the same measure).
+    Per page from blocks.json (every block page-labelled; the markdown itself carries no page marks): the words Marker's
+    blocks carry that the witness page does not, over the page's word count; the witness's words the blocks lack ride
+    beside them (the losses, survival's own view). Words = runs of 3+ letters, lower-cased; entities unescaped first
+    (`&amp;` is not a word). On the scan lane the witness is the embedded OCR layer, so the number is DISAGREEMENT, not
+    invention — `meaning` says which. No verdict reads this key (compute_verdict cannot see it); the threshold is Rab's."""
+    from html import unescape
+    word_re = re.compile(r"[^\W\d_]{3,}")
+    by_page: dict[int, list[str]] = {}
+    for b in blocks or []:
+        p = b.get("page")
+        if p is None:
+            continue
+        text = re.sub(r"<[^>]+>", " ", unescape(b.get("html", "") or ""))
+        by_page.setdefault(int(p) + 1, []).extend(w.lower() for w in word_re.findall(text))
+    pages: dict[int, dict] = {}
+    inv_total = words_total = lost_total = wit_total = measured = 0
+    for pnum, raw in enumerate(pages_raw, start=1):
+        mw = by_page.get(pnum)
+        if not mw:
+            continue
+        measured += 1
+        lw = [w.lower() for w in word_re.findall(raw or "")]
+        ls, ms = set(lw), set(mw)
+        invented = [w for w in mw if w not in ls]
+        lost = [w for w in lw if w not in ms]
+        inv_total += len(invented)
+        words_total += len(mw)
+        lost_total += len(lost)
+        wit_total += len(lw)
+        if invented:
+            spec = sorted(set(invented), key=lambda w: (-invented.count(w), w))[:6]
+            pages[pnum] = {"marker": len(mw), "witness": len(lw), "invented": len(invented), "lost": len(lost), "specimens": spec}
+    worst = sorted(pages.items(), key=lambda kv: -kv[1]["invented"] / max(1, kv[1]["marker"]))[:10]
+    return {
+        "meaning": ("words in Marker's blocks absent from the source's text layer" if kind == "fidelity"
+                    else "words in Marker's blocks absent from the embedded OCR layer (disagreement, not invention)"),
+        "pages_measured": measured,
+        "invented_total": inv_total,
+        "marker_words_total": words_total,
+        "invented_ratio": round(inv_total / words_total, 5) if words_total else None,
+        "lost_total": lost_total,
+        "witness_words_total": wit_total,
+        "pages_with_inventions": len(pages),
+        "worst": [dict(page=p, **v) for p, v in worst],
+    }
+
+
+def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = None, blocks: list | None = None) -> dict:
     kind = "agreement" if lane == "scan" else "fidelity"
     witness_label = "embedded-ocr" if lane == "scan" else "pymupdf"
     pages_raw, embedded_images = extract_witness(pdf_path)
@@ -524,6 +575,10 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # key and must not. Measured on the RAW markdown, which is what ships; prepare_output
         # would strip the very structure in question.
         "latex_balance": latex_balance(markdown),
+        # S209 B35, REPORT-ONLY: the words Marker's blocks carry that the layer does not (inventions; disagreement on the
+        # scan lane), per page from blocks.json — riding BESIDE survival, unseen by compute_verdict; None = not measured
+        # (no blocks handed in), never 0.
+        "inventions": audit_inventions(pages_raw, blocks, kind) if blocks is not None else None,
     }
     return block
 

@@ -67,7 +67,16 @@ def _audit_convert_safe(src, body: str, lane: str, tmp_dir: Path, manifest: dict
         import fidelity_audit as fa
         assets_dir = tmp_dir / "assets"
         asset_count = sum(1 for _ in assets_dir.iterdir()) if assets_dir.exists() else None
-        conv = fa.audit_convert(src, body, lane, asset_count=asset_count)
+        # S209 B35: the bundle's blocks.json (page-labelled) lets the audit count INVENTIONS against the layer per page —
+        # report-only, beside survival; absent or unreadable → the key reads None (not measured), the audit goes on
+        blocks = None
+        blocks_path = tmp_dir / "blocks.json"
+        if blocks_path.exists():
+            try:
+                blocks = json.loads(blocks_path.read_text(encoding="utf-8")).get("blocks", [])
+            except Exception:  # noqa: BLE001 — the measure reads UNREAD, never the audit's error
+                blocks = None
+        conv = fa.audit_convert(src, body, lane, asset_count=asset_count, blocks=blocks)
         manifest["fidelity"] = fa.build_fidelity_block(conv, None)
         tw = conv["tripwires"]
         name = getattr(src, "name", str(src))
