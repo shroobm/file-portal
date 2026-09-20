@@ -193,7 +193,7 @@ MECHANISM = {
         "loss or coverage indistinguishable from real defects until traced to the check itself",
         "re-derive the figure through a second, independently built extractor/parser — does the number move while the "
         "artefact does not?",
-        ["SYM-067", "SYM-076", "SYM-095", "SYM-097"],
+        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document
     ),
     "S16 GUARD-COARSER-THAN-THE-DEFECT": (
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
