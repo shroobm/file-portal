@@ -27,6 +27,7 @@
       "consumer_paths": [
         "chars_per_page",
         "lane",
+        "ocr_lines_per_page",
         "s_per_page"
       ],
       "consumers": [
@@ -39,6 +40,8 @@
         "chars_per_page",
         "chunked",
         "lane",
+        "ocr_lines",
+        "ocr_lines_per_page",
         "pages",
         "peak_vram_mib",
         "resumed_slices",
@@ -755,6 +758,8 @@
           "required_keys": [
             "cost_s",
             "event",
+            "ocr_lines",
+            "ocr_lines_per_page",
             "pages",
             "pages_converted_this_run",
             "peak_mib",
@@ -777,6 +782,7 @@
             "basis",
             "eta_s",
             "event",
+            "ocr_heavy_neighbours",
             "pages_this_run",
             "pid",
             "resumed_pages_assumed",

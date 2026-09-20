@@ -494,6 +494,18 @@
       "disposition": "EVIDENCE",
       "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): how many measured pages carried at least one invented word — the spread (one garbled page or every page). Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
     },
+    "converter:bars": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B33's dial, RECORD-ONLY (convert_and_ship.py ocr_dial / _note_ocr_bar; the converted event, the manifest's `ocr` block, the ledger row; estimate_from_ledger names heavy neighbours and excludes none until Rab signs the threshold): the totals of every 'Recognizing Text' bar Marker showed in the process, in order — the raw reading behind ocr_lines (a bar re-run over the same lines double counts, and this list is how a reader sees it). Home: the manifest and the ledger; no renderer yet."
+    },
+    "converter:lines_per_page": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B33's dial, RECORD-ONLY (convert_and_ship.py ocr_dial / _note_ocr_bar; the converted event, the manifest's `ocr` block, the ledger row; estimate_from_ledger names heavy neighbours and excludes none until Rab signs the threshold): ocr_lines ÷ pages — the per-page density the estimator reads from a ledger row to name a re-OCR'd neighbour (RBC 132, C-31 64, the SEU 5, CIBC 0). Home: the manifest's ocr block, the ledger row's ocr_lines_per_page; no renderer yet."
+    },
+    "converter:ocr_heavy_neighbours": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E8 (2026-09-20), B33's dial, RECORD-ONLY (convert_and_ship.py ocr_dial / _note_ocr_bar; the converted event, the manifest's `ocr` block, the ledger row; estimate_from_ledger names heavy neighbours and excludes none until Rab signs the threshold): how many of the estimate's neighbours were re-OCR'd runs (> OCR_HEAVY_LINES_PER_PAGE); named on the estimate event and printed as ESTIMATE WARN — the promise still carries their pace (the SEU's 6.29 promised vs 1.52 measured). Home: the estimate event and the watcher log; a card row after his signature."
+    },
     "converter:unterminated_total": {
       "disposition": "EVIDENCE",
       "reason": "SYM-056: the NUMERATOR of converter:latex_balance - \\begin tokens left unmatched, summed over environments (fidelity_audit.py:431). docs/34 forbids a bare count, so it travels with its denominator begins_seen and never alone. Same report-only signature, same intended reader (Repair Bench, unwired) as converter:latex_balance; see that entry for the full step-4 walk."

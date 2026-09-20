@@ -200,8 +200,32 @@ PROGRESS_FILE = fp_paths.root("convert_progress")
 _TQDM_RE = re.compile(r"([A-Za-z][\w ()/-]*?):\s*(\d{1,3})%\|[^|]*\|\s*(\d+)\s*/\s*(\d+)")
 
 
+# S209 E8 (2026-09-20), B33's dial — RECORD-ONLY: the totals of every "Recognizing Text" bar Marker showed in this process,
+# in order (a new total = a new bar). Marker's decision to OCR a clean-lane page is its own and was unrecorded: RBC (10,067
+# lines, 12.8 s/page) and C-31 (22,002 lines) were re-OCR'd whole while CIBC (0) was not, and the estimator learned the
+# re-OCR'd pace as "similar". `ocr_lines` = the bars' totals summed (a bar re-run over the same lines double counts — read
+# `ocr_bars`); the converted event, the manifest and the ledger row carry it; the estimator names its heavy neighbours and
+# excludes none (a threshold's use is Rab's signature — warn-first).
+_OCR_BARS: list[int] = []
+OCR_STAGE = "Recognizing Text"
+OCR_HEAVY_LINES_PER_PAGE = 20      # above this a ledger row reads as a re-OCR'd run (RBC 132/page, C-31 64, the SEU 5, CIBC 0)
+
+
+def _note_ocr_bar(stage: str, total: int) -> None:
+    # a chunked run prefixes the stage ("slice 2/5 · Recognizing Text") — the suffix is the bar's name
+    if stage.endswith(OCR_STAGE) and total > 0 and (not _OCR_BARS or _OCR_BARS[-1] != total):
+        _OCR_BARS.append(total)
+
+
+def ocr_dial(pages: int) -> dict:
+    """What this process's Marker runs recognized: lines (the bars' totals summed), the bars, lines per page."""
+    lines = sum(_OCR_BARS)
+    return {"lines": lines, "bars": list(_OCR_BARS), "lines_per_page": round(lines / pages, 1) if pages else None}
+
+
 def _write_progress(stage: str, pct: int, n: int, total: int,
                     context: dict | None = None) -> None:
+    _note_ocr_bar(stage, total)
     try:
         record = {
             "v": 2, "writer_pid": os.getpid(),
@@ -306,7 +330,8 @@ def _write_estimate_safe(source: str, pages: int, lane: str, chars: float,
             payload.update(est)
             emit("convert", "estimate", source=source, eta_s=est["eta_s"],
                  s_per_page=est["s_per_page"], basis=est["basis"], samples=est["samples"],
-                 pages_this_run=pages_this_run, resumed_pages_assumed=resumable_pages)
+                 pages_this_run=pages_this_run, resumed_pages_assumed=resumable_pages,
+                 ocr_heavy_neighbours=est.get("ocr_heavy_neighbours", 0))
         else:
             payload["basis"] = "none"  # no evidence — the glass must say so, not guess
         ESTIMATE_FILE.write_text(json.dumps(payload), encoding="utf-8")
@@ -1093,6 +1118,10 @@ def _ledger_record(manifest: dict, cost_s: float, peak_mib: int,
             "slices": (len(chunking["seams"]) + 1) if chunking else 1,
             "batch": chunking["batch"] if chunking else RECOGNITION_BATCH,
             "peak_vram_mib": peak_mib or None,
+            # S209 E8, B33's dial: the lines Marker chose to OCR on this run — the estimator names a neighbour above
+            # OCR_HEAVY_LINES_PER_PAGE as a re-OCR'd run (and excludes none until Rab signs the threshold)
+            "ocr_lines": (manifest.get("ocr") or {}).get("lines"),
+            "ocr_lines_per_page": (manifest.get("ocr") or {}).get("lines_per_page"),
         }
         LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(LEDGER_FILE, "a", encoding="utf-8") as f:
@@ -1124,12 +1153,19 @@ def estimate_from_ledger(pages: int, lane: str, chars_per_page: float) -> dict |
     rates = sorted(r["s_per_page"] for r in neighbours)
     n = len(rates)
     median = rates[n // 2] if n % 2 else round((rates[n // 2 - 1] + rates[n // 2]) / 2, 3)
+    # S209 E8 (B33's dial): how many of the neighbours were re-OCR'd runs — NAMED, never excluded here (the SEU's promise
+    # was 6.29 s/page from RBC's and C-31's re-OCR'd pace against 1.52 measured; the exclusion is Rab's signature)
+    heavy = sum(1 for r in neighbours if (r.get("ocr_lines_per_page") or 0) > OCR_HEAVY_LINES_PER_PAGE)
+    if heavy:
+        print(f"ESTIMATE WARN: {heavy} of {n} neighbour(s) were re-OCR'd runs (> {OCR_HEAVY_LINES_PER_PAGE} OCR lines/page); "
+              f"the promise carries their pace — excluding them needs Rab's signature (B33)", flush=True)
     return {
         "s_per_page": median,
         "eta_s": int(median * pages),
         "basis": "similar" if n >= 2 else "single-sample",
         "samples": n,
         "from_lane": lane,
+        "ocr_heavy_neighbours": heavy,
     }
 
 
@@ -1846,8 +1882,10 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # 1377 for a 1-second resume).
     true_run_pages = chunk_stats.get("pages_converted_this_run", pages)
     run_pages = true_run_pages or pages
+    manifest["ocr"] = ocr_dial(pages)          # S209 E8, B33's dial: what Marker chose to OCR, recorded — never a verdict
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
          s_per_page=round(wall / pages, 2), pages=pages,
+         ocr_lines=manifest["ocr"]["lines"], ocr_lines_per_page=manifest["ocr"]["lines_per_page"],
          # S146 E8 (SYM-132, found live on Beer): a single-call run (no slices) projected its
          # ceiling moment only in a death certificate — Beer sat at 9.5 GB through recognition
          # and survived, and nothing carried the split. The converted event names the run's
