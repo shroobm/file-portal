@@ -42,7 +42,8 @@
       "producers": [
         "windows-converter/convert_and_ship.py",
         "windows-converter/fidelity_audit.py",
-        "windows-converter/analyst.py"
+        "windows-converter/analyst.py",
+        "windows-converter/table_shape.py"
       ],
       "renderers": [
         "prototypes/repair-bench/bench.py",
@@ -353,6 +354,58 @@
     "converter:runs_reorder": {
       "disposition": "EVIDENCE",
       "reason": "S209 E10 (2026-09-20; SYM-138): REPORT-ONLY count of the analyst block's omission runs whose every word occurs, as a bag, within one span of the analyst's output (fidelity_audit._reorder) — a reordering (TD Q3 2026: a stacked table header the analyst merged into one row, read by the windows as a 36-word omission that FAILED the document), not an omission. The verdict still counts the run: docs/15 §12's gate is signed and the rescue waits for his word (then a lever). Read in the manifest beside runs_total; the row-level flag is `reorder` on each run."
+    },
+    "converter:tables": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The block: the source's own table geometry (pymupdf find_tables inside each Marker table box) against Marker's rows and width, with the witness's reliability beside every number."
+    },
+    "converter:tables_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival. tables_total: every Table block Marker wrote with a page and a box — the population beside tables_witnessed_lines / _text / tables_disagree / tables_unread (docs/34: a count says its population; the four parts sum to it)."
+    },
+    "converter:cell_agree_floor": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The floor on Marker's non-empty cells found in the witness's joined text (CELL_AGREE); below it the witness is none — a constant that declares itself beside the counts it gates."
+    },
+    "converter:tables_witnessed_lines": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). Tables whose geometry the lines strategy read with agreeing cells and a credible shape — the witness for rows AND columns (ruled statements)."
+    },
+    "converter:tables_witnessed_text": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). Tables the text strategy found with agreeing cells — a witness that a table is there, no number taken from it (it over-splits both ways)."
+    },
+    "converter:tables_disagree": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). Tables whose geometry disagreed with Marker's cells or shape (rows far off, narrower than Marker's width: RBC's sparse rulings) — no witness, counted apart so a zero never reads as clean."
+    },
+    "converter:tables_unread": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). Tables the library could not read (no geometry either way, a page past the document, the scan lane) — UNREAD, never a negative."
+    },
+    "converter:columns_lost": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The columns the lines witness has that Marker's table does not, summed over witnessed tables — the reader's number (NBC Q3 2026: 77 over 19 pages)."
+    },
+    "converter:columns_gained": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The columns Marker's table has beyond the lines witness's — the document-level tell of partial rulings (RBC 176), kept beside columns_lost so the witness's own reliability is readable."
+    },
+    "converter:rows_lost": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The rows the lines witness has that Marker's table does not, summed over witnessed tables."
+    },
+    "converter:pages_with_columns_lost": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). Pages carrying at least one witnessed table with a lost column — the population beside columns_lost (docs/34)."
+    },
+    "converter:shapes": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). On each worst page: the witness's rows×cols against Marker's rows×width per table (`25x7->26x7`; `text->21x11` for the text witness) — the specimen beside the count."
+    },
+    "converter:reason": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). Present when every table reads unread: why (the scan lane's layer is no witness for geometry; the source could not be opened)."
     },
     "converter:words_reorder": {
       "disposition": "EVIDENCE",

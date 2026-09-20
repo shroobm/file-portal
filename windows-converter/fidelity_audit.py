@@ -45,6 +45,7 @@ from text_norm import (  # noqa: F401 -- re-exported, not merely used below
     _common, _finalize,  # prepare_witness (witness-side only) still calls these directly
 )
 import ladder_lever  # J44 (S182): the lever's one reader (roots.json `ladder` -> ladder.txt)
+import table_shape  # S209 E11: the source's table geometry inside Marker's table boxes (report-only, beside survival)
 
 # ---------------------------------------------------------------------------
 # Constants. Thresholds calibrated over the vaulted corpus (docs/15 §9.1). Per the
@@ -617,6 +618,11 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # scan lane), per page from blocks.json — riding BESIDE survival, unseen by compute_verdict; None = not measured
         # (no blocks handed in), never 0.
         "inventions": audit_inventions(pages_raw, blocks, kind) if blocks is not None else None,
+        # S209 E11, REPORT-ONLY: the bank tables' SHAPE — the source's own table geometry (pymupdf find_tables inside each
+        # Marker table box) against Marker's rows and width: columns_lost / rows_lost where the witness's cells agree and its
+        # shape is credible, tables_disagree / tables_unread for the rest, the scan lane unread with its reason. Beside
+        # survival, unseen by compute_verdict; None = not measured (no blocks handed in), never 0.
+        "tables": table_shape.table_shape(pdf_path, blocks, lane) if blocks is not None else None,
     }
     return block
 

@@ -146,6 +146,12 @@ jobs:
       - name: Selftest (windows-converter analyst_audit)
         working-directory: windows-converter
         run: python analyst_audit_selftest.py
+      # S209 E11 (2026-09-20): the structural-table measure's tripwires — the fixture PDF is DRAWN by pymupdf in the test
+      # (a ruled 5 × 4 table, an unruled grid), never read from disk; no pipeline, no GPU; pymupdf installed above.
+      # Desktop run 2026-09-20 (marker-env, py3.12): "==== table_shape selftest: 9/9 ====", exit 0.
+      - name: Selftest (windows-converter table_shape)
+        working-directory: windows-converter
+        run: python table_shape_selftest.py
       # S108 (lane B2), register A29's smallest slice: the governance acceptance suite runs
       # where a human will see it. stdlib+ast only — no installs. Desktop run 2026-08-23
       # (py3.12): "PASS — 41/41 checks", exit 0. Needs the deepened checkout above for its
