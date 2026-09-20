@@ -539,6 +539,10 @@
       "disposition": "EVIDENCE",
       "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): how many Marker words sit on those unjudged pages — the size of what the measure declines to call invented. Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."
     },
+    "converter:latex_commands": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E12 (2026-09-20; Waterloo, a PhD thesis): the LaTeX commands inside Marker's <math> elements, counted apart by audit_inventions — an equation is neither an invented word nor a lost one (the layer has glyphs, Marker writes \\hat, \\boldsymbol, \\frac): 1,810 of 32,843 Marker words had read invented on 147 pages, every worst page an equation page. Report-only beside invented_total; the reader sees how much of the document is equations."
+    },
     "converter:pages_measured": {
       "disposition": "EVIDENCE",
       "reason": "S209 E8 (2026-09-20), B35, inside fidelity.convert.inventions (fidelity_audit.py audit_inventions, written by audit_convert; report-only, unseen by compute_verdict): the count of witness pages that had Marker blocks — the base every ratio below stands on (docs/34: the denominator rides beside the numerator). Home: the manifest and the records that read it; no renderer yet — retires with converter:inventions when a card row exists."

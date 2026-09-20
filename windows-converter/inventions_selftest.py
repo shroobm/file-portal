@@ -71,5 +71,14 @@ W3 = W1 + " " + W2                     # 19 words — a real page above the line
 r = fa.audit_inventions([W3, "Figure 2.3"], [block(0, W3), block(1, chart)])
 case("a witness page under PAGE_MIN_WORDS is counted apart (pages_witness_blank 1, its Marker words noted) and adds 0 inventions",
      r["pages_witness_blank"] == 1 and r["blank_marker_words"] == 80 and r["invented_total"] == 0 and r["pages_measured"] == 1, r)
+# 11 · S209 E12 (Waterloo): an equation Marker wrote as LaTeX inside <math> is neither invented words nor lost words —
+# the commands are counted apart; the prose beside it is judged as before
+EQ = ("<p>The closed loop response of the drive follows from the plant model and the compensator gain</p>"
+      "<p block-type=\"Equation\"><math display=\"block\">\\hat{\\boldsymbol{\\theta}} = \\frac{1}{Js + B} \\begin{bmatrix} a \\\\ b \\end{bmatrix}</math></p>"
+      "<p>and the steady state error vanishes for a step in the reference signal</p>")
+WIT_EQ = "The closed loop response of the drive follows from the plant model and the compensator gain and the steady state error vanishes for a step in the reference signal"
+r = fa.audit_inventions([WIT_EQ], [{"page": 0, "html": EQ}])
+case("an equation inside <math> counts 0 invented and 0 lost; its six commands are latex_commands",
+     r["invented_total"] == 0 and r["lost_total"] == 0 and r["latex_commands"] == 6 and r["pages_measured"] == 1, r)
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

@@ -497,12 +497,22 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     invention — `meaning` says which. No verdict reads this key (compute_verdict cannot see it); the threshold is Rab's."""
     from html import unescape
     word_re = re.compile(r"[^\W\d_]{3,}")
+    math_re = re.compile(r"(?is)<math[^>]*>.*?</math>")
+    cmd_re = re.compile(r"\\[A-Za-z]+")
     by_page: dict[int, list[str]] = {}
+    latex_commands = 0
     for b in blocks or []:
         p = b.get("page")
         if p is None:
             continue
-        text = re.sub(r"<[^>]+>", " ", unescape(b.get("html", "") or ""))
+        html = b.get("html", "") or ""
+        # S209 E12 (Waterloo, a PhD thesis): Marker writes equations as LaTeX inside <math> elements — `\hat`, `\boldsymbol`,
+        # `\bmatrix`, `\frac` — words the layer never had and never should (it has the glyphs). 1,810 of 32,843 Marker words
+        # read "invented" on 147 pages, every worst page an equation page. The equations come out before the words are
+        # counted, and the commands are counted apart as `latex_commands`: the equation is not an invention and not a word.
+        for m in math_re.findall(html):
+            latex_commands += len(cmd_re.findall(m))
+        text = re.sub(r"<[^>]+>", " ", unescape(math_re.sub(" ", html)))
         by_page.setdefault(int(p) + 1, []).extend(w.lower() for w in word_re.findall(text))
     pages: dict[int, dict] = {}
     inv_total = words_total = lost_total = wit_total = measured = 0
@@ -545,6 +555,7 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         "pages_with_inventions": len(pages),
         "pages_witness_blank": blank_pages,            # witness under PAGE_MIN_WORDS: OCR of pictures, not judged
         "blank_marker_words": blank_marker_words,
+        "latex_commands": latex_commands,              # S209 E12: equations' commands, counted apart, never inventions
         "worst": [dict(page=p, **v) for p, v in worst],
     }
 
