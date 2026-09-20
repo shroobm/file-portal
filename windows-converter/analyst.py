@@ -812,6 +812,20 @@ def process(markdown: str, backend: str = "local",
 
 
 OLLAMA_SERVER_LOG = Path.home() / "AppData" / "Local" / "Ollama" / "server.log"   # ollama's own log on this machine
+# S209 E10 (SYM-139): dumps/dump.sh is run through `bash`, and the WATCHER's environment on this machine carries no `bash` on
+# its PATH — every manifest since S141 reads `chunk_journal_dump: UNREAD … [WinError 2]`, the journal never ledgered. The
+# interpreter is resolved by name first, then by Git's known install; None means the dump says UNREAD with the reason, as before.
+BASH_CANDIDATES = ("C:/Program Files/Git/bin/bash.exe", "C:/Program Files/Git/usr/bin/bash.exe")
+
+
+def _bash() -> str | None:
+    found = shutil.which("bash")
+    if found:
+        return found
+    for cand in BASH_CANDIDATES:
+        if os.path.isfile(cand):
+            return cand
+    return None
 OLLAMA_LOG_TAIL_LINES = 200  # lever-waiver: Rab's word only; 200 lines was set S157 E17 on the longest failure trace in Ollama's server.log that day (a cold load of qwen3:8b, under 150 lines) and decides nothing but how much of the log a backend failure carries into `_captures/`; moves when a capture is seen truncated
 
 
@@ -838,7 +852,10 @@ def _capture_ollama_log(work_dir, i: int, run_key: str) -> str:
         dump_sh = Path(__file__).resolve().parent.parent / "dumps" / "dump.sh"
         if not dump_sh.is_file():
             return "UNREAD: captured to %s; dumps/dump.sh not beside this checkout" % out.name
-        args = ["bash", str(dump_sh)]
+        bash = _bash()
+        if not bash:
+            return "UNREAD: no bash to run dumps/dump.sh (PATH and Git's install both empty — SYM-139)"
+        args = [bash, str(dump_sh)]
         test_ledger = os.environ.get("FP_DUMP_LEDGER")
         if test_ledger:
             args += ["--ref", "--ledger", test_ledger]
@@ -860,7 +877,10 @@ def _dump_journal(journal_path, run_key: str) -> str:
         dump_sh = Path(__file__).resolve().parent.parent / "dumps" / "dump.sh"
         if not dump_sh.is_file():
             return "UNREAD: dumps/dump.sh not beside this checkout"
-        args = ["bash", str(dump_sh)]
+        bash = _bash()
+        if not bash:
+            return "UNREAD: no bash to run dumps/dump.sh (PATH and Git's install both empty — SYM-139)"
+        args = [bash, str(dump_sh)]
         test_ledger = os.environ.get("FP_DUMP_LEDGER")  # a selftest's throwaway ledger: in place, no copy into the public dumps/
         if test_ledger:
             args += ["--ref", "--ledger", test_ledger]

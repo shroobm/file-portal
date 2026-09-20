@@ -1023,6 +1023,22 @@ def _():
     assert out.strip() == words(60).strip()
 
 
+@case("S209 E10 (SYM-139): _bash resolves an EXISTING interpreter — by name, else Git's install — and never returns a bare name; the "
+      "dump says UNREAD with the reason when nothing resolves")
+def _():
+    b = analyst._bash()
+    assert b is None or (os.path.isfile(b) and b.lower().endswith(("bash", "bash.exe"))), b
+    saved = analyst.BASH_CANDIDATES
+    saved_which = analyst.shutil.which          # the module's own shutil, patched where _bash reads it
+    try:
+        analyst.BASH_CANDIDATES = ("C:/no/such/dir/bash.exe",)
+        analyst.shutil.which = lambda name: None
+        assert analyst._bash() is None
+    finally:
+        analyst.BASH_CANDIDATES = saved
+        analyst.shutil.which = saved_which
+
+
 print()
 if failed:
     print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")
