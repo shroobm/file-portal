@@ -484,7 +484,9 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         if not mw:
             continue
         measured += 1
-        lw = [w.lower() for w in word_re.findall(raw or "")]
+        # the layer breaks words at line ends ("amalga-\nmation"); Marker joins them — joined first, so a rejoined word is
+        # neither an invention nor a loss (C-31's first run read 1.16 % invented, most of it the layer's own hyphenation)
+        lw = [w.lower() for w in word_re.findall(re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", raw or ""))]
         ls, ms = set(lw), set(mw)
         invented = [w for w in mw if w not in ls]
         lost = [w for w in lw if w not in ms]

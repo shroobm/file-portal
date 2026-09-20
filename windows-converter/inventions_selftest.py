@@ -56,5 +56,9 @@ try:
     case("audit_convert takes `blocks` (default None → the key reads None, said in the block)", "blocks" in sig.parameters and sig.parameters["blocks"].default is None, str(sig))
 except Exception as e:  # noqa: BLE001
     case("audit_convert takes `blocks`", False, e)
+# 9 · the layer's line-end hyphenation is joined before counting: a rejoined word is neither invented nor lost
+r = fa.audit_inventions(["The amalga-\nmation of the two banks was approved by the regu-\nlator in the third quarter."],
+                        [block(0, "The amalgamation of the two banks was approved by the regulator in the third quarter.")])
+case("a word the layer broke at a line end (amalga-/mation) and Marker joined counts 0 invented / 0 lost", r["invented_total"] == 0 and r["lost_total"] == 0, r)
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)
