@@ -47,6 +47,10 @@ jobs:
           # and it carries no build-backend/packages config — one mirrored line is the smaller
           # diff and cannot fail a wheel build.
           pip install "pymupdf>=1.28,<2"
+          # S209 E8 (2026-09-20, correction 14): inventions_selftest imports fidelity_audit, whose module-level imports are
+          # pymupdf, rapidfuzz and the converter's own modules (text_norm, ladder_lever) — read from its import lines after
+          # run 35527733838 went red on `No module named 'rapidfuzz'`. Mirrored here at the desktop's major (3.14.5).
+          pip install "rapidfuzz>=3,<4"
       - name: Lint (linux-receiver)
         working-directory: linux-receiver
         run: |
@@ -130,7 +134,8 @@ jobs:
         run: python page_anchors_selftest.py
       # S209 E8 (2026-09-20, B35): inventions_selftest is pure (strings and dicts — no PDF, no pipeline): the audit's
       # report-only count of words Marker's blocks carry that the source's own layer does not (a re-OCR'd clean page
-      # invents; survival cannot see it). Imports fidelity_audit, whose module-level imports are stdlib + pymupdf.
+      # invents; survival cannot see it). Imports fidelity_audit, whose module-level imports are pymupdf, rapidfuzz and the
+      # converter's own text_norm / ladder_lever (the first push said "stdlib + pymupdf" unread — run #593 red; correction 14).
       - name: Selftest (windows-converter inventions)
         working-directory: windows-converter
         run: python inventions_selftest.py
