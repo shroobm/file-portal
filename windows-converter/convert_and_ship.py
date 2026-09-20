@@ -1185,6 +1185,15 @@ def _harvest_blocks(out_dir: Path, engine_stem: str, dest: Path) -> Path | None:
         return None
 
 
+def _marker_last_words(captured: list[str], keep: int = 3, width: int = 160) -> str:
+    """The last non-empty lines Marker printed, for a death certificate. S209 (2026-09-20): two stalls at the card's
+    ceiling (Ashby, Shannon & Weaver) left `watcher.log` a frozen-seconds count and a GPU signature but not one line of
+    what Marker itself last said — `captured` was dropped on the stall and timeout paths and kept only for a non-zero
+    exit. tqdm refreshes are one line each here (text mode), so the tail is the last stage line and whatever followed."""
+    tail = [ln.strip()[:width] for ln in captured[-40:] if ln.strip()]
+    return " || ".join(tail[-keep:]) if tail else "(nothing captured)"  # tqdm's bars carry ` | ` themselves
+
+
 def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[str],
                 pages: int, source_name: str, page_range: str | None = None,
                 progress_prefix: str = "", progress_context: dict | None = None
@@ -1280,7 +1289,8 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
             # timeout kill was visible only as intake/failed exit 1. Now it names itself.
             emit("convert", "timeout", source=source_name, elapsed_s=int(elapsed),
                  pages=pages, timeout_s=timeout_s, page_range=page_range, **sig)
-            raise _MarkerTimeoutError(f"marker timed out after {timeout_s}s ({pages} pages)",
+            raise _MarkerTimeoutError(f"marker timed out after {timeout_s}s ({pages} pages); "
+                                     f"marker's last words: {_marker_last_words(captured)}",
                                      elapsed_s=int(elapsed), pages=pages, timeout_s=timeout_s)
         frozen_s = liveness.age()
         if frozen_s > STALL_FROZEN_S:
@@ -1293,7 +1303,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
                  elapsed_s=int(elapsed), page_range=page_range, **sig)
             raise _MarkerStallError(
                 f"marker stalled: progress frozen {int(frozen_s)}s "
-                f"(kill-early policy, docs/18 §5.1)",
+                f"(kill-early policy, docs/18 §5.1); marker's last words: {_marker_last_words(captured)}",
                 frozen_s=int(frozen_s), elapsed_s=int(elapsed), source=source_name,
                 page_range=page_range, signature=sig)
     reader.join(timeout=5)
