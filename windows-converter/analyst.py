@@ -105,8 +105,10 @@ _call_bound: dict = {}  # process() -> _generate(): the bound for the NEXT local
 # S119 R2 — Historical; the pipeline does not re-read it). The grid program's calls pin 0.0 through _call_bound regardless.
 # lever-waiver: Rab's word on the values (J49: "temperature 0 + seed <fixed>" measured on the 40 hardest DDIA chunks —
 # 28/40 byte-identical, 7 of 12 paragraph deletions reproduced under both settings; the full greedy run is the measurement
-# the ticket still owes). Until his word the values stay None: the record names the conditions, the behaviour is unchanged.
-ANALYST_SAMPLER: dict = {"temperature": None, "seed": None}
+# the ticket still owes). Until his word the values stayed None: the record named the conditions, the behaviour was unchanged.
+# SIGNED — Rab, the Desk 58ba5591 (2026-09-20 16:18Z, "Signed." on the lane's three-line list; S209 E6): temperature 0, seed 7.
+# Every readability call from the next process on sends both; `sampler_record` writes them into the manifest's analyst block.
+ANALYST_SAMPLER: dict = {"temperature": 0.0, "seed": 7}
 SAMPLER_DEFAULT_NOTE = ("not sent: the model's Modelfile recipe applied (qwen3:8b, ollama 0.33.2, read at S119 R2: temperature 0.6, "
                         "top_p 0.95, top_k 20, repeat_penalty 1 — Historical, not re-read by the pipeline)")
 

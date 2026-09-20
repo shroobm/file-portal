@@ -37,6 +37,7 @@ import fp_paths
 # on purpose — marker_blocks defers every `marker` import into main(), so this costs nothing and
 # cannot make the converter unimportable when the engine is broken.
 import marker_blocks
+import page_anchors  # S209 E6: page anchors at ship, behind the anchors_at_ship lever
 from events import emit
 
 
@@ -335,6 +336,20 @@ SLICE_PAGES = 200
 # 16 the go-faster default, 32 "if I really want to"). Backend truth is this file, re-read per
 # slice so an edit mid-book takes effect at the next slice. Unchunked books keep RECOGNITION_BATCH.
 CHUNK_BATCH_FILE = fp_paths.root("chunk_batch")
+# S209 E6 (2026-09-20): ANCHORS AT SHIP — Rab signed the Desk proposal 7b1ef158 as (b): built into the line behind a lever,
+# OFF until he turns it. `anchors-at-ship.txt` under the pipeline root reads `on` to turn it on; absent or anything else is
+# off. Re-read per bundle. When on, the bundle's .md gets Obsidian ` ^p<N>` ids on each page's first paragraph from its own
+# blocks.json (page_anchors.anchor_markdown), AFTER both audit gates score, so no survival number moves; the manifest says
+# which way the lever read and how many pages took an anchor (docs/34: a gate that does something says how much).
+ANCHORS_AT_SHIP_FILE = fp_paths.root("anchors_at_ship")
+
+
+def anchors_at_ship() -> bool:
+    """The lever, read per bundle: True only when the file exists and reads `on` (case-insensitive, whitespace stripped)."""
+    try:
+        return ANCHORS_AT_SHIP_FILE.read_text(encoding="utf-8").strip().lower() == "on"
+    except OSError:
+        return False
 CHUNK_BATCH_ALLOWED = (8, 16, 32)
 CHUNK_BATCH_DEFAULT = 16
 # Completed slices live HERE, not in the run's temp dir, because resume must survive the process
@@ -1986,6 +2001,20 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
             1,
         )
         print(f"ANALYST done: {analyst_meta}", flush=True)
+    # S209 E6: page anchors at ship, behind the lever — after both gates have scored `body`, before the bundle is written
+    manifest["anchors"] = {"lever": "on" if anchors_at_ship() else "off"}
+    if manifest["anchors"]["lever"] == "on":
+        blocks_path = tmp_dir / BLOCKS_BUNDLE_FILE
+        if blocks_path.is_file():
+            try:
+                blocks_list = json.loads(blocks_path.read_text(encoding="utf-8")).get("blocks", [])
+                body, n_anchored, n_pages = page_anchors.anchor_markdown(body, blocks_list)
+                manifest["anchors"].update({"pages_anchored": n_anchored, "pages_total": n_pages})
+                print(f"ANCHORS: {n_anchored} of {n_pages} pages", flush=True)
+            except Exception as exc:  # noqa: BLE001 — an addition may not cost a book; the manifest says it did nothing
+                manifest["anchors"]["note"] = f"anchoring failed, the body shipped unanchored: {type(exc).__name__}: {str(exc)[:120]}"
+        else:
+            manifest["anchors"]["note"] = "no blocks.json in the bundle — nothing anchored"
     (tmp_dir / f"{bundle_name}.md").write_text(frontmatter + body, encoding="utf-8")
     (tmp_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     # The bundle STAYS in the ASCII .part-<sha16> dir locally: Windows bsdtar mangles

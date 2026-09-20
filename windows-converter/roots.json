@@ -109,6 +109,11 @@
       "env": "FP_PIPELINE",
       "role": "slice recognition-batch USER LEVER: 8 | 16 | 32 - re-read per slice"
     },
+    "anchors_at_ship": {
+      "path": "anchors-at-ship.txt",
+      "env": "FP_PIPELINE",
+      "role": "page anchors written at ship USER LEVER: on | off (absent = off) - re-read per bundle; Rab signed (b) 2026-09-20, off until he turns it"
+    },
     "chunk_work": {
       "path": ".chunk-work",
       "env": "FP_PIPELINE",

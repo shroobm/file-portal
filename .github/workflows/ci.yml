@@ -122,6 +122,12 @@ jobs:
       - name: Selftest (windows-converter figure_coverage)
         working-directory: windows-converter
         run: python figure_coverage_selftest.py
+      # S209 E6 (2026-09-20): page_anchors_selftest is pure (re + strings — no files, no pipeline, no GPU): the anchors
+      # the converter writes at ship behind the anchors_at_ship lever (Rab signed (b): built, off until he turns it).
+      # Desktop run 2026-09-20 (py3.12): "==== page_anchors selftest: 9/9 ====", exit 0.
+      - name: Selftest (windows-converter page_anchors)
+        working-directory: windows-converter
+        run: python page_anchors_selftest.py
       # S108 (lane B2), register A29's smallest slice: the governance acceptance suite runs
       # where a human will see it. stdlib+ast only — no installs. Desktop run 2026-08-23
       # (py3.12): "PASS — 41/41 checks", exit 0. Needs the deepened checkout above for its
