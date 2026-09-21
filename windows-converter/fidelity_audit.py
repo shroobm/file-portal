@@ -496,6 +496,22 @@ def latex_balance(markdown: str) -> dict:
 # Stage audits (docs/15 §4/§6/§7).
 # ---------------------------------------------------------------------------
 REPEAT_MIN = 20     # S209 E13 (SYM-143): copies of one invented word on a page before it reads as a REPEAT (CIFE p.32: 291)
+CLASS_SPECIMENS = 8  # S209 E14 (B40): specimens kept per class of invented word
+INVENTION_CLASSES = ("joined", "fragment", "dropped_letter", "garble")
+
+
+def _one_edit(a: str, b: str) -> bool:
+    """True when `a` is `b` with one letter dropped, added or changed (SYM-148: `feld` from `field`, `identifes` from
+    `identifies`). Lengths within one; one pass, no allocation."""
+    if a == b or abs(len(a) - len(b)) > 1:
+        return False
+    if len(a) == len(b):
+        return sum(1 for x, y in zip(a, b) if x != y) == 1
+    short, long_ = (a, b) if len(a) < len(b) else (b, a)
+    i = 0
+    while i < len(short) and short[i] == long_[i]:
+        i += 1
+    return short[i:] == long_[i + 1:]
 
 
 def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fidelity") -> dict:
@@ -532,6 +548,10 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     pages: dict[int, dict] = {}
     repeated: list[dict] = []           # S209 E13 (SYM-143): one invented word repeated REPEAT_MIN+ times on a page
     repeated_total = 0
+    # S209 E14 (B40): every invented word in one of four classes — the literals written out so the glass detector sees the keys
+    classes = {"joined": 0, "fragment": 0, "dropped_letter": 0, "garble": 0}
+    class_specimens = {"joined": [], "fragment": [], "dropped_letter": [], "garble": []}
+    assert tuple(classes) == INVENTION_CLASSES
     inv_total = words_total = lost_total = wit_total = measured = 0
     blank_pages = blank_marker_words = 0
     for pnum, raw in enumerate(pages_raw, start=1):
@@ -567,6 +587,25 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
                     break
                 repeated.append({"page": pnum, "word": w, "count": c})
                 repeated_total += c
+            # S209 E14 (B40 BUILT; the SEU's three ways, SHEG's fourth): each invented word is JOINED (two neighbouring layer
+            # words run together — `electronicsand`), a FRAGMENT (a piece of a lost word — `cred` of `credentials`), a
+            # DROPPED LETTER (one letter off a lost word — `feld` of `field`, SYM-148 at the extractor) or GARBLE (none of
+            # these — OCR noise, a picture's words). Counted per copy; specimens kept per class with their page and count.
+            lost_set = set(lost)
+            joined_pairs = {lw[i] + lw[i + 1] for i in range(len(lw) - 1)}
+            for w in sorted(set(invented)):
+                c = invented.count(w)
+                if w in joined_pairs:
+                    cls = "joined"
+                elif any(w != x and w in x for x in lost_set):
+                    cls = "fragment"
+                elif any(_one_edit(w, x) for x in lost_set):
+                    cls = "dropped_letter"
+                else:
+                    cls = "garble"
+                classes[cls] += c
+                if len(class_specimens[cls]) < CLASS_SPECIMENS:
+                    class_specimens[cls].append({"page": pnum, "word": w, "count": c})
     worst = sorted(pages.items(), key=lambda kv: -kv[1]["invented"] / max(1, kv[1]["marker"]))[:10]
     repeated.sort(key=lambda r: (-r["count"], r["page"]))
     return {
@@ -585,6 +624,8 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         "repeated": repeated[:10],                     # S209 E13 (SYM-143): one word written REPEAT_MIN+ times on a page
         "repeated_total": repeated_total,              # every copy of every such word — invented_total net of it is the rest
         "repeat_min": REPEAT_MIN,
+        "classes": classes,                            # S209 E14 (B40): joined / fragment / dropped_letter / garble, per copy
+        "class_specimens": class_specimens,            # up to CLASS_SPECIMENS per class: page, word, count
         "worst": [dict(page=p, **v) for p, v in worst],
     }
 

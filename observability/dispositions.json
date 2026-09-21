@@ -485,6 +485,30 @@
       "disposition": "EVIDENCE",
       "reason": "S209 E13 (2026-09-21; SYM-143 — CIFE p.32): the page-geometry measure's symbol pages, by their glyphs (cap 10), each with its rotation, Table, flagged bit and a sample of the glyphs — SYM-143's list beside `worst` (the rotated pages, SYM-142's); REPORT-ONLY, unseen by compute_verdict; empty on the scan lane, where the symbols are unread. Born of the measure's first live reading: one list sorted by glyphs ranked the whole rotated tables of pp. 96–100 (their + signs) above the shard pages and dropped p.32 past the cap; ASCII symbols are no longer counted."
     },
+    "converter:classes": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E14 (2026-09-21; B40 BUILT — the SEU's three ways and SHEG's fourth): the inventions audit's classes of invented word (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. Every invented word in one of four classes, counted per copy: joined / fragment / dropped_letter / garble — SHEG 0/8/60/186, CIFE 0/549/0/325 (the shards are fragments), NBC 1/7/0/16."
+    },
+    "converter:class_specimens": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E14 (2026-09-21; B40 BUILT — the SEU's three ways and SHEG's fourth): the inventions audit's classes of invented word (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. Up to eight specimens per class, each with its page, word and count — the reader's evidence beside the counts."
+    },
+    "converter:joined": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E14 (2026-09-21; B40 BUILT — the SEU's three ways and SHEG's fourth): the inventions audit's classes of invented word (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. Two neighbouring layer words run together in Marker's text (`electronicsand`, NBC p.13 `creditlosses`) — a space the converter dropped."
+    },
+    "converter:fragment": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E14 (2026-09-21; B40 BUILT — the SEU's three ways and SHEG's fourth): the inventions audit's classes of invented word (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. A piece of a lost word (`cred` of `credentials`; CIFE's two-letter shards) — a word the converter broke."
+    },
+    "converter:dropped_letter": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E14 (2026-09-21; B40 BUILT — the SEU's three ways and SHEG's fourth): the inventions audit's classes of invented word (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. One letter off a lost word on the same page (`feld` of `field`, `diferent` — SYM-148 at the extractor) — a real reader loss no fold repairs."
+    },
+    "converter:garble": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E14 (2026-09-21; B40 BUILT — the SEU's three ways and SHEG's fourth): the inventions audit's classes of invented word (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. None of the three — OCR noise, a picture's words (SHEG's cover p.1: 179 of its 186), a recogniser's invention."
+    },
     "converter:cell_agree_floor": {
       "disposition": "EVIDENCE",
       "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The floor on Marker's non-empty cells found in the witness's joined text (CELL_AGREE); below it the witness is none — a constant that declares itself beside the counts it gates."

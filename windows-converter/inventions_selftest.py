@@ -99,5 +99,19 @@ LIG = ("<p>The definition of a finite sequence with real coefficients follows fr
 r = fa.audit_inventions([WIT_LIG], [{"page": 0, "html": LIG}])
 case("ligature glyphs in the layer (ﬁ ﬃ ﬀ) against Marker's plain letters count 0 invented and 0 lost; the one real invention counts",
      r["invented_total"] == 1 and r["lost_total"] == 0 and r["worst"][0]["specimens"] == ["garble"], r)
+# 14 · S209 E14 (B40 BUILT): every invented word falls in one of four classes — JOINED (two neighbouring layer words run
+# together), FRAGMENT (a piece of a lost word), DROPPED LETTER (one letter off a lost word — SYM-148), GARBLE (none of these)
+WIT_CL = ("The electronics and the credentials of the field engineers were checked against the register of the province "
+          "before the works began on the northern section of the line in the spring")
+CL = ("<p>The electronicsand the cred of the feld engineers were checked against the register of the province "
+      "before the works began on the northern section of the line in the spring xqzv</p>")
+r = fa.audit_inventions([WIT_CL], [{"page": 0, "html": CL}])
+case("the four classes: `electronicsand` joined, `cred` a fragment of `credentials`, `feld` a dropped letter of `field`, `xqzv` garble — one each, with specimens",
+     r["classes"] == {"joined": 1, "fragment": 1, "dropped_letter": 1, "garble": 1} and r["invented_total"] == 4
+     and r["class_specimens"]["dropped_letter"] == [{"page": 1, "word": "feld", "count": 1}]
+     and r["class_specimens"]["joined"][0]["word"] == "electronicsand" and r["class_specimens"]["fragment"][0]["word"] == "cred", r)
+case("`_one_edit`: a dropped, an added and a changed letter are one edit; two edits and equal words are not",
+     fa._one_edit("feld", "field") and fa._one_edit("fieeld", "field") and fa._one_edit("fiend", "field")
+     and not fa._one_edit("fld", "field") and not fa._one_edit("field", "field"), "")
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)
