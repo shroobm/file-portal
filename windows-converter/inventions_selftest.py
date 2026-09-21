@@ -127,5 +127,16 @@ case("audit_numbers: p.1 reads extra 3 (1,040 twice over, 15,810 once) and missi
      and r["worst"][0]["page"] == 1 and r["worst"][0]["specimens"][0] == "1,040", r)
 r0 = fa.audit_numbers(["no figures on this page at all"], [{"page": 0, "html": "<p>none here either</p>"}])
 case("audit_numbers: a page without number tokens on either side reads 0 / 0 and no worst row", r0["extra_total"] == 0 and r0["missing_total"] == 0 and r0["worst"] == [], r0)
+# 18 · S210 E1 (B40's fifth shape, UofT's contents pages): a label glued to its page number across a dot leader —
+# `Acknowledgements ........ ix` → `acknowledgementsix` — is JOINED, though `ix` is no word and the adjacent-pair test is blind
+WIT_TOC = ("Table of Contents\nAbstract ................................ iii\nAcknowledgements ........................ ix\n"
+           "List of Figures ......................... vii\nChapter One Introduction ................ 1\nMethodology ............................. 42\n"
+           "The study examined the practices of the participants across the provinces of the country")
+TOC = ("<p>Table of Contents Abstractiii Acknowledgementsix List of Figuresvii Chapter One Introduction1 Methodology42 "
+       "The study examined the practices of the participants across the provinces of the country</p>")
+r = fa.audit_inventions([WIT_TOC], [{"page": 0, "html": TOC}])
+case("a contents page's labels glued to roman or arabic page numbers across dot leaders read as JOINED (acknowledgementsix, abstractiii, figuresvii), not garble",
+     r["classes"]["joined"] == 3 and r["classes"]["garble"] == 0 and r["classes"]["fragment"] == 0
+     and sorted(s["word"] for s in r["class_specimens"]["joined"]) == ["abstractiii", "acknowledgementsix", "figuresvii"], r)
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

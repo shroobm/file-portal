@@ -498,6 +498,9 @@ def latex_balance(markdown: str) -> dict:
 REPEAT_MIN = 20     # S209 E13 (SYM-143): copies of one invented word on a page before it reads as a REPEAT (CIFE p.32: 291)
 CLASS_SPECIMENS = 8  # S209 E14 (B40): specimens kept per class of invented word
 INVENTION_CLASSES = ("joined", "fragment", "dropped_letter", "garble")
+# S210 E1 (B40's fifth shape): a contents page's label, a dot leader, its page number (roman or arabic) — `Acknowledgements
+# ........ ix`; the pair glued is a JOINED word the adjacent-pair test cannot see (the number is no word)
+_LEADER = re.compile(r"([^\W\d_]{3,})\s*(?:\.\s*){2,}\s*([ivxlcdmIVXLCDM]{1,5}|\d{1,4})\b")
 
 
 def _one_edit(a: str, b: str) -> bool:
@@ -593,6 +596,10 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
             # these — OCR noise, a picture's words). Counted per copy; specimens kept per class with their page and count.
             lost_set = set(lost)
             joined_pairs = {lw[i] + lw[i + 1] for i in range(len(lw) - 1)}
+            # S210 E1 (B40's fifth shape, UofT's contents pages): a label and its page number glued across a dot leader —
+            # `Acknowledgements ........ ix` → `acknowledgementsix`; the number is a roman numeral under three letters or
+            # digits, so it never enters the word list and the adjacent-pair test above cannot see it. Read from the raw page.
+            joined_pairs |= {(a + b).lower() for a, b in _LEADER.findall(raw or "")}
             for w in sorted(set(invented)):
                 c = invented.count(w)
                 if w in joined_pairs:
