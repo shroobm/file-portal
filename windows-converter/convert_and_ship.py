@@ -2522,6 +2522,18 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
                  reason="pdf missing")
         sys.exit(f"REAUDIT refused: source PDF not found at {pdf_path} "
                  f"(drop/done/{manifest['source']!r}) — nothing changed")
+    # S209 E14 (SYM-150; the Codex lane's 102-question audit, MSG-CDX-0088): the source was resolved by NAME alone —
+    # drop/done/<manifest.source> — and never compared to manifest.source_sha256 before audit_convert witnessed it, while
+    # the Marker sidecar beside it IS hash-checked. A same-named re-drop (the day's NBC and CIBC were re-dropped; every
+    # re-ship rewrites drop/done) would have re-audited a bundle against a file it was never made from. The bytes are
+    # hashed here and a mismatch REFUSES, with its reason on the bus, exactly as a missing file does.
+    _pdf_sha = hashlib.sha256(pdf_path.read_bytes()).hexdigest()
+    if _pdf_sha != source_sha:
+        if not dry_run:
+            emit("audit", "reaudit_refused", bundle=bundle_name, sha=source_sha[:16],
+                 reason="source sha mismatch", found=_pdf_sha[:16])
+        sys.exit(f"REAUDIT refused: drop/done/{manifest['source']!r} has sha256 {_pdf_sha[:16]}…, the manifest's "
+                 f"source_sha256 is {source_sha[:16]}… — not the file this bundle was made from; nothing changed")
 
     raw = md_candidates[0].read_text(encoding="utf-8")
     # The SAME split apply_analyst uses (:1723-ish): head, body = raw.split("---\n", 2)[1:3].

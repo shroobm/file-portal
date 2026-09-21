@@ -1026,11 +1026,16 @@ def make_held_bundle(sha16, name="paper", *, source=None, lane="clean",
     held_dir.mkdir(parents=True)
     (held_dir / "assets").mkdir()
     (held_dir / "assets" / "img.png").write_bytes(b"PNG")
+    # S209 E14 (SYM-150): reaudit() now hashes drop/done/<source> against manifest.source_sha256 before it witnesses the
+    # file, so the fixture's manifest carries the REAL sha of the fake PDF it plants (the held dir keeps the caller's id —
+    # reaudit takes the bundle id as given; the slice cache lives under the sha's first sixteen, as the real writer's does).
+    fake_pdf = f"%PDF-1.4 fake {name}\n".encode("utf-8")
+    real_sha = hashlib.sha256(fake_pdf).hexdigest()
     (held_dir / f"{name}.md").write_text(
-        f"---\nsource_sha256: {sha16}\n---\n{held_body}\n", encoding="utf-8")
+        f"---\nsource_sha256: {real_sha}\n---\n{held_body}\n", encoding="utf-8")
     manifest = {
         "source": source,
-        "source_sha256": sha16,
+        "source_sha256": real_sha,
         "lane": lane,
         "fidelity": {
             "version": 1,
@@ -1057,7 +1062,7 @@ def make_held_bundle(sha16, name="paper", *, source=None, lane="clean",
     if with_sidecar:
         (held_dir / f"{name}{cas.MARKER_BODY_SUFFIX}").write_text(sidecar_text, encoding="utf-8")
     if with_slice_cache:
-        slice_dir = cas.CHUNK_WORK / sha16 / "slice-00000-00099"
+        slice_dir = cas.CHUNK_WORK / real_sha[:16] / "slice-00000-00099"
         slice_dir.mkdir(parents=True, exist_ok=True)
         (slice_dir / "slice.md").write_text(sidecar_text, encoding="utf-8")
     if with_bench_files:
@@ -1066,7 +1071,7 @@ def make_held_bundle(sha16, name="paper", *, source=None, lane="clean",
         (held_dir / "REPAIRS.md").write_text("# repairs\n", encoding="utf-8")
     done_dir = cas.fp_paths.root("drop_done")
     done_dir.mkdir(parents=True, exist_ok=True)
-    (done_dir / source).write_bytes(b"%PDF-1.4 fake\n")
+    (done_dir / source).write_bytes(fake_pdf)
     return held_dir, manifest
 
 
@@ -1369,10 +1374,12 @@ escaped_dir = QUARANTINE / "escaped-bundle"
 if escaped_dir.exists():
     shutil.rmtree(escaped_dir)
 escaped_dir.mkdir(parents=True)
+_esc_pdf = b"%PDF-1.4 fake escaped\n"            # S209 E14 (SYM-150): the manifest carries the planted file's REAL sha
+_esc_sha = hashlib.sha256(_esc_pdf).hexdigest()
 (escaped_dir / "escaped.md").write_text(
-    "---\nsource_sha256: shaescaped00000001\n---\nescaped body text\n", encoding="utf-8")
+    f"---\nsource_sha256: {_esc_sha}\n---\nescaped body text\n", encoding="utf-8")
 escaped_manifest = {
-    "source": "escaped.pdf", "source_sha256": "shaescaped00000001", "lane": "clean",
+    "source": "escaped.pdf", "source_sha256": _esc_sha, "lane": "clean",
     "fidelity": {"version": 1, "convert": {"doc_survival": 0.93, "pages_flagged": [],
                                             "runs_total": 1, "tripwires": {"degeneration": False},
                                             "kind": "fidelity", "runs": []},
@@ -1380,7 +1387,7 @@ escaped_manifest = {
 }
 (escaped_dir / "manifest.json").write_text(json.dumps(escaped_manifest, indent=2),
                                             encoding="utf-8")
-(cas.fp_paths.root("drop_done") / "escaped.pdf").write_bytes(b"%PDF-1.4 fake\n")
+(cas.fp_paths.root("drop_done") / "escaped.pdf").write_bytes(_esc_pdf)
 
 fakes_ncr1, rec_ncr1, ships_ncr1, raised_ncr1, _f_ncr1 = run_reaudit(
     nc_r1, "../escaped-bundle", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
@@ -1388,6 +1395,21 @@ check(len(fakes_ncr1.convert_calls) == 1,
       "NEGATIVE CONTROL (R1): with the guard removed, '../escaped-bundle' really reaches "
       "audit_convert on a bundle living OUTSIDE held/ — the traversal actually works against "
       "the unguarded code")
+
+# S209 E14 — SYM-150 (the Codex lane's 102-question audit, MSG-CDX-0088): reaudit() resolved the source by NAME alone and
+# never compared drop/done/<source> to manifest.source_sha256 before audit_convert witnessed it. A same-named re-drop of
+# different bytes must be REFUSED with its reason, before any witness is read; the same bundle with the right bytes passes.
+held150, manifest150 = make_held_bundle("sha150mismatch001", name="paper150")
+(cas.fp_paths.root("drop_done") / "paper150.pdf").write_bytes(b"%PDF-1.4 a DIFFERENT file under the same name\n")
+fakes150, rec150, ships150, raised150, _f150 = run_reaudit(
+    cas, "sha150mismatch001", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(len(fakes150.convert_calls) == 0 and raised150 is not None and "sha" in str(raised150).lower(),
+      "SYM-150: a drop/done file whose bytes are not the manifest's source_sha256 is REFUSED before audit_convert, the reason naming the sha")
+(cas.fp_paths.root("drop_done") / "paper150.pdf").write_bytes(b"%PDF-1.4 fake paper150\n")
+fakes150b, rec150b, ships150b, raised150b, _f150b = run_reaudit(
+    cas, "sha150mismatch001", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
+check(len(fakes150b.convert_calls) == 1 and raised150b is None,
+      "SYM-150 POSITIVE CONTROL: the same bundle with the file it was made from reaches audit_convert")
 fakes_fixed_r1, rec_fixed_r1, ships_fixed_r1, raised_fixed_r1, _f_fixed_r1 = run_reaudit(
     cas, "../escaped-bundle", convert_result=PASS_CONVERT, analyst_result=PASS_ANALYST)
 check(isinstance(raised_fixed_r1, SystemExit)

@@ -159,7 +159,7 @@ MECHANISM = {
         "an identity or authority check reads a proxy — a pid that belongs to a launcher, a local counter for a global "
         "namespace, a decision string's length for a human's ruling",
         "what evidence would an impostor lack that this check actually reads? if the answer is 'nothing', this family",
-        ["SYM-040", "SYM-045", "SYM-062", "SYM-081", "SYM-140"],
+        ["SYM-040", "SYM-045", "SYM-062", "SYM-081", "SYM-140", "SYM-150", "SYM-151"],  # 150/151 (S209 E14, Codex MSG-CDX-0088): reaudit trusted a filename for the source; the resume key trusted a program's name for its text and model — both FIXED with tripwires
     ),
     "S11 UNBOUNDED-OR-UNGUARDED-EFFECT": (
         "a destructive or blocking act has no guard: an rmtree over held state, an append that assumes a terminator, a "

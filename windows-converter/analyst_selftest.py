@@ -520,6 +520,25 @@ def _():
     assert scores[2]["s"] == 1.0 and scores[2]["r"] == 2.0, scores[2]
 
 
+@case("SYM-151 (S209 E14, Codex MSG-CDX-0088): the resume key binds the MODEL and the program's TEXT, not only its name")
+def _():
+    fenced, _ = analyst.fence("a chunk of text whose journal must never be resumed by another model or prompt")
+    key0 = analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM)
+    assert key0 == analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM), "the key is not stable"
+    real_model, real_load = analyst.MODEL, analyst.load_program
+    try:
+        analyst.MODEL = real_model + "-other"
+        key_model = analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM)
+        analyst.MODEL = real_model
+        analyst.load_program = lambda name: real_load(name) + "\n# an edited prompt, same name\n"
+        key_text = analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM)
+    finally:
+        analyst.MODEL, analyst.load_program = real_model, real_load
+    assert key_model != key0, "another model resumed the same journal"
+    assert key_text != key0, "an edited prompt under the same name resumed the same journal"
+    assert analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM) == key0, "the key did not return once restored"
+
+
 @case('J41 (b) resumed old-shape journal record -> a row with no s/r, x="fence"')
 def _():
     md = "a resumed short chunk of text about nothing in particular at all today"

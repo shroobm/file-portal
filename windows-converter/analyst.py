@@ -409,11 +409,20 @@ ANALYST_WORK = fp_paths.root("analyst_work")
 
 def _resume_key(fenced: str, backend: str, program: str) -> str:
     """Binds EVERYTHING that changes the output: the fenced source text, the backend, the prompt
-    program, and the chunk size. Anything different produces a different key, so a stale journal
-    can never be silently reused against text it was not written for."""
+    program — its NAME and, since S209 E14, the TEXT behind the name and the MODEL (the Codex
+    lane's 102-question audit, MSG-CDX-0088: a key bound to a name resumed a journal written by
+    another model or an edited prompt as if nothing had changed) — and the chunk size. Anything
+    different produces a different key, so a stale journal can never be silently reused against
+    text, a prompt or a model it was not written for."""
+    base = program.split("+", 1)[0]
+    try:
+        prog_sha = hashlib.sha256(load_program(base).encode("utf-8")).hexdigest()[:16]
+    except OSError:
+        prog_sha = "no-program-text"          # an unknown program fails the run itself; the key says so rather than hide it
+    model = GEMINI_MODEL if backend == "gemini" else MODEL
     h = hashlib.sha256()
     h.update(fenced.encode("utf-8"))
-    h.update(f"|{backend}|{program}|{CHUNK_TARGET}".encode("utf-8"))
+    h.update(f"|{backend}|{program}|{CHUNK_TARGET}|{model}|{prog_sha}".encode("utf-8"))
     return h.hexdigest()[:16]
 
 
