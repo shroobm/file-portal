@@ -175,12 +175,12 @@ MECHANISM = {
         "read the producer's own definition (its source or docs) of the flag or event before trusting the name",
         # SYM-084 (ThinkPad S123): Taildrop moves files only between devices of the same tailnet user; a tagged
         # node has no user — the platform's own definition, not its name
-        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109", "SYM-094", "SYM-112", "SYM-128", "SYM-137", "SYM-139"],  # 139 (S209): a bare `bash` spawned from the watcher's environment, which has none — the journal dump UNREAD on every run; 137 (S209): Windows drops a trailing space/dot when it CREATES a directory — a bundle name ending in one ships into a path that does not exist; 094 moved S15 → S12 (S124 cross-check: the root is find_tables' semantics); 128 (S144): `mv dir existing-dir` NESTS — the ship's "atomic rename" onto a held staging name
+        ["SYM-007", "SYM-008", "SYM-011", "SYM-012", "SYM-015", "SYM-051", "SYM-084", "SYM-086", "SYM-101", "SYM-105", "SYM-109", "SYM-094", "SYM-112", "SYM-128", "SYM-137", "SYM-139", "SYM-142"],  # 139 (S209): a bare `bash` spawned from the watcher's environment, which has none — the journal dump UNREAD on every run; 137 (S209): Windows drops a trailing space/dot when it CREATES a directory — a bundle name ending in one ships into a path that does not exist; 094 moved S15 → S12 (S124 cross-check: the root is find_tables' semantics); 128 (S144): `mv dir existing-dir` NESTS — the ship's "atomic rename" onto a held staging name; 142 (S209 E13): Marker ships two-letter shards on a Rotate-90 table page its own extractor reads whole
     ),
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",
         "diff the model's output against its input under the fence; count repeats and control tokens",
-        ["SYM-003", "SYM-074", "SYM-115", "SYM-129"],  # 115 (S131): a second leaked control token; 129 (S144): a chunk's generation runs to the client timeout — no num_predict bound
+        ["SYM-003", "SYM-074", "SYM-115", "SYM-129", "SYM-143"],  # 115 (S131): a second leaked control token; 129 (S144): a chunk's generation runs to the client timeout — no num_predict bound; 143 (S209 E13): the recogniser writes `second` 291 times for 48 check marks
     ),
     "S14 CONFOUNDED-COMPARISON": (
         "two arms run under a systematically different condition (heat, order), so the artefact scales with n like a "

@@ -27,3 +27,12 @@ verdict and proves nothing about now.
 | D0048 | 2026-09-17T01:35:31Z | pipeline | evidence | chunk journal - run b5c2b2c5ec228c1e | 2128 | `bae42466776887d25d222cedfa8655c59e6f6eb11e5313c44a474b7609be1fee` |
 | D0049 | 2026-09-17T01:37:01Z | pipeline | evidence | chunk journal - run c5226dc4e8e096ae | 106 | `1320fd4da654f2d91714e91cc28ff895f41762698ec379ba8a05dd8aee5f1278` |
 | D0050 | 2026-09-17T01:58:05Z | pipeline | evidence | chunk journal - run 90d6a69a39aadf0d | 3742 | `7c82246e89f933553e34a739a534f6d88ffab3da72be0b3ead1ba8200e625e1b` |
+| D0051 | 2026-09-20T23:05:31Z | pipeline | evidence | chunk journal - run 057a3553750f855d | 929029 | `c0efee3d224ca28932422be271439dd3d0642597fa281ba16e860a133e376c71` |
+| D0052 | 2026-09-20T23:31:04Z | pipeline | evidence | chunk journal - run 4eb760efee7e2280 | 322382 | `4e0d5888a152cbe952d5dbdfb154c6a429c17b88ffa2430226360a3c0e9eed7a` |
+| D0053 | 2026-09-21T00:46:48Z | pipeline | evidence | chunk journal - run 708b7f0059a3301a | 1549651 | `141adff9212a6d0779d234cbac4f74fcfa3ecb1b3d3649f61eb7a8a4288a9199` |
+| D0054 | 2026-09-21T02:03:01Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 384 run f3f3d0ea43e0ebd6 | 19102 | `0319e99db07565412f0f10bd8097fce21ac2a53a9b50f8b597fb1b9ed003589c` |
+| D0055 | 2026-09-21T02:07:32Z | pipeline | evidence | chunk journal - run f3f3d0ea43e0ebd6 | 1729633 | `50107ce6f9ebb369724a02b76209708cb3be8b6e8c54c2c6e8b6cecec416d4fb` |
+| D0056 | 2026-09-21T02:09:45Z | pipeline | evidence | chunk journal - run bd44a67eb0777cec | 25892 | `f86f9b476bbb767423ee639a51b4680c59a54f42b3dc6e76aa19cf877e0f7f77` |
+| D0057 | 2026-09-21T02:18:39Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 21 run 4463b708284154d5 | 19018 | `ad81bbe38fd869034cdd88fd15dbbc18e1ecacf63423549da461b7e1daeac516` |
+| D0058 | 2026-09-21T02:25:32Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 55 run 4463b708284154d5 | 18973 | `b269f0a760caf1d713831426f7b17de298f0da9f6c4d4a55012d28df4a1ed622` |
+| D0059 | 2026-09-21T02:30:38Z | pipeline | evidence | chunk journal - run 4463b708284154d5 | 356102 | `8a4a91013345f297c3248007fe263a67f4fc766aabdaaee096bb799e6c7dd3cd` |
