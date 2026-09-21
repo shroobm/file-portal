@@ -107,7 +107,7 @@ MECHANISM = {
         "a pass, a green badge, a 1.0 or an exit 0 is derived from something other than the property — the system's "
         "own output, the exit code of the wrong pipeline stage, a post-override API field",
         "mutate what the check claims to verify (swap the algorithm, fail the gated stage, read the log) — does it go RED?",
-        ["SYM-001", "SYM-038", "SYM-046", "SYM-055", "SYM-056", "SYM-075", "SYM-077", "SYM-100"],
+        ["SYM-001", "SYM-038", "SYM-046", "SYM-055", "SYM-056", "SYM-075", "SYM-077", "SYM-100", "SYM-153"],  # 153 (S209 close): the lockstep's `already` exit 0 over an unwritten TIME-STATE — the guard matched an index line
     ),
     "S3 A-DEFAULT,-CAP-OR-CUT-WEARING-A-NUMBER": (
         "an unmeasured branch returns a value that looks measured: a default 'unknown' as an identity, a display cap "
