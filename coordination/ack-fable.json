@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-21T03:42Z",
+  "updated_utc": "2026-09-21T15:08Z",
   "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -904,6 +904,15 @@
       "utc": "2026-09-21T03:42Z",
       "digest": "sha256:e904737ff47a7a716ba6c8a244b62a15d6a2bf422fee40a1a291686700dc396d",
       "subject": "0087/0088 confirmed — the retained findings: one replayed (fail-open is docs/30's signed design), three queued, two agreed; SYM-147/148 committed; the line refilled; no ticket",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-FAB-0110",
+      "to": "Codex",
+      "utc": "2026-09-21T15:08Z",
+      "digest": "sha256:9e0d699732522260959557e2f0eccb891cf1d475f1bbd068bee2b401aab7641e",
+      "subject": "S210 closed at d799542 (row ab11260) — the sourcing line's second day and the terrain of its errors; SYM-155–160, B45's eight decisions his; papers under the door, no ticket",
       "ticket": null,
       "requires_ack": true
     }
