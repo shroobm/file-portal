@@ -456,6 +456,26 @@ def test_select_reset_reinstates_the_original_over_a_sticky_newest():
         assert again["selected"] == "A-original", again
 
 
+def test_reset_prefers_the_shipped_copy_among_equal_originals():
+    """S211 E3: one conversion in BOTH roots (S209's held park kept a copy beside the shipped one — RBC Q3, CIFE,
+    TD Q3: identical converted_at and numbers). The incumbent among equals is the SHIPPED copy (root anchor), never
+    the parked one by the accident of its sha-name sorting first. NEGATIVE CONTROL: the plain (converted_at, dir)
+    order — the old key — puts the digit-named held copy first, asserted directly."""
+    with _isolated() as td:
+        sha = "sha-copies-0004"
+        held = _make_bundle(td, "held", "0123456789abcdef", sha=sha, verdict="fail", converted_at="2026-01-01T00:00:00+00:00")
+        anchor = _make_bundle(td, "anchor", "Some Bank _ Q3 Report", sha=sha, verdict="fail", converted_at="2026-01-01T00:00:00+00:00")
+        variants.register(held)
+        variants.register(anchor)
+        sh, sa = variants.summarize(held), variants.summarize(anchor)
+        assert sh["root"] == "held" and sa["root"] == "anchor", (sh["root"], sa["root"])
+        assert sorted([sh, sa], key=lambda v: (v["converted_at"], v["dir"]))[0]["dir"] == "0123456789abcdef"  # the old order
+        bucket = variants.select(sha, reset=True)
+        assert bucket["selected"] == "Some Bank _ Q3 Report", bucket
+        assert [t["dir"] for t in bucket["tied"]] == ["0123456789abcdef"], bucket["tied"]   # the identical copy ties, listed
+        assert bucket["refused"] == [], bucket["refused"]
+
+
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -475,6 +495,7 @@ TESTS = [
     test_honest_rest_compared_when_both_carry_it,
     test_honest_rest_absent_on_one_side_reads_unread_never_violation,
     test_select_reset_reinstates_the_original_over_a_sticky_newest,
+    test_reset_prefers_the_shipped_copy_among_equal_originals,
 ]
 
 

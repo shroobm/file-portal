@@ -353,7 +353,11 @@ def select(sha: str, reset: bool = False) -> dict:
         # S211 E3 (`reset`): the incumbent is the ORIGINAL — the earliest conversion — never a selection that was itself
         # made on converted_at under the rule Lane C retired (Bill C-288's ~160b: equal numbers, a worse page, chosen as
         # the newest; a sticky baseline would have kept it as "the incumbent"). One re-cut over the shelf, then sticky.
-        dated = sorted(variants.values(), key=lambda v: (v.get("converted_at") or "", v.get("dir") or ""))
+        # S211 E3: two copies of ONE conversion can stand in anchor/ and held/ (S209's park kept a copy beside the
+        # shipped one: RBC Q3, CIFE, TD Q3 — the same converted_at, the same numbers); the SHIPPED copy (root anchor)
+        # is the incumbent among equals, never the parked one by the accident of its name sorting first.
+        dated = sorted(variants.values(),
+                       key=lambda v: (v.get("converted_at") or "", 0 if v.get("root") == "anchor" else 1, v.get("dir") or ""))
         original_ts = bucket.get("original")
         matches = [v for v in dated if original_ts is not None and v.get("converted_at") == original_ts]
         baseline = matches[0] if matches else (dated[0] if dated else None)
