@@ -253,6 +253,17 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
     return (len(violations) == 0, violations, unread)
 
 
+def _refusal(entry: dict, violations: list[str], unread: list[str]) -> dict:
+    """One refused variant's record — a dict literal that LEAVES a function, so the glass census harvests its keys
+    (S211: built inline inside refused.append, `violations` read as a stale signature; the census sees literals a
+    function returns, never one hung on a call)."""
+    return {
+        "dir": entry.get("dir"),
+        "violations": violations,
+        "unread": unread,
+    }
+
+
 def select(sha: str) -> dict:
     """baseline = the current selected entry if any, else the variant whose converted_at equals
     the tracked "original" (falling back to the earliest-dated variant if "original" is absent
@@ -290,7 +301,7 @@ def select(sha: str) -> dict:
         if ok:
             candidates.append(v)
         else:
-            refused.append({"dir": v.get("dir"), "violations": violations, "unread": unread})
+            refused.append(_refusal(v, violations, unread))
 
     selected = max(candidates, key=rank)
     errors, none_fields = _error_sum(selected)
