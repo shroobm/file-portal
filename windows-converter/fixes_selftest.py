@@ -308,6 +308,14 @@ except ValueError as e:
     check("apply(): unknown fix name raises ValueError", "totally-invalid" in str(e))
 
 
+# S211 CORRECTIONS row 5: a get_chars fix keeps pdftext in-process — over ten pages pdftext spawns workers that import it
+# fresh and unpatched (Bill C-30 re-OCR'd its 2,066 lines under offpage-clip; C-288's five pages, in-process, kept every page)
+check("config_overrides(): offpage-clip → pdftext_workers 1", fixes.config_overrides(["offpage-clip"]) == {"pdftext_workers": 1})
+check("config_overrides(): charbox-lift → pdftext_workers 1", fixes.config_overrides(["charbox-lift"]) == {"pdftext_workers": 1})
+check("config_overrides(): NEGATIVE CONTROL — the overlap gate alone (a Marker class swap, in-process) overrides nothing",
+      fixes.config_overrides(["overlap-fraction-gate", "lane-share-rule"]) == {})
+check("config_overrides(): nothing applied → {}", fixes.config_overrides([]) == {})
+
 print("\n%d/%d ok" % (PASS, PASS + FAIL))
 if FAIL:
     print("FAILED: %s" % ", ".join(FAILED_NAMES))

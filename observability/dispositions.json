@@ -834,6 +834,10 @@
       "disposition": "EVIDENCE",
       "reason": "S211 (2026-09-21; S210 CORRECTIONS row 11): `ocr_dial` — S209 E8's dial {lines, bars, lines_per_page}: what Marker chose to OCR on this run (the totals of every Recognizing Text bar), under its OWN key at last. From 2026-09-20 to S211 the dial was bound to `ocr`, which the lane's boolean rebinds a few lines later, so the manifest's `ocr` carried False and every ledger row's ocr_lines read None. The ledger row and the estimator read this key; no verdict does. ocr_dial_selftest 8/8 (the row carries the number; a boolean-only manifest reads None)."
     },
+    "converter:pdftext_workers": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; CORRECTIONS row 5): `pdftext_workers` — Marker's OWN config key, returned by fixes.config_overrides and applied to the converter's config before it is built: 1 whenever a get_chars fix (offpage-clip, charbox-lift) is on, because pdftext reads a book over ten pages in spawned worker processes that import it fresh and unpatched (Bill C-30, 42 pp, re-OCR'd its 2,066 lines under the clip; C-288's five pages, in-process, kept every page). Not a manifest key: it is printed on the job's console ('fixes: config overrides …') and its effect is read in the manifest's blocks.extraction (pages kept) and fixes_stats (chars dropped / lifted)."
+    },
     "converter:applied": {
       "disposition": "EVIDENCE",
       "reason": "S211 (2026-09-21): fixes.apply's return — the record of what a job's lever installed: `applied` — the fix names actually installed in this process (a subset of the lever's names is never silent: an unknown name refuses the lever)."

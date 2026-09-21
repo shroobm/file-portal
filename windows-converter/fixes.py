@@ -351,6 +351,19 @@ def apply(names, log=print) -> dict:
     return {"applied": applied, "stats": dict(_STATE["stats"])}
 
 
+GET_CHARS_FIXES = ("charbox-lift", "offpage-clip")
+
+
+def config_overrides(applied) -> dict:
+    """Marker config overrides a set of applied fixes requires. S211 CORRECTIONS row 5: the get_chars wrapper is installed in
+    THIS process, and pdftext reads a book over WORKER_PAGE_THRESHOLD (10) pages in spawned workers that import pdftext fresh
+    and unpatched — so any get_chars fix keeps the provider in-process with pdftext_workers 1 (the proofs' own setting).
+    Nothing applied, or none of the get_chars fixes → {} (the stock worker count)."""
+    if any(n in GET_CHARS_FIXES for n in applied):
+        return {"pdftext_workers": 1}
+    return {}
+
+
 def stats() -> dict:
     """The wrapper chain's LIVE counters (chars_seen, chars_dropped, chars_lifted) — apply() returns a snapshot at
     install time (zeros); the record wants the count after the document was read. A copy, never the dict itself."""

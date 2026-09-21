@@ -408,6 +408,13 @@ def main(argv: list[str]) -> int:
         if "table-batch-ceiling" in fix_applied["applied"]:
             fix_overrides = fixes.batch_sizes(_card_free_mib())
             print("fixes: table-batch-ceiling overrides %s (free %s MiB)" % (fix_overrides, _card_free_mib()), flush=True)
+        # S211 CORRECTIONS row 5: a get_chars patch lives in THIS process; pdftext reads a book over ten pages in spawned
+        # worker processes (WORKER_PAGE_THRESHOLD) that import pdftext fresh and unpatched — Bill C-30 (42 pp) re-OCR'd
+        # its 2,066 lines under `offpage-clip` while C-288 (5 pp, in-process) kept every page. One worker keeps the
+        # provider in-process, as the proofs ran (pdftext_workers 1).
+        fix_overrides.update(fixes.config_overrides(fix_applied["applied"]))
+        if fixes.config_overrides(fix_applied["applied"]):
+            print("fixes: config overrides %s (a get_chars fix keeps pdftext in-process)" % fixes.config_overrides(fix_applied["applied"]), flush=True)
     cfg = config_parser.generate_config_dict()
     cfg.update(fix_overrides)
     converter_cls = config_parser.get_converter_cls()
