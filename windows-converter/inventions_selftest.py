@@ -152,6 +152,17 @@ case("audit_numbers: a page losing three figures enters worst on its missing sid
 r2 = fa.audit_numbers(["Only two lost 1,111 2,222 here"], [{"page": 0, "html": "<p>nothing</p>"}])
 case("audit_numbers: two missing figures stay under NUMBERS_MISSING_MIN — no worst row, pages_with_missing 0",
      r2["missing_total"] == 2 and r2["pages_with_missing"] == 0 and r2["worst"] == [], r2)
+# 22 · S210 E5 (McGill-2: the numbers' worst pages were figure pages Marker rightly OCR'd, their plotted digits read as extra figures):
+# each worst page says whether Marker OCR'd it, from the blocks record's extraction.pages_surya — None when no list was given
+r_ocr = fa.audit_numbers([LAY_ROWS, "A chart page 1,111 2,222", "A chart page 1,111 2,222 and a table 9,999"],
+                         [{"page": 0, "html": MK_ROWS}, {"page": 1, "html": "<p>1,111 1,111 2,222 2,222 1,111</p>"}, {"page": 2, "html": "<p>1,111 2,222 9,999 9,999 9,999 9,999</p>"}],
+                         None, [2])
+by_page = {w["page"]: w for w in r_ocr["worst"]}
+case("audit_numbers: a worst page in the OCR'd list reads ocr True, a worst page outside it False (the OCR'd chart's extra digits told from a layer page's)",
+     by_page[2]["ocr"] is True and by_page[3]["ocr"] is False and by_page[1]["ocr"] is False and by_page[2]["extra"] == 3 and by_page[3]["extra"] == 3, r_ocr["worst"])
+r_none = fa.audit_numbers([LAY_ROWS], [{"page": 0, "html": MK_ROWS}])
+case("audit_numbers: with no OCR'd-page list the worst page's ocr reads None (UNREAD), never False",
+     r_none["worst"] and r_none["worst"][0]["ocr"] is None, r_none["worst"])
 case("_row_label: the words before the first figure, at most six; empty when the line opens with a figure",
      fa._row_label("Secured funding 4,763 10,540") == "Secured funding" and fa._row_label("4,763 first") == ""
      and fa._row_label("a b c d e f g h 1,000") == "a b c d e f", None)

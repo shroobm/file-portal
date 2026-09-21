@@ -694,7 +694,7 @@ def _rows_by_band(pdf_path, pnum: int, missing) -> "Counter":
     return rows
 
 
-def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None) -> dict:
+def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_pages: list | None = None) -> dict:
     """S210 E1 (SYM-147's row-level loss; B36's next cut) — THE DUPLICATED-FIGURE TELL, report-only. NBC's Q3 report shipped
     with p.57's securities-loaned figures moved onto the row above: every number was still on the page, so survival saw no
     loss and the tables' shape measure (a geometry) could not either — but Marker carried `1,040` three times where the layer
@@ -758,15 +758,20 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None) -> di
         if ne or nm >= NUMBERS_MISSING_MIN:
             if ne:
                 out["pages_with_extra"] += 1
+            # S210 E5 (McGill-2: the numbers' ten worst pages were sixteen FIGURE pages Marker rightly OCR'd, their plotted digits read
+            # as extra figures): each worst page says whether Marker OCR'd it — from the blocks record's own extraction.pages_surya —
+            # so a chart's OCR'd digits are told from a table's duplicated row; None when the record carries no key
             worst.append({"page": pnum, "extra": ne, "missing": nm,
                           "specimens": [w for w, _ in extra.most_common(NUMBERS_SPECIMENS)],
-                          "missing_rows": [{"row": label, "figures": n} for label, n in rows.most_common(NUMBERS_ROWS)]})
+                          "missing_rows": [{"row": label, "figures": n} for label, n in rows.most_common(NUMBERS_ROWS)],
+                          "ocr": (pnum in set(int(p) for p in ocr_pages)) if ocr_pages is not None else None})
     worst.sort(key=lambda r: (-r["extra"], -r["missing"], r["page"]))
     del worst[NUMBERS_WORST_CAP:]
     return out
 
 
-def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = None, blocks: list | None = None) -> dict:
+def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = None, blocks: list | None = None,
+                  ocr_pages: list | None = None) -> dict:
     kind = "agreement" if lane == "scan" else "fidelity"
     witness_label = "embedded-ocr" if lane == "scan" else "pymupdf"
     pages_raw, embedded_images = extract_witness(pdf_path)
@@ -854,7 +859,7 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # S210 E1, REPORT-ONLY: THE DUPLICATED-FIGURE TELL — number tokens Marker's blocks carry more often than the layer on
         # the same page (NBC p.57: 1,040 three times over, a row's figures moved onto the row above — a loss survival and the
         # tables' geometry cannot see; SYM-147). Beside survival, unseen by compute_verdict; None = not measured (no blocks).
-        "numbers": audit_numbers(pages_raw, blocks, pdf_path) if blocks is not None else None,
+        "numbers": audit_numbers(pages_raw, blocks, pdf_path, ocr_pages) if blocks is not None else None,
     }
     return block
 
