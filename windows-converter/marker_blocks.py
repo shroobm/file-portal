@@ -203,12 +203,21 @@ def merge_block_records(records: list[dict]) -> dict:
     # keep a claim it cannot re-measure on the next real book (docs/34). Found by reading the
     # merged file on the J24 acceptance run, where it had silently become null.
     timing: dict | None = None
+    # S210 E2: the per-slice extraction counts survive the merge, summed, the re-OCR'd pages concatenated (each slice's are
+    # absolute page numbers already); a slice without the key (a pre-S210 cache) leaves `extraction` None — UNREAD, never 0.
+    extraction: dict | None = None
     for rec in records:
         blocks.extend(rec.get("blocks") or [])
         page_info.update(rec.get("page_info") or {})
         sources.extend(rec.get("sources") or [])
         unresolved += int(rec.get("page_unresolved") or 0)
         disagreements += int(rec.get("page_field_raw_disagreements") or 0)
+        ex = rec.get("extraction")
+        if isinstance(ex, dict):
+            extraction = extraction or {"pdftext": 0, "surya": 0, "unread": 0, "pages_surya": [], "pages_surya_capped_at": EXTRACTION_PAGES_CAP}
+            for k in ("pdftext", "surya", "unread"):
+                extraction[k] += int(ex.get(k) or 0)
+            extraction["pages_surya"] = (extraction["pages_surya"] + list(ex.get("pages_surya") or []))[:EXTRACTION_PAGES_CAP]
         t = rec.get("timing_s")
         if isinstance(t, dict):
             timing = timing or {"build_document": 0.0, "markdown_render": 0.0,
@@ -231,6 +240,7 @@ def merge_block_records(records: list[dict]) -> dict:
         "page_unresolved": unresolved,
         "page_field_raw_disagreements": disagreements,
         "page_field_note": note,
+        "extraction": extraction,
     }
 
 
@@ -281,6 +291,7 @@ def summarize(record: dict, path: Path | None = None) -> dict:
         "page_max": record.get("page_max"),
         "page_unresolved": record.get("page_unresolved"),
         "page_field_raw_disagreements": record.get("page_field_raw_disagreements"),
+        "extraction": record.get("extraction"),
         "slices_total": record.get("slices_total"),
         "slices_with_blocks": record.get("slices_with_blocks"),
         "complete": record.get("complete"),
@@ -302,6 +313,30 @@ def summarize(record: dict, path: Path | None = None) -> dict:
 
 
 # ---------- the marker_single drop-in ----------
+
+def extraction_of(document) -> dict:
+    """S210 E2 (the terrain, SYM-155): per page, WHICH extractor Marker kept — its own `text_extraction_method` (`pdftext` = the
+    provider's text layer trusted; `surya` = the page re-OCR'd because a page gate refused the layer). Marker knows it and the
+    bundle never carried it, so the RBC pattern (49–72 % of a document's pages re-OCR'd) could only be replayed, never read.
+    Counts by method, the re-OCR'd pages (1-based, capped), and `unread` for a page that names no method. A page's method is
+    read per page; nothing is inferred from the lane."""
+    pages_surya: list[int] = []
+    pdftext = surya = unread = 0
+    for i, page in enumerate(getattr(document, "pages", None) or []):
+        m = getattr(page, "text_extraction_method", None)
+        if m == "pdftext":
+            pdftext += 1
+        elif m == "surya":
+            surya += 1
+            pages_surya.append(i + 1)
+        else:
+            unread += 1
+    return {"pdftext": pdftext, "surya": surya, "unread": unread,
+            "pages_surya": pages_surya[:EXTRACTION_PAGES_CAP], "pages_surya_capped_at": EXTRACTION_PAGES_CAP}
+
+
+EXTRACTION_PAGES_CAP = 200
+
 
 def main(argv: list[str]) -> int:
     # Mirrors marker/scripts/convert_single.py's own preamble, which sets these BEFORE importing
@@ -395,6 +430,7 @@ def main(argv: list[str]) -> int:
                               "markdown_render": round(markdown_s, 3),
                               "chunk_render": round(chunk_s, 3),
                               "pages": pages_built}
+        record["extraction"] = extraction_of(document)      # S210 E2: which extractor each page kept (SYM-155's reading)
         dest = Path(out_folder) / (fname_base + BLOCKS_SUFFIX)
         dest.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
         print("J24 blocks written: {} ({} blocks, pages {}-{}, {} bytes, "

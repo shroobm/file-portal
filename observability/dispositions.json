@@ -45,7 +45,8 @@
         "windows-converter/analyst.py",
         "windows-converter/table_shape.py",
         "windows-converter/figure_text.py",
-        "windows-converter/page_geometry.py"
+        "windows-converter/page_geometry.py",
+        "windows-converter/marker_blocks.py"
       ],
       "renderers": [
         "prototypes/repair-bench/bench.py",
@@ -772,6 +773,30 @@
     "converter:blocks_engine": {
       "disposition": "EVIDENCE",
       "reason": "J24 (S114, 2026-09-01): names WHICH engine produced the block records that ride beside the bundle (marker_blocks.py sidecar over marker-pdf 1.10.2). It is provenance for the blocks.json file, the same class as converter:runs_capped_at - a record that declares its own producer. Written into .done as FORENSIC ONLY and deliberately excluded from _done_identity_mismatch (convert_and_ship.py, _convert_chunked ~1395): adding it would declare every pre-J24 cached slice stale and re-pay a 3,834 s convert to collect an ADDITION. No renderer reads it BY DESIGN - a human acts on blocks.json's contents (page + bbox), never on the engine name. Renamed from 'engine' at build time because that key already means the converter (marker) in the manifest. Signed by Fable 2026-09-02 at the same sitting the detector named it; steps 1-4 of docs/29 section 5.3 walked: no live home, no archival home beyond the manifest itself, and a human would not act on it."
+    },
+    "converter:extraction": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-155 — Marker discards the text layer of 49–72 % of RBC's pages and the bundle never said so): `blocks.extraction` (marker_blocks.extraction_of, per slice; summed by merge_block_records; copied whole into the manifest's blocks block by summarize) — REPORT-ONLY; None on a pre-S210 cached slice (UNREAD, never 0). The block: which extractor Marker kept per page, read from each page's own text_extraction_method."
+    },
+    "converter:pdftext": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-155 — Marker discards the text layer of 49–72 % of RBC's pages and the bundle never said so): `blocks.extraction` (marker_blocks.extraction_of, per slice; summed by merge_block_records; copied whole into the manifest's blocks block by summarize) — REPORT-ONLY; None on a pre-S210 cached slice (UNREAD, never 0). Pages whose provider (text-layer) lines Marker kept."
+    },
+    "converter:surya": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-155 — Marker discards the text layer of 49–72 % of RBC's pages and the bundle never said so): `blocks.extraction` (marker_blocks.extraction_of, per slice; summed by merge_block_records; copied whole into the manifest's blocks block by summarize) — REPORT-ONLY; None on a pre-S210 cached slice (UNREAD, never 0). Pages Marker re-OCR'd because a page gate refused the layer (no lines, the OCR-error model, layout coverage, or the line-overlap test) — the RBC pattern as a number the bundle carries."
+    },
+    "converter:unread": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-155 — Marker discards the text layer of 49–72 % of RBC's pages and the bundle never said so): `blocks.extraction` (marker_blocks.extraction_of, per slice; summed by merge_block_records; copied whole into the manifest's blocks block by summarize) — REPORT-ONLY; None on a pre-S210 cached slice (UNREAD, never 0). Pages whose method Marker did not name."
+    },
+    "converter:pages_surya": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-155 — Marker discards the text layer of 49–72 % of RBC's pages and the bundle never said so): `blocks.extraction` (marker_blocks.extraction_of, per slice; summed by merge_block_records; copied whole into the manifest's blocks block by summarize) — REPORT-ONLY; None on a pre-S210 cached slice (UNREAD, never 0). The re-OCR'd pages, 1-based, so a reader is pointed at them (capped)."
+    },
+    "converter:pages_surya_capped_at": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-155 — Marker discards the text layer of 49–72 % of RBC's pages and the bundle never said so): `blocks.extraction` (marker_blocks.extraction_of, per slice; summed by merge_block_records; copied whole into the manifest's blocks block by summarize) — REPORT-ONLY; None on a pre-S210 cached slice (UNREAD, never 0). The cap on that list (docs/34: a cut says how much it cut)."
     },
     "widget:program": {
       "disposition": "INTERNAL",

@@ -707,6 +707,34 @@ n_checks = len(__import__("re").findall(r"^\s*check\(", Path(__file__).read_text
 total = len(FAILURES)
 print(f"\n{'RED: ' + str(total) + ' tripwire(s) fired' if FAILURES else 'GREEN'} "
       f"({n_checks - total}/{n_checks})")
+print("B8 extraction (S210 E2, SYM-155's reading): merged counts summed, re-OCR'd pages concatenated, a pre-S210 slice reads None")
+_r1 = block_record([blk("/page/0/Text/0", "a", 0)], source="s1.blocks.json")
+_r1["extraction"] = {"pdftext": 3, "surya": 2, "unread": 0, "pages_surya": [2, 5], "pages_surya_capped_at": marker_blocks.EXTRACTION_PAGES_CAP}
+_r2 = block_record([blk("/page/9/Text/0", "b", 9)], source="s2.blocks.json")
+_r2["extraction"] = {"pdftext": 1, "surya": 4, "unread": 1, "pages_surya": [11, 12, 13, 14], "pages_surya_capped_at": marker_blocks.EXTRACTION_PAGES_CAP}
+_m = marker_blocks.merge_block_records([_r1, _r2])
+check(_m["extraction"]["pdftext"] == 4 and _m["extraction"]["surya"] == 6 and _m["extraction"]["unread"] == 1, "counts summed across slices (3+1 pdftext, 2+4 surya, 0+1 unread)")
+check(_m["extraction"]["pages_surya"] == [2, 5, 11, 12, 13, 14], "re-OCR'd pages concatenated in slice order, absolute numbers kept")
+check(marker_blocks.summarize(_m)["extraction"] == _m["extraction"], "summarize copies the block whole into the manifest's blocks block")
+_r3 = block_record([blk("/page/20/Text/0", "c", 20)], source="s3.blocks.json")   # a pre-S210 cached slice: no key at all
+_m2 = marker_blocks.merge_block_records([_r3])
+check(_m2["extraction"] is None, "a slice without the key leaves extraction None (UNREAD), never a zero")
+_m3 = marker_blocks.merge_block_records([_r1, _r3])
+check(_m3["extraction"]["pdftext"] == 3 and _m3["extraction"]["pages_surya"] == [2, 5], "a keyed slice beside an unkeyed one keeps the keyed counts")
+
+
+class _P:
+    def __init__(self, m):
+        self.text_extraction_method = m
+
+
+class _D:
+    pages = [_P("pdftext"), _P("surya"), _P(None), _P("surya")]
+
+
+_e = marker_blocks.extraction_of(_D())
+check(_e == {"pdftext": 1, "surya": 2, "unread": 1, "pages_surya": [2, 4], "pages_surya_capped_at": marker_blocks.EXTRACTION_PAGES_CAP}, "extraction_of reads each page's own method; the unnamed one is unread; pages 1-based")
+
 if FAILURES:
     print("Failed:")
     for f in FAILURES:
