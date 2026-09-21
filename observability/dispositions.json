@@ -538,6 +538,18 @@
       "disposition": "EVIDENCE",
       "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: up to six of the extra tokens, most-duplicated first — the evidence beside the count."
     },
+    "converter:pages_with_missing": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-154's next cut — Scotia Q3 p.51's second `Secured funding` row dropped whole from a rendered table): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict. Pages whose missing figures reach NUMBERS_MISSING_MIN (3) — the pages that enter `worst` on their missing side alone, so a page that lost a row is listed even when nothing was duplicated."
+    },
+    "converter:missing_rows": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-154's next cut — Scotia Q3 p.51's second `Secured funding` row dropped whole from a rendered table): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict. On each worst page: the layer's ROWS that lost figures — the label on the figure's own band (the page's geometry, pymupdf words) or, without the page, the words before the first figure on the layer's line — most figures lost first, at most NUMBERS_ROWS (4): the reader is pointed at the row, not only the page."
+    },
+    "converter:row": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E2 (2026-09-21; SYM-154's next cut — Scotia Q3 p.51's second `Secured funding` row dropped whole from a rendered table): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict. A lost row's label (`Secured funding`; `Cash and cash equivalents at end`)."
+    },
     "converter:missing_years": {
       "disposition": "EVIDENCE",
       "reason": "S210 E1 (2026-09-21): the numbers measure's year split — a bare four-digit year (1900–2099) the blocks lack is a running head Marker drops (Scotia's 212 missing were mostly its head's 2026), counted here apart from missing_total so a missing FIGURE reads as one; REPORT-ONLY, unseen by compute_verdict."

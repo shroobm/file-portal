@@ -138,5 +138,22 @@ r = fa.audit_inventions([WIT_TOC], [{"page": 0, "html": TOC}])
 case("a contents page's labels glued to roman or arabic page numbers across dot leaders read as JOINED (acknowledgementsix, abstractiii, figuresvii), not garble",
      r["classes"]["joined"] == 3 and r["classes"]["garble"] == 0 and r["classes"]["fragment"] == 0
      and sorted(s["word"] for s in r["class_specimens"]["joined"]) == ["abstractiii", "acknowledgementsix", "figuresvii"], r)
+# 19 · S210 E2 (SYM-154's next cut — Scotia Q3 p.51, the second `Secured funding` row dropped whole from a rendered table): a page
+# whose missing figures reach NUMBERS_MISSING_MIN enters `worst` on its missing side alone, and the layer's rows that lost them are
+# NAMED — the label before the first figure on each line, most figures lost first; a page under the floor stays out
+LAY_ROWS = ("T34 Wholesale funding\nSecured funding 4,763 10,540 8,310\nUnsecured funding 1,200 2,300\nTotal 5,963 12,840 8,310")
+MK_ROWS = "<table><tr><td>Unsecured funding</td><td>1,200</td><td>2,300</td></tr><tr><td>Total</td><td>5,963</td><td>12,840</td><td>8,310</td></tr></table>"
+r = fa.audit_numbers([LAY_ROWS, "Another page 7,777 and 8,888"], [{"page": 0, "html": MK_ROWS}, {"page": 1, "html": "<p>7,777 and 8,888</p>"}])
+case("audit_numbers: a page losing three figures enters worst on its missing side alone (extra 0), names the row `Secured funding` with "
+     "3 figures, and counts pages_with_missing 1; the page with nothing lost stays out",
+     r["extra_total"] == 0 and r["missing_total"] == 3 and r["pages_with_missing"] == 1 and r["pages_with_extra"] == 0
+     and len(r["worst"]) == 1 and r["worst"][0]["page"] == 1 and r["worst"][0]["missing"] == 3
+     and r["worst"][0]["missing_rows"] == [{"row": "Secured funding", "figures": 3}], r)
+r2 = fa.audit_numbers(["Only two lost 1,111 2,222 here"], [{"page": 0, "html": "<p>nothing</p>"}])
+case("audit_numbers: two missing figures stay under NUMBERS_MISSING_MIN — no worst row, pages_with_missing 0",
+     r2["missing_total"] == 2 and r2["pages_with_missing"] == 0 and r2["worst"] == [], r2)
+case("_row_label: the words before the first figure, at most six; empty when the line opens with a figure",
+     fa._row_label("Secured funding 4,763 10,540") == "Secured funding" and fa._row_label("4,763 first") == ""
+     and fa._row_label("a b c d e f g h 1,000") == "a b c d e f", None)
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

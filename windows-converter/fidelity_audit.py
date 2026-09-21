@@ -640,6 +640,21 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
 _NUM_TOKEN = re.compile(r"(?<![\d,])\d{1,3}(?:,\d{3})+(?![\d,])|(?<![\d,.])\d{4,}(?![\d,])")   # grouped thousands, or 4+ digits
 NUMBERS_WORST_CAP = 10
 NUMBERS_SPECIMENS = 6
+NUMBERS_MISSING_MIN = 3   # S210 E2 (SYM-154's next cut): missing figures on a page before the page enters `worst` on its missing side alone
+NUMBERS_ROWS = 4          # S210 E2: the layer's rows named per worst page (the row label before the first figure), most figures lost first
+
+
+def _row_label(line: str) -> str:
+    """S210 E2 (SYM-154's next cut): the label of a layer line that carries figures — the words before its first number-shaped
+    token (`Secured funding 4,763 10,540 …` → `Secured funding`), at most six words; empty when the line opens with a number."""
+    words: list[str] = []
+    for tok in (line or "").split():
+        if _NUM_TOKEN.fullmatch(tok.strip("()$,;:.")) or re.fullmatch(r"[\d,.()$%–-]+", tok):
+            break
+        words.append(tok)
+        if len(words) >= 6:
+            break
+    return " ".join(words)
 
 
 def _is_year(tok: str) -> bool:
@@ -647,7 +662,39 @@ def _is_year(tok: str) -> bool:
     return len(tok) == 4 and tok.isdigit() and 1900 <= int(tok) <= 2099
 
 
-def audit_numbers(pages_raw: list[str], blocks: list[dict]) -> dict:
+def _rows_by_band(pdf_path, pnum: int, missing) -> "Counter":
+    """S210 E2 (SYM-154's next cut, the geometry the layer's text order hides): the layer's words with their boxes (pymupdf), and
+    for each missing figure the row it sits on — the words on the figure's own horizontal band, left of the first number-shaped
+    token, at most six (`Secured funding`). The plain text of the witness puts a table's labels and figures on separate lines, so
+    the band is read from the page itself; a page that cannot be opened names no row (an empty Counter, never a guess)."""
+    from collections import Counter
+    rows: Counter = Counter()
+    try:
+        doc = pymupdf.open(pdf_path)
+        words = doc[pnum - 1].get_text("words")
+    except Exception:  # noqa: BLE001 — a witness that cannot be read names nothing
+        return rows
+    left = Counter(missing)
+    for w in words:
+        tok = w[4].strip("()$,;:.")
+        if not left.get(tok):
+            continue
+        left[tok] -= 1
+        y0, y1 = w[1], w[3]
+        yc = (y0 + y1) / 2
+        band = sorted((v for v in words if abs((v[1] + v[3]) / 2 - yc) <= max(1.0, (y1 - y0) * 0.6)), key=lambda v: v[0])
+        label: list[str] = []
+        for v in band:
+            if _NUM_TOKEN.fullmatch(v[4].strip("()$,;:.")) or re.fullmatch(r"[\d,.()$%–-]+", v[4]):
+                break
+            label.append(v[4])
+            if len(label) >= 6:
+                break
+        rows[" ".join(label) or "(a row without a label)"] += 1
+    return rows
+
+
+def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None) -> dict:
     """S210 E1 (SYM-147's row-level loss; B36's next cut) — THE DUPLICATED-FIGURE TELL, report-only. NBC's Q3 report shipped
     with p.57's securities-loaned figures moved onto the row above: every number was still on the page, so survival saw no
     loss and the tables' shape measure (a geometry) could not either — but Marker carried `1,040` three times where the layer
@@ -667,14 +714,17 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict]) -> dict:
     out = {"meaning": "number tokens Marker's blocks carry MORE often than the source's layer on the same page (moved, duplicated "
                       "or OCR'd figures — the loss survival and the tables' geometry cannot see) and the layer's the blocks lack; "
                       "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops)",
-           "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "pages_with_extra": 0, "worst": worst}
+           "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "pages_with_extra": 0,
+           "pages_with_missing": 0, "worst": worst}
     from collections import Counter
     for pnum, raw in enumerate(pages_raw, start=1):
-        mk = by_page.get(pnum)
-        if not mk:
+        mk = by_page.get(pnum) or []
+        lay = Counter(_NUM_TOKEN.findall(raw or ""))
+        # S210 E2: a page whose blocks carry NO number at all is measured when the layer carries some — the measure's first form
+        # skipped it (`if not mk: continue`), so a page that lost every figure was the one page it could not see (selftest case 20)
+        if not mk and not lay:
             continue
         out["pages_measured"] += 1
-        lay = Counter(_NUM_TOKEN.findall(raw or ""))
         m = Counter(mk)
         extra = m - lay
         missing = lay - m
@@ -686,11 +736,32 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict]) -> dict:
         out["extra_total"] += ne
         out["missing_total"] += nm
         out["missing_years"] += sum(years.values())
-        if ne:
-            out["pages_with_extra"] += 1
+        # S210 E2 (SYM-154's next cut — Scotia Q3 p.51: fourteen figures absent from a rendered table, the second `Secured funding`
+        # row dropped whole): the missing figures' ROWS, named from the layer's own lines — the label before the first figure on
+        # each line that carries a missing token, most figures lost first — so a reader is pointed at the row, not only the page
+        rows: Counter = Counter()
+        if nm >= NUMBERS_MISSING_MIN and pdf_path is not None:
+            rows = _rows_by_band(pdf_path, pnum, missing)       # the page's own geometry: the label on the figure's band
+        if nm and not rows:                                     # no path, or a page that could not be opened: the layer's lines
+            left = Counter(missing)
+            for line in (raw or "").splitlines():
+                toks = [t for t in _NUM_TOKEN.findall(line) if left.get(t)]
+                if not toks:
+                    continue
+                label = _row_label(line) or "(a line opening with a figure)"
+                for t in toks:
+                    if left[t] > 0:
+                        left[t] -= 1
+                        rows[label] += 1
+        if nm >= NUMBERS_MISSING_MIN:
+            out["pages_with_missing"] += 1
+        if ne or nm >= NUMBERS_MISSING_MIN:
+            if ne:
+                out["pages_with_extra"] += 1
             worst.append({"page": pnum, "extra": ne, "missing": nm,
-                          "specimens": [w for w, _ in extra.most_common(NUMBERS_SPECIMENS)]})
-    worst.sort(key=lambda r: (-r["extra"], r["page"]))
+                          "specimens": [w for w, _ in extra.most_common(NUMBERS_SPECIMENS)],
+                          "missing_rows": [{"row": label, "figures": n} for label, n in rows.most_common(NUMBERS_ROWS)]})
+    worst.sort(key=lambda r: (-r["extra"], -r["missing"], r["page"]))
     del worst[NUMBERS_WORST_CAP:]
     return out
 
@@ -783,7 +854,7 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # S210 E1, REPORT-ONLY: THE DUPLICATED-FIGURE TELL — number tokens Marker's blocks carry more often than the layer on
         # the same page (NBC p.57: 1,040 three times over, a row's figures moved onto the row above — a loss survival and the
         # tables' geometry cannot see; SYM-147). Beside survival, unseen by compute_verdict; None = not measured (no blocks).
-        "numbers": audit_numbers(pages_raw, blocks) if blocks is not None else None,
+        "numbers": audit_numbers(pages_raw, blocks, pdf_path) if blocks is not None else None,
     }
     return block
 
