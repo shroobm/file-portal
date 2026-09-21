@@ -188,12 +188,12 @@ MECHANISM = {
         "swap the arm order or interleave; does the effect survive?",
         ["SYM-035"],
     ),
-    "S15 THE-INSTRUMENT-MANUFACTURES-THE-FINDING": (
+    "S15 THE-INSTRUMENT-MANUFACTURES-THE-FINDING": (  # SYM-141 (S209 E13): the ladder's orphan backslash — added below
         "the audit, census or ladder has its own preprocessing bug or unstated input-shape assumption and creates false "
         "loss or coverage indistinguishable from real defects until traced to the check itself",
         "re-derive the figure through a second, independently built extractor/parser — does the number move while the "
         "artefact does not?",
-        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document
+        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138", "SYM-141"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document; 141: the ladder's orphan backslash (an escaped asterisk) reads as a lost word
     ),
     "S16 GUARD-COARSER-THAN-THE-DEFECT": (
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "

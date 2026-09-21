@@ -410,6 +410,24 @@ def _():
     assert clean["runs_reorder"] == 0 and clean["words_reorder"] == 0 and clean["runs"] == [], clean
 
 
+@case("(w) S209 E13 (Desjardins): a run whose only missing tokens are the ladder's lone backslashes (a list re-rendered) reads REORDER — the bag counts words")
+def _():
+    pre, post = words(24, "pre"), words(24, "post")
+    # Marker escapes a literal asterisk inside a bullet (`- \* Lesser effect …`, Desjardins p.35); the ladder's unescape set
+    # does not cover `\*`, punct_free deletes the asterisk and keeps the orphaned backslash as a token, and the analyst's
+    # whitelisted escape edit removes the `\*` — the token vanishes from the output and every window around it fails
+    items = ["Maryse Lapierre director whose tenure began on March 22 2025", "Rene Saint Pierre president elected for four years",
+             "Denis Latulippe non caisses network member renewed by the board"]
+    ref = pre + "\nThe change was due to the following:\n" + "\n".join("          - \\* " + it for it in items) + "\n" + post
+    out = pre + "\nThe change was due to the following:  \n" + "\n".join("- " + it for it in items) + "\n" + post
+    b = fa.audit_analyst(ref, out)
+    lone = [w for w in fa.punct_free(fa.unescape(fa.prepare_for(ref, "j32a-v2"))).split() if w == "\\"]
+    assert lone, "the fixture must carry the ladder's lone backslash tokens (a list after a colon)"
+    for r in b["runs"]:
+        assert r["reorder"] is True, b
+    assert b["runs_reorder"] == b["runs_total"], b
+
+
 print()
 if failed:
     print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")

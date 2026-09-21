@@ -87,6 +87,7 @@ ANALYST_RUN_WORDS = 25
 # counts it, the verdict still counts the run — the gate is signed (docs/15 §12) and the rescue waits for his word.
 REORDER_SPAN = 4           # the span searched, in multiples of the run's own length (chars) each side of its rarest word
 REORDER_ANCHOR_CAP = 50    # occurrences of the rarest word probed
+_WORD_CHAR = re.compile(r"\w")  # a bag token must carry a word character (the ladder's lone backslash is structure)
 WITNESS_COVERAGE_FLOOR = 0.50  # lever-waiver: Rab's word 2026-09-13 (Desk bf4d5d05, S144 E2); a verdict floor is a rule (docs/15 §12.3), not a lever   # S144: pages_scored / pages_total under this -> the convert gate reads flag, never pass
 
 
@@ -178,6 +179,11 @@ def _reorder(run_text: str, out: str, idx: dict, freq: dict) -> bool:
     there in another order (a merged stacked header, moved cells). A word the output lacks anywhere is an omission: False."""
     need: dict[str, int] = {}
     for w in run_text.split():
+        # S209 E13 (Desjardins, HELD on three runs): the ladder leaves a lone backslash token where a list breaks after a
+        # colon (15 in Marker's text, 6 in the analyst's — a whitelisted markup edit re-renders the list); a token with no
+        # word character is structure, not a word, and the bag counts words
+        if not _WORD_CHAR.search(w):
+            continue
         need[w] = need.get(w, 0) + 1
     if not need or any(freq.get(w, 0) < n for w, n in need.items()):
         return False

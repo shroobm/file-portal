@@ -142,7 +142,7 @@ jobs:
       # S209 E10 (2026-09-20): the analyst-stage audit's tripwires (the J32-A ladder cases and SYM-138's reorder rung —
       # a stacked table header merged into one row reads as a reorder, report-only). Hermetic: a tempdir root, no
       # pipeline, no GPU; imports fidelity_audit (pymupdf, rapidfuzz — both installed above). Desktop run 2026-09-20
-      # (py3.12): "ALL TRIPWIRES FIRED — 21/21", exit 0.
+      # (py3.12): "ALL TRIPWIRES FIRED — 22/22", exit 0 (S209 E13 added case w: the ladder's orphan backslash, SYM-141).
       - name: Selftest (windows-converter analyst_audit)
         working-directory: windows-converter
         run: python analyst_audit_selftest.py
