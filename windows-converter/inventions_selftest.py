@@ -80,5 +80,15 @@ WIT_EQ = "The closed loop response of the drive follows from the plant model and
 r = fa.audit_inventions([WIT_EQ], [{"page": 0, "html": EQ}])
 case("an equation inside <math> counts 0 invented and 0 lost; its six commands are latex_commands",
      r["invented_total"] == 0 and r["lost_total"] == 0 and r["latex_commands"] == 6 and r["pages_measured"] == 1, r)
+# 12 · S209 E13 (SYM-143, Stanford CIFE p.32): one invented word written many times where the layer draws check marks — a
+# recogniser's one word for a glyph — reads as its OWN class (`repeated`: the word, its count, its page) beside invented_total,
+# which still counts every copy; a word under REPEAT_MIN copies is an ordinary invention and no repeat
+WIT_CK = "Type of Project Delivery Method Project Size Case Projects Regional Office Building Washington Jackson Courthouse Mississippi Samsung Fab Facility Korea Camino Medical Campus Mountain View"
+CK = ("<table><tr><td>Type of Project Delivery Method Project Size</td></tr><tr><td>Regional Office Building Washington</td>"
+      "<td>" + " ".join(["second"] * 60) + "</td></tr><tr><td>Jackson Courthouse Mississippi</td><td>garble " + " ".join(["mark"] * 5) + "</td></tr></table>")
+r = fa.audit_inventions([WIT_CK], [{"page": 0, "html": CK}])
+case("`second` × 60 on one page reads as one repeat (word, count 60, page 1) with repeated_total 60; the 6 other inventions are no repeat; invented_total counts every copy",
+     r["repeated"] == [{"page": 1, "word": "second", "count": 60}] and r["repeated_total"] == 60 and r["invented_total"] == 66
+     and r["repeat_min"] == fa.REPEAT_MIN and r["worst"][0]["specimens"][0] == "second", r)
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

@@ -44,7 +44,8 @@
         "windows-converter/fidelity_audit.py",
         "windows-converter/analyst.py",
         "windows-converter/table_shape.py",
-        "windows-converter/figure_text.py"
+        "windows-converter/figure_text.py",
+        "windows-converter/page_geometry.py"
       ],
       "renderers": [
         "prototypes/repair-bench/bench.py",
@@ -403,6 +404,82 @@
     "converter:sample": {
       "disposition": "EVIDENCE",
       "reason": "S209 E13 (2026-09-20; B41, the frontier's item 9 — chart text as text): the measure `fidelity.convert.figures` (figure_text.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: up to eight of the layer's words inside its figures, in reading order — what the reader never gets, shown."
+    },
+    "converter:page_geometry": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. The block: the source's page rotation and its symbol glyphs per page — where Marker's shards on a rotated table page and a recogniser's one word repeated for a glyph are born, named in the manifest before a page is opened. (Not `geometry`: that key is S150's analyst table-geometry layer.)"
+    },
+    "converter:pages_rotated": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. Pages whose /Rotate is not 0 (a landscape table stored in a portrait file) — CIFE 16 of 113, eight of them shipped as two-letter shards."
+    },
+    "converter:rotated_pages": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. Their 1-based page numbers, listed up to rotated_pages_capped_at; the count is always whole."
+    },
+    "converter:rotated_pages_capped_at": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. The list's cap (50), said beside the list so a cut reads as a cut (docs/34)."
+    },
+    "converter:rotated_with_tables": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. Rotated pages on which Marker drew a Table or TableGroup block — the shape SYM-142 was born in."
+    },
+    "converter:rotated_flagged": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. Rotated pages survival flagged — the crossing of the two lists (CIFE 12 of 16)."
+    },
+    "converter:symbol_pages": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. Pages whose layer carries symbol_min or more symbol glyphs (unicode Sm / So: check marks, radicals, arrows) — the glyphs a recogniser has no word for; unread on the scan lane."
+    },
+    "converter:symbol_glyphs_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. The layer's symbol glyphs over the document; unread (None) on the scan lane, whose layer is the OCR's."
+    },
+    "converter:symbol_min": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. The line (10 glyphs) above which a page counts as a symbol page, said beside the count."
+    },
+    "converter:symbols_reason": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. Why the symbol counts read None on the scan lane — the reason beside the UNREAD, never a zero."
+    },
+    "converter:pages_unread": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. Pages the library could not read for their rotation or text — UNREAD, never a negative."
+    },
+    "converter:rotation": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. On each worst page: its /Rotate in degrees."
+    },
+    "converter:flagged": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. On each worst page: 1 when survival flagged the page, 0 when not — the page's two readings side by side."
+    },
+    "converter:symbol_glyphs": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; B40, SYM-142 / SYM-143 — Stanford CIFE): the measure `fidelity.convert.page_geometry` (page_geometry.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks) or a source that could not be opened. On each worst page: the layer's symbol glyphs there (None on the scan lane)."
+    },
+    "converter:repeated": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; SYM-143 — CIFE p.32, `second` × 291 for 48 check marks): the inventions audit's REPEAT class (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. One invented word written repeat_min or more times on a page — its word, count and page — its own class beside invented_total, which still counts every copy."
+    },
+    "converter:repeated_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; SYM-143 — CIFE p.32, `second` × 291 for 48 check marks): the inventions audit's REPEAT class (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. Every copy of every repeated word, summed — invented_total net of it is the rest of the inventions."
+    },
+    "converter:repeat_min": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; SYM-143 — CIFE p.32, `second` × 291 for 48 check marks): the inventions audit's REPEAT class (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. The line (20 copies) above which a word reads as a repeat, said beside the count."
+    },
+    "converter:word": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; SYM-143 — CIFE p.32, `second` × 291 for 48 check marks): the inventions audit's REPEAT class (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. The repeated word itself — the specimen beside its count."
+    },
+    "converter:count": {
+      "disposition": "EVIDENCE",
+      "reason": "S209 E13 (2026-09-21; SYM-143 — CIFE p.32, `second` × 291 for 48 check marks): the inventions audit's REPEAT class (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. How many times the word was written on that page."
     },
     "converter:cell_agree_floor": {
       "disposition": "EVIDENCE",

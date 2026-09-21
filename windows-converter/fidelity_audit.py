@@ -47,6 +47,7 @@ from text_norm import (  # noqa: F401 -- re-exported, not merely used below
 import ladder_lever  # J44 (S182): the lever's one reader (roots.json `ladder` -> ladder.txt)
 import table_shape  # S209 E11: the source's table geometry inside Marker's table boxes (report-only, beside survival)
 import figure_text  # S209 E13: the source's words inside Marker's figure boxes — chart text as text (report-only)
+import page_geometry  # S209 E13: the page's rotation and its symbol glyphs — where the shards and repeats are born (report-only)
 
 # ---------------------------------------------------------------------------
 # Constants. Thresholds calibrated over the vaulted corpus (docs/15 §9.1). Per the
@@ -493,6 +494,9 @@ def latex_balance(markdown: str) -> dict:
 # ---------------------------------------------------------------------------
 # Stage audits (docs/15 §4/§6/§7).
 # ---------------------------------------------------------------------------
+REPEAT_MIN = 20     # S209 E13 (SYM-143): copies of one invented word on a page before it reads as a REPEAT (CIFE p.32: 291)
+
+
 def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fidelity") -> dict:
     """S209 B35 (2026-09-20) — THE AUDIT'S BLIND SIDE, report-only. Survival counts what the output LOST against the
     witness; a re-OCR'd clean page can also INVENT words the layer never had (RBC Q3, Marker's own re-OCR of a born-digital
@@ -522,6 +526,8 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         text = re.sub(r"<[^>]+>", " ", unescape(math_re.sub(" ", html)))
         by_page.setdefault(int(p) + 1, []).extend(w.lower() for w in word_re.findall(text))
     pages: dict[int, dict] = {}
+    repeated: list[dict] = []           # S209 E13 (SYM-143): one invented word repeated REPEAT_MIN+ times on a page
+    repeated_total = 0
     inv_total = words_total = lost_total = wit_total = measured = 0
     blank_pages = blank_marker_words = 0
     for pnum, raw in enumerate(pages_raw, start=1):
@@ -549,7 +555,16 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         if invented:
             spec = sorted(set(invented), key=lambda w: (-invented.count(w), w))[:6]
             pages[pnum] = {"marker": len(mw), "witness": len(lw), "invented": len(invented), "lost": len(lost), "specimens": spec}
+            # S209 E13 (SYM-143, Stanford CIFE p.32): one invented word written 291 times where the layer draws 48 check marks
+            # — a recogniser's one word for a glyph it cannot read, repeated. Counted as ITS OWN class: the word, its count
+            # and its page ride beside invented_total (which still counts every copy), so 292 invented reads as one repeat.
+            for w, c in sorted(((w, invented.count(w)) for w in set(invented)), key=lambda t: (-t[1], t[0])):
+                if c < REPEAT_MIN:
+                    break
+                repeated.append({"page": pnum, "word": w, "count": c})
+                repeated_total += c
     worst = sorted(pages.items(), key=lambda kv: -kv[1]["invented"] / max(1, kv[1]["marker"]))[:10]
+    repeated.sort(key=lambda r: (-r["count"], r["page"]))
     return {
         "meaning": ("words in Marker's blocks absent from the source's text layer" if kind == "fidelity"
                     else "words in Marker's blocks absent from the embedded OCR layer (disagreement, not invention)"),
@@ -563,6 +578,9 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         "pages_witness_blank": blank_pages,            # witness under PAGE_MIN_WORDS: OCR of pictures, not judged
         "blank_marker_words": blank_marker_words,
         "latex_commands": latex_commands,              # S209 E12: equations' commands, counted apart, never inventions
+        "repeated": repeated[:10],                     # S209 E13 (SYM-143): one word written REPEAT_MIN+ times on a page
+        "repeated_total": repeated_total,              # every copy of every such word — invented_total net of it is the rest
+        "repeat_min": REPEAT_MIN,
         "worst": [dict(page=p, **v) for p, v in worst],
     }
 
@@ -646,6 +664,12 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # layer words and no shipped words (the AI Index: 10,551 layer words inside 479 figures, 680 shipped, 67 silent).
         # Beside survival, unseen by compute_verdict; None = not measured (no blocks handed in); the scan lane unread.
         "figures": figure_text.figure_text(pdf_path, blocks, lane) if blocks is not None else None,
+        # S209 E13, REPORT-ONLY: THE PAGE'S GEOMETRY AND ITS SYMBOL GLYPHS — the source's /Rotate per page (with a Marker Table
+        # on it, flagged by survival) and the layer's symbol glyphs (Sm/So): where the shards (SYM-142, CIFE's eight rotated
+        # table pages) and the repeats (SYM-143, `second` × 291 for 48 check marks) were born, named in the manifest before a
+        # page is opened. Beside survival, unseen by compute_verdict; None = not measured (no blocks handed in); on the scan
+        # lane the rotation reads and the symbols are unread.
+        "page_geometry": page_geometry.page_geometry(pdf_path, blocks, lane, pages_flagged) if blocks is not None else None,
     }
     return block
 
