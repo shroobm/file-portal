@@ -573,7 +573,9 @@
           ]
         },
         "audit/reaudit_refused": {
-          "optional_keys": [],
+          "optional_keys": [
+            "found"
+          ],
           "required_keys": [
             "bundle",
             "event",
