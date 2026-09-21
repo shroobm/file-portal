@@ -39,3 +39,6 @@ verdict and proves nothing about now.
 | D0060 | 2026-09-21T02:52:03Z | pipeline | evidence | chunk journal - run 78a752d1db81916c | 161780 | `bf8ce6f7d0615e9fb7b2eb2401847ec8f3438609a33207c843a36028690df0b9` |
 | D0061 | 2026-09-21T03:26:20Z | pipeline | evidence | chunk journal - run f6e0ef3efd733e45 | 382099 | `0007743120c4abdf98b5f25d2c768af8c260ad8a57f9add73f0c53c079f47929` |
 | D0062 | 2026-09-21T03:30:52Z | pipeline | evidence | chunk journal - run 288d10869855e1c4 | 40864 | `eae2b30cfb853150bf9f15c304684836f083e51562f6fc844e6b2dde3484c9ae` |
+| D0063 | 2026-09-21T04:17:11Z | pipeline | evidence | chunk journal - run 145b3f71759d3794 | 582618 | `ccfa0e6fe4ca4afd00bd0c36adb7122c0db421ba09609dbaadc81566e00504b5` |
+| D0064 | 2026-09-21T05:22:01Z | pipeline | evidence | chunk journal - run bff17643c228f5de | 1020713 | `a508d7cd412681cf6a48d001f0a33bb684df3accd4fea804bd5ee5ac863cff18` |
+| D0065 | 2026-09-21T06:02:07Z | pipeline | evidence | chunk journal - run 4a938ca1d027a746 | 662444 | `8065c49be5a957ca01edc807eafa2b2fa758c2bed8300e48032e6c43a16814a8` |
