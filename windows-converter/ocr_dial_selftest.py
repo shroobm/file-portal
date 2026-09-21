@@ -55,5 +55,22 @@ case("three clean neighbours: two heavy named, the median STILL carries their pa
 cas.LEDGER_FILE.write_text("".join(json.dumps(r) + "\n" for r in rows[2:4]), encoding="utf-8")
 est2 = cas.estimate_from_ledger(178, "clean", 2860)
 case("a light ledger (CIBC, an old row without the key) names 0 heavy", est2 is not None and est2["ocr_heavy_neighbours"] == 0 and est2["samples"] == 2, est2)
+# S211 (S210 CORRECTIONS row 11): the dial reaches the LEDGER ROW from the manifest's own `ocr_dial` key — from 2026-09-20
+# to S211 the lane's boolean rebound `ocr`, the manifest carried False and every row read None. The record is filed on the
+# temp ledger (FP_PIPELINE) and read back; the negative control is a manifest with only the boolean.
+cas.LEDGER_FILE.write_text("", encoding="utf-8")
+_m = {"source": "dial.pdf", "source_sha256": "d" * 64, "pages": 10, "lane": "clean", "engine": "marker", "chars_per_page": 3000,
+      "ocr": False, "ocr_dial": {"lines": 1320, "bars": [1320], "lines_per_page": 132.0}}
+cas._ledger_record(_m, 128.0, 8000)
+_row = json.loads(cas.LEDGER_FILE.read_text(encoding="utf-8").strip().splitlines()[-1])
+case("the manifest's ocr_dial reaches the ledger row: ocr_lines 1320, 132.0 per page (S210 row 11's fix)",
+     _row.get("ocr_lines") == 1320 and _row.get("ocr_lines_per_page") == 132.0, _row)
+cas.LEDGER_FILE.write_text("", encoding="utf-8")
+_m2 = dict(_m)
+del _m2["ocr_dial"]
+cas._ledger_record(_m2, 128.0, 8000)
+_row2 = json.loads(cas.LEDGER_FILE.read_text(encoding="utf-8").strip().splitlines()[-1])
+case("NEGATIVE CONTROL: a manifest with only the boolean `ocr` reads ocr_lines None (the defect's shape), never a number",
+     _row2.get("ocr_lines") is None and _row2.get("ocr_lines_per_page") is None, _row2)
 print("==== ocr_dial selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

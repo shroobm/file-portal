@@ -1181,8 +1181,10 @@ def _ledger_record(manifest: dict, cost_s: float, peak_mib: int,
             "peak_vram_mib": peak_mib or None,
             # S209 E8, B33's dial: the lines Marker chose to OCR on this run — the estimator names a neighbour above
             # OCR_HEAVY_LINES_PER_PAGE as a re-OCR'd run (and excludes none until Rab signs the threshold)
-            "ocr_lines": (manifest.get("ocr") or {}).get("lines"),
-            "ocr_lines_per_page": (manifest.get("ocr") or {}).get("lines_per_page"),
+            # S211 (S210 CORRECTIONS row 11): the dial lives under `ocr_dial`; `ocr` is the lane's boolean and never
+            # carried lines — every ledger row from 2026-09-20 to S211 read None here
+            "ocr_lines": (manifest.get("ocr_dial") or {}).get("lines"),
+            "ocr_lines_per_page": (manifest.get("ocr_dial") or {}).get("lines_per_page"),
         }
         LEDGER_FILE.parent.mkdir(parents=True, exist_ok=True)
         with open(LEDGER_FILE, "a", encoding="utf-8") as f:
@@ -1953,10 +1955,13 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # 1377 for a 1-second resume).
     true_run_pages = chunk_stats.get("pages_converted_this_run", pages)
     run_pages = true_run_pages or pages
-    ocr = ocr_dial(pages)          # S209 E8, B33's dial: what Marker chose to OCR, recorded — never a verdict (the manifest gets it below)
+    # S209 E8, B33's dial: what Marker chose to OCR, recorded — never a verdict. S211 (S210 CORRECTIONS row 11): named
+    # `ocr_bars`, not `ocr` — the lane's boolean rebinds `ocr` below, and from 2026-09-20 to S211 the manifest's `ocr`
+    # carried the boolean while `ocr_lines` read None on every ledger row; the dial now lands under `ocr_dial`
+    ocr_bars = ocr_dial(pages)
     emit("convert", "converted", source=src.name, wall_s=round(wall, 1),
          s_per_page=round(wall / pages, 2), pages=pages,
-         ocr_lines=ocr["lines"], ocr_lines_per_page=ocr["lines_per_page"],
+         ocr_lines=ocr_bars["lines"], ocr_lines_per_page=ocr_bars["lines_per_page"],
          # S146 E8 (SYM-132, found live on Beer): a single-call run (no slices) projected its
          # ceiling moment only in a death certificate — Beer sat at 9.5 GB through recognition
          # and survived, and nothing carried the split. The converted event names the run's
@@ -2019,6 +2024,9 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         # S209 E8, B33's dial: what Marker chose to OCR on this run — {lines, bars, lines_per_page}; the ledger row and
         # the estimator read it; no verdict does
         "ocr": ocr,
+        # S209 E8's dial under its own key (S211, S210 CORRECTIONS row 11): {lines, bars, lines_per_page} — what Marker
+        # chose to OCR on this run; the ledger row and the estimator read it; no verdict does
+        "ocr_dial": ocr_bars,
         # S211: the fixes the lever named for this job (literal names, [] when none) — fixes_stats joins from the
         # blocks record once the audit has read it; the ligature repair's record lands under `ligature_repair`
         "fixes": fix_names,

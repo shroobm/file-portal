@@ -830,6 +830,10 @@
       "disposition": "EVIDENCE",
       "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): probe()'s evidence `ocr_font_spans` — how many spans of the document are in an OCR font (the share's numerator beside total_spans; the stock rule trips on the FIRST such span — Scotia AR: 160 of 25,152 sent a whole report to the scan lane, SYM-156); the lever `lane-share-rule` decides by the share (fixes.SHARE 0.05). Recorded in the converted event beside ocr_font_trigger; read by lane_rule_census.py and whoever audits the lane."
     },
+    "converter:ocr_dial": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; S210 CORRECTIONS row 11): `ocr_dial` — S209 E8's dial {lines, bars, lines_per_page}: what Marker chose to OCR on this run (the totals of every Recognizing Text bar), under its OWN key at last. From 2026-09-20 to S211 the dial was bound to `ocr`, which the lane's boolean rebinds a few lines later, so the manifest's `ocr` carried False and every ledger row's ocr_lines read None. The ledger row and the estimator read this key; no verdict does. ocr_dial_selftest 8/8 (the row carries the number; a boolean-only manifest reads None)."
+    },
     "converter:applied": {
       "disposition": "EVIDENCE",
       "reason": "S211 (2026-09-21): fixes.apply's return — the record of what a job's lever installed: `applied` — the fix names actually installed in this process (a subset of the lever's names is never silent: an unknown name refuses the lever)."
