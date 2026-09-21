@@ -114,6 +114,16 @@
       "env": "FP_PIPELINE",
       "role": "page anchors written at ship USER LEVER: on | off (absent = off) - re-read per bundle; Rab signed (b) 2026-09-20, off until he turns it"
     },
+    "fixes": {
+      "path": "fixes.txt",
+      "env": "FP_PIPELINE",
+      "role": "the fixes lever (S211, Rab's word 2026-09-21): the mechanisms proved on copies in S210, named for ONE job - `for: <drop file name>` then one fix name per line; read by the converter at the start of that job only, recorded in the manifest as `fixes`; absent or another job's = no fix"
+    },
+    "variants": {
+      "path": "variants.json",
+      "env": "FP_PIPELINE",
+      "role": "the variant registry (S211): every final converted bundle of a source sha, its fixes, verdict and measures, and the SELECTED one - by the verdict rank then the fewer errors, under the faithfulness checks (no text or asset lost, no table broken, no degeneration); PORTAL's lookup consults it first; nothing is ever deleted from it"
+    },
     "chunk_work": {
       "path": ".chunk-work",
       "env": "FP_PIPELINE",

@@ -381,6 +381,12 @@ CHUNK_BATCH_FILE = fp_paths.root("chunk_batch")
 # blocks.json (page_anchors.anchor_markdown), AFTER both audit gates score, so no survival number moves; the manifest says
 # which way the lever read and how many pages took an anchor (docs/34: a gate that does something says how much).
 ANCHORS_AT_SHIP_FILE = fp_paths.root("anchors_at_ship")
+# S211 (Rab's word 2026-09-21 19:05Z): the fixes lever — the mechanisms proved on copies in S210, named for ONE job
+# (`for: <drop file name>`, then one fix name per line; read by fixes.py at the start of that job only, recorded in the
+# manifest as `fixes`) — and the variant registry (variants.py): every final bundle of a source sha kept, the SELECTED one
+# named by the verdict rank then the fewer errors under the faithfulness checks; nothing deleted from it.
+FIXES_FILE = fp_paths.root("fixes")
+VARIANTS_FILE = fp_paths.root("variants")
 
 
 def anchors_at_ship() -> bool:

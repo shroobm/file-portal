@@ -79,7 +79,8 @@ _OWNED = {
     "backend_parity": ["PIPE_ROOT", "GPU_LOCK", "DEFAULT_BOOK"],
     "convert_and_ship": ["ANCHOR", "PENDING", "HELD", "AUDIT_MODE_FILE", "PROGRESS_FILE",
                          "ESTIMATE_FILE", "CHUNK_BATCH_FILE", "CHUNK_WORK", "LEDGER_FILE",
-                         "ANCHORS_AT_SHIP_FILE"],  # S209 E6: the anchors-at-ship lever
+                         "ANCHORS_AT_SHIP_FILE",  # S209 E6: the anchors-at-ship lever
+                         "FIXES_FILE", "VARIANTS_FILE"],  # S211: the fixes lever and the variant registry
 }
 
 
