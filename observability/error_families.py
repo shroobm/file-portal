@@ -113,7 +113,7 @@ MECHANISM = {
         "an unmeasured branch returns a value that looks measured: a default 'unknown' as an identity, a display cap "
         "read as the population, a truncation with no marker",
         "force the unmeasurable branch or exceed the cap — does the surface say UNREAD/total, or a plausible number?",
-        ["SYM-005", "SYM-044", "SYM-052", "SYM-057", "SYM-066", "SYM-070", "SYM-088"],
+        ["SYM-005", "SYM-044", "SYM-052", "SYM-057", "SYM-066", "SYM-070", "SYM-088", "SYM-155"],  # 155 (S210 E1, RBC): Marker's check_line_overlaps compares an absolute intersection AREA (pt²) to provider_line_provider_line_min_overlap_pct = 0.1 — a tenth of a square point discards a page's text layer; RBC Q3 55 of 76 pages
     ),
     "S4 FAILED-PROBE-RENDERED-AS-NEGATIVE": (
         "the probe errored, timed out or could not match, and the surface printed a definite negative — down, clean, "
@@ -167,7 +167,7 @@ MECHANISM = {
         "name the precondition the act assumes; violate it in a fixture — what happens to the held state or the clock?",
         # SYM-083 (ThinkPad S123): fastembed's default batch of 256 × a 512-token padded window → 9 GiB RSS —
         # a hidden-cost default, the shape of SYM-048's `xrefs=True`
-        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-083", "SYM-085", "SYM-099"],
+        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-083", "SYM-085", "SYM-099", "SYM-158"],  # 158 (S210 E1, Bill C-31): the tenant's _station() save is unguarded where on_progress is guarded — a 2-second file lock on job.json killed a 56-minute conversion as ENGINE-CRASH
     ),
     "S12 PLATFORM-OR-LIBRARY-SEMANTICS-TRAP": (
         "the platform or library means something other than its name: force_ocr keeps the old text, inotify reports a "
@@ -193,13 +193,13 @@ MECHANISM = {
         "loss or coverage indistinguishable from real defects until traced to the check itself",
         "re-derive the figure through a second, independently built extractor/parser — does the number move while the "
         "artefact does not?",
-        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138", "SYM-141", "SYM-145", "SYM-146", "SYM-147"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document; 141: the ladder's orphan backslash (an escaped asterisk) reads as a lost word; 145 (Codex MSG-CDX-0085): phantom rulings counted as columns lost; 146: ligature glyphs counted as inventions; 147 (Codex MSG-CDX-0085): a TableGroup's moved row the measure never read
+        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138", "SYM-141", "SYM-145", "SYM-146", "SYM-147", "SYM-157"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document; 141: the ladder's orphan backslash (an escaped asterisk) reads as a lost word; 145 (Codex MSG-CDX-0085): phantom rulings counted as columns lost; 146: ligature glyphs counted as inventions; 147 (Codex MSG-CDX-0085): a TableGroup's moved row the measure never read; 157 (S210 E1, Desjardins): the degeneration detector's space-free fallback reads a rule line of 172 escaped underscores as a loop (trigram `\ _ \` ×171)
     ),
     "S16 GUARD-COARSER-THAN-THE-DEFECT": (
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
         "one-directional metric cannot see gain); moderate real loss passes at the margin",
         "plant a defect one notch below the guard's resolution — does it pass?",
-        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110", "SYM-116", "SYM-120", "SYM-133", "SYM-134", "SYM-144", "SYM-152"],  # S209: 134 a table's header row fused into the first data row and the acceptor's rung reads ACCEPTED (the invariant cannot see a header's identity, the same blindness as 133); S168: 133 the table layer's invariant admits a digit column rewritten into a word (the letters fit; the guard cannot see a label's identity) — filed S157 E15 without a family, found by the library smoke; S141: 120 cd - / cd ~ no-ops; S137: 116 the heredoc bypass beside the false deny; S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies; 144 (S209 E13, Codex MSG-CDX-0086): _is_num on the whole BR-stacked cell — a data row eaten as a stacked heading; 152 (S209 E14, BMO): the number test blind to a page reference — two index rows taken for a stacked heading
+        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110", "SYM-116", "SYM-120", "SYM-133", "SYM-134", "SYM-144", "SYM-152", "SYM-156"],  # S209: 134 a table's header row fused into the first data row and the acceptor's rung reads ACCEPTED (the invariant cannot see a header's identity, the same blindness as 133); S168: 133 the table layer's invariant admits a digit column rewritten into a word (the letters fit; the guard cannot see a label's identity) — filed S157 E15 without a family, found by the library smoke; S141: 120 cd - / cd ~ no-ops; S137: 116 the heredoc bypass beside the false deny; S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies; 144 (S209 E13, Codex MSG-CDX-0086): _is_num on the whole BR-stacked cell — a data row eaten as a stacked heading; 152 (S209 E14, BMO): the number test blind to a page reference — two index rows taken for a stacked heading; 156 (S210 E1, Scotia Q3): the lane's OCR-font trigger flips the whole document to the scan lane on the first span in an OCR font (160 of 25,152 spans), against its own invisible ratio 0.0
     ),
 }
 
