@@ -51,7 +51,6 @@ Run exactly as marker_single is run:
 from __future__ import annotations
 
 import json
-import os
 import subprocess
 import sys
 from pathlib import Path
@@ -254,7 +253,23 @@ def merge_block_records(records: list[dict]) -> dict:
         "page_field_raw_disagreements": disagreements,
         "page_field_note": note,
         "extraction": extraction,
+        # S211: the fixes the slices ran under (the first slice's list — one lever per job) and the wrapper's counters
+        # summed over the slices; None when no slice carried the key (a stock run — UNREAD, never 0)
+        "fixes": next((rec.get("fixes") for rec in records if rec.get("fixes") is not None), None),
+        "fixes_stats": _sum_fixes_stats(records),
     }
+
+
+def _sum_fixes_stats(records: list[dict]) -> dict | None:
+    total: dict | None = None
+    for rec in records:
+        st = rec.get("fixes_stats")
+        if not isinstance(st, dict):
+            continue
+        total = total or {"chars_seen": 0, "chars_dropped": 0, "chars_lifted": 0}
+        for k in total:
+            total[k] += int(st.get(k) or 0)
+    return total
 
 
 def merge_block_files(paths, dest: Path, *, slices_total: int) -> dict:

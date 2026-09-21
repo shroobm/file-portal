@@ -405,7 +405,11 @@ def _job_fixes(src: Path) -> list[str]:
         print(f"FIXES lever {FIXES_FILE.name} has no `for:` line — ignored for {src.name}", flush=True)
         return []
     target = first.split(":", 1)[1].strip()
-    if target != src.name:
+    # S211 CORRECTIONS row 2: the tenant writes the drop file through its own SAFE_NAME rule (an em dash, a tilde → "_"),
+    # so the names are compared on their letters and digits alone — the lever's spelling and the file's need not agree
+    # on punctuation, only on the words
+    skeleton = lambda s: re.sub(r"[^A-Za-z0-9]+", "", s).lower()  # noqa: E731
+    if skeleton(target) != skeleton(src.name):
         print(f"FIXES lever names {target!r}, not this job ({src.name!r}) — ignored", flush=True)
         return []
     try:
