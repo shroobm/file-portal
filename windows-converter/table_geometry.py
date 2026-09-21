@@ -1314,6 +1314,19 @@ def _is_num(cell: str) -> bool:
     return bool(_NUMTOK.match(cell.strip()))
 
 
+def _has_num(cell: str) -> bool:
+    """S209 E13 (SYM-144; found read-only by Codex, MSG-CDX-0086, replayed by this lane): a cell the OCR stacked with `<br>`
+    (`12,031<br>1,764<br>231<br>5,836` — four figures of one data row in CIBC's 2025 annual report, p.? line 8672) is NOT one
+    token, so `_is_num` read it as words and the stacked-heading rules took the data row for a heading and dropped it
+    (`12,031` six times in Marker's text, five in the analyst's — the hold was right, the loss was this pass's). A cell is
+    numeric when any of its `<br>` parts is a number (a bare percent excepted, as before: `Lower 95%` is a heading)."""
+    for part in BR.split(cell):
+        p = part.replace("\\$", "").replace("$", "").strip()
+        if p and _NUMTOK.match(p) and not p.endswith("%"):
+            return True
+    return False
+
+
 def _heading_pair(a: list[str], b: list[str], above: list[str], lex: dict | None) -> tuple[bool, list[str], str]:
     """Two body rows that are a STACKED HEADING of a second table (p.175: `Standard | | P- | Lower | Upper …` over
     `Coefficients | Error | t Stat | value | 95% …`): the first cell empty in both, no numeric cell in either, a data row
@@ -1321,7 +1334,7 @@ def _heading_pair(a: list[str], b: list[str], above: list[str], lex: dict | None
     (S152 E3's test; without a lexicon a pair of at least three two-part headings is taken)."""
     if not a or not b or a[0].strip() or b[0].strip():
         return False, [], "the first cell is not empty"
-    if any(_is_num(c) and not c.strip().endswith("%") for c in a + b):   # a heading may carry a percent (`Lower 95%`)
+    if any(_has_num(c) for c in a + b):   # a heading may carry a percent (`Lower 95%`); a <br>-stacked figure is a number (SYM-144)
         return False, [], "a number in the pair"
     if not any(_is_num(c) for c in above):
         return False, [], "no data row above"
@@ -1347,7 +1360,7 @@ def _heading_row_br(a: list[str], above: list[str], lex: dict | None) -> tuple[b
     `<br>`, a data row above, the words the book's own."""
     if not a or a[0].strip() or not any(_is_num(c) for c in above):
         return False, [], "shape"
-    if any(_is_num(c) and not c.strip().endswith("%") for c in a):
+    if any(_has_num(c) for c in a):       # a <br>-stacked figure is a number (SYM-144)
         return False, [], "a number in the row"
     if sum(1 for c in a if "<br>" in c) < 2:
         return False, [], "fewer than two stacked cells"

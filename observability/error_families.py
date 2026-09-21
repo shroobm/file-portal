@@ -193,13 +193,13 @@ MECHANISM = {
         "loss or coverage indistinguishable from real defects until traced to the check itself",
         "re-derive the figure through a second, independently built extractor/parser — does the number move while the "
         "artefact does not?",
-        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138", "SYM-141"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document; 141: the ladder's orphan backslash (an escaped asterisk) reads as a lost word
+        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138", "SYM-141", "SYM-145", "SYM-146"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document; 141: the ladder's orphan backslash (an escaped asterisk) reads as a lost word; 145 (Codex MSG-CDX-0085): phantom rulings counted as columns lost; 146: ligature glyphs counted as inventions
     ),
     "S16 GUARD-COARSER-THAN-THE-DEFECT": (
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
         "one-directional metric cannot see gain); moderate real loss passes at the margin",
         "plant a defect one notch below the guard's resolution — does it pass?",
-        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110", "SYM-116", "SYM-120", "SYM-133", "SYM-134"],  # S209: 134 a table's header row fused into the first data row and the acceptor's rung reads ACCEPTED (the invariant cannot see a header's identity, the same blindness as 133); S168: 133 the table layer's invariant admits a digit column rewritten into a word (the letters fit; the guard cannot see a label's identity) — filed S157 E15 without a family, found by the library smoke; S141: 120 cd - / cd ~ no-ops; S137: 116 the heredoc bypass beside the false deny; S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies
+        ["SYM-090", "SYM-091", "SYM-093", "SYM-096", "SYM-104", "SYM-110", "SYM-116", "SYM-120", "SYM-133", "SYM-134", "SYM-144"],  # S209: 134 a table's header row fused into the first data row and the acceptor's rung reads ACCEPTED (the invariant cannot see a header's identity, the same blindness as 133); S168: 133 the table layer's invariant admits a digit column rewritten into a word (the letters fit; the guard cannot see a label's identity) — filed S157 E15 without a family, found by the library smoke; S141: 120 cd - / cd ~ no-ops; S137: 116 the heredoc bypass beside the false deny; S124 (J55): the four closeout findings named above now have rows, plus S106 §10 f; S126: the guard's own false denies; 144 (S209 E13, Codex MSG-CDX-0086): _is_num on the whole BR-stacked cell — a data row eaten as a stacked heading
     ),
 }
 

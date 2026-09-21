@@ -36,3 +36,4 @@ verdict and proves nothing about now.
 | D0057 | 2026-09-21T02:18:39Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 21 run 4463b708284154d5 | 19018 | `ad81bbe38fd869034cdd88fd15dbbc18e1ecacf63423549da461b7e1daeac516` |
 | D0058 | 2026-09-21T02:25:32Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 55 run 4463b708284154d5 | 18973 | `b269f0a760caf1d713831426f7b17de298f0da9f6c4d4a55012d28df4a1ed622` |
 | D0059 | 2026-09-21T02:30:38Z | pipeline | evidence | chunk journal - run 4463b708284154d5 | 356102 | `8a4a91013345f297c3248007fe263a67f4fc766aabdaaee096bb799e6c7dd3cd` |
+| D0060 | 2026-09-21T02:52:03Z | pipeline | evidence | chunk journal - run 78a752d1db81916c | 161780 | `bf8ce6f7d0615e9fb7b2eb2401847ec8f3438609a33207c843a36028690df0b9` |

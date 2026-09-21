@@ -794,6 +794,23 @@ def main():
           tg._fold_allowed(["", "Standard", "", "P-", "Lower"], ["Coefficients", "Error", "t Stat", "value", "95%"], header=True)[0], "")
     check("SYM-134 the refusal names the rule: `_fold_allowed(header=True)` on a numeric lower row",
           not tg._fold_allowed(["", "a", "explain"], ["d1", "1", "0"], header=True)[0], "")
+    # S209 E13 — SYM-144 (found read-only by Codex, MSG-CDX-0086; replayed by the Fable lane): CIBC's 2025 annual report, marker
+    # line 8672 — a DATA row the OCR stacked with <br> (`12,031<br>1,764<br>231<br>5,836`) under a BR-stacked label, read by
+    # _heading_pair as a stacked HEADING because _is_num tested the whole cell; the join dropped the figures (12,031: 6 → 5).
+    A144 = ["", "Total revenue<br>Provision for credit losses<br>Amortization and impairment (5)<br>Other non-interest expenses",
+            "12,031<br>1,764<br>231<br>5,836", "6,902<br>166<br>2<br>3,520", "3,216<br>175<br>4<br>1,857"]
+    B144 = ["", "Income (loss) before income<br>taxes<br>Income taxes (2)", "4,200<br>1,093", "3,214<br>873", "1,180<br>222"]
+    ABOVE144 = ["2025", "Net interest income (2)<br>Non-interest income (3)(4)", "\\$<br>9,629<br>2,402", "\\$<br>2,960<br>3,942", "\\$ 2,205 \\$<br>1,011"]
+    ok144, _j144, why144 = tg._heading_pair(A144, B144, ABOVE144, None)
+    check("SYM-144: a <br>-stacked DATA row under a stacked label is NOT a stacked heading (the refusal names the number)",
+          not ok144 and why144 == "a number in the pair", why144)
+    check("SYM-144 `_has_num`: a stacked figure cell is numeric; a dollar-sign piece beside figures is numeric; a heading with a percent is not; a word is not",
+          tg._has_num("12,031<br>1,764<br>231<br>5,836") and tg._has_num("\\$<br>9,629<br>2,402") and not tg._has_num("Lower<br>95%")
+          and not tg._has_num("Standard") and tg._has_num("1"), "")
+    check("SYM-144 POSITIVE CONTROL: the regression's stacked heading pair (words over words, a percent in the lower row) is still a heading",
+          tg._heading_pair(["", "Standard", "", "P-", "Lower"], ["", "Error", "t Stat", "value", "95%"], ["x", "1.2", "0.3", "2.1", "0.5"], None)[0], "")
+    ok144b, _j, why144b = tg._heading_row_br(["", "Total revenue<br>Provision", "12,031<br>1,764", "6,902<br>166", "3,216<br>175"], ["2025", "Net<br>income", "9,629<br>2,402", "2,960", "2,205"], None)
+    check("SYM-144: the one-row <br> heading rule refuses a stacked DATA row the same way", not ok144b and why144b == "a number in the row", why144b)
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 

@@ -90,5 +90,14 @@ r = fa.audit_inventions([WIT_CK], [{"page": 0, "html": CK}])
 case("`second` × 60 on one page reads as one repeat (word, count 60, page 1) with repeated_total 60; the 6 other inventions are no repeat; invented_total counts every copy",
      r["repeated"] == [{"page": 1, "word": "second", "count": 60}] and r["repeated_total"] == 60 and r["invented_total"] == 66
      and r["repeat_min"] == fa.REPEAT_MIN and r["worst"][0]["specimens"][0] == "second", r)
+# 13 · S209 E13 (SYM-146, MIT's Real Analysis notes): the layer's LIGATURE glyphs (deﬁnition, ﬁnite, coeﬃcients — a LaTeX
+# typesetting) against Marker's plain letters are neither invented nor lost words; a real invention beside them still counts
+WIT_LIG = ("The deﬁnition of a ﬁnite sequence with real coeﬃcients follows from the ﬁrst chapter and the "
+           "reﬁnement of the partition is diﬀerentiable on the closed interval of the real line")
+LIG = ("<p>The definition of a finite sequence with real coefficients follows from the first chapter and the refinement of the "
+       "partition is differentiable on the closed interval of the real line garble</p>")
+r = fa.audit_inventions([WIT_LIG], [{"page": 0, "html": LIG}])
+case("ligature glyphs in the layer (ﬁ ﬃ ﬀ) against Marker's plain letters count 0 invented and 0 lost; the one real invention counts",
+     r["invented_total"] == 1 and r["lost_total"] == 0 and r["worst"][0]["specimens"] == ["garble"], r)
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-13T11:47Z",
+  "updated_utc": "2026-09-21T03:02Z",
   "state": "blocked-on-ack",
   "current_ticket": "research/widget-forensic",
   "sent": [
@@ -912,6 +912,24 @@
       "utc": "2026-09-13T11:16Z",
       "digest": "sha256:f843a4f202aa239288d2b58b6c2653087868645910777407636264f89e55ab69",
       "subject": "CDX-13: integrator interface and acceptance specification delivered",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0085",
+      "to": "Fable",
+      "utc": "2026-09-21T03:00Z",
+      "digest": "sha256:e97045c3c150c9a251ecc7e3b32a598bf87993151c6fe58b93f97bda1a07f5dd",
+      "subject": "Independent specimen review: NBC column-loss counterexample, CIBC AR destructive row merge, provenance limits",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0086",
+      "to": "Fable",
+      "utc": "2026-09-21T03:02Z",
+      "digest": "sha256:25bbb1ad869993df3eaa3e03cf42ef124e3956068bbad4c9be1bb2fc7e75f812",
+      "subject": "CIBC AR root cause verified: numeric data mistaken for stacked header before LLM; 358/358 input hashes match",
       "ticket": null,
       "requires_ack": true
     }

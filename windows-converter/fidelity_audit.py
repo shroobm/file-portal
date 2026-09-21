@@ -22,6 +22,7 @@ import json
 import os
 import random
 import re
+import unicodedata
 import zlib
 from collections import Counter
 from pathlib import Path
@@ -524,7 +525,10 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         for m in math_re.findall(html):
             latex_commands += len(cmd_re.findall(m))
         text = re.sub(r"<[^>]+>", " ", unescape(math_re.sub(" ", html)))
-        by_page.setdefault(int(p) + 1, []).extend(w.lower() for w in word_re.findall(text))
+        # S209 E13 (SYM-146, MIT's Real Analysis notes): a LaTeX-typeset layer carries LIGATURE glyphs (ﬁ ﬂ ﬀ — 211 on 66
+        # pages) that Marker writes as plain letters: `deﬁnition` and `definition` read as one invented and one lost word
+        # each (211 of 8,094 invented, every one a ligature). Both sides folded (NFKC) before the words are counted.
+        by_page.setdefault(int(p) + 1, []).extend(w.lower() for w in word_re.findall(unicodedata.normalize("NFKC", text)))
     pages: dict[int, dict] = {}
     repeated: list[dict] = []           # S209 E13 (SYM-143): one invented word repeated REPEAT_MIN+ times on a page
     repeated_total = 0
@@ -536,7 +540,7 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
             continue
         # the layer breaks words at line ends ("amalga-\nmation"); Marker joins them — joined first, so a rejoined word is
         # neither an invention nor a loss (C-31's first run read 1.16 % invented, most of it the layer's own hyphenation)
-        lw = [w.lower() for w in word_re.findall(re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", raw or ""))]
+        lw = [w.lower() for w in word_re.findall(re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", unicodedata.normalize("NFKC", raw or "")))]
         if len(lw) < PAGE_MIN_WORDS:
             # a near-blank witness page (a chart baked into an image) cannot judge inventions: Marker's words there are
             # its OCR of the picture — text the layer never had, a gain if right — not garble (the SEU's p.73: 74 of 77

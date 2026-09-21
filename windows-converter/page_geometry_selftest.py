@@ -46,9 +46,14 @@ case("three pages, one stored Rotate-90 with a Table block and flagged: rotated 
      and out["rotated_flagged"] == 1 and out["pages_unread"] == 0, out)
 case("the page of 48 ± glyphs is the one symbol page and the glyphs are counted whole",
      out["symbol_pages"] == 1 and out["symbol_glyphs_total"] == 48, out)
-case("the worst list leads with the rotated table page, then the symbol page with its glyphs and a sample",
-     len(out["worst"]) == 2 and out["worst"][0]["page"] == 2 and out["worst"][0]["tables"] == 1 and out["worst"][0]["rotation"] == 90
-     and out["worst"][1]["page"] == 3 and out["worst"][1]["symbol_glyphs"] == 48 and out["worst"][1]["sample"] == "±", out)
+case("the worst list holds the rotated table page (flagged, tables 1, 90°); symbol_worst holds the symbol page with its glyphs and a sample",
+     [r["page"] for r in out["worst"]] == [2] and out["worst"][0]["tables"] == 1 and out["worst"][0]["flagged"] == 1 and out["worst"][0]["rotation"] == 90
+     and [r["page"] for r in out["symbol_worst"]] == [3] and out["symbol_worst"][0]["symbol_glyphs"] == 48 and out["symbol_worst"][0]["sample"] == "±", out)
+plus = fitz.open()
+plus.new_page(width=612, height=792).insert_text((72, 72), " ".join(["+"] * 48) + " " + " ".join(["="] * 20), fontsize=10)
+outp = pg.page_geometry(plus, [], "clean")
+case("ASCII symbols (+ =) are glyphs every recogniser reads: 0 symbol glyphs, no symbol page",
+     outp["symbol_glyphs_total"] == 0 and outp["symbol_pages"] == 0 and outp["symbol_worst"] == [], outp)
 out2 = pg.page_geometry(doc, [{"page": 0, "block_type": "Table", "bbox": [0, 0, 1, 1], "html": ""}], "clean", pages_flagged=[2])
 case("a rotated page without a Table block is rotated and not a rotated table", out2["pages_rotated"] == 1 and out2["rotated_with_tables"] == 0, out2)
 out3 = pg.page_geometry(doc, [TABLE], "clean", pages_flagged=None)
@@ -59,9 +64,9 @@ out4 = pg.page_geometry(plain, [], "clean", pages_flagged=[])
 case("a plain document reads zeros and an empty worst list, never None",
      out4["pages_rotated"] == 0 and out4["symbol_glyphs_total"] == 0 and out4["symbol_pages"] == 0 and out4["worst"] == [], out4)
 out5 = pg.page_geometry(doc, [TABLE], "scan", pages_flagged=[2])
-case("the scan lane reads the rotation and leaves the symbols unread with a reason",
+case("the scan lane reads the rotation and leaves the symbols unread with a reason (no symbol page can be named there)",
      out5["pages_rotated"] == 1 and out5["symbol_glyphs_total"] is None and out5["symbol_pages"] is None and "symbols_reason" in out5
-     and out5["worst"][0]["page"] == 2 and out5["worst"][0]["symbol_glyphs"] is None, out5)
+     and out5["worst"][0]["page"] == 2 and out5["worst"][0]["symbol_glyphs"] is None and out5["symbol_worst"] == [], out5)
 out6 = pg.page_geometry(os.path.join(os.path.dirname(os.path.abspath(__file__)), "no-such-source.pdf"), [TABLE], "clean")
 case("a source that cannot be opened reads None on every count with its reason — never a zero",
      out6["pages_total"] is None and out6["pages_rotated"] is None and out6["rotated_pages"] is None and out6["symbol_glyphs_total"] is None
@@ -70,8 +75,18 @@ out7 = pg.page_geometry(fixture(glyphs=9), [], "clean")
 case("nine glyphs are counted and are not a symbol page (the line is %d)" % pg.SYMBOL_MIN,
      out7["symbol_glyphs_total"] == 9 and out7["symbol_pages"] == 0, out7)
 out8 = pg.page_geometry(fixture(rotation=270), [], "clean")
-case("a page stored at 270° is a rotated page, listed after the symbol page (no table on it)",
-     out8["pages_rotated"] == 1 and out8["rotated_pages"] == [2] and [r["page"] for r in out8["worst"]] == [3, 2]
-     and out8["worst"][1]["rotation"] == 270, out8)
+case("a page stored at 270° is a rotated page in the worst list (no table on it: tables 0); the symbol page sits in symbol_worst",
+     out8["pages_rotated"] == 1 and out8["rotated_pages"] == [2] and [r["page"] for r in out8["worst"]] == [2]
+     and out8["worst"][0]["rotation"] == 270 and out8["worst"][0]["tables"] == 0 and [r["page"] for r in out8["symbol_worst"]] == [3], out8)
+# the order of the worst list: a flagged rotated table leads, then a rotated table unflagged, then a rotated page without a table
+three = fitz.open()
+for k in range(3):
+    pk = three.new_page(width=612, height=792)
+    pk.insert_text((72, 72), "a rotated page number %d" % k, fontsize=10)
+    pk.set_rotation(90)
+out9 = pg.page_geometry(three, [{"page": 0, "block_type": "Table", "bbox": [0, 0, 1, 1], "html": ""},
+                               {"page": 2, "block_type": "TableGroup", "bbox": [0, 0, 1, 1], "html": ""}], "clean", pages_flagged=[3])
+case("worst is ordered: the flagged rotated table (p.3) first, the unflagged rotated table (p.1) next, the rotated page without a table (p.2) last",
+     [r["page"] for r in out9["worst"]] == [3, 1, 2] and out9["rotated_with_tables"] == 2 and out9["rotated_flagged"] == 1, out9)
 print("==== page_geometry selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

@@ -28,18 +28,20 @@ SAMPLE_GLYPHS = 8
 
 
 def _symbols(text: str) -> list[str]:
-    return [c for c in (text or "") if unicodedata.category(c) in SYMBOL_CATS]
+    # ASCII symbols (+ < = > | ~ ^ $) are glyphs every recogniser reads; the class is the glyph it has no word for (√ ✓ ≠ ∆)
+    return [c for c in (text or "") if ord(c) >= 128 and unicodedata.category(c) in SYMBOL_CATS]
 
 
 def page_geometry(doc, blocks: list[dict], lane: str, pages_flagged=None) -> dict:
     """`doc` an open pymupdf document (the source) or its path; `blocks` blocks.json's list (`page` 0-based, `block_type`);
     `lane` "clean" or "scan"; `pages_flagged` survival's 1-based page numbers (None = not known)."""
-    worst: list[dict] = []
+    worst: list[dict] = []                # the rotated pages: flagged with a Table first (SYM-142's shape), then with a Table
+    symbol_worst: list[dict] = []         # the symbol pages by their glyphs (SYM-143's shape)
     out = {"meaning": "the source's page rotation and its symbol glyphs, per page, as predictors of Marker's shards on a "
                       "rotated table page (SYM-142) and of a recogniser's one word repeated for a glyph (SYM-143)",
            "pages_total": 0, "pages_rotated": 0, "rotated_pages": [], "rotated_pages_capped_at": ROTATED_CAP,
            "rotated_with_tables": 0, "rotated_flagged": 0, "symbol_pages": 0, "symbol_glyphs_total": 0,
-           "symbol_min": SYMBOL_MIN, "pages_unread": 0, "worst": worst}
+           "symbol_min": SYMBOL_MIN, "pages_unread": 0, "worst": worst, "symbol_worst": symbol_worst}
     import fitz  # the converter already runs on marker-env; kept local so a reader of the block needs no pymupdf
 
     if isinstance(doc, (str, bytes)) or hasattr(doc, "__fspath__"):
@@ -82,11 +84,16 @@ def page_geometry(doc, blocks: list[dict], lane: str, pages_flagged=None) -> dic
             out["symbol_glyphs_total"] += n_sym
             if n_sym >= SYMBOL_MIN:
                 out["symbol_pages"] += 1
-        if rot or (n_sym is not None and n_sym >= SYMBOL_MIN):
-            # appended to the list the returned block names (the glass detector reads a literal by the name it is appended to)
+        sample = "".join(dict.fromkeys(syms))[:SAMPLE_GLYPHS] if syms else ""
+        # the literals are written twice on purpose: the glass detector reads a literal by the name it is appended to
+        if rot:
             worst.append({"page": p1, "rotation": rot, "tables": int(i in tables_on), "flagged": int(p1 in flagged),
-                          "symbol_glyphs": n_sym,
-                          "sample": "".join(dict.fromkeys(syms))[:SAMPLE_GLYPHS] if syms else ""})
-    worst.sort(key=lambda r: (-(1 if r["rotation"] and r["tables"] else 0), -(r["symbol_glyphs"] or 0), r["page"]))
+                          "symbol_glyphs": n_sym, "sample": sample})
+        if n_sym is not None and n_sym >= SYMBOL_MIN:
+            symbol_worst.append({"page": p1, "rotation": rot, "tables": int(i in tables_on), "flagged": int(p1 in flagged),
+                                 "symbol_glyphs": n_sym, "sample": sample})
+    worst.sort(key=lambda r: (-(r["tables"] and r["flagged"]), -r["tables"], -r["flagged"], r["page"]))
     del worst[WORST_CAP:]
+    symbol_worst.sort(key=lambda r: (-(r["symbol_glyphs"] or 0), r["page"]))
+    del symbol_worst[WORST_CAP:]
     return out

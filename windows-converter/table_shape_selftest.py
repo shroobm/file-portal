@@ -89,5 +89,16 @@ case("a lines witness narrower than Marker's width reads disagree, columns_lost 
 # 7 · a page index past the document: unread, never a crash
 out7 = ts.table_shape(doc, [{"page": 7, "block_type": "Table", "bbox": bbox, "html": html(CELLS, 2)}], "clean")
 case("a block on a page the document does not have reads unread", out7["tables_unread"] == 1 and out7["columns_lost"] == 0, out7)
+# S209 E13 — SYM-145 (Codex's counterexample, MSG-CDX-0085, replayed): the lines strategy splits a column at every ruling it
+# finds — NBC p.32's nine-column table read 20×19 with nine columns empty in every row. A ruled table drawn with an extra
+# vertical line inside EVERY column (eight rulings, four columns of text) must read columns_lost 0 against Marker's four.
+doc145 = fitz.open()
+page145, bbox145 = ruled_page(doc145)
+for c in range(COLS):
+    page145.draw_line((X0 + c * CW + CW * 0.75, Y0), (X0 + c * CW + CW * 0.75, Y0 + ROWS * RH), width=0.8)
+w145 = ts._witness(page145, fitz.Rect(*bbox145))
+out145 = ts.table_shape(doc145, [{"page": 0, "block_type": "Table", "bbox": bbox145, "html": html(CELLS, COLS)}], "clean")
+case("SYM-145: phantom rulings (an empty column drawn inside every column) are not columns — the witness counts the columns that carry text (4), columns_lost 0",
+     w145 is not None and w145[0] == "lines" and w145[2] == COLS and out145["columns_lost"] == 0 and out145["tables_witnessed_lines"] == 1, (w145, out145))
 print("==== table_shape selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

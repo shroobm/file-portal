@@ -55,10 +55,20 @@ def _witness(page, clip):
             continue
         t = max(tf.tables, key=lambda t: t.row_count * t.col_count)
         try:
-            text = "".join(_norm(str(x)) for row in t.extract() for x in row if x)
+            ext = t.extract()
+            text = "".join(_norm(str(x)) for row in ext for x in row if x)
         except Exception:  # noqa: BLE001
-            text = ""
-        return strat, t.row_count, t.col_count, text
+            ext, text = [], ""
+        # S209 E13 (SYM-145; Codex's counterexample MSG-CDX-0085, replayed): the lines strategy splits a column at every ruling
+        # it finds — NBC p.32's nine-column table read 20×19 with nine columns EMPTY in every row (the shading's edges), and
+        # the measure called ten columns lost where none were. A column with no text in any row is a ruling, not a column;
+        # a row with no text in any cell is a rule, not a row. The witness counts what carries text.
+        if ext:
+            cols = sum(1 for c in range(t.col_count) if any(row[c] not in (None, "") for row in ext if c < len(row)))
+            rows = sum(1 for row in ext if any(x not in (None, "") for x in row))
+        else:
+            cols, rows = t.col_count, t.row_count
+        return strat, rows, cols, text
     return None
 
 
