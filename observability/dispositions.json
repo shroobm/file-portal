@@ -537,6 +537,10 @@
       "disposition": "EVIDENCE",
       "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: up to six of the extra tokens, most-duplicated first — the evidence beside the count."
     },
+    "converter:missing_years": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E1 (2026-09-21): the numbers measure's year split — a bare four-digit year (1900–2099) the blocks lack is a running head Marker drops (Scotia's 212 missing were mostly its head's 2026), counted here apart from missing_total so a missing FIGURE reads as one; REPORT-ONLY, unseen by compute_verdict."
+    },
     "converter:cell_agree_floor": {
       "disposition": "EVIDENCE",
       "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The floor on Marker's non-empty cells found in the witness's joined text (CELL_AGREE); below it the witness is none — a constant that declares itself beside the counts it gates."

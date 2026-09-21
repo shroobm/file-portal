@@ -642,6 +642,11 @@ NUMBERS_WORST_CAP = 10
 NUMBERS_SPECIMENS = 6
 
 
+def _is_year(tok: str) -> bool:
+    """A bare four-digit year, 1900–2099 (a running head's `2026`), never a grouped figure."""
+    return len(tok) == 4 and tok.isdigit() and 1900 <= int(tok) <= 2099
+
+
 def audit_numbers(pages_raw: list[str], blocks: list[dict]) -> dict:
     """S210 E1 (SYM-147's row-level loss; B36's next cut) — THE DUPLICATED-FIGURE TELL, report-only. NBC's Q3 report shipped
     with p.57's securities-loaned figures moved onto the row above: every number was still on the page, so survival saw no
@@ -660,8 +665,9 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict]) -> dict:
         by_page.setdefault(int(p) + 1, []).extend(_NUM_TOKEN.findall(text))
     worst: list[dict] = []
     out = {"meaning": "number tokens Marker's blocks carry MORE often than the source's layer on the same page (moved, duplicated "
-                      "or OCR'd figures — the loss survival and the tables' geometry cannot see) and the layer's the blocks lack",
-           "pages_measured": 0, "extra_total": 0, "missing_total": 0, "pages_with_extra": 0, "worst": worst}
+                      "or OCR'd figures — the loss survival and the tables' geometry cannot see) and the layer's the blocks lack; "
+                      "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops)",
+           "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "pages_with_extra": 0, "worst": worst}
     from collections import Counter
     for pnum, raw in enumerate(pages_raw, start=1):
         mk = by_page.get(pnum)
@@ -672,9 +678,14 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict]) -> dict:
         m = Counter(mk)
         extra = m - lay
         missing = lay - m
+        # S210 E1 (the live reading: Scotia 212 missing, most of them the running head's year on every page — a head Marker
+        # drops, not a figure): a bare four-digit year the blocks lack is counted apart, never as a missing figure
+        years = Counter({tok: c for tok, c in missing.items() if _is_year(tok)})
+        missing -= years
         ne, nm = sum(extra.values()), sum(missing.values())
         out["extra_total"] += ne
         out["missing_total"] += nm
+        out["missing_years"] += sum(years.values())
         if ne:
             out["pages_with_extra"] += 1
             worst.append({"page": pnum, "extra": ne, "missing": nm,

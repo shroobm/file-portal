@@ -122,8 +122,8 @@ MK_N = ("<table><tr><td>Securities loaned</td><td>62 242</td><td>62 242</td><td>
         "<tr><td>Derivative financial instruments</td><td>12,390</td><td>12,390</td><td>63,242</td><td>63,242 15,810</td></tr>"
         "<tr><td>Other</td><td>1,040</td><td>1,040</td><td>1,040</td><td>13,010</td></tr><tr><td>Total assets</td><td>2,015,000</td></tr></table>")
 r = fa.audit_numbers([LAY_N, "A page with 4,321 and 9,876"], [{"page": 0, "html": MK_N}, {"page": 1, "html": "<p>4,321 and 9,876 again</p>"}])
-case("audit_numbers: p.1 reads extra 3 (1,040 twice over, 15,810 once) and missing 3 (two of the four 63,242 — the OCR'd `62 242` is no token — and the heading's year 2026, a four-digit token); p.2 matches; worst names p.1 first",
-     r["pages_measured"] == 2 and r["extra_total"] == 3 and r["missing_total"] == 3 and r["pages_with_extra"] == 1
+case("audit_numbers: p.1 reads extra 3 (1,040 twice over, 15,810 once), missing 2 (two of the four 63,242 — the OCR'd `62 242` is no token) and missing_years 1 (the heading's 2026, counted apart); p.2 matches; worst names p.1 first",
+     r["pages_measured"] == 2 and r["extra_total"] == 3 and r["missing_total"] == 2 and r["missing_years"] == 1 and r["pages_with_extra"] == 1
      and r["worst"][0]["page"] == 1 and r["worst"][0]["specimens"][0] == "1,040", r)
 r0 = fa.audit_numbers(["no figures on this page at all"], [{"page": 0, "html": "<p>none here either</p>"}])
 case("audit_numbers: a page without number tokens on either side reads 0 / 0 and no worst row", r0["extra_total"] == 0 and r0["missing_total"] == 0 and r0["worst"] == [], r0)
