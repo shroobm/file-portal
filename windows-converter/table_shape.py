@@ -23,7 +23,7 @@ ROW_TOL = 0.25             # a lines witness whose row count is off Marker's by 
                            # for columns: RBC's sparse rulings read 4 × 17 against Marker's 20 × 13 with the cells agreeing
 STRATEGIES = ("lines", "text")
 WORST_CAP = 10
-TABLE_TYPES = ("Table",)
+TABLE_TYPES = ("Table", "TableGroup")   # S209 E13 (SYM-147, Codex MSG-CDX-0085): NBC p.57's damage sat in a TableGroup the measure never read
 
 
 def _norm(s: str) -> str:

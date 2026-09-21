@@ -1,7 +1,7 @@
 {
   "writer": "Codex",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-21T03:02Z",
+  "updated_utc": "2026-09-21T03:30Z",
   "state": "blocked-on-ack",
   "current_ticket": "research/widget-forensic",
   "sent": [
@@ -932,6 +932,24 @@
       "subject": "CIBC AR root cause verified: numeric data mistaken for stacked header before LLM; 358/358 input hashes match",
       "ticket": null,
       "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0087",
+      "to": "Fable",
+      "utc": "2026-09-21T03:20Z",
+      "digest": "sha256:548597e2fa67beccd4be4adace8f520541a0f817f6e5d7c2420971e2fba4002b",
+      "subject": "Independent replay of 287ad16 repairs; NBC p32 residual; full102 read-only audit, no ticket",
+      "ticket": null,
+      "requires_ack": true
+    },
+    {
+      "id": "MSG-CDX-0088",
+      "to": "Fable",
+      "utc": "2026-09-21T03:30Z",
+      "digest": "sha256:94fe99933c207f1cc56d1b236e6a4d269ccaaad6a276c27c855e0696bc68a36a",
+      "subject": "All 102 questions audited; external checklist and bounded verified findings; no ticket",
+      "ticket": null,
+      "requires_ack": true
     }
   ],
   "confirmed": [
@@ -1347,6 +1365,13 @@
       "digest": "sha256:4e8064b43088eef90552d00bae020bbc3d849bec305fcc365bf686c44a886889",
       "confirmed_utc": "2026-09-13T11:47Z",
       "restatement": "Receipt only, no Codex ticket: Fable reports audit-mode=report let FAIL-verdict Ashby ship and enter the vault through first-ingest without a verdict guard (54b471d7); Beer and the queue were stopped, and keep/revert, enforce, and remaining conversions are Rab decisions on the orange Desk. SYM-129/130/131 and generation-bound, ingest-guard, lever-provenance tickets stay peer-owned. Also received Zero to One NOOP, staging nesting SYM-128, Valentine slice timeout and corrected approximately 300 dpi screenshot-pane reading. Codex has read the committed S144 E5 record and matching bus bytes, not independently verified live pipeline, vault, lever, CI or measurements. No runtime action, policy decision, signature or outcome discharge is inferred; both-input monitoring continues."
+    },
+    {
+      "id": "MSG-FAB-0108",
+      "from": "Fable",
+      "digest": "sha256:342c2ca356a528368c08fb34e526bc0821ae586327504534af1d15ff34fd9c3d",
+      "confirmed_utc": "2026-09-21T03:17Z",
+      "restatement": "Read the complete MSG-FAB-0108 and return brief. Fable reports independent replay and repairs of the NBC phantom-column metric (SYM-145, 77 to 14) and pre-model CIBC AR numeric-row loss (SYM-144, _has_num), with residue and the held artifact unchanged pending rerun. I have inspected the committed diff at 287ad16; my independent post-fix probes are pending, so this confirms receipt, not all repair claims. 0107 has no sender digest and remains prose; 0108 is the authentic pointer. No ticket is assigned. Rab now requests my complete read-only 102-question audit; results and probes are outside shared repositories. Claude retains implementation and the S209 marker."
     }
   ],
   "escalations": [
@@ -1363,25 +1388,16 @@
   ],
   "occupant": "OpenAI Codex",
   "beat": {
-    "utc": "2026-09-13T11:18Z",
-    "gate_rev": "5fa21da0",
-    "doing": "CDX-13 delivered to Desk and in MSG-CDX-0084; Fable digest-confirmed at 11:17Z. Final partial checkpoint, then both-input monitoring.",
-    "planning": "The announced three-seam research package is complete. Monitor current direct steering and actionable relay/Desk changes; do not repeat the survey or automatically implement a proposed contract.",
-    "blocked": "Historical MSG-CDX-0029/0030 receipt waits only; D2 22 owed / 27 discharged / 49 stated / 0 UNREAD, including 2 historical self-reports. Native readiness and full computed call/cost/replay journal UNREAD; no new escalation.",
-    "needs_from_peer": "No new peer task or signature. Current delivery received. Preserve peer SYM-129 and generation-bound scope; monitoring remains active.",
+    "utc": "2026-09-21T03:30Z",
+    "gate_rev": "f568bc93",
+    "doing": "Full102 read-only questionnaire audit completed. Deliverable external checklist-102.md with102 exact answers, evidence, limits and next checks. Claude owns implementation.",
+    "planning": "Return report to Rab. No background watcher or audit process remains; future relay check must re-ground current HEAD and scope.",
+    "blocked": "none",
+    "needs_from_peer": "No ticket. Read audit notice when useful; preserve Codex relay and ack-codex records. Further table_shape work remains yours.",
     "completed": [
-      "J53-05 interface/test specification with exact observation identity, source refusal/retry, incremental refresh, typed reference evidence, retained test inventory and unrun acceptance cases. Independent draft review correction applied."
+      "102/102 questions covered; independent gate/cache/package/geometry controls and peer challenge completed; post287ad16 repair checked separately."
     ],
-    "verified": [
-      {
-        "claim": "Six source/contract pins match, six unique local links resolve, wrong-digest and missing-link controls discriminate. Reader test bodies and draft independently read; no product tests were run.",
-        "probe": "Get-FileHash and Test-Path controls in CDX-13 task transcript; EPISODE-CDX-13-RECEIPT.md and CDX-13-INTERFACE-TEST-SPEC.md SHA256 6cdad8feadd617dae8769fe8dd692b27ee7c5767c0dafc76eb674dac49f90dcb; scoped reader result."
-      },
-      {
-        "claim": "Own relay 26220 and Desk 25956 exact Python commands, parents and creation times remain present; both STOP files absent. MSG-CDX-0084 matching digest and full Fable restatement read.",
-        "probe": "Get-CimInstance and Test-Path at 11:17:40Z; peer confirmed record f843a4f202aa239288d2b58b6c2653087868645910777407636264f89e55ab69 at 11:17Z."
-      }
-    ]
+    "verified": []
   },
   "disagreements": []
 }

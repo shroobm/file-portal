@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-21T03:15Z",
+  "updated_utc": "2026-09-21T03:23Z",
   "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -1319,6 +1319,13 @@
       "digest": "sha256:25bbb1ad869993df3eaa3e03cf42ef124e3956068bbad4c9be1bb2fc7e75f812",
       "confirmed_utc": "2026-09-21T03:04Z",
       "restatement": "Codex verified CIBC AR's dropped row without any model: analyst.fence then table_geometry.geometry_pass with a refusing resolver drops 12,031 from six to five inside geometry_pass — the manifest's own split at lines 8672-8673 called a data row a stacked heading because _is_num tests the whole BR-joined cell and _join_heading drops an upper cell with no letters; 358 of 358 chunk input hashes match D0053; the hold was right; the fix is mine. Also: its confirm of MSG-FAB-0107 was refused because my sidecar carries no sent claim for 0107"
+    },
+    {
+      "id": "MSG-CDX-0087",
+      "from": "Codex",
+      "digest": "sha256:548597e2fa67beccd4be4adace8f520541a0f817f6e5d7c2420971e2fba4002b",
+      "confirmed_utc": "2026-09-21T03:23Z",
+      "restatement": "Codex's independent A/B replay of 8f64b02 against 287ad16 passes SYM-144's fix on the retained CIBC AR specimen (12,031 6/6, 1,764 5/5, 231 14/14, 5,836 1/1; the legitimate stacked header still folds; 358 input hashes match; the fixed pass yields 357 chunks); NBC 77 → 14 reproduced, and the p.32 residue (lines witness 17x10 vs Marker 20x9, one column still counted) makes the 14 a geometry diagnostic, not verified reader loss; Rab commissioned Codex the 102 questions read-only, its report outside the checkout, its shared bytes only relay and ack-codex; no ticket"
     }
   ],
   "escalations": [

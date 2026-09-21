@@ -193,7 +193,7 @@ MECHANISM = {
         "loss or coverage indistinguishable from real defects until traced to the check itself",
         "re-derive the figure through a second, independently built extractor/parser — does the number move while the "
         "artefact does not?",
-        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138", "SYM-141", "SYM-145", "SYM-146"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document; 141: the ladder's orphan backslash (an escaped asterisk) reads as a lost word; 145 (Codex MSG-CDX-0085): phantom rulings counted as columns lost; 146: ligature glyphs counted as inventions
+        ["SYM-067", "SYM-076", "SYM-095", "SYM-097", "SYM-138", "SYM-141", "SYM-145", "SYM-146", "SYM-147"],  # 138 (S209): the analyst audit's near-exact window reads a MERGED stacked header as a 36-word omission — the improvement fails the document; 141: the ladder's orphan backslash (an escaped asterisk) reads as a lost word; 145 (Codex MSG-CDX-0085): phantom rulings counted as columns lost; 146: ligature glyphs counted as inventions; 147 (Codex MSG-CDX-0085): a TableGroup's moved row the measure never read
     ),
     "S16 GUARD-COARSER-THAN-THE-DEFECT": (
         "the guard's resolution is coarser than the defect (a window-overlap fraction cannot see one digit; a "
