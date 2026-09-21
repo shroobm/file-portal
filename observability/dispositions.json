@@ -798,6 +798,54 @@
       "disposition": "EVIDENCE",
       "reason": "S210 E2 (2026-09-21; SYM-155 — Marker discards the text layer of 49–72 % of RBC's pages and the bundle never said so): `blocks.extraction` (marker_blocks.extraction_of, per slice; summed by merge_block_records; copied whole into the manifest's blocks block by summarize) — REPORT-ONLY; None on a pre-S210 cached slice (UNREAD, never 0). The cap on that list (docs/34: a cut says how much it cut)."
     },
+    "converter:sources": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. The per-slice source files the record was merged from (the slice names), so a partial merge names what it had."
+    },
+    "converter:page_info": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. Marker's own page_info map (page sizes and ids) carried through the merge."
+    },
+    "converter:pages_with_blocks": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. How many distinct pages carry at least one block — against `pages`, the coverage of the record."
+    },
+    "converter:page_min": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. The lowest absolute page a block names (the merge's honesty check: slices are disjoint ranges)."
+    },
+    "converter:page_max": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. The highest absolute page a block names."
+    },
+    "converter:page_field_raw_disagreements": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. How often Marker's own `page` field disagreed with the id-derived page (expected ~every block on marker-pdf 1.10.2; a sudden 0 means upstream fixed json_to_chunks)."
+    },
+    "converter:page_field_note": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. The sentence that says why `page` is corrected from the block id — carried so a reader of the file needs no source."
+    },
+    "converter:block_type": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. Per block: Marker's block type (Text, Table, TableGroup, Figure, …) — what every measure keys on."
+    },
+    "converter:page_field_raw": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. Per block: Marker's uncorrected `page` field, kept beside the corrected one so the correction is auditable."
+    },
+    "converter:section_hierarchy": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. Per block: Marker's section path for the block (the heading chain)."
+    },
+    "converter:image_refs": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. Per block: the asset file names the block's images resolve to (the bundle's assets/)."
+    },
+    "converter:timing_s": {
+      "disposition": "EVIDENCE",
+      "reason": "J24 (S114, 2026-09-01), signed S210 E2 (2026-09-21) when marker_blocks.py joined the producers (its record was unseen glass for three weeks — the S7 family, PRODUCED-BUT-NEVER-PROJECTED): the blocks record (`blocks.json` beside the bundle; its summary in the manifest's `blocks` block) — REPORT-ONLY, read by the bench and the auditing readers. The record's own cost per run — build_document, markdown_render, chunk_render seconds and pages — so the 'no second GPU pass' claim is re-measurable on every book (docs/34)."
+    },
     "widget:program": {
       "disposition": "INTERNAL",
       "reason": "The analyst PROGRAM name (docs/13 'program slot': readability etc.) forwarded by line.rs:484 into the status json. It identifies WHICH prompt file re-tasked the fenced model; the human reads the analyst's counts and verdict, never the slot name. Pulled into --since scope by F3 (S114, 2026-09-03) because the inline path now emits it beside the resume path's identical key; pre-existing since S113. Rendering it is a widget change beyond F7's signature - carried as residue, not wired."
