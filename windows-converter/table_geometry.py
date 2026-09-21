@@ -1308,6 +1308,7 @@ def apply_admitted(lines: list[str], h: int, d: int, e: int, props: list[dict]) 
 # ---- S157 E1: the split pass — a second stacked heading inside a table's body is a second table -------------------------
 
 _NUMTOK = re.compile(r"^[-+]?\d[\d,]*(\.\d+)?%?$|^[-+]?\.\d+%?$")
+_PAGEREF = re.compile(r"^\d{1,4}(-\d{1,4})?$")   # S209 E14 (SYM-152): a page reference or range — a number-shaped token
 
 
 def _is_num(cell: str) -> bool:
@@ -1320,9 +1321,14 @@ def _has_num(cell: str) -> bool:
     token, so `_is_num` read it as words and the stacked-heading rules took the data row for a heading and dropped it
     (`12,031` six times in Marker's text, five in the analyst's — the hold was right, the loss was this pass's). A cell is
     numeric when any of its `<br>` parts is a number (a bare percent excepted, as before: `Lower 95%` is a heading)."""
-    for part in BR.split(cell):
+    # S209 E14 (SYM-152, BMO's Q3 2026 report): a Basel disclosure INDEX's rows carry page references (`59-63,<br>76-80`,
+    # `22-49,<br>51-67,91-93`) and dashes, their first cell empty (the item's number sits in the label) — no token here was a
+    # number to the rule, and two index rows became "a stacked heading of 5 headings": joined, the table split under them,
+    # the analyst audit's window failed on the moved page numbers and the report was HELD. A page reference is a number-
+    # shaped token: the cell is split on <br>, whitespace and commas, and a digit run with an optional range counts.
+    for part in re.split(r"<br>|\s+|,", cell):
         p = part.replace("\\$", "").replace("$", "").strip()
-        if p and _NUMTOK.match(p) and not p.endswith("%"):
+        if p and (_NUMTOK.match(p) or _PAGEREF.match(p)) and not p.endswith("%"):
             return True
     return False
 

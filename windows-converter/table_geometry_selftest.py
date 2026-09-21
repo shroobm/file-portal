@@ -811,6 +811,20 @@ def main():
           tg._heading_pair(["", "Standard", "", "P-", "Lower"], ["", "Error", "t Stat", "value", "95%"], ["x", "1.2", "0.3", "2.1", "0.5"], None)[0], "")
     ok144b, _j, why144b = tg._heading_row_br(["", "Total revenue<br>Provision", "12,031<br>1,764", "6,902<br>166", "3,216<br>175"], ["2025", "Net<br>income", "9,629<br>2,402", "2,960", "2,205"], None)
     check("SYM-144: the one-row <br> heading rule refuses a stacked DATA row the same way", not ok144b and why144b == "a number in the row", why144b)
+    # S209 E14 — SYM-152 (BMO's Q3 2026 report, marker lines 89–90): two rows of a Basel disclosure INDEX — first cell empty, the
+    # item's number in the label, page references and dashes in the cells — read as "a stacked heading of 5 headings" and were
+    # joined and split under; a page reference (`59-63`, `22-49`) is a number-shaped token and the pair is data.
+    A152 = ["", "14. Analysis of capital requirements for each method used in calculating RWA", "59-63,<br>76-80", "–", "–", "–"]
+    B152 = ["", "15. Tabulate credit risk in the banking book for Basel asset classes and major portfolios", "–", "–", "–", "22-49,<br>51-67,91-93"]
+    ABOVE152 = ["", "13. Risk-weighted assets (RWA) by operating segment", "63", "–", "–", "–"]
+    ok152, _j152, why152 = tg._heading_pair(A152, B152, ABOVE152, None)
+    check("SYM-152: two index rows with page references are NOT a stacked heading (the refusal names the number)",
+          not ok152 and why152 == "a number in the pair", why152)
+    check("SYM-152 `_has_num`: a page range, a comma-joined reference list and a bare page number are numeric; a dash and a label are not",
+          tg._has_num("59-63,<br>76-80") and tg._has_num("22-49,<br>51-67,91-93") and tg._has_num("63") and not tg._has_num("–")
+          and not tg._has_num("14. Analysis of capital requirements"), "")
+    check("SYM-152 POSITIVE CONTROL: the regression's stacked heading pair still folds after the page-reference rule",
+          tg._heading_pair(["", "Standard", "", "P-", "Lower"], ["", "Error", "t Stat", "value", "95%"], ["x", "1.2", "0.3", "2.1", "0.5"], None)[0], "")
     print("%s: %d/%d" % ("ALL OK" if not FAILS else "FAILED", N - FAILS, N))
     return 1 if FAILS else 0
 
