@@ -910,6 +910,70 @@
       "disposition": "EVIDENCE",
       "reason": "S211 E1 (2026-09-21; CORRECTIONS row 5): the variant registry's `fixes_effective` — did the job's named get_chars fix (offpage-clip, charbox-lift) actually read the document: False when the wrapper's chars_seen is 0 (Bill C-30's ~160: pdftext's workers read the pages, the wrapper saw none), True when it saw chars, None when no get_chars fix was named or the record has no counters (UNREAD, never False). A reading beside the selection, never a constraint; read by whoever audits a variant (`variants.py show`)."
     },
+    "converter:columns_lost_population": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the tables measure's `columns_lost_population` — how many tables the column comparison actually covered (the LINES-witnessed tables, the only ones it is computed from); `columns_lost` reads None when this is 0 (RBC AR: 5 of 223; BMO: 0 of 159 — the zeros were unsupported). Read beside columns_lost by the registry (variants.summarize) and whoever audits a bundle."
+    },
+    "converter:rows_lost_population": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): `rows_lost_population` — identical in value and meaning to columns_lost_population: rows_lost is summed only inside the same lines-witness branch (the old meaning line's 'rows from both' was itself false — Lane A corrected the prose to the code); `rows_lost` reads None when this is 0."
+    },
+    "converter:tables_agree_population": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): `tables_agree_population` — how many tables BOTH witnesses (lines and text) covered: NOT derivable (the witness returns at the first strategy that finds a table), so the key is present and always None — a reader sees the question was asked and could not be answered, never a fabricated 0."
+    },
+    "converter:missing_in_figures_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the numbers measure's `missing_in_figures_total` — figures the layer carries inside a Figure/Picture block's bbox that Marker's text lacks (a chart's axis ticks: RBC p.41's 100,000 … 250,000, p.58's ten), counted APART from missing_total, never folded in; None (UNREAD) when the blocks carry no figure box or no pdf_path was given. Report-only, unseen by compute_verdict."
+    },
+    "converter:missing_in_figures": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): per worst page, the figures reclassified into the chart split (the page-level twin of missing_in_figures_total)."
+    },
+    "converter:lost_hyphen_joined": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the inventions measure's `lost_hyphen_joined` — witness words that are a line-end fragment (the last word on its raw line, trailing nothing, a hyphen or a soft hyphen) which, joined with the next witness word, spell a word Marker's blocks DO carry (Bill C-288: circons + tance → circonstance): Marker rejoined the layer's own line-wrap, nothing was lost. BOTH halves count (E3). lost_total keeps its old meaning."
+    },
+    "converter:lost_hyphen_joined_specimens": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): up to 6 specimens of lost_hyphen_joined: page, fragment, joined_with, joined — so a reader can see the join, not only its count."
+    },
+    "converter:joined_with": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): inside a lost_hyphen_joined specimen: the next witness word the fragment was joined with."
+    },
+    "converter:lost_total_excl_joined": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): `lost_total_excl_joined` = lost_total − lost_hyphen_joined: the honest count of what is still lost. The registry compares THIS between variants when both carry it (variants.faithful, rank)."
+    },
+    "converter:invented_hyphen_joined": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): `invented_hyphen_joined` — Marker's words that ARE such a rejoined pair (class joined, at a line-end fragment position): the same join read on the invented side (Bill C-30 ~160c: 167 invented on the layer path against 27 on the OCR path, which keeps the layer's breaks). invented_total keeps its old meaning."
+    },
+    "converter:invented_total_excl_joined": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): `invented_total_excl_joined` = invented_total − invented_hyphen_joined: the honest rest on the invented side; compared by the registry when both variants carry it."
+    },
+    "converter:inventions_excl_joined": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the registry's reading of invented_total_excl_joined (None on a manifest audited before the key existed — UNREAD, never 0; faithful then reads the constraint UNREAD and names the side)."
+    },
+    "converter:words_lost_excl_joined": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the registry's reading of lost_total_excl_joined — the same UNREAD rule."
+    },
+    "converter:numbers_missing_in_figures": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the registry's reading of missing_in_figures_total, beside numbers_missing."
+    },
+    "converter:tied": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the registry bucket's `tied` — the variants equal to the incumbent on every measured number (verdict rank, errors, survival_convert, survival_analyst): the incumbent stays selected, each tied one listed with its dir and note; converted_at never breaks a selection tie (Bill C-288's ~160b: equal numbers, a worse page, chosen as the newest under the retired rule). Printed by `variants.py show` and the ship line."
+    },
+    "converter:note": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): a tied entry's `note` — the tie rule's sentence, verbatim: 'tied on every measured number — the incumbent stays; what no measure sees is not a reason to switch'."
+    },
     "converter:violations": {
       "disposition": "EVIDENCE",
       "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `refused[].violations` — the faithfulness constraints a variant broke, each with both numbers."

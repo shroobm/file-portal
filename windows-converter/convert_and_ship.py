@@ -2192,7 +2192,8 @@ def _register_variant(dest: Path, source_sha: str | None) -> None:
         sha = source_sha or entry.get("source_sha256")
         bucket = variants.select(sha)
         print(f"VARIANT registered {dest.name!r} · selected {bucket.get('selected')!r} · "
-              f"refused {len(bucket.get('refused') or [])} · {bucket.get('reason')}", flush=True)
+              f"tied {len(bucket.get('tied') or [])} · refused {len(bucket.get('refused') or [])} · "
+              f"{bucket.get('reason')}", flush=True)
     except Exception as exc:  # noqa: BLE001 — a registry fault is said, never paid for by the bundle
         print(f"VARIANT registry UNREAD for {dest.name!r}: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
 

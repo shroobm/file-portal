@@ -13,6 +13,17 @@ Report-only (docs/15 §12: the gates are two and signed): `columns_lost` and `ro
 `tables_witnessed_lines` / `tables_witnessed_text` / `tables_disagree` / `tables_unread` beside `tables_total` (docs/34: a
 number names its population), the worst pages with their shapes. Prototyped over four banks whole (S209 E10,
 `columns_lost_proto.py`): NBC 102 columns lost over 24 pages, p.26 `14×26 → 11×9`. The reader's number, the build's target.
+
+S211 Lane A (Rab's word 2026-09-21: "anything falsified needs to be secured and fix so it cannot be false about what there
+is, and if it's not capable of doing so, we should know prior than later"): RBC's 2025 Annual Report manifest read
+tables_witnessed_lines 5 of tables_total 223 and printed columns_lost 0 — a zero over that small a population is
+UNSUPPORTED, not "no columns lost". `columns_lost` and `rows_lost` now read None (never 0) when their own population —
+`columns_lost_population` / `rows_lost_population`, both the count of LINES-witnessed tables — is 0; the code only ever
+sums rl/cl inside the `strat == "lines"` branch, so rows_lost's real witness is lines alone, not "both" as this file
+previously claimed (that claim was itself unsupported prose, fixed here, never a code behavior change). A measured zero
+over a real (nonzero) population still reads 0. `tables_agree_population` stays None always: `_witness` tries one
+strategy per table (lines, else text) and returns at the first hit, so no table is ever checked by both — not
+derivable from this implementation, not invented as a count.
 """
 from __future__ import annotations
 
@@ -72,19 +83,39 @@ def _witness(page, clip):
     return None
 
 
+def _finish(out: dict) -> dict:
+    """the population keys and the None-for-unwitnessed rule, applied at every return point (S211 Lane A; docs/34;
+    Rab's word 2026-09-21: a measure may never assert a number it cannot support — an unwitnessed columns_lost /
+    rows_lost is None, never 0). Both `_lost` counters are summed only inside the `strat == "lines"` branch below,
+    so both share the same population: tables_witnessed_lines."""
+    pop = out["tables_witnessed_lines"]
+    out["columns_lost_population"] = pop
+    out["rows_lost_population"] = pop
+    if pop == 0:
+        out["columns_lost"] = None
+        out["rows_lost"] = None
+    return out
+
+
 def table_shape(doc, blocks: list[dict], lane: str) -> dict:
     """`doc` an open pymupdf document (the source) or its path, `blocks` blocks.json's list, `lane` "clean" or "scan"."""
     tables = [b for b in blocks if b.get("block_type") in TABLE_TYPES and b.get("bbox") and b.get("page") is not None]
     worst: list[dict] = []                # the worst pages, appended at the end (a list the returned block names)
     out = {"meaning": "the source's table geometry inside each Marker table box against Marker's rows and width; "
-                      "columns from the lines witness only, rows from both; a witness whose cells disagree is none",
+                      "columns_lost and rows_lost both come from the lines-witnessed tables only (the text witness "
+                      "names a table present but gives no shape number to either, over-splitting both rows and "
+                      "columns); a witness whose cells disagree is none; a *_lost value is None, never 0, when its "
+                      "own *_lost_population is 0 — unwitnessed, not a measured zero; tables_agree_population is "
+                      "always None (not derivable: _witness tries one strategy per table and stops at the first "
+                      "hit, so no table is ever checked by both)",
            "cell_agree_floor": CELL_AGREE, "tables_total": len(tables), "tables_witnessed_lines": 0,
-           "tables_witnessed_text": 0, "tables_disagree": 0, "tables_unread": 0, "columns_lost": 0,
-           "columns_gained": 0, "rows_lost": 0, "pages_with_columns_lost": 0, "worst": worst}
+           "tables_witnessed_text": 0, "tables_disagree": 0, "tables_agree_population": None, "tables_unread": 0,
+           "columns_lost": 0, "columns_lost_population": 0, "columns_gained": 0, "rows_lost": 0,
+           "rows_lost_population": 0, "pages_with_columns_lost": 0, "worst": worst}
     if lane != "clean":
         out["tables_unread"] = len(tables)
         out["reason"] = "the scan lane's layer is no witness for geometry"
-        return out
+        return _finish(out)
     import fitz  # the converter already runs on marker-env; kept local so a reader of the block needs no pymupdf
 
     if isinstance(doc, (str, bytes)) or hasattr(doc, "__fspath__"):
@@ -93,7 +124,7 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
         except Exception:  # noqa: BLE001 — a source the library cannot open: every table unread, never a crash at ship
             out["tables_unread"] = len(tables)
             out["reason"] = "the source could not be opened for its geometry"
-            return out
+            return _finish(out)
     per_page: dict[int, dict] = {}
     for b in tables:
         p = b["page"]
@@ -141,4 +172,4 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
     out["pages_with_columns_lost"] = sum(1 for v in per_page.values() if v["columns_lost"])
     for v in sorted(per_page.values(), key=lambda v: -(v["columns_lost"] * 10 + v["rows_lost"]))[:WORST_CAP]:
         worst.append({"page": v["page"], "columns_lost": v["columns_lost"], "rows_lost": v["rows_lost"], "shapes": v["shapes"]})
-    return out
+    return _finish(out)

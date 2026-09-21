@@ -31,7 +31,7 @@ def _manifest(
     tables_total=1, rows_lost=0, columns_lost=0, tables_witnessed_lines=10,
     figures_total=1, degeneration=False, surya=0, fixes=None,
     omit_inventions=False, omit_tables=False, omit_figures=False, omit_numbers=False,
-    omit_analyst=False,
+    omit_analyst=False, words_lost_excl=None, inventions_excl=None,
 ) -> dict:
     convert: dict = {
         "doc_survival": survival_convert,
@@ -44,6 +44,12 @@ def _manifest(
             "invented_total": inventions_total, "lost_total": words_lost,
             "marker_words_total": marker_words_total,
         }
+        # S211 E3: the honest rests (fidelity_audit's *_excl_joined) only when a case asks for them — an older
+        # manifest carries neither, and the registry must read that as UNREAD, never 0
+        if words_lost_excl is not None:
+            convert["inventions"]["lost_total_excl_joined"] = words_lost_excl
+        if inventions_excl is not None:
+            convert["inventions"]["invented_total_excl_joined"] = inventions_excl
     if not omit_tables:
         convert["tables"] = {
             "tables_total": tables_total, "rows_lost": rows_lost,
@@ -283,8 +289,179 @@ def test_fixes_effective_reading():
         assert variants.summarize(b)["fixes_effective"] is None, variants.summarize(b)    # a stock run
 
 
+def test_tie_incumbent_stays_selected_newer_listed_tied():
+    """S211 Lane C (Rab's word 2026-09-21): a candidate that TIES the baseline on every measured
+    number (verdict, errors, survival_convert, survival_analyst) must not unseat it merely for
+    being newer -- the incumbent stays selected, the newer is named under `tied`.
+
+    NEGATIVE CONTROL, proven directly: rank() is unchanged -- it still ends in converted_at --
+    so rank(a) and rank(b) below are equal in every slot but the last, and rank(b) > rank(a)
+    purely because B is dated later. Before this change, select() did `max(candidates,
+    key=rank)`, so this asserted-true old-rank comparison IS what would have selected B: this
+    test would FAIL against the pre-Lane-C select() (it would find bucket["selected"] ==
+    "B-newer-tie", not "A-original"). Against the new code it passes."""
+    with _isolated() as td:
+        sha = "sha-tie-0012"
+        a = _make_bundle(td, "anchor", "A-original", sha=sha, verdict="pass",
+                          converted_at="2026-01-01T00:00:00+00:00")
+        b = _make_bundle(td, "anchor", "B-newer-tie", sha=sha, verdict="pass",
+                          converted_at="2026-01-02T00:00:00+00:00")
+        variants.register(a)
+        variants.register(b)
+
+        old_rank_a = variants.rank(variants.summarize(a))
+        old_rank_b = variants.rank(variants.summarize(b))
+        assert old_rank_a[:-1] == old_rank_b[:-1], (old_rank_a, old_rank_b)  # tied on the 4 measures
+        assert old_rank_b > old_rank_a, (old_rank_a, old_rank_b)  # OLD rule: B wins on converted_at alone
+
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "A-original", bucket
+        tied_dirs = [t["dir"] for t in bucket["tied"]]
+        assert tied_dirs == ["B-newer-tie"], bucket["tied"]
+        assert bucket["tied"][0]["note"] == variants._TIE_NOTE, bucket["tied"]
+        assert "B-newer-tie" in bucket["reason"], bucket["reason"]
+
+
+def test_strictly_better_newer_still_wins_despite_tie_logic():
+    """Proves the tie rule does nothing where it must not: a candidate with strictly fewer
+    errors than the baseline still wins outright (its _selection_rank is greater, not equal),
+    and nothing is listed under `tied`. Same shape as test_equal_verdict_fewer_errors_selected,
+    asserted again here explicitly against the new `tied` key so a future edit to the tie path
+    cannot silently start swallowing a real win."""
+    with _isolated() as td:
+        sha = "sha-tie-better-0013"
+        a = _make_bundle(td, "anchor", "A-baseline", sha=sha, verdict="pass",
+                          converted_at="2026-01-01T00:00:00+00:00", words_lost=3)
+        b = _make_bundle(td, "anchor", "B-fewer-errors", sha=sha, verdict="pass",
+                          converted_at="2026-01-02T00:00:00+00:00", words_lost=0)
+        variants.register(a)
+        variants.register(b)
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "B-fewer-errors", bucket
+        assert bucket["tied"] == [], bucket["tied"]
+
+
+def test_tied_candidate_fixes_effective_false_named_in_reason():
+    """A tied candidate is not a refusal (S211 E1: fixes_effective is a reading beside the
+    selection, never a constraint) -- but when it IS the tied candidate, the reason sentence
+    names its fixes_effective False, per Rab's word: a measure must never assert a number (or a
+    silence) it cannot support, and here the tie's own explanation should say what else is known
+    about the candidate it declined to promote."""
+    with _isolated() as td:
+        sha = "sha-tie-fx-0014"
+        a = _make_bundle(td, "anchor", "A-original", sha=sha, verdict="pass",
+                          converted_at="2026-01-01T00:00:00+00:00")
+        b = _make_bundle(td, "anchor", "B-tied-fx", sha=sha, verdict="pass",
+                          converted_at="2026-01-02T00:00:00+00:00")
+        bp = b / "manifest.json"
+        m = json.loads(bp.read_text(encoding="utf-8"))
+        m["fixes"] = ["offpage-clip"]
+        m["fixes_stats"] = {"chars_seen": 0, "chars_dropped": 0, "chars_lifted": 0}
+        bp.write_text(json.dumps(m), encoding="utf-8")
+        variants.register(a)
+        variants.register(b)
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "A-original", bucket
+        tied_dirs = [t["dir"] for t in bucket["tied"]]
+        assert tied_dirs == ["B-tied-fx"], bucket["tied"]
+        assert "B-tied-fx" in bucket["reason"] and "fixes_effective=False" in bucket["reason"], bucket["reason"]
+
+
+def test_only_variant_is_original_nothing_changes():
+    """When the only variant registered IS the baseline/original, select() must behave exactly
+    as before Lane C: it is selected, and `tied` is empty (there is nothing to tie against)."""
+    with _isolated() as td:
+        sha = "sha-tie-solo-0015"
+        a = _make_bundle(td, "anchor", "A-only", sha=sha, verdict="pass",
+                          converted_at="2026-01-01T00:00:00+00:00")
+        variants.register(a)
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "A-only", bucket
+        assert bucket["tied"] == [], bucket["tied"]
+
+
+def test_honest_rest_compared_when_both_carry_it():
+    """S211 E3 (Rab's word 23:1xZ; Bill C-30 ~160c refused on 574 > 479 lost / 167 > 27 invented, the layer path's
+    own line-wrap joins): when BOTH sides carry lost_total_excl_joined / invented_total_excl_joined, faithful compares
+    the honest rests and rank sums them. NEGATIVE CONTROL: the raw counts alone (the old comparison) read a violation
+    -- asserted directly -- while the honest rests read none, so the candidate is selected."""
+    with _isolated() as td:
+        sha = "sha-honest-0001"
+        a = _make_bundle(td, "anchor", "A-original", sha=sha, verdict="flag",
+                          converted_at="2026-01-01T00:00:00+00:00",
+                          words_lost=479, inventions_total=27, words_lost_excl=300, inventions_excl=20)
+        b = _make_bundle(td, "anchor", "B-fixed", sha=sha, verdict="flag",
+                          converted_at="2026-01-02T00:00:00+00:00", survival_convert=0.97,
+                          words_lost=574, inventions_total=167, words_lost_excl=200, inventions_excl=10)
+        variants.register(a)
+        variants.register(b)
+        sa, sb = variants.summarize(a), variants.summarize(b)
+        assert sb["words_lost"] > sa["words_lost"] and sb["inventions_total"] > sa["inventions_total"], (sa, sb)  # raw: worse
+        ok, violations, unread = variants.faithful(sb, sa)
+        assert ok and violations == [], (violations, unread)
+        assert not any("words_lost" in u or "inventions_total" in u for u in unread), unread
+        assert variants._error_sum(sb)[0] == 200 + 10, variants._error_sum(sb)
+        assert variants._error_sum(sa)[0] == 300 + 20, variants._error_sum(sa)
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "B-fixed", bucket
+
+
+def test_honest_rest_absent_on_one_side_reads_unread_never_violation():
+    """S211 E3: an older manifest (audited before the keys existed) carries no honest rest -- the raw comparison
+    across the two vocabularies would be a falsified refusal, so faithful reads the constraint UNREAD and NAMES the
+    side lacking it; rank still orders on each entry's own honest-or-raw sum, so a strictly worse candidate is not
+    promoted (NEGATIVE CONTROL: with the raw comparison the candidate would be refused; here it is neither refused
+    nor selected -- the incumbent stays)."""
+    with _isolated() as td:
+        sha = "sha-honest-0002"
+        a = _make_bundle(td, "anchor", "A-original-old", sha=sha, verdict="flag",
+                          converted_at="2026-01-01T00:00:00+00:00", words_lost=479, inventions_total=27)
+        b = _make_bundle(td, "anchor", "B-fixed-new", sha=sha, verdict="flag",
+                          converted_at="2026-01-02T00:00:00+00:00",
+                          words_lost=574, inventions_total=167, words_lost_excl=550, inventions_excl=150)
+        variants.register(a)
+        variants.register(b)
+        sa, sb = variants.summarize(a), variants.summarize(b)
+        assert sa["words_lost_excl_joined"] is None and sb["words_lost_excl_joined"] == 550, (sa, sb)
+        ok, violations, unread = variants.faithful(sb, sa)
+        assert ok and violations == [], (violations, unread)
+        assert any(u.startswith("words_lost unread") and "baseline" in u for u in unread), unread
+        assert any(u.startswith("inventions_total unread") and "baseline" in u for u in unread), unread
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "A-original-old", bucket   # 550+150 > 479+27: strictly worse, never promoted
+        assert bucket["refused"] == [] and bucket["tied"] == [], bucket
+
+
+def test_select_reset_reinstates_the_original_over_a_sticky_newest():
+    """S211 E3: a selection made under the retired rule (the newest on a tie -- Bill C-288's ~160b) is sticky, so the
+    tie rule alone would keep the wrong incumbent. select(sha, reset=True) takes the ORIGINAL (the earliest
+    conversion) as the baseline: the tied newer variant is listed under `tied`, the original selected. NEGATIVE
+    CONTROL: the same call without reset keeps the sticky newest."""
+    with _isolated() as td:
+        sha = "sha-reset-0003"
+        a = _make_bundle(td, "anchor", "A-original", sha=sha, verdict="pass", converted_at="2026-01-01T00:00:00+00:00")
+        b = _make_bundle(td, "anchor", "B-newer-tie", sha=sha, verdict="pass", converted_at="2026-01-02T00:00:00+00:00")
+        variants.register(a)
+        variants.register(b)
+        reg = variants._load_registry()
+        reg[sha]["selected"] = "B-newer-tie"        # the retired rule's pick, sticky
+        variants._write_registry_atomic(reg)
+        sticky = variants.select(sha)
+        assert sticky["selected"] == "B-newer-tie", sticky   # without reset the sticky pick stays
+        assert [t["dir"] for t in sticky["tied"]] == ["A-original"], sticky["tied"]
+        bucket = variants.select(sha, reset=True)
+        assert bucket["selected"] == "A-original", bucket
+        assert [t["dir"] for t in bucket["tied"]] == ["B-newer-tie"], bucket["tied"]
+        again = variants.select(sha)                   # sticky from here on
+        assert again["selected"] == "A-original", again
+
+
 TESTS = [
     test_fixes_effective_reading,
+    test_tie_incumbent_stays_selected_newer_listed_tied,
+    test_strictly_better_newer_still_wins_despite_tie_logic,
+    test_tied_candidate_fixes_effective_false_named_in_reason,
+    test_only_variant_is_original_nothing_changes,
     test_two_variants_better_verdict_selected,
     test_equal_verdict_fewer_errors_selected,
     test_asset_loss_refused,
@@ -295,6 +472,9 @@ TESTS = [
     test_original_never_deleted_after_supersede,
     test_negative_control_faithful_better_candidate_is_selected,
     test_absent_measure_reads_none,
+    test_honest_rest_compared_when_both_carry_it,
+    test_honest_rest_absent_on_one_side_reads_unread_never_violation,
+    test_select_reset_reinstates_the_original_over_a_sticky_newest,
 ]
 
 

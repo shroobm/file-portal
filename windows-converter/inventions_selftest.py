@@ -5,8 +5,16 @@ as strings, blocks as dicts — no PDF, no pipeline. Each case violates the prop
 counts as lost, never as invented; a page with no blocks is not measured (pages_measured says so; the ratio's base is
 Marker's words, never the witness's); an html entity is not a word; a short token (< 3 letters) and a number are not words;
 the scan lane names its meaning as disagreement; no blocks at all → a measured zero over zero reads None, not 0.
-Prints `==== inventions selftest: N/N ====`, exit 0 green · 1 red."""
+S211 LANE B adds two more tripwires, also for audit_numbers: a missing figure inside a Figure/Picture block's own box is a
+chart's axis tick (missing_in_figures), not a dropped table figure (missing) — the fixture PDF for this one IS drawn here by
+pymupdf (a page with a boxed chart tick), same pattern as figure_text_selftest.py, and saved to a temp path; a lost witness
+word that is a line-end fragment Marker correctly rejoined with the next witness word is named apart (lost_hyphen_joined),
+lost_total keeping its old meaning. Prints `==== inventions selftest: N/N ====`, exit 0 green · 1 red."""
+import os
 import sys
+import tempfile
+
+import fitz
 
 import fidelity_audit as fa
 
@@ -166,5 +174,68 @@ case("audit_numbers: with no OCR'd-page list the worst page's ocr reads None (UN
 case("_row_label: the words before the first figure, at most six; empty when the line opens with a figure",
      fa._row_label("Secured funding 4,763 10,540") == "Secured funding" and fa._row_label("4,763 first") == ""
      and fa._row_label("a b c d e f g h 1,000") == "a b c d e f", None)
+# 24 · S211 LANE B (RBC p.41: a bar chart's axis ticks — 100,000 / 150,000 / 200,000 / 250,000 — sit inside the chart's own
+# Figure box, printed beside a table on the same y-bands): a missing figure whose OWN word sits inside a Figure/Picture
+# block's bbox is a chart's tick, moved out of `missing` into `missing_in_figures`. Fixture PDF drawn here (never read from
+# disk), same pattern as figure_text_selftest.py's page_with_chart — the geometry has to be real for a containment test.
+_FIG_BOX = [72, 100, 400, 300]
+_numfig_dir = tempfile.mkdtemp(prefix="fp-numfig-")
+_numfig_doc = fitz.open()
+_numfig_page = _numfig_doc.new_page(width=612, height=792)
+_numfig_page.draw_rect(fitz.Rect(*_FIG_BOX), width=0.5)
+_numfig_page.insert_text((_FIG_BOX[0] + 10, _FIG_BOX[1] + 20), "100,000", fontsize=9)
+_numfig_pdf = os.path.join(_numfig_dir, "chart.pdf")
+_numfig_doc.save(_numfig_pdf)
+_numfig_raw = ["100,000 sits beside the chart, on the page but in no table row"]
+r_fig1 = fa.audit_numbers(_numfig_raw, [{"page": 0, "block_type": "Figure", "bbox": _FIG_BOX, "html": ""}], pdf_path=_numfig_pdf)
+case("audit_numbers: a missing figure inside a Figure box reads missing_in_figures_total 1 and missing_total 0 "
+     "(the negative control below: before this cut, and whenever the box misses it, it read missing 1)",
+     r_fig1["missing_total"] == 0 and r_fig1["missing_in_figures_total"] == 1, r_fig1)
+# 25 · negative control for case 24: the SAME token, the SAME page, but the block's Figure box sits elsewhere on the page —
+# the split must not fire just because a Figure/Picture block exists somewhere; only real containment moves it
+r_fig2 = fa.audit_numbers(_numfig_raw, [{"page": 0, "block_type": "Figure", "bbox": [72, 500, 400, 600], "html": ""}], pdf_path=_numfig_pdf)
+case("audit_numbers: the same figure outside any box stays a genuine missing figure (missing_total 1, missing_in_figures_total 0)",
+     r_fig2["missing_total"] == 1 and r_fig2["missing_in_figures_total"] == 0, r_fig2)
+# 26 · negative control: no Figure/Picture box anywhere in blocks — the split cannot be judged at all, so it reads UNREAD
+# (None), never a guessed 0, and missing_total reads exactly what it would without this cut (1)
+r_fig3 = fa.audit_numbers(_numfig_raw, [{"page": 0, "block_type": "Text", "html": ""}], pdf_path=_numfig_pdf)
+case("audit_numbers: no Figure/Picture box in blocks reads missing_in_figures_total None (UNREAD), missing_total unchanged at 1",
+     r_fig3["missing_total"] == 1 and r_fig3["missing_in_figures_total"] is None, r_fig3)
+# 27 · S211 LANE B (Bill C-288: `circons` + `tance` where Marker correctly wrote `circonstance`) — a lost witness word that
+# is the LAST word on its raw line, with nothing (or a hyphen / soft hyphen) trailing it, and that joins with the very next
+# witness word into a word Marker's blocks DO carry, is not a real omission: lost_hyphen_joined names it, lost_total keeps
+# counting it (unchanged meaning), lost_total_excl_joined is the honest rest
+WIT_FRAG = ("The situation depends heavily on the circons\n"
+            "tance of the case and the outcome remains uncertain for every party involved in the proceedings before the "
+            "tribunal reaches its final decision")
+MK_FRAG = ("The situation depends heavily on the circonstance of the case and the outcome remains uncertain for every party "
+           "involved in the proceedings before the tribunal reaches its final decision")
+r_frag = fa.audit_inventions([WIT_FRAG], [{"page": 0, "block_type": "Text", "html": "<p>%s</p>" % MK_FRAG}])
+case("audit_inventions: a line-end fragment pair Marker rejoined reads lost_hyphen_joined 2 (BOTH halves — S211 E3), lost_total "
+     "unchanged (2), lost_total_excl_joined 0 (nothing of the pair is lost), one specimen per pair",
+     r_frag["lost_total"] == 2 and r_frag["lost_hyphen_joined"] == 2 and r_frag["lost_total_excl_joined"] == 0
+     and r_frag["lost_hyphen_joined_specimens"] == [{"page": 1, "fragment": "circons", "joined_with": "tance", "joined": "circonstance"}], r_frag)
+# 28 · negative control for case 27: a genuine lost word (Marker simply dropped it, mid-line, no line-end break to rejoin)
+# must not be swept into lost_hyphen_joined
+WIT_GENUINE = ("The regulator issued a warning about the pipeline safety standards across the northern region and the "
+               "committee reviewed the submission carefully before reaching its final determination for the record")
+MK_GENUINE = ("The regulator issued a warning about the pipeline standards across the northern region and the committee "
+              "reviewed the submission carefully before reaching its final determination for the record")
+r_genuine = fa.audit_inventions([WIT_GENUINE], [{"page": 0, "block_type": "Text", "html": "<p>%s</p>" % MK_GENUINE}])
+case("audit_inventions: a genuine mid-line omission (`safety` simply dropped) reads lost_hyphen_joined 0, lost_total 1, "
+     "lost_total_excl_joined 1 (nothing to subtract)",
+     r_genuine["lost_total"] == 1 and r_genuine["lost_hyphen_joined"] == 0 and r_genuine["lost_total_excl_joined"] == 1, r_genuine)
+# 29 · S211 E3 (the invented side of the same join — Bill C-30 ~160c: 167 invented on the layer path, 27 on the OCR path):
+# Marker's `circonstance` is absent from a witness holding `circons` + `tance`, so it counts invented (class joined) — and
+# invented_hyphen_joined names it apart; invented_total keeps its meaning; invented_total_excl_joined is the honest rest.
+# Negative control: `electronicsand` (case 14) is a join too, but MID-line — the layer never wrapped there — so it stays 0.
+r_cl = fa.audit_inventions([WIT_CL], [{"page": 0, "html": CL}])
+case("audit_inventions: the rejoined pair's Marker word reads invented_total 1 (class joined), invented_hyphen_joined 1, "
+     "invented_total_excl_joined 0; a mid-line join (`electronicsand`) reads invented_hyphen_joined 0 and excl 4; a genuine loss 0",
+     r_frag["invented_total"] == 1 and r_frag["classes"]["joined"] == 1 and r_frag["invented_hyphen_joined"] == 1
+     and r_frag["invented_total_excl_joined"] == 0
+     and r_cl["invented_total"] == 4 and r_cl["invented_hyphen_joined"] == 0 and r_cl["invented_total_excl_joined"] == 4
+     and r_genuine["invented_total"] == 0 and r_genuine["invented_hyphen_joined"] == 0,
+     (r_frag["invented_total"], r_frag["classes"], r_frag["invented_hyphen_joined"], r_cl["invented_hyphen_joined"], r_genuine["invented_total"]))
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

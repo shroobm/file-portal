@@ -512,6 +512,11 @@ INVENTION_CLASSES = ("joined", "fragment", "dropped_letter", "garble")
 # S210 E1 (B40's fifth shape): a contents page's label, a dot leader, its page number (roman or arabic) — `Acknowledgements
 # ........ ix`; the pair glued is a JOINED word the adjacent-pair test cannot see (the number is no word)
 _LEADER = re.compile(r"([^\W\d_]{3,})\s*(?:\.\s*){2,}\s*([ivxlcdmIVXLCDM]{1,5}|\d{1,4})\b")
+# S211 LANE B (Bill C-288: `circons` + `tance` where Marker correctly wrote `circonstance`, `vulner` + `able`) — what may
+# trail a witness word before it reads as a LINE-END FRAGMENT: nothing (line end), a hyphen, or a soft hyphen (U+00AD; a
+# real hyphen followed by a newline is already joined at `lw`'s own preprocessing, line ~590 — this is the leftover case)
+_FRAG_TAIL = re.compile(r"[\-­]?\s*")
+LOST_JOINED_SPECIMENS = 6  # S211 LANE B: specimens kept for lost_hyphen_joined_specimens
 
 
 def _one_edit(a: str, b: str) -> bool:
@@ -568,13 +573,32 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     assert tuple(classes) == INVENTION_CLASSES
     inv_total = words_total = lost_total = wit_total = measured = 0
     blank_pages = blank_marker_words = 0
+    lost_hyphen_joined = 0                 # S211 LANE B: line-end fragments Marker correctly joined (a real loss otherwise)
+    lost_hyphen_joined_specimens: list[dict] = []
+    # S211 E3 (the integrator's symmetric half): the SAME join reads on the invented side — Marker's `circonstance` is
+    # absent from a witness that holds `circons` and `tance`, so it is counted invented (class `joined`) exactly as its
+    # halves are counted lost. invented_total keeps its meaning; invented_hyphen_joined names the joins apart so
+    # invented_total_excl_joined can say the honest rest (Bill C-30 ~160c: 167 invented on the layer path against 27 on
+    # the OCR path, which keeps the layer's line breaks and never joins).
+    invented_hyphen_joined = 0
     for pnum, raw in enumerate(pages_raw, start=1):
         mw = by_page.get(pnum)
         if not mw:
             continue
         # the layer breaks words at line ends ("amalga-\nmation"); Marker joins them — joined first, so a rejoined word is
-        # neither an invention nor a loss (C-31's first run read 1.16 % invented, most of it the layer's own hyphenation)
-        lw = [w.lower() for w in word_re.findall(re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", unicodedata.normalize("NFKC", raw or "")))]
+        # neither an invention nor a loss (C-31's first run read 1.16 % invented, most of it the layer's own hyphenation).
+        # S211 LANE B: `lw` is now built LINE BY LINE (never crossing a `\n` regardless — a word char class already can't)
+        # so `frag_flags[i]` can say, in step, whether lw[i] was the last word-shaped token on ITS OWN raw line, trailing
+        # only a hyphen, a soft hyphen, or nothing before line end — the leftover break the hyphen-join above cannot see.
+        raw_joined = re.sub(r"(\w)-\s*\n\s*(\w)", r"\1\2", unicodedata.normalize("NFKC", raw or ""))
+        lw: list[str] = []
+        frag_flags: list[bool] = []
+        for _line in raw_joined.splitlines():
+            _matches = list(word_re.finditer(_line))
+            for _mi, _mobj in enumerate(_matches):
+                lw.append(_mobj.group(0).lower())
+                _is_last = _mi == len(_matches) - 1
+                frag_flags.append(_is_last and bool(_FRAG_TAIL.fullmatch(_line[_mobj.end():])))
         if len(lw) < PAGE_MIN_WORDS:
             # a near-blank witness page (a chart baked into an image) cannot judge inventions: Marker's words there are
             # its OCR of the picture — text the layer never had, a gain if right — not garble (the SEU's p.73: 74 of 77
@@ -585,11 +609,31 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         measured += 1
         ls, ms = set(lw), set(mw)
         invented = [w for w in mw if w not in ls]
-        lost = [w for w in lw if w not in ms]
+        lost_positions = [i for i, w in enumerate(lw) if w not in ms]
+        lost = [lw[i] for i in lost_positions]
         inv_total += len(invented)
         words_total += len(mw)
         lost_total += len(lost)
         wit_total += len(lw)
+        # S211 LANE B (Bill C-288, 55 "lost" words that were never lost): a lost word at a line-end fragment position,
+        # joined with the very next witness token, that spells a word Marker's blocks DO carry, is Marker having correctly
+        # rejoined what the layer's own line-wrap broke — not an omission. lost_total keeps counting it (its old meaning,
+        # unchanged); lost_hyphen_joined names it apart so lost_total_excl_joined can say the honest rest.
+        # S211 E3: BOTH halves are explained by the join — `tance` is no more lost than `circons` is (Marker's
+        # `circonstance` carries it) — so a pair counts 2 under lost_hyphen_joined when both halves are lost, and
+        # lost_total_excl_joined reads 0 for the pair, not 1. One specimen per pair.
+        _lost_set_positions = set(lost_positions)
+        for _i in lost_positions:
+            if not frag_flags[_i] or _i + 1 >= len(lw):
+                continue
+            _joined_word = lw[_i] + lw[_i + 1]
+            if _joined_word not in ms:
+                continue
+            lost_hyphen_joined += 1
+            if _i + 1 in _lost_set_positions:
+                lost_hyphen_joined += 1
+            if len(lost_hyphen_joined_specimens) < LOST_JOINED_SPECIMENS:
+                lost_hyphen_joined_specimens.append({"page": pnum, "fragment": lw[_i], "joined_with": lw[_i + 1], "joined": _joined_word})
         if invented:
             spec = sorted(set(invented), key=lambda w: (-invented.count(w), w))[:6]
             pages[pnum] = {"marker": len(mw), "witness": len(lw), "invented": len(invented), "lost": len(lost), "specimens": spec}
@@ -611,8 +655,12 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
             # `Acknowledgements ........ ix` → `acknowledgementsix`; the number is a roman numeral under three letters or
             # digits, so it never enters the word list and the adjacent-pair test above cannot see it. Read from the raw page.
             joined_pairs |= {(a + b).lower() for a, b in _LEADER.findall(raw or "")}
+            # S211 E3: the joins that are the layer's own line-wrap (frag_flags) — a subset of joined_pairs, counted apart
+            hyphen_joined_pairs = {lw[i] + lw[i + 1] for i in range(len(lw) - 1) if frag_flags[i]}
             for w in sorted(set(invented)):
                 c = invented.count(w)
+                if w in hyphen_joined_pairs:
+                    invented_hyphen_joined += c
                 if w in joined_pairs:
                     cls = "joined"
                 elif any(w != x and w in x for x in lost_set):
@@ -628,12 +676,24 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     repeated.sort(key=lambda r: (-r["count"], r["page"]))
     return {
         "meaning": ("words in Marker's blocks absent from the source's text layer" if kind == "fidelity"
-                    else "words in Marker's blocks absent from the embedded OCR layer (disagreement, not invention)"),
+                    else "words in Marker's blocks absent from the embedded OCR layer (disagreement, not invention)")
+                   + "; lost_total keeps its old meaning (every witness word Marker's blocks lack, unchanged by this key); "
+                     "lost_hyphen_joined counts, apart, the ones that are a line-end fragment Marker correctly rejoined "
+                     "with the next witness word (S211 LANE B: Bill C-288's `circons`/`tance`, `vulner`/`able`) — "
+                     "lost_total_excl_joined is lost_total minus lost_hyphen_joined, the honest count of what is still lost "
+                     "(S211 E3: BOTH halves of a rejoined pair count under lost_hyphen_joined); invented_total keeps its old "
+                     "meaning too — invented_hyphen_joined counts, apart, Marker's words that ARE such a rejoined pair (class "
+                     "joined, at a line-end fragment), and invented_total_excl_joined is the honest rest",
         "pages_measured": measured,
         "invented_total": inv_total,
+        "invented_hyphen_joined": invented_hyphen_joined,                  # S211 E3: count, not subtracted from invented_total
+        "invented_total_excl_joined": inv_total - invented_hyphen_joined,  # the honest rest on the invented side
         "marker_words_total": words_total,
         "invented_ratio": round(inv_total / words_total, 5) if words_total else None,
         "lost_total": lost_total,
+        "lost_hyphen_joined": lost_hyphen_joined,                          # S211 LANE B: count, not subtracted from lost_total
+        "lost_hyphen_joined_specimens": lost_hyphen_joined_specimens,      # up to LOST_JOINED_SPECIMENS: page, fragment, joined_with, joined
+        "lost_total_excl_joined": lost_total - lost_hyphen_joined,        # the honest rest: lost_total's meaning kept, this one's the new number
         "witness_words_total": wit_total,
         "pages_with_inventions": len(pages),
         "pages_witness_blank": blank_pages,            # witness under PAGE_MIN_WORDS: OCR of pictures, not judged
@@ -705,6 +765,49 @@ def _rows_by_band(pdf_path, pnum: int, missing) -> "Counter":
     return rows
 
 
+def _fig_boxes_by_page(blocks) -> dict:
+    """S211 LANE B (RBC p.41/p.58: a bar chart's axis ticks sit on the same y-bands as a table beside it, printed inside the
+    chart's own Figure/Picture box) — every such block's own bbox, grouped by its 1-indexed page. The same block_type set
+    figure_text.py reads (figure_text.FIG_TYPES), so a page with none at all is told from a page whose box simply misses
+    a token — the caller reads whether this whole mapping is empty to know which."""
+    boxes: dict[int, list] = {}
+    for b in blocks or []:
+        if b.get("block_type") in figure_text.FIG_TYPES and b.get("bbox") and b.get("page") is not None:
+            boxes.setdefault(int(b["page"]) + 1, []).append(b["bbox"])
+    return boxes
+
+
+def _missing_in_figures(pdf_path, pnum: int, missing: "Counter", fig_boxes: list) -> "Counter":
+    """S211 LANE B — for each token in `missing` (the layer's figures Marker's blocks lack), whether that token's OWN word
+    box on the page (pymupdf `get_text('words')`) sits inside one of the page's Figure/Picture boxes: the same containment
+    figure_text.py tests (`fitz.Rect(*bbox) & page.rect`), read here at the single-word level instead of a whole clip. A
+    page that cannot be opened, or that carries no missing tokens or no boxes on it, names nothing (an empty Counter, never
+    a guess) — the caller decides UNREAD from the blocks-wide box count, not from this per-page silence."""
+    from collections import Counter
+    hits: Counter = Counter()
+    if not missing or not fig_boxes:
+        return hits
+    try:
+        doc = pymupdf.open(pdf_path)
+        page = doc[pnum - 1]
+        words = page.get_text("words")
+    except Exception:  # noqa: BLE001 — a witness that cannot be read names nothing
+        return hits
+    rects = [r for r in (pymupdf.Rect(*b) & page.rect for b in fig_boxes) if not r.is_empty]
+    if not rects:
+        return hits
+    left = Counter(missing)
+    for w in words:
+        tok = w[4].strip("()$,;:.")
+        if not left.get(tok):
+            continue
+        pt = pymupdf.Point((w[0] + w[2]) / 2, (w[1] + w[3]) / 2)
+        if any(pt in r for r in rects):
+            left[tok] -= 1
+            hits[tok] += 1
+    return hits
+
+
 def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_pages: list | None = None) -> dict:
     """S210 E1 (SYM-147's row-level loss; B36's next cut) — THE DUPLICATED-FIGURE TELL, report-only. NBC's Q3 report shipped
     with p.57's securities-loaned figures moved onto the row above: every number was still on the page, so survival saw no
@@ -712,7 +815,14 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
     had it once, and `63,242` under a spurious `62 242`. Per page, the multiset of number tokens (grouped thousands, or four
     digits and more) Marker's blocks carry against the layer's: `extra` = copies Marker has and the layer does not (a moved
     or duplicated figure, or an OCR'd one), `missing` = the layer's the blocks lack. Neither is a verdict; both name the page.
-    No verdict reads this key (compute_verdict cannot see it)."""
+    No verdict reads this key (compute_verdict cannot see it).
+    S211 LANE B (RBC p.41: ten unlabelled figures on p.58 read the same way) — a missing token that sits inside a Figure /
+    Picture block's own bbox on that page is a chart's axis tick, not a table's dropped figure: it is moved OUT of `missing`
+    into `missing_in_figures` (per worst page) and `missing_in_figures_total` (document-wide), so `missing`/`missing_total`
+    keep naming only figures the geometry cannot explain. When the blocks record carries NO Figure/Picture box anywhere, or
+    no `pdf_path` was given to read word positions from, the split cannot be judged at all: `missing_in_figures_total` (and
+    each worst page's `missing_in_figures`) reads None (UNREAD), never 0, and `missing`/`missing_total` are untouched —
+    exactly what they counted before this cut."""
     from html import unescape
     by_page: dict[int, list[str]] = {}
     for b in blocks or []:
@@ -722,11 +832,16 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         text = re.sub(r"<[^>]+>", " ", unescape(b.get("html", "") or ""))
         by_page.setdefault(int(p) + 1, []).extend(_NUM_TOKEN.findall(text))
     worst: list[dict] = []
+    fig_boxes_all = _fig_boxes_by_page(blocks)
+    figures_readable = bool(fig_boxes_all) and pdf_path is not None
     out = {"meaning": "number tokens Marker's blocks carry MORE often than the source's layer on the same page (moved, duplicated "
                       "or OCR'd figures — the loss survival and the tables' geometry cannot see) and the layer's the blocks lack; "
-                      "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops)",
+                      "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops); a "
+                      "missing token inside a Figure/Picture block's own box is a chart's axis tick, counted apart as "
+                      "missing_in_figures (and missing_in_figures_total), never under missing — None (UNREAD) when the blocks "
+                      "record carries no Figure/Picture box, or no pdf_path was given to read word positions",
            "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "pages_with_extra": 0,
-           "pages_with_missing": 0, "worst": worst}
+           "pages_with_missing": 0, "missing_in_figures_total": (0 if figures_readable else None), "worst": worst}
     from collections import Counter
     for pnum, raw in enumerate(pages_raw, start=1):
         mk = by_page.get(pnum) or []
@@ -743,10 +858,20 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         # drops, not a figure): a bare four-digit year the blocks lack is counted apart, never as a missing figure
         years = Counter({tok: c for tok, c in missing.items() if _is_year(tok)})
         missing -= years
+        # S211 LANE B (RBC p.41/p.58): a missing token sitting inside this page's own Figure/Picture box is a chart's axis
+        # tick, not a table's dropped figure — moved out of `missing` BEFORE it is counted or handed to the row-band lookup,
+        # so a real row loss is never diluted by a tick and a tick never masquerades as a row loss either.
+        mif: Counter = Counter()
+        if figures_readable and missing:
+            mif = _missing_in_figures(pdf_path, pnum, missing, fig_boxes_all.get(pnum) or [])
+            if mif:
+                missing -= mif
         ne, nm = sum(extra.values()), sum(missing.values())
         out["extra_total"] += ne
         out["missing_total"] += nm
         out["missing_years"] += sum(years.values())
+        if figures_readable:
+            out["missing_in_figures_total"] += sum(mif.values())
         # S210 E2 (SYM-154's next cut — Scotia Q3 p.51: fourteen figures absent from a rendered table, the second `Secured funding`
         # row dropped whole): the missing figures' ROWS, named from the layer's own lines — the label before the first figure on
         # each line that carries a missing token, most figures lost first — so a reader is pointed at the row, not only the page
@@ -775,7 +900,10 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
             worst.append({"page": pnum, "extra": ne, "missing": nm,
                           "specimens": [w for w, _ in extra.most_common(NUMBERS_SPECIMENS)],
                           "missing_rows": [{"row": label, "figures": n} for label, n in rows.most_common(NUMBERS_ROWS)],
-                          "ocr": (pnum in set(int(p) for p in ocr_pages)) if ocr_pages is not None else None})
+                          "ocr": (pnum in set(int(p) for p in ocr_pages)) if ocr_pages is not None else None,
+                          # S211 LANE B: this page's own count of missing tokens read as chart ticks (subtracted from `missing`
+                          # above already) — None (UNREAD) exactly when the document-wide total is, never a guessed 0
+                          "missing_in_figures": (sum(mif.values()) if figures_readable else None)})
     worst.sort(key=lambda r: (-r["extra"], -r["missing"], r["page"]))
     del worst[NUMBERS_WORST_CAP:]
     return out

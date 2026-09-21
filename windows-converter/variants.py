@@ -124,11 +124,19 @@ def summarize(bundle_dir) -> dict:
         "runs_total": convert.get("runs_total"),
         "inventions_total": inventions.get("invented_total"),
         "words_lost": inventions.get("lost_total"),
+        # S211 E3 (Rab's word 23:1xZ — the measures secured): the honest rests beside the old numbers. None on a manifest
+        # audited before the keys existed (UNREAD, never 0): rank and faithful fall back / read UNREAD, never a falsified
+        # comparison across the two vocabularies.
+        "inventions_excl_joined": inventions.get("invented_total_excl_joined"),
+        "words_lost_excl_joined": inventions.get("lost_total_excl_joined"),
         "numbers_missing": numbers.get("missing_total"),
+        "numbers_missing_in_figures": numbers.get("missing_in_figures_total"),
         "numbers_extra": numbers.get("extra_total"),
         "tables_total": tables.get("tables_total"),
         "rows_lost": tables.get("rows_lost"),
+        "rows_lost_population": tables.get("rows_lost_population"),
         "columns_lost": tables.get("columns_lost"),
+        "columns_lost_population": tables.get("columns_lost_population"),
         "tables_witnessed_lines": tables.get("tables_witnessed_lines"),
         "figures_total": figures.get("figures_total"),
         "degeneration": tripwires.get("degeneration"),
@@ -194,11 +202,20 @@ def _error_sum(entry: dict) -> tuple[int, list[str]]:
     none_fields = []
     for f in _ERROR_FIELDS:
         v = entry.get(f)
+        # S211 E3: the honest rest (the count net of the layer's own line-wrap joins) is the error when the manifest
+        # carries it; an older manifest's raw count stands in, named in _EXCL_PREFERRED's absence list by the caller.
+        ex = _EXCL_PREFERRED.get(f)
+        if ex is not None and entry.get(ex) is not None:
+            v = entry.get(ex)
         if v is None:
             none_fields.append(f)
         else:
             total += v
     return total, none_fields
+
+
+# S211 E3: for these two error fields the honest rest is preferred when present (see fidelity_audit.audit_inventions)
+_EXCL_PREFERRED = {"words_lost": "words_lost_excl_joined", "inventions_total": "inventions_excl_joined"}
 
 
 def _verdict_rank(verdict) -> int:
@@ -247,7 +264,21 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
         elif c < b:
             violations.append("%s decreased: %s < %s" % (name, c, b))
 
-    not_more("words_lost")
+    def not_more_honest(name: str) -> None:
+        """S211 E3: words_lost and inventions_total carry the layer's own line-wrap joins (Bill C-30 ~160c: 574 lost /
+        167 invented on the layer path against 479 / 27 on the OCR path, which never joins) -- the raw counts compare
+        two vocabularies, not two conversions. The honest rest (`*_excl_joined`) is compared when BOTH sides carry it;
+        when either side was audited before the key existed the constraint is UNREAD and NAMED, never a violation
+        read off the raw count (rank still orders on each entry's own honest-or-raw error sum)."""
+        ex = _EXCL_PREFERRED[name]
+        if candidate.get(ex) is not None and baseline.get(ex) is not None:
+            not_more(ex)
+        else:
+            unread.append("%s unread (%s absent on %s; the raw count carries the join artifact)"
+                          % (name, ex, "both" if candidate.get(ex) is None and baseline.get(ex) is None
+                             else ("candidate" if candidate.get(ex) is None else "baseline")))
+
+    not_more_honest("words_lost")
     not_less("survival_convert")
     not_less("assets")
     not_less("tables_total")
@@ -265,9 +296,23 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
     elif deg is None:
         unread.append("degeneration unread")
 
-    not_more("inventions_total")
+    not_more_honest("inventions_total")
 
     return (len(violations) == 0, violations, unread)
+
+
+_TIE_NOTE = "tied on every measured number — the incumbent stays; what no measure sees is not a reason to switch"
+
+
+def _selection_rank(entry: dict) -> tuple:
+    """The four MEASURED fields the tie rule compares -- (verdict rank, -errors, survival_convert,
+    survival_analyst) -- rank() with converted_at dropped. S211 Lane C (Rab's word 2026-09-21):
+    converted_at is no longer a tie-breaker for SELECTION (a candidate must not unseat the
+    incumbent merely for being newer when nothing measured moved); rank() itself is UNCHANGED and
+    keeps converted_at as its last element, used only to order the `ordered` variants listing and,
+    below, to break a tie between two CHALLENGERS that both beat the baseline (today's rule
+    protects the incumbent from a tie, not two new variants from each other)."""
+    return rank(entry)[:-1]
 
 
 def _refusal(entry: dict, violations: list[str], unread: list[str]) -> dict:
@@ -281,14 +326,19 @@ def _refusal(entry: dict, violations: list[str], unread: list[str]) -> dict:
     }
 
 
-def select(sha: str) -> dict:
+def select(sha: str, reset: bool = False) -> dict:
     """baseline = the current selected entry if any, else the variant whose converted_at equals
     the tracked "original" (falling back to the earliest-dated variant if "original" is absent
     or stale -- e.g. a registry written before this field existed). candidates = every variant
     faithful against that baseline; the baseline itself is ALWAYS a candidate, even if its own
     self-comparison would otherwise read a violation (e.g. its own degeneration is True -- it is
-    still the only book anyone has). selected = max(candidates, key=rank). Writes
-    ["selected"], ["reason"], ["refused"], ["selected_at"]; never deletes ["variants"] or
+    still the only book anyone has). S211 Lane C: a candidate whose _selection_rank (verdict,
+    errors, survival_convert, survival_analyst -- rank() without converted_at) EQUALS the
+    baseline's is a TIE -- the baseline stays selected and the candidate is listed under
+    ["tied"], never promoted on converted_at alone; a candidate whose _selection_rank is
+    STRICTLY greater still wins outright (selected = max of those, by the full rank() including
+    converted_at, which only orders a tie between two such challengers). Writes ["selected"],
+    ["reason"], ["refused"], ["tied"], ["selected_at"]; never deletes ["variants"] or
     ["original"]. Returns the updated per-sha bucket."""
     registry = _load_registry()
     bucket = registry.get(sha)
@@ -297,9 +347,12 @@ def select(sha: str) -> dict:
     variants = bucket["variants"]
 
     sel_dir = bucket.get("selected")
-    if sel_dir and sel_dir in variants:
+    if sel_dir and sel_dir in variants and not reset:
         baseline = variants[sel_dir]
     else:
+        # S211 E3 (`reset`): the incumbent is the ORIGINAL — the earliest conversion — never a selection that was itself
+        # made on converted_at under the rule Lane C retired (Bill C-288's ~160b: equal numbers, a worse page, chosen as
+        # the newest; a sticky baseline would have kept it as "the incumbent"). One re-cut over the shelf, then sticky.
         dated = sorted(variants.values(), key=lambda v: (v.get("converted_at") or "", v.get("dir") or ""))
         original_ts = bucket.get("original")
         matches = [v for v in dated if original_ts is not None and v.get("converted_at") == original_ts]
@@ -320,20 +373,51 @@ def select(sha: str) -> dict:
         else:
             refused.append(_refusal(v, violations, unread))
 
-    selected = max(candidates, key=rank)
+    # S211 Lane C: a candidate that TIES the baseline on every measured number is not a reason to
+    # switch -- the incumbent (baseline) stays selected and the tying candidate is named under
+    # `tied`, never silently promoted by converted_at alone. A candidate strictly better than the
+    # baseline on the measured rank still wins outright.
+    baseline_rank = _selection_rank(baseline)
+    tied: list[dict] = []
+    better: list[dict] = []
+    for c in candidates:
+        if c.get("dir") == baseline.get("dir"):
+            continue
+        c_rank = _selection_rank(c)
+        if c_rank == baseline_rank:
+            tied.append(c)
+        elif c_rank > baseline_rank:
+            better.append(c)
+        # else: strictly worse than the incumbent on the measured rank -- faithful, but neither
+        # selected, tied, nor refused; it simply does not surface here (unchanged from before).
+
+    selected = max(better, key=rank) if better else baseline
+    tied_entries = [{"dir": c.get("dir"), "note": _TIE_NOTE} for c in tied]
+
     errors, none_fields = _error_sum(selected)
     none_note = " [None treated as 0: %s]" % ", ".join(none_fields) if none_fields else ""
+    tie_note = ""
+    if tied_entries:
+        tie_bits = []
+        for c in tied:
+            fx = c.get("fixes_effective")
+            if fx is False:
+                tie_bits.append("%r (fixes_effective=False)" % c.get("dir"))
+            else:
+                tie_bits.append("%r" % c.get("dir"))
+        tie_note = " Tied against %s -- the incumbent stays." % ", ".join(tie_bits)
     reason = (
         "selected %r by rank (verdict=%r, errors=%s%s, survival_convert=%s, "
-        "survival_analyst=%s) against baseline %r; %d of %d variant(s) refused as unfaithful."
+        "survival_analyst=%s) against baseline %r; %d of %d variant(s) refused as unfaithful.%s"
         % (selected.get("dir"), selected.get("verdict"), errors, none_note,
            selected.get("survival_convert"), selected.get("survival_analyst"),
-           baseline.get("dir"), len(refused), len(variants))
+           baseline.get("dir"), len(refused), len(variants), tie_note)
     )
 
     bucket["selected"] = selected.get("dir")
     bucket["reason"] = reason
     bucket["refused"] = refused
+    bucket["tied"] = tied_entries
     bucket["selected_at"] = datetime.now(timezone.utc).isoformat()
     registry[sha] = bucket
     _write_registry_atomic(registry)
@@ -378,6 +462,25 @@ def selected_dir(sha: str) -> str | None:
     return entry.get("path")
 
 
+def _print_show(bucket: dict) -> None:
+    """S211 Lane C: the CLI's `show` no longer dumps the raw per-sha JSON blob (still available
+    via `list`, or by reading the registry file directly) -- it prints selected / tied / refused
+    compactly, the three things a human asking "what happened to this sha" wants first."""
+    if not bucket:
+        print("(no variants registered for this sha)")
+        return
+    print("selected: %r" % bucket.get("selected"))
+    print("reason: %s" % bucket.get("reason"))
+    tied = bucket.get("tied") or []
+    print("tied (%d):" % len(tied))
+    for t in tied:
+        print("  %r -- %s" % (t.get("dir"), t.get("note")))
+    refused = bucket.get("refused") or []
+    print("refused (%d):" % len(refused))
+    for r in refused:
+        print("  %r -- violations=%s unread=%s" % (r.get("dir"), r.get("violations"), r.get("unread")))
+
+
 def _cli(argv=None) -> int:
     parser = argparse.ArgumentParser(prog="variants.py", description="the variant registry and whitelist (Lane A, S211)")
     sub = parser.add_subparsers(dest="command", required=True)
@@ -387,6 +490,8 @@ def _cli(argv=None) -> int:
 
     p_select = sub.add_parser("select", help="pick the whitelisted variant for a sha256")
     p_select.add_argument("sha")
+    p_select.add_argument("--reset", action="store_true",
+                          help="S211 E3: the incumbent is the ORIGINAL (the earliest conversion), not the current selection")
 
     p_show = sub.add_parser("show", help="print the registry's current record for a sha256")
     p_show.add_argument("sha")
@@ -396,19 +501,19 @@ def _cli(argv=None) -> int:
     args = parser.parse_args(argv)
 
     if args.command == "register":
-        result = register(args.bundle_dir)
-    elif args.command == "select":
-        result = select(args.sha)
-    elif args.command == "show":
-        result = _load_registry().get(args.sha, {})
-    elif args.command == "list":
-        result = _load_registry()
-    else:  # pragma: no cover -- argparse's `required=True` makes this unreachable
-        parser.error("unknown command")
-        return 2
-
-    print(json.dumps(result, indent=2))
-    return 0
+        print(json.dumps(register(args.bundle_dir), indent=2))
+        return 0
+    if args.command == "select":
+        print(json.dumps(select(args.sha, reset=bool(getattr(args, "reset", False))), indent=2))
+        return 0
+    if args.command == "show":
+        _print_show(_load_registry().get(args.sha, {}))
+        return 0
+    if args.command == "list":
+        print(json.dumps(_load_registry(), indent=2))
+        return 0
+    parser.error("unknown command")  # pragma: no cover -- argparse's `required=True` makes this unreachable
+    return 2
 
 
 if __name__ == "__main__":
