@@ -134,7 +134,24 @@ def summarize(bundle_dir) -> dict:
         "degeneration": tripwires.get("degeneration"),
         "assets": assets_count,
         "extraction_surya": extraction.get("surya"),
+        "fixes_effective": _fixes_effective(manifest.get("fixes") or [], manifest.get("fixes_stats")),
     }
+
+
+_GET_CHARS_FIXES = ("charbox-lift", "offpage-clip")   # the two fixes that live in pdftext's get_chars wrapper (fixes.py)
+
+
+def _fixes_effective(fixes: list, stats) -> bool | None:
+    """Did the job's named get_chars fix actually read the document? S211 E1: Bill C-30's ~160 carried `offpage-clip`
+    with every counter at ZERO — pdftext's workers read the pages, the wrapper saw none (CORRECTIONS row 5). None when
+    no get_chars fix was named or the record has no counters (UNREAD, never False); False when a get_chars fix is named
+    and the wrapper saw no char; True when it saw chars. A reading beside the selection, never a constraint — the
+    measures already say what the document became; this says whether the fix was in the room."""
+    if not any(f in _GET_CHARS_FIXES for f in fixes):
+        return None
+    if not isinstance(stats, dict) or stats.get("chars_seen") is None:
+        return None
+    return bool(stats.get("chars_seen"))
 
 
 def register(bundle_dir) -> dict:

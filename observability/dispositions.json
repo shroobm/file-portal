@@ -906,6 +906,10 @@
       "disposition": "EVIDENCE",
       "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `selected_at` — UTC of the selection."
     },
+    "converter:fixes_effective": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E1 (2026-09-21; CORRECTIONS row 5): the variant registry's `fixes_effective` — did the job's named get_chars fix (offpage-clip, charbox-lift) actually read the document: False when the wrapper's chars_seen is 0 (Bill C-30's ~160: pdftext's workers read the pages, the wrapper saw none), True when it saw chars, None when no get_chars fix was named or the record has no counters (UNREAD, never False). A reading beside the selection, never a constraint; read by whoever audits a variant (`variants.py show`)."
+    },
     "converter:violations": {
       "disposition": "EVIDENCE",
       "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `refused[].violations` — the faithfulness constraints a variant broke, each with both numbers."

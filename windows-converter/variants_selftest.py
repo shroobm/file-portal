@@ -257,7 +257,34 @@ def test_absent_measure_reads_none():
         assert entry["inventions_total"] == 0, entry
 
 
+def test_fixes_effective_reading():
+    """S211 E1 (CORRECTIONS row 5): a variant whose get_chars fix never saw a char says so — a reading beside the
+    selection, never a constraint; UNREAD (None) when no counters or no get_chars fix."""
+    with _isolated() as td:
+        b = _make_bundle(td, "anchor", "C-fx", sha="sha-fixes-0011", converted_at="2026-01-01T00:00:00+00:00")
+        mp = b / "manifest.json"
+        m = json.loads(mp.read_text(encoding="utf-8"))
+        m["fixes"] = ["offpage-clip"]
+        m["fixes_stats"] = {"chars_seen": 0, "chars_dropped": 0, "chars_lifted": 0}
+        mp.write_text(json.dumps(m), encoding="utf-8")
+        assert variants.summarize(b)["fixes_effective"] is False, variants.summarize(b)   # the wrapper saw no char
+        m["fixes_stats"] = {"chars_seen": 7173, "chars_dropped": 3363, "chars_lifted": 0}
+        mp.write_text(json.dumps(m), encoding="utf-8")
+        assert variants.summarize(b)["fixes_effective"] is True, variants.summarize(b)    # it read the document
+        m["fixes_stats"] = None
+        mp.write_text(json.dumps(m), encoding="utf-8")
+        assert variants.summarize(b)["fixes_effective"] is None, variants.summarize(b)    # no counters: UNREAD
+        m["fixes"] = ["overlap-fraction-gate"]
+        m["fixes_stats"] = {"chars_seen": 0, "chars_dropped": 0, "chars_lifted": 0}
+        mp.write_text(json.dumps(m), encoding="utf-8")
+        assert variants.summarize(b)["fixes_effective"] is None, variants.summarize(b)    # NEGATIVE CONTROL: not a get_chars fix
+        m["fixes"] = []
+        mp.write_text(json.dumps(m), encoding="utf-8")
+        assert variants.summarize(b)["fixes_effective"] is None, variants.summarize(b)    # a stock run
+
+
 TESTS = [
+    test_fixes_effective_reading,
     test_two_variants_better_verdict_selected,
     test_equal_verdict_fewer_errors_selected,
     test_asset_loss_refused,
