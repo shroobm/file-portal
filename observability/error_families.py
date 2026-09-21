@@ -121,7 +121,7 @@ MECHANISM = {
         "make the probe fail on purpose (bad path, wrapped text, refused command) — does the surface say UNREAD?",
         # SYM-111 (S130): the events-mode tracker read a command line AFTER the start event and rendered a
         # gone process as an EMPTY cell, a dropped stop event as "still running" — a failed read printed as a reading
-        ["SYM-024", "SYM-031", "SYM-034", "SYM-063", "SYM-071", "SYM-111", "SYM-119", "SYM-121"],  # S141: 121 no upstream read as nothing-to-judge
+        ["SYM-024", "SYM-031", "SYM-034", "SYM-063", "SYM-071", "SYM-111", "SYM-119", "SYM-121", "SYM-149"],  # S141: 121 no upstream read as nothing-to-judge; 149 (S209 E14, Codex MSG-CDX-0088): compute_verdict({}) reads pass; _enforce_hold ships on a manifest it cannot read (docs/30 by design) — his call
     ),
     "S5 A-GUARD-OFF-THE-PATH-THE-WORK-TAKES": (
         "the lock file, detector, CI trigger or job object sits on one entry path; a manual run, a feature branch, a "
