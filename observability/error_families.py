@@ -167,7 +167,7 @@ MECHANISM = {
         "name the precondition the act assumes; violate it in a fixture — what happens to the held state or the clock?",
         # SYM-083 (ThinkPad S123): fastembed's default batch of 256 × a 512-token padded window → 9 GiB RSS —
         # a hidden-cost default, the shape of SYM-048's `xrefs=True`
-        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-083", "SYM-085", "SYM-099", "SYM-158"],  # 158 (S210 E1, Bill C-31): the tenant's _station() save is unguarded where on_progress is guarded — a 2-second file lock on job.json killed a 56-minute conversion as ENGINE-CRASH
+        ["SYM-009", "SYM-010", "SYM-030", "SYM-037", "SYM-048", "SYM-064", "SYM-083", "SYM-085", "SYM-099", "SYM-158", "SYM-159"],  # 158 (S210 E1, Bill C-31): the tenant's _station() save is unguarded where on_progress is guarded — a 2-second file lock on job.json killed a 56-minute conversion as ENGINE-CRASH; 159 (S210 E2): Marker's table-cell detection batch on a long OCR-path document freezes at the card's ceiling — four specimens with one certificate (Ashby, Shannon, RBC AR, Scotia AR)
     ),
     "S12 PLATFORM-OR-LIBRARY-SEMANTICS-TRAP": (
         "the platform or library means something other than its name: force_ocr keeps the old text, inotify reports a "
