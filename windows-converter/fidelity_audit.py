@@ -630,6 +630,53 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     }
 
 
+_NUM_TOKEN = re.compile(r"(?<![\d,])\d{1,3}(?:,\d{3})+(?![\d,])|(?<![\d,.])\d{4,}(?![\d,])")   # grouped thousands, or 4+ digits
+NUMBERS_WORST_CAP = 10
+NUMBERS_SPECIMENS = 6
+
+
+def audit_numbers(pages_raw: list[str], blocks: list[dict]) -> dict:
+    """S210 E1 (SYM-147's row-level loss; B36's next cut) — THE DUPLICATED-FIGURE TELL, report-only. NBC's Q3 report shipped
+    with p.57's securities-loaned figures moved onto the row above: every number was still on the page, so survival saw no
+    loss and the tables' shape measure (a geometry) could not either — but Marker carried `1,040` three times where the layer
+    had it once, and `63,242` under a spurious `62 242`. Per page, the multiset of number tokens (grouped thousands, or four
+    digits and more) Marker's blocks carry against the layer's: `extra` = copies Marker has and the layer does not (a moved
+    or duplicated figure, or an OCR'd one), `missing` = the layer's the blocks lack. Neither is a verdict; both name the page.
+    No verdict reads this key (compute_verdict cannot see it)."""
+    from html import unescape
+    by_page: dict[int, list[str]] = {}
+    for b in blocks or []:
+        p = b.get("page")
+        if p is None:
+            continue
+        text = re.sub(r"<[^>]+>", " ", unescape(b.get("html", "") or ""))
+        by_page.setdefault(int(p) + 1, []).extend(_NUM_TOKEN.findall(text))
+    worst: list[dict] = []
+    out = {"meaning": "number tokens Marker's blocks carry MORE often than the source's layer on the same page (moved, duplicated "
+                      "or OCR'd figures — the loss survival and the tables' geometry cannot see) and the layer's the blocks lack",
+           "pages_measured": 0, "extra_total": 0, "missing_total": 0, "pages_with_extra": 0, "worst": worst}
+    from collections import Counter
+    for pnum, raw in enumerate(pages_raw, start=1):
+        mk = by_page.get(pnum)
+        if not mk:
+            continue
+        out["pages_measured"] += 1
+        lay = Counter(_NUM_TOKEN.findall(raw or ""))
+        m = Counter(mk)
+        extra = m - lay
+        missing = lay - m
+        ne, nm = sum(extra.values()), sum(missing.values())
+        out["extra_total"] += ne
+        out["missing_total"] += nm
+        if ne:
+            out["pages_with_extra"] += 1
+            worst.append({"page": pnum, "extra": ne, "missing": nm,
+                          "specimens": [w for w, _ in extra.most_common(NUMBERS_SPECIMENS)]})
+    worst.sort(key=lambda r: (-r["extra"], r["page"]))
+    del worst[NUMBERS_WORST_CAP:]
+    return out
+
+
 def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = None, blocks: list | None = None) -> dict:
     kind = "agreement" if lane == "scan" else "fidelity"
     witness_label = "embedded-ocr" if lane == "scan" else "pymupdf"
@@ -715,6 +762,10 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # page is opened. Beside survival, unseen by compute_verdict; None = not measured (no blocks handed in); on the scan
         # lane the rotation reads and the symbols are unread.
         "page_geometry": page_geometry.page_geometry(pdf_path, blocks, lane, pages_flagged) if blocks is not None else None,
+        # S210 E1, REPORT-ONLY: THE DUPLICATED-FIGURE TELL — number tokens Marker's blocks carry more often than the layer on
+        # the same page (NBC p.57: 1,040 three times over, a row's figures moved onto the row above — a loss survival and the
+        # tables' geometry cannot see; SYM-147). Beside survival, unseen by compute_verdict; None = not measured (no blocks).
+        "numbers": audit_numbers(pages_raw, blocks) if blocks is not None else None,
     }
     return block
 

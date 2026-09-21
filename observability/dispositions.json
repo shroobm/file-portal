@@ -509,6 +509,34 @@
       "disposition": "EVIDENCE",
       "reason": "S209 E14 (2026-09-21; B40 BUILT — the SEU's three ways and SHEG's fourth): the inventions audit's classes of invented word (`fidelity.convert.inventions`) — REPORT-ONLY, unseen by compute_verdict. None of the three — OCR noise, a picture's words (SHEG's cover p.1: 179 of its 186), a recogniser's invention."
     },
+    "converter:numbers": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). The block: per page, the number tokens (grouped thousands, or four digits and more) Marker's blocks carry MORE often than the source's layer, and the layer's the blocks lack — NBC p.57: 1,040 three times over where a row's figures moved onto the row above, a loss survival and the tables' geometry could not see."
+    },
+    "converter:extra_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). Copies of number tokens Marker carries beyond the layer's, summed over the pages — moved, duplicated or OCR'd figures."
+    },
+    "converter:missing_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). The layer's number tokens the blocks lack, summed — dropped figures and figures the converter mis-read into non-tokens (63,242 as 62 242)."
+    },
+    "converter:pages_with_extra": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). Pages with at least one extra copy — the pages to open first."
+    },
+    "converter:extra": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: the extra copies there."
+    },
+    "converter:missing": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: the layer's tokens missing there — the two readings of one page side by side."
+    },
+    "converter:specimens": {
+      "disposition": "EVIDENCE",
+      "reason": "S210 E1 (2026-09-21; SYM-147's row-level loss, B36's next cut — the duplicated-figure tell): `fidelity.convert.numbers` (audit_numbers) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks). On each worst page: up to six of the extra tokens, most-duplicated first — the evidence beside the count."
+    },
     "converter:cell_agree_floor": {
       "disposition": "EVIDENCE",
       "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The floor on Marker's non-empty cells found in the witness's joined text (CELL_AGREE); below it the witness is none — a constant that declares itself beside the counts it gates."
