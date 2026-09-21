@@ -39,15 +39,7 @@
     {
       "name": "converter",
       "_note": "The converter writes the manifest and the receipts. Its readers are downstream CODE rather than a surface, so a hit here means 'something consumes it', which is weaker than 'a human sees it' — the bench and widget lanes then re-check whether the consumer projects it onward. `manifest.chunking.seams[]` (docs/29 §7.3) is the case this two-hop shape is built to catch.",
-      "producers": [
-        "windows-converter/convert_and_ship.py",
-        "windows-converter/fidelity_audit.py",
-        "windows-converter/analyst.py",
-        "windows-converter/table_shape.py",
-        "windows-converter/figure_text.py",
-        "windows-converter/page_geometry.py",
-        "windows-converter/marker_blocks.py"
-      ],
+      "producers": ["windows-converter/convert_and_ship.py", "windows-converter/fidelity_audit.py", "windows-converter/analyst.py", "windows-converter/table_shape.py", "windows-converter/figure_text.py", "windows-converter/page_geometry.py", "windows-converter/marker_blocks.py", "windows-converter/fixes.py", "windows-converter/ligature_repair.py", "windows-converter/variants.py"],
       "renderers": [
         "prototypes/repair-bench/bench.py",
         "prototypes/repair-bench/bench.html",
@@ -789,6 +781,126 @@
     "converter:extraction": {
       "disposition": "EVIDENCE",
       "reason": "S210 E2 (2026-09-21; SYM-155 — Marker discards the text layer of 49–72 % of RBC's pages and the bundle never said so): `blocks.extraction` (marker_blocks.extraction_of, per slice; summed by merge_block_records; copied whole into the manifest's blocks block by summarize) — REPORT-ONLY; None on a pre-S210 cached slice (UNREAD, never 0). The block: which extractor Marker kept per page, read from each page's own text_extraction_method."
+    },
+    "converter:fixes": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): `fixes` — the literal names of the fixes the lever (roots.json `fixes`, `for: <drop file name>` then one name per line) applied to THIS job ([] when none): overlap-fraction-gate, charbox-lift, offpage-clip, lane-share-rule, degen-rule-line, table-batch-ceiling, ligature-repair. Written by convert() into the manifest and by marker_blocks into the blocks record; read by variants.py (a variant's identity) and by whoever reads the manifest. REPORT of what ran — it moves no verdict itself; the fixes it names change how Marker read the document, and the measures say by how much."
+    },
+    "converter:fixes_stats": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): `fixes_stats` — the pdftext wrapper's counters for the job (chars_seen, chars_dropped by the off-page clip, chars_lifted by the char-box lift), as the marker_blocks child recorded them; None when the record has no key (a stock run, or a chunked book — UNREAD, never 0). docs/34: a fix that does something says how much."
+    },
+    "converter:chars_seen": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): fixes_stats.chars_seen — every char the wrapper saw."
+    },
+    "converter:chars_dropped": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): fixes_stats.chars_dropped — chars outside the page box the off-page clip dropped before dedup (SYM-160: C-30 dropped 131,082 on the proof, its 36 glued pages → 0)."
+    },
+    "converter:chars_lifted": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): fixes_stats.chars_lifted — loose char boxes whose top sat below their ink, lifted (SYM-155's zero ascent)."
+    },
+    "converter:ligature_repair": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): `ligature_repair` — the ligature repair pass's record (SYM-148; the lever `ligature-repair`): the words whose dropped fi / fl / ff letters were restored from the source's own layer (a word absent from the layer with ONE ligature expansion in it), every repair listed. NOT the bench's `repairs` (a human's digest — Lane C caught the collision). {note: UNREAD…} when the pass could not run."
+    },
+    "converter:words_repaired": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): ligature_repair.words_repaired — distinct words restored."
+    },
+    "converter:occurrences": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): ligature_repair.occurrences — occurrences replaced across the body."
+    },
+    "converter:skipped_ambiguous": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): ligature_repair.skipped_ambiguous — words with more than one expansion in the layer, left alone and named ({from, candidates}): the pass never guesses."
+    },
+    "converter:vocabulary_words": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): ligature_repair.vocabulary_words — the layer vocabulary's size (the denominator the repair is judged against)."
+    },
+    "converter:candidates": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): ligature_repair.skipped_ambiguous[].candidates — the expansions that competed."
+    },
+    "converter:ocr_font_spans": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z — the fixes proved on copies in S210 as VARIANTS, every failed version kept, a whitelist by the verdicts and the lessening of errors, faithful): probe()'s evidence `ocr_font_spans` — how many spans of the document are in an OCR font (the share's numerator beside total_spans; the stock rule trips on the FIRST such span — Scotia AR: 160 of 25,152 sent a whole report to the scan lane, SYM-156); the lever `lane-share-rule` decides by the share (fixes.SHARE 0.05). Recorded in the converted event beside ocr_font_trigger; read by lane_rule_census.py and whoever audits the lane."
+    },
+    "converter:applied": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21): fixes.apply's return — the record of what a job's lever installed: `applied` — the fix names actually installed in this process (a subset of the lever's names is never silent: an unknown name refuses the lever)."
+    },
+    "converter:stats": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21): fixes.apply's return — the record of what a job's lever installed: `stats` — the wrapper's counters at install time (zeros); the LIVE counters go to the record as fixes_stats (fixes.stats())."
+    },
+    "converter:root": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `root` — anchor | held, from the bundle's own path."
+    },
+    "converter:words": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `words` — Marker's word total from the inventions measure (marker_words_total); None when the measure did not run."
+    },
+    "converter:survival_convert": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `survival_convert` — fidelity.convert.doc_survival (a faithfulness constraint: a candidate may not read lower than the baseline)."
+    },
+    "converter:survival_analyst": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `survival_analyst` — fidelity.analyst.doc_survival (a rank tie-breaker)."
+    },
+    "converter:inventions_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `inventions_total` — inventions.invented_total (a constraint: not more than the baseline's)."
+    },
+    "converter:words_lost": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `words_lost` — inventions.lost_total (a constraint: not more than the baseline's — no text removed)."
+    },
+    "converter:numbers_missing": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `numbers_missing` — numbers.missing_total (in the error sum)."
+    },
+    "converter:numbers_extra": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `numbers_extra` — numbers.extra_total (in the error sum)."
+    },
+    "converter:extraction_surya": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `extraction_surya` — pages Marker re-OCR'd (blocks.extraction.surya), so a variant's page-level gain is read from the registry."
+    },
+    "converter:assets": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `assets` — files under assets/ (a constraint: a candidate may not carry fewer — no image lost)."
+    },
+    "converter:path": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `path` — the bundle's absolute path (selected_dir resolves it without fp_paths)."
+    },
+    "converter:original": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `original` — the earliest converted_at of the sha (the first baseline)."
+    },
+    "converter:selected": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `selected` — the whitelisted variant's dir (the verdict rank, then the fewer errors, then survival, then the newest)."
+    },
+    "converter:refused": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `refused` — [{dir, violations, unread}] the unfaithful variants and why; UNREAD constraints named, never violations."
+    },
+    "converter:selected_at": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `selected_at` — UTC of the selection."
+    },
+    "converter:violations": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 (2026-09-21; Rab's word 19:05Z): the VARIANT REGISTRY variants.json (roots.json `variants`; variants.py) — every final bundle of a source sha, its fixes, verdict and measures, the SELECTED one and the refused with their reasons; nothing deleted. Read by convert_and_ship._register_variant (prints the selection), by PORTAL's lookup (the tenant's _find_bundle consults selected_dir first) and by whoever audits a re-run. A flat copy of manifest measures, keyed by LITERAL names: `refused[].violations` — the faithfulness constraints a variant broke, each with both numbers."
     },
     "converter:pdftext": {
       "disposition": "EVIDENCE",

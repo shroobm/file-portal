@@ -78,6 +78,9 @@ def _audit_convert_safe(src, body: str, lane: str, tmp_dir: Path, manifest: dict
                 blocks = _rec.get("blocks", [])
                 _ex = _rec.get("extraction")
                 ocr_pages = list(_ex.get("pages_surya") or []) if isinstance(_ex, dict) else None
+                # S211: the fixes wrapper's counters, as the marker_blocks child recorded them (chars seen / dropped
+                # off-page / lifted); None when the record has no key (a stock run, or a chunked book — UNREAD)
+                manifest["fixes_stats"] = _rec.get("fixes_stats")
             except Exception:  # noqa: BLE001 — the measure reads UNREAD, never the audit's error
                 blocks = None
                 ocr_pages = None
@@ -387,6 +390,30 @@ ANCHORS_AT_SHIP_FILE = fp_paths.root("anchors_at_ship")
 # named by the verdict rank then the fewer errors under the faithfulness checks; nothing deleted from it.
 FIXES_FILE = fp_paths.root("fixes")
 VARIANTS_FILE = fp_paths.root("variants")
+
+
+def _job_fixes(src: Path) -> list[str]:
+    """The fixes the lever names for THIS job: FIXES_FILE's first line must read `for: <drop file name>` equal to
+    src.name (whitespace-stripped); then fixes.read_lever gives the names (one per line; an unknown name refuses the
+    whole lever, printed, and the job runs with none — a misspelt fix is never silently half-applied). Absent file,
+    another job's name, or an unreadable file → [] (no fix), said on the console when a file was there."""
+    try:
+        first = FIXES_FILE.read_text(encoding="utf-8").splitlines()[0].strip()
+    except (OSError, IndexError):
+        return []
+    if not first.lower().startswith("for:"):
+        print(f"FIXES lever {FIXES_FILE.name} has no `for:` line — ignored for {src.name}", flush=True)
+        return []
+    target = first.split(":", 1)[1].strip()
+    if target != src.name:
+        print(f"FIXES lever names {target!r}, not this job ({src.name!r}) — ignored", flush=True)
+        return []
+    try:
+        import fixes
+        return fixes.read_lever(FIXES_FILE)
+    except Exception as exc:  # noqa: BLE001 — a bad lever is said and the job runs stock, never half-fixed
+        print(f"FIXES lever REFUSED for {src.name}: {type(exc).__name__}: {str(exc)[:160]} — no fix applied", flush=True)
+        return []
 
 
 def anchors_at_ship() -> bool:
@@ -746,12 +773,17 @@ def _enforce_hold(bundle_dir: Path, bundle_name: str, source_sha: str) -> bool:
                 occupant_repairs = bool(occupant.get("repairs"))
             except Exception:  # noqa: BLE001 — unreadable manifest = treat as replaceable
                 pass
-            if occupant_repairs or any(dest.glob("*.bench-bak")):
-                stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
-                dest = HELD / f"{source_sha[:16]}--superseded-{stamp}"
-            else:
-                shutil.rmtree(dest)
+            # S211 (Rab's word 2026-09-21: "without losing the failed version — every instance of a final converted
+            # bundle must remain in the system"): S65's direction, extended to EVERY occupant. The occupant keeps its
+            # slot (a human's repairs stay where the human left them), and the incoming failed bundle parks BESIDE it,
+            # timestamped — repairs or none. The rmtree that stood on the bare branch until S211 would have destroyed
+            # the failed version every re-run of a held document; the whitelist (variants.py) now says which pops up.
+            stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+            dest = HELD / f"{source_sha[:16]}--superseded-{stamp}"
+            print(f"HELD occupant kept in its slot{' (carries human repairs)' if occupant_repairs else ''}; "
+                  f"the incoming parks beside it as {dest.name}", flush=True)
         shutil.copytree(bundle_dir, dest)
+        _register_variant(dest, source_sha)
         emit("audit", "held", bundle=bundle_name,
              source=manifest.get("source", bundle_name), verdict="fail",
              audit_mode=audit_mode())  # S146 E2: the event names the mode it acted under
@@ -1061,6 +1093,7 @@ def probe(path: Path) -> tuple[float, int, bool, dict]:
     instead of being destroyed at the moment it decides."""
     invisible_spans = 0
     total_spans = 0
+    ocr_font_spans = 0            # S211 (SYM-156's scope): EVERY span in an OCR font is counted, not only the first
     ocr_font_trigger: str | None = None
     with pymupdf.open(path) as doc:
         pages = doc.page_count or 1
@@ -1071,12 +1104,22 @@ def probe(path: Path) -> tuple[float, int, bool, dict]:
                 total_spans += 1
                 if span.get("type") == 3:
                     invisible_spans += 1
-                if ocr_font_trigger is None and _OCR_FONT.search(str(span.get("font", ""))):
-                    ocr_font_trigger = str(span.get("font", ""))[:60]
+                if _OCR_FONT.search(str(span.get("font", ""))):
+                    ocr_font_spans += 1
+                    if ocr_font_trigger is None:
+                        ocr_font_trigger = str(span.get("font", ""))[:60]
     ratio = (invisible_spans / total_spans) if total_spans else 0.0
-    ocr_layer = ocr_font_trigger is not None or (total_spans > 0 and ratio > 0.5)
+    if "lane-share-rule" in os.environ.get("FP_FIXES", "").split(","):
+        # S211, the fixes lever `lane-share-rule` (SYM-156, proved over the catalog in S210's lane_rule_census.py): the
+        # lane is scan when the invisible ratio > 0.5 OR the share of spans in an OCR font >= fixes.SHARE — one span's
+        # font no longer sends a whole report to the scan lane (Scotia AR: 160 of 25,152 spans did). Off: the stock rule.
+        import fixes
+        ocr_layer = fixes.lane_rule(ratio, ocr_font_spans, total_spans)
+    else:
+        ocr_layer = ocr_font_trigger is not None or (total_spans > 0 and ratio > 0.5)
     evidence = {"invisible_spans": invisible_spans, "total_spans": total_spans,
-                "invisible_ratio": round(ratio, 4), "ocr_font_trigger": ocr_font_trigger}
+                "invisible_ratio": round(ratio, 4), "ocr_font_trigger": ocr_font_trigger,
+                "ocr_font_spans": ocr_font_spans}   # S211: the share's numerator, beside the trigger
     return total / pages, pages, ocr_layer, evidence
 
 
@@ -1821,6 +1864,16 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # work happens, so a marker can never survive this conversion. Stamped into the manifest
     # further down, once the source sha is known and can be checked against it.
     supersede_marker = _take_supersede_marker(src)
+    # S211 (Rab's word 2026-09-21): the fixes lever, read ONCE for this job — FIXES_FILE names the job it is for
+    # (`for: <drop file name>`) and the fixes to apply; another job's lever, or none, is no fix. The names reach this
+    # process's own readers (probe's lane rule, fidelity_audit's degeneration clause, the ligature repair) and the
+    # marker_blocks child (which inherits the environment) through FP_FIXES; the manifest records them as `fixes`.
+    fix_names = _job_fixes(src)
+    if fix_names:
+        os.environ["FP_FIXES"] = ",".join(fix_names)
+        print(f"FIXES {src.name}: {fix_names} (the lever {FIXES_FILE.name} names this job)", flush=True)
+    else:
+        os.environ.pop("FP_FIXES", None)
     chars, pages, ocr_fonts, ocr_evidence = probe(src)
     extra, lane, lane_reason = route(chars, ocr_fonts)
     print(f"PROBE {src.name}: {chars:.1f} chars/page, {pages} pages, ocr_fonts={ocr_fonts}"
@@ -1962,6 +2015,9 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         # S209 E8, B33's dial: what Marker chose to OCR on this run — {lines, bars, lines_per_page}; the ledger row and
         # the estimator read it; no verdict does
         "ocr": ocr,
+        # S211: the fixes the lever named for this job (literal names, [] when none) — fixes_stats joins from the
+        # blocks record once the audit has read it; the ligature repair's record lands under `ligature_repair`
+        "fixes": fix_names,
     }
     # Stage D: the seams travel WITH the book, forever. The audit scores the merged whole, and
     # the Repair Bench needs to know where the cuts were when a figure or a sentence looks wrong
@@ -1980,6 +2036,22 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
                    resumed_slices=chunk_stats["resumed_slices"], run_wall_s=wall,
                    retry_wall_s=chunk_stats.get("retry_wall_s", 0.0))
     body = rewrite_image_links(markdown)
+    # S211 Lane C (SYM-148, the fixes lever `ligature-repair`): letters the provider dropped at a font's fi / fl / ff
+    # ligatures are restored from the source's own text layer — a word absent from the layer whose ONE ligature
+    # expansion is in it; every repair recorded under `ligature_repair`. Before the audit, so the measures score the
+    # repaired body; the layer read here with pymupdf, page by page, as the inventions measure reads it.
+    if "ligature-repair" in fix_names:
+        try:
+            import ligature_repair
+            with pymupdf.open(src) as _doc:
+                _pages_raw = [pg.get_text() for pg in _doc]
+            body, _lig = ligature_repair.repair(body, _pages_raw)
+            manifest["ligature_repair"] = _lig
+            print(f"LIGATURE REPAIR: {_lig.get('words_repaired')} word(s), {_lig.get('occurrences')} occurrence(s), "
+                  f"{len(_lig.get('skipped_ambiguous') or [])} ambiguous skipped", flush=True)
+        except Exception as exc:  # noqa: BLE001 — a repair that fails is said; the body ships as Marker wrote it
+            manifest["ligature_repair"] = {"note": f"UNREAD: {type(exc).__name__}: {str(exc)[:120]}"}
+            print(f"LIGATURE REPAIR UNREAD: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
     # Survival Audit of the convert stage (docs/15) — before any analyst pass, so the
     # witness is scored against the raw Marker output. Report-only; never fails the line.
     _audit_convert_safe(src, body, lane, tmp_dir, manifest)
@@ -2095,6 +2167,22 @@ def unique_anchor(dest: Path) -> Path:
     while (candidate := dest.with_name(f"{dest.name} ({n})")).exists():
         n += 1
     return candidate
+
+
+def _register_variant(dest: Path, source_sha: str | None) -> None:
+    """S211 (Rab's word 2026-09-21): every final bundle this line writes — an anchor copy, a held park — joins the
+    variant registry (variants.py) and the whitelist is re-run for its sha: the SELECTED variant is the one the verdict
+    rank then the fewer errors name, under the faithfulness checks; the refused are listed with their reasons; nothing
+    is deleted. The registry must never cost a book: any failure here is printed and the bundle stands as written."""
+    try:
+        import variants
+        entry = variants.register(dest)
+        sha = source_sha or entry.get("source_sha256")
+        bucket = variants.select(sha)
+        print(f"VARIANT registered {dest.name!r} · selected {bucket.get('selected')!r} · "
+              f"refused {len(bucket.get('refused') or [])} · {bucket.get('reason')}", flush=True)
+    except Exception as exc:  # noqa: BLE001 — a registry fault is said, never paid for by the bundle
+        print(f"VARIANT registry UNREAD for {dest.name!r}: {type(exc).__name__}: {str(exc)[:160]}", flush=True)
 
 
 def ship(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
@@ -2281,6 +2369,7 @@ def resume(pend_id: str, backend: str) -> None:
                 # Refresh the anchor copy so it matches what ships.
                 anchor_dest = unique_anchor(ANCHOR / f"{card['bundle_name']} [analyst-{backend}]")
                 shutil.copytree(bundle_dir, anchor_dest)
+                _register_variant(anchor_dest, card.get("source_sha256"))   # S211
         if _enforce_hold(bundle_dir, card["bundle_name"], card["source_sha256"]):
             shutil.rmtree(bundle_dir)
             json_path.unlink()
@@ -2453,6 +2542,7 @@ def reanalyze(source: str, backend: str) -> None:
         anchor_dest = unique_anchor(ANCHOR / f"{bundle_name} [analyst-{backend} rerun]")
         shutil.copytree(work, anchor_dest)
         print(f"ANCHORED {anchor_dest}", flush=True)
+        _register_variant(anchor_dest, source_sha)   # S211
 
         if _enforce_hold(work, bundle_name, source_sha):
             return
@@ -2706,6 +2796,11 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
             held_dir.rename(reshipped)
             print(f"REAUDIT {bundle_name}: shipped — held bundle renamed -> {reshipped.name}",
                   flush=True)
+            try:  # S211: the variant registry follows the rename (its path stays honest; a selection moves with it)
+                import variants
+                variants.rename_entry(manifest.get("source_sha256"), held_dir.name, reshipped)
+            except Exception as exc:  # noqa: BLE001 — said, never paid for by the bundle
+                print(f"VARIANT registry rename UNREAD for {held_dir.name!r}: {type(exc).__name__}: {str(exc)[:120]}", flush=True)
         except OSError as exc:
             print(f"REAUDIT {bundle_name}: shipped, but could not rename {held_dir} "
                   f"(left in place, not lost): {exc}", flush=True)
@@ -2780,6 +2875,7 @@ def main():
         anchor_dest = unique_anchor(ANCHOR / bundle_name)
         shutil.copytree(tmp_dir, anchor_dest)
         print(f"ANCHORED {anchor_dest}", flush=True)
+        _register_variant(anchor_dest, manifest.get("source_sha256"))   # S211: every final bundle joins the whitelist
         if args.defer_analyst:
             md = (tmp_dir / f"{bundle_name}.md").read_text(encoding="utf-8")
             defer(tmp_dir, bundle_name, manifest, len(md))

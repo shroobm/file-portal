@@ -475,8 +475,9 @@ _doc.save(str(_pdf14))
 _doc.close()
 chars14, pages14, ocr14, evd14 = cas.probe(_pdf14)
 check(pages14 == 1 and not ocr14, "synthetic born-digital page probes clean")
-check(set(evd14) == {"invisible_spans", "total_spans", "invisible_ratio", "ocr_font_trigger"},
-      "probe returns the vote's evidence, not just its verdict")
+check(set(evd14) == {"invisible_spans", "total_spans", "invisible_ratio", "ocr_font_trigger", "ocr_font_spans"},
+      "probe returns the vote's evidence, not just its verdict (S211: the OCR-font span count joins it — the share's numerator)")
+check(evd14["ocr_font_spans"] == 0, "S211: a born-digital page counts zero OCR-font spans")
 check(evd14["invisible_ratio"] == 0.0 and evd14["ocr_font_trigger"] is None,
       "clean page: ratio 0.0, no font trigger")
 src14 = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
@@ -2156,14 +2157,18 @@ try:
     cas._enforce_hold(inc_b, "inc-b", sha_b + "ffff")
     check((occ_b / "KEEP.txt").exists() and len(list(cas.HELD.glob(sha_b + "--superseded-*"))) == 1,
           "T25 (d) a .bench-bak beside the occupant protects it the same way (a backup is a human's work too)")
-    # (e) NEGATIVE CONTROL — the defect's shape on a bare occupant: replaced in place, nothing parks beside
+    # (e) S211 (Rab's word 2026-09-21: "without losing the failed version — every instance of a final converted
+    # bundle must remain in the system"): a BARE occupant is kept too — its slot untouched, the incoming parks beside
+    # it, timestamped. Until S211 this case asserted the opposite (the bare branch rmtree'd the occupant); the
+    # discrimination S65 introduced is now the rule for every occupant, and the whitelist says which pops up.
     sha_c = "c" * 16
     occ_c = _t25_occupant(sha_c, repairs=False, bench_bak=False)
     inc_c = _t25_bundle("inc-c")
     held_c = cas._enforce_hold(inc_c, "inc-c", sha_c + "ffff")
-    check(held_c is True and not (occ_c / "KEEP.txt").exists() and (occ_c / "inc-c.md").exists()
-          and len(list(cas.HELD.glob(sha_c + "--superseded-*"))) == 0,
-          "T25 (e) NEGATIVE CONTROL: a BARE occupant (no repairs, no .bench-bak) is replaced in place — the branch discriminates; 'keep everything' would fail here")
+    beside_c = list(cas.HELD.glob(sha_c + "--superseded-*"))
+    check(held_c is True and (occ_c / "KEEP.txt").exists() and not (occ_c / "inc-c.md").exists()
+          and len(beside_c) == 1 and (beside_c[0] / "inc-c.md").exists(),
+          "T25 (e) S211: a BARE occupant (no repairs, no .bench-bak) KEEPS its slot too and the incoming parks beside it, whole — nothing is ever deleted")
     # (f) report mode: the hold is a no-op (the lever's default) — nothing parked, nothing touched
     cas.set_audit_mode("report", "selftest T25", "the lever's default")
     sha_d = "d" * 16

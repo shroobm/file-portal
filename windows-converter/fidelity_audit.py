@@ -281,6 +281,17 @@ def _degenerate_blocks(markdown: str) -> list[tuple[dict, int]]:
         line_no = markdown.count("\n", 0, pos + lead) + 1
         pos += len(para) + 2
         p = para.strip()
+        # S211, the fixes lever `degen-rule-line` (SYM-157, proved over the corpus in S210's degen_clause_proof.py:
+        # Desjardins' line of 172 escaped underscores is a rule, not a loop; every real loop still fires): a block whose
+        # non-space glyph set has three or fewer distinct glyphs is skipped. The lever reaches this process as the
+        # FP_FIXES environment (set by convert() for the job the lever names); off, the stock pass runs unchanged.
+        if "degen-rule-line" in os.environ.get("FP_FIXES", "").split(","):
+            try:
+                import fixes
+                if fixes.is_rule_line(p):
+                    continue
+            except Exception:  # noqa: BLE001 — an unreadable clause never silences a loop; the stock pass decides
+                pass
         if len(p) < DEGEN_BLOCK_MIN_CHARS:
             continue
         raw = p.encode("utf-8")

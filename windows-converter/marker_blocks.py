@@ -51,8 +51,21 @@ Run exactly as marker_single is run:
 from __future__ import annotations
 
 import json
+import os
+import subprocess
 import sys
 from pathlib import Path
+
+
+def _card_free_mib():
+    """The card's free memory in MiB from nvidia-smi, or None when it cannot be read (fixes.batch_sizes(None) → {} —
+    an unread card lowers nothing; a lowered batch is a reading's consequence, never a guess's)."""
+    try:
+        out = subprocess.run(["nvidia-smi", "--query-gpu=memory.free", "--format=csv,noheader,nounits"],
+                             capture_output=True, text=True, timeout=10).stdout.strip().splitlines()
+        return int(out[0].strip()) if out else None
+    except Exception:  # noqa: BLE001 — no nvidia-smi, no card, a refusal: None
+        return None
 
 # The extra artifact's name, beside marker's own `<stem>.md` / `<stem>_meta.json` in the same
 # output dir. Deliberately NOT `<stem>.json`: that is what marker itself writes for the json and
@@ -367,9 +380,24 @@ def main(argv: list[str]) -> int:
 
     models = create_model_dict()
     config_parser = ConfigParser(kwargs)
+    # S211 (Rab's word 2026-09-21): the fixes the parent's lever named for this job arrive as FP_FIXES (the child
+    # inherits the environment); fixes.apply installs the Marker/pdftext patches BEFORE the converter is built (the
+    # fraction overlap gate through the name build_document resolves; the off-page clip and the char-box lift in one
+    # get_chars wrapper), and `table-batch-ceiling` lowers the detection / table-rec batch sizes when the card's free
+    # memory is under fixes._LOW_FREE_FRACTION of its total. Off (no env): nothing installed, the stock converter.
+    fix_names = [n for n in os.environ.get("FP_FIXES", "").split(",") if n]
+    fix_overrides: dict = {}
+    if fix_names:
+        import fixes
+        fix_applied = fixes.apply(fix_names, log=print)
+        if "table-batch-ceiling" in fix_applied["applied"]:
+            fix_overrides = fixes.batch_sizes(_card_free_mib())
+            print("fixes: table-batch-ceiling overrides %s (free %s MiB)" % (fix_overrides, _card_free_mib()), flush=True)
+    cfg = config_parser.generate_config_dict()
+    cfg.update(fix_overrides)
     converter_cls = config_parser.get_converter_cls()
     converter = converter_cls(
-        config=config_parser.generate_config_dict(),
+        config=cfg,
         artifact_dict=models,
         processor_list=config_parser.get_processors(),
         renderer=config_parser.get_renderer(),
@@ -431,6 +459,9 @@ def main(argv: list[str]) -> int:
                               "chunk_render": round(chunk_s, 3),
                               "pages": pages_built}
         record["extraction"] = extraction_of(document)      # S210 E2: which extractor each page kept (SYM-155's reading)
+        if fix_names:   # S211: the fixes applied in THIS process and the wrapper's live counters, for the manifest
+            import fixes
+            record.update(fixes.manifest_record(fix_names, fixes.stats()))
         dest = Path(out_folder) / (fname_base + BLOCKS_SUFFIX)
         dest.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
         print("J24 blocks written: {} ({} blocks, pages {}-{}, {} bytes, "
