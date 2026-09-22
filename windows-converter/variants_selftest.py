@@ -616,6 +616,59 @@ def test_rows_columns_compare_only_over_the_same_population():
         assert not ok2 and any("columns_lost increased: 1 > 0" in x for x in v2), (ok2, v2)
 
 
+def test_analyst_decided_named_when_the_analyst_phase_alone_decides():
+    """S211 E5, read live on TD Q3 ~r2 (a PLAIN re-send, no lever): every convert-stage number tied with the
+    incumbent (survival 0.9147, inventions 5, lost 464, missing 24) and the analyst's own pass differed (0.9994 ->
+    1.0, verdict fail -> flag at the ANALYST phase), which selected it. A better verdict is his signed criterion, so
+    the selection stands — but the bucket and the reason must SAY that a sampled rewrite decided it (SYM-163's other
+    face; the loss case is `analyst_confounded`)."""
+    with _isolated() as td:
+        sha = "sha-analyst-decided-0026"
+        a = _make_bundle(td, "anchor", "A-orig", sha=sha, verdict="fail", phase="analyst",
+                          survival_convert=0.9147, survival_analyst=0.9994, words_lost=464, inventions_total=5,
+                          numbers_missing=24, converted_at="2026-01-01T00:00:00+00:00")
+        b = _make_bundle(td, "anchor", "B-r2", sha=sha, verdict="flag", phase="convert",
+                          survival_convert=0.9147, survival_analyst=1.0, words_lost=464, inventions_total=5,
+                          numbers_missing=24, converted_at="2026-01-02T00:00:00+00:00")
+        variants.register(a)
+        variants.register(b)
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "B-r2", bucket
+        named = bucket.get("analyst_decided") or []
+        assert len(named) == 1 and named[0]["dir"] == "B-r2", bucket
+        assert "THE ANALYST PHASE DECIDED THIS" in bucket["reason"], bucket["reason"]
+
+
+def test_analyst_decided_not_named_when_a_convert_number_moved_or_the_phase_is_convert():
+    """The negative controls on the same shape: (a) the same analyst-phase win with ONE convert-stage number moved is
+    the LEVER's win, not the lottery's — not named; (b) two convert-phase bundles differing only in verdict are not
+    named either (no analyst phase in it)."""
+    with _isolated() as td:
+        sha = "sha-analyst-decided-neg-a"
+        a = _make_bundle(td, "anchor", "A-orig", sha=sha, verdict="fail", phase="analyst",
+                          survival_convert=0.9147, survival_analyst=0.9994, words_lost=464, inventions_total=5,
+                          converted_at="2026-01-01T00:00:00+00:00")
+        b = _make_bundle(td, "anchor", "B-155", sha=sha, verdict="flag", phase="convert",
+                          survival_convert=0.9147, survival_analyst=1.0, words_lost=464, inventions_total=1,
+                          converted_at="2026-01-02T00:00:00+00:00")
+        variants.register(a)
+        variants.register(b)
+        lever = variants.select(sha)
+        assert lever["selected"] == "B-155", lever
+        assert not (lever.get("analyst_decided") or []), lever
+    with _isolated() as td:
+        sha = "sha-analyst-decided-neg-b"
+        a = _make_bundle(td, "anchor", "A-fail", sha=sha, verdict="fail", phase="convert",
+                          survival_convert=0.90, survival_analyst=1.0, converted_at="2026-01-01T00:00:00+00:00")
+        b = _make_bundle(td, "anchor", "B-flag", sha=sha, verdict="flag", phase="convert",
+                          survival_convert=0.90, survival_analyst=1.0, converted_at="2026-01-02T00:00:00+00:00")
+        variants.register(a)
+        variants.register(b)
+        conv = variants.select(sha)
+        assert conv["selected"] == "B-flag", conv
+        assert not (conv.get("analyst_decided") or []), conv
+
+
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -623,6 +676,8 @@ TESTS = [
     test_tied_candidate_fixes_effective_false_named_in_reason,
     test_only_variant_is_original_nothing_changes,
     test_two_variants_better_verdict_selected,
+    test_analyst_decided_named_when_the_analyst_phase_alone_decides,
+    test_analyst_decided_not_named_when_a_convert_number_moved_or_the_phase_is_convert,
     test_equal_verdict_fewer_errors_selected,
     test_asset_loss_refused,
     test_rows_lost_rose_refused,

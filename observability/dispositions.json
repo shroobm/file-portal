@@ -1178,6 +1178,10 @@
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-22, SYM-163 — McGill-1 ~148): the registry bucket's `analyst_confounded` — the candidates that beat the incumbent on convert survival and lost on the verdict alone, failed at the ANALYST phase (the local model's own sampling; three runs of exactly the threshold at page anchors): the incumbent stays, each such candidate named with its note so the reader sees the convert fix worked and what failed was the analyst's pass — an analyst re-run on the same Marker body owed. Printed by `variants.py show`."
     },
+    "converter:analyst_decided": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22, read live on TD Q3 ~r2 — a PLAIN re-send with no lever): the registry bucket's `analyst_decided` — the SELECTED candidate, when it beat the incumbent at the ANALYST phase while every convert-stage number tied (the same Marker body, the same measures: survival 0.9147, inventions 5, lost 464, missing 24, rows 3, columns 18 on both) and only the analyst's own sampled rewrite differed (survival 0.9994 against 1.0; verdict fail against flag). A better verdict is Rab's signed criterion, so the selection stands unchanged — this key and the reason's 'THE ANALYST PHASE DECIDED THIS' sentence say WHAT decided it, so a reader never reads a lottery as a convert-stage win. The mirror of `analyst_confounded` (the loss case, S211 E3, McGill-1 ~148); both are SYM-163's faces and both name the analyst re-run station as owed. Empty list = the selection was not decided at the analyst phase (a lever moved a convert-stage number, or no analyst phase was in it); the list holds at most the selected candidate's entry, never a rejected one's."
+    },
     "converter:lost_compound_hyphen": {
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-22, the error accounting's mechanism reading): the inventions measure's `lost_compound_hyphen` (SYM-167) — a lost witness word that equals two ADJACENT Marker words: a genuine compound hyphen the layer's own line-wrap fused (the PBO's Robert-Ouimet); out of lost_total_excl_joined, never out of lost_total."

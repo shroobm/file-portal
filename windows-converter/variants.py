@@ -343,6 +343,15 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
 _TIE_NOTE = "tied on every measured number — the incumbent stays; what no measure sees is not a reason to switch"
 _ANALYST_NOTE = ("lost on the verdict alone, at the ANALYST phase (convert survival %s over the incumbent's %s): the convert-stage "
                  "fix worked; the analyst's own pass failed it — an analyst re-run on the same Marker body is owed (SYM-163)")
+# S211 E5, read live on TD Q3 ~r2 (a PLAIN re-send, no lever): every convert-stage number tied with the incumbent —
+# survival 0.9147, inventions 5, lost 464, missing 24, rows 3, columns 18 — and the analyst's own pass differed
+# (survival 0.9994 → 1.0, verdict fail → flag at the ANALYST phase), which selected it. A better verdict is his signed
+# criterion, so the selection stands; but the reader must see that a SAMPLED pass decided it, exactly as the loss case
+# is named. The mirror of _ANALYST_NOTE (SYM-163's other face).
+_ANALYST_DECIDED_NOTE = ("selected on the ANALYST phase alone: every convert-stage number ties with the incumbent "
+                         "(same body, same measures) and the analyst's own pass differs (survival %s against %s, "
+                         "verdict %r against %r) — a sampled rewrite decided this choice, not a convert-stage lever "
+                         "(SYM-163); an analyst re-run station is owed")
 
 
 def _selection_rank(entry: dict) -> tuple:
@@ -394,6 +403,25 @@ def _compare(candidate: dict, baseline: dict) -> tuple[str, list[str]]:
     elif bool(c) != bool(b):
         return ("better" if not c else "worse", excluded)
     return ("tie", excluded)
+
+
+def _convert_stage_ties(candidate: dict, baseline: dict) -> bool:
+    """whether every CONVERT-STAGE number both sides carry is equal (the error fields, their honest rests preferred,
+    and degeneration) — the test behind `analyst_decided`: the bodies measure the same and only the analyst's own
+    pass differs. A field None on either side is skipped (never read as 0, never a difference)."""
+    for f in _ERROR_FIELDS:
+        ex = _EXCL_PREFERRED.get(f)
+        c, b = candidate.get(f), baseline.get(f)
+        if ex is not None and candidate.get(ex) is not None and baseline.get(ex) is not None:
+            c, b = candidate.get(ex), baseline.get(ex)
+        if c is None or b is None:
+            continue
+        if c != b:
+            return False
+    c, b = candidate.get("degeneration"), baseline.get("degeneration")
+    if c is not None and b is not None and bool(c) != bool(b):
+        return False
+    return True
 
 
 def _refusal(entry: dict, violations: list[str], unread: list[str]) -> dict:
@@ -468,6 +496,7 @@ def select(sha: str, reset: bool = False) -> dict:
     better: list[dict] = []
     excluded_fields: dict = {}
     analyst_confounded: list[dict] = []
+    analyst_decided: list[dict] = []
     for c in candidates:
         if c.get("dir") == baseline.get("dir"):
             continue
@@ -478,6 +507,13 @@ def select(sha: str, reset: bool = False) -> dict:
             tied.append(c)
         elif verdict == "better":
             better.append(c)
+            # S211 E5 (TD Q3 ~r2): it won at the ANALYST phase while the convert stage tied — named, never silent
+            if c.get("verdict_phase") == "analyst" or baseline.get("verdict_phase") == "analyst":
+                cs, bs = c.get("survival_convert"), baseline.get("survival_convert")
+                if cs is not None and bs is not None and cs == bs and _convert_stage_ties(c, baseline):
+                    analyst_decided.append({"dir": c.get("dir"),
+                                            "note": _ANALYST_DECIDED_NOTE % (c.get("survival_analyst"), baseline.get("survival_analyst"),
+                                                                             c.get("verdict"), baseline.get("verdict"))})
         else:
             # S211 E3 (McGill-1 ~148, SYM-163): the variant's convert survival beat the incumbent's (0.8496 over 0.8169,
             # the ligature repair) and it lost on the VERDICT alone, failed at the ANALYST phase — three near-exact runs
@@ -509,6 +545,10 @@ def select(sha: str, reset: bool = False) -> dict:
             else:
                 tie_bits.append("%r" % c.get("dir"))
         tie_note = " Tied against %s -- the incumbent stays." % ", ".join(tie_bits)
+    decided_note = ""
+    for a in analyst_decided:
+        if a.get("dir") == selected.get("dir"):
+            decided_note = " THE ANALYST PHASE DECIDED THIS: %s." % a["note"]
     excl_note = ""
     if excluded_fields:
         excl_note = " Excluded from the comparison (None on one side or both, never read as 0): %s." % "; ".join(
@@ -518,7 +558,7 @@ def select(sha: str, reset: bool = False) -> dict:
         "survival_analyst=%s) against baseline %r; %d of %d variant(s) refused as unfaithful.%s%s"
         % (selected.get("dir"), selected.get("verdict"), errors, none_note,
            selected.get("survival_convert"), selected.get("survival_analyst"),
-           baseline.get("dir"), len(refused), len(variants), tie_note, excl_note)
+           baseline.get("dir"), len(refused), len(variants), tie_note, excl_note) + decided_note
     )
 
     bucket["selected"] = selected.get("dir")
@@ -527,6 +567,7 @@ def select(sha: str, reset: bool = False) -> dict:
     bucket["tied"] = tied_entries
     bucket["excluded_fields"] = excluded_fields
     bucket["analyst_confounded"] = analyst_confounded
+    bucket["analyst_decided"] = [a for a in analyst_decided if a.get("dir") == selected.get("dir")]
     bucket["selected_at"] = datetime.now(timezone.utc).isoformat()
     registry[sha] = bucket
     _write_registry_atomic(registry)
@@ -582,6 +623,8 @@ def _print_show(bucket: dict) -> None:
     print("reason: %s" % bucket.get("reason"))
     if bucket.get("excluded_fields"):
         print("excluded from the comparison (None on one side or both): %s" % bucket.get("excluded_fields"))
+    for a in bucket.get("analyst_decided") or []:
+        print("analyst-decided: %s — %s" % (a.get("dir"), a.get("note")))
     for a in bucket.get("analyst_confounded") or []:
         print("analyst-confounded: %r -- %s" % (a.get("dir"), a.get("note")))
     tied = bucket.get("tied") or []
