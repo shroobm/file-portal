@@ -63,7 +63,8 @@ ECHO_SIMILARITY = 0.85         # difflib.SequenceMatcher ratio at/above which a 
 ECHO_MIN_FIGURES = 3           # both rows carry at least this many figures for the figure-echo test to apply
 ECHO_FIGURE_CHAR_SHARE = 0.5   # an aligned pair of equal-length figures is "the same digits swapped" at/above this share
 ECHO_FIGURE_PAIR_SHARE = 0.5   # the row is a figure-echo when this share of its aligned pairs read so ...
-ECHO_FIGURE_ABSENT_SHARE = 0.5  # ... AND this share of its figures are in none of the box's own words
+ECHO_FIGURE_ABSENT_SHARE = 0.5  # ... AND this share of its figures are in none of the box's own words, while the row
+                                # before's figures ARE in the layer (fewer than this share absent) — the real row exists
 BOX_PAD_PT = 6.0               # the box padded by this before its words are read: a word straddling the edge is its own
 COLLAPSE_MIN_BANDS = 3         # a rendered cell holding this many bands' labels is a COLLAPSE (the table in one cell), not merges
 _YEAR = re.compile(r"(19|20)\d\d")   # a band whose only figures are years is a header or a note, never a data row
@@ -333,7 +334,11 @@ def _echo_pairs(rows: list[dict], layer_figs: set, bands: list[dict]) -> list[di
         if share is None or share < ECHO_FIGURE_PAIR_SHARE:
             continue
         absent = sum(1 for f in b["figures"] if f not in layer_figs) / len(b["figures"])
-        if absent >= ECHO_FIGURE_ABSENT_SHARE:
+        absent_real = sum(1 for f in a["figures"] if f not in layer_figs) / len(a["figures"])
+        # the REAL row must be in the layer (Desjardins row 6: every figure present): a table Marker OCR'd from a
+        # screenshot has neither row in the layer, and its consecutive IDs (9841 / 9842) would read as echoes (Automate
+        # p.384, read on the third pass) — there the echo is UNREAD, not claimed
+        if absent >= ECHO_FIGURE_ABSENT_SHARE and absent_real < ECHO_FIGURE_ABSENT_SHARE:
             pairs.append({"rows": [a["idx"], b["idx"]], "kind": "figures", "score": round(share, 3),
                           "figures_absent_from_layer": round(absent, 3)})
     return pairs
@@ -453,6 +458,10 @@ def _read_table(page, block: dict, next_first_band: "dict | None") -> dict:
     words = page.get_text("words", clip=clip)
     if not words:
         return _unread_table(block, "no words inside the box")
+    if page.rotation:
+        # the third pass's first bundles (Ashby 1956): a /Rotate page's layer sits in the UNROTATED space — the bands
+        # would cluster its columns, not its rows (SYM-142's page shape); named as the page's rotation, not the text's
+        return _unread_table(block, "the page is rotated (/Rotate %d): the layer's geometry is in the unrotated space" % page.rotation)
     rotated, n_lines = _rotated_lines(page, clip)
     if n_lines and rotated / n_lines >= ROTATED_LINE_SHARE:
         return _unread_table(block, "rotated text in the box (%d of %d lines)" % (rotated, n_lines))

@@ -968,7 +968,7 @@
     },
     "converter:echo_figure_absent_share": {
       "disposition": "EVIDENCE",
-      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: ... and this share of its figures are in none of the box's words (0.5; the anchor)."
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: ... and this share of its figures are in none of the box's words (0.5; the anchor). AMENDED S211 E5 (the third pass's first bundles, Automate p.384): the row BEFORE must be in the layer (fewer than this share of its figures absent) — a table Marker OCR'd from a screenshot has neither row in the layer and its consecutive IDs (9841 / 9842) would read as echoes; there the echo is not claimed."
     },
     "converter:echo_figure_char_share": {
       "disposition": "EVIDENCE",
@@ -1096,7 +1096,7 @@
     },
     "converter:tables_read": {
       "disposition": "EVIDENCE",
-      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Tables the witness read (words in the box, not rotated, the box not short of its table, an html with a <tr>) — the population of every reading below; tables_total = tables_read + tables_unread."
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Tables the witness read (words in the box, not rotated, the box not short of its table, an html with a <tr>) — the population of every reading below; tables_total = tables_read + tables_unread. AMENDED S211 E5 (Ashby 1956, /Rotate 90 pages): a table on a ROTATED page is unread by name — 'the page is rotated (/Rotate N): the layer's geometry is in the unrotated space' — before any band is read."
     },
     "converter:tables_rows_read": {
       "disposition": "EVIDENCE",

@@ -371,5 +371,29 @@ case("no qualifying band (a qualitative table with a row deleted): rows_unread n
      outS["tables"][0]["unread"] is None and (outS["tables"][0]["rows_unread"] or "").startswith("no band carries")
      and outS["tables_read"] == 1 and outS["tables_rows_read"] == 0 and outS["rows_dropped_total"] is None, outS)
 
+# 25 · the figure echo needs the REAL row in the layer (the third pass, Automate p.384): a table whose rows the layer
+# never had (an OCR'd screenshot — the box holds only a caption) with consecutive IDs reads echo 0, however similar
+# the digits; case 18's echo (the real row present) still reads 1
+docT, BBOX_T = draw([("Figure 12-1. The spreadsheet", "1,000")])
+HTML_T = table_html(row_html(["9841", "06075010500", "2,685"]), row_html(["9842", "06075010600", "3,894"]))
+tT = one(docT, BBOX_T, HTML_T)
+case("the figure echo needs the real row in the layer: an OCR'd screenshot's consecutive IDs (9841 / 9842, none in the "
+     "layer) read echo 0; case 18's echo with the real row present still reads 1",
+     tT["echo"] == [] and len(tJ["echo"]) == 1, (tT, tJ))
+
+# 26 · a /Rotate page reads UNREAD as the PAGE's rotation (the third pass, Ashby 1956: the layer's geometry in the
+# unrotated space); the same content on an unrotated page reads
+docU = fitz.open()
+pageU = docU.new_page(width=612, height=792)
+pageU.insert_text((LABEL_X, Y0 + 16), "Net income", fontsize=FS)
+pageU.insert_text((FIG1_X, Y0 + 16), "1,307", fontsize=FS)
+BBOX_U = [X0 - 4, Y0 - 4, FIG1_X + 60, Y0 + RH + 4]
+tU_flat = one(docU, BBOX_U, table_html(row_html(["Net income", "1,307"])))
+pageU.set_rotation(90)
+tU_rot = one(docU, BBOX_U, table_html(row_html(["Net income", "1,307"])))
+case("a /Rotate 90 page reads unread 'the page is rotated (/Rotate 90) ...'; the same page unrotated reads matched 1",
+     (tU_rot["unread"] or "").startswith("the page is rotated (/Rotate 90)") and tU_flat["unread"] is None
+     and len(tU_flat["matched"]) == 1, (tU_rot, tU_flat))
+
 print("==== table_witness selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)
