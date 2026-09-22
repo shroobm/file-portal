@@ -511,7 +511,7 @@ def select(sha: str, reset: bool = False) -> dict:
         tie_note = " Tied against %s -- the incumbent stays." % ", ".join(tie_bits)
     excl_note = ""
     if excluded_fields:
-        excl_note = " Excluded from the comparison (None on one side, never read as 0): %s." % "; ".join(
+        excl_note = " Excluded from the comparison (None on one side or both, never read as 0): %s." % "; ".join(
             "%r: %s" % (d, ", ".join(fs)) for d, fs in excluded_fields.items())
     reason = (
         "selected %r by rank (verdict=%r, errors=%s%s, survival_convert=%s, "
@@ -581,7 +581,7 @@ def _print_show(bucket: dict) -> None:
     print("selected: %r" % bucket.get("selected"))
     print("reason: %s" % bucket.get("reason"))
     if bucket.get("excluded_fields"):
-        print("excluded from the comparison (None on one side): %s" % bucket.get("excluded_fields"))
+        print("excluded from the comparison (None on one side or both): %s" % bucket.get("excluded_fields"))
     for a in bucket.get("analyst_confounded") or []:
         print("analyst-confounded: %r -- %s" % (a.get("dir"), a.get("note")))
     tied = bucket.get("tied") or []
