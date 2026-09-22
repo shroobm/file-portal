@@ -171,5 +171,24 @@ wV = ts._witness(pageV, fitz.Rect(*bboxV))
 case("SYM-172 negative control: the same gutter holding a figure in one row is a column — the witness counts 5",
      wV is not None and wV[0] == "lines" and wV[2] == COLS + 1, wV)
 
+# ---------- S211 E8 (SYM-181's owed half): the geometry BEHIND the shape, printed so a reader need not open the PDF ----------
+# The Spring Economic Update p.137 reads `15x14->16x8` and nothing about why: thirteen of that grid's 23 columns are
+# 5.40 pt wide against six at ~33. The widths were computed by the witness and thrown away.
+g_note = ts._geometry_note([5.4] * 13 + [33.0] * 4 + [33.1] * 2 + [7.56, 11.52, 24.72, 178.2])
+case("SYM-181 G1: a grid whose SLIVERS ARE THE MAJORITY is described by its widths — `5.4x13` is named and the six "
+     "real columns beside it (the note's first form printed a median and a count under a third of it, and read "
+     "`0 narrower` on this very shape, because the slivers set the median)",
+     "23 columns" in g_note and "5.4x13" in g_note and "33.0x4" in g_note, g_note)
+g_empty = ts._geometry_note([])
+case("SYM-181 G3: no cell boxes reads UNREAD, never an empty tally that would look like a table with no slivers",
+     "UNREAD" in g_empty, g_empty)
+# G2 · THE PROMISE THE READING RESTS ON: it moves no number. The SYM-145 and SYM-172 fixtures above already assert
+# columns_lost 0 over population 1; here the same two are re-read to say that the geometry rides BESIDE those numbers.
+case("SYM-181 G2: the geometry is a reading beside the number — SYM-145's and SYM-172's fixtures still read "
+     "columns_lost 0 over population 1, and each worst page now carries one geometry line per shape",
+     out145["columns_lost"] == 0 and outU["columns_lost"] == 0
+     and all(len(w["column_geometry"]) == len(w["shapes"]) for w in out145["worst"] + outU["worst"]),
+     (out145["worst"], outU["worst"]))
+
 print("==== table_shape selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

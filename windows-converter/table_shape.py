@@ -57,8 +57,27 @@ def _marker_cells(html: str) -> tuple[int, int, list[str]]:
     return len(rows), (max(widths) if widths else 0), cells
 
 
+GEOMETRY_WIDTHS = 7          # S211 E8: how many distinct column widths the geometry note prints before saying "and N
+# more distinct" — a display cap on a READING, not a measurement bound. Nothing in this module computes a number from
+# the widths: SYM-181's actual fix needs a threshold and that number is Rab's, so this deliberately has none.
+
+
+def _column_widths(t) -> list:
+    """S211 E8 (SYM-181's owed half): the witness's own column widths, in points, from the cell boxes it already
+    built — the geometry behind the shape, which was computed and thrown away. An empty list when the table carries
+    no usable cell boxes, so the caller can print nothing rather than a zero."""
+    from itertools import pairwise
+    cells = [c for c in (getattr(t, "cells", None) or []) if c]
+    if not cells:
+        return []
+    xs = sorted({round(c[0], 2) for c in cells} | {round(c[2], 2) for c in cells})
+    return [round(b - a, 2) for a, b in pairwise(xs)]
+
+
 def _witness(page, clip):
-    """(strategy, rows, cols, joined normalised cell text) of the largest table pymupdf finds inside the box, or None."""
+    """(strategy, rows, cols, joined normalised cell text, the witness's own column widths) of the largest table
+    pymupdf finds inside the box, or None. The widths are a READING for the worst entry (S211 E8) and no number in
+    this module is computed from them."""
     for strat in STRATEGIES:
         try:
             tf = page.find_tables(clip=clip, strategy=strat)
@@ -89,7 +108,7 @@ def _witness(page, clip):
             rows = sum(1 for row in ext if any(x not in (None, "") for x in row))
         else:
             cols, rows = t.col_count, t.row_count
-        return strat, rows, cols, text
+        return strat, rows, cols, text, _column_widths(t)
     return None
 
 
@@ -107,6 +126,28 @@ def _finish(out: dict) -> dict:
     return out
 
 
+def _geometry_note(widths: list) -> str:
+    """one line per witnessed table: how many columns it has and WHAT WIDTHS they are, as a tally in points. The
+    Spring Economic Update p.137 reads `23 columns · widths 5.4x13, 33.0x4, 33.1x2, 7.6, 11.5, 24.7, 178.2 pt`, and a
+    reader sees the sliver grid at once.
+
+    S211 E8, and its FIRST form was wrong in a way worth keeping written down: it printed the median and a count of
+    columns under a third of it, which on this very page reads `median 5.4 pt · 0 narrower than a third of it` —
+    because when the slivers are the MAJORITY they set the median. A derived statistic can be defeated by the shape it
+    was built to describe; the widths themselves cannot. There is no threshold here at all now, which is the point,
+    because SYM-181's actual fix needs one and that number is Rab's.
+
+    UNREAD when the witness gave no cell boxes — never a zero, which would read as a table with no narrow columns."""
+    if not widths:
+        return "UNREAD (the witness gave no cell boxes for this table)"
+    from collections import Counter
+    tally = Counter(round(w, 1) for w in widths)
+    parts = [(f"{w:.1f}x{n}" if n > 1 else f"{w:.1f}") for w, n in tally.most_common(GEOMETRY_WIDTHS)]
+    rest = len(tally) - len(parts)
+    return (f"{len(widths)} columns · widths {', '.join(parts)} pt"
+            + (f" and {rest} more distinct" if rest > 0 else ""))
+
+
 def table_shape(doc, blocks: list[dict], lane: str) -> dict:
     """`doc` an open pymupdf document (the source) or its path, `blocks` blocks.json's list, `lane` "clean" or "scan"."""
     tables = [b for b in blocks if b.get("block_type") in TABLE_TYPES and b.get("bbox") and b.get("page") is not None]
@@ -117,7 +158,10 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
                       "columns); a witness whose cells disagree is none; a *_lost value is None, never 0, when its "
                       "own *_lost_population is 0 — unwitnessed, not a measured zero; tables_agree_population is "
                       "always None (not derivable: _witness tries one strategy per table and stops at the first "
-                      "hit, so no table is ever checked by both)",
+                      "hit, so no table is ever checked by both); each worst page also carries `geometry`, one line "
+                      "per shape, saying how many columns that witness found and WHAT WIDTHS they are, as a tally in "
+                      "points — a READING of the grid behind the shape (S211 E8, SYM-181), never a term in "
+                      "columns_lost, and carrying no threshold at all so that it cannot be mistaken for one",
            "cell_agree_floor": CELL_AGREE, "tables_total": len(tables), "tables_witnessed_lines": 0,
            "tables_witnessed_text": 0, "tables_disagree": 0, "tables_agree_population": None, "tables_unread": 0,
            "columns_lost": 0, "columns_lost_population": 0, "columns_gained": 0, "rows_lost": 0,
@@ -151,7 +195,7 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
         if w is None:
             out["tables_unread"] += 1
             continue
-        strat, l_rows, l_cols, text = w
+        strat, l_rows, l_cols, text, l_widths = w
         found = sum(1 for c in m_cells if c in text)
         agree = (found / len(m_cells)) if m_cells else 0.0
         if agree < CELL_AGREE:
@@ -163,7 +207,8 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
             out["tables_disagree"] += 1
             out["columns_gained"] += max(0, m_width - l_cols)   # the document-level tell of partial rulings, kept
             continue
-        entry = per_page.setdefault(p + 1, {"page": p + 1, "columns_lost": 0, "rows_lost": 0, "shapes": []})
+        entry = per_page.setdefault(p + 1, {"page": p + 1, "columns_lost": 0, "rows_lost": 0, "shapes": [],
+                                            "column_geometry": []})
         if strat == "lines":
             out["tables_witnessed_lines"] += 1
             rl = max(0, l_rows - m_rows)
@@ -174,12 +219,18 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
             entry["rows_lost"] += rl
             entry["columns_lost"] += cl
             entry["shapes"].append("%dx%d->%dx%d" % (l_rows, l_cols, m_rows, m_width))
+            # S211 E8 (SYM-181's owed half): the geometry behind that shape, one entry per shape, so the sliver grid
+            # the Spring Economic Update p.137 carries (thirteen columns of 5.40 pt against six of ~33) is visible
+            # without opening the PDF. A reading beside the number, never a term in it.
+            entry["column_geometry"].append(_geometry_note(l_widths))
         else:
             # the text strategy over-splits both ways (a wrapped line is a row, a gap a column): it says a table is
             # there and its cells agree — no number is taken from it
             out["tables_witnessed_text"] += 1
             entry["shapes"].append("text->%dx%d" % (m_rows, m_width))
+            entry["column_geometry"].append("UNREAD (the text strategy gives no ruled geometry)")
     out["pages_with_columns_lost"] = sum(1 for v in per_page.values() if v["columns_lost"])
     for v in sorted(per_page.values(), key=lambda v: -(v["columns_lost"] * 10 + v["rows_lost"]))[:WORST_CAP]:
-        worst.append({"page": v["page"], "columns_lost": v["columns_lost"], "rows_lost": v["rows_lost"], "shapes": v["shapes"]})
+        worst.append({"page": v["page"], "columns_lost": v["columns_lost"], "rows_lost": v["rows_lost"],
+                      "shapes": v["shapes"], "column_geometry": v["column_geometry"]})
     return _finish(out)
