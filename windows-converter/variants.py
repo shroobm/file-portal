@@ -293,9 +293,17 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
     else:
         unread.append("columns unsupported")
 
-    deg = candidate.get("degeneration")
-    if deg is True:
-        violations.append("degeneration: True")
+    # S211 E3 (the accounting's finding on Desjardins AR, the AI Index, Ashby, RBC Q3: the registry SELECTED the anchor
+    # copy carrying degeneration True -- the baseline is always a candidate -- while REFUSING its byte-identical held
+    # copy "for degeneration: True"): degeneration is a violation only when it is a REGRESSION against the baseline --
+    # the candidate True where the baseline is not. Both True reads UNREAD-named (the same flag on both sides, no
+    # ground to prefer either; SYM-157 says the flag itself can be the instrument's); a candidate False where the
+    # baseline is True is an improvement, no violation.
+    deg, bdeg = candidate.get("degeneration"), baseline.get("degeneration")
+    if deg is True and bdeg is not True:
+        violations.append("degeneration: True (the baseline's is %s)" % bdeg)
+    elif deg is True and bdeg is True:
+        unread.append("degeneration True on both sides (not a regression)")
     elif deg is None:
         unread.append("degeneration unread")
 
@@ -316,6 +324,46 @@ def _selection_rank(entry: dict) -> tuple:
     below, to break a tie between two CHALLENGERS that both beat the baseline (today's rule
     protects the incumbent from a tie, not two new variants from each other)."""
     return rank(entry)[:-1]
+
+
+def _compare(candidate: dict, baseline: dict) -> tuple[str, list[str]]:
+    """S211 E3 (the accounting's finding on Waterloo's Kamalzadeh thesis: the reason read "errors=2482 [None treated
+    as 0: numbers_missing, numbers_extra]" -- a variant whose numbers measure never ran ranked as if it had 0 missing
+    figures, so an UNMEASURED variant could unseat a measured one). The candidate is compared to the baseline on the
+    fields BOTH carry: verdict rank first; then the error sum over the shared _ERROR_FIELDS (the honest rest where both
+    carry it -- _EXCL_PREFERRED); then survival_convert, then survival_analyst, each only when both are numbers. A field
+    None on either side is EXCLUDED and NAMED, never read as 0. Returns ("better" | "tie" | "worse", excluded_fields)."""
+    excluded: list[str] = []
+    cv, bv = _verdict_rank(candidate.get("verdict")), _verdict_rank(baseline.get("verdict"))
+    if cv != bv:
+        return ("better" if cv > bv else "worse", excluded)
+    ce = be = 0
+    for f in _ERROR_FIELDS:
+        ex = _EXCL_PREFERRED.get(f)
+        c, b = candidate.get(f), baseline.get(f)
+        if ex is not None and candidate.get(ex) is not None and baseline.get(ex) is not None:
+            c, b = candidate.get(ex), baseline.get(ex)
+        if c is None or b is None:
+            excluded.append(f)
+            continue
+        ce += c
+        be += b
+    if ce != be:
+        return ("better" if ce < be else "worse", excluded)
+    for f in ("survival_convert", "survival_analyst"):
+        c, b = candidate.get(f), baseline.get(f)
+        if c is None or b is None:
+            excluded.append(f)
+            continue
+        if c != b:
+            return ("better" if c > b else "worse", excluded)
+    # his word: "no looping text" -- a variant that clears the loops the incumbent carries is a lessening of errors
+    c, b = candidate.get("degeneration"), baseline.get("degeneration")
+    if c is None or b is None:
+        excluded.append("degeneration")
+    elif bool(c) != bool(b):
+        return ("better" if not c else "worse", excluded)
+    return ("tie", excluded)
 
 
 def _refusal(entry: dict, violations: list[str], unread: list[str]) -> dict:
@@ -384,18 +432,22 @@ def select(sha: str, reset: bool = False) -> dict:
     # switch -- the incumbent (baseline) stays selected and the tying candidate is named under
     # `tied`, never silently promoted by converted_at alone. A candidate strictly better than the
     # baseline on the measured rank still wins outright.
-    baseline_rank = _selection_rank(baseline)
+    # S211 E3: the comparison is PAIRWISE on the fields both sides carry (_compare) -- a None is excluded and named,
+    # never read as 0 (the old rank summed None as 0, so an unmeasured variant could read as the one with fewer errors).
     tied: list[dict] = []
     better: list[dict] = []
+    excluded_fields: dict = {}
     for c in candidates:
         if c.get("dir") == baseline.get("dir"):
             continue
-        c_rank = _selection_rank(c)
-        if c_rank == baseline_rank:
+        verdict, excluded = _compare(c, baseline)
+        if excluded:
+            excluded_fields[c.get("dir")] = excluded
+        if verdict == "tie":
             tied.append(c)
-        elif c_rank > baseline_rank:
+        elif verdict == "better":
             better.append(c)
-        # else: strictly worse than the incumbent on the measured rank -- faithful, but neither
+        # else: strictly worse than the incumbent on the shared measured fields -- faithful, but neither
         # selected, tied, nor refused; it simply does not surface here (unchanged from before).
 
     selected = max(better, key=rank) if better else baseline
@@ -413,18 +465,23 @@ def select(sha: str, reset: bool = False) -> dict:
             else:
                 tie_bits.append("%r" % c.get("dir"))
         tie_note = " Tied against %s -- the incumbent stays." % ", ".join(tie_bits)
+    excl_note = ""
+    if excluded_fields:
+        excl_note = " Excluded from the comparison (None on one side, never read as 0): %s." % "; ".join(
+            "%r: %s" % (d, ", ".join(fs)) for d, fs in excluded_fields.items())
     reason = (
         "selected %r by rank (verdict=%r, errors=%s%s, survival_convert=%s, "
-        "survival_analyst=%s) against baseline %r; %d of %d variant(s) refused as unfaithful.%s"
+        "survival_analyst=%s) against baseline %r; %d of %d variant(s) refused as unfaithful.%s%s"
         % (selected.get("dir"), selected.get("verdict"), errors, none_note,
            selected.get("survival_convert"), selected.get("survival_analyst"),
-           baseline.get("dir"), len(refused), len(variants), tie_note)
+           baseline.get("dir"), len(refused), len(variants), tie_note, excl_note)
     )
 
     bucket["selected"] = selected.get("dir")
     bucket["reason"] = reason
     bucket["refused"] = refused
     bucket["tied"] = tied_entries
+    bucket["excluded_fields"] = excluded_fields
     bucket["selected_at"] = datetime.now(timezone.utc).isoformat()
     registry[sha] = bucket
     _write_registry_atomic(registry)
@@ -478,6 +535,8 @@ def _print_show(bucket: dict) -> None:
         return
     print("selected: %r" % bucket.get("selected"))
     print("reason: %s" % bucket.get("reason"))
+    if bucket.get("excluded_fields"):
+        print("excluded from the comparison (None on one side): %s" % bucket.get("excluded_fields"))
     tied = bucket.get("tied") or []
     print("tied (%d):" % len(tied))
     for t in tied:

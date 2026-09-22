@@ -476,6 +476,55 @@ def test_reset_prefers_the_shipped_copy_among_equal_originals():
         assert bucket["refused"] == [], bucket["refused"]
 
 
+def test_unmeasured_field_excluded_never_read_as_zero():
+    """S211 E3 (the accounting on Waterloo's Kamalzadeh thesis): a candidate whose numbers measure never ran (None)
+    must not read as "0 missing figures" against a baseline with 5 measured. The field is EXCLUDED from the
+    comparison and NAMED under bucket["excluded_fields"]; on the rest they tie, so the incumbent stays. NEGATIVE
+    CONTROL: the old rank tuple (None summed as 0) reads the candidate as better -- asserted directly."""
+    with _isolated() as td:
+        sha = "sha-excl-0005"
+        a = _make_bundle(td, "anchor", "A-measured", sha=sha, verdict="flag", converted_at="2026-01-01T00:00:00+00:00", numbers_missing=5)
+        b = _make_bundle(td, "anchor", "B-unmeasured", sha=sha, verdict="flag", converted_at="2026-01-02T00:00:00+00:00", omit_numbers=True)
+        variants.register(a)
+        variants.register(b)
+        sa, sb = variants.summarize(a), variants.summarize(b)
+        assert sb["numbers_missing"] is None and sa["numbers_missing"] == 5, (sa, sb)
+        assert variants._selection_rank(sb) > variants._selection_rank(sa), "the old rule: None as 0 wins"   # the negative control
+        verdict, excluded = variants._compare(sb, sa)
+        assert verdict == "tie" and "numbers_missing" in excluded and "numbers_extra" in excluded, (verdict, excluded)
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "A-measured", bucket
+        assert [t["dir"] for t in bucket["tied"]] == ["B-unmeasured"], bucket["tied"]
+        assert bucket["excluded_fields"] == {"B-unmeasured": ["numbers_missing", "numbers_extra"]}, bucket["excluded_fields"]
+        assert "Excluded from the comparison" in bucket["reason"], bucket["reason"]
+
+
+def test_degeneration_on_both_sides_is_not_a_refusal():
+    """S211 E3 (the accounting on Desjardins AR / the AI Index / Ashby / RBC Q3): one conversion in both roots, both
+    carrying degeneration True -- the registry selected the anchor copy and REFUSED the identical held copy for the
+    very flag the incumbent carries. Now: True on both sides is UNREAD-named, not a violation; the copy ties. NEGATIVE
+    CONTROL: the regression case (baseline False, candidate True) is still refused -- test_degeneration_true_refused
+    above; and a candidate False against a baseline True is an improvement, selected."""
+    with _isolated() as td:
+        sha = "sha-degen-both-0006"
+        a = _make_bundle(td, "anchor", "Some Report", sha=sha, verdict="fail", converted_at="2026-01-01T00:00:00+00:00", degeneration=True)
+        h = _make_bundle(td, "held", "0123456789abcdef", sha=sha, verdict="fail", converted_at="2026-01-01T00:00:00+00:00", degeneration=True)
+        c = _make_bundle(td, "anchor", "Some Report _160", sha=sha, verdict="fail", converted_at="2026-01-03T00:00:00+00:00", degeneration=False)
+        variants.register(a)
+        variants.register(h)
+        ok, violations, unread = variants.faithful(variants.summarize(h), variants.summarize(a))
+        assert ok and violations == [] and any("both sides" in u for u in unread), (violations, unread)
+        bucket = variants.select(sha, reset=True)
+        assert bucket["selected"] == "Some Report" and [t["dir"] for t in bucket["tied"]] == ["0123456789abcdef"] and bucket["refused"] == [], bucket
+        variants.register(c)
+        ok2, v2, _u2 = variants.faithful(variants.summarize(c), variants.summarize(a))
+        assert ok2 and v2 == [], (ok2, v2)
+        bucket = variants.select(sha)
+        # his word "no looping text": clearing the loops the incumbent carries is a lessening of errors -- the variant wins
+        assert bucket["selected"] == "Some Report _160", bucket
+        assert variants._compare(variants.summarize(c), variants.summarize(a)) == ("better", []), variants._compare(variants.summarize(c), variants.summarize(a))
+
+
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -496,6 +545,8 @@ TESTS = [
     test_honest_rest_absent_on_one_side_reads_unread_never_violation,
     test_select_reset_reinstates_the_original_over_a_sticky_newest,
     test_reset_prefers_the_shipped_copy_among_equal_originals,
+    test_unmeasured_field_excluded_never_read_as_zero,
+    test_degeneration_on_both_sides_is_not_a_refusal,
 ]
 
 
