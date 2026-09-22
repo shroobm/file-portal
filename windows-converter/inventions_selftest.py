@@ -326,5 +326,29 @@ case("audit_numbers: a unit-glued figure (`1000nm`) inside its Figure box reads 
      "control: the verbatim-word key never matched — missing 1)",
      r_unit["missing_total"] == 0 and r_unit["missing_in_figures_total"] == 1, r_unit)
 
+# 34 · S211 E6 (SYM-177, McGill's photonic-computing thesis p.104 `[101,102]` and p.109 `[71,107-109]`): a reference list
+# writes its numbers exactly as a grouped thousand does, and Marker renders the citation correctly — so the comma-joined run
+# is in the layer and not in the blocks, and the measure read a lost figure. 14 of the shelf's 1,716 missing figures were this.
+LAY_CITE = ("fabrication techniques [101,102] are practical solutions, and intra-mode switching [71,107-109] follows; "
+            "the table then reads Total assets 2,015,000 on the same page")
+r_cite = fa.audit_numbers([LAY_CITE], [{"page": 0, "html": "<p>fabrication techniques are practical solutions, and intra-mode switching follows; the table then reads Total assets</p>"}])
+case("audit_numbers: a bracketed reference list (`[101,102]`, `[71,107-109]`) is counted apart as missing_in_citations, never "
+     "under missing — and the NEGATIVE CONTROL on the same page: the real grouped thousand 2,015,000 the blocks lack is still missing 1",
+     r_cite["missing_in_citations"] == 2 and r_cite["missing_total"] == 1 and r_cite["worst"] == [], r_cite)
+# 35 · THE CONTROL THAT KEEPS THE CUT FROM SWALLOWING EVIDENCE: the test is ALL occurrences, not any. A figure that also appears
+# inside a citation on the same page is still a figure, and stays under missing.
+LAY_BOTH = "the cited work [12,345] measured it, and the table's own row reads Securities loaned 12,345 for the quarter"
+r_both = fa.audit_numbers([LAY_BOTH], [{"page": 0, "html": "<p>the cited work measured it, and the table's own row reads Securities loaned for the quarter</p>"}])
+case("audit_numbers: a token appearing BOTH inside a citation and as a table figure stays a missing figure (all occurrences "
+     "bracketed, not any) — missing 2, missing_in_citations 0",
+     r_both["missing_total"] == 2 and r_both["missing_in_citations"] == 0, r_both)
+# 36 · the two counts are kept apart on the page's own worst row, so a reader sees which of its missing figures were citations
+LAY_MIX = ("Secured funding 4,763 10,540 8,310 and 1,200 lost from the row, per the review [130,162] and [143,156]")
+r_mix = fa.audit_numbers([LAY_MIX], [{"page": 0, "html": "<p>Secured funding</p>"}])
+case("audit_numbers: a page losing four real figures and carrying two citations reads missing 4, missing_in_citations 2, and the "
+     "worst row names both",
+     r_mix["missing_total"] == 4 and r_mix["missing_in_citations"] == 2 and r_mix["worst"][0]["missing"] == 4
+     and r_mix["worst"][0]["missing_in_citations"] == 2, r_mix)
+
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

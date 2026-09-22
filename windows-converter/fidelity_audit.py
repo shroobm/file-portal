@@ -766,6 +766,37 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
 _INLINE_TAG_RE = re.compile(r"</?(?:i|b|em|strong|span|a|u|code|mark)(?=[\s/>])[^>]*>", re.I)
 _NUM_TOKEN = re.compile(r"(?<![\d,])\d{1,3}(?:,\d{3})+(?![\d,])|(?<![\d,.])\d{4,}(?![\d,])")   # grouped thousands, or 4+ digits
 NUMBERS_WORST_CAP = 10
+# S211 E6 (SYM-177, McGill's photonic-computing thesis p.104 `[101,102]`): the separators a reference list puts
+# BETWEEN its numbers — commas, spaces and the en/em dash of a range (`[71,107-109]`) — so the whole bracketed run is
+# walked, not just the token that matched
+_CITE_RUN = "0123456789,–—- "
+
+
+def _citation_tokens(raw: str, missing) -> "Counter":
+    """the missing tokens on this page whose EVERY occurrence in the layer sits inside square brackets — a reference
+    list, which `_NUM_TOKEN` cannot tell from a grouped thousand because a citation writes its numbers the same way.
+
+    ALL, not any: a token with even one unbracketed occurrence stays a missing figure, because a figure that also
+    appears in a citation is still a figure. A token the layer does not carry at all is left alone (it cannot be
+    judged here, and `missing` was cut from the layer, so this does not arise)."""
+    from collections import Counter as _C
+    out = _C()
+    for tok, n in missing.items():
+        hits = 0
+        allb = True
+        for m in re.finditer(re.escape(tok), raw or ""):
+            hits += 1
+            a, b = m.start(), m.end()
+            while a > 0 and (raw[a - 1] in _CITE_RUN):
+                a -= 1
+            while b < len(raw) and (raw[b] in _CITE_RUN):
+                b += 1
+            if not ((raw[a - 1] if a > 0 else "") == "[" and (raw[b] if b < len(raw) else "") == "]"):
+                allb = False
+                break
+        if hits and allb:
+            out[tok] = n
+    return out
 NUMBERS_SPECIMENS = 6
 NUMBERS_MISSING_MIN = 3   # S210 E2 (SYM-154's next cut): missing figures on a page before the page enters `worst` on its missing side alone
 NUMBERS_ROWS = 4          # S210 E2: the layer's rows named per worst page (the row label before the first figure), most figures lost first
@@ -945,11 +976,14 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                       "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops); a "
                       "missing token inside a Figure/Picture block's own box on a band with NO row label inside that box is a "
                       "chart's axis tick, counted apart as missing_in_figures (and missing_in_figures_total), never under missing; "
-                      "one inside a box on a LABELLED band (S211 E3, RBC p.122: a table the layout model boxed as a picture, or a "
+                      "a token whose every occurrence in the layer sits inside square brackets is a REFERENCE LIST written the way a "
+                      "grouped thousand is written ([101,102]) and is counted apart as missing_in_citations, never under "
+                      "missing; one inside a box on a LABELLED band (S211 E3, RBC p.122: a table the layout model boxed as a picture, or a "
                       "chart's labelled bar — the measure cannot tell which) STAYS under missing and is counted apart as "
                       "missing_in_figures_labelled (and _total) so the reader sees it — None (UNREAD) when the blocks record "
                       "carries no Figure/Picture box, or no pdf_path was given to read word positions",
-           "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "pages_with_extra": 0,
+           "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "missing_in_citations": 0,
+           "pages_with_extra": 0,
            "pages_with_missing": 0, "missing_in_figures_total": (0 if figures_readable else None),
            "missing_in_figures_labelled_total": (0 if figures_readable else None), "worst": worst}
     from collections import Counter
@@ -968,6 +1002,12 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         # drops, not a figure): a bare four-digit year the blocks lack is counted apart, never as a missing figure
         years = Counter({tok: c for tok, c in missing.items() if _is_year(tok)})
         missing -= years
+        # S211 E6 (SYM-177): a reference list writes its numbers exactly as a grouped thousand does, and Marker renders
+        # the citation correctly (one hyperlink per reference), so the comma-joined run is in the layer and not in the
+        # blocks — and the measure read a lost figure. A token whose every occurrence in the layer is bracket-enclosed
+        # leaves `missing` here, BEFORE the total and before the figure-box lookup, and is counted apart.
+        cites = _citation_tokens(raw or "", missing)
+        missing -= cites
         # S211 LANE B (RBC p.41/p.58): a missing token sitting inside this page's own Figure/Picture box is a chart's axis
         # tick, not a table's dropped figure — moved out of `missing` BEFORE it is counted or handed to the row-band lookup,
         # so a real row loss is never diluted by a tick and a tick never masquerades as a row loss either.
@@ -987,6 +1027,7 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         out["extra_total"] += ne
         out["missing_total"] += nm
         out["missing_years"] += sum(years.values())
+        out["missing_in_citations"] += sum(cites.values())
         if figures_readable:
             out["missing_in_figures_total"] += sum(mif.values())
             out["missing_in_figures_labelled_total"] += sum(mif_labelled.values())
@@ -1024,7 +1065,11 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                           "missing_in_figures": (sum(mif.values()) if figures_readable else None),
                           # S211 E3: this page's figures inside a box on a labelled band — still in `missing` above; a table
                           # mis-boxed as a picture (RBC p.122) or a chart's labelled bar; None exactly when the total is
-                          "missing_in_figures_labelled": (sum(mif_labelled.values()) if figures_readable else None)})
+                          "missing_in_figures_labelled": (sum(mif_labelled.values()) if figures_readable else None),
+                          # S211 E6 (SYM-177): this page's missing tokens that are reference lists (subtracted from
+                          # `missing` above already) — read from the layer's own text, so never UNREAD on a page the
+                          # measure could read at all
+                          "missing_in_citations": sum(cites.values())})
     worst.sort(key=lambda r: (-r["extra"], -r["missing"], r["page"]))
     del worst[NUMBERS_WORST_CAP:]
     return out

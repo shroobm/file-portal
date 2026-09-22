@@ -1126,6 +1126,10 @@
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-21, the row-label gate — RBC p.122): per worst page, the labelled figures inside a box on that page (the twin of the total; read beside missing_rows, which names their rows)."
     },
+    "converter:missing_in_citations": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E6 (2026-09-22, SYM-177 — read over the whole shelf before a line was written): the numbers measure's `missing_in_citations` — missing tokens whose EVERY occurrence in the source layer sits inside square brackets, i.e. a reference list written the way a grouped thousand is written (McGill's photonic-computing thesis p.104 '[101,102]', p.137 '[60,141,142]', p.109's range '[71,107-109]'). `_NUM_TOKEN` was cut for grouped thousands and cannot tell the two apart; Marker renders the citation CORRECTLY, one hyperlink per reference, so the comma-joined run is in the layer and not in the blocks and the measure read a lost figure. Counted apart and out of `missing`/`missing_total`, beside `missing_years` (a running head Marker drops) and `missing_in_figures` (a chart's axis tick). ALL occurrences, never any: a token that appears both in a citation and as a table figure stays a missing figure (inventions_selftest case 38). Read from the layer's own text, so never UNREAD on a page the measure could read at all — 0 is a measured 0. Report-only; compute_verdict cannot see it. THE SHELF, measured: 1,716 missing figures -> 1,702, 14 removed over 3 documents of 52 (McGill photonic 6 of 6, Waterloo Fakhraai 6 of 22, McGill subcarrier 2 of 5), zero on every bank, every government document and every one of the ten heaviest; all 14 read by eye as reference lists; nothing else in the measure moved on any of the 52. Per worst page, the same name carries that page's own count."
+    },
     "converter:numbers_missing_in_figures_labelled": {
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-21, the row-label gate — RBC p.122): the registry's reading of missing_in_figures_labelled_total, beside numbers_missing and numbers_missing_in_figures (variants.summarize)."
