@@ -1170,6 +1170,14 @@
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the registry bucket's `tied` — the variants equal to the incumbent on every measured number (verdict rank, errors, survival_convert, survival_analyst): the incumbent stays selected, each tied one listed with its dir and note; converted_at never breaks a selection tie (Bill C-288's ~160b: equal numbers, a worse page, chosen as the newest under the retired rule). Printed by `variants.py show` and the ship line."
     },
+    "converter:same_conversion": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E6 (2026-09-22, read over the whole live registry: of 30 tie entries, 8 were a bundle tied against its OWN copy — the same converted_at and the same marker-body sha256 — because S209's park keeps a copy under held/<sha16> beside the shipped one in anchor/ and the registry enumerates DIRECTORIES, not conversions): the bucket's `same_conversion` — the variant rows folded before the ranking because they are one conversion standing in two places, each naming the row it was folded into. It cannot change WHICH bundle is selected (the copy is identical) but it inflated the variant count and the tie count a reader sees, and invited the belief that an alternative had been weighed. The fold prefers the SHIPPED copy (root anchor), exactly as the baseline rule already does; nothing is deleted from `variants`. Empty list = no copies of one conversion in this bucket. The live reset after the fix: tie entries 30 -> 11, self-ties 0, 23 rows folded and named."
+    },
+    "converter:folded_into": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E6: per `same_conversion` entry — the dir of the row this copy was folded into (the shipped one). Read with `dir` (the folded copy) and `note` (why it is one conversion, naming its converted_at)."
+    },
     "converter:excluded_fields": {
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-22, the error accounting's finding on Waterloo's Kamalzadeh thesis — the reason read 'errors=2482 [None treated as 0: numbers_missing, numbers_extra]', so a variant whose numbers measure never ran ranked as having 0 missing figures): the registry bucket's `excluded_fields` — per candidate, the fields excluded from its pairwise comparison with the incumbent because one side reads None (never read as 0; the comparison runs on the fields both carry: verdict, the shared error sum on the honest rests, both survivals, degeneration). Named in the reason sentence too. Printed by `variants.py show`."

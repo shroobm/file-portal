@@ -474,7 +474,11 @@ def test_reset_prefers_the_shipped_copy_among_equal_originals():
         assert sorted([sh, sa], key=lambda v: (v["converted_at"], v["dir"]))[0]["dir"] == "0123456789abcdef"  # the old order
         bucket = variants.select(sha, reset=True)
         assert bucket["selected"] == "Some Bank _ Q3 Report", bucket
-        assert [t["dir"] for t in bucket["tied"]] == ["0123456789abcdef"], bucket["tied"]   # the identical copy ties, listed
+        # S211 E6: the identical copy is ONE conversion parked twice, so it is folded before the ranking and named
+        # under `same_conversion` — it is not a tie, because nothing was weighed (this line asserted the old
+        # behaviour; the case's own subject, that the SHIPPED copy is the incumbent, is unchanged above)
+        assert bucket["tied"] == [], bucket["tied"]
+        assert [e["dir"] for e in bucket["same_conversion"]] == ["0123456789abcdef"], bucket["same_conversion"]
         assert bucket["refused"] == [], bucket["refused"]
 
 
@@ -536,7 +540,8 @@ def test_degeneration_on_both_sides_is_not_a_refusal():
         ok, violations, unread = variants.faithful(variants.summarize(h), variants.summarize(a))
         assert ok and violations == [] and any("both sides" in u for u in unread), (violations, unread)
         bucket = variants.select(sha, reset=True)
-        assert bucket["selected"] == "Some Report" and [t["dir"] for t in bucket["tied"]] == ["0123456789abcdef"] and bucket["refused"] == [], bucket
+        assert bucket["selected"] == "Some Report" and bucket["tied"] == [] and bucket["refused"] == [], bucket
+        assert [e["dir"] for e in bucket["same_conversion"]] == ["0123456789abcdef"], bucket["same_conversion"]
         variants.register(c)
         ok2, v2, _u2 = variants.faithful(variants.summarize(c), variants.summarize(a))
         assert ok2 and v2 == [], (ok2, v2)
@@ -669,6 +674,49 @@ def test_analyst_decided_not_named_when_a_convert_number_moved_or_the_phase_is_c
         assert not (conv.get("analyst_decided") or []), conv
 
 
+def test_one_conversion_parked_twice_is_folded_not_tied():
+    """S211 E6, read over the whole live registry: of 30 tie entries, 8 were a bundle tied against ITS OWN COPY —
+    the same converted_at and the same marker-body sha256, one conversion standing in anchor/ and in S209's park
+    under held/<sha16>. It cannot change which bundle is selected (the copy is identical) but it inflates the
+    variant and tie counts a reader sees, and invites the belief that an alternative was weighed. The copies are
+    folded to the SHIPPED one before the ranking and named under `same_conversion`; nothing is deleted."""
+    with _isolated() as td:
+        sha = "sha-selftie-0028"
+        a = _make_bundle(td, "anchor", "Some Bank _ AR", sha=sha, verdict="flag",
+                          converted_at="2026-02-01T00:00:00+00:00", words_lost=12)
+        h = _make_bundle(td, "held", "fedcba9876543210", sha=sha, verdict="flag",
+                          converted_at="2026-02-01T00:00:00+00:00", words_lost=12)
+        variants.register(a)
+        variants.register(h)
+        bucket = variants.select(sha, reset=True)
+        assert bucket["selected"] == "Some Bank _ AR", bucket
+        assert bucket["tied"] == [], bucket["tied"]
+        folded = bucket["same_conversion"]
+        assert [e["dir"] for e in folded] == ["fedcba9876543210"], folded
+        assert folded[0]["folded_into"] == "Some Bank _ AR" and "SAME conversion" in folded[0]["note"], folded
+        # and nothing was deleted: both rows are still in `variants`
+        assert set(bucket["variants"]) == {"Some Bank _ AR", "fedcba9876543210"}, sorted(bucket["variants"])
+
+
+def test_a_second_conversion_of_the_same_body_still_ties():
+    """THE NEGATIVE CONTROL for the fold, and the case that keeps it from swallowing real evidence: two runs of the
+    same document at DIFFERENT times, agreeing on every measured number, are two readings — not one parked twice —
+    and must still be listed under `tied` (this is TD Q3's live shape: byte-identical body, two conversions a day
+    apart)."""
+    with _isolated() as td:
+        sha = "sha-two-runs-0029"
+        a = _make_bundle(td, "anchor", "Some Bank _ Q3", sha=sha, verdict="flag",
+                          converted_at="2026-02-01T00:00:00+00:00", words_lost=12)
+        b = _make_bundle(td, "anchor", "Some Bank _ Q3 _r2", sha=sha, verdict="flag",
+                          converted_at="2026-02-02T00:00:00+00:00", words_lost=12)
+        variants.register(a)
+        variants.register(b)
+        bucket = variants.select(sha, reset=True)
+        assert bucket["selected"] == "Some Bank _ Q3", bucket
+        assert [t["dir"] for t in bucket["tied"]] == ["Some Bank _ Q3 _r2"], bucket["tied"]
+        assert bucket["same_conversion"] == [], bucket["same_conversion"]
+
+
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -678,6 +726,8 @@ TESTS = [
     test_two_variants_better_verdict_selected,
     test_analyst_decided_named_when_the_analyst_phase_alone_decides,
     test_analyst_decided_not_named_when_a_convert_number_moved_or_the_phase_is_convert,
+    test_one_conversion_parked_twice_is_folded_not_tied,
+    test_a_second_conversion_of_the_same_body_still_ties,
     test_equal_verdict_fewer_errors_selected,
     test_asset_loss_refused,
     test_rows_lost_rose_refused,

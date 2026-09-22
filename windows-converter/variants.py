@@ -340,6 +340,21 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
     return (len(violations) == 0, violations, unread)
 
 
+_SAME_CONVERSION_NOTE = ("the SAME conversion as the bundle it is folded into (converted_at %s and every measured "
+                         "number equal): one run parked in two places, not a second reading — folded before the "
+                         "ranking so it is never weighed against itself, kept here and never deleted")
+_RUN_FIELDS = ("survival_convert", "survival_analyst", "verdict", "verdict_phase", "runs_total", "words",
+               "pages", "inventions_total", "words_lost", "numbers_missing", "numbers_extra", "rows_lost",
+               "columns_lost", "degeneration", "extraction_surya", "figures_total", "tables_total")
+
+
+def _run_fingerprint(v: dict) -> tuple:
+    """what makes two registry rows the SAME conversion rather than two readings of one document: every measured
+    field they both carry, in one tuple. Paired with converted_at, two rows that agree on this are one run parked
+    twice (S209's held park beside the shipped copy)."""
+    return tuple((f, v.get(f)) for f in _RUN_FIELDS)
+
+
 _TIE_NOTE = "tied on every measured number — the incumbent stays; what no measure sees is not a reason to switch"
 _ANALYST_NOTE = ("lost on the verdict alone, at the ANALYST phase (convert survival %s over the incumbent's %s): the convert-stage "
                  "fix worked; the analyst's own pass failed it — an analyst re-run on the same Marker body is owed (SYM-163)")
@@ -424,6 +439,14 @@ def _convert_stage_ties(candidate: dict, baseline: dict) -> bool:
     return True
 
 
+def _same_conversion(loser: dict, winner: dict) -> dict:
+    """One folded copy's record — a dict literal that LEAVES a function, so the glass census harvests its keys
+    (the same discipline as `_refusal` below; built inline first, and the acceptance gate caught the key as a
+    signature with nothing behind it)."""
+    return {"dir": loser.get("dir"), "folded_into": winner.get("dir"),
+            "note": _SAME_CONVERSION_NOTE % (loser.get("converted_at") or "UNREAD")}
+
+
 def _refusal(entry: dict, violations: list[str], unread: list[str]) -> dict:
     """One refused variant's record — a dict literal that LEAVES a function, so the glass census harvests its keys
     (S211: built inline inside refused.append, `violations` read as a stale signature; the census sees literals a
@@ -474,6 +497,28 @@ def select(sha: str, reset: bool = False) -> dict:
         raise ValueError("could not determine a baseline for sha %r" % (sha,))
 
     ordered = sorted(variants.values(), key=lambda v: v.get("dir") or "")
+    # S211 E6: ONE conversion can stand in two places — the shipped copy under anchor/ and S209's park under
+    # held/<sha16> — and the registry, which enumerates directories, then weighs it against itself and lists the
+    # result under `tied`. Read over the whole registry: 8 of 30 tie entries were a bundle tied against its own
+    # copy (same converted_at, same marker-body sha256). It cannot change which bundle is selected, but it inflates
+    # the variant and tie counts a reader sees. Copies of one conversion are folded to the SHIPPED one here; the
+    # folded copies are named under `same_conversion` and nothing is deleted from `variants`.
+    same_conversion: list[dict] = []
+    by_run: dict = {}
+    for v in ordered:
+        key = (v.get("converted_at"), _run_fingerprint(v))
+        if key[0] is None:
+            continue
+        keep = by_run.get(key)
+        if keep is None:
+            by_run[key] = v
+        else:
+            loser = v if (keep.get("root") == "anchor" or v.get("root") != "anchor") else keep
+            winner = keep if loser is v else v
+            by_run[key] = winner
+            same_conversion.append(_same_conversion(loser, winner))
+    folded_dirs = {e["dir"] for e in same_conversion}
+    ordered = [v for v in ordered if v.get("dir") not in folded_dirs]
     candidates: list[dict] = []
     refused: list[dict] = []
     for v in ordered:
@@ -568,6 +613,7 @@ def select(sha: str, reset: bool = False) -> dict:
     bucket["excluded_fields"] = excluded_fields
     bucket["analyst_confounded"] = analyst_confounded
     bucket["analyst_decided"] = [a for a in analyst_decided if a.get("dir") == selected.get("dir")]
+    bucket["same_conversion"] = same_conversion
     bucket["selected_at"] = datetime.now(timezone.utc).isoformat()
     registry[sha] = bucket
     _write_registry_atomic(registry)
