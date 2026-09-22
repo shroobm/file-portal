@@ -162,7 +162,14 @@ case("audit_numbers: two missing figures stay under NUMBERS_MISSING_MIN — no w
      r2["missing_total"] == 2 and r2["pages_with_missing"] == 0 and r2["worst"] == [], r2)
 # 22 · S210 E5 (McGill-2: the numbers' worst pages were figure pages Marker rightly OCR'd, their plotted digits read as extra figures):
 # each worst page says whether Marker OCR'd it, from the blocks record's extraction.pages_surya — None when no list was given
-r_ocr = fa.audit_numbers([LAY_ROWS, "A chart page 1,111 2,222", "A chart page 1,111 2,222 and a table 9,999"],
+# S211 E6 (SYM-178): this case's two chart pages were four-word strings, and under the new floor a page whose layer holds
+# fewer than PAGE_MIN_WORDS words has no witness at all and its extra side is withheld — so both fell out of `worst` and the
+# case crashed. The FIXTURE was wrong, not the case: the `ocr` flag exists to tell an OCR'd chart's digits from a table's
+# duplicated row ON A PAGE THE MEASURE JUDGES, and a real such page carries body text around its chart. The pages now carry
+# it; the case's subject is unchanged and is now the sharper one.
+_CHART_PROSE = ("The figure below plots the quarterly series against its trend and the caption discusses each of the "
+                "turning points the committee examined during the review ")
+r_ocr = fa.audit_numbers([LAY_ROWS, _CHART_PROSE + "1,111 2,222", _CHART_PROSE + "1,111 2,222 and a table 9,999"],
                          [{"page": 0, "html": MK_ROWS}, {"page": 1, "html": "<p>1,111 1,111 2,222 2,222 1,111</p>"}, {"page": 2, "html": "<p>1,111 2,222 9,999 9,999 9,999 9,999</p>"}],
                          None, [2])
 by_page = {w["page"]: w for w in r_ocr["worst"]}
@@ -349,6 +356,35 @@ case("audit_numbers: a page losing four real figures and carrying two citations 
      "worst row names both",
      r_mix["missing_total"] == 4 and r_mix["missing_in_citations"] == 2 and r_mix["worst"][0]["missing"] == 4
      and r_mix["worst"][0]["missing_in_citations"] == 2, r_mix)
+
+# 40 · S211 E6 (SYM-178, Tufte p.154: the source's text layer holds 0 characters, Marker OCRs the page and returns 627 words
+# including a whole statistical table, and 185 recovered figures are counted as EXTRA — a gain scored as a loss). The floor the
+# inventions measure and survival already use (PAGE_MIN_WORDS) now withholds the extra side on such a page. THE CONTROL IS IN
+# THE SAME CASE: the blank page's own missing token is still counted, because a sparse layer is a truthful witness for what it
+# DOES hold — the cut is one-sided by design, not by omission.
+r_blank = fa.audit_numbers(["9,999", "A page of ordinary prose that runs on for well over the floor of fifteen words so that "
+                            "the measure judges it, carrying 1,234 in its table"],
+                           [{"page": 0, "html": "<p>1,111 2,222 3,333 4,444</p>"}, {"page": 1, "html": "<p>1,234 5,678</p>"}])
+case("audit_numbers: a page whose layer is below PAGE_MIN_WORDS has no witness — its 4 extra figures are withheld from "
+     "extra_total and counted under extra_on_blank_layer, the page under pages_witness_blank; THE CONTROL: that same page's "
+     "missing 9,999 is still counted, and the judged page's real extra 5,678 still is too",
+     r_blank["extra_total"] == 1 and r_blank["extra_on_blank_layer"] == 4 and r_blank["pages_witness_blank"] == 1
+     and r_blank["missing_total"] == 1, r_blank)
+# 41 · THE BOUNDARY, read from both sides — a floor asserted on one side of itself is a floor nobody has watched
+_AT = "one two three four five six seven eight nine ten eleven twelve thirteen fourteen fifteen"     # 15 words
+_UNDER = " ".join(_AT.split()[:-1])                                                                  # 14
+r_at = fa.audit_numbers([_AT], [{"page": 0, "html": "<p>1,111</p>"}])
+r_under = fa.audit_numbers([_UNDER], [{"page": 0, "html": "<p>1,111</p>"}])
+case("audit_numbers: a layer of exactly PAGE_MIN_WORDS words IS judged (extra 1, pages_witness_blank 0); one word below it "
+     "is NOT (extra 0, extra_on_blank_layer 1, pages_witness_blank 1)",
+     r_at["extra_total"] == 1 and r_at["pages_witness_blank"] == 0 and r_under["extra_total"] == 0
+     and r_under["extra_on_blank_layer"] == 1 and r_under["pages_witness_blank"] == 1, (r_at, r_under))
+# 42 · the negative control for the whole cut: what the extra side is FOR — a table's figure written twice by Marker on a page
+# the measure can judge — is untouched by the floor
+r_dup = fa.audit_numbers([LAY_N], [{"page": 0, "html": MK_N}])
+case("audit_numbers (negative control): the duplicated-figure page of case 16 reads exactly as it did before the floor — "
+     "extra 3, pages_witness_blank 0, extra_on_blank_layer 0",
+     r_dup["extra_total"] == 3 and r_dup["pages_witness_blank"] == 0 and r_dup["extra_on_blank_layer"] == 0, r_dup)
 
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

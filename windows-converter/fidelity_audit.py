@@ -764,6 +764,7 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
 # slash or the closing bracket), so `<br>` is never read as a `b` tag and `<img>` never as an `i`: a line break stripped
 # to nothing would fuse two lines' figures, the very defect this strip exists to avoid
 _INLINE_TAG_RE = re.compile(r"</?(?:i|b|em|strong|span|a|u|code|mark)(?=[\s/>])[^>]*>", re.I)
+_WORD_RE = re.compile(r"[0-9A-Za-z\u00c0-\u024f]+")   # S211 E6: the layer's own word count, for the PAGE_MIN_WORDS floor
 _NUM_TOKEN = re.compile(r"(?<![\d,])\d{1,3}(?:,\d{3})+(?![\d,])|(?<![\d,.])\d{4,}(?![\d,])")   # grouped thousands, or 4+ digits
 NUMBERS_WORST_CAP = 10
 # S211 E6 (SYM-177, McGill's photonic-computing thesis p.104 `[101,102]`): the separators a reference list puts
@@ -976,6 +977,10 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                       "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops); a "
                       "missing token inside a Figure/Picture block's own box on a band with NO row label inside that box is a "
                       "chart's axis tick, counted apart as missing_in_figures (and missing_in_figures_total), never under missing; "
+                      "a page whose LAYER holds fewer than PAGE_MIN_WORDS words is no witness (an image page Marker OCR'd: its "
+                      "figures are a GAIN, not a duplication) and is not judged — its tokens are counted apart under "
+                      "extra_on_blank_layer / missing_on_blank_layer and the page under pages_witness_blank, the same floor "
+                      "the inventions measure and survival already use; "
                       "a token whose every occurrence in the layer sits inside square brackets is a REFERENCE LIST written the way a "
                       "grouped thousand is written ([101,102]) and is counted apart as missing_in_citations, never under "
                       "missing; one inside a box on a LABELLED band (S211 E3, RBC p.122: a table the layout model boxed as a picture, or a "
@@ -983,7 +988,7 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                       "missing_in_figures_labelled (and _total) so the reader sees it — None (UNREAD) when the blocks record "
                       "carries no Figure/Picture box, or no pdf_path was given to read word positions",
            "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "missing_in_citations": 0,
-           "pages_with_extra": 0,
+           "pages_witness_blank": 0, "extra_on_blank_layer": 0, "pages_with_extra": 0,
            "pages_with_missing": 0, "missing_in_figures_total": (0 if figures_readable else None),
            "missing_in_figures_labelled_total": (0 if figures_readable else None), "worst": worst}
     from collections import Counter
@@ -996,7 +1001,19 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
             continue
         out["pages_measured"] += 1
         m = Counter(mk)
-        extra = m - lay
+        # S211 E6 (SYM-178, Tufte p.154: the layer holds 0 characters, Marker returns 627 words including a whole
+        # statistical table, and 185 recovered figures were counted as errors): on a page whose LAYER is below the
+        # converter's own PAGE_MIN_WORDS there is no witness, so every figure Marker's OCR RECOVERED is counted as an
+        # extra — a gain scored as a loss. That is the same direction as `invented`, which is why the inventions
+        # measure already skips such a page (`pages_witness_blank`) and so does survival; this measure did not. The
+        # EXTRA side alone is withheld: a sparse layer is still a truthful witness for what it DOES hold, so a token it
+        # carries and Marker lacks stays a missing figure. No threshold is introduced — the existing floor is applied
+        # to the third measure. Over the shelf: 1,249 of 2,218 extra figures sat on such pages, against 6 of 1,683 missing.
+        blank_layer = len(_WORD_RE.findall(raw or "")) < PAGE_MIN_WORDS
+        if blank_layer:
+            out["pages_witness_blank"] += 1
+            out["extra_on_blank_layer"] += sum((m - lay).values())
+        extra = Counter() if blank_layer else m - lay
         missing = lay - m
         # S210 E1 (the live reading: Scotia 212 missing, most of them the running head's year on every page — a head Marker
         # drops, not a figure): a bare four-digit year the blocks lack is counted apart, never as a missing figure
