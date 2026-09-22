@@ -62,3 +62,10 @@ verdict and proves nothing about now.
 | D0083 | 2026-09-22T06:12:09Z | pipeline | evidence | chunk journal - run d1f9439f6f00e4a5 | 1596924 | `c1eedd390c8b4d533a346b66bfcb6bafb3483a423dcf25c611c06248a8bc5301` |
 | D0084 | 2026-09-22T08:31:26Z | pipeline | evidence | chunk journal - run 1a309ce7657d05b7 | 2332484 | `3536dad0bb4f6e8296d23d4c634474bb6206103c679ded7c7126cbc8da34e198` |
 | D0085 | 2026-09-22T10:21:50Z | pipeline | evidence | chunk journal - run bb04925032224798 | 1560485 | `e9e41b764cd02a12bee3ef5e47bc3ffe626067477faa461bd7ba22f2db457b71` |
+| D0086 | 2026-09-22T11:17:13Z | pipeline | evidence | chunk journal - run 7e4bfe01f779c55f | 676486 | `91229c5c756cd7c85cc823ed96c85e8b2072eea9e599efbceb4066c76a16cd98` |
+| D0087 | 2026-09-22T12:06:42Z | pipeline | evidence | chunk journal - run 7f18ab81bdaf0c77 | 583073 | `0ec219a1f5d73e7382643969e641592d7b163660203e33c255fb24d2b79bca1f` |
+| D0088 | 2026-09-22T12:53:21Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 21 run f8192644c0aa2533 | 18989 | `b93efd6c9f060e886f00ceacefcbd418bb954a5574b501bac90be224c1de6b75` |
+| D0089 | 2026-09-22T13:03:12Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 55 run f8192644c0aa2533 | 18961 | `58f23f1280bf8d115ec4022296f9fd8e0f07820ab4df201b4b45bd592c450017` |
+| D0090 | 2026-09-22T13:09:44Z | pipeline | evidence | chunk journal - run f8192644c0aa2533 | 356102 | `8a4a91013345f297c3248007fe263a67f4fc766aabdaaee096bb799e6c7dd3cd` |
+| D0091 | 2026-09-22T14:43:42Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 385 run d180a95138274f20 | 19110 | `d9120e970d84f0737f723d444a054047879750bdc25615d840d4a6dfda35c7c0` |
+| D0092 | 2026-09-22T14:48:08Z | pipeline | evidence | chunk journal - run d180a95138274f20 | 1722963 | `ed8aba2ae28c3864c871fa7c4ac84e42948eb99b6c1191a4e61f0797c2d19d36` |
