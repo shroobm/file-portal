@@ -132,5 +132,44 @@ out145 = ts.table_shape(doc145, [{"page": 0, "block_type": "Table", "bbox": bbox
 case("SYM-145: phantom rulings (an empty column drawn inside every column) are not columns — the witness counts the columns that carry text (4), columns_lost 0 over population 1 (a measured zero, not None)",
      w145 is not None and w145[0] == "lines" and w145[2] == COLS and out145["columns_lost"] == 0
      and out145["columns_lost_population"] == 1 and out145["tables_witnessed_lines"] == 1, (w145, out145))
+
+# S211 E4 — SYM-172 (NBC AR p.212, read straight): a ruled table whose `%` signs sit in their own ruled gutter beside each figure
+# column — the gutter carries text in every row, so SYM-145's empty-column rule keeps it — read four columns too many to the
+# lines witness, and Marker's clean `2.7 %`-in-one-cell rendering read columns lost. A unit-only column is the gutter of its
+# neighbour. Negative control: the same gutter holding a FIGURE in one row is a column and stays counted.
+UNIT_CELLS = [["Item", "2026", "2025", "Change"], ["Net income", "2.7", "2.8", "3"], ["Revenue", "3.4", "3.2", "5"],
+              ["Expenses", "1.1", "1.9", "2"], ["Provisions", "0.5", "0.4", "1"]]
+
+
+def gutter_page(doc, gutter_texts):
+    page = doc.new_page(width=612, height=792)
+    GW = 24                                                       # the gutter's width, ruled inside each figure column
+    for r in range(ROWS + 1):
+        page.draw_line((X0, Y0 + r * RH), (X0 + COLS * CW, Y0 + r * RH), width=0.8)
+    for c in range(COLS + 1):
+        page.draw_line((X0 + c * CW, Y0), (X0 + c * CW, Y0 + ROWS * RH), width=0.8)
+    for c in (1, 2, 3):                                           # a ruled gutter at the right of columns 2, 3, 4
+        page.draw_line((X0 + (c + 1) * CW - GW, Y0), (X0 + (c + 1) * CW - GW, Y0 + ROWS * RH), width=0.8)
+    for r, row in enumerate(UNIT_CELLS):
+        for c, txt in enumerate(row):
+            page.insert_text((X0 + c * CW + 4, Y0 + r * RH + 16), txt, fontsize=10)
+            if c >= 1 and r >= 1:
+                page.insert_text((X0 + (c + 1) * CW - GW + 4, Y0 + r * RH + 16), gutter_texts(r, c), fontsize=10)
+    return page, [X0, Y0, X0 + COLS * CW, Y0 + ROWS * RH]
+
+
+docU = fitz.open()
+pageU, bboxU = gutter_page(docU, lambda r, c: "%")
+wU = ts._witness(pageU, fitz.Rect(*bboxU))
+htmlU = html([[UNIT_CELLS[0][0]] + UNIT_CELLS[0][1:]] + [[row[0]] + ["%s %%" % x for x in row[1:]] for row in UNIT_CELLS[1:]], COLS)
+outU = ts.table_shape(docU, [{"page": 0, "block_type": "Table", "bbox": bboxU, "html": htmlU}], "clean")
+case("SYM-172: a `%` gutter ruled beside each figure column is not a column — the witness counts 4 (not 7), columns_lost 0 over population 1 against Marker's `2.7 %` cells",
+     wU is not None and wU[0] == "lines" and wU[2] == COLS and outU["columns_lost"] == 0 and outU["columns_lost_population"] == 1, (wU, outU))
+docV = fitz.open()
+pageV, bboxV = gutter_page(docV, lambda r, c: "%" if not (r == 2 and c == 1) else "42")   # one gutter cell holds a figure
+wV = ts._witness(pageV, fitz.Rect(*bboxV))
+case("SYM-172 negative control: the same gutter holding a figure in one row is a column — the witness counts 5",
+     wV is not None and wV[0] == "lines" and wV[2] == COLS + 1, wV)
+
 print("==== table_shape selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

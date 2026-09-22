@@ -568,7 +568,7 @@
     },
     "converter:columns_lost": {
       "disposition": "EVIDENCE",
-      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The columns the lines witness has that Marker's table does not, summed over witnessed tables — the reader's number (NBC Q3 2026: 77 over 19 pages)."
+      "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The columns the lines witness has that Marker's table does not, summed over witnessed tables — the reader's number (NBC Q3 2026: 77 over 19 pages). AMENDED S211 E4 (SYM-172, NBC AR p.212): the lines witness no longer counts a ruled UNIT GUTTER (a column whose every non-empty cell is a unit sign — %, $, bps …) as a column; a dash stays a column (a nil value)."
     },
     "converter:columns_gained": {
       "disposition": "EVIDENCE",

@@ -33,6 +33,8 @@ CELL_AGREE = 0.5           # the floor on Marker's non-empty cells found in the 
 ROW_TOL = 0.25             # a lines witness whose row count is off Marker's by more than this share (or 2 rows) is no witness
                            # for columns: RBC's sparse rulings read 4 × 17 against Marker's 20 × 13 with the cells agreeing
 STRATEGIES = ("lines", "text")
+# S211 E4 (SYM-172): a cell holding only a unit sign — the gutter beside a figure, never a column of its own
+_UNIT_ONLY = re.compile(r"[%$€£¥¢×x]|bps?|pts?|pp|mm|bn|k")
 WORST_CAP = 10
 TABLE_TYPES = ("Table", "TableGroup")   # S209 E13 (SYM-147, Codex MSG-CDX-0085): NBC p.57's damage sat in a TableGroup the measure never read
 
@@ -75,7 +77,15 @@ def _witness(page, clip):
         # the measure called ten columns lost where none were. A column with no text in any row is a ruling, not a column;
         # a row with no text in any cell is a rule, not a row. The witness counts what carries text.
         if ext:
-            cols = sum(1 for c in range(t.col_count) if any(row[c] not in (None, "") for row in ext if c < len(row)))
+            # S211 E4 (SYM-172, NBC AR p.212 read straight): a ruled table whose `%` and `$` signs sit in their own ruled
+            # gutters read 43×20 to the lines witness — the gutters carry text, so SYM-145's rule kept them — and Marker's
+            # clean rendering (`2.7 %` in one cell, every figure whole: 11 columns) read 9 columns lost while the original's
+            # OCR rendering, garbage-split into 17 columns ('•', 'S', '_', '1.1.1.1111'; `5,781` read as `5,78`), read 3:
+            # the witness rewarded the garbage. A column whose every non-empty cell is a UNIT SIGN is the unit gutter of its
+            # neighbour, not a column; a dash is a value (a nil cell) and stays a column.
+            cols = sum(1 for c in range(t.col_count)
+                       if any(row[c] not in (None, "") for row in ext if c < len(row))
+                       and not all(_UNIT_ONLY.fullmatch(str(row[c]).strip()) for row in ext if c < len(row) and row[c] not in (None, "")))
             rows = sum(1 for row in ext if any(x not in (None, "") for x in row))
         else:
             cols, rows = t.col_count, t.row_count
