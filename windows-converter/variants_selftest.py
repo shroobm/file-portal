@@ -476,6 +476,25 @@ def test_reset_prefers_the_shipped_copy_among_equal_originals():
         assert bucket["refused"] == [], bucket["refused"]
 
 
+def test_anchor_first_among_equal_challengers():
+    """S211 E3 (Investment Valuation: two identical challengers — an anchor copy and its held park — beat the original
+    on survival 0.9334 over 0.9333, and the held one won because its digit-named dir sorts first): among challengers
+    equal on the full rank the SHIPPED copy is selected. NEGATIVE CONTROL: the plain max by rank() over the dir-ordered
+    candidates returns the held one — asserted directly."""
+    with _isolated() as td:
+        sha = "sha-challengers-0007"
+        o = _make_bundle(td, "anchor", "Some Book", sha=sha, verdict="fail", converted_at="2026-01-01T00:00:00+00:00", survival_convert=0.9333)
+        h = _make_bundle(td, "held", "0123456789abcdef", sha=sha, verdict="fail", converted_at="2026-01-02T00:00:00+00:00", survival_convert=0.9334)
+        a = _make_bundle(td, "anchor", "Some Book (1)", sha=sha, verdict="fail", converted_at="2026-01-02T00:00:00+00:00", survival_convert=0.9334)
+        for b in (o, h, a):
+            variants.register(b)
+        sh, sa = variants.summarize(h), variants.summarize(a)
+        assert variants.rank(sh) == variants.rank(sa)
+        assert max([sh, sa], key=variants.rank)["dir"] == "0123456789abcdef"     # the old pick: first maximal in dir order
+        bucket = variants.select(sha, reset=True)
+        assert bucket["selected"] == "Some Book (1)", bucket
+
+
 def test_unmeasured_field_excluded_never_read_as_zero():
     """S211 E3 (the accounting on Waterloo's Kamalzadeh thesis): a candidate whose numbers measure never ran (None)
     must not read as "0 missing figures" against a baseline with 5 measured. The field is EXCLUDED from the
@@ -545,6 +564,7 @@ TESTS = [
     test_honest_rest_absent_on_one_side_reads_unread_never_violation,
     test_select_reset_reinstates_the_original_over_a_sticky_newest,
     test_reset_prefers_the_shipped_copy_among_equal_originals,
+    test_anchor_first_among_equal_challengers,
     test_unmeasured_field_excluded_never_read_as_zero,
     test_degeneration_on_both_sides_is_not_a_refusal,
 ]

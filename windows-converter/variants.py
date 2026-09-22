@@ -450,7 +450,9 @@ def select(sha: str, reset: bool = False) -> dict:
         # else: strictly worse than the incumbent on the shared measured fields -- faithful, but neither
         # selected, tied, nor refused; it simply does not surface here (unchanged from before).
 
-    selected = max(better, key=rank) if better else baseline
+    # among challengers equal on the full rank, the SHIPPED copy (root anchor) — never the parked one by its digit-named
+    # dir sorting first (Investment Valuation: two identical challengers at 0.9334 over the original's 0.9333)
+    selected = max(better, key=lambda c: (rank(c), 1 if c.get("root") == "anchor" else 0)) if better else baseline
     tied_entries = [{"dir": c.get("dir"), "note": _TIE_NOTE} for c in tied]
 
     errors, none_fields = _error_sum(selected)
