@@ -146,7 +146,14 @@ def summarize(bundle_dir) -> dict:
         # S211 E3 (RBC p.122): figures inside a Figure box on a LABELLED band — a table the layout model boxed as a picture,
         # or a chart's labelled bar; still inside numbers_missing (the error weight kept), named here so a reader sees it
         "numbers_missing_in_figures_labelled": _loss(numbers.get("missing_in_figures_labelled_total")),
+        # S211 E8: the three exemptions this sitting counted apart, read beside the counts they came out of — a
+        # reader of the register sees numbers_missing fall and can ask where the difference went. NONE of these is in
+        # _ERROR_FIELDS, so the ranking cannot move on them. They read None on every bundle converted before
+        # 2026-09-22, which is honest: the measure did not record them then.
+        "numbers_missing_in_citations": _loss(numbers.get("missing_in_citations")),
+        "numbers_missing_in_furniture": _loss(numbers.get("missing_in_furniture")),
         "numbers_extra": _loss(numbers.get("extra_total")),
+        "numbers_extra_on_blank_layer": _loss(numbers.get("extra_on_blank_layer")),
         "tables_total": tables.get("tables_total"),
         "rows_lost": tables.get("rows_lost"),
         "rows_lost_population": tables.get("rows_lost_population"),

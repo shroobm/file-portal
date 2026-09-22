@@ -717,6 +717,25 @@ def test_a_second_conversion_of_the_same_body_still_ties():
         assert bucket["same_conversion"] == [], bucket["same_conversion"]
 
 
+def test_the_counted_apart_keys_cannot_move_the_ranking():
+    """S211 E8: the registry now reads `numbers_missing_in_citations`, `numbers_missing_in_furniture` and
+    `numbers_extra_on_blank_layer` so a reader of the register can see where this sitting's fallen counts went
+    (missing 1,716 -> 1,660, extra 2,218 -> 969 across the shelf). They are a READING, and the promise is that they
+    cannot move which bundle is selected. Asserted twice, because either half can rot alone: STRUCTURALLY, none of
+    the three is among the six fields the error sum reads; BEHAVIOURALLY, the sum is identical for an entry carrying
+    large values in all three and one carrying none."""
+    for f in ("numbers_missing_in_citations", "numbers_missing_in_furniture", "numbers_extra_on_blank_layer"):
+        assert f not in variants._ERROR_FIELDS, (f, variants._ERROR_FIELDS)
+    base = {"words_lost": 100, "inventions_total": 20, "rows_lost": 1, "columns_lost": 2,
+            "numbers_missing": 5, "numbers_extra": 7}
+    loud = dict(base, numbers_missing_in_citations=900, numbers_missing_in_furniture=900,
+                numbers_extra_on_blank_layer=900)
+    assert variants._error_sum(base)[0] == variants._error_sum(loud)[0] == 135, (
+        variants._error_sum(base), variants._error_sum(loud))
+    # and the None fields named by the sum are the same on both sides — the reading adds no unmeasured field either
+    assert variants._error_sum(base)[1] == variants._error_sum(loud)[1], (variants._error_sum(base), variants._error_sum(loud))
+
+
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -728,6 +747,7 @@ TESTS = [
     test_analyst_decided_not_named_when_a_convert_number_moved_or_the_phase_is_convert,
     test_one_conversion_parked_twice_is_folded_not_tied,
     test_a_second_conversion_of_the_same_body_still_ties,
+    test_the_counted_apart_keys_cannot_move_the_ranking,
     test_equal_verdict_fewer_errors_selected,
     test_asset_loss_refused,
     test_rows_lost_rose_refused,

@@ -1154,6 +1154,18 @@
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-21, the row-label gate — RBC p.122): the registry's reading of missing_in_figures_labelled_total, beside numbers_missing and numbers_missing_in_figures (variants.summarize)."
     },
+    "converter:numbers_missing_in_citations": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E8 (2026-09-22): the registry's reading of the numbers measure's `missing_in_citations` (SYM-177 — a bracketed reference list written the way a grouped thousand is written, which Marker renders correctly), beside `numbers_missing` so a reader of the register can see where that count's fall went: 14 of the shelf's 1,716 missing figures. It is a READING and cannot move which bundle is selected: it is not among the six fields of `_ERROR_FIELDS`, and variants_selftest asserts that twice — structurally (the name is not in the tuple) and behaviourally (the error sum is identical for an entry carrying 900 in all three and one carrying none). Reads None on every bundle converted before 2026-09-22, because the measure did not record it then, and that None is the honest reading rather than a zero."
+    },
+    "converter:numbers_missing_in_furniture": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E8 (2026-09-22): the registry's reading of `missing_in_furniture` (SYM-180 — a running head or folio inside a block Marker classed PageHeader/PageFooter and emptied on purpose), beside `numbers_missing`: 42 of the shelf's 1,702. It is a READING and cannot move which bundle is selected: it is not among the six fields of `_ERROR_FIELDS`, and variants_selftest asserts that twice — structurally (the name is not in the tuple) and behaviourally (the error sum is identical for an entry carrying 900 in all three and one carrying none). Reads None on every bundle converted before 2026-09-22, because the measure did not record it then, and that None is the honest reading rather than a zero."
+    },
+    "converter:numbers_extra_on_blank_layer": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E8 (2026-09-22): the registry's reading of `extra_on_blank_layer` (SYM-178 — figures Marker's OCR RECOVERED from a page whose text layer is below the converter's own PAGE_MIN_WORDS, a gain that was being scored as a loss), beside `numbers_extra`, whose shelf-wide count this took from 2,218 to 969 — the largest single correction of the sitting, and the one a reader would most want to trace. It is a READING and cannot move which bundle is selected: it is not among the six fields of `_ERROR_FIELDS`, and variants_selftest asserts that twice — structurally (the name is not in the tuple) and behaviourally (the error sum is identical for an entry carrying 900 in all three and one carrying none). Reads None on every bundle converted before 2026-09-22, because the measure did not record it then, and that None is the honest reading rather than a zero."
+    },
     "converter:lost_hyphen_joined": {
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the inventions measure's `lost_hyphen_joined` — witness words that are a line-end fragment (the last word on its raw line, trailing nothing, a hyphen or a soft hyphen) which, joined with the next witness word, spell a word Marker's blocks DO carry (Bill C-288: circons + tance → circonstance): Marker rejoined the layer's own line-wrap, nothing was lost. BOTH halves count (E3). lost_total keeps its old meaning."
