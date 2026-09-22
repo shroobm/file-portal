@@ -50,3 +50,11 @@ verdict and proves nothing about now.
 | D0071 | 2026-09-21T13:56:05Z | pipeline | evidence | chunk journal - run 7f2f359448470dad | 80896 | `3c9ceaffc1973994067185c5dc923bf987fe49e06c78971220ce4e72b1644d47` |
 | D0072 | 2026-09-21T14:15:09Z | pipeline | evidence | chunk journal - run 058c279d41f6cc7c | 149489 | `7a2ca6298173052bd3192fae19e04d3c0a9f68bf080cf270d683aaf9dfd29d8a` |
 | D0073 | 2026-09-21T14:16:56Z | pipeline | evidence | chunk journal - run 0c2916f6f3f6a94b | 9589 | `0a811460d14e3e2890d58c17b8d61587ec0301d0c79b500e022c922eedb966ad` |
+| D0074 | 2026-09-21T19:49:43Z | pipeline | evidence | chunk journal - run 0c2916f6f3f6a94b | 9589 | `0a811460d14e3e2890d58c17b8d61587ec0301d0c79b500e022c922eedb966ad` |
+| D0075 | 2026-09-21T19:51:25Z | pipeline | evidence | chunk journal - run 308e10ba7636344f | 9625 | `c998eb53a6f7946918da2dfe8e9c6688ab4b714582145dd138e68ed11dc5b8d1` |
+| D0076 | 2026-09-21T20:26:40Z | pipeline | evidence | chunk journal - run 058c279d41f6cc7c | 149489 | `7a2ca6298173052bd3192fae19e04d3c0a9f68bf080cf270d683aaf9dfd29d8a` |
+| D0077 | 2026-09-21T23:01:44Z | pipeline | evidence | chunk journal - run 76247681dd600a70 | 1972815 | `cdc9fa2bb0ca528cc9dcc3addfd93ec56cdcf31cb9bdb21711c98a6612a9a5bd` |
+| D0078 | 2026-09-21T23:23:52Z | pipeline | evidence | chunk journal - run 64a148741140dfa7 | 149223 | `2ee8d0bca260cb1fa58a738bb6ab28d6792b6f523c84be9f1964b7fa2d835a0d` |
+| D0079 | 2026-09-22T01:27:10Z | pipeline | evidence | chunk journal - run b6210d0e9cd29cfa | 1578135 | `0c3a2e5d6ef61834a5cf76a8a07b90dd84f72bd50d1af69fa7ed72a06b38d794` |
+| D0080 | 2026-09-22T01:58:17Z | pipeline | evidence | chunk journal - run 6edf23beccf343e6 | 337176 | `6df937b667aab81aaa2777fb7be100c0b0c36bca6169f283efdb679fb03704de` |
+| D0081 | 2026-09-22T02:41:57Z | pipeline | evidence | chunk journal - run 6a65292199282359 | 655861 | `175432a212550b04456e3405f7dd5b6bccb938b31b2c3a19a44a9158d082dbea` |
