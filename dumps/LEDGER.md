@@ -60,3 +60,5 @@ verdict and proves nothing about now.
 | D0081 | 2026-09-22T02:41:57Z | pipeline | evidence | chunk journal - run 6a65292199282359 | 655861 | `175432a212550b04456e3405f7dd5b6bccb938b31b2c3a19a44a9158d082dbea` |
 | D0082 | 2026-09-22T04:18:47Z | pipeline | evidence | chunk journal - run 2c571faaad59651a | 1370792 | `ede59e55cde3cb14256acdaf7181dc807830e0aa02067202752d23dfa93fd416` |
 | D0083 | 2026-09-22T06:12:09Z | pipeline | evidence | chunk journal - run d1f9439f6f00e4a5 | 1596924 | `c1eedd390c8b4d533a346b66bfcb6bafb3483a423dcf25c611c06248a8bc5301` |
+| D0084 | 2026-09-22T08:31:26Z | pipeline | evidence | chunk journal - run 1a309ce7657d05b7 | 2332484 | `3536dad0bb4f6e8296d23d4c634474bb6206103c679ded7c7126cbc8da34e198` |
+| D0085 | 2026-09-22T10:21:50Z | pipeline | evidence | chunk journal - run bb04925032224798 | 1560485 | `e9e41b764cd02a12bee3ef5e47bc3ffe626067477faa461bd7ba22f2db457b71` |
