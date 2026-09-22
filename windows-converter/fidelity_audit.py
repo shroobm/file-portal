@@ -47,6 +47,7 @@ from text_norm import (  # noqa: F401 -- re-exported, not merely used below
 )
 import ladder_lever  # J44 (S182): the lever's one reader (roots.json `ladder` -> ladder.txt)
 import table_shape  # S209 E11: the source's table geometry inside Marker's table boxes (report-only, beside survival)
+import table_witness  # S211 E5: the cell-level witness — WHICH row a table lost, and how (report-only, beside `tables`)
 import figure_text  # S209 E13: the source's words inside Marker's figure boxes — chart text as text (report-only)
 import page_geometry  # S209 E13: the page's rotation and its symbol glyphs — where the shards and repeats are born (report-only)
 
@@ -1104,6 +1105,13 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # shape is credible, tables_disagree / tables_unread for the rest, the scan lane unread with its reason. Beside
         # survival, unseen by compute_verdict; None = not measured (no blocks handed in), never 0.
         "tables": table_shape.table_shape(pdf_path, blocks, lane) if blocks is not None else None,
+        # S211 E5, REPORT-ONLY: THE CELL-LEVEL WITNESS — table_shape says a table lost rows or columns; this says WHICH row
+        # and how: the layer's words inside each Marker table box clustered into row bands and read against the block's
+        # rendered <tr> rows — matched / dropped / merged (two figured rows in one cell) / collapsed (the table in one cell)
+        # / split / echo (a row the rendering repeats; the OCR echo with digits swapped) / header_cut / label_joined;
+        # a table it cannot read says so by name (rotated text, a box short of its table, no labelled figured band, the
+        # scan lane). Beside survival, unseen by compute_verdict; None = not measured (no blocks handed in), never 0.
+        "tables_cells": table_witness.table_witness(pdf_path, blocks, lane=lane) if blocks is not None else None,
         # S209 E13, REPORT-ONLY: CHART TEXT AS TEXT — the words the source's layer carries inside each Marker figure box
         # (a chart's legend, axis labels, data labels) against the words Marker shipped for the figure; a silent figure has
         # layer words and no shipped words (the AI Index: 10,551 layer words inside 479 figures, 680 shipped, 67 silent).

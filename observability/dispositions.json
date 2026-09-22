@@ -39,7 +39,7 @@
     {
       "name": "converter",
       "_note": "The converter writes the manifest and the receipts. Its readers are downstream CODE rather than a surface, so a hit here means 'something consumes it', which is weaker than 'a human sees it' — the bench and widget lanes then re-check whether the consumer projects it onward. `manifest.chunking.seams[]` (docs/29 §7.3) is the case this two-hop shape is built to catch.",
-      "producers": ["windows-converter/convert_and_ship.py", "windows-converter/fidelity_audit.py", "windows-converter/analyst.py", "windows-converter/table_shape.py", "windows-converter/figure_text.py", "windows-converter/page_geometry.py", "windows-converter/marker_blocks.py", "windows-converter/fixes.py", "windows-converter/ligature_repair.py", "windows-converter/variants.py"],
+      "producers": ["windows-converter/convert_and_ship.py", "windows-converter/fidelity_audit.py", "windows-converter/analyst.py", "windows-converter/table_shape.py", "windows-converter/table_witness.py", "windows-converter/figure_text.py", "windows-converter/page_geometry.py", "windows-converter/marker_blocks.py", "windows-converter/fixes.py", "windows-converter/ligature_repair.py", "windows-converter/variants.py"],
       "renderers": [
         "prototypes/repair-bench/bench.py",
         "prototypes/repair-bench/bench.html",
@@ -921,6 +921,194 @@
     "converter:tables_agree_population": {
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): `tables_agree_population` — how many tables BOTH witnesses (lines and text) covered: NOT derivable (the witness returns at the first strategy that finds a table), so the key is present and always None — a reader sees the question was asked and could not be answered, never a fabricated 0."
+    },
+    "converter:band_y_fraction": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant, said in the block: a word joins the open band within this fraction of the table's median word height of the band's running mean centre (0.6)."
+    },
+    "converter:bands_qualifying": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per table: bands carrying a label and a data figure — the row readings' own population on that table."
+    },
+    "converter:box_pad_pt": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: the box padded by this before its words are read — a word straddling the edge is the box's own (6 pt; CIBC p.143's last column at 4 pt past the edge)."
+    },
+    "converter:box_short_min_figures": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: this many figures the rendered rows carry lying outside the padded box read UNREAD 'the box is short of its table' (2; the verifier's cut-column break attempt)."
+    },
+    "converter:collapse_min_bands": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: a rendered cell holding this many bands' labels is a collapse, not merges (3)."
+    },
+    "converter:cross_page_candidate": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per table: None when the reading never applied (not near the page bottom), else True/False as above."
+    },
+    "converter:cross_page_candidates": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Of that population, tables whose own last band carries no figure while the next page's first table opens on a figured band — a continuation candidate the witness raises, never confirms (Inferred); None when the population is 0."
+    },
+    "converter:cross_page_margin_pt": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: a block within this many points of the page bottom is a cross-page candidate (36)."
+    },
+    "converter:cross_page_population": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Read tables whose box bottom sits within cross_page_margin_pt of the page bottom — the population cross_page_candidates is over; a measured 0 when none did."
+    },
+    "converter:dropped_labels": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per worst page: the first two dropped labels, so a reader sees which rows."
+    },
+    "converter:dropped_merged_split_collapsed": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per worst page: dropped + merged + split + the bands of its collapsed cells — the sort key of worst[]."
+    },
+    "converter:echo_figure_absent_share": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: ... and this share of its figures are in none of the box's words (0.5; the anchor)."
+    },
+    "converter:echo_figure_char_share": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: an aligned pair of equal-length figures is 'the same digits swapped' at/above this share of characters in place (0.5; calibrated on Desjardins p.249's read pairs against 15,394 bank pairs — echo_calib2.txt)."
+    },
+    "converter:echo_figure_pair_share": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: the row is a figure-echo when this share of its aligned pairs read so (0.5; same calibration)."
+    },
+    "converter:echo_min_figures": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: both rows carry at least this many figures for the figure-echo test (3)."
+    },
+    "converter:echo_similarity": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: difflib ratio at/above which two adjacent rows' texts are near-identical (0.85; the text echo also needs the layer anchor)."
+    },
+    "converter:echo_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Adjacent rendered-row pairs that echo: kind text (near-identical texts, the same row key, more rendered rows with that key than layer bands — a row the rendering repeats) or kind figures (the row before's figures with digits swapped, most in none of the box's words — the OCR echo, Desjardins p.249); over tables_read; None when 0."
+    },
+    "converter:figures_absent_from_layer": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per figure-echo entry: the share of the echoed row's figures in none of the box's own words (the anchor that told the OCR echo from a legitimately near-equal row: 15,394 control pairs, one echo)."
+    },
+    "converter:figures_agree": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per matched band: whether its own row's figures hold every figure of the band (False = the label found, the figures under it differ — CIBC p.162's comma-as-decimal rows)."
+    },
+    "converter:first_cell": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. A rendered row's first cell (tags stripped, <br> kept as a marker) — named in a merged / collapsed / label-joined entry so the reader sees the cell that swallowed the row."
+    },
+    "converter:header_cut": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per table: the header-cut entries {row, cell, layer_word}."
+    },
+    "converter:header_cut_min_cell_letters": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: a header cell must carry this many letters to be tested (2)."
+    },
+    "converter:header_cut_min_letters": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: a layer word must carry this many letters to be a header-cut match (3)."
+    },
+    "converter:header_cut_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Header cells whose text is a proper prefix or suffix (3+ letters) of a word the layer carries in the box (CIBC p.143: Tra / ansfer); over tables_read; None when 0."
+    },
+    "converter:is_header": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per rendered row: whether it carries a <th> (the header_cut population)."
+    },
+    "converter:label_joined": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per table: the label-join entries {label, row, joined}; per matched entry: the figure-less label joined into its cell."
+    },
+    "converter:label_joined_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Qualifying bands whose own row's first cell also holds a FIGURE-LESS band's label disjointly (a section header glued to its first row, a units line wrapped over two layer lines) — a label join, the row's figures intact, never a row lost; over tables_rows_read; None when 0."
+    },
+    "converter:label_max_words": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: a band's label stops after this many leading non-numeric words (6)."
+    },
+    "converter:label_rendered_for_twin": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per dropped band: True when a rendered row carries its label but that row is a TWIN band's (the same label in another section, its figures agreeing) — Scotiabank p.51's second 'Secured funding'."
+    },
+    "converter:layer_word": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. The layer word a cut header cell is a proper affix of."
+    },
+    "converter:rotated_line_share": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: a box whose text lines are this share or more non-horizontal reads UNREAD 'rotated text in the box' (0.5; McGill p.117: 87 of 87)."
+    },
+    "converter:rows_collapsed_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Bands swallowed by rendered cells holding collapse_min_bands or more bands' labels — the table in one cell (RBC AR p.147: 30 in row 0), counted apart from merged so a collapse is not thirty merges; over tables_rows_read; None when 0."
+    },
+    "converter:rows_dropped_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Qualifying bands no rendered row carries (neither the label word-bounded in a first cell nor every figure in a row's text), over tables_rows_read; None when that is 0."
+    },
+    "converter:rows_layer": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per table: its layer row bands."
+    },
+    "converter:rows_layer_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. The layer's row bands over tables_read (words clustered by y-centre within band_y_fraction of the table's median word height)."
+    },
+    "converter:rows_merged_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Qualifying bands whose own row's first cell holds a second FIGURED band's label disjointly (the shorter surviving the longer's removal) — two data rows in one cell; a nested shorter label is one label; over tables_rows_read; None when 0."
+    },
+    "converter:rows_rendered": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per table: its rendered <tr> rows."
+    },
+    "converter:rows_rendered_empty": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per table: rendered rows with no text in any cell (RBC AR p.147: 46 of 48 — the table collapsed into its first cell)."
+    },
+    "converter:rows_rendered_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. The rendered <tr> rows over tables_read (a <tr> without a <td>/<th> is no row)."
+    },
+    "converter:rows_split_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Qualifying bands whose figures are spread whole across two ADJACENT rendered rows, neither alone carrying every figure and at least one unlabelled (BMO Q3 p.60); over tables_rows_read; None when 0."
+    },
+    "converter:rows_unread": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Per table: why its ROW readings are unread (the reason string), or None; equals `unread` when the whole table is."
+    },
+    "converter:tables_cells": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. The block: the source's own words inside each Marker Table/TableGroup box, clustered into row bands (label + figures) and read against the block's rendered <tr> rows — which row a table lost, and how."
+    },
+    "converter:tables_collapsed": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Read tables with at least one collapsed cell; over tables_rows_read; None when 0."
+    },
+    "converter:tables_read": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Tables the witness read (words in the box, not rotated, the box not short of its table, an html with a <tr>) — the population of every reading below; tables_total = tables_read + tables_unread."
+    },
+    "converter:tables_rows_read": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Read tables with at least one band carrying a label AND a data figure (a grouped-thousands or 4+-digit token that is not a bare year) — the population of rows_dropped/merged/split/collapsed_total and label_joined_total; the others carry rows_unread by name."
+    },
+    "converter:tables_rows_unread": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Read tables whose ROW readings are unread (no labelled, figured band — a qualitative table, an engineering table of small values: a whole row deleted from it reads exactly like a clean one, so it is named, never a clean zero); echo and header_cut still read there."
+    },
+    "converter:worst_cap": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E5 (2026-09-22; the cell-level witness, table_witness.py — SYM-165's row shapes read on nine pages, the verifier's twelve page reads, verify/witness.json): the measure `fidelity.convert.tables_cells` — REPORT-ONLY beside survival and beside `tables`, unseen by compute_verdict; None = not measured (no blocks handed in), never 0. Constant: worst[] is cut at this many pages (10), said beside the list."
     },
     "converter:missing_in_figures_total": {
       "disposition": "EVIDENCE",
