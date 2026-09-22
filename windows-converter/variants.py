@@ -313,6 +313,8 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
 
 
 _TIE_NOTE = "tied on every measured number — the incumbent stays; what no measure sees is not a reason to switch"
+_ANALYST_NOTE = ("lost on the verdict alone, at the ANALYST phase (convert survival %s over the incumbent's %s): the convert-stage "
+                 "fix worked; the analyst's own pass failed it — an analyst re-run on the same Marker body is owed (SYM-163)")
 
 
 def _selection_rank(entry: dict) -> tuple:
@@ -437,6 +439,7 @@ def select(sha: str, reset: bool = False) -> dict:
     tied: list[dict] = []
     better: list[dict] = []
     excluded_fields: dict = {}
+    analyst_confounded: list[dict] = []
     for c in candidates:
         if c.get("dir") == baseline.get("dir"):
             continue
@@ -447,8 +450,19 @@ def select(sha: str, reset: bool = False) -> dict:
             tied.append(c)
         elif verdict == "better":
             better.append(c)
-        # else: strictly worse than the incumbent on the shared measured fields -- faithful, but neither
-        # selected, tied, nor refused; it simply does not surface here (unchanged from before).
+        else:
+            # S211 E3 (McGill-1 ~148, SYM-163): the variant's convert survival beat the incumbent's (0.8496 over 0.8169,
+            # the ligature repair) and it lost on the VERDICT alone, failed at the ANALYST phase — three near-exact runs
+            # of exactly the threshold from a different local-model sampling than the incumbent's run (0 runs). The
+            # analyst pass is not a property of a convert-stage lever; the incumbent stays, and the candidate is NAMED
+            # here so the reader sees the convert fix worked and what failed was the analyst's own pass — an analyst
+            # re-run on the same Marker body is the act owed, never a silent "worse".
+            cs, bs = c.get("survival_convert"), baseline.get("survival_convert")
+            if (c.get("verdict_phase") == "analyst" and _verdict_rank(c.get("verdict")) < _verdict_rank(baseline.get("verdict"))
+                    and cs is not None and bs is not None and cs > bs):
+                analyst_confounded.append({"dir": c.get("dir"), "note": _ANALYST_NOTE % (cs, bs)})
+            # else: strictly worse than the incumbent on the shared measured fields -- faithful, but neither
+            # selected, tied, nor refused; it simply does not surface here (unchanged from before).
 
     # among challengers equal on the full rank, the SHIPPED copy (root anchor) — never the parked one by its digit-named
     # dir sorting first (Investment Valuation: two identical challengers at 0.9334 over the original's 0.9333)
@@ -484,6 +498,7 @@ def select(sha: str, reset: bool = False) -> dict:
     bucket["refused"] = refused
     bucket["tied"] = tied_entries
     bucket["excluded_fields"] = excluded_fields
+    bucket["analyst_confounded"] = analyst_confounded
     bucket["selected_at"] = datetime.now(timezone.utc).isoformat()
     registry[sha] = bucket
     _write_registry_atomic(registry)
@@ -539,6 +554,8 @@ def _print_show(bucket: dict) -> None:
     print("reason: %s" % bucket.get("reason"))
     if bucket.get("excluded_fields"):
         print("excluded from the comparison (None on one side): %s" % bucket.get("excluded_fields"))
+    for a in bucket.get("analyst_confounded") or []:
+        print("analyst-confounded: %r -- %s" % (a.get("dir"), a.get("note")))
     tied = bucket.get("tied") or []
     print("tied (%d):" % len(tied))
     for t in tied:

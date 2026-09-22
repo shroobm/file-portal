@@ -986,6 +986,18 @@
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-22, the error accounting's finding on Waterloo's Kamalzadeh thesis — the reason read 'errors=2482 [None treated as 0: numbers_missing, numbers_extra]', so a variant whose numbers measure never ran ranked as having 0 missing figures): the registry bucket's `excluded_fields` — per candidate, the fields excluded from its pairwise comparison with the incumbent because one side reads None (never read as 0; the comparison runs on the fields both carry: verdict, the shared error sum on the honest rests, both survivals, degeneration). Named in the reason sentence too. Printed by `variants.py show`."
     },
+    "converter:analyst_confounded": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, SYM-163 — McGill-1 ~148): the registry bucket's `analyst_confounded` — the candidates that beat the incumbent on convert survival and lost on the verdict alone, failed at the ANALYST phase (the local model's own sampling; three runs of exactly the threshold at page anchors): the incumbent stays, each such candidate named with its note so the reader sees the convert fix worked and what failed was the analyst's pass — an analyst re-run on the same Marker body owed. Printed by `variants.py show`."
+    },
+    "converter:blocks_occurrences": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, McGill-1 ~148): `ligature_repair.blocks_occurrences` — how many words the repair's decided map touched in the bundle's blocks record (the record the inventions measure counts), so the record and the shipped body describe the same words; the measure read IDENTICAL numbers on the repaired and unrepaired bundle before this. None (UNREAD) when the record is absent or unreadable — the body's repair stands either way."
+    },
+    "converter:blocks_note": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3: `ligature_repair.blocks_note` — the reason the blocks record could not be repaired (UNREAD: the exception's name), beside blocks_occurrences None."
+    },
     "converter:note": {
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): a tied entry's `note` — the tie rule's sentence, verbatim: 'tied on every measured number — the incumbent stays; what no measure sees is not a reason to switch'."

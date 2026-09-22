@@ -221,3 +221,46 @@ def repair(markdown, pages_raw):
         "skipped_ambiguous": skipped_ambiguous,
         "vocabulary_words": len(vocab),
     }
+
+
+def apply_repairs(text, repairs):
+    """S211 E3 (McGill-1 ~148: the repair rewrote 660 dropped-letter words in the shipped body — `frst` → `first` ×35,
+    `efcient` → `efficient` ×34 — and the inventions measure read IDENTICAL numbers on the repaired and the unrepaired
+    bundle, because it counts the words in the bundle's blocks record, not the body): the SAME decided map applied to any
+    other text of the same conversion (a block's html), so the record and the shipped text describe the same words.
+    `repairs` is the record's own list [{from, to, count}]; the decision is never re-made here (nothing is grown that the
+    body's repair did not grow), fenced code and URL/path tokens are skipped as in repair(), case kept per occurrence.
+    Returns (new_text, occurrences)."""
+    decisions = {r["from"]: r["to"] for r in (repairs or []) if r.get("from") and r.get("to")}
+    if not decisions or not text:
+        return text, 0
+    n = [0]
+
+    def _apply(word):
+        to = decisions.get(word.lower())
+        if to is None:
+            return None
+        n[0] += 1
+        return _apply_case(word, to)
+
+    parts = _FENCE_RE.split(text)
+    out = [part if i % 2 == 1 else _scan(part, _apply) for i, part in enumerate(parts)]
+    return "".join(out), n[0]
+
+
+_TAG_RE = re.compile(r"(<[^>]+>)")
+
+
+def apply_repairs_html(html, repairs):
+    """apply_repairs over a block's html: the tags are split out first (a word beside a closing tag would otherwise read
+    as a path — `frst</b>` carries a slash — and be skipped), the text between them repaired, the tags kept byte for byte.
+    Returns (new_html, occurrences)."""
+    if not html or not repairs:
+        return html, 0
+    total = 0
+    parts = _TAG_RE.split(html)
+    for i, part in enumerate(parts):
+        if i % 2 == 0 and part:
+            parts[i], n = apply_repairs(part, repairs)
+            total += n
+    return "".join(parts), total

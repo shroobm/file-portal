@@ -2058,9 +2058,28 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
             with pymupdf.open(src) as _doc:
                 _pages_raw = [pg.get_text() for pg in _doc]
             body, _lig = ligature_repair.repair(body, _pages_raw)
+            # S211 E3 (McGill-1 ~148: the inventions measure read IDENTICAL numbers on the repaired and the unrepaired
+            # bundle — it counts the blocks record's words, and only the body had been repaired): the SAME decided map
+            # over the bundle's blocks record, so the record and the shipped text describe the same words and the
+            # measure sees the repair; `blocks_occurrences` says how many it touched there, None (UNREAD) when the
+            # record is absent or unreadable — the body's repair stands either way.
+            _lig["blocks_occurrences"] = None
+            _bp = tmp_dir / BLOCKS_BUNDLE_FILE
+            if _bp.is_file() and _lig.get("repairs"):
+                try:
+                    _rec = json.loads(_bp.read_text(encoding="utf-8"))
+                    _n = 0
+                    for _b in _rec.get("blocks") or []:
+                        if _b.get("html"):
+                            _b["html"], _k = ligature_repair.apply_repairs_html(_b["html"], _lig["repairs"])
+                            _n += _k
+                    _bp.write_text(json.dumps(_rec, ensure_ascii=False), encoding="utf-8")
+                    _lig["blocks_occurrences"] = _n
+                except Exception as exc:  # noqa: BLE001 — the record stays as Marker wrote it; the body's repair stands
+                    _lig["blocks_note"] = f"UNREAD: {type(exc).__name__}: {str(exc)[:120]}"
             manifest["ligature_repair"] = _lig
             print(f"LIGATURE REPAIR: {_lig.get('words_repaired')} word(s), {_lig.get('occurrences')} occurrence(s), "
-                  f"{len(_lig.get('skipped_ambiguous') or [])} ambiguous skipped", flush=True)
+                  f"{len(_lig.get('skipped_ambiguous') or [])} ambiguous skipped; blocks {_lig.get('blocks_occurrences')}", flush=True)
         except Exception as exc:  # noqa: BLE001 — a repair that fails is said; the body ships as Marker wrote it
             manifest["ligature_repair"] = {"note": f"UNREAD: {type(exc).__name__}: {str(exc)[:120]}"}
             print(f"LIGATURE REPAIR UNREAD: {type(exc).__name__}: {str(exc)[:160]}", flush=True)

@@ -186,7 +186,7 @@ MECHANISM = {
         "two arms run under a systematically different condition (heat, order), so the artefact scales with n like a "
         "real effect",
         "swap the arm order or interleave; does the effect survive?",
-        ["SYM-035"],
+        ["SYM-035", "SYM-163"],  # 163 (S211 E3, McGill-1 ~148): a convert-stage lever judged through the analyst stage's sampled verdict — the difference measured is not the lever's
     ),
     "S15 THE-INSTRUMENT-MANUFACTURES-THE-FINDING": (  # SYM-141 (S209 E13): the ladder's orphan backslash — added below
         "the audit, census or ladder has its own preprocessing bug or unstated input-shape assumption and creates false "

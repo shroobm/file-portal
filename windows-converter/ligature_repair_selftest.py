@@ -159,6 +159,16 @@ r_md15, rec15 = lr.repair(MIXED, LAYER)
 case("repairs sorted by count desc: confguration (2) before defne (1)",
      [x["from"] for x in rec15["repairs"]] == ["confguration", "defne"], rec15["repairs"])
 
+# 16 · S211 E3 (McGill-1 ~148): the record's own decided map applied to a block's html — tags split out (a word beside
+# a closing tag is not a path), case kept, the count returned; nothing decided anew (a word the map does not name stays)
+html16 = '<p>The frst <b>Efcient</b> step; <a href="http://x/frst.html">frst</a> and defne</p>'
+h16, n16 = lr.apply_repairs_html(html16, [{"from": "frst", "to": "first", "count": 0}, {"from": "efcient", "to": "efficient", "count": 0}])
+case("apply_repairs_html: frst/Efcient/frst repaired (3), the tag and the URL untouched, `defne` (not in the map) untouched",
+     n16 == 3 and h16 == '<p>The first <b>Efficient</b> step; <a href="http://x/frst.html">first</a> and defne</p>', (n16, h16))
+# 17 · negative control: an empty map or an empty html changes nothing and counts 0
+case("apply_repairs_html: an empty map / empty html reads (unchanged, 0)",
+     lr.apply_repairs_html(html16, []) == (html16, 0) and lr.apply_repairs_html("", [{"from": "frst", "to": "first"}]) == ("", 0), "")
+
 print("==== ligature_repair selftest: %d/%d ====" % (ok, n))
 print("%d/%d ok" % (ok, n))
 sys.exit(0 if ok == n else 1)

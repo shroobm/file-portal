@@ -544,6 +544,32 @@ def test_degeneration_on_both_sides_is_not_a_refusal():
         assert variants._compare(variants.summarize(c), variants.summarize(a)) == ("better", []), variants._compare(variants.summarize(c), variants.summarize(a))
 
 
+def test_analyst_confounded_candidate_is_named_not_silent():
+    """S211 E3 (McGill-1 ~148, SYM-163): a candidate whose convert survival beats the incumbent's but whose verdict is
+    fail AT THE ANALYST PHASE loses on the verdict alone -- the incumbent stays, and the candidate is NAMED under
+    bucket["analyst_confounded"] with the note (the convert fix worked; the analyst's own pass failed it). NEGATIVE
+    CONTROL: the same candidate failed at the CONVERT phase is not listed (its loss is the convert stage's own)."""
+    with _isolated() as td:
+        sha = "sha-analyst-0008"
+        a = _make_bundle(td, "anchor", "A-original", sha=sha, verdict="flag", phase="convert", converted_at="2026-01-01T00:00:00+00:00", survival_convert=0.8169)
+        b = _make_bundle(td, "anchor", "B-repaired _148", sha=sha, verdict="fail", phase="analyst", converted_at="2026-01-02T00:00:00+00:00", survival_convert=0.8496)
+        variants.register(a)
+        variants.register(b)
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "A-original", bucket
+        assert [x["dir"] for x in bucket["analyst_confounded"]] == ["B-repaired _148"], bucket["analyst_confounded"]
+        assert "ANALYST phase" in bucket["analyst_confounded"][0]["note"] and "SYM-163" in bucket["analyst_confounded"][0]["note"]
+        assert bucket["tied"] == [] and bucket["refused"] == []
+    with _isolated() as td:
+        sha = "sha-analyst-0009"
+        a = _make_bundle(td, "anchor", "A-original", sha=sha, verdict="flag", phase="convert", converted_at="2026-01-01T00:00:00+00:00", survival_convert=0.8169)
+        c = _make_bundle(td, "anchor", "C-worse-at-convert", sha=sha, verdict="fail", phase="convert", converted_at="2026-01-02T00:00:00+00:00", survival_convert=0.8496)
+        variants.register(a)
+        variants.register(c)
+        bucket = variants.select(sha)
+        assert bucket["selected"] == "A-original" and bucket["analyst_confounded"] == [], bucket
+
+
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -567,6 +593,7 @@ TESTS = [
     test_anchor_first_among_equal_challengers,
     test_unmeasured_field_excluded_never_read_as_zero,
     test_degeneration_on_both_sides_is_not_a_refusal,
+    test_analyst_confounded_candidate_is_named_not_silent,
 ]
 
 
