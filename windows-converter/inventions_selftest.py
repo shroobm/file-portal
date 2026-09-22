@@ -386,5 +386,32 @@ case("audit_numbers (negative control): the duplicated-figure page of case 16 re
      "extra 3, pages_witness_blank 0, extra_on_blank_layer 0",
      r_dup["extra_total"] == 3 and r_dup["pages_witness_blank"] == 0 and r_dup["extra_on_blank_layer"] == 0, r_dup)
 
+# 43 · S211 E7 (SYM-180, Waterloo's Fakhraai p.167 — a Physical Review Letters reprint bound into a thesis, whose running
+# head reads `PRL 95, 025701 (2005)` across four PageHeader blocks that all ship EMPTY html): Marker BOXES the furniture and
+# empties it on purpose (all 18,724 such blocks on the shelf), so the head's figures are in the layer and not in the blocks,
+# and were booked as lost. A missing token whose own word box sits inside a PageHeader/PageFooter box is furniture.
+_HEAD_BOX = [40.0, 10.0, 560.0, 40.0]
+_fur_dir = tempfile.mkdtemp(prefix="fp-numfur-")
+_fur_doc = fitz.open()
+_fur_page = _fur_doc.new_page(width=612, height=792)
+_fur_page.insert_text((_HEAD_BOX[0] + 10, _HEAD_BOX[1] + 18), "025701", fontsize=9)          # in the running head
+_fur_page.insert_text((80.0, 400.0), "48,215", fontsize=9)                                   # in the body, a real figure
+_fur_pdf = os.path.join(_fur_dir, "fur.pdf")
+_fur_doc.save(_fur_pdf)
+_FUR_LAYER = "PRL 95, 025701 (2005) week ending 8 JULY 2005 and the table below reads 48,215 for the quarter"
+r_fur = fa.audit_numbers([_FUR_LAYER], [{"page": 0, "block_type": "PageHeader", "bbox": _HEAD_BOX, "html": ""},
+                                         {"page": 0, "block_type": "Text", "html": "<p>and the table below reads for the quarter</p>"}],
+                         pdf_path=_fur_pdf)
+case("audit_numbers: a missing figure inside a PageHeader box is counted apart as missing_in_furniture, never under "
+     "missing — and THE CONTROL in the same fixture: the body's 48,215, outside every furniture box, is still missing 1",
+     r_fur["missing_in_furniture"] == 1 and r_fur["missing_total"] == 1, r_fur)
+# 44 · THE UNREAD CASE, the one this project has paid for most often: no furniture block in the record means the split cannot
+# be judged at all, and an unjudgeable split reads None — never a measured 0, and never at the cost of the missing count
+r_nofur = fa.audit_numbers([_FUR_LAYER], [{"page": 0, "block_type": "Text", "html": "<p>and the table below reads for the quarter</p>"}],
+                           pdf_path=_fur_pdf)
+case("audit_numbers: with NO PageHeader/PageFooter block in the record, missing_in_furniture reads None (UNREAD) and the "
+     "head's own figure stays counted — 025701 and 48,215 both missing, nothing silently exempted",
+     r_nofur["missing_in_furniture"] is None and r_nofur["missing_total"] == 2, r_nofur)
+
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

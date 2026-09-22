@@ -939,6 +939,22 @@ def _fig_boxes_by_page(blocks) -> dict:
     return boxes
 
 
+FURNITURE_TYPES = ("PageHeader", "PageFooter")
+
+
+def _furniture_boxes_by_page(blocks) -> dict:
+    """S211 E7 (SYM-180) — every PageHeader/PageFooter block's own bbox, by 1-indexed page, in the same shape
+    `_fig_boxes_by_page` builds for Figure/Picture. Marker locates this furniture and ships it EMPTY on purpose (all
+    18,724 such blocks on the shelf carry `html: ""` with their bbox intact), which is right for a converted document
+    and is exactly why the layer's running head has no counterpart in the blocks. An empty mapping means the record
+    carries no furniture block at all — the caller reads that to tell UNREAD from a measured zero."""
+    boxes: dict[int, list] = {}
+    for b in blocks or []:
+        if b.get("block_type") in FURNITURE_TYPES and b.get("bbox") and b.get("page") is not None:
+            boxes.setdefault(int(b["page"]) + 1, []).append(b["bbox"])
+    return boxes
+
+
 def _missing_in_figures(pdf_path, pnum: int, missing: "Counter", fig_boxes: list) -> "Counter":
     """S211 LANE B — for each token in `missing` (the layer's figures Marker's blocks lack), whether that token's OWN word
     box on the page (pymupdf `get_text('words')`) sits inside one of the page's Figure/Picture boxes: the same containment
@@ -1022,6 +1038,9 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
     worst: list[dict] = []
     fig_boxes_all = _fig_boxes_by_page(blocks)
     figures_readable = bool(fig_boxes_all) and pdf_path is not None
+    # S211 E7 (SYM-180): the same containment test against the furniture Marker boxed and emptied on purpose
+    fur_boxes_all = _furniture_boxes_by_page(blocks)
+    furniture_readable = bool(fur_boxes_all) and pdf_path is not None
     out = {"meaning": "number tokens Marker's blocks carry MORE often than the source's layer on the same page (moved, duplicated "
                       "or OCR'd figures — the loss survival and the tables' geometry cannot see) and the layer's the blocks lack; "
                       "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops); a "
@@ -1031,6 +1050,10 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                       "figures are a GAIN, not a duplication) and is not judged — its tokens are counted apart under "
                       "extra_on_blank_layer / missing_on_blank_layer and the page under pages_witness_blank, the same floor "
                       "the inventions measure and survival already use; "
+                      "a token whose own word box sits inside a block Marker classed PageHeader/PageFooter is a RUNNING HEAD or a "
+                      "folio — furniture Marker boxes and empties on purpose — and is counted apart as "
+                      "missing_in_furniture, never under missing (None/UNREAD when the blocks record carries no such "
+                      "block or no pdf_path was given); "
                       "a token whose every occurrence in the layer sits inside square brackets is a REFERENCE LIST written the way a "
                       "grouped thousand is written ([101,102]) and is counted apart as missing_in_citations, never under "
                       "missing; one inside a box on a LABELLED band (S211 E3, RBC p.122: a table the layout model boxed as a picture, or a "
@@ -1038,6 +1061,7 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                       "missing_in_figures_labelled (and _total) so the reader sees it — None (UNREAD) when the blocks record "
                       "carries no Figure/Picture box, or no pdf_path was given to read word positions",
            "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "missing_in_citations": 0,
+           "missing_in_furniture": (0 if furniture_readable else None),
            "pages_witness_blank": 0, "extra_on_blank_layer": 0, "pages_with_extra": 0,
            "pages_with_missing": 0, "missing_in_figures_total": (0 if figures_readable else None),
            "missing_in_figures_labelled_total": (0 if figures_readable else None), "worst": worst}
@@ -1075,6 +1099,17 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         # leaves `missing` here, BEFORE the total and before the figure-box lookup, and is counted apart.
         cites = _citation_tokens(raw or "", missing)
         missing -= cites
+        # S211 E7 (SYM-180, Waterloo's Fakhraai p.167 — a Physical Review Letters reprint bound into a thesis, whose
+        # head reads `PRL 95, 025701 (2005)` across four PageHeader blocks that all ship empty html): a missing token
+        # whose OWN word box sits inside a block Marker classed PageHeader/PageFooter is a running head or a folio,
+        # not a figure the conversion lost. The measure already exempted half of these same heads by a year regex
+        # (`missing_years`, which stays — it catches a head Marker did NOT box); this is the same exemption taken from
+        # the observable instead of the guess. 42 of 1,702 missing figures over 9 documents of 52 when it was read.
+        fur: Counter = Counter()
+        if furniture_readable and missing:
+            fur = Counter({k: c for k, c in _missing_in_figures(
+                pdf_path, pnum, missing, fur_boxes_all.get(pnum) or []).items() if not isinstance(k, tuple)})
+            missing -= fur
         # S211 LANE B (RBC p.41/p.58): a missing token sitting inside this page's own Figure/Picture box is a chart's axis
         # tick, not a table's dropped figure — moved out of `missing` BEFORE it is counted or handed to the row-band lookup,
         # so a real row loss is never diluted by a tick and a tick never masquerades as a row loss either.
@@ -1095,6 +1130,8 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         out["missing_total"] += nm
         out["missing_years"] += sum(years.values())
         out["missing_in_citations"] += sum(cites.values())
+        if furniture_readable:
+            out["missing_in_furniture"] += sum(fur.values())
         if figures_readable:
             out["missing_in_figures_total"] += sum(mif.values())
             out["missing_in_figures_labelled_total"] += sum(mif_labelled.values())
@@ -1136,7 +1173,10 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                           # S211 E6 (SYM-177): this page's missing tokens that are reference lists (subtracted from
                           # `missing` above already) — read from the layer's own text, so never UNREAD on a page the
                           # measure could read at all
-                          "missing_in_citations": sum(cites.values())})
+                          "missing_in_citations": sum(cites.values()),
+                          # S211 E7 (SYM-180): this page's missing tokens that are running heads or folios — None
+                          # (UNREAD) exactly when the document-wide total is, never a guessed 0
+                          "missing_in_furniture": (sum(fur.values()) if furniture_readable else None)})
     worst.sort(key=lambda r: (-r["extra"], -r["missing"], r["page"]))
     del worst[NUMBERS_WORST_CAP:]
     return out
