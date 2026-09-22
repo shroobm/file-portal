@@ -198,7 +198,7 @@ def test_columns_unsupported_reads_unread_not_violation():
     ok, violations, unread = variants.faithful(cand, base)
     assert ok is True, (ok, violations, unread)
     assert not any("columns_lost" in v for v in violations), violations
-    assert "columns unsupported" in unread, unread
+    assert any(u.startswith("columns unsupported") for u in unread), unread
 
 
 def test_register_idempotent():
@@ -589,6 +589,33 @@ def test_scan_lane_agreement_counts_read_none_not_errors():
         assert verdict == "tie" and "words_lost" in excluded and "numbers_missing" in excluded, (verdict, excluded)
 
 
+def test_rows_columns_compare_only_over_the_same_population():
+    """S211 E3 (RBC Q3 ~155, read on p.72): the variant was refused on columns_lost 1 > 0 with its lines witness over 5
+    tables against the original's 3 — p.72's table was among the five and not the three, and BOTH renderings show the
+    same two columns: a measured 1 against an unmeasured 0. Populations that differ read UNREAD and NAMED, never a
+    violation; the rest of the comparison decides (verdict flag over fail: selected). NEGATIVE CONTROL: equal populations
+    with a real increase are still refused."""
+    with _isolated() as td:
+        sha = "sha-pop-0012"
+        o = _make_bundle(td, "anchor", "Q3 Report", sha=sha, verdict="fail", converted_at="2026-01-01T00:00:00+00:00", degeneration=True,
+                          columns_lost=0, rows_lost=0, tables_witnessed_lines=3)
+        v = _make_bundle(td, "anchor", "Q3 Report _155", sha=sha, verdict="flag", converted_at="2026-01-02T00:00:00+00:00", degeneration=False,
+                          columns_lost=1, rows_lost=0, tables_witnessed_lines=5)
+        for b in (o, v):
+            variants.register(b)
+        # the fixture's manifest carries no *_population keys — the populations come from tables_witnessed_lines in summarize?
+        so, sv = variants.summarize(o), variants.summarize(v)
+        so["columns_lost_population"], so["rows_lost_population"] = 3, 3
+        sv["columns_lost_population"], sv["rows_lost_population"] = 5, 5
+        ok, violations, unread = variants.faithful(sv, so)
+        assert ok and violations == [], (violations, unread)
+        assert any(u.startswith("columns incomparable (populations differ: 5 vs 3)") for u in unread), unread
+        # the negative control: the same increase over EQUAL populations is a violation
+        sv2 = dict(sv, columns_lost_population=3, rows_lost_population=3)
+        ok2, v2, _ = variants.faithful(sv2, so)
+        assert not ok2 and any("columns_lost increased: 1 > 0" in x for x in v2), (ok2, v2)
+
+
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -614,6 +641,7 @@ TESTS = [
     test_degeneration_on_both_sides_is_not_a_refusal,
     test_analyst_confounded_candidate_is_named_not_silent,
     test_scan_lane_agreement_counts_read_none_not_errors,
+    test_rows_columns_compare_only_over_the_same_population,
 ]
 
 

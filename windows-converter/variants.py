@@ -297,13 +297,29 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
     not_less("survival_convert")
     not_less("assets")
     not_less("tables_total")
-    not_more("rows_lost")
 
-    ctw, btw = candidate.get("tables_witnessed_lines"), baseline.get("tables_witnessed_lines")
-    if ctw is not None and btw is not None and ctw > 0 and btw > 0:
-        not_more("columns_lost")
-    else:
-        unread.append("columns unsupported")
+    # S211 E3 (RBC Q3 ~155, read on p.72): the variant was REFUSED on "columns_lost increased: 1 > 0" — its lines witness
+    # covered 5 tables, the original's 3, and p.72's small table (5x3 in the layer, 5x2 in BOTH renderings) was among the
+    # five and not among the three: a measured 1 against an unmeasured 0, the falsified comparison his word names. Rows and
+    # columns lost are comparable only over the SAME population: when both sides' populations are equal (the same count of
+    # lines-witnessed tables — the closest the summary comes to "the same tables") the counts compare; when they differ,
+    # the constraint is UNREAD and NAMED with both populations, never a violation. The real loss on p.72 stays visible to
+    # the reader in the tables measure's worst[] and in the ticket; the whitelist does not fabricate a regression from it.
+    for name, pop_key in (("rows_lost", "rows_lost_population"), ("columns_lost", "columns_lost_population")):
+        cp, bp = candidate.get(pop_key), baseline.get(pop_key)
+        if cp is None or bp is None:
+            # an older manifest without the population keys: the old test (both sides witnessed at least one table)
+            ctw, btw = candidate.get("tables_witnessed_lines"), baseline.get("tables_witnessed_lines")
+            if ctw is not None and btw is not None and ctw > 0 and btw > 0:
+                not_more(name)
+            else:
+                unread.append("%s unsupported (populations unread)" % name.replace("_lost", ""))
+        elif cp == 0 or bp == 0:
+            unread.append("%s unsupported (population %s vs %s)" % (name.replace("_lost", ""), cp, bp))
+        elif cp != bp:
+            unread.append("%s incomparable (populations differ: %s vs %s)" % (name.replace("_lost", ""), cp, bp))
+        else:
+            not_more(name)
 
     # S211 E3 (the accounting's finding on Desjardins AR, the AI Index, Ashby, RBC Q3: the registry SELECTED the anchor
     # copy carrying degeneration True -- the baseline is always a candidate -- while REFUSING its byte-identical held
