@@ -201,6 +201,45 @@ case("audit_numbers: the same figure outside any box stays a genuine missing fig
 r_fig3 = fa.audit_numbers(_numfig_raw, [{"page": 0, "block_type": "Text", "html": ""}], pdf_path=_numfig_pdf)
 case("audit_numbers: no Figure/Picture box in blocks reads missing_in_figures_total None (UNREAD), missing_total unchanged at 1",
      r_fig3["missing_total"] == 1 and r_fig3["missing_in_figures_total"] is None, r_fig3)
+# 26b · S211 E3 (RBC p.122: the layout model boxed the whole capital table — Credit / Market / Operational, 19 figures — as ONE
+# Figure, and containment alone read them as a chart's ticks; a conversion that boxes every table as a picture would read 0
+# missing): a figure inside a box on a band that OPENS WITH WORDS INSIDE THE SAME BOX is a labelled row (a mis-boxed table
+# or a chart's labelled bar) — it STAYS under missing and is counted apart as missing_in_figures_labelled. Fixture: the box
+# holds `Credit 2,491,090` on one band (labelled) and a bare `150,000` on another (a tick).
+_LAB_BOX = [72, 100, 400, 300]
+_lab_dir = tempfile.mkdtemp(prefix="fp-numfig-lab-")
+_lab_doc = fitz.open()
+_lab_page = _lab_doc.new_page(width=612, height=792)
+_lab_page.draw_rect(fitz.Rect(*_LAB_BOX), width=0.5)
+_lab_page.insert_text((_LAB_BOX[0] + 10, _LAB_BOX[1] + 20), "Credit 2,491,090 590,306 61,432", fontsize=9)   # a labelled row: 3 figures
+_lab_page.insert_text((_LAB_BOX[0] + 10, _LAB_BOX[1] + 60), "150,000", fontsize=9)                          # a tick on its own band
+_lab_pdf = os.path.join(_lab_dir, "mixed.pdf")
+_lab_doc.save(_lab_pdf)
+_lab_raw = ["Credit 2,491,090 590,306 61,432 on a labelled band inside the box; 150,000 alone on its band inside the box"]
+r_lab = fa.audit_numbers(_lab_raw, [{"page": 0, "block_type": "Figure", "bbox": _LAB_BOX, "html": ""}], pdf_path=_lab_pdf)
+case("audit_numbers: inside one Figure box, the labelled row `Credit 2,491,090 590,306 61,432` STAYS missing (missing_total 3, "
+     "missing_in_figures_labelled 3, the row named `Credit`); the bare `150,000` on its own band is the tick (missing_in_figures 1) "
+     "— the negative control: containment alone read missing_total 0",
+     r_lab["missing_total"] == 3 and r_lab["missing_in_figures_total"] == 1 and r_lab["missing_in_figures_labelled_total"] == 3
+     and r_lab["worst"][0]["missing_in_figures_labelled"] == 3 and r_lab["worst"][0]["missing_in_figures"] == 1
+     and r_lab["worst"][0]["missing_rows"][0] == {"row": "Credit", "figures": 3}, r_lab)
+# 26c · the p.41 shape, the case that must NOT change: the chart's tick shares its band with a table row label printed OUTSIDE
+# the box (the table beside the chart) — the label is not the chart's, so the tick stays a tick (missing_in_figures 1, labelled 0)
+_beside_dir = tempfile.mkdtemp(prefix="fp-numfig-beside-")
+_beside_doc = fitz.open()
+_beside_page = _beside_doc.new_page(width=612, height=792)
+_CHART_BOX = [300, 100, 560, 300]
+_beside_page.draw_rect(fitz.Rect(*_CHART_BOX), width=0.5)
+_beside_page.insert_text((72, 120), "Total revenue 12,345", fontsize=9)            # the table's row, outside the box
+_beside_page.insert_text((_CHART_BOX[0] + 10, 120), "250,000", fontsize=9)          # the chart's tick, same band, inside
+_beside_pdf = os.path.join(_beside_dir, "beside.pdf")
+_beside_doc.save(_beside_pdf)
+_beside_raw = ["Total revenue 12,345 250,000 on one band, the chart beside the table"]
+r_beside = fa.audit_numbers(_beside_raw, [{"page": 0, "block_type": "Figure", "bbox": _CHART_BOX, "html": "<p>Total revenue 12,345</p>"}],
+                            pdf_path=_beside_pdf)
+case("audit_numbers: a tick whose band carries the TABLE's row label outside the chart box stays a tick (missing_in_figures 1, "
+     "labelled 0, missing_total 0) — the label must lie inside the box to count",
+     r_beside["missing_total"] == 0 and r_beside["missing_in_figures_total"] == 1 and r_beside["missing_in_figures_labelled_total"] == 0, r_beside)
 # 27 · S211 LANE B (Bill C-288: `circons` + `tance` where Marker correctly wrote `circonstance`) — a lost witness word that
 # is the LAST word on its raw line, with nothing (or a hyphen / soft hyphen) trailing it, and that joins with the very next
 # witness word into a word Marker's blocks DO carry, is not a real omission: lost_hyphen_joined names it, lost_total keeps

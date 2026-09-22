@@ -131,6 +131,9 @@ def summarize(bundle_dir) -> dict:
         "words_lost_excl_joined": inventions.get("lost_total_excl_joined"),
         "numbers_missing": numbers.get("missing_total"),
         "numbers_missing_in_figures": numbers.get("missing_in_figures_total"),
+        # S211 E3 (RBC p.122): figures inside a Figure box on a LABELLED band — a table the layout model boxed as a picture,
+        # or a chart's labelled bar; still inside numbers_missing (the error weight kept), named here so a reader sees it
+        "numbers_missing_in_figures_labelled": numbers.get("missing_in_figures_labelled_total"),
         "numbers_extra": numbers.get("extra_total"),
         "tables_total": tables.get("tables_total"),
         "rows_lost": tables.get("rows_lost"),

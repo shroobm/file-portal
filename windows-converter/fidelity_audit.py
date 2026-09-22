@@ -802,9 +802,31 @@ def _missing_in_figures(pdf_path, pnum: int, missing: "Counter", fig_boxes: list
         if not left.get(tok):
             continue
         pt = pymupdf.Point((w[0] + w[2]) / 2, (w[1] + w[3]) / 2)
-        if any(pt in r for r in rects):
-            left[tok] -= 1
-            hits[tok] += 1
+        box = next((r for r in rects if pt in r), None)
+        if box is None:
+            continue
+        left[tok] -= 1
+        # S211 E3 (RBC p.122: the layout model boxed the whole CAPITAL TABLE as one Figure — Credit / Market / Operational
+        # rows, 19 figures — and containment alone read them as a chart's ticks; a conversion that boxes every table as a
+        # picture would read 0 missing, the instrument manufacturing a green): the tick is a chart's BY CONSTRUCTION only
+        # when its band carries NO row label INSIDE THE SAME BOX. A figure inside a box on a band that opens with words
+        # inside that box is a labelled row — a table the model mis-boxed, or a chart's labelled bar — and stays MISSING;
+        # the caller counts it apart under `labelled` so the reader sees which. The label must lie inside the box: on
+        # RBC p.41 the chart's ticks share their bands with the table's row labels printed OUTSIDE the chart, and those
+        # are still ticks. A partition by an observable (a label inside the box on the band, or none), never a threshold.
+        y0, y1 = w[1], w[3]
+        yc = (y0 + y1) / 2
+        band = sorted((v for v in words
+                       if abs((v[1] + v[3]) / 2 - yc) <= max(1.0, (y1 - y0) * 0.6)
+                       and pymupdf.Point((v[0] + v[2]) / 2, (v[1] + v[3]) / 2) in box),
+                      key=lambda v: v[0])
+        labelled = False
+        for v in band:
+            if _NUM_TOKEN.fullmatch(v[4].strip("()$,;:.")) or re.fullmatch(r"[\d,.()$%–-]+", v[4]):
+                break
+            labelled = True
+            break
+        hits[("labelled", tok) if labelled else tok] += 1
     return hits
 
 
@@ -837,11 +859,15 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
     out = {"meaning": "number tokens Marker's blocks carry MORE often than the source's layer on the same page (moved, duplicated "
                       "or OCR'd figures — the loss survival and the tables' geometry cannot see) and the layer's the blocks lack; "
                       "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops); a "
-                      "missing token inside a Figure/Picture block's own box is a chart's axis tick, counted apart as "
-                      "missing_in_figures (and missing_in_figures_total), never under missing — None (UNREAD) when the blocks "
-                      "record carries no Figure/Picture box, or no pdf_path was given to read word positions",
+                      "missing token inside a Figure/Picture block's own box on a band with NO row label inside that box is a "
+                      "chart's axis tick, counted apart as missing_in_figures (and missing_in_figures_total), never under missing; "
+                      "one inside a box on a LABELLED band (S211 E3, RBC p.122: a table the layout model boxed as a picture, or a "
+                      "chart's labelled bar — the measure cannot tell which) STAYS under missing and is counted apart as "
+                      "missing_in_figures_labelled (and _total) so the reader sees it — None (UNREAD) when the blocks record "
+                      "carries no Figure/Picture box, or no pdf_path was given to read word positions",
            "pages_measured": 0, "extra_total": 0, "missing_total": 0, "missing_years": 0, "pages_with_extra": 0,
-           "pages_with_missing": 0, "missing_in_figures_total": (0 if figures_readable else None), "worst": worst}
+           "pages_with_missing": 0, "missing_in_figures_total": (0 if figures_readable else None),
+           "missing_in_figures_labelled_total": (0 if figures_readable else None), "worst": worst}
     from collections import Counter
     for pnum, raw in enumerate(pages_raw, start=1):
         mk = by_page.get(pnum) or []
@@ -862,8 +888,15 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         # tick, not a table's dropped figure — moved out of `missing` BEFORE it is counted or handed to the row-band lookup,
         # so a real row loss is never diluted by a tick and a tick never masquerades as a row loss either.
         mif: Counter = Counter()
+        mif_labelled: Counter = Counter()
         if figures_readable and missing:
-            mif = _missing_in_figures(pdf_path, pnum, missing, fig_boxes_all.get(pnum) or [])
+            found = _missing_in_figures(pdf_path, pnum, missing, fig_boxes_all.get(pnum) or [])
+            # S211 E3 (RBC p.122): the helper keys a figure on a LABELLED band inside its box as ("labelled", tok) — a row of
+            # a table the layout model boxed as a picture, or a chart's labelled bar. Those STAY in `missing` (a loss the
+            # reader must see; the registry's error sum keeps its weight) and are named apart under missing_in_figures_labelled;
+            # only the unlabelled ones — the ticks — leave `missing` for missing_in_figures.
+            mif = Counter({k: c for k, c in found.items() if not isinstance(k, tuple)})
+            mif_labelled = Counter({k[1]: c for k, c in found.items() if isinstance(k, tuple)})
             if mif:
                 missing -= mif
         ne, nm = sum(extra.values()), sum(missing.values())
@@ -872,6 +905,7 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         out["missing_years"] += sum(years.values())
         if figures_readable:
             out["missing_in_figures_total"] += sum(mif.values())
+            out["missing_in_figures_labelled_total"] += sum(mif_labelled.values())
         # S210 E2 (SYM-154's next cut — Scotia Q3 p.51: fourteen figures absent from a rendered table, the second `Secured funding`
         # row dropped whole): the missing figures' ROWS, named from the layer's own lines — the label before the first figure on
         # each line that carries a missing token, most figures lost first — so a reader is pointed at the row, not only the page
@@ -903,7 +937,10 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                           "ocr": (pnum in set(int(p) for p in ocr_pages)) if ocr_pages is not None else None,
                           # S211 LANE B: this page's own count of missing tokens read as chart ticks (subtracted from `missing`
                           # above already) — None (UNREAD) exactly when the document-wide total is, never a guessed 0
-                          "missing_in_figures": (sum(mif.values()) if figures_readable else None)})
+                          "missing_in_figures": (sum(mif.values()) if figures_readable else None),
+                          # S211 E3: this page's figures inside a box on a labelled band — still in `missing` above; a table
+                          # mis-boxed as a picture (RBC p.122) or a chart's labelled bar; None exactly when the total is
+                          "missing_in_figures_labelled": (sum(mif_labelled.values()) if figures_readable else None)})
     worst.sort(key=lambda r: (-r["extra"], -r["missing"], r["page"]))
     del worst[NUMBERS_WORST_CAP:]
     return out

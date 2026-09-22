@@ -924,11 +924,23 @@
     },
     "converter:missing_in_figures_total": {
       "disposition": "EVIDENCE",
-      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the numbers measure's `missing_in_figures_total` — figures the layer carries inside a Figure/Picture block's bbox that Marker's text lacks (a chart's axis ticks: RBC p.41's 100,000 … 250,000, p.58's ten), counted APART from missing_total, never folded in; None (UNREAD) when the blocks carry no figure box or no pdf_path was given. Report-only, unseen by compute_verdict."
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): the numbers measure's `missing_in_figures_total` — figures the layer carries inside a Figure/Picture block's bbox that Marker's text lacks (a chart's axis ticks: RBC p.41's 100,000 … 250,000, p.58's ten), counted APART from missing_total, never folded in; None (UNREAD) when the blocks carry no figure box or no pdf_path was given. Report-only, unseen by compute_verdict. AMENDED S211 E3 (RBC p.122): unlabelled-band figures only (the ticks by construction); RBC AR re-measured: missing 22 · in figures 104 · labelled 14 (the capital table's rows, named)."
     },
     "converter:missing_in_figures": {
       "disposition": "EVIDENCE",
-      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): per worst page, the figures reclassified into the chart split (the page-level twin of missing_in_figures_total)."
+      "reason": "S211 E3 (2026-09-21, Rab's word 23:1xZ — a measure may never assert a number it cannot support): per worst page, the figures reclassified into the chart split (the page-level twin of missing_in_figures_total). AMENDED S211 E3 (RBC p.122): a figure inside a box counts as a tick ONLY when its band carries no row label inside that box — a partition by an observable, never a threshold; a labelled one stays under missing and is named under missing_in_figures_labelled. The label must lie inside the box: RBC p.41's ticks share their bands with the table's row labels printed outside the chart and are still ticks (inventions_selftest 26b/26c)."
+    },
+    "converter:missing_in_figures_labelled_total": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, the row-label gate — RBC p.122): the numbers measure's `missing_in_figures_labelled_total` — figures the layer carries inside a Figure/Picture box ON A LABELLED BAND (the band opens with words inside the same box): a table the layout model boxed as a picture (RBC p.122's capital table — Credit / Market / Operational, 14 figures) or a chart's labelled bar; the measure cannot tell which, so they STAY under missing_total (the loss the reader must see; the registry's error weight kept) and are named apart here. Containment alone read them as ticks — a conversion that boxed every table as a picture would have read 0 missing (S2's family). None (UNREAD) exactly when missing_in_figures_total is."
+    },
+    "converter:missing_in_figures_labelled": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, the row-label gate — RBC p.122): per worst page, the labelled figures inside a box on that page (the twin of the total; read beside missing_rows, which names their rows)."
+    },
+    "converter:numbers_missing_in_figures_labelled": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-21, the row-label gate — RBC p.122): the registry's reading of missing_in_figures_labelled_total, beside numbers_missing and numbers_missing_in_figures (variants.summarize)."
     },
     "converter:lost_hyphen_joined": {
       "disposition": "EVIDENCE",
