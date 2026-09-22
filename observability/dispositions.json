@@ -990,6 +990,34 @@
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-22, SYM-163 — McGill-1 ~148): the registry bucket's `analyst_confounded` — the candidates that beat the incumbent on convert survival and lost on the verdict alone, failed at the ANALYST phase (the local model's own sampling; three runs of exactly the threshold at page anchors): the incumbent stays, each such candidate named with its note so the reader sees the convert fix worked and what failed was the analyst's pass — an analyst re-run on the same Marker body owed. Printed by `variants.py show`."
     },
+    "converter:lost_compound_hyphen": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, the error accounting's mechanism reading): the inventions measure's `lost_compound_hyphen` (SYM-167) — a lost witness word that equals two ADJACENT Marker words: a genuine compound hyphen the layer's own line-wrap fused (the PBO's Robert-Ouimet); out of lost_total_excl_joined, never out of lost_total."
+    },
+    "converter:lost_compound_hyphen_specimens": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, the error accounting's mechanism reading): up to 6 specimens of lost_compound_hyphen: page, the fused witness word, Marker's two words."
+    },
+    "converter:fused": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, the error accounting's mechanism reading): inside a lost_compound_hyphen specimen: the witness's fused token."
+    },
+    "converter:invented_compound_hyphen": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, the error accounting's mechanism reading): the two halves of a fused compound Marker kept whole, counted apart on the invented side; out of invented_total_excl_joined, never out of invented_total."
+    },
+    "converter:invented_net": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, the error accounting's mechanism reading): per worst page: the invented words net of both hyphen exemptions (the raw `invented` kept beside it) — what a reader should count on the page."
+    },
+    "converter:lost_net": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, the error accounting's mechanism reading): per worst page: the lost words net of both hyphen exemptions (the raw `lost` kept beside it)."
+    },
+    "converter:witness_kind": {
+      "disposition": "EVIDENCE",
+      "reason": "S211 E3 (2026-09-22, the error accounting's mechanism reading): the registry's reading of the convert block's `kind` — `fidelity` (the layer is the witness) or `agreement` (an embedded OCR layer the lane called untrusted; SYM-170): under `agreement` the word and figure counts read None and _compare excludes them by name."
+    },
     "converter:blocks_occurrences": {
       "disposition": "EVIDENCE",
       "reason": "S211 E3 (2026-09-22, McGill-1 ~148): `ligature_repair.blocks_occurrences` — how many words the repair's decided map touched in the bundle's blocks record (the record the inventions measure counts), so the record and the shipped body describe the same words; the measure read IDENTICAL numbers on the repaired and unrepaired bundle before this. None (UNREAD) when the record is absent or unreadable — the body's repair stands either way."

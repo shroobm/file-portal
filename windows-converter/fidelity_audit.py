@@ -533,6 +533,14 @@ def _one_edit(a: str, b: str) -> bool:
     return short[i:] == long_[i + 1:]
 
 
+def _inventions_page(marker: int, witness: int, invented: int, lost: int, invented_net: int, lost_net: int, specimens: list) -> dict:
+    """One worst page's record for audit_inventions — a dict LITERAL that leaves a function, so the glass census harvests its
+    keys (a dict assigned into a subscript hangs its keys where the census cannot see them — S211 E1 row 4's lesson, again).
+    S211 E3: invented_net / lost_net are the counts net of both hyphen exemptions; the raw invented / lost keep their meaning."""
+    return {"marker": marker, "witness": witness, "invented": invented, "lost": lost,
+            "invented_net": invented_net, "lost_net": lost_net, "specimens": specimens}
+
+
 def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fidelity") -> dict:
     """S209 B35 (2026-09-20) — THE AUDIT'S BLIND SIDE, report-only. Survival counts what the output LOST against the
     witness; a re-OCR'd clean page can also INVENT words the layer never had (RBC Q3, Marker's own re-OCR of a born-digital
@@ -581,6 +589,11 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     # invented_total_excl_joined can say the honest rest (Bill C-30 ~160c: 167 invented on the layer path against 27 on
     # the OCR path, which keeps the layer's line breaks and never joins).
     invented_hyphen_joined = 0
+    # S211 E3 (the accounting's mechanism reading): a genuine compound hyphen at a line wrap — the witness fuses it,
+    # Marker keeps it — counted apart on both sides (see below); out of the honest rests, never out of the raw totals
+    lost_compound_hyphen = 0
+    lost_compound_hyphen_specimens: list[dict] = []
+    invented_compound_hyphen = 0
     for pnum, raw in enumerate(pages_raw, start=1):
         mw = by_page.get(pnum)
         if not mw:
@@ -623,6 +636,7 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         # `circonstance` carries it) — so a pair counts 2 under lost_hyphen_joined when both halves are lost, and
         # lost_total_excl_joined reads 0 for the pair, not 1. One specimen per pair.
         _lost_set_positions = set(lost_positions)
+        _joined_positions: set = set()
         for _i in lost_positions:
             if not frag_flags[_i] or _i + 1 >= len(lw):
                 continue
@@ -630,13 +644,43 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
             if _joined_word not in ms:
                 continue
             lost_hyphen_joined += 1
+            _joined_positions.add(_i)
             if _i + 1 in _lost_set_positions:
                 lost_hyphen_joined += 1
+                _joined_positions.add(_i + 1)
             if len(lost_hyphen_joined_specimens) < LOST_JOINED_SPECIMENS:
                 lost_hyphen_joined_specimens.append({"page": pnum, "fragment": lw[_i], "joined_with": lw[_i + 1], "joined": _joined_word})
+        # S211 E3 (the accounting's mechanism reading — the PBO's `Robert-Ouimet`, the MIT CIO report's
+        # `automation-vulnerable`): the witness dehyphenation above deletes EVERY line-end hyphen, so a genuine
+        # compound name wrapped at its own hyphen fuses into one witness token (`robertouimet`) that Marker — right to
+        # keep the hyphen — never has: one "lost" and two "invented" words where nothing was lost. The mirror of the
+        # join exemption: a lost witness word that equals two ADJACENT Marker words is a compound the layer's own
+        # line-wrap fused; the witness word counts under lost_compound_hyphen, the two Marker words under
+        # invented_compound_hyphen — both out of the honest rests, never out of the raw totals.
+        _mw_pairs = {mw[i] + mw[i + 1]: (mw[i], mw[i + 1]) for i in range(len(mw) - 1)}
+        _compound_marker_words: set = set()
+        for _i in lost_positions:
+            if _i in _joined_positions:
+                continue
+            _pair = _mw_pairs.get(lw[_i])
+            if _pair is None:
+                continue
+            lost_compound_hyphen += 1
+            _joined_positions.add(_i)
+            _compound_marker_words.update(_pair)
+            if len(lost_compound_hyphen_specimens) < LOST_JOINED_SPECIMENS:
+                lost_compound_hyphen_specimens.append({"page": pnum, "fused": lw[_i], "marker_words": list(_pair)})
+        # the lists a READER sees (worst[]'s specimens and the per-page net counts) are net of both exemptions — the
+        # Wiener specimens named words the source spells correctly, split only by its own soft hyphens
+        lost_net = [lw[i] for i in lost_positions if i not in _joined_positions]
         if invented:
-            spec = sorted(set(invented), key=lambda w: (-invented.count(w), w))[:6]
-            pages[pnum] = {"marker": len(mw), "witness": len(lw), "invented": len(invented), "lost": len(lost), "specimens": spec}
+            # S211 E3: the specimens a reader sees are NET of the two hyphen exemptions (a rejoined pair's word, a fused
+            # compound's halves are the layer's own line-wrap, not inventions); the raw counts keep their meaning beside
+            # the net ones
+            _hj = {lw[i] + lw[i + 1] for i in range(len(lw) - 1) if frag_flags[i]}
+            invented_net = [w for w in invented if w not in _hj and w not in _compound_marker_words]
+            spec = sorted(set(invented_net), key=lambda w: (-invented_net.count(w), w))[:6]
+            pages[pnum] = _inventions_page(len(mw), len(lw), len(invented), len(lost), len(invented_net), len(lost_net), spec)
             # S209 E13 (SYM-143, Stanford CIFE p.32): one invented word written 291 times where the layer draws 48 check marks
             # — a recogniser's one word for a glyph it cannot read, repeated. Counted as ITS OWN class: the word, its count
             # and its page ride beside invented_total (which still counts every copy), so 292 invented reads as one repeat.
@@ -661,6 +705,8 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
                 c = invented.count(w)
                 if w in hyphen_joined_pairs:
                     invented_hyphen_joined += c
+                elif w in _compound_marker_words:
+                    invented_compound_hyphen += c
                 if w in joined_pairs:
                     cls = "joined"
                 elif any(w != x and w in x for x in lost_set):
@@ -687,13 +733,18 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         "pages_measured": measured,
         "invented_total": inv_total,
         "invented_hyphen_joined": invented_hyphen_joined,                  # S211 E3: count, not subtracted from invented_total
-        "invented_total_excl_joined": inv_total - invented_hyphen_joined,  # the honest rest on the invented side
+        "invented_compound_hyphen": invented_compound_hyphen,              # S211 E3: the two halves of a fused compound Marker kept whole
+        "invented_total_excl_joined": inv_total - invented_hyphen_joined - invented_compound_hyphen,  # the honest rest on the invented side
         "marker_words_total": words_total,
         "invented_ratio": round(inv_total / words_total, 5) if words_total else None,
         "lost_total": lost_total,
         "lost_hyphen_joined": lost_hyphen_joined,                          # S211 LANE B: count, not subtracted from lost_total
         "lost_hyphen_joined_specimens": lost_hyphen_joined_specimens,      # up to LOST_JOINED_SPECIMENS: page, fragment, joined_with, joined
-        "lost_total_excl_joined": lost_total - lost_hyphen_joined,        # the honest rest: lost_total's meaning kept, this one's the new number
+        # S211 E3 (the PBO's Robert-Ouimet, the MIT CIO report's automation-vulnerable): a genuine compound hyphen at a
+        # line wrap the witness fused into one token — not lost, and its halves not invented
+        "lost_compound_hyphen": lost_compound_hyphen,
+        "lost_compound_hyphen_specimens": lost_compound_hyphen_specimens,  # up to LOST_JOINED_SPECIMENS: page, fused, marker_words
+        "lost_total_excl_joined": lost_total - lost_hyphen_joined - lost_compound_hyphen,   # the honest rest, net of both exemptions
         "witness_words_total": wit_total,
         "pages_with_inventions": len(pages),
         "pages_witness_blank": blank_pages,            # witness under PAGE_MIN_WORDS: OCR of pictures, not judged
@@ -708,6 +759,10 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     }
 
 
+# S211 E3: inline TEXT tags, stripped to nothing in audit_numbers — the tag name must END there (a lookahead for space,
+# slash or the closing bracket), so `<br>` is never read as a `b` tag and `<img>` never as an `i`: a line break stripped
+# to nothing would fuse two lines' figures, the very defect this strip exists to avoid
+_INLINE_TAG_RE = re.compile(r"</?(?:i|b|em|strong|span|a|u|code|mark)(?=[\s/>])[^>]*>", re.I)
 _NUM_TOKEN = re.compile(r"(?<![\d,])\d{1,3}(?:,\d{3})+(?![\d,])|(?<![\d,.])\d{4,}(?![\d,])")   # grouped thousands, or 4+ digits
 NUMBERS_WORST_CAP = 10
 NUMBERS_SPECIMENS = 6
@@ -720,7 +775,7 @@ def _row_label(line: str) -> str:
     token (`Secured funding 4,763 10,540 …` → `Secured funding`), at most six words; empty when the line opens with a number."""
     words: list[str] = []
     for tok in (line or "").split():
-        if _NUM_TOKEN.fullmatch(tok.strip("()$,;:.")) or re.fullmatch(r"[\d,.()$%–-]+", tok):
+        if _numeric_word(tok):
             break
         words.append(tok)
         if len(words) >= 6:
@@ -731,6 +786,30 @@ def _row_label(line: str) -> str:
 def _is_year(tok: str) -> bool:
     """A bare four-digit year, 1900–2099 (a running head's `2026`), never a grouped figure."""
     return len(tok) == 4 and tok.isdigit() and 1900 <= int(tok) <= 2099
+
+
+def _numeric_word(word: str) -> bool:
+    """A word that is a figure: a number token whole, digits and their punctuation only, or a figure with its UNIT glued
+    (S211 E3 — Waterloo's `1000nm`, a chart's `12%`, `4.5x`): a word that BEGINS with a digit is a figure, never a row
+    label's word. The three band-label loops (the row label, the tick's label test) share this one test."""
+    s = word.strip("()$,;:.")
+    if _NUM_TOKEN.fullmatch(s) or re.fullmatch(r"[\d,.()$%–-]+", word):
+        return True
+    return bool(s) and s[0].isdigit()
+
+
+def _num_key(word: str, left) -> "str | None":
+    """S211 E3 (Waterloo's AFM scan: the page word `1000nm` never keyed the missing token `1000`, so a figure inside its
+    own Figure box was counted missing outside charts): the page word stripped of its wrapping punctuation is tried first;
+    then the number-shaped token INSIDE the word (the unit glued to it stripped) — the same _NUM_TOKEN the missing set
+    was cut with. None when neither is a token still owed."""
+    tok = word.strip("()$,;:.")
+    if left.get(tok):
+        return tok
+    m = _NUM_TOKEN.search(tok)
+    if m and left.get(m.group(0)):
+        return m.group(0)
+    return None
 
 
 def _rows_by_band(pdf_path, pnum: int, missing) -> "Counter":
@@ -747,8 +826,8 @@ def _rows_by_band(pdf_path, pnum: int, missing) -> "Counter":
         return rows
     left = Counter(missing)
     for w in words:
-        tok = w[4].strip("()$,;:.")
-        if not left.get(tok):
+        tok = _num_key(w[4], left)
+        if tok is None:
             continue
         left[tok] -= 1
         y0, y1 = w[1], w[3]
@@ -756,7 +835,7 @@ def _rows_by_band(pdf_path, pnum: int, missing) -> "Counter":
         band = sorted((v for v in words if abs((v[1] + v[3]) / 2 - yc) <= max(1.0, (y1 - y0) * 0.6)), key=lambda v: v[0])
         label: list[str] = []
         for v in band:
-            if _NUM_TOKEN.fullmatch(v[4].strip("()$,;:.")) or re.fullmatch(r"[\d,.()$%–-]+", v[4]):
+            if _numeric_word(v[4]):
                 break
             label.append(v[4])
             if len(label) >= 6:
@@ -798,8 +877,8 @@ def _missing_in_figures(pdf_path, pnum: int, missing: "Counter", fig_boxes: list
         return hits
     left = Counter(missing)
     for w in words:
-        tok = w[4].strip("()$,;:.")
-        if not left.get(tok):
+        tok = _num_key(w[4], left)
+        if tok is None:
             continue
         pt = pymupdf.Point((w[0] + w[2]) / 2, (w[1] + w[3]) / 2)
         box = next((r for r in rects if pt in r), None)
@@ -822,7 +901,7 @@ def _missing_in_figures(pdf_path, pnum: int, missing: "Counter", fig_boxes: list
                       key=lambda v: v[0])
         labelled = False
         for v in band:
-            if _NUM_TOKEN.fullmatch(v[4].strip("()$,;:.")) or re.fullmatch(r"[\d,.()$%–-]+", v[4]):
+            if _numeric_word(v[4]):
                 break
             labelled = True
             break
@@ -851,7 +930,11 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         p = b.get("page")
         if p is None:
             continue
-        text = re.sub(r"<[^>]+>", " ", unescape(b.get("html", "") or ""))
+        # S211 E3 (McGill-1 p.188: `<i>VLSI 2023</i>,` — the italics closed between the figure and its comma, the tag
+        # stripped to a space let _NUM_TOKEN take `2023` where the layer's own `2023,` refuses it: an "extra" figure that
+        # was never there): inline TEXT tags (i, b, em, strong, span, a, u, code, mark) strip to nothing; every other tag
+        # (p, td, br, sup, sub — a footnote mark must never fuse onto its figure) to a space, as before
+        text = re.sub(r"<[^>]+>", " ", _INLINE_TAG_RE.sub("", unescape(b.get("html", "") or "")))
         by_page.setdefault(int(p) + 1, []).extend(_NUM_TOKEN.findall(text))
     worst: list[dict] = []
     fig_boxes_all = _fig_boxes_by_page(blocks)

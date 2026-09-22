@@ -276,5 +276,55 @@ case("audit_inventions: the rejoined pair's Marker word reads invented_total 1 (
      and r_cl["invented_total"] == 4 and r_cl["invented_hyphen_joined"] == 0 and r_cl["invented_total_excl_joined"] == 4
      and r_genuine["invented_total"] == 0 and r_genuine["invented_hyphen_joined"] == 0,
      (r_frag["invented_total"], r_frag["classes"], r_frag["invented_hyphen_joined"], r_cl["invented_hyphen_joined"], r_genuine["invented_total"]))
+
+# 30 · S211 E3 (the accounting's mechanism reading — the PBO's `Robert-Ouimet`, the MIT CIO report's `automation-vulnerable`):
+# a GENUINE compound hyphen at a line wrap — the witness dehyphenation fuses it (`robertouimet`), Marker rightly keeps the
+# hyphen (`robert`, `ouimet`) — read 1 lost + 2 invented where nothing was lost. Counted apart on both sides; the honest
+# rests net of it; the specimens a reader sees net of it. Negative control: the same name NOT at a line wrap (`Robert
+# Ouimet` printed as two words) counts nothing under the compound keys.
+WIT_CMP = ("The report was tabled by Robert-\nOuimet before the committee adjourned for the season and every member present "
+           "signed the record of the proceedings before leaving the chamber for the recess")
+MK_CMP = ("The report was tabled by Robert-Ouimet before the committee adjourned for the season and every member present "
+          "signed the record of the proceedings before leaving the chamber for the recess")
+r_cmp = fa.audit_inventions([WIT_CMP], [{"page": 0, "block_type": "Text", "html": "<p>%s</p>" % MK_CMP}])
+case("audit_inventions: a genuine compound hyphen at a line wrap reads lost_total 1 / invented_total 2 (raw, unchanged meaning), "
+     "lost_compound_hyphen 1, invented_compound_hyphen 2, both honest rests 0, worst[] specimens empty",
+     r_cmp["lost_total"] == 1 and r_cmp["invented_total"] == 2 and r_cmp["lost_compound_hyphen"] == 1 and r_cmp["invented_compound_hyphen"] == 2
+     and r_cmp["lost_total_excl_joined"] == 0 and r_cmp["invented_total_excl_joined"] == 0
+     and r_cmp["lost_compound_hyphen_specimens"] == [{"page": 1, "fused": "robertouimet", "marker_words": ["robert", "ouimet"]}]
+     and r_cmp["worst"][0]["specimens"] == [] and r_cmp["worst"][0]["invented_net"] == 0 and r_cmp["worst"][0]["lost_net"] == 0, r_cmp)
+WIT_CMP2 = WIT_CMP.replace("Robert-\nOuimet", "Robert\nOuimet")
+r_cmp2 = fa.audit_inventions([WIT_CMP2], [{"page": 0, "block_type": "Text", "html": "<p>%s</p>" % MK_CMP.replace("Robert-Ouimet", "Robert Ouimet")}])
+case("audit_inventions (negative control): the same two words with no hyphen read 0 lost, 0 invented, 0 under the compound keys",
+     r_cmp2["lost_total"] == 0 and r_cmp2["invented_total"] == 0 and r_cmp2["lost_compound_hyphen"] == 0 and r_cmp2["invented_compound_hyphen"] == 0, r_cmp2)
+# 31 · S211 E3 (Wiener's Cybernetics: worst[] named words the source spells correctly, split only by its soft hyphens): the
+# rejoined pair's word is not a specimen; the per-page net counts read 0
+case("audit_inventions: the rejoined pair page (case 27) shows specimens [] and invented_net 0 / lost_net 0 beside its raw 1 / 2",
+     r_frag["worst"][0]["specimens"] == [] and r_frag["worst"][0]["invented_net"] == 0 and r_frag["worst"][0]["lost_net"] == 0
+     and r_frag["worst"][0]["invented"] == 1 and r_frag["worst"][0]["lost"] == 2, r_frag["worst"])
+# 32 · S211 E3 (McGill-1 p.188: `<i>VLSI 2023</i>,`): an inline text tag closing between a figure and its comma, stripped to a
+# space, let _NUM_TOKEN take `2023` where the layer's own `2023,` refuses it — an "extra" figure never there. Inline tags strip
+# to nothing; a <sup> footnote mark still strips to a space (never fused onto its figure); <br> is never a `b` tag.
+r_tag = fa.audit_numbers(["as shown in VLSI 2023, the result holds"], [{"page": 0, "html": "<p>as shown in <i>VLSI 2023</i>, the result holds</p>"}])
+r_sup = fa.audit_numbers(["revenue of 12,345 1 rose"], [{"page": 0, "html": "<p>revenue of 12,345<sup>1</sup> rose</p>"}])
+r_br = fa.audit_numbers(["first 12,345 then 67,890"], [{"page": 0, "html": "<p>first 12,345<br>then 67,890</p>"}])
+case("audit_numbers: `<i>VLSI 2023</i>,` reads extra 0 (the negative control read extra 1); `12,345<sup>1</sup>` reads extra 0 missing 0 "
+     "(no fusing); `12,345<br>then` keeps both figures",
+     r_tag["extra_total"] == 0 and r_tag["missing_total"] == 0 and r_sup["extra_total"] == 0 and r_sup["missing_total"] == 0
+     and r_br["extra_total"] == 0 and r_br["missing_total"] == 0, (r_tag, r_sup, r_br))
+# 33 · S211 E3 (Waterloo's AFM scan, `1000nm`): the page word carries a unit glued to the figure; the missing token is the digits
+# alone — the key inside the word must reach the containment test, so the figure inside its own Figure box is a tick
+_unit_dir = tempfile.mkdtemp(prefix="fp-numfig-unit-")
+_unit_doc = fitz.open()
+_unit_page = _unit_doc.new_page(width=612, height=792)
+_unit_page.draw_rect(fitz.Rect(*_FIG_BOX), width=0.5)
+_unit_page.insert_text((_FIG_BOX[0] + 10, _FIG_BOX[1] + 20), "1000nm", fontsize=9)
+_unit_pdf = os.path.join(_unit_dir, "unit.pdf")
+_unit_doc.save(_unit_pdf)
+r_unit = fa.audit_numbers(["the scale bar reads 1000nm across the image"], [{"page": 0, "block_type": "Figure", "bbox": _FIG_BOX, "html": ""}], pdf_path=_unit_pdf)
+case("audit_numbers: a unit-glued figure (`1000nm`) inside its Figure box reads missing_in_figures 1, missing 0 (the negative "
+     "control: the verbatim-word key never matched — missing 1)",
+     r_unit["missing_total"] == 0 and r_unit["missing_in_figures_total"] == 1, r_unit)
+
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

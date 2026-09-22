@@ -31,7 +31,7 @@ def _manifest(
     tables_total=1, rows_lost=0, columns_lost=0, tables_witnessed_lines=10,
     figures_total=1, degeneration=False, surya=0, fixes=None,
     omit_inventions=False, omit_tables=False, omit_figures=False, omit_numbers=False,
-    omit_analyst=False, words_lost_excl=None, inventions_excl=None,
+    omit_analyst=False, words_lost_excl=None, inventions_excl=None, kind=None,
 ) -> dict:
     convert: dict = {
         "doc_survival": survival_convert,
@@ -60,6 +60,8 @@ def _manifest(
     if not omit_numbers:
         convert["numbers"] = {"missing_total": numbers_missing, "extra_total": numbers_extra}
 
+    if kind is not None:
+        convert["kind"] = kind
     fidelity: dict = {"verdict": verdict, "verdict_phase": phase, "convert": convert}
     if not omit_analyst:
         fidelity["analyst"] = {"doc_survival": survival_analyst}
@@ -570,6 +572,23 @@ def test_analyst_confounded_candidate_is_named_not_silent():
         assert bucket["selected"] == "A-original" and bucket["analyst_confounded"] == [], bucket
 
 
+def test_scan_lane_agreement_counts_read_none_not_errors():
+    """S211 E3 (the accounting's mechanism reading — Stanford Research, Shannon & Weaver): on the scan lane the convert
+    audit's witness is the PDF's own untrusted OCR layer (kind "agreement"; fidelity_audit's meaning: "disagreement, not
+    invention") — the registry summed those counts as errors. Now the word and figure counts read None (UNREAD), the kind
+    carried, and _compare EXCLUDES them by name. NEGATIVE CONTROL: the same manifest with kind "fidelity" keeps its numbers."""
+    with _isolated() as td:
+        sha = "sha-scan-0010"
+        s = _make_bundle(td, "anchor", "Scan-Doc", sha=sha, verdict="flag", kind="agreement", words_lost=4403, inventions_total=2332, numbers_missing=706)
+        f = _make_bundle(td, "anchor", "Layer-Doc", sha="sha-layer-0011", verdict="flag", kind="fidelity", words_lost=4403, inventions_total=2332, numbers_missing=706)
+        ss, sf = variants.summarize(s), variants.summarize(f)
+        assert ss["witness_kind"] == "agreement" and ss["words_lost"] is None and ss["inventions_total"] is None and ss["numbers_missing"] is None, ss
+        assert sf["witness_kind"] == "fidelity" and sf["words_lost"] == 4403 and sf["numbers_missing"] == 706, sf
+        assert variants._error_sum(ss)[0] == 0 and "words_lost" in variants._error_sum(ss)[1], variants._error_sum(ss)
+        verdict, excluded = variants._compare(ss, dict(ss, dir="other"))
+        assert verdict == "tie" and "words_lost" in excluded and "numbers_missing" in excluded, (verdict, excluded)
+
+
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -594,6 +613,7 @@ TESTS = [
     test_unmeasured_field_excluded_never_read_as_zero,
     test_degeneration_on_both_sides_is_not_a_refusal,
     test_analyst_confounded_candidate_is_named_not_silent,
+    test_scan_lane_agreement_counts_read_none_not_errors,
 ]
 
 

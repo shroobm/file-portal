@@ -105,6 +105,17 @@ def summarize(bundle_dir) -> dict:
     assets_dir = bp / "assets"
     assets_count = sum(1 for p in assets_dir.rglob("*") if p.is_file()) if assets_dir.is_dir() else 0
 
+    # S211 E3 (the accounting's mechanism reading — Stanford Research's report, Shannon & Weaver): on the SCAN lane the
+    # convert audit's witness is the PDF's own embedded OCR layer, which the lane decision already called untrusted;
+    # fidelity_audit labels the block kind "agreement" and its meaning "disagreement, not invention" — yet the registry
+    # summed those counts as errors and the tickets read them as losses. A disagreement between two OCR passes is not a
+    # measured loss: the word and figure counts read None (UNREAD, excluded and named by _compare), the kind carried.
+    witness_kind = convert.get("kind")
+    agreement = witness_kind == "agreement"
+
+    def _loss(v):
+        return None if agreement else v
+
     return {
         "dir": bp.name,
         "root": _infer_root(bp),
@@ -122,19 +133,20 @@ def summarize(bundle_dir) -> dict:
         "survival_analyst": analyst_fid.get("doc_survival"),
         "pages_flagged": convert.get("pages_flagged"),
         "runs_total": convert.get("runs_total"),
-        "inventions_total": inventions.get("invented_total"),
-        "words_lost": inventions.get("lost_total"),
+        "witness_kind": witness_kind,                                       # "fidelity" (the layer) | "agreement" (an embedded OCR layer) | None
+        "inventions_total": _loss(inventions.get("invented_total")),
+        "words_lost": _loss(inventions.get("lost_total")),
         # S211 E3 (Rab's word 23:1xZ — the measures secured): the honest rests beside the old numbers. None on a manifest
         # audited before the keys existed (UNREAD, never 0): rank and faithful fall back / read UNREAD, never a falsified
         # comparison across the two vocabularies.
-        "inventions_excl_joined": inventions.get("invented_total_excl_joined"),
-        "words_lost_excl_joined": inventions.get("lost_total_excl_joined"),
-        "numbers_missing": numbers.get("missing_total"),
-        "numbers_missing_in_figures": numbers.get("missing_in_figures_total"),
+        "inventions_excl_joined": _loss(inventions.get("invented_total_excl_joined")),
+        "words_lost_excl_joined": _loss(inventions.get("lost_total_excl_joined")),
+        "numbers_missing": _loss(numbers.get("missing_total")),
+        "numbers_missing_in_figures": _loss(numbers.get("missing_in_figures_total")),
         # S211 E3 (RBC p.122): figures inside a Figure box on a LABELLED band — a table the layout model boxed as a picture,
         # or a chart's labelled bar; still inside numbers_missing (the error weight kept), named here so a reader sees it
-        "numbers_missing_in_figures_labelled": numbers.get("missing_in_figures_labelled_total"),
-        "numbers_extra": numbers.get("extra_total"),
+        "numbers_missing_in_figures_labelled": _loss(numbers.get("missing_in_figures_labelled_total")),
+        "numbers_extra": _loss(numbers.get("extra_total")),
         "tables_total": tables.get("tables_total"),
         "rows_lost": tables.get("rows_lost"),
         "rows_lost_population": tables.get("rows_lost_population"),
