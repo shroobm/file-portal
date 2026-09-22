@@ -314,6 +314,56 @@ def _degenerate_blocks(markdown: str) -> list[tuple[dict, int]]:
     return found
 
 
+def _locate_degenerate(degen: dict, blocks: list | None) -> dict:
+    """S211 E7 (SYM-179's cheap half): each flagged block given its PAGE, block id and bbox, by matching the
+    paragraph's own excerpt against the blocks record `audit_convert` already holds. The detector itself is handed
+    markdown and can never name a page; this is the only place in the audit where both are in hand.
+
+    Report-only — `compute_verdict` reads the bool beside this, never these keys. The match is deliberately strict and
+    fails LOUD: a paragraph whose excerpt matches no block, or matches more than one, gets `page: None` and a `locate`
+    reason saying which, so a reader is never sent to a page the audit guessed. When no blocks record was given, every
+    entry reads `locate: "UNREAD (no blocks record)"` — never 0, never a page."""
+    # module-local, as the two other users of `unescape` in this file are
+    from html import unescape
+
+    def norm(s: str) -> str:
+        """the two sides made comparable: the excerpt comes from MARKDOWN (a heading's `#`, `**` emphasis, `$$` math,
+        a backslash-escaped underscore) and the block carries HTML. Read on the live shelf: without this, 4 of 12
+        flagged blocks read UNREAD purely on markdown syntax — an equation, an escaped rule line, a heading."""
+        s = re.sub(r"[\\*_`#$>\[\]()~|]+", " ", s or "")
+        return " ".join(s.split()).lower()
+
+    worst = (degen or {}).get("worst") or []
+    if not worst:
+        return degen
+    if not blocks:
+        for w in worst:
+            w["page"], w["block_id"], w["bbox"] = None, None, None
+            w["locate"] = "UNREAD (no blocks record was given to the audit)"
+        return degen
+    texts = []
+    for b in blocks:
+        if b.get("page") is None:
+            continue
+        txt = norm(re.sub(r"<[^>]+>", " ", unescape(b.get("html", "") or "")))
+        if txt:
+            texts.append((b, txt))
+    for w in worst:
+        key = norm(w.get("excerpt") or "")
+        hits = [b for b, txt in texts if key and key in txt] if key else []
+        if len(hits) == 1:
+            b = hits[0]
+            w["page"] = int(b["page"]) + 1          # 1-based, as every other page number in this block is
+            w["block_id"] = b.get("id")
+            w["bbox"] = b.get("bbox")
+            w["locate"] = "matched on the excerpt"
+        else:
+            w["page"], w["block_id"], w["bbox"] = None, None, None
+            w["locate"] = ("UNREAD (the excerpt matches no block)" if not hits
+                           else f"UNREAD (the excerpt matches {len(hits)} blocks)")
+    return degen
+
+
 def mask_degenerate_reference(markdown: str) -> tuple[str, dict]:
     """S131 (Rab signed 2026-09-12): a reference block the audit's OWN degeneration detector
     flags is Marker's disease, not the book, and a body that lacks it is not missing anything.
@@ -1124,6 +1174,14 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
     doc_survival = round(weighted_sum / total_windows, 4) if total_windows else 1.0
 
     degen = degeneration(markdown)
+    # S211 E7 (SYM-179): the detector sees markdown only, so it can say WHAT looped and not WHERE. The blocks record is
+    # in hand here, so each flagged block is given its page, id and bbox — and the frame of `line` is named, because
+    # the number was always right and only its denominator was unsaid (Tufte: md_lines 2,744 is the .marker.txt's line
+    # count and line 345 there IS the loop; the shipped .md is 3,004 lines with its front matter and the analyst pass).
+    degen = _locate_degenerate(degen, blocks)
+    degen["line_counts_against"] = ("the AUDITED body — Marker's markdown as given to this audit, which ships beside "
+                                    "the manifest as <stem>.marker.txt — NOT the shipped .md, whose front matter and "
+                                    "analyst pass shift every line")
     block = {
         "witness": witness_label,
         "kind": kind,

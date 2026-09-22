@@ -171,6 +171,32 @@ check(it_new["table_rows_stripped"] == 120, "…with all 120 rows counted as bla
 frag = fa.degeneration(INTER.replace("| x | y |", ""))
 check(not frag["flagged"], "DECOY: the same body with rows replaced by EMPTY lines does NOT trip — the fragmentation lane B found")
 
+# ---------- D-LOC: SYM-179's locator (S211 E7) — a flagged block a reader can actually get to ----------
+# The detector is handed markdown and can never name a page; audit_convert holds the blocks record, so the flagged
+# paragraph is matched to its block by its own excerpt. Report-only: compute_verdict reads the bool beside it.
+LOOP = "FRANKED MAIL TIE " + "TO VOTING SHOWN " * 130
+_BLK = [{"page": 33, "id": "/page/33/Text/6", "bbox": [43.5, 522.7, 512.4, 699.0],
+         "html": "<p>FRANKED MAIL TIE TO VOTING SHOWN TO VOTING SHOWN TO VOTING SHOWN TO VOTING SHOWN</p>"},
+        {"page": 4, "id": "/page/4/Text/1", "bbox": [10.0, 20.0, 30.0, 40.0], "html": "<p>an ordinary paragraph</p>"}]
+d_loc = fa._locate_degenerate(fa.degeneration(LOOP), _BLK)
+w0 = d_loc["worst"][0]
+check(w0["page"] == 34 and w0["block_id"] == "/page/33/Text/6" and w0["bbox"] == [43.5, 522.7, 512.4, 699.0]
+      and w0["locate"] == "matched on the excerpt",
+      "D-LOC1 POSITIVE CONTROL: the flagged block finds its own block — page 1-BASED (33 -> 34), id and bbox carried")
+d_none = fa._locate_degenerate(fa.degeneration(LOOP), None)
+check(d_none["worst"][0]["page"] is None and "UNREAD" in d_none["worst"][0]["locate"],
+      "D-LOC2: with NO blocks record the page reads UNREAD by name — never 0, never a page the audit guessed")
+d_two = fa._locate_degenerate(fa.degeneration(LOOP), _BLK + [dict(_BLK[0], page=90, id="/page/90/Text/1")])
+check(d_two["worst"][0]["page"] is None and "2 blocks" in d_two["worst"][0]["locate"],
+      "D-LOC3: an excerpt matching TWO blocks names neither — a locator that always answers is not a locator")
+MD_LOOP = "# **\\_INTERNATIONAL PROPERTY\\_** " + "AND ROUTE " * 200
+_BLK_MD = [{"page": 10, "id": "/page/10/SectionHeader/1", "bbox": [1.0, 2.0, 3.0, 4.0],
+            "html": "<h1>INTERNATIONAL PROPERTY AND ROUTE AND ROUTE AND ROUTE AND ROUTE</h1>"}]
+d_md = fa._locate_degenerate(fa.degeneration(MD_LOOP), _BLK_MD)
+check(d_md["worst"] and d_md["worst"][0]["page"] == 11,
+      "D-LOC4: an excerpt carrying markdown (a heading's #, ** emphasis, escaped underscores) still finds its HTML "
+      "block — the normalisation that took the live shelf from 8 of 12 located to 10 of 12")
+
 # ---------- verdict ----------
 n_checks = len(re.findall(r"^\s*check\(", Path(__file__).read_text(encoding="utf-8"), re.M))
 total = len(FAILURES)
