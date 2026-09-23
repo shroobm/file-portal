@@ -97,6 +97,14 @@ a reachability repair that this primary register already supplies.
 
 ## §A AWAITING RAB'S SIGNATURE — semantic, a session may not decide these
 
+> **S211 (2026-09-23), on his word at 05:37:34Z — *"Tell me all the things you need me to sign or not sign
+> and reasons, on the next open."* — the nine live items are written out in full, each with its reason,
+> what signing costs, what refusing costs, and a recommendation where one is held:
+> `sittings/S211/SIGN-BRIEF.md` in the private half. Read it at the open, before this register.**
+>
+> Its first item carries the only strong recommendation: **do not sign the degeneration exemption** —
+> eight blocks read at their pages, eight loops, real false-alarm rate 0 of 14 rather than 21 %.
+
 ### A.1 The signature register (`docs/37` §3) — items still OPEN at HEAD
 
 | # | The decision | Options on the table | Fable's standing recommendation | Source |
