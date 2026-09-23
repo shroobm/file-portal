@@ -295,6 +295,31 @@ if [[ -f "$README" ]]; then
   # Tripwire: selftest CASE 37, with a both-spellings fixture and a prose-mention control.
   reg_row "symptoms" "$SYMS" \
     "$(grep -cU '^| SYM-' "$SYMS" 2>/dev/null || echo '?') row(s), $(grep -coU '| \(`open`\|\*\*OPEN\)' "$SYMS" 2>/dev/null || echo '?') open"
+  # S212, Phase C's second half (accounting/SCOPE-AND-PLAN.md, signed): the ticket register's open count BY FAMILY,
+  # beside the SYM count, for the same reason the SYM count is here - a number that only rises must be visible as a
+  # number that only rises. The register is the error accounting's, one row per measured fault on a real document.
+  #
+  # TWO THINGS THIS ROW IS CAREFUL ABOUT.
+  # (1) The register lives in the PRIVATE tree and this script is PUBLIC. On a machine without that tree the row must
+  #     read UNREAD - never 0, never absent. A zero here would say "no document has an open fault", which is the most
+  #     flattering possible lie and exactly the failure the open-tasks counter made in 2026-08-27's note above.
+  # (2) It counts from the register's own rendered counts table, which tickets_render.py writes from the lane files -
+  #     so the card cannot disagree with the register unless the register itself is stale, and its age says that.
+  # Tripwire: selftest CASE 70 (a fixture register, and a negative control with the file absent).
+  TICKREG="$(dirname "$FP_REPO")/file-portal-private/sittings/S211/accounting/TICKETS.md"
+  if [[ -f "$TICKREG" ]]; then
+    tk_total=$(grep -m1 -oU '^| tickets | [0-9]*' "$TICKREG" 2>/dev/null | grep -oU '[0-9]*$' || echo '?')
+    tk_docs=$(grep -m1 -oU '^| documents accounted | [0-9]*' "$TICKREG" 2>/dev/null | grep -oU '[0-9]*$' || echo '?')
+    tk_fam=$(grep -oU '^| class [1-6] [^|]*| [0-9]*' "$TICKREG" 2>/dev/null \
+             | sed 's/^| class \([1-6]\).*| /c\1=/' | tr '\n' ' ' | sed 's/ $//')
+    # NOT `python` — bare python on this machine is the Store stub and exits 49 (the rule the close's glass step
+    # carries). The age comes from stat + date, the same idiom reg_row already uses for its days.
+    tk_mt=$(stat -c %Y "$TICKREG" 2>/dev/null || echo 0)
+    if [[ "$tk_mt" -gt 0 ]]; then tk_age=$(( ( $(date +%s) - tk_mt ) / 3600 )); else tk_age="?"; fi
+    row "tickets" "${tk_total:-?} ticket(s) over ${tk_docs:-?} document(s) · ${tk_fam:-UNREAD} · rendered ${tk_age:-?}h ago"
+  else
+    row "tickets" "UNREAD — the private accounting register is not on this machine; NOT a statement that nothing is open"
+  fi
   if [[ -f "$FP_REPO/coordination/relay.md" ]]; then
     row "relay" "$(grep -cU '^## 20' "$FP_REPO/coordination/relay.md" 2>/dev/null || echo '?') entries · run \`gate.py status\` for the board"
   else

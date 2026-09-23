@@ -1213,6 +1213,36 @@ else bad "CASE 69 NEGATIVE CONTROL: a failed probe must read UNREAD" "got: $(pri
 if [[ "$rc_p" -eq "$rc_pu" ]]; then ok "CASE 69: …and the exit code is the SAME read or UNREAD (warn-only by construction; what the Dock promises is Rab's)"
 else bad "CASE 69: the row must not move the exit code" "read $rc_p vs UNREAD $rc_pu"; fi
 
+# CASE 70 — THE TICKET REGISTER'S COUNT REACHES THE CARD, AND ITS ABSENCE READS UNREAD (S212, Phase C's
+# second half). The property: the card prints the accounting register's totals BY FAMILY beside the SYM
+# count, and — the half that actually matters — prints UNREAD when the private register is not on this
+# machine. A 0 there would assert that no document has an open fault, which is the most flattering
+# possible lie and the exact shape of the open-tasks undercount this suite already carries a case for.
+# Violate both ways: a fixture register beside the fixture repo, then the same run with it absent.
+TKP="$WORK/tkp/file-portal-private/sittings/S211/accounting"; mkdir -p "$TKP"
+printf '# TICKETS\n\n## The counts\n\n| what | count |\n|---|---|\n| documents accounted | 7 |\n| tickets | 41 |\n| class 1 — an attempt that did not land | 2 |\n| class 2 — a verdict below pass | 9 |\n| class 3 — a measured loss in a shipped bundle | 20 |\n| class 4 — a reading the instrument got wrong | 5 |\n| class 5 — the whitelist consequence | 4 |\n| class 6 — a runtime or lane error | 1 |\n' > "$TKP/TICKETS.md"
+R70="$WORK/tkp/file-portal"; mkdir -p "$(dirname "$R70")"
+sha70=$(mkrepo "$R70" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha70/" "$R70/CLAUDE_README.md"
+git -C "$R70" add -A >/dev/null 2>&1; git -C "$R70" commit -qm tk >/dev/null 2>&1
+mklib "$WORK/l70" 12 S42 "$sha70"
+out=$(MEMORY_LIB="$WORK/l70" FP_REPO="$R70" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" \
+      WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1); rc=$?
+if printf '%s' "$out" | grep -qE 'tickets +41 ticket\(s\) over 7 document\(s\)'; then ok "CASE 70: the card reads the register's totals (41 over 7)"
+else bad "CASE 70: the card must read the register's totals" "got: $(printf '%s' "$out" | grep -E 'tickets' | head -2)"; fi
+if printf '%s' "$out" | grep -qE 'c1=2 c2=9 c3=20 c4=5 c5=4 c6=1'; then ok "CASE 70: …and prints the open count BY FAMILY, which is the whole point of the row"
+else bad "CASE 70: the family breakdown must reach the card" "got: $(printf '%s' "$out" | grep -E 'tickets' | head -2)"; fi
+rm -f "$TKP/TICKETS.md"
+out=$(MEMORY_LIB="$WORK/l70" FP_REPO="$R70" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" \
+      WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1); rc70u=$?
+if printf '%s' "$out" | grep -qE 'tickets +UNREAD'; then ok "CASE 70 NEGATIVE CONTROL: an absent private register reads UNREAD"
+else bad "CASE 70 NEGATIVE CONTROL: an absent register must read UNREAD" "got: $(printf '%s' "$out" | grep -E 'tickets' | head -2)"; fi
+if printf '%s' "$out" | grep -qE 'tickets +(0 ticket|.*c1=0)'; then
+  bad "CASE 70 NEGATIVE CONTROL: absence must NEVER render as a zero count" "the card printed a 0 where it could not read"
+else ok "CASE 70 NEGATIVE CONTROL: …and never renders absence as 0 — the flattering lie this row exists to refuse"; fi
+if [[ "$rc" -eq "$rc70u" ]]; then ok "CASE 70: the row is warn-only — the exit code is the same read or UNREAD"
+else bad "CASE 70: the tickets row must not move the exit code" "read $rc vs UNREAD $rc70u"; fi
+
 printf '\n%s\n' "────────────────────────────────"
 # S194 E1: three tallies — fired (pass) / skipped (not run here, said) / silent (failed) — and the exit reads the fired cases only.
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s · fired %s / skipped %s / silent 0%s\n' "$pass" "$((pass+failed))" "$pass" "$skipped" "$([[ $skipped -gt 0 ]] && printf ' (a skip is not a pass: %s assertion(s) could not run on this platform)' "$skipped")"; exit 0
