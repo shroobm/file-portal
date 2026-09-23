@@ -591,7 +591,20 @@ def words_from_stream(letters: str, lex: dict, min_len: int = 3, min_count: int 
         if best[p + 1] is None or gap[0] > best[p + 1][0]:
             best[p + 1] = gap
         firsts = pat[p] if isinstance(pat[p], str) else "abcdefghijklmnopqrstuvwxyz"
-        for f in set(firsts):
+        # S212 (SYM-175's ROOT CAUSE, reproduced): the tie-break below is strictly `>`, so on an exact tie the
+        # FIRST-ARRIVING candidate wins — and arrival order came from iterating a SET of single-character strings.
+        # Python randomises string hashing per process, so the same letters and the same lexicon chose a different
+        # word in each run: `~ate` against a lexicon of gate/late/date/rate/fate/mate/hate returned SEVEN different
+        # words across ten PYTHONHASHSEED values. That word goes into the table, the table goes into the fenced text,
+        # the fenced text is what `analyst._chunks` cuts — so one boundary moves, every later chunk slides, and the
+        # analyst reaches a different verdict on a BYTE-IDENTICAL Marker body. That is SYM-175 end to end, and it
+        # never involved the model, which was measured deterministic (7 of 7 identical) before this was found.
+        #
+        # `sorted` is the minimal repair: it changes no score, no threshold and no bucket's contents — only the order
+        # buckets are offered in, which was previously luck. WHICH word should win a true tie (alphabetical, as here,
+        # or the one the book uses most) is a quality question and is Rab's; this makes the answer reproducible so
+        # that question can even be asked. Tripwire: sittings/S212/sym175_probe.py, the seed sweep.
+        for f in sorted(set(firsts)):
             for w in by_first.get(f, ()):
                 for k in range(max(min_len, len(w) - 2), min(n - p, len(w) + 1) + 1):
                     sub = "".join(glyphs[p:p + k])
