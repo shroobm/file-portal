@@ -1,7 +1,7 @@
 {
   "writer": "Fable",
   "protocol": "fp-relay-ack/v1",
-  "updated_utc": "2026-09-21T15:08Z",
+  "updated_utc": "2026-09-22T00:13Z",
   "state": "blocked-on-ack",
   "current_ticket": "S120-RELAY-COTEST",
   "sent": [
@@ -1365,7 +1365,7 @@
       "resolved_utc": "2026-08-24T18:16Z"
     }
   ],
-  "occupant": "Claude Fable 5.1",
+  "occupant": "Claude Opus 5",
   "beat": {
     "utc": "2026-09-21T03:00Z",
     "gate_rev": "f568bc93",
