@@ -107,7 +107,7 @@ MECHANISM = {
         "a pass, a green badge, a 1.0 or an exit 0 is derived from something other than the property — the system's "
         "own output, the exit code of the wrong pipeline stage, a post-override API field",
         "mutate what the check claims to verify (swap the algorithm, fail the gated stage, read the log) — does it go RED?",
-        ["SYM-001", "SYM-038", "SYM-046", "SYM-055", "SYM-056", "SYM-075", "SYM-077", "SYM-100", "SYM-153", "SYM-161", "SYM-175", "SYM-176"],  # 153 (S209 close): the lockstep's `already` exit 0 over an unwritten TIME-STATE — the guard matched an index line; 161 (S211 E3): the whitelist's tie read as "no regression" where nothing measures structure — a green over an unmeasured property
+        ["SYM-001", "SYM-038", "SYM-046", "SYM-055", "SYM-056", "SYM-075", "SYM-077", "SYM-100", "SYM-153", "SYM-161", "SYM-175", "SYM-176", "SYM-182"],  # 182 (S212 E1): the whitelist ranks on a sum of six error fields with None treated as 0, so a SCAN-lane bundle whose measures were never taken presents a PERFECT error score - absence of measurement entering the ordering as absence of error; disclosed in the reason sentence, and NOT reachable today (63 sha, every sha's variants one witness kind - sittings/S212/unmeasured_rank.py counts it) # 153 (S209 close): the lockstep's `already` exit 0 over an unwritten TIME-STATE — the guard matched an index line; 161 (S211 E3): the whitelist's tie read as "no regression" where nothing measures structure — a green over an unmeasured property
     ),
     "S3 A-DEFAULT,-CAP-OR-CUT-WEARING-A-NUMBER": (
         "an unmeasured branch returns a value that looks measured: a default 'unknown' as an identity, a display cap "
