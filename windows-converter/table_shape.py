@@ -230,6 +230,11 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
             entry["shapes"].append("text->%dx%d" % (m_rows, m_width))
             entry["column_geometry"].append("UNREAD (the text strategy gives no ruled geometry)")
     out["pages_with_columns_lost"] = sum(1 for v in per_page.values() if v["columns_lost"])
+    # S212: the cut SAYS what it cut. `worst` is capped at WORST_CAP and the block recorded only the survivors, so a
+    # reader met ten pages with no way to tell ten-of-eleven from ten-of-two-hundred. The population rides beside the
+    # sample; nothing is measured differently and no threshold moves. A page enters the ranking only if it lost
+    # something — the sort key is columns*10 + rows, so a page that lost neither is not a candidate for "worst".
+    out["worst_total"] = sum(1 for v in per_page.values() if v["columns_lost"] or v["rows_lost"])
     for v in sorted(per_page.values(), key=lambda v: -(v["columns_lost"] * 10 + v["rows_lost"]))[:WORST_CAP]:
         worst.append({"page": v["page"], "columns_lost": v["columns_lost"], "rows_lost": v["rows_lost"],
                       "shapes": v["shapes"], "column_geometry": v["column_geometry"]})

@@ -77,6 +77,11 @@ def figure_text(doc, blocks: list[dict], lane: str) -> dict:
         e["marker_words"] += len(shipped)
         if layer and len(e["sample"]) < SAMPLE_WORDS:
             e["sample"].extend(layer[:SAMPLE_WORDS - len(e["sample"])])
+    # S212: the cut SAYS what it cut. `worst` is capped at WORST_CAP and the block recorded only the survivors, so a
+    # reader met ten pages with no way to tell ten-of-eleven from ten-of-two-hundred. The population rides beside the
+    # sample; nothing is measured differently and no threshold moves. Only pages that actually lost words count here —
+    # the ranking is by layer minus marker, so a page at or below zero is not a candidate and must not inflate it.
+    out["worst_total"] = sum(1 for v in per_page.values() if v["layer_words"] > v["marker_words"])
     for v in sorted(per_page.values(), key=lambda v: -(v["layer_words"] - v["marker_words"]))[:WORST_CAP]:
         worst.append({"page": v["page"], "figures": v["figures"], "layer_words": v["layer_words"],
                       "marker_words": v["marker_words"], "sample": v["sample"]})

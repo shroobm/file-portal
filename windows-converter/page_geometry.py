@@ -93,7 +93,13 @@ def page_geometry(doc, blocks: list[dict], lane: str, pages_flagged=None) -> dic
             symbol_worst.append({"page": p1, "rotation": rot, "tables": int(i in tables_on), "flagged": int(p1 in flagged),
                                  "symbol_glyphs": n_sym, "sample": sample})
     worst.sort(key=lambda r: (-(r["tables"] and r["flagged"]), -r["tables"], -r["flagged"], r["page"]))
+    # S212: the cut now SAYS what it cut. `worst` has always been capped at WORST_CAP and the block recorded only the
+    # survivors, so a reader met ten pages with no way to tell ten-of-eleven from ten-of-two-hundred — a cut wearing a
+    # number (docs/18 §3's family), and the same shape as every other silent truncation this project has had to find
+    # the hard way. The population rides beside the sample; nothing is measured differently and no threshold moves.
+    out["worst_total"] = len(worst)
     del worst[WORST_CAP:]
     symbol_worst.sort(key=lambda r: (-(r["symbol_glyphs"] or 0), r["page"]))
+    out["symbol_worst_total"] = len(symbol_worst)
     del symbol_worst[WORST_CAP:]
     return out
