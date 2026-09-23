@@ -1178,6 +1178,11 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
                           # (UNREAD) exactly when the document-wide total is, never a guessed 0
                           "missing_in_furniture": (sum(fur.values()) if furniture_readable else None)})
     worst.sort(key=lambda r: (-r["extra"], -r["missing"], r["page"]))
+    # S212: the cut says what it cut. A page enters `worst` only when it has extra figures or missing at/above
+    # NUMBERS_MISSING_MIN, so the length before the cut IS the candidate population — ten shown of that many, and a
+    # reader can finally tell ten-of-eleven from ten-of-two-hundred. `blank_assets` has carried its totals beside its
+    # shown list since NUM-3; this is the same rule applied where it was missed.
+    out["worst_total"] = len(worst)
     del worst[NUMBERS_WORST_CAP:]
     return out
 

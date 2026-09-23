@@ -654,6 +654,11 @@ def table_witness(pdf_path, blocks: list[dict], pages: "list[int] | None" = None
         return len(t["dropped"]) + len(t["merged"]) + len(t["split"]) + sum(c["bands"] for c in t["collapsed"])
 
     scored = sorted(read, key=lambda t: -_score(t))
+    # S212: the cut says what it cut. This loop takes the top WORST_CAP and then BREAKS at the first zero score, so
+    # the shown list is doubly bounded and neither bound was recorded — the block stated `worst_cap` but never how
+    # many tables were actually candidates. This module already does the right thing one field up
+    # (`cross_page_population` beside `cross_page_candidates`); this is the same rule where it was missed.
+    out["worst_total"] = sum(1 for t in scored if _score(t) > 0)
     for t in scored[:WORST_CAP]:
         score = _score(t)
         if score <= 0:
