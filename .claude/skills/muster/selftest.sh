@@ -1251,6 +1251,9 @@ printf '\n%s\n' "─────────────────────
 # missing from EIGHTY-NINE consecutive sittings (S124–S212, measured; OPEN-TASKS F14): day one never
 # complained and day two blamed the guard. It is a WARN, never an exit, because a missing stamp breaks
 # nothing on the first day — it breaks the open on the second.
+# S213: gated like CASES 40–43, whose fixture this shares — off Windows mkopen43's S43-desktop-*.md reads as another
+# machine's, and the case failed on the Linux runner from S212 E5 onward (two reds, three vacuous greens).
+windows_case_72() {
 mkopen43 72
 today72=$(date -u +%Y-%m-%d)
 printf '# S43\n\n**Occupant:** t\n\n## 1. Intent\n' > "$R/sessions/S43-desktop-$today72.md"
@@ -1275,6 +1278,9 @@ if printf '%s' "$out" | grep -qE 'MISSING — stamp it now'; then bad "CASE 72 N
 else ok "CASE 72 NEGATIVE CONTROL: …and the warning does not fire on it — a warning that always fires stops being read"; fi
 if [[ "$rc72u" -eq "$rc72s" ]]; then ok "CASE 72: the stamp note is warn-only — it does not move the exit code either way"
 else bad "CASE 72: the stamp note must not move the exit code" "unstamped $rc72u vs stamped $rc72s"; fi
+}
+if on_windows; then windows_case_72; else skip "CASE 72 (S212 E5): the fixture's S43-desktop-*.md reads as "\
+"another machine's off Windows, as in CASES 40–43" "platform $(uname -s 2>/dev/null) (MUSTER_SELFTEST_PLATFORM=${MUSTER_SELFTEST_PLATFORM:-unset})" 5; fi
 
 printf '\n%s\n' "────────────────────────────────"
 # CASE 71 — THE PORTAL DOOR READS UNREAD WHEN IT CANNOT BE REACHED, NEVER "down" (S212 E4). The property is
@@ -1283,6 +1289,9 @@ printf '\n%s\n' "─────────────────────
 # whether the web app his phone talks to was up. The NEGATIVE CONTROL is the whole case: point PORTAL_URL at
 # a closed port and the card must say UNREAD and must NOT say down, and must NOT move the exit code, because
 # a dark tailnet address at 3am is not a fault and a session that treats it as one stops for nothing.
+# S213: gated — open.sh prints the task rows and the portal door INSIDE its `if tasklist works` block, so off Windows
+# neither row exists; on the Linux runner this case failed from S212 E4 onward (three reds, two vacuous greens).
+windows_case_71() {
 R71="$WORK/p71/file-portal"; mkdir -p "$(dirname "$R71")"
 sha71=$(mkrepo "$R71" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
 sed -i "s/SHAPLACEHOLDER/$sha71/" "$R71/CLAUDE_README.md"
@@ -1311,6 +1320,9 @@ if printf '%s' "$out" | grep -qE "task +'File Portal PORTAL \(web app\)'"; then 
 else bad "CASE 71: the card must carry a row for the PORTAL task" "got: $(printf '%s' "$out" | grep -E 'PORTAL' | head -2)"; fi
 if [[ "$rc71d" -eq "$rc71s" ]]; then ok "CASE 71: the door row is warn-only — an unreachable PORTAL does not move the exit code"
 else bad "CASE 71: the portal door row must not move the exit code" "unreachable $rc71d vs skipped $rc71s"; fi
+}
+if on_windows; then windows_case_71; else skip "CASE 71 (S212 E4): the task and portal-door rows live inside "\
+"open.sh's tasklist block, absent off Windows" "platform $(uname -s 2>/dev/null) (MUSTER_SELFTEST_PLATFORM=${MUSTER_SELFTEST_PLATFORM:-unset})" 5; fi
 
 printf '\n%s\n' "────────────────────────────────"
 # S194 E1: three tallies — fired (pass) / skipped (not run here, said) / silent (failed) — and the exit reads the fired cases only.
