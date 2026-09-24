@@ -522,7 +522,15 @@ row "closeout" "$closeout"
 # machine or date belongs to someone else and is a real collision.
 if [[ -n "$this_n" && -f "$FP_REPO/$closeout" ]]; then
   added=$(git -C "$FP_REPO" log --diff-filter=A --format=%h -- "$closeout" 2>/dev/null | tail -1)
-  row "" "OPEN — this session's closeout exists${added:+, added in $added} · §1 must stay byte-identical to close"
+  # S212 E5: this branch matched on the FILENAME and never looked at the stamp, so a record that carried none
+  # passed on day one and only failed on day two — as a COLLISION, which reads like someone else's fault. That is
+  # exactly how the stamp came to be missing from EIGHTY-NINE consecutive sittings (S124-S212, measured; F14): the
+  # first day never complained and the second day blamed the card. It is a WARN and not an exit, because a missing
+  # stamp on day one breaks nothing yet — but it is the last moment anyone is looking before it does.
+  cl_stamp=$(grep -m1 '⟨claimed:' "$FP_REPO/$closeout" 2>/dev/null | tr -d '\r')
+  if [[ "$cl_stamp" =~ S${this_n}([^0-9]|$) ]]; then cl_note=" · ⟨claimed⟩ stamped"
+  else cl_note=" · *** ⟨claimed: … S${this_n} …⟩ MISSING — stamp it now (coordination/authorship.md); without it a sitting past midnight opens on a COLLISION ***"; fi
+  row "" "OPEN — this session's closeout exists${added:+, added in $added}${cl_note} · §1 must stay byte-identical to close"
 elif [[ -n "$this_n" && -n "$(ls -1 "$FP_REPO/sessions/S${this_n}-"* 2>/dev/null)" ]]; then
   # SYM-072 (S114): the old guard decided by FILENAME ONLY and called every other S<n>-* file a
   # collision — which fired on day two of a multi-day session (the closeout is named by its OPEN

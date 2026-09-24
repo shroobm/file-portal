@@ -198,6 +198,14 @@ Write `sessions/S<N>-<machine>-<YYYY-MM-DD>.md` **now**, before work, containing
   the rest of the session*. The gap between intent and outcome is itself a finding.
 - **§2 Starting State** — the `open.sh` card, verbatim.
 - **the pinned `--since <SHA>`** the closeout ritual will use.
+- **its own authorship stamp**, on the byline and never inside §1:
+  `⟨claimed: Fable lane · occupant: <model> · S<N> · <UTC date>⟩` (`coordination/authorship.md`).
+  **This is not bookkeeping.** `open.sh`'s SYM-072 branch decides *this session's closeout* from
+  *a stranger's file* on that delimited stamp, so a record without one makes every open past
+  midnight read **COLLISION** and exit 1 — a fault that looks like the card's and is the file's.
+  It went missing for **89 consecutive sittings** (S124–S212, measured — OPEN-TASKS F14) because
+  the first day never complained and the second day blamed the guard. The card now warns on day
+  one; write the stamp when you create the file and the warning never fires.
 
 Then commit it as the session's opening commit (`CLAUDE_README.md` §2 already requires an open
 plan commit).

@@ -1244,6 +1244,39 @@ if [[ "$rc" -eq "$rc70u" ]]; then ok "CASE 70: the row is warn-only — the exit
 else bad "CASE 70: the tickets row must not move the exit code" "read $rc vs UNREAD $rc70u"; fi
 
 printf '\n%s\n' "────────────────────────────────"
+# CASE 72 — THE DAY-ONE CLOSEOUT SAYS WHETHER IT IS STAMPED (S212 E5). The property: the branch that
+# matches this session's OWN closeout by filename must also read its ⟨claimed:⟩ stamp and say so. It
+# matched on the name alone before, so a record with no stamp passed on day one and only failed on day
+# two — as a COLLISION, which reads like the card's fault. That is exactly how the stamp came to be
+# missing from EIGHTY-NINE consecutive sittings (S124–S212, measured; OPEN-TASKS F14): day one never
+# complained and day two blamed the guard. It is a WARN, never an exit, because a missing stamp breaks
+# nothing on the first day — it breaks the open on the second.
+mkopen43 72
+today72=$(date -u +%Y-%m-%d)
+printf '# S43\n\n**Occupant:** t\n\n## 1. Intent\n' > "$R/sessions/S43-desktop-$today72.md"
+out=$(runopen 72); rc72u=$?
+if printf '%s' "$out" | grep -qE 'MISSING — stamp it now'; then ok "CASE 72: a day-one closeout with NO stamp is told so, on the day someone can still fix it"
+else bad "CASE 72: an unstamped day-one closeout must be named" "got: $(printf '%s' "$out" | grep -E 'OPEN —' | head -1 | cut -c1-150)"; fi
+# ANCHORED to a COLLISION VERDICT — a row whose reading BEGINS with it — and not to the word anywhere
+# in the output. This assertion's first draft searched the whole card and convicted the new warning for
+# the sentence inside it ("without it a sitting past midnight opens on a COLLISION"). That is the THIRD
+# time in one day, and the second AFTER the lesson was written into CASE 71 eight lines below: a test
+# that cannot tell a verdict from a sentence about a verdict is the same confusion it is policing.
+if printf '%s' "$out" | grep -qE '^[[:space:]]*COLLISION —'; then bad "CASE 72: a missing stamp on day one is a WARN, not a collision" "printed a COLLISION verdict"
+else ok "CASE 72: …and it is not called a collision, because on day one it is not one"; fi
+# NEGATIVE CONTROL: the same file WITH its stamp must say stamped and must NOT carry the warning —
+# otherwise the note is decoration that fires on every open and stops being read, which is the failure
+# mode of every warning nobody can turn off.
+printf '# S43\n\n**Occupant:** t · ⟨claimed: Fable lane · occupant: t · S43 · %s⟩\n\n## 1. Intent\n' "$today72" > "$R/sessions/S43-desktop-$today72.md"
+out=$(runopen 72); rc72s=$?
+if printf '%s' "$out" | grep -qE '⟨claimed⟩ stamped'; then ok "CASE 72 NEGATIVE CONTROL: a stamped day-one closeout reads stamped"
+else bad "CASE 72 NEGATIVE CONTROL: a stamped closeout must say so" "got: $(printf '%s' "$out" | grep -E 'OPEN —' | head -1 | cut -c1-150)"; fi
+if printf '%s' "$out" | grep -qE 'MISSING — stamp it now'; then bad "CASE 72 NEGATIVE CONTROL: the warning must NOT fire on a stamped record" "a warning that always fires is decoration"
+else ok "CASE 72 NEGATIVE CONTROL: …and the warning does not fire on it — a warning that always fires stops being read"; fi
+if [[ "$rc72u" -eq "$rc72s" ]]; then ok "CASE 72: the stamp note is warn-only — it does not move the exit code either way"
+else bad "CASE 72: the stamp note must not move the exit code" "unstamped $rc72u vs stamped $rc72s"; fi
+
+printf '\n%s\n' "────────────────────────────────"
 # CASE 71 — THE PORTAL DOOR READS UNREAD WHEN IT CANNOT BE REACHED, NEVER "down" (S212 E4). The property is
 # the oldest one in this file and the one its own first run broke: a probe that could not run is not an
 # observation. The row was added because no card read PORTAL at all — every session opened without knowing
