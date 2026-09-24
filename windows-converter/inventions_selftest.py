@@ -9,7 +9,9 @@ S211 LANE B adds two more tripwires, also for audit_numbers: a missing figure in
 chart's axis tick (missing_in_figures), not a dropped table figure (missing) — the fixture PDF for this one IS drawn here by
 pymupdf (a page with a boxed chart tick), same pattern as figure_text_selftest.py, and saved to a temp path; a lost witness
 word that is a line-end fragment Marker correctly rejoined with the next witness word is named apart (lost_hyphen_joined),
-lost_total keeping its old meaning. Prints `==== inventions selftest: N/N ====`, exit 0 green · 1 red."""
+lost_total keeping its old meaning. S213 adds the tripwires for fidelity_audit.leader_survival, the second survival
+figure (the S212 sign sheet's item 4, report-only) — pure strings, plus one fixture PDF drawn here for the wiring through
+audit_convert. Prints `==== inventions selftest: N/N ====`, exit 0 green · 1 red."""
 import os
 import sys
 import tempfile
@@ -412,6 +414,100 @@ r_nofur = fa.audit_numbers([_FUR_LAYER], [{"page": 0, "block_type": "Text", "htm
 case("audit_numbers: with NO PageHeader/PageFooter block in the record, missing_in_furniture reads None (UNREAD) and the "
      "head's own figure stays counted — 025701 and 48,215 both missing, nothing silently exempted",
      r_nofur["missing_in_furniture"] is None and r_nofur["missing_total"] == 2, r_nofur)
+
+# 45-51 · S213 (the S212 sign sheet's item 4, SYM-168): THE SECOND SURVIVAL FIGURE, report-only. A contents page's dot
+# leaders are layout Marker rightly drops (`Acknowledgements ........ ix` ships as `Acknowledgements ix`), so the witness's
+# windows over the dots are booked as lost words. leader_survival re-scores only the pages that carry a leader, with the dots
+# removed and the label and number kept. These pages are real-sized (PAGE_MIN_WORDS is the audit's own 15 here).
+_TOC_RAW = ("Contents\n"
+            "Acknowledgements ........ ix\n"
+            "Preface to the second edition ........ xi\n"
+            "Introduction ........ 1\n"
+            "The regulator and its variety ........ 17\n"
+            "What a model can know about its world ........ 42\n"
+            "Requisite variety in practice ........ 58\n"
+            "References ........ 301\n"
+            "Index ........ 315")
+_TOC_MD = ("## Contents\n\nAcknowledgements ix\n\nPreface to the second edition xi\n\nIntroduction 1\n\n"
+           "The regulator and its variety 17\n\nWhat a model can know about its world 42\n\n"
+           "Requisite variety in practice 58\n\nReferences 301\n\nIndex 315\n")
+_OTHER_MD = ("A viable system is one that can maintain a separate existence, and the conditions for that are set out "
+             "here in terms of the channels by which its operations are regulated from within.")
+_PROSE_RAW = ("He paused... 12 of them had gone before him, and the rest would follow in the spring when the river "
+              "fell low enough for the carts to cross it without a guide.")
+
+
+def _leader_run(raw_pages, md, scores_override=None):
+    pages = fa.prepare_witness(raw_pages)
+    out = fa.prepare_output(md)
+    idx, freq = fa._build_index(out)
+    scored = [fa._score_page(p, out, idx, freq, False, fuzzy=True) for p in pages]
+    got = [(s, nw) for s, _r, nw in scored]
+    wsum = sum(s * nw for s, nw in got if s is not None)
+    wn = sum(nw for s, nw in got if s is not None)
+    base = round(wsum / wn, 4) if wn else None
+    return base, fa.leader_survival(pages, scores_override or got, out, idx, freq, False)
+
+
+_saved_min_45 = fa.PAGE_MIN_WORDS
+fa.PAGE_MIN_WORDS = 15
+base45, lead45 = _leader_run([_TOC_RAW], _TOC_MD)
+case("leader_survival: a contents page whose labels and numbers all shipped — 8 leaders removed on 1 page, and the figure "
+     "rises above the shipped survival (the dots were the only loss)",
+     lead45["leaders_removed"] == 8 and lead45["pages_with_leaders"] == 1 and base45 is not None
+     and lead45["survival_without_leaders"] is not None and lead45["survival_without_leaders"] > base45,
+     (base45, lead45))
+# 46 · THE NEGATIVE CONTROL for the whole measure: removing the dots must not MANUFACTURE agreement. The output here is the
+# contents page with every leader's label word and page number DROPPED — exactly what a collapse that took the label and
+# number along with the dots would delete from the witness, and would then read as a perfect 1.0. Kept, they are still lost.
+# (This case's first form compared against unrelated prose, where deleting the label changes nothing; step_on_leader.py's
+# delete-label mutant left it green, so it tested less than its name said.)
+_STRIPPED_MD = ("## Contents\n\nPreface to the second\n\nThe regulator and its\n\nWhat a model can know about its\n\n"
+                "Requisite variety in\n")
+base46, lead46 = _leader_run([_TOC_RAW], _STRIPPED_MD)
+case("leader_survival (negative control): against an output missing every leader's label word and page number, the figure "
+     "stays below 0.5 with 8 leaders removed — the kept labels and numbers are still lost, nothing is manufactured",
+     lead46["leaders_removed"] == 8 and lead46["survival_without_leaders"] is not None
+     and lead46["survival_without_leaders"] < 0.5, (base46, lead46))
+# 47 · the four-dot minimum: a prose ellipsis before a number is three dots. The tree's own _LEADER (two or more) takes it;
+# the report-only copy does not, and the page's figure is its shipped survival exactly.
+base47, lead47 = _leader_run([_PROSE_RAW], _OTHER_MD + " " + _PROSE_RAW)
+case("the four-dot minimum: `paused... 12` is matched by _LEADER and NOT by _LEADER_PUNCT4; the page has 0 leaders removed and "
+     "its figure equals the shipped survival",
+     fa._LEADER.search("He paused... 12 of them") is not None and fa._LEADER_PUNCT4.search("He paused... 12 of them") is None
+     and lead47["leaders_removed"] == 0 and lead47["survival_without_leaders"] == base47, (base47, lead47))
+# 48 · closing punctuation: the one character class that took the tree's regex from 2 of 5 real contents shapes to 5 of 5
+case("closing punctuation: `Why? ........ 58` is a leader to _LEADER_PUNCT4 and not to _LEADER",
+     fa._LEADER_PUNCT4.search("Why? ........ 58") is not None and fa._LEADER.search("Why? ........ 58") is None)
+# 49 · ITEM 5 IS NOT SIGNED: the live _LEADER, which audit_inventions reads, is byte-for-byte S210's
+case("_LEADER is untouched — the live predicate is still S210 E1's, so the inventions measure did not move",
+     fa._LEADER.pattern == r"([^\W\d_]{3,})\s*(?:\.\s*){2,}\s*([ivxlcdmIVXLCDM]{1,5}|\d{1,4})\b", fa._LEADER.pattern)
+# 50 · a page with no leader is NOT scored again: its main-loop score is used as handed in. A planted score of 0.25 over 4
+# windows must come back as the figure; a re-score would find the page's text and read higher.
+_, lead50 = _leader_run([_PROSE_RAW], _OTHER_MD + " " + _PROSE_RAW, scores_override=[(0.25, 4)])
+case("a page without a leader keeps its main-loop score (0.25 planted, 0.25 read) — only leader pages are re-scored",
+     lead50["survival_without_leaders"] == 0.25 and lead50["windows_total"] == 4, lead50)
+# 51 · a zero over zero: a witness with no scorable page reads None, never the 1.0 the shipped figure falls back to
+_, lead51 = _leader_run(["Index ........ 315"], _TOC_MD)
+case("leader_survival: no scorable window anywhere reads None (UNREAD), not 1.0",
+     lead51["survival_without_leaders"] is None and lead51["windows_total"] == 0, lead51)
+# 52 · THE WIRING, through audit_convert on a drawn PDF: the block carries `leaders` beside doc_survival, and the verdict
+# cannot see it — the leader figure forced to 0.0 changes nothing compute_verdict returns.
+_toc_dir = tempfile.mkdtemp(prefix="fp-leaders-")
+_toc_doc = fitz.open()
+_toc_page = _toc_doc.new_page(width=612, height=792)
+for _i, _line in enumerate(_TOC_RAW.split("\n")):
+    _toc_page.insert_text((72.0, 90.0 + 22.0 * _i), _line, fontsize=11)
+_toc_pdf = os.path.join(_toc_dir, "toc.pdf")
+_toc_doc.save(_toc_pdf)
+blk52 = fa.audit_convert(_toc_pdf, _TOC_MD, "clean")
+_forced = dict(blk52, leaders=dict(blk52["leaders"], survival_without_leaders=0.0))
+case("audit_convert writes fidelity.convert.leaders beside doc_survival (8 removed, the figure above doc_survival), and "
+     "compute_verdict is blind to it — forcing the figure to 0.0 returns the same verdict",
+     blk52["leaders"]["leaders_removed"] == 8 and blk52["leaders"]["predicate"] == "PUNCT4"
+     and blk52["leaders"]["survival_without_leaders"] > blk52["doc_survival"]
+     and fa.compute_verdict(_forced, None) == fa.compute_verdict(blk52, None), blk52.get("leaders"))
+fa.PAGE_MIN_WORDS = _saved_min_45
 
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

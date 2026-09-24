@@ -546,6 +546,26 @@
       "disposition": "EVIDENCE",
       "reason": "S210 E1 (2026-09-21): the numbers measure's year split — a bare four-digit year (1900–2099) the blocks lack is a running head Marker drops (Scotia's 212 missing were mostly its head's 2026), counted here apart from missing_total so a missing FIGURE reads as one; REPORT-ONLY, unseen by compute_verdict."
     },
+    "converter:leaders": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 (2026-09-24; the S212 sign sheet's item 4, SYM-168 — signed Rab 2026-09-24T18:10:01Z): `fidelity.convert.leaders` (leader_survival) — REPORT-ONLY beside doc_survival, unseen by compute_verdict and by the whitelist's ranking; making it the real survival is item 5, unsigned. The block: the second survival figure, with contents pages' dot leaders taken out of the witness (label and page number kept) and only those pages re-scored."
+    },
+    "converter:survival_without_leaders": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 (2026-09-24; the S212 sign sheet's item 4, SYM-168 — signed Rab 2026-09-24T18:10:01Z): `fidelity.convert.leaders` (leader_survival) — REPORT-ONLY beside doc_survival, unseen by compute_verdict and by the whitelist's ranking; making it the real survival is item 5, unsigned. The second survival figure itself — the shipped score with the dots of every leader removed; None when no window was scorable (a zero over zero), never 1.0."
+    },
+    "converter:leaders_removed": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 (2026-09-24; the S212 sign sheet's item 4, SYM-168 — signed Rab 2026-09-24T18:10:01Z): `fidelity.convert.leaders` (leader_survival) — REPORT-ONLY beside doc_survival, unseen by compute_verdict and by the whitelist's ranking; making it the real survival is item 5, unsigned. How many dot leaders the report-only predicate took out of the witness — the size of what the figure corrects for."
+    },
+    "converter:pages_with_leaders": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 (2026-09-24; the S212 sign sheet's item 4, SYM-168 — signed Rab 2026-09-24T18:10:01Z): `fidelity.convert.leaders` (leader_survival) — REPORT-ONLY beside doc_survival, unseen by compute_verdict and by the whitelist's ranking; making it the real survival is item 5, unsigned. Witness pages carrying at least one leader — the only pages scored a second time."
+    },
+    "converter:predicate": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 (2026-09-24; the S212 sign sheet's item 4, SYM-168 — signed Rab 2026-09-24T18:10:01Z): `fidelity.convert.leaders` (leader_survival) — REPORT-ONLY beside doc_survival, unseen by compute_verdict and by the whitelist's ranking; making it the real survival is item 5, unsigned. The leader predicate's name (PUNCT4: the tree's _LEADER plus closing punctuation, four dots or more); a change to the regex renames it, so a reader can tell two figures made by different rules apart."
+    },
     "converter:cell_agree_floor": {
       "disposition": "EVIDENCE",
       "reason": "S209 E11 (2026-09-20; the frontier's item 1, the bank tables): the structural-table measure `fidelity.convert.tables` (table_shape.py) — REPORT-ONLY beside survival, unseen by compute_verdict; None = not measured (no blocks handed in). The floor on Marker's non-empty cells found in the witness's joined text (CELL_AGREE); below it the witness is none — a constant that declares itself beside the counts it gates."

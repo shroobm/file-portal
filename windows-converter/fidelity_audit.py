@@ -563,6 +563,14 @@ INVENTION_CLASSES = ("joined", "fragment", "dropped_letter", "garble")
 # S210 E1 (B40's fifth shape): a contents page's label, a dot leader, its page number (roman or arabic) — `Acknowledgements
 # ........ ix`; the pair glued is a JOINED word the adjacent-pair test cannot see (the number is no word)
 _LEADER = re.compile(r"([^\W\d_]{3,})\s*(?:\.\s*){2,}\s*([ivxlcdmIVXLCDM]{1,5}|\d{1,4})\b")
+# S213, THE S212 SIGN SHEET'S ITEM 4 (signed Rab 2026-09-24T18:10:01Z, Desk a111f61d "Signed", read back as items 1-4 in
+# edb45f75 and not corrected): SYM-168's leader predicate REPORT-ONLY, as a SEPARATE COPY. _LEADER above is untouched —
+# audit_inventions reads it, and making this predicate live is item 5, which is not signed. It differs from _LEADER twice:
+# closing punctuation may stand between the label and its dots (`Why? ........ 58` — the tree's regex took 2 of 5 real
+# contents shapes, this takes 5 of 5 with no new false positive: S212's leader_run.py), and a leader is FOUR dots or more,
+# because a prose ellipsis is three. A change to this regex renames LEADER_PREDICATE, as _REGEX_ID does for the ladder.
+_LEADER_PUNCT4 = re.compile(r"([^\W\d_]{3,})[?!:;,)\]]*\s*(?:\.\s*){4,}\s*([ivxlcdmIVXLCDM]{1,5}|\d{1,4})\b")
+LEADER_PREDICATE = "PUNCT4"
 # S211 LANE B (Bill C-288: `circons` + `tance` where Marker correctly wrote `circonstance`, `vulner` + `able`) — what may
 # trail a witness word before it reads as a LINE-END FRAGMENT: nothing (line end), a hyphen, or a soft hyphen (U+00AD; a
 # real hyphen followed by a newline is already joined at `lw`'s own preprocessing, line ~590 — this is the leftover case)
@@ -1187,6 +1195,41 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
     return out
 
 
+def leader_survival(witness_pages: list[str], page_scores: list, output_search: str, idx: dict, freq: dict,
+                    cjk: bool) -> dict:
+    """THE SECOND SURVIVAL FIGURE (S213, the S212 sign sheet's item 4; SYM-168) — REPORT-ONLY, beside doc_survival, unseen
+    by compute_verdict and by the whitelist's ranking.
+
+    A contents page's dot leader is layout, and Marker rightly drops it: the witness's `Acknowledgements ........ ix` ships
+    as `Acknowledgements ix`, the witness's windows over the dots cannot be found, and the contents page is booked as lost
+    words. Here the dots alone are taken out of each witness page that carries a leader (_LEADER_PUNCT4), and that page is
+    scored again by the same scorer. The label and its number are KEPT: they are real text the output also carries, and
+    deleting them would manufacture agreement rather than measure it. (Closing punctuation between a label and its dots
+    goes with the dots, exactly as S212 measured it.) Every other page keeps its score from the main loop, so the two
+    figures can differ only where a leader was.
+
+    page_scores: per witness page, in order, (score|None, n_windows) from audit_convert's loop. No window anywhere reads
+    None — a zero over zero — never 1.0."""
+    weighted, windows, removed, pages = 0.0, 0, 0, 0
+    for page, (score, nwin) in zip(witness_pages, page_scores):
+        treated, k = _LEADER_PUNCT4.subn(r"\1 \2", page)
+        if k:
+            removed += k
+            pages += 1
+            score, _runs, nwin = _score_page(treated, output_search, idx, freq, cjk, fuzzy=True)
+        if score is None:
+            continue
+        weighted += score * nwin
+        windows += nwin
+    return {
+        "survival_without_leaders": round(weighted / windows, 4) if windows else None,
+        "windows_total": windows,
+        "leaders_removed": removed,
+        "pages_with_leaders": pages,
+        "predicate": LEADER_PREDICATE,
+    }
+
+
 def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = None, blocks: list | None = None,
                   ocr_pages: list | None = None) -> dict:
     kind = "agreement" if lane == "scan" else "fidelity"
@@ -1202,8 +1245,10 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
     page_flag = SCAN_PAGE_FLAG if lane == "scan" else CLEAN_PAGE_FLAG
     scored, runs, pages_flagged, surviving = 0, [], [], 0
     weighted_sum, total_windows = 0.0, 0
+    page_scores = []  # S213: (score, n_windows) per page, handed to leader_survival so no page is scored twice
     for pnum, page in enumerate(witness_pages, start=1):
         score, page_runs, nwin = _score_page(page, output_search, idx, freq, cjk, fuzzy=True)
+        page_scores.append((score, nwin))
         if score is None:
             continue
         scored += 1
@@ -1231,6 +1276,10 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         "witness": witness_label,
         "kind": kind,
         "doc_survival": doc_survival,
+        # S213 (the S212 sign sheet's item 4, SYM-168), REPORT-ONLY: THE SECOND SURVIVAL FIGURE, printed beside the
+        # shipped one — the same score with contents pages' dot leaders taken out of the witness, label and number kept
+        # (leader_survival). doc_survival does not move and nothing ranks on this; making it the real one is item 5.
+        "leaders": leader_survival(witness_pages, page_scores, output_search, idx, freq, cjk),
         "pages_scored": scored,
         # S144 (audit/verdict-weighs-denominator, Rab's word 2026-09-13): the denominator rides beside the numerator, so a
         # witness that saw 1 page of 465 (Valentine's scan, S142 E1 F5) can no longer print a pass-shaped 1.0 — the
