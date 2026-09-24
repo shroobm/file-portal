@@ -1244,6 +1244,42 @@ if [[ "$rc" -eq "$rc70u" ]]; then ok "CASE 70: the row is warn-only — the exit
 else bad "CASE 70: the tickets row must not move the exit code" "read $rc vs UNREAD $rc70u"; fi
 
 printf '\n%s\n' "────────────────────────────────"
+# CASE 71 — THE PORTAL DOOR READS UNREAD WHEN IT CANNOT BE REACHED, NEVER "down" (S212 E4). The property is
+# the oldest one in this file and the one its own first run broke: a probe that could not run is not an
+# observation. The row was added because no card read PORTAL at all — every session opened without knowing
+# whether the web app his phone talks to was up. The NEGATIVE CONTROL is the whole case: point PORTAL_URL at
+# a closed port and the card must say UNREAD and must NOT say down, and must NOT move the exit code, because
+# a dark tailnet address at 3am is not a fault and a session that treats it as one stops for nothing.
+R71="$WORK/p71/file-portal"; mkdir -p "$(dirname "$R71")"
+sha71=$(mkrepo "$R71" '| 2026-01-01 | Desktop | S41: first | 1111111 |' '| 2026-01-02 | Desktop | S42: second | SHAPLACEHOLDER |')
+sed -i "s/SHAPLACEHOLDER/$sha71/" "$R71/CLAUDE_README.md"
+git -C "$R71" add -A >/dev/null 2>&1; git -C "$R71" commit -qm p71 >/dev/null 2>&1
+mklib "$WORK/l71" 12 S42 "$sha71"
+# First: with MUSTER_NO_REMOTE set — the suite's own default — the row must SKIP rather than knock on a live door.
+out=$(MEMORY_LIB="$WORK/l71" FP_REPO="$R71" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" \
+      WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 bash "$OPEN" 2>&1); rc71s=$?
+if printf '%s' "$out" | grep -qE 'portal door +SKIPPED'; then ok "CASE 71: MUSTER_NO_REMOTE skips the door, so the suite never reaches the live one"
+else bad "CASE 71: MUSTER_NO_REMOTE must skip the portal door" "got: $(printf '%s' "$out" | grep -E 'portal door' | head -2)"; fi
+# Then the probe itself, named at a CLOSED LOCAL PORT so the case stays off the tailnet entirely — MUSTER_NO_REMOTE
+# stays set, and the explicit PORTAL_URL is what lets the row run. 127.0.0.1:9 is the discard port and nothing
+# listens on it, so this measures the refusal itself rather than a timeout.
+out=$(MEMORY_LIB="$WORK/l71" FP_REPO="$R71" PIPE_ROOT="$WORK/nope" VAULT_DIR="$WORK/nope" \
+      WIDGET_EXE="$WORK/nope" MUSTER_NO_REMOTE=1 PORTAL_URL="http://127.0.0.1:9/" bash "$OPEN" 2>&1); rc71d=$?
+if printf '%s' "$out" | grep -qE 'portal door +UNREAD'; then ok "CASE 71 NEGATIVE CONTROL: a closed door reads UNREAD"
+else bad "CASE 71 NEGATIVE CONTROL: an unreachable door must read UNREAD" "got: $(printf '%s' "$out" | grep -E 'portal door' | head -2)"; fi
+# The match is ANCHORED to the reading itself — the label, the padding, then the first word — and not to the
+# line, because this assertion's first draft searched the whole line for "down" and convicted the row for its own
+# disclaimer ("NOT a statement that it is down"). The property is what the READING says, not which words appear
+# near it; a test that cannot tell a verdict from a sentence about a verdict is the same confusion it is policing.
+if printf '%s' "$out" | grep -qE 'portal door +(down|DOWN|not running|NOT RUNNING|unreachable|UNREACHABLE)'; then
+  bad "CASE 71 NEGATIVE CONTROL: a failed probe must NEVER render as down" "the card called an unread door down"
+else ok "CASE 71 NEGATIVE CONTROL: …and never renders a failed probe as down — this file's oldest rule"; fi
+if printf '%s' "$out" | grep -qE "task +'File Portal PORTAL \(web app\)'"; then ok "CASE 71: the PORTAL task is on the card, so DURABLE is a question the open asks"
+else bad "CASE 71: the card must carry a row for the PORTAL task" "got: $(printf '%s' "$out" | grep -E 'PORTAL' | head -2)"; fi
+if [[ "$rc71d" -eq "$rc71s" ]]; then ok "CASE 71: the door row is warn-only — an unreachable PORTAL does not move the exit code"
+else bad "CASE 71: the portal door row must not move the exit code" "unreachable $rc71d vs skipped $rc71s"; fi
+
+printf '\n%s\n' "────────────────────────────────"
 # S194 E1: three tallies — fired (pass) / skipped (not run here, said) / silent (failed) — and the exit reads the fired cases only.
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s · fired %s / skipped %s / silent 0%s\n' "$pass" "$((pass+failed))" "$pass" "$skipped" "$([[ $skipped -gt 0 ]] && printf ' (a skip is not a pass: %s assertion(s) could not run on this platform)' "$skipped")"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s · fired %s / skipped %s / silent %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))" "$pass" "$skipped" "$failed"; exit 1; fi

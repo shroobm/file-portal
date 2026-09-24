@@ -393,7 +393,12 @@ if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
   # result, as readings; a task that is not registered is ABSENT; a probe that did not answer is UNREAD, never "down".
   # S141 E8 (services): "File Portal tracker" and "File Portal desk watch" join the list — ABSENT until Rab's word registers
   # them (install_tracker_task.ps1 / install_task.ps1 -RegisterWatch); ABSENT is a reading, not a fault.
-  for tname in "File Portal desk (relay)" "File Portal relay watch (Fable)" "File Portal tracker" "File Portal desk watch"; do
+  # S212 (2026-09-24): "File Portal PORTAL (web app)" joins the list, and today it reads ABSENT — which is the
+  # point of adding it. PORTAL's server has never been a task: its parent chain reaches claude.exe, so it is a child
+  # of whatever chat session last started it and goes down when that session closes. No card read it, so every
+  # session opened without knowing whether the web app his phone uses was up, let alone whether it would survive.
+  # ABSENT here is a READING, not a fault — it says the thing running was started by a hand or a session.
+  for tname in "File Portal desk (relay)" "File Portal relay watch (Fable)" "File Portal tracker" "File Portal desk watch" "File Portal PORTAL (web app)"; do
     tk_out=$("$PS_EXE" -NoProfile -NonInteractive -Command "\$t = Get-ScheduledTask -TaskName '$tname' -ErrorAction SilentlyContinue; if (\$t) { \$i = \$t | Get-ScheduledTaskInfo; 'STATE=' + \$t.State + ' LASTRUN=' + \$i.LastRunTime.ToUniversalTime().ToString('yyyy-MM-ddTHH:mmZ') + ' RESULT=' + \$i.LastTaskResult } else { 'ABSENT' }" 2>/dev/null | tr -d '\r' | head -n 1); tk_rc=$?
     case "$tk_out" in
       STATE=*) row "task" "'$tname' ${tk_out#STATE=}";;
@@ -401,6 +406,29 @@ if [[ "$ps_rc" -eq 0 && "$(printf '%s' "$ps_table" | grep -c .)" -gt 5 ]]; then
       *)       row "task" "'$tname' UNREAD (powershell probe rc=$tk_rc)";;
     esac
   done
+  # S212: the door itself, beside the task row above. The task row says whether PORTAL is DURABLE; this says whether
+  # it is UP. They are different questions and the card had neither. A probe that cannot run reads UNREAD — never
+  # "down" — which is this file's oldest rule and the one its own first run broke.
+  # It honours MUSTER_NO_REMOTE for the same reason the thinkpad row does: PORTAL answers on the TAILNET, so this
+  # is a remote probe, and a suite that runs the card thirty times should not knock on a live door thirty times —
+  # nor spend six seconds per case waiting when that door is shut.
+  # An explicit PORTAL_URL overrides the skip, and that is a TESTABILITY HOOK stated as one rather than smuggled:
+  # MUSTER_NO_REMOTE means "do not reach across the tailnet", and a caller who names a URL has named where to knock
+  # — in the suite that is a closed port on 127.0.0.1, which is not remote at all. Without it the only way to
+  # exercise this row would be to clear MUSTER_NO_REMOTE, which would send the thinkpad row's ssh at his real
+  # laptop from a test suite. A hook that keeps a suite off his machines is worth the one line of explanation.
+  if [[ -n "${MUSTER_NO_REMOTE:-}" && -z "${PORTAL_URL:-}" ]]; then
+    row "portal door" "SKIPPED — MUSTER_NO_REMOTE set"
+  elif command -v curl >/dev/null 2>&1; then
+    pcode=$(timeout 8 curl -s -o /dev/null -w '%{http_code}' --max-time 6 "${PORTAL_URL:-http://100.108.102.101:7160/}" 2>/dev/null)
+    case "$pcode" in
+      2*|3*) row "portal door" "HTTP $pcode — see the 'File Portal PORTAL (web app)' task row above for whether it survives this session";;
+      000|"") row "portal door" "UNREAD — the door did not answer in 6s; NOT a statement that it is down";;
+      *)     row "portal door" "HTTP $pcode — answered, but not a success code";;
+    esac
+  else
+    row "portal door" "UNREAD — no curl on this machine"
+  fi
   row "python procs" "$(printf '%s\n' "$ps_table" | grep -c '^python\.exe')"
   row "ollama" "$(printf '%s\n' "$ps_table" | grep -c '^ollama')"
   # S81 §10.4: a hung run was reported healthy because a process NAMED llama-server was read as
