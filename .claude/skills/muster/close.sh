@@ -255,9 +255,12 @@ except Exception: print('PARSE-FAIL'); raise SystemExit
 sha=sys.argv[1]
 for r in d.get('workflow_runs',[]):
     if r.get('head_sha','').startswith(sha[:8]):
-        print(f\"{r.get('status')}|{r.get('conclusion')}\"); break
+        print(f\"{r.get('status')}|{r.get('conclusion')}|{r.get('id')}\"); break
 else: print('NO-RUN')
 " "$sha" 2>/dev/null)
+    # S213 (F16): the run id rides on the verdict line for [4b], and is peeled off here so the mapping below is unchanged
+    ci_run_id=""
+    case "$verdict" in *\|*\|*) ci_run_id="${verdict##*|}"; verdict="${verdict%|*}" ;; esac
     case "$verdict" in
       completed\|success) row "CI" "success on ${sha:0:8} (observed, not assumed)" ;;
       completed\|*)       row "CI" "RED — ${verdict#*|} on ${sha:0:8}: fix before the ledger row"; red=1 ;;
@@ -267,6 +270,73 @@ else: print('NO-RUN')
     esac
   fi
 fi
+
+# ── [4b] CI WARN-ONLY — the steps the conclusion cannot see (S213, OPEN-TASKS F16; SYM-075) ─────────────────
+# A continue-on-error step's API conclusion is `success` whatever its log says, so [4] above cannot see a warn-only red:
+# the muster suite was red on the runner for thirteen runs from S212's 3e6a9de, through S212's close, and nothing here
+# said so. This row reads each warn-only step's LOG from the run's logs zip (ci_observe.py's route) and names every one
+# whose log ends `##[error]Process completed with exit code N`. A READING: the exit code does not move (arming A29 is
+# Rab's). Per-step files are read while GitHub keeps them; after that, the whole-job logs (see the reader's note). A fetch
+# that fails, or a zip holding neither form, reads UNREAD — never clean.
+# FP_CI_LOGS_ZIP is a testability hook: a logs zip read instead of fetched (selftest CASE 73).
+wo_zip="${FP_CI_LOGS_ZIP:-}"; wo_tmp=""
+if [ -z "$wo_zip" ] && [ -n "${ci_run_id:-}" ] && [ -n "${tok:-}" ] && command -v curl >/dev/null 2>&1; then
+  wo_tmp=$(mktemp 2>/dev/null || echo "${TMPDIR:-/tmp}/fp-ci-logs-$$.zip")
+  if curl -sL --max-time 60 -H "Authorization: Bearer $tok" -H "Accept: application/vnd.github+json" \
+       "https://api.github.com/repos/shroobm/file-portal/actions/runs/$ci_run_id/logs" -o "$wo_tmp" 2>/dev/null; then
+    wo_zip="$wo_tmp"
+  fi
+fi
+if [ -z "$wo_zip" ]; then
+  row "CI WARN-ONLY" "UNREAD — no completed run's logs read (see [4]); NOT a statement that the warn-only steps are clean"
+else
+  wo=$("$PY" - "$wo_zip" 2>/dev/null <<'PYEOF'
+import re, sys, zipfile
+try:
+    zf = zipfile.ZipFile(sys.argv[1])
+    names = zf.namelist()
+except Exception as exc:
+    print("the logs are not a readable zip (%s)" % type(exc).__name__)
+    raise SystemExit
+steps = [n for n in names if "warn-only" in n.lower() and n.lower().endswith(".txt")]
+if steps:
+    reds = []
+    for n in steps:
+        m = re.search(r"##\[error\]Process completed with exit code (\d+)", zf.read(n).decode("utf-8", "replace"))
+        if m:
+            step = re.sub(r"^\d+_", "", n.split("/", 1)[-1])[:-4]
+            reds.append("%s (exit %s)" % (step, m.group(1)))
+    print(("RED %d of %d: " % (len(reds), len(steps)) + "; ".join(reds)) if reds else "CLEAN %d" % len(steps))
+    raise SystemExit
+# GitHub keeps the per-step files only for a while (run #755's were gone within two hours, S213); the WHOLE-JOB logs stay.
+# In a run that SUCCEEDED, a step that exited non-zero can only be a continue-on-error one, so each error exit in a job
+# log is a warn-only red — named by the `##[group]Run` command above it.
+jobs = [n for n in names if re.match(r"^\d+_[^/]+\.txt$", n)]
+if not jobs:
+    print("neither per-step warn-only logs nor whole-job logs in the zip (%d file(s))" % len(names))
+    raise SystemExit
+reds = []
+for n in jobs:
+    last = "?"
+    for ln in zf.read(n).decode("utf-8", "replace").splitlines():
+        body = re.sub(r"^\S+Z ", "", ln)
+        if body.startswith("##[group]Run "):
+            last = body[len("##[group]Run "):].strip()[:80]
+        m = re.search(r"##\[error\]Process completed with exit code (\d+)", body)
+        if m:
+            reds.append("`%s` (exit %s, from the whole-job log)" % (last, m.group(1)))
+print(("RED %d: " % len(reds) + "; ".join(reds)) if reds else "CLEANJOB %d" % len(jobs))
+PYEOF
+)
+  case "$wo" in
+    CLEANJOB*) row "CI WARN-ONLY" "clean — ${wo#CLEANJOB } whole-job log(s) read (the per-step split has expired), no step exited non-zero" ;;
+    CLEAN*) row "CI WARN-ONLY" "clean — ${wo#CLEAN } warn-only step log(s) read, none exited non-zero" ;;
+    RED*)   row "CI WARN-ONLY" "RED IN THE LOG, not in the conclusion (SYM-075) — ${wo#RED }; warn-only: the exit code does not carry it, READ IT" ;;
+    "")     row "CI WARN-ONLY" "UNREAD — the reader printed nothing; NOT a statement that the warn-only steps are clean" ;;
+    *)      row "CI WARN-ONLY" "UNREAD — $wo; NOT a statement that the warn-only steps are clean" ;;
+  esac
+fi
+[ -n "$wo_tmp" ] && rm -f "$wo_tmp"
 
 # ── [5] LEVERS — the modularity gate (docs/18 §2, signed Rab S106 2026-08-21) ───────────────
 #

@@ -1325,6 +1325,56 @@ if on_windows; then windows_case_71; else skip "CASE 71 (S212 E4): the task and 
 "open.sh's tasklist block, absent off Windows" "platform $(uname -s 2>/dev/null) (MUSTER_SELFTEST_PLATFORM=${MUSTER_SELFTEST_PLATFORM:-unset})" 5; fi
 
 printf '\n%s\n' "────────────────────────────────"
+# CASE 73 — close.sh [4b] READS THE WARN-ONLY STEPS' LOGS (S213, OPEN-TASKS F16). The property: a continue-on-error
+# step's red lives in its LOG, not in the run's conclusion (SYM-075), and the close must say so — while the exit code
+# stays where it was (warn-only; arming A29 is Rab's). Fixture logs zips, fed through FP_CI_LOGS_ZIP, shaped like the
+# real one (`python/31_Governance suites (A29, warn-only) — muster.txt` ending in the runner's own error line).
+# THE POSITIVE CONTROL is the clean zip: without it a row that always printed RED would pass the red case.
+C73="$WORK/c73"; mkdir -p "$C73"
+git -C "$C73" init -q 2>/dev/null; printf 'x\n' > "$C73/f.txt"; git -C "$C73" add -A >/dev/null 2>&1
+git -C "$C73" -c user.email=t@t -c user.name=t commit -qm base >/dev/null 2>&1
+c73_pin=$(git -C "$C73" rev-parse HEAD)
+"$FIXPY" - "$C73" <<'PYEOF'
+import os, sys, zipfile
+d = sys.argv[1]
+red = "2026-09-24T19:50:00.0000000Z ALL TRIPWIRES...\n2026-09-24T19:50:01.0000000Z ##[error]Process completed with exit code 1.\n"
+ok = "2026-09-24T19:50:00.0000000Z ALL TRIPWIRES FIRED\n"
+for name, muster in (("red.zip", red), ("clean.zip", ok)):
+    with zipfile.ZipFile(os.path.join(d, name), "w") as z:
+        z.writestr("python/31_Governance suites (A29, warn-only) \u2014 muster.txt", muster)
+        z.writestr("python/30_Governance suites (A29, warn-only) \u2014 coordination.txt", ok)
+        z.writestr("python/16_Selftest (windows-converter inventions).txt", ok)
+open(os.path.join(d, "notazip.zip"), "w").write("not a zip\n")
+# THE WHOLE-JOB FORM: GitHub drops the per-step files after a while (run #755's were gone within two hours) and keeps
+# `<n>_<job>.txt`; the reader must still find the red there, by the `##[group]Run` header above the error line
+hdr = "2026-09-24T19:49:00.0000000Z ##[group]Run bash .claude/skills/muster/selftest.sh\n"
+for name, body in (("jobred.zip", hdr + red), ("jobclean.zip", hdr + ok)):
+    with zipfile.ZipFile(os.path.join(d, name), "w") as z:
+        z.writestr("1_python.txt", body)
+        z.writestr("python/system.txt", "system\n")
+PYEOF
+out=$(FP_PY="$FIXPY" FP_REPO="$C73" FP_CI_LOGS_ZIP="$C73/red.zip" bash "$CLOSE" "$c73_pin" 2>&1); rc73r=$?
+if printf '%s' "$out" | grep -qE 'CI WARN-ONLY +RED IN THE LOG.*muster \(exit 1\)'; then ok "CASE 73: a warn-only step whose LOG exited 1 is named on the close — the red the conclusion hides"
+else bad "CASE 73: a red warn-only log must be named" "got: $(printf '%s' "$out" | grep -E 'CI WARN-ONLY' | head -1)"; fi
+if printf '%s' "$out" | grep -qE 'CI WARN-ONLY.*coordination'; then bad "CASE 73: a CLEAN warn-only step must not be named red" "the row named coordination"
+else ok "CASE 73: …and only the red step is named — the clean warn-only step beside it is not"; fi
+out=$(FP_PY="$FIXPY" FP_REPO="$C73" FP_CI_LOGS_ZIP="$C73/clean.zip" bash "$CLOSE" "$c73_pin" 2>&1); rc73c=$?
+if printf '%s' "$out" | grep -qE 'CI WARN-ONLY +clean — 2 warn-only'; then ok "CASE 73 POSITIVE CONTROL: all warn-only logs clean reads clean, counting 2"
+else bad "CASE 73 POSITIVE CONTROL: a clean zip must read clean with its count" "got: $(printf '%s' "$out" | grep -E 'CI WARN-ONLY' | head -1)"; fi
+out=$(FP_PY="$FIXPY" FP_REPO="$C73" FP_CI_LOGS_ZIP="$C73/notazip.zip" bash "$CLOSE" "$c73_pin" 2>&1)
+if printf '%s' "$out" | grep -qE 'CI WARN-ONLY +UNREAD'; then ok "CASE 73 NEGATIVE CONTROL: logs that cannot be read are UNREAD, never clean"
+else bad "CASE 73 NEGATIVE CONTROL: an unreadable zip must read UNREAD" "got: $(printf '%s' "$out" | grep -E 'CI WARN-ONLY' | head -1)"; fi
+out=$(FP_PY="$FIXPY" FP_REPO="$C73" FP_CI_LOGS_ZIP="$C73/jobred.zip" bash "$CLOSE" "$c73_pin" 2>&1)
+if printf '%s' "$out" | grep -qE 'CI WARN-ONLY +RED IN THE LOG.*muster/selftest\.sh` \(exit 1, from the whole-job log\)'; then
+  ok "CASE 73: once the per-step files have expired, the red is still found in the whole-job log, named by its command"
+else bad "CASE 73: the whole-job form must still name the red" "got: $(printf '%s' "$out" | grep -E 'CI WARN-ONLY' | head -1)"; fi
+out=$(FP_PY="$FIXPY" FP_REPO="$C73" FP_CI_LOGS_ZIP="$C73/jobclean.zip" bash "$CLOSE" "$c73_pin" 2>&1)
+if printf '%s' "$out" | grep -qE 'CI WARN-ONLY +clean — 1 whole-job log'; then ok "CASE 73 POSITIVE CONTROL (whole-job form): no error exit reads clean"
+else bad "CASE 73 POSITIVE CONTROL (whole-job form): a clean job log must read clean" "got: $(printf '%s' "$out" | grep -E 'CI WARN-ONLY' | head -1)"; fi
+if [[ "$rc73r" -eq "$rc73c" ]]; then ok "CASE 73: the row is warn-only — a red warn-only log and a clean one exit the same"
+else bad "CASE 73: the warn-only row must not move the exit code" "red $rc73r vs clean $rc73c"; fi
+
+printf '\n%s\n' "────────────────────────────────"
 # S194 E1: three tallies — fired (pass) / skipped (not run here, said) / silent (failed) — and the exit reads the fired cases only.
 if [[ "$failed" -eq 0 ]]; then printf 'ALL TRIPWIRES FIRED — %s/%s · fired %s / skipped %s / silent 0%s\n' "$pass" "$((pass+failed))" "$pass" "$skipped" "$([[ $skipped -gt 0 ]] && printf ' (a skip is not a pass: %s assertion(s) could not run on this platform)' "$skipped")"; exit 0
 else printf 'TRIPWIRES DISARMED — %s failed of %s · fired %s / skipped %s / silent %s. A guard nobody watched fire is a proxy with a reputation.\n' "$failed" "$((pass+failed))" "$pass" "$skipped" "$failed"; exit 1; fi
