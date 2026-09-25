@@ -63,6 +63,7 @@ Neither is a defect to report — they are the machine. A command that fails on 
   there cannot close a session at all.
 - `OPEN-TASKS.md` may be untracked — never stash/checkout/clean it away.
 - One process on the GPU, ever — the card mutex `Local\file-portal-card` enforces it.
+- **Downloads and installs follow `docs/65`** (Rab, 2026-09-25): plan it, source it, bill it (a Footprint row), be able to undo it — or don't install it. A sub-agent downloads nothing; the session does, under that policy.
 
 ## Conventions
 
