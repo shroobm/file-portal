@@ -40,19 +40,34 @@ rc, out = hook("cat <<'EOF'\nit\\'s\nEOF")
 check("the SIGNED over-sensitivity: a QUOTED heredoc with an escaped quote still warns (Rab, 2026-08-27)", rc == 0 and "ERR-009" in out, out[:120])
 rc, out = hook("python -c \"print(1)\"")
 check("NEGATIVE CONTROL: a plain `python -c \"print(1)\"` → silence", rc == 0 and out == "", out[:120])
+def denied(out):
+    try:
+        h = json.loads(out).get("hookSpecificOutput", {})
+    except Exception:  # noqa: BLE001
+        return False
+    return h.get("hookEventName") == "PreToolUse" and h.get("permissionDecision") == "deny" and "ERR-054" in h.get("permissionDecisionReason", "")
+
+
+# S213 (Rab, Desk 17258df3, 2026-09-25): the -c program with a backslash or a $ is now REFUSED; a backtick alone still warns
 rc, out = hook("PYTHONIOENCODING=utf-8 /c/Users/x/python.exe -c \"import io; p='C:\\\\x\\\\y.md'; print(p)\"")
-check("ERR-054 (S170): a `python.exe -c` program with a backslash path → the ERR-054 warning, not ERR-009's", rc == 0 and "ERR-054" in out and "ERR-009" not in out, out[:160])
-rc, out = hook("python -c 'print(`x`)'")
-check("ERR-054: a backtick inside the -c program warns", rc == 0 and "ERR-054" in out, out[:120])
+check("S213 BLOCK: a `python.exe -c` program with a backslash path → DENIED (ERR-054), not merely warned", rc == 0 and denied(out), out[:160])
 rc, out = hook("python3 -c 'import os; print(os.environ[\"$HOME\"])'")
-check("ERR-054: a $ inside the -c program warns", rc == 0 and "ERR-054" in out, out[:120])
+check("S213 BLOCK: a $ inside the -c program → DENIED", rc == 0 and denied(out), out[:120])
+rc, out = hook("python -c 'print(`x`)'")
+check("NEGATIVE (the offered scope): a backtick alone inside the -c program still only WARNS, never denies",
+      rc == 0 and "ERR-054" in out and not denied(out), out[:120])
+rc, out = hook("python - <<EOF\nimport re\nre.findall(r\"\\\\d+\", s)\nEOF")
+check("NEGATIVE (his 2026-08-27 signature): a heredoc with backslashes still only WARNS (ERR-009), never denies",
+      rc == 0 and "ERR-009" in out and not denied(out), out[:120])
+rc, out = hook("cat <<EOF\nre.sub(r'\\\\s+', ' ', x)\nEOF\npython -c \"print('$HOME')\"")
+check("S213: a heredoc warning AND a blocked -c on one line → the block wins (DENIED)", rc == 0 and denied(out), out[:120])
 rc, out = hook("grep -c 'x\\\\y' file.txt")
 check("NEGATIVE CONTROL: a backslash outside any heredoc or -c program → silence (grep is not python)", rc == 0 and out == "", out[:120])
 rc, out = hook("python -c \"print(1)\"; cat <<EOF\nre.sub(r'\\\\s+', ' ', x)\nEOF")
 check("both on one line: the heredoc's ERR-009 message is the one printed (one message per call)", rc == 0 and "ERR-009" in out, out[:120])
 rc, out = hook("python -c \"print(1)\"")
 try:
-    js = json.loads(hook("python -c 'a\\\\b'")[1])
+    js = json.loads(hook("python -c 'print(`a`)'")[1])  # S213: a backtick case (a backslash now denies, checked above)
     shape = js.get("hookSpecificOutput", {}).get("hookEventName") == "PreToolUse" and "additionalContext" in js["hookSpecificOutput"]
 except Exception as e:  # noqa: BLE001
     shape = False
