@@ -316,6 +316,33 @@ check("config_overrides(): NEGATIVE CONTROL — the overlap gate alone (a Marker
       fixes.config_overrides(["overlap-fraction-gate", "lane-share-rule"]) == {})
 check("config_overrides(): nothing applied → {}", fixes.config_overrides([]) == {})
 
+# S213 E6: loop-line-retry. The detector on the two loops the OCR guide actually produced, and on the repeats a real page
+# holds that must NOT read as a loop (the guide's own six stacked readings, a dot leader, a rule, table pipes).
+check("is_loop: the guide's p.108 loop ('properproper...' x40) reads as a loop", fixes.is_loop("Account # " + "proper" * 40))
+check("is_loop: the guide's p.67 loop ('I have learned ' x130) reads as a loop", fixes.is_loop("I have learned " * 130))
+check("is_loop: NEGATIVE CONTROL — the book's own six stacked readings (with their l/I variants) are not a loop",
+      not fixes.is_loop("I have learned I have learned I have learned l have learned l have learned I have learned "
+                        "Langmuir, I. Langmuir, I. Langmuir, I. Langmuir, 1. Langmuir, l. Langmuir, 1."))
+check("is_loop: NEGATIVE CONTROL — a dot leader, an underscore rule and a run of table pipes are not loops",
+      not fixes.is_loop("Contents " + ". " * 60 + " 17") and not fixes.is_loop("_" * 200) and not fixes.is_loop("| | " * 60))
+check("is_loop: NEGATIVE CONTROL — ordinary prose is not a loop",
+      not fixes.is_loop("The quick brown fox jumps over the lazy dog. " * 3))
+_ids = [["b1", "b2", "b3"], ["c1"]]
+_lines = [["L-b1", "LOOP", "L-b3"], ["L-c1"]]
+_ni, _nl = fixes.merge_retry(_ids, _lines, {0: ["b2"]}, {0: [(["b2/l0", "b2/l1", "b2/l2"], ["r0", "r1", "r2"])]})
+check("merge_retry: the looped block is replaced IN PLACE by its three re-read lines; everything else untouched",
+      _ni == [["b1", "b2/l0", "b2/l1", "b2/l2", "b3"], ["c1"]] and _nl == [["L-b1", "r0", "r1", "r2", "L-b3"], ["L-c1"]])
+_ni0, _nl0 = fixes.merge_retry(_ids, _lines, {}, {})
+check("merge_retry: NEGATIVE CONTROL — nothing looped, nothing changes", _ni0 == _ids and _nl0 == _lines)
+import marker.converters.pdf as _mcp  # noqa: E402
+_stock = _mcp.OcrBuilder
+check("loop-line-retry: before apply(), Marker builds with its STOCK OcrBuilder", _stock is not fixes.LoopRetryOcrBuilder)
+fixes.apply(["loop-line-retry"], log=lambda *a: None)
+fixes.apply(["loop-line-retry"], log=lambda *a: None)
+check("loop-line-retry: apply() installs LoopRetryOcrBuilder where build_document resolves it, idempotently",
+      _mcp.OcrBuilder is fixes.LoopRetryOcrBuilder and issubclass(fixes.LoopRetryOcrBuilder, _stock))
+_mcp.OcrBuilder = _stock
+
 print("\n%d/%d ok" % (PASS, PASS + FAIL))
 if FAIL:
     print("FAILED: %s" % ", ".join(FAILED_NAMES))

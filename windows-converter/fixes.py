@@ -38,6 +38,7 @@ Persisted keys used by this module (LITERAL strings only, per HARD RULE 4):
 """
 from __future__ import annotations
 
+import copy
 import io
 import math
 import os
@@ -55,6 +56,7 @@ FIXES = (
     "degen-rule-line",
     "table-batch-ceiling",
     "ligature-repair",   # S211 Lane C: SYM-148's repair pass (ligature_repair.py), run by convert() before the audit
+    "loop-line-retry",   # S213 E6: a block-mode OCR result that loops is re-read line by line (LoopRetryOcrBuilder)
 )
 
 _FOR_LINE = re.compile(r"^for\s*:", re.IGNORECASE)
@@ -127,6 +129,159 @@ class FractionLineBuilder(LineBuilder):
             if int(np.sum(frac[i] > FRACTION)) > 2:
                 return False
         return True
+
+
+# ---------------------------------------------------------------------------------------------------
+# loop-line-retry — S213 E6 (the OCR guide's loop: S213 E2, Desk 51d4958c; sittings/S213/loop_levers.py and
+# line_mode_trial.py, private). MEASURED: Marker's OcrBuilder reads a small block (<= 15 lines, < 50% of the page) as ONE
+# image; on the guide's framed two-example figures the reader kept predicting the same word to its 2,048-token cap and
+# swallowed the block's second example ("properproper..." x40, "I have learned" x130). Surya's own repeat guard cannot
+# see it: detect_repeat_token fires only when a repeat's period equals its count of distinct tokens (verified by running
+# it: a word loop fires on no prefix). Reading EVERY block line by line ended the loop but lost more elsewhere (100 pages
+# of seven scanned books, a blinded reading of all 32 differing pages: block 18, line 7, equal 7). So this fix keeps
+# block mode and re-reads line by line ONLY a block whose block-mode text loops — from the block's own line boxes, which
+# are still intact at that point (ocr.py replaces a block's lines only in its apply loop). The combined results go
+# through the parent's own apply code (ocr_extraction with the recognition call swapped for the precomputed list), so
+# no application logic is copied. A page with no looping block is recognised exactly as today.
+# ---------------------------------------------------------------------------------------------------
+LOOP_MIN_REPEATS = 8     # a unit repeated at least this many times in a row (the guide's loops: 40 and 130)
+LOOP_MIN_CHARS = 80      # and covering at least this many characters
+_LOOP_RE = re.compile(r"(.{2,60}?)\1{%d,}" % (LOOP_MIN_REPEATS - 1), re.S)
+
+
+def is_loop(text) -> bool:
+    """True when `text` holds a unit of 2-60 characters repeated LOOP_MIN_REPEATS+ times in a row over LOOP_MIN_CHARS+
+    characters, and the unit carries at least two letters — so a dot leader, a rule of underscores or a run of table
+    pipes never reads as a loop, while "properproper..." and "I have learned I have learned ..." do."""
+    for m in _LOOP_RE.finditer(text or ""):
+        if len(m.group(0)) >= LOOP_MIN_CHARS and sum(ch.isalpha() for ch in m.group(1)) >= 2:
+            return True
+    return False
+
+
+def merge_retry(block_ids, page_lines, looped, retry_lines):
+    """Pure: splice the line-by-line re-reads into the page results. `block_ids[p]` and `page_lines[p]` are page p's
+    ids and recognised lines as the first pass returned them; `looped[p]` the ids on page p that looped; `retry_lines[p]`
+    the re-read results for page p as a list of (line_ids, line_results) in the order of looped[p]. Returns new
+    (block_ids, page_lines) with each looped block replaced IN PLACE by its lines; every other entry untouched."""
+    out_ids, out_lines = [], []
+    for p, (ids, lines) in enumerate(zip(block_ids, page_lines)):
+        re_read = dict(zip(looped.get(p, []), retry_lines.get(p, [])))
+        ni, nl = [], []
+        for bid, line in zip(ids, lines):
+            if bid in re_read:
+                lids, lres = re_read[bid]
+                ni.extend(lids)
+                nl.extend(lres)
+            else:
+                ni.append(bid)
+                nl.append(line)
+        out_ids.append(ni)
+        out_lines.append(nl)
+    return out_ids, out_lines
+
+
+class _Precomputed:
+    """Stands in for the recognition model inside the parent's ocr_extraction: returns the results already computed."""
+
+    def __init__(self, results):
+        self.results = results
+        self.disable_tqdm = True
+
+    def __call__(self, **kwargs):
+        return self.results
+
+
+class _PageResult:
+    def __init__(self, text_lines):
+        self.text_lines = text_lines
+
+
+from marker.builders.ocr import OcrBuilder  # noqa: E402
+from marker.schema import BlockTypes  # noqa: E402
+
+
+class LoopRetryOcrBuilder(OcrBuilder):
+    """OcrBuilder whose block-mode results are checked for a loop and, where one is found, re-read line by line."""
+
+    def get_ocr_images_polygons_ids(self, document, pages, provider):
+        out = super().get_ocr_images_polygons_ids(document, pages, provider)
+        images, _polys, ids, _texts = out
+        self._retry_lines = {}      # block id -> ([line ids], [line polygons in image pixels])
+        for p, page in enumerate(pages):
+            page_size = provider.get_page_bbox(page.page_id).size
+            image_size = images[p].size
+            for bid in ids[p]:
+                block = page.get_block(bid)
+                if block is None or block.block_type == BlockTypes.Line:
+                    continue
+                lines = block.contained_blocks(document, [BlockTypes.Line])
+                if not lines:
+                    continue
+                polys = []
+                for ln in lines:
+                    poly = copy.deepcopy(ln.polygon).rescale(page_size, image_size).fit_to_bounds((0, 0, *image_size))
+                    polys.append([[int(x) for x in pt] for pt in poly.polygon])
+                self._retry_lines[bid] = ([ln.id for ln in lines], polys)
+        return out
+
+    def ocr_extraction(self, document, pages, images, block_polygons, block_ids, block_original_texts):
+        if sum(len(b) for b in block_polygons) == 0:
+            return
+        real = self.recognition_model
+        real.disable_tqdm = self.disable_tqdm
+        common = dict(recognition_batch_size=int(self.get_recognition_batch_size()), sort_lines=False,
+                      math_mode=not self.disable_ocr_math, drop_repeated_text=self.drop_repeated_text,
+                      max_sliding_window=2148, max_tokens=2048)   # the parent's own call, ocr.py ocr_extraction
+        results = real(images=images, task_names=[self.ocr_task_name] * len(images), polygons=block_polygons,
+                       input_text=block_original_texts, **common)
+        retry = getattr(self, "_retry_lines", {})
+        looped = {}
+        for p, (ids, res) in enumerate(zip(block_ids, results)):
+            for bid, line in zip(ids, res.text_lines):
+                if bid in retry:
+                    _STATE["stats"]["loop_blocks_checked"] = _STATE["stats"].get("loop_blocks_checked", 0) + 1
+                    if is_loop(getattr(line, "text", "")):
+                        looped.setdefault(p, []).append(bid)
+        if looped:
+            pages_r = sorted(looped)
+            polys_r = [[poly for bid in looped[p] for poly in retry[bid][1]] for p in pages_r]
+            res_r = real(images=[images[p] for p in pages_r], task_names=[self.ocr_task_name] * len(pages_r),
+                         polygons=polys_r, input_text=[[""] * len(x) for x in polys_r], **common)
+            retry_lines = {}
+            for p, r in zip(pages_r, res_r):
+                k, per_block = 0, []
+                for bid in looped[p]:
+                    lids = retry[bid][0]
+                    per_block.append((lids, r.text_lines[k:k + len(lids)]))
+                    k += len(lids)
+                retry_lines[p] = per_block
+            n_blocks = sum(len(v) for v in looped.values())
+            n_lines = sum(len(retry[b][0]) for v in looped.values() for b in v)
+            _STATE["stats"]["loop_blocks_retried"] = _STATE["stats"].get("loop_blocks_retried", 0) + n_blocks
+            _STATE["stats"]["loop_lines_reread"] = _STATE["stats"].get("loop_lines_reread", 0) + n_lines
+            print("fixes: loop-line-retry re-read %d looping block(s) line by line (%d lines)" % (n_blocks, n_lines),
+                  flush=True)
+            new_ids, new_lines = merge_retry(block_ids, [r.text_lines for r in results], looped, retry_lines)
+            results = [_PageResult(lines) for lines in new_lines]
+            block_ids = new_ids
+            block_polygons = [[None] * len(ids) for ids in new_ids]      # only counted by the parent, never read
+            block_original_texts = [[""] * len(ids) for ids in new_ids]
+        self.recognition_model = _Precomputed(results)
+        try:
+            super().ocr_extraction(document, pages, images, block_polygons, block_ids, block_original_texts)
+        finally:
+            self.recognition_model = real
+
+
+def _install_loop_retry(log):
+    import marker.converters.pdf as mcp
+
+    if getattr(mcp, "OcrBuilder", None) is LoopRetryOcrBuilder:
+        return
+    mcp.OcrBuilder = LoopRetryOcrBuilder
+    log("fixes: loop-line-retry installed (marker.converters.pdf.OcrBuilder -> LoopRetryOcrBuilder, a unit repeated %d+ "
+        "times over %d+ chars)" % (LOOP_MIN_REPEATS, LOOP_MIN_CHARS))
 
 
 def _install_overlap_gate(log):
@@ -335,6 +490,9 @@ def apply(names, log=print) -> dict:
         elif n == "offpage-clip":
             _STATE["clip_on"] = True
             _install_get_chars(log)
+            applied.append(n)
+        elif n == "loop-line-retry":
+            _install_loop_retry(log)
             applied.append(n)
         elif n in ("lane-share-rule", "degen-rule-line", "table-batch-ceiling", "ligature-repair"):
             applied.append(n)   # pure functions / passes the integrator calls where they apply; recorded as active
