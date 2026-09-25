@@ -180,7 +180,7 @@ MECHANISM = {
     "S13 MODEL-OUTPUT-HAZARD": (
         "the language model's own behaviour: degeneration loops on tabular structure; control tokens leaking into text",
         "diff the model's output against its input under the fence; count repeats and control tokens",
-        ["SYM-003", "SYM-074", "SYM-115", "SYM-129", "SYM-143", "SYM-179"],  # 179 (S211 E6): the recognition pass loops on a low-entropy printed line (Ashby p.180: 32 letters -> 2,045 chars) and the sentence after it inside that block is never written; 11 of 62 selected bundles carry the tripwire it fires,  # 115 (S131): a second leaked control token; 129 (S144): a chunk's generation runs to the client timeout — no num_predict bound; 143 (S209 E13): the recogniser writes `second` 291 times for 48 check marks
+        ["SYM-003", "SYM-074", "SYM-115", "SYM-129", "SYM-143", "SYM-179", "SYM-185"],  # 185 (S213 E11): shipped books carry looped blocks the tripwire never flags -- inside table rows (the declared D5 blind spot, now measured in shipped books) and a no-space loop in a paragraph; 10 of 101 bundles on disk  # 179 (S211 E6): the recognition pass loops on a low-entropy printed line (Ashby p.180: 32 letters -> 2,045 chars) and the sentence after it inside that block is never written; 11 of 62 selected bundles carry the tripwire it fires,  # 115 (S131): a second leaked control token; 129 (S144): a chunk's generation runs to the client timeout — no num_predict bound; 143 (S209 E13): the recogniser writes `second` 291 times for 48 check marks
     ),
     "S14 CONFOUNDED-COMPARISON": (
         "two arms run under a systematically different condition (heat, order), so the artefact scales with n like a "
