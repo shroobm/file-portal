@@ -6,9 +6,15 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PY=\"C:/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe\"; [ -x \"$PY\" ] || PY=python3; \"$PY\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_git.py\" || { echo \"guard_git: the interpreter failed - a guard that cannot run DENIES (J56, docs/47 section 9)\" >&2; exit 2; }",
+            "command": "PY=\"C:/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe\"; \"$PY\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_git.py\" || { echo \"guard_git: the interpreter failed - a guard that cannot run DENIES (J56, docs/47 section 9)\" >&2; exit 2; }",
             "timeout": 10,
             "statusMessage": "guard_git: is a destructive git verb aimed at the shared checkout? (J56)"
+          },
+          {
+            "type": "command",
+            "command": "\"C:/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_bare_python.py\" || { echo \"guard_bare_python: the interpreter failed - a guard that cannot run DENIES (SYM-186)\" >&2; exit 2; }",
+            "timeout": 10,
+            "statusMessage": "guard_bare_python: does this command run a bare python/py/pip? (SYM-186)"
           }
         ]
       },
@@ -17,7 +23,7 @@
         "hooks": [
           {
             "type": "command",
-            "command": "PY=\"C:/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe\"; [ -x \"$PY\" ] || PY=python3; \"$PY\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_record.py\" || { echo \"guard_record: the interpreter failed - a guard that cannot run DENIES (J63)\" >&2; exit 2; }",
+            "command": "PY=\"C:/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe\"; \"$PY\" \"$CLAUDE_PROJECT_DIR/.claude/hooks/guard_record.py\" || { echo \"guard_record: the interpreter failed - a guard that cannot run DENIES (J63)\" >&2; exit 2; }",
             "timeout": 10,
             "statusMessage": "guard_record: does this session's record exist before this write? (J63)"
           }
