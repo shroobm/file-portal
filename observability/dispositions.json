@@ -238,6 +238,26 @@
       "disposition": "EVIDENCE",
       "reason": "S180 E3 (read at analyst.py:674): the per-reason rejection count `rejections.think_leak` (SYM-074) — the same block and readers as converter:inflation."
     },
+    "converter:code_fence": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 E17 (2026-09-25, his word Desk c7b3aa7c 'build it'; SYM-187): the per-reason rejection count `rejections.code_fence` — a chunk whose reconciled code-fence lines differed from its input's shipped unanalyzed (analyst.py, process: the accept path and the resume path). The same block and readers as converter:inflation; hung by subscript on the rejections dict, so the census lists it warn-only, and this entry signs it."
+    },
+    "converter:code_fences": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 E17 (SYM-187): the analyst block's book-level code-fence record {fence_lines_in, fence_lines_out, fence_lines_same} — report-only, nothing gates on it. docs/29 §5.3 step 4: its home is manifest.analyst beside the rejections it explains; its readers are the per-book Desk report (fence integrity said for every book, S213 E17 on) and SYM-187's row. No surface renders it; the day the Dock's analyst line names 'code fences intact' it becomes GLASS."
+    },
+    "converter:fence_lines_in": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 E17 (SYM-187): code_fences.fence_lines_in — the count of code-fence lines in the chunked input; the same block and readers as converter:code_fences."
+    },
+    "converter:fence_lines_out": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 E17 (SYM-187): code_fences.fence_lines_out — the count in the shipped analyst output; the same block and readers as converter:code_fences."
+    },
+    "converter:fence_lines_same": {
+      "disposition": "EVIDENCE",
+      "reason": "S213 E17 (SYM-187): code_fences.fence_lines_same — whether the ORDERED fence lines in and out are identical (stronger than the two counts: a glued or joined fence keeps the count and breaks the block). The per-chunk guard makes it true by construction; false names a damage path the guard cannot see (reassembly, a resumed journal). The same block and readers as converter:code_fences."
+    },
     "converter:max_spec_cols": {
       "disposition": "EVIDENCE",
       "reason": "S180 E3 (read at convert_and_ship.py:816, _latex_structure_safe): the lever's value carried inside the manifest's `latex_structure` record so a reader knows which width the runaway count was judged against — the same disposition and readers as converter:latex_structure (S175)."

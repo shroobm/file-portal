@@ -225,6 +225,16 @@ def _word_resolver(generate):
 _THINK_SWITCH = re.compile(r"(?:^|\s)/(?:no_)?think\b")
 
 
+def _code_fence_lines(text: str) -> list[str]:
+    """S213 E17 (SYM-187; signed Rab 2026-09-25, Desk c7b3aa7c: "build it"): every line holding a run of three backticks
+    or tildes, stripped, in order. The analyst unbalanced the code fences of 10 of 100 books (both ISL editions: Marker's
+    1,864 / 1,022 fence lines shipped as 1,861 / 1,017) in three shapes — a fence DROPPED, a closing fence GLUED onto the
+    end of a code line (`...code```), text GLUED after an opening fence (a reader hides it as the info string). A count
+    catches the first two; the ordered list of stripped lines catches all three. Stripped, so re-indentation alone never
+    rejects a chunk."""
+    return [ln.strip() for ln in text.splitlines() if "```" in ln or "~~~" in ln]
+
+
 def fence(markdown: str) -> tuple[str, list[str]]:
     embeds: list[str] = []
 
@@ -541,7 +551,8 @@ def process(markdown: str, backend: str = "local",
     out, passed, rejected, failed = [], 0, 0, 0
     # J32-B/SYM-074 (signed Rab 2026-09-05): chunks_rejected's ways of happening, named — FOUR
     # since J34 (signed the same day, "1.5x reject"): the inflation guard is the fourth.
-    rejections = {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0}  # truncated: S146 E5 (SYM-129)
+    rejections = {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0,  # truncated: S146 E5 (SYM-129)
+                  "code_fence": 0}  # code_fence: S213 E17 (SYM-187) — the reconciled chunk moved a code-fence line
     # J46 (signed Rab 2026-09-12, C+A): every ACCEPTED chunk is reconciled against its input by the
     # diff-whitelist — an edit ships only if the two spans are the same text under the whitelist
     # (escape, link re-syntax, markup, hyphen join, ligature repair, reflow); everything else reverts
@@ -603,13 +614,20 @@ def process(markdown: str, backend: str = "local",
         for i, chunk in enumerate(chunks, 1):
             if i in done:
                 rec = done[i]
-                out.append(rec.get("text", chunk))
+                text_r = rec.get("text", chunk)
                 status = rec.get("status")
+                resumed_reason = None
+                if status == "passed" and _code_fence_lines(text_r) != _code_fence_lines(chunk):
+                    # S213 E17 (SYM-187): a journal written before the code-fence guard can hold a PASSED chunk that
+                    # moved a fence line; resuming it would ship the damage the guard exists to stop. The original ships.
+                    text_r, status, resumed_reason = chunk, "rejected", "code_fence"
+                out.append(text_r)
                 passed += status == "passed"
                 rejected += status == "rejected"
                 failed += status == "failed"
-                resumed_reason = None
-                if status == "rejected":
+                if status == "rejected" and resumed_reason == "code_fence":
+                    rejections["code_fence"] += 1
+                elif status == "rejected":
                     # A journal from before J32-B/SYM-074 never named a reason because "fence"
                     # was the ONLY way a chunk could be rejected when it was written — an old,
                     # reason-less record is attributed to "fence" rather than dropped from the
@@ -713,18 +731,27 @@ def process(markdown: str, backend: str = "local",
                         # J46: the whitelist decides which of the candidate's edits ship; the rest
                         # revert to the input's words. Pure, microseconds, 0 GPU.
                         reconciled, edit_log = ew.reconcile(chunk, candidate, rungs)
-                        e = ew.tally(edit_log)
-                        for k, v in e["accepted"].items():
-                            edits_accepted[k] = edits_accepted.get(k, 0) + v
-                        for k, v in e["reverted"].items():
-                            edits_reverted[k] = edits_reverted.get(k, 0) + v
-                        if e["reverted"]:
-                            chunks_reconciled += 1
-                        out.append(reconciled)
-                        passed += 1
-                        status, text = "passed", reconciled
-                        if call_out is not None:
-                            tokens_accepted += call_out  # NUM-6: only ACCEPTED output earns goodput
+                        if _code_fence_lines(reconciled) != _code_fence_lines(chunk):
+                            # S213 E17 (SYM-187, signed Rab 2026-09-25 "build it"): checked on what would SHIP (after the
+                            # whitelist), so a fence moved by an accepted reflow is caught too. Any code-fence line dropped,
+                            # added, glued or changed -> the un-analyzed original ships; the chunk's other edits go with it.
+                            out.append(chunk)
+                            rejected += 1
+                            rejections["code_fence"] += 1
+                            status, text, reason = "rejected", chunk, "code_fence"
+                        else:
+                            e = ew.tally(edit_log)
+                            for k, v in e["accepted"].items():
+                                edits_accepted[k] = edits_accepted.get(k, 0) + v
+                            for k, v in e["reverted"].items():
+                                edits_reverted[k] = edits_reverted.get(k, 0) + v
+                            if e["reverted"]:
+                                chunks_reconciled += 1
+                            out.append(reconciled)
+                            passed += 1
+                            status, text = "passed", reconciled
+                            if call_out is not None:
+                                tokens_accepted += call_out  # NUM-6: only ACCEPTED output earns goodput
             else:
                 out.append(chunk)  # fence violated -> ship the un-analyzed original
                 rejected += 1
@@ -756,6 +783,7 @@ def process(markdown: str, backend: str = "local",
             unload()
     raw_duration = time.perf_counter() - t0  # unrounded for the rate — a 0.0 display-round
     duration = round(raw_duration, 1)        # must not erase a real (fast) run's goodput
+    fence_in, fence_out = _code_fence_lines(fenced), _code_fence_lines("\n\n".join(out))
     meta = {
         "model": GEMINI_MODEL if backend == "gemini" else MODEL,
         "backend": backend,
@@ -769,6 +797,11 @@ def process(markdown: str, backend: str = "local",
         # (an old, reason-less resumed record is counted as "fence", the only reason that
         # existed before either ticket; see the resume branch above).
         "rejections": dict(rejections),
+        # S213 E17 (SYM-187): the whole book's code-fence lines before and after the pass. The per-chunk guard makes them
+        # equal by construction; this is the book-level reading of that claim (report-only — nothing gates on it), so a
+        # damage path the chunk guard cannot see (reassembly, a resumed journal) shows up as fence_lines_same false.
+        "code_fences": {"fence_lines_in": len(fence_in), "fence_lines_out": len(fence_out),
+                        "fence_lines_same": fence_in == fence_out},
         # J46 (signed Rab 2026-09-12): what the whitelist did to the ACCEPTED chunks — edits shipped
         # and edits reverted, by class, summed over the book; chunks_reconciled = chunks that lost at
         # least one edit to the revert. The whitelist is the policy (edit_whitelist.FULL).

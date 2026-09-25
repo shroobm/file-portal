@@ -34,6 +34,13 @@ Run with the marker-env interpreter:
   J41 (b) resumed old-shape journal record -> a row with no s/r, x="fence"
   J41 (c) NEGATIVE CONTROL: the collector line blanked in analyst.py -> chunk_scores gone (watched)
   J41 (d) size: json.dumps(chunk_scores) stays under 60 bytes/chunk
+  SYM-187 (S213 E17, "build it" 2026-09-25) the code-fence guard: a reconciled chunk whose code-fence lines differ from
+          its input's ships the original, reason code_fence —
+          (a) closing fence dropped · (b) closing fence glued onto the code line · (c) closing fence joined to the next
+          prose line (the three shapes the LIVE analyst shipped, measured by shape_probe the same day) -> rejected;
+          (c2) a pure addition to a fence line is the whitelist's to revert, not this guard's -> passed, fences intact;
+          (d) CONTROL a prose edit, fences intact -> passed; (e) NEGATIVE CONTROL the reader blanked -> the damage ships
+          (watched); (f) a resumed PASSED journal record that moved a fence -> rejected on resume
 """
 import json
 import os
@@ -146,7 +153,7 @@ def _():
     assert survival is not None and survival >= 0.95, survival
     out, meta = run(md, [candidate])
     assert meta["chunks_passed"] == 1 and meta["chunks_rejected"] == 0, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0, "code_fence": 0}, meta  # truncated: S146 E5 (SYM-129)
     # J46 (S140, Rab's slot): the chunk PASSES and the hyphen join ships, but the two dropped commas are
     # punctuation edits — reverted by the whitelist, so the shipped text keeps the author's commas
     assert "September" in out and "budget, carefully," in out, out
@@ -165,7 +172,7 @@ def _():
     candidate = "\n\n".join(paras[:2])  # only the first 2 of 5 survive
     out, meta = run(B_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
+    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0, "truncated": 0, "code_fence": 0}, meta  # truncated: S146 E5 (SYM-129)
     assert out.strip() == B_MD.strip(), "the ORIGINAL chunk must ship, not the candidate"
 
 
@@ -232,7 +239,7 @@ def _():
     candidate = fenced.replace("⟦IMG-0⟧\n\n", "")
     out, meta = run(md, [candidate])
     assert meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 1, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
+    assert meta["rejections"] == {"fence": 1, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0, "code_fence": 0}, meta  # truncated: S146 E5 (SYM-129)
 
 
 # ---------------------------------------------------------------------------
@@ -351,7 +358,7 @@ def _():
     assert tn.word_ratio(fenced, candidate) == 2.0
     out, meta = run(INF_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1, "truncated": 0, "code_fence": 0}, meta  # truncated: S146 E5 (SYM-129)
 
 
 # S180 (2026-09-17): THE 2026-08-31 SPECIMEN — Investment Valuation University's markdown (anchor copy converted 08-31, line 8765)
@@ -370,7 +377,7 @@ def _():
     candidate = "\\rm Int(1-t)/E \\\\ & - & \\rm Int(1-t)/E\n</think>\n\n" + HTML_DOC + INF_MD + "\n</code></pre></div>\n</body>\n</html>\n```\n"
     out, meta = run(INF_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 1, "inflation": 0, "truncated": 0}, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 1, "inflation": 0, "truncated": 0, "code_fence": 0}, meta
     assert out.strip() == INF_MD.strip(), "the ORIGINAL chunk must ship, not the document"
 
 
@@ -382,7 +389,7 @@ def _():
     assert tn.word_ratio(fenced, candidate) > analyst.ANALYST_CHUNK_INFLATION_MAX, tn.word_ratio(fenced, candidate)
     out, meta = run(INF_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
-    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1, "truncated": 0}, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 1, "truncated": 0, "code_fence": 0}, meta
     assert out.strip() == INF_MD.strip(), "the ORIGINAL chunk must ship, not the document"
     assert out.strip() == INF_MD.strip(), "the ORIGINAL chunk must ship, not the candidate"
 
@@ -422,7 +429,7 @@ def _():
     paras = B_MD.split("\n\n")
     candidate = "\n\n".join(paras[:2])  # J32-B (b)'s fixture: 2 of 5 paragraphs, ratio 0.4
     out, meta = run(B_MD, [candidate])
-    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0, "truncated": 0}, meta  # truncated: S146 E5 (SYM-129)
+    assert meta["rejections"] == {"fence": 0, "survival": 1, "think_leak": 0, "inflation": 0, "truncated": 0, "code_fence": 0}, meta  # truncated: S146 E5 (SYM-129)
 
 
 @case("J34 (e) the lever's edge is STRICT: 67 of 45 words (1.4889) passes, 68 (1.5111) rejects")
@@ -1056,6 +1063,101 @@ def _():
     finally:
         analyst.BASH_CANDIDATES = saved
         analyst.shutil.which = saved_which
+
+
+# ---------------------------------------------------------------------------
+# SYM-187 — the code-fence guard (S213 E17, signed Rab 2026-09-25, Desk c7b3aa7c: "build it")
+# ---------------------------------------------------------------------------
+_BT = "`" * 3
+_PROSE = ("The function below reads a table of observations and fits a linear model to them, then prints the "
+          "estimated coefficients so that the reader can compare them with the values reported in the text.")
+_CODE = "import numpy as np\nX = np.load('data.npy')\nbeta = np.linalg.lstsq(X, y, rcond=None)[0]\nprint(beta)"
+FENCE_MD = _PROSE + "\n\n" + _BT + "python\n" + _CODE + "\n" + _BT + "\n\n" + _PROSE.replace("below", "above")
+
+
+def _fence_lines(text):
+    return [ln.strip() for ln in text.splitlines() if _BT in ln]
+
+
+@case("SYM-187 (a) a candidate that DROPS the closing fence (else identical) -> rejected, reason code_fence; the original ships")
+def _():
+    out, meta = run(FENCE_MD, [FENCE_MD.replace("print(beta)\n" + _BT + "\n", "print(beta)\n")])
+    assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
+    assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0,
+                                  "code_fence": 1}, meta
+    assert out.strip() == FENCE_MD.strip(), "the ORIGINAL chunk must ship"
+    assert meta["code_fences"] == {"fence_lines_in": 2, "fence_lines_out": 2, "fence_lines_same": True}, meta["code_fences"]
+    assert meta["chunk_scores"][0].get("x") == "code_fence", meta["chunk_scores"]
+
+
+@case("SYM-187 (b) the closing fence GLUED onto the code line ('print(beta)```') -> rejected, code_fence")
+def _():
+    out, meta = run(FENCE_MD, [FENCE_MD.replace("print(beta)\n" + _BT, "print(beta)" + _BT)])
+    assert meta["rejections"]["code_fence"] == 1 and meta["chunks_passed"] == 0, meta
+    assert _fence_lines(out) == _fence_lines(FENCE_MD), _fence_lines(out)
+
+
+@case("SYM-187 (c) the closing fence JOINED to the next prose line ('``` The function above') -> rejected, code_fence "
+      "(the reader would take the rest of the page as code; the live analyst shipped this shape, measured 2026-09-25)")
+def _():
+    out, meta = run(FENCE_MD, [FENCE_MD.replace("\n" + _BT + "\n\nThe function above", "\n" + _BT + " The function above", 1)])
+    assert meta["rejections"]["code_fence"] == 1 and meta["rejections"]["survival"] == 0, meta
+    assert _fence_lines(out) == _fence_lines(FENCE_MD), _fence_lines(out)
+
+
+@case("SYM-187 (c2) a pure ADDITION to the opening fence line ('```python # fit') is reverted by the J46 whitelist before "
+      "this guard looks -> passed with the edit reverted; the fence lines ship as they came (whose job each shape is)")
+def _():
+    out, meta = run(FENCE_MD, [FENCE_MD.replace(_BT + "python\n", _BT + "python # fit the model\n", 1)])
+    assert meta["chunks_passed"] == 1 and meta["rejections"]["code_fence"] == 0, meta
+    assert _fence_lines(out) == _fence_lines(FENCE_MD), _fence_lines(out)
+
+
+@case("SYM-187 (d) CONTROL: a hyphen fix in the prose with every fence line intact -> passed, code_fence 0")
+def _():
+    out, meta = run(FENCE_MD, [FENCE_MD.replace("coefficients", "coeffi- cients", 1)])
+    assert meta["chunks_passed"] == 1 and meta["rejections"]["code_fence"] == 0, meta
+    assert meta["code_fences"]["fence_lines_same"] is True, meta["code_fences"]
+
+
+@case("SYM-187 (e) NEGATIVE CONTROL: the guard's reader blanked -> (a)'s dropped fence SHIPS; re-read with the real reader, "
+      "the shipped fence lines differ from the input's (watched)")
+def _():
+    real = analyst._code_fence_lines
+    try:
+        analyst._code_fence_lines = lambda text: []    # both sides empty: the chunk guard can never see a difference
+        out, meta = run(FENCE_MD, [FENCE_MD.replace("print(beta)\n" + _BT + "\n", "print(beta)\n")])
+    finally:
+        analyst._code_fence_lines = real
+    assert meta["chunks_passed"] == 1 and meta["rejections"]["code_fence"] == 0, ("the guard did not stand down", meta)
+    assert len(_fence_lines(out)) == 1, "the damage should have shipped with the guard blanked"
+    # the record was computed with the blanked reader too, so re-read the SHIPPED text with the real one:
+    assert real(out) != real(FENCE_MD), "the negative control proved nothing"
+
+
+@case("SYM-187 (f) RESUME: a journal from before the guard holds a PASSED chunk that dropped a fence -> rejected on "
+      "resume, code_fence; the original ships")
+def _():
+    fenced, _ = analyst.fence(FENCE_MD)
+    key = analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM)
+    work_dir = analyst.ANALYST_WORK / key
+    work_dir.mkdir(parents=True, exist_ok=True)
+    damaged = fenced.replace("print(beta)\n" + _BT + "\n", "print(beta)\n")
+    with open(work_dir / "chunks.jsonl", "w", encoding="utf-8") as h:
+        analyst._append_journal(h, 1, fenced, "passed", damaged)
+
+    def refuse(prompt):
+        raise AssertionError("should not be called: the only chunk is fully resumed")
+    real_gen = analyst._generate
+    analyst._generate = refuse
+    try:
+        out, meta = analyst.process(FENCE_MD, backend="local", tables=False)
+    finally:
+        analyst._generate = real_gen
+    assert meta["chunks_resumed"] == 1 and meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
+    assert meta["rejections"]["code_fence"] == 1, meta["rejections"]
+    assert out.strip() == FENCE_MD.strip(), "the resumed damage shipped"
+    assert meta["chunk_scores"] == [{"i": 1, "x": "code_fence"}], meta["chunk_scores"]
 
 
 print()
