@@ -22,6 +22,8 @@ two different agents, ten minutes apart, on 2026-08-26.
   C:\Users\Bndit\AppData\Roaming\uv\python\cpython-3.12.13-windows-x86_64-none\python.exe
   ```
 
+  **Changed 2026-09-25 (measured, S213, SYM-186):** Rab installed the Python Install Manager. Bare `python`, `python3` and `py` now go to it, and a bare `python3` does NOT fail: it silently **downloads and installs** a Python runtime from python.org. Never type any of them bare, not even as a no-op; use the path above, or `C:\Users\Bndit\ml\marker-env\Scripts\python.exe` for the converter's environment.
+
 - **`bash` is Git Bash and may not be on PATH** in PowerShell-native shells. Every `.sh` in
   `.claude/skills/` needs it:
 
