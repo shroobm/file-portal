@@ -124,13 +124,15 @@ MECHANISM = {
         # SYM-188 (S213 E18): ci_observe.py counted an UNREAD step log as not red, so 10 of 10 unread printed "exit != 0: 0"
         ["SYM-024", "SYM-031", "SYM-034", "SYM-063", "SYM-071", "SYM-111", "SYM-119", "SYM-121", "SYM-149", "SYM-188"],  # S141: 121 no upstream read as nothing-to-judge; 149 (S209 E14, Codex MSG-CDX-0088): compute_verdict({}) reads pass; _enforce_hold ships on a manifest it cannot read (docs/30 by design) — his call
     ),
+    # SYM-189 (S214 E6): the OK-17 stall ladder guards the SLICED path; a scan-lane book under the chunk threshold runs whole
+    # and a stall there is a hard fail — the guard is off the path a 272-page scan takes
     "S5 A-GUARD-OFF-THE-PATH-THE-WORK-TAKES": (
         "the lock file, detector, CI trigger or job object sits on one entry path; a manual run, a feature branch, a "
         "zero-area geometry or a foreign process takes another and is invisible to every reader",
         "list every entry point that touches the guarded resource; one with zero writes to the signal is this family",
         # SYM-113 (S130 post-close): the ledger row's only parser sits on the OPEN path; the close writes the row
         # after its own gates and never reads it back — a malformed row is invisible until the next session
-        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113", "SYM-122", "SYM-126", "SYM-127", "SYM-130", "SYM-174"],  # S144: 130 the exporter's first-ingest path has no verdict guard (the guard sits on supersede only); S141: 122 the watcher mutex blocked itsown tripwire; S143: 127 the smoke's hook probes write the log the denies check reads
+        ["SYM-018", "SYM-020", "SYM-032", "SYM-042", "SYM-047", "SYM-049", "SYM-054", "SYM-089", "SYM-107", "SYM-113", "SYM-122", "SYM-126", "SYM-127", "SYM-130", "SYM-174", "SYM-189"],  # S144: 130 the exporter's first-ingest path has no verdict guard (the guard sits on supersede only); S141: 122 the watcher mutex blocked itsown tripwire; S143: 127 the smoke's hook probes write the log the denies check reads
     ),
     "S6 THE-CHILD-OUTLIVES-THE-KILL": (
         "the kill, close or job is scoped to the direct child or one window; the real worker is a grandchild (a venv "
