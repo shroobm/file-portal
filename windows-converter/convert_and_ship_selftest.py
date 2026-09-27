@@ -2330,6 +2330,18 @@ _r135b = _s135.run([sys.executable, "-X", "utf8=0", "-c", "import sys; print('\U
 check(_r135b.returncode != 0 or b"\xf0\x9f\x95\x9c" not in _r135b.stdout,
       "SYM-135 NEGATIVE CONTROL: the same child WITHOUT the module's guard cannot print it (the crash reproduced: rc %d)" % _r135b.returncode)
 
+# ---------- S214 E9 (SYM-189): the scan lane's chunk threshold is 100 — a scan book over 100 pages takes the sliced path ----------
+print("SYM-189 scan-lane chunk threshold")
+check(cas.CHUNK_THRESHOLD_PAGES == {"clean": 600, "scan": 100},
+      "SYM-189: the thresholds are clean 600 / scan 100 (his word, Desk 0428e9da 2026-09-27: 1 A) — got %r" % (cas.CHUNK_THRESHOLD_PAGES,))
+check(cas.should_chunk(272, "scan") and cas.should_chunk(392, "scan"),
+      "SYM-189: the two scan-lane books that ran WHOLE on 2026-09-26 (272 pp, 392 pp) now take the sliced path — the ladder's")
+check(cas.should_chunk(101, "scan") and not cas.should_chunk(100, "scan"),
+      "SYM-189: the edge — 101 scan pages slice, 100 run whole (strictly greater, as the rule always was)")
+check(not cas.should_chunk(600, "clean") and cas.should_chunk(601, "clean"),
+      "SYM-189: the clean lane is untouched — 600 whole, 601 sliced")
+check(cas.should_chunk(101, "no-such-lane") and not cas.should_chunk(100, "no-such-lane"),
+      "SYM-189: an unknown lane takes the LOWER threshold (min of the table), so nothing can run whole past 100 by a lane typo")
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

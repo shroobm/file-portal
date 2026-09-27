@@ -370,7 +370,11 @@ def _kill_tree(pid: int) -> None:
 
 # Lane-aware, because the lanes cost different VRAM: Valentine peaked ~8 GB at 465 scanned pp.
 # Page counts come from the pymupdf probe, never from PDF metadata (which lies).
-CHUNK_THRESHOLD_PAGES = {"clean": 600, "scan": 400}
+# S214 E9 (SYM-189; Rab's word, Desk 0428e9da 2026-09-27T16:07Z: "1 A"): the scan lane slices from 100 pages, not 400. The
+# whole path has no stall ladder (its comment at the call site says so), and the two scan-lane books that ran whole on
+# 2026-09-26 (272 and 392 pp) stalled at the card's ceiling and hard-failed. A scan over 100 pages now takes the sliced
+# path: the OK-17 ladder (retry at batch 4, then split) and per-slice resume. The clean lane's 600 is unchanged.
+CHUNK_THRESHOLD_PAGES = {"clean": 600, "scan": 100}
 # A lost slice costs ~10 min; each slice re-pays ~90 s of model load (~18 % overhead at
 # clean-lane rates). Damodaran (1,356 pp) = 7 slices.
 SLICE_PAGES = 200

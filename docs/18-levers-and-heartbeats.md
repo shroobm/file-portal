@@ -124,6 +124,10 @@ terminal. This brief merges the S48 observability survey with the control-surfac
    **STAGE D SPEC — SIGNED (S57, 2026-07-31, decided with Rab):**
    - **Threshold (lane-aware):** clean lane > 600 pp; scan lane > 400 pp (scan runs hotter —
      Valentine peaked ~8 GB at 465 pp). Page counts from the probe (pymupdf), never metadata.
+     **Amended 2026-09-27 (S214 E9, SYM-189; Rab's word on Desk 0428e9da: "1 A"): scan lane > 100 pp.** Two scan-lane
+     books (272 and 392 pp) ran WHOLE on 2026-09-26, stalled at the card's ceiling and hard-failed — the whole path has no
+     stall ladder (its call site says so); the sliced path has OK-17's. The clean lane's 600 is unchanged. Tripwire: the
+     SYM-189 block of `convert_and_ship_selftest.py`.
    - **Slice size: 200 pages.** A lost slice costs ~10 min; each slice re-pays ~90 s model load
      (~18 % overhead at clean-lane rates); Damodaran = 7 slices.
    - **Seams: clean cuts, recorded.** No overlap reconciliation in v1 (silent-text-loss risk).
