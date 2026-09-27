@@ -53,7 +53,7 @@ def test_gate_with_a_token(tmp_path):
     server, base = _server(tmp_path, "s3cret-token\n")
     try:
         code, doc = _get(base + "/health")
-        assert (code, doc) == (200, {"ok": True, "gated": True}), (
+        assert (code, doc) == (200, {"ok": True}), (
             "health is never gated (a liveness probe carries no data)"
         )
         code, doc = _get(base + "/status")
@@ -61,7 +61,9 @@ def test_gate_with_a_token(tmp_path):
         code, doc = _get(base + "/status", token="wrong")
         assert code == 403
         code, doc = _get(base + "/status", token="s3cret-token")
-        assert code == 200 and "in_sync" in doc
+        assert code == 200 and "available" in doc, (
+            "the calm status document (no index on this root) reaches the caller"
+        )
         code, doc = _get(base + "/query?q=anything", token="wrong")
         assert code == 403, "a query without the token never reaches the model"
     finally:
@@ -71,8 +73,8 @@ def test_gate_with_a_token(tmp_path):
 def test_no_token_file_means_identity_only(tmp_path):
     server, base = _server(tmp_path, None)
     try:
-        assert _get(base + "/health") == (200, {"ok": True, "gated": False})
+        assert _get(base + "/health") == (200, {"ok": True})
         code, doc = _get(base + "/status")
-        assert code == 200 and "in_sync" in doc
+        assert code == 200 and "available" in doc
     finally:
         server.shutdown()

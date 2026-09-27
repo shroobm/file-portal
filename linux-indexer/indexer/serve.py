@@ -14,7 +14,7 @@ the header `X-FP-Token` equal to it (a missing or wrong token is a 403 that says
 not, the tailnet identity alone admits, as the Desk, PORTAL and Control do today.
 
 Routes (all GET unless noted, all read-only, all return one JSON document):
-    /health                      {"ok": true, "gated": <bool>}
+    /health                      {"ok": true}
     /status                      the status.run() document
     /query?q=...&k=&mode=&bundle=&lane=&verdict=     the query.run() document
     /query  (POST, JSON body with the same keys)
@@ -148,7 +148,7 @@ def _handler(state: _State):
         def do_GET(self) -> None:
             url = urlparse(self.path)
             if url.path == "/health":
-                self._send(200, {"ok": True, "gated": bool(getattr(state, "token", ""))})
+                self._send(200, {"ok": True})  # the documented contract; the gate never touches it
             elif not self._admitted():
                 return
             elif url.path == "/status":
