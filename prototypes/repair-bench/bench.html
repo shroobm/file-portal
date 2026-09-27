@@ -676,6 +676,9 @@
   <button id="help-btn" title="what everything is and how a repair works">?</button>
   <button id="theme" title="light ⇄ dark">◐</button>
   <button id="rescore" title="re-run the degeneration check on the current text — a preview, writes nothing">◎ re-score</button>
+  <!-- S214 E5: the Scanner (the geometry window, private widgets/scanner, 127.0.0.1:7180) opened on this book and page;
+       the Scanner's own bench button comes back here with #p=<page> (the hash handler at the end of the script). -->
+  <button id="geo-btn" title="the Scanner: this page's block geometry, editable (opens its window on this page)">◫ geometry</button>
 </header>
 
 <div id="upper">
@@ -3032,6 +3035,41 @@ load().catch((e) => status(`load failed: ${e.message}`, true));
   /* crossing a breakpoint switches to that device's remembered sizes */
   window.addEventListener("resize", function () { if (bucket() !== lastBucket) apply(false); });
   apply(false);
+})();
+</script>
+<script>
+/* S214 E5 — the Scanner link, both ways. (1) A page in the address, `#p=<n>`, is honoured once the bench has loaded its
+   state (goto is the bench's own page function; polled until st.pages exists, then on every hashchange) — the Scanner's
+   bench button opens the bench on the page it was looking at. (2) ◫ geometry opens the Scanner (127.0.0.1:7180) on this
+   book (by its bundle dir name, which the Scanner resolves) and this page. Nothing here writes. */
+function applyHashPage() {
+  const m = /^#p=(\d+)$/.exec(location.hash || "");
+  if (!m || !st || !st.pages) return false;
+  goto(Number(m[1]));
+  return true;
+}
+(function () {
+  // the bench's own boot selects zone 1 (its page) a moment AFTER st.pages exists — measured on book 1: the hash landed on
+  // p30 and the boot moved on to p433 — so the address is applied after that selection, and once more if it was overrun
+  // the boot selects its zone and then restores the saved view (fp-bench-view:<book>), each moving the page; a fixed
+  // delay lost to both (measured: p30 applied, p433 restored after). So: wait until the page has SETTLED — unchanged
+  // for 1.2 s once the state is loaded — then apply, and check once more 3 s later.
+  let lastPage = null, stableSince = 0;
+  const t = setInterval(function () {
+    if (!(st && st.pages)) return;
+    const now = Date.now();
+    if (page !== lastPage) { lastPage = page; stableSince = now; return; }
+    if (now - stableSince < 1200) return;
+    clearInterval(t); applyHashPage();
+    setTimeout(function () { const m = /^#p=(\d+)$/.exec(location.hash || ""); if (m && page !== Number(m[1])) applyHashPage(); }, 3000);
+  }, 200);
+  setTimeout(function () { clearInterval(t); }, 60000);
+  addEventListener("hashchange", applyHashPage);
+  const g = document.getElementById("geo-btn");
+  if (g) g.addEventListener("click", function () {
+    if (!st) return;
+    window.open("http://127.0.0.1:7180/?dir=" + encodeURIComponent(st.bundle) + "&page=" + page, "fp-scanner");
+  });
 })();
 </script>
 </body>

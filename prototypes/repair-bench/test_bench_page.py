@@ -1433,6 +1433,29 @@ class TestOK15EvidenceWiring(unittest.TestCase):
         self.assertIn("html: false", BENCH_HTML.replace("html:false", "html: false"), "the view's renderer stays html:false (S149's refuter)")
 
 
+class TestS214ScannerLink(unittest.TestCase):
+    """S214 E5: the Scanner link, both ways — the page in the address (#p=<n>) routes through the bench's own goto once the
+    state is loaded, and ◫ geometry opens the Scanner on this book's dir name and this page. Source-level, like the rest."""
+
+    def test_hash_page_routes_through_goto_after_state(self):
+        body = js_function_body(BENCH_HTML, "applyHashPage")
+        self.assertIn("goto(", body, "the address's page must go through goto, the bench's one page function")
+        self.assertIn("st.pages", body, "a page is honoured only once the state (st.pages) is loaded")
+        self.assertRegex(body, r"#p=", "the address form is #p=<n>")
+        self.assertIn('addEventListener("hashchange", applyHashPage)', BENCH_HTML, "a later address change is honoured too")
+        # Negative control: a handler that sets the page image directly would bypass goto's placeholder path (OK-2)
+        self.assertNotIn("setPageImage(", body)
+
+    def test_geometry_button_opens_the_scanner_on_this_book_and_page(self):
+        self.assertIn('id="geo-btn"', BENCH_HTML, "the toolbar carries ◫ geometry")
+        self.assertIn("127.0.0.1:7180/?dir=", BENCH_HTML, "the Scanner is addressed by the bundle dir name…")
+        self.assertIn("encodeURIComponent(st.bundle)", BENCH_HTML, "…taken from the bench's own state")
+        self.assertIn('"&page=" + page', BENCH_HTML, "…and the bench's current page")
+        # Negative control: the link must not carry the bench's secret to another origin
+        seg = BENCH_HTML[BENCH_HTML.index('id="geo-btn"'):]
+        self.assertNotIn("token", seg[seg.index("127.0.0.1:7180"):seg.index("127.0.0.1:7180") + 200])
+
+
 if __name__ == "__main__":
     try:
         unittest.main(verbosity=2)
