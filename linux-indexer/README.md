@@ -110,6 +110,16 @@ tailscale serve --bg --set-path /index http://127.0.0.1:8765
 curl "https://archlinux.<tailnet>.ts.net/index/query?q=requisite+variety&mode=keyword"
 ```
 
+### Its own auth: `~/file-portal/serve.token` (S214 E16)
+
+docs/06 asks a `tailscale serve`-fronted endpoint to carry its own auth. Write one line into
+`~/file-portal/serve.token` (for example `openssl rand -hex 16 > ~/file-portal/serve.token && chmod 600`
+`~/file-portal/serve.token`) and every route but `/health` requires the header `X-FP-Token` equal to it;
+a missing or wrong token is a 403 that names the file. Without the file the tailnet identity alone
+admits, as the Desk, PORTAL and Control do today. The file is the operator's and lives outside this
+repository (which is public); `/health` answers `{"ok": true, "gated": <bool>}` so a caller can tell.
+`dashboard.serve` (linux-dashboard) reads the same file.
+
 ## Tests
 
 ```bash

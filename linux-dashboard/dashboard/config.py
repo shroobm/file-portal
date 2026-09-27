@@ -40,6 +40,9 @@ class Settings:
     enabled_categories: list[str] = field(default_factory=lambda: list(ALL_CATEGORIES))
     photo_date_from: str = ""  # "yyyy-mm", empty = no lower bound
     photo_date_to: str = ""  # "yyyy-mm", empty = no upper bound
+    serve_port: int = (
+        8766  # dashboard.serve's loopback port (S214 E16); the indexer's serve takes 8765
+    )
 
     @classmethod
     def load(cls, path: Path = CONFIG_PATH) -> "Settings":

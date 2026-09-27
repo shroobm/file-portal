@@ -99,6 +99,12 @@ jobs:
       - name: Test (linux-receiver)
         working-directory: linux-receiver
         run: pytest tests/ -v
+      # S214 E16 (2026-09-27): dashboard.serve, the sorted/ feed for the tailnet (docs/06's shape) — hermetic: a
+      # temp sorted/ tree, a loopback port, the token file present and absent; no GTK (the thumbnail route reads
+      # 501 without GdkPixbuf or Pillow, and the test accepts either answer).
+      - name: Test (linux-dashboard)
+        working-directory: linux-dashboard
+        run: pytest tests/ -v
       - name: Test (linux-converter)
         working-directory: linux-converter
         run: pytest tests/ -v

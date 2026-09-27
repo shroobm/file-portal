@@ -8,8 +8,13 @@ starts it -- it is a segment the operator turns on:
     python -m indexer.serve                      # foreground, port from the serve_port lever
     tailscale serve --bg --set-path /index http://127.0.0.1:8765   # tailnet-only, identity-bound
 
+Its own auth (S214 E16, docs/06's "with its own auth"): the file `<root>/serve.token` (one line, the
+operator's, never in the repo -- the repo is public). When it exists every route but /health wants
+the header `X-FP-Token` equal to it (a missing or wrong token is a 403 that says so); when it does
+not, the tailnet identity alone admits, as the Desk, PORTAL and Control do today.
+
 Routes (all GET unless noted, all read-only, all return one JSON document):
-    /health                      {"ok": true}
+    /health                      {"ok": true, "gated": <bool>}
     /status                      the status.run() document
     /query?q=...&k=&mode=&bundle=&lane=&verdict=     the query.run() document
     /query  (POST, JSON body with the same keys)
@@ -19,6 +24,7 @@ the CLI's cold model load. Stdlib only.
 """
 
 import argparse
+import hmac
 import json
 import sys
 import threading
@@ -32,6 +38,19 @@ from indexer.embed import FastEmbedder, Reranker
 from indexer.store import Store
 
 BIND = "127.0.0.1"  # loopback only, by construction (docs/06); reach it through tailscale serve
+TOKEN_FILE = (
+    "serve.token"  # <root>/serve.token: the operator's own auth, outside the repo (S214 E16)
+)
+
+
+def read_token(root: Path) -> str:
+    """The operator's token, one line, or "" when the file is absent or blank (identity-only)."""
+    try:
+        return (root / TOKEN_FILE).read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+
+
 # Request bounds. A question is a sentence, not a document: anything past these is a mistake
 # or an abuse and gets a 4xx, never a model call.
 MAX_BODY_BYTES = 65536  # lever-waiver: Rab; a safety bound, moves only if a real client needs more
@@ -46,6 +65,7 @@ class _State:
         # thread-safe, but a query costs milliseconds and a serialised endpoint has one fewer
         # thing to be wrong about (docs/47: never assume what a probe has not shown).
         self.lock = threading.Lock()
+        self.token = read_token(root)
         paths = Paths.from_root(root)
         self.embedder = None
         self.reranker = None
@@ -72,6 +92,21 @@ def _handler(state: _State):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+
+        def _admitted(self) -> bool:
+            token = getattr(state, "token", "") or ""
+            if not token:
+                return True  # identity-only: the tailnet admits, as the other surfaces do today
+            presented = self.headers.get("X-FP-Token") or ""
+            if hmac.compare_digest(presented.encode("utf-8"), token.encode("utf-8")):
+                return True
+            self._send(
+                403,
+                {
+                    "error": "X-FP-Token missing or wrong -- the token is <root>/serve.token on this machine"
+                },
+            )
+            return False
 
         def _query(self, params: dict) -> None:
             text = (params.get("q") or "").strip()
@@ -110,10 +145,12 @@ def _handler(state: _State):
                 )
             self._send(200, doc)
 
-        def do_GET(self) -> None:  # noqa: N802 -- http.server's contract
+        def do_GET(self) -> None:
             url = urlparse(self.path)
             if url.path == "/health":
-                self._send(200, {"ok": True})
+                self._send(200, {"ok": True, "gated": bool(getattr(state, "token", ""))})
+            elif not self._admitted():
+                return
             elif url.path == "/status":
                 self._send(200, status.run(state.root))
             elif url.path == "/query":
@@ -121,9 +158,11 @@ def _handler(state: _State):
             else:
                 self._send(404, {"error": "unknown route"})
 
-        def do_POST(self) -> None:  # noqa: N802
+        def do_POST(self) -> None:
             if urlparse(self.path).path != "/query":
                 self._send(404, {"error": "unknown route"})
+                return
+            if not self._admitted():
                 return
             try:
                 length = int(self.headers.get("Content-Length") or 0)
@@ -144,7 +183,7 @@ def _handler(state: _State):
             self._query({k: ("" if v is None else str(v)) for k, v in params.items()})
 
         def log_message(self, fmt, *args):  # one line per request on stderr, no client noise
-            sys.stderr.write("%s %s\n" % (self.address_string(), fmt % args))
+            sys.stderr.write(f"{self.address_string()} {fmt % args}\n")
 
     return Handler
 

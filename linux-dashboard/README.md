@@ -43,6 +43,24 @@ Window size, refresh interval, category filters, and the photo date range live i
 `~/.config/file-portal/dashboard.toml`, editable from the gear menu in the app's header bar or by
 hand (re-read on next launch / next settings change, no restart required for in-app edits).
 
+## Serving sorted/ to the tailnet (opt-in, loopback only) — S214 E16
+
+`python -m dashboard.serve` is the sorted browse without the GTK window: it binds `127.0.0.1:<serve_port>`
+(8766 by default, `serve_port` in dashboard.toml, `--port N` overrides) and nothing else, opens no other
+port, and no unit ships for it. Reach it through `tailscale serve` — the pattern docs/06 names for a new
+surface:
+
+```bash
+python -m dashboard.serve                                    # foreground
+tailscale serve --bg --set-path /sorted http://127.0.0.1:8766   # tailnet-only, identity-bound
+```
+
+Routes (GET, read-only): `/health`; `/sorted?category=&from=&to=` — the same `scan()` model the window
+renders, as JSON, paths relative to `sorted/`; `/thumb?path=&px=` — a small JPEG of one photo under
+`sorted/photos` (GdkPixbuf, else Pillow, else an honest 501). Its own auth is `~/file-portal/serve.token`,
+shared with the indexer's endpoint: when the file exists every route but `/health` wants `X-FP-Token`.
+Nothing here opens, moves or writes a file. Tests: `pytest tests/` (hermetic; no GTK).
+
 ## Uninstalling
 
 ```bash

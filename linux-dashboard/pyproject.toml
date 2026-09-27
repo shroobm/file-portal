@@ -8,6 +8,10 @@ dependencies = [
     "tomli-w>=1.0,<2",
 ]
 
+[tool.pytest.ini_options]
+# Make `pytest tests/` work without installing the package (CI runs it from a bare venv).
+pythonpath = ["."]
+
 [tool.ruff]
 line-length = 100
 target-version = "py311"
