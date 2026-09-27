@@ -501,8 +501,17 @@ def convert_one(pdf: Path) -> str:
     else:
         went = _move_source(pdf, FAILED_DIR, "failed")
         exit_code = "timeout" if timed_out else child.returncode
-        logger.error("FAILED %s -> %s (exit %s): %s", pdf.name, went,
-                     exit_code, (err or "").strip()[-400:])
+        # S214 E18 (SYM-189's residue): the tail below cut the exception's TYPE off twice on one book (pdfium's
+        # "Unsupported security scheme", found only by a probe). The whole stderr is kept beside the failed PDF.
+        kept = ""
+        try:
+            stderr_path = FAILED_DIR / (pdf.stem + ".stderr.txt")
+            stderr_path.write_text(err or "", encoding="utf-8", errors="replace")
+            kept = " | whole stderr: %s" % stderr_path.name
+        except OSError as e:
+            kept = " | whole stderr NOT KEPT (%s)" % e.__class__.__name__
+        logger.error("FAILED %s -> %s (exit %s): %s%s", pdf.name, went,
+                     exit_code, (err or "").strip()[-400:], kept)
         emit("intake", "failed", source=pdf.name, exit_code=exit_code,
              **({"timeout_s": TIMEOUT_S} if timed_out else {}))
         return "failed"
