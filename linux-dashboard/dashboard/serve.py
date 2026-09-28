@@ -42,10 +42,10 @@ from dashboard.scanner import scan
 
 BIND = "127.0.0.1"  # loopback only, by construction (docs/06); reach it through tailscale serve
 TOKEN_FILE = "serve.token"  # <root>/serve.token, the operator's, outside the repo
-DEFAULT_PORT = 8766  # the indexer's serve takes 8765
+DEFAULT_PORT = 8766  # lever-waiver: a port, not a threshold (the indexer's serve takes 8765); overridden by --port
 _YEAR_MONTH_RE = re.compile(r"^\d{4}-\d{2}$")
-THUMB_PX_DEFAULT = 320
-THUMB_PX_MAX = 1024
+THUMB_PX_DEFAULT = 320  # lever-waiver: Rab; the thumbnail's edge when ?px= is absent — moves on the phone's own read
+THUMB_PX_MAX = 1024  # lever-waiver: Rab; the ceiling on ?px= (a cap on the work one request may ask), not a quality threshold
 
 
 def read_token(root: Path) -> str:
