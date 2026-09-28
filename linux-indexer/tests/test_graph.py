@@ -66,7 +66,14 @@ def _seed(store):
         [[0, 0, 1, 0], [0, 0, 1, 0.05]],
         {"lane": "clean", "verdict": "flag", "doc_survival": 0.52},
     )
-    _book(store, "d" * 16, "No Vectors Yet", ["an empty empty book"], [], {"lane": "clean"})
+    _book(
+        store,
+        "d" * 16,
+        "No Vectors Yet",
+        ["an empty empty book page- page- page- \\mathcal mathcal mathcal"],
+        [],
+        {"lane": "clean"},
+    )
     store.set_meta(tip="deadbeef")
 
 
@@ -90,6 +97,10 @@ def test_centroids_edges_and_terms(tmp_path):
         "a shared term is carried by at least two books"
     )
     assert "polyhedral" not in {t["term"] for t in shared}, "a term of one book alone is not shared"
+    d_terms = {t["term"] for t in per_book.get("d" * 16, [])}
+    assert "page-" not in d_terms and "mathcal" not in d_terms and "empty" in d_terms, (
+        "a hyphen-broken fragment and a LaTeX command are not words; a real word is"
+    )
 
 
 def test_build_lists_every_book_and_the_levers(tmp_path):

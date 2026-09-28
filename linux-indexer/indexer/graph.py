@@ -30,7 +30,9 @@ EDGE_K = 4  # lever-waiver: Rab; neighbours kept per book, moves on how the grap
 MIN_SIM = 0.30  # lever-waiver: Rab; the cosine under which two books are not joined
 TOP_TERMS = 12  # lever-waiver: Rab; terms kept per book
 MAX_TERMS = 80  # lever-waiver: Rab; shared terms kept in the third reading
-_WORD = re.compile(r"[a-z][a-z'-]{2,}")
+_WORD = re.compile(
+    r"[a-z][a-z'-]*[a-z]"
+)  # begins and ends with a letter: 'page-' (a line-break hyphen) is not a word
 _STOP = frozenset(
     """a about above after again against all also although am an and any are as at be because been
     before being below between both but by can cannot could did do does doing done down during each
