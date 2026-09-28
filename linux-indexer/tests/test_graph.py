@@ -113,7 +113,11 @@ def test_build_lists_every_book_and_the_levers(tmp_path):
         "min_sim": graph.MIN_SIM,
         "top_terms": graph.TOP_TERMS,
         "max_terms": graph.MAX_TERMS,
+        "stop": graph.STOP_VERSION,
     }
+    assert "mathcal" in graph._STOP and "processors" not in graph._STOP, (
+        "the stoplist drops LaTeX tokens and keeps real words"
+    )
     assert doc["edges"] and all(0 < e["w"] <= 1.0001 for e in doc["edges"])
     json.dumps(doc)  # the document is plain JSON
 

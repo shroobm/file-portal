@@ -40,8 +40,13 @@ _STOP = frozenset(
     themselves then there these they this those through to too under until up upon us very was we were
     what when where which while who whom why will with within without would you your yours yourself
     yourselves one two three first second new used using use uses may might must shall via per et al
-    fig figure figures table tables page pages chapter section eq equation equations ie eg vol pp""".split()
+    fig figure figures table tables page pages chapter section eq equation equations ie eg vol pp
+    mathcal mathbf mathrm mathbb mathit textbf textit textrm frac sqrt cdot cdots ldots dots left right
+    begin end quad qquad label ref cite hline tabular array item displaystyle prime infty partial sum int
+    times alpha beta gamma delta epsilon lambda sigma theta omega phi mu nu tau rho pi sin cos tan log exp
+    min max arg lim sup inf det secs sec www http https com org html pdf""".split()
 )
+STOP_VERSION = 2  # bumped when the stoplist changes: it is part of the cache key (S214 E24: LaTeX tokens leaked as words)
 
 
 def _decode(blob: bytes) -> list[float]:
@@ -181,6 +186,7 @@ def build(
             "min_sim": min_sim,
             "top_terms": top_terms,
             "max_terms": max_terms,
+            "stop": STOP_VERSION,
         },
         "counts": {
             "nodes": len(nodes),
@@ -206,6 +212,7 @@ def cached(index_dir: Path, store: Store, **levers) -> dict:
         "top_terms": TOP_TERMS,
         "max_terms": MAX_TERMS,
         **levers,
+        "stop": STOP_VERSION,
     }
     if tip and path.is_file():
         try:
