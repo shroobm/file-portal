@@ -162,15 +162,17 @@ def _handler(state: _State):
                 self._send(404, {"error": "unknown route"})
 
         def _graph(self) -> None:
-            paths = Paths(state.root)
-            store = Store(paths.index_dir)
+            paths = Paths.from_root(
+                state.root
+            )  # the module's own way (S214 E24: the first cut called the constructor and 502'd)
+            store = Store(paths.index)
             if not store.exists():
                 self._send(200, {"available": False, "reason": "no index yet"})
                 return
             with state.lock:
                 store.open_readonly()
                 try:
-                    doc = graph.cached(paths.index_dir, store)
+                    doc = graph.cached(paths.index, store)
                 finally:
                     store.close()
             doc["available"] = True

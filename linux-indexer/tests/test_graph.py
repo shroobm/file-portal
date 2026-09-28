@@ -118,6 +118,61 @@ def test_build_lists_every_book_and_the_levers(tmp_path):
     json.dumps(doc)  # the document is plain JSON
 
 
+def test_graph_route_serves_the_document(tmp_path):
+    """The ROUTE, not just the module (S214 E24: the first deploy 502'd on a path the module never
+    exercised): a store under the root's own index dir, the endpoint on a loopback port, /graph
+    gated by the token like every route, and the document it returns."""
+    import json as _json
+    import socket
+    import threading
+    import urllib.error
+    import urllib.request
+    from http.server import ThreadingHTTPServer
+
+    from indexer import serve
+    from indexer.config import Paths, Settings
+
+    paths = Paths.from_root(tmp_path)
+    paths.index.mkdir(parents=True, exist_ok=True)
+    s = _store(paths.index)
+    _seed(s)
+    s.close()
+    (tmp_path / serve.TOKEN_FILE).write_text("s3cret\n", encoding="utf-8")
+    state = serve._State.__new__(serve._State)
+    state.root = tmp_path
+    state.settings = Settings.load(tmp_path / "missing.toml")
+    state.lock = threading.Lock()
+    state.embedder = None
+    state.reranker = None
+    state.token = serve.read_token(tmp_path)
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+    server = ThreadingHTTPServer(("127.0.0.1", port), serve._handler(state))
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    try:
+        req = urllib.request.Request(f"http://127.0.0.1:{port}/graph")
+        try:
+            urllib.request.urlopen(req, timeout=10)
+            raise AssertionError("NEGATIVE: /graph without the token must be refused")
+        except urllib.error.HTTPError as e:
+            assert e.code == 403
+        req = urllib.request.Request(
+            f"http://127.0.0.1:{port}/graph", headers={"X-FP-Token": "s3cret"}
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            doc = _json.load(r)
+        assert doc["available"] is True and doc["tip"] == "deadbeef" and doc["counts"]["nodes"] == 4
+        assert (paths.index / graph.GRAPH_FILE).is_file(), (
+            "the route cached the graph beside the index"
+        )
+        with urllib.request.urlopen(req, timeout=30) as r:
+            again = _json.load(r)
+        assert again["cached"] is True
+    finally:
+        server.shutdown()
+
+
 def test_cache_follows_the_tip_and_the_levers(tmp_path):
     s = _store(tmp_path)
     _seed(s)
