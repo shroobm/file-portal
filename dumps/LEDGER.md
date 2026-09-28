@@ -69,3 +69,20 @@ verdict and proves nothing about now.
 | D0090 | 2026-09-22T13:09:44Z | pipeline | evidence | chunk journal - run f8192644c0aa2533 | 356102 | `8a4a91013345f297c3248007fe263a67f4fc766aabdaaee096bb799e6c7dd3cd` |
 | D0091 | 2026-09-22T14:43:42Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 385 run d180a95138274f20 | 19110 | `d9120e970d84f0737f723d444a054047879750bdc25615d840d4a6dfda35c7c0` |
 | D0092 | 2026-09-22T14:48:08Z | pipeline | evidence | chunk journal - run d180a95138274f20 | 1722963 | `ed8aba2ae28c3864c871fa7c4ac84e42948eb99b6c1191a4e61f0797c2d19d36` |
+| D0093 | 2026-09-23T16:25:45Z | pipeline | evidence | chunk journal - run b27a7a1b27c1e6ec | 461632 | `b02694b1de6cdec2d9f8ff9a1c46db9e09cfe69d12c7d0ae9dcaeecacbaca8a1` |
+| D0094 | 2026-09-23T22:10:46Z | pipeline | evidence | chunk journal - run 8bd733c47622acff | 234543 | `ead80dbd5cec03b7df1c311a634e304022ae9922f71dddc1609b4ccc177c91ef` |
+| D0095 | 2026-09-23T22:23:51Z | pipeline | evidence | chunk journal - run 08eea881680e9ec6 | 262071 | `50cbd82bfc8499df853555a5dcfdcd07c95e029c9601231a93a83bae4ce26757` |
+| D0096 | 2026-09-23T22:49:34Z | pipeline | evidence | chunk journal - run 7fa1bc153b56e280 | 172386 | `de1268d8647f1a056e86539117e090c742a5405af79bc6b0a3fe9954c99292fa` |
+| D0097 | 2026-09-23T23:14:47Z | pipeline | evidence | chunk journal - run 31b1512a916712c7 | 493404 | `5f38eb5b227668b0971dbaf57204367a63f73a0a56723b05ce751374c8a30290` |
+| D0098 | 2026-09-23T23:26:09Z | pipeline | evidence | chunk journal - run bd584e8dd3b364c0 | 219592 | `e3623b4d24c1367bcf3d62e7dd5b7335264b757a10e9e7a7e3ff698b42edfd25` |
+| D0099 | 2026-09-24T20:10:22Z | pipeline | evidence | chunk journal - run 4e8f9df10189520e | 154807 | `776c822d979f7e67aef5d5a00925ad3513e3830fec722b163d1f83cdc3e420ac` |
+| D0100 | 2026-09-25T00:14:25Z | pipeline | evidence | chunk journal - run 63b19f41236c4435 | 3272921 | `0c1cc61f4efdd83a5d7cd914115b3d465ba8ba1ad143bdc54238a9c0332f77c2` |
+| D0101 | 2026-09-25T23:53:17Z | pipeline | evidence | chunk journal - run fcfb15c6f8c501a3 | 1121157 | `3401819657c8c35e5921da176693a832745c7f6451a0dd20f5627a64659d46f9` |
+| D0102 | 2026-09-26T02:29:27Z | pipeline | evidence | chunk journal - run 10ec24e7dcab4cf6 | 2118646 | `b4290094f767425a407b9eac34dc128091a8547c33a8734926c74d047d8a0e1a` |
+| D0103 | 2026-09-27T17:49:16Z | pipeline | evidence | chunk journal - run 952fabd44cca2a6c | 626742 | `7acdf0b6012798798849e2067c5df10c29e53bf4d9d86f76ee003f27fdd517ac` |
+| D0104 | 2026-09-27T19:34:43Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 75 run 102c170994fdfd3a | 19017 | `68aecdb7a962c3bd4b8ce18de70e225efb664941cf564b740308ea77e68a01e1` |
+| D0105 | 2026-09-27T19:42:44Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 115 run 102c170994fdfd3a | 19086 | `ab5401fde0e35c39d9b49bc75141f4d1033ca22b5684d4fe6d5a67ca2e7bf98f` |
+| D0106 | 2026-09-27T20:08:05Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 230 run 102c170994fdfd3a | 19093 | `9307d5e3cdcbe82f9ffa3c2b2357feec202458010680b7c749dabd99658f52e4` |
+| D0107 | 2026-09-27T20:08:09Z | pipeline | evidence | ollama server.log tail at a failed call - chunk 231 run 102c170994fdfd3a | 18993 | `7250e20fea31d9f119ff74724f9601085f4adb9a45a0d61b43bb8acc38c85481` |
+| D0108 | 2026-09-27T20:18:30Z | pipeline | evidence | chunk journal - run 102c170994fdfd3a | 1045098 | `a8e6da0f92f2df227ce99e5631f5dd0b46ad08f0bb7e421191d57dbfb1208652` |
+| D0109 | 2026-09-27T22:08:30Z | pipeline | evidence | chunk journal - run 4e81e4dde4b8589f | 736941 | `3fe4666f275d85936b4ea4689d49f24deafe14c01f99c296affb8b10dbe160a2` |
