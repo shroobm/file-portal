@@ -2219,7 +2219,7 @@ def token_gate(presented: str | None, expected) -> str | None:
 
 
 # ---- the thin HTTP layer ---------------------------------------------------------------------
-def make_handler(bench: Bench, token=_NO_GATE):
+def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None):
     bench0 = bench
 
     class Handler(BaseHTTPRequestHandler):
@@ -2254,6 +2254,14 @@ def make_handler(bench: Bench, token=_NO_GATE):
                     n = int(q.get("n", ["1"])[0])
                     dpi = int(q.get("dpi", [str(RASTER_DPI)])[0])
                     self._send(200, bench.page_png(n, min(dpi, 300)), "image/png")
+                elif url.path == "/fp-tokens.css":
+                    # S215 E25: the ONE design system (control/fp-tokens.css, private, beside the widgets) when the bench
+                    # was started with --tokens-css <path>; absent, a 404 and bench.html's own fallbacks carry the page
+                    if tokens_css is not None and Path(tokens_css).is_file():
+                        self._send(200, Path(tokens_css).read_bytes(), "text/css; charset=utf-8")
+                    else:
+                        self._json({"error": "no tokens sheet here (start bench.py with --tokens-css <fp-tokens.css>); "
+                                             "the page uses its own palette"}, 404)
                 elif url.path.startswith("/vendor/"):
                     # S149: the viewer's renderer (markdown-it, MIT, vendored) — read-only, basename only,
                     # scripts only; nothing under vendor/ is ever written by the bench
@@ -2408,7 +2416,9 @@ def main():
     for stream in (sys.stdout, sys.stderr):
         if hasattr(stream, "reconfigure"):
             stream.reconfigure(errors="replace")
-    ap = argparse.ArgumentParser(description="The Repair Bench (prototype)")
+    # allow_abbrev=False (S215 E25, the fleet): --token beside --tokens-css made the prefix --tok ambiguous under argparse's
+    # default; every caller (the widget's bench.rs, the Scanner) spells its flags whole, so abbreviations are refused outright
+    ap = argparse.ArgumentParser(description="The Repair Bench (prototype)", allow_abbrev=False)
     ap.add_argument("bundle", help="bundle dir, or a bare sha16 resolved against held/")
     ap.add_argument("--pdf", type=Path, help="source PDF (default: drop/done/<manifest.source>)")
     ap.add_argument("--sandbox", action="store_true",
@@ -2426,6 +2436,11 @@ def main():
     ap.add_argument("--token", default=None,
                     help="shared secret; every POST route requires a matching X-FP-Token "
                          "header (no --token = mutating routes answer 403)")
+    # S215 E25: the one design system's sheet, served as /fp-tokens.css — the Scanner passes control/fp-tokens.css (private,
+    # beside the widgets); without it the page renders its own S147 palette. Never a download: a path on this machine.
+    ap.add_argument("--tokens-css", default=os.environ.get("FP_TOKENS_CSS") or None,
+                    help="path of fp-tokens.css to serve as /fp-tokens.css (default $FP_TOKENS_CSS; absent = the "
+                         "page's own palette)")
     args = ap.parse_args()
     bench = Bench(args.bundle, pdf=args.pdf, sandbox=args.sandbox)
     if args.unsplit_tables:
@@ -2437,9 +2452,11 @@ def main():
           f"pdf {'✓ ' + str(bench.pdf) if st['pdf_available'] else 'NOT FOUND (markdown-only)'}")
     print("  mutating routes: " + ("token-gated (--token)" if args.token else
                                    "DISABLED — started without --token, POSTs answer 403"))
+    print("  tokens: " + (args.tokens_css if args.tokens_css and Path(args.tokens_css).is_file() else
+                         "none (the page's own palette)" + ("" if not args.tokens_css else " — " + args.tokens_css + " is not a file")))
     print(f"  → http://127.0.0.1:{args.port}/   (Ctrl+C to close)")
     ThreadingHTTPServer(("127.0.0.1", args.port),
-                        make_handler(bench, token=args.token)).serve_forever()
+                        make_handler(bench, token=args.token, tokens_css=args.tokens_css)).serve_forever()
 
 
 if __name__ == "__main__":

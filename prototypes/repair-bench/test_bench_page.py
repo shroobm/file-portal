@@ -678,13 +678,13 @@ BENIGN = {
 
 
 class LiveBenchServer:
-    def __init__(self, token):
+    def __init__(self, token, tokens_css=None):
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-bundle-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one\nline two\nline three",
                                           encoding="utf-8")
         self.bench = bench.Bench(self.tmp)
         self.httpd = ThreadingHTTPServer(("127.0.0.1", 0),
-                                         bench.make_handler(self.bench, token=token))
+                                         bench.make_handler(self.bench, token=token, tokens_css=tokens_css))
         self.port = self.httpd.server_address[1]
         self.thread = threading.Thread(target=self.httpd.serve_forever, daemon=True)
         self.thread.start()
@@ -693,6 +693,42 @@ class LiveBenchServer:
         self.httpd.shutdown()
         self.httpd.server_close()
         shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+class TestTokensCss(unittest.TestCase):
+    """S215 E25: GET /fp-tokens.css serves the ONE file named by --tokens-css (the design system's sheet, private, beside the
+    widgets) and nothing else; without it the route is a 404 that names the remedy, and the page's own fallbacks carry."""
+
+    def test_with_a_sheet_the_route_serves_its_bytes_as_css(self):
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-tokens-"))
+        sheet = tmp / "fp-tokens.css"
+        sheet.write_text(":root { --fp-clay: #d97757; }\n", encoding="utf-8")
+        srv = LiveBenchServer(token=None, tokens_css=str(sheet))
+        try:
+            code, body = _get(srv.port, "/fp-tokens.css")
+            self.assertEqual(code, 200)
+            self.assertEqual(body, sheet.read_bytes(), "the route must serve the sheet's own bytes")
+            code, _ = _get(srv.port, "/fp-tokens.cs")          # a near-miss path is not the route
+            self.assertEqual(code, 404)
+        finally:
+            srv.close()
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_without_a_sheet_the_route_is_a_404_that_names_the_remedy(self):
+        srv = LiveBenchServer(token=None)
+        try:
+            code, body = _get(srv.port, "/fp-tokens.css")
+            self.assertEqual(code, 404)
+            self.assertIn("--tokens-css", json.loads(body.decode("utf-8")).get("error", ""), "the 404 must name the remedy")
+        finally:
+            srv.close()
+
+    def test_a_sheet_path_that_is_not_a_file_is_a_404_too(self):
+        srv = LiveBenchServer(token=None, tokens_css=str(Path(tempfile.gettempdir()) / "fp-no-such-sheet.css"))
+        try:
+            self.assertEqual(404, _get(srv.port, "/fp-tokens.css")[0])
+        finally:
+            srv.close()
 
 
 class TestFailClosed403Live(unittest.TestCase):

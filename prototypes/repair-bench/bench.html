@@ -4,6 +4,22 @@
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
 <script src="/vendor/markdown-it.min.js"></script>  <!-- S149: the viewer's renderer (markdown-it 14.1.0, MIT, vendored — served read-only by bench.py) -->
+<!-- S215 E25 · the bench in the system: the ONE design system's sheet (bench.py serves it when started with --tokens-css;
+     a 404 without it, and the page's own Galley & Lamp values carry — see the token bridge in the style sheet) and the
+     display face the shell uses. The theme reaches the page BEFORE its program runs: ?theme= (this load — the shell hands
+     it over at mount, as it does the Scanner's), else the stored choice, else the system's; ?theme= is written to the key
+     the program reads (fp-bench-theme, its own read below is byte-identical since S147), so the two agree. -->
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&display=swap">
+<link rel="stylesheet" href="/fp-tokens.css">
+<script>(function () { try {
+  var q = new URLSearchParams(location.search).get("theme");
+  if (q === "dark" || q === "light") localStorage.setItem("fp-bench-theme", q);
+  var t = localStorage.getItem("fp-bench-theme");
+  if (t !== "dark" && t !== "light") t = (window.matchMedia && window.matchMedia("(prefers-color-scheme: light)").matches) ? "light" : "dark";
+  document.documentElement.setAttribute("data-theme", t);
+} catch (e) {} })();</script>
 <title>Repair Bench</title>
 <style>
   /* ---- S66: the dummy-proof pass. Same Apple system as S63 (SF stack, blur chrome,
@@ -449,45 +465,96 @@
      the accent (a blue pencil now) = selection / current. Every id, control, text and title is untouched;
      the bench's own program is byte-identical. Overrides only — the S66 rules above still carry the
      load-bearing mechanisms (#pagephold[hidden], .modal[hidden], the #ctx counter gutter). ---- */
+  /* ---- S215 E25 · the bench in the system. Every colour, face and shadow the S147 pass named above is now READ FROM
+     THE ONE DESIGN SYSTEM (control/fp-tokens.css, served as /fp-tokens.css when bench.py is started with --tokens-css)
+     with the Galley & Lamp values as the fallbacks — the sheet absent, this is the S147 page. The three theme states are
+     the sheet's own: bare :root is DARK (the widget's default), the system's light choice applies unless a stamp says
+     dark, and a data-theme stamp wins either way (the page is stamped before its program runs — the script in <head> —
+     so the ◐ toggle always flips from what is shown). The tints (-bg) and the fills are MIXED from their colour, so
+     they follow whichever palette is in force; the wallpaper, the lamp (--stage), the highlight and the page shadow
+     are the bench's own and carry a light and a dark value here. The card order is kept per theme: in the light the
+     card is the lifted white on the panel (elev on surface-1), in the dark the card is the pressed-in one (surface-1
+     on surface-2). The meanings are unchanged: clay = your hand, green = repaired, amber = omission, the accent =
+     selection. ---- */
   :root {
-    --bg:#e6dfd2;
-    --wallpaper:radial-gradient(1100px 640px at 82% -10%, rgba(255,205,140,.18), transparent 60%),
-                radial-gradient(900px 620px at -8% 106%, rgba(120,90,60,.10), transparent 55%);
-    --material:rgba(250,247,239,.72); --card:#f9f6ef; --card-2:#efe8d9;
-    --fill:rgba(94,78,58,.09); --fill-2:rgba(94,78,58,.17);
-    --sep:rgba(66,52,38,.14); --sep-2:rgba(66,52,38,.24);
-    --text:#2b2420; --text-2:rgba(43,36,32,.64); --text-3:rgba(43,36,32,.36);
-    --accent:#3d6ea1; --accent-bg:rgba(61,110,161,.12);
-    --ok:#4a7c56; --ok-bg:rgba(74,124,86,.14);
-    --warn:#b1802c; --warn-bg:rgba(177,128,44,.14);
-    --clay:#c1552f; --clay-bg:rgba(193,85,47,.11);
-    --hl:rgba(255,205,90,.5);
-    --stage:radial-gradient(ellipse 950px 560px at 50% -8%, rgba(255,205,140,.32), transparent 62%), #6f5d47;
-    --shadow:0 1px 2px rgba(43,30,20,.07), 0 8px 22px rgba(43,30,20,.09);
-    --shadow-page:0 3px 10px rgba(30,20,12,.30), 0 20px 48px rgba(30,20,12,.26);
-    --mono:"Cascadia Mono","Cascadia Code",Consolas,"SF Mono",ui-monospace,monospace;
-    --sans:"Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif;
-    --display:"Segoe UI Variable Display","Segoe UI Semibold","Segoe UI",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif;
-    /* five tokens the S66 sheet referenced but never defined (they rendered as invalid CSS) — mapped: */
-    --line:var(--sep); --panel:var(--card-2); --panel-2:var(--card-2); --flow:var(--accent); --bad:var(--clay);
-  }
-  [data-theme="dark"] {
-    --bg:#14100d;
+    --bg:var(--fp-bg, #14100d);
     --wallpaper:radial-gradient(1100px 650px at 82% -10%, rgba(255,195,130,.07), transparent 60%),
                 radial-gradient(800px 520px at -8% 106%, rgba(200,110,60,.05), transparent 55%);
-    --material:rgba(27,22,18,.7); --card:#1f1a15; --card-2:#27201a;
-    --fill:rgba(214,192,164,.10); --fill-2:rgba(214,192,164,.18);
-    --sep:rgba(255,232,204,.09); --sep-2:rgba(255,232,204,.16);
-    --text:#f1ebe0; --text-2:rgba(241,235,224,.63); --text-3:rgba(241,235,224,.34);
-    --accent:#6fa0d3; --accent-bg:rgba(111,160,211,.16);
-    --ok:#5cab6b; --ok-bg:rgba(92,171,107,.16);
-    --warn:#cb9c47; --warn-bg:rgba(203,156,71,.16);
-    --clay:#d97b53; --clay-bg:rgba(217,123,83,.17);
+    --material:var(--fp-glass, rgba(27,22,18,.7)); --card:var(--fp-surface-1, #1f1a15); --card-2:var(--fp-surface-2, #27201a);
+    --sep:var(--fp-line, rgba(255,232,204,.09)); --sep-2:var(--fp-line-strong, rgba(255,232,204,.16));
+    --text:var(--fp-ink, #f1ebe0); --text-2:var(--fp-ink-2, rgba(241,235,224,.63)); --text-3:var(--fp-ink-3, rgba(241,235,224,.34));
+    --accent:var(--fp-flow, #6fa0d3); --ok:var(--fp-ok, #5cab6b); --warn:var(--fp-warn, #cb9c47); --clay:var(--fp-clay, #d97b53);
     --hl:rgba(255,210,110,.30);
     --stage:radial-gradient(ellipse 950px 560px at 50% -8%, rgba(255,195,130,.15), transparent 62%), #0e0b09;
-    --shadow:none;
+    --shadow:var(--fp-shadow, none);
     --shadow-page:0 4px 14px rgba(0,0,0,.6), 0 24px 60px rgba(0,0,0,.55);
+    color-scheme:dark;
+    --fill:color-mix(in srgb, var(--text) 10%, transparent); --fill-2:color-mix(in srgb, var(--text) 18%, transparent);
+    --accent-bg:color-mix(in srgb, var(--accent) 16%, transparent); --ok-bg:color-mix(in srgb, var(--ok) 16%, transparent);
+    --warn-bg:color-mix(in srgb, var(--warn) 16%, transparent); --clay-bg:color-mix(in srgb, var(--clay) 17%, transparent);
+    --mono:var(--fp-mono, "Cascadia Mono","Cascadia Code",Consolas,"SF Mono",ui-monospace,monospace);
+    --sans:var(--fp-sans, "Segoe UI Variable Text","Segoe UI",-apple-system,BlinkMacSystemFont,"SF Pro Text",system-ui,sans-serif);
+    --display:var(--fp-display, "Segoe UI Variable Display","Segoe UI Semibold","Segoe UI",-apple-system,BlinkMacSystemFont,"SF Pro Display",system-ui,sans-serif);
+    --hit:var(--fp-hit, 44px);
+    /* five tokens the S66 sheet referenced but never defined (they rendered as invalid CSS) — mapped: */
+    --line:var(--sep); --panel:var(--card-2); --panel-2:var(--card-2); --flow:var(--accent); --bad:var(--fp-crit, var(--clay));
   }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme="dark"]) {
+      --bg:var(--fp-bg, #e6dfd2);
+      --wallpaper:radial-gradient(1100px 640px at 82% -10%, rgba(255,205,140,.18), transparent 60%),
+                  radial-gradient(900px 620px at -8% 106%, rgba(120,90,60,.10), transparent 55%);
+      --material:var(--fp-glass, rgba(250,247,239,.72)); --card:var(--fp-elev, #f9f6ef); --card-2:var(--fp-surface-1, #efe8d9);
+      --sep:var(--fp-line, rgba(66,52,38,.14)); --sep-2:var(--fp-line-strong, rgba(66,52,38,.24));
+      --text:var(--fp-ink, #2b2420); --text-2:var(--fp-ink-2, rgba(43,36,32,.64)); --text-3:var(--fp-ink-3, rgba(43,36,32,.36));
+      --accent:var(--fp-flow, #3d6ea1); --ok:var(--fp-ok, #4a7c56); --warn:var(--fp-warn, #b1802c); --clay:var(--fp-clay, #c1552f);
+      --hl:rgba(255,205,90,.5);
+      --stage:radial-gradient(ellipse 950px 560px at 50% -8%, rgba(255,205,140,.32), transparent 62%), #6f5d47;
+      --shadow:var(--fp-shadow, 0 1px 2px rgba(43,30,20,.07), 0 8px 22px rgba(43,30,20,.09));
+      --shadow-page:0 3px 10px rgba(30,20,12,.30), 0 20px 48px rgba(30,20,12,.26);
+      /* the light tints and fills at the pristine's alphas (the fleet: one shared formula matched the dark's) */
+      --fill:color-mix(in srgb, var(--text) 9%, transparent); --fill-2:color-mix(in srgb, var(--text) 17%, transparent);
+      --accent-bg:color-mix(in srgb, var(--accent) 12%, transparent); --ok-bg:color-mix(in srgb, var(--ok) 14%, transparent);
+      --warn-bg:color-mix(in srgb, var(--warn) 14%, transparent); --clay-bg:color-mix(in srgb, var(--clay) 11%, transparent);
+      color-scheme:light;
+    }
+  }
+  :root[data-theme="light"] {
+    --bg:var(--fp-bg, #e6dfd2);
+    --wallpaper:radial-gradient(1100px 640px at 82% -10%, rgba(255,205,140,.18), transparent 60%),
+                radial-gradient(900px 620px at -8% 106%, rgba(120,90,60,.10), transparent 55%);
+    --material:var(--fp-glass, rgba(250,247,239,.72)); --card:var(--fp-elev, #f9f6ef); --card-2:var(--fp-surface-1, #efe8d9);
+    --sep:var(--fp-line, rgba(66,52,38,.14)); --sep-2:var(--fp-line-strong, rgba(66,52,38,.24));
+    --text:var(--fp-ink, #2b2420); --text-2:var(--fp-ink-2, rgba(43,36,32,.64)); --text-3:var(--fp-ink-3, rgba(43,36,32,.36));
+    --accent:var(--fp-flow, #3d6ea1); --ok:var(--fp-ok, #4a7c56); --warn:var(--fp-warn, #b1802c); --clay:var(--fp-clay, #c1552f);
+    --hl:rgba(255,205,90,.5);
+    --stage:radial-gradient(ellipse 950px 560px at 50% -8%, rgba(255,205,140,.32), transparent 62%), #6f5d47;
+    --shadow:var(--fp-shadow, 0 1px 2px rgba(43,30,20,.07), 0 8px 22px rgba(43,30,20,.09));
+    --shadow-page:0 3px 10px rgba(30,20,12,.30), 0 20px 48px rgba(30,20,12,.26);
+    /* the light tints and fills at the pristine's alphas (the fleet: one shared formula matched the dark's) */
+    --fill:color-mix(in srgb, var(--text) 9%, transparent); --fill-2:color-mix(in srgb, var(--text) 17%, transparent);
+    --accent-bg:color-mix(in srgb, var(--accent) 12%, transparent); --ok-bg:color-mix(in srgb, var(--ok) 14%, transparent);
+    --warn-bg:color-mix(in srgb, var(--warn) 14%, transparent); --clay-bg:color-mix(in srgb, var(--clay) 11%, transparent);
+    color-scheme:light;
+  }
+  :root[data-theme="dark"] {
+    --bg:var(--fp-bg, #14100d);
+    --wallpaper:radial-gradient(1100px 650px at 82% -10%, rgba(255,195,130,.07), transparent 60%),
+                radial-gradient(800px 520px at -8% 106%, rgba(200,110,60,.05), transparent 55%);
+    --material:var(--fp-glass, rgba(27,22,18,.7)); --card:var(--fp-surface-1, #1f1a15); --card-2:var(--fp-surface-2, #27201a);
+    --sep:var(--fp-line, rgba(255,232,204,.09)); --sep-2:var(--fp-line-strong, rgba(255,232,204,.16));
+    --text:var(--fp-ink, #f1ebe0); --text-2:var(--fp-ink-2, rgba(241,235,224,.63)); --text-3:var(--fp-ink-3, rgba(241,235,224,.34));
+    --accent:var(--fp-flow, #6fa0d3); --ok:var(--fp-ok, #5cab6b); --warn:var(--fp-warn, #cb9c47); --clay:var(--fp-clay, #d97b53);
+    --hl:rgba(255,210,110,.30);
+    --stage:radial-gradient(ellipse 950px 560px at 50% -8%, rgba(255,195,130,.15), transparent 62%), #0e0b09;
+    --shadow:var(--fp-shadow, none);
+    --shadow-page:0 4px 14px rgba(0,0,0,.6), 0 24px 60px rgba(0,0,0,.55);
+    color-scheme:dark;
+  }
+
+  /* the empty stage's placeholder sits ON the lamp, whose ground in the light is the bench's own brown — the fleet measured
+     ink-3 on it at ~1.2:1. On paper instead (card + ink-2, a pair the tokens design together), in both themes. */
+  #nopdf { background:var(--card); color:var(--text-2); border-radius:8px; margin:28px auto; max-width:46ch; padding:22px 28px; box-shadow:var(--shadow-page); }
 
   /* type: Windows faces first (the tool lives on a Windows desktop and its stream), tabular figures
      wherever digits must rule up like a proof-reader's line count */
@@ -620,11 +687,12 @@
   .gutter-h.rail, html.lay-phone .gutter.rail { width:auto; height:26px; }
 
   /* the phone: fingers, not cursors */
-  html.lay-phone button, html.lay-phone input, html.lay-phone select { min-height:40px; }
+  html.lay-phone button, html.lay-phone input, html.lay-phone select { min-height:var(--hit); }   /* S215 E25: the system's thumb size (--hit, 44 — declared on :root, so no fallback here) */
+  html.lay-phone .gutter .step::after { content:""; position:absolute; inset:-11px; }   /* S215 E25 (the fleet): the 22-px steppers keep their size; their hit grows to 44 */
   html.lay-phone .stab { padding:11px 2px; }
   html.lay-phone header { padding:8px 10px; }
   html.lay-phone .logo { width:32px; height:32px; }
-  html.lay-phone #searchbox button { min-width:40px; }
+  html.lay-phone #searchbox button { min-width:var(--hit); }
   html.lay-laptop #side-tabs { margin:8px 6px 0; }
   html.lay-laptop .stab { font-size:10.5px; padding:7px 3px; }
   html.lay-laptop .thumb { min-height:96px; }
