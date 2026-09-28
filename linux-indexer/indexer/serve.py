@@ -32,7 +32,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
-from indexer import query, status
+from indexer import graph, query, status
 from indexer.config import DEFAULT_ROOT, Paths, Settings, lever_menu, lever_range
 from indexer.embed import FastEmbedder, Reranker
 from indexer.store import Store
@@ -155,8 +155,26 @@ def _handler(state: _State):
                 self._send(200, status.run(state.root))
             elif url.path == "/query":
                 self._query({k: v[0] for k, v in parse_qs(url.query).items()})
+            elif url.path == "/graph":
+                # S214 E24: the Library graph — cached beside the index under its tip, rebuilt when the tip moves
+                self._graph()
             else:
                 self._send(404, {"error": "unknown route"})
+
+        def _graph(self) -> None:
+            paths = Paths(state.root)
+            store = Store(paths.index_dir)
+            if not store.exists():
+                self._send(200, {"available": False, "reason": "no index yet"})
+                return
+            with state.lock:
+                store.open_readonly()
+                try:
+                    doc = graph.cached(paths.index_dir, store)
+                finally:
+                    store.close()
+            doc["available"] = True
+            self._send(200, doc)
 
         def do_POST(self) -> None:
             if urlparse(self.path).path != "/query":
