@@ -222,7 +222,9 @@ def cached(index_dir: Path, store: Store, **levers) -> dict:
                 return doc
         except (OSError, ValueError):
             pass
-    doc = build(store, **wanted)
+    # the stoplist's version is a cache key, not a build argument (CI #824 red: build() got 'stop' — caught by the route
+    # test, the one the first cut lacked)
+    doc = build(store, **{k: v for k, v in wanted.items() if k != "stop"})
     doc["cached"] = False
     if tip:
         tmp = path.with_suffix(".json.tmp")
