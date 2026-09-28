@@ -48,7 +48,7 @@ _STOP = frozenset(
     times alpha beta gamma delta epsilon lambda sigma theta omega phi mu nu tau rho pi sin cos tan log exp
     min max arg lim sup inf det secs sec www http https com org html pdf""".split()
 )
-STOP_VERSION = 2  # bumped when the stoplist changes: it is part of the cache key (S214 E24: LaTeX tokens leaked as words)
+STOP_VERSION = 3  # bumped when the stoplist OR the word rule changes: it is part of the cache key (S214 E24: 2 dropped LaTeX tokens, 3 the trailing hyphen)
 
 
 def _decode(blob: bytes) -> list[float]:
