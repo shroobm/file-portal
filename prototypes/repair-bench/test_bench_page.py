@@ -1667,6 +1667,408 @@ class TestPeersAndDot(unittest.TestCase):
         self.assertTrue(bench.host_ok("localhost.:7077", "127.0.0.1"))
 
 
+def _picker_swap_probe(mod):
+    """S215 round seven (round six, finding 17). Two listeners of one serve_on on loopback addresses (127.0.0.1 and 127.0.0.2), on the real
+    bench module or on a mutant of its source: through the first the picker opens book-b, through the second it opens book-a, and after
+    each open BOTH listeners are asked for /api/state. Returns (rows, why): a row is (listener asked, book opened, HTTP status of the open,
+    what each listener now shows, whether the two hold ONE Bench object); why is '' when the probe ran, else what stopped it (an address
+    that cannot be bound is UNREAD, never a pass). mod.OPEN_ROOTS points at a temp root for the probe: nothing of the library is opened."""
+    import socket
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    root = Path(tempfile.mkdtemp(prefix="fp-test-swap-"))
+    for name in ("book-a", "book-b"):
+        (root / name).mkdir()
+        (root / name / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+    servers = []
+    serving_first = False
+    try:
+        with mock.patch.object(mod, "OPEN_ROOTS", (root,)):
+            try:
+                servers = mod.serve_on(["127.0.0.1", "127.0.0.2"], port,
+                                       mod.make_handler(mod.Bench(root / "book-a"), token="t0k"))
+            except OSError as e:
+                return [], "the listeners could not be bound here (%s)" % e
+            if len(servers) < 2:
+                return [], "127.0.0.2 was not bound here"
+            threading.Thread(target=servers[0].serve_forever, kwargs={"poll_interval": 0.05}, daemon=True).start()
+            serving_first = True
+            hosts = ("127.0.0.1", "127.0.0.2")
+
+            def call(host, method, path, body=None):
+                conn = http.client.HTTPConnection(host, port, timeout=10)
+                conn.request(method, path, body=body,
+                             headers={"X-FP-Token": "t0k", "Content-Type": "application/json"} if body is not None else {})
+                r = conn.getresponse()
+                data = r.read()
+                conn.close()
+                return r.status, json.loads(data.decode("utf-8"))
+
+            rows = []
+            for asked, book in ((hosts[0], "book-b"), (hosts[1], "book-a")):
+                status, _ = call(asked, "POST", "/api/open", json.dumps({"path": str(root / book)}).encode("utf-8"))
+                seen = tuple(call(h, "GET", "/api/state")[1].get("bundle") for h in hosts)
+                first, second = getattr(servers[0], "bench", None), getattr(servers[1], "bench", None)
+                rows.append((asked, book, status, seen, first is not None and first is second))
+            return rows, ""
+    finally:
+        # shutdown() waits for its serve_forever to notice (up to its poll interval), so the listeners are stopped together; it also waits
+        # forever on a serve_forever that never ran, so the first listener is stopped only if it was started
+        stoppers = [threading.Thread(target=srv.shutdown) for i, srv in enumerate(servers) if i > 0 or serving_first]
+        for th in stoppers:
+            th.start()
+        for th in stoppers:
+            th.join()
+        for srv in servers:
+            srv.server_close()
+        shutil.rmtree(root, ignore_errors=True)
+
+
+def _swap_reaches_both(rows):
+    """The property the picker's swap must have: both opens answered 200, and after each one BOTH listeners show the book just opened
+    and hold one and the same Bench object."""
+    return len(rows) == 2 and all(status == 200 and seen == (book, book) and same
+                                  for (_asked, book, status, seen, same) in rows)
+
+
+class TestPickerSwapLive(unittest.TestCase):
+    """S215 round seven (round six, finding 17: "Nothing tests that the picker's swap actually reaches every bench listener"):
+    TestPeersAndDot.test_the_picker_swaps_every_listener greps the source, so a swap loop whose body was `pass` -- or that swaps only the
+    listener that was asked, which is the bug round five fixed -- left the whole file green. This runs it: the picker opens a book through
+    one listener of a two-listener serve_on and the OTHER listener must show it (and the reverse), on loopback addresses only."""
+
+    def test_a_swap_posted_to_either_listener_is_seen_on_both(self):
+        rows, why = _picker_swap_probe(bench)
+        if why:
+            self.skipTest(why + " -- UNREAD, not a pass")
+        self.assertTrue(_swap_reaches_both(rows), rows)
+
+
+def _bench_mutant(old, new):
+    """S215 round seven (round six, finding 17): bench.py's source with exactly one statement changed, exec'd as a module of its own (its
+    __file__ is the real one, so its folder lookups resolve). The real module is not touched. The anchor must be found exactly once."""
+    src = Path(bench.__file__).read_text(encoding="utf-8")
+    if src.count(old) != 1:
+        raise AssertionError("mutation anchor %r found %d times in bench.py" % (old, src.count(old)))
+    mod = types.ModuleType("bench_mutant_r7")
+    mod.__file__ = bench.__file__
+    exec(compile(src.replace(old, new), bench.__file__, "exec", dont_inherit=True), mod.__dict__)
+    return mod
+
+
+class TestPickerSwapMutants(unittest.TestCase):
+    """S215 round seven (round six, finding 17): the negatives to TestPickerSwapLive. The live probe is run on mutants of the swap
+    statement in bench.py's /api/open branch; each must fail it, and the unchanged source loaded the same way must pass."""
+
+    SWAP = "srv.bench = new_bench"
+
+    def test_the_unchanged_source_passes_the_probe_when_loaded_as_a_mutant(self):
+        rows, why = _picker_swap_probe(_bench_mutant(self.SWAP, self.SWAP))
+        if why:
+            self.skipTest(why + " -- UNREAD, not a pass")
+        self.assertTrue(_swap_reaches_both(rows), rows)
+
+    def test_each_broken_swap_fails_the_probe(self):
+        mutants = (
+            ("pass: the loop runs and swaps nothing", "pass"),
+            ("only the listener that was asked", "if srv is self.server: srv.bench = new_bench"),
+            ("only the others", "if srv is not self.server: srv.bench = new_bench"),
+            ("each listener opens its own copy", 'srv.bench = open_target(str(payload["path"]))'),
+        )
+        for name, new in mutants:
+            with self.subTest(mutant=name):
+                rows, why = _picker_swap_probe(_bench_mutant(self.SWAP, new))
+                if why:
+                    self.skipTest(why + " -- UNREAD, not a pass")
+                self.assertFalse(_swap_reaches_both(rows), "%s: the live probe still passes, so it cannot tell (%r)" % (name, rows))
+
+
+class TestHostDots(unittest.TestCase):
+    """S215 E37 (round six, 18): a Host of only dots is refused, never read as 'no Host sent'"""
+
+    def test_dots_only_refused_names_with_a_dot_admitted(self):
+        self.assertFalse(bench.host_ok(".", "127.0.0.1"))
+        self.assertFalse(bench.host_ok(".:7077", "127.0.0.1"))
+        self.assertFalse(bench.host_ok("::1.", "127.0.0.1"))
+        self.assertTrue(bench.host_ok("localhost.:7077", "127.0.0.1"))
+        self.assertTrue(bench.host_ok(None, "127.0.0.1"), "no Host at all: the loopback still admits a local tool")
+
+    def test_negative_control_the_old_strip(self):
+        old = lambda name: name[:-1] if name.endswith(".") else name   # noqa: E731 — the round-five line
+        self.assertEqual(old("."), "", "the old strip turned '.' into '' (read as no Host)")
+
+
+class TestBodyCache(unittest.TestCase):
+    """S215 E36: the body is read once per change of the file; an outside write is seen; the bench's own write drops its copy;
+    state() is the same warm and cold."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-cache-"))
+        self.md = self.tmp / "book.md"
+        self.md.write_text("---\ntitle: t\n---\nline one\nline  two\n", encoding="utf-8")
+        self.b = bench.Bench(self.tmp)
+
+    def tearDown(self):
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+    def test_read_once_per_change(self):
+        a = self.b.body()
+        self.assertIs(self.b.body(), a, "an unchanged file is not read again (the same string object)")
+        self.assertEqual(self.b._lines()[1], ["line one", "line two", ""])
+
+    def test_an_outside_write_is_seen(self):
+        self.b.body()
+        import os
+        import time as _t
+        self.md.write_text("---\ntitle: t\n---\nchanged by another hand\n", encoding="utf-8")
+        st = self.md.stat()
+        os.utime(self.md, ns=(st.st_atime_ns, st.st_mtime_ns + 2_000_000))   # a clock that moved, whatever the file system's grain
+        self.assertIn("changed by another hand", self.b.body())
+        self.assertIn("changed by another hand", self.b._lines()[1])
+
+    def test_the_bench_write_drops_its_copy(self):
+        self.b.body()
+        self.b._write_body("rewritten by the bench\n", gesture="manual-edit", note="test")
+        self.assertIn("rewritten by the bench", self.b.body())
+
+    def test_a_same_size_rewrite_inside_one_tick_is_seen(self):
+        """round seven: the (mtime, size) key missed this; the bytes compare cannot"""
+        import os
+        self.md.write_text("---\ntitle: t\n---\naaaa\n", encoding="utf-8")
+        st = self.md.stat()
+        self.assertIn("aaaa", self.b.body())
+        self.md.write_text("---\ntitle: t\n---\nbbbb\n", encoding="utf-8")
+        os.utime(self.md, ns=(st.st_atime_ns, st.st_mtime_ns))   # the old mtime put back: same size, same tick
+        self.assertIn("bbbb", self.b.body())
+        self.assertIn("bbbb", self.b._lines()[1])
+
+    def test_crlf_decoded_as_read_text_does(self):
+        self.md.write_bytes(b"---\r\ntitle: t\r\n---\r\none\r\ntwo\r\n")
+        self.assertEqual(self.b.body(), bench.split_frontmatter(self.md.read_text(encoding="utf-8"))[1])
+
+    def test_the_resolvers_agree_with_their_pre_e36_forms(self):
+        body = "Alpha  Beta\tGamma delta\n  The QUICK brown   fox jumps over\nplain line\nthe quick BROWN fox again here\n"
+        self.md.write_text("---\ntitle: t\n---\n" + body, encoding="utf-8")
+        b = bench.Bench(self.tmp)
+
+        def run_old(run):                       # bench.py before E36, written out
+            words = (run.get("excerpt") or "").split()
+            if len(words) < 3:
+                return None
+            body_norm = [" ".join(ln.split()).lower() for ln in b.body().split("\n")]
+            for n in (6, 5, 4, 3):
+                if len(words) < n:
+                    continue
+                needle = " ".join(words[:n]).lower().strip("-—•* ")
+                if len(needle) < 8:
+                    continue
+                hits = [i + 1 for i, ln in enumerate(body_norm) if needle in ln]
+                if hits:
+                    return hits[0]
+            return None
+
+        def zone_hits_old(excerpt):
+            return [i + 1 for i, ln in enumerate(b.body().split("\n")) if excerpt in " ".join(ln.split())]
+        for ex in ("the quick brown fox never here", "Alpha Beta Gamma delta", "QUICK brown fox jumps over the", "no such words at all"):
+            self.assertEqual(b._resolve_run_line({"excerpt": ex}), run_old({"excerpt": ex}), ex)
+        for ex in ("Alpha Beta Gamma", "The QUICK brown fox", "plain line", "absent"):
+            got = [i + 1 for i, ln in enumerate(b._lines()[1]) if ex in ln]
+            self.assertEqual(got, zone_hits_old(ex), ex)
+
+    def test_md_and_page_revalidate(self):
+        srv = bench.serve_on(["127.0.0.1"], 0, bench.make_handler(self.b))
+        try:
+            threading.Thread(target=srv[0].serve_forever, daemon=True).start()   # serve_on leaves the first to its caller
+            port = srv[0].server_address[1]
+            c = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+            c.request("GET", "/api/md")
+            r = c.getresponse(); r.read()
+            tag = r.getheader("ETag")
+            self.assertEqual(r.status, 200)
+            self.assertTrue(tag and tag.startswith('"md-'), tag)
+            self.assertEqual(r.getheader("Cache-Control"), "no-cache")
+            c.request("GET", "/api/md", headers={"If-None-Match": tag})
+            r = c.getresponse(); body = r.read()
+            self.assertEqual((r.status, body), (304, b""))
+            self.md.write_text("---\ntitle: t\n---\nchanged\n", encoding="utf-8")
+            c.request("GET", "/api/md", headers={"If-None-Match": tag})
+            r = c.getresponse(); r.read()
+            self.assertEqual(r.status, 200)
+            self.assertNotEqual(r.getheader("ETag"), tag)
+            self.assertIsNone(self.b.page_etag(1, 72), "no PDF: no page validator, the route answers as before")
+        finally:
+            for s in srv:
+                s.shutdown(); s.server_close()
+
+    def test_http11_keepalive_and_the_304(self):
+        """S215 E36 (round seven): HTTP/1.1 on one kept-alive connection — the browser's form of revalidation"""
+        srv = bench.serve_on(["127.0.0.1"], 0, bench.make_handler(self.b, token="t0k"))   # a gate, so the POST below is refused
+        try:
+            threading.Thread(target=srv[0].serve_forever, daemon=True).start()
+            c = http.client.HTTPConnection("127.0.0.1", srv[0].server_address[1], timeout=10)
+            c.request("GET", "/api/md")
+            r = c.getresponse(); r.read()
+            self.assertEqual((r.version, r.status), (11, 200), "the bench answers HTTP/1.1")
+            tag = r.getheader("ETag")
+            c.request("GET", "/api/md", headers={"If-None-Match": tag})   # the SAME connection, kept alive
+            r = c.getresponse(); body = r.read()
+            self.assertEqual((r.version, r.status, body), (11, 304, b""))
+            c.request("POST", "/api/md", body=b'{"text": "x"}', headers={"Content-Type": "application/json", "X-FP-Token": "wrong"})
+            r = c.getresponse(); r.read()
+            c.request("GET", "/api/md", headers={"If-None-Match": tag})   # after a refused POST: the drained body never leaks
+            r = c.getresponse(); r.read()
+            self.assertEqual(r.status, 304)
+            c.close()
+        finally:
+            for s in srv:
+                s.shutdown(); s.server_close()
+
+    def test_state_same_warm_and_cold(self):
+        cold = bench.Bench(self.tmp).state()
+        self.b.state()
+        warm = self.b.state()
+        self.assertEqual(json.dumps(cold, sort_keys=True, default=str), json.dumps(warm, sort_keys=True, default=str))
+
+
+
+def e38_block(src: str) -> str:
+    """the S215 E38 <script> block (the windowed pane), from its head comment to its </script>"""
+    at = src.index("/* S215 E38 (Rab, Desk 4354924f")
+    return src[at:src.index("</script>", at)]
+
+
+def e38_window_rule_ok(block: str) -> bool:
+    """the window only on the phone layouts AND never while the pane is editable"""
+    m = re.search(r"const windowed = \(\) => (.+?);", block)
+    return bool(m) and "phone()" in m.group(1) and "!editing()" in m.group(1) and \
+        'contains("lay-phone")' in block and 'contains("lay-short")' in block
+
+
+def e38_edit_order_ok(block: str) -> bool:
+    """the ✎ wrapper draws the whole file BEFORE the program's handler makes the pane editable, flags the click, and
+    toggleView draws no window inside it"""
+    w = block[block.index("editBtn.onclick = function"):]
+    return w.index("whole()") < w.index("_edit.call(") and "inEditClick = true" in w and \
+        "!inEditClick" in block[block.index("toggleView = function"):block.index("editBtn")]
+
+
+class TestE38WindowedPane(unittest.TestCase):
+    """S215 E38 (Rab, Desk 4354924f 2026-09-29 10:16:52Z: "harsh latency especially when I rotate my phone"): on the phone the
+    markdown pane draws the lines near the screen; the editor and the desk draw the whole file, as before."""
+
+    def setUp(self):
+        self.src = BENCH_HTML.replace("\r\n", "\n")
+        self.block = e38_block(self.src)
+
+    def test_rebinds_the_programs_own_functions_only(self):
+        for name in ("renderLines", "ctxText", "scrollToLine", "markTableHealth", "toggleView"):
+            self.assertIn(f"{name} = function", self.block, f"E38 no longer rebinds {name}")
+        self.assertNotIn("S215 E38", self.src[self.src.index("const $ = (id) =>"):self.src.index("/* ---- S147 · the layout module")],
+                         "E38 must live outside the program block")
+
+    def test_window_only_on_the_phone_and_never_while_editing(self):
+        self.assertTrue(e38_window_rule_ok(self.block))
+
+    def test_window_rule_negative_control(self):
+        self.assertFalse(e38_window_rule_ok(self.block.replace("phone() && !editing()", "phone()")),
+                         "the helper failed to catch a window drawn under the editor")
+
+    def test_the_editor_gets_the_whole_file_first(self):
+        self.assertTrue(e38_edit_order_ok(self.block))
+
+    def test_the_editor_order_negative_controls(self):
+        self.assertFalse(e38_edit_order_ok(self.block.replace("!viewOn && windowed() && !inEditClick", "!viewOn && windowed()")),
+                         "the helper failed to catch toggleView drawing a window inside a ✎ click (the editor would get a slice)")
+        swapped = self.block.replace("    if (!editing() && win) { keep = firstOnScreen(); whole(); }\n", "").replace(
+            "    try { r = _edit.call(this, e); } finally { inEditClick = false; }\n",
+            "    try { r = _edit.call(this, e); } finally { inEditClick = false; }\n    if (win) whole();\n")
+        self.assertFalse(e38_edit_order_ok(swapped), "the helper failed to catch the whole file drawn AFTER the pane became editable")
+
+    def test_a_slice_never_feeds_the_programs_highlight_path_or_the_save(self):
+        draw = self.block[self.block.index("function draw("):self.block.index("function whole(")]
+        self.assertIn("renderedText = null", draw)
+        self.assertRegex(self.block, r"ctxText = function \(\) \{ return win \? mdText : _ctxText\(\); \};")
+
+    def test_class_changes_are_acted_on_in_an_animation_frame(self):
+        self.assertRegex(self.block, r"const later = function \(\) \{ if \(!modeRaf\) modeRaf = requestAnimationFrame\(settle\); \};")
+        self.assertIn('new MutationObserver(later).observe(root, { attributes: true, attributeFilter: ["class"] })', self.block)
+
+    def test_round_six_refit_after_a_turn_fit_modes_only(self):
+        tail = self.block[self.block.index("round six (22)"):]
+        self.assertIn("requestAnimationFrame(", tail)
+        self.assertRegex(tail, r'z\.value === "fit" \|\| z\.value === "fitpage"\) && typeof applyZoom === "function"\) applyZoom\(\)')
+
+    def test_round_six_sideways_css(self):
+        self.assertIn("html.lay-short .patient { flex:none; max-width:34vw; overflow-x:auto;", self.src)
+        self.assertNotRegex(self.src, r"html\.lay-short \.patient \{[^}]*overflow:hidden", "sideways the chips must swipe (round six, 20)")
+        self.assertIn("padding-bottom:env(safe-area-inset-bottom)", self.src)
+
+
+
+def e38_leave_ok(block: str) -> bool:
+    """✎-off and the crossing read the whole file's own row height (firstOfWhole, rounded) and jump the window to that line"""
+    fw = block[block.index("function firstOfWhole()"):block.index("let tbFor")]
+    edit = block[block.index("editBtn.onclick = function"):block.index('ctx.addEventListener("scroll"')]
+    settle = block[block.index("function settle()"):block.index("const later")]
+    return ("Math.round(" in fw and "getBoundingClientRect().height" in fw and "draw(firstOfWhole(), true)" in edit
+            and "draw(firstOfWhole(), true)" in settle)
+
+
+def e38_selection_ok(block: str) -> bool:
+    scroll = block[block.index('ctx.addEventListener("scroll"'):block.index("function settle()")]
+    cp = block[block.index('document.addEventListener("copy"'):]
+    return ("selOpenInPane()" in scroll and "}, true);" in cp and "stopImmediatePropagation" in cp
+            and "r.intersectsNode(pads[0]) || r.intersectsNode(pads[1])" in cp and "L.slice(" in cp)
+
+
+class TestE38RoundEight(unittest.TestCase):
+    """S215 E38, round eight (wf_1b9eba3a) and round seven's preload profile: the fixes' shapes, each with its negative control."""
+
+    def setUp(self):
+        self.src = BENCH_HTML.replace("\r\n", "\n")
+        self.block = e38_block(self.src)
+
+    def test_leaving_the_editor_keeps_the_line(self):
+        self.assertTrue(e38_leave_ok(self.block))
+
+    def test_leaving_the_editor_negative_control(self):
+        self.assertFalse(e38_leave_ok(self.block.replace("draw(firstOfWhole(), true);   // round eight: the whole file's own row height",
+                                                         "draw(firstOnScreen());")), "the helper missed the 2 %-per-cycle drift")
+        self.assertFalse(e38_leave_ok(self.block.replace("Math.round((ctx.scrollTop - PAD)", "Math.floor((ctx.scrollTop - PAD)")),
+                         "the helper missed the floor that lost one line per cycle")
+
+    def test_a_selection_is_never_redrawn_and_copies_true_lines(self):
+        self.assertTrue(e38_selection_ok(self.block))
+
+    def test_selection_negative_control(self):
+        self.assertFalse(e38_selection_ok(self.block.replace("      if (!win || selOpenInPane()) return;\n", "      if (!win) return;\n")))
+        self.assertFalse(e38_selection_ok(self.block.replace("  }, true);\n  // round six (22)", "  });\n  // round six (22)")),
+                         "the copy must be captured before the pane's own handler")
+
+    def test_table_marks_follow_the_buffer(self):
+        draw = self.block[self.block.index("function draw("):self.block.index("function whole(")]
+        self.assertIn("tbFresh();", draw)
+        fresh = self.block[self.block.index("function tbFresh()"):self.block.index("function selOpenInPane()")]
+        self.assertIn("if (tbFor === mdText) return;", fresh)
+
+    def test_an_unsized_frame_reads_no_layout(self):
+        self.assertIn("const unsized = () => !innerWidth || !innerHeight;", self.block)
+        self.assertIn("const firstOnScreen = () => unsized() ? 0 :", self.block)
+        self.assertIn("const rowsOnScreen = () => unsized() ? 40 :", self.block)
+        draw = self.block[self.block.index("function draw("):self.block.index("function whole(")]
+        self.assertIn("if (!hidden) ctx.scrollTop =", draw)
+
+    def test_e34_more_once_per_frame(self):
+        at = self.src.index("/* S215 E34 (Rab, Desk 8b065892 08:12:09Z")   # the script's head (the CSS's carries the date)
+        e34 = self.src[at:self.src.index("</script>", at)]
+        self.assertIn("function moreSoon() { if (!moreRaf) moreRaf = requestAnimationFrame(", e34)
+        for use in ("new ResizeObserver(moreSoon)", "new MutationObserver(moreSoon)", 'addEventListener("scroll", moreSoon', "setTimeout(moreSoon, 400)"):
+            self.assertIn(use, e34)
+        self.assertNotRegex(e34, r"Observer\(more\)", "a layout read per mutation (834 ms at 4x in the hidden preload)")
+
+
 if __name__ == "__main__":
     try:
         unittest.main(verbosity=2)

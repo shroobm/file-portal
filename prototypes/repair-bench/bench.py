@@ -300,7 +300,51 @@ class Bench:
     def body(self) -> str:
         if self.md_path is None:
             return ""
-        return split_frontmatter(self.md_path.read_text(encoding="utf-8"))[1]
+        # S215 E36 (Rab 10:16Z: "repair bench is really slow"): state() decoded and split the whole file 71 times per call. The
+        # file's BYTES are read each call and compared with the cached copy's bytes (round seven: a (mtime, size) key missed a
+        # same-size rewrite inside one mtime tick); the text is decoded from those same bytes by read_text's own newline rule
+        raw = self.md_path.read_bytes()
+        cached = getattr(self, "_body_cache", None)
+        if cached is not None and cached[0] == raw:
+            return cached[1]
+        text = split_frontmatter(raw.decode("utf-8").replace("\r\n", "\n").replace("\r", "\n"))[1]
+        self._body_cache = (raw, text)
+        return text
+
+    def body_etag(self) -> str:
+        """S215 E36 (round seven): the body's HTTP validator — a hash of the text, kept per body"""
+        body = self.body()
+        c = getattr(self, "_etag_cache", None)
+        if c is not None and c[0] is body:
+            return c[1]
+        tag = '"md-%s"' % hashlib.sha1(body.encode("utf-8")).hexdigest()[:24]
+        self._etag_cache = (body, tag)
+        return tag
+
+    def page_etag(self, n: int, dpi: int) -> str | None:
+        """S215 E36 (round seven): a page image's validator — the PDF (path, size, mtime), the page and the resolution; None
+        when there is no PDF (the route then answers as before)"""
+        if self.pdf is None:
+            return None
+        try:
+            stt = os.stat(str(self.pdf))
+        except OSError:
+            return None
+        key = "%s|%d|%d|%d|%d" % (self.pdf, stt.st_size, stt.st_mtime_ns, n, dpi)
+        return '"pg-%s"' % hashlib.sha1(key.encode("utf-8")).hexdigest()[:24]
+
+    def _lines(self):
+        """S215 E36: the body's lines, each whitespace-normalised, and lower-cased — computed once per body (the zone and run
+        resolvers split the whole body per call: 241,142 str.split calls in one state())."""
+        body = self.body()
+        c = getattr(self, "_lines_cache", None)
+        if c is not None and c[0] is body:
+            return c[1], c[2], c[3]
+        lines = body.split("\n")
+        norm = [" ".join(ln.split()) for ln in lines]
+        low = [n.lower() for n in norm]
+        self._lines_cache = (body, lines, norm, low)
+        return lines, norm, low
 
     def zones(self) -> list[dict]:
         det = (self.manifest.get("fidelity", {}).get("convert", {})
@@ -1233,6 +1277,7 @@ class Bench:
             os.fsync(fh.fileno())    # S71: a record not fsynced is a record you may lose
         fm, _ = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
         self.md_path.write_text(fm + new_body, encoding="utf-8")
+        self._body_cache = None; self._lines_cache = None   # S215 E36: the next read sees this write (the mtime would too)
         return events
 
     def writes(self) -> list[list[dict]]:
@@ -1452,7 +1497,7 @@ class Bench:
         words = (run.get("excerpt") or "").split()
         if len(words) < 3:
             return None
-        body_norm = [" ".join(ln.split()).lower() for ln in self.body().split("\n")]
+        body_norm = self._lines()[2]   # S215 E36: split once per body, not per run
         for n in (6, 5, 4, 3):
             if len(words) < n:
                 continue
@@ -1477,8 +1522,8 @@ class Bench:
         excerpt = (z.get("excerpt") or "").strip()
         adj = self._adjusted_line(z["line"])
         if excerpt:
-            hits = [i + 1 for i, ln in enumerate(self.body().split("\n"))
-                    if excerpt in " ".join(ln.split())]
+            hits = [i + 1 for i, ln in enumerate(self._lines()[1])   # S215 E36: split once per body, not per zone
+                    if excerpt in ln]
             if hits:
                 return min(hits, key=lambda h: abs(h - adj)), "excerpt"
         return adj, "drift"
@@ -2233,7 +2278,9 @@ def host_name(host):
     if h.startswith("["):
         return h[1:h.find("]")] if "]" in h else ""
     name = h.rsplit(":", 1)[0] if h.count(":") == 1 else h
-    return name[:-1] if name.endswith(".") else name   # round five: a browser may send the fully qualified 'name.'
+    # round five: a browser may send the fully qualified 'name.'; S215 E37 (round six, 18 — the Scanner's rule): the dot goes only when a
+    # name is left ('.' stays non-empty, so host_ok refuses it instead of reading '' as 'no Host sent') and not from an IPv6 literal
+    return name[:-1] if name.endswith(".") and len(name) > 1 and ":" not in name else name
 
 
 def host_ok(host, bound, names=()):
@@ -2249,12 +2296,20 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
     allowed = {str(h).strip().lower() for h in hosts if str(h).strip()}
 
     class Handler(BaseHTTPRequestHandler):
+        # S215 E36 (round seven): HTTP/1.1, so a browser revalidates /api/md and the page images by their ETags (Edge sends no
+        # If-None-Match to an HTTP/1.0 answer — measured); every answer carries its Content-Length (_send) and every refused
+        # POST drains its body, so a kept-alive connection is safe; an idle one is closed after 30 s
+        protocol_version = "HTTP/1.1"
+        timeout = 30
+
         def log_message(self, *a):  # quiet
             pass
 
-        def _send(self, code: int, body: bytes, ctype: str = "application/json"):
+        def _send(self, code: int, body: bytes, ctype: str = "application/json", headers=None):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
+            for k, v in (headers or {}).items():   # S215 E36 (round seven): ETag / Cache-Control on the two heavy reads
+                self.send_header(k, v)
             self.send_header("Referrer-Policy", "no-referrer")   # round four: the URL carries ?token=; nothing leaves with it
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
@@ -2279,11 +2334,23 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
                 elif url.path == "/api/state":
                     self._json(bench.state())
                 elif url.path == "/api/md":
-                    self._json({"text": bench.body()})
+                    # S215 E36 (round seven): the Control preloads the Repair tab at every open — 1.03 MB of markdown each time.
+                    # The body carries its validator; a browser that holds it asks with If-None-Match and gets 304, no body
+                    tag = bench.body_etag()
+                    vh = {"ETag": tag, "Cache-Control": "no-cache"}
+                    if (self.headers.get("If-None-Match") or "") == tag:
+                        self._send(304, b"", headers=vh)
+                    else:
+                        self._send(200, json.dumps({"text": bench.body()}).encode("utf-8"), headers=vh)
                 elif url.path == "/api/page":
                     n = int(q.get("n", ["1"])[0])
                     dpi = int(q.get("dpi", [str(RASTER_DPI)])[0])
-                    self._send(200, bench.page_png(n, min(dpi, 300)), "image/png")
+                    tag = bench.page_etag(n, min(dpi, 300))   # S215 E36 (round seven): revalidated, never cached on the URL alone
+                    vh = {"ETag": tag, "Cache-Control": "no-cache"} if tag else None
+                    if tag and (self.headers.get("If-None-Match") or "") == tag:
+                        self._send(304, b"", "image/png", headers=vh)
+                    else:
+                        self._send(200, bench.page_png(n, min(dpi, 300)), "image/png", headers=vh)
                 elif url.path == "/fp-tokens.css":
                     # S215 E25: the ONE design system (control/fp-tokens.css, private, beside the widgets) when the bench
                     # was started with --tokens-css <path>; absent, a 404 and bench.html's own fallbacks carry the page

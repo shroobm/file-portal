@@ -713,11 +713,11 @@
   html.lay-phone .htools { display:flex; flex:1 0 100%; gap:6px; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain; }
   /* sideways on a phone (html.lay-short: landscape, under 520 px tall, above the phone breakpoint — his IMG_1241: the header
      wrapped over itself, the zone strip took the screen, the page and the text were off it): ONE header row, the zone strip
-     held to 64 px (e34b; 96 with the guide open and his own drag honoured, e34f), the footer and the page's info line gone —
+     held to 64 px or his own drag of its gutter, never past 45 % (e34b, e34f, e34h), the footer and the page's info line gone —
      the page and the text keep the height */
   html.lay-short header { flex-wrap:nowrap; padding:4px 8px; gap:8px; }
   html.lay-short #open-btn > span:not(.logo), html.lay-short .name, html.lay-short .grow { display:none; }
-  html.lay-short .patient { flex:none; max-width:34vw; overflow:hidden; }
+  html.lay-short .patient { flex:none; max-width:34vw; overflow-x:auto; overflow-y:hidden; scrollbar-width:none; }   /* S215 E38 (round six, 20): swiped to sideways too, as e34f meant */
   html.lay-short .htools { display:flex; flex:1 1 auto; min-width:0; gap:6px; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain; }
   html.lay-short #upper { max-height:min(var(--upper-h, 64px), 45vh); }   /* e34b 64 px; e34f: his drag of the strip's gutter counts (--upper-h), never past 45 % */
   /* e34g: sideways the guide is one line — each step its number, the current step its hint beside it — so the strip can stay small */
@@ -726,8 +726,10 @@
   html.lay-short .cstep:not(.now) .ct { display:none; }
   html.lay-short .cstep .ct { white-space:nowrap; }
   html.lay-short .gutter .step::after { content:""; position:absolute; inset:-11px; }   /* e34f: their hit 44 px, as upright */
-  html.lay-short body { padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right); }   /* e34f: viewport-fit=cover — clear of the notch */
+  html.lay-short body { padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right); padding-bottom:env(safe-area-inset-bottom); }   /* e34f: viewport-fit=cover — clear of the notch; S215 E38 (round six, 25): and of the home bar */
   html.lay-short #coach { padding:4px 8px; }
+  html.lay-short #coach-close { min-height:0; padding:2px 10px; position:relative; }   /* S215 E38 (round six, 24): its 44-px min-height made the guide 54 px */
+  html.lay-short #coach-close::after { content:""; position:absolute; inset:-4px -12px; }   /* round eight: the 30-px strip clips a taller hit and scrolled — wider instead */
   html.lay-short footer, html.lay-short #stage-info { display:none; }
   html.lay-short main { padding:4px 6px; }
   html.lay-short button, html.lay-short input, html.lay-short select { min-height:var(--hit, 44px); }
@@ -3200,15 +3202,217 @@ function applyHashPage() {
 (function () {
   const root = document.documentElement, strip = document.querySelector("header .htools");
   function more() { if (strip) strip.classList.toggle("more", strip.scrollWidth - strip.clientWidth - strip.scrollLeft > 2); }
-  function short() { root.classList.toggle("lay-short", !root.classList.contains("lay-phone") && innerHeight <= 520 && innerWidth > innerHeight); more(); }
-  if (strip) strip.addEventListener("scroll", more, { passive: true });
+  // S215 E38 (round seven): more() reads the strip's layout — asked at most once per animation frame (every mutation of the patient
+  // block forced a layout: 834 ms at 4x CPU in the Control's hidden preload, which runs no frame until it is shown)
+  let moreRaf = 0;
+  function moreSoon() { if (!moreRaf) moreRaf = requestAnimationFrame(function () { moreRaf = 0; more(); }); }
+  function short() { root.classList.toggle("lay-short", !root.classList.contains("lay-phone") && innerHeight <= 520 && innerWidth > innerHeight); moreSoon(); }
+  if (strip) strip.addEventListener("scroll", moreSoon, { passive: true });
   // e34f (round five): the strip overflows only once /api/state fills the patient block — re-read then, not only on scroll
-  if (strip && window.ResizeObserver) new ResizeObserver(more).observe(strip);
+  if (strip && window.ResizeObserver) new ResizeObserver(moreSoon).observe(strip);
   const patient = document.querySelector("header .patient");
-  if (patient && window.MutationObserver) new MutationObserver(more).observe(patient, { subtree: true, childList: true, characterData: true, attributes: true });
+  if (patient && window.MutationObserver) new MutationObserver(moreSoon).observe(patient, { subtree: true, childList: true, characterData: true, attributes: true });
   addEventListener("resize", short);
   short();
-  setTimeout(more, 400);
+  setTimeout(moreSoon, 400);
+})();
+</script>
+<style>
+  /* S215 E38: the phone's windowed pane (the script below) — each drawn row held at 20 px so a spacer of N rows is N x 20 px */
+  #ctx.e38 .cl { height:20px; box-sizing:border-box; }
+  #ctx.e38 .e38-pad { width:var(--e38-w, 0); pointer-events:none; }
+</style>
+<script>
+/* S215 E38 (Rab, Desk 4354924f 2026-09-29 10:16:52Z: "harsh latency especially when I rotate my phone to go from vertical to
+   horizontal"). The markdown pane drew EVERY line of the book (18,963 in the measured one) and a turn of the phone re-laid all of
+   them out: 2.4-6.6 s per turn with the CPU slowed 4x. On the PHONE layouts, while the pane is not being edited, it draws the
+   lines on screen and 150 either side; spacers keep the scroll height and the numbers true. ✎ edit draws the whole file first,
+   so the editor is the one it was; at the desk nothing changes. This block only rebinds the program's own functions and wraps
+   the ✎ button — the program block and the S147 layout module stay byte-identical. */
+(function () {
+  const ctx = document.getElementById("ctx"), root = document.documentElement;
+  if (!ctx || typeof renderLines !== "function") return;
+  const BUF = 150, LH = 20, PAD = 10;          // rows either side of the screen · a drawn row's height · #ctx's top padding
+  let win = null;                              // {a, b}: lines a+1..b drawn (0-based a, exclusive b); null = the whole file
+  let tbBad = new Map(), splitOf = null, split = [], maxLen = 0, raf = 0, modeRaf = 0, inEditClick = false;
+  const _renderLines = renderLines, _ctxText = ctxText, _scrollToLine = scrollToLine, _markTableHealth = markTableHealth, _toggleView = toggleView;
+  const editing = () => ctx.hasAttribute("contenteditable");
+  const phone = () => root.classList.contains("lay-phone") || root.classList.contains("lay-short");
+  const windowed = () => phone() && !editing();
+  function all() {
+    if (splitOf !== mdText) {
+      splitOf = mdText; split = mdText.split("\n"); maxLen = 0;
+      for (let i = 0; i < split.length; i++) if (split[i].length > maxLen) maxLen = split[i].length;
+    }
+    return split;
+  }
+  // round seven: a frame with no size (the Control's hidden preload: a display:none iframe) forces no layout from here
+  const unsized = () => !innerWidth || !innerHeight;
+  const firstOnScreen = () => unsized() ? 0 : Math.max(0, Math.floor((ctx.scrollTop - PAD) / LH));
+  const rowsOnScreen = () => unsized() ? 40 : Math.max(1, Math.ceil((ctx.clientHeight || 700) / LH));
+  function firstOfWhole() {                   // round eight: the whole file's rows are its own height (19.6 px), not the window's 20
+    if (unsized()) return 0;
+    const row = ctx.querySelector(".cl"), h = row ? row.getBoundingClientRect().height : 0;
+    return Math.max(0, Math.round((ctx.scrollTop - PAD) / (h > 0 ? h : LH)));   // the nearest row start: the scroll snaps to device pixels
+  }
+  let tbFor = null;                           // round eight: the buffer the table marks were computed for
+  function tbFresh() {
+    if (tbFor === mdText) return;
+    tbFor = mdText;
+    tbBad = new Map(tableHealth(all()).map(function (x) { return [x.line, x.reason]; }));
+  }
+  function selOpenInPane() {                  // round eight: a selection in the pane is never redrawn under the finger
+    const s = getSelection();
+    return !!(s && s.rangeCount && !s.isCollapsed && (ctx.contains(s.anchorNode) || ctx.contains(s.focusNode)));
+  }
+  function draw(first, jump) {                 // first: the 0-based line at the top of the screen; jump: scroll to it
+    const L = all(), n = L.length, v = rowsOnScreen();
+    tbFresh();
+    const a = Math.max(0, Math.min(first, n - 1) - BUF), b = Math.min(n, Math.max(first, 0) + v + BUF);
+    const parts = new Array(b - a);
+    for (let i = a; i < b; i++) {
+      const why = tbBad.get(i + 1);
+      parts[i - a] = '<span class="' + clsFor(L[i], i === ctxHighlight - 1) + (why ? ' tb-bad" title="' + esc("⚠ " + why) : "") +
+        '" id="L' + (i + 1) + '">' + (esc(L[i]) || "\u200b") + "</span>";
+    }
+    ctx.classList.add("e38");
+    ctx.style.counterReset = "ln " + a;
+    ctx.style.setProperty("--e38-w", "calc(" + maxLen + "ch + 5ch + 36px)");
+    const hidden = unsized(), top = hidden ? 0 : ctx.scrollTop;
+    ctx.innerHTML = '<div class="e38-pad" style="height:' + (a * LH) + 'px"></div>' + parts.join("") +
+      '<div class="e38-pad" style="height:' + ((n - b) * LH) + 'px"></div>';
+    if (!hidden) ctx.scrollTop = jump ? PAD + Math.max(0, first) * LH : top;   // the spacers keep the height; the place is kept
+    win = { a: a, b: b };
+    renderedText = null;                       // the DOM is a slice: the program's highlight-only path must never take it
+  }
+  function whole() {                           // back to the program's whole-file drawing, the same line on screen
+    const f = win ? firstOnScreen() : null;
+    win = null;
+    ctx.classList.remove("e38");
+    ctx.style.counterReset = "";
+    ctx.style.removeProperty("--e38-w");
+    renderedText = null;
+    const r = _renderLines(ctxHighlight);
+    _markTableHealth();
+    if (f !== null) {
+      const row = ctx.querySelector(".cl"), h = row ? row.getBoundingClientRect().height : 0;
+      if (h > 0) ctx.scrollTop = PAD + f * h;
+    }
+    return r;
+  }
+  renderLines = function (highlight) {
+    if (!windowed()) { if (win) { ctxHighlight = highlight || 0; return whole(); } return _renderLines(highlight); }
+    const t0 = performance.now();
+    ctxHighlight = highlight || 0;
+    draw(ctxHighlight ? Math.max(0, ctxHighlight - 1 - Math.floor(rowsOnScreen() / 2)) : firstOnScreen());
+    return { lines: all().length, ms: Math.round(performance.now() - t0) };
+  };
+  ctxText = function () { return win ? mdText : _ctxText(); };
+  let pendingFirst = null;                     // a line asked for while the frame had no size (the hidden preload)
+  scrollToLine = function (n) {
+    if (!win) return _scrollToLine(n);
+    const L = all(), i = Math.max(0, Math.min((n | 0) - 1, L.length - 1));
+    const first = Math.max(0, i - Math.floor(rowsOnScreen() / 2));
+    if (unsized()) { pendingFirst = i; return; }   // no layout forced while hidden: drawn with it in view once the frame has a size
+    if (first < win.a || first + rowsOnScreen() > win.b) draw(first);
+    ctx.scrollTop = PAD + first * LH;
+  };
+  markTableHealth = function () {
+    if (!win) return _markTableHealth();
+    const t = document.getElementById("md-title"), base = t.textContent.replace(/ · ⚠ \d+ table issue\(s\)$/, "");
+    const issues = tableHealth(all());
+    tbBad = new Map(issues.map(function (x) { return [x.line, x.reason]; })); tbFor = mdText;
+    ctx.querySelectorAll(".cl").forEach(function (el) {
+      const why = tbBad.get(Number(el.id.slice(1)));
+      el.classList.toggle("tb-bad", !!why);
+      if (why) el.title = "⚠ " + why; else if (el.title && el.title.startsWith("⚠ ")) el.removeAttribute("title");
+    });
+    t.textContent = issues.length ? base + " · ⚠ " + issues.length + " table issue(s)" : base;
+    return issues;
+  };
+  toggleView = function (on) {
+    _toggleView(on);
+    // back from ◫ view: the window drawn for the screen as it is now — but NOT inside a ✎ click (the S149 wrapper calls this
+    // before the pane becomes editable; drawing a window there would hand the editor a slice)
+    if (!viewOn && windowed() && !inEditClick) draw(firstOnScreen());
+  };
+  // ✎ edit: the whole file BEFORE the pane becomes editable (the editor is the program's own); leaving it, the window again
+  const editBtn = document.getElementById("edit"), _edit = editBtn && editBtn.onclick;
+  if (editBtn && _edit) editBtn.onclick = function (e) {
+    let keep = null;
+    if (!editing() && win) { keep = firstOnScreen(); whole(); }
+    inEditClick = true;
+    let r;
+    try { r = _edit.call(this, e); } finally { inEditClick = false; }
+    if (editing() && keep !== null) {          // the editor's focus() put the caret at line 1 and scrolled there: back to the line
+      const row = document.getElementById("L" + (keep + 1));
+      if (row) {
+        const rg = document.createRange(), s = getSelection();
+        rg.setStart(row, 0); rg.collapse(true); s.removeAllRanges(); s.addRange(rg);
+        ctx.scrollTop += row.getBoundingClientRect().top - ctx.getBoundingClientRect().top - PAD;
+      }
+    }
+    if (!editing() && windowed() && !viewOn) draw(firstOfWhole(), true);   // round eight: the whole file's own row height
+    return r;
+  };
+  ctx.addEventListener("scroll", function () {
+    if (!win || raf) return;
+    raf = requestAnimationFrame(function () {
+      raf = 0;
+      if (!win || selOpenInPane()) return;
+      const f = firstOnScreen(), v = rowsOnScreen(), n = all().length;
+      if ((f < win.a + BUF / 3 && win.a > 0) || (f + v > win.b - BUF / 3 && win.b < n)) draw(f);
+    });
+  }, { passive: true });
+  // a turn, a gutter drag, the layout crossing into or out of the phone: acted on in the next frame (between the S147 module's
+  // resize listener and the E34 one neither phone class is set — a decision there would draw the whole file for nothing)
+  function settle() {
+    modeRaf = 0;
+    if (!mdText && !win) return;
+    if (pendingFirst !== null && windowed() && win && !unsized()) {   // the line asked for while hidden, now in view
+      const i = pendingFirst; pendingFirst = null;
+      draw(Math.max(0, i - Math.floor(rowsOnScreen() / 2)), true);
+      return;
+    }
+    if (windowed()) {
+      if (!win) { if (!viewOn) draw(firstOfWhole(), true); return; }   // round eight: read with the whole file's row height
+      const f = firstOnScreen(), v = rowsOnScreen();
+      if (f < win.a || f + v > win.b) draw(f);
+    } else if (win && !editing()) whole();
+  }
+  const later = function () { if (!modeRaf) modeRaf = requestAnimationFrame(settle); };
+  if (window.MutationObserver) new MutationObserver(later).observe(root, { attributes: true, attributeFilter: ["class"] });
+  if (window.ResizeObserver) new ResizeObserver(later).observe(ctx);
+  // round eight: a copy whose selection reaches a spacer (the rows not drawn) takes the TRUE lines from the buffer — from the row it
+  // starts on (or line 1) to the row it ends on (or the last line); captured before the pane's own copy handler
+  document.addEventListener("copy", function (e) {
+    if (!win) return;
+    const s = getSelection();
+    if (!s || !s.rangeCount || s.isCollapsed) return;
+    const r = s.getRangeAt(0), pads = ctx.querySelectorAll(".e38-pad");
+    if (pads.length !== 2 || !(r.intersectsNode(pads[0]) || r.intersectsNode(pads[1]))) return;
+    const L = all();
+    const lineOf = function (node, dflt) {
+      const el = node && (node.nodeType === 1 ? node : node.parentElement);
+      const cl = el && el.closest ? el.closest("#ctx .cl") : null;
+      return cl ? Number(cl.id.slice(1)) : dflt;
+    };
+    const from = lineOf(r.startContainer, 1), to = lineOf(r.endContainer, L.length);
+    e.clipboardData.setData("text/plain", L.slice(Math.max(0, from - 1), Math.max(from, to)).join("\n"));
+    e.preventDefault(); e.stopImmediatePropagation();
+  }, true);
+  // round six (22): a turn refit the page to the layout BEFORE the turn — the bench's own resize listener runs first, the S147
+  // module and the E34 script change the layout after it. The refit is asked again in the next frame, once the layout is final
+  // (fit and fit page only: a zoom he chose is left as it is)
+  let fitRaf = 0;
+  addEventListener("resize", function () {
+    if (fitRaf) return;
+    fitRaf = requestAnimationFrame(function () {
+      fitRaf = 0;
+      const z = document.getElementById("zoom");
+      if (z && (z.value === "fit" || z.value === "fitpage") && typeof applyZoom === "function") applyZoom();
+    });
+  });
 })();
 </script>
 </body>
