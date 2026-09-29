@@ -2219,8 +2219,34 @@ def token_gate(presented: str | None, expected) -> str | None:
 
 
 # ---- the thin HTTP layer ---------------------------------------------------------------------
-def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None):
+# S215 round four (DNS rebinding, the phone-doors lane): the names this bench answers to - a loopback name, the address a request
+# came in on, or a name given with --host (the Scanner passes the machine's tailnet names). Any other Host is refused (421)
+# before any route, so a foreign domain re-pointed at this address reads nothing and writes nothing.
+LOOPBACK_NAMES = {"127.0.0.1", "localhost", "::1"}
+HOST_REFUSED = ("this bench answers only to its own names (127.0.0.1, localhost, the address it listens on, the names given "
+                "with --host) - open it by one of them")
+
+
+def host_name(host):
+    """the name part of a Host header ('[::1]:7077' -> '::1', 'a.b:7077' -> 'a.b'), lower-cased; '' for none"""
+    h = (host or "").strip().lower()
+    if h.startswith("["):
+        return h[1:h.find("]")] if "]" in h else ""
+    name = h.rsplit(":", 1)[0] if h.count(":") == 1 else h
+    return name[:-1] if name.endswith(".") else name   # round five: a browser may send the fully qualified 'name.'
+
+
+def host_ok(host, bound, names=()):
+    """True when the Host names this bench; no Host at all only on a loopback listener (a local tool speaking HTTP/1.0)"""
+    name = host_name(host)
+    if not name:
+        return bound in ("127.0.0.1", "::1")
+    return name in LOOPBACK_NAMES or name == bound or name in names
+
+
+def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
     bench0 = bench
+    allowed = {str(h).strip().lower() for h in hosts if str(h).strip()}
 
     class Handler(BaseHTTPRequestHandler):
         def log_message(self, *a):  # quiet
@@ -2229,6 +2255,7 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None):
         def _send(self, code: int, body: bytes, ctype: str = "application/json"):
             self.send_response(code)
             self.send_header("Content-Type", ctype)
+            self.send_header("Referrer-Policy", "no-referrer")   # round four: the URL carries ?token=; nothing leaves with it
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
@@ -2238,6 +2265,9 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None):
 
         def do_GET(self):
             bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
+            if not host_ok(self.headers.get("Host"), self.server.server_address[0], allowed):   # round four
+                self._json({"error": HOST_REFUSED}, 421)
+                return
             try:
                 url = urllib.parse.urlparse(self.path)
                 q = urllib.parse.parse_qs(url.query)
@@ -2330,6 +2360,13 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None):
 
         def do_POST(self):
             bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
+            if not host_ok(self.headers.get("Host"), self.server.server_address[0], allowed):   # round four
+                try:   # drained first, as the token gate does (WinError 10053 otherwise)
+                    self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
+                except (OSError, ValueError):
+                    pass
+                self._json({"error": HOST_REFUSED}, 421)
+                return
             # The loopback-token gate, BEFORE any dispatch (see MUTATING_POSTS above).
             deny = token_gate(self.headers.get("X-FP-Token"), token)
             if deny:
@@ -2369,7 +2406,8 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None):
                                 "undo_depth": len(bench._undo)})
                 elif self.path == "/api/open":
                     new_bench = open_target(str(payload["path"]))
-                    self.server.bench = new_bench
+                    for srv in getattr(self.server, "peers", None) or [self.server]:   # round five: every listener, not only this one
+                        srv.bench = new_bench
                     self._json(new_bench.state())
                 elif self.path == "/api/transcribe":
                     self._json(bench.transcribe(
@@ -2408,6 +2446,21 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None):
     return Handler
 
 
+def serve_on(binds, port, handler):
+    """One ThreadingHTTPServer per address, the same handler; every one but the first runs in a daemon thread (S215 E31)."""
+    servers = [ThreadingHTTPServer((binds[0], port), handler)]   # the first (loopback) must bind: it is the bench
+    for b in binds[1:]:
+        try:
+            servers.append(ThreadingHTTPServer((b, port), handler))
+        except OSError as e:   # round four: an address not on this machine (Tailscale down) never takes the bench down
+            print(f"  ! {b}:{port} not bound ({e}) - the loopback bench runs", flush=True)
+    for s in servers:
+        s.peers = servers   # round five: the picker's swap reaches every listener (the phone and the desk saw different books)
+    for s in servers[1:]:
+        threading.Thread(target=s.serve_forever, daemon=True).start()
+    return servers
+
+
 def main():
     # The console may be cp1252 (the preview launcher's is; PowerShell's usually isn't) —
     # the banner's ✓/· glyphs must never crash the server. errors="replace" keeps whatever
@@ -2424,6 +2477,12 @@ def main():
     ap.add_argument("--sandbox", action="store_true",
                     help="repair a COPY under .sandbox/ — trial mode, originals untouched")
     ap.add_argument("--port", type=int, default=7077)
+    # S215 E31 (the phone doors): a second listener on this address (the tailnet), the same handler — its POSTs token-gated
+    # like the loopback one's; the Scanner passes it when it has a tailnet listener of its own
+    ap.add_argument("--also-bind", default=None, help="also listen on this address (e.g. a tailnet IP); same routes, same token")
+    # round four (DNS rebinding): a name, besides the loopback names and the listening addresses, this bench answers to (the
+    # Scanner passes the machine's tailnet names); repeatable
+    ap.add_argument("--host", action="append", default=[], help="also answer to this Host name (repeatable)")
     ap.add_argument("--unsplit-tables", action="store_true",
                     help="S149 maintenance, no server: move every repair embed that sits inside a pipe table "
                          "to just after that table (one ledger event per move, the record re-anchored), print the "
@@ -2455,8 +2514,11 @@ def main():
     print("  tokens: " + (args.tokens_css if args.tokens_css and Path(args.tokens_css).is_file() else
                          "none (the page's own palette)" + ("" if not args.tokens_css else " — " + args.tokens_css + " is not a file")))
     print(f"  → http://127.0.0.1:{args.port}/   (Ctrl+C to close)")
-    ThreadingHTTPServer(("127.0.0.1", args.port),
-                        make_handler(bench, token=args.token, tokens_css=args.tokens_css)).serve_forever()
+    if args.also_bind:
+        print(f"  → http://{args.also_bind}:{args.port}/   (also)")
+    servers = serve_on(["127.0.0.1"] + ([args.also_bind] if args.also_bind else []), args.port,
+                       make_handler(bench, token=args.token, tokens_css=args.tokens_css, hosts=args.host))
+    servers[0].serve_forever()
 
 
 if __name__ == "__main__":

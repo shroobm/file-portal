@@ -731,6 +731,48 @@ class TestTokensCss(unittest.TestCase):
             srv.close()
 
 
+class TestServeOn(unittest.TestCase):
+    """S215 E31 (the phone doors): --also-bind puts the same handler on a second address (the tailnet in use; a second loopback
+    address here) — both answer the same routes; the flag is on the command line."""
+
+    def test_two_addresses_one_handler(self):
+        import socket
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        s.close()
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-serveon-"))
+        (tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        try:
+            servers = bench.serve_on(["127.0.0.1", "127.0.0.2"], port, bench.make_handler(bench.Bench(tmp), token=None))
+        except OSError as e:
+            self.skipTest("127.0.0.2 cannot be bound here (%s) -- UNREAD, not a pass" % e)
+        if len(servers) < 2:   # round four: serve_on now skips an unbindable address instead of raising
+            for srv in servers:
+                srv.server_close()
+            self.skipTest("127.0.0.2 was not bound here -- UNREAD, not a pass")
+        t = threading.Thread(target=servers[0].serve_forever, daemon=True)
+        t.start()
+        try:
+            for host in ("127.0.0.1", "127.0.0.2"):
+                conn = http.client.HTTPConnection(host, port, timeout=10)
+                conn.request("GET", "/api/state")
+                r = conn.getresponse()
+                self.assertEqual(r.status, 200, host)
+                r.read()
+                conn.close()
+        finally:
+            for srv in servers:
+                srv.shutdown()
+                srv.server_close()
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_the_flag_is_on_the_command_line(self):
+        import subprocess
+        out = subprocess.run([sys.executable, str(HERE / "bench.py"), "--help"], capture_output=True, text=True, timeout=60).stdout
+        self.assertIn("--also-bind", out)
+
+
 class TestFailClosed403Live(unittest.TestCase):
     """bench.py over a real socket, throwaway fixture. Positive control: the right token is
     admitted on every route. Negative controls: no-token/missing/wrong all refuse, and the
@@ -1484,12 +1526,145 @@ class TestS214ScannerLink(unittest.TestCase):
 
     def test_geometry_button_opens_the_scanner_on_this_book_and_page(self):
         self.assertIn('id="geo-btn"', BENCH_HTML, "the toolbar carries ◫ geometry")
-        self.assertIn("127.0.0.1:7180/?dir=", BENCH_HTML, "the Scanner is addressed by the bundle dir name…")
+        # S215 E34 (round four): at the address the bench was opened by, the loopback only as the fallback — the literal
+        # 127.0.0.1 sent the phone to itself
+        self.assertIn('"http://" + (location.hostname || "127.0.0.1") + ":7180/?dir="', BENCH_HTML, "the Scanner is addressed by the bundle dir name…")
+        self.assertNotIn('window.open("http://127.0.0.1:7180', BENCH_HTML, "no hard-coded loopback address for the Scanner")
         self.assertIn("encodeURIComponent(st.bundle)", BENCH_HTML, "…taken from the bench's own state")
         self.assertIn('"&page=" + page', BENCH_HTML, "…and the bench's current page")
         # Negative control: the link must not carry the bench's secret to another origin
         seg = BENCH_HTML[BENCH_HTML.index('id="geo-btn"'):]
-        self.assertNotIn("token", seg[seg.index("127.0.0.1:7180"):seg.index("127.0.0.1:7180") + 200])
+        self.assertNotIn("token", seg[seg.index(":7180/?dir="):seg.index(":7180/?dir=") + 200])
+
+
+class TestHostCheck(unittest.TestCase):
+    """S215 round four (DNS rebinding): a Host that is not the bench's own name is refused before any route (GET and POST);
+    its loopback names, its listening address and a --host name pass; every answer says Referrer-Policy: no-referrer; an
+    --also-bind address that cannot be bound leaves the loopback bench running."""
+
+    @classmethod
+    def setUpClass(cls):
+        import socket
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        cls.port = s.getsockname()[1]
+        s.close()
+        cls.tmp = Path(tempfile.mkdtemp(prefix="fp-test-host-"))
+        (cls.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        cls.servers = bench.serve_on(["127.0.0.1"], cls.port, bench.make_handler(bench.Bench(cls.tmp), token="t0k", hosts=("desktop-bndit",)))
+        threading.Thread(target=cls.servers[0].serve_forever, daemon=True).start()
+
+    @classmethod
+    def tearDownClass(cls):
+        for srv in cls.servers:
+            srv.shutdown()
+            srv.server_close()
+        shutil.rmtree(cls.tmp, ignore_errors=True)
+
+    def ask(self, method, host, path="/api/state", body=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
+        conn.putrequest(method, path, skip_host=True)
+        conn.putheader("Host", host)
+        if body is not None:
+            conn.putheader("Content-Type", "application/json")
+            conn.putheader("Content-Length", str(len(body)))
+        conn.endheaders(body)
+        r = conn.getresponse()
+        data, hdr = r.read(), dict(r.getheaders())
+        conn.close()
+        return r.status, data, hdr
+
+    def test_foreign_host_refused_get(self):
+        s, data, _ = self.ask("GET", "evil.example:%d" % self.port)
+        self.assertEqual(s, 421)
+        self.assertIn(b"own names", data)
+
+    def test_foreign_host_refused_post_before_the_token(self):
+        s, _, _ = self.ask("POST", "evil.example:%d" % self.port, "/api/repair", b'{"zone_line": 1}')
+        self.assertEqual(s, 421)
+
+    def test_own_names_pass_and_no_referrer(self):
+        for h in ("127.0.0.1:%d" % self.port, "localhost:%d" % self.port, "desktop-bndit:%d" % self.port):
+            s, _, hdr = self.ask("GET", h)
+            self.assertEqual(s, 200, h)
+            self.assertEqual(hdr.get("Referrer-Policy"), "no-referrer", h)
+
+    def test_unbindable_also_bind_leaves_loopback(self):
+        import socket
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        s.close()
+        servers = bench.serve_on(["127.0.0.1", "10.255.255.1"], port, bench.make_handler(bench.Bench(self.tmp), token=None))
+        try:
+            self.assertEqual(len(servers), 1)
+            self.assertEqual(servers[0].server_address[0], "127.0.0.1")
+        finally:
+            for srv in servers:
+                srv.server_close()
+
+
+class TestE34Phone(unittest.TestCase):
+    """S215 E34 (Rab, Desk 8b065892 2026-09-29 08:12:09Z: "Also repair bench is poorly optimized for mobile."): the header's
+    tools as one strip (a swiping row on the phone, display:contents at the desk); sideways (lay-short) set by its own script,
+    never inside the program block or the S147 layout module."""
+
+    def test_the_strip_wraps_every_tool_and_carries_no_id(self):
+        a = BENCH_HTML.index('<span class="htools">')
+        b = BENCH_HTML.index("</header>")
+        strip = BENCH_HTML[a:b]
+        for tool in ("info-btn", "ledger-btn", "report-btn", "evidence-btn", "guide-btn", "help-btn", 'id="theme"', "rescore", "geo-btn"):
+            self.assertIn(tool, strip, tool)
+        self.assertNotIn("id=", BENCH_HTML[a:a + len('<span class="htools">') + 1], "the strip carries no id (the S147 invariant's id set)")
+
+    def test_desk_layout_untouched_and_phone_rules_present(self):
+        self.assertIn(".htools { display:contents; }", BENCH_HTML)
+        self.assertIn("html.lay-phone .htools { display:flex;", BENCH_HTML)
+        self.assertIn("html.lay-short header { flex-wrap:nowrap;", BENCH_HTML)
+        self.assertIn("html.lay-short #upper { max-height:min(var(--upper-h, 64px), 45vh); }", BENCH_HTML)
+
+    def test_lay_short_is_set_outside_the_program_and_the_layout_module(self):
+        program = BENCH_HTML[BENCH_HTML.index("<script>\nconst $ = (id)"):]
+        program = program[:program.index("</script>")]
+        layout = BENCH_HTML[BENCH_HTML.index("/* ---- S147 · the layout module"):]
+        layout = layout[:layout.index("</script>")]
+        self.assertNotIn("lay-short", program)
+        self.assertNotIn("lay-short", layout)
+        self.assertIn('root.classList.toggle("lay-short", !root.classList.contains("lay-phone") && innerHeight <= 520 && innerWidth > innerHeight)', BENCH_HTML)
+
+
+class TestPeersAndDot(unittest.TestCase):
+    """S215 round five: serve_on's servers share one list of peers (the picker's swap goes to all of them); a Host with a trailing
+    dot is its own name."""
+
+    def test_servers_share_their_peers(self):
+        import socket
+        s = socket.socket()
+        s.bind(("127.0.0.1", 0))
+        port = s.getsockname()[1]
+        s.close()
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-peers-"))
+        (tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        servers = bench.serve_on(["127.0.0.1", "127.0.0.2"], port, bench.make_handler(bench.Bench(tmp), token=None))
+        try:
+            if len(servers) < 2:
+                self.skipTest("127.0.0.2 was not bound here -- UNREAD, not a pass")
+            self.assertIs(servers[0].peers, servers[1].peers)
+            self.assertEqual(len(servers[0].peers), 2)
+        finally:
+            for srv in servers:
+                srv.shutdown() if srv is not servers[0] else None
+                srv.server_close()
+            shutil.rmtree(tmp, ignore_errors=True)
+
+    def test_the_picker_swaps_every_listener(self):
+        src = Path(bench.__file__).read_text(encoding="utf-8")
+        self.assertIn('for srv in getattr(self.server, "peers", None) or [self.server]:', src)
+        self.assertNotIn("                    self.server.bench = new_bench\n", src)
+
+    def test_trailing_dot(self):
+        self.assertEqual(bench.host_name("Desktop-Bndit.tailc44e8c.ts.net.:7077"), "desktop-bndit.tailc44e8c.ts.net")
+        self.assertTrue(bench.host_ok("localhost.:7077", "127.0.0.1"))
 
 
 if __name__ == "__main__":

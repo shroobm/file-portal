@@ -693,6 +693,57 @@
   html.lay-phone header { padding:8px 10px; }
   html.lay-phone .logo { width:32px; height:32px; }
   html.lay-phone #searchbox button { min-width:var(--hit); }
+  /* S215 E34 (Rab, Desk 8b065892 2026-09-29 08:12:09Z: "Also repair bench is poorly optimized for mobile."). The header's tools
+     live in .htools — display:contents at the desk, so nothing there moves. */
+  .htools { display:contents; }
+  /* upright on a phone: the identity on the first row, the tools on a row of their own that swipes sideways; a fade on its
+     right edge while there is more to swipe to (his IMG_1242: the header cut after "audit: fail", no sign of the rest) */
+  html.lay-phone header { flex-wrap:wrap; row-gap:6px; }
+  html.lay-phone .patient { flex:1 1 0; min-width:0; overflow:hidden; flex-wrap:nowrap; }   /* e34b: the identity stays one row */
+  html.lay-phone .patient, html.lay-short .patient { overflow-x:auto; scrollbar-width:none; }   /* e34f: a later chip (SANDBOX, READING MODE) is swiped to, never clipped out of reach */
+  html.lay-phone .patient::-webkit-scrollbar, html.lay-short .patient::-webkit-scrollbar { display:none; }
+  html.lay-phone header button, html.lay-short header button { min-width:var(--hit, 44px); }   /* e34f: ⓘ ? ◐ were 30-37 px wide */
+  html.lay-phone .patient .chip { flex:none; }
+  html.lay-phone #bzones { max-width:44vw; overflow:hidden; text-overflow:ellipsis; }
+  /* e34d: the page keeps the phone's height — its info line steps aside, the footer is one slim line without the path */
+  html.lay-phone #stage-info, html.lay-phone #srcline { display:none; }
+  html.lay-phone footer { min-height:0; padding:4px 10px; }
+  html.lay-phone #pagebox, html.lay-short #pagebox { margin:6px auto; }   /* e34e: the 18-px margin cost a third of the phone's page */
+  html.lay-phone #open-btn > span:not(.logo), html.lay-phone .grow { display:none; }
+  html.lay-phone .htools { display:flex; flex:1 0 100%; gap:6px; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain; }
+  /* sideways on a phone (html.lay-short: landscape, under 520 px tall, above the phone breakpoint — his IMG_1241: the header
+     wrapped over itself, the zone strip took the screen, the page and the text were off it): ONE header row, the zone strip
+     held to 64 px (e34b; 96 with the guide open and his own drag honoured, e34f), the footer and the page's info line gone —
+     the page and the text keep the height */
+  html.lay-short header { flex-wrap:nowrap; padding:4px 8px; gap:8px; }
+  html.lay-short #open-btn > span:not(.logo), html.lay-short .name, html.lay-short .grow { display:none; }
+  html.lay-short .patient { flex:none; max-width:34vw; overflow:hidden; }
+  html.lay-short .htools { display:flex; flex:1 1 auto; min-width:0; gap:6px; overflow-x:auto; scrollbar-width:none; overscroll-behavior-x:contain; }
+  html.lay-short #upper { max-height:min(var(--upper-h, 64px), 45vh); }   /* e34b 64 px; e34f: his drag of the strip's gutter counts (--upper-h), never past 45 % */
+  /* e34g: sideways the guide is one line — each step its number, the current step its hint beside it — so the strip can stay small */
+  html.lay-short .coach-steps { overflow-x:auto; scrollbar-width:none; }
+  html.lay-short .cstep { flex:none; display:flex; align-items:baseline; gap:6px; padding:2px 8px; }
+  html.lay-short .cstep:not(.now) .ct { display:none; }
+  html.lay-short .cstep .ct { white-space:nowrap; }
+  html.lay-short .gutter .step::after { content:""; position:absolute; inset:-11px; }   /* e34f: their hit 44 px, as upright */
+  html.lay-short body { padding-left:env(safe-area-inset-left); padding-right:env(safe-area-inset-right); }   /* e34f: viewport-fit=cover — clear of the notch */
+  html.lay-short #coach { padding:4px 8px; }
+  html.lay-short footer, html.lay-short #stage-info { display:none; }
+  html.lay-short main { padding:4px 6px; }
+  html.lay-short button, html.lay-short input, html.lay-short select { min-height:var(--hit, 44px); }
+  /* e34c: the page's own toolbar one swiping row (it wrapped to three rows and filled the 129-px pane), the pane heads and
+     the fix bar one compact row each, so the page and the text are what the height is spent on */
+  html.lay-short #stage-tools { flex-wrap:nowrap; overflow-x:auto; max-height:none; padding:2px 6px; gap:6px; scrollbar-width:none; }
+  html.lay-short #stage-tools::-webkit-scrollbar { display:none; }
+  html.lay-short #stage-tools > * { flex:none; }
+  html.lay-short .pane-head { padding:2px 8px; flex-wrap:nowrap; }
+  html.lay-short .pane-head > span:first-child { white-space:nowrap; overflow:hidden; text-overflow:ellipsis; min-width:0; }
+  html.lay-short #aibar { padding:2px 6px; }
+  html.lay-phone .htools::-webkit-scrollbar, html.lay-short .htools::-webkit-scrollbar { display:none; }
+  html.lay-phone .htools > *, html.lay-short .htools > * { flex:none; }
+  html.lay-phone .htools.more, html.lay-short .htools.more {
+    -webkit-mask-image:linear-gradient(to right, #000 calc(100% - 40px), transparent);
+            mask-image:linear-gradient(to right, #000 calc(100% - 40px), transparent); }
   html.lay-laptop #side-tabs { margin:8px 6px 0; }
   html.lay-laptop .stab { font-size:10.5px; padding:7px 3px; }
   html.lay-laptop .thumb { min-height:96px; }
@@ -734,6 +785,7 @@
     <span class="chip sandbox" id="bsandbox" hidden>SANDBOX — repairs land on a copy</span>
   </span>
   <span class="grow"></span>
+  <span class="htools"><!-- S215 E34: the tools as one strip (a swiping row on a phone; display:contents at the desk) -->
   <button id="info-btn" title="everything about this patient — source, hashes, audit, repairs">ⓘ</button>
   <!-- S157 E57 (B13): the three endpoints the page never reached — /api/ledger, /api/report, /api/triage (the
        triage row lives under the diagnosis of the selected site). -->
@@ -747,6 +799,7 @@
   <!-- S214 E5: the Scanner (the geometry window, private widgets/scanner, 127.0.0.1:7180) opened on this book and page;
        the Scanner's own bench button comes back here with #p=<page> (the hash handler at the end of the script). -->
   <button id="geo-btn" title="the Scanner: this page's block geometry, editable (opens its window on this page)">◫ geometry</button>
+  </span>
 </header>
 
 <div id="upper">
@@ -3136,8 +3189,26 @@ function applyHashPage() {
   const g = document.getElementById("geo-btn");
   if (g) g.addEventListener("click", function () {
     if (!st) return;
-    window.open("http://127.0.0.1:7180/?dir=" + encodeURIComponent(st.bundle) + "&page=" + page, "fp-scanner");
+    // S215 E34 (round four): at the address the bench was opened by — on the phone the tailnet one, never its own 127.0.0.1
+    window.open("http://" + (location.hostname || "127.0.0.1") + ":7180/?dir=" + encodeURIComponent(st.bundle) + "&page=" + page, "fp-scanner");
   });
+})();
+
+/* S215 E34 (Rab, Desk 8b065892 08:12:09Z: "Also repair bench is poorly optimized for mobile."): a phone turned sideways — a
+   landscape window under 520 px tall, above the phone breakpoint (the S147 layout module's own buckets are untouched) — gets
+   html.lay-short; and the header's tool strip says when there is more to swipe to. Layout only: nothing here writes. */
+(function () {
+  const root = document.documentElement, strip = document.querySelector("header .htools");
+  function more() { if (strip) strip.classList.toggle("more", strip.scrollWidth - strip.clientWidth - strip.scrollLeft > 2); }
+  function short() { root.classList.toggle("lay-short", !root.classList.contains("lay-phone") && innerHeight <= 520 && innerWidth > innerHeight); more(); }
+  if (strip) strip.addEventListener("scroll", more, { passive: true });
+  // e34f (round five): the strip overflows only once /api/state fills the patient block — re-read then, not only on scroll
+  if (strip && window.ResizeObserver) new ResizeObserver(more).observe(strip);
+  const patient = document.querySelector("header .patient");
+  if (patient && window.MutationObserver) new MutationObserver(more).observe(patient, { subtree: true, childList: true, characterData: true, attributes: true });
+  addEventListener("resize", short);
+  short();
+  setTimeout(more, 400);
 })();
 </script>
 </body>
