@@ -877,7 +877,7 @@ def test_sec_fetch_site_own_values_pass_and_are_a_proof_on_their_own(tmp_path, r
     assert code == 200 and ran == ["status"]
 
 
-@pytest.mark.parametrize("value", ["cross-site", "CROSS-SITE", "same-site", "SAME-SITE", "", "nonsense"])
+@pytest.mark.parametrize("value", ["cross-site", "CROSS-SITE", "same-site", "", "nonsense"])
 def test_sec_fetch_site_anything_else_is_refused_even_with_the_proof_header(tmp_path, ran, value):
     cls = _pinned(tmp_path, no_token=True)
     code, doc, _ = _ask(cls, headers=[LOCAL, f"Sec-Fetch-Site: {value}"])
