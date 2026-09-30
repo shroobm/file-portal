@@ -1,7 +1,8 @@
 """The endpoint's own auth (docs/06: "a tailscale serve-fronted endpoint with its own auth"; S214
 E16): `<root>/serve.token`, one line the operator writes outside the repo. When it exists every
-route but /health wants `X-FP-Token`; when it does not, the tailnet identity alone admits, as
-before. Positive and negative controls on a loopback port; no store, no model."""
+route but /health wants `X-FP-Token`; when it does not, the tailnet identity alone admits only on
+the operator's explicit --no-token (fail closed since 2026-09-30: no token and no flag is a 503,
+see test_serve_lock.py). Positive and negative controls on a loopback port; no store, no model."""
 
 import json
 import socket
@@ -14,7 +15,7 @@ from indexer import serve
 from indexer.config import Settings
 
 
-def _server(tmp_path, token_line):
+def _server(tmp_path, token_line, no_token=False):
     if token_line is not None:
         (tmp_path / serve.TOKEN_FILE).write_text(token_line, encoding="utf-8")
     state = serve._State.__new__(serve._State)
@@ -24,6 +25,7 @@ def _server(tmp_path, token_line):
     state.embedder = None
     state.reranker = None
     state.token = serve.read_token(tmp_path)
+    state.no_token = no_token
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -33,7 +35,12 @@ def _server(tmp_path, token_line):
 
 
 def _get(url, token=None):
-    req = urllib.request.Request(url, headers={"X-FP-Token": token} if token else {})
+    # X-FP-Local: a File Portal tool's proof that a GET is not a foreign page's <img> or link
+    # (Handler._proven; test_serve_lock.py holds the requests that must be refused without it)
+    headers = {"X-FP-Local": "1"}
+    if token:
+        headers["X-FP-Token"] = token
+    req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, json.load(r)
@@ -70,8 +77,8 @@ def test_gate_with_a_token(tmp_path):
         server.shutdown()
 
 
-def test_no_token_file_means_identity_only(tmp_path):
-    server, base = _server(tmp_path, None)
+def test_no_token_file_and_no_token_flag_means_identity_only(tmp_path):
+    server, base = _server(tmp_path, None, no_token=True)
     try:
         assert _get(base + "/health") == (200, {"ok": True})
         code, doc = _get(base + "/status")

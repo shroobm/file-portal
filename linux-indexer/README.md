@@ -101,24 +101,88 @@ tailscale ssh rab@archlinux '~/file-portal-src/linux-indexer/.venv/bin/python -m
 `python -m indexer.serve` binds `127.0.0.1:<serve_port>` and nothing else (`--port N` overrides the
 lever for one run); it ships no unit
 and nothing starts it. Routes: `GET /health`, `GET /status`, `GET /query?q=...&k=&mode=&bundle=&lane=&verdict=`,
-`POST /query` (JSON body, same keys). The model stays warm, so a query costs milliseconds.
+`POST /query` (JSON body, same keys), `GET /graph` (the Library graph, cached beside the index). The model
+stays warm, so a query costs milliseconds.
 To reach it from the tailnet without opening a port, front it with Tailscale's own identity-bound
 proxy (docs/06 names exactly this pattern):
 
 ```bash
 tailscale serve --bg --set-path /index http://127.0.0.1:8765
-curl "https://archlinux.<tailnet>.ts.net/index/query?q=requisite+variety&mode=keyword"
+# a scripted client of any route but /health must show where it came from: with --no-token send
+# X-FP-Local: 1 (any value); with a token, X-FP-Token proves it too (see "Request locks", below)
+curl -H "X-FP-Local: 1" "https://archlinux.<tailnet>.ts.net/index/query?q=requisite+variety&mode=keyword"
+# with a token, without putting it in the process list:
+printf 'X-FP-Token: %s\n' "$(cat ~/file-portal/serve.token)" | curl -H @- "https://archlinux.<tailnet>.ts.net/index/status"
 ```
 
-### Its own auth: `~/file-portal/serve.token` (S214 E16)
+### Its own auth: `~/file-portal/serve.token` (S214 E16; fails closed since 2026-09-30)
 
 docs/06 asks a `tailscale serve`-fronted endpoint to carry its own auth. Write one line into
 `~/file-portal/serve.token` (for example `openssl rand -hex 16 > ~/file-portal/serve.token && chmod 600`
 `~/file-portal/serve.token`) and every route but `/health` requires the header `X-FP-Token` equal to it;
-a missing or wrong token is a 403 that names the file. Without the file the tailnet identity alone
-admits, as the Desk, PORTAL and Control do today. The file is the operator's and lives outside this
-repository (which is public); `/health` answers `{"ok": true, "gated": <bool>}` so a caller can tell.
-`dashboard.serve` (linux-dashboard) reads the same file.
+a missing or wrong token is a 403 that names the file. The gate fails closed: with no token file (or a
+blank one) every route but `/health` answers 503 until the operator writes one, or starts the server with
+`--no-token`, the explicit opt-in to the tailnet identity alone. A token file that exists but cannot be
+read (a permission error, a directory in its place, bytes that are not text) aborts startup rather than
+serving open, and a token that is present always gates, `--no-token` or not. `/health` is the one ungated
+route; it answers `{"ok": true}` (`dashboard.serve`'s also says `"gated": <bool>`). The file is the
+operator's and lives outside this repository (which is public). `dashboard.serve` (linux-dashboard)
+reads the same file.
+
+Four locks sit under the token and need no configuration. The server refuses to start unless its bind
+is a literal loopback or Tailscale address. A connection from any peer that is neither loopback nor
+Tailscale (`100.64.0.0/10`, `fd7a:115c:a1e0::/48`) gets a bare 403 before a request line is read. A
+request carrying a `Tailscale-Funnel-Request` header, whatever its value, gets the same bare 403 before
+any route, token or body is read, `/health` included. That one is what keeps a public caller out of
+HTTP-mode Funnel (Tailscale's public-internet exposure), which reaches this loopback socket from
+`127.0.0.1` exactly as a tailnet caller does; Tailscale's own proxy sets the header on every request that
+came in through it and strips any client-sent copy (`ipn/ipnlocal/serve.go`). It covers **HTTP-mode
+Funnel only**: a TCP-mode funnel forwards raw TCP and carries no header, so nothing here can see it, and
+`security/lockdown_check.py` D4/T1 in the private layer is what catches any Funnel. Front this with
+`tailscale serve`, never `tailscale funnel`. The fourth lock is the request lock, next.
+
+### Request locks: a foreign page in the operator's own browser (2026-09-30)
+
+A page from another site, open in a browser on one of the operator's tailnet devices (it learned the
+address from a screenshot), can never READ an answer, because no File Portal server answers CORS. It can still fire
+"simple" requests: a GET from an `<img>`, a link, an iframe or a form, or a POST whose body is
+`text/plain`, form-urlencoded or multipart. The feeds are reached over plain http (`tailscale serve
+--http=8080`), where a browser sends `Origin` on every POST and on any cross-origin fetch, `Referer`
+unless the page suppressed it, and **no `Sec-Fetch-*` header at all**. So, before any route, token or
+body, every request is checked, and a refusal is a 403 whose JSON `reason` names the rule:
+
+| `reason` | Refuses | Note |
+|---|---|---|
+| `host` | no `Host`, two, or one that is not loopback (an IPv4-mapped form included), `localhost` or this machine's own tailnet name | closes DNS rebinding |
+| `origin` | an `Origin` that is not http(s) over one of this machine's own tailnet names; `null` (a sandboxed frame, a `data:` URL, a no-referrer POST), a loopback, `localhost` or IP-literal origin (an IPv4-mapped form included) and, while the Host pin is loose, every `Origin` are refused; any method | a browser POST always sends one, so a simple cross-site POST dies here; a POST with none is a tool and passes |
+| `fetch-site` | a `Sec-Fetch-Site` other than `same-origin`, `same-site`, `none` | fires **only where a browser sends it** (https or loopback), so it is inert over plain http |
+| `unproven-origin` | a GET (any route but `/health`) with no proof it came from our own page or tool | proof is `Sec-Fetch-Site` same-origin/same-site/none when sent, else a `Referer` naming one of this machine's own tailnet names (never while the pin is loose), else the header `X-FP-Local` (any value) or `X-FP-Token` |
+
+The proof is a custom request header because a cross-site browser request cannot carry one without a CORS
+preflight, and this server never answers a preflight (`OPTIONS` is the stdlib's 501). Clients that already
+send `X-FP-Token` (Control's Library tab) need no change while a token is set. **With `--no-token` a
+scripted client of a proven route (every GET but `/health`: curl, a cron job, a session tool) must send
+`X-FP-Local: 1`**; the curl lines in this README do. `/health` needs no proof (it changes nothing and
+reveals nothing).
+
+The Host pin reads this machine's own tailnet names once at start from `tailscale status --json`
+(`Self.DNSName` and its first label; 3 tries, 5 s apart, 5 s each). Only the `Host` check admits loopback
+(an IPv4-mapped form included) and `localhost` besides, because `tailscale serve` may hand the backend the
+original `Host` or `127.0.0.1:<port>`; both pass. `Origin` and `Referer` are stricter: only the pinned
+tailnet names are ours there, never loopback, `localhost` or an IP literal, because a page served from
+loopback is some other app on this machine. If the read fails (the loose pin) the `Host` check also admits
+any single-label name and any `*.ts.net` name, **for `Host` only**: every `Origin` is then refused, a
+`Referer` proves nothing, and only `X-FP-Local`, `X-FP-Token` (or a browser's own `Sec-Fetch-Site`) prove a
+GET; one line on stderr says so. There is no
+proxy-header lock here (unlike servers reached directly): `tailscale serve` adds `X-Forwarded-*` and
+`Tailscale-User-*` to everything it relays. Every answer carries `X-Content-Type-Options: nosniff` and
+`Content-Security-Policy: frame-ancestors 'none'`.
+
+What each route does (the side effect is what the proof rule guards): `/health` nothing. `/status` reads
+the index and runs `git rev-parse` on the vault. `/query` (GET or POST) writes nothing, but a server
+started before the first index existed builds its embedder per request, and a cold build fetches the model
+files. `/graph` rewrites `graph.json` beside the index when the vault's tip moved; it is a GET because its
+one client (Control) calls it that way, so it is guarded instead of moved.
 
 ## Tests
 

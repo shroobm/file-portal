@@ -140,12 +140,19 @@ def test_status_in_sync_flips_when_the_vault_moves(paths):
     assert status.run(paths.root)["in_sync"] is False
 
 
+def _tool_get(url):
+    """A GET as a File Portal tool sends it: X-FP-Local proves it is not a foreign page's <img> or
+    link (serve.Handler._proven; test_serve_lock.py holds the refusals)."""
+    return urllib.request.urlopen(urllib.request.Request(url, headers={"X-FP-Local": "1"}))
+
+
 def test_serve_routes_on_loopback(paths):
     indexed(paths)
     state = serve._State.__new__(serve._State)
     state.root, state.settings = paths.root, SETTINGS
     state.embedder, state.reranker = HashEmbedder(), None
     state.lock = threading.Lock()
+    state.no_token = True  # these routes are the subject here, not the gate (test_serve_lock.py)
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]
@@ -155,8 +162,8 @@ def test_serve_routes_on_loopback(paths):
     try:
         base = f"http://127.0.0.1:{port}"
         assert json.load(urllib.request.urlopen(f"{base}/health")) == {"ok": True}
-        assert json.load(urllib.request.urlopen(f"{base}/status"))["in_sync"] is True
-        got = json.load(urllib.request.urlopen(f"{base}/query?q=Frege&mode=keyword&k=2"))
+        assert json.load(_tool_get(f"{base}/status"))["in_sync"] is True
+        got = json.load(_tool_get(f"{base}/query?q=Frege&mode=keyword&k=2"))
         assert got["hits"][0]["bundle"] == "book-b--bb22bb22" and len(got["hits"]) <= 2
         req = urllib.request.Request(
             f"{base}/query",
@@ -165,7 +172,7 @@ def test_serve_routes_on_loopback(paths):
         )
         assert json.load(urllib.request.urlopen(req))["hits"] == []
         try:
-            urllib.request.urlopen(f"{base}/query?mode=keyword")
+            _tool_get(f"{base}/query?mode=keyword")
         except urllib.error.HTTPError as err:
             assert err.code == 400
         else:
@@ -220,6 +227,7 @@ def test_serve_rejects_what_is_not_a_question(paths):
     state = serve._State.__new__(serve._State)
     state.root, state.settings, state.embedder, state.reranker = paths.root, SETTINGS, None, None
     state.lock = threading.Lock()
+    state.no_token = True  # the request bounds are the subject here, not the gate
     with socket.socket() as probe:
         probe.bind(("127.0.0.1", 0))
         port = probe.getsockname()[1]

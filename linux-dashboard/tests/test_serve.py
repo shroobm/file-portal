@@ -32,10 +32,10 @@ def _tree(root):
     os.utime(root / "sorted" / "code" / "y.py", (old, old))
 
 
-def _server(root, token_line=None):
+def _server(root, token_line=None, no_token=False):
     if token_line is not None:
         (root / serve.TOKEN_FILE).write_text(token_line, encoding="utf-8")
-    state = serve._State(root, Settings())
+    state = serve._State(root, Settings(), no_token=no_token)
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -45,7 +45,12 @@ def _server(root, token_line=None):
 
 
 def _get(url, token=None, raw=False):
-    req = urllib.request.Request(url, headers={"X-FP-Token": token} if token else {})
+    # X-FP-Local: a File Portal tool's proof that a GET is not a foreign page's <img> or link
+    # (Handler._proven; test_serve_lock.py holds the requests that must be refused without it)
+    headers = {"X-FP-Local": "1"}
+    if token:
+        headers["X-FP-Token"] = token
+    req = urllib.request.Request(url, headers=headers)
     try:
         with urllib.request.urlopen(req, timeout=10) as r:
             return r.status, (r.read() if raw else json.load(r)), r.headers.get("Content-Type", "")
@@ -68,9 +73,11 @@ def test_sorted_document_shape_and_filters(tmp_path):
     assert [e["year_month"] for e in bounded["categories"]["photos"]] == ["2026-09"]
 
 
-def test_routes_identity_only_when_no_token_file(tmp_path):
+def test_routes_identity_only_when_no_token_file_and_no_token_flag(tmp_path):
+    # the tailnet identity alone admits only on the operator's explicit --no-token (S214 E16's
+    # default became fail-closed 2026-09-30: no token and no flag is a 503, see test_serve_lock.py)
     _tree(tmp_path)
-    server, base = _server(tmp_path)
+    server, base = _server(tmp_path, no_token=True)
     try:
         assert _get(base + "/health")[:2] == (200, {"ok": True, "gated": False})
         code, doc, _ = _get(base + "/sorted")
@@ -108,7 +115,7 @@ def test_gate_with_a_token(tmp_path):
 
 def test_thumbnail_refusals_and_honesty(tmp_path):
     _tree(tmp_path)
-    server, base = _server(tmp_path)
+    server, base = _server(tmp_path, no_token=True)
     try:
         code, doc, _ = _get(base + "/thumb?path=../serve.token")
         assert code == 400, "a traversal is refused before any read"

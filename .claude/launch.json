@@ -44,6 +44,8 @@
         "-m",
         "http.server",
         "8321",
+        "--bind",
+        "127.0.0.1",
         "--directory",
         "docs"
       ],

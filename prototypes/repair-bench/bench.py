@@ -17,13 +17,16 @@ that belongs to Rab (docs/19 §10: audit policy carries his signature).
 Run:  python bench.py <bundle-dir | held-sha16> [--pdf X.pdf] [--sandbox] [--port 7077]
       --sandbox copies the bundle into .sandbox/ first and repairs the COPY — trial mode.
 
-Stdlib + pymupdf (marker-env) only. Binds 127.0.0.1.
+Stdlib + pymupdf (marker-env) only. Binds 127.0.0.1 (and, with --also-bind, one literal tailnet address - any other address is refused
+at the start), answers only a loopback or tailnet peer, and refuses a proxied request or one from another web page (an Origin that is
+not its own; a cross-site fetch where the browser says so; a blind GET of the one route with a side effect).
 """
 from __future__ import annotations
 
 import argparse
 import base64
 import io
+import ipaddress
 import json
 import difflib
 import hashlib
@@ -2264,6 +2267,50 @@ def token_gate(presented: str | None, expected) -> str | None:
 
 
 # ---- the thin HTTP layer ---------------------------------------------------------------------
+# File Portal answers only this machine and the tailnet (Rab, 2026-09-30: "absolute locked inside my tailscale vpn").
+# Lock two is the listener: bind_ok refuses any address but a literal loopback or Tailscale one, before a socket exists.
+# Lock three is the peer: peer_ok, checked in Handler.handle() before a single request byte is read.
+_PEER_NETS = tuple(ipaddress.ip_network(n) for n in ("127.0.0.0/8", "::1/128", "100.64.0.0/10", "fd7a:115c:a1e0::/48"))
+_FORBIDDEN = b"HTTP/1.0 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
+
+
+def peer_ok(addr):
+    """True only for loopback or a Tailscale address; fails closed on anything unparseable."""
+    try:
+        ip = ipaddress.ip_address(str(addr).split("%", 1)[0])
+    except ValueError:
+        return False
+    if ip.version == 6 and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return any(ip.version == n.version and ip in n for n in _PEER_NETS)
+
+
+def bind_ok(addr):
+    """A server may listen only on a literal loopback or Tailscale IP: never '', 0.0.0.0, ::, a LAN or public address, or a name."""
+    try:
+        ip = ipaddress.ip_address(str(addr))
+    except ValueError:
+        return False
+    return not ip.is_unspecified and peer_ok(ip)
+
+
+_refusals = 0
+_refusals_lock = threading.Lock()
+
+
+def _count_refusal(addr):
+    """a rate-limited note of a refused peer: the first 5, then every 1000th; the address only, never a request byte; never raises"""
+    global _refusals
+    try:
+        with _refusals_lock:
+            _refusals += 1
+            n = _refusals
+        if n <= 5 or n % 1000 == 0:
+            print(f"  ! refused a connection from {addr} (not loopback, not the tailnet) - refusal #{n}", flush=True)
+    except Exception:  # noqa: BLE001 - a log line must never take a connection handler down
+        pass
+
+
 # S215 round four (DNS rebinding, the phone-doors lane): the names this bench answers to - a loopback name, the address a request
 # came in on, or a name given with --host (the Scanner passes the machine's tailnet names). Any other Host is refused (421)
 # before any route, so a foreign domain re-pointed at this address reads nothing and writes nothing.
@@ -2291,6 +2338,188 @@ def host_ok(host, bound, names=()):
     return name in LOOPBACK_NAMES or name == bound or name in names
 
 
+def host_header_ok(headers, bound, names=()):
+    """S215 round nine (2): the request's Host - at most ONE Host header (a second is an ambiguous request: http.server's .get() reads only
+    the first, where a proxy or a parser in front could read the last) - and it names this bench (host_ok)"""
+    hosts = headers.get_all("Host") or []
+    return len(hosts) <= 1 and host_ok(hosts[0] if hosts else None, bound, names)
+
+
+def _loopback_name(name):
+    """round nine (1): a name (host_name's form: lower-cased, no brackets, no FQDN dot) that means this machine's own loopback - 'localhost',
+    any 127.0.0.0/8 or ::1 literal, and the IPv4-mapped spelling of either (::ffff:127.0.0.1)"""
+    if name == "localhost":
+        return True
+    try:
+        ip = ipaddress.ip_address(name)
+    except ValueError:
+        return False
+    if ip.version == 6 and ip.ipv4_mapped is not None:
+        ip = ip.ipv4_mapped
+    return ip.is_loopback
+
+
+# 2026-09-30, rule (4) of the request checks: nothing stands between a client and this bench - no reverse proxy, no `tailscale serve`
+# or Funnel (a Funnel or a local proxy reaches the bench FROM 127.0.0.1, which the peer lock admits). A request carrying any of
+# these headers (or any X-Forwarded-* or Tailscale-* one) was forwarded by something, so it is refused. The values are never read,
+# never trusted as an address. The set is the Scanner's, the Desk's and the Control's (their rule 4), so the servers read a request
+# alike; every client here connects straight. Every Tailscale-* header is a serve/funnel proxy's (Tailscale-Funnel-Request on a
+# request that came in through Funnel, from the public internet; Tailscale-User-Login and its kin on one relayed by Serve -
+# Tailscale's ipn/ipnlocal/serve.go strips a client's own), so the whole prefix is refused, not a list of two names.
+# LIMIT of the Tailscale-Funnel-Request refusal: it covers an HTTP-mode Funnel only. A TCP-mode funnel forwards raw bytes, carries no
+# header and reaches this process from 127.0.0.1 like any local client, so nothing in this file can see it. What catches any Funnel is
+# security/lockdown_check.py (its checks D4 and T1), which reads Tailscale's own serve/funnel state, not a request.
+PROXY_MARKERS = ("forwarded", "via", "x-real-ip", "x-client-ip", "x-cluster-client-ip", "client-ip", "true-client-ip",
+                 "x-original-forwarded-for", "cf-connecting-ip", "cf-ray", "fastly-client-ip", "x-envoy-external-address")
+PROXY_PREFIXES = ("x-forwarded-", "tailscale-")   # families: any header that begins so
+PROXY_REFUSED = "this bench answers direct requests only - a forwarded or proxied request is refused"
+
+
+def proxy_marker(headers):
+    """the first header of a request that marks it as relayed (lower-case name; X-Forwarded-* and Tailscale-* as families), or None"""
+    for k in headers.keys():
+        k = k.lower()
+        if k in PROXY_MARKERS or k.startswith(PROXY_PREFIXES):
+            return k
+    return None
+
+
+# 2026-09-30, rule (5) of the request checks (round three): is this request from one of OUR pages or tools, or from a foreign web page open in
+# his browser on a tailnet device (it learned the address from a screenshot)? What a browser sends decides what can be checked:
+#   - Sec-Fetch-Site / -Mode / -Dest are sent ONLY to a potentially trustworthy URL: https, or 127.0.0.0/8, ::1, localhost. Over plain http to a
+#     tailnet address or a *.ts.net name a browser sends NO Sec-Fetch-* header at all. So the Sec-Fetch-Site rule below
+#     fires only where browsers send it - on loopback (and on https, which this bench never speaks); on the tailnet it is inert,
+#     and the Origin and proof rules carry the lock.
+#   - Origin goes out on every POST (a same-origin one too) and on a cross-origin fetch/XHR, and never on a navigation, <img>, <script>, <link>,
+#     <iframe> or form GET. Referer follows the referrer policy: a foreign page can suppress it, but can never forge it to our host.
+#   - A cross-origin request that is not "simple" (a custom header such as X-FP-Token or X-FP-Local; a Content-Type other than text/plain,
+#     application/x-www-form-urlencoded or multipart/form-data; a method other than GET/HEAD/POST) needs a CORS preflight. This bench answers
+#     no OPTIONS (501) and sends no Access-Control-* header, so the browser never sends the real request, and a page can never READ an answer.
+# What a foreign page CAN still do is fire SIMPLE requests: a blind GET (img, link, iframe, navigation, form GET: no Origin, maybe no Referer) or a
+# simple POST (its own Origin, or 'null' from a sandboxed frame, a data: URL or a no-referrer form). So:
+#   - a present Origin must be this bench's own - http, one of its names, its own port; 'null', a second Origin and a sibling port are refused,
+#     for every method. A POST with no Origin is a non-browser client (a browser always sends one) and goes on to the token gate; round nine:
+#     on the TAILNET listener a loopback name (127.0.0.1, localhost, ::1, ::ffff:127.0.0.1) is not this bench's own in an Origin or a Referer -
+#     only the listener's own address and the tailnet names are - and a request with more than one Host header is refused (421);
+#   - the token is read from the X-FP-Token HEADER only: a header is preflight-protected, a ?token= or a form/JSON field is not - never read;
+#   - the one GET with a side effect, /api/evidence (it spawns a child process and caches its report), is admitted only with PROOF the request
+#     came from our own page or a local tool (proof_ok), else 403 'unproven-origin'. It stays a GET on purpose: OK-15 is signed as a READ route
+#     (test_evidence_route_is_get_only_and_never_mutating), and its token is itself a header proof. Every other GET only reads (a memoised read
+#     changes no answer), so a blind GET of a page or of the data may land - and reads nothing back;
+#   - Sec-Fetch-Site: cross-site is refused wherever the browser sends it, except a GET/HEAD navigation of the page itself ('/') into a window or
+#     a frame (the Control's openBench and the Scanner's /repair reach the bench in a frame).
+SIDE_EFFECT_GETS = ("/api/evidence",)   # spawns a process, caches a report: admitted only with proof (proof_ok)
+READ_ONLY_GETS = ("/", "/api/state", "/api/md", "/api/page", "/fp-tokens.css", "/api/asset", "/api/ledger", "/api/rescore", "/api/toc",
+                  "/api/find", "/api/rects", "/api/locate", "/api/trimbox", "/api/textlayer", "/api/table", "/api/library")
+READ_ONLY_GET_PREFIXES = ("/vendor/",)
+FETCH_SITE_PASS = ("same-origin", "same-site", "none")   # a request from our own page, a sibling page on this host, or a typed/bookmarked address
+FETCH_NAV_MODES = ("navigate", "nested-navigate")
+FETCH_NAV_DEST = ("document", "iframe")
+ORIGIN_REFUSED = {
+    "origin": "this bench answers its own page and local tools only - a request whose Origin is not this bench's own (another site, 'null', "
+              "another port) is refused",
+    "fetch-site": "this bench answers its own page and local tools only - a cross-site request is refused (only a navigation to the page "
+                  "itself is let through)",
+    "unproven-origin": "this route has a side effect and nothing shows the request came from this bench's own page or a local tool - "
+                       "refused. A tool sends X-FP-Local (any value) or the X-FP-Token header; the page sends X-FP-Token when it is "
+                       "opened as /?token=<the value passed to --token>",
+}
+
+
+def _authority(text):
+    """(name, port) of a URL authority - 'host', 'host:port', '[v6]' or '[v6]:port' - the name lower-cased and without its FQDN dot (host_name's
+    rule), the port an int (80 when none is written); None for anything else: userinfo, a path, a space, a second colon outside brackets, a
+    port that is not 1-65535"""
+    a = str(text or "").strip().lower()
+    if not a or any(c in a for c in "/?#@\\ \t\r\n"):
+        return None
+    if a.startswith("["):
+        end = a.find("]")
+        if end < 2:
+            return None
+        name, tail = a[1:end], a[end + 1:]
+    else:
+        if a.count(":") > 1:
+            return None
+        name, colon, digits = a.partition(":")
+        tail = colon + digits
+    if not name:
+        return None
+    if not tail:
+        port = 80
+    elif tail.startswith(":") and tail[1:].isascii() and tail[1:].isdigit() and 0 < int(tail[1:]) < 65536:
+        port = int(tail[1:])
+    else:
+        return None
+    if name.endswith(".") and len(name) > 1 and ":" not in name:
+        name = name[:-1]
+    return name, port
+
+
+def _own_authority(text, bound, names, port):
+    """True when the authority names this bench: one of its names (host_ok) on the port it listens on (port None = any). Round nine (1): on
+    the TAILNET listener (bound is not a loopback address) a loopback name - 127.0.0.1, localhost, ::1, ::ffff:127.0.0.1 - is NOT one of
+    our own pages in an Origin or a Referer: only the listener's own address and the tailnet names are. The loopback listener keeps its
+    loopback names; the listener's own address stays ours whatever it is (a loopback stand-in in a test)."""
+    got = _authority(text)
+    if got is not None and bound not in ("127.0.0.1", "::1") and got[0] != bound and _loopback_name(got[0]):
+        return False
+    return got is not None and host_ok(got[0], bound, names) and (port is None or got[1] == port)
+
+
+def origin_ok(value, bound, names=(), port=None):
+    """an Origin that is this bench's own: http (it speaks no https) over one of its names on its own port. 'null' (a sandboxed frame, a
+    data: URL, a no-referrer form post), a path or userinfo, another scheme and another port (a sibling page on this host) are not"""
+    scheme, sep, rest = str(value or "").strip().lower().partition("://")
+    return bool(sep) and scheme == "http" and _own_authority(rest, bound, names, port)
+
+
+def referer_ok(value, bound, names=(), port=None):
+    """a Referer whose host is this bench's own (the host check, and its port); its path and query are not looked at"""
+    try:
+        u = urllib.parse.urlsplit(str(value or "").strip())
+    except ValueError:
+        return False
+    return u.scheme == "http" and _own_authority(u.netloc, bound, names, port)
+
+
+def proof_ok(headers, bound, names=(), port=None):
+    """True when a request shows it came from our own page or a local tool, never from a blind foreign one: Sec-Fetch-Site in
+    same-origin/same-site/none when that header is present; else a Referer from this bench; else a custom request header (X-FP-Local, or the
+    page's X-FP-Token) - which a cross-site browser request cannot carry without a preflight this bench never answers"""
+    site = (headers.get("Sec-Fetch-Site") or "").strip().lower()
+    if site:
+        return site in FETCH_SITE_PASS
+    ref = headers.get("Referer")
+    if ref and referer_ok(ref, bound, names, port):
+        return True
+    return headers.get("X-FP-Local") is not None or headers.get("X-FP-Token") is not None
+
+
+def page_refusal(headers, method, path, bound, names=(), port=None):
+    """Why a request looks like another web page's rather than one of ours - 'origin', 'fetch-site' or 'unproven-origin' - or None. `path` is
+    the URL path the route dispatch reads (urlparse's); `port` is the port this listener serves (None = any). See rule (5) above."""
+    origins = headers.get_all("Origin") or []
+    if len(origins) > 1 or (origins and not origin_ok(origins[0], bound, names, port)):
+        return "origin"
+    site = (headers.get("Sec-Fetch-Site") or "").strip().lower()
+    if site and site not in FETCH_SITE_PASS:
+        nav = (site == "cross-site" and method in ("GET", "HEAD") and path == "/"
+               and (headers.get("Sec-Fetch-Mode") or "").strip().lower() in FETCH_NAV_MODES
+               and (headers.get("Sec-Fetch-Dest") or "").strip().lower() in FETCH_NAV_DEST)
+        if not nav:
+            return "fetch-site"
+    if method in ("GET", "HEAD") and path in SIDE_EFFECT_GETS and not proof_ok(headers, bound, names, port):
+        return "unproven-origin"
+    return None
+
+
+# the most of a refused POST's body that is read before the refusal goes out, and how long a sender may stall while it is read
+# (2026-09-30): a bound on what a declared Content-Length can ask of a thread - in bytes and in seconds
+_DRAIN_CAP = 1 << 20
+_DRAIN_TIMEOUT = 5
+
+
 def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
     bench0 = bench
     allowed = {str(h).strip().lower() for h in hosts if str(h).strip()}
@@ -2301,6 +2530,24 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
         # POST drains its body, so a kept-alive connection is safe; an idle one is closed after 30 s
         protocol_version = "HTTP/1.1"
         timeout = 30
+
+        def handle(self):
+            # the peer lock: a connection from anywhere but loopback or the tailnet gets a bare 403 and is closed,
+            # before any request line is read, for every method (HEAD/OPTIONS/PUT/... and malformed lines included)
+            try:
+                addr = self.client_address[0]
+                ok = peer_ok(addr)
+            except Exception:
+                addr, ok = "?", False
+            if not ok:
+                self.close_connection = True
+                try:
+                    self.wfile.write(_FORBIDDEN)
+                except OSError:
+                    pass
+                _count_refusal(addr)   # a rate-limited note: the first 5 refusals, then every 1000th; never the request body
+                return
+            super().handle()
 
         def log_message(self, *a):  # quiet
             pass
@@ -2315,13 +2562,65 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
             self.end_headers()
             self.wfile.write(body)
 
-        def _json(self, obj, code: int = 200):
-            self._send(code, json.dumps(obj).encode("utf-8"))
+        def _json(self, obj, code: int = 200, headers=None):
+            self._send(code, json.dumps(obj).encode("utf-8"), headers=headers)
+
+        def _content_length(self):
+            """the declared body length: a whole number of bytes >= 0, or None for anything else (negative, signed, a word, a float)"""
+            raw = (self.headers.get("Content-Length") or "0").strip()
+            return int(raw) if raw.isascii() and raw.isdigit() else None
+
+        def _page_refusal(self, method):
+            """why this request looks like another web page's rather than one of ours (see page_refusal, rule 5), or None"""
+            try:
+                path = urllib.parse.urlparse(self.path).path   # the parser do_GET dispatches on: a ';params' or '//' spelling cannot dodge a route's rule
+            except ValueError:
+                path = ""
+            try:
+                addr = self.server.server_address
+                return page_refusal(self.headers, method, path, addr[0], allowed, addr[1])
+            except Exception:  # noqa: BLE001 - headers we cannot read are headers we do not trust
+                return "origin"
+
+        def _refuse(self, code: int, message: str, reason=None):
+            """Answer a POST refused before its body was used (421, 403). The body is drained first - answering while the client is
+            still sending makes Windows abort the socket (WinError 10053, measured by this file's own test suite) - but only up to
+            _DRAIN_CAP bytes, in 64 KiB chunks, and a sender that stalls is waited on for _DRAIN_TIMEOUT seconds, not the
+            connection's 30: the declared length is the caller's word, and a thread never reads or waits for more than that. A
+            Content-Length that is not a whole number (negative, signed, a word) answers 400; a body past the cap, a sender that
+            stalled or left, or a body framed some other way (Transfer-Encoding) is left unread and the connection closes
+            after the answer."""
+            n = self._content_length()
+            close = bool(self.headers.get("Transfer-Encoding"))
+            if n is None:
+                code, message, close = 400, "Content-Length must be a whole number of bytes", True
+            else:
+                left = min(n, _DRAIN_CAP)
+                try:
+                    self.connection.settimeout(_DRAIN_TIMEOUT)
+                    while left > 0:
+                        chunk = self.rfile.read(min(left, 65536))
+                        if not chunk:
+                            break
+                        left -= len(chunk)
+                    self.connection.settimeout(self.timeout)
+                except (OSError, ValueError):
+                    left = 1
+                close = close or left > 0 or n > _DRAIN_CAP
+            body = {"error": message, "reason": reason} if reason else {"error": message}
+            self._json(body, code, headers={"Connection": "close"} if close else None)
 
         def do_GET(self):
             bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
-            if not host_ok(self.headers.get("Host"), self.server.server_address[0], allowed):   # round four
+            if not host_header_ok(self.headers, self.server.server_address[0], allowed):   # round four; round nine: one Host header only
                 self._json({"error": HOST_REFUSED}, 421)
+                return
+            if proxy_marker(self.headers):   # rule (4): direct requests only
+                self._json({"error": PROXY_REFUSED}, 403)
+                return
+            why = self._page_refusal("GET")   # rule (5): a foreign page's request - an Origin not ours, a cross-site fetch, a blind GET of a side-effect route
+            if why:
+                self._json({"error": ORIGIN_REFUSED[why], "reason": why}, 403)
                 return
             try:
                 url = urllib.parse.urlparse(self.path)
@@ -2383,7 +2682,9 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
                 elif url.path == "/api/evidence":  # OK-15 — read-only, in-memory quarantine
                     # Expensive GETs still need the loopback capability: a hostile page can
                     # fire no-CORS localhost requests and otherwise spawn unbounded 900 s
-                    # render/Xpdf children. _ok15_lock collapses concurrent admitted calls.
+                    # render/Xpdf children. _ok15_lock collapses concurrent admitted calls. Two locks stand before this line: page_refusal
+                    # (rule 5) refuses a blind or foreign request as 'unproven-origin' (this route is in SIDE_EFFECT_GETS), and the token is
+                    # read from the X-FP-Token HEADER only - never ?token= - so a cross-site page cannot carry it without a preflight.
                     deny = token_gate(self.headers.get("X-FP-Token"), token)
                     if deny:
                         self._json({"error": deny}, 403)
@@ -2427,27 +2728,29 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
 
         def do_POST(self):
             bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
-            if not host_ok(self.headers.get("Host"), self.server.server_address[0], allowed):   # round four
-                try:   # drained first, as the token gate does (WinError 10053 otherwise)
-                    self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
-                except (OSError, ValueError):
-                    pass
-                self._json({"error": HOST_REFUSED}, 421)
+            if not host_header_ok(self.headers, self.server.server_address[0], allowed):   # round four; round nine: one Host header only
+                self._refuse(421, HOST_REFUSED)   # the body drained first, bounded (see _refuse)
+                return
+            if proxy_marker(self.headers):   # rule (4): direct requests only
+                self._refuse(403, PROXY_REFUSED)
+                return
+            why = self._page_refusal("POST")   # rule (5): a present Origin must be ours ('null' is not); an Origin-less POST is a non-browser client
+            if why:
+                self._refuse(403, ORIGIN_REFUSED[why], why)
                 return
             # The loopback-token gate, BEFORE any dispatch (see MUTATING_POSTS above).
             deny = token_gate(self.headers.get("X-FP-Token"), token)
             if deny:
-                # Drain the request body first: answering while the client is still sending
+                # The request body is drained first (bounded), then the 403: answering while the client is still sending
                 # makes Windows abort the socket (WinError 10053, measured by this file's own
                 # test suite) and the remedy text never reaches the caller.
-                try:
-                    self.rfile.read(int(self.headers.get("Content-Length", "0") or 0))
-                except (OSError, ValueError):
-                    pass
-                self._json({"error": deny}, 403)
+                self._refuse(403, deny)
                 return
             try:
-                n = int(self.headers.get("Content-Length", "0"))
+                n = self._content_length()
+                if n is None:   # a negative length would make the read below wait for EOF; a word would be a 500
+                    self._json({"error": "Content-Length must be a whole number of bytes"}, 400, headers={"Connection": "close"})
+                    return
                 payload = json.loads(self.rfile.read(n) or b"{}")
                 if self.path == "/api/repair":
                     self._json(bench.repair(
@@ -2515,6 +2818,10 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
 
 def serve_on(binds, port, handler):
     """One ThreadingHTTPServer per address, the same handler; every one but the first runs in a daemon thread (S215 E31)."""
+    for b in binds:   # the listener lock: every address is checked before ANY server is built, so a wide one leaves no socket behind
+        if not bind_ok(b):
+            raise ValueError(f"refusing to listen on {b!r}: this bench listens only on a literal loopback or Tailscale address "
+                             f"(never 0.0.0.0, a LAN or public address, or a name)")
     servers = [ThreadingHTTPServer((binds[0], port), handler)]   # the first (loopback) must bind: it is the bench
     for b in binds[1:]:
         try:
@@ -2526,6 +2833,14 @@ def serve_on(binds, port, handler):
     for s in servers[1:]:
         threading.Thread(target=s.serve_forever, daemon=True).start()
     return servers
+
+
+def _bind_arg(value):
+    """argparse type= for --also-bind: a literal loopback or Tailscale address, or the start is refused (exit 2) before any socket or state exists"""
+    if not bind_ok(value):
+        raise argparse.ArgumentTypeError(f"{value!r} is not a literal loopback or Tailscale address - this bench listens only on "
+                                         f"127.0.0.1 and the tailnet (never 0.0.0.0, a LAN or public address, or a name)")
+    return value
 
 
 def main():
@@ -2546,7 +2861,9 @@ def main():
     ap.add_argument("--port", type=int, default=7077)
     # S215 E31 (the phone doors): a second listener on this address (the tailnet), the same handler — its POSTs token-gated
     # like the loopback one's; the Scanner passes it when it has a tailnet listener of its own
-    ap.add_argument("--also-bind", default=None, help="also listen on this address (e.g. a tailnet IP); same routes, same token")
+    ap.add_argument("--also-bind", default=None, type=_bind_arg,
+                    help="also listen on this address: a literal tailnet (100.64.0.0/10) or loopback IP, never 0.0.0.0, a LAN address or a "
+                         "name (refused at the start); same routes, same token")
     # round four (DNS rebinding): a name, besides the loopback names and the listening addresses, this bench answers to (the
     # Scanner passes the machine's tailnet names); repeatable
     ap.add_argument("--host", action="append", default=[], help="also answer to this Host name (repeatable)")

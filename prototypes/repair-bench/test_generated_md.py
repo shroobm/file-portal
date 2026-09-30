@@ -5,6 +5,7 @@ class (no server). Run from prototypes/repair-bench with the marker-env interpre
     C:/Users/Bndit/ml/marker-env/Scripts/python.exe test_generated_md.py
 Each case has its negative control: a SECOND REAL .md still refuses (the scan discriminates — "ignore every extra .md" would pass
 the fix's case and fail this one), and a bundle holding ONLY the report has no body and refuses too."""
+import atexit
 import json
 import os
 import shutil
@@ -15,7 +16,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-os.environ.setdefault("FP_PIPELINE", tempfile.mkdtemp(prefix="fp-test-pipe-"))
+# setdefault evaluates its argument even when FP_PIPELINE is already set, so the throwaway is made either way - and is removed at exit either way
+_PIPE_TMP = tempfile.mkdtemp(prefix="fp-test-pipe-")
+atexit.register(shutil.rmtree, _PIPE_TMP, True)   # S215 round nine: it was never removed (one fp-test-pipe-* left per run)
+os.environ.setdefault("FP_PIPELINE", _PIPE_TMP)
 import bench  # noqa: E402
 
 BODY = ["# T", "", "para one", "", "para two"]

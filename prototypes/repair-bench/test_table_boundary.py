@@ -2,6 +2,7 @@
 own class (no server). Run from prototypes/repair-bench with the marker-env interpreter (bench imports fitz):
     C:/Users/Bndit/ml/marker-env/Scripts/python.exe test_table_boundary.py
 The page-side twin is test_table_health.js (node)."""
+import atexit
 import base64
 import json
 import os
@@ -15,7 +16,10 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
-os.environ.setdefault("FP_PIPELINE", tempfile.mkdtemp(prefix="fp-test-pipe-"))
+# setdefault evaluates its argument even when FP_PIPELINE is already set, so the throwaway is made either way - and is removed at exit either way
+_PIPE_TMP = tempfile.mkdtemp(prefix="fp-test-pipe-")
+atexit.register(shutil.rmtree, _PIPE_TMP, True)   # S215 round nine: it was never removed (one fp-test-pipe-* left per run)
+os.environ.setdefault("FP_PIPELINE", _PIPE_TMP)
 import bench  # noqa: E402
 
 

@@ -32,12 +32,17 @@ this file and honestly so.
 from __future__ import annotations
 
 import base64
+import contextlib
+import hashlib
 import http.client
 import inspect
+import io
 import json
 import os
 import re
 import shutil
+import socket
+import subprocess
 import sys
 import tempfile
 import threading
@@ -962,7 +967,9 @@ class TestOK5TextLayer(unittest.TestCase):
         self.assertIn('"/api/textlayer"', src)
         get_part = src[src.index("def do_GET"):src.index("def do_POST")]
         self.assertIn("/api/textlayer", get_part, "textlayer must be a GET route")
-        self.assertNotIn("/api/textlayer", src[src.index("MUTATING_POSTS"):src.index("def make_handler")],
+        # the census region is the MUTATING_POSTS tuple and the no-gate sentinel, up to token_gate (round three, 2026-09-30: the GET
+        # classification READ_ONLY_GETS now sits further down, before make_handler, and names this route as a read on purpose)
+        self.assertNotIn("/api/textlayer", src[src.index("MUTATING_POSTS"):src.index("def token_gate")],
                          "textlayer may never join the mutating POST census")
 
     def test_client_layer_exists_with_eviction_and_alt_gate(self):
@@ -1595,8 +1602,25 @@ class TestHostCheck(unittest.TestCase):
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
         s.close()
-        servers = bench.serve_on(["127.0.0.1", "10.255.255.1"], port, bench.make_handler(bench.Bench(self.tmp), token=None))
+        # 2026-09-30 (the tailnet lock): serve_on now refuses a LAN address outright (TestTailnetLock), so the address that is "not on
+        # this machine" is a tailnet-range one nobody here holds. Round three (2026-09-30): NO socket is ever bound or probed on it - a test
+        # may bind loopback only. The listener class is a stub that builds the real class for a loopback address and, for any other,
+        # raises the OSError the OS gives for an address this machine does not hold (EADDRNOTAVAIL) WITHOUT creating a socket; what
+        # serve_on asked it for is recorded, so "the ghost was asked for, refused, and the loopback bench ran" is observed, not assumed.
+        import errno
+        import ipaddress
+        ghost = "100.64.0.1"
+        asked, real_class = [], bench.ThreadingHTTPServer
+
+        def stub(addr, handler):
+            asked.append(addr)
+            if not ipaddress.ip_address(addr[0]).is_loopback:
+                raise OSError(errno.EADDRNOTAVAIL, "Cannot assign requested address (stub: no socket was made)")
+            return real_class(addr, handler)
+        with mock.patch.object(bench, "ThreadingHTTPServer", side_effect=stub):
+            servers = bench.serve_on(["127.0.0.1", ghost], port, bench.make_handler(bench.Bench(self.tmp), token=None))
         try:
+            self.assertEqual([a[0] for a in asked], ["127.0.0.1", ghost], "serve_on asked for the loopback bench first, then the ghost")
             self.assertEqual(len(servers), 1)
             self.assertEqual(servers[0].server_address[0], "127.0.0.1")
         finally:
@@ -2067,6 +2091,1585 @@ class TestE38RoundEight(unittest.TestCase):
         for use in ("new ResizeObserver(moreSoon)", "new MutationObserver(moreSoon)", 'addEventListener("scroll", moreSoon', "setTimeout(moreSoon, 400)"):
             self.assertIn(use, e34)
         self.assertNotRegex(e34, r"Observer\(more\)", "a layout read per mutation (834 ms at 4x in the hidden preload)")
+
+
+# ---- the tailnet lock (Rab, 2026-09-30: "absolute locked inside my tailscale vpn, and no one can access it, even if they got a
+# screenshot of it and tried to access it themselves"). Lock one is the listener's address (the launch flags and the widgets'
+# own hosts); this file proves locks two and three: serve_on/--also-bind refuse a wide address before a socket exists, and
+# Handler.handle() answers a bare 403 to any peer that is not loopback or the tailnet, before it reads a byte. A request
+# that came through a proxy is refused too. Every family has its positive control (the real thing passes) first.
+class _FakeReader(io.BytesIO):
+    """the request side of a fake connection: how far it had been read when it was closed, and the size of every read() on it"""
+    at_close = None
+
+    def __init__(self, data):
+        super().__init__(data)
+        self.sizes = []
+
+    def read(self, size=-1):
+        self.sizes.append(size)
+        return super().read(size)
+
+    def close(self):
+        if self.at_close is None:
+            self.at_close = self.tell()
+        super().close()
+
+
+class _FakeConn:
+    """a socket that speaks from a byte string and keeps what is written to it; nothing here touches a network"""
+
+    def __init__(self, raw):
+        self.raw, self.sent, self.reader, self.timeouts = raw, [], None, []
+
+    def settimeout(self, t):
+        self.timeouts.append(t)
+
+    def makefile(self, mode="rb", bufsize=-1):
+        self.reader = _FakeReader(self.raw)
+        return self.reader
+
+    def sendall(self, data):
+        self.sent.append(bytes(data))
+
+    def close(self):
+        pass
+
+    def wire(self):
+        return b"".join(self.sent)
+
+
+def _raw(method, path="/api/state", host="100.108.102.101:7077", headers=None, body=b""):
+    """one HTTP/1.1 request as bytes; Content-Length is added for a body unless the headers carry their own"""
+    head = {"Host": host, **(headers or {})}
+    if body and "Content-Length" not in head:
+        head["Content-Length"] = str(len(body))
+    return (f"{method} {path} HTTP/1.1\r\n" + "".join(f"{k}: {v}\r\n" for k, v in head.items()) + "\r\n").encode("latin-1") + body
+
+
+def _free_port():
+    s = socket.socket()
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+class TestTailnetLock(unittest.TestCase):
+    TRUSTED = ("127.0.0.1", "::1", "100.97.237.60", "100.108.102.101", "fd7a:115c:a1e0::1", "::ffff:100.97.237.60")
+    STRANGERS = ("192.168.2.207", "8.8.8.8", "::ffff:192.168.2.207", "2001:db8::7f00:1")
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-lock-"))
+        (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one\nline two", encoding="utf-8")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.server = types.SimpleNamespace(server_address=("100.108.102.101", 7077))   # what the handler reads: the address it listens on
+
+    def drive(self, handler, peer, raw):
+        """run the REAL handler class over a fake connection from `peer`; the refusal note is swallowed, not printed"""
+        conn = _FakeConn(raw)
+        addr = (peer, 5555, 0, 0) if isinstance(peer, str) and ":" in peer else (peer, 5555)
+        with contextlib.redirect_stdout(io.StringIO()):
+            handler(conn, addr, self.server)
+        return conn
+
+    def spy(self, **kw):
+        """the real Handler with every do_* replaced by a recorder, so 'no method ran' is observed, not assumed"""
+        base = bench.make_handler(bench.Bench(self.tmp), **kw)
+        calls = []
+
+        class Spy(base):
+            pass
+        for m in ("GET", "POST", "HEAD", "OPTIONS", "PUT"):
+            def do(self, _m=m):
+                calls.append(_m)
+                self.rfile.read(int(self.headers.get("Content-Length") or 0))   # a real method consumes its body
+                self._json({"spy": _m})
+            setattr(Spy, "do_" + m, do)
+        return Spy, calls
+
+    # -- the tables
+    def test_peer_ok_table(self):
+        for ip in ("127.0.0.1", "::1", "100.97.237.60", "100.108.102.101", "fd7a:115c:a1e0::1", "::ffff:100.97.237.60"):
+            self.assertTrue(bench.peer_ok(ip), ip)
+        for ip in ("192.168.2.207", "8.8.8.8", "::ffff:192.168.2.207", "2001:db8::7f00:1", "", "not-an-ip"):
+            self.assertFalse(bench.peer_ok(ip), repr(ip))
+
+    def test_peer_ok_edges_fail_closed(self):
+        # the ends of 100.64.0.0/10 and of the tailnet's ULA range, and things that only look right
+        for ip in ("100.64.0.0", "100.127.255.255", "fd7a:115c:a1e0:ffff:ffff:ffff:ffff:ffff", "127.255.255.255", "::ffff:127.0.0.1"):
+            self.assertTrue(bench.peer_ok(ip), ip)
+        for ip in ("100.63.255.255", "100.128.0.0", "fd7a:115c:a1e1::1", "128.0.0.1", "fe80::1", "::", "0.0.0.0",
+                   "100.97.237.60.evil.example", "100.97.237", "::ffff:8.8.8.8", None, 0, b"100.97.237.60"):
+            self.assertFalse(bench.peer_ok(ip), repr(ip))
+        self.assertFalse(bench.peer_ok("fe80::1%eth0"), "a link-local address is neither loopback nor the tailnet, scope id or not")
+        self.assertTrue(bench.peer_ok("100.97.237.60%1"), "a scope id is stripped, never trusted to change the answer")
+
+    def test_bind_ok_table(self):
+        for ip in ("100.108.102.101", "127.0.0.1"):
+            self.assertTrue(bench.bind_ok(ip), ip)
+        for ip in ("", "0.0.0.0", "::", "192.168.2.102", "desktop-bndit", "localhost", "8.8.8.8", "::ffff:0.0.0.0", "0", None,
+                   "100.108.102.101:7077", " 127.0.0.1"):
+            self.assertFalse(bench.bind_ok(ip), repr(ip))
+
+    # -- lock three: the peer, in handle()
+    def test_loopback_and_the_tailnet_are_served(self):
+        """the positive control: every trusted peer reaches do_GET/POST/HEAD/OPTIONS/PUT, and the real handler answers a real page"""
+        Spy, calls = self.spy()
+        bodies = {"GET": b"", "POST": b'{"a": 1}', "HEAD": b"", "OPTIONS": b"", "PUT": b"{}"}
+        for peer in self.TRUSTED:
+            for m, body in bodies.items():
+                conn = self.drive(Spy, peer, _raw(m, "/api/state", body=body))
+                self.assertTrue(conn.wire().startswith(b"HTTP/1.1 200"), (peer, m, conn.wire()[:60]))
+        self.assertEqual(len(calls), len(self.TRUSTED) * len(bodies), calls)
+        self.assertEqual(set(calls), set(bodies))
+        real = bench.make_handler(bench.Bench(self.tmp))
+        for peer in self.TRUSTED:
+            conn = self.drive(real, peer, _raw("GET", "/api/state"))
+            self.assertTrue(conn.wire().startswith(b"HTTP/1.1 200") and b'"bundle"' in conn.wire(), (peer, conn.wire()[:80]))
+
+    def test_a_stranger_gets_the_bare_403_for_every_method_and_not_a_byte_is_read(self):
+        Spy, calls = self.spy()
+        requests = {
+            "GET": _raw("GET", "/api/state"), "POST": _raw("POST", "/api/md", body=b'{"text": "x"}'), "HEAD": _raw("HEAD", "/"),
+            "OPTIONS": _raw("OPTIONS", "*"), "PUT": _raw("PUT", "/api/md", body=b"{}"), "malformed": b"x\r\n\r\n",
+            "garbage": b"\x16\x03\x01\x02\x00\x01\x00\x01\xfc\x03\x03",          # a TLS hello: not HTTP at all
+            "empty": b"",
+        }
+        for peer in self.STRANGERS:
+            for name, raw in requests.items():
+                conn = self.drive(Spy, peer, raw)
+                self.assertEqual(conn.wire(), bench._FORBIDDEN, (peer, name))
+                self.assertEqual(conn.reader.at_close, 0, "%s %s: a request byte was read before the refusal" % (peer, name))
+        self.assertEqual(calls, [], "a do_* method ran for a stranger")
+        # the real handler (not the spy) says the same: nothing of the page, the state or the books leaves
+        real = bench.make_handler(bench.Bench(self.tmp), token="t0k")
+        for peer in self.STRANGERS:
+            conn = self.drive(real, peer, requests["GET"])
+            self.assertEqual(conn.wire(), bench._FORBIDDEN)
+            self.assertNotIn(b"bundle", conn.wire())
+
+    def test_a_stranger_with_the_right_token_writes_nothing(self):
+        real = bench.make_handler(bench.Bench(self.tmp), token="t0k")
+        body = json.dumps({"text": "---\ntitle: t\n---\nA STRANGER WAS HERE"}).encode("utf-8")
+        req = _raw("POST", "/api/md", headers={"X-FP-Token": "t0k", "Content-Type": "application/json"}, body=body)
+        before = (self.tmp / "book.md").read_bytes()
+        for peer in self.STRANGERS:
+            conn = self.drive(real, peer, req)
+            self.assertEqual(conn.wire(), bench._FORBIDDEN, peer)
+            self.assertEqual((self.tmp / "book.md").read_bytes(), before, "%s: the book changed" % peer)
+        conn = self.drive(real, "100.97.237.60", req)        # positive control: the same bytes from the tailnet are admitted
+        self.assertIn(b'"saved": true', conn.wire())
+        self.assertNotEqual((self.tmp / "book.md").read_bytes(), before)
+
+    def test_an_unreadable_peer_address_is_refused(self):
+        real = bench.make_handler(bench.Bench(self.tmp))
+        for peer in ((), None, ("not-an-ip", 1), ("", 1), (None, 1), ("100.97.237.60.9", 1)):
+            conn = _FakeConn(_raw("GET"))
+            with contextlib.redirect_stdout(io.StringIO()):
+                real(conn, peer, self.server)
+            self.assertEqual(conn.wire(), bench._FORBIDDEN, repr(peer))
+            self.assertEqual(conn.reader.at_close, 0, repr(peer))
+
+    def test_a_refusal_is_noted_five_times_then_every_thousandth_and_never_raises(self):
+        old = bench._refusals
+        try:
+            bench._refusals = 0
+            out = io.StringIO()
+            with contextlib.redirect_stdout(out):
+                for _ in range(2001):
+                    bench._count_refusal("192.168.2.207")
+            lines = out.getvalue().splitlines()
+            self.assertEqual(len(lines), 7, lines)            # refusals 1-5, 1000 and 2000
+            self.assertTrue(all("192.168.2.207" in ln for ln in lines))
+            self.assertTrue(lines[-1].endswith("#2000"), lines[-1])
+            bench._refusals = 0
+            with mock.patch("builtins.print", side_effect=OSError("the console is gone")):
+                bench._count_refusal("192.168.2.207")         # a dead log must not take a connection down
+        finally:
+            bench._refusals = old
+
+    # -- lock two: the listener
+    def test_serve_on_refuses_a_wide_bind_before_building_anything(self):
+        handler = bench.make_handler(bench.Bench(self.tmp), token=None)
+        for binds in (["0.0.0.0"], ["127.0.0.1", "0.0.0.0"], ["127.0.0.1", ""], ["127.0.0.1", "::"], ["127.0.0.1", "192.168.2.102"],
+                      ["127.0.0.1", "desktop-bndit"], ["127.0.0.1", "localhost"], ["localhost"], ["192.168.2.102", "127.0.0.1"]):
+            with mock.patch.object(bench, "ThreadingHTTPServer") as made:
+                with self.assertRaises(ValueError, msg=repr(binds)) as cm:
+                    bench.serve_on(binds, 0, handler)
+            self.assertFalse(made.called, "%r: a server was built before the refusal" % (binds,))
+            self.assertIn("refusing to listen", str(cm.exception))
+        # and with REAL sockets: nothing is left listening behind the refusal. The refused address here is TEST-NET-1 (192.0.2.1, RFC 5737:
+        # no machine owns it), never 0.0.0.0 or a LAN address - so that even if the lock were removed this test could not open a
+        # listener on a non-loopback address (the OS refuses the bind of an address nobody holds); every server the real class builds
+        # is recorded and closed, whatever happens
+        port = _free_port()
+        built, real_class = [], bench.ThreadingHTTPServer
+
+        def recording(*a, **k):
+            if a[0][0] != "127.0.0.1":   # round three: a mutant that removed the lock still cannot reach a bind on a non-loopback address
+                raise AssertionError("the test forbids a bind on %r: serve_on asked for a non-loopback listener" % (a[0],))
+            srv = real_class(*a, **k)
+            built.append(srv)
+            return srv
+        try:
+            with mock.patch.object(bench, "ThreadingHTTPServer", side_effect=recording):
+                with self.assertRaises(ValueError):
+                    bench.serve_on(["127.0.0.1", "192.0.2.1"], port, handler)
+            self.assertEqual(built, [], "a server was built before the wide address was refused")
+            probe = socket.socket()
+            try:
+                probe.settimeout(3)
+                self.assertNotEqual(probe.connect_ex(("127.0.0.1", port)), 0, "the loopback server was built before the wide address was refused")
+            finally:
+                probe.close()
+        finally:
+            for srv in built:
+                srv.server_close()
+        servers = bench.serve_on(["127.0.0.1"], 0, handler)   # positive control: an honest address still binds
+        try:
+            self.assertEqual(servers[0].server_address[0], "127.0.0.1")
+        finally:
+            for s in servers:
+                s.server_close()
+
+    # The start-up refusal of --also-bind, in two shapes. A SUBPROCESS launch (the real command line, the real exit code) uses ONLY values
+    # no machine owns: a tailnet-range address for the positive control and the three TEST-NET blocks (RFC 5737: 192.0.2.0/24,
+    # 198.51.100.0/24, 203.0.113.0/24) for the refusals - so a launch that got past the lock could not open a listener on any
+    # non-loopback address. The wide values (0.0.0.0, '', '::', a LAN address, names) are exercised IN-PROCESS, where main() runs with
+    # the socket-creating class and the bench itself stubbed: no socket can be made, and the refusal is shown to come first.
+    WIDE_ALSO_BIND = ("0.0.0.0", "", "::", "::ffff:0.0.0.0", "192.168.2.102", "desktop-bndit", "localhost", "8.8.8.8", "0")
+
+    def test_a_wide_also_bind_stops_the_start_before_a_socket_or_a_bench_exists(self):
+        gone = str(Path(tempfile.gettempdir()) / "fp-no-such-bundle-for-the-lock-test")
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+
+        # Round three (2026-09-30): every launch below runs under a guard that makes ANY bind in the child raise and say so on stderr
+        # ('BIND-ATTEMPT'), so not one of these launches can open a listener on any address, loopback included - the positive control
+        # included: it is proved to stop at the missing bundle (exit 1) and to have attempted no bind at all, not merely assumed to.
+        guard = ("import runpy, socket, sys\n"
+                 "def _no_bind(self, *a, **k):\n"
+                 "    sys.stderr.write('BIND-ATTEMPT %r\\n' % (a[:1],))\n"
+                 "    raise OSError('this test forbids every bind in this child')\n"
+                 "socket.socket.bind = _no_bind\n"
+                 "script = sys.argv[1]\n"
+                 "sys.argv = sys.argv[1:]\n"
+                 "runpy.run_path(script, run_name='__main__')\n")
+
+        def start(also):
+            port = _free_port()
+            r = subprocess.run([sys.executable, "-c", guard, str(HERE / "bench.py"), gone, "--port", str(port), "--also-bind", also],
+                               capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, env=env)
+            return r, port
+        # the guard's own negative control: a child that does bind (loopback, port 0) is stopped and says BIND-ATTEMPT
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-noguard-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        (tmp / "binder.py").write_text("import socket\ns = socket.socket()\ns.bind(('127.0.0.1', 0))\nprint('BOUND')\n", encoding="utf-8")
+        r = subprocess.run([sys.executable, "-c", guard, str(tmp / "binder.py")], capture_output=True, text=True, timeout=60, env=env)
+        self.assertNotEqual(r.returncode, 0, "the guard let a bind through")
+        self.assertIn("BIND-ATTEMPT", r.stderr)
+        self.assertNotIn("BOUND", r.stdout)
+        # the positive control: a tailnet-range address that this machine does not hold gets PAST argument parsing (and then stops at the
+        # missing bundle, exit 1, before any socket is made)
+        r, _ = start("100.64.0.1")
+        self.assertEqual(r.returncode, 1, r.stderr)
+        self.assertIn("not a bundle dir or a PDF", r.stderr)
+        self.assertNotIn("literal loopback or Tailscale", r.stderr)
+        self.assertNotIn("BIND-ATTEMPT", r.stderr, "the positive control reached a bind")
+        self.assertNotIn("REPAIR BENCH", r.stdout, "the positive control got past building the bench")
+        for also in ("192.0.2.1", "198.51.100.1", "203.0.113.1"):
+            r, port = start(also)
+            self.assertEqual(r.returncode, 2, "%r: %s" % (also, r.stderr))
+            self.assertIn("--also-bind", r.stderr)
+            self.assertIn("not a literal loopback or Tailscale address", r.stderr)
+            self.assertNotIn("not a bundle dir", r.stderr, "%r: the refusal must come before the bench is built" % also)
+            self.assertNotIn("BIND-ATTEMPT", r.stderr, "%r: the launch reached a bind" % also)
+            self.assertNotIn("REPAIR BENCH", r.stdout)
+            probe = socket.socket()
+            try:
+                probe.settimeout(3)
+                self.assertNotEqual(probe.connect_ex(("127.0.0.1", port)), 0, also)
+            finally:
+                probe.close()
+
+    def _main_with(self, argv):
+        """bench.main() in this process with `argv`, the listener class and the Bench class replaced by recorders: what it exits with,
+        what it said on stderr, and whether any server or bench was (about to be) built. No socket can be created by this call."""
+        err, out = io.StringIO(), io.StringIO()
+        with mock.patch.object(sys, "argv", ["bench.py"] + argv), mock.patch.object(bench, "ThreadingHTTPServer") as server, \
+                mock.patch.object(bench, "Bench") as made_bench, contextlib.redirect_stderr(err), contextlib.redirect_stdout(out):
+            try:
+                bench.main()
+                code = None
+            except SystemExit as e:
+                code = e.code
+            except Exception as e:   # noqa: BLE001 - past argument parsing, serve_on's own lock may still refuse: that is a failure HERE
+                code = "raised %s: %s" % (type(e).__name__, e)
+        return code, err.getvalue(), out.getvalue(), server.called, made_bench.called
+
+    def test_a_wide_also_bind_is_refused_by_main_before_a_bench_or_a_server_is_built(self):
+        gone = str(Path(tempfile.gettempdir()) / "fp-no-such-bundle-for-the-lock-test")
+        for also in self.WIDE_ALSO_BIND:
+            code, err, out, server_called, bench_called = self._main_with([gone, "--port", "0", "--also-bind", also])
+            self.assertEqual(code, 2, "%r: %s" % (also, err))
+            self.assertIn("--also-bind", err)
+            self.assertIn("not a literal loopback or Tailscale address", err)
+            self.assertFalse(bench_called, "%r: a Bench was built before the refusal" % also)
+            self.assertFalse(server_called, "%r: a listener was built before the refusal" % also)
+            self.assertNotIn("REPAIR BENCH", out)
+        # the positive control, with the same stubs: a tailnet address gets through parsing, builds the (stubbed) Bench and the
+        # (stubbed) listeners - nothing is refused, and still no socket exists
+        with mock.patch.object(sys, "argv", ["bench.py", gone, "--port", "0", "--also-bind", "100.108.102.101"]), \
+                mock.patch.object(bench, "serve_on", return_value=[types.SimpleNamespace(serve_forever=lambda: None)]) as served, \
+                mock.patch.object(bench, "Bench") as made_bench, contextlib.redirect_stdout(io.StringIO()):
+            made_bench.return_value.state.return_value = {"bundle": "b", "sandbox": False, "verdict": "pass", "zones": [], "pages": 1,
+                                                         "pdf_available": False}
+            bench.main()
+        self.assertTrue(made_bench.called and served.called)
+        self.assertEqual(served.call_args[0][0], ["127.0.0.1", "100.108.102.101"])
+
+    def test_bind_arg_is_the_argparse_form_of_the_same_rule(self):
+        import argparse
+        self.assertEqual(bench._bind_arg("100.108.102.101"), "100.108.102.101")
+        for bad in ("0.0.0.0", "", "::", "192.168.2.102", "desktop-bndit"):
+            with self.assertRaises(argparse.ArgumentTypeError, msg=repr(bad)):
+                bench._bind_arg(bad)
+
+    def test_the_docs_server_in_launch_json_binds_loopback(self):
+        def binds_loopback(args):
+            return "--bind" in args and args.index("--bind") + 1 < len(args) and args[args.index("--bind") + 1] == "127.0.0.1"
+        self.assertFalse(binds_loopback(["-m", "http.server", "8321", "--directory", "docs"]), "negative control: no --bind")
+        self.assertFalse(binds_loopback(["-m", "http.server", "8321", "--bind", "0.0.0.0"]), "negative control: a wide --bind")
+        launch = json.loads((REPO / ".claude" / "launch.json").read_text(encoding="utf-8"))
+        servers = [c for c in launch["configurations"] if "http.server" in c["runtimeArgs"]]
+        self.assertIn("docs", [c["name"] for c in servers])
+        for c in servers:
+            self.assertTrue(binds_loopback(c["runtimeArgs"]), "%s: python -m http.server answers every interface without --bind 127.0.0.1" % c["name"])
+
+
+class TestPreAuthDrain(unittest.TestCase):
+    """2026-09-30: a POST refused before its body was used (421, 403) drains at most _DRAIN_CAP bytes, in chunks of 64 KiB or less, and
+    waits at most _DRAIN_TIMEOUT on a sender that stalls; a Content-Length that is not a whole number answers 400 and closes."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-drain-"))
+        (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.handler = bench.make_handler(bench.Bench(self.tmp), token="t0k", hosts=())
+        self.server = types.SimpleNamespace(server_address=("100.108.102.101", 7077))
+
+    def drive(self, raw):
+        conn = _FakeConn(raw)
+        self.handler(conn, ("100.97.237.60", 5555), self.server)
+        return conn
+
+    def test_a_small_refused_body_is_drained_whole_and_the_connection_stays(self):
+        """the positive control: the S215 round-seven contract holds - the body is consumed and a kept-alive connection is safe"""
+        body = b'{"text": "x"}'
+        conn = self.drive(_raw("POST", "/api/md", headers={"X-FP-Token": "wrong"}, body=body))
+        self.assertTrue(conn.wire().startswith(b"HTTP/1.1 403"), conn.wire()[:40])
+        self.assertEqual(conn.reader.sizes, [len(body)], "the whole body, and no more, was read")
+        self.assertNotIn(b"Connection: close", conn.wire())
+        conn = self.drive(_raw("POST", "/api/md", host="evil.example", body=body))
+        self.assertTrue(conn.wire().startswith(b"HTTP/1.1 421"), conn.wire()[:40])
+        self.assertEqual(conn.reader.sizes, [len(body)])
+
+    def test_a_content_length_that_is_not_a_whole_number_is_a_400_and_nothing_is_read(self):
+        for bad in ("-1", "-5", "abc", "+5", "5.0", "0x10", "1e3", "5 5", "5,5", "-0", "99999999999999999999999 x"):
+            for label, req in (
+                    ("wrong token", _raw("POST", "/api/md", headers={"X-FP-Token": "wrong", "Content-Length": bad})),
+                    ("no token", _raw("POST", "/api/md", headers={"Content-Length": bad})),
+                    ("foreign host", _raw("POST", "/api/md", host="evil.example", headers={"Content-Length": bad})),
+                    ("right token", _raw("POST", "/api/md", headers={"X-FP-Token": "t0k", "Content-Length": bad}))):
+                conn = self.drive(req + b'{"text": "x"}')
+                wire = conn.wire()
+                self.assertTrue(wire.startswith(b"HTTP/1.1 400"), "%r %s: %s" % (bad, label, wire[:40]))
+                self.assertIn(b"Connection: close", wire, "%r %s" % (bad, label))
+                self.assertIn(b"whole number", wire)
+                self.assertEqual(conn.reader.sizes, [], "%r %s: a body read was attempted" % (bad, label))
+        # a non-ASCII digit (Arabic-Indic five) is not a digit here either
+        conn = self.drive(b"POST /api/md HTTP/1.1\r\nHost: 100.108.102.101:7077\r\nContent-Length: \xd9\xa5\r\n\r\n")
+        self.assertTrue(conn.wire().startswith(b"HTTP/1.1 400"), conn.wire()[:40])
+        # and the legitimate zero: an empty POST with no token is the usual 403, not a 400
+        conn = self.drive(_raw("POST", "/api/undo", headers={"X-FP-Token": "wrong", "Content-Length": "0"}))
+        self.assertTrue(conn.wire().startswith(b"HTTP/1.1 403"), conn.wire()[:40])
+
+    def test_a_declared_length_past_the_cap_is_read_to_the_cap_in_chunks_and_the_connection_closes(self):
+        body = b"x" * 300000
+        with mock.patch.object(bench, "_DRAIN_CAP", 150000):
+            for label, req in (("wrong token", _raw("POST", "/api/md", headers={"X-FP-Token": "wrong"}, body=body)),
+                               ("foreign host", _raw("POST", "/api/md", host="evil.example", body=body))):
+                conn = self.drive(req)
+                sizes = conn.reader.sizes
+                self.assertEqual(sum(sizes), 150000, "%s: %s" % (label, sizes))
+                self.assertLessEqual(max(sizes), 65536, "%s: a read bigger than one 64 KiB chunk: %s" % (label, sizes))
+                self.assertGreaterEqual(len(sizes), 3)
+                self.assertTrue(conn.wire().startswith((b"HTTP/1.1 403", b"HTTP/1.1 421")), conn.wire()[:40])
+                self.assertIn(b"Connection: close", conn.wire(), label)
+
+    def test_a_body_framed_by_transfer_encoding_is_not_drained_and_the_connection_closes(self):
+        # no Content-Length at all: the bytes after the headers are a chunked body the bench does not parse
+        conn = self.drive(_raw("POST", "/api/md", headers={"X-FP-Token": "wrong", "Transfer-Encoding": "chunked"})
+                          + b"5\r\nhello\r\n0\r\n\r\n")
+        self.assertTrue(conn.wire().startswith(b"HTTP/1.1 403"), conn.wire()[:40])
+        self.assertIn(b"Connection: close", conn.wire())
+        self.assertEqual(conn.reader.sizes, [])
+
+    def test_a_sender_that_stalls_is_answered_at_the_drain_timeout_not_the_connections_30_seconds(self):
+        httpd = ThreadingHTTPServer(("127.0.0.1", 0), self.handler)
+        threading.Thread(target=httpd.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (httpd.shutdown(), httpd.server_close()))
+        port = httpd.server_address[1]
+        with mock.patch.object(bench, "_DRAIN_TIMEOUT", 0.5):
+            s = socket.create_connection(("127.0.0.1", port), timeout=10)
+            try:
+                head = ("POST /api/md HTTP/1.1\r\nHost: 127.0.0.1:%d\r\nX-FP-Token: wrong\r\nContent-Length: 1000000000000\r\n\r\n" % port).encode("ascii")
+                s.sendall(head + b"ten bytes!")              # ... and then says nothing more
+                t0 = time.monotonic()
+                got = b""
+                while b"\r\n\r\n" not in got:
+                    chunk = s.recv(4096)
+                    if not chunk:
+                        break
+                    got += chunk
+                took = time.monotonic() - t0
+            finally:
+                s.close()
+        self.assertTrue(got.startswith(b"HTTP/1.1 403"), got[:60])
+        self.assertIn(b"Connection: close", got)
+        self.assertLess(took, 5, "the stalled drain held the thread for %.1f s" % took)
+
+    def test_live_bad_length_answers_400_on_both_sides_of_the_gate_and_the_server_carries_on(self):
+        srv = LiveBenchServer(token="t0k")
+        try:
+            for tok in (None, "wrong", "t0k"):
+                conn = http.client.HTTPConnection("127.0.0.1", srv.port, timeout=10)
+                conn.putrequest("POST", "/api/md")
+                conn.putheader("Content-Length", "-5")
+                if tok:
+                    conn.putheader("X-FP-Token", tok)
+                conn.endheaders()
+                r = conn.getresponse()
+                r.read()
+                self.assertEqual(r.status, 400, tok)
+                self.assertTrue(r.will_close, "the 400 must close the connection")
+                conn.close()
+            self.assertEqual(_get(srv.port, "/api/state")[0], 200, "a bad length must not hurt the next caller")
+            code, _ = _post(srv.port, "/api/md", {"text": "---\ntitle: t\n---\nafter"}, token="t0k")   # the admitted path is untouched
+            self.assertEqual(code, 200)
+        finally:
+            srv.close()
+
+
+class TestProxyMarkers(unittest.TestCase):
+    """2026-09-30, rule (4): a request that carries a forwarding header came through a proxy (a local `tailscale serve`, a Funnel, a
+    reverse proxy arrive FROM loopback, which the peer lock admits) and is refused, GET and POST, before the token is looked at."""
+
+    def setUp(self):
+        self.srv = LiveBenchServer(token="t0k")
+        self.addCleanup(self.srv.close)
+
+    def req(self, method, path, headers=None, body=None):
+        conn = http.client.HTTPConnection("127.0.0.1", self.srv.port, timeout=10)
+        conn.request(method, path, body=body, headers=headers or {})
+        r = conn.getresponse()
+        data = r.read()
+        conn.close()
+        return r.status, data
+
+    def test_the_real_client_headers_pass(self):
+        """the positive control: what a browser (the widget's WebView2, the Control's frame, the phone) and a plain script send"""
+        port = self.srv.port
+        browser = {"User-Agent": "Mozilla/5.0 (Windows NT 10.0) Edg/130", "Accept": "*/*", "Accept-Encoding": "gzip, deflate",
+                   "Accept-Language": "en-US,en;q=0.9", "Origin": "http://127.0.0.1:%d" % port, "Referer": "http://127.0.0.1:%d/?token=t0k" % port,
+                   "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty", "Cache-Control": "no-cache",
+                   "If-None-Match": '"none-such"', "Connection": "keep-alive"}
+        for headers in (browser, {}):
+            code, body = self.req("GET", "/api/state", headers)
+            self.assertEqual(code, 200, headers)
+            self.assertIn(b"bundle", body)
+        code, _ = self.req("POST", "/api/md", {**browser, "X-FP-Token": "t0k", "Content-Type": "application/json"},
+                           json.dumps({"text": "---\ntitle: t\n---\nfrom the page"}))
+        self.assertEqual(code, 200)
+
+    def test_every_marker_refuses_get_and_post(self):
+        before = (self.srv.tmp / "book.md").read_bytes()
+        # the two families are matched by PREFIX: X-Forwarded-* and Tailscale-* (Funnel's Tailscale-Funnel-Request, Serve's
+        # Tailscale-User-Login / -Name / -Profile-Pic and Tailscale-App-Capabilities / -Headers-Info, and any name Tailscale adds later)
+        family = ("x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-forwarded-port", "x-forwarded-server", "x-forwarded-whatever",
+                  "tailscale-funnel-request", "tailscale-user-login", "tailscale-user-name", "tailscale-user-profile-pic",
+                  "tailscale-app-capabilities", "tailscale-headers-info", "tailscale-whatever-it-adds-next")
+        for name in bench.PROXY_MARKERS + family:
+            for spelled in (name, name.upper(), name.title()):   # header names are case-blind
+                code, body = self.req("GET", "/api/state", {spelled: "203.0.113.9"})
+                self.assertEqual(code, 403, spelled)
+                self.assertIn(b"direct requests only", body)
+                code, body = self.req("POST", "/api/md", {spelled: "203.0.113.9", "X-FP-Token": "t0k"},
+                                      json.dumps({"text": "---\ntitle: t\n---\nvia a proxy"}))
+                self.assertEqual(code, 403, spelled)
+                self.assertIn(b"direct requests only", body)
+        self.assertEqual((self.srv.tmp / "book.md").read_bytes(), before, "a proxied POST with the right token still wrote")
+
+    def test_a_proxied_request_from_loopback_is_the_case_the_peer_lock_cannot_see(self):
+        tmp = self.srv.tmp
+        handler = bench.make_handler(bench.Bench(tmp), token="t0k")
+        server = types.SimpleNamespace(server_address=("127.0.0.1", 7077))
+        conn = _FakeConn(_raw("GET", "/api/state", host="127.0.0.1:7077", headers={"X-Forwarded-For": "198.51.100.23"}))
+        handler(conn, ("127.0.0.1", 5555), server)
+        self.assertTrue(conn.wire().startswith(b"HTTP/1.1 403"), conn.wire()[:40])
+        self.assertIn(b"direct requests only", conn.wire())
+        conn = _FakeConn(_raw("GET", "/api/state", host="127.0.0.1:7077"))            # positive control: the same peer, no marker
+        handler(conn, ("127.0.0.1", 5555), server)
+        self.assertTrue(conn.wire().startswith(b"HTTP/1.1 200"), conn.wire()[:40])
+
+    def test_a_foreign_host_is_still_a_421_first(self):
+        conn = http.client.HTTPConnection("127.0.0.1", self.srv.port, timeout=10)
+        conn.putrequest("GET", "/api/state", skip_host=True)
+        conn.putheader("Host", "evil.example:%d" % self.srv.port)
+        conn.putheader("X-Forwarded-For", "203.0.113.9")
+        conn.endheaders()
+        r = conn.getresponse()
+        r.read()
+        conn.close()
+        self.assertEqual(r.status, 421)
+
+    def test_proxy_marker_table(self):
+        import email.message
+        msg = email.message.Message()
+        self.assertIsNone(bench.proxy_marker(msg))
+        msg["Host"] = "127.0.0.1:7077"
+        msg["Origin"] = "http://127.0.0.1:7077"
+        msg["Sec-Fetch-Site"] = "same-origin"
+        self.assertIsNone(bench.proxy_marker(msg), "the real client's headers are not markers")
+        for h in ("Forwarded", "X-Forwarded-For", "X-Forwarded-Host", "X-Forwarded-Proto", "X-Forwarded-Port", "X-Forwarded-Whatever", "X-Real-IP",
+                  "Via", "Tailscale-Funnel-Request", "Tailscale-User-Login", "Tailscale-User-Name", "Tailscale-User-Profile-Pic",
+                  "Tailscale-App-Capabilities", "Tailscale-Headers-Info", "Tailscale-Anything-At-All", "TAILSCALE-X",
+                  "CF-Connecting-IP", "CF-Ray", "True-Client-IP", "X-Client-IP") + tuple(bench.PROXY_MARKERS):
+            m = email.message.Message()
+            m[h] = "x"
+            self.assertEqual(bench.proxy_marker(m), h.lower(), h)
+        for h in ("X-Forwarded", "X-Requested-With", "Host", "Origin", "Referer", "User-Agent", "Sec-Fetch-Site", "Sec-Fetch-Dest",
+                  "X-FP-Token", "If-None-Match", "Cache-Control", "Accept", "Connection", "Upgrade-Insecure-Requests", "Content-Length",
+                  "Tailscale", "Not-Tailscale-Header"):      # the prefix is 'tailscale-' at the START of the name, not the word anywhere in it
+            m = email.message.Message()                          # the headers a browser, the widget and a script do send
+            m[h] = "x"
+            self.assertIsNone(bench.proxy_marker(m), h)
+        m = email.message.Message()
+        m["X-Forwarded-For"] = ""                                # present and empty is still forwarded
+        self.assertEqual(bench.proxy_marker(m), "x-forwarded-for")
+
+
+def _lock_probe(mod):
+    """The lock's behaviours, run on `mod` (the real bench module, or a mutant of its source): returns the list of things that did not hold
+    ([] = the lock holds). Positive controls first (a trusted peer is served), then one violation per rule: a stranger over the peer lock,
+    a wide bind at serve_on and at the argparse type, a body past the drain cap, a negative length, a forwarded request."""
+    import argparse
+    bad = []
+    tmp = Path(tempfile.mkdtemp(prefix="fp-test-lockprobe-"))
+    try:
+        (tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        handler = mod.make_handler(mod.Bench(tmp), token="t0k")
+        server = types.SimpleNamespace(server_address=("100.108.102.101", 7077))
+
+        def run(peer, raw):
+            conn = _FakeConn(raw)
+            with contextlib.redirect_stdout(io.StringIO()):
+                handler(conn, (peer, 5555), server)
+            return conn
+        for peer in ("127.0.0.1", "100.97.237.60"):
+            if not run(peer, _raw("GET")).wire().startswith(b"HTTP/1.1 200"):
+                bad.append("positive control: %s is not served" % peer)
+        for peer in ("192.168.2.207", "8.8.8.8", "::ffff:192.168.2.207"):
+            conn = run(peer, _raw("GET"))
+            if conn.wire() != mod._FORBIDDEN or conn.reader.at_close != 0:
+                bad.append("peer lock: %s is not refused before a byte is read" % peer)
+        with mock.patch.object(mod, "ThreadingHTTPServer") as made:
+            try:
+                mod.serve_on(["127.0.0.1", "0.0.0.0"], 0, handler)
+                bad.append("listener lock: serve_on accepted 0.0.0.0")
+            except ValueError:
+                pass
+            if made.called:
+                bad.append("listener lock: serve_on built a server before refusing")
+        try:
+            mod._bind_arg("0.0.0.0")
+            bad.append("listener lock: --also-bind accepted 0.0.0.0")
+        except argparse.ArgumentTypeError:
+            pass
+        with mock.patch.object(mod, "_DRAIN_CAP", 150000):
+            conn = run("100.97.237.60", _raw("POST", "/api/md", headers={"X-FP-Token": "wrong"}, body=b"x" * 300000))
+            if sum(conn.reader.sizes) != 150000:
+                bad.append("drain: read %d of a 300000-byte refused body, cap 150000" % sum(conn.reader.sizes))
+        if not run("100.97.237.60", _raw("POST", "/api/md", headers={"X-FP-Token": "wrong", "Content-Length": "-5"})).wire().startswith(b"HTTP/1.1 400"):
+            bad.append("drain: a negative Content-Length is not a 400")
+        if not run("127.0.0.1", _raw("GET", "/api/state", host="127.0.0.1:7077", headers={"X-Forwarded-For": "198.51.100.23"})).wire().startswith(b"HTTP/1.1 403"):
+            bad.append("proxy marker: a forwarded GET is not refused")
+        if not run("127.0.0.1", _raw("POST", "/api/md", host="127.0.0.1:7077", headers={"Via": "1.1 proxy", "X-FP-Token": "t0k"},
+                                        body=b'{"text": "x"}')).wire().startswith(b"HTTP/1.1 403"):
+            bad.append("proxy marker: a forwarded POST with the right token is not refused")
+        for ts in ("Tailscale-Funnel-Request", "Tailscale-User-Name", "Tailscale-Something-New"):   # the whole Tailscale-* prefix, not two names
+            if not run("127.0.0.1", _raw("GET", "/api/state", host="127.0.0.1:7077", headers={ts: "?1"})).wire().startswith(b"HTTP/1.1 403"):
+                bad.append("proxy marker: a GET carrying %s is not refused" % ts)
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return bad
+
+
+class TestTailnetLockMutants(unittest.TestCase):
+    """The negatives to the tailnet lock (docs/32 rule 2: a check that cannot fail is a tautology). The probe above holds on the real
+    source; on bench.py's source with exactly ONE guard removed or weakened, each mutant must make it report a failure."""
+
+    MUTANTS = (
+        ("the peer guard never fires", "            if not ok:", "            if False:"),
+        ("peer_ok trusts everyone", "    return any(ip.version == n.version and ip in n for n in _PEER_NETS)", "    return True"),
+        ("serve_on accepts any address", "        if not bind_ok(b):", "        if False:"),
+        ("--also-bind accepts any address", "    if not bind_ok(value):", "    if False:"),
+        ("the drain has no cap", "left = min(n, _DRAIN_CAP)", "left = n"),
+        ("a negative Content-Length is taken as given", "return int(raw) if raw.isascii() and raw.isdigit() else None", "return int(raw)"),
+        ("no header is a proxy marker", "for k in headers.keys():", "for k in ():"),
+        ("the Tailscale-* prefix is not refused", 'PROXY_PREFIXES = ("x-forwarded-", "tailscale-")', 'PROXY_PREFIXES = ("x-forwarded-",)'),
+    )
+
+    def test_the_real_source_and_its_unchanged_copy_hold(self):
+        self.assertEqual(_lock_probe(bench), [])
+        same = "            if not ok:"
+        self.assertEqual(_lock_probe(_bench_mutant(same, same)), [], "the source loaded as a mutant, unchanged, must hold too")
+
+    def test_each_weakened_guard_is_caught(self):
+        for name, old, new in self.MUTANTS:
+            with self.subTest(mutant=name):
+                failures = _lock_probe(_bench_mutant(old, new))
+                self.assertTrue(failures, "%s: the probe still reports nothing, so it cannot tell" % name)
+
+
+# ---- round three (2026-09-30): the browser that speaks plain http ---------------------------------------------------------------
+# A browser sends Fetch Metadata (Sec-Fetch-Site / -Mode / -Dest) ONLY to a potentially trustworthy URL: https, or 127.0.0.0/8, ::1 and
+# localhost. Over plain http to the tailnet address or a *.ts.net name it sends NONE, so every Sec-Fetch-Site rule is inert there and
+# fires on loopback only. What a browser does send over plain http: Origin on every POST (a same-origin one too) and on a cross-origin
+# fetch; NO Origin on a GET navigation, <img>, <script>, <link>, <iframe> or form GET; Referer by the referrer policy (a foreign page can
+# suppress it, never forge it to our host). A cross-origin request that is not "simple" needs a CORS preflight that no File Portal server
+# answers, and no answer carries Access-Control-Allow-Origin, so a foreign page can never READ one. The tests below are that browser:
+# requests that carry NO Sec-Fetch-* at all (plus, separately, the loopback shape that carries them). Each family has its positive
+# control (every real client's exact shape still passes) and, in TestRequestCheckMutants, a negative control per rule.
+def _ask(port, method, path, headers=None, body=None, host=None):
+    """one request over a real LOOPBACK socket carrying exactly the headers given plus Host - no Sec-Fetch-*, Origin, Referer or
+    Accept-Encoding unless named: what a browser speaking plain http to the tailnet sends. -> (status, {lower-case header: value}, raw body,
+    parsed JSON or None). `headers` is a dict, or a list of pairs when a header must be sent twice."""
+    conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+    try:
+        conn.putrequest(method, path, skip_host=True, skip_accept_encoding=True)
+        conn.putheader("Host", host or "127.0.0.1:%d" % port)
+        for k, v in (headers.items() if isinstance(headers, dict) else (headers or ())):
+            conn.putheader(k, v)
+        if body is not None:
+            conn.putheader("Content-Length", str(len(body)))
+        conn.endheaders(body)
+        r = conn.getresponse()
+        data = r.read()
+        hdr = {k.lower(): v for k, v in r.getheaders()}
+    finally:
+        conn.close()
+    try:
+        parsed = json.loads(data)
+    except ValueError:
+        parsed = None
+    return r.status, hdr, data, parsed
+
+
+def _wire_answer(conn):
+    """(status, parsed JSON body or None, raw wire) of what a _FakeConn was sent"""
+    wire = conn.wire()
+    head, _, body = wire.partition(b"\r\n\r\n")
+    status = int(head.split(b" ", 2)[1]) if head.startswith(b"HTTP/") else 0
+    try:
+        parsed = json.loads(body)
+    except ValueError:
+        parsed = None
+    return status, parsed, wire
+
+
+def _refused_by_a_request_rule(status, parsed):
+    """True when an answer is one of rule (5)'s refusals: a 403 whose body names its reason"""
+    return status == 403 and isinstance(parsed, dict) and parsed.get("reason") in ("origin", "fetch-site", "unproven-origin")
+
+
+class _ForeignFixture:
+    """a live loopback bench (token 't0k') over a throwaway bundle; Bench.ok15_evidence is replaced by a recorder, so an admitted evidence GET is SEEN
+    and never spawns a child. snapshot() is the bundle's bytes: 'nothing happened' is read off it, never assumed"""
+
+    def __init__(self, hosts=()):
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-foreign-"))
+        (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one\nline two\nline three", encoding="utf-8")
+        self.bench = bench.Bench(self.tmp)
+        self.evidence = []
+        self.bench.ok15_evidence = lambda retry=False: (self.evidence.append(retry), {"spy": "evidence"})[1]
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), bench.make_handler(self.bench, token="t0k", hosts=hosts))
+        self.port = self.httpd.server_address[1]
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.origin = "http://127.0.0.1:%d" % self.port
+
+    def snapshot(self):
+        return {str(p.relative_to(self.tmp)): hashlib.sha256(p.read_bytes()).hexdigest()
+                for p in sorted(self.tmp.rglob("*")) if p.is_file()}
+
+    def close(self):
+        self.httpd.shutdown()
+        self.httpd.server_close()
+        shutil.rmtree(self.tmp, ignore_errors=True)
+
+
+class TestForeignPageOverPlainHttp(unittest.TestCase):
+    """2026-09-30 round three, rules (5): what a foreign web page open in his browser can fire at the bench with NO Fetch Metadata - a blind
+    GET (no Origin, maybe no Referer) and a simple POST (its own Origin, or 'null') - changes nothing, and every real client still passes."""
+
+    @classmethod
+    def setUpClass(cls):
+        cls.srv = _ForeignFixture()
+
+    @classmethod
+    def tearDownClass(cls):
+        cls.srv.close()
+
+    def setUp(self):
+        self.before = self.srv.snapshot()
+        self.srv.evidence.clear()
+
+    def nothing_happened(self, what):
+        self.assertEqual(self.srv.snapshot(), self.before, "%s changed the bundle" % what)
+        self.assertEqual(self.srv.evidence, [], "%s started the evidence collector" % what)
+
+    def foreign_origins(self):
+        p = self.srv.port
+        return ("http://evil.example", "https://evil.example", "http://evil.example:80", "http://evil.example:%d" % p, "null", "NULL",
+                "http://127.0.0.1:1", "http://localhost:1", "https://127.0.0.1:%d" % p, "http://127.0.0.1.evil.example:%d" % p,
+                "http://localhost.evil.example:%d" % p, "http://127.0.0.1:%d@evil.example" % p, "http://evil.example/127.0.0.1:%d" % p,
+                "http://127.0.0.1", "HTTP://EVIL.EXAMPLE", "", "127.0.0.1:%d" % p, "file://", "chrome-extension://abcdefgh",
+                "http://100.97.237.60:%d" % p, "http://192.168.2.102:%d" % p)
+
+    # -- B: the non-GET routes refuse a foreign page's simple request
+    def test_a_simple_post_from_a_foreign_origin_is_refused_in_every_content_type(self):
+        body = json.dumps({"text": "---\ntitle: t\n---\nA FOREIGN PAGE WAS HERE"})
+        boundary = "----fpboundary"
+        multipart = ('--%s\r\nContent-Disposition: form-data; name="text"\r\n\r\nA FOREIGN PAGE WAS HERE\r\n--%s--\r\n' % (boundary, boundary))
+        shapes = (("text/plain", body), ("text/plain;charset=UTF-8", body),
+                  ("application/x-www-form-urlencoded", "text=A+FOREIGN+PAGE+WAS+HERE&token=t0k"),
+                  ("multipart/form-data; boundary=" + boundary, multipart), (None, body))
+        for origin in self.foreign_origins():
+            for ctype, payload in shapes:
+                for token in (None, "t0k"):      # a foreign page cannot carry the token; the Origin rule is a lock of its own, so the right one is tried too
+                    headers = {"Origin": origin}
+                    if ctype:
+                        headers["Content-Type"] = ctype
+                    if token:
+                        headers["X-FP-Token"] = token
+                    code, _, _, parsed = _ask(self.srv.port, "POST", "/api/md", headers, payload.encode("utf-8"))
+                    self.assertEqual(code, 403, (origin, ctype, token))
+                    self.assertEqual((parsed or {}).get("reason"), "origin", (origin, ctype, token))
+        self.nothing_happened("a simple POST from a foreign origin")
+
+    def test_every_mutating_route_refuses_a_foreign_and_a_null_origin_even_with_the_right_token(self):
+        for route in bench.MUTATING_POSTS:
+            for origin in ("http://evil.example", "null", "http://127.0.0.1:1"):
+                code, _, _, parsed = _ask(self.srv.port, "POST", route, {"Origin": origin, "X-FP-Token": "t0k", "Content-Type": "text/plain"},
+                                          json.dumps(BENIGN[route]).encode("utf-8"))
+                self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), (route, origin))
+        self.nothing_happened("a foreign POST to a mutating route")
+
+    def test_the_pages_own_post_is_admitted_on_every_route(self):
+        """the positive control: Origin ours + the token, the shape bench.html's fetch sends (text/plain - it sets no Content-Type), with and
+        without the loopback Fetch Metadata"""
+        plain = {"Origin": self.srv.origin, "X-FP-Token": "t0k", "Content-Type": "text/plain;charset=UTF-8", "Accept": "*/*"}
+        fetch_meta = {**plain, "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"}
+        for route in bench.MUTATING_POSTS:
+            for headers in (plain, fetch_meta):
+                code, _, _, parsed = _ask(self.srv.port, "POST", route, headers, json.dumps(BENIGN[route]).encode("utf-8"))
+                self.assertNotEqual(code, 403, "%s: the page's own request was refused: %s" % (route, parsed))
+                self.assertNotIn("reason", parsed or {}, route)
+
+    def test_an_origin_less_post_is_a_non_browser_client_and_goes_on_to_the_token_gate(self):
+        payload = json.dumps({"text": "---\ntitle: t\n---\nfrom a script"}).encode("utf-8")
+        code, _, _, parsed = _ask(self.srv.port, "POST", "/api/md", {"X-FP-Token": "t0k", "Content-Type": "application/json"}, payload)
+        self.assertEqual((code, (parsed or {}).get("saved")), (200, True), "PowerShell / urllib: no Origin, the token")
+        snap = self.srv.snapshot()
+        code, _, _, parsed = _ask(self.srv.port, "POST", "/api/md", {"Content-Type": "application/json"}, payload)
+        self.assertEqual(code, 403)
+        self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), "an Origin-less POST meets the token gate, not rule (5)")
+        self.assertNotIn("reason", parsed or {})
+        code, _, _, parsed = _ask(self.srv.port, "POST", "/api/md", {"Origin": self.srv.origin, "Content-Type": "text/plain"}, payload)
+        self.assertEqual(code, 403)
+        self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), "our own Origin without the token is still the token gate's 403")
+        self.assertEqual(self.srv.snapshot(), snap)
+
+    # -- the token is read from a HEADER and from nowhere else (a header is preflight-protected; a query string and a form field are not)
+    def test_the_token_is_read_from_a_header_and_from_nowhere_else(self):
+        payload = json.dumps({"text": "---\ntitle: t\n---\nSMUGGLED", "token": "t0k", "X-FP-Token": "t0k"}).encode("utf-8")
+        attempts = (
+            ("a query string", "/api/md?token=t0k", {"Content-Type": "application/json"}, payload),
+            ("a query string, header spelling", "/api/md?X-FP-Token=t0k", {"Content-Type": "application/json"}, payload),
+            ("a JSON field", "/api/md", {"Content-Type": "application/json"}, payload),
+            ("a form field", "/api/md", {"Content-Type": "application/x-www-form-urlencoded"}, b"token=t0k&X-FP-Token=t0k&text=SMUGGLED"),
+            ("a multipart field", "/api/md", {"Content-Type": "multipart/form-data; boundary=zz"},
+             b'--zz\r\nContent-Disposition: form-data; name="token"\r\n\r\nt0k\r\n--zz--\r\n'),
+            ("a cookie", "/api/md", {"Cookie": "X-FP-Token=t0k; token=t0k"}, payload),
+            ("an Authorization header", "/api/md", {"Authorization": "Bearer t0k"}, payload),
+        )
+        for what, path, headers, body in attempts:
+            code, _, _, parsed = _ask(self.srv.port, "POST", path, headers, body)
+            self.assertEqual(code, 403, what)
+            self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), what)
+        for what, path, headers in (("a query string", "/api/evidence?token=t0k", {"Referer": self.srv.origin + "/?token=t0k"}),
+                                    ("a cookie", "/api/evidence", {"Referer": self.srv.origin + "/", "Cookie": "X-FP-Token=t0k"})):
+            code, _, _, parsed = _ask(self.srv.port, "GET", path, headers)
+            self.assertEqual(code, 403, "evidence GET: " + what)
+            self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), what)
+            self.assertNotIn("reason", parsed or {}, "the request had proof (our Referer); it is the token gate that refused it: " + what)
+        self.nothing_happened("a token sent anywhere but the X-FP-Token header")
+        # the source agrees: the only token_gate calls read the header, and no route reads a token from the query or the body
+        calls = re.findall(r"(?<!def )token_gate\(([^,]*),", BENCH_PY)
+        self.assertEqual(calls, ['self.headers.get("X-FP-Token")'] * 2, "the evidence GET and the POST gate read the header, and only it")
+        self.assertIsNone(re.search(r'(?i)\b(q|payload|query|form|body)\.get\(\s*["\']\s*(x-fp-)?token', BENCH_PY),
+                          "a route reads the token from the query or the body")
+        self.assertIsNotNone(re.search(r'(?i)\bpayload\.get\(\s*"token', 'x = payload.get("token")'), "negative control: the pattern sees such a read")
+
+    # -- C: the one GET with a side effect
+    def test_the_side_effect_get_refuses_a_blind_request(self):
+        p = self.srv.port
+        blind = (("no header at all", {}),
+                 ("a foreign Referer", {"Referer": "http://evil.example/page"}),
+                 ("a sibling port's Referer", {"Referer": "http://127.0.0.1:1/"}),
+                 ("a Referer that is not a URL", {"Referer": "garbage"}),
+                 ("a Referer that only begins with our host", {"Referer": "http://127.0.0.1.evil.example:%d/" % p}),
+                 ("an https Referer", {"Referer": "https://127.0.0.1:%d/" % p}),
+                 ("a Referer with userinfo", {"Referer": "http://127.0.0.1:%d@evil.example/" % p}))
+        for path in ("/api/evidence", "/api/evidence?retry=1", "/api/evidence?token=t0k", "/api/evidence;x=1", "/api/evidence;x=1?retry=1"):
+            for what, headers in blind:
+                code, _, _, parsed = _ask(p, "GET", path, headers)
+                self.assertEqual((code, (parsed or {}).get("reason")), (403, "unproven-origin"), (path, what))
+        self.nothing_happened("a blind GET of the side-effect route")
+
+    def test_the_side_effect_get_is_admitted_only_with_proof(self):
+        p, ours = self.srv.port, self.srv.origin
+        # what the page sends over plain http: the token, and NO Referer (every answer of the bench says Referrer-Policy: no-referrer)
+        for what, headers in (("the page's own shape on the tailnet (token, no Referer)", {"X-FP-Token": "t0k"}),
+                              ("the page on loopback (token + Fetch Metadata)", {"X-FP-Token": "t0k", "Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty"}),
+                              ("a script with the page's token and its own marker", {"X-FP-Token": "t0k", "X-FP-Local": "1"}),
+                              ("the page with a Referer of its own", {"X-FP-Token": "t0k", "Referer": ours + "/?token=t0k"}),
+                              ("a script that holds the token and a stray foreign Referer", {"X-FP-Token": "t0k", "Referer": "http://evil.example/"})):
+            self.srv.evidence.clear()
+            code, _, _, parsed = _ask(p, "GET", "/api/evidence", headers)
+            self.assertEqual((code, parsed), (200, {"spy": "evidence"}), what)
+            self.assertEqual(self.srv.evidence, [False], what)
+        self.srv.evidence.clear()
+        code, _, _, parsed = _ask(p, "GET", "/api/evidence?retry=1", {"X-FP-Token": "t0k"})
+        self.assertEqual((code, self.srv.evidence), (200, [True]))
+        # proof without the token still meets the token gate: a proven request is not an authorised one
+        self.srv.evidence.clear()
+        for what, headers in (("X-FP-Local alone", {"X-FP-Local": "1"}), ("our own Referer alone", {"Referer": ours + "/"}),
+                              ("a wrong token", {"X-FP-Token": "nope"}), ("Fetch Metadata alone", {"Sec-Fetch-Site": "same-origin"})):
+            code, _, _, parsed = _ask(p, "GET", "/api/evidence", headers)
+            self.assertEqual(code, 403, what)
+            self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), what)
+            self.assertNotEqual((parsed or {}).get("reason"), "unproven-origin", what)
+        self.assertEqual(self.srv.evidence, [])
+
+    def test_a_spelling_that_does_not_dispatch_never_reaches_the_evidence_collector(self):
+        for path in ("/api/evidence/", "/API/EVIDENCE", "/api//evidence", "/api/evidence%2f", "/api/evidence%00", "/api/evidenc", "/api/evidences"):
+            code, _, _, parsed = _ask(self.srv.port, "GET", path, {"X-FP-Token": "t0k"})
+            self.assertEqual(code, 404, path)
+        self.assertEqual(self.srv.evidence, [], "a spelling reached ok15_evidence")
+        # a leading '//' is collapsed to '/' by http.server before any handler runs (Python 3.11+; earlier, urlparse reads it as a host and
+        # the route is a 404): either way the rule sees the path the dispatch sees, so a blind one is refused or does not dispatch, and a
+        # proven one is the route itself
+        for path in ("//api/evidence", "///api/evidence"):
+            code, _, _, parsed = _ask(self.srv.port, "GET", path, {"Referer": "http://evil.example/"})
+            self.assertIn(code, (403, 404), path)
+            self.assertIn((parsed or {}).get("reason"), ("unproven-origin", None), path)
+        self.assertEqual(self.srv.evidence, [], "a blind '//' spelling reached ok15_evidence")
+
+    # -- C, the other side: a page or the data, read, stays open to a typed, bookmarked or blind visit
+    def test_a_read_only_get_is_answered_with_no_origin_and_no_referer_and_with_a_foreign_referer(self):
+        routes = ("/", "/?token=t0k&theme=dark", "/api/state", "/api/md", "/api/ledger", "/api/asset?name=none.png", "/api/toc", "/api/find?q=line",
+                  "/api/textlayer?n=1", "/fp-tokens.css", "/vendor/markdown-it.min.js", "/api/page?n=1", "/api/locate?i=0")
+        for headers in ({}, {"Referer": "http://evil.example/page"}, {"Referer": "garbage"},
+                        {"User-Agent": "Mozilla/5.0", "Accept": "text/html", "Upgrade-Insecure-Requests": "1"}):
+            for path in routes:
+                code, _, _, parsed = _ask(self.srv.port, "GET", path, headers)
+                self.assertFalse(_refused_by_a_request_rule(code, parsed), (path, headers, parsed))
+                self.assertNotEqual(code, 421, path)
+        for path in ("/", "/api/state", "/api/md", "/api/ledger"):      # the ones this fixture can really serve
+            self.assertEqual(_ask(self.srv.port, "GET", path)[0], 200, path)
+        self.nothing_happened("a blind GET of a page or of the data")
+
+    def test_a_get_with_a_foreign_origin_is_refused_too(self):
+        for origin in self.foreign_origins():
+            for path in ("/", "/api/state", "/api/md", "/api/evidence"):
+                code, _, _, parsed = _ask(self.srv.port, "GET", path, {"Origin": origin, "X-FP-Token": "t0k"})
+                self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), (origin, path))
+        self.nothing_happened("a cross-origin GET")
+
+    def test_two_origin_headers_are_refused(self):
+        for first, second in ((self.srv.origin, "http://evil.example"), ("http://evil.example", self.srv.origin), (self.srv.origin, self.srv.origin)):
+            code, _, _, parsed = _ask(self.srv.port, "POST", "/api/md", [("Origin", first), ("Origin", second), ("X-FP-Token", "t0k")],
+                                      json.dumps({"text": "---\ntitle: t\n---\ntwo origins"}).encode("utf-8"))
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), (first, second))
+        self.nothing_happened("a request with two Origin headers")
+
+    def test_two_origin_headers_are_refused_on_a_get_too(self):
+        """S215 round nine (2): the rule is for every method - a read and the side-effect GET as well as a write"""
+        for first, second in ((self.srv.origin, "http://evil.example"), ("http://evil.example", self.srv.origin), (self.srv.origin, self.srv.origin)):
+            for path in ("/", "/api/state", "/api/md", "/api/evidence"):
+                code, _, _, parsed = _ask(self.srv.port, "GET", path, [("Origin", first), ("Origin", second), ("X-FP-Token", "t0k")])
+                self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), (first, second, path))
+        code, _, _, parsed = _ask(self.srv.port, "GET", "/api/state", [("Origin", self.srv.origin)])      # the control: one Origin of ours is served
+        self.assertEqual(code, 200)
+        self.nothing_happened("a GET with two Origin headers")
+
+    def test_two_host_headers_are_refused(self):
+        """S215 round nine (2): more than one Host header is a 421 on a GET and on a POST (the body drained, the right token no help), whichever comes
+        first and whether or not the two agree; one Host is still served (the control)"""
+        p, mine = self.srv.port, "127.0.0.1:%d" % self.srv.port
+        payload = json.dumps({"text": "---\ntitle: t\n---\nTWO HOSTS"}).encode("utf-8")
+        for first, second in ((mine, mine), (mine, "evil.example:%d" % p), ("evil.example:%d" % p, mine), (mine, "localhost:%d" % p)):
+            code, _, _, parsed = _ask(p, "GET", "/api/state", [("Host", second)], host=first)
+            self.assertEqual(code, 421, (first, second))
+            self.assertIn("own names", (parsed or {}).get("error", ""), (first, second))
+            code, _, _, parsed = _ask(p, "POST", "/api/md", [("Host", second), ("X-FP-Token", "t0k"), ("Content-Type", "application/json")], payload, host=first)
+            self.assertEqual(code, 421, (first, second))
+        code, _, _, parsed = _ask(p, "GET", "/api/evidence", [("Host", mine), ("X-FP-Token", "t0k")])      # the side-effect GET too: refused before the collector
+        self.assertEqual(code, 421)
+        self.nothing_happened("a request with two Host headers")
+        code, _, _, _ = _ask(p, "GET", "/api/state")
+        self.assertEqual(code, 200, "control: one Host")
+        code, _, _, parsed = _ask(p, "POST", "/api/md", [("X-FP-Token", "t0k"), ("Content-Type", "application/json")], payload)
+        self.assertEqual((code, (parsed or {}).get("saved")), (200, True), "control: one Host on a POST")
+
+    # -- the Sec-Fetch-Site rule, where the browser sends it (loopback, https): the Desk's shape, with Dest document OR iframe
+    def test_sec_fetch_site_refuses_cross_site_except_a_navigation_of_the_page_itself(self):
+        p, tok = self.srv.port, {"X-FP-Token": "t0k"}
+
+        def sf(site, mode="cors", dest="empty"):
+            return {"Sec-Fetch-Site": site, "Sec-Fetch-Mode": mode, "Sec-Fetch-Dest": dest}
+        refused = (
+            ("a cross-site fetch of the data", "/api/state", sf("cross-site")),
+            ("a cross-site fetch of the page", "/", sf("cross-site")),
+            ("a cross-site <img> of the page", "/", sf("cross-site", "no-cors", "image")),
+            ("a cross-site iframe that is not a navigation", "/", sf("cross-site", "no-cors", "iframe")),
+            ("a cross-site embed", "/", sf("cross-site", "navigate", "embed")),
+            ("a cross-site object", "/", sf("cross-site", "navigate", "object")),
+            ("a cross-site navigation with no dest", "/", sf("cross-site", "navigate", "empty")),
+            ("a cross-site window onto a data route", "/api/state", sf("cross-site", "navigate", "document")),
+            ("a cross-site frame onto a data route", "/api/md", sf("cross-site", "navigate", "iframe")),
+            ("a cross-site window onto the side-effect route", "/api/evidence", {**sf("cross-site", "navigate", "document"), **tok}),
+            ("a cross-site script load", "/vendor/markdown-it.min.js", sf("cross-site", "no-cors", "script")),
+            ("a value no browser sends", "/api/state", sf("sideways")),
+        )
+        for what, path, headers in refused:
+            code, _, _, parsed = _ask(p, "GET", path, headers)
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "fetch-site"), what)
+        for what, headers in (("cross-site, no Origin", {**sf("cross-site"), **tok}),
+                              ("cross-site with our own Origin", {**sf("cross-site"), **tok, "Origin": self.srv.origin})):
+            code, _, _, parsed = _ask(p, "POST", "/api/md", headers, json.dumps({"text": "---\ntitle: t\n---\ncross-site"}).encode("utf-8"))
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "fetch-site"), "a POST: " + what)
+        self.nothing_happened("a cross-site request")
+        admitted = (
+            ("a typed or bookmarked address", "/", sf("none", "navigate", "document")),
+            ("a same-origin reload", "/", sf("same-origin", "navigate", "document")),
+            ("a same-site window (a sibling port on this host)", "/", sf("same-site", "navigate", "document")),
+            ("a cross-site window (the Scanner's /repair)", "/?token=t0k&theme=light", sf("cross-site", "navigate", "document")),
+            ("a cross-site frame (the Control's openBench)", "/?token=t0k&theme=dark", sf("cross-site", "navigate", "iframe")),
+            ("a legacy nested navigation", "/", sf("cross-site", "nested-navigate", "iframe")),
+            ("the page's own data fetch", "/api/state", {**sf("same-origin"), **tok}),
+            ("a sibling page's read", "/api/state", sf("same-site")),
+        )
+        for what, path, headers in admitted:
+            code, _, data, parsed = _ask(p, "GET", path, headers)
+            self.assertEqual(code, 200, what)
+        code, _, _, parsed = _ask(p, "POST", "/api/md", {**tok, "Origin": self.srv.origin, **sf("same-origin")},
+                                  json.dumps({"text": "---\ntitle: t\n---\nsame-origin"}).encode("utf-8"))
+        self.assertEqual((code, (parsed or {}).get("saved")), (200, True), "the page's own POST")
+
+    # -- the other verbs answer nothing, and nothing carries a CORS allowance
+    def test_head_options_and_the_other_verbs_do_nothing_and_no_answer_is_readable_cross_origin(self):
+        p = self.srv.port
+        foreign = {"Origin": "http://evil.example", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "x-fp-token, content-type",
+                   "X-FP-Token": "t0k"}
+        for method in ("HEAD", "OPTIONS", "PUT", "DELETE", "PATCH", "TRACE"):
+            for headers in ({}, foreign):
+                code, hdr, _, _ = _ask(p, method, "/api/md", headers, b"{}" if method in ("PUT", "PATCH", "DELETE") else None)
+                self.assertEqual(code, 501, (method, headers))
+                self.assertFalse([h for h in hdr if h.startswith("access-control-")], (method, hdr))
+        for method, path, headers, body in (("GET", "/", {}, None), ("GET", "/api/state", {"Origin": self.srv.origin}, None),
+                                            ("GET", "/api/state", {"Origin": "http://evil.example"}, None), ("GET", "/api/nothing", {}, None),
+                                            ("POST", "/api/md", {"Origin": "http://evil.example"}, b"{}"),
+                                            ("POST", "/api/md", {"Origin": self.srv.origin, "X-FP-Token": "t0k"}, b'{"text": "---\\ntitle: t\\n---\\nok"}'),
+                                            ("GET", "/api/evidence", {}, None)):
+            code, hdr, _, _ = _ask(p, method, path, headers, body)
+            self.assertFalse([h for h in hdr if h.startswith("access-control-")], (method, path, hdr))
+            self.assertEqual(hdr.get("referrer-policy"), "no-referrer", (method, path))
+        self.assertEqual(self.srv.evidence, [])
+
+    # -- every real client's exact shape still passes
+    def test_every_real_client_shape_still_passes(self):
+        p, tok, ours = self.srv.port, "t0k", self.srv.origin
+        page = {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty", "X-FP-Token": tok, "Accept": "*/*"}
+        shapes = (
+            ("the widget's window / a typed address (Edge navigation)", "GET", "/?token=t0k&theme=dark", {"Sec-Fetch-Site": "none", "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "document", "Upgrade-Insecure-Requests": "1", "User-Agent": "Mozilla/5.0 Edg/130"}, None),
+            ("the Control's frame (openBench)", "GET", "/?token=t0k&theme=dark", {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate",
+                "Sec-Fetch-Dest": "iframe", "Referer": "http://localhost:7170/", "Upgrade-Insecure-Requests": "1"}, None),
+            ("the Scanner's /repair window", "GET", "/?token=t0k", {"Sec-Fetch-Site": "cross-site", "Sec-Fetch-Mode": "navigate", "Sec-Fetch-Dest": "document",
+                "Referer": "http://localhost:7160/"}, None),
+            ("the page's data fetch", "GET", "/api/state", {**page, "If-None-Match": '"none-such"'}, None),
+            ("the page's markdown revalidation", "GET", "/api/md", {**page, "If-None-Match": '"none-such"', "Cache-Control": "no-cache"}, None),
+            ("the page's own write (WebView2 / Edge on loopback)", "POST", "/api/md", {**page, "Origin": ours, "Content-Type": "text/plain;charset=UTF-8"},
+                json.dumps({"text": "---\ntitle: t\n---\nfrom the page"}).encode("utf-8")),
+            ("the phone over plain http (no Fetch Metadata at all)", "POST", "/api/md", {"Origin": ours, "X-FP-Token": tok, "Content-Type": "text/plain;charset=UTF-8",
+                "User-Agent": "Mozilla/5.0 (iPhone)"}, json.dumps({"text": "---\ntitle: t\n---\nfrom the phone"}).encode("utf-8")),
+            ("the phone's data read over plain http", "GET", "/api/ledger", {"X-FP-Token": tok, "User-Agent": "Mozilla/5.0 (iPhone)"}, None),
+            ("PowerShell Invoke-RestMethod (token, no Origin)", "POST", "/api/md", {"X-FP-Token": tok, "Content-Type": "application/json", "User-Agent": "WindowsPowerShell"},
+                json.dumps({"text": "---\ntitle: t\n---\nfrom a script"}).encode("utf-8")),
+            ("python urllib, as acceptance.py and the Scanner's probe (no extra header)", "GET", "/api/state", {"User-Agent": "Python-urllib/3.12"}, None),
+        )
+        for what, method, path, headers, body in shapes:
+            code, _, _, parsed = _ask(p, method, path, headers, body)
+            self.assertIn(code, (200, 304), "%s: %s %s" % (what, code, parsed))
+        for what, headers in (("the page's evidence request on loopback", {**page}),
+                              ("the page's evidence request on the tailnet (no Referer, no Fetch Metadata)", {"X-FP-Token": tok})):
+            self.srv.evidence.clear()
+            code, _, _, parsed = _ask(p, "GET", "/api/evidence", headers)
+            self.assertEqual((code, self.srv.evidence), (200, [False]), what)
+        # the Scanner's liveness probe: a connect that sends nothing, then closes
+        s = socket.create_connection(("127.0.0.1", p), timeout=5)
+        s.close()
+        self.assertEqual(_ask(p, "GET", "/api/state")[0], 200, "the bench survived a bare connect")
+
+    def test_the_comments_and_the_readme_say_where_each_rule_fires(self):
+        readme = (HERE / "README.md").read_text(encoding="utf-8")
+        for text, name in ((BENCH_PY, "bench.py"), (readme, "README.md")):
+            self.assertIn("fires only where browsers send it", text, name)
+            self.assertIn("https, or 127.0.0.0/8, ::1, localhost", text, name)
+            self.assertIn("HTTP-mode Funnel only", text, name)
+            self.assertIn("TCP-mode funnel", text, name)
+            self.assertIn("lockdown_check.py", text, name)
+        self.assertNotIn("Nothing reads `Origin` or `Sec-Fetch-Site`", readme, "the README still says the bench reads neither")
+
+
+class TestTailnetShapes(unittest.TestCase):
+    """The same rules over the listener a phone or another tailnet device reaches: a bench bound to its tailnet address, driven in-process
+    (no socket, no request to any address), every request carrying NO Fetch Metadata - what a browser sends over plain http."""
+
+    HOSTS = ("desktop-bndit", "desktop-bndit.tailnet-test.ts.net")
+    BOUND = "100.108.102.101"
+    PORT = 7077
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-shapes-"))
+        (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.bench = bench.Bench(self.tmp)
+        self.evidence = []
+        self.bench.ok15_evidence = lambda retry=False: (self.evidence.append(retry), {"spy": "evidence"})[1]
+        self.handler = bench.make_handler(self.bench, token="t0k", hosts=self.HOSTS)
+        self.server = types.SimpleNamespace(server_address=(self.BOUND, self.PORT))
+
+    def send(self, method, path, headers=None, body=b"", host=None):
+        conn = _FakeConn(_raw(method, path, host=host or "%s:%d" % (self.BOUND, self.PORT), headers=headers, body=body))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.handler(conn, ("100.97.237.60", 5555), self.server)
+        return _wire_answer(conn)[:2]
+
+    def write(self, origin, extra=None, host=None):
+        body = json.dumps({"text": "---\ntitle: t\n---\nwritten by %s" % (origin or "a script")}).encode("utf-8")
+        headers = {"X-FP-Token": "t0k", "Content-Type": "text/plain;charset=UTF-8", **(extra or {})}
+        if origin is not None:
+            headers["Origin"] = origin
+        return self.send("POST", "/api/md", headers, body, host)
+
+    def test_our_own_origins_are_admitted(self):
+        # S215 round nine (1): the loopback names (127.0.0.1, localhost, [::1]) are NOT here any more - on the tailnet listener they are not ours
+        # (test_a_loopback_name_is_not_ours_on_the_tailnet_listener; the loopback listener keeps them: TestRoundNineListeners)
+        for origin in ("http://100.108.102.101:7077", "http://desktop-bndit:7077", "http://desktop-bndit.tailnet-test.ts.net:7077",
+                       "http://desktop-bndit.tailnet-test.ts.net.:7077", "HTTP://DESKTOP-BNDIT:7077", None):
+            code, parsed = self.write(origin)
+            self.assertEqual((code, (parsed or {}).get("saved")), (200, True), origin)
+
+    # S215 round nine (1): on the TAILNET listener a loopback name is not one of our own pages, in an Origin or a Referer
+    LOOPBACK_SPELLINGS = ("127.0.0.1", "localhost", "localhost.", "LOCALHOST", "[::1]", "[0:0:0:0:0:0:0:1]", "[::ffff:127.0.0.1]", "[::ffff:7f00:1]",
+                          "127.0.0.2", "127.1.2.3")
+
+    def test_a_loopback_name_is_not_ours_on_the_tailnet_listener(self):
+        before = (self.tmp / "book.md").read_bytes()
+        for name in self.LOOPBACK_SPELLINGS:
+            origin = "http://%s:7077" % name
+            code, parsed = self.write(origin)
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), origin)
+            code, parsed = self.send("GET", "/api/state", {"Origin": origin})       # the rule is for every method, a read too
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), "a GET with " + origin)
+            code, parsed = self.send("GET", "/api/evidence", {"Referer": origin + "/?token=t0k"})       # a loopback Referer is no proof on the tailnet
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "unproven-origin"), "a Referer of " + origin)
+        self.assertEqual((self.tmp / "book.md").read_bytes(), before)
+        self.assertEqual(self.evidence, [])
+        # the same Referer shapes that ARE ours are proof (and then meet the token gate): the tailnet address and a tailnet name
+        for ok in ("http://100.108.102.101:7077/", "http://desktop-bndit:7077/", "http://desktop-bndit.tailnet-test.ts.net:7077/"):
+            code, parsed = self.send("GET", "/api/evidence", {"Referer": ok})
+            self.assertEqual(code, 403, ok)
+            self.assertNotIn("reason", parsed or {}, ok)
+            self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), ok)
+
+    def test_a_page_on_any_other_site_port_or_device_is_refused(self):
+        before = (self.tmp / "book.md").read_bytes()
+        for origin in ("http://100.108.102.101:7078", "http://100.108.102.101", "http://100.97.237.60:7077", "http://phone.tailnet-test.ts.net:7077",
+                       "http://192.168.2.102:7077", "http://evil.example:7077", "https://100.108.102.101:7077", "null",
+                       "http://desktop-bndit.evil.example:7077", "http://100.108.102.101:7077.evil.example"):
+            code, parsed = self.write(origin)
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), origin)
+        self.assertEqual((self.tmp / "book.md").read_bytes(), before)
+
+    def test_the_phone_over_plain_http_passes_and_a_blind_evidence_get_does_not(self):
+        for path in ("/", "/api/state", "/api/md", "/api/ledger"):
+            self.assertEqual(self.send("GET", path, {"User-Agent": "Mozilla/5.0 (iPhone)"})[0], 200, path)
+        self.assertEqual(self.send("GET", "/api/evidence", {"X-FP-Token": "t0k"}), (200, {"spy": "evidence"}))
+        self.evidence.clear()
+        for headers in ({}, {"Referer": "http://evil.example/"}, {"Referer": "http://100.97.237.60:7077/"}, {"Referer": "http://127.0.0.1:1/"}):
+            code, parsed = self.send("GET", "/api/evidence", headers)
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "unproven-origin"), headers)
+        # a Referer from this bench's own address is proof of a click within its page - and still meets the token gate
+        for own in ("http://100.108.102.101:7077/?token=t0k", "http://desktop-bndit:7077/", "http://desktop-bndit.tailnet-test.ts.net:7077/"):
+            code, parsed = self.send("GET", "/api/evidence", {"Referer": own})
+            self.assertEqual(code, 403, own)
+            self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), own)
+            self.assertNotIn("reason", parsed or {}, "proof was shown (our own Referer): the token gate refused, not rule (5)")
+        self.assertEqual(self.evidence, [])
+
+    def test_no_fetch_metadata_means_the_sec_fetch_rule_is_inert_and_the_origin_rule_carries_the_lock(self):
+        # with no Sec-Fetch-* a cross-site navigation cannot be told from a typed address: read routes answer it, and the lock is Origin + proof
+        self.assertEqual(self.send("GET", "/", {"Referer": "http://evil.example/"})[0], 200)
+        self.assertEqual(self.write("http://evil.example:7077")[1]["reason"], "origin")
+        self.assertEqual(self.send("GET", "/api/evidence", {"Referer": "http://evil.example/"})[1]["reason"], "unproven-origin")
+
+    def test_two_host_headers_are_refused_on_the_tailnet_listener(self):
+        """S215 round nine (2): a second Host header is added to the raw request (the helper below builds what `_raw`'s dict cannot)"""
+        ours = "%s:%d" % (self.BOUND, self.PORT)
+        before = (self.tmp / "book.md").read_bytes()
+        body = json.dumps({"text": "---\ntitle: t\n---\nTWO HOSTS"}).encode("utf-8")
+        for first, second in ((ours, ours), (ours, "evil.example"), ("evil.example", ours), (ours, "desktop-bndit:7077"), (ours, "127.0.0.1:7077")):
+            for method, path, headers, payload in (("GET", "/api/state", {}, b""), ("GET", "/api/evidence", {"X-FP-Token": "t0k"}, b""),
+                                                   ("POST", "/api/md", {"X-FP-Token": "t0k", "Origin": "http://" + ours}, body)):
+                raw = _raw(method, path, host=first, headers=headers, body=payload).replace(b"\r\n\r\n", b"\r\nHost: " + second.encode() + b"\r\n\r\n", 1)
+                conn = _FakeConn(raw)
+                with contextlib.redirect_stdout(io.StringIO()):
+                    self.handler(conn, ("100.97.237.60", 5555), self.server)
+                code, parsed, _ = _wire_answer(conn)
+                self.assertEqual(code, 421, (method, path, first, second))
+                self.assertIn("own names", (parsed or {}).get("error", ""), (method, path, first, second))
+        self.assertEqual((self.tmp / "book.md").read_bytes(), before)
+        self.assertEqual(self.evidence, [])
+        self.assertEqual(self.send("GET", "/api/state")[0], 200, "control: one Host")
+
+
+class TestRoundNineListeners(unittest.TestCase):
+    """S215 round nine (1), each kind of listener, in-process (fake connections, no socket, no address is ever sent to): the loopback listener
+    (127.0.0.1 and ::1) keeps its loopback names in an Origin and a Referer; a loopback stand-in (127.0.0.2, what a test may bind in place of a
+    tailnet address) takes its OWN address and not the other loopback names"""
+    PORT = 7077
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-round9-"))
+        (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.bench = bench.Bench(self.tmp)
+        self.evidence = []
+        self.bench.ok15_evidence = lambda retry=False: (self.evidence.append(retry), {"spy": "evidence"})[1]
+        self.handler = bench.make_handler(self.bench, token="t0k", hosts=())
+
+    def on(self, bound, method, path, headers=None, body=b""):
+        host = ("[%s]:%d" if ":" in bound else "%s:%d") % (bound, self.PORT)
+        conn = _FakeConn(_raw(method, path, host=host, headers=headers, body=body))
+        with contextlib.redirect_stdout(io.StringIO()):
+            self.handler(conn, ("127.0.0.1", 5555), types.SimpleNamespace(server_address=(bound, self.PORT)))
+        return _wire_answer(conn)[:2]
+
+    def write(self, bound, origin):
+        body = json.dumps({"text": "---\ntitle: t\n---\nwritten from %s" % origin}).encode("utf-8")
+        return self.on(bound, "POST", "/api/md", {"X-FP-Token": "t0k", "Content-Type": "text/plain;charset=UTF-8", "Origin": origin}, body)
+
+    def test_the_loopback_listener_keeps_its_loopback_names(self):
+        for bound in ("127.0.0.1", "::1"):
+            for name in ("127.0.0.1", "localhost", "localhost.", "LOCALHOST", "[::1]"):
+                origin = "http://%s:%d" % (name, self.PORT)
+                code, parsed = self.write(bound, origin)
+                self.assertEqual((code, (parsed or {}).get("saved")), (200, True), (bound, origin))
+                # a Referer of ours is proof on the evidence GET (and the request then meets the token gate, not rule 5)
+                code, parsed = self.on(bound, "GET", "/api/evidence", {"Referer": origin + "/?token=t0k"})
+                self.assertEqual(code, 403, (bound, origin))
+                self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), (bound, origin))
+                self.assertNotIn("reason", parsed or {}, (bound, origin))
+        self.assertEqual(self.evidence, [])
+
+    def test_the_loopback_listener_still_refuses_what_is_not_its_own(self):
+        for bound in ("127.0.0.1", "::1"):
+            for origin in ("http://evil.example:7077", "http://100.108.102.101:7077", "null", "http://localhost:7078", "https://localhost:7077"):
+                code, parsed = self.write(bound, origin)
+                self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), (bound, origin))
+
+    def test_a_loopback_stand_in_takes_its_own_address_and_not_the_other_loopback_names(self):
+        code, parsed = self.write("127.0.0.2", "http://127.0.0.2:%d" % self.PORT)
+        self.assertEqual((code, (parsed or {}).get("saved")), (200, True), "its own address is ours")
+        before = (self.tmp / "book.md").read_bytes()
+        for origin in ("http://127.0.0.1:%d" % self.PORT, "http://localhost:%d" % self.PORT, "http://[::1]:%d" % self.PORT, "http://127.0.0.3:%d" % self.PORT):
+            code, parsed = self.write("127.0.0.2", origin)
+            self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), origin)
+        self.assertEqual((self.tmp / "book.md").read_bytes(), before)
+
+
+class TestOriginAndProofTables(unittest.TestCase):
+    """the pure functions of rule (5), as tables: what is ours, what only looks like ours"""
+
+    BOUND, NAMES, PORT = "100.108.102.101", ("desktop-bndit", "desktop-bndit.tailnet-test.ts.net"), 7077
+
+    def test_authority_table(self):
+        good = {"127.0.0.1": ("127.0.0.1", 80), "127.0.0.1:7077": ("127.0.0.1", 7077), "[::1]": ("::1", 80), "[::1]:7077": ("::1", 7077),
+                "Desktop-BNDIT:7077": ("desktop-bndit", 7077), "name.:7077": ("name", 7077), "a.b.c": ("a.b.c", 80), " 127.0.0.1:1 ": ("127.0.0.1", 1),
+                "127.0.0.1:65535": ("127.0.0.1", 65535)}
+        for text, want in good.items():
+            self.assertEqual(bench._authority(text), want, text)
+        for text in ("", " ", None, "[", "[]", "[::1", "[::1]x", "[::1]:", "::1", "a:b:c", "127.0.0.1:", "127.0.0.1:0", "127.0.0.1:65536", "127.0.0.1:-1",
+                     "127.0.0.1:+1", "127.0.0.1:1e3", "127.0.0.1:٥", "127.0.0.1:7077@evil.example", "user@127.0.0.1", "127.0.0.1/", "127.0.0.1:7077/x",
+                     "a b", "a\tb", "127.0.0.1\\x", ":7077", "127.0.0.1?x", "127.0.0.1#x"):
+            self.assertIsNone(bench._authority(text), repr(text))
+
+    def test_origin_ok_table(self):
+        ok = lambda v: bench.origin_ok(v, self.BOUND, self.NAMES, self.PORT)   # noqa: E731
+        for v in ("http://100.108.102.101:7077", "http://desktop-bndit:7077",
+                  "http://desktop-bndit.tailnet-test.ts.net:7077", "http://desktop-bndit.tailnet-test.ts.net.:7077", "HTTP://DESKTOP-BNDIT:7077", " http://desktop-bndit:7077 "):
+            self.assertTrue(ok(v), v)
+        # S215 round nine (1): on the tailnet listener (BOUND is a tailnet address) no loopback name is ours - the loopback listener's table is below
+        for v in ("http://127.0.0.1:7077", "http://localhost:7077", "http://[::1]:7077", "HTTP://LOCALHOST:7077", " http://localhost:7077 ", "http://localhost.:7077",
+                  "http://[0:0:0:0:0:0:0:1]:7077", "http://[::ffff:127.0.0.1]:7077", "http://[::ffff:7f00:1]:7077", "http://127.0.0.2:7077", "http://127.1.2.3:7077"):
+            self.assertFalse(ok(v), v)
+        for v in ("null", "NULL", "", None, "http://", "http://:7077", "http://localhost", "http://localhost:80", "http://localhost:7078", "https://localhost:7077",
+                  "ftp://localhost:7077", "localhost:7077", "//localhost:7077", "http://localhost:7077/", "http://localhost:7077/x", "http://localhost:7077?x",
+                  "http://localhost.evil.example:7077", "http://evil.example:7077", "http://localhost:7077@evil.example", "http://evil.example@localhost:7077",
+                  "http://100.97.237.60:7077", "http://192.168.2.102:7077", "http://0.0.0.0:7077", "http://desktop-bndit.evil.example:7077",
+                  "http://localhost:7077 http://evil.example", "chrome-extension://localhost:7077", "file://localhost:7077"):
+            self.assertFalse(ok(v), repr(v))
+        self.assertTrue(bench.origin_ok("http://desktop-bndit:1", self.BOUND, self.NAMES, None), "port None = any port (a caller that does not say)")
+        self.assertTrue(bench.origin_ok("http://localhost:1", "127.0.0.1", self.NAMES, None), "port None = any port, on the loopback listener")
+        self.assertFalse(bench.origin_ok("http://localhost:1", self.BOUND, self.NAMES, None), "a loopback name is refused on the tailnet listener whatever the port rule")
+
+    def test_loopback_names_are_ours_on_the_loopback_listener_only(self):
+        """S215 round nine (1): the same spellings read against each kind of listener - the loopback listener (127.0.0.1 and ::1) keeps its loopback
+        names; the tailnet listener keeps none; a loopback stand-in (127.0.0.2, a test's) keeps its OWN address and not the other loopback names"""
+        names = ("127.0.0.1", "localhost", "localhost.", "LOCALHOST", "[::1]")
+        for bound in ("127.0.0.1", "::1"):
+            for n in names:
+                self.assertTrue(bench.origin_ok("http://%s:7077" % n, bound, self.NAMES, self.PORT), (bound, n))
+                self.assertTrue(bench.referer_ok("http://%s:7077/?token=x" % n, bound, self.NAMES, self.PORT), (bound, n))
+        for bound in (self.BOUND, "fd7a:115c:a1e0::1"):
+            for n in names + ("[0:0:0:0:0:0:0:1]", "[::ffff:127.0.0.1]", "[::ffff:7f00:1]", "127.0.0.2", "127.1.2.3"):
+                self.assertFalse(bench.origin_ok("http://%s:7077" % n, bound, self.NAMES, self.PORT), (bound, n))
+                self.assertFalse(bench.referer_ok("http://%s:7077/" % n, bound, self.NAMES, self.PORT), (bound, n))
+        self.assertTrue(bench.origin_ok("http://[fd7a:115c:a1e0::1]:7077", "fd7a:115c:a1e0::1", self.NAMES, self.PORT), "a tailnet IPv6 listener's own address is ours")
+        self.assertTrue(bench.origin_ok("http://127.0.0.2:7077", "127.0.0.2", self.NAMES, self.PORT), "the stand-in's own address")
+        for n in ("127.0.0.1", "localhost", "[::1]"):
+            self.assertFalse(bench.origin_ok("http://%s:7077" % n, "127.0.0.2", self.NAMES, self.PORT), "a stand-in on 127.0.0.2 does not take the other loopback names: " + n)
+
+    def test_loopback_name_table(self):
+        for n in ("localhost", "127.0.0.1", "127.0.0.2", "127.1.2.3", "::1", "0:0:0:0:0:0:0:1", "::ffff:127.0.0.1", "::ffff:7f00:1"):
+            self.assertTrue(bench._loopback_name(n), n)
+        for n in ("", "100.108.102.101", "desktop-bndit", "evil.example", "::ffff:100.64.0.1", "localhost.evil.example", "127.0.0.1.evil.example", "128.0.0.1",
+                  "fd7a:115c:a1e0::1", "0.0.0.0", "::", "127.0.0", "a:b"):
+            self.assertFalse(bench._loopback_name(n), repr(n))
+
+    def test_host_header_ok_table(self):
+        """S215 round nine (2): at most one Host header, and it names the bench"""
+        import email.message
+
+        def hosts(*values):
+            m = email.message.Message()
+            for v in values:
+                m["Host"] = v      # Message.__setitem__ appends: a header given twice is two header lines, as on the wire
+            return m
+        ok = lambda m, bound=self.BOUND: bench.host_header_ok(m, bound, self.NAMES)   # noqa: E731
+        self.assertTrue(ok(hosts("100.108.102.101:7077")))
+        self.assertTrue(ok(hosts("desktop-bndit:7077")))
+        self.assertTrue(ok(hosts()) is False, "no Host at all is refused on the tailnet listener")
+        self.assertTrue(ok(hosts(), "127.0.0.1"), "no Host at all is a local tool on the loopback listener")
+        self.assertFalse(ok(hosts("evil.example:7077")))
+        for two in (("100.108.102.101:7077", "100.108.102.101:7077"), ("100.108.102.101:7077", "evil.example"), ("evil.example", "100.108.102.101:7077"),
+                    ("desktop-bndit:7077", "desktop-bndit:7077"), ("", "100.108.102.101:7077")):
+            self.assertFalse(ok(hosts(*two)), two)
+            self.assertFalse(ok(hosts(*two), "127.0.0.1"), two)
+        self.assertFalse(ok(hosts("127.0.0.1:7077", "localhost:7077"), "127.0.0.1"), "two loopback Host headers on the loopback listener")
+        self.assertTrue(ok(hosts("127.0.0.1:7077"), "127.0.0.1"))
+
+    def test_referer_ok_table(self):
+        ok = lambda v: bench.referer_ok(v, self.BOUND, self.NAMES, self.PORT)   # noqa: E731
+        for v in ("http://100.108.102.101:7077/", "http://desktop-bndit:7077/api/state", "http://desktop-bndit.tailnet-test.ts.net:7077/?token=t0k&theme=dark#p=3",
+                  "http://desktop-bndit:7077"):
+            self.assertTrue(ok(v), v)
+        for v in ("http://localhost:7077/?token=t0k&theme=dark#p=3", "http://[::1]:7077/", "http://localhost:7077", "http://127.0.0.1:7077/"):
+            self.assertFalse(ok(v), "round nine (1): a loopback Referer is not ours on the tailnet listener: " + v)
+        for v in ("", None, "garbage", "/relative", "http://evil.example/", "http://localhost:7078/", "http://localhost/", "https://localhost:7077/",
+                  "http://localhost.evil.example:7077/", "http://localhost:7077@evil.example/", "http://[::1/", "javascript:alert(1)", "data:text/html,x"):
+            self.assertFalse(ok(v), repr(v))
+
+    def test_proof_and_refusal_table(self):
+        import email.message
+
+        def hdrs(**kw):
+            m = email.message.Message()
+            for k, v in kw.items():
+                m[k.replace("_", "-")] = v
+            return m
+        ref = lambda h, method="GET", path="/api/evidence": bench.page_refusal(h, method, path, self.BOUND, self.NAMES, self.PORT)   # noqa: E731
+        self.assertEqual(ref(hdrs()), "unproven-origin")
+        self.assertIsNone(ref(hdrs(X_FP_Token="x")))
+        self.assertIsNone(ref(hdrs(X_FP_Local="")), "any value, even an empty one: the header's presence is the proof")
+        self.assertIsNone(ref(hdrs(Referer="http://desktop-bndit:7077/")))
+        self.assertIsNone(ref(hdrs(Referer="http://100.108.102.101:7077/")))
+        self.assertEqual(ref(hdrs(Referer="http://localhost:7077/")), "unproven-origin", "round nine (1): a loopback Referer is no proof on the tailnet listener")
+        self.assertEqual(ref(hdrs(Referer="http://127.0.0.1:7077/")), "unproven-origin")
+        loop = lambda h, method="GET", path="/api/evidence": bench.page_refusal(h, method, path, "127.0.0.1", self.NAMES, self.PORT)   # noqa: E731
+        self.assertIsNone(loop(hdrs(Referer="http://localhost:7077/")), "...and it is proof on the loopback listener")
+        self.assertEqual(ref(hdrs(Referer="http://evil.example/")), "unproven-origin")
+        self.assertIsNone(ref(hdrs(Sec_Fetch_Site="same-origin")))
+        self.assertIsNone(ref(hdrs(Sec_Fetch_Site="none")))
+        self.assertEqual(ref(hdrs(Sec_Fetch_Site="cross-site", X_FP_Token="x")), "fetch-site")
+        self.assertIsNone(ref(hdrs(), path="/api/state"), "a read route needs no proof")
+        self.assertIsNone(ref(hdrs(), method="POST", path="/api/md"), "an Origin-less POST is a non-browser client: rule (5) leaves it to the token gate")
+        self.assertEqual(ref(hdrs(Origin="null"), method="POST", path="/api/md"), "origin")
+        self.assertEqual(ref(hdrs(Origin="http://localhost:7077"), method="POST", path="/api/md"), "origin", "round nine (1): a loopback Origin is foreign on the tailnet listener")
+        self.assertIsNone(ref(hdrs(Origin="http://desktop-bndit:7077"), method="POST", path="/api/md"))
+        self.assertIsNone(loop(hdrs(Origin="http://localhost:7077"), method="POST", path="/api/md"), "...and ours on the loopback listener")
+        two = hdrs(Origin="http://desktop-bndit:7077")
+        two["Origin"] = "http://desktop-bndit:7077"      # a second header line, the same value
+        self.assertEqual(ref(two, method="POST", path="/api/md"), "origin", "round nine (2): two Origin headers are refused, even when they agree")
+        self.assertEqual(ref(two, method="GET", path="/api/state"), "origin")
+
+
+class TestGetRouteCensus(unittest.TestCase):
+    """A: every route the server answers is classified - so a GET added later cannot be a side effect nobody looked at - and the read-only ones
+    are shown, by source and on the wire, to change nothing."""
+
+    def test_every_get_route_is_classified(self):
+        do_get = py_function_body(BENCH_PY, "do_GET")
+        routes = set(re.findall(r'url\.path == "(/[^"]*)"', do_get))
+        prefixes = set(re.findall(r'url\.path\.startswith\("(/[^"]*)"\)', do_get))
+        self.assertEqual(routes, set(bench.READ_ONLY_GETS) | set(bench.SIDE_EFFECT_GETS),
+                         "a GET route was added or removed without classifying it as read-only or as a side effect")
+        self.assertEqual(prefixes, set(bench.READ_ONLY_GET_PREFIXES))
+        self.assertFalse(set(bench.READ_ONLY_GETS) & set(bench.SIDE_EFFECT_GETS))
+        self.assertEqual(bench.SIDE_EFFECT_GETS, ("/api/evidence",))
+        # /api/md is a read as a GET and a write as a POST (two methods, two rules); the side-effect GET is in no POST census
+        self.assertEqual(set(bench.MUTATING_POSTS) & set(bench.READ_ONLY_GETS), {"/api/md"})
+        self.assertFalse(set(bench.MUTATING_POSTS) & set(bench.SIDE_EFFECT_GETS))
+
+    @staticmethod
+    def writes_something(src):
+        return [t for t in (".write_text(", ".write_bytes(", "subprocess", "os.remove", "unlink(", "shutil.", "_write_body", "manifest_path", "open(", "_undo",
+                            "mkdir(", "os.replace", "rename(") if t in src]
+
+    def test_the_read_only_get_branches_hold_no_write_or_spawn(self):
+        do_get = py_function_body(BENCH_PY, "do_GET")
+        evidence = do_get[do_get.index('url.path == "/api/evidence"'):do_get.index('url.path == "/api/toc"')]
+        rest = do_get.replace(evidence, "")
+        self.assertEqual(self.writes_something(rest), [], "a read-only GET branch holds a write or a spawn")
+        self.assertEqual(self.writes_something(evidence), [], "the evidence branch hands its work to Bench.ok15_evidence and writes nothing itself")
+        # negative control: the check sees a write when there is one
+        self.assertEqual(self.writes_something('self.md_path.write_text("x")'), [".write_text("])
+        self.assertEqual(self.writes_something("subprocess.run([])"), ["subprocess"])
+
+
+class TestReadOnlyGetsChangeNothing(unittest.TestCase):
+    """A, observed: over a real tiny PDF every read-only GET route is asked (no Origin, no Referer, and again with a foreign Referer - what a blind
+    foreign page can send) and the bundle's bytes, the source PDF and the in-memory undo stack are identical afterwards."""
+
+    def setUp(self):
+        try:
+            import fitz
+        except ImportError:
+            self.skipTest("pymupdf (fitz) is not importable here - UNREAD, not a pass")
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-readonly-"))
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        (self.tmp / "book.md").write_text("---\ntitle: t\n---\nalpha beta gamma\n\ndelta epsilon", encoding="utf-8")
+        (self.tmp / "manifest.json").write_text(json.dumps({"pages": 3, "source": "book.pdf"}), encoding="utf-8")
+        doc = fitz.open()
+        for i in range(3):
+            doc.new_page().insert_text((72, 72), "alpha beta gamma page %d" % (i + 1))
+        doc.save(str(self.tmp / "book.pdf"))
+        doc.close()
+        self.bench = bench.Bench(self.tmp, pdf=self.tmp / "book.pdf")
+        self.httpd = ThreadingHTTPServer(("127.0.0.1", 0), bench.make_handler(self.bench, token="t0k"))
+        self.port = self.httpd.server_address[1]
+        threading.Thread(target=self.httpd.serve_forever, daemon=True).start()
+        self.addCleanup(lambda: (self.httpd.shutdown(), self.httpd.server_close(), self.bench._doc is not None and self.bench._doc.close()))
+
+    def snapshot(self):
+        return {str(p.relative_to(self.tmp)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(self.tmp.rglob("*")) if p.is_file()}
+
+    def test_no_read_only_get_writes_spawns_or_changes_an_answer(self):
+        served = {"/": 200, "/api/state": 200, "/api/md": 200, "/api/page?n=1&dpi=40": 200, "/api/asset?name=_repair_p1_1.png": 404, "/api/ledger": 200,
+                  "/api/rescore": 200, "/api/toc": 200, "/api/find?q=alpha": 200, "/api/rects?n=1&q=alpha": 200, "/api/locate?i=0": 500,
+                  "/api/trimbox?n=1": 200, "/api/textlayer?n=1": 200, "/api/table?n=1&rect=0,0,1,1": 200, "/api/library": 200, "/fp-tokens.css": 404,
+                  "/vendor/markdown-it.min.js": 200}
+        self.assertEqual(set(p.split("?")[0] for p in served) - {"/vendor/markdown-it.min.js"}, set(bench.READ_ONLY_GETS), "the table covers every classified route")
+        before, pdf_before = self.snapshot(), (self.tmp / "book.pdf").read_bytes()
+        empty = {n: self.tmp / ("lib-" + n) for n in ("HELD", "DONE", "PENDING", "ANCHOR")}
+        for d in empty.values():
+            d.mkdir()
+        fake = types.SimpleNamespace(degeneration=lambda _body: {"flagged": False, "worst": [], "blocks_total": 0, "worst_capped_at": 10})
+        with mock.patch.dict(sys.modules, {"fidelity_audit": fake}), mock.patch.multiple(bench, **empty), \
+                mock.patch.object(bench.Bench, "ok15_evidence", side_effect=AssertionError("a read-only GET reached the evidence collector")):
+            for headers in ({}, {"Referer": "http://evil.example/"}):
+                for path, want in served.items():
+                    code, _, _, parsed = _ask(self.port, "GET", path, headers)
+                    self.assertEqual(code, want, (path, headers, parsed))
+        self.assertEqual(self.snapshot(), before, "a read-only GET changed a file in the bundle")
+        self.assertEqual((self.tmp / "book.pdf").read_bytes(), pdf_before)
+        self.assertEqual(self.bench._undo, [])
+
+
+# ---- the negative controls of rule (5): the same probe, run on bench.py's source with exactly ONE guard removed or weakened -------
+def _request_probe(mod):
+    """What rule (5) must do, run on `mod` (the real bench module or a mutant of its source) over fake connections from a tailnet peer (no socket):
+    the list of things that did not hold ([] = it holds). Positive controls first - every real client's shape is served - then one violation per
+    rule. Bench.ok15_evidence is a recorder, so an evidence request that got through is seen and spawns nothing."""
+    bad, calls = [], []
+    tmp = Path(tempfile.mkdtemp(prefix="fp-test-reqprobe-"))
+    try:
+        (tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        handler = mod.make_handler(mod.Bench(tmp), token="t0k", hosts=())
+        server = types.SimpleNamespace(server_address=("100.108.102.101", 7077))
+        ours = "http://100.108.102.101:7077"
+        text = json.dumps({"text": "---\ntitle: t\n---\nPROBE"}).encode("utf-8")
+        evil = json.dumps({"text": "---\ntitle: t\n---\nEVIL"}).encode("utf-8")   # what every refused write below carries: it must never land
+
+        def run(method, path, headers=None, payload=b"", extra=b"", bound=None, host=None):
+            raw = _raw(method, path, host=host or "%s:7077" % (bound or "100.108.102.101"), headers=headers, body=payload)
+            if extra:
+                raw = raw.replace(b"\r\n\r\n", b"\r\n" + extra + b"\r\n\r\n", 1)
+            conn = _FakeConn(raw)
+            with contextlib.redirect_stdout(io.StringIO()):
+                handler(conn, ("100.97.237.60", 5555), server if bound is None else types.SimpleNamespace(server_address=(bound, 7077)))
+            return _wire_answer(conn)[:2]
+
+        def spy(self, retry=False):
+            calls.append(retry)
+            return {"spy": 1}
+
+        def sf(site, mode="cors", dest="empty"):
+            return {"Sec-Fetch-Site": site, "Sec-Fetch-Mode": mode, "Sec-Fetch-Dest": dest}
+        with mock.patch.object(mod.Bench, "ok15_evidence", spy):
+            # positive controls
+            if run("GET", "/api/state")[0] != 200:
+                bad.append("positive control: a plain GET is not served")
+            for dest in ("iframe", "document"):
+                if run("GET", "/?token=t0k&theme=dark", sf("cross-site", "navigate", dest))[0] != 200:
+                    bad.append("positive control: a cross-site navigation into a %s is not served" % dest)
+            if run("POST", "/api/md", {"Origin": ours, "X-FP-Token": "t0k"}, text)[0] != 200:
+                bad.append("positive control: the page's own POST is not served")
+            if run("POST", "/api/md", {"X-FP-Token": "t0k"}, text)[0] != 200:
+                bad.append("positive control: an Origin-less POST with the token is not served")
+            if run("GET", "/api/evidence", {"X-FP-Token": "t0k"}) != (200, {"spy": 1}) or calls != [False]:
+                bad.append("positive control: the page's own evidence GET is not served")
+            calls.clear()
+            # round nine (1): the loopback listener keeps its loopback names (and a loopback stand-in its own address); the tailnet listener has none
+            for what, bound, origin in (("the loopback listener's localhost", "127.0.0.1", "http://localhost:7077"), ("the loopback listener's 127.0.0.1", "127.0.0.1", "http://127.0.0.1:7077"),
+                                        ("the ::1 listener's [::1]", "::1", "http://[::1]:7077"), ("a stand-in's own address", "127.0.0.2", "http://127.0.0.2:7077")):
+                if run("POST", "/api/md", {"Origin": origin, "X-FP-Token": "t0k"}, text, bound=bound, host=("[%s]:7077" % bound) if ":" in bound else None)[0] != 200:
+                    bad.append("positive control: %s Origin is refused on its own listener" % what)
+
+            def expect(label, got, want_status, want_reason):
+                code, parsed = got
+                if (code, (parsed or {}).get("reason")) != (want_status, want_reason):
+                    bad.append("%s: answered %s %s, wanted %s %s" % (label, code, (parsed or {}).get("reason"), want_status, want_reason))
+            # one violation per rule
+            for what, origin in (("a foreign Origin", "http://evil.example"), ("Origin null", "null"), ("a sibling port's Origin", ours[:-1] + "8"),
+                                 ("an https Origin", "https://100.108.102.101:7077")):
+                expect("Origin rule: %s with the right token" % what, run("POST", "/api/md", {"Origin": origin, "X-FP-Token": "t0k"}, evil), 403, "origin")
+            expect("Origin rule: a second, foreign Origin header", run("POST", "/api/md", {"Origin": ours, "X-FP-Token": "t0k"}, evil,
+                                                                      extra=b"Origin: http://evil.example"), 403, "origin")
+            expect("Origin rule: a GET with a foreign Origin", run("GET", "/api/state", {"Origin": "http://evil.example"}), 403, "origin")
+            expect("Origin rule: a second Origin header on a GET (both ours)", run("GET", "/api/state", {"Origin": ours}, extra=b"Origin: " + ours.encode()), 403, "origin")
+            # round nine (1): a loopback name is not ours on the tailnet listener
+            for what, origin in (("127.0.0.1", "http://127.0.0.1:7077"), ("localhost", "http://localhost:7077"), ("[::1]", "http://[::1]:7077"),
+                                 ("[::ffff:127.0.0.1]", "http://[::ffff:127.0.0.1]:7077")):
+                expect("Origin rule: a loopback Origin (%s) on the tailnet listener" % what, run("POST", "/api/md", {"Origin": origin, "X-FP-Token": "t0k"}, evil), 403, "origin")
+            expect("proof rule: the evidence GET with a loopback Referer on the tailnet listener", run("GET", "/api/evidence", {"Referer": "http://localhost:7077/"}), 403, "unproven-origin")
+            # round nine (2): one Host header at most
+            expect("Host rule: a second Host header on a GET (both ours)", run("GET", "/api/state", extra=b"Host: 100.108.102.101:7077"), 421, None)
+            expect("Host rule: a second, foreign Host header on a POST with the right token", run("POST", "/api/md", {"Origin": ours, "X-FP-Token": "t0k"}, evil,
+                                                                                               extra=b"Host: evil.example"), 421, None)
+            expect("Host rule: a foreign Host first, ours second", run("GET", "/api/state", extra=b"Host: 100.108.102.101:7077", host="evil.example"), 421, None)
+            for what, headers, path in (("no header", {}, "/api/evidence"), ("a foreign Referer", {"Referer": "http://evil.example/"}, "/api/evidence"),
+                                        ("a ';params' spelling", {}, "/api/evidence;x=1")):
+                expect("proof rule: the evidence GET with %s" % what, run("GET", path, headers), 403, "unproven-origin")
+            expect("Sec-Fetch-Site rule: a cross-site fetch", run("GET", "/api/state", sf("cross-site")), 403, "fetch-site")
+            expect("Sec-Fetch-Site rule: a cross-site POST", run("POST", "/api/md", {"X-FP-Token": "t0k", **sf("cross-site")}, evil), 403, "fetch-site")
+            for what, path, headers in (("a navigation onto a data route", "/api/state", sf("cross-site", "navigate", "document")),
+                                        ("a non-navigation into a frame", "/", sf("cross-site", "no-cors", "iframe")),
+                                        ("a navigation into an embed", "/", sf("cross-site", "navigate", "embed")),
+                                        ("a value no browser sends", "/api/state", sf("sideways"))):
+                expect("Sec-Fetch-Site rule: %s" % what, run("GET", path, headers), 403, "fetch-site")
+            if calls:
+                bad.append("a refused request reached ok15_evidence")
+            if b"EVIL" in (tmp / "book.md").read_bytes():
+                bad.append("a refused write landed in the book")
+    finally:
+        shutil.rmtree(tmp, ignore_errors=True)
+    return bad
+
+
+class TestRequestCheckMutants(unittest.TestCase):
+    """docs/32 rule 2: a check that cannot fail is a tautology. The probe above holds on the real source; on bench.py's source with exactly ONE
+    guard of rule (5) removed or weakened, each mutant must make it report a failure (a mutant is built in memory; the file is never touched)."""
+
+    MUTANTS = (
+        ("a present Origin is never looked at", '    if len(origins) > 1 or (origins and not origin_ok(origins[0], bound, names, port)):', "    if False:"),
+        ("a second Origin header is ignored", '    if len(origins) > 1 or (origins and not origin_ok(origins[0], bound, names, port)):',
+         "    if origins and not origin_ok(origins[0], bound, names, port):"),
+        ("Origin null is ours", '    return bool(sep) and scheme == "http" and _own_authority(rest, bound, names, port)',
+         '    return str(value).strip().lower() == "null" or (bool(sep) and scheme == "http" and _own_authority(rest, bound, names, port))'),
+        ("an Origin's port is not compared", "    return got is not None and host_ok(got[0], bound, names) and (port is None or got[1] == port)",
+         "    return got is not None and host_ok(got[0], bound, names)"),
+        ("an https Origin is ours", '    return bool(sep) and scheme == "http" and _own_authority(rest, bound, names, port)',
+         '    return bool(sep) and scheme in ("http", "https") and _own_authority(rest, bound, names, port)'),
+        ("the Sec-Fetch-Site rule never fires", "    if site and site not in FETCH_SITE_PASS:", "    if False:"),
+        ("a value no browser sends is let through", "    if site and site not in FETCH_SITE_PASS:", '    if site == "cross-site":'),
+        ("a cross-site navigation may land on any route", 'method in ("GET", "HEAD") and path == "/"', 'method in ("GET", "HEAD")'),
+        ("a cross-site navigation into a frame is refused", 'FETCH_NAV_DEST = ("document", "iframe")', 'FETCH_NAV_DEST = ("document",)'),
+        ("a cross-site navigation may go into any dest", 'FETCH_NAV_DEST = ("document", "iframe")', 'FETCH_NAV_DEST = ("document", "iframe", "embed", "image")'),
+        ("a cross-site non-navigation may go into a frame", 'FETCH_NAV_MODES = ("navigate", "nested-navigate")',
+         'FETCH_NAV_MODES = ("navigate", "nested-navigate", "no-cors", "cors")'),
+        ("no GET is a side-effect route", 'SIDE_EFFECT_GETS = ("/api/evidence",)', "SIDE_EFFECT_GETS = ()"),
+        ("any Referer is proof", "    if ref and referer_ok(ref, bound, names, port):", "    if ref:"),
+        ("everything is proof", '    return headers.get("X-FP-Local") is not None or headers.get("X-FP-Token") is not None', "    return True"),
+        ("the route is classified by a parser the dispatch does not use", "path = urllib.parse.urlparse(self.path).path   # the parser",
+         "path = urllib.parse.urlsplit(self.path).path   # the parser"),
+        ("a GET is never asked", 'why = self._page_refusal("GET")', "why = None"),
+        ("a POST is never asked", 'why = self._page_refusal("POST")', "why = None"),
+        # S215 round nine: each new rule, removed or weakened in turn
+        ("a loopback name is ours on the tailnet listener", '    if got is not None and bound not in ("127.0.0.1", "::1") and got[0] != bound and _loopback_name(got[0]):',
+         "    if False:"),
+        ("the loopback rule fires on the loopback listener too", '    if got is not None and bound not in ("127.0.0.1", "::1") and got[0] != bound and _loopback_name(got[0]):',
+         "    if got is not None and got[0] != bound and _loopback_name(got[0]):"),
+        ("the loopback rule refuses the listener's own address too", '    if got is not None and bound not in ("127.0.0.1", "::1") and got[0] != bound and _loopback_name(got[0]):',
+         '    if got is not None and bound not in ("127.0.0.1", "::1") and _loopback_name(got[0]):'),
+        ("a second Host header is ignored", "    return len(hosts) <= 1 and host_ok(hosts[0] if hosts else None, bound, names)",
+         "    return host_ok(hosts[0] if hosts else None, bound, names)"),
+    )
+
+    def test_the_real_source_and_its_unchanged_copy_hold(self):
+        self.assertEqual(_request_probe(bench), [])
+        same = "    if site and site not in FETCH_SITE_PASS:"
+        self.assertEqual(_request_probe(_bench_mutant(same, same)), [], "the source loaded as a mutant, unchanged, must hold too")
+
+    def test_each_weakened_guard_is_caught(self):
+        for name, old, new in self.MUTANTS:
+            with self.subTest(mutant=name):
+                failures = _request_probe(_bench_mutant(old, new))
+                self.assertTrue(failures, "%s: the probe still reports nothing, so it cannot tell" % name)
 
 
 if __name__ == "__main__":

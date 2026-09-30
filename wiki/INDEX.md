@@ -29,7 +29,7 @@ its page answers. Pages carry citations to ground truth; the registers stay the 
 ## Product
 
 - [Control Room (Widget)](control-room.md) — what the desktop app is: surfaces, boot order, the IPC contract, process supervision · Observed 2026-08-23
-- [Repair Bench](repair-bench.md) — where failed conversions go for human repair, its seams, capped-evidence guard, and open defects · Verified 2026-08-31
+- [Repair Bench](repair-bench.md) — where failed conversions go for human repair, its seams, who can reach it and what it refuses (including over plain http), capped-evidence guard, and open defects · Verified 2026-09-30
 - [A11y Conventions](a11y-conventions.md) — the framework-free accessibility conventions both human surfaces build against, and the two measured contrast failures to fix first · Observed 2026-08-23
 
 ## Operations
@@ -40,7 +40,7 @@ its page answers. Pages carry citations to ground truth; the registers stay the 
 
 - [Governance & Records](governance.md) — how the project governs itself: the ledger, the registers, the skills, and the map of all docs (48 at 2026-08-25; re-derive, do not trust) · Observed 2026-08-25
 - [Testing & CI](testing-and-ci.md) — what verifies what, where verification cannot reach, and what is safe to delegate to agents · Observed 2026-08-23
-- [Security Posture](security.md) — the honest posture of a public repo: what is sound, what gaps remain, at what real severity · Observed 2026-08-23
+- [Security Posture](security.md) — the honest posture of a public repo: what is sound, what gaps remain, at what real severity, and (§7) how each web server refuses anyone outside the tailnet, and which rule holds over plain http (Origin and GET rules, not Sec-Fetch-Site) · Observed 2026-09-30
 
 ## Roadmap & Profiles
 
