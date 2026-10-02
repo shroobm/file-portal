@@ -25,6 +25,7 @@ from __future__ import annotations
 
 import argparse
 import base64
+import errno
 import io
 import ipaddress
 import json
@@ -34,6 +35,7 @@ import hmac
 import os
 import re
 import shutil
+import socket
 import subprocess
 import sys
 import threading
@@ -42,7 +44,7 @@ import urllib.parse
 import uuid
 from collections import OrderedDict
 from datetime import datetime, timezone
-from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as _StdThreadingHTTPServer
 from pathlib import Path
 
 BENCH_DIR = Path(__file__).resolve().parent
@@ -2816,6 +2818,25 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
     return Handler
 
 
+class ThreadingHTTPServer(_StdThreadingHTTPServer):
+    """The stdlib server with, on Windows only, an exclusive port: a second copy of this bench (or a stale one with old code) cannot
+    bind a port that is already listening. The name stays ThreadingHTTPServer so serve_on and its tests reach it as before."""
+    if os.name == "nt":
+        allow_reuse_address = False   # SYM-192: on Windows SO_REUSEADDR lets a second process bind a listening port (co-binding)
+
+    def server_bind(self):
+        # SYM-192: Windows-only exclusive bind; a refused bind raises OSError (WinError 10048/10013) and is never swallowed here
+        if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
+            self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
+        super().server_bind()
+
+
+def _port_in_use(exc):
+    """True when this OSError is the OS refusing a bind because the port is taken: EADDRINUSE, or on Windows WinError 10048
+    (WSAEADDRINUSE) / 10013 (WSAEACCES, the answer to a copy that asks for SO_REUSEADDR against an exclusive port)."""
+    return exc.errno == errno.EADDRINUSE or getattr(exc, "winerror", None) in (10048, 10013)
+
+
 def serve_on(binds, port, handler):
     """One ThreadingHTTPServer per address, the same handler; every one but the first runs in a daemon thread (S215 E31)."""
     for b in binds:   # the listener lock: every address is checked before ANY server is built, so a wide one leaves no socket behind
@@ -2827,7 +2848,8 @@ def serve_on(binds, port, handler):
         try:
             servers.append(ThreadingHTTPServer((b, port), handler))
         except OSError as e:   # round four: an address not on this machine (Tailscale down) never takes the bench down
-            print(f"  ! {b}:{port} not bound ({e}) - the loopback bench runs", flush=True)
+            why = f"port {port} is already in use on {b} (a second copy of the bench?): " if _port_in_use(e) else ""   # SYM-192
+            print(f"  ! {b}:{port} not bound ({why}{e}) - the loopback bench runs", flush=True)
     for s in servers:
         s.peers = servers   # round five: the picker's swap reaches every listener (the phone and the desk saw different books)
     for s in servers[1:]:

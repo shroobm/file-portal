@@ -50,7 +50,7 @@ import time
 import types
 import unittest
 from unittest import mock
-from http.server import ThreadingHTTPServer
+from http.server import HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
@@ -3670,6 +3670,166 @@ class TestRequestCheckMutants(unittest.TestCase):
             with self.subTest(mutant=name):
                 failures = _request_probe(_bench_mutant(old, new))
                 self.assertTrue(failures, "%s: the probe still reports nothing, so it cannot tell" % name)
+
+
+class _StaleCopy(HTTPServer):
+    """a server as the bench built it BEFORE SYM-192: the stdlib's default, SO_REUSEADDR asked for (spelled out, so the test does not
+    lean on a stdlib default); also the negative control's first server"""
+    allow_reuse_address = True
+
+
+class TestExclusivePortFollowsThePlatform(unittest.TestCase):
+    """SYM-192, the part that runs everywhere: the bench's listener is the stdlib's class, exclusive on Windows only (non-Windows keeps the
+    stdlib's SO_REUSEADDR, so a restart rebinds at once there)"""
+
+    def test_the_listener_class_keeps_the_stdlib_default_off_windows(self):
+        self.assertTrue(issubclass(bench.ThreadingHTTPServer, ThreadingHTTPServer))
+        self.assertEqual(bool(bench.ThreadingHTTPServer.allow_reuse_address), os.name != "nt", "os.name is %r" % (os.name,))
+        self.assertEqual(bool(ThreadingHTTPServer.allow_reuse_address), True, "control: the stdlib's own default is reuse-on")
+
+
+@unittest.skipUnless(os.name == "nt", "SYM-192 is a Windows behaviour (on Windows SO_REUSEADDR lets a second process bind a listening port); "
+                                      "on POSIX it does not, the bench keeps the stdlib's behaviour there, and the public CI is Linux")
+class TestExclusivePort(unittest.TestCase):
+    """SYM-192 (Rab chose "measure, then harden", 2026-10-02): on Windows every listener the bench builds owns its port exclusively, so a
+    stale copy of the bench (old code, without the tailnet locks) cannot answer part of the traffic beside the new one. Loopback only,
+    OS-assigned ports; every server opened here is closed. Control: the stdlib's class, SO_REUSEADDR asked for, DOES co-bind here."""
+
+    def setUp(self):
+        self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-exclusive-"))
+        (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
+        self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
+        self.handler = bench.make_handler(bench.Bench(self.tmp), token=None)
+
+    def held(self, cls, addr="127.0.0.1", port=0):
+        srv = cls((addr, port), self.handler)
+        self.addCleanup(srv.server_close)
+        return srv
+
+    def refused(self, cls, port, addr="127.0.0.1"):
+        """the OSError a bind of `cls` on addr:port raises; fails (and closes what bound) if it bound"""
+        try:
+            srv = cls((addr, port), self.handler)
+        except OSError as e:
+            return e
+        srv.server_close()
+        self.fail("%s bound %s:%d beside the listener that holds it (co-binding)" % (cls.__name__, addr, port))
+
+    def test_a_second_copy_of_the_same_class_is_refused(self):
+        first = self.held(bench.ThreadingHTTPServer)
+        port = first.server_address[1]
+        e = self.refused(bench.ThreadingHTTPServer, port)
+        self.assertTrue(bench._port_in_use(e), "refused, but not as 'in use': %r (winerror %r)" % (e, getattr(e, "winerror", None)))
+
+    def test_a_stale_copy_neither_binds_beside_the_new_one_nor_holds_the_port_against_it(self):
+        # the field case: the new bench starts while an old one (SO_REUSEADDR, no lock) is up - refused; and the old one cannot start beside a new one
+        new = self.held(bench.ThreadingHTTPServer)
+        self.assertTrue(bench._port_in_use(self.refused(_StaleCopy, new.server_address[1])), "a stale copy bound beside the new bench")
+        stale = self.held(_StaleCopy)
+        e = self.refused(bench.ThreadingHTTPServer, stale.server_address[1])
+        self.assertTrue(bench._port_in_use(e), "the new bench bound beside a stale copy: %r" % (e,))
+
+    def test_negative_control_the_default_class_co_binds_on_this_machine(self):
+        # if THIS passed because nothing could ever co-bind, the refusals above would prove nothing: here the plain class binds twice
+        first = self.held(_StaleCopy)
+        second = None
+        try:
+            second = _StaleCopy(("127.0.0.1", first.server_address[1]), self.handler)
+        except OSError as e:
+            self.fail("the control cannot see co-binding on this machine: %r (winerror %r)" % (e, getattr(e, "winerror", None)))
+        finally:
+            if second is not None:
+                second.server_close()
+
+    @staticmethod
+    def _bench_without_the_lock():
+        """bench.py's source with BOTH of the lock's statements switched off (the class attribute back to reuse-on, the exclusive option never
+        set), exec'd as a module of its own; each anchor must be found exactly once. The real module is not touched."""
+        src = Path(bench.__file__).read_text(encoding="utf-8")
+        for old, new in (("allow_reuse_address = False   # SYM-192", "allow_reuse_address = True    # SYM-192"),
+                         ('if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):', "if False:")):
+            if src.count(old) != 1:
+                raise AssertionError("mutation anchor %r found %d times in bench.py" % (old, src.count(old)))
+            src = src.replace(old, new)
+        mod = types.ModuleType("bench_mutant_sym192")
+        mod.__file__ = bench.__file__
+        exec(compile(src, bench.__file__, "exec", dont_inherit=True), mod.__dict__)
+        return mod
+
+    def test_negative_control_the_source_without_the_lock_co_binds(self):
+        # the refusals above must be the lock's work and not the machine's: the same source with the lock switched off binds twice
+        mod = self._bench_without_the_lock()
+        self.assertIs(mod.ThreadingHTTPServer.allow_reuse_address, True)
+        first = self.held(mod.ThreadingHTTPServer)
+        second = None
+        try:
+            second = mod.ThreadingHTTPServer(("127.0.0.1", first.server_address[1]), self.handler)
+        except OSError as e:
+            self.fail("the lock-less source was refused too, so the tests above cannot tell the lock from the machine: %r" % (e,))
+        finally:
+            if second is not None:
+                second.server_close()
+
+    def test_a_restart_rebinds_the_same_port_within_two_seconds(self):
+        first = bench.ThreadingHTTPServer(("127.0.0.1", 0), self.handler)
+        port = first.server_address[1]
+        threading.Thread(target=first.serve_forever, daemon=True).start()
+        try:
+            for i in range(5):
+                conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
+                try:
+                    conn.request("GET", "/api/state")
+                    r = conn.getresponse()
+                    r.read()
+                    self.assertEqual(r.status, 200, "request %d" % i)
+                finally:
+                    conn.close()
+        finally:
+            first.shutdown()
+            first.server_close()
+        t0, attempts, again, last = time.monotonic(), 0, None, None
+        while again is None and time.monotonic() - t0 < 2.0:
+            attempts += 1
+            try:
+                again = bench.ThreadingHTTPServer(("127.0.0.1", port), self.handler)
+            except OSError as e:
+                last = e
+                time.sleep(0.05)
+        if again is not None:
+            again.server_close()
+        self.assertIsNotNone(again, "port %d did not rebind within 2 s (%d attempts): %r" % (port, attempts, last))
+
+    def test_the_first_listener_refused_stops_serve_on_loudly(self):
+        held = self.held(bench.ThreadingHTTPServer)
+        with self.assertRaises(OSError) as cm:
+            bench.serve_on(["127.0.0.1"], held.server_address[1], self.handler)
+        self.assertTrue(bench._port_in_use(cm.exception), repr(cm.exception))
+
+    def test_a_later_listener_refused_says_the_port_is_in_use_and_the_loopback_bench_runs(self):
+        try:
+            held = self.held(bench.ThreadingHTTPServer, "127.0.0.2")
+        except OSError as e:
+            self.skipTest("this machine cannot bind 127.0.0.2: %r" % (e,))
+        port = held.server_address[1]
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            servers = bench.serve_on(["127.0.0.1", "127.0.0.2"], port, self.handler)
+        try:
+            self.assertEqual([s.server_address for s in servers], [("127.0.0.1", port)], "the loopback bench alone runs")
+        finally:
+            for s in servers:
+                s.server_close()
+        said = out.getvalue()
+        self.assertIn("127.0.0.2:%d not bound" % port, said)
+        self.assertIn("already in use", said)
+
+    def test_the_command_line_start_exits_non_zero_when_the_port_is_held(self):
+        held = self.held(bench.ThreadingHTTPServer)
+        env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
+        r = subprocess.run([sys.executable, str(HERE / "bench.py"), str(self.tmp), "--port", str(held.server_address[1])],
+                           capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, env=env)
+        self.assertNotEqual(r.returncode, 0, "the second copy started beside the first: %s" % r.stdout[-300:])
+        self.assertIn("OSError", r.stderr)
 
 
 if __name__ == "__main__":
