@@ -54,13 +54,14 @@ METHOD = {
         "the probe ran and is internally consistent, but it measured the neighbour of what was asked — the raw file "
         "not the indexed body, the budget meter not the context, the post-override API field not the log",
         "a second measurement of a different shape on the SAME object — do the two agree?",
-        ["PROBE-SHAPE", "METER-CONFUSION"],
+        ["PROBE-SHAPE", "METER-CONFUSION", "WRONG-OBJECT-MEASURED"],   # S219 E4: IB-016 filed the family's name as its class
     ),
     "M3 NUMBER-WITHOUT-ITS-QUESTION": (
         "a count is quoted without its population, or one number secretly sums two predicates over one population; "
-        "wrong by question, not by amount — the tell is that it stays plausible when inverted",
+        "wrong by question, not by amount — the tell is that it stays plausible when inverted; DENOMINATOR-SHAPE (IB-020) "
+        "is the population drawn in the wrong shape (a path regex that admitted one directory level counted none of the deeper scripts)",
         "name the population and the single predicate; recompute; does the number move?",
-        ["DENOMINATOR", "PREDICATE-COLLAPSE"],
+        ["DENOMINATOR", "PREDICATE-COLLAPSE", "DENOMINATOR-SHAPE"],
     ),
     "M4 PREMISE-AGED-BETWEEN-READ-AND-USE": (
         "a value was read or validated once (a GROUND number, a beat, a loaded record, an environment pin) and "
@@ -78,7 +79,7 @@ METHOD = {
         "the lock, validator or record covers most of the surface — types, digests, one file's id floor, the lane "
         "address — and misses the one occupant, consumer, reference surface or predicate that defines correctness",
         "enumerate every surface the claim touches; plant one violation outside the tested scope — does the guard fire?",
-        ["LOCK-SCOPE", "DEAD-SURFACE", "PROVENANCE-DROP", "NAMESPACE-SCOPE"],
+        ["LOCK-SCOPE", "DEAD-SURFACE", "PROVENANCE-DROP", "NAMESPACE-SCOPE", "GUARD-COARSER-THAN-THE-DEFECT"],   # the last: IB-017 filed S16's name as its class (S219 E4) - a DEBT count that could not see rows added as 'open — recorded'
     ),
     "M7 THE-LAYER-BELOW-ATE-THE-COMMAND": (
         "the shell, quoting, a persisted cwd, a short-circuit operator, a stale test double or a repo-identity refusal "
@@ -450,6 +451,12 @@ def selftest() -> int:
         io.open(eb, "w", encoding="utf-8", newline="").write("| ID | Class | Surface | a | b | c | d |\n|---|---|---|---|---|---|---|\n"
                                                              "| IB-2026-01-01-001 | PROBE-SHAPE | x | y | z | w | r |\n")
         check("--bin: a register in ERROR-BIN's row shape is censused (exit 0)", main(["--bin", str(eb)]) == 0)
+        # S219 E4: IB-2026-09-17-020's class sat unknown from 2026-09-17 to 2026-10-03; this row fails without the map entry
+        io.open(eb, "w", encoding="utf-8", newline="").write("| ID | Class | Surface | a | b | c | d |\n|---|---|---|---|---|---|---|\n"
+                                                             "| IB-2026-09-17-020 | DENOMINATOR-SHAPE | x | y | z | w | r |\n"
+                                                             "| IB-2026-09-13-016 | WRONG-OBJECT-MEASURED | x | y | z | w | r |\n"
+                                                             "| IB-2026-09-13-017 | GUARD-COARSER-THAN-THE-DEFECT | x | y | z | w | r |\n")
+        check("--bin: DENOMINATOR-SHAPE (IB-020) and the two family-name classes IB-016/IB-017 filed are placed (exit 0)", main(["--bin", str(eb)]) == 0)
     check("--bin: a missing path is CONFIG (exit 2)", main(["--bin", str(Path(td) / "nope.md")]) == 2)
     print(f"════ error_families selftest: {passed}/{total} ════")
     return 0 if passed == total else 1
