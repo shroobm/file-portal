@@ -173,5 +173,53 @@ else:
     # a failed probe never renders as a negative observation (the muster's rule 4): the control could not fire here, said
     check(True, "SYM-125 (d) NEGATIVE CONTROL UNREAD on this interpreter — the bare call wrote %s (the locale is not cp1252 here); not a statement that the class is gone" % _s125_bare[:24])
 
+# ---------- S218 E6 (F5, SYM-174): convert_one reads the child's exit 98 as DONE-but-not-shipped ----------
+# The first convert_one cases this suite has: subprocess.Popen stubbed (no child runs), chat_hold off, the lock under the
+# quarantine. Exit 98 → the source under DONE_DIR, no intake/failed, no stderr file; exit 1 (the control) → FAILED_DIR,
+# intake/failed, the stderr file kept; exit 0 → DONE_DIR. And the two constants (the watcher's and the child's) pinned equal.
+import shutil as _e6_shutil  # noqa: E402
+import watch_and_convert as _wac  # noqa: E402
+import convert_and_ship as _cas  # noqa: E402
+check(_wac.SHIP_FAILED_EXIT == _cas.SHIP_FAILED_EXIT == 98, "E6 (0) the watcher's SHIP_FAILED_EXIT equals convert_and_ship's (98) — one number, two files")
+
+
+class _E6Child:
+    def __init__(self, code):
+        self.returncode, self.pid = code, 4242
+
+    def communicate(self, timeout=None):
+        return ("ANCHORED x\nSHIP-FAILED B: ship failed: tar=1 ssh=255" if self.returncode == 98 else "DONE", "Traceback: Marker died" if self.returncode == 1 else "")
+
+
+def _e6_run(code):
+    drop = QUARANTINE / "e6drop"; drop.mkdir(exist_ok=True)
+    pdf = drop / ("book-%s.pdf" % code); pdf.write_bytes(b"%PDF-1.4 fixture")
+    for d in (_wac.DONE_DIR, _wac.FAILED_DIR):
+        d.mkdir(parents=True, exist_ok=True)
+    emits = []
+    saved = (_wac.subprocess.Popen, _wac.chat_hold, _wac.analyst_mode, _wac.emit, _wac.LOCK_FILE)
+    _wac.subprocess.Popen = lambda *a, **k: _E6Child(code)
+    _wac.chat_hold = lambda: None
+    _wac.analyst_mode = lambda: "off"
+    _wac.emit = lambda kind, status, **kw: emits.append((kind, status, kw))
+    _wac.LOCK_FILE = QUARANTINE / "e6.lock"
+    try:
+        result = _wac.convert_one(pdf)
+    finally:
+        _wac.subprocess.Popen, _wac.chat_hold, _wac.analyst_mode, _wac.emit, _wac.LOCK_FILE = saved
+    return result, pdf.name, emits
+
+
+_r98, _n98, _e98 = _e6_run(98)
+check(_r98 == "done" and (_wac.DONE_DIR / _n98).exists() and not (_wac.FAILED_DIR / _n98).exists()
+      and not any(k == "intake" and s == "failed" for k, s, _ in _e98) and not (_wac.FAILED_DIR / (Path(_n98).stem + ".stderr.txt")).exists(),
+      f"E6 (1) exit 98 (SHIP-FAILED): the source lands under drop/done, no intake/failed, no stderr file — result={_r98!r} emits={_e98!r}")
+_r1, _n1, _e1 = _e6_run(1)
+check(_r1 == "failed" and (_wac.FAILED_DIR / _n1).exists() and any(k == "intake" and s == "failed" and kw.get("exit_code") == 1 for k, s, kw in _e1)
+      and (_wac.FAILED_DIR / (Path(_n1).stem + ".stderr.txt")).exists(),
+      f"E6 (2) CONTROL: exit 1 still lands under drop/failed with intake/failed exit_code 1 and the stderr file — result={_r1!r} emits={_e1!r}")
+_r0, _n0, _e0 = _e6_run(0)
+check(_r0 == "done" and (_wac.DONE_DIR / _n0).exists(), f"E6 (3) exit 0 lands under drop/done as before — result={_r0!r}")
+
 print("SELFTEST " + ("PASS" if not FAILURES else f"FAIL ({len(FAILURES)})"))
 raise SystemExit(0 if not FAILURES else 1)

@@ -2918,9 +2918,31 @@ def main():
         elif args.dry_run:
             print("DRY-RUN: not shipping", flush=True)
         elif not _enforce_hold(tmp_dir, bundle_name, manifest["source_sha256"]):
-            ship(tmp_dir, bundle_name, manifest["source_sha256"])
+            _ship_or_exit(tmp_dir, bundle_name, manifest["source_sha256"])
     print(json.dumps({k: manifest[k] for k in
                       ("source", "source_sha256", "engine", "lane", "pages")}, indent=2))
+
+
+SHIP_FAILED_EXIT = 98   # S218 E6: the child's "converted, on the shelf, NOT shipped" — read by watch_and_convert.convert_one
+
+
+def _ship_or_exit(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
+    """S218 E6 (F5, SYM-174): the ship leg's failure is a TRANSPORT failure, not a conversion failure — by this line the bundle
+    is converted, audited, on the shelf and registered. Before: ship()'s RuntimeError left main() uncaught, the child exited 1
+    like a Marker crash, the watcher quarantined the SOURCE under drop/failed and emitted intake/failed, PORTAL rendered
+    CONVERT-FAILED with a Marker remedy (four times: events.jsonl 106, 861, 899, 1502; the sources unreachable to the re-audit
+    tools until S218 E5). Now: a RuntimeError (ship() has already emitted ship/failed), a TimeoutExpired or an OSError (not yet
+    emitted — emitted here with the exception's type) ends the child with SHIP_FAILED_EXIT, a code no other path uses (97 is the
+    remote move-aside abort; 1 a failure; 0 done), so the watcher files the source under done and the Room never calls it a crash."""
+    try:
+        ship(tmp_dir, bundle_name, source_sha)
+    except RuntimeError as exc:
+        print(f"SHIP-FAILED {bundle_name}: {str(exc)[:200]}", flush=True)
+        sys.exit(SHIP_FAILED_EXIT)
+    except (subprocess.TimeoutExpired, OSError) as exc:
+        emit("ship", "failed", bundle=bundle_name, error=type(exc).__name__)
+        print(f"SHIP-FAILED {bundle_name}: {type(exc).__name__}", flush=True)
+        sys.exit(SHIP_FAILED_EXIT)
 
 
 if __name__ == "__main__":

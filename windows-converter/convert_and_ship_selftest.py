@@ -2342,6 +2342,54 @@ check(not cas.should_chunk(600, "clean") and cas.should_chunk(601, "clean"),
       "SYM-189: the clean lane is untouched — 600 whole, 601 sliced")
 check(cas.should_chunk(101, "no-such-lane") and not cas.should_chunk(100, "no-such-lane"),
       "SYM-189: an unknown lane takes the LOWER threshold (min of the table), so nothing can run whole past 100 by a lane typo")
+# ---------- S218 E6 (F5, SYM-174): a transport failure is not a conversion failure ----------
+# _ship_or_exit wraps the main-path ship call: a RuntimeError from ship() (which has already emitted ship/failed) ends the
+# child with SHIP_FAILED_EXIT (98), never 1; a TimeoutExpired / OSError (nothing emitted yet) emits ship/failed with the
+# exception's type and exits 98 too; a ship that returns normally exits nothing. The negative control: before this wrapper the
+# RuntimeError propagated and the child exited 1 — a mutant restoring that must fail the first case.
+_e6_real_ship, _e6_real_emit = cas.ship, cas.emit
+_e6_emits = []
+cas.emit = lambda kind, status, **kw: _e6_emits.append((kind, status, kw))
+try:
+    def _e6_raise_rt(tmp_dir, bundle_name, source_sha):
+        raise RuntimeError("ship failed: tar=1 ssh=255 dial tcp 100.107.238.61:22")
+    cas.ship = _e6_raise_rt
+    _e6_code = None
+    try:
+        cas._ship_or_exit(Path(QUARANTINE), "B", "ab" * 32)
+    except SystemExit as exc:
+        _e6_code = exc.code
+    except Exception as exc:          # the wrapper let the error escape (the pre-E6 behaviour): a RED verdict, not a suite crash
+        _e6_code = ("raised", type(exc).__name__)
+    check(_e6_code == cas.SHIP_FAILED_EXIT == 98 and _e6_emits == [],
+          f"(E6-1) ship()'s RuntimeError ends the child with exit 98 (SHIP_FAILED_EXIT), never 1, and emits nothing more (ship() already did): code={_e6_code!r} emits={_e6_emits!r}")
+    _e6_emits.clear()
+    import subprocess as _e6_sp
+    def _e6_raise_to(tmp_dir, bundle_name, source_sha):
+        raise _e6_sp.TimeoutExpired(cmd="tailscale ssh", timeout=600)
+    cas.ship = _e6_raise_to
+    _e6_code = None
+    try:
+        cas._ship_or_exit(Path(QUARANTINE), "B", "ab" * 32)
+    except SystemExit as exc:
+        _e6_code = exc.code
+    except Exception as exc:          # the wrapper let the error escape (the pre-E6 behaviour): a RED verdict, not a suite crash
+        _e6_code = ("raised", type(exc).__name__)
+    check(_e6_code == 98 and _e6_emits == [("ship", "failed", {"bundle": "B", "error": "TimeoutExpired"})],
+          f"(E6-2) a TimeoutExpired from the ssh leg exits 98 AND emits ship/failed once with the exception's type: code={_e6_code!r} emits={_e6_emits!r}")
+    _e6_emits.clear()
+    cas.ship = lambda tmp_dir, bundle_name, source_sha: None
+    _e6_code = "not raised"
+    try:
+        cas._ship_or_exit(Path(QUARANTINE), "B", "ab" * 32)
+    except SystemExit as exc:
+        _e6_code = exc.code
+    except Exception as exc:          # the wrapper let the error escape (the pre-E6 behaviour): a RED verdict, not a suite crash
+        _e6_code = ("raised", type(exc).__name__)
+    check(_e6_code == "not raised" and _e6_emits == [], f"(E6-3) control: a ship that returns normally exits nothing and emits nothing: {_e6_code!r} {_e6_emits!r}")
+finally:
+    cas.ship, cas.emit = _e6_real_ship, _e6_real_emit
+
 # ---------- verdict ----------
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)

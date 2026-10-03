@@ -41,6 +41,9 @@ BASE = fp_paths.pipeline_root()
 DROP_DIR = fp_paths.root("drop")
 DONE_DIR = fp_paths.root("drop_done")
 FAILED_DIR = fp_paths.root("drop_failed")
+# S218 E6 (F5, SYM-174): the child's exit code for "converted and on the shelf, but the tar to staging failed" — the same
+# number as convert_and_ship.SHIP_FAILED_EXIT (the watcher spawns the child, it does not import it; the selftest pins the two equal)
+SHIP_FAILED_EXIT = 98
 MODE_FILE = fp_paths.root("analyst_mode")  # off | local | gemini | ask
 LOCK_FILE = fp_paths.root("gpu_lock")  # busy signal for the future control-room card
 HOLD_FILE = fp_paths.root("chat_hold")  # the assistant's claim on the card - written by room_chat.py ONLY
@@ -497,6 +500,16 @@ def convert_one(pdf: Path) -> str:
         went = _move_source(pdf, DONE_DIR, "done")
         logger.info("DONE %s -> %s | %s", pdf.name, went,
                     (out or "").strip().splitlines()[-1] if out else "")
+        return "done"
+    elif child.returncode == SHIP_FAILED_EXIT and not timed_out:
+        # S218 E6 (F5, SYM-174): exit 98 is the child's SHIP-FAILED — the conversion is COMPLETE, audited, on the shelf and
+        # registered; only the tar to the ThinkPad's staging failed (the child has emitted ship/failed with the error). The
+        # SOURCE is done, never quarantined under failed (where it read as a Marker crash in the Room and in PORTAL, and where
+        # the re-audit tools could not find it until S218 E5). No event is minted here: the intake vocabulary has no `done`
+        # kind and T7 forbids one the Room cannot speak; the child's ship/failed carries the fact and the log says it.
+        went = _move_source(pdf, DONE_DIR, "done")
+        logger.warning("DONE %s -> %s (SHIP-FAILED: the bundle is on the shelf, not in staging — the ThinkPad was unreachable) | %s",
+                       pdf.name, went, (out or "").strip().splitlines()[-1] if out else "")
         return "done"
     else:
         went = _move_source(pdf, FAILED_DIR, "failed")
