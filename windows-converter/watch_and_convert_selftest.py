@@ -321,6 +321,26 @@ check(_r9c == "done" and (_wac.DONE_DIR / "book-e9c.pdf").exists() and "book-e9c
       and not any((k, s) == ("intake", "move_failed") for k, s, _ in _e9c),
       f"E9 (6) CONTROL: a move that succeeds first time parks nothing and emits no move_failed — result={_r9c!r} parked={list(_wac._parked)!r}")
 _wac._parked.clear()
+# (7) the WIRING in main() - E9's blind verifier removed `_retry_parked()` and the `_apply_park(...)` wrap from the loop and
+# the suite stayed green: the park's end-to-end behaviour rested on two untested lines. main() runs forever, so the
+# tripwire reads its syntax tree: both calls must sit in main()'s loop, the retry BEFORE the folder is read and the
+# wrap AROUND tracker.reconcile, both before worker.snapshot(). A mutant that drops either must fail here.
+import ast as _e9_ast
+_e9_tree = _e9_ast.parse(Path(_wac.__file__).read_text(encoding="utf-8"))
+_e9_main = next(n for n in _e9_tree.body if isinstance(n, _e9_ast.FunctionDef) and n.name == "main")
+_e9_calls = []
+for _n in _e9_ast.walk(_e9_main):
+    if isinstance(_n, _e9_ast.Call):
+        _f = _n.func
+        _name = _f.id if isinstance(_f, _e9_ast.Name) else (_f.attr if isinstance(_f, _e9_ast.Attribute) else "")
+        if _name in ("_retry_parked", "_pdfs_in_drop", "_apply_park", "reconcile", "snapshot"):
+            _e9_calls.append((_n.lineno, _name, [getattr(a.func, "attr", getattr(a.func, "id", "")) for a in _n.args if isinstance(a, _e9_ast.Call)]))
+_e9_calls.sort()
+_e9_names = [c[1] for c in _e9_calls]
+_e9_wrap = any(c[1] == "_apply_park" and "reconcile" in c[2] for c in _e9_calls)
+check("_retry_parked" in _e9_names and "_apply_park" in _e9_names and _e9_wrap
+      and _e9_names.index("_retry_parked") < _e9_names.index("_pdfs_in_drop") < _e9_names.index("_apply_park") < _e9_names.index("snapshot"),
+      f"E9 (7) main()'s loop wires the park: _retry_parked() before _pdfs_in_drop(), _apply_park(tracker.reconcile(...)) before worker.snapshot() — calls={_e9_calls!r}")
 
 print("SELFTEST " + ("PASS" if not FAILURES else f"FAIL ({len(FAILURES)})"))
 raise SystemExit(0 if not FAILURES else 1)
