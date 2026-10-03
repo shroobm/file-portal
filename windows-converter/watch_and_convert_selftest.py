@@ -342,5 +342,67 @@ check("_retry_parked" in _e9_names and "_apply_park" in _e9_names and _e9_wrap
       and _e9_names.index("_retry_parked") < _e9_names.index("_pdfs_in_drop") < _e9_names.index("_apply_park") < _e9_names.index("snapshot"),
       f"E9 (7) main()'s loop wires the park: _retry_parked() before _pdfs_in_drop(), _apply_park(tracker.reconcile(...)) before worker.snapshot() — calls={_e9_calls!r}")
 
+# -- E11 (S218): the park survives a restart (the receipt carries it) and a poll's race cannot dispatch a parked file --
+import json as _e11_json  # noqa: E402 — the tripwire's own import, beside the cases it serves
+_wac._parked.clear()
+_wac.DROP_DIR.mkdir(parents=True, exist_ok=True)
+_p11 = _wac.DROP_DIR / "book-e11.pdf"
+_p11.write_bytes(b"%PDF-1.4 fixture e11")
+_st11 = _p11.stat()
+_rcpt = QUARANTINE / "e11-receipt.json"
+
+
+def _e11_receipt(parked=True, bytes_=None, extra=None):
+    """A receipt as _atomic_write_state writes it, with one row for book-e11.pdf (parked by default)."""
+    row = {"name": "book-e11.pdf", "bytes": bytes_ if bytes_ is not None else _st11.st_size, "mtime_ns": _st11.st_mtime_ns,
+           "phase": "deferred", "first_seen_at": "2026-10-03T20:00:00Z", "wait_s": 1, "quiet_s": 1.0}
+    if parked:
+        row.update({"parked": True, "reason": "parked: PermissionError: [WinError 32] held", "park_dest": "done",
+                    "park_outcome": "done", "parked_since": "2026-10-03T20:01:00Z"})
+    if extra:
+        row.update(extra)
+    _rcpt.write_text(_e11_json.dumps({"v": 1, "writer_pid": 1, "written_at": "x", "wake_mode": "x", "card_state": "idle",
+                                      "active": None, "waiting": 1, "items": [row]}), encoding="utf-8")
+    return _rcpt
+
+
+_n1 = _wac._restore_parked(_e11_receipt())
+_e1 = _wac._parked.get("book-e11.pdf")
+check(_n1 == 1 and _e1 is not None and _e1["dest"] == _wac.DONE_DIR and _e1["outcome"] == "done"
+      and _e1["reason"] == "PermissionError: [WinError 32] held" and _e1["size"] == _st11.st_size and _e1["mtime_ns"] == _st11.st_mtime_ns
+      and _e1["since_wall"] == "2026-10-03T20:01:00Z",
+      f"E11 (1) a parked row in the receipt, the file present with the same identity: the park is rebuilt (dest, outcome, reason, identity, since) — n={_n1} entry={_e1!r}")
+_wac._parked.clear()
+_n2 = _wac._restore_parked(_e11_receipt(bytes_=_st11.st_size + 7))
+check(_n2 == 0 and not _wac._parked, f"E11 (2) the same row with the file CHANGED (other bytes): nothing restored — n={_n2} parked={list(_wac._parked)!r}")
+_n3 = _wac._restore_parked(_e11_receipt(parked=False))
+check(_n3 == 0 and not _wac._parked, f"E11 (3) a row without the parked flag: nothing restored — n={_n3}")
+_wac._parked["book-e11.pdf"] = {"reason": "r", "outcome": "done", "dest": _wac.DONE_DIR, "size": 1, "mtime_ns": 1, "since": 0.0, "since_wall": "x"}
+_rows11 = [{"name": "book-e11.pdf", "bytes": 1, "mtime_ns": 1, "phase": "ready"}, {"name": "book-z11.pdf", "bytes": 1, "mtime_ns": 1, "phase": "ready"}]
+check(_wac._next_dispatch(_rows11) == "book-z11.pdf",
+      f"E11 (4) THE RACE: the register holds a name whose row still reads ready with no flag (parked after the rows were read): dispatch skips it — next={_wac._next_dispatch(_rows11)!r}")
+_wac._parked.clear()
+check(_wac._next_dispatch(_rows11) == "book-e11.pdf", "E11 (5) CONTROL: the register empty, the same rows dispatch the first")
+# the entry carries the NON-default outcome and folder, so a key the receipt forgot cannot be masked by the restore's defaults
+_wac._parked["book-e11.pdf"] = {"reason": "held by a test", "outcome": "failed", "dest": _wac.FAILED_DIR, "size": _st11.st_size, "mtime_ns": _st11.st_mtime_ns,
+                                "since": 0.0, "since_wall": "2026-10-03T20:02:00Z"}
+_rows6 = _wac._apply_park([{"name": "book-e11.pdf", "bytes": _st11.st_size, "mtime_ns": _st11.st_mtime_ns, "phase": "ready", "first_seen_at": "x", "wait_s": 0, "quiet_s": 0.0}])
+_saved_state = _wac.INTAKE_STATE_FILE
+_wac.INTAKE_STATE_FILE = QUARANTINE / "e11-state.json"
+try:
+    _wac._atomic_write_state(_rows6, None, "test", "idle")
+    _before = dict(_wac._parked["book-e11.pdf"])
+    _wac._parked.clear()
+    _n6 = _wac._restore_parked(_wac.INTAKE_STATE_FILE)
+    _after = _wac._parked.get("book-e11.pdf") or {}
+finally:
+    _wac.INTAKE_STATE_FILE = _saved_state
+check(_n6 == 1 and all(_after.get(k) == _before[k] for k in ("reason", "outcome", "dest", "size", "mtime_ns", "since_wall")),
+      f"E11 (6) ROUND TRIP: _apply_park -> _atomic_write_state -> _restore_parked rebuilds the same entry — n={_n6} before={_before!r} after={_after!r}")
+_wac._parked.clear()
+_e11_main_calls = [c[1] for c in sorted((n.lineno, (n.func.id if isinstance(n.func, _e9_ast.Name) else getattr(n.func, "attr", ""))) for n in _e9_ast.walk(_e9_main) if isinstance(n, _e9_ast.Call))]
+check("_restore_parked" in _e11_main_calls and "restore" in _e11_main_calls and _e11_main_calls.index("restore") < _e11_main_calls.index("_restore_parked") < _e11_main_calls.index("_retry_parked"),
+      f"E11 (7) main() calls _restore_parked after tracker.restore and before the loop's first _retry_parked — calls={_e11_main_calls!r}")
+
 print("SELFTEST " + ("PASS" if not FAILURES else f"FAIL ({len(FAILURES)})"))
 raise SystemExit(0 if not FAILURES else 1)

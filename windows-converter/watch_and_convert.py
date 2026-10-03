@@ -515,7 +515,45 @@ def _apply_park(rows: list[dict]) -> list[dict]:
         row["phase"] = "deferred"
         row["parked"] = True
         row["reason"] = "parked: " + entry["reason"]
+        # S218 E11: what a restart needs to rebuild the entry from the receipt (the watcher's own durable store)
+        row["park_dest"] = entry["dest"].name
+        row["park_outcome"] = entry["outcome"]
+        row["parked_since"] = entry["since_wall"]
     return rows
+
+
+def _restore_parked(receipt_path: Path) -> int:
+    """S218 E11: rebuild the park register from the last receipt at boot - every row marked `parked` whose file is still
+    in drop/ with the same size and mtime_ns is parked again (reason, dest, outcome, since); a changed or absent file
+    restores nothing. Before this a restart forgot the park and the next poll converted the parked book again."""
+    try:
+        receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
+        items = receipt.get("items") if receipt.get("v") == 1 else None
+    except (OSError, json.JSONDecodeError, AttributeError):
+        return 0
+    if not isinstance(items, list):
+        return 0
+    restored = 0
+    for row in items:
+        try:
+            if not row.get("parked"):
+                continue
+            name = str(row["name"])
+            st = (DROP_DIR / name).stat()
+            if st.st_size != int(row["bytes"]) or st.st_mtime_ns != int(row["mtime_ns"]):
+                continue
+            dest_name = str(row.get("park_dest") or DONE_DIR.name)
+            dest = FAILED_DIR if dest_name == FAILED_DIR.name else DONE_DIR
+            reason = str(row.get("reason") or "")
+            reason = reason[len("parked: "):] if reason.startswith("parked: ") else reason
+            _parked[name] = {"reason": reason, "outcome": str(row.get("park_outcome") or "done"), "dest": dest,
+                             "size": st.st_size, "mtime_ns": st.st_mtime_ns, "since": time.monotonic(),
+                             "since_wall": str(row.get("parked_since") or _utc_now())}
+            logger.warning("PARK RESTORED %s from the receipt (parked since %s): %s", name, _parked[name]["since_wall"], reason)
+            restored += 1
+        except (KeyError, TypeError, ValueError, OSError):
+            continue
+    return restored
 
 
 def _retry_parked() -> None:
@@ -695,7 +733,9 @@ def _next_dispatch(rows: list[dict]) -> str | None:
     """The first filename is the queue head; later ready rows may not bypass it. A PARKED row (S218 E9: a source
     the watcher could not move) is not in the queue - it is skipped and the row behind it is the head."""
     for row in rows:
-        if row.get("parked"):
+        # S218 E11: the live register too - a park written by the worker AFTER this poll read its rows (the conversion
+        # finished between reconcile and snapshot) must not let the same file dispatch once more
+        if row.get("parked") or row["name"] in _parked:
             continue
         return row["name"] if row["phase"] == "ready" else None
     return None
@@ -721,6 +761,7 @@ def main() -> None:
     worker = _Worker(wake)
     tracker = IntakeTracker()
     restored = tracker.restore(INTAKE_STATE_FILE)
+    reparked = _restore_parked(INTAKE_STATE_FILE)   # S218 E11: the park survives a restart
     notify = threading.Thread(target=_directory_change_listener, args=(wake,),
                               name="file-portal-drop-notify", daemon=True)
     notify.start()
@@ -729,6 +770,8 @@ def main() -> None:
                 DROP_DIR, wake_mode, POLL_S, QUIET_S, MODE_FILE)
     if restored:
         logger.info("restored first-seen age for %s waiting PDF(s)", restored)
+    if reparked:
+        logger.info("restored the park for %s source(s) from the receipt", reparked)
     # one pass per wake-up or poll interval; an error in a pass is logged and the loop continues
     while True:
         try:
