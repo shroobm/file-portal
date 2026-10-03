@@ -471,7 +471,76 @@ def _move_source(pdf: Path, dest_dir: Path, outcome: str) -> str:
         logger.error("MOVE FAILED %s -> drop/%s/ after %s: %s", pdf.name, dest_dir.name, outcome, reason)
         emit("intake", "move_failed", source=pdf.name, outcome=outcome, dest="drop/%s/" % dest_dir.name,
              reason=reason)
+        if pdf.exists():
+            _park(pdf, dest_dir, outcome, reason)
         return "NOT MOVED (%s)" % reason
+
+
+# -- the park register (S218 E9, SYM-190's line side): a source the watcher could not move out of drop/ is remembered by
+# name AND identity (size, mtime) and never dispatched again while that same file sits there; only its MOVE is retried,
+# every poll, until it succeeds (MOVED LATE) or the file leaves drop/ by another hand or is re-dropped as a new file --
+_parked: dict[str, dict] = {}
+
+
+def _park(pdf: Path, dest_dir: Path, outcome: str, reason: str) -> None:
+    """Remember a source whose move out of drop/ failed: its identity (size, mtime_ns), where it was going, why it
+    failed, since when. Before this (2026-09-27, SYM-190) the loop saw the file still in drop/, read it ready and
+    converted the same book a second time - a full pass of the card for a book already on the shelf."""
+    try:
+        st = pdf.stat()
+    except OSError:
+        return
+    _parked[pdf.name] = {"reason": reason, "outcome": outcome, "dest": dest_dir, "size": st.st_size,
+                         "mtime_ns": st.st_mtime_ns, "since": time.monotonic(), "since_wall": _utc_now()}
+    logger.warning("PARKED %s (not moved after %s): never re-dispatched while this file sits in drop/; "
+                   "the move is retried each poll - %s", pdf.name, outcome, reason)
+
+
+def _apply_park(rows: list[dict]) -> list[dict]:
+    """Mark the parked rows for the receipt and the card - phase `deferred` (a phase the widget already renders)
+    plus `parked: true` and the reason - and clear entries whose file left drop/ by another hand or was re-dropped
+    under the same name as a different file (a new size/mtime is a new book, dispatchable)."""
+    present = {row["name"]: row for row in rows}
+    for name in list(_parked):
+        entry = _parked[name]
+        row = present.get(name)
+        if row is None:
+            logger.info("PARK CLEARED %s: the source left drop/ by another hand", name)
+            del _parked[name]
+            continue
+        if (row["bytes"], row["mtime_ns"]) != (entry["size"], entry["mtime_ns"]):
+            logger.info("PARK CLEARED %s: a different file under the same name (re-dropped)", name)
+            del _parked[name]
+            continue
+        row["phase"] = "deferred"
+        row["parked"] = True
+        row["reason"] = "parked: " + entry["reason"]
+    return rows
+
+
+def _retry_parked() -> None:
+    """Retry the MOVE (never the conversion) of every parked source still in drop/ with its parked identity; on
+    success log MOVED LATE, emit intake/moved_late with the seconds waited, and forget it."""
+    for name in list(_parked):
+        entry = _parked[name]
+        src = DROP_DIR / name
+        try:
+            st = src.stat()
+        except OSError:
+            continue   # gone - _apply_park clears the entry on the next reconcile
+        if (st.st_size, st.st_mtime_ns) != (entry["size"], entry["mtime_ns"]):
+            continue   # re-dropped as a new file - not ours to move
+        dest = entry["dest"] / name
+        try:
+            shutil.move(str(src), str(dest))
+        except OSError:
+            continue   # still held; the next poll tries again
+        waited = int(time.monotonic() - entry["since"])
+        logger.info("MOVED LATE %s -> drop/%s/ after %d s (parked since %s)", name, entry["dest"].name, waited,
+                    entry["since_wall"])
+        emit("intake", "moved_late", source=name, dest="drop/%s/" % entry["dest"].name, outcome=entry["outcome"],
+             waited_s=waited)
+        del _parked[name]
 
 
 def convert_one(pdf: Path) -> str:
@@ -623,8 +692,13 @@ def _pdfs_in_drop() -> list[Path]:
 
 
 def _next_dispatch(rows: list[dict]) -> str | None:
-    """The first filename is the queue head; later ready rows may not bypass it."""
-    return rows[0]["name"] if rows and rows[0]["phase"] == "ready" else None
+    """The first filename is the queue head; later ready rows may not bypass it. A PARKED row (S218 E9: a source
+    the watcher could not move) is not in the queue - it is skipped and the row behind it is the head."""
+    for row in rows:
+        if row.get("parked"):
+            continue
+        return row["name"] if row["phase"] == "ready" else None
+    return None
 
 
 def main() -> None:
@@ -658,8 +732,9 @@ def main() -> None:
     # one pass per wake-up or poll interval; an error in a pass is logged and the loop continues
     while True:
         try:
+            _retry_parked()   # S218 E9: a parked source's MOVE is retried before the folder is read
             paths = _pdfs_in_drop()
-            rows = tracker.reconcile(paths)
+            rows = _apply_park(tracker.reconcile(paths))
             busy, active = worker.snapshot()
             card_busy = _card_mutex_busy()
             card_state = "busy" if card_busy is True else "idle" if card_busy is False else "UNREAD"

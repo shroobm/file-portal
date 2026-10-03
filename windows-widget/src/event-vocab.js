@@ -39,6 +39,7 @@ export function eventPhrase(e, { compact = false, unknown = null } = {}) {
   const map = {
     "intake/detected": `${icon("📥")}${s(e.source)} — on the belt`,
     "intake/deferred": `${icon("⏸")}${s(e.source)} — deferred while assistant holds the card`,
+    "intake/moved_late": `${icon("📤")}${s(e.source)} — moved late to ${s(e.dest)} after ${e.waited_s ?? "?"} s (its move had failed; the book was parked, never converted twice)`,
     "intake/stale-hold-reaped": `${icon("⚠")}stale assistant hold reaped · ${s(e.reason)}`,
     "intake/stale-lock-reaped": `${icon("⚠")}stale GPU signal reaped · ${s(e.source)}`,
     "intake/failed": `${icon("✗")}${s(e.source)} — intake FAILED (${e.exit_code ?? "?"})${e.timeout_s ? ` · outer cap ${Math.round(e.timeout_s / 3600)}h` : ""}`,

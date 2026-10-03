@@ -402,6 +402,11 @@
           "source",
           "timeout_s"
         ],
+        "intake/moved_late": [
+          "dest",
+          "source",
+          "waited_s"
+        ],
         "intake/stale-hold-reaped": [
           "reason"
         ],
@@ -1038,6 +1043,19 @@
             "source",
             "stage",
             "ts"
+          ]
+        },
+        "intake/moved_late": {
+          "optional_keys": [],
+          "required_keys": [
+            "dest",
+            "event",
+            "outcome",
+            "pid",
+            "source",
+            "stage",
+            "ts",
+            "waited_s"
           ]
         },
         "intake/stale-hold-reaped": {

@@ -244,5 +244,83 @@ check(_r1 == "failed" and (_wac.FAILED_DIR / _n1).exists() and any(k == "intake"
 _r0, _n0, _e0 = _e6_run(0)
 check(_r0 == "done" and (_wac.DONE_DIR / _n0).exists(), f"E6 (3) exit 0 lands under drop/done as before — result={_r0!r}")
 
+# -- E9 (S218, SYM-190's line side): a source the watcher could not move is PARKED, never converted twice --
+# The fixture is the field's shape: the test itself keeps the PDF open (Python's open() shares read/write, never
+# delete, so Windows refuses the rename with WinError 32 - what the Scanner's cached pymupdf.open() did on 2026-09-27).
+def _e9_run(name, hold):
+    """convert_one on a fixture IN DROP_DIR with the child stubbed to exit 0; hold=True keeps the PDF open across the
+    call. Returns (result, pdf path, emitted events, the handle or None)."""
+    _wac.DROP_DIR.mkdir(parents=True, exist_ok=True)
+    pdf = _wac.DROP_DIR / name
+    pdf.write_bytes(b"%PDF-1.4 fixture e9")
+    for d in (_wac.DONE_DIR, _wac.FAILED_DIR):
+        d.mkdir(parents=True, exist_ok=True)
+    emits = []
+    saved = (_wac.subprocess.Popen, _wac.chat_hold, _wac.analyst_mode, _wac.emit, _wac.LOCK_FILE)
+    _wac.subprocess.Popen = lambda *a, **k: _E6Child(0)
+    _wac.chat_hold = lambda: None
+    _wac.analyst_mode = lambda: "off"
+    _wac.emit = lambda kind, status, **kw: emits.append((kind, status, kw))
+    _wac.LOCK_FILE = QUARANTINE / "e9.lock"
+    handle = open(pdf, "rb") if hold else None
+    try:
+        result = _wac.convert_one(pdf)
+    finally:
+        _wac.subprocess.Popen, _wac.chat_hold, _wac.analyst_mode, _wac.emit, _wac.LOCK_FILE = saved
+    return result, pdf, emits, handle
+
+
+def _e9_rows(*names):
+    """Tracker-shaped rows for the given names as they sit in DROP_DIR now, all `ready`, in filename order."""
+    rows = []
+    for n in sorted(names):
+        st = (_wac.DROP_DIR / n).stat()
+        rows.append({"name": n, "bytes": st.st_size, "mtime_ns": st.st_mtime_ns, "phase": "ready"})
+    return rows
+
+
+_wac._parked.clear()
+_r9, _p9, _e9, _h9 = _e9_run("book-e9.pdf", hold=True)
+_mf9 = [kw for k, s, kw in _e9 if (k, s) == ("intake", "move_failed")]
+_pk9 = _wac._parked.get("book-e9.pdf")
+# (measured here: shutil.move's rename fails on the held file, then its copy-then-delete fallback COPIES the PDF under
+# drop/done and fails the delete - so a copy may sit under done/ while the held source stays in drop/; the late move
+# overwrites that copy. The park is keyed on the SOURCE in drop/, which is what the loop re-dispatched before E9.)
+check(_r9 == "done" and _p9.exists() and len(_mf9) == 1 and _pk9 is not None
+      and _pk9["size"] == _p9.stat().st_size and _pk9["mtime_ns"] == _p9.stat().st_mtime_ns and _pk9["reason"],
+      f"E9 (1) a held handle: the move fails once (intake/move_failed), the source stays in drop/ and is PARKED with its identity and reason — result={_r9!r} parked={_pk9!r} emits={_e9!r}")
+(_wac.DROP_DIR / "book-z.pdf").write_bytes(b"%PDF-1.4 fixture z")
+_rows9 = _wac._apply_park(_e9_rows("book-e9.pdf", "book-z.pdf"))
+check(_rows9[0]["name"] == "book-e9.pdf" and _rows9[0]["phase"] == "deferred" and _rows9[0].get("parked") is True
+      and _rows9[0]["reason"].startswith("parked: ") and _wac._next_dispatch(_rows9) == "book-z.pdf",
+      f"E9 (2) the parked row reads deferred+parked with its reason and dispatch skips it: the row behind it is the head — rows={_rows9!r} next={_wac._next_dispatch(_rows9)!r}")
+_e9b = []
+_saved_emit = _wac.emit
+_wac.emit = lambda kind, status, **kw: _e9b.append((kind, status, kw))
+try:
+    _wac._retry_parked()
+    _still = _p9.exists() and "book-e9.pdf" in _wac._parked and not _e9b
+    _h9.close()
+    _wac._retry_parked()
+finally:
+    _wac.emit = _saved_emit
+_ml9 = [kw for k, s, kw in _e9b if (k, s) == ("intake", "moved_late")]
+check(_still and not _p9.exists() and (_wac.DONE_DIR / "book-e9.pdf").exists() and len(_ml9) == 1
+      and _ml9[0]["source"] == "book-e9.pdf" and _ml9[0]["dest"] == "drop/done/" and _ml9[0]["outcome"] == "done"
+      and isinstance(_ml9[0]["waited_s"], int) and _ml9[0]["waited_s"] >= 0 and "book-e9.pdf" not in _wac._parked,
+      f"E9 (3) while held the retry leaves it parked (no event); once released the MOVE is retried, the source lands under drop/done, intake/moved_late once with waited_s, the park cleared — still={_still} emits={_e9b!r} parked={list(_wac._parked)!r}")
+_wac._parked["book-z.pdf"] = {"reason": "stale identity", "outcome": "done", "dest": _wac.DONE_DIR, "size": 1, "mtime_ns": 1, "since": 0.0, "since_wall": "x"}
+_rowsz = _wac._apply_park(_e9_rows("book-z.pdf"))
+check(_rowsz[0]["phase"] == "ready" and not _rowsz[0].get("parked") and "book-z.pdf" not in _wac._parked and _wac._next_dispatch(_rowsz) == "book-z.pdf",
+      f"E9 (4) CONTROL: a file under a parked name with a DIFFERENT identity (re-dropped) is cleared from the park and dispatchable — rows={_rowsz!r}")
+_wac._parked["book-gone.pdf"] = {"reason": "left", "outcome": "done", "dest": _wac.DONE_DIR, "size": 1, "mtime_ns": 1, "since": 0.0, "since_wall": "x"}
+_wac._apply_park(_e9_rows("book-z.pdf"))
+check("book-gone.pdf" not in _wac._parked, "E9 (5) CONTROL: a parked name no longer in drop/ (moved by another hand) is cleared")
+_r9c, _p9c, _e9c, _ = _e9_run("book-e9c.pdf", hold=False)
+check(_r9c == "done" and (_wac.DONE_DIR / "book-e9c.pdf").exists() and "book-e9c.pdf" not in _wac._parked
+      and not any((k, s) == ("intake", "move_failed") for k, s, _ in _e9c),
+      f"E9 (6) CONTROL: a move that succeeds first time parks nothing and emits no move_failed — result={_r9c!r} parked={list(_wac._parked)!r}")
+_wac._parked.clear()
+
 print("SELFTEST " + ("PASS" if not FAILURES else f"FAIL ({len(FAILURES)})"))
 raise SystemExit(0 if not FAILURES else 1)
