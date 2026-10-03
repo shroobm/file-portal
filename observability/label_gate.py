@@ -8,7 +8,10 @@ lines and NOTHING else. This gate makes that mechanical for Python:
     rewording one passes, and any other change, one token, fails);
   * both sides must compile (py_compile), so a comment that swallowed a line or broke a string is caught by the compiler
     as well as by the tree;
-  * the line count may only grow (a labelling lane deletes nothing).
+  * the line count may only grow (a labelling lane deletes nothing);
+  * every CODE LINE must be verbatim and in order (added S218 E8 after wave 1: docstring lines and comment-only lines
+    aside, trailing comments cut — whitespace inside a code line counts, and a comment dropped into a data string is a
+    changed code line); a tree is whitespace-blind, and 55 glued `name =value` lines passed the first three checks.
 
     python observability/label_gate.py <path> [--base <git ref>]     # compares the working file with <ref>:<path> (default HEAD)
     python observability/label_gate.py <path> --against <other file>  # compares two files on disk
