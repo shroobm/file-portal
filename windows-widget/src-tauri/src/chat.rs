@@ -1,3 +1,10 @@
+// WHAT THIS FILE DOES: runs the Room Assistant (local llama chat) surface of the widget, modelled on
+// bench.rs. open() starts windows-converter/room_chat.py as a supervised child on a free port in
+// 7100..7110 (with --llama <exe> and a per-launch token) and opens or refocuses a window on it;
+// stop() kills it; status() reports running/port/last exit code. State: ChatState (the child plus
+// a death-certificate mutex). Reads: nothing besides the configured paths. Writes:
+// room-chat-stderr.log in the pipeline dir. Callers: the Tauri command layer.
+//
 // S85: THE ASSISTANT GRADUATES — the llama app embedded into File Portal (Rab, the overnight
 // commission: "make sure that the llama app is essentially embedded into the file portal app,
 // and so I can talk to models that I have downloaded on my device, that are directly connected
@@ -29,12 +36,15 @@ use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+// -- state: the one live chat server and its death certificate --
+
 /// One chat server at a time. Arc for the spawn_blocking move (the bench idiom); the second
 /// mutex is the death certificate (the watcher idiom — recon: bench lacks it and a bench death
 /// is invisible).
 #[derive(Clone, Default)]
 pub struct ChatState(pub Arc<Mutex<Option<ChatRun>>>, pub Arc<Mutex<Option<i32>>>);
 
+/// A running chat server: its port, the child process and its loopback token.
 pub struct ChatRun {
     pub port: u16,
     pub child: Child,
@@ -42,6 +52,8 @@ pub struct ChatRun {
     /// server predates the token contract - the reuse path re-sends the birth token only.
     pub token: Option<String>,
 }
+
+// -- launching the server and its window --
 
 /// First free port in the chat UI range, proven by binding. room_chat.py's own llama child uses
 /// 7110–7119; the bench owns 7077–7096. Distinct on purpose (docs/33 §2.5), and 7100–7109 keeps
@@ -77,6 +89,7 @@ pub fn open(
         .0
         .lock()
         .map_err(|_| "chat lock poisoned".to_string())?;
+    // Reuse a live server; if the old one died, file its exit code and replace it.
     if let Some(run) = guard.as_mut() {
         if matches!(run.child.try_wait(), Ok(None)) {
             let port = run.port;
@@ -124,6 +137,7 @@ pub fn open(
         .spawn()
         .map_err(|e| format!("failed to spawn chat server: {e}"))?;
     adopt_into_job(&child); // dies with the widget, by ANY exit (S37)
+                            // Readiness wait: probe the port up to 30 x 200 ms for the UI server to listen.
     let mut up = false;
     for _ in 0..30 {
         // The UI server is stdlib-instant; 6 s is generous HERE (the model load is elsewhere).
@@ -150,6 +164,8 @@ pub fn open(
     show_window(app, port, token.as_deref());
     Ok(port)
 }
+
+// -- stop and status --
 
 /// Stop the chat server. The kill skips room_chat.py's unload cleanup by design (TerminateProcess
 /// via kill), so the hold file may briefly survive — the watcher's pid-liveness reap clears it on
@@ -196,12 +212,15 @@ pub fn status(state: &ChatState) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "running": running, "port": port, "last_exit": died }))
 }
 
+// -- the assistant window --
+
 /// Open (or refocus) the assistant window — bench.rs's main-thread pattern verbatim.
 fn show_window(app: tauri::AppHandle, port: u16, token: Option<&str>) {
     let url = match token {
         Some(tok) => format!("http://127.0.0.1:{port}/?token={tok}"),
         None => format!("http://127.0.0.1:{port}/"),
     };
+    // Window work is queued onto the main thread (a Windows/Tauri requirement).
     let _ = app.clone().run_on_main_thread(move || {
         use tauri::Manager;
         if let Some(w) = app.get_webview_window("room-chat") {

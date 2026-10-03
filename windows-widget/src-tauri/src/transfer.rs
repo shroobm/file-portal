@@ -1,3 +1,10 @@
+// WHAT THIS FILE DOES: sends dropped files to the pipeline. send_files() takes a portal category
+// and local paths, and for each file either copies it into <gpu_pipeline_dir>/drop (category
+// "convert-gpu", local conveyor) or streams it over `tailscale ssh` into
+// <remote_inbox_root>/<category>/ on the Linux box. Both routes write a dotfile `.part-` temp and
+// then rename, so the receiving watcher never sees a half-written file. Returns a TransferReport
+// (sent paths, failed paths with errors). Callers: the Tauri command layer.
+//
 // Moves files to the Linux box over Tailscale SSH.
 //
 // Earlier version tried to drive `rsync`/`scp` through `tailscale ssh` as a transport. That
@@ -19,18 +26,26 @@ use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+// -- result types --
+
+/// Outcome of a send_files call: paths that were sent and paths that failed.
 #[derive(Debug, Serialize)]
 pub struct TransferReport {
     pub sent: Vec<String>,
     pub failed: Vec<FailedTransfer>,
 }
 
+/// One failed file: its local path and the error text.
 #[derive(Debug, Serialize)]
 pub struct FailedTransfer {
     pub path: String,
     pub error: String,
 }
 
+// -- entry point --
+
+/// Send each path in `paths` under portal `category`. Errs only for an unknown category; per-file
+/// failures are collected in the report. Side effects: copies/streams files (see send_one_file).
 pub fn send_files(
     cfg: &AppConfig,
     category: &str,
@@ -56,6 +71,8 @@ pub fn send_files(
     Ok(TransferReport { sent, failed })
 }
 
+// -- remote shell quoting --
+
 /// Wraps a string in single quotes for safe interpolation into a remote POSIX shell command,
 /// escaping any embedded single quotes. Needed because filenames can contain spaces, quotes, etc.
 fn shell_quote(s: &str) -> String {
@@ -75,6 +92,11 @@ fn remote_path_expr(path: &str) -> String {
     }
 }
 
+// -- one file: local drop copy or remote stream --
+
+/// Send a single file. "convert-gpu" copies into the local drop folder under a unique name;
+/// any other category streams the bytes through `tailscale ssh` into a remote temp then renames.
+/// Returns Ok(()) or an error string (remote stderr on a failed ssh).
 fn send_one_file(cfg: &AppConfig, category: &str, local_path: &str) -> Result<(), String> {
     let filename = Path::new(local_path)
         .file_name()
@@ -93,6 +115,7 @@ fn send_one_file(cfg: &AppConfig, category: &str, local_path: &str) -> Result<()
         let drop_dir = Path::new(&cfg.gpu_pipeline_dir).join("drop");
         std::fs::create_dir_all(&drop_dir)
             .map_err(|e| format!("failed to create drop dir: {e}"))?;
+        // Pick a destination name that does not exist yet: "name (1).ext", "name (2).ext", ...
         let mut dest = drop_dir.join(&filename);
         let (stem, ext) = match (dest.file_stem(), dest.extension()) {
             (Some(s), Some(e)) => (
@@ -112,6 +135,7 @@ fn send_one_file(cfg: &AppConfig, category: &str, local_path: &str) -> Result<()
         return Ok(());
     }
 
+    // Remote route: build the quoted mkdir / cat / mv command for the Linux inbox.
     let remote_dir = format!("{}/{}", cfg.remote_inbox_root, category);
     let remote_path = format!("{remote_dir}/{filename}");
     // Stream into a dotfile temp first, then atomically rename into place. The receiver's watcher

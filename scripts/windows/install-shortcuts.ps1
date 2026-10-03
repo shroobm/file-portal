@@ -1,3 +1,8 @@
+# WHAT THIS FILE DOES: finds the newest built File Portal widget exe under windows-widget\src-tauri\target
+# (release preferred, debug as fallback), writes "File Portal.lnk" to the Desktop and the Start Menu
+# (overwriting any existing one), and attempts a best-effort taskbar pin. Entry point: the whole script;
+# normally launched by install-shortcuts.cmd. Reads: the target dir and icons\icon.ico. Exits 1 if no exe.
+#
 # Creates Desktop + Start Menu shortcuts for the File Portal widget and tries to pin it to the
 # taskbar. Re-run after a `npm run tauri build` to repoint the shortcuts at a fresh binary.
 #
@@ -5,11 +10,13 @@
 
 $ErrorActionPreference = "Stop"
 
+# -- paths --
 # Repo root is two levels up from scripts/windows/.
 $RepoRoot  = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 $TargetDir = Join-Path $RepoRoot "windows-widget\src-tauri\target"
 $IconPath  = Join-Path $RepoRoot "windows-widget\src-tauri\icons\icon.ico"
 
+# -- pick the binary to link --
 # Prefer a release build, fall back to debug. (productName "File Portal" for the bundled exe,
 # crate name "file-portal-widget" for the raw cargo output.)
 $exe = @(
@@ -43,12 +50,15 @@ if ($exe -match '\\target\\debug\\') {
     Write-Host ""
 }
 
+# -- create the shortcuts --
 Write-Host "Linking shortcuts to:"
 Write-Host "  $exe"
 
 $workDir = Split-Path $exe
 $icon    = if (Test-Path $IconPath) { $IconPath } else { $exe }
 
+# New-Shortcut: writes a .lnk at $LinkPath pointing at $exe (script-scope), with the widget's working
+# directory and icon. Side effect: creates/overwrites the file. Returns nothing.
 function New-Shortcut([string]$LinkPath) {
     $shell = New-Object -ComObject WScript.Shell
     $sc = $shell.CreateShortcut($LinkPath)

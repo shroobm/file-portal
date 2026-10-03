@@ -1,3 +1,13 @@
+// WHAT THIS FILE DOES: the widget's side of the Survival Audit ("the Assay").
+// - status(): read-only projection of the newest bundle manifest's `fidelity` block, plus the held queue.
+// - get_mode / set_mode: read and write the audit-mode.txt lever ("report" or "enforce") in the pipeline dir.
+// - reconvert(): re-queues a source from drop/done into drop/ and authors the supersede marker first.
+// - reanalyze(): spawns the converter's --reanalyze run detached, under the supervising job object.
+// - bless(): writes a sha-bound bless.json and copies it to the vault host's staging dir with scp.
+// Reads: manifest.json files under anchor/, pending/, held/; events.jsonl; audit-mode.txt.
+// Writes: audit-mode.txt, drop/.supersede/<source>.json, drop/<source>, a temporary .bless-<sha16>.json.
+// Called from main.rs commands (assay_status, audit_mode_*, assay_reconvert, assay_reanalyze, assay_bless).
+
 // S31: the Assay — the Survival Audit's read side (docs/15 §13). Pure projection: Python
 // owns the `fidelity` block in each bundle's manifest.json (schema docs/15 §7) and the
 // audit-mode.txt lever; this module gathers the newest verdict + its localized evidence
@@ -13,6 +23,9 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
+// -- constants and the audit-mode lever --
+
+/// The legal values of the audit-mode lever.
 const AUDIT_MODES: [&str; 2] = ["report", "enforce"];
 
 /// Remedy markers live in a dot-prefixed SUBDIRECTORY of drop/ deliberately: the watcher skips
@@ -34,6 +47,7 @@ pub fn get_mode(gpu_pipeline_dir: &str) -> String {
     }
 }
 
+/// Writes `mode` to audit-mode.txt after checking it is "report" or "enforce"; returns the mode, or an error text.
 pub fn set_mode(gpu_pipeline_dir: &str, mode: &str) -> Result<String, String> {
     if !AUDIT_MODES.contains(&mode) {
         return Err(format!("invalid audit mode: {mode}"));
@@ -45,6 +59,8 @@ pub fn set_mode(gpu_pipeline_dir: &str, mode: &str) -> Result<String, String> {
     .map_err(|e| format!("failed to write audit-mode: {e}"))?;
     Ok(mode.into())
 }
+
+// -- reading manifests: the status projection --
 
 /// The newest manifest.json (by mtime) across anchor/, pending/, held/ — the most recently
 /// audited bundle. Each of those dirs holds <bundle>/manifest.json.
@@ -109,21 +125,26 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
     let mode = get_mode(gpu_pipeline_dir);
     let held = held_list(base);
 
+    // No audited bundle yet: report availability, the lever and the held queue, with a null verdict.
+
     let Some(manifest_path) = newest_manifest(base) else {
         return Ok(
             json!({ "available": true, "mode": mode, "verdict": Value::Null, "held": held }),
         );
     };
+    // Parse the newest manifest (an unreadable or invalid file reads as an empty object).
     let manifest: Value = fs::read_to_string(&manifest_path)
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
         .unwrap_or_else(|| json!({}));
+    // A manifest with no fidelity block was never audited: same null-verdict answer as above.
     let fid = &manifest["fidelity"];
     if fid.is_null() {
         return Ok(
             json!({ "available": true, "mode": mode, "verdict": Value::Null, "held": held }),
         );
     }
+    // Shorthands into the convert-phase evidence and the degeneration detail.
     let conv = &fid["convert"];
     let degen = &conv["tripwires"]["degeneration_detail"];
     // P-0, the wiring slice (docs/41 §2 P-0, signed 2026-08-20): the asset ledger has been
@@ -150,6 +171,8 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
         (Some(d), Some(e)) => json!(d + e),
         _ => Value::Null,
     };
+    // The full status object the card renders: every field is copied from the manifest, none is computed here
+    // except assets_out.
     Ok(json!({
         "available": true,
         "mode": mode,
@@ -178,6 +201,8 @@ pub fn status(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "held": held,
     }))
 }
+
+// -- remedy: re-convert, re-analyze, bless --
 
 /// The newest manifest (by mtime) whose `source` is this file, across anchor/pending/held —
 /// every conversion leaves its as-converted record in one of those. Best-effort provenance
@@ -243,6 +268,7 @@ pub fn reconvert(gpu_pipeline_dir: &str, source: &str) -> Result<(), String> {
     // The marker is written BEFORE the PDF lands. The watcher polls drop/ every 5 s, and a
     // convert that started before the intent existed would ship as an ordinary create and the
     // remedy would be silently lost to dedup. Dependency first, trigger second.
+    // Look up the prior record for provenance, then write the supersede marker file.
     let prior = newest_manifest_for_source(base, source);
     let marker_dir = base.join("drop").join(SUPERSEDE_DIR);
     fs::create_dir_all(&marker_dir).map_err(|e| format!("failed to stage remedy marker: {e}"))?;
@@ -263,6 +289,7 @@ pub fn reconvert(gpu_pipeline_dir: &str, source: &str) -> Result<(), String> {
         serde_json::to_string_pretty(&body).map_err(|e| format!("failed to encode marker: {e}"))?;
     fs::write(&marker, encoded).map_err(|e| format!("failed to write remedy marker: {e}"))?;
 
+    // The trigger: copy the PDF back into drop/ (rolling the marker back if the copy fails).
     if let Err(e) = fs::copy(&src, &dest) {
         // The trigger never landed — take the intent back down with it, so no marker can
         // outlive the click that authored it.
@@ -317,6 +344,7 @@ pub fn reanalyze(
             "conveyor busy — a convert holds the GPU; re-run when the line is clear".into(),
         );
     }
+    // Build the detached converter command: python <script> --reanalyze <source> --backend <backend>.
     let mut cmd = Command::new(gpu_python_exe);
     cmd.arg(&script)
         .args(["--reanalyze", source, "--backend", backend])
@@ -357,6 +385,8 @@ pub fn bless(
     if source.is_empty() || source.contains(['/', '\\', ':']) {
         return Err("invalid source name".into());
     }
+    // Eligibility from the event stream: the newest "audit/scored" record for this source must be a
+    // non-degenerate `flag`.
     let base = Path::new(gpu_pipeline_dir);
     let events = fs::read_to_string(base.join("events.jsonl"))
         .map_err(|e| format!("events.jsonl unreadable: {e}"))?;
@@ -382,6 +412,7 @@ pub fn bless(
     if scored["degeneration"] == Value::Bool(true) {
         return Err("bless refused: degeneration is disease, not a ceiling (Repair Bench)".into());
     }
+    // Find the source's sha, then the staged bundle name from the newest matching "ship/shipped" event.
     let manifest =
         newest_manifest_for_source(base, source).ok_or("no local manifest records this source")?;
     let sha = manifest["source_sha256"]
@@ -400,6 +431,7 @@ pub fn bless(
         .and_then(|ev| ev["bundle"].as_str())
         .ok_or("no shipped record — bless targets bundles already held in ThinkPad staging")?
         .to_string();
+    // Write the bless marker locally, then copy it to the vault host's staging dir (removed after the attempt).
     let marker = json!({
         "source": source,
         "source_sha256": sha,
@@ -430,6 +462,7 @@ pub fn bless(
     // BatchMode makes prompting impossible, accept-new is trust-on-first-use for the
     // tailnet-internal host, and the timeout makes failures fail fast instead of hanging
     // the invoke.
+    // Run scp non-interactively; its exit status decides the result.
     let out = Command::new("scp")
         .arg("-o")
         .arg("BatchMode=yes")
@@ -455,11 +488,16 @@ pub fn bless(
 // The widget crate carried no tests before S44. These cover the one path here that can cause a
 // vault note to be REPLACED rather than created, so it earns them: the marker is the entire
 // difference between a remedy and an accidental re-drop (docs/15 §14.2).
+
+// -- tests --
+
+/// Unit tests for the reconvert marker, the re-run refusals and the status projection.
 #[cfg(test)]
 mod tests {
     use super::*;
     use std::sync::atomic::{AtomicU32, Ordering};
 
+    /// Counter that makes each fixture directory name unique within the test process.
     static N: AtomicU32 = AtomicU32::new(0);
 
     /// A throwaway pipeline root with drop/done/<source> present.
@@ -480,6 +518,7 @@ mod tests {
         base
     }
 
+    /// Writes `manifest` as <base>/<sub>/<bundle>/manifest.json, creating the directories.
     fn write_manifest(base: &Path, sub: &str, bundle: &str, manifest: Value) {
         let dir = base.join(sub).join(bundle);
         fs::create_dir_all(&dir).unwrap();
@@ -490,12 +529,14 @@ mod tests {
         .unwrap();
     }
 
+    /// The path where reconvert() places the supersede marker for `source`.
     fn marker_of(base: &Path, source: &str) -> PathBuf {
         base.join("drop")
             .join(SUPERSEDE_DIR)
             .join(format!("{source}.json"))
     }
 
+    /// reconvert() authors the marker from the prior manifest on disk (verdict and sha) and queues the PDF.
     #[test]
     fn authors_the_intent_from_the_on_disk_record() {
         let source = "brain-of-the-firm.pdf";
@@ -527,6 +568,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// With no prior manifest the marker is still written, with null provenance fields.
     #[test]
     fn authors_the_intent_even_with_no_prior_record() {
         // The click IS the intent (§14.2). A missing anchor record only costs provenance.
@@ -544,6 +586,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// Refused reconverts (bad name, missing source, no pipeline, already queued) write no marker and no PDF.
     #[test]
     fn refusals_leave_neither_intent_nor_trigger() {
         let source = "paper.pdf";
@@ -564,6 +607,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// If the marker directory cannot be created, reconvert() refuses and queues nothing.
     #[test]
     fn refuses_to_queue_when_the_intent_cannot_be_recorded() {
         // If the marker cannot be written, queueing the convert anyway would burn a GPU run
@@ -580,6 +624,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// The marker sits in a dot-prefixed subdirectory, so drop/ shows only the re-queued PDF.
     #[test]
     fn the_marker_is_invisible_to_every_existing_scan() {
         // Mirrors the three skips it relies on: the watcher's (dotfile / non-file / non-pdf),
@@ -761,6 +806,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// status() passes the runs/zones totals and their producer caps through from the manifest.
     #[test]
     fn projects_evidence_totals_with_their_producer_caps() {
         let source = "count-contract.pdf";

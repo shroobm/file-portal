@@ -1,3 +1,10 @@
+//! WHAT THIS FILE DOES: the read side of the widget's Room surface.
+//! Entry points: `metrics` (the KPI band: median s/page, throughput, survival average, recent audits,
+//! vault count), `gpu_vram` (live nvidia-smi probe), and `station_tree` (a station's on-disk tree as JSON).
+//! Reads (in the GPU pipeline dir): events.jsonl, anchor/ pending/ held/ drop/ manifests, .gpu-lock,
+//! plus the vault Library clone; it runs nvidia-smi. Writes nothing.
+//! Callers: the Tauri command layer elsewhere in the widget (not visible from this file).
+
 // S34 — the Room surface's read side (docs/16). Pure projection, no state: fills the KPI band
 // the existing commands don't cover (throughput, median s/page, survival average, vault count,
 // recent audits) by reading the same event stream + manifests Python already wrote, plus a
@@ -11,6 +18,8 @@ use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use std::time::SystemTime;
+
+// -- KPI band --
 
 /// The KPI band, derived from events.jsonl + the anchor/pending/held manifests + the vault
 /// Library clone. Everything here already exists on disk; the widget invents nothing.
@@ -38,6 +47,7 @@ pub fn metrics(gpu_pipeline_dir: &str, vault_library_dir: &str) -> Result<Value,
             }
         }
     }
+    // Median of the collected s/page values (Null when there are none).
     let median_spp = if spp.is_empty() {
         Value::Null
     } else {
@@ -53,6 +63,7 @@ pub fn metrics(gpu_pipeline_dir: &str, vault_library_dir: &str) -> Result<Value,
         };
         json!(m)
     };
+    // Throughput = total pages / total wall seconds across converted events.
     let throughput = if total_wall > 0.0 {
         json!(total_pages / total_wall)
     } else {
@@ -97,6 +108,7 @@ pub fn metrics(gpu_pipeline_dir: &str, vault_library_dir: &str) -> Result<Value,
             ));
         }
     }
+    // Newest six audits by manifest mtime, then the average survival.
     audits.sort_by_key(|a| std::cmp::Reverse(a.0));
     let recent_audits: Vec<Value> = audits.iter().take(6).map(|(_, v)| v.clone()).collect();
     let survival_avg = if surv_n > 0 {
@@ -111,6 +123,7 @@ pub fn metrics(gpu_pipeline_dir: &str, vault_library_dir: &str) -> Result<Value,
         .or_else(|| dir_child_count(&base.join("anchor")))
         .unwrap_or(0);
 
+    // Assemble the KPI object the UI reads.
     Ok(json!({
         "available": true,
         "median_spp": median_spp,
@@ -133,11 +146,14 @@ fn count_library(vault_library_dir: &str) -> Option<u64> {
     dir_child_count(&inbox).or_else(|| dir_child_count(lib))
 }
 
+/// Number of immediate subdirectories of `p`; None when `p` cannot be read.
 fn dir_child_count(p: &Path) -> Option<u64> {
     fs::read_dir(p)
         .ok()
         .map(|d| d.flatten().filter(|e| e.path().is_dir()).count() as u64)
 }
+
+// -- GPU probe --
 
 /// Live GPU memory via nvidia-smi. Returns { used, total } in GB, or null when there is no
 /// probe (no NVIDIA GPU / driver) so the UI shows "—" rather than a fake gauge.
@@ -176,6 +192,7 @@ pub fn gpu_vram() -> Value {
 // simulation. `station_tree(seg)` returns { root, children:[node] }, node =
 // { id, kind: "dir"|"file"|"note"|"zone", glyph, name, meta?, size?, survival?, verdict?, children? }.
 
+/// 32-bit FNV-style hash of a string's bytes; used only to make stable node ids.
 fn simple_hash(s: &str) -> u32 {
     let mut h: u32 = 2166136261;
     for b in s.bytes() {
@@ -183,9 +200,11 @@ fn simple_hash(s: &str) -> u32 {
     }
     h
 }
+/// Build a node id "<prefix>-<8 hex digits of the name's hash>".
 fn nid(prefix: &str, name: &str) -> String {
     format!("{prefix}-{:08x}", simple_hash(name))
 }
+/// Human-readable byte size: "N B", "N KB" or "N.N MB".
 fn size_str(bytes: u64) -> String {
     if bytes >= 1_048_576 {
         format!("{:.1} MB", bytes as f64 / 1_048_576.0)
@@ -195,22 +214,27 @@ fn size_str(bytes: u64) -> String {
         format!("{bytes} B")
     }
 }
+/// Count of all entries (files and folders) directly in `p`; 0 when unreadable.
 fn dir_count(p: &Path) -> u64 {
     fs::read_dir(p)
         .map(|d| d.flatten().count() as u64)
         .unwrap_or(0)
 }
+/// File length in bytes; 0 when the metadata cannot be read.
 fn flen(p: &Path) -> u64 {
     fs::metadata(p).map(|m| m.len()).unwrap_or(0)
 }
+/// Parse `<dir>/manifest.json`; None if missing or not valid JSON.
 fn read_manifest(dir: &Path) -> Option<Value> {
     fs::read_to_string(dir.join("manifest.json"))
         .ok()
         .and_then(|t| serde_json::from_str(&t).ok())
 }
+/// A text-only "note" tree node.
 fn note_node(id: &str, text: &str) -> Value {
     json!({ "id": id, "kind": "note", "name": text })
 }
+/// A "dir" tree node with a glyph, name, meta line and the given children.
 fn dir_node(id: &str, glyph: &str, name: &str, meta: &str, children: Vec<Value>) -> Value {
     json!({ "id": id, "kind": "dir", "glyph": glyph, "name": name, "meta": meta, "children": children })
 }
@@ -242,6 +266,7 @@ fn bundle_node(dir: &Path, prefix: &str) -> Value {
         .unwrap_or_default();
     let id = nid(prefix, &name);
     let man = read_manifest(dir);
+    // First pass: list the folder's entries (sorted) as assets/, .md and manifest.json nodes.
     let mut kids: Vec<Value> = vec![];
     let mut entries: Vec<PathBuf> = match fs::read_dir(dir) {
         Ok(e) => e.flatten().map(|x| x.path()).collect(),
@@ -278,6 +303,7 @@ fn bundle_node(dir: &Path, prefix: &str) -> Value {
             kids.push(json!({ "id": nid(&id, "manifest"), "kind": "file", "glyph": "\u{2699}", "name": "manifest.json", "size": size_str(flen(p)), "meta": meta }));
         }
     }
+    // Second pass: analyst summary and audit zones, read from the manifest.
     let mut verdict = Value::Null;
     let mut survival = Value::Null;
     if let Some(m) = &man {
@@ -314,6 +340,7 @@ fn bundle_node(dir: &Path, prefix: &str) -> Value {
 }
 /// Bundle folders under a pipeline subdir (anchor / held), sorted.
 fn bundles_in(base: &Path, sub: &str, prefix: &str) -> Vec<Value> {
+    // Sorted subfolders become bundle nodes; an empty folder yields one "empty" note.
     let mut dirs: Vec<PathBuf> = match fs::read_dir(base.join(sub)) {
         Ok(e) => e
             .flatten()
@@ -339,7 +366,9 @@ pub fn station_tree(
         return Ok(json!({ "root": "pipeline not configured", "children": [] }));
     }
     let base = Path::new(gpu_pipeline_dir);
+    // One arm per station; the final `_` arm is intake.
     let out = match seg {
+        // vault: bundle folders in the Library clone's Inbox.
         "vault" => {
             let inbox = Path::new(vault_library_dir).join("Inbox");
             let mut dirs: Vec<PathBuf> = match fs::read_dir(&inbox) {
@@ -361,6 +390,7 @@ pub fn station_tree(
             };
             json!({ "root": format!("{} · vault.git clone \u{2192} Library/Inbox/", vault_library_dir), "children": children })
         }
+        // assay: held bundles plus the eight newest audited verdicts.
         "assay" => {
             let mode = crate::assay::get_mode(gpu_pipeline_dir);
             let held = bundles_in(base, "held", "h");
@@ -401,6 +431,7 @@ pub fn station_tree(
                 note_node("as-mode", &format!("audit-mode.txt = {}", mode)),
             ] })
         }
+        // convert: the drop queue, the active file named by .gpu-lock, converted originals, anchor snapshots.
         "convert" => {
             let lock = base.join(".gpu-lock");
             let converting = fs::read_to_string(&lock)
@@ -420,6 +451,7 @@ pub fn station_tree(
                 dir_node("cv-anchor", "\u{1F4C1}", "anchor/", "immutable as-converted snapshots + manifest", bundles_in(base, "anchor", "a")),
             ] })
         }
+        // gate: pending routing cards and the analyst mode.
         "gate" => {
             let mode = crate::line::get_analyst_mode(gpu_pipeline_dir);
             let cards = file_nodes(&base.join("pending"), "gate", "\u{2733}");
@@ -428,6 +460,7 @@ pub fn station_tree(
                 note_node("gate-mode", &format!("analyst-mode.txt = {} · ask | local | gemini | off", mode)),
             ] })
         }
+        // ship: the newest shipped event plus two fixed explanatory notes.
         "ship" => {
             let text = fs::read_to_string(base.join("events.jsonl")).unwrap_or_default();
             let last = text
@@ -446,6 +479,7 @@ pub fn station_tree(
                 note_node("sh-dedup", "re-ship of a vaulted sha \u{2192} EXPORT-SKIP (cross-machine dedup)"),
             ] })
         }
+        // intake (any other seg): the drop belt and the failed quarantine folder.
         _ => {
             let failed = file_nodes(&base.join("drop").join("failed"), "in-failed", "\u{2717}");
             json!({ "root": format!("{}/drop  ·  allocator + watcher (poll 5s)", gpu_pipeline_dir), "children": [

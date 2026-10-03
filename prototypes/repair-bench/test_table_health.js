@@ -2,11 +2,22 @@
 // The functions are read out of bench.html between the S149-HEALTH markers — the page is the source of truth — and every
 // case is judged two ways: what tableHealth flags, and what markdown-it (the same build the view loads) renders.
 "use strict";
+
+// WHAT THIS FILE DOES
+// A standalone node test (run `node test_table_health.js` from prototypes/repair-bench) for two parts of bench.html:
+//   (1) the S149 table-health functions, and (2) the S165 / SYM-052 whole-line renderer (linesHtml) and its CSS rule.
+// It reads bench.html, cuts out the code between the S149-HEALTH-BEGIN / END markers, evaluates it with the DOM stubbed,
+// and judges each markdown case twice: what tableHealth flags, and what vendored markdown-it renders as <table>.
+// Reads: bench.html and vendor/markdown-it.min.js (nothing is written). Prints "ok"/"FAIL" per case and a summary line.
+// Exit code: 0 all green, 1 any case failed, 2 a marker or function could not be found in bench.html (UNREAD).
+
+// -- load bench.html and extract the health block --
 const fs = require("fs"), path = require("path");
 const html = fs.readFileSync(path.join(__dirname, "bench.html"), "utf8");
 const a = html.indexOf("// S149-HEALTH-BEGIN"), b = html.indexOf("// S149-HEALTH-END");
 if (a < 0 || b < 0) { console.error("markers not found in bench.html"); process.exit(2); }
 const block = html.slice(a, b);
+// -- evaluate the extracted block and set up the reference renderer --
 // the page's functions, evaluated in their own scope with the DOM helpers stubbed (markTableHealth is not under test)
 const stub = () => { throw new Error("markTableHealth needs the DOM; not under test here"); };
 const fns = new Function("$", "ctxText", block + "\n;return { DELIM, fenceMask, hasPipe, cellCount, isRepairLine, tableBlocks, tableSpanJS, tableHealth };")(stub, stub);
@@ -15,8 +26,17 @@ const md = require("./vendor/markdown-it.min.js")({ html: false, linkify: false,
 const tables = (text) => (md.render(text).match(/<table/g) || []).length;
 const L = (s) => s.split("\n");
 
+// -- test harness: counters, check(), flags() --
 let fails = 0, n = 0;
+/**
+ * Records one case: prints "ok"/"FAIL" with the name (and detail on failure), bumps the case and failure counters.
+ * Inputs: name (string), cond (boolean verdict), detail (optional string). Returns nothing.
+ */
 function check(name, cond, detail) { n++; if (!cond) { fails++; console.log("  FAIL  " + name + (detail ? " — " + detail : "")); } else console.log("  ok    " + name); }
+/**
+ * Runs the page's tableHealth over a markdown string (split to lines) and returns its list of flags
+ * (objects with .line and .reason). Pure; no side effects.
+ */
 function flags(text) { return tableHealth(L(text)); }
 
 // clean tables: no flags, one <table>
@@ -56,6 +76,7 @@ check("CRLF endings do not break the reading", flags("| a | b |\r\n|---|---|\r\n
 // out of bench.html the way the health block is (the page is the source of truth); the CSS is a rule-text check, said as
 // such (node has no layout engine). Each guard is watched firing on a planted mutant in the same run — a guard that has
 // never gone red is a proxy with a reputation (docs/32 §5).
+// -- SYM-052 setup: pull esc() and linesHtml() out of bench.html and build helpers --
 const escM = html.match(/^const esc = .*$/m);
 const lhA = html.indexOf("function linesHtml(text, highlight) {");
 const lhEnd = lhA < 0 ? null : html.slice(lhA).match(/\r?\n\}\r?\n/);
@@ -64,6 +85,7 @@ const linesHtmlSrc = html.slice(lhA, lhA + lhEnd.index + lhEnd[0].length);
 const mkLinesHtml = (src) => new Function(escM[0] + "\n" + src + "\n;return linesHtml;")();
 const unesc = (s) => s.replace(/&quot;/g, '"').replace(/&gt;/g, ">").replace(/&lt;/g, "<").replace(/&amp;/g, "&");
 const spanTexts = (out) => Array.from(out.matchAll(/<span class="([^"]*)" id="L(\d+)">([\s\S]*?)<\/span>/g)).map((m) => [Number(m[2]), unesc(m[3].replace(/​/g, "")), m[1]]);
+// a 60-cell pipe row, over 2,000 characters, used to prove no line is cut
 const wide = "| " + Array.from({ length: 60 }, (_, i) => "cell" + String(i).padStart(3, "0") + " a value with some words in it" ).join(" | ") + " |";
 const renderWhole = (fn) => { const t = spanTexts(fn(wide + "\nshort", 0)); return t.length === 2 && t[0][0] === 1 && t[0][1] === wide && t[1][1] === "short"; };
 check("SYM-052 the fixture row is wide enough to be cut by the old slice", wide.length > 2000, "len=" + wide.length);
@@ -79,5 +101,6 @@ check("SYM-052 the stylesheet: `#ctx .cl` is white-space:pre (one line = one row
 const wrapped = typeof ruleCl === "string" ? ruleCl.replace(/white-space:\s*pre\s*;/, "white-space:pre-wrap; word-break:break-word;") : ruleCl;
 check("SYM-052 NEGATIVE CONTROL: pre-wrap + break-word planted back on `.cl` makes the stylesheet case FAIL", wrapped !== ruleCl && !cssOk(wrapped, ruleCtx), wrapped === ruleCl ? "the plant did not land — the rule moved" : "");
 
+// -- summary and exit code --
 console.log(fails ? `TABLE HEALTH: ${fails} of ${n} FAILED` : `TABLE HEALTH: ${n}/${n} ok`);
 process.exit(fails ? 1 : 0);

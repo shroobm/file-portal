@@ -1,4 +1,9 @@
 #Requires -RunAsAdministrator
+# WHAT THIS FILE DOES: admin script for the Desktop's OpenSSH server. -PubKey appends a public key to
+# C:\ProgramData\ssh\administrators_authorized_keys and locks its ACL; -DisablePasswordAuth backs up
+# sshd_config, sets PasswordAuthentication no, and restarts sshd (refuses if no key file exists).
+# With neither switch it prints usage. Run by hand, elevated, after gate1-bootstrap.ps1.
+#
 # Gate 2 — install the ThinkPad public key for the admin account, then (second run,
 # only after a PROVEN key login) lock out password auth. Two runs BY DESIGN — the
 # split is the lockout guard the source brief lacked (docs/17 §2 #4).
@@ -17,9 +22,11 @@ param(
     [switch]$DisablePasswordAuth
 )
 $ErrorActionPreference = 'Stop'
+# -- paths: admin authorized-keys file and sshd config --
 $ak  = 'C:\ProgramData\ssh\administrators_authorized_keys'
 $cfg = 'C:\ProgramData\ssh\sshd_config'
 
+# -- step 1: install the public key --
 if ($PubKey) {
     if ($PubKey -notmatch '^(ssh-ed25519|sk-ssh-ed25519|ecdsa-sha2|ssh-rsa) ') {
         throw 'That does not look like an OpenSSH public key line (expected "ssh-ed25519 AAAA... comment").'
@@ -32,10 +39,12 @@ if ($PubKey) {
     'Only after that works, rerun:  .\gate2-lockdown.ps1 -DisablePasswordAuth'
 }
 
+# -- step 2: disable password authentication (only after a proven key login) --
 if ($DisablePasswordAuth) {
     if (-not (Test-Path $ak)) { throw 'No administrators_authorized_keys yet - install a key first (lockout guard).' }
     'Keys that are about to become the only door:'
     ssh-keygen -lf $ak
+    # back up the config, then rewrite or prepend the PasswordAuthentication directive
     Copy-Item $cfg "$cfg.bak-$(Get-Date -Format yyyyMMdd-HHmmss)"
     $text = [IO.File]::ReadAllText($cfg)
     $re = New-Object System.Text.RegularExpressions.Regex('(?m)^\s*#?\s*PasswordAuthentication\b.*$')
@@ -52,6 +61,7 @@ if ($DisablePasswordAuth) {
     'from a second terminal before closing anything. Backup written next to sshd_config.'
 }
 
+# -- no switch given: print usage --
 if (-not $PubKey -and -not $DisablePasswordAuth) {
     'Usage:'
     "  .\gate2-lockdown.ps1 -PubKey 'ssh-ed25519 AAAA... comment'   # step 1: install key, then TEST"

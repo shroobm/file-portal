@@ -1,4 +1,15 @@
 /**
+ * WHAT THIS FILE DOES
+ *   An ES module holding a static, frozen data model of one File Portal voyage (one book, one run
+ *   through intake, convert, audit and analyst). The 34 pipeline events and the manifest blocks
+ *   are inlined; nothing is read or written at runtime and there are no side effects on import.
+ *   Entry points: the default export VOYAGE, the named exports TIMELINE, SPANS, AUDITS, ANALYST,
+ *   LOCALIZERS, ALARMS, FIELDS, and the helpers fmtDuration, fmtClock, pct, render, dishonest,
+ *   honest, byCensus. Callers are the mission-control prototype pages that import it as a module.
+ *   Every number is wrapped by measure() so it carries its numerator, denominator and conditions.
+ */
+
+/**
  * voyage.js — the honest model of ONE voyage.
  *
  * Damodaran, "Investment Valuation" 4e · 1377 pages · dropped 2026-08-31T21:30:12Z ·
@@ -745,6 +756,9 @@ export const UNREAD = 'UNREAD';
 /** The sentinel for a rate whose denominator is zero or whose denominator is not this run's. */
 export const UNDEFINED = 'UNDEFINED';
 
+/**
+ * T(iso) - parses an ISO timestamp string to epoch milliseconds. Pure; used by span().
+ */
 const T = (iso) => Date.parse(iso);
 
 /** Seconds → "5h 02m 13s" / "1h 17m 55s" / "428.8s". Never returns a bare number. */
@@ -831,6 +845,7 @@ export const POPULATIONS = Object.freeze({
  * 3 · THE TIMELINE — work, dark, and dead, all first-class
  * ========================================================================================== */
 
+// -- anchor instants: event-attested timestamps, then operator-testimony instants --
 const t_intake1   = '2026-08-31T21:30:12+00:00';
 const t_chunk1    = '2026-08-31T21:30:19+00:00';
 const t_conv1     = '2026-08-31T22:34:14+00:00';
@@ -846,6 +861,9 @@ const t_powercut  = '2026-09-01T01:38:00+00:00';  // "~01:38Z", approximate
 const t_reboot    = '2026-09-01T01:48:17+00:00';  // Windows event log, not this fixture
 const t_humanback = '2026-09-01T03:34:00+00:00';  // "~03:34Z", approximate
 
+/**
+ * span(a, b) - seconds elapsed between two ISO timestamps (b minus a). Pure; returns a number.
+ */
 const span = (a, b) => (T(b) - T(a)) / 1000;
 
 /**
@@ -948,6 +966,7 @@ export const TIMELINE = Object.freeze([
   },
 ]);
 
+// -- roll-up seconds derived from the timeline, then the SPANS measures built on them --
 /** Roll-ups over the timeline. All 'derived'. */
 const _voyageSeconds = span(t_intake1, t_held);
 const _darkSeconds = TIMELINE.filter(s => s.kind === 'dark').reduce((a, s) => a + s.seconds, 0);
@@ -1017,6 +1036,7 @@ export const SPANS = Object.freeze({
  * 4 · THE CONVERT LEGS — two legs, and only one of them converted anything
  * ========================================================================================== */
 
+// -- per-slice records for each convert leg (leg 1 from events; leg 2 mirrors it as resumed) --
 const LEG1_SLICES = Object.freeze([
   { slice: 1, page_range: '0-199',     wall_s: 428.8, batch: 8, resumed: false, ts: '2026-08-31T21:37:28+00:00' },
   { slice: 2, page_range: '200-399',   wall_s: 385.6, batch: 8, resumed: false, ts: '2026-08-31T21:43:53+00:00' },
@@ -1035,8 +1055,10 @@ const LEG2_SLICES = Object.freeze([1, 2, 3, 4, 5, 6, 7].map((n, i) => ({
   ts: n <= 4 ? '2026-09-01T03:37:37+00:00' : '2026-09-01T03:37:38+00:00',
 })));
 
+// Sum of leg 1 slice wall seconds; used to show the slices reconcile with the reported wall_s.
 const _sliceSum = LEG1_SLICES.reduce((a, s) => a + s.wall_s, 0);
 
+// -- convert leg 1: the leg that did the work --
 export const CONVERT_LEG_1 = Object.freeze({
   id: 'convert.leg1',
   label: 'Convert leg 1 — the run that did the work',
@@ -1116,6 +1138,7 @@ export const CONVERT_LEG_1 = Object.freeze({
   }),
 });
 
+// -- convert leg 2: the resumed leg that converted nothing --
 export const CONVERT_LEG_2 = Object.freeze({
   id: 'convert.leg2',
   label: 'Convert leg 2 — resumed 7/7 from cache; converted NOTHING',
@@ -1245,6 +1268,10 @@ export const CONVERT_LEG_2 = Object.freeze({
  * 5 · THE AUDITS — three scorings, two phases, and the REASONS the verdicts fired
  * ========================================================================================== */
 
+/**
+ * runsMeasure(id, shown, total, phase) - builds the dishonest-by-default "omission runs" measure,
+ * where `shown` is the capped list length and `total` the real count. Returns a frozen measure.
+ */
 const runsMeasure = (id, shown, total, phase) => measure({
   id, label: 'omission runs found', value: shown, unit: 'runs',
   num: { label: 'runs SHOWN (display cap)', value: shown, unit: 'runs' },
@@ -1269,6 +1296,7 @@ const runsMeasure = (id, shown, total, phase) => measure({
   },
 });
 
+// -- the three audit scorings (convert, convert re-score, analyst) with the reason each verdict fired --
 export const AUDITS = Object.freeze([
   {
     id: 'audit.convert.1', phase: 'convert', at: t_audit1, verdict: 'fail',
@@ -1400,6 +1428,7 @@ export const AUDITS = Object.freeze([
  * 6 · THE ANALYST PHASE — the counters that exist nowhere in the event stream
  * ========================================================================================== */
 
+// -- analyst phase counters, all taken from the manifest (no events exist for this phase) --
 export const ANALYST = Object.freeze({
   id: 'analyst',
   label: 'Analyst phase (qwen3:8b, local, program "readability")',
@@ -1594,6 +1623,7 @@ export const ANALYST = Object.freeze({
  * 7 · THE LOCALIZERS — evidence the operator needs, none of which gates anything
  * ========================================================================================== */
 
+// Shorthand aliases for the convert fidelity block and its degeneration detail.
 const _fid = MANIFEST_FIDELITY_CONVERT;
 const _degen = _fid.tripwires.degeneration_detail;
 
@@ -1842,8 +1872,13 @@ export const ALARMS = Object.freeze([
  * 9 · FLAT INDEX + HELPERS
  * ========================================================================================== */
 
+/**
+ * collect() - flattens every measure from SPANS, both legs, ANALYST, LOCALIZERS and AUDITS into
+ * one object keyed by measure id. No inputs; returns a frozen object; run once at load for FIELDS.
+ */
 function collect() {
   const out = {};
+  // add(o): copies each member of o that looks like a measure (has id and `honest`) into out.
   const add = (o) => { for (const k in o) { const v = o[k]; if (v && v.id && 'honest' in v) out[v.id] = v; } };
   add(SPANS);
   add(CONVERT_LEG_1.fields);
@@ -1886,6 +1921,7 @@ export function byCensus(rowId) {
  * 10 · THE AGGREGATE
  * ========================================================================================== */
 
+// The default export: one frozen object bundling every section above plus the headline text.
 export const VOYAGE = Object.freeze({
   title: 'Damodaran · Investment Valuation 4e · HELD',
   source: SOURCE_PDF,

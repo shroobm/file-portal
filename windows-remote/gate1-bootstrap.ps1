@@ -1,4 +1,9 @@
 #Requires -RunAsAdministrator
+# WHAT THIS FILE DOES: elevated one-shot setup of OpenSSH Server on the Desktop: sandbox probe, install
+# the capability, start sshd and set it Automatic, set PowerShell 5.1 as the default SSH shell (registry),
+# disable the stock allow-any firewall rule and add a tailnet-only (100.64.0.0/10) rule, then print the
+# host-key fingerprints. Writes a transcript to the Desktop. Run by hand; followed by gate2-lockdown.ps1.
+#
 # Gate 1 — enable OpenSSH Server on the Desktop, scoped to the tailnet AT BIRTH.
 # See docs/17-remote-access-runbook.md §4 (Gate 1) for the full contract + rollback.
 #
@@ -11,6 +16,7 @@
 # and only after a key login has been proven (lockout-safe ordering, docs/17 §2 #4).
 
 $ErrorActionPreference = 'Stop'
+# -- transcript (appended to on every run) --
 Start-Transcript -Path "$env:USERPROFILE\Desktop\gate1-bootstrap-transcript.txt" -Append
 
 # 0) refuse a sandboxed (MSIX-packaged) shell

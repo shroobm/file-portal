@@ -1,3 +1,13 @@
+/**
+ * WHAT THIS FILE DOES
+ * Shared ES module: the single event vocabulary and count-wording rules for the widget's surfaces
+ * (Dock, Room, Wall). Entry points: countOfTotal (honest "N of M" counts), displaySliceNote (note
+ * when a UI list is truncated) and eventPhrase (turns one converter event record into a sentence).
+ * Reads only its arguments (event objects with stage/event keys); writes nothing, no I/O.
+ * Called by room.js, main.js and the other surface modules; convert_and_ship_selftest T7 reads
+ * this source as a parity tripwire.
+ */
+
 // One event vocabulary for every operator surface.  The converter emits machine fields;
 // Dock, Room, and Wall may compact the sentence, but they cannot silently recognize different
 // recovery states.  Keep the literal stage/event keys here: convert_and_ship_selftest T7 reads
@@ -8,6 +18,12 @@
 // its producer cap; at/over the cap (or with a malformed total) it names both UNREAD and the
 // operator's remedy instead of letting the retained count masquerade as the population.
 // UI display limits never enter this decision; displaySliceNote reports them independently.
+/**
+ * Formats a shown count against its total and optional producer cap.
+ * Inputs: shown (count on hand), total (known population or null), producerCap (list cap or null).
+ * Returns "N of M", a bare "N", or an "of at least N - total UNREAD" string when the count is unsafe.
+ * No side effects.
+ */
 export function countOfTotal(shown, total, producerCap = null) {
   const shownOk = typeof shown === "number" && Number.isInteger(shown) && shown >= 0;
   const totalOk = shownOk && typeof total === "number" && Number.isInteger(total) && total >= shown;
@@ -24,6 +40,11 @@ export function countOfTotal(shown, total, producerCap = null) {
   return `${shown}`;
 }
 
+/**
+ * Names a UI display limit when the available list is longer than the surface shows.
+ * Inputs: available (items held), limit (items shown), surface (name of the glass).
+ * Returns a "shows first N of M" note, or "" when nothing was cut or the inputs are invalid.
+ */
 export function displaySliceNote(available, limit, surface) {
   const availableOk = typeof available === "number" && Number.isInteger(available) && available >= 0;
   const limitOk = typeof limit === "number" && Number.isInteger(limit) && limit > 0;
@@ -31,18 +52,28 @@ export function displaySliceNote(available, limit, surface) {
   return `${surface} shows first ${limit} of ${available} · open Repair Bench for the full retained list`;
 }
 
+/**
+ * Turns one converter event record into its display sentence.
+ * Inputs: e (event with stage, event and detail fields), options compact (drop icons, shorter
+ * fields) and unknown (value returned for a missing or unmapped event).
+ * Returns the phrase from the stage/event table below, or `unknown`. No side effects.
+ */
 export function eventPhrase(e, { compact = false, unknown = null } = {}) {
   if (!e) return unknown;
+  // helpers: s clips a field to the display width, icon adds a glyph prefix unless compact
   const s = (v) => String(v ?? "").slice(0, compact ? 34 : 40);
   const icon = (glyph) => compact ? "" : `${glyph} `;
   const k = `${e.stage}/${e.event}`;
+  // the phrase table, keyed "stage/event"; every template is built eagerly for the one event given
   const map = {
+    // -- intake stage: files arriving on the belt --
     "intake/detected": `${icon("📥")}${s(e.source)} — on the belt`,
     "intake/deferred": `${icon("⏸")}${s(e.source)} — deferred while assistant holds the card`,
     "intake/moved_late": `${icon("📤")}${s(e.source)} — moved late to ${s(e.dest)} after ${e.waited_s ?? "?"} s (its move had failed; the book was parked, never converted twice)`,
     "intake/stale-hold-reaped": `${icon("⚠")}stale assistant hold reaped · ${s(e.reason)}`,
     "intake/stale-lock-reaped": `${icon("⚠")}stale GPU signal reaped · ${s(e.source)}`,
     "intake/failed": `${icon("✗")}${s(e.source)} — intake FAILED (${e.exit_code ?? "?"})${e.timeout_s ? ` · outer cap ${Math.round(e.timeout_s / 3600)}h` : ""}`,
+    // -- convert stage: Marker slices, the recovery ladder, block records --
     "convert/probe": `${icon("⚙")}probing ${s(e.source)} — ${e.pages}pp ${e.lane || ""}`.trim(),
     "convert/slice": `slice ${e.slice}/${e.slices} pp ${s(e.page_range)} · ${Math.round(e.wall_s || 0)}s${e.resumed ? " · resumed" : ""}${e.recovered ? ` · recovered @${e.batch}` : ""}`,
     "convert/stalled": `${icon("⚠")}pp ${s(e.page_range)} STALLED — recovery ladder engaging`,
@@ -61,6 +92,7 @@ export function eventPhrase(e, { compact = false, unknown = null } = {}) {
     "convert/blocks": `${icon("▦")}${s(e.source)} — block records: ${e.blocks_total ?? "?"} blocks over ${e.slices_with_blocks ?? "?"}/${e.slices_total ?? "?"} slices`,
     "convert/blocks_partial": `${icon("⚠")}${s(e.source)} — block records INCOMPLETE · ${typeof e.slices_total === "number" && typeof e.slices_with_blocks === "number" ? e.slices_total - e.slices_with_blocks : "?"} of ${e.slices_total ?? "?"} slices missing${e.page_unresolved ? ` · ${e.page_unresolved} pp unresolved` : ""}`,
     "convert/blocks_error": `${icon("✗")}${e.source ? `${s(e.source)} — ` : ""}block records error (${s(e.phase)}${e.page_range ? ` @ pp ${s(e.page_range)}` : ""}): ${s(e.error)} — conversion unaffected`,
+    // -- audit stage: scoring, verdicts, supersede and reaudit --
     "audit/scored": `scored ${s(e.source)} · survival ${e.doc_survival != null ? Number(e.doc_survival).toFixed(3) : "?"}`,
     "audit/flagged": `${s(e.source)} — verdict ${e.verdict}`,
     "audit/verdict_fail": `${s(e.bundle)} — verdict FAIL · algedonic`,
@@ -72,16 +104,20 @@ export function eventPhrase(e, { compact = false, unknown = null } = {}) {
     // naming the OLD verdict beside the new one so a reader never has to diff two events.
     "audit/reaudit": `${icon("🔁")}${s(e.bundle)} — reaudit ${e.from_verdict ?? "?"} → ${e.verdict ?? "?"}`,
     "audit/reaudit_refused": `${icon("✗")}${s(e.bundle)} — reaudit refused (${s(e.reason)})`,
+    // -- gate stage: the operator's routing decision --
     "gate/pending": `${icon("✳")}${s(e.bundle)} — awaiting YOUR routing decision`,
     "gate/auto_routed": `${icon("✳")}${s(e.bundle)} — rule auto-routed local`,
     "gate/resolved": `${icon("✓")}task complete — check the Library button`,
     "gate/failed": `${icon("✗")}routing failed: ${s(e.error)} — pick a route to retry`,
+    // -- analyst stage: the analysis pass --
     "analyst/start": `${icon("🧠")}analyzing ${s(e.bundle)} (${e.backend})…`,
     "analyst/done": `${icon("🧠")}analysis done · ${e.chunks_passed ?? "?"}✓ ${e.chunks_rejected || 0} protected`,
     // B27 (S181): a retry after a ship failure past the analyst ships the pass already there — no second run
     "analyst/skipped": `${icon("🧠")}${s(e.bundle)} — already analysed (${e.backend}), shipping the parked pass`,
+    // -- ship stage: delivery to the vault --
     "ship/shipped": `${icon("⇈")}${s(e.bundle)} — shipped to vault ✓`,
     "ship/failed": `${icon("✗")}ship failed: ${s(e.error)}`,
   };
+  // unmapped stage/event pairs fall back to the caller's `unknown`
   return map[k] ?? unknown;
 }

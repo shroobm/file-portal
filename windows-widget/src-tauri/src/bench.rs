@@ -1,3 +1,11 @@
+// WHAT THIS FILE DOES: runs the Repair Bench surface of the widget. open() picks a held bundle
+// (resolve_held), finds prototypes/repair-bench/bench.py (bench_script), picks a free loopback port
+// (free_port), starts the Python server as a supervised child with a per-launch token
+// (launch_token / server_takes_token), waits for it to listen, then opens or refocuses a
+// dedicated window on it (show_window). log_boot() appends lines to widget-boot.log.
+// Reads: <pipeline dir>/held/*/manifest.json. Writes: bench-stderr.log and widget-boot.log in the
+// pipeline dir. Callers: the Tauri command layer (open) and chat.rs (launch_token, log_boot).
+//
 // S63: THE BENCH SURFACE — the Repair Bench graduates into the widget as the fourth surface
 // (docs/19 §7's graduation step, commissioned by Rab: "I want the widget running with the
 // repair bench, along with the dock, room, wall"). The widget SPAWNS the quarantined prototype
@@ -26,11 +34,14 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
+// -- state: the one live bench server --
+
 /// One live bench at a time; opening a different held bundle replaces it. Arc so the async
 /// command can move a handle into spawn_blocking (the assay_bless idiom).
 #[derive(Clone, Default)]
 pub struct BenchState(pub Arc<Mutex<Option<BenchRun>>>);
 
+/// A running bench server: the held bundle dir it serves, its port, the child process, its token.
 pub struct BenchRun {
     pub dir: PathBuf,
     pub port: u16,
@@ -41,12 +52,15 @@ pub struct BenchRun {
     pub token: Option<String>,
 }
 
+// -- finding the bundle, the script and a port --
+
 /// Which held bundle goes on the bench. `source` is the manifest's `source` filename — the
 /// SAME per-row `data-src` contract bless/⟲/⟳ already use (assay.rs `held_list` sets
 /// `bundle: m["source"]`). Empty = the newest held bundle.
 pub fn resolve_held(gpu_pipeline_dir: &str, source: &str) -> Result<PathBuf, String> {
     let held = Path::new(gpu_pipeline_dir).join("held");
     let entries = fs::read_dir(&held).map_err(|_| "held/ is empty or missing".to_string())?;
+    // Scan held/ for bundle dirs with a readable manifest; keep the newest match by mtime.
     let mut newest: Option<(std::time::SystemTime, PathBuf)> = None;
     for e in entries.flatten() {
         let dir = e.path();
@@ -88,6 +102,9 @@ pub fn free_port() -> Result<u16, String> {
         .ok_or_else(|| "no free port in 7077..7097".into())
 }
 
+// -- the per-launch loopback token --
+
+/// Monotonic counter mixed into each launch token so two tokens never repeat in one process.
 static TOKEN_COUNTER: AtomicU64 = AtomicU64::new(0);
 
 /// Per-launch loopback token for the spawned local servers (bench + chat), S108. THREAT
@@ -139,6 +156,8 @@ pub fn bench_script(gpu_converter_dir: &str) -> Result<PathBuf, String> {
     }
 }
 
+// -- launching the server and its window --
+
 /// Spawn (or reuse) the bench server for `source` and open its window. Blocking — call from
 /// spawn_blocking. Returns the port it serves on.
 pub fn open(
@@ -157,6 +176,7 @@ pub fn open(
         .0
         .lock()
         .map_err(|_| "bench lock poisoned".to_string())?;
+    // Reuse a live server already on this bundle; otherwise kill the old one before launching.
     if let Some(run) = guard.as_mut() {
         let alive = matches!(run.child.try_wait(), Ok(None));
         if alive && run.dir == dir {
@@ -197,6 +217,7 @@ pub fn open(
         .spawn()
         .map_err(|e| format!("failed to spawn bench: {e}"))?;
     adopt_into_job(&child); // no orphaned bench servers, by any widget exit (S37)
+                            // Readiness wait: probe the port up to 30 x 200 ms for the server to start listening.
     let mut up = false;
     for _ in 0..30 {
         if TcpStream::connect_timeout(
@@ -237,6 +258,7 @@ fn show_window(app: tauri::AppHandle, port: u16, dir: &Path, token: Option<&str>
         Some(tok) => format!("http://127.0.0.1:{port}/?token={tok}"),
         None => format!("http://127.0.0.1:{port}/"),
     };
+    // Window work is queued onto the main thread (a Windows/Tauri requirement).
     let _ = app.clone().run_on_main_thread(move || {
         use tauri::Manager;
         if let Some(w) = app.get_webview_window("repair-bench") {
@@ -265,6 +287,10 @@ fn show_window(app: tauri::AppHandle, port: u16, dir: &Path, token: Option<&str>
     });
 }
 
+// -- boot-log channel --
+
+/// Append "<unix seconds> bench: <msg>" to <pipeline dir>/widget-boot.log; silent no-op if the
+/// pipeline dir is unset or the write fails. Input: the app handle and the message.
 pub(crate) fn log_boot(app: &tauri::AppHandle, msg: &str) {
     // pub(crate) since S85: chat.rs's window path reports through the same channel.
     use tauri::Manager;
@@ -294,11 +320,14 @@ pub(crate) fn log_boot(app: &tauri::AppHandle, msg: &str) {
         .and_then(|mut f| std::io::Write::write_all(&mut f, line.as_bytes()));
 }
 
+// -- tests --
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde_json::json;
 
+    /// Make a fresh empty temp dir under the system temp dir, named `name`; returns its path.
     fn tmp(name: &str) -> PathBuf {
         let dir = std::env::temp_dir().join(name);
         let _ = fs::remove_dir_all(&dir);
@@ -306,6 +335,7 @@ mod tests {
         dir
     }
 
+    /// Create held/<sha>/manifest.json under `base` with the given `source` field.
     fn write_held(base: &Path, sha: &str, source: &str) {
         let d = base.join("held").join(sha);
         fs::create_dir_all(&d).unwrap();
@@ -316,6 +346,7 @@ mod tests {
         .unwrap();
     }
 
+    /// resolve_held picks the bundle whose manifest source matches; empty source = newest.
     #[test]
     fn resolves_by_the_rows_own_source_contract() {
         let base = tmp("fp-bench-resolve");
@@ -330,6 +361,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// An empty held/ dir yields an Err, not a panic.
     #[test]
     fn an_empty_held_dir_refuses_calmly() {
         let base = tmp("fp-bench-empty");
@@ -338,6 +370,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// free_port stays inside 7077..7097 and does not return a port that is already bound.
     #[test]
     fn free_port_skips_a_bound_one() {
         // Bind the range's first port; the scanner must return a DIFFERENT free one.
@@ -349,6 +382,7 @@ mod tests {
         assert!((7077..7097).contains(&p));
     }
 
+    /// Launch tokens are 28 hex digits and two consecutive ones differ.
     #[test]
     fn launch_tokens_are_nonempty_and_never_repeat_within_a_process() {
         let a = launch_token();
@@ -359,6 +393,7 @@ mod tests {
         assert_ne!(a, b);
     }
 
+    /// server_takes_token is true only for a script containing "--token"; false when absent.
     #[test]
     fn token_flag_is_feature_detected_from_the_server_script() {
         let base = tmp("fp-bench-tokendetect");
@@ -373,6 +408,7 @@ mod tests {
         let _ = fs::remove_dir_all(&base);
     }
 
+    /// bench_script finds prototypes/repair-bench/bench.py next to the converter dir, else errs.
     #[test]
     fn bench_script_derives_from_the_repo_layout() {
         let repo = tmp("fp-bench-repo");

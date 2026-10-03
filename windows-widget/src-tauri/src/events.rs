@@ -1,3 +1,9 @@
+// WHAT THIS FILE DOES: the widget's read side of the pipeline event stream. shift_summary()
+// reads <gpu_pipeline_dir>/events.jsonl and returns JSON: today's counts (converted, analyzed,
+// chunks protected, shipped, failed) plus the newest 40 raw events, or {"available": false} when
+// unconfigured or the file is unreadable. Read-only, no state. Callers: the Tauri command layer
+// feeding the Room / shift panel.
+//
 // S20: the widget's read side of the event stream (docs/13 keystone). The pipeline
 // appends JSON lines to <gpu_pipeline_dir>\events.jsonl; this module summarizes today's
 // shift and hands the raw tail to the UI. Projection principle: read-only, no state.
@@ -5,6 +11,8 @@
 use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
+
+// -- shift summary --
 
 /// Today's shift report + the last few raw events. All derived, nothing stored.
 pub fn shift_summary(gpu_pipeline_dir: &str) -> Result<Value, String> {
@@ -16,6 +24,7 @@ pub fn shift_summary(gpu_pipeline_dir: &str) -> Result<Value, String> {
         Ok(t) => t,
         Err(_) => return Ok(json!({"available": false})),
     };
+    // Tally today's events by (stage, event) and keep a rolling tail of the last 40 lines.
     let today = chrono_today_prefix();
     let (mut converted, mut analyzed, mut protected, mut shipped, mut failed) =
         (0u32, 0, 0, 0, 0u32);
@@ -58,6 +67,8 @@ pub fn shift_summary(gpu_pipeline_dir: &str) -> Result<Value, String> {
         "tail": tail.into_iter().rev().take(40).collect::<Vec<_>>(),
     }))
 }
+
+// -- date helper --
 
 /// UTC date prefix ("2026-07-19") without pulling in a date crate: parse from any
 /// event's own timestamp format by computing from SystemTime days-since-epoch.

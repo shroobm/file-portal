@@ -1,3 +1,11 @@
+//! WHAT THIS FILE DOES: the widget's algedonic (unacknowledged-pain) alert projection.
+//! Entry points: `state` (the alert list plus counts for the banner), `ack` (append an acknowledgement),
+//! `minutes` / `set_minutes` (the escalation threshold lever).
+//! Reads (in the GPU pipeline dir): events.jsonl, the receipts cache (via crate::receipts),
+//! algedonic-acks.jsonl, algedonic-minutes.txt.
+//! Writes only algedonic-acks.jsonl (append) and algedonic-minutes.txt.
+//! Callers: the Tauri command layer elsewhere in the widget (not visible from this file).
+
 // Stage F (docs/18 §6 / docs/19 §6): THE ALGEDONIC LINE — pain that goes unacknowledged
 // escalates, instead of scrolling quietly out of an event stream nobody was watching. Beer's
 // term is deliberate: an algedonic signal bypasses the normal reporting hierarchy. Here that
@@ -19,6 +27,9 @@ use serde_json::{json, Value};
 use std::fs;
 use std::path::Path;
 
+// -- constants: file names, default threshold, retention and cap --
+
+// File names inside the pipeline dir: the ack ledger and the minutes lever.
 const ACKS_NAME: &str = "algedonic-acks.jsonl";
 const MINUTES_NAME: &str = "algedonic-minutes.txt";
 const DEFAULT_MINUTES: u64 = 30; // PROVISIONAL default — Rab signs the real number
@@ -31,8 +42,13 @@ const DEFAULT_MINUTES: u64 = 30; // PROVISIONAL default — Rab signs the real n
 // gone the same way. The incident this stage exists to prevent lasted FIVE days; the expiry sat
 // at seven. Acked facts still fade — because an ack IS an append.
 const ACKED_WINDOW_S: u64 = 7 * 86_400;
+// Most alerts the projection returns; the overflow is counted in "capped".
 const MAX_ALERTS: usize = 12;
 
+// -- the escalation threshold lever --
+
+/// Read the escalation threshold M (minutes) from algedonic-minutes.txt; accepts 1..=720,
+/// otherwise returns DEFAULT_MINUTES.
 pub fn minutes(gpu_pipeline_dir: &str) -> u64 {
     fs::read_to_string(Path::new(gpu_pipeline_dir).join(MINUTES_NAME))
         .ok()
@@ -41,6 +57,7 @@ pub fn minutes(gpu_pipeline_dir: &str) -> u64 {
         .unwrap_or(DEFAULT_MINUTES)
 }
 
+/// Write M to algedonic-minutes.txt after checking 1..=720. Returns M, or an Err string.
 pub fn set_minutes(gpu_pipeline_dir: &str, m: u64) -> Result<u64, String> {
     if !(1..=720).contains(&m) {
         return Err(format!("invalid algedonic minutes: {m} (1..720)"));
@@ -52,6 +69,8 @@ pub fn set_minutes(gpu_pipeline_dir: &str, m: u64) -> Result<u64, String> {
     .map_err(|e| format!("failed to write algedonic minutes: {e}"))?;
     Ok(m)
 }
+
+// -- acknowledgement (append-only ledger) --
 
 /// Acknowledge one alert by its stable id. Append-only: the ledger doubles as a record of who
 /// silenced what, when — the same flight-recorder instinct as the cookie tally.
@@ -71,6 +90,8 @@ pub fn ack(gpu_pipeline_dir: &str, id: &str) -> Result<(), String> {
         .and_then(|mut f| f.write_all(line.as_bytes()))
         .map_err(|e| format!("failed to write ack: {e}"))
 }
+
+// -- the projection: gather, retire, dedupe, cap, shape --
 
 /// The projection: every unresolved pain signal in the window, newest first, each carrying its
 /// age and ack state. `escalated` = unacked AND older than M — the banner's population.
@@ -98,6 +119,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         .filter_map(|v| v["id"].as_str().map(String::from))
         .collect();
 
+    // sfield: the first of `keys` present as a string on `ev`, else an empty string.
     let sfield = |ev: &Value, keys: &[&str]| -> String {
         keys.iter()
             .find_map(|k| ev[*k].as_str().map(String::from))
@@ -105,6 +127,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
     };
 
     // ---- gather candidates from the desktop event stream --------------------------------
+    // (the loop below maps each event to an alert kind, or skips it)
     let mut candidates: Vec<(String, String, String, String, String)> = vec![]; // (ts, kind, stage, bundle, detail)
     for ev in &events {
         let (stage, event) = (
@@ -230,6 +253,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
     let dropped = candidates.len().saturating_sub(MAX_ALERTS);
     candidates.truncate(MAX_ALERTS);
 
+    // Shape each surviving candidate into an alert object (id, age in minutes, acked, escalated).
     let alerts: Vec<Value> = candidates
         .into_iter()
         .map(|(ts, kind, stage, bundle, detail)| {
@@ -245,6 +269,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             })
         })
         .collect();
+    // Counts are taken over the alerts actually returned.
     let unacked = alerts.iter().filter(|a| a["acked"] == false).count();
     let escalated = alerts.iter().filter(|a| a["escalated"] == true).count();
     Ok(json!({
@@ -263,6 +288,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
 
 // ---- time, without a date crate (the events.rs idiom, both directions) ----------------------
 
+/// Current unix time in seconds (0 if the clock is before the epoch). No side effects.
 fn now_epoch() -> u64 {
     std::time::SystemTime::now()
         .duration_since(std::time::UNIX_EPOCH)
@@ -299,10 +325,12 @@ fn parse_iso_utc(ts: &str) -> Option<u64> {
 }
 
 /// Unix seconds → the same ISO shape the pipeline writes (for the ack ledger's own stamps).
+/// The current time as the pipeline's ISO-8601 UTC string (used to stamp acks).
 fn now_iso() -> String {
     iso_of(now_epoch())
 }
 
+/// Format unix seconds as "YYYY-MM-DDTHH:MM:SS+00:00" using civil-from-days arithmetic.
 fn iso_of(secs: u64) -> String {
     let days = secs / 86_400;
     let (h, mi, s) = ((secs % 86_400) / 3_600, (secs % 3_600) / 60, secs % 60);
@@ -319,10 +347,13 @@ fn iso_of(secs: u64) -> String {
     format!("{y:04}-{m:02}-{d:02}T{h:02}:{mi:02}:{s:02}+00:00")
 }
 
+// -- tests: alert gathering, retirement, supersession, acks and the minutes lever --
+
 #[cfg(test)]
 mod tests {
     use super::*;
 
+    // Test: parse_iso_utc inverts now_iso, accepts a real stamp, rejects garbage.
     #[test]
     fn iso_round_trip_agrees_with_itself() {
         // The parser must invert the formatter exactly — the two halves of the same algorithm.
@@ -335,6 +366,7 @@ mod tests {
         assert!(parse_iso_utc("2026-13-40T99:99:99").is_none());
     }
 
+    // Create a fresh empty temp dir named `name` and return its path as a String.
     fn tmp(name: &str) -> String {
         let dir = std::env::temp_dir().join(name);
         let _ = fs::remove_dir_all(&dir);
@@ -342,6 +374,7 @@ mod tests {
         dir.to_string_lossy().into_owned()
     }
 
+    // Test: a held alert stands; a ship failure retires after a later ship.
     #[test]
     fn held_alerts_survive_and_resolved_failures_retire() {
         let dir = tmp("fp-alg-basic");
@@ -368,6 +401,7 @@ mod tests {
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-basic"));
     }
 
+    // Test: a park retires the earlier ship failure and itself stands.
     #[test]
     fn a_park_resolves_the_ship_failure_but_nothing_auto_resolves_a_park() {
         // The Damodaran shape: ship failed (ThinkPad down), then the retry enforce-parked it.
@@ -389,6 +423,7 @@ mod tests {
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-park"));
     }
 
+    // Test: an ack silences one occurrence; a newer event re-alarms.
     #[test]
     fn acking_silences_and_a_new_occurrence_realarms() {
         let dir = tmp("fp-alg-ack");
@@ -426,6 +461,7 @@ mod tests {
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-ack"));
     }
 
+    // Test: a verdict_fail raises an alert even after the book shipped.
     #[test]
     fn a_fidelity_verdict_raises_even_though_report_mode_shipped_the_book() {
         // docs/30 §3.3's hole, from the other side: report mode ships, so there is no `held`
@@ -458,6 +494,7 @@ mod tests {
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-verdict"));
     }
 
+    // Test: a verdict_fail and its held park for one book give one alert.
     #[test]
     fn one_book_raises_one_alarm_however_many_ways_it_says_so() {
         // Enforce mode writes BOTH events for one book, in the same second (events.jsonl stamps
@@ -488,6 +525,7 @@ mod tests {
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-verdict-park"));
     }
 
+    // Test: a vault receipt never supersedes the desktop's verdict, and age retires nothing.
     #[test]
     fn a_receipt_never_erases_the_desktops_own_verdict() {
         // OVERTURNED, and deliberately: this test used to assert that a `supersede-held` receipt
@@ -582,6 +620,7 @@ mod tests {
         let _ = fs::remove_dir_all(std::env::temp_dir().join("fp-alg-verdict-vault"));
     }
 
+    // Test: a vault receipt becomes a vault-held alert; the minutes lever validates its range.
     #[test]
     fn receipts_join_the_stream_and_the_lever_validates() {
         let dir = tmp("fp-alg-rcpt");

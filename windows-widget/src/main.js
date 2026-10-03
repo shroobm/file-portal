@@ -1,9 +1,21 @@
+/**
+ * WHAT THIS FILE DOES
+ * Entry module of the File Portal widget's webview (the Dock surface and shared boot code).
+ * Entry points: init() (portal tiles + drag-drop to the Rust `send_to_portal` command), pfLoop()
+ * (pre-flight analyst cards), the line/ticker/vault pollers further down, and initRoom() from room.js.
+ * Reads: Tauri commands (list_portals, preflight_list, rules_get, fetch_file_status and others
+ * invoked below), localStorage "fp-theme", the DOM of index.html. Writes: DOM text/classes, the
+ * window size and position, the Rust boot log (debug_log), and routing decisions via Tauri commands.
+ * Called by: index.html loads it as an ES module; it imports room.js and event-vocab.js.
+ */
+
 // Renders one drop-target tile per configured portal and sends dropped files to the Rust
 // backend's `send_to_portal` command. Kept framework-free on purpose — see docs/07-development-guide.md.
 
 // No bundler in this project (see docs/07-development-guide.md), so we can't resolve bare
 // module specifiers like "@tauri-apps/api/core" -- use the global API Tauri injects instead
 // (enabled via app.withGlobalTauri in tauri.conf.json).
+// -- Tauri globals (injected by the runtime, no bundler) --
 const { invoke } = window.__TAURI__.core;
 const { getCurrentWebview } = window.__TAURI__.webview;
 const { getCurrentWindow } = window.__TAURI__.window;
@@ -14,8 +26,13 @@ const { getCurrentWindow } = window.__TAURI__.window;
 import { initRoom, setActiveSurface } from "./room.js";
 import { eventPhrase, countOfTotal, displaySliceNote } from "./event-vocab.js";
 
+// -- boot diagnostics --
 // Boot diagnostics (S22 debug): any uncaught error or rejection lands in the status
 // line instead of a console nobody can open in release builds.
+/**
+ * Sends a message to the Rust boot log (debug_log command). Input: msg (any value, stringified).
+ * Returns nothing; swallows errors when IPC is not up yet.
+ */
 function dbg(msg) {
   try { invoke("debug_log", { msg: String(msg) }); } catch { /* pre-IPC */ }
 }
@@ -30,6 +47,7 @@ window.addEventListener("unhandledrejection", (e) => {
 });
 dbg("boot: module evaluating");
 
+// -- theme and top-level element handles --
 // Stage E (docs/19 §5): apply the persisted theme before first paint. The Room's ◐ button
 // owns the choice (room.js toggleTheme writes it); this makes every launch honor it.
 try {
@@ -50,10 +68,18 @@ minBtn?.addEventListener("click", () => {
   getCurrentWindow().minimize();
 });
 
+// -- Dock: status line, portal tiles, drag-drop --
+/**
+ * Writes a message into the #status line. Input: message (string). Returns nothing.
+ */
 function setStatus(message) {
   statusEl.textContent = message;
 }
 
+/**
+ * Rebuilds the portal drop-target tiles. Input: portals (array of {category, icon, label}).
+ * Side effect: replaces the children of #portals; returns nothing.
+ */
 function renderPortals(portals) {
   portalsEl.innerHTML = "";
   for (const portal of portals) {
@@ -65,6 +91,10 @@ function renderPortals(portals) {
   }
 }
 
+/**
+ * Finds the portal tile under a drag position. Inputs: physicalX/physicalY (physical pixels).
+ * Returns the matching .portal element or undefined. No side effects.
+ */
 function tileForPosition(physicalX, physicalY) {
   // event.payload.position is in PHYSICAL pixels; getBoundingClientRect() is in CSS/logical
   // pixels. On any display scaling other than 100% these don't match, so convert first.
@@ -76,10 +106,16 @@ function tileForPosition(physicalX, physicalY) {
   });
 }
 
+/**
+ * Boots the Dock: loads the portal list, draws the tiles and registers the drag-drop handler.
+ * On a drop it calls the Rust `send_to_portal` command and reports the result in the status line.
+ * Returns a promise; side effects are DOM updates and Tauri calls.
+ */
 async function init() {
   const portals = await invoke("list_portals");
   renderPortals(portals);
 
+  // the tile currently highlighted by a drag hover
   let activeTile = null;
 
   const webview = getCurrentWebview();
@@ -88,6 +124,7 @@ async function init() {
     const { type, position, paths } = event.payload;
     console.log("dragDropEvent", type, position, paths);
 
+    // hover: highlight the tile under the pointer
     if (type === "enter" || type === "over") {
       const tile = tileForPosition(position.x, position.y);
       if (tile !== activeTile) {
@@ -99,6 +136,7 @@ async function init() {
       return;
     }
 
+    // pointer left the window: clear the highlight
     if (type === "leave") {
       activeTile?.classList.remove("drag-over");
       activeTile = null;
@@ -106,6 +144,7 @@ async function init() {
       return;
     }
 
+    // drop: send the files to the tile's portal category and report sent/failed counts
     if (type === "drop") {
       activeTile?.classList.remove("drag-over");
       const tile = activeTile ?? tileForPosition(position.x, position.y);
@@ -151,6 +190,12 @@ async function init() {
 }
 
 
+// -- Dock: allocator status polling after a send --
+/**
+ * Polls fetch_file_status for each sent file (up to 10 rounds, 3 s apart) until every file has a result.
+ * Inputs: sentPaths (array of paths), category (portal category). Applies each event to the UI.
+ * Returns a promise; sets a "pending" status for files that never answered.
+ */
 async function pollStatuses(sentPaths, category) {
   const pending = new Set(sentPaths.map((p) => p.replace(/\\/g, "/").split("/").pop()));
   for (let i = 0; i < 10 && pending.size > 0; i++) {
@@ -165,6 +210,11 @@ async function pollStatuses(sentPaths, category) {
   if (pending.size > 0) setStatus("Sent -- allocator pending for " + pending.size + " file(s).");
 }
 
+/**
+ * Shows one allocator status event (allocated / rejected / skipped) on the status line and the tile.
+ * Inputs: category (portal), ev (event with action, file, dest, reason, source_component).
+ * Side effects: status text, tile success/error class with a timed reset, vaultFastPoll() on convert.
+ */
 function applyStatusEvent(category, ev) {
   const tile = document.querySelector(".portal[data-category=\"" + category + "\"]");
   // S108: writer identity on the glass — two services share status.json; the record names
@@ -193,6 +243,7 @@ function applyStatusEvent(category, ev) {
 // routes. A click spawns the detached resume (Rust preflight_decide) and the card lives
 // until the resume ships the bundle (json deleted) or fails (state: "failed").
 
+// preflight card state: container, remembered auto-local rule, poll cadence, ids awaiting a result
 const cardsEl = document.getElementById("preflight-cards");
 let rulesAutoLocal = false;
 invoke("rules_get").then((r) => { rulesAutoLocal = r.auto_local_over_chunks != null; })
@@ -202,18 +253,29 @@ const PF_FAST_POLL_MS = 4000;
 let pfFastUntil = 0;
 let pfWorking = new Set(); // ids clicked this session, until their card disappears
 
+// Dock height constants and line visibility flag (use not evident in this stretch of the file)
 const BASE_HEIGHT = 224;
 const CARD_HEIGHT = 76;
 const LINE_HEIGHT = 30;
 let lineVisible = false;
 
+/**
+ * Formats a duration in seconds as seconds, or minutes from 90 s up. Input: s (number). Returns a string.
+ */
 function pfEtaOne(s) {
   return s < 90 ? `${s}s` : `${Math.round(s / 60)}m`;
 }
 // S157 E53 (J16): an AGE, hours past ninety minutes — a PDF that sat in drop/ for three hours reads 3.0h, not 180m.
+/**
+ * Formats an age in seconds as s, m, or hours (one decimal) past 90 minutes. Input: s. Returns a string.
+ */
 function pfAge(s) {
   return s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`;
 }
+/**
+ * Formats a backend's ETA, as a range when eta_range_s differs, else eta_s, else "?".
+ * Input: backendInfo (object or undefined). Returns a string such as "~30s-2m".
+ */
 function pfEta(backendInfo) {
   const r = backendInfo?.eta_range_s;
   if (r && r.length === 2 && r[0] !== r[1]) return `~${pfEtaOne(r[0])}–${pfEtaOne(r[1])}`;
@@ -226,12 +288,17 @@ function pfEta(backendInfo) {
 // drags a surface to their own size we remember it (per surface) and stop forcing — reflow then
 // only GROWS the Dock to prevent a clip, never shrinks and never touches width. (`surface` is
 // module-scoped below; these run after boot so it's initialised by call time.)
+// window-sizing state: default Dock width, remembered user sizes, the last size we applied
 const DEFAULT_DOCK_W = 480;
 const userSize = {};        // { dock?:{w,h}, room?:{w,h}, wall?:{w,h} } — set when the user drags
 let lastApplied = null;     // the last size WE set programmatically (to tell our resize from theirs)
 let suppressResizeUntil = 0;
 let winScale = 1;           // cached device scale factor (physical → logical)
 
+/**
+ * Sets the window's logical size and records it as ours so the resize echo is ignored.
+ * Inputs: w, h (logical pixels, rounded). Returns a promise; errors go to dbg().
+ */
 async function applySize(w, h) {
   w = Math.round(w); h = Math.round(h);
   lastApplied = { w, h };
@@ -244,6 +311,10 @@ async function applySize(w, h) {
 }
 
 // Watch for a MANUAL resize (a size we didn't set) and remember it for the current surface.
+/**
+ * Starts the resize and scale watchers. A resize that differs from lastApplied is stored in
+ * userSize for the current surface. Returns a promise; no return value.
+ */
 async function initSizing() {
   const win = getCurrentWindow();
   try { winScale = await win.scaleFactor(); } catch { winScale = 1; }
@@ -264,6 +335,10 @@ async function initSizing() {
 // S40: open centered on the PRIMARY monitor (Rab's monitor 1). Sizes don't persist, so every
 // launch starts here; the user can still drag it anywhere afterwards (moves aren't tracked).
 // Physical px throughout — monitor bounds and the window's outer size are both physical.
+/**
+ * Moves the window to the centre of the primary monitor (physical pixels).
+ * Returns a promise; errors go to dbg(). Side effect: window position.
+ */
 async function centerOnPrimary() {
   try {
     const { primaryMonitor } = window.__TAURI__.window;
@@ -277,7 +352,12 @@ async function centerOnPrimary() {
   } catch (e) { dbg(`center: ${e}`); }
 }
 
+// number of preflight cards last rendered
 let pfCardCount = 0;
+/**
+ * Fits the Dock window height to its content on the next animation frame. Does nothing off the
+ * Dock; after a manual resize it only grows the height. No inputs or return value.
+ */
 function reflow() {
   // Auto-fit the DOCK's height to content (S22: the DOM knows its height; the old arithmetic
   // model clipped the titlebar). S39: never fight a manual resize — off the Dock we don't touch
@@ -293,11 +373,20 @@ function reflow() {
     applySize(DEFAULT_DOCK_W, need);                        // default auto-fit until they take over
   });
 }
+/**
+ * Records the card count and triggers reflow(). Input: count (number). Returns nothing.
+ */
 function pfResize(count) {
   pfCardCount = count;
   reflow();
 }
 
+// -- Dock: pre-flight cards (render, decide, poll) --
+/**
+ * Draws one analyst card per parked bundle with ETAs, a warning line, three route buttons and the
+ * optional big-doc rule checkbox. Input: cards (array from preflight_list). Replaces #preflight-cards
+ * contents, wires click/change handlers (pfDecide, rules_set), then calls pfResize.
+ */
 function pfRender(cards) {
   cardsEl.innerHTML = "";
   for (const card of cards) {
@@ -357,6 +446,10 @@ function pfRender(cards) {
   pfResize(cards.length);
 }
 
+/**
+ * Sends the operator's route choice for a card (preflight_decide). Inputs: id (card id), backend
+ * ("local", "gemini" or "none"). Marks the card working, speeds up polling, then re-checks.
+ */
 async function pfDecide(id, backend) {
   try {
     pfWorking.add(id);
@@ -371,6 +464,10 @@ async function pfDecide(id, backend) {
   }
 }
 
+/**
+ * Fetches the card list (preflight_list), updates gateCount, clears finished cards from pfWorking
+ * and re-renders. Returns a promise; errors are logged as warnings.
+ */
 async function pfCheck() {
   try {
     const cards = await invoke("preflight_list");
@@ -388,6 +485,9 @@ async function pfCheck() {
   }
 }
 
+/**
+ * Self-rescheduling poll: pfCheck, then wait the fast or slow interval and run again.
+ */
 async function pfLoop() {
   await pfCheck();
   const wait = Date.now() < pfFastUntil ? PF_FAST_POLL_MS : PF_POLL_MS;
@@ -396,6 +496,7 @@ async function pfLoop() {
 
 // ---- S21: the line (docs/13 grammar) + gate selector + reader launchers --------------
 
+// line stage elements, gate mode labels and gate state
 const lineEl = document.getElementById("line");
 const stDrop = document.getElementById("st-drop");
 const stConvert = document.getElementById("st-convert");
@@ -407,6 +508,10 @@ const MODE_ORDER = ["ask", "local", "gemini", "off"];
 let gateMode = "ask";
 let gateCount = 0;
 
+/**
+ * Sets a line stage cell's value text and class. Inputs: el (stage element), value (string),
+ * cls (extra class, default ""). Returns nothing.
+ */
 function stSet(el, value, cls = "") {
   el.querySelector(".st-v").textContent = value;
   el.className = "st " + cls;
@@ -414,10 +519,18 @@ function stSet(el, value, cls = "") {
 
 // S26: the stage ticker — the pipeline's newest event as a human sentence, shown in
 // the shift line while work is fresh (the user's READY→CONVERTING→…→COMPLETE narration).
+/**
+ * Turns the newest pipeline event into a ticker sentence via eventPhrase. Input: ev. Returns string or null.
+ */
 function tickerPhrase(ev) {
   return eventPhrase(ev);
 }
 
+/**
+ * Self-rescheduling poll of the `line_state` command: fills the drop, convert, gate and ship cells,
+ * shows the line when available, and lets the ticker own the shift line while work is live.
+ * Reschedules itself (5 s while converting, else 10 s). Errors are logged as warnings.
+ */
 async function lineLoop() {
   try {
     const ls = await invoke("line_state");
@@ -467,10 +580,15 @@ async function lineLoop() {
   }
   setTimeout(lineLoop, ls_fast() ? 5000 : 10000);
 }
+/**
+ * True while the convert cell has the "active" class (used to pick the faster poll interval).
+ */
 function ls_fast() {
   return document.getElementById("st-convert").classList.contains("active");
 }
 
+// -- line cell click handlers: gate mode cycle, failed tray, ship receipt --
+// gate cell click: cycles the analyst mode (ask, local, gemini, off) unless cards are waiting
 stGate.addEventListener("click", async () => {
   if (gateCount > 0) return; // cards waiting — the gate isn't a toggle right now
   try {
@@ -483,6 +601,7 @@ stGate.addEventListener("click", async () => {
   }
 });
 
+// drop cell click: opens the failed tray when failures are shown
 stDrop.addEventListener("click", () => {
   if (stDrop.classList.contains("has-failed")) invoke("open_failed_tray").catch(() => {});
 });
@@ -497,6 +616,11 @@ stDrop.addEventListener("click", () => {
 // clauses degrade to UNREAD here rather than fabricate a count the widget was never sent;
 // the defect this function exists to kill — a falsy rate rendered beside a real page
 // count — is caught either way.
+/**
+ * Formats the convert part of a receipt. Input: c (convert record: pages, s_per_page,
+ * pages_converted_this_run, cost_s). Returns "Npp @ X s/p", or a "resumed" line with UNREAD
+ * for any figure that was not measured. No side effects.
+ */
 function convertReceiptLine(c) {
   const noRate = !c.s_per_page && c.pages;
   const zeroRun = c.pages_converted_this_run === 0;
@@ -527,6 +651,10 @@ stShip.addEventListener("click", async () => {
 });
 stShip.style.cursor = "pointer";
 
+/**
+ * Starts the line: reads the analyst gate mode, shows the reader and Assistant buttons when their
+ * config keys are set, then starts lineLoop. Returns a promise; errors go to the status line.
+ */
 async function lineInit() {
   try {
     gateMode = await invoke("analyst_mode_get");
@@ -558,6 +686,7 @@ async function lineInit() {
 // titlebar dot shows/toggles it, and it dies with the window (Rust on_window_event).
 // The shift line is today's factory totals, derived from events.jsonl — pure projection.
 
+// -- watcher button, shift line and product clock elements --
 const watcherBtn = document.getElementById("watcher-btn");
 const shiftEl = document.getElementById("shift");
 
@@ -574,6 +703,10 @@ clockEl.style.cssText =
 clockEl.textContent = "last pipeline event: UNREAD"; // honest until the first measurement lands
 shiftEl.insertAdjacentElement("afterend", clockEl);
 
+/**
+ * Draws the titlebar watcher button from a watcher status. Input: st ({state, pid, exit_code}).
+ * Hides the button when unconfigured; sets its class (running/died) and tooltip. Returns nothing.
+ */
 function watcherRender(st) {
   if (st.state === "unconfigured") {
     watcherBtn.hidden = true;
@@ -591,6 +724,7 @@ function watcherRender(st) {
       : "Conveyor stopped — click to start";
 }
 
+// watcher button click: stops the watcher when live, otherwise starts it
 watcherBtn.addEventListener("click", async () => {
   try {
     const st = await invoke("watcher_status");
@@ -606,6 +740,10 @@ watcherBtn.addEventListener("click", async () => {
 // stale-green over a corpse for five days (blind spot #1). A running→dead transition files
 // the death certificate where it can't be missed: widget-boot.log (via dbg) + the status line.
 let watcherLastState = null;
+/**
+ * Polls watcher_status every 5 s, renders it, and records a death notice (boot log and status
+ * line) on a running-to-stopped transition. Self-rescheduling.
+ */
 async function watcherLoop() {
   try {
     const st = await invoke("watcher_status");
@@ -623,6 +761,10 @@ async function watcherLoop() {
   setTimeout(watcherLoop, 5000);
 }
 
+/**
+ * At boot, starts the watcher (watcher_start) when its status is "stopped" and renders the result.
+ * Returns a promise; failures go to the console, status line and boot log.
+ */
 async function watcherAutostart() {
   try {
     const st = await invoke("watcher_status");
@@ -641,6 +783,10 @@ async function watcherAutostart() {
   }
 }
 
+/**
+ * Polls shift_summary every 30 s: writes today's converted/analyzed/shipped/failed totals to the
+ * shift line and feeds the response (or null on failure) to productClock. Self-rescheduling.
+ */
 async function shiftLoop() {
   let summary = null;
   try {
@@ -674,6 +820,11 @@ async function shiftLoop() {
 // Three states, and a null NEVER renders healthy: a failed invoke, available:false (stream
 // unreadable or lane unconfigured), an empty tail, or an unparseable stamp all render UNREAD —
 // never "fresh", never silently blank.
+/**
+ * Renders the "last pipeline event" line from the newest event in a shift_summary response.
+ * Input: summary (response or null). Sets text, colour and tooltip of #product-clock:
+ * fresh (under 24 h), idle (days) or UNREAD. Returns nothing.
+ */
 function productClock(summary) {
   let text = "last pipeline event: UNREAD";
   let tone = "var(--warn, #e0b34c)";
@@ -706,6 +857,7 @@ function productClock(summary) {
 // This bar polls `vault_check` (git fetch + behind-count in Rust), glows when the ThinkPad
 // has pushed notes we don't have yet, and `vault_pull`s on click.
 
+// -- Library (vault) bar elements and poll state --
 const vaultBar = document.getElementById("vault-bar");
 const vaultBtn = document.getElementById("vault-btn");
 const vaultBtnLabel = document.getElementById("vault-btn-label");
@@ -717,6 +869,10 @@ let vaultFastUntil = 0;
 let vaultBusy = false;
 let vaultDisabled = false;
 
+/**
+ * Draws the vault bar. Inputs: state (CSS class), options label, note, enabled (button enabled).
+ * Returns nothing; side effects are DOM text, class and the button's disabled flag.
+ */
 function vaultRender(state, { label, note = "", enabled = true } = {}) {
   vaultBar.className = state;
   vaultBtnLabel.textContent = label;
@@ -725,6 +881,10 @@ function vaultRender(state, { label, note = "", enabled = true } = {}) {
   vaultBtn.disabled = !enabled;
 }
 
+/**
+ * Summarises the bundles behind the clone. Input: st (vault state with bundles, behind).
+ * Returns up to two names (hash suffix removed) plus "+N more", or "N update(s)". Pure.
+ */
 function describeBundles(st) {
   const names = (st.bundles ?? []).map((s) => s.replace(/--[0-9a-f]{8}$/, ""));
   if (names.length === 0) return st.behind + " update(s)";
@@ -732,6 +892,11 @@ function describeBundles(st) {
   return names.length > 2 ? `${shown} +${names.length - 2} more` : shown;
 }
 
+/**
+ * Applies a vault_check or vault_pull result to the bar and the library cell of the line.
+ * Input: st ({state: disabled|updates|pulled|up-to-date|offline|error, bundles, behind, detail}).
+ * Side effects: DOM updates, vaultDisabled flag, a re-check four seconds after a pull.
+ */
 function vaultApply(st) {
   // S75 (docs/26 F9): ▤ in the station line was declared and never written — dead since birth.
   // It now mirrors the same vault_check data the bar renders; "attn" only on a delivery to
@@ -767,6 +932,10 @@ function vaultApply(st) {
   }
 }
 
+/**
+ * Calls vault_check (fetch and behind-count) and applies the result; a failure becomes an error
+ * state. Skips while busy or disabled. Returns a promise.
+ */
 async function vaultCheck() {
   if (vaultBusy || vaultDisabled) return;
   vaultBusy = true;
@@ -780,10 +949,14 @@ async function vaultCheck() {
   }
 }
 
+/**
+ * Switches the vault poll to the fast interval for the next three minutes. No inputs or return value.
+ */
 function vaultFastPoll() {
   vaultFastUntil = Date.now() + 3 * 60 * 1000;
 }
 
+// vault button click: checks now when idle, pulls when new notes are ready
 vaultBtn.addEventListener("click", async () => {
   if (vaultBusy || vaultBtn.disabled) return;
   // Idle-state click = manual "check now"; ready-state click = pull.
@@ -805,6 +978,10 @@ vaultBtn.addEventListener("click", async () => {
 // awaited: a sleeping host must slow nothing down, and the busy flag makes a slow fetch skip
 // its turn instead of piling threads up behind it.
 let receiptsBusy = false;
+/**
+ * Asks the backend to fetch seam receipts (receipts_fetch); skips if one is already in flight.
+ * Failures are logged as warnings; the cached tail stays shown. Returns a promise.
+ */
 async function receiptsFetch() {
   if (receiptsBusy) return;
   receiptsBusy = true;
@@ -817,6 +994,10 @@ async function receiptsFetch() {
   }
 }
 
+/**
+ * Self-rescheduling vault poll: vaultCheck, a non-awaited receiptsFetch, then waits the fast
+ * (10 s) or normal (45 s) interval.
+ */
 async function vaultLoop() {
   await vaultCheck();
   receiptsFetch();
@@ -830,6 +1011,7 @@ async function vaultLoop() {
 // report ⇄ enforce lever writes audit-mode.txt. Pure projection — Python owns the verdict;
 // terracotta is spent only on `fail`, per docs/13.
 
+// -- Assay (survival audit) card: elements, state, verdict styles --
 const stAssay = document.getElementById("st-assay");
 const assayCard = document.getElementById("assay-card");
 let assayMode = "report";
@@ -842,6 +1024,9 @@ const VERDICT = {
   fail: { cls: "f", sym: "✕" },
 };
 
+/**
+ * Escapes &, <, > and " for HTML. Input: s (any value; null becomes ""). Returns a string. Pure.
+ */
 function escHtml(s) {
   return String(s ?? "").replace(/[&<>"]/g, (c) =>
     ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
@@ -853,6 +1038,10 @@ function escHtml(s) {
 // reads −416 and that means "OCR worked", not "figures lost". Marker crops the rendered page
 // rather than extracting XObjects, so these are different kinds of object and never match —
 // hence "count", not "coverage" (coverage is P-1, unsigned). Null stays blank: not a zero.
+/**
+ * Builds the figures caption (assets written vs images in the source PDF). Input: st (audit state).
+ * Returns an HTML string, or "" when either count is missing. Pure.
+ */
 function assetLedgerLine(st) {
   if (st.asset_delta == null || st.embedded_images == null) return "";
   const out = Number(st.assets_out), emb = Number(st.embedded_images), d = Number(st.asset_delta);
@@ -867,6 +1056,10 @@ function assetLedgerLine(st) {
 // the field with no visible effect, and the composite verdict's other lane was invisible beside
 // "survival". Both sides travel (docs/34): the survival is over the ANALYST's windows, the runs
 // are "n of total" (NUM-3). Absent on a convert-only audit; nothing is invented (docs/13).
+/**
+ * Builds the analyst survival caption. Input: st (audit state with an optional analyst block).
+ * Returns an HTML string, or "" when there is no analyst block. Pure.
+ */
 function analystLine(st) {
   const a = st.analyst;
   if (!a || typeof a !== "object") return "";
@@ -881,10 +1074,18 @@ function analystLine(st) {
   return `<div class="ac-caption ac-analyst" title="${escHtml(tip)}">analyst survival <b>${surv}</b> ` +
     `<span class="dim">(${runsText}${masked})</span></div>`;
 }
+/**
+ * Returns the first n whitespace-separated words of s joined by spaces. Pure.
+ */
 function firstWords(s, n) {
   return String(s ?? "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
 }
 
+/**
+ * Draws the Assay station and, on flag/fail/held/peek, the evidence card (damage map, runs list,
+ * per-bundle remedy/re-analyze/bless/bench buttons) and wires their handlers.
+ * Input: st (assay_status result or null). Side effects: DOM, lastAssay, assayMode, reflow().
+ */
 function assayRender(st) {
   if (!st || !st.available) { stAssay.hidden = true; return; }
   stAssay.hidden = false;
@@ -909,6 +1110,7 @@ function assayRender(st) {
   const cls = v ? v.cls : "g";
   const pct = st.doc_survival != null ? Math.round(Number(st.doc_survival) * 100) : 100;
 
+  // the report/enforce gate toggle button markup
   const toggle =
     `<button id="audit-toggle" title="Enforce parks a failing bundle in held/ instead of shipping">` +
     `gate: <span class="${assayMode === "report" ? "on" : "off"}">report</span> ⇄ ` +
@@ -956,6 +1158,7 @@ function assayRender(st) {
       (detailSlice ? `<li>${escHtml(detailSlice)}</li>` : "") + "</ul>";
   }
 
+  // footer: re-convert, re-analyze and bless buttons for the card's subject
   let foot = "";
   if (verdict === "fail" || verdict === "flag" || held.length) {
     // Stage C (docs/18 §5.4): ✓ bless on flag AND fail cards — local manifests can lag the
@@ -993,6 +1196,7 @@ function assayRender(st) {
   // SYM-059/061 (S175): the badge names the phase the WRITER says decided it (`fail · analyst`) — the
   // thresholds live in fidelity_audit.compute_verdict, so the JS never infers the phase (SYM-096's class);
   // a legacy manifest has no phase and the badge reads as before.
+  // assemble the card HTML, then wire every button's click handler
   const phase = st.verdict_phase ? ` · ${escHtml(String(st.verdict_phase))}` : "";
   const badge = v ? `<span class="badge ${cls}">${verdict}${phase} ${v.sym}</span>` : "";
   assayCard.innerHTML =
@@ -1020,6 +1224,10 @@ function assayRender(st) {
   reflow();
 }
 
+/**
+ * Flips the audit gate between report and enforce (audit_mode_set), updates the status line and
+ * re-renders the card. Returns a promise; errors go to the status line.
+ */
 async function assayToggleMode() {
   const next = assayMode === "report" ? "enforce" : "report";
   try {
@@ -1031,6 +1239,10 @@ async function assayToggleMode() {
   } catch (err) { setStatus(`Assay mode: ${err}`); }
 }
 
+/**
+ * Queues a re-convert and re-audit (assay_reconvert) for the bundle in btn.dataset.src.
+ * Input: btn (button element; disabled while sending, re-enabled on error). Returns a promise.
+ */
 async function assayReconvert(btn) {
   const src = btn.dataset.src;
   btn.disabled = true;
@@ -1049,6 +1261,10 @@ async function assayReconvert(btn) {
 // analyst gate's current setting; `off`/`ask` have no model to run with, so it falls back to
 // local and the status line says which one went. Eligibility is Python's answer, not this
 // button's: an ineligible click is refused in the event stream.
+/**
+ * Queues an analyst-only re-run (assay_reanalyze) for btn.dataset.src using the gate's local or
+ * gemini mode (local otherwise). Input: btn. Returns a promise; status line reports the result.
+ */
 async function assayReanalyze(btn) {
   const src = btn.dataset.src;
   const backend = (gateMode === "local" || gateMode === "gemini") ? gateMode : "local";
@@ -1062,6 +1278,10 @@ async function assayReanalyze(btn) {
   }
 }
 
+/**
+ * Blesses a flagged bundle (assay_bless) for btn.dataset.src; the backend validates eligibility.
+ * Input: btn. Returns a promise; the status line reports the result.
+ */
 async function assayBless(btn) {
    // Stage C (docs/18 §5.4): backend validates (flag + no degeneration + shipped) — this is a thin hand.
   const src = btn.dataset.src;
@@ -1076,9 +1296,13 @@ async function assayBless(btn) {
   }
 }
 
+// Assay station click: toggles the peek card
 stAssay.addEventListener("click", () => { assayOpen = !assayOpen; assayRender(lastAssay); });
 
 const ASSAY_POLL_MS = 20000;
+/**
+ * Self-rescheduling poll (20 s) of assay_status; renders the result. Errors are logged.
+ */
 async function assayLoop() {
   try {
     assayRender(await invoke("assay_status"));
@@ -1093,6 +1317,10 @@ async function assayLoop() {
 // one quiet terracotta chip, not a modal. Click = jump to the Room, where the banner carries
 // the per-alert ⚑ ack buttons. Local file derivation on a slow poll; no network (S59 law).
 const algChip = document.getElementById("algedonic-chip");
+/**
+ * Self-rescheduling poll (30 s) of algedonic_state: shows the alert chip on the Dock when alerts
+ * are escalated, hides it otherwise. Errors are logged.
+ */
 async function algedonicLoop() {
   try {
     const a = await invoke("algedonic_state");
@@ -1112,6 +1340,7 @@ async function algedonicLoop() {
   }
   setTimeout(algedonicLoop, 30000);
 }
+// chip click: jump to the Room, where alerts are acknowledged
 algChip.addEventListener("click", () => enterSurface("room"));
 
 // ---- S34: surface switch (Dock ⇄ Room) ------------------------------------------------
@@ -1120,11 +1349,18 @@ algChip.addEventListener("click", () => enterSurface("room"));
 // change; the data is the same live pipeline. Wall + belt + drill-down are the next
 // installment (docs/16 §9), staged but not wired.
 
+// default window sizes per surface, and the current surface name
 const SURFACE_SIZE = { room: [760, 600], wall: [900, 500] };
 let surface = "dock";
 
+// start the Room module, handing it the status and debug writers
 initRoom({ setStatus, dbg });
 
+/**
+ * Switches the window between the Dock, Room and Wall surfaces: updates the surface buttons and
+ * body classes, hides the product clock off the Dock, and sizes the window (remembered or default).
+ * Input: name ("dock", "room" or "wall"). No-op when already there. Returns nothing.
+ */
 function enterSurface(name) {
   if (name === surface) return;
   surface = name;
@@ -1159,6 +1395,10 @@ document.querySelectorAll(".surf-btn[data-surface]").forEach((b) =>
 // a dedicated window arrives once the server answers. No source = the newest held bundle.
 // S85: the assistant's door. Same shape as the bench — the widget spawns the graduated
 // room_chat.py and the window opens on it; model pick + load + ask all live in that page.
+/**
+ * Opens the Assistant window (chat_open) and reports its port, noting a previous server death.
+ * No inputs; returns a promise; errors go to the status line.
+ */
 async function openChat() {
   setStatus("Opening the assistant…");
   try {
@@ -1175,6 +1415,10 @@ async function openChat() {
   }
 }
 
+/**
+ * Opens the Repair Bench window (bench_open) on a bundle. Input: source (bundle name, or null for
+ * the newest held bundle). Returns a promise; the status line reports the port or the error.
+ */
 async function openBench(source) {
   setStatus(source ? `Opening the Repair Bench on ${source}…` : "Opening the Repair Bench…");
   try {
@@ -1184,6 +1428,7 @@ async function openBench(source) {
     setStatus(`Bench: ${err}`);
   }
 }
+// -- boot: surface buttons, then start every loop --
 document.getElementById("surf-bench").addEventListener("click", () => openBench(null));
 document.getElementById("surf-chat").addEventListener("click", () => openChat());
 

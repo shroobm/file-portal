@@ -1,3 +1,10 @@
+// WHAT THIS FILE DOES: defines the widget's configuration (AppConfig, Portal) and loads it.
+// load_or_init() reads %APPDATA%\file-portal\config.toml (path from config_path()), seeds it with
+// AppConfig::default() when the file is absent, and returns a parse error naming the file when it
+// is malformed. Every optional key is #[serde(default)] so older config files keep parsing; an
+// empty path key hides the matching feature in the UI. Callers: app start-up and any command that
+// needs hosts, directories or portal categories.
+//
 // Loads %APPDATA%\file-portal\config.toml, creating it with sane defaults on first run.
 // Keeping host/category details here (instead of hardcoded) means the same binary works for
 // anyone who clones the repo and points it at their own tailnet host.
@@ -6,13 +13,20 @@ use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
+// -- config shapes --
+
+/// One drop target shown in the widget: a category key, its display label and its icon.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct Portal {
+    /// Category key; also the remote inbox subfolder name.
     pub category: String,
+    /// Text shown on the portal tile.
     pub label: String,
+    /// Emoji shown on the portal tile.
     pub icon: String,
 }
 
+/// The whole config.toml: remote host/user/inbox, optional local paths, reader launchers, portals.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppConfig {
     /// Tailscale MagicDNS name or tailnet IP of the Linux box, e.g. "mybox.tailnet.ts.net".
@@ -39,18 +53,25 @@ pub struct AppConfig {
     /// windows-converter folder). Both required for the card's route buttons to act.
     #[serde(default)]
     pub gpu_python_exe: String,
+    /// The repo's windows-converter folder (holds watch_and_convert.py and room_chat.py).
     #[serde(default)]
     pub gpu_converter_dir: String,
     /// S21 reader launchers (docs/13 "the dock has doors"): exe path or URI per reader;
     /// empty = that icon is hidden. The config file is the allowlist — never page input.
     #[serde(default)]
     pub reader_obsidian: String,
+    /// Launcher (exe path or URI) for the ZenNotes reader; empty hides its icon.
     #[serde(default)]
     pub reader_zennotes: String,
+    /// The drop targets, in display order.
     pub portals: Vec<Portal>,
 }
 
+// -- first-run defaults --
+
+/// First-run defaults: placeholder host/user (CHANGE_ME), empty optional paths, six portals.
 impl Default for AppConfig {
+    /// Build the default config that gets written to config.toml on first run.
     fn default() -> Self {
         AppConfig {
             linux_host: "CHANGE_ME.tailnet.ts.net".into(),
@@ -99,6 +120,10 @@ impl Default for AppConfig {
     }
 }
 
+// -- locating and loading the file --
+
+/// Path of config.toml under the user's config dir (%APPDATA%\file-portal). Panics if the OS
+/// config dir cannot be resolved.
 fn config_path() -> PathBuf {
     dirs::config_dir()
         .expect("could not resolve %APPDATA%")
@@ -106,6 +131,8 @@ fn config_path() -> PathBuf {
         .join("config.toml")
 }
 
+/// Load config.toml. Returns the parsed AppConfig; seeds (and writes) the defaults only when the
+/// file is absent; returns an Err string for a parse error or an unreadable file.
 pub fn load_or_init() -> Result<AppConfig, String> {
     let path = config_path();
 
@@ -134,6 +161,8 @@ pub fn load_or_init() -> Result<AppConfig, String> {
         Err(e) => Err(format!("failed to read {}: {e}", path.display())),
     }
 }
+
+// -- tests --
 
 #[cfg(test)]
 mod tests {

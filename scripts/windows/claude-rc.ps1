@@ -1,3 +1,9 @@
+# WHAT THIS FILE DOES: launcher script. Resolves the repo root, checks that this is a File Portal
+# checkout and that `claude` is on PATH, builds an argument list (--remote-control <name> plus the
+# optional switches), prints it, and runs claude in the repo root. Entry point: the whole script,
+# run by hand (-DryRun prints the command only). Reads: CLAUDE_README.md (existence), $env:COMPUTERNAME.
+# Writes: nothing on disk; exits with claude's exit code.
+#
 # Starts a Claude Code session in this repo with Remote Control enabled, so the session can be
 # driven from the Claude app on the phone or another machine (docs/14, docs/17 - the remote
 # dispatch lane). The session lives in THIS console: leave the window open for as long as you
@@ -34,6 +40,7 @@ param(
 
 $ErrorActionPreference = "Stop"
 
+# -- locate the repo and verify the environment --
 # Repo root is two levels up from scripts/windows/.
 $RepoRoot = (Resolve-Path (Join-Path $PSScriptRoot "..\..")).Path
 
@@ -52,6 +59,7 @@ if (-not $claude) {
     exit 1
 }
 
+# -- session name and claude argument list --
 if (-not $Name) {
     # Lowercase the machine name and keep it to [a-z0-9-], so the label reads cleanly in the app.
     $machine = ($env:COMPUTERNAME).ToLower() -replace '[^a-z0-9-]', '-'
@@ -66,6 +74,7 @@ if ($ClaudeArgs)      { $argv += $ClaudeArgs }
 # The prompt is positional and must come last.
 if ($Muster)          { $argv += "MUSTER" }
 
+# -- show what will run; -DryRun stops here --
 Write-Host ""
 Write-Host "Repo    : $RepoRoot"
 Write-Host "Claude  : $($claude.Source)  ($($claude.Version))"
@@ -84,6 +93,7 @@ if ($DryRun) {
 Write-Host "Pick '$Name' in the Claude app to drive this session. Keep this window open." -ForegroundColor DarkGray
 Write-Host ""
 
+# -- launch claude from the repo root, then restore the caller's directory and pass the exit code on --
 Push-Location $RepoRoot
 try {
     & $claude.Source @argv

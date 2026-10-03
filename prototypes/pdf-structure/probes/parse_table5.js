@@ -1,3 +1,13 @@
+// WHAT THIS FILE DOES
+// Probe step 1 of 3 for ISO/TS 32005:2023 Table 5 (parent-child relationships of PDF structure elements).
+// Reads table5_raw.txt (text extracted from the PDF, one token per line, run from the probes directory), drops noise
+// (page markers, running headers/footers, licence line, bare page-number digits), then groups the remaining tokens
+// into row-blocks: a header (structure type), its children (occurrence codes then types), its parents (same shape).
+// Writes table5_parsed.json; prints one summary line per row to stdout and counts/errors to stderr.
+// Next steps: verify_table5.js (cross-checks, writes table5_clean.json), then render_table5.js (markdown).
+// Top-level script: no functions or exports.
+
+// -- input and constants --
 const fs = require('fs');
 
 const rawLines = fs.readFileSync('table5_raw.txt', 'utf8').split(/\r?\n/);
@@ -22,6 +32,7 @@ const OCC_SET = new Set(["0..n", "1..n", "0..1", "1", "∅*", "‡", "[a]", "[b]
 
 const ctrlOnlyRe = new RegExp("^[" + BOM + BS + "]*$");
 
+// -- pass 1: filter noise lines into tokens, remembering each token's source line number --
 const tokens = [];
 const tokenSrcLine = [];
 const droppedDigits = [];
@@ -44,6 +55,7 @@ rawLines.forEach((l, idx) => {
 console.error(`Total data tokens after noise filtering: ${tokens.length}`);
 console.error(`Dropped bare page-number digit lines: ${droppedDigits.length}`);
 
+// -- pass 2: walk the tokens as header / children-occ / child types / parents-occ / parent types blocks --
 const rows = [];
 let pos = 0;
 const n_tok = tokens.length;
@@ -86,6 +98,7 @@ while (pos < n_tok) {
   });
 }
 
+// -- report and write the parsed rows --
 console.error(`Parsed ${rows.length} row-blocks`);
 console.error(`Parse errors: ${errors.length}`);
 errors.forEach(e => console.error("  ERROR:", JSON.stringify(e)));

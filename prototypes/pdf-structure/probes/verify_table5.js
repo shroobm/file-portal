@@ -1,3 +1,11 @@
+// WHAT THIS FILE DOES
+// Probe step 2 of 3 for ISO/TS 32005:2023 Table 5. Reads table5_parsed.json (from parse_table5.js, run from the probes
+// directory), drops empty rows (no children and no parents), reports duplicate headers, writes table5_clean.json, then
+// checks the table both ways: every child listed under a row must list that row as a parent with the same occurrence
+// code. Findings (ASYMMETRY, VALUE MISMATCH, missing rows, totals) go to stderr. Next step: render_table5.js.
+// Top-level script: no functions or exports.
+
+// -- load parsed rows --
 const fs = require('fs');
 const rows = JSON.parse(fs.readFileSync('table5_parsed.json', 'utf8'));
 
@@ -9,6 +17,7 @@ const clean = rows.filter((r, i) => {
   return true;
 });
 
+// -- index rows by header, flagging duplicates (a later row replaces an earlier one with the same header) --
 console.error(`clean rows: ${clean.length}`);
 const byHeader = {};
 for (const r of clean) {
@@ -21,6 +30,7 @@ console.error(`unique headers: ${Object.keys(byHeader).length}`);
 
 fs.writeFileSync('table5_clean.json', JSON.stringify(clean, null, 1), 'utf8');
 
+// -- bidirectional check: counters for entries checked, mismatched, and children with no row of their own --
 // Bidirectional consistency check
 let mismatches = 0, checks = 0, missingRow = 0;
 for (const r of clean) {

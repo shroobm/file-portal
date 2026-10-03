@@ -1,3 +1,10 @@
+// WHAT THIS FILE DOES: backend of the pre-flight analyst card. list() returns the pending cards
+// (<pipeline dir>/pending/*.json, oldest first, raw JSON); decide() validates the user's routing
+// choice (card id, backend "local" | "gemini" | "none") and launches convert_and_ship.py --resume
+// as a supervised fire-and-forget child, with stderr appended to resume-stderr.log. Reads the
+// card files; writes only resume-stderr.log (the Python child updates the cards itself).
+// Callers: the Tauri command layer, driven by the card's route buttons.
+//
 // S18: the pre-flight analyst card's backend. The Desktop converter parks bundles in
 // <gpu_pipeline_dir>\pending\ with a <id>.json card (written by convert_and_ship.py
 // --defer-analyst); this module lists those cards for the UI and, on the user's click,
@@ -14,6 +21,8 @@ use std::os::windows::process::CommandExt;
 use std::path::Path;
 use std::process::{Command, Stdio};
 
+// -- listing the pending cards --
+
 /// All pending/failed cards, raw JSON straight through to the UI (the schema lives in
 /// Python, the single writer; the widget renders what it gets).
 pub fn list(gpu_pipeline_dir: &str) -> Result<Vec<Value>, String> {
@@ -26,6 +35,7 @@ pub fn list(gpu_pipeline_dir: &str) -> Result<Vec<Value>, String> {
         Ok(e) => e,
         Err(_) => return Ok(vec![]), // no queue dir yet = nothing pending
     };
+    // Read every *.json file in pending/; unreadable or unparseable files are skipped.
     for entry in entries.flatten() {
         let path = entry.path();
         if path.extension().and_then(|e| e.to_str()) != Some("json") {
@@ -37,6 +47,7 @@ pub fn list(gpu_pipeline_dir: &str) -> Result<Vec<Value>, String> {
             }
         }
     }
+    // Oldest first, by the card's created_at string.
     cards.sort_by(|a, b| {
         a["created_at"]
             .as_str()
@@ -45,6 +56,8 @@ pub fn list(gpu_pipeline_dir: &str) -> Result<Vec<Value>, String> {
     });
     Ok(cards)
 }
+
+// -- routing a card: launch the resume --
 
 /// The user's routing click. `backend` is "local", "gemini", or "none" (ship as-is).
 /// Spawns the resume fire-and-forget and returns immediately; the card's state file tracks
@@ -58,6 +71,7 @@ pub fn decide(
     id: &str,
     backend: &str,
 ) -> Result<(), String> {
+    // Validate every input before anything is launched: id shape, backend, config, files.
     if !id.chars().all(|c| c.is_ascii_hexdigit()) || id.len() != 16 {
         return Err("invalid pending id".into());
     }

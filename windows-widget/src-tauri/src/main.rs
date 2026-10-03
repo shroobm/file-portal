@@ -1,6 +1,19 @@
+// WHAT THIS FILE DOES: the File Portal Windows widget's entry point (a Tauri app).
+// - main() hydrates PATH from the registry, loads the config, shows a native dialog and exits if it
+//   cannot be read, then builds the Tauri app: single-instance plugin, managed state, command table.
+// - Every `#[tauri::command]` below is a thin wrapper the webview calls by name (invoke): it locks the
+//   shared AppConfig, copies out the few paths it needs, and delegates to a sibling module
+//   (line, assay, bench, chat, watcher, vault, room, receipts, algedonic, preflight, events, status, transfer).
+// - Reads: the config (config.rs) and, via the modules, the pipeline directory and the vault.
+//   Writes: only widget-boot.log here (debug_log); all other writes happen inside the modules.
+// - Network-touching commands are async + spawn_blocking so the UI thread never waits on ssh/git.
+// - Called by: the operating system (exe launch) and the webview's JavaScript (main.js and the pages).
+
 // Without this the exe is a console-subsystem binary and Windows attaches a console window
 // behind the widget on every launch (visible in the W8 live test).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
+// -- module declarations: one file per concern --
 mod algedonic;
 mod assay;
 mod bench;
@@ -18,13 +31,22 @@ mod watcher;
 use config::AppConfig;
 use std::sync::Mutex;
 use tauri::{Manager, State};
+
+// -- shared application state --
+
+/// The one piece of Tauri-managed state: the loaded config behind a Mutex, locked briefly by each command.
 struct AppState {
     config: Mutex<AppConfig>,
 }
+
+// -- commands: intake, status and preflight --
+
+/// Command: returns a copy of the configured portals (drop categories) for the UI to render.
 #[tauri::command]
 fn list_portals(state: State<AppState>) -> Vec<config::Portal> {
     state.config.lock().unwrap().portals.clone()
 }
+/// Command: sends the given local file paths to a portal category (transfer::send_files); returns the report.
 #[tauri::command]
 fn send_to_portal(
     state: State<AppState>,
@@ -37,6 +59,8 @@ fn send_to_portal(
         .map_err(|_| "lock poisoned".to_string())?;
     transfer::send_files(&cfg, &category, &paths)
 }
+/// Command: fetches the remote event log (status::fetch_events, over the configured host/user) and
+/// returns the event matching this filename and category, if any.
 #[tauri::command]
 fn fetch_file_status(
     state: State<AppState>,
@@ -50,6 +74,7 @@ fn fetch_file_status(
     let events = status::fetch_events(&cfg.linux_host, &cfg.remote_user)?;
     Ok(status::find_event(&events, &filename, &category))
 }
+/// Command: lists the pending preflight items found in the pipeline directory, as JSON values.
 #[tauri::command]
 fn preflight_list(state: State<AppState>) -> Result<Vec<serde_json::Value>, String> {
     let dir = state
@@ -60,6 +85,8 @@ fn preflight_list(state: State<AppState>) -> Result<Vec<serde_json::Value>, Stri
         .clone();
     preflight::list(&dir)
 }
+/// Command: records the operator's backend choice for one preflight item (preflight::decide); needs the
+/// pipeline dir, the GPU python exe and the converter dir from the config.
 #[tauri::command]
 fn preflight_decide(state: State<AppState>, id: String, backend: String) -> Result<(), String> {
     let (dir, py, conv) = {
@@ -75,6 +102,9 @@ fn preflight_decide(state: State<AppState>, id: String, backend: String) -> Resu
     };
     preflight::decide(&dir, &py, &conv, &id, &backend)
 }
+// -- commands: the conversion line (line.rs) --
+
+/// Command: returns the line's current state as JSON (line::state) for the pipeline directory.
 #[tauri::command]
 fn line_state(state: State<AppState>) -> Result<serde_json::Value, String> {
     let dir = state
@@ -89,6 +119,10 @@ fn line_state(state: State<AppState>) -> Result<serde_json::Value, String> {
 // open its dedicated window. Async + spawn_blocking: the spawn and its readiness wait must
 // never sit on the UI thread (the vault_check freeze lesson); the window itself is created
 // back on the main thread inside bench::open.
+
+// -- commands: the Repair Bench --
+
+/// Command: starts the Bench server for a held bundle (optional `source`) and opens its window; returns the port.
 #[tauri::command]
 async fn bench_open(
     app: tauri::AppHandle,
@@ -115,6 +149,10 @@ async fn bench_open(
 }
 // Stage E (docs/19 §5): the chunk-batch lever's write side — user intent into the backend's
 // own lever file, exactly the analyst-mode pattern. Python re-reads it per slice.
+
+// -- commands: levers and settings written for the Python backend --
+
+/// Command: writes the chunk-batch size lever (line::set_chunk_batch); returns the value stored.
 #[tauri::command]
 fn chunk_batch_set(state: State<AppState>, batch: u32) -> Result<u32, String> {
     let dir = state
@@ -126,6 +164,10 @@ fn chunk_batch_set(state: State<AppState>, batch: u32) -> Result<u32, String> {
     line::set_chunk_batch(&dir, batch)
 }
 // Stage F (docs/19 §6): the algedonic line — all three are local file reads/writes, no network.
+
+// -- commands: the algedonic line (alerts) --
+
+/// Command: returns the algedonic alert state as JSON (algedonic::state).
 #[tauri::command]
 fn algedonic_state(state: State<AppState>) -> Result<serde_json::Value, String> {
     let dir = state
@@ -136,6 +178,7 @@ fn algedonic_state(state: State<AppState>) -> Result<serde_json::Value, String> 
         .clone();
     algedonic::state(&dir)
 }
+/// Command: acknowledges one alert by id (algedonic::ack).
 #[tauri::command]
 fn algedonic_ack(state: State<AppState>, id: String) -> Result<(), String> {
     let dir = state
@@ -146,6 +189,7 @@ fn algedonic_ack(state: State<AppState>, id: String) -> Result<(), String> {
         .clone();
     algedonic::ack(&dir, &id)
 }
+/// Command: sets the algedonic minutes threshold `m` (algedonic::set_minutes); returns the stored value.
 #[tauri::command]
 fn algedonic_minutes_set(state: State<AppState>, m: u64) -> Result<u64, String> {
     let dir = state
@@ -156,6 +200,7 @@ fn algedonic_minutes_set(state: State<AppState>, m: u64) -> Result<u64, String> 
         .clone();
     algedonic::set_minutes(&dir, m)
 }
+/// Command: reads the analyst-mode file's current value (line::get_analyst_mode).
 #[tauri::command]
 fn analyst_mode_get(state: State<AppState>) -> Result<String, String> {
     let dir = state
@@ -166,6 +211,7 @@ fn analyst_mode_get(state: State<AppState>) -> Result<String, String> {
         .clone();
     Ok(line::get_analyst_mode(&dir))
 }
+/// Command: writes the analyst mode (line::set_analyst_mode); returns the mode stored or an error.
 #[tauri::command]
 fn analyst_mode_set(state: State<AppState>, mode: String) -> Result<String, String> {
     let dir = state
@@ -176,6 +222,9 @@ fn analyst_mode_set(state: State<AppState>, mode: String) -> Result<String, Stri
         .clone();
     line::set_analyst_mode(&dir, &mode)
 }
+// -- commands: the assay (audit / bless / re-run, assay.rs) --
+
+/// Command: returns the assay status as JSON (assay::status).
 #[tauri::command]
 fn assay_status(state: State<AppState>) -> Result<serde_json::Value, String> {
     let dir = state
@@ -186,6 +235,7 @@ fn assay_status(state: State<AppState>) -> Result<serde_json::Value, String> {
         .clone();
     assay::status(&dir)
 }
+/// Command: reads the audit mode (assay::get_mode).
 #[tauri::command]
 fn audit_mode_get(state: State<AppState>) -> Result<String, String> {
     let dir = state
@@ -196,6 +246,7 @@ fn audit_mode_get(state: State<AppState>) -> Result<String, String> {
         .clone();
     Ok(assay::get_mode(&dir))
 }
+/// Command: writes the audit mode (assay::set_mode); returns the mode stored or an error.
 #[tauri::command]
 fn audit_mode_set(state: State<AppState>, mode: String) -> Result<String, String> {
     let dir = state
@@ -206,6 +257,7 @@ fn audit_mode_set(state: State<AppState>, mode: String) -> Result<String, String
         .clone();
     assay::set_mode(&dir, &mode)
 }
+/// Command: asks for a source to be converted again (assay::reconvert); synchronous, returns nothing on success.
 #[tauri::command]
 fn assay_reconvert(state: State<AppState>, source: String) -> Result<(), String> {
     let dir = state
@@ -218,6 +270,8 @@ fn assay_reconvert(state: State<AppState>, source: String) -> Result<(), String>
 }
 // Stage C2 (docs/19 §3.1): the ⟲ analyst-only re-run. Synchronous like assay_reconvert — it
 // only spawns a detached process; the long work happens in that child, not here.
+
+/// Command: re-runs the analyst on a source with a chosen backend (assay::reanalyze).
 #[tauri::command]
 fn assay_reanalyze(state: State<AppState>, source: String, backend: String) -> Result<(), String> {
     let (dir, py, conv) = {
@@ -236,6 +290,8 @@ fn assay_reanalyze(state: State<AppState>, source: String, backend: String) -> R
 // Stage C (docs/18 §5.4): the bless click. Async + spawn_blocking because it scp's the marker
 // to the ThinkPad over ssh — a blocking network call on the UI thread would freeze the widget
 // exactly like the vault_check lesson.
+
+/// Command: blesses a source (assay::bless, on a worker thread; copies to the vault host over ssh); returns text.
 #[tauri::command]
 async fn assay_bless(state: State<'_, AppState>, source: String) -> Result<String, String> {
     let (dir, host, user) = {
@@ -257,6 +313,10 @@ async fn assay_bless(state: State<'_, AppState>, source: String) -> Result<Strin
 // async + spawn_blocking and rides the vault bar's existing 45 s poll (a sleeping ThinkPad must
 // never freeze the UI — the vault_check lesson). `receipts_read` is a local cache read, cheap
 // enough for the Room's 4-9 s re-render.
+
+// -- commands: seam receipts --
+
+/// Command: fetches receipts from the remote host into the local cache (receipts::fetch, on a worker thread).
 #[tauri::command]
 async fn receipts_fetch(state: State<'_, AppState>) -> Result<serde_json::Value, String> {
     let (dir, host, user) = {
@@ -274,6 +334,7 @@ async fn receipts_fetch(state: State<'_, AppState>) -> Result<serde_json::Value,
         .await
         .map_err(|e| format!("receipts task failed: {e}"))?
 }
+/// Command: returns the locally cached receipts as JSON (receipts::read_cached); no network.
 #[tauri::command]
 fn receipts_read(state: State<AppState>) -> Result<serde_json::Value, String> {
     let dir = state
@@ -284,6 +345,10 @@ fn receipts_read(state: State<AppState>) -> Result<serde_json::Value, String> {
         .clone();
     Ok(receipts::read_cached(&dir))
 }
+// -- commands: openers, rules and receipts of the line --
+
+/// Command: opens the vault in a named reader ("obsidian" or "zennotes"; anything else is an error).
+/// The config lock is released before line::open_reader runs.
 #[tauri::command]
 fn open_reader(state: State<AppState>, reader: String) -> Result<(), String> {
     let cfg = state
@@ -298,6 +363,7 @@ fn open_reader(state: State<AppState>, reader: String) -> Result<(), String> {
     drop(cfg);
     line::open_reader(&target)
 }
+/// Command: updates the line's rules (optional auto-local-over-chunks threshold) via line::rules_set.
 #[tauri::command]
 fn rules_set(
     state: State<AppState>,
@@ -311,6 +377,7 @@ fn rules_set(
         .clone();
     line::rules_set(&dir, auto_local_over_chunks)
 }
+/// Command: reads the line's current rules as JSON (line::rules_get).
 #[tauri::command]
 fn rules_get(state: State<AppState>) -> Result<serde_json::Value, String> {
     let dir = state
@@ -321,6 +388,7 @@ fn rules_get(state: State<AppState>) -> Result<serde_json::Value, String> {
         .clone();
     Ok(line::rules_get(&dir))
 }
+/// Command: returns the most recent conversion receipt as JSON (line::last_receipt).
 #[tauri::command]
 fn last_receipt(state: State<AppState>) -> Result<serde_json::Value, String> {
     let dir = state
@@ -332,6 +400,8 @@ fn last_receipt(state: State<AppState>) -> Result<serde_json::Value, String> {
     line::last_receipt(&dir)
 }
 // S66: engineering quick-access — a NAMED allowlist target (see line::open_engineering).
+
+/// Command: opens a named engineering target (pipeline, converter or vault folder allowlist); returns a message.
 #[tauri::command]
 fn open_engineering(state: State<AppState>, target: String) -> Result<String, String> {
     let (pipe, conv, vault) = {
@@ -347,6 +417,7 @@ fn open_engineering(state: State<AppState>, target: String) -> Result<String, St
     };
     line::open_engineering(&pipe, &conv, &vault, &target)
 }
+/// Command: opens the `drop\failed` folder of the pipeline directory in the file explorer.
 #[tauri::command]
 fn open_failed_tray(state: State<AppState>) -> Result<(), String> {
     let dir = state
@@ -360,6 +431,10 @@ fn open_failed_tray(state: State<AppState>) -> Result<(), String> {
 // S85: the assistant's lifecycle — bench_open's chassis with a stop and a death certificate.
 // The model LOAD is not here: the UI server is stdlib-instant, and the slow llama load happens
 // behind the page's own Load button (docs/33 §2.4 — the 6 s ceiling stays un-copied).
+
+// -- commands: the assistant (chat.rs) --
+
+/// Command: starts the assistant UI server and opens its window (chat::open, on a worker thread); returns the port.
 #[tauri::command]
 async fn chat_open(
     app: tauri::AppHandle,
@@ -386,11 +461,13 @@ async fn chat_open(
     .map_err(|e| format!("chat task failed: {e}"))?
 }
 
+/// Command: stops the assistant server; returns whether something was stopped (chat::stop).
 #[tauri::command]
 fn chat_stop(chat_state: State<chat::ChatState>) -> Result<bool, String> {
     chat::stop(&chat_state)
 }
 
+/// Command: returns the assistant's lifecycle status as JSON (chat::status).
 #[tauri::command]
 fn chat_status(chat_state: State<chat::ChatState>) -> Result<serde_json::Value, String> {
     chat::status(&chat_state)
@@ -398,6 +475,8 @@ fn chat_status(chat_state: State<chat::ChatState>) -> Result<serde_json::Value, 
 
 // The reader_config idiom: a BOOLEAN, never the path — the page learns whether the feature
 // exists, not where the binary lives.
+
+/// Command: returns {"configured": bool} - whether a llama server exe path is set; never the path itself.
 #[tauri::command]
 fn chat_config(state: State<AppState>) -> Result<serde_json::Value, String> {
     let cfg = state
@@ -407,6 +486,9 @@ fn chat_config(state: State<AppState>) -> Result<serde_json::Value, String> {
     Ok(serde_json::json!({ "configured": !cfg.llama_server_exe.is_empty() }))
 }
 
+// -- commands: config flags, debug log, Room projections --
+
+/// Command: returns which readers (obsidian, zennotes) are configured, as booleans only.
 #[tauri::command]
 fn reader_config(state: State<AppState>) -> Result<serde_json::Value, String> {
     let cfg = state
@@ -418,6 +500,7 @@ fn reader_config(state: State<AppState>) -> Result<serde_json::Value, String> {
         "zennotes": !cfg.reader_zennotes.is_empty(),
     }))
 }
+/// Command: appends "<unix seconds> <msg>" to widget-boot.log in the pipeline dir; best effort, no result.
 #[tauri::command]
 fn debug_log(state: State<AppState>, msg: String) {
     // S22 debug channel: boot beacons from the webview, appended where no crop or
@@ -441,6 +524,7 @@ fn debug_log(state: State<AppState>, msg: String) {
         }
     }
 }
+/// Command: returns the shift summary as JSON (events::shift_summary).
 #[tauri::command]
 fn shift_summary(state: State<AppState>) -> Result<serde_json::Value, String> {
     let dir = state
@@ -453,6 +537,8 @@ fn shift_summary(state: State<AppState>) -> Result<serde_json::Value, String> {
 }
 // S34 — the Room's KPI band (read-only projection: throughput / median s-per-page / survival
 // average / vault count / recent audits, from the same events + manifests Python writes).
+
+/// Command: returns the Room's KPI metrics as JSON (room::metrics) from the pipeline and vault dirs.
 #[tauri::command]
 fn room_metrics(state: State<AppState>) -> Result<serde_json::Value, String> {
     let (pipeline, vault) = {
@@ -465,11 +551,15 @@ fn room_metrics(state: State<AppState>) -> Result<serde_json::Value, String> {
     room::metrics(&pipeline, &vault)
 }
 // S34 — live GPU memory via nvidia-smi (null when there is no probe).
+
+/// Command: returns live GPU memory as JSON (room::gpu_vram); takes no state.
 #[tauri::command]
 fn gpu_vram() -> serde_json::Value {
     room::gpu_vram()
 }
 // S36 — the drill-down observation system: a station's real on-disk tree (read-only projection).
+
+/// Command: returns the on-disk tree of station `seg` as JSON (room::station_tree); read only.
 #[tauri::command]
 fn station_tree(state: State<AppState>, seg: String) -> Result<serde_json::Value, String> {
     let (pipeline, vault) = {
@@ -481,6 +571,9 @@ fn station_tree(state: State<AppState>, seg: String) -> Result<serde_json::Value
     };
     room::station_tree(&pipeline, &vault, &seg)
 }
+// -- commands: the watcher (drop-folder conveyor, watcher.rs) --
+
+/// Command: returns the watcher's status; "configured" means a GPU python exe and converter dir are both set.
 #[tauri::command]
 fn watcher_status(
     state: State<AppState>,
@@ -498,6 +591,7 @@ fn watcher_status(
     };
     Ok(watcher::status(&watcher_state, configured, Some(&pipe)))
 }
+/// Command: starts the watcher with the configured python exe, converter dir and pipeline dir; returns its status.
 #[tauri::command]
 fn watcher_start(
     state: State<AppState>,
@@ -516,6 +610,7 @@ fn watcher_start(
     };
     watcher::start(&watcher_state, &py, &conv, &pipe)
 }
+/// Command: stops the watcher; an unreadable config falls back to an empty pipeline dir. Returns its status.
 #[tauri::command]
 fn watcher_stop(
     state: State<AppState>,
@@ -534,6 +629,10 @@ fn watcher_stop(
 // poll while the vault host is unreachable. These are `async` + `spawn_blocking` so the git
 // work runs on a worker thread — a sleeping vault host can never lock the UI. The config
 // lock is taken and the path cloned out BEFORE the await, so no !Send guard crosses it.
+
+// -- commands: the vault (git over ssh, vault.rs) --
+
+/// Command: checks the vault repo's status on a worker thread (vault::check); returns VaultStatus.
 #[tauri::command]
 async fn vault_check(state: State<'_, AppState>) -> Result<vault::VaultStatus, String> {
     let dir = state
@@ -546,6 +645,7 @@ async fn vault_check(state: State<'_, AppState>) -> Result<vault::VaultStatus, S
         .await
         .map_err(|e| format!("vault check task failed: {e}"))
 }
+/// Command: pulls the vault repo on a worker thread (vault::pull); returns the resulting VaultStatus.
 #[tauri::command]
 async fn vault_pull(state: State<'_, AppState>) -> Result<vault::VaultStatus, String> {
     let dir = state
@@ -558,6 +658,8 @@ async fn vault_pull(state: State<'_, AppState>) -> Result<vault::VaultStatus, St
         .await
         .map_err(|e| format!("vault pull task failed: {e}"))
 }
+// -- startup: environment, config failure dialog, main() --
+
 /// Explorer hands shortcut-launched apps the environment captured at LOGIN — every
 /// PATH entry (and env var) added since is invisible until re-login. That made
 /// user-launched widgets diverge from shell-launched ones all night (S22 debugging
@@ -565,6 +667,7 @@ async fn vault_pull(state: State<'_, AppState>) -> Result<vault::VaultStatus, St
 /// pipeline needs) from the registry at boot, so every launch context is identical.
 fn hydrate_env_from_registry() {
     use std::os::windows::process::CommandExt;
+    // Helper: runs `reg query <key> /v <value>` with no console window and parses the value text from its output.
     let read_reg = |hive_key: &str, value: &str| -> Option<String> {
         let out = std::process::Command::new("reg")
             .args(["query", hive_key, "/v", value])
@@ -597,6 +700,7 @@ fn hydrate_env_from_registry() {
         out.push_str(rest);
         out
     };
+    // Rebuild PATH as machine Path followed by user Path, each with %VAR% expanded.
     let machine = read_reg(
         r"HKLM\SYSTEM\CurrentControlSet\Control\Session Manager\Environment",
         "Path",
@@ -654,7 +758,10 @@ fn fatal_config_dialog(why: &str) {
     }
 }
 
+/// Program entry: hydrates the environment, loads the config (fatal dialog + exit code 2 on failure), then
+/// builds and runs the Tauri app (single-instance plugin, managed state, command table, window-close hook).
 fn main() {
+    // -- boot: environment and config --
     hydrate_env_from_registry();
     let app_config = match config::load_or_init() {
         Ok(cfg) => cfg,
@@ -705,6 +812,7 @@ fn main() {
                 });
             }
         }))
+        // -- managed state shared with the commands --
         .manage(AppState {
             config: Mutex::new(app_config),
         })
@@ -715,6 +823,7 @@ fn main() {
         ))
         .manage(bench::BenchState::default())
         .manage(chat::ChatState::default())
+        // -- the command table: every name here is callable from the webview --
         .invoke_handler(tauri::generate_handler![
             list_portals,
             send_to_portal,
@@ -759,6 +868,7 @@ fn main() {
             chat_status,
             chat_config
         ])
+        // -- window close hook: the main window's death stops the watcher and closes the other windows --
         .on_window_event(|window, event| {
             // The conveyor dies with its control room — no orphaned watch loops. An
             // in-flight conversion still runs to completion (see watcher.rs header).
@@ -789,6 +899,9 @@ fn main() {
         .expect("error while running File Portal widget");
 }
 
+// -- tests --
+
+/// Unit tests for the config-failure dialog text.
 #[cfg(test)]
 mod config_failure_tests {
     use super::config_failure_text;

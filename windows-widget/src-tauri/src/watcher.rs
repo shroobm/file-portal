@@ -1,3 +1,13 @@
+// WHAT THIS FILE DOES: owns the lifecycle of the Python conveyor watcher (watch_and_convert.py)
+// for the Windows widget. Entry points: status() (is it running / how did it die), start()
+// (launch it, stderr to watcher-stderr.log), stop() (kill its whole process tree and prove it),
+// plus adopt_into_job() / spawn_supervised() which put ANY child the widget launches into a
+// kill-on-close Windows Job Object so nothing outlives the widget.
+// Reads: <gpu_pipeline_dir>/.intake-state.json (the watcher's own receipt, for its real pid).
+// Writes: <gpu_pipeline_dir>/watcher-stderr.log. Callers: the Tauri command layer, plus
+// bench.rs, chat.rs, preflight.rs and assay.rs (the supervised spawns). The test module at the
+// bottom is a census of every process-spawn site in the crate.
+//
 // S20: the widget owns the conveyor watcher's lifecycle (docs/13) — spawn, supervise,
 // stop. Kills the manual console ritual. The child is watch_and_convert.py in the marker-env.
 //
@@ -32,14 +42,20 @@ use windows_sys::Win32::System::Threading::{
     GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
+// -- the kill-on-close Job Object (S37: no orphans) --
+
 // A single process-wide job, created once and held for the widget's whole life (never closed
 // explicitly — it closes when the process exits, which is exactly when we want the kill). Stored
 // as isize so the pointer-typed HANDLE can live in a Sync static.
 static JOB: OnceLock<isize> = OnceLock::new();
 
+/// Return the process-wide Job Object handle, creating it on first use with the
+/// KILL_ON_JOB_CLOSE limit. Takes nothing; returns a HANDLE (null if creation failed).
+/// Side effect: one-time CreateJobObjectW + SetInformationJobObject call.
 fn kill_on_close_job() -> HANDLE {
     let raw = *JOB.get_or_init(|| unsafe {
         let job = CreateJobObjectW(std::ptr::null(), std::ptr::null());
+        // Only set the kill-on-close limit when the job was actually created.
         if !job.is_null() {
             let mut info: JOBOBJECT_EXTENDED_LIMIT_INFORMATION = std::mem::zeroed();
             info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
@@ -80,9 +96,13 @@ pub(crate) fn spawn_supervised(cmd: &mut Command) -> std::io::Result<Child> {
     Ok(child)
 }
 
+// -- watcher state and status reporting --
+
 // Stage A (docs/18 §4A): the second mutex REMEMBERS the last death's exit code after the
 // child is reaped — a status flag alone is a claim; the certificate is the evidence. Cleared
 // on a fresh start and on a deliberate stop (a stop is not a death).
+/// Shared watcher state held by the widget: (0) the live child process, (1) the last death's exit
+/// code, (2) the unverified-stop residue pid. Each field is its own Mutex.
 pub struct WatcherState(
     pub Mutex<Option<Child>>,
     pub Mutex<Option<i32>>,
@@ -90,6 +110,7 @@ pub struct WatcherState(
     pub Mutex<Option<u32>>,
 );
 
+/// The status snapshot returned to the UI: state string, pid if known, and the death certificate.
 #[derive(Serialize)]
 pub struct WatcherStatus {
     /// "running" | "stopped" | "stop-failed" | "unconfigured"
@@ -99,6 +120,8 @@ pub struct WatcherStatus {
     pub exit_code: Option<i32>,
 }
 
+/// True if a process with this pid exists and is still running (pid 0 is never alive).
+/// Opens and closes a query-only process handle; no other side effects.
 fn pid_alive(pid: u32) -> bool {
     if pid == 0 {
         return false;
@@ -115,9 +138,13 @@ fn pid_alive(pid: u32) -> bool {
     }
 }
 
+/// Read the real watcher interpreter's pid from <pipeline dir>/.intake-state.json.
+/// Returns None if the dir is unset, the file is missing, older than 300 s, unparseable, or not v1.
+/// Read-only.
 fn intake_writer_pid(gpu_pipeline_dir: Option<&str>) -> Option<u32> {
     let root = gpu_pipeline_dir.filter(|s| !s.is_empty())?;
     let path = Path::new(root).join(".intake-state.json");
+    // Receipt freshness: a file untouched for over five minutes is not trusted.
     let age = std::fs::metadata(&path)
         .and_then(|m| m.modified())
         .ok()?
@@ -135,11 +162,15 @@ fn intake_writer_pid(gpu_pipeline_dir: Option<&str>) -> Option<u32> {
         .and_then(|n| u32::try_from(n).ok())
 }
 
+/// Report the watcher's state ("running" | "stopped" | "stop-failed" | "unconfigured").
+/// Inputs: the shared state, whether the GPU paths are configured, the pipeline dir.
+/// Side effects: reaps a dead child and files its exit code; clears a residue pid once it is dead.
 pub fn status(
     state: &WatcherState,
     configured: bool,
     gpu_pipeline_dir: Option<&str>,
 ) -> WatcherStatus {
+    // First: an unverified earlier stop outranks everything else.
     {
         let mut residue = state.2.lock().unwrap();
         if let Some(pid) = *residue {
@@ -160,6 +191,7 @@ pub fn status(
             exit_code: None,
         };
     }
+    // Poll the child we spawned, if any, without blocking.
     let mut guard = state.0.lock().unwrap();
     if let Some(child) = guard.as_mut() {
         match child.try_wait() {
@@ -179,6 +211,7 @@ pub fn status(
             Err(_) => *guard = None, // unknowable — reflect reality, no certificate to file
         }
     }
+    // No tracked child: fall back to the watcher's own fresh receipt.
     if let Some(pid) = intake_writer_pid(gpu_pipeline_dir).filter(|pid| pid_alive(*pid)) {
         // The configured executable may be a launcher that has already exited.  The fresh
         // watcher-owned receipt identifies the real interpreter; do not call that factory off.
@@ -195,12 +228,17 @@ pub fn status(
     }
 }
 
+/// Launch watch_and_convert.py with the configured interpreter, unless one is already running.
+/// Returns the new "running" status or an Err string (unconfigured, unverified prior stop, script
+/// missing, spawn failed). Side effects: truncates watcher-stderr.log, spawns a hidden child and
+/// adopts it into the kill-on-close job, clears the stored death certificate.
 pub fn start(
     state: &WatcherState,
     gpu_python_exe: &str,
     gpu_converter_dir: &str,
     gpu_pipeline_dir: &str,
 ) -> Result<WatcherStatus, String> {
+    // Guards: refuse to start when unconfigured, when a prior stop is unproven, or when one runs.
     if gpu_python_exe.is_empty() || gpu_converter_dir.is_empty() {
         return Err("gpu_python_exe / gpu_converter_dir not configured".into());
     }
@@ -265,6 +303,9 @@ pub fn start(
     })
 }
 
+/// Stop the watcher: kill the tracked child's whole tree and the receipt's real writer tree, then
+/// wait up to 2 s for the writer to die. Returns "stopped", or "stop-failed" (recording the
+/// residue pid, 0 = unread) when death could not be proven. Side effects: runs taskkill.
 pub fn stop(state: &WatcherState, gpu_pipeline_dir: Option<&str>) -> WatcherStatus {
     let mut guard = state.0.lock().unwrap();
     let writer_pid = intake_writer_pid(gpu_pipeline_dir);
@@ -294,6 +335,7 @@ pub fn stop(state: &WatcherState, gpu_pipeline_dir: Option<&str>) -> WatcherStat
             .is_ok_and(|out| out.status.success())
             && tree_kill_ok;
     }
+    // Prove the writer died: poll up to 20 x 100 ms before declaring failure.
     if let Some(pid) = writer_pid {
         for _ in 0..20 {
             if !pid_alive(pid) {
@@ -328,6 +370,8 @@ pub fn stop(state: &WatcherState, gpu_pipeline_dir: Option<&str>) -> WatcherStat
     }
 }
 
+// -- tests: the spawn-supervision census --
+
 #[cfg(test)]
 mod tests {
     use std::fs;
@@ -359,6 +403,7 @@ mod tests {
             ("transfer.rs", 1, 0, 0),  // EXEMPT: inline-waited ssh, short-lived
             ("watcher.rs", 2, 0, 2),   // helper's own spawn + the watcher start, both adopted
         ];
+        // Scan every .rs file in src/, compare its three counts with its allowlist row.
         let src = Path::new(env!("CARGO_MANIFEST_DIR")).join("src");
         let mut seen: Vec<String> = vec![];
         for entry in fs::read_dir(&src).expect("src dir readable").flatten() {

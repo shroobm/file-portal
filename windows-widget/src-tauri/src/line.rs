@@ -1,3 +1,13 @@
+//! WHAT THIS FILE DOES: the widget's "line" view backend (Drop > Convert > Gate > Ship > Library).
+//! Main entry points: `state` (one JSON projection for the whole strip), `last_receipt`,
+//! `open_engineering` / `open_reader` / `open_folder` (launch Notepad, Explorer or a reader app),
+//! and the small lever files (`get/set_chunk_batch`, `get/set_analyst_mode`, `rules_get/set`).
+//! Reads (in the GPU pipeline dir): .intake-state.json, .gpu-lock, .convert-progress.json,
+//! .convert-estimate.json, .analyst-progress.json, events.jsonl, drop/, chunk-batch.txt,
+//! analyst-mode.txt, rules.json.
+//! Writes only the widget-owned lever files: chunk-batch.txt, analyst-mode.txt, rules.json.
+//! Callers: the Tauri command layer elsewhere in the widget (not visible from this file).
+
 // S21: the line view's state (docs/13 grammar: Drop ▸ Convert ▸ Gate ▸ Ship ▸ Library).
 // Pure projection — every field is read fresh from the filesystem the pipeline writes.
 
@@ -12,12 +22,18 @@ use windows_sys::Win32::System::Threading::{
     GetExitCodeProcess, OpenProcess, PROCESS_QUERY_LIMITED_INFORMATION,
 };
 
+// -- constants and process probe --
+
+// Maximum age (seconds) at which the watcher's .intake-state.json receipt is still trusted.
 const STATE_FRESH_S: u64 = 300;
 
+/// True when a Windows process with this pid exists and is still running.
+/// Input: pid (0 is never alive). Uses OpenProcess + GetExitCodeProcess; no side effects.
 fn pid_alive(pid: u32) -> bool {
     if pid == 0 {
         return false;
     }
+    // Win32 calls are unsafe FFI; the handle is closed before returning.
     unsafe {
         let handle = OpenProcess(PROCESS_QUERY_LIMITED_INFORMATION, 0, pid);
         if handle.is_null() {
@@ -30,7 +46,12 @@ fn pid_alive(pid: u32) -> bool {
     }
 }
 
+// -- intake: the drop folder and the watcher receipt --
+
+/// List the .pdf files directly inside `drop` (not recursive) as (name, bytes, mtime_ns),
+/// sorted by name. An unreadable directory yields an empty list. Read-only.
 fn top_level_pdfs(drop: &Path) -> Vec<(String, u64, Option<u64>)> {
+    // Keep only regular files with a .pdf extension (case-insensitive).
     let mut rows: Vec<_> = fs::read_dir(drop)
         .map(|d| {
             d.flatten()
@@ -69,6 +90,8 @@ fn top_level_pdfs(drop: &Path) -> Vec<(String, u64, Option<u64>)> {
 fn intake_projection(
     base: &Path,
 ) -> (String, Option<u64>, Option<String>, u32, Vec<Value>, String) {
+    // Returns (status "fresh"|"UNREAD", receipt age in s, active name, waiting count, queue rows,
+    // card state). Age and parse are gated on STATE_FRESH_S below.
     let state_path = base.join(".intake-state.json");
     let age = fs::metadata(&state_path)
         .and_then(|m| m.modified())
@@ -85,18 +108,21 @@ fn intake_projection(
         let active = v["active"].as_str().map(str::to_string);
         let card_state = v["card_state"].as_str();
         let items = v["items"].as_array();
+        // The only phase names the watcher may write for a queue row.
         let valid_phase = |s: &str| {
             matches!(
                 s,
                 "receiving" | "settling" | "ready" | "deferred" | "running"
             )
         };
+        // Receipt must be schema v1, written by a live process, with a known card state.
         if v["v"].as_u64() == Some(1)
             && pid.is_some_and(pid_alive)
             && items.is_some()
             && card_state.is_some_and(|s| matches!(s, "idle" | "busy" | "UNREAD"))
         {
             let Some(items) = items else { unreachable!() };
+            // Cross-check the receipt's rows against the real drop folder (names, sizes, mtimes).
             let names: Vec<_> = items
                 .iter()
                 .filter_map(|row| row["name"].as_str().map(str::to_string))
@@ -116,6 +142,7 @@ fn intake_projection(
                 .iter()
                 .filter(|row| row["name"].as_str() != active.as_deref())
                 .count() as u32;
+            // Accept only when names are unique, sorted, equal to the folder, and every check agrees.
             if names.len() == items.len()
                 && names.windows(2).all(|w| w[0] < w[1])
                 && names == actual_names
@@ -124,6 +151,7 @@ fn intake_projection(
                 && active_ok
                 && v["waiting"].as_u64() == Some(waiting as u64)
             {
+                // The queue shown is the waiting rows only (active one excluded), capped at 15.
                 let queue = items
                     .iter()
                     .filter(|row| row["name"].as_str() != active.as_deref())
@@ -141,6 +169,7 @@ fn intake_projection(
             }
         }
     }
+    // Fallback: the receipt is stale, missing or inconsistent, so report the folder with UNREAD phases.
     let active = None;
     let waiting = actual.len() as u32;
     let queue: Vec<Value> = actual.iter()
@@ -165,6 +194,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         return Ok(json!({"available": false}));
     }
     let base = Path::new(gpu_pipeline_dir);
+    // Counts .pdf files directly in a folder (0 when unreadable).
     let count_pdfs = |p: &Path| -> u32 {
         fs::read_dir(p)
             .map(|d| {
@@ -179,6 +209,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             })
             .unwrap_or(0)
     };
+    // -- gather: lock, intake receipt, progress and estimate files --
     let lock_path = base.join(".gpu-lock");
     let raw_lock = fs::read_to_string(&lock_path)
         .ok()
@@ -208,6 +239,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             .ok()
             .and_then(|s| serde_json::from_str::<Value>(&s).ok())
     });
+    // Classify the progress file: "v2" (live writer, full tuple), "UNREAD" (v2 but invalid), or "legacy".
     let progress_schema = raw_convert_progress.as_ref().map(|p| {
         if p["v"].as_u64() == Some(2) {
             let pid = p["writer_pid"].as_u64().and_then(|n| u32::try_from(n).ok());
@@ -221,6 +253,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             "legacy"
         }
     });
+    // Drop an UNREAD progress file; cp_field reads one key from it, or Null when absent.
     let convert_progress = raw_convert_progress.filter(|_| progress_schema != Some("UNREAD"));
     let cp_field = |k: &str| {
         convert_progress
@@ -262,6 +295,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
             .and_then(|s| serde_json::from_str::<Value>(&s).ok())
             .filter(|e| e["source"].as_str() == Some(name.as_str()))
     });
+    // -- event stream: parse events.jsonl (bad lines skipped), find the last shipped bundle --
     let events_text = fs::read_to_string(base.join("events.jsonl")).unwrap_or_default();
     let events: Vec<Value> = events_text
         .lines()
@@ -282,6 +316,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
         if let Some(eta) = estimate.as_ref().and_then(|e| e["eta_s"].as_i64()) {
             return Some((eta - convert_elapsed_s.unwrap_or(0) as i64).max(0));
         }
+        // Fallback estimate: page count from this source's newest probe event.
         let pages = events.iter().rev().find_map(|ev| {
             (ev["stage"] == "convert"
                 && ev["event"] == "probe"
@@ -311,6 +346,7 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
     });
     // S26: the newest event, verbatim — the UI's stage ticker turns it into a sentence.
     let latest = events.last().cloned();
+    // -- assemble the projection object the UI reads --
     Ok(json!({
         "available": true,
         "drop_waiting": drop_waiting,
@@ -357,6 +393,8 @@ pub fn state(gpu_pipeline_dir: &str) -> Result<Value, String> {
     }))
 }
 
+// -- lever files the widget writes and Python reads --
+
 /// Stage E: the chunk-batch lever's WRITE side — same shape as `set_analyst_mode`: the widget
 /// writes user intent into the backend's own lever file; Python re-reads it per slice. The
 /// whitelist here must stay identical to `chunk_batch()`'s in convert_and_ship.py, or the glass
@@ -384,8 +422,10 @@ pub fn get_chunk_batch(gpu_pipeline_dir: &str) -> u32 {
         .unwrap_or(16)
 }
 
+// The allowed analyst-mode values (ask | local | gemini | off).
 const MODES: [&str; 4] = ["ask", "local", "gemini", "off"];
 
+/// Read analyst-mode.txt (trimmed, lowercased); returns "off" when missing or not in MODES.
 pub fn get_analyst_mode(gpu_pipeline_dir: &str) -> String {
     let mode = fs::read_to_string(Path::new(gpu_pipeline_dir).join("analyst-mode.txt"))
         .map(|s| s.trim().to_lowercase())
@@ -397,6 +437,8 @@ pub fn get_analyst_mode(gpu_pipeline_dir: &str) -> String {
     }
 }
 
+/// Write analyst-mode.txt after validating `mode` against MODES. Returns the mode, or an Err
+/// naming the invalid value or the failed write.
 pub fn set_analyst_mode(gpu_pipeline_dir: &str, mode: &str) -> Result<String, String> {
     if !MODES.contains(&mode) {
         return Err(format!("invalid mode: {mode}"));
@@ -446,6 +488,7 @@ pub fn rules_set(
     Ok(rules)
 }
 
+/// Read rules.json as JSON; returns an empty object when the file is missing or unparseable.
 pub fn rules_get(gpu_pipeline_dir: &str) -> Value {
     fs::read_to_string(Path::new(gpu_pipeline_dir).join("rules.json"))
         .ok()
@@ -469,6 +512,7 @@ pub fn last_receipt(gpu_pipeline_dir: &str) -> Result<Value, String> {
         .ok_or("nothing shipped yet")?;
     let bundle = shipped["bundle"].as_str().unwrap_or_default().to_string();
     let mut receipt = json!({ "bundle": bundle, "shipped_ts": shipped["ts"] });
+    // (the receipt's analyst and convert parts are each filled once, from the newest matching event)
     // Walk backwards for this bundle's convert + analyst events (newest occurrence).
     for ev in events.iter().rev() {
         if ev["bundle"] != json!(bundle.clone())
@@ -513,6 +557,7 @@ pub fn open_engineering(
     vault_library_dir: &str,
     target: &str,
 ) -> Result<String, String> {
+    // Map the target name to a path; is_dir picks Explorer (folder) over Notepad (file).
     let pipe = Path::new(gpu_pipeline_dir);
     let (path, is_dir): (std::path::PathBuf, bool) = match target {
         "pipeline" => (pipe.to_path_buf(), true),
@@ -544,6 +589,7 @@ pub fn open_engineering(
     if !path.exists() {
         return Err(format!("not there yet: {}", path.display()));
     }
+    // Spawn the viewer detached with no console window; returns the path shown.
     let shown = path.display().to_string();
     Command::new(if is_dir {
         "explorer.exe"
@@ -567,11 +613,14 @@ pub fn open_folder(path: &str) -> Result<(), String> {
     Ok(())
 }
 
+// -- tests: intake projection and conveyor state against scratch directories --
+
 #[cfg(test)]
 mod conveyor_state_tests {
     use super::*;
     use std::time::{SystemTime, UNIX_EPOCH};
 
+    // Make a unique temp pipeline dir (with a drop/ folder) and return its path.
     fn scratch(label: &str) -> std::path::PathBuf {
         let nonce = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -583,6 +632,7 @@ mod conveyor_state_tests {
         root
     }
 
+    // Write a v1 .intake-state.json (this test process as writer), filling bytes/mtime from real drop files.
     fn write_intake(root: &Path, active: Option<&str>, card_state: &str, mut items: Value) {
         for row in items.as_array_mut().unwrap() {
             if let Ok(meta) = fs::metadata(root.join("drop").join(row["name"].as_str().unwrap())) {
@@ -616,6 +666,7 @@ mod conveyor_state_tests {
         .unwrap();
     }
 
+    // Test: the active PDF is not counted among the waiting rows.
     #[test]
     fn active_pdf_is_not_counted_as_waiting() {
         let root = scratch("active-once");
@@ -636,6 +687,7 @@ mod conveyor_state_tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    // Test: a receipt that disagrees with the folder, or is torn JSON, reads as UNREAD.
     #[test]
     fn malformed_or_ground_mismatched_receipt_is_unread() {
         let root = scratch("unread");
@@ -657,6 +709,7 @@ mod conveyor_state_tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    // Test: a .gpu-lock file alone never claims a conversion when the fresh receipt says idle.
     #[test]
     fn raw_lock_cannot_override_fresh_idle_receipt() {
         let root = scratch("stale-lock");
@@ -679,6 +732,7 @@ mod conveyor_state_tests {
         fs::remove_dir_all(root).unwrap();
     }
 
+    // Test: progress schema is legacy / v2 / UNREAD depending on the file and its writer pid.
     #[test]
     fn progress_v2_requires_live_writer_and_legacy_keeps_mtime_fallback() {
         let root = scratch("progress");

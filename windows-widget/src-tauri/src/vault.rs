@@ -1,3 +1,10 @@
+// WHAT THIS FILE DOES: backend of the Add-to-Library button. check() fetches origin and reports
+// whether the local Library clone is behind (state "disabled" | "up-to-date" | "updates" |
+// "offline" | "error"); pull() fast-forwards it and reports "pulled" with the new bundle slugs.
+// Everything is `git` run through the git() helper against vault_library_dir. Also exports
+// CREATE_NO_WINDOW, the process-creation flag every module uses to hide console windows.
+// Callers: the Tauri command layer and the vault bar's poll.
+//
 // W8: the Add-to-Library button's backend. Checks whether the local Library clone (the
 // Obsidian vault's git subfolder, Decision #4) is behind the ThinkPad's bare repo, and pulls
 // on demand. All network transport rides the clone's own persisted
@@ -14,6 +21,9 @@ use std::process::Command;
 /// console window — the 45s vault poll flashed a black box on the user's screen each cycle.
 pub const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
+// -- status type --
+
+/// Result of a vault check or pull: state string, commits behind, new bundle slugs, detail text.
 #[derive(Debug, Serialize)]
 pub struct VaultStatus {
     /// "disabled" | "up-to-date" | "updates" | "pulled" | "offline" | "error"
@@ -26,7 +36,9 @@ pub struct VaultStatus {
     pub detail: String,
 }
 
+/// Constructors for VaultStatus.
 impl VaultStatus {
+    /// A status with the given state and detail, zero behind and no bundles.
     fn simple(state: &str, detail: &str) -> Self {
         VaultStatus {
             state: state.into(),
@@ -37,6 +49,10 @@ impl VaultStatus {
     }
 }
 
+// -- running git --
+
+/// Run `git -C <dir> <args>` hidden and non-interactive. Returns trimmed stdout on success or
+/// trimmed stderr as the Err. Side effects: whatever the git subcommand does (fetch, merge, ...).
 fn git(dir: &str, args: &[&str]) -> Result<String, String> {
     // core.longpaths: bundle-interior filenames (200-byte clamped stems + asset names) push
     // full vault paths past Windows' 260-char MAX_PATH — without this, checkout fails with
@@ -61,6 +77,8 @@ fn git(dir: &str, args: &[&str]) -> Result<String, String> {
     }
 }
 
+// -- check and pull --
+
 /// Distinct `Inbox/<slug>/` bundle slugs among a diff's added manifest.json paths. Filing
 /// moves and removals don't count as "new notes" — only a manifest arriving under Inbox/.
 fn new_bundle_slugs(dir: &str, range: &str) -> Vec<String> {
@@ -78,6 +96,8 @@ fn new_bundle_slugs(dir: &str, range: &str) -> Vec<String> {
     slugs.into_iter().collect()
 }
 
+/// Fetch origin and report how far the Library clone is behind origin/main. Input: the clone's
+/// path. Returns a VaultStatus; side effect: a `git fetch`.
 pub fn check(vault_library_dir: &str) -> VaultStatus {
     if vault_library_dir.is_empty() {
         return VaultStatus::simple("disabled", "vault_library_dir not configured");
@@ -108,6 +128,9 @@ pub fn check(vault_library_dir: &str) -> VaultStatus {
     }
 }
 
+/// Fetch, then fast-forward the Library clone to origin/main. Returns "pulled" with the commit
+/// count and new bundle slugs, "up-to-date", "offline" (fetch failed) or "error" (merge failed).
+/// Side effects: `git fetch` and `git merge --ff-only`.
 pub fn pull(vault_library_dir: &str) -> VaultStatus {
     if vault_library_dir.is_empty() {
         return VaultStatus::simple("disabled", "vault_library_dir not configured");

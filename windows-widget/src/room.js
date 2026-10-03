@@ -1,3 +1,13 @@
+/**
+ * WHAT THIS FILE DOES
+ * ES module for the Room and Wall surfaces of the File Portal widget: the operations dashboard.
+ * Entry points: initRoom(deps) and setActiveSurface(name), both called by main.js. It polls Tauri
+ * commands (line_state, assay_status, shift_summary, preflight_list, watcher_status, room_metrics,
+ * gpu_vram, receipts_read, algedonic_state), builds one view-model (gatherVM) and renders HTML
+ * panels, the station rail, KPI tiles, GPU strip and a canvas belt. It owns no pipeline state;
+ * writes go through the same intent commands as the Dock. Uses event-vocab.js for wording.
+ */
+
 // S34 — the Room surface: the Control Room's operations dashboard, graduated from the
 // Claude-Design merge (prototypes/control-panel/control-room/). Framework-free, same idiom
 // as main.js. PROJECTION ONLY: every value here is read from an existing invoke() command
@@ -11,6 +21,7 @@ import { eventPhrase, countOfTotal, displaySliceNote } from "./event-vocab.js";
 
 const { invoke } = window.__TAURI__.core;
 
+// -- shared constants: verdict colours and symbols, stage tag colours, gate labels --
 // Verdict → token color, shared with the Dock's assay language (docs/13: terracotta = fail only).
 const VCOL = { pass: "var(--ok)", flag: "var(--warn)", fail: "var(--clay)" };
 const VBG = { pass: "var(--ok-bg)", flag: "var(--warn-bg)", fail: "var(--clay-bg)" };
@@ -23,6 +34,7 @@ const TAGCOL = {
 };
 const MODE_LABELS = { ask: "ask", local: "auto-🔒", gemini: "auto-☁", off: "off" };
 
+// -- small pure helpers: HTML escape, word clip, duration and age text, clamp --
 const esc = (s) => String(s ?? "").replace(/[&<>"]/g, (c) =>
   ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 const words = (s, n) => String(s ?? "").split(/\s+/).filter(Boolean).slice(0, n).join(" ");
@@ -32,6 +44,7 @@ const etaText = (s) => (s == null ? "—" : s < 90 ? `${s}s` : `${Math.round(s /
 const ageText = (s) => (s == null ? "UNREAD" : s < 90 ? `${s}s` : s < 5400 ? `${Math.round(s / 60)}m` : `${(s / 3600).toFixed(1)}h`);
 const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 
+// -- module state: root element, active flag, poll timer, injected deps, shared surface state --
 let roomEl = null;
 let active = false;
 let pollT = 0;
@@ -49,13 +62,21 @@ const belt = { canvas: null, chips: [], raf: 0, running: false, W: 0, H: 0, DPR:
 // does one nvidia-smi read (via gpu_vram) and we accumulate the VRAM %used here into a bounded
 // ring for the Room's sparkline. No always-on backend thread: sampling happens only while the
 // Room/Wall is being viewed (you can't see the sparkline with the Room closed anyway).
+// -- GPU rolling windows (bounded rings of recent samples) --
 const GPU_HIST_MAX = 48;
 const vramHist = []; // recent VRAM %used samples (0..100), oldest → newest
 const utilHist = []; // GPU utilisation % (0..100)
 const tempHist = []; // GPU temperature °C
+/**
+ * Appends val to a ring array, dropping the oldest entry beyond GPU_HIST_MAX. Mutates arr.
+ */
 function pushRing(arr, val) { arr.push(val); if (arr.length > GPU_HIST_MAX) arr.shift(); }
 // S41: one nvidia-smi read per poll feeds all three rings (VRAM / util / temp). No fake samples
 // when the field is absent — the trend stays honest.
+/**
+ * Records one gpu_vram reading into the VRAM, utilisation and temperature rings.
+ * Input: v ({used, total, util, temp} or null). Skips missing fields; returns nothing.
+ */
 function sampleGpu(v) {
   if (!v || !v.total) return;
   pushRing(vramHist, (v.used / v.total) * 100);
@@ -67,6 +88,11 @@ function sampleGpu(v) {
 // classes only MODULATE it. Age steps at the signed M lever and caps at 4×M (the ledger's own
 // escalation unit — no invented thresholds); volume steps with the count of waiting items.
 // Consumed by renderWall (wl-glow) and stationRail (rl-glow); see the fp-g* block in styles.css.
+/**
+ * Picks glow CSS modifier classes from a waiting-item count and an age.
+ * Inputs: vol (count), ageMin (minutes), mMin (escalation lever in minutes, default 30).
+ * Returns a string of class names with a leading space, or "". Pure.
+ */
 function glowMods(vol, ageMin, mMin) {
   const m = mMin > 0 ? mMin : 30;
   return (vol >= 4 ? " fp-gv3" : vol >= 2 ? " fp-gv2" : "") +
@@ -75,6 +101,10 @@ function glowMods(vol, ageMin, mMin) {
 // The assay summons's age = the oldest held/vault-held occurrence the algedonic ledger records.
 // Gate cards carry no on-disk age, so the Gate's glow modulates by volume only — honest by
 // construction: we modulate only where the ledger already measures.
+/**
+ * Age in minutes of the oldest held or vault-held alert. Input: alg (algedonic state or null).
+ * Returns a number, 0 when there are none. Pure.
+ */
 function heldAgeMin(alg) {
   return Math.max(0, ...((alg?.alerts) || [])
     .filter((a) => a.kind === "held" || a.kind === "vault-held")
@@ -82,10 +112,15 @@ function heldAgeMin(alg) {
 }
 
 // S74 slice 2: press-on-complete memory — the previous poll's completion-relevant fields.
+// previous poll's converting name and vault count, used to detect a just-finished station
 const railPrev = { converting: null, vault: null };
 
 // System verdict (shared by the Room header + the Wall): terracotta only when your hand is
 // required (a pending gate decision or an audit fail); green when viable; grey when paused.
+/**
+ * Overall line verdict. Input: d (view-model). Returns {word, color}: "paused" when the watcher
+ * is not running, "attention" on an audit fail or waiting gate cards, else "viable". Pure.
+ */
 function systemVerdict(d) {
   const gateN = (d.pf || []).length;
   const av = d.assay?.verdict;
@@ -96,7 +131,13 @@ function systemVerdict(d) {
 }
 
 // ---- data gathering: assemble the view-model from real commands --------------------------
+/**
+ * Builds the Room view-model by invoking the read-only Tauri commands in parallel; a failing
+ * command yields null and is logged through deps.dbg. Also reads the gate mode and samples the GPU
+ * into the rolling rings. Returns {ls, assay, shift, pf, watcher, metrics, vram, receipts, alg}.
+ */
 async function gatherVM() {
+  // call: invoke one command, returning null (and logging) on failure
   const call = async (name, args) => {
     try { return await invoke(name, args); }
     catch (e) { deps.dbg?.(`room ${name}: ${e}`); return null; }
@@ -125,6 +166,7 @@ async function gatherVM() {
 // Stage F (docs/18 §6): the algedonic banner — pain that outlived M minutes unacknowledged.
 // Terracotta by design law #2: an unacknowledged escalation IS "your hand is required". The
 // M selector + ⚑ ack are PROVISIONAL levers (docs/19 §6 — Rab signs the final mechanism).
+// alert kind to display wording
 const ALG_KIND = {
   held: "parked in held/", "vault-held": "vault refused", stalled: "stalled",
   failed: "failed", "bless-invalid": "bless rejected",
@@ -133,6 +175,10 @@ const ALG_KIND = {
   // kind says both halves out loud, because "failed" alone would read as "it was stopped".
   "verdict-fail": "audit FAILED · not parked",
 };
+/**
+ * Builds the algedonic banner HTML listing up to four escalated alerts, with ack buttons and the
+ * 15m/30m/1h/4h escalation selector. Input: d (view-model). Returns an HTML string or "". Pure.
+ */
 function algedonicBanner(d) {
   const a = d.alg;
   if (!a || !a.available) return "";
@@ -160,6 +206,10 @@ function algedonicBanner(d) {
 // Stage E (docs/19 §5): the queue, in the watcher's own (name-sorted) order — read-only.
 // The ORDER control is a watcher-contract change awaiting Rab's signature; until he signs,
 // this panel observes and never steers.
+/**
+ * Builds the read-only queue panel: the active convert row, the waiting files in order with
+ * size, phase and wait, and the intake receipt note. Input: d (view-model). Returns HTML. Pure.
+ */
 function queuePanel(d) {
   const ls = d.ls || {};
   const q = ls.queue || [];
@@ -185,11 +235,16 @@ function queuePanel(d) {
 }
 
 // ---- render -------------------------------------------------------------------------------
+/**
+ * Builds the station rail (Intake, Convert, Gate, Assay, Ship, Vault) with counts, sub-labels,
+ * glow and press classes. Input: d (view-model). Updates railPrev. Returns an HTML string.
+ */
 function stationRail(d) {
   const ls = d.ls || {}, assay = d.assay || {}, m = d.metrics || {};
   const converting = !!ls.converting;
   const gateN = d.pf.length;
   const av = assay.verdict || null;
+  // one definition per station
   const defs = [
     { seg: "intake", glyph: "▚", name: "Intake", count: String(ls.drop_waiting ?? 0),
       sub: ls.intake_state !== "fresh" ? "state UNREAD" : d.watcher?.state === "running" ? "watching" : "paused",
@@ -248,12 +303,20 @@ function stationRail(d) {
   }).join("")}</div>`;
 }
 
+/**
+ * Shortens a bundle or file name for display: drops ".pdf" and a hash suffix, turns underscores
+ * into spaces, clips to 22 characters. Pure.
+ */
 function shortName(s) {
   return String(s || "").replace(/\.pdf$/i, "").replace(/--[0-9a-f]{6,}$/, "").replace(/_/g, " ").slice(0, 22);
 }
 
 // domain?: { min, max } draws on a FIXED scale (S38: VRAM uses 0..100 so height means true
 // fullness — idle sits low, a convert spikes). Omit it to autoscale min..max (throughput/median).
+/**
+ * Draws a small SVG sparkline. Inputs: series (numbers), col (stroke colour), domain (optional
+ * {min,max} fixed scale). Returns an SVG string, or "" for fewer than two points. Pure.
+ */
 function sparkSvg(series, col, domain) {
   if (!series || series.length < 2) return "";
   const w = 66, h = 22;
@@ -267,10 +330,17 @@ function sparkSvg(series, col, domain) {
     `<circle cx="${lx}" cy="${ly}" r="1.8" fill="${col}"/></svg>`;
 }
 
+/**
+ * Builds a horizontal gauge bar. Inputs: pct (clamped 0-100), col (fill colour). Returns HTML.
+ */
 function gauge(pct, col) {
   return `<div class="rk-gauge"><i style="width:${clamp(pct, 0, 100)}%;background:${col}"></i></div>`;
 }
 
+/**
+ * Builds the six KPI tiles (throughput, median s/page, VRAM, queue depth, survival, shipped today).
+ * Input: d (view-model). Returns an HTML string. Pure.
+ */
 function kpiTiles(d) {
   const ls = d.ls || {}, m = d.metrics || {}, sh = d.shift?.today || {}, v = d.vram;
   const gateN = d.pf.length;
@@ -301,6 +371,10 @@ function kpiTiles(d) {
 
 // S41: the GPU telemetry stream (docs/16 §8 #4) — VRAM / util / temp as three fixed-scale rolling
 // sparklines. Each fed one sample per poll (the poll is the sampler). Clay stroke under pressure.
+/**
+ * Builds the GPU strip: VRAM, utilisation and temperature with rolling sparklines.
+ * Input: d (view-model). Returns HTML, or "" when there is no GPU probe. Pure.
+ */
 function gpuStrip(d) {
   const v = d.vram;
   if (!v || !v.total) return ""; // no probe → no strip (the KPI tile already says "no GPU probe")
@@ -319,6 +393,10 @@ function gpuStrip(d) {
     `<div class="rg-spark">${sparkSvg(c.series, c.col, c.dom)}</div></div>`).join("") + `</div>`;
 }
 
+/**
+ * Builds the Convert station panel: progress bar, stage, promise, elapsed, liveness, VRAM,
+ * analyst chunk progress and the slice-batch lever buttons. Input: d (view-model). Returns HTML. Pure.
+ */
 function convertPanel(d) {
   const ls = d.ls || {}, v = d.vram;
   const converting = !!ls.converting;
@@ -408,6 +486,10 @@ function convertPanel(d) {
 // so they never match by construction, and the caption says "count" rather than "coverage" for
 // exactly that reason. Coverage semantics are P-1's job and need Rab's signature first.
 // Renders nothing at all when the audit stored no asset numbers (a null is not a zero).
+/**
+ * Builds the figures-written-versus-source caption. Input: a (audit state). Returns an HTML
+ * span, or "" when the asset numbers are missing. Pure.
+ */
 function assetLedger(a) {
   if (a.asset_delta == null || a.embedded_images == null) return "";
   const out = Number(a.assets_out), emb = Number(a.embedded_images), d = Number(a.asset_delta);
@@ -419,6 +501,10 @@ function assetLedger(a) {
     `<b>${emb}</b> in source <span class="dim">(Δ${sign}, count only)</span></span>`;
 }
 
+/**
+ * Builds the Survival Audit panel: verdict meter, damage map, evidence list, remedy/bless footer,
+ * held rows and the report/enforce lever. Input: d (view-model). Returns HTML. Pure.
+ */
 function assayPanel(d) {
   const a = d.assay;
   if (!a || !a.available) return `<div class="rp"><div class="rp-head"><span class="rp-title">◎ Survival Audit</span></div><div class="rp-body"><div class="rp-note">no audit yet</div></div></div>`;
@@ -499,6 +585,10 @@ function assayPanel(d) {
 // Renders ONLY census-registered numerations (docs/51), each row wearing its N-id — the §9
 // law made visible: a number reaches this glass with its register row or not at all. Pure
 // projection of feeds the Room already polls; no new authority.
+/**
+ * Builds the numerations panel: census-registered counters (each with its N-id) taken from the
+ * line state and the newest shift events. Input: d (view-model). Returns HTML. Pure.
+ */
 function numerationsPanel(d) {
   const ls = d.ls || {};
   const tail = d.shift?.tail || [];
@@ -549,6 +639,10 @@ function numerationsPanel(d) {
     `</table><div class="rp-note">every row is a registered numeration — an unregistered counter on any glass is a defect (docs/51 §9)</div></div></div>`;
 }
 
+/**
+ * Builds the event stream panel: the newest 12 rows merging the desktop events and the vault
+ * exporter's receipts, sorted by timestamp. Input: d (view-model). Returns HTML. Pure.
+ */
 function eventsPanel(d) {
   // Stage C2 (docs/19 §3.3): two streams, one story. The desktop's events.jsonl (Python's) and
   // the ThinkPad exporter's receipts (fetched into the widget's own cache) stay SEPARATE FILES
@@ -576,6 +670,10 @@ function eventsPanel(d) {
 // F-11 bonus). Render-only addition (S94): the projection law's missing read half. Guards all
 // three absent shapes: invoke error (metrics null), available:false (no other keys), and the
 // pre-S94 harness stubs that lack the field entirely.
+/**
+ * Builds the recent-audits panel (verdict symbol, name, survival per audit). Input: d (view-model).
+ * Returns HTML, or "" when there are no recent audits. Pure.
+ */
 function auditsPanel(d) {
   const list = (d.metrics || {}).recent_audits || [];
   if (!list.length) return "";
@@ -592,6 +690,10 @@ function auditsPanel(d) {
 
 // One exporter outcome as a human phrase. These are the vault's OWN words about a bundle —
 // what it did with the thing the desktop shipped it (docs/19 §3.3).
+/**
+ * Turns one exporter/vault receipt row into a display sentence keyed by r.outcome.
+ * Input: r (receipt row). Returns a string; unknown outcomes fall back to "outcome bundle". Pure.
+ */
 function receiptMsg(r) {
   const s = (v) => String(v ?? "").slice(0, 34);
   const map = {
@@ -630,10 +732,17 @@ function receiptMsg(r) {
 }
 
 // Turn a raw event into the same vocabulary the Dock uses, compacted for the Room.
+/**
+ * Event to compact display sentence via eventPhrase, falling back to "stage event". Pure.
+ */
 function eventMsg(e) {
   return eventPhrase(e, { compact: true, unknown: `${e.stage || ""} ${e.event || ""}`.trim() });
 }
 
+/**
+ * Builds the Room header: brand, system verdict, watcher state, GPU summary, UTC clock and the
+ * files/theme buttons. Input: d (view-model). Returns an HTML string. Pure.
+ */
 function header(d) {
   const watcherState = d.watcher?.state;
   const w = watcherState === "running";
@@ -659,6 +768,7 @@ function header(d) {
 }
 
 // S66: the 🗁 menu — named allowlist targets only (the backend match is the law).
+// (target id, menu label) pairs for the engineering files menu
 const ENG_TARGETS = [
   ["events", "events.jsonl — the event stream"],
   ["ledger", "conversion-ledger.jsonl — measured costs"],
@@ -676,6 +786,10 @@ const ENG_TARGETS = [
   ["library", "the vault Library clone"],
   ["repo", "the source repo"],
 ];
+/**
+ * Opens or closes the engineering files menu; each row calls open_engineering with its target.
+ * Side effects: DOM menu inside the Room, status line message. Returns nothing.
+ */
 function toggleEngMenu() {
   const old = document.getElementById("eng-menu");
   if (old) { old.remove(); return; }
@@ -693,6 +807,10 @@ function toggleEngMenu() {
   }));
 }
 
+/**
+ * Renders the Room (or, on the wall surface, the Wall) from a view-model into #room, wires the
+ * handlers and attaches the belt. Input: vm. Returns nothing.
+ */
 function render(vm) {
   if (!roomEl) return;
   if (surface === "wall") { renderWall(vm); return; }
@@ -707,6 +825,9 @@ function render(vm) {
   attachBelt(vm); // persistent chips (module state) survive the innerHTML replace
 }
 
+/**
+ * Footer text of today's shift totals (converted, shipped, held) or "line idle". Pure.
+ */
 function shiftLine(d) {
   const t = d.shift?.today;
   if (!t) return "line idle";
@@ -718,6 +839,11 @@ function shiftLine(d) {
 }
 
 // ---- interaction (through the SAME intent commands the Dock uses) --------------------------
+/**
+ * Attaches click handlers to the freshly rendered Room: theme, files menu, audit lever, remedy,
+ * re-analyze, bless, bench, station drill-down, alert ack and minutes, slice-batch lever.
+ * Each handler calls a Tauri intent command and refreshes. Returns nothing.
+ */
 function wire() {
   roomEl.querySelector("#room-theme")?.addEventListener("click", toggleTheme);
   roomEl.querySelector("#room-files")?.addEventListener("click", toggleEngMenu);
@@ -786,6 +912,7 @@ function wire() {
 }
 
 // ---- the drill-down observation system (S36): station → live, real on-disk file tree --------
+// drill-down state: open drill, collapsed folder ids, poll timer, zoom origin, station names and glyphs
 let drill = null;           // { seg, tree }
 let drillCollapsed = new Set();
 let drillT = 0;
@@ -793,6 +920,10 @@ let drillOrigin = "50% 40%";
 const STATION_LABEL = { intake: "Intake", convert: "Convert", gate: "Gate", assay: "Assay", ship: "Ship", vault: "Vault" };
 const STATION_GLYPH = { intake: "▚", convert: "⚙", gate: "✳", assay: "◎", ship: "⇈", vault: "▤" };
 
+/**
+ * Opens the drill-down overlay for a station. Inputs: seg (station key), ev (click event for the
+ * zoom origin). Pauses the Room poll, builds the overlay and starts drillLoop. Returns nothing.
+ */
 function openDrill(seg, ev) {
   drill = { seg, tree: null };
   drillCollapsed = new Set();
@@ -802,18 +933,31 @@ function openDrill(seg, ev) {
   buildDrillShell();
   drillLoop();
 }
+/**
+ * Tears down the drill-down: clears state and timer, removes the overlay and the Escape listener.
+ */
 function killDrill() {
   drill = null;
   clearTimeout(drillT);
   document.getElementById("drill-overlay")?.remove();
   document.removeEventListener("keydown", drillEsc);
 }
+/**
+ * Closes the drill-down and resumes the Room poll when the Room is the active surface.
+ */
 function closeDrill() {
   if (!drill) return;
   killDrill();
   if (active && surface === "room") roomLoop(); // resume the Room poll
 }
+/**
+ * Keydown handler: Escape closes the drill-down.
+ */
 function drillEsc(e) { if (e.key === "Escape") closeDrill(); }
+/**
+ * Creates the drill-down overlay (backdrop, header, body placeholder) on document.body and wires
+ * the close controls and the Escape key. Returns nothing.
+ */
 function buildDrillShell() {
   document.getElementById("drill-overlay")?.remove();
   const o = document.createElement("div");
@@ -831,6 +975,10 @@ function buildDrillShell() {
   o.querySelector(".dh-close").addEventListener("click", closeDrill);
   document.addEventListener("keydown", drillEsc);
 }
+/**
+ * Self-rescheduling read (every 4 s) of the station_tree command for the open drill-down; renders
+ * the tree. Stops when no drill is open. Errors go to deps.dbg.
+ */
 async function drillLoop() {
   if (!drill) return;
   try {
@@ -839,6 +987,10 @@ async function drillLoop() {
   } catch (e) { deps.dbg?.(`station_tree ${drill?.seg}: ${e}`); }
   drillT = setTimeout(drillLoop, 4000); // live observation — re-read disk every 4s
 }
+/**
+ * Flattens a tree of nodes into display rows with depth, skipping children of collapsed folders.
+ * Inputs: nodes, depth, out (array appended to). Returns out.
+ */
 function flattenTree(nodes, depth, out) {
   for (const n of nodes) {
     const isDir = n.kind === "dir";
@@ -848,6 +1000,10 @@ function flattenTree(nodes, depth, out) {
   }
   return out;
 }
+/**
+ * Renders the drill-down rows (caret, glyph, name, meta, verdict or size) and wires folder
+ * click-to-collapse. No inputs; reads module state; returns nothing.
+ */
 function renderDrillBody() {
   const o = document.getElementById("drill-overlay");
   if (!o || !drill?.tree) return;
@@ -878,6 +1034,10 @@ function renderDrillBody() {
 
 // Stage E: the theme choice PERSISTS (docs/18 §7 — "light theme: finish, don't re-architect").
 // main.js applies the stored value at boot, so every launch opens in the chosen theme.
+/**
+ * Flips the theme between light and dark on the root element and stores it in localStorage
+ * ("fp-theme"); storage failure is ignored. Returns nothing.
+ */
 function toggleTheme() {
   const root = document.documentElement;
   const next = root.getAttribute("data-theme") === "light" ? "dark" : "light";
@@ -885,13 +1045,20 @@ function toggleTheme() {
   try { localStorage.setItem("fp-theme", next); } catch { /* storage unavailable — session-only */ }
 }
 
+// -- polling: refresh and the Room loop --
 let d0 = {}; // last view-model (for handlers that need current mode)
+/**
+ * Gathers a fresh view-model into d0 and renders it. No-op while the surface is inactive.
+ */
 async function refresh() {
   if (!active) return;
   d0 = await gatherVM();
   render(d0);
 }
 
+/**
+ * Self-rescheduling Room poll: refresh, then wait 4 s while converting, else 9 s.
+ */
 async function roomLoop() {
   if (!active) return;
   await refresh();
@@ -901,6 +1068,10 @@ async function roomLoop() {
 
 // ---- the canvas transit belt (S35) --------------------------------------------------------
 // Ambient projection of the line's real activity. Runs only while the Room is showing.
+/**
+ * Computes how many belt chips to show (2 to 12) and their tints from the real in-flight work.
+ * Input: d (view-model). Returns {n, tints}; {n: 0} when the watcher is not running. Pure.
+ */
 function beltTargets(d) {
   const w = d.watcher?.state === "running";
   if (!w) return { n: 0, tints: [] };
@@ -917,9 +1088,15 @@ function beltTargets(d) {
   while (tints.length < n) tints.push("flow");
   return { n, tints };
 }
+/**
+ * Creates a belt chip at a random position with a random speed. Input: tint (default "flow").
+ */
 function newChip(tint) {
   return { x: Math.random(), y: 0.28 + Math.random() * 0.44, speed: (0.018 + Math.random() * 0.014) / 60, tint: tint || "flow" };
 }
+/**
+ * Reads the CSS colour tokens into belt.pal and the reduced-motion preference into belt.reduce.
+ */
 function refreshBeltPalette() {
   const cs = getComputedStyle(document.documentElement);
   belt.pal = {};
@@ -928,6 +1105,9 @@ function refreshBeltPalette() {
   }
   belt.reduce = matchMedia("(prefers-reduced-motion: reduce)").matches;
 }
+/**
+ * Sizes the belt canvas to its element and device pixel ratio (max 2) and sets the draw transform.
+ */
 function sizeBelt() {
   const c = belt.canvas; if (!c) return;
   const r = c.getBoundingClientRect();
@@ -937,12 +1117,22 @@ function sizeBelt() {
   c.width = belt.W * belt.DPR; c.height = belt.H * belt.DPR;
   c.getContext("2d").setTransform(belt.DPR, 0, 0, belt.DPR, 0, 0);
 }
+/**
+ * Traces a rounded-rectangle path on a canvas context. Inputs: ctx, x, y, w, h, rad. No fill or stroke.
+ */
 function rr(ctx, x, y, w, h, rad) {
   ctx.beginPath(); ctx.moveTo(x + rad, y);
   ctx.arcTo(x + w, y, x + w, y + h, rad); ctx.arcTo(x + w, y + h, x, y + h, rad);
   ctx.arcTo(x, y + h, x, y, rad); ctx.arcTo(x, y, x + w, y, rad); ctx.closePath();
 }
+/**
+ * Maps a tint name (flow, warn, clay, ok) to its palette colour, defaulting to flow. Pure.
+ */
 function tintColor(t) { return belt.pal[{ flow: "--flow", warn: "--warn", clay: "--clay", ok: "--ok" }[t]] || belt.pal["--flow"]; }
+/**
+ * Binds the belt to the freshly rendered canvas, sets its chip target from vm, and starts the
+ * animation loop if it is not running. Input: vm. Returns nothing.
+ */
 function attachBelt(vm) {
   belt.canvas = document.getElementById("room-belt");
   if (!belt.canvas) return;
@@ -951,11 +1141,18 @@ function attachBelt(vm) {
   requestAnimationFrame(() => sizeBelt());
   if (!belt.running) { belt.running = true; belt.raf = requestAnimationFrame(drawBelt); }
 }
+/**
+ * Stops the belt animation and cancels its pending frame.
+ */
 function stopBelt() {
   belt.running = false;
   if (belt.raf) cancelAnimationFrame(belt.raf);
   belt.raf = 0;
 }
+/**
+ * One animation frame of the belt: syncs chip count to the target, draws the rail, ticks and
+ * chips, advances chip positions unless reduced motion, and schedules the next frame.
+ */
 function drawBelt() {
   if (!belt.running) return;
   const c = belt.canvas;
@@ -982,9 +1179,14 @@ function drawBelt() {
   }
   belt.raf = requestAnimationFrame(drawBelt);
 }
+// window resize: re-fit the belt canvas while it runs
 addEventListener("resize", () => { if (belt.running) sizeBelt(); });
 
 // ---- the Wall surface (S35): a glanceable projection for a screen across the room (docs/14) --
+/**
+ * Renders the Wall surface into #room: system verdict word, optional alert line, the six station
+ * dots with glow, three hero numbers and the current convert and newest event. Input: vm. Returns nothing.
+ */
 function renderWall(vm) {
   const sv = systemVerdict(vm);
   const m = vm.metrics || {}, ls = vm.ls || {}, assay = vm.assay || {};
@@ -1045,12 +1247,20 @@ function renderWall(vm) {
 }
 
 // ---- public API ---------------------------------------------------------------------------
+/**
+ * Public entry: stores the injected dependencies ({setStatus, dbg}) and finds the #room element.
+ * Called once by main.js at boot. Returns nothing.
+ */
 export function initRoom(dependencies) {
   deps = dependencies || {};
   roomEl = document.getElementById("room");
 }
 
 // name: "off" | "room" | "wall"
+/**
+ * Public entry: switches the module's surface. "off" stops polling and the belt and hides #room;
+ * "room" or "wall" shows it and starts roomLoop. Closes any open drill-down. Returns nothing.
+ */
 export function setActiveSurface(name) {
   clearTimeout(pollT);
   killDrill(); // any open inspector closes when the surface changes

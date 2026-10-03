@@ -1,3 +1,10 @@
+// WHAT THIS FILE DOES: brings the vault exporter's receipts (one JSON line per outcome in the
+// ThinkPad's ~/file-portal/receipts.jsonl) to the widget. fetch() tails the remote file over
+// `tailscale ssh` and refreshes a local cache; read_cached() reads that cache without touching the
+// network. Both return a JSON object {available, source, rows}. Reads: the remote file (fetch) or
+// <pipeline dir>/.receipts-cache.jsonl (read_cached). Writes: that cache file only. Callers: the
+// vault bar's 45 s poll (fetch) and the Room view (read_cached).
+//
 // Stage C2 (docs/19 §3.3, Rab signed S58): the SEAM RECEIPTS — the vault's answers, brought
 // home. The ThinkPad exporter is the last station and the only one whose outcomes the desktop
 // could never see: `EXPORT-BLESSED`, `-SKIP`, `-SUPERSEDE-HELD` and friends existed solely in a
@@ -22,23 +29,30 @@ use std::os::windows::process::CommandExt;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
+// -- constants and local helpers --
+
 /// Widget-owned cache of the remote tail. Dot-prefixed so every existing scan skips it (the
 /// same trick `.supersede/` uses) and so nobody mistakes it for a pipeline-authored file.
 const CACHE_NAME: &str = ".receipts-cache.jsonl";
+/// Where the exporter appends its receipts on the Linux box (read with `tail`).
 const REMOTE_PATH: &str = "~/file-portal/receipts.jsonl";
 /// Enough to cover any plausible session's exports; the file itself is never truncated here
 /// (rotation is Stage F's job, and one line per vaulted book grows very slowly).
 const TAIL_LINES: usize = 60;
 
+/// Full path of the receipts cache file inside the pipeline dir.
 fn cache_path(gpu_pipeline_dir: &str) -> PathBuf {
     Path::new(gpu_pipeline_dir).join(CACHE_NAME)
 }
 
+/// Parse JSONL text into rows; lines that are not valid JSON (e.g. a torn first line) are dropped.
 fn parse_rows(text: &str) -> Vec<Value> {
     text.lines()
         .filter_map(|l| serde_json::from_str::<Value>(l).ok())
         .collect()
 }
+
+// -- network fetch and cached read --
 
 /// Pull the tail over the tailnet and refresh the cache. Uses `tailscale ssh` — the same
 /// transport `status::fetch_events` and the converter's `ship` already use — deliberately NOT
@@ -56,6 +70,7 @@ pub fn fetch(gpu_pipeline_dir: &str, linux_host: &str, remote_user: &str) -> Res
     if linux_host.is_empty() || remote_user.is_empty() {
         return Ok(json!({ "available": false }));
     }
+    // Run `tail` on the remote box through tailscale ssh and capture its output.
     let host_arg = format!("{remote_user}@{linux_host}");
     // `|| true` so "no receipts file yet" is a normal empty answer rather than a red error on
     // every poll between the deploy and the first export.
@@ -90,6 +105,8 @@ pub fn read_cached(gpu_pipeline_dir: &str) -> Value {
     }
 }
 
+// -- tests --
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -114,6 +131,7 @@ mod tests {
         assert_eq!(rows[0]["ts"], "2026-07-31T18:55:09+00:00");
     }
 
+    /// parse_rows keeps whole JSON lines and silently drops a torn fragment.
     #[test]
     fn parses_whole_lines_and_survives_a_torn_one() {
         // A tail can start mid-line (the remote file is appended to while we read it). A
@@ -129,6 +147,7 @@ mod tests {
         assert_eq!(rows[1]["bundle"], "b");
     }
 
+    /// read_cached reports unavailable when unconfigured and an empty row list when no cache exists.
     #[test]
     fn unconfigured_and_cacheless_states_are_calm() {
         assert_eq!(read_cached("")["available"], false);
@@ -140,6 +159,7 @@ mod tests {
         let _ = fs::remove_dir_all(&empty);
     }
 
+    /// A two-line cache file reads back as two rows in file order.
     #[test]
     fn a_cached_tail_reads_back_newest_last() {
         let dir = std::env::temp_dir().join("fp-receipts-cache");
