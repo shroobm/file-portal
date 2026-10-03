@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""promotion_runs.py — S140: the windows that FAIL the audit under the promoted module's STRICT policy, each mapped to
+"""WHAT THIS FILE DOES: a run-once script (no functions). It reconciles the 492 DDIA pairs with the promoted
+edit_whitelist module under STRICT, audits the result, finds the document windows that still fail, and for up to six
+owning chunks prints the accepted edits of the promoted and prototype reconcilers side by side.
+Reads the held bundle via common.py; writes nothing but stdout. Run directly from this folder.
+
+promotion_runs.py — S140: the windows that FAIL the audit under the promoted module's STRICT policy, each mapped to
 its CHUNK (the chunk whose input holds the window's first six words, space-free), with every accepted edit of that
 chunk under the prototype's reconciler AND the promoted one side by side — the cause is read off the difference.
 Read-only; stdout only."""
@@ -12,6 +17,7 @@ from align import build_pairs
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import edit_whitelist as ew  # noqa: E402
 
+# -- step 1: reconcile every pair with both modules, keeping the accepted edits of each per chunk --
 b = load_bundle()
 pairs, _ = build_pairs(b)
 _, embeds = analyst.fence(b["shipped_body"])
@@ -21,6 +27,7 @@ for p in pairs:
     _, log_p = proto.reconcile(p["input"], p["output"], proto.STRICT, "whitelist")
     recon.append(p["prefix"] + text)
     per_chunk[p["i"]] = (p, [(lab, a_, b_) for lab, acc, a_, b_ in log if acc], [(lab, a_, b_) for lab, acc, a_, b_ in log_p if acc], text)
+# -- step 2: audit the rebuilt body and list the reference windows missing from it --
 body = analyst.unfence("".join(recon), embeds)
 a = fa.audit_analyst(b["sidecar_text"], body)
 print("promoted STRICT:", a["doc_survival"], a["runs_total"], "runs")
@@ -29,10 +36,12 @@ outl = tn.space_free(ladder(body))
 wins = tn.make_windows(ref, tn.is_cjk(ref[:4000]))
 still = [w for w in wins if tn.space_free(w) not in outl]
 print("failing windows:", len(still))
+# -- step 3: map each failing window to the chunk whose input holds its first six words; print up to six chunks --
 shown = set()
 for w in still:
     probe = tn.space_free("".join(w.split()[:6]))
     owner = None
+    # find the first chunk whose normalised input contains the probe
     for i, (p, acc_n, acc_p, text) in per_chunk.items():
         if probe in tn.space_free(ladder(p["input"])):
             owner = i

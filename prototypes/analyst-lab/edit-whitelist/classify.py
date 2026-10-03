@@ -1,4 +1,9 @@
-r"""Ask B — classify every difference between the analyst's input and its shipped output, in the
+r"""WHAT THIS FILE DOES: classifies every word-level difference between the analyst's input and its shipped output
+(classify, is_lig_repair, opcodes_words), then main() attributes each failed 12-word audit window to the class of
+the edits that overlap it, prints the censuses and writes results_classify.json into the current directory.
+Reads the held bundle via common.py and align.py; no network. Run directly from this folder.
+
+Ask B — classify every difference between the analyst's input and its shipped output, in the
 AUDIT'S OWN VIEW (the j32a-v2 ladder: punct_free(unescape(prepare_output(x))), casefolded, words),
 and attribute each FAILED 12-word window of the real document audit to the class of the edit(s)
 that overlap it.
@@ -32,6 +37,7 @@ from rapidfuzz.distance import Levenshtein
 from common import analyst, fa, load_bundle, ladder, tn  # noqa: F401
 from align import build_pairs
 
+# -- constants: ligature alternation pattern and digit test --
 # the ligature glyphs this PDF's fonts carry under OpenType names (Differences arrays read with
 # pymupdf, S119 R1 a_probe3: f_f_i f_f_l f_f f_i f_l f_t f_k T_h ...); casefolded because the
 # ladder casefolds ("%ere" -> "ere" -> "there")
@@ -39,6 +45,7 @@ LIG_ALT = "(?:ffi|ffl|ff|fi|fl|ft|fk|fj|fb|fh|st|th)"
 _DIGIT = re.compile(r"\d")
 
 
+# -- edit classification --
 def is_lig_repair(a: str, b: str) -> bool:
     """b == a with ligature sequences INSERTED at some positions (a shorter than b, nothing else)."""
     if not (0 < len(b) - len(a) <= 3 * max(1, len(a))) or len(a) > 400:
@@ -48,6 +55,8 @@ def is_lig_repair(a: str, b: str) -> bool:
 
 
 def classify(a_words: list[str], b_words: list[str]) -> str:
+    """Name the class of one edit (input words a_words became output words b_words): insertion, deletion, reflow,
+    escape, ligature, link-syntax, numeral or substitution, tested in that order. Pure function."""
     a = "".join(a_words)
     b = "".join(b_words)
     if not a_words:
@@ -70,11 +79,16 @@ def classify(a_words: list[str], b_words: list[str]) -> str:
 
 
 def opcodes_words(a_words, b_words):
+    """Word-level Levenshtein opcodes between two word lists, as (tag, src_start, src_end, dest_start, dest_end)
+    tuples. Pure function."""
     ops = Levenshtein.opcodes(a_words, b_words)
     return [(op.tag, op.src_start, op.src_end, op.dest_start, op.dest_end) for op in ops]
 
 
+# -- entry point --
 def main():
+    """Build the DDIA pairs, classify all edits, attribute failed audit windows to edit classes, print the
+    results and write results_classify.json to the current directory. Returns nothing."""
     b = load_bundle()
     pairs, stats = build_pairs(b)
     embeds = b["embeds"]
@@ -88,7 +102,7 @@ def main():
     n_fail = sum(failed)
     print(f"doc windows {len(windows)}  failed {n_fail}  doc_survival {round(1 - n_fail / len(windows), 4)}")
 
-    # per-chunk word offsets in the SAME stream: unfence each chunk, ladder it, concatenate
+    # step 1: per-chunk word offsets in the SAME stream: unfence each chunk, ladder it, concatenate
     stream = []
     chunk_word_start = []
     for p in pairs:
@@ -100,7 +114,7 @@ def main():
         j = next((i for i, (x, y) in enumerate(zip(stream, ref_words)) if x != y), min(len(stream), len(ref_words)))
         print("   first divergence at word", j, stream[j:j + 5], ref_words[j:j + 5])
 
-    # classify every opcode, per chunk, in the ladder view of the UNFENCED pair
+    # step 2: classify every opcode, per chunk, in the ladder view of the UNFENCED pair
     edits = []          # (chunk i, class, a_start_global, a_end_global, a_words, b_words)
     class_counts = collections.Counter()
     class_words_in = collections.Counter()
@@ -124,7 +138,7 @@ def main():
     print("edits by class (count of opcodes):", class_counts.most_common())
     print("input words touched by class:", class_words_in.most_common())
 
-    # attribute failed windows to classes: a window [12k, 12k+12) fails; the edits overlapping it
+    # step 3: attribute failed windows to classes: a window [12k, 12k+12) fails; the edits overlapping it
     PRIORITY = ["deletion", "substitution", "numeral", "ligature", "escape", "link-syntax", "insertion", "reflow"]
     win_class = collections.Counter()
     win_examples = collections.defaultdict(list)
@@ -170,7 +184,7 @@ def main():
     print("if every content window were reverted to the input (and blindness stayed): doc_survival ->",
           round(1 - (n_fail - content) / len(windows), 4))
 
-    # numeral census, clean: per pair, multiset of digit-bearing ladder words in vs out
+    # step 4: numeral census, clean: per pair, multiset of digit-bearing ladder words in vs out
     num_chunks, num_tokens = 0, 0
     for k, p in enumerate(pairs):
         a_words = ladder(analyst.unfence(p["input"], embeds)).split()
@@ -184,6 +198,7 @@ def main():
     print(f"\nnumeral census (ladder words with a digit, input multiset minus output multiset): "
           f"{num_chunks} chunks / {num_tokens} tokens not found in the output (denominator 492 pairs)")
 
+    # step 5: write the summary JSON
     json.dump({"doc_windows": len(windows), "failed": n_fail, "class_counts_opcodes": class_counts,
                "failed_windows_by_class": win_class, "pairs_status": {f"{k[0]}/{k[1]}": v for k, v in per_status.items()},
                "numeral_census": {"chunks": num_chunks, "tokens": num_tokens}, "align_stats": stats},

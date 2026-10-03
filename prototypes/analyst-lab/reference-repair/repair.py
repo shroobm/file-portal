@@ -1,4 +1,10 @@
-r"""Ask A, second half — REPAIR THE REFERENCE (quarantined prototype, zero pipeline coupling).
+r"""WHAT THIS FILE DOES: repairs the Marker sidecar (the analyst's reference text) in memory. pdf_vocabulary() reads
+the source PDF with pymupdf to build a word set; repair(text, vocab, rules) fixes garbled ligature glyphs, split
+hyphens and split links; main() audits the shipped body against the original and the repaired reference, alone and
+combined with the edit-whitelist acceptor, prints the numbers and writes results_repair.json beside this file.
+Reads the held bundle and the PDF through edit-whitelist/common.py; modifies no library file.
+
+Ask A, second half — REPAIR THE REFERENCE (quarantined prototype, zero pipeline coupling).
 
 Where the damage is born (S119 R1, a_probe2/a_probe3, Observed): the DDIA PDF's subset fonts put
 their ligature glyphs at codes 0x21-0x29 under OpenType glyph names (`/Differences [33 /f_l /f_k
@@ -33,9 +39,11 @@ import sys
 import unicodedata
 from pathlib import Path
 
+# -- setup: borrow the edit-whitelist folder's common loaders --
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "edit-whitelist"))
 from common import PDF, analyst, fa, load_bundle  # noqa: E402
 
+# -- constants: ligature expansions to try, and the regexes that find garbled glyphs, split hyphens and split links --
 LIGS = ["ffi", "ffl", "ff", "fi", "fl", "ft", "fk", "fj", "fb", "fh", "st", "Th"]
 # the garble may carry Marker's own escape (`trade-o\$s`: the `$` glyph code, escaped by markdownify);
 # an apostrophe followed by a contraction ending is English, not a glyph, and is not tried
@@ -52,7 +60,10 @@ _LINK_SPLIT = re.compile(r"\[([^\]\n]+)\]\(([^)\n]+)\)!\s+\[([a-z][^\]\n]*)\]\((
 _CITE = re.compile(r"\[\[(\d+)\\\]\]\((#page-[0-9-]+)\)")
 
 
+# -- vocabulary from the PDF --
 def pdf_vocabulary() -> set[str]:
+    """Open the source PDF with pymupdf and return the set of casefolded words found on all pages (NFKC, hard
+    line-break hyphens joined). Side effect: reads the PDF file."""
     import pymupdf
     doc = pymupdf.open(str(PDF))
     vocab = set()
@@ -64,6 +75,7 @@ def pdf_vocabulary() -> set[str]:
     return vocab
 
 
+# -- the repair rules --
 def repair(text: str, vocab: set[str], rules=("lig", "hyph", "link")) -> tuple[str, dict]:
     """Default rules: lig + hyph + link. `cite` is NOT a default: measured (S119 R1) it makes the
     audit WORSE when applied to the reference alone (0.9718 -> 0.9234), because the shipped body
@@ -75,6 +87,8 @@ def repair(text: str, vocab: set[str], rules=("lig", "hyph", "link")) -> tuple[s
     unknown_words = collections.Counter()
 
     def fix_garble(m: re.Match) -> str:
+        """Regex callback for R-lig: try each ligature in place of the garbled glyph and return it when exactly one
+        gives a word in vocab; otherwise return the match unchanged. Updates the enclosing counters."""
         s, e = m.start(), m.end()
         # the word around the garble, hyphenated compounds included (`trade-o\$s` -> `trade-offs`)
         ws = s
@@ -96,6 +110,7 @@ def repair(text: str, vocab: set[str], rules=("lig", "hyph", "link")) -> tuple[s
         unknown_words[word] += 1
         return m.group(0)
 
+    # R-lig: in-word garbles first, then word-initial ones (text_now is the text the callback reads)
     out = text
     if "lig" in rules:
         text_now = out
@@ -104,6 +119,8 @@ def repair(text: str, vocab: set[str], rules=("lig", "hyph", "link")) -> tuple[s
         out = _GARBLE_START.sub(fix_garble, out)
 
     def fix_hyph(m: re.Match) -> str:
+        """Regex callback for R-hyph: join the two halves when the joined word is in vocab, else leave the match
+        unchanged. Updates the enclosing counters."""
         joined = m.group(1) + m.group(2)
         if joined.casefold() in vocab:
             counts["R-hyph joined"] += 1
@@ -116,6 +133,8 @@ def repair(text: str, vocab: set[str], rules=("lig", "hyph", "link")) -> tuple[s
         return m.group(0)
 
     def fix_link(m: re.Match) -> str:
+        """Regex callback for R-link: merge a link split across a hyphenated line into one link when both urls are
+        identical, else leave it unchanged. Updates the enclosing counters."""
         a, u1, b_, u2 = m.groups()
         if u1 == u2:
             counts["R-link joined"] += 1
@@ -125,6 +144,7 @@ def repair(text: str, vocab: set[str], rules=("lig", "hyph", "link")) -> tuple[s
         counts["R-link left (urls differ)"] += 1
         return m.group(0)
 
+    # apply the remaining rules in order: link, hyphen, then the optional citation rewrite
     if "link" in rules:
         out = _LINK_SPLIT.sub(fix_link, out)
     if "hyph" in rules:
@@ -136,7 +156,10 @@ def repair(text: str, vocab: set[str], rules=("lig", "hyph", "link")) -> tuple[s
     return out, {"counts": dict(counts), "examples": dict(examples)}
 
 
+# -- entry point --
 def main():
+    """Build the vocabulary, repair the sidecar, audit before and after (each rule alone, and combined with the
+    acceptor's FULL body), run the empty-vocabulary control, print the results and write results_repair.json."""
     b = load_bundle()
     vocab = pdf_vocabulary()
     print("PDF vocabulary (pymupdf, NFKC, casefold):", len(vocab), "distinct words")
@@ -149,6 +172,7 @@ def main():
     after = fa.audit_analyst(repaired, shipped)
     print(f"\naudit_analyst(sidecar, shipped):          doc_survival {before['doc_survival']}  runs {before['runs_total']}")
     print(f"audit_analyst(REPAIRED sidecar, shipped): doc_survival {after['doc_survival']}  runs {after['runs_total']}")
+    # measure each rule on its own
     per_rule = {}
     for rule in ("lig", "hyph", "link", "cite"):
         r1, _ = repair(sidecar, vocab, rules=(rule,))

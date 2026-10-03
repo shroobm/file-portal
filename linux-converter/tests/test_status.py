@@ -1,4 +1,8 @@
-"""S108 writer identity on the converter's status feed.
+"""WHAT THIS FILE DOES: pytest tests for converter/status.py. They write a status.json under
+tmp_path through StatusWriter and read it back, checking that new records carry source_component
+and that older records without it are carried forward unchanged.
+
+S108 writer identity on the converter's status feed.
 
 Two services append to the same logs/status.json (this converter and the allocator), so every
 NEW record must name its writer via ``source_component``. Pre-S108 records without the field
@@ -12,11 +16,15 @@ from pathlib import Path
 from converter.status import SOURCE_COMPONENT, StatusWriter
 
 
+# -- helper --
 def read_events(path: Path) -> list[dict]:
+    """Return the events list from the status JSON file at path."""
     return json.loads(path.read_text(encoding="utf-8"))["events"]
 
 
+# -- tests --
 def test_every_new_record_names_its_writer(tmp_path):
+    """Two new records both carry source_component "converter"."""
     assert SOURCE_COMPONENT == "converter"
     path = tmp_path / "status.json"
     writer = StatusWriter(path)
@@ -28,6 +36,7 @@ def test_every_new_record_names_its_writer(tmp_path):
 
 
 def test_pre_s108_records_are_never_rewritten(tmp_path):
+    """An older record without source_component stays identical after a new record is appended."""
     path = tmp_path / "status.json"
     legacy = {
         "ts": "2026-01-01T00:00:00+00:00",

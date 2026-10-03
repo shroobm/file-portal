@@ -1,4 +1,9 @@
-"""The proposed lane gate, run over the operator's REAL converted corpus.
+"""WHAT THIS FILE DOES: a quarantine probe (run directly, no arguments). It reads each converted bundle's
+manifest.json under the anchor library folder, finds the matching source PDF on disk, measures its tag tree
+with read_tree(), applies gate(), and prints one tab-separated row per work plus a page-share summary.
+read_tree, gate, SEMANTIC_ROLES and index are also imported by roles.py. Read-only; needs pymupdf.
+
+The proposed lane gate, run over the operator's REAL converted corpus.
 
 Same four tests the design specifies, in the order it specifies them, so the gate can be
 watched REFUSING real files -- especially the Beer 'Diagnosing' book, whose tree is present
@@ -13,6 +18,7 @@ from pathlib import Path
 
 import pymupdf
 
+# -- locations and the role vocabulary --
 ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
 SEARCH = [Path(r"C:\Users\Bndit\Downloads"), Path(r"C:\Users\Bndit\ml\library")]
 _REF = re.compile(r"(\d+) 0 R")
@@ -27,13 +33,20 @@ SEMANTIC_ROLES = {"P", "H", "H1", "H2", "H3", "H4", "H5", "H6", "Title", "L", "L
                   "Note", "FENote", "Reference", "BibEntry", "BlockQuote", "Quote",
                   "Aside", "Link"}
 
-T1_MIN_ELEM_PER_PAGE = 5.0     # density  # lever-waiver: quarantine probe, not production; fitted on ONE positive (bojieli) per docs/52 VERIFIED.md - Rab moves it when a second tagged work enters the corpus and the gate is re-fitted on n>=2
+# -- gate thresholds (each carries its own waiver note on the line) --
+T1_MIN_ELEM_PER_PAGE = 5.0    # density  # lever-waiver: quarantine probe, not production; fitted on ONE positive (bojieli) per docs/52 VERIFIED.md - Rab moves it when a second tagged work enters the corpus and the gate is re-fitted on n>=2
 T2_MIN_SEMANTIC_TYPES = 6      # richness  # lever-waiver: quarantine probe, not production; fitted on n=1; a hollow-tree specimen with >=6 roles that should still refuse would move it
 T3_MAX_NONSTRUCT_SHARE = 0.5   # rot: roles  # lever-waiver: quarantine probe, not production; bojieli measures 51.1% NonStruct and still converts - Rab decides the cutoff once a second rotten tree is measured
 T4_MIN_MCID_RESOLVE = 0.90     # rot: content-stream reachability  # lever-waiver: quarantine probe, not production; the ParentTree route (32.6% of elements) was never exercised, so this floor is provisional until it is
 
 
+# -- tree reader: one PDF in, one measurement record out --
 def read_tree(path, mcid_pages=25, elem_cap=40000):
+    """Measure the structure tree of the PDF at `path`; return a dict record.
+
+    Keys: tagged, elems, roles (tag -> count), alt, actualtext, mcids, mcids_ok, capped, pages.
+    Samples up to `mcid_pages` pages for live MCIDs and stops after `elem_cap` objects. Read-only.
+    """
     rec = {"tagged": False, "elems": 0, "roles": {}, "alt": 0, "actualtext": 0,
            "mcids": 0, "mcids_ok": 0, "capped": False, "pages": 0}
     with pymupdf.open(path) as doc:
@@ -46,6 +59,7 @@ def read_tree(path, mcid_pages=25, elem_cap=40000):
         m = _REF.search(v[1])
         if not m:
             return rec
+        # collect the MCIDs that really occur in an evenly spaced sample of page content streams
         n = doc.page_count
         step = max(1, n // mcid_pages)
         live = set()
@@ -56,6 +70,7 @@ def read_tree(path, mcid_pages=25, elem_cap=40000):
                         live.add(int(mm.group(1)))
                 except Exception:
                     pass
+        # depth-first walk of the tree by object number, stopping at the element cap
         seen, stack = set(), [int(m.group(1))]
         while stack:
             if len(seen) >= elem_cap:
@@ -78,6 +93,7 @@ def read_tree(path, mcid_pages=25, elem_cap=40000):
             if k and k[0] != "null":
                 for r in _REF.findall(k[1]):
                     stack.append(int(r))
+                # bare integers left after removing references are MCIDs; count those found in content
                 for num in re.findall(r"\b(\d+)\b", _REF.sub(" ", k[1])):
                     rec["mcids"] += 1
                     if int(num) in live:
@@ -85,6 +101,7 @@ def read_tree(path, mcid_pages=25, elem_cap=40000):
     return rec
 
 
+# -- gate: turn a read_tree() record into a lane verdict --
 def gate(rec):
     """-> (lane, reason). Order matters: cheapest refusal first."""
     if not rec["tagged"]:
@@ -109,6 +126,8 @@ def gate(rec):
     return "tagged", "structure_tree_conforming"
 
 
+# -- driver: list the works, locate their PDFs, gate each, print the table --
+# distinct works keyed by source file name, counting the bundles made from each
 works = {}
 for d in sorted(ANCHOR.iterdir()):
     m = d / "manifest.json"
@@ -118,6 +137,7 @@ for d in sorted(ANCHOR.iterdir()):
                                            "bundles": 0})
         works[j["source"]]["bundles"] += 1
 
+# file name -> first path found under the search folders
 index = {}
 for root in SEARCH:
     if root.is_dir():
@@ -126,6 +146,7 @@ for root in SEARCH:
 
 print("work\tlane_today\tbundles\tpages\telems\tsem_types\talt\tactual\tmcid_ok\t"
       "gate_lane\tgate_reason\tgate_ms")
+# one row per work: time the read, gate it, and add its pages to the tagged-lane share if it passes
 tot_pages = tagged_pages = 0
 for src, w in sorted(works.items()):
     p = index.get(src)

@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """observability/lever_census.py -- the LEVERS gate's blind classes, listed WARN-ONLY (SYM-096; S184).
 
+WHAT THIS FILE DOES: lists numeric literals that sit in places the close gate's regex cannot see (comparisons,
+parameter defaults, dict values, tuple/list/set elements). Entry points: main() (command line), census_since(),
+census_all(), census_source(). It reads `git diff` / `git ls-files` output and Python source files; it writes only to
+stdout and always exits 0. Callers: the session close tooling and lever_census_selftest.py.
+
 close.sh [5] LEVERS is regex-shaped: it sees `NAME = 0.42` (and the Rust/JS declaration forms) in the lines ADDED
 since the pin and reports the ones with no lever and no waiver. It cannot see a number written any other way, and
 docs/18 §2's law ("a number that decides something is a LEVER, not a constant") does not care how the number is
@@ -33,6 +38,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+# -- constants: repo root, values never counted, waiver and exemption patterns, tree roots for --all --
 ROOT = Path(__file__).resolve().parents[1]
 SKIP_VALUES = {0, 1, -1, 2}
 WAIVER = re.compile(r"lever-waiver:\s*\S")
@@ -43,14 +49,17 @@ EXEMPT = re.compile(r"(^|/)(test_[^/]*\.py|[^/]*_selftest\.py|selftest\.py)$")
 TREE_ROOTS = ("windows-converter", "observability", "linux-converter", "linux-receiver", "linux-dashboard", "prototypes")
 
 
+# -- reading the diff: which lines were added since a ref --
 def added_lines(ref: str, root: Path = ROOT) -> dict[str, set[int]]:
     """{path: {line numbers ADDED since ref}} for *.py, read from `git diff -U0`'s hunk headers."""
+    # run git diff (reads the repo; raises RuntimeError below if git fails)
     out = subprocess.run(["git", "-C", str(root), "diff", "-U0", f"{ref}..HEAD", "--", "*.py"],
                          capture_output=True, text=True, encoding="utf-8", errors="replace")
     if out.returncode != 0:
         raise RuntimeError(f"git diff failed: {out.stderr.strip()[:200]}")
     added: dict[str, set[int]] = {}
     path = None
+    # walk the diff: a "+++ b/" line names the file; an "@@" header gives the first added line and how many follow
     for line in out.stdout.splitlines():
         if line.startswith("+++ b/"):
             path = line[6:]
@@ -63,6 +72,7 @@ def added_lines(ref: str, root: Path = ROOT) -> dict[str, set[int]]:
     return {p: ls for p, ls in added.items() if ls}
 
 
+# -- the AST census: find numeric literals in the four blind positions --
 def _num(node: ast.AST):
     """The numeric value of a literal (or a negated literal), else None."""
     if isinstance(node, ast.Constant) and isinstance(node.value, (int, float)) and not isinstance(node.value, bool):
@@ -83,6 +93,7 @@ def census_source(text: str, lines: set[int] | None = None) -> list[dict]:
     found: list[dict] = []
 
     def keep(node: ast.AST, cls: str, value) -> None:
+        """Record one finding (class, line, value, source text) unless excluded by line set, skip value or waiver."""
         ln = getattr(node, "lineno", None)
         if ln is None or (lines is not None and ln not in lines) or value in SKIP_VALUES:
             return
@@ -91,6 +102,7 @@ def census_source(text: str, lines: set[int] | None = None) -> list[dict]:
             return
         found.append({"cls": cls, "line": ln, "value": value, "text": line_text.strip()[:100]})
 
+    # visit every node; each branch below is one of the four classes (compare, default, dict, sequence)
     for node in ast.walk(tree):
         if isinstance(node, ast.Compare):
             for operand in [node.left, *node.comparators]:
@@ -125,7 +137,9 @@ def census_source(text: str, lines: set[int] | None = None) -> list[dict]:
     return sorted(uniq, key=lambda f: (f["line"], f["cls"]))
 
 
+# -- the two scopes: lines added since a ref, or the whole tracked tree --
 def census_since(ref: str, root: Path = ROOT) -> list[dict]:
+    """Findings (each with its file path) in the lines added since `ref`; selftest and deleted files are skipped."""
     rows: list[dict] = []
     for path, lines in added_lines(ref, root).items():
         p = root / path
@@ -159,7 +173,9 @@ def census_all(root: Path = ROOT) -> tuple[list[dict], int]:
     return rows, exempt
 
 
+# -- command line --
 def main(argv=None) -> int:
+    """Parse arguments, print the listing (or the count) to stdout, and return 0 on every path."""
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--since", default="HEAD", help="the pin; only lines ADDED since it are read")
     ap.add_argument("--count", action="store_true", help="print one line: the count")

@@ -1,4 +1,10 @@
-"""windows-converter/ligature_repair.py -- THE LIGATURE REPAIR (SYM-148, S211 Lane C).
+"""WHAT THIS FILE DOES: restores letters that the PDF text reader dropped when a font ligature (fi, fl, ff, ffi, ffl)
+was read as just "f" (for example "efect" back to "effect"), using the source PDF's own text layer as the only
+authority. Entry points: repair(markdown, pages_raw), apply_repairs(text, repairs) and apply_repairs_html(html,
+repairs). Pure: strings in, strings out; no files, network or globals written. Callers: the converter's ship step
+and fidelity measures (callers not visible in this file).
+
+windows-converter/ligature_repair.py -- THE LIGATURE REPAIR (SYM-148, S211 Lane C).
 
 PURE MODULE: stdlib only (re, unicodedata). No pymupdf, no rapidfuzz, no I/O -- same posture
 as text_norm.py, for the same reason: this must be importable and testable without marker-env.
@@ -35,6 +41,7 @@ Public API (module contract, S211 Lane C):
 import re
 import unicodedata
 
+# -- constants and patterns: ligature list, word regexes, fence regex, minimum repaired length --
 # Longest ligature strings first: "ffi"/"ffl" must be tried before "ff"/"fi"/"fl" so a genuine
 # three-letter ligature loss is not masked by a shorter, wrong two-letter guess landing in the
 # vocabulary first -- candidates() collects every distinct hit regardless of this order (order
@@ -61,6 +68,7 @@ _FENCE_RE = re.compile(r"(```.*?```)", re.S)
 _MIN_REPAIR_LEN = 4
 
 
+# -- vocabulary and candidate search --
 def vocabulary(pages_raw):
     """set of the layer's own words: every pages_raw page joined, NFKC-folded (so a literal
     ligature code point already sitting in the layer -- SYM-146's class, a different mechanism
@@ -83,6 +91,7 @@ def candidates(word, vocab):
     ambiguous word is for repair() to refuse, not for this function to arbitrate."""
     w = word.lower()
     found = []
+    # for each 'f' position, try each ligature string in its place and keep the results that are real layer words
     for i, ch in enumerate(w):
         if ch != "f":
             continue
@@ -93,6 +102,7 @@ def candidates(word, vocab):
     return found
 
 
+# -- scanning helpers: case matching, protected tokens, the prose walker --
 def _apply_case(original, replacement):
     """Preserve `original`'s case pattern on `replacement` (which is always lower-case, coming
     straight out of vocab): UPPER -> UPPER, Title -> Title, lower -> lower (no change needed,
@@ -123,11 +133,13 @@ def _scan(part, on_word):
     `on_word(match)` -> replacement-or-None for each letters-only word match. Returns the
     (possibly rewritten) segment, rejoined byte for byte outside the touched spans."""
     pieces = re.split(r"(\s+)", part)
+    # visit each non-space, non-protected token and run the word callback over its letters-only words
     for i, tok in enumerate(pieces):
         if not tok or tok.isspace() or _is_protected(tok):
             continue
 
         def _sub(m, _on_word=on_word):
+            """re.sub callback: ask on_word for a replacement for the matched word; keep the word if it returns None."""
             repl = _on_word(m.group(0))
             return repl if repl is not None else m.group(0)
 
@@ -135,6 +147,7 @@ def _scan(part, on_word):
     return "".join(pieces)
 
 
+# -- the repair pass over a whole markdown body --
 def repair(markdown, pages_raw):
     """Repair every uniquely-resolvable ligature-dropped word in `markdown` using the source's
     own text layer (pages_raw) as the sole authority for what a repaired word may become.
@@ -171,11 +184,13 @@ def repair(markdown, pages_raw):
     seen = set()
 
     def _collect(word):
+        """Pass-1 callback: remember each lower-cased word containing 'f'; never rewrites (returns None)."""
         lw = word.lower()
         if "f" in lw:
             seen.add(lw)
         return None
 
+    # prose segments only (even indices); fenced segments are skipped
     for i, part in enumerate(parts):
         if i % 2 == 1:
             continue
@@ -183,6 +198,7 @@ def repair(markdown, pages_raw):
 
     decisions = {}          # lower word -> lower repaired word
     skipped_ambiguous = []
+    # decide once per distinct word: leave it, record it as ambiguous, or schedule its single repair
     for lw in sorted(seen):
         if lw in vocab:
             continue                                    # already correct: untouched
@@ -198,6 +214,7 @@ def repair(markdown, pages_raw):
     counts = {}
 
     def _apply(word):
+        """Pass-2 callback: return the decided repair for the word (case kept) and count it, else None."""
         lw = word.lower()
         to = decisions.get(lw)
         if to is None:
@@ -223,6 +240,7 @@ def repair(markdown, pages_raw):
     }
 
 
+# -- applying an already-decided repair list to other text (plain text, then html) --
 def apply_repairs(text, repairs):
     """S211 E3 (McGill-1 ~148: the repair rewrote 660 dropped-letter words in the shipped body — `frst` → `first` ×35,
     `efcient` → `efficient` ×34 — and the inventions measure read IDENTICAL numbers on the repaired and the unrepaired
@@ -237,6 +255,7 @@ def apply_repairs(text, repairs):
     n = [0]
 
     def _apply(word):
+        """Callback: return the decided repair for the word (case kept) and bump the counter n, else None."""
         to = decisions.get(word.lower())
         if to is None:
             return None
@@ -259,6 +278,7 @@ def apply_repairs_html(html, repairs):
         return html, 0
     total = 0
     parts = _TAG_RE.split(html)
+    # even indices are text between tags; repair those, keep the tags (odd indices) untouched
     for i, part in enumerate(parts):
         if i % 2 == 0 and part:
             parts[i], n = apply_repairs(part, repairs)

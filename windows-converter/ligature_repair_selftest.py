@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""ligature_repair_selftest.py -- tripwires for ligature_repair.repair/candidates/vocabulary
+"""WHAT THIS FILE DOES: selftest for ligature_repair.py, which repairs words whose "fi/fl/ff" ligature letters were
+dropped in converted markdown (for example "coefcient" back to "coefficient") using the PDF text layer as a
+vocabulary. It calls lr.repair, lr.candidates, lr.vocabulary and lr.apply_repairs_html on in-memory strings and
+prints one ok/RED line per case plus an N/N tally; exit 0 when all pass, else 1. It reads and writes no files.
+
+ligature_repair_selftest.py -- tripwires for ligature_repair.repair/candidates/vocabulary
 (SYM-148, S211 Lane C). Hermetic: pages_raw as plain strings, markdown as plain strings -- no
 PDF, no pipeline, stdlib only (matches ligature_repair.py's own posture; run under the uv
 python, never marker-env). Each case violates the property its rule stands for: a word the
@@ -12,10 +17,12 @@ import sys
 
 import ligature_repair as lr
 
+# -- test harness: counters and the case() recorder --
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one test case: count it, count it green when cond is truthy, print an ok/RED line (detail shown if red)."""
     global ok, n
     n += 1
     ok += 1 if cond else 0
@@ -23,6 +30,7 @@ def case(name, cond, detail=""):
                                ("  <- " + str(detail)[:200]) if (detail and not cond) else ""))
 
 
+# -- shared fixture and the numbered cases (run at import time, in order) --
 # A small shared "layer" (pages_raw): the correctly-spelled source text, as MuPDF would read it
 # -- ligatures intact, unlike pdftext's first-letter-alone reading this module repairs.
 LAYER = [
@@ -169,6 +177,7 @@ case("apply_repairs_html: frst/Efcient/frst repaired (3), the tag and the URL un
 case("apply_repairs_html: an empty map / empty html reads (unchanged, 0)",
      lr.apply_repairs_html(html16, []) == (html16, 0) and lr.apply_repairs_html("", [{"from": "frst", "to": "first"}]) == ("", 0), "")
 
+# -- the tally and exit code --
 print("==== ligature_repair selftest: %d/%d ====" % (ok, n))
 print("%d/%d ok" % (ok, n))
 sys.exit(0 if ok == n else 1)

@@ -1,4 +1,10 @@
-"""Entry point: watches pipeline/convert-inbox and pipeline/convert-scan-inbox and converts
+"""WHAT THIS FILE DOES: the converter service's entry point (main() -> run()). It watches the
+pipeline folders for arriving documents, converts each into a markdown bundle (published to
+anchor and staging), and also starts the vault exporter's watch on staging. Reads: the inbox
+files, config/converter.toml. Writes: bundles, the quarantine folder, logs/converter.log and
+logs/status.json. Started by the systemd --user service; imports bundle, engines, exporter.
+
+Entry point: watches pipeline/convert-inbox and pipeline/convert-scan-inbox and converts
 arrivals into markdown bundles (anchor + staging).
 
 Lane topology (Open Decision #3, resolved 2026-07-09): a missing text layer is a detectable
@@ -35,30 +41,43 @@ from converter.status import StatusWriter
 
 logger = logging.getLogger("file-portal-converter")
 
+# -- service constants: version, and the inbox-folder to lane to category maps --
+
 VERSION = "0.1.0"
 
 LANE_BY_INBOX = {"convert-inbox": "clean", "convert-scan-inbox": "scan"}
 CATEGORY_BY_LANE = {"clean": "convert", "scan": "convert-scan"}
 
 
+# -- the conversion event handler --
+
+
 class ConvertHandler(FileSystemEventHandler):
+    """Watchdog handler for the two convert inboxes: turns each arriving file into a bundle,
+    reroutes it to the scan lane, or quarantines it. Holds the Paths, the settings file
+    location and the StatusWriter."""
+
     def __init__(self, paths: Paths, settings_path: Path, status: StatusWriter):
+        """Store the folder layout, the settings file path and the status writer."""
         self.paths = paths
         self.settings_path = settings_path
         self.status = status
 
     def on_moved(self, event):
+        """Watchdog callback: a rename inside the watch; converts the destination file."""
         # A rename within the watched tree: the probe reroute into convert-scan-inbox.
         if not event.is_directory:
             self._handle(Path(event.dest_path))
 
     def on_closed(self, event):
+        """Watchdog callback: a file finished writing in place; converts it."""
         # inotify IN_CLOSE_WRITE: completion signal for transports that write in place (a
         # manual cp, scp). Usually a no-op after on_created already consumed the file.
         if not event.is_directory:
             self._handle(Path(event.src_path))
 
     def on_created(self, event):
+        """Watchdog callback: a new file appeared; waits for its size to settle, then converts."""
         # The allocator hop arrives HERE: a rename from outside the watch is an unpaired
         # IN_MOVED_TO, which inotify/watchdog surface as `created` (see module docstring).
         # The stability wait costs one 0.5s poll for an already-complete rename and protects
@@ -70,6 +89,7 @@ class ConvertHandler(FileSystemEventHandler):
         self._handle(file_path)
 
     def _handle(self, file_path: Path):
+        """Run _convert on file_path and log (not raise) any exception so the observer survives."""
         # A single bad file must not kill the observer thread and stop the service.
         try:
             self._convert(file_path)
@@ -77,6 +97,12 @@ class ConvertHandler(FileSystemEventHandler):
             logger.exception("failed to convert %s", file_path)
 
     def _convert(self, file_path: Path):
+        """Convert one inbox file into a published bundle.
+
+        Picks the lane from the parent folder, chooses an engine, probes PDFs for a text layer
+        (rerouting to scan or quarantining as needed), converts in a temp dir under staging,
+        publishes to anchor and staging, and deletes the source. Returns nothing.
+        """
         if not file_path.exists():
             return
         # Dot-prefixed files are in-progress temp files (the transfer's .part-* pattern).
@@ -96,6 +122,7 @@ class ConvertHandler(FileSystemEventHandler):
             self._quarantine(file_path, category, "no conversion engine for this extension")
             return
 
+        # PDFs get a text-layer probe that decides the lane reason; other types skip the probe.
         chars_detected: float | None = None
         pages = 1
         if engine.name == "pymupdf4llm":
@@ -149,11 +176,13 @@ class ConvertHandler(FileSystemEventHandler):
         # link's extension keeps it from ever colliding with the assets/ dir.)
         engine_stem = exporter.slugify(file_path.stem)[:40]
         engine_src = tmp_dir / f"{engine_stem}{file_path.suffix.lower()}"
+        # Hardlink the source under the short name; fall back to a copy if linking fails.
         try:
             os.link(file_path, engine_src)
         except OSError:
             shutil.copy2(file_path, engine_src)
         logger.info("CONVERTING %s engine=%s lane=%s", file_path.name, engine.name, lane)
+        # Run the chosen engine; any failure removes the temp dir and quarantines the source.
         try:
             if engine.name == "pymupdf4llm":
                 markdown = engines.run_pymupdf(engine_src, assets_dir, lane, settings)
@@ -200,6 +229,7 @@ class ConvertHandler(FileSystemEventHandler):
                 degen["worst"][0]["zlib"] if degen["worst"] else "-",
             )
 
+        # Build the frontmatter and manifest, then assemble and publish the bundle.
         converted_at = bundle.utcnow()
         ocr = lane == "scan"
         frontmatter = bundle.render_frontmatter(
@@ -238,6 +268,7 @@ class ConvertHandler(FileSystemEventHandler):
         )
 
     def _reroute_to_scan(self, file_path: Path, category: str, chars: float, settings: Settings):
+        """Rename a clean-lane file into convert-scan-inbox and record an `allocated` event."""
         # A normal path, not an error path: emits `allocated` (green tile), never `rejected`.
         # The rename lands in convert-scan-inbox, where this same handler picks it up as Scan.
         dest = bundle.unique_path(self.paths.convert_scan_inbox / file_path.name)
@@ -257,6 +288,7 @@ class ConvertHandler(FileSystemEventHandler):
         )
 
     def _quarantine(self, file_path: Path, category: str, reason: str):
+        """Move file_path into the quarantine folder (unique name) and record a `rejected` event."""
         dest = bundle.unique_path(self.paths.quarantine / file_path.name)
         shutil.move(str(file_path), str(dest))
         logger.warning("REJECTED %s (%s) -> %s", file_path, reason, dest)
@@ -282,7 +314,15 @@ class ConvertHandler(FileSystemEventHandler):
             time.sleep(interval)
 
 
+# -- service startup: run() wires the watches, main() parses arguments --
+
+
 def run(root: Path, settings_path: Path):
+    """Start the service: set up logging, watch pipeline/ and staging/, sweep, then idle.
+
+    Side effects: creates folders, writes logs/converter.log and status.json, starts two
+    watchdog watches, sends systemd READY and watchdog datagrams. Blocks until Ctrl-C.
+    """
     paths = Paths.from_root(root)
     paths.ensure_exist()
 
@@ -318,6 +358,7 @@ def run(root: Path, settings_path: Path):
     # the startup contract, so it must mean "actually serving", not "process exists".
     sdnotify.sd_notify("READY=1")
     heartbeat = sdnotify.watchdog_armed()
+    # Main loop: once a second, send the systemd heartbeat if the observer is still alive.
     try:
         while True:
             time.sleep(1)
@@ -336,6 +377,7 @@ def run(root: Path, settings_path: Path):
 
 
 def main():
+    """Command-line entry: parse --root and --config, then call run(). Does not return."""
     parser = argparse.ArgumentParser(description="File Portal converter service")
     parser.add_argument(
         "--root", type=Path, default=DEFAULT_ROOT, help="file-portal root directory"

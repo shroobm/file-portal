@@ -1,4 +1,9 @@
-"""Artifact separation, declared vs heuristic.
+"""WHAT THIS FILE DOES: a one-off measurement script (run directly, no arguments). For three hard-coded tagged
+PDFs it splits each page's text into fragments inside and outside the structure tree, then compares the
+outside ones (declared artifacts) with the repeated-line heuristic that fidelity_audit.prepare_witness uses,
+and prints the overlap. Read-only; stdout only; needs pymupdf; adds windows-converter to sys.path.
+
+Artifact separation, declared vs heuristic.
 
 fidelity_audit.prepare_witness() strips a line when it appears on >= max(2, 40% of pages).
 A tagged PDF instead DECLARES running heads/folios as artifacts: their content sits
@@ -8,6 +13,7 @@ import re, sys, collections
 sys.path.insert(0, r"C:/Users/Bndit/Projects/file-portal/windows-converter")
 import pymupdf
 
+# -- helpers: split a page by the tree, and the repeated-line heuristic --
 FL = pymupdf.TEXTFLAGS_DICT | pymupdf.TEXT_COLLECT_STRUCTURE
 NORM = lambda s: re.sub(r"\s+", " ", s).strip()
 
@@ -39,6 +45,7 @@ def heuristic_repeated(pages_norm):
     return {ln for ln, c in ct.items() if n >= 3 and c >= thr}
 
 
+# -- driver: for each PDF, compare declared artifacts with the heuristic and print the overlap --
 for P in (r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf",
           r"C:/Users/Bndit/Downloads/Tagged-PDF-Best-Practice-Guide.pdf",
           r"C:/Users/Bndit/Downloads/ISO-14289-2-2024-sponsored.pdf"):

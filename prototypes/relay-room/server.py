@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """server.py - the launch alias for the room server.
 
+WHAT THIS FILE DOES: a thin launcher. When run as a script it imports room.py (the real room
+server) and exits with the return value of room.main(), so every command-line argument (serve,
+init, say, state, claim, status, selftest) is handled by room.py. It reads and writes nothing
+itself. It is called by an operator or a model session typing `python server.py ...`; it has no
+functions of its own.
+
     python server.py serve --port 7133      ==  python room.py serve --port 7133
     python server.py init | say | state | claim | status | selftest
 

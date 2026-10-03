@@ -1,5 +1,15 @@
 """VW-E2-R2 calibration-only structural source-region capture.
 
+WHAT THIS FILE DOES: it opens calibration PDFs (cases VW-T01..VW-T03 only), reads the page
+primitives PyMuPDF reports (text, raster images, vector drawings), renders each page to RGB
+tiles, infers structural candidates (raster, vector, stroke-cluster, scan-component,
+text-block, table) by frozen rules, and writes a hash-bound operational report. Main groups:
+event-activity audit hook, canonical-JSON and domain-hash identity helpers, Box geometry and
+tiling, coordinate transforms, primitive extraction, candidate inference, the native-Git
+probe, the scratch/output-root handling, a child verifier process, and the command line
+entry point. It reads the packet and schema JSON under docs/contracts/, the calibration
+source PDFs, and git state; it writes only the report beneath an explicit external root.
+
 This module is deliberately report-only.  It records observed PDF primitives and
 deterministically inferred structural candidates; it never asserts semantic truth.  Its
 COMPLETE receipt is emitted only after the independent verifier and every frozen check
@@ -192,8 +202,11 @@ ACTIVE_VERIFIER: subprocess.Popen[bytes] | None = None
 LAST_COMPLETED_GATE = "START"
 
 
+# -- event-scoped network / GPU / child-process activity counters and the audit hook --
 @dataclass
 class EventActivityCounters:
+    """Mutable tally of denied network and GPU attempts and of reconciled child processes."""
+
     network_call_count: int = 0
     gpu_call_count: int = 0
     instrumentation_ready: bool = False
@@ -203,6 +216,7 @@ class EventActivityCounters:
     native_git_attestations: list[dict[str, Any]] = field(default_factory=list)
 
     def reset(self) -> None:
+        """Zero every counter and clear the recorded native-Git attestations (in place)."""
         self.network_call_count = 0
         self.gpu_call_count = 0
         self.instrumentation_ready = False
@@ -221,12 +235,18 @@ _GPU_AUDIT_TOKENS = (
 
 
 def _event_activity_audit(event: str, args: tuple[Any, ...]) -> None:
+    """Python audit hook: while active, count and deny socket events and GPU-library attempts.
+
+    Raises PermissionError on a denied event; increments the global EVENT_ACTIVITY counters.
+    """
     if not _EVENT_AUDIT_ACTIVE:
         return
+    # Any socket.* audit event is a network attempt and is refused.
     if event.startswith("socket."):
         EVENT_ACTIVITY.network_call_count += 1
         raise PermissionError("VW event network operation denied")
     lowered = " ".join(str(value).casefold() for value in args)
+    # A GPU attempt: a dlopen / process launch naming a GPU token, or an import of cupy / pycuda.
     gpu_attempt = (
         event in ("ctypes.dlopen", "subprocess.Popen", "os.system")
         and any(token in lowered for token in _GPU_AUDIT_TOKENS)
@@ -240,6 +260,10 @@ def _event_activity_audit(event: str, args: tuple[Any, ...]) -> None:
 
 
 def install_event_activity_audit() -> None:
+    """Register the audit hook once per process and switch it on; marks instrumentation ready.
+
+    Raises VWStop("UNREAD") when sys.addaudithook is unavailable. Mutates module globals.
+    """
     global _EVENT_AUDIT_INSTALLED, _EVENT_AUDIT_ACTIVE
     if not hasattr(sys, "addaudithook"):
         raise VWStop("UNREAD", "Python audit instrumentation unavailable")
@@ -251,6 +275,7 @@ def install_event_activity_audit() -> None:
 
 
 def event_activity_snapshot() -> dict[str, Any]:
+    """Return the three counters (ready flag, network count, GPU count) as a plain dict."""
     return {
         "instrumentation_ready": EVENT_ACTIVITY.instrumentation_ready,
         "network_call_count": EVENT_ACTIVITY.network_call_count,
@@ -259,6 +284,10 @@ def event_activity_snapshot() -> dict[str, Any]:
 
 
 def reconcile_event_activity(snapshot: Mapping[str, Any]) -> None:
+    """Fold one child process's activity snapshot into the parent's counters.
+
+    Raises VWStop("UNREAD") if the snapshot shape is wrong, not ready, or has bad counts.
+    """
     if set(snapshot) != {"instrumentation_ready", "network_call_count", "gpu_call_count"}:
         raise VWStop("UNREAD", "event activity counter shape unread")
     if snapshot.get("instrumentation_ready") is not True:
@@ -272,6 +301,12 @@ def reconcile_event_activity(snapshot: Mapping[str, Any]) -> None:
 
 
 def require_event_activity_reconciled(expected_child_processes: int) -> None:
+    """Check the whole activity ledger is complete and clean, else raise VWStop.
+
+    Needs the expected number of reconciled children, zero denied network/GPU attempts, and
+    every native-Git probe attestation replayable against the frozen controls with its
+    child and descendant PIDs fully recorded as exited.
+    """
     if not EVENT_ACTIVITY.instrumentation_ready:
         raise VWStop("UNREAD", "producer event activity instrumentation unavailable")
     if EVENT_ACTIVITY.reconciled_child_processes != expected_child_processes:
@@ -332,6 +367,7 @@ def require_event_activity_reconciled(expected_child_processes: int) -> None:
     if not EVENT_CHILD_PIDS <= EVENT_CHILD_EXITED_PIDS:
         raise VWStop("UNREAD", "event direct-child lifecycle was not fully reconciled")
 
+# -- names of the frozen semantic checks, scope and failure-detail enums --
 SEMANTIC_CHECK_NAMES = (
     "canonical-json-and-array-order",
     "report-id",
@@ -408,10 +444,12 @@ DETAIL_ENUM = frozenset(
 )
 
 
+# -- the stop exception and source-identity proof --
 class VWStop(RuntimeError):
     """A packet-defined STOP or procedural-UNREAD boundary."""
 
     def __init__(self, reason: str, detail: str):
+        """Store the packet reason code and a detail string; message is "reason: detail"."""
         super().__init__(f"{reason}: {detail}")
         self.reason = reason
         self.detail = detail
@@ -425,6 +463,10 @@ class SourceIdentityContext:
 
 
 def measured_source_identity(source: Mapping[str, Any]) -> SourceIdentityContext:
+    """Return the source's identity proof if it is measured and all three hashes agree.
+
+    Raises VWStop("VW-SOURCE-HASH") otherwise. Pure; touches no files.
+    """
     hashes = [source.get(name) for name in ("manifest_sha256", "recorded_actual_sha256", "observed_sha256")]
     if (
         source.get("status") != "measured"
@@ -437,11 +479,14 @@ def measured_source_identity(source: Mapping[str, Any]) -> SourceIdentityContext
     return SourceIdentityContext(hashes[0])
 
 
+# -- hashing and strict JSON loading --
 def sha256_bytes(data: bytes) -> str:
+    """Return the lowercase hex SHA-256 of the given bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 def sha256_file(path: Path) -> str:
+    """Return the hex SHA-256 of a file, read in 1 MiB chunks (reads the file)."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1024 * 1024), b""):
@@ -450,6 +495,7 @@ def sha256_file(path: Path) -> str:
 
 
 def _reject_duplicate_pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """json object_pairs_hook: build a dict, raising VWStop("GROUND-DRIFT") on a repeated key."""
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
@@ -462,6 +508,7 @@ def strict_json_bytes(raw: bytes, *, reason: str = "GROUND-DRIFT") -> Any:
     """Load UTF-8 JSON, rejecting duplicate keys and non-finite constants."""
 
     def bad_constant(value: str) -> None:
+        """json parse_constant hook: reject NaN / Infinity by raising VWStop with the caller's reason."""
         raise VWStop(reason, f"non-finite JSON constant {value}")
 
     try:
@@ -477,10 +524,12 @@ def strict_json_bytes(raw: bytes, *, reason: str = "GROUND-DRIFT") -> Any:
 
 
 def strict_json_file(path: Path, *, reason: str = "GROUND-DRIFT") -> Any:
+    """Read a file's bytes and parse them with strict_json_bytes (reads the file)."""
     return strict_json_bytes(path.read_bytes(), reason=reason)
 
 
 def _assert_finite_json(value: Any, trail: str = "$") -> None:
+    """Walk a JSON-like value and raise VWStop if any float is non-finite or any key is not a string."""
     if isinstance(value, float) and not math.isfinite(value):
         raise VWStop("GROUND-DRIFT", f"non-finite value at {trail}")
     if isinstance(value, dict):
@@ -493,7 +542,9 @@ def _assert_finite_json(value: Any, trail: str = "$") -> None:
             _assert_finite_json(child, f"{trail}[{index}]")
 
 
+# -- identity hashes: canonical JSON, domain-prefixed SHA-256, and the id functions --
 def canonical_json_bytes(value: Any) -> bytes:
+    """Serialize to canonical JSON (sorted keys, no spaces, UTF-8); raises VWStop if not serializable."""
     _assert_finite_json(value)
     try:
         return json.dumps(
@@ -519,6 +570,7 @@ def domain_hash(domain: str, value: Any, *, prefixed: bool) -> str:
 
 
 def config_sha256(frozen_configuration: Mapping[str, Any]) -> str:
+    """Domain hash of the frozen configuration (unprefixed); the dict must not already hold config_sha256."""
     projection = dict(frozen_configuration)
     if "config_sha256" in projection:
         raise VWStop("GROUND-DRIFT", "frozen_configuration must not contain config_sha256")
@@ -526,6 +578,7 @@ def config_sha256(frozen_configuration: Mapping[str, Any]) -> str:
 
 
 def primitive_id(primitive: Mapping[str, Any]) -> str:
+    """Return the "sha256:..." id of a primitive, hashed over its identity-bearing fields only."""
     projection = {
         key: primitive[key]
         for key in (
@@ -542,6 +595,7 @@ def primitive_id(primitive: Mapping[str, Any]) -> str:
 
 
 def candidate_id(candidate: Mapping[str, Any]) -> str:
+    """Return the "sha256:..." id of a structural candidate, hashed over its identity fields."""
     projection = {
         key: candidate[key]
         for key in (
@@ -558,6 +612,7 @@ def candidate_id(candidate: Mapping[str, Any]) -> str:
 
 
 def relationship_id(relationship: Mapping[str, Any]) -> str:
+    """Return the "sha256:..." id of a candidate relationship (source id, target id, kind)."""
     projection = {
         key: relationship[key]
         for key in ("source_candidate_id", "target_candidate_id", "kind")
@@ -566,18 +621,22 @@ def relationship_id(relationship: Mapping[str, Any]) -> str:
 
 
 def capture_payload_sha256(capture_payload: Mapping[str, Any]) -> str:
+    """Domain hash (unprefixed) of the capture payload with its own hash field removed."""
     projection = dict(capture_payload)
     projection.pop("capture_payload_sha256", None)
     return domain_hash("capture_payload", projection, prefixed=False)
 
 
 def report_id(report: Mapping[str, Any]) -> str:
+    """Return the "sha256:..." id of a report, hashed with its own report_id field removed."""
     projection = dict(report)
     projection.pop("report_id", None)
     return domain_hash("report", projection, prefixed=True)
 
 
+# -- fixed-point number formatting --
 def _fixed_decimal(value: float | int | Decimal, places: int) -> str:
+    """Format a finite number with exactly `places` decimals (half-even, no negative zero)."""
     numeric = Decimal(str(value))
     if not numeric.is_finite():
         raise VWStop("VW-CROP-BOUNDS", "non-finite PDF coordinate")
@@ -589,13 +648,16 @@ def _fixed_decimal(value: float | int | Decimal, places: int) -> str:
 
 
 def point_string(value: float | int | Decimal) -> str:
+    """Format a PDF-point coordinate with 6 decimals."""
     return _fixed_decimal(value, 6)
 
 
 def normalized_string(value: float | int | Decimal) -> str:
+    """Format a normalized (0..1) coordinate with 9 decimals."""
     return _fixed_decimal(value, 9)
 
 
+# -- case-ID guard (held-out cases are refused before any path is touched) --
 def lexical_case_guard(
     case_ids: Sequence[Any], *, resolver_spy: Callable[[str], None] | None = None
 ) -> tuple[str, ...]:
@@ -608,6 +670,7 @@ def lexical_case_guard(
     if not isinstance(case_ids, (list, tuple)):
         raise VWStop("VW-HELDOUT-CONTAMINATION", "case selection must be a lexical sequence")
     checked: list[str] = []
+    # Each ID must be a string, not held-out, in the calibration set, and not repeated.
     for raw in case_ids:
         if not isinstance(raw, str):
             raise VWStop("VW-HELDOUT-CONTAMINATION", "non-string case ID")
@@ -626,6 +689,7 @@ def lexical_case_guard(
     return tuple(checked)
 
 
+# -- Box geometry and helpers --
 @dataclass(frozen=True, order=True)
 class Box:
     """Finite half-open rectangle; floats are permitted before pixel quantisation."""
@@ -636,45 +700,57 @@ class Box:
     y1: float
 
     def __post_init__(self) -> None:
+        """Reject a rectangle with any non-finite edge (raises VWStop)."""
         if not all(math.isfinite(value) for value in (self.x0, self.y0, self.x1, self.y1)):
             raise VWStop("VW-CROP-BOUNDS", "non-finite rectangle")
 
     @property
     def width(self) -> float:
+        """Horizontal extent, x1 - x0."""
         return self.x1 - self.x0
 
     @property
     def height(self) -> float:
+        """Vertical extent, y1 - y0."""
         return self.y1 - self.y0
 
     @property
     def area(self) -> float:
+        """Width times height, with negative extents counted as zero."""
         return max(0.0, self.width) * max(0.0, self.height)
 
     def positive(self) -> bool:
+        """True when the rectangle has non-zero width and height."""
         return self.x1 > self.x0 and self.y1 > self.y0
 
     def intersect(self, other: "Box") -> "Box | None":
+        """Overlap rectangle with `other`, or None when the overlap is empty."""
         result = Box(max(self.x0, other.x0), max(self.y0, other.y0), min(self.x1, other.x1), min(self.y1, other.y1))
         return result if result.positive() else None
 
     def contains_point(self, x: float, y: float) -> bool:
+        """True when (x, y) lies inside the half-open rectangle."""
         return self.x0 <= x < self.x1 and self.y0 <= y < self.y1
 
     def contains(self, other: "Box") -> bool:
+        """True when `other` lies entirely inside this rectangle (edges may touch)."""
         return self.x0 <= other.x0 and self.y0 <= other.y0 and self.x1 >= other.x1 and self.y1 >= other.y1
 
     def expand(self, amount: float) -> "Box":
+        """New rectangle grown by `amount` on every side."""
         return Box(self.x0 - amount, self.y0 - amount, self.x1 + amount, self.y1 + amount)
 
     def clip(self, width: float, height: float) -> "Box":
+        """New rectangle limited to the area 0..width by 0..height."""
         return Box(max(0.0, self.x0), max(0.0, self.y0), min(width, self.x1), min(height, self.y1))
 
     def integer_tuple(self) -> tuple[int, int, int, int]:
+        """The four edges truncated to ints, as (x0, y0, x1, y1)."""
         return (int(self.x0), int(self.y0), int(self.x1), int(self.y1))
 
 
 def box_union(boxes: Iterable[Box]) -> Box:
+    """Smallest Box enclosing all the given boxes; raises VWStop on an empty set."""
     materialized = list(boxes)
     if not materialized:
         raise VWStop("VW-CROP-BOUNDS", "cannot union an empty rectangle set")
@@ -687,6 +763,7 @@ def box_union(boxes: Iterable[Box]) -> Box:
 
 
 def boxes_touch_with_gap(left: Box, right: Box, gap: float) -> bool:
+    """True when the two boxes overlap or lie within `gap` of each other on both axes."""
     return not (
         left.x1 + gap < right.x0
         or right.x1 + gap < left.x0
@@ -696,10 +773,12 @@ def boxes_touch_with_gap(left: Box, right: Box, gap: float) -> bool:
 
 
 def rect_strings(box: Box) -> list[str]:
+    """The box's four edges as 6-decimal strings [x0, y0, x1, y1]."""
     return [point_string(value) for value in (box.x0, box.y0, box.x1, box.y1)]
 
 
 def normalized_rect_strings(box: Box, width: int, height: int) -> list[str]:
+    """The box's edges divided by the render width/height, as 9-decimal strings."""
     if width <= 0 or height <= 0:
         raise VWStop("VW-CROP-BOUNDS", "non-positive render dimensions")
     return [
@@ -710,7 +789,9 @@ def normalized_rect_strings(box: Box, width: int, height: int) -> list[str]:
     ]
 
 
+# -- tiling of the rendered page --
 def axis_starts(length: int, *, tile_size: int = TILE_SIZE, stride: int = TILE_STRIDE) -> list[int]:
+    """Start offsets of the tiles along one axis: every `stride`, plus a final tile flush with the end."""
     if any(isinstance(value, bool) or not isinstance(value, int) for value in (length, tile_size, stride)):
         raise VWStop("VW-TILE-GAP", "axis parameters are not exact integers")
     if length <= 0 or length > MAX_RENDER_AXIS_PX or tile_size < 1 or stride < 1:
@@ -725,6 +806,7 @@ def axis_starts(length: int, *, tile_size: int = TILE_SIZE, stride: int = TILE_S
 
 
 def make_tiles(page_1based: int, width: int, height: int) -> list[dict[str, Any]]:
+    """Return tile dicts (tile_id and half-open pixel bbox) covering a width x height render, row by row."""
     if isinstance(page_1based, bool) or not isinstance(page_1based, int) or not (1 <= page_1based <= 999999):
         raise VWStop("VW-TILE-GAP", "page ordinal cannot be encoded in the frozen tile ID")
     tiles: list[dict[str, Any]] = []
@@ -748,6 +830,7 @@ def exact_union_area(rectangles: Sequence[Box]) -> int:
         return 0
     xs = sorted({int(box.x0) for box in rectangles} | {int(box.x1) for box in rectangles})
     area = 0
+    # Sweep vertical strips between x edges; in each strip merge the y intervals and add their length.
     for x0, x1 in zip(xs, xs[1:]):
         if x1 <= x0:
             continue
@@ -776,6 +859,10 @@ def check_tile_union(
     height: int,
     tiles: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
+    """Verify the tiles cover every page pixel exactly and stay inside the page.
+
+    Returns the "tile-union coverage" metric dict; raises VWStop("VW-TILE-GAP") otherwise.
+    """
     boxes = [Box(*map(float, tile["bbox_px_half_open"])) for tile in tiles]
     covered = exact_union_area(boxes)
     valid = width * height
@@ -801,6 +888,7 @@ def check_tile_union(
     }
 
 
+# -- grouping primitives into connected components --
 def connected_components(
     primitives: Sequence[Mapping[str, Any]],
     *,
@@ -814,16 +902,19 @@ def connected_components(
     parent = list(range(len(ordered)))
 
     def find(index: int) -> int:
+        """Union-find root of `index`, compressing the path as it climbs."""
         while parent[index] != index:
             parent[index] = parent[parent[index]]
             index = parent[index]
         return index
 
     def union(left: int, right: int) -> None:
+        """Join two sets in the union-find, keeping the smaller index as the root."""
         a, b = find(left), find(right)
         if a != b:
             parent[max(a, b)] = min(a, b)
 
+    # Compare every pair of primitives; join those whose boxes touch within `gap`.
     for left in range(len(ordered)):
         left_box = Box(*map(float, ordered[left][bbox_key]))
         for right in range(left + 1, len(ordered)):
@@ -836,7 +927,9 @@ def connected_components(
     return [groups[root] for root in sorted(groups, key=lambda root: groups[root][0]["primitive_id"])]
 
 
+# -- strict conversion of PyMuPDF rectangles / points and coordinate transforms --
 def _box(value: Any) -> Box:
+    """Convert a Box, a rect-like object or a 4-number sequence to a Box; raises VWStop if unreadable."""
     if isinstance(value, Box):
         return value
     if hasattr(value, "x0"):
@@ -865,6 +958,7 @@ def _box(value: Any) -> Box:
 
 
 def _xy(value: Any) -> tuple[float, float]:
+    """Convert a point-like object or a 2-number sequence to (x, y) floats; raises VWStop if unreadable."""
     if hasattr(value, "x"):
         values = (value.x, value.y)
     else:
@@ -891,6 +985,7 @@ def _xy(value: Any) -> tuple[float, float]:
 
 
 def _api_box(value: Any) -> Box:
+    """Like _box but for values straight from the PyMuPDF API: members must be real int/float numbers."""
     try:
         raw = (value.x0, value.y0, value.x1, value.y1) if hasattr(value, "x0") else tuple(value)
     except (AttributeError, TypeError) as exc:
@@ -901,6 +996,7 @@ def _api_box(value: Any) -> Box:
 
 
 def _api_xy(value: Any) -> tuple[float, float]:
+    """Like _xy but for values straight from the PyMuPDF API: members must be real int/float numbers."""
     try:
         raw = (value.x, value.y) if hasattr(value, "x") else tuple(value)
     except (AttributeError, TypeError) as exc:
@@ -911,11 +1007,13 @@ def _api_xy(value: Any) -> tuple[float, float]:
 
 
 def point_pair(value: Any) -> list[str]:
+    """A point as two 6-decimal strings [x, y]."""
     x, y = _xy(value)
     return [point_string(x), point_string(y)]
 
 
 def matrix_strings(matrix: Any) -> list[str]:
+    """A 6-member affine matrix (a..f object or sequence) as six 6-decimal strings."""
     values = tuple(matrix) if not hasattr(matrix, "a") else (
         matrix.a,
         matrix.b,
@@ -942,6 +1040,7 @@ def mupdf_box_to_pdf_user(box: Box, cropbox_position: Any, mediabox_y1: float) -
 
 
 def _transform_xy(x: float, y: float, matrix: Any) -> tuple[float, float]:
+    """Apply an affine matrix (a..f object or 6-sequence) to the point (x, y)."""
     if hasattr(matrix, "a"):
         return (
             x * float(matrix.a) + y * float(matrix.c) + float(matrix.e),
@@ -952,6 +1051,10 @@ def _transform_xy(x: float, y: float, matrix: Any) -> tuple[float, float]:
 
 
 def mupdf_box_to_render_px(box: Box, rotation_matrix: Any, width: int, height: int) -> Box:
+    """Map a MuPDF-space box to a pixel box in the render: rotate, scale by 8/3, floor/ceil, clamp to the page.
+
+    Raises VWStop("VW-CROP-BOUNDS") if the result has zero area.
+    """
     rotated = [
         _transform_xy(x, y, rotation_matrix)
         for x, y in ((box.x0, box.y0), (box.x1, box.y0), (box.x1, box.y1), (box.x0, box.y1))
@@ -968,6 +1071,10 @@ def mupdf_box_to_render_px(box: Box, rotation_matrix: Any, width: int, height: i
 
 
 def assert_pixel_round_trip(pixel_box: Box, original_box: Box, derotation_matrix: Any) -> None:
+    """Map the pixel box back to MuPDF space and require it to match the original within 0.375 pt.
+
+    Raises VWStop("VW-COORDINATE-UNREAD") on divergence.
+    """
     inverse_scale = Decimal(SCALE_DENOMINATOR) / Decimal(SCALE_NUMERATOR)
     points = []
     for x, y in (
@@ -1001,6 +1108,10 @@ def assert_pixel_round_trip(pixel_box: Box, original_box: Box, derotation_matrix
 
 
 def page_coordinate_context(page: Any, width: int, height: int) -> dict[str, Any]:
+    """Read a page's media box, crop box, rotation and matrices into the dict the transforms use.
+
+    Raises VWStop("VW-COORDINATE-UNREAD") on an unreadable or unsupported page geometry.
+    """
     media = _api_box(page.mediabox)
     crop_position = page.cropbox_position
     _api_xy(crop_position)
@@ -1045,6 +1156,7 @@ def page_coordinate_context(page: Any, width: int, height: int) -> dict[str, Any
     }
 
 
+# -- primitive records: construction, provenance and de-duplication --
 def _primitive_record(
     *,
     source_context: SourceIdentityContext,
@@ -1057,6 +1169,10 @@ def _primitive_record(
     identity_attributes: Mapping[str, Any],
     source_evidence: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Build one primitive record: clip to the CropBox, add PDF-space and pixel boxes, then its id.
+
+    Raises VWStop if the primitive is outside the CropBox or the pixel round trip fails.
+    """
     local = bbox_mupdf.intersect(context["local_bounds"])
     if local is None:
         raise VWStop("VW-CROP-BOUNDS", "primitive lies wholly outside the CropBox")
@@ -1097,7 +1213,10 @@ def _provenance(
     item_index: Any = None,
     edge_index: Any = None,
 ) -> dict[str, Any]:
+    """Build the provenance dict (drawing / item / edge / engine indices) for a primitive, validating the ints."""
+
     def integer_or_none(value: Any) -> int | None:
+        """Pass None through; accept a nonnegative exact int; otherwise raise VWStop("VW-IDENTITY")."""
         if value is None:
             return None
         if isinstance(value, bool) or not isinstance(value, int) or value < 0:
@@ -1118,6 +1237,10 @@ def _provenance(
 
 
 def _deduplicate_primitives(records: Sequence[dict[str, Any]]) -> list[dict[str, Any]]:
+    """Merge records that share a primitive_id, combining their provenance.
+
+    Raises VWStop("VW-IDENTITY") if two records with the same id disagree on anything else.
+    """
     by_id: dict[str, dict[str, Any]] = {}
     for record in records:
         key = record["primitive_id"]
@@ -1141,6 +1264,7 @@ def _deduplicate_primitives(records: Sequence[dict[str, Any]]) -> list[dict[str,
         unique = {canonical_json_bytes(item): item for item in provenance}
 
         def provenance_key(item: Mapping[str, Any]) -> tuple[Any, ...]:
+            """Sort key for a provenance record: its six index fields in fixed order, None as -1."""
             names = (
                 "engine_list_index_0based",
                 "drawing_list_index_0based",
@@ -1159,13 +1283,20 @@ def _deduplicate_primitives(records: Sequence[dict[str, Any]]) -> list[dict[str,
     )
 
 
+# -- extraction of raster, text and vector primitives from a PyMuPDF page --
 def extract_raster_primitives(
     page: Any, source_context: SourceIdentityContext, page_1based: int, context: Mapping[str, Any]
 ) -> tuple[list[dict[str, Any]], int]:
+    """Read the page's image occurrences into raster primitive records.
+
+    Returns (de-duplicated records, number of occurrences the API listed). Raises VWStop
+    ("VW-RASTER-DIGEST-UNREAD") if an occurrence lacks a 16-byte digest or valid size/number.
+    """
     records: list[dict[str, Any]] = []
     infos = page.get_image_info(hashes=True, xrefs=False)
     if not isinstance(infos, list):
         raise VWStop("VW-RASTER-DIGEST-UNREAD", "image occurrence API result is not a list")
+    # One raster primitive per image occurrence, keyed by its MD5 digest and pixel size.
     for index, info in enumerate(infos):
         if not isinstance(info, dict):
             raise VWStop("VW-RASTER-DIGEST-UNREAD", "image occurrence is not an object")
@@ -1212,6 +1343,11 @@ def extract_raster_primitives(
 def extract_text_primitives(
     page: Any, source_context: SourceIdentityContext, page_1based: int, context: Mapping[str, Any]
 ) -> tuple[list[dict[str, Any]], dict[str, bytes], dict[str, int]]:
+    """Read the page's text blocks into text primitive records.
+
+    Returns (records, {primitive_id: UTF-8 bytes of the text} kept only for the event scratch
+    lifetime, census of block types). Only the hash and length of the text enter the records.
+    """
     result = page.get_text("dict", flags=199, sort=False)
     blocks = result.get("blocks") if isinstance(result, dict) else None
     if not isinstance(blocks, list):
@@ -1219,6 +1355,7 @@ def extract_text_primitives(
     records: list[dict[str, Any]] = []
     ephemeral: dict[str, bytes] = {}
     type_census: dict[str, int] = {}
+    # Walk the blocks: count every type, skip non-text (type 0 only), join span text per line, then per block.
     for engine_index, block in enumerate(blocks):
         if not isinstance(block, dict):
             raise VWStop("VW-RENDER-UNREAD", f"text block {engine_index} is not an object")
@@ -1282,6 +1419,11 @@ def extract_text_primitives(
 
 
 def _width_disposition(path: Mapping[str, Any]) -> tuple[float | None, float, str, bool]:
+    """Decide the stroke width to use for one drawing.
+
+    Returns (observed width, effective width, disposition label, fill_only flag); a missing,
+    zero or fill-only drawing falls back to VECTOR_MIN_STROKE_PT. Raises VWStop on bad data.
+    """
     path_type = path.get("type")
     if path_type not in ("s", "f", "fs"):
         raise VWStop("VW-VECTOR-GEOMETRY-UNREAD", f"unknown drawing type {path_type!r}")
@@ -1305,6 +1447,7 @@ def _width_disposition(path: Mapping[str, Any]) -> tuple[float | None, float, st
 
 
 def _edge_identity(p0: Any, p1: Any) -> dict[str, Any]:
+    """Identity dict for an edge: its two endpoints as strings in sorted (direction-free) order."""
     endpoints = sorted((point_pair(p0), point_pair(p1)), key=lambda item: tuple(item))
     return {"endpoints": endpoints}
 
@@ -1324,6 +1467,7 @@ def _vector_record(
     fill_only: bool,
     provenance: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Build a vector primitive record whose box is the hull of the points grown by half the stroke width."""
     coordinates = [_xy(point) for point in hull_points]
     if not coordinates:
         raise VWStop("VW-VECTOR-GEOMETRY-UNREAD", "empty vector hull")
@@ -1365,6 +1509,11 @@ def _vector_record(
 def extract_vector_primitives(
     page: Any, source_context: SourceIdentityContext, page_1based: int, context: Mapping[str, Any]
 ) -> list[dict[str, Any]]:
+    """Read the page's vector drawings into primitive records.
+
+    Lines, rectangle edges, quad edges and cubic curves each become records (rectangles and
+    quads split into four edges). Raises VWStop("VW-VECTOR-GEOMETRY-UNREAD") on any other item.
+    """
     drawings = page.get_drawings(extended=False)
     if not isinstance(drawings, list):
         raise VWStop("VW-VECTOR-GEOMETRY-UNREAD", "drawing API result is not a list")
@@ -1389,6 +1538,7 @@ def extract_vector_primitives(
                 "drawing_seqno": sequence,
                 "item_index": item_index,
             }
+            # Dispatch on the drawing item type: "l" line, "re" rectangle, "qu" quad, "c" cubic curve.
             if item_type == "l" and len(item) == 3:
                 p0, p1 = item[1], item[2]
                 _api_xy(p0)
@@ -1512,7 +1662,13 @@ def extract_vector_primitives(
     return _deduplicate_primitives(records)
 
 
+# -- page rendering, tile hashing and the graph helpers --
 def render_page_rgb(page: Any) -> tuple[bytes, int, int, dict[str, Any]]:
+    """Render the page at 192 DPI (scale 8/3) to tightly packed RGB8.
+
+    Returns (raw bytes, width, height, measured-render metadata dict). Raises VWStop
+    ("VW-RENDER-UNREAD") if the pixmap origin, size or layout is outside the packet's bounds.
+    """
     pixmap = page.get_pixmap(
         matrix=pymupdf.Matrix(SCALE_NUMERATOR / SCALE_DENOMINATOR, SCALE_NUMERATOR / SCALE_DENOMINATOR),
         colorspace=pymupdf.csRGB,
@@ -1549,6 +1705,7 @@ def render_page_rgb(page: Any) -> tuple[bytes, int, int, dict[str, Any]]:
 
 
 def rgb_slice(raw: bytes, page_width: int, bbox: Sequence[int]) -> bytes:
+    """Cut the rows x0..x1 by y0..y1 out of a packed RGB page buffer; raises VWStop if bbox is out of range."""
     if isinstance(page_width, bool) or not isinstance(page_width, int) or page_width < 1:
         raise VWStop("VW-CROP-BOUNDS", "invalid page width")
     row_bytes = page_width * 3
@@ -1562,6 +1719,7 @@ def rgb_slice(raw: bytes, page_width: int, bbox: Sequence[int]) -> bytes:
 
 
 def populate_tile_hashes(raw: bytes, width: int, height: int, page_1based: int) -> list[dict[str, Any]]:
+    """Make the page's tiles and add each tile's RGB byte count and SHA-256."""
     tiles = make_tiles(page_1based, width, height)
     for tile in tiles:
         tile_raw = rgb_slice(raw, width, tile["bbox_px_half_open"])
@@ -1571,12 +1729,14 @@ def populate_tile_hashes(raw: bytes, width: int, height: int, page_1based: int) 
 
 
 def box_gap(left: Box, right: Box) -> int:
+    """Pixel gap between two boxes: the larger of the x gap and y gap (0 when they overlap)."""
     x_gap = max(0, int(left.x0) - int(right.x1), int(right.x0) - int(left.x1))
     y_gap = max(0, int(left.y0) - int(right.y1), int(right.y0) - int(left.y1))
     return max(x_gap, y_gap)
 
 
 def graph_edge_count(primitives: Sequence[Mapping[str, Any]], gap: int) -> int:
+    """Count the primitive pairs whose pixel boxes lie within `gap` of each other."""
     count = 0
     for left_index, left in enumerate(primitives):
         left_box = _box(left["bbox_px_half_open"])
@@ -1586,7 +1746,9 @@ def graph_edge_count(primitives: Sequence[Mapping[str, Any]], gap: int) -> int:
     return count
 
 
+# -- table detection from vector tracks and text cells --
 def _evidence(rule_id: str, ids: Sequence[str], measurements: Mapping[str, Any]) -> dict[str, Any]:
+    """Wrap a rule id, its source primitive ids and measurements as an "Inferred" class-evidence dict."""
     return {
         "rule_id": rule_id,
         "source_primitive_ids": sorted(set(ids)),
@@ -1597,6 +1759,7 @@ def _evidence(rule_id: str, ids: Sequence[str], measurements: Mapping[str, Any])
 
 
 def point_to_render_int(point: Any, rotation_matrix: Any) -> tuple[int, int]:
+    """Rotate a MuPDF point and scale it by 8/3 into integer render pixels (half-even rounding)."""
     x, y = _xy(point)
     x, y = _transform_xy(x, y, rotation_matrix)
     scale = Decimal(SCALE_NUMERATOR) / Decimal(SCALE_DENOMINATOR)
@@ -1607,24 +1770,32 @@ def point_to_render_int(point: Any, rotation_matrix: Any) -> tuple[int, int]:
 
 
 def _interval_gap(left: tuple[int, int], right: tuple[int, int]) -> int:
+    """Distance between two 1-D intervals (0 if they overlap or touch)."""
     return max(0, left[0] - right[1], right[0] - left[1])
 
 
 def _merge_table_tracks(segments: Sequence[Mapping[str, Any]], orientation: str) -> list[dict[str, Any]]:
+    """Merge collinear, nearly touching line segments into tracks (axis position plus start/end extent).
+
+    `orientation` is accepted but not used in the body. Returns tracks sorted by axis then extent.
+    """
     ordered = sorted(segments, key=lambda item: item["primitive_id"])
     parent = list(range(len(ordered)))
 
     def find(index: int) -> int:
+        """Union-find root of `index`, compressing the path as it climbs."""
         while parent[index] != index:
             parent[index] = parent[parent[index]]
             index = parent[index]
         return index
 
     def union(left: int, right: int) -> None:
+        """Join two sets in the union-find, keeping the smaller index as the root."""
         a, b = find(left), find(right)
         if a != b:
             parent[max(a, b)] = min(a, b)
 
+    # Join segments whose axis positions agree within tolerance and whose extents nearly touch.
     for left in range(len(ordered)):
         for right in range(left + 1, len(ordered)):
             if abs(int(ordered[left]["axis_px"]) - int(ordered[right]["axis_px"])) <= TABLE_MERGE_AXIS_TOLERANCE_PX and _interval_gap(
@@ -1659,7 +1830,13 @@ def table_candidate_evidence(
     rotation_matrix: Any,
     parent_stroke_cluster_id: str,
 ) -> dict[str, Any] | None:
+    """Test whether a vector component plus text forms a ruled table; return table evidence or None.
+
+    Steps: keep axis-aligned segments, merge them into horizontal and vertical tracks, require
+    enough track crossings, find closed cells, assign text to cells, and apply the frozen minimums.
+    """
     segments: list[dict[str, Any]] = []
+    # Keep only line-like primitives that are horizontal or vertical (in render pixels) and long enough.
     for primitive in vector_component:
         geometry = primitive["geometry"]
         if geometry["kind"] not in ("line", "rectangle-edge", "quad-edge"):
@@ -1697,6 +1874,7 @@ def table_candidate_evidence(
         return None
 
     def intersects(horizontal: Mapping[str, Any], vertical: Mapping[str, Any]) -> bool:
+        """True when a horizontal and a vertical track cross, within the axis tolerance."""
         return (
             horizontal["extent_start_px"] - TABLE_AXIS_TOLERANCE_PX
             <= vertical["axis_px"]
@@ -1730,6 +1908,7 @@ def table_candidate_evidence(
     occupied_ids: list[str] = []
     occupied_rows: set[int] = set()
     occupied_columns: set[int] = set()
+    # A grid cell is closed when all four corner track crossings exist; text is assigned by centroid.
     for row in range(len(horizontal_tracks) - 1):
         for column in range(len(vertical_tracks) - 1):
             corners = ((row, column), (row, column + 1), (row + 1, column), (row + 1, column + 1))
@@ -1799,7 +1978,9 @@ def table_candidate_evidence(
     return _evidence(RULE_IDS["table"], measurements["eligible_segment_ids"], measurements)
 
 
+# -- tile relations, edge recovery and captured text for a candidate --
 def _intersecting_tiles(bbox: Box, tiles: Sequence[Mapping[str, Any]]) -> list[str]:
+    """Sorted ids of the tiles whose pixel box overlaps `bbox`."""
     return sorted(
         tile["tile_id"]
         for tile in tiles
@@ -1814,11 +1995,17 @@ def edge_recovery(
     height: int,
     render_rgb: bytes,
 ) -> dict[str, Any]:
+    """Record where a candidate box crosses internal tile edges and, if it does, a whole-tile recrop.
+
+    Returns a measured dict (touched edges, recovery tile ids/bbox/RGB hash, containment flags).
+    Raises VWStop("VW-TILE-GAP") if no tile or no strictly containing recovery crop can be found.
+    """
     x_edges = sorted({int(tile["bbox_px_half_open"][0]) for tile in tiles} | {int(tile["bbox_px_half_open"][2]) for tile in tiles})
     y_edges = sorted({int(tile["bbox_px_half_open"][1]) for tile in tiles} | {int(tile["bbox_px_half_open"][3]) for tile in tiles})
     touches: list[dict[str, Any]] = []
 
     def add(axis: str, edge: int, lo: int, hi: int) -> None:
+        """Record a touch if the internal tile edge at `edge` lies within the candidate span lo..hi."""
         if edge in (0, width if axis == "x" else height) or not (lo <= edge <= hi):
             return
         if lo == edge:
@@ -1868,6 +2055,7 @@ def edge_recovery(
     y_starts = sorted({int(tile["bbox_px_half_open"][1]) for tile in tiles})
 
     def adjacent(starts: Sequence[int], edge: int) -> set[int]:
+        """The tile start offsets just before and at/after `edge`."""
         index = bisect.bisect_left(starts, edge)
         result: set[int] = set()
         if index > 0:
@@ -1923,6 +2111,11 @@ def captured_text_for_candidate(
     text_primitives: Sequence[Mapping[str, Any]],
     ephemeral_text: Mapping[str, bytes],
 ) -> dict[str, Any]:
+    """Summarise the text primitives overlapping a candidate box as one hashed aggregate.
+
+    Reads the in-memory text bytes (never written out); returns ids, byte and codepoint counts
+    and the SHA-256 of the length-prefixed concatenation.
+    """
     selected = sorted(
         (
             primitive
@@ -1960,6 +2153,7 @@ def captured_text_for_candidate(
     }
 
 
+# -- candidate records --
 def _candidate_record(
     *,
     source_context: SourceIdentityContext,
@@ -1975,6 +2169,7 @@ def _candidate_record(
     text_primitives: Sequence[Mapping[str, Any]],
     ephemeral_text: Mapping[str, bytes],
 ) -> dict[str, Any]:
+    """Build one candidate record: union boxes of its primitives, class evidence, tiles, crop hash, text, id."""
     ordered_classes = [name for name in CLASS_ORDER if name in set(classes)]
     ordered_evidence = sorted(evidence, key=lambda item: CLASS_RANK[next(name for name, rule in RULE_IDS.items() if rule == item["rule_id"])])
     mupdf_bbox = box_union(_box(item["bbox_mupdf_unrotated_pt"]) for item in primitives)
@@ -2025,6 +2220,7 @@ def _component_candidate_id(
     classes: Sequence[str],
     primitives: Sequence[Mapping[str, Any]],
 ) -> str:
+    """Compute the candidate id a component would have for the given classes, without building the record."""
     return candidate_id(
         {
             "source_sha256": source_context.sha256,
@@ -2040,6 +2236,7 @@ def _component_candidate_id(
     )
 
 
+# -- candidate inference, relationships and per-class procedures --
 def build_candidates(
     *,
     source_context: SourceIdentityContext,
@@ -2055,6 +2252,12 @@ def build_candidates(
     families: frozenset[str] = frozenset(("raster", "vector", "text")),
     enable_table: bool = True,
 ) -> list[dict[str, Any]]:
+    """Infer the candidates for the requested families (raster, vector, text) on one page.
+
+    Raster components may also be scan-components; vector components with 2+ members are
+    stroke-clusters and may also be tables; each non-blank text primitive is a text-block.
+    Returns candidates sorted by id; raises VWStop if a table parent id does not stabilise.
+    """
     raster = [item for item in primitives if item["kind"] == "raster"]
     vector = [item for item in primitives if item["kind"] == "vector"]
     text = [item for item in primitives if item["kind"] == "text"]
@@ -2065,6 +2268,7 @@ def build_candidates(
     ]
     candidates: list[dict[str, Any]] = []
 
+    # Raster family: group touching images; a group covering 90%+ of the page edge to edge is also a scan-component.
     for component in (connected_components(raster, bbox_key="bbox_px_half_open", gap=RASTER_COMPONENT_GAP_PX) if "raster" in families else []):
         ids = sorted(item["primitive_id"] for item in component)
         occurrences = sum(len(item["source_evidence"]["provenance_records"]) for item in component)
@@ -2110,6 +2314,7 @@ def build_candidates(
             )
         )
 
+    # Vector family: group strokes within 2 px; 2+ members make a stroke-cluster, which is then tested for a table.
     for component in (connected_components(vector, bbox_key="bbox_px_half_open", gap=2) if "vector" in families else []):
         ids = sorted(item["primitive_id"] for item in component)
         classes = ["vector"]
@@ -2179,6 +2384,7 @@ def build_candidates(
                     raise VWStop("VW-IDENTITY", "table parent candidate identity did not stabilize")
         candidates.append(base)
 
+    # Text family: each text primitive with at least one non-space character is its own text-block.
     for primitive in (text if "text" in families else []):
         raw = text_ephemeral[primitive["primitive_id"]].decode("utf-8")
         count = sum(not char.isspace() for char in raw)
@@ -2210,6 +2416,7 @@ def build_candidates(
 
 
 def _base_family(candidate: Mapping[str, Any]) -> str:
+    """The one base family (raster, vector or text-block) among a candidate's classes; else VWStop."""
     classes = candidate["classes"]
     matches = [name for name in ("raster", "vector", "text-block") if name in classes]
     if len(matches) != 1:
@@ -2218,6 +2425,10 @@ def _base_family(candidate: Mapping[str, Any]) -> str:
 
 
 def build_relationships(candidates: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """Relate candidates of different base families whose boxes overlap: coincident, contains or intersects.
+
+    Returns relationship records (with overlap areas and fractions) sorted by source, target, kind.
+    """
     relationships: list[dict[str, Any]] = []
     ordered = sorted(candidates, key=lambda item: item["candidate_id"])
     for left_index, left in enumerate(ordered):
@@ -2263,6 +2474,7 @@ def class_procedures(
     candidates: Sequence[Mapping[str, Any]],
     unread_by_class: Mapping[str, str] | None = None,
 ) -> list[dict[str, Any]]:
+    """One procedure row per class in CLASS_ORDER: UNREAD (blocking) if listed, else measured with a candidate count."""
     unread_by_class = {} if unread_by_class is None else dict(unread_by_class)
     return [
         (
@@ -2288,7 +2500,9 @@ def class_procedures(
     ]
 
 
+# -- UNREAD records and the page capture itself --
 def unread_record(reason_code: str, scope: str, detail_code: str, *, blocking: bool = True) -> dict[str, Any]:
+    """Build an UNREAD record; the scope and detail code must be in the packet's enums (else VWStop)."""
     if scope not in SCOPE_ENUM:
         raise VWStop("VW-PRIVACY", "UNREAD scope is not packet-licensed")
     if detail_code not in DETAIL_ENUM:
@@ -2303,6 +2517,7 @@ def unread_record(reason_code: str, scope: str, detail_code: str, *, blocking: b
 
 
 def unread_coverage(reason_code: str) -> dict[str, Any]:
+    """The tile-coverage metric for an unreadable page: status UNREAD, no numbers, one reason code."""
     return {
         "status": "UNREAD",
         "numerator_name": "valid rendered page pixels covered by at least one declared base tile",
@@ -2322,6 +2537,7 @@ def unread_coverage(reason_code: str) -> dict[str, Any]:
 
 
 def unread_page(page_1based: int, reason_code: str, detail_code: str | None = None) -> dict[str, Any]:
+    """A whole page report marked UNREAD for one reason code, with every measurement set to None/empty."""
     unread = unread_record(reason_code, "page", detail_code or DETAIL_BY_REASON[reason_code])
     return {
         "page_1based": page_1based,
@@ -2370,11 +2586,14 @@ def unread_page(page_1based: int, reason_code: str, detail_code: str | None = No
 
 @dataclass
 class PageCapture:
+    """One captured page: the report dict plus the raw RGB and text bytes that must not outlive the event."""
+
     report: dict[str, Any]
     render_rgb: bytes = field(repr=False)
     ephemeral_text: dict[str, bytes] = field(repr=False)
 
     def clear(self) -> None:
+        """Drop the raw page pixels and the extracted text bytes (the report dict is kept)."""
         self.render_rgb = b""
         self.ephemeral_text.clear()
 
@@ -2386,6 +2605,12 @@ def capture_page(
     source_observation: Mapping[str, Any],
     configuration_sha256: str,
 ) -> PageCapture:
+    """Capture one PDF page: render, tile, extract primitives, infer candidates and relationships.
+
+    Returns a PageCapture. A failing procedure does not abort the page; it is recorded as an
+    UNREAD (blocking) record for the affected classes. Raises VWStop only for a non-frozen config hash
+    or an unmeasured source.
+    """
     if configuration_sha256 != EXPECTED_CONFIG_SHA256:
         raise VWStop("VW-CONFIG-HASH", "capture invoked with non-frozen configuration hash")
     source_context = measured_source_identity(source_observation)
@@ -2397,6 +2622,7 @@ def capture_page(
     unread_by_class: dict[str, str] = {}
 
     def block(reason: str, classes: Sequence[str]) -> None:
+        """Mark the given classes UNREAD for `reason` and append one UNREAD record per class."""
         for class_name in classes:
             unread_by_class.setdefault(class_name, reason)
             scope = {
@@ -2416,6 +2642,7 @@ def capture_page(
     image_occurrences = 0
     text_type_census: dict[str, int] = {}
     primitive_failures = False
+    # Extract each primitive family separately so one failure blocks only the classes that depend on it.
     try:
         raster, image_occurrences = extract_raster_primitives(page, source_context, page_1based, context)
     except VWStop as exc:
@@ -2437,6 +2664,7 @@ def capture_page(
     candidates: list[dict[str, Any]] = []
 
     def build_family(family: str, affected: Sequence[str]) -> None:
+        """Build the candidates for one family unless its classes are already UNREAD; failures block them."""
         if any(name in unread_by_class for name in affected):
             return
         try:
@@ -2515,13 +2743,16 @@ def capture_page(
     return PageCapture(report=report, render_rgb=render_rgb, ephemeral_text=ephemeral_text)
 
 
+# -- byte-level JSON scanners (find where a value ends without parsing it) --
 def _json_skip_ws(raw: bytes, index: int) -> int:
+    """Index of the first non-whitespace byte at or after `index`."""
     while index < len(raw) and raw[index] in b" \t\r\n":
         index += 1
     return index
 
 
 def _json_string_end(raw: bytes, index: int) -> int:
+    """Index just past the closing quote of the JSON string that starts at `index`; honours backslash escapes."""
     if index >= len(raw) or raw[index] != 0x22:
         raise VWStop("GROUND-DRIFT", "expected JSON string")
     index += 1
@@ -2537,6 +2768,10 @@ def _json_string_end(raw: bytes, index: int) -> int:
 
 
 def _json_value_end(raw: bytes, index: int) -> int:
+    """Index just past the JSON value (string, object, array or scalar) starting at/after `index`.
+
+    Scalars are checked with strict_json_bytes; raises VWStop("GROUND-DRIFT") on malformed input.
+    """
     index = _json_skip_ws(raw, index)
     if index >= len(raw):
         raise VWStop("GROUND-DRIFT", "missing JSON value")
@@ -2547,6 +2782,7 @@ def _json_value_end(raw: bytes, index: int) -> int:
         closer = 0x7D if opener == 0x7B else 0x5D
         depth = 1
         index += 1
+        # Scan to the matching closer, stepping over strings and nested containers of the other kind.
         while index < len(raw) and depth:
             if raw[index] == 0x22:
                 index = _json_string_end(raw, index)
@@ -2574,6 +2810,10 @@ def _json_value_end(raw: bytes, index: int) -> int:
 
 
 def _json_object_members(raw: bytes, start: int, end: int) -> dict[str, tuple[int, int]]:
+    """Map each member key of the JSON object in raw[start:end] to its (value start, value end) byte span.
+
+    Rejects duplicate keys and trailing bytes (VWStop "GROUND-DRIFT"); values are not parsed.
+    """
     index = _json_skip_ws(raw, start)
     if index >= end or raw[index] != 0x7B:
         raise VWStop("GROUND-DRIFT", "expected JSON object")
@@ -2608,6 +2848,7 @@ def _json_object_members(raw: bytes, start: int, end: int) -> dict[str, tuple[in
 
 
 def _json_array_elements(raw: bytes, start: int, end: int) -> list[tuple[int, int]]:
+    """List the (start, end) byte span of each element of the JSON array in raw[start:end]."""
     index = _json_skip_ws(raw, start)
     if index >= end or raw[index] != 0x5B:
         raise VWStop("GROUND-DRIFT", "expected JSON array")
@@ -2633,8 +2874,11 @@ def _json_array_elements(raw: bytes, start: int, end: int) -> list[tuple[int, in
             raise VWStop("GROUND-DRIFT", "expected JSON array comma or close")
 
 
+# -- the private calibration manifest (only calibration cases are ever parsed) --
 @dataclass(frozen=True)
 class CalibrationManifest:
+    """The selected calibration cases from the private manifest, with the manifest's own hash and size."""
+
     raw_sha256: str
     raw_bytes: int
     root_text: str
@@ -2652,6 +2896,7 @@ def select_calibration_manifest(raw: bytes, selected_case_ids: Sequence[Any]) ->
     while root_end > root_start and raw[root_end - 1] in b" \t\r\n":
         root_end -= 1
     members = _json_object_members(raw, root_start, root_end)
+    # The three top-level members must exist before any case is read.
     for required in ("root", "asset_inventory_hash_algorithm", "cases"):
         if required not in members:
             raise VWStop("GROUND-DRIFT", f"private manifest lacks {required!r}")
@@ -2662,6 +2907,7 @@ def select_calibration_manifest(raw: bytes, selected_case_ids: Sequence[Any]) ->
     case_spans = _json_array_elements(raw, *members["cases"])
     found: dict[str, Mapping[str, Any]] = {}
     seen_ids: set[str] = set()
+    # Read only each case's id first; held-out cases are skipped without decoding, selected ones are parsed.
     for start, end in case_spans:
         case_members = _json_object_members(raw, start, end)
         if "id" not in case_members:
@@ -2691,7 +2937,9 @@ def select_calibration_manifest(raw: bytes, selected_case_ids: Sequence[Any]) ->
     )
 
 
+# -- bounded native-Git probe: allow-listed shapes, controls, Job Object, run and attestation --
 def _git_probe_shape(arguments: Sequence[str]) -> str:
+    """Name the allow-listed read-only Git argument shape, or raise VWStop("GROUND-DRIFT") if not allowed."""
     candidate = tuple(arguments)
     if any(not isinstance(item, str) for item in candidate):
         raise VWStop("GROUND-DRIFT", "bounded Git probe arguments have the wrong type")
@@ -2716,6 +2964,10 @@ def _git_probe_shape(arguments: Sequence[str]) -> str:
 
 
 def _verified_git_executable_observation() -> dict[str, Any]:
+    """Check the bound git.exe exists and matches the frozen size and SHA-256; returns that observation.
+
+    Raises VWStop("VW-DEPENDENCY-DRIFT") otherwise. Reads the executable file.
+    """
     if not GIT_EXECUTABLE.is_file():
         raise VWStop("VW-DEPENDENCY-DRIFT", "bound Git executable is missing")
     try:
@@ -2728,6 +2980,7 @@ def _verified_git_executable_observation() -> dict[str, Any]:
 
 
 def _git_sanitized_environment() -> dict[str, str]:
+    """The environment handed to Git: a few inherited system variables plus the fixed deny-by-construction ones."""
     environment: dict[str, str] = {}
     for key in GIT_INHERITED_ENVIRONMENT_KEYS:
         value = os.environ.get(key)
@@ -2738,6 +2991,7 @@ def _git_sanitized_environment() -> dict[str, str]:
 
 
 def _git_command(repo_root: Path, arguments: Sequence[str]) -> tuple[list[str], dict[str, str]]:
+    """Build the full Git argv (fixed -c settings plus the allow-listed arguments) and its environment."""
     shape = _git_probe_shape(arguments)
     command = [str(GIT_EXECUTABLE), "--no-pager", "-c", f"safe.directory={repo_root}"]
     for setting in GIT_FIXED_CONFIG:
@@ -2750,6 +3004,7 @@ def _git_command(repo_root: Path, arguments: Sequence[str]) -> tuple[list[str], 
 
 
 def _git_controls_sha256(repo_root: Path, arguments: Sequence[str]) -> str:
+    """SHA-256 of the canonical record of the Git argv, environment and isolation policy for one probe."""
     command, environment = _git_command(repo_root, arguments)
     return sha256_bytes(
         canonical_json_bytes(
@@ -2765,6 +3020,7 @@ def _git_controls_sha256(repo_root: Path, arguments: Sequence[str]) -> str:
 
 
 def _census_native_git_descendants(root_pid: int) -> set[int]:
+    """Return all descendant PIDs of `root_pid` from the Windows process table, also recording them globally."""
     try:
         parents = _windows_process_parent_map()
     except VWStop:
@@ -2773,6 +3029,7 @@ def _census_native_git_descendants(root_pid: int) -> set[int]:
         raise VWStop("UNREAD", "native Git descendant census unavailable") from exc
     descendants: set[int] = set()
     changed = True
+    # Repeat until no new process whose parent is in the tree is found.
     while changed:
         changed = False
         parent_scope = {root_pid, *descendants}
@@ -2784,7 +3041,10 @@ def _census_native_git_descendants(root_pid: int) -> set[int]:
     return descendants
 
 
+# -- Windows Job Object ctypes structures and helpers --
 class _JobBasicLimitInformation(ctypes.Structure):
+    """ctypes layout of the Windows JOBOBJECT_BASIC_LIMIT_INFORMATION structure."""
+
     _fields_ = [
         ("per_process_user_time_limit", ctypes.c_longlong),
         ("per_job_user_time_limit", ctypes.c_longlong),
@@ -2799,6 +3059,8 @@ class _JobBasicLimitInformation(ctypes.Structure):
 
 
 class _JobIoCounters(ctypes.Structure):
+    """ctypes layout of the Windows IO_COUNTERS structure."""
+
     _fields_ = [
         ("read_operation_count", ctypes.c_ulonglong),
         ("write_operation_count", ctypes.c_ulonglong),
@@ -2810,6 +3072,8 @@ class _JobIoCounters(ctypes.Structure):
 
 
 class _JobExtendedLimitInformation(ctypes.Structure):
+    """ctypes layout of the Windows JOBOBJECT_EXTENDED_LIMIT_INFORMATION structure."""
+
     _fields_ = [
         ("basic_limit_information", _JobBasicLimitInformation),
         ("io_info", _JobIoCounters),
@@ -2873,6 +3137,8 @@ def _resume_native_git_process(pid: int) -> None:
         raise VWStop("UNREAD", "native Git suspended-thread resume was unavailable")
 
     class ThreadEntry32(ctypes.Structure):
+        """ctypes layout of the Windows THREADENTRY32 structure used to list threads."""
+
         _fields_ = [
             ("size", wintypes.DWORD),
             ("usage", wintypes.DWORD),
@@ -2932,6 +3198,7 @@ def _resume_native_git_process(pid: int) -> None:
 
 
 def _close_native_git_job(job_handle: int) -> None:
+    """Close the Windows Job Object handle; raises VWStop("VW-CLEANUP") if the close fails."""
     kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
     close_handle = kernel32.CloseHandle
     close_handle.argtypes = (wintypes.HANDLE,)
@@ -2941,6 +3208,13 @@ def _close_native_git_job(job_handle: int) -> None:
 
 
 def _git(repo_root: Path, *arguments: str) -> bytes:
+    """Run one allow-listed read-only Git command and return its stdout bytes.
+
+    The bound git.exe is started suspended, put in a one-process Job Object, resumed, and
+    polled up to 20 s while its descendants are counted; exit code, stderr and leftover
+    processes/ports are checked, and an attestation is appended to EVENT_ACTIVITY.
+    Raises VWStop on any deviation.
+    """
     # Argument rejection and binary identity verification both happen before any process exists.
     shape = _git_probe_shape(arguments)
     try:
@@ -3070,7 +3344,14 @@ def _git(repo_root: Path, *arguments: str) -> bytes:
             _close_native_git_job(job_handle)
 
 
+# -- repository ground verification --
 def verify_repository_ground(repo_root: Path) -> tuple[Mapping[str, Any], str]:
+    """Check the packet, schema and bound public files by hash, the Git anchor and the config hash.
+
+    Also checks Python and PyMuPDF versions and that every dirty path in `git status` is permitted.
+    Reads files under repo_root and runs Git probes. Returns (parsed packet, measured config hash);
+    raises VWStop ("GROUND-DRIFT" and related reasons) on any mismatch.
+    """
     repo_root = repo_root.resolve(strict=True)
     packet_path = repo_root / PACKET_RELATIVE_PATH
     schema_path = repo_root / CAPTURE_SCHEMA_RELATIVE_PATH
@@ -3098,6 +3379,7 @@ def verify_repository_ground(repo_root: Path) -> tuple[Mapping[str, Any], str]:
         raise VWStop("VW-DEPENDENCY-DRIFT", f"Python version is {sys.version_info[:3]}")
     if str(pymupdf.__version__) != "1.28.0" or tuple(pymupdf.mupdf_version_tuple) != (1, 29, 0):
         raise VWStop("VW-DEPENDENCY-DRIFT", "PyMuPDF/MuPDF version mismatch")
+    # Work out which paths may legitimately be changed or untracked, then compare against git status.
     allowed_dirty = {
         *packet["write_scope"]["new_repository_files"],
         *packet["write_scope"]["allowed_repository_updates"],
@@ -3125,6 +3407,7 @@ def verify_repository_ground(repo_root: Path) -> tuple[Mapping[str, Any], str]:
     parts = [entry for entry in porcelain.split("\0") if entry]
     entries: list[tuple[str, str]] = []
     index = 0
+    # Parse NUL-separated porcelain v1 records; rename/copy records carry a second path entry.
     while index < len(parts):
         entry = parts[index]
         if len(entry) < 4:
@@ -3155,13 +3438,19 @@ def verify_repository_ground(repo_root: Path) -> tuple[Mapping[str, Any], str]:
     return packet, measured_config
 
 
+# -- path safety: reparse points, canonical Windows paths, output roots --
 def _is_reparse(path: Path) -> bool:
+    """True when the path itself is a Windows reparse point (symlink / junction); does not follow it."""
     stat = os.lstat(path)
     attributes = getattr(stat, "st_file_attributes", 0)
     return bool(attributes & getattr(stat, "FILE_ATTRIBUTE_REPARSE_POINT", 0x400))
 
 
 def strict_final_path(path: Path, *, directory: bool | None = None) -> Path:
+    """Resolve an existing path to its real location, refusing any reparse point in its ancestry.
+
+    `directory` True/False additionally requires a directory / regular file. Raises VWStop("VW-PRIVACY").
+    """
     lexical = Path(os.path.abspath(os.fspath(path)))
     if not lexical.exists():
         raise VWStop("VW-PRIVACY", "required root/path does not exist")
@@ -3187,16 +3476,20 @@ def strict_final_path(path: Path, *, directory: bool | None = None) -> Path:
 
 
 def _canonical_windows(path: Path) -> str:
+    """Comparison key for a Windows path: backslashes, no trailing slash, case-folded."""
     return str(path).replace("/", "\\").rstrip("\\").casefold()
 
 
 def paths_related(left: Path, right: Path) -> bool:
+    """True when the two paths are equal or one lies inside the other (Windows, case-insensitive)."""
     left_key, right_key = _canonical_windows(left), _canonical_windows(right)
     return left_key == right_key or left_key.startswith(right_key + "\\") or right_key.startswith(left_key + "\\")
 
 
 @dataclass(frozen=True)
 class OutputRoots:
+    """The checked evidence and scratch roots, this run's child directories, and free scratch bytes at start."""
+
     evidence_root: Path
     scratch_root: Path
     evidence_run: Path
@@ -3206,13 +3499,18 @@ class OutputRoots:
 
 @dataclass(frozen=True)
 class PartialRootContext:
+    """Which run directories were created, and which cleanup steps failed, when root creation went wrong."""
+
     evidence_run_created: Path | None
     scratch_run_created: Path | None
     cleanup_failure_ids: tuple[str, ...]
 
 
 class PartialRootFailure(VWStop):
+    """A VWStop("VW-CLEANUP") that also carries the PartialRootContext of what was left behind."""
+
     def __init__(self, context: PartialRootContext, detail: str):
+        """Store the context and raise as VW-CLEANUP with the given detail."""
         super().__init__("VW-CLEANUP", detail)
         self.context = context
 
@@ -3224,6 +3522,12 @@ def prepare_output_roots(
     run_id: str,
     protected_paths: Sequence[Path],
 ) -> OutputRoots:
+    """Validate the evidence and scratch roots and create this run's two child directories.
+
+    Roots must be absolute, real, non-overlapping with each other and with protected paths, and
+    scratch must have enough free space. Creates <root>/<run_id> in each (mode 0o700) and rolls
+    back what it made on failure. Returns OutputRoots; raises VWStop / PartialRootFailure.
+    """
     if RUN_ID_RE.fullmatch(run_id) is None:
         raise VWStop("VW-PRIVACY", "run id is not opaque")
     if not evidence_root.is_absolute() or not scratch_root.is_absolute():
@@ -3274,7 +3578,12 @@ def prepare_output_roots(
     return OutputRoots(evidence, scratch, evidence_run, scratch_run, free)
 
 
+# -- stable (read twice, unchanged) file observations and Git metadata reading --
 def stable_file_observation(path: Path, reason_code: str) -> dict[str, Any]:
+    """Hash a regular file in chunks and confirm its size, mtime and inode did not change meanwhile.
+
+    Returns {"bytes", "sha256"}; raises VWStop(reason_code) if unreadable or changed during the read.
+    """
     path = strict_final_path(path, directory=False)
     before = os.stat(path, follow_symlinks=False)
     digest = hashlib.sha256()
@@ -3295,6 +3604,10 @@ def stable_file_observation(path: Path, reason_code: str) -> dict[str, Any]:
 
 
 def stable_small_file_bytes(path: Path, reason_code: str, *, maximum_bytes: int = 16 * 1024 * 1024) -> tuple[bytes, dict[str, Any]]:
+    """Read a regular file up to `maximum_bytes`, checking it did not change during the read.
+
+    Returns (bytes, {"bytes", "sha256"}); raises VWStop(reason_code) otherwise.
+    """
     path = strict_final_path(path, directory=False)
     before = os.stat(path, follow_symlinks=False)
     if before.st_size > maximum_bytes:
@@ -3314,6 +3627,7 @@ def stable_small_file_bytes(path: Path, reason_code: str, *, maximum_bytes: int 
 
 
 def _stable_git_metadata_bytes(path: Path, *, maximum_bytes: int, label: str) -> bytes:
+    """Read a Git metadata file as stable bounded bytes containing no NUL; VWStop("GROUND-DRIFT") otherwise."""
     try:
         raw, _observation = stable_small_file_bytes(
             path,
@@ -3328,6 +3642,7 @@ def _stable_git_metadata_bytes(path: Path, *, maximum_bytes: int, label: str) ->
 
 
 def _single_git_metadata_line(raw: bytes, *, label: str) -> str:
+    """Decode metadata that must be exactly one ASCII line (one trailing newline allowed) and return it."""
     if raw.endswith(b"\r\n"):
         body = raw[:-2]
     elif raw.endswith(b"\n"):
@@ -3343,6 +3658,7 @@ def _single_git_metadata_line(raw: bytes, *, label: str) -> str:
 
 
 def _validated_git_metadata_directory(path: Path, *, label: str) -> Path:
+    """Resolve a Git metadata directory with strict_final_path; any failure becomes VWStop("GROUND-DRIFT")."""
     try:
         return strict_final_path(path, directory=True)
     except VWStop as exc:
@@ -3350,6 +3666,7 @@ def _validated_git_metadata_directory(path: Path, *, label: str) -> Path:
 
 
 def _validated_git_ref_name(ref_name: str) -> str:
+    """Return the ref name if it is a safe "refs/..." path (ASCII, no "..", no special characters)."""
     if (
         not ref_name.isascii()
         or len(ref_name) > 1024
@@ -3371,6 +3688,7 @@ def _validated_git_ref_name(ref_name: str) -> str:
 
 
 def _git_object_id_line(raw: bytes, *, label: str) -> str:
+    """Parse a single line that must be a 40-hex-digit Git object id."""
     candidate = _single_git_metadata_line(raw, label=label)
     if re.fullmatch(r"[0-9a-f]{40}", candidate) is None:
         raise VWStop("GROUND-DRIFT", f"Git {label} object id was invalid")
@@ -3378,6 +3696,10 @@ def _git_object_id_line(raw: bytes, *, label: str) -> str:
 
 
 def _resolve_repository_git_directories(repo_root: Path) -> tuple[Path, Path, Path]:
+    """Find the repository's .git directory (following a gitdir pointer file) and its common dir.
+
+    Returns (repo_root, git_dir, common_dir); the common dir differs only for linked worktrees.
+    """
     try:
         repo_root = strict_final_path(repo_root, directory=True)
     except VWStop as exc:
@@ -3471,6 +3793,7 @@ def resolve_repository_head_direct(repo_root: Path) -> str:
 
 
 def require_repository_head_direct(repo_root: Path, expected_head: str) -> str:
+    """Resolve HEAD directly from metadata and require it to equal `expected_head`; returns it."""
     if re.fullmatch(r"[0-9a-f]{40}", expected_head) is None:
         raise VWStop("GROUND-DRIFT", "expected repository HEAD was invalid")
     observed = resolve_repository_head_direct(repo_root)
@@ -3479,6 +3802,7 @@ def require_repository_head_direct(repo_root: Path, expected_head: str) -> str:
     return observed
 
 
+# -- the protected tree: files that must be byte-identical before and after the run --
 PROTECTED_LOGICAL_ID_RE = re.compile(
     r"^(?:manifest|VW-T0[1-3]/(?:source|bundle-body|bundle-manifest|raw-markdown|analyst-markdown/(?:0|[1-9][0-9]*)|asset/(?:0|[1-9][0-9]*)))$"
 )
@@ -3486,15 +3810,19 @@ PROTECTED_LOGICAL_ID_RE = re.compile(
 
 @dataclass(frozen=True)
 class ProtectedFile:
+    """A protected file: a logical id (shape fixed by PROTECTED_LOGICAL_ID_RE) and its real path."""
+
     logical_id: str
     path: Path = field(repr=False)
 
     def __post_init__(self) -> None:
+        """Reject a logical id that does not match the allowed pattern (VWStop)."""
         if PROTECTED_LOGICAL_ID_RE.fullmatch(self.logical_id) is None:
             raise VWStop("VW-PROTECTED-TREE", f"invalid protected logical id {self.logical_id!r}")
 
 
 def protected_inventory(files: Sequence[ProtectedFile]) -> tuple[list[dict[str, Any]], str]:
+    """Hash every protected file (sorted by logical id) and return (inventory list, tree digest)."""
     logical_ids = [item.logical_id for item in files]
     if len(logical_ids) != len(set(logical_ids)):
         raise VWStop("VW-PROTECTED-TREE", "duplicate protected logical id")
@@ -3518,6 +3846,7 @@ def compare_protected_inventories(
     after_entries: Sequence[Mapping[str, Any]],
     after_digest: str,
 ) -> None:
+    """Raise VWStop("VW-PROTECTED-TREE") unless the before and after inventories and digests are identical."""
     if before_digest != after_digest or canonical_json_bytes(before_entries) != canonical_json_bytes(after_entries):
         raise VWStop("VW-PROTECTED-TREE", "protected logical inventory changed")
 
@@ -3529,6 +3858,7 @@ def ordinal_asset_inventory(asset_paths: Sequence[Path]) -> tuple[bytes, list[di
     records = bytearray()
     observations: list[dict[str, Any]] = []
     for ordinal, path in enumerate(sorted_paths):
+        # Each inventory line is: file name, NUL, byte count, NUL, sha256, newline.
         observation = stable_file_observation(path, "VW-ASSET-HASH")
         records.extend(path.name.encode("utf-8"))
         records.extend(b"\0")
@@ -3552,8 +3882,11 @@ def ordinal_asset_inventory(asset_paths: Sequence[Path]) -> tuple[bytes, list[di
     return bytes(records), observations
 
 
+# -- resolving each calibration case's files on disk --
 @dataclass(frozen=True)
 class ResolvedCaseFiles:
+    """The real paths of one calibration case: source PDF, bundle directory, manifest, body, markdowns, assets."""
+
     case: Mapping[str, Any]
     source: Path = field(repr=False)
     bundle_dir: Path = field(repr=False)
@@ -3565,13 +3898,19 @@ class ResolvedCaseFiles:
 
     @property
     def case_id(self) -> str:
+        """The case's id string, for example "VW-T01"."""
         return str(self.case["id"])
 
 
 def resolve_case_files(manifest: CalibrationManifest) -> tuple[ResolvedCaseFiles, ...]:
+    """Resolve every selected calibration case's files to real paths (reads directory listings only).
+
+    Requires exactly one direct .md body per bundle and plain regular-file assets. Raises VWStop.
+    """
     manifest_root = strict_final_path(Path(manifest.root_text), directory=True)
 
     def supplied(text: Any, *, directory: bool) -> Path:
+        """Resolve one manifest-supplied path (relative to the manifest root) to a strict real path."""
         if not isinstance(text, str) or not text:
             raise VWStop("GROUND-DRIFT", "calibration path is absent")
         candidate = Path(text)
@@ -3623,6 +3962,7 @@ def resolve_case_files(manifest: CalibrationManifest) -> tuple[ResolvedCaseFiles
 
 
 def protected_files_for_run(manifest_path: Path, cases: Sequence[ResolvedCaseFiles]) -> tuple[ProtectedFile, ...]:
+    """List the ProtectedFile entries for a run: the manifest plus each case's source, body, markdowns, assets."""
     result = [ProtectedFile("manifest", strict_final_path(manifest_path, directory=False))]
     for case in cases:
         prefix = case.case_id
@@ -3643,6 +3983,10 @@ def protected_files_for_run(manifest_path: Path, cases: Sequence[ResolvedCaseFil
 
 
 def observe_source(case: ResolvedCaseFiles) -> dict[str, Any]:
+    """Hash a case's source PDF and open it to count pages; both must match the manifest.
+
+    Returns a measured source record; raises VWStop("VW-SOURCE-HASH" / "VW-RENDER-UNREAD").
+    """
     observation = stable_file_observation(case.source, "VW-SOURCE-HASH")
     expected_manifest = case.case.get("source_sha256_manifest")
     recorded_actual = case.case.get("source_sha256_actual")
@@ -3675,6 +4019,7 @@ def observe_source(case: ResolvedCaseFiles) -> dict[str, Any]:
 
 
 def observe_markdown(path: Path, *, phase: str, ordinal: int, expected_sha256: str, expected_bytes: int) -> dict[str, Any]:
+    """Hash a Markdown file and require its size and SHA-256 to match; returns a measured record or raises VWStop."""
     observed = stable_file_observation(path, "VW-BODY-HASH")
     match = observed["sha256"] == expected_sha256 and observed["bytes"] == expected_bytes
     if not match:
@@ -3692,6 +4037,10 @@ def observe_markdown(path: Path, *, phase: str, ordinal: int, expected_sha256: s
 
 
 def observed_asset_inventory(case: ResolvedCaseFiles) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    """Recompute a case's asset inventory hash and count, require them to match the manifest.
+
+    Returns (inventory record, per-asset observations); raises VWStop("VW-ASSET-HASH") on mismatch.
+    """
     records, observations = ordinal_asset_inventory(case.assets)
     digest = sha256_bytes(records)
     expected = case.case.get("asset_inventory_sha256")
@@ -3714,6 +4063,11 @@ def observe_bundle(
     source_observation: Mapping[str, Any],
     protected_before_entries: Sequence[Mapping[str, Any]],
 ) -> tuple[dict[str, Any], list[dict[str, Any]], list[dict[str, Any]]]:
+    """Observe a case's bundle: its manifest, raw and analyst Markdown, asset inventory and page map.
+
+    Returns (bundle record, blocking UNREAD records, asset observations). Raises VWStop if the
+    manifest changed since the protected BEFORE snapshot or does not bind to the source hash.
+    """
     before_by_id = {str(item["logical_id"]): item for item in protected_before_entries}
     logical_id = f"{case.case_id}/bundle-manifest"
     if logical_id not in before_by_id:
@@ -3780,6 +4134,7 @@ def observe_bundle(
     return bundle, blockers, asset_observations
 
 
+# -- page map (asset filenames to source pages), negative controls and runtime inventory --
 def mechanical_page_map(
     *,
     source_observation: Mapping[str, Any],
@@ -3788,6 +4143,12 @@ def mechanical_page_map(
     manifest_asset_count: int,
     chunking_slice_size: Any,
 ) -> tuple[list[dict[str, Any]], dict[str, Any], list[dict[str, Any]]]:
+    """Derive the mechanical page map from asset filenames (page_id + 1 = source page).
+
+    Returns (records, map state dict, blocking UNREAD records). The state is "unread" when the
+    source or inventory is not measured, "as-shipped-verified" when all ids are in range,
+    "repaired-sym050" when the SYM-050 offset repair fits, and "untrustworthy" otherwise.
+    """
     parsed = [item for item in asset_observations if item["page_id_0based"] is not None]
     records = [
         {
@@ -3871,6 +4232,7 @@ def mechanical_page_map(
 
 
 def assert_retained_page_map(records: Sequence[Mapping[str, Any]], fresh_asset_observations: Sequence[Mapping[str, Any]]) -> None:
+    """Require the retained page-map records to equal a fresh parse of the assets (VWStop otherwise)."""
     fresh = [
         {
             "asset_ordinal": int(item["asset_ordinal"]),
@@ -3905,6 +4267,7 @@ def execute_frozen_negative_controls() -> str:
         raise VWStop("VW-NEGATIVE-CONTROL", "frozen gap fixture did not bite")
 
     def source(pages: int) -> dict[str, Any]:
+        """Fixture: a measured source observation with all-zero hashes and the given page count."""
         sha = "0" * 64
         return {
             "status": "measured", "manifest_sha256": sha, "recorded_actual_sha256": sha,
@@ -3912,9 +4275,11 @@ def execute_frozen_negative_controls() -> str:
         }
 
     def inventory(count: int) -> dict[str, Any]:
+        """Fixture: a measured, matching asset inventory with the given count."""
         return {"status": "measured", "match": True, "count": count}
 
     def assets(ids: Sequence[int]) -> list[dict[str, int]]:
+        """Fixture: asset observations whose page ids are `ids`, numbered in order."""
         return [
             {"asset_ordinal": ordinal, "page_id_0based": page_id}
             for ordinal, page_id in enumerate(ids)
@@ -3953,6 +4318,7 @@ def execute_frozen_negative_controls() -> str:
 
 
 def _windows_process_module_paths() -> list[Path]:
+    """List the file paths of every module (DLL / PYD) loaded into this process via psapi (Windows only)."""
     if os.name != "nt":
         raise VWStop("VW-DEPENDENCY-DRIFT", "runtime module inventory requires Windows")
     psapi = ctypes.WinDLL("psapi", use_last_error=True)
@@ -3985,6 +4351,11 @@ def _windows_process_module_paths() -> list[Path]:
 
 
 def runtime_module_inventory() -> list[dict[str, Any]]:
+    """Hash the Python / PyMuPDF / MuPDF / Git binaries this run depends on.
+
+    Returns a sorted list of {logical_name, bytes, sha256}; raises VWStop("VW-DEPENDENCY-DRIFT")
+    if a required native component is not loaded or the inventory is too small.
+    """
     main_buffer = ctypes.create_unicode_buffer(32768)
     if not ctypes.WinDLL("kernel32", use_last_error=True).GetModuleFileNameW(None, main_buffer, len(main_buffer)):
         raise VWStop("VW-DEPENDENCY-DRIFT", "GetModuleFileNameW failed")
@@ -4028,6 +4399,10 @@ def runtime_module_inventory() -> list[dict[str, Any]]:
 
 
 def producer_observation(repo_root: Path, configuration_sha256: str) -> dict[str, Any]:
+    """Describe the producer: Python / PyMuPDF / MuPDF versions, runtime module hashes, and code hashes.
+
+    Reads this file and the selftest file to hash them; raises VWStop if the selftest file is missing.
+    """
     selftest = repo_root / "windows-converter/visual_witness_capture_selftest.py"
     if not selftest.is_file():
         raise VWStop("VW-DEPENDENCY-DRIFT", "semantic validator code file is missing")
@@ -4044,7 +4419,9 @@ def producer_observation(repo_root: Path, configuration_sha256: str) -> dict[str
     }
 
 
+# -- per-case and whole-event aggregation --
 def case_class_census(pages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    """For each class, total the candidate counts over a case's pages, or mark it UNREAD if any page was."""
     census: list[dict[str, Any]] = []
     for class_name in CLASS_ORDER:
         procedures = [
@@ -4078,6 +4455,7 @@ def case_class_census(pages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]
 
 
 def aggregate_coverage(cases: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
+    """Sum tile-union coverage over all readable pages of all cases (covered pixels / valid pixels)."""
     pages = [page for case in cases for page in case["pages"]]
     readable = [page for page in pages if page["tile_union"]["status"] == "measured"]
     unread = [page for page in pages if page["tile_union"]["status"] == "UNREAD"]
@@ -4114,6 +4492,7 @@ def aggregate_coverage(cases: Sequence[Mapping[str, Any]]) -> dict[str, Any]:
 
 
 def build_capture_payload(cases: Sequence[Mapping[str, Any]], configuration_sha256: str) -> dict[str, Any]:
+    """Assemble the capture payload for exactly the three calibration cases, with census, metrics and its hash."""
     ordered = sorted(cases, key=lambda case: ALLOWED_CASE_IDS.index(case["case_id"]))
     if [case["case_id"] for case in ordered] != list(ALLOWED_CASE_IDS):
         raise VWStop("VW-IDENTITY", "capture payload cases are not exact calibration set")
@@ -4142,6 +4521,7 @@ def build_capture_payload(cases: Sequence[Mapping[str, Any]], configuration_sha2
 
 
 def unread_source_observation(case: ResolvedCaseFiles, reason_code: str) -> dict[str, Any]:
+    """A source observation marked UNREAD: the manifest's hashes are kept, observed values are None."""
     return {
         "status": "UNREAD",
         "manifest_sha256": case.case["source_sha256_manifest"],
@@ -4159,6 +4539,7 @@ def unread_bundle_observation(
     reason_code: str,
     protected_before_entries: Sequence[Mapping[str, Any]],
 ) -> dict[str, Any]:
+    """A bundle observation marked UNREAD for one reason code, using only the expected values and BEFORE manifest hash."""
     before_by_id = {str(item["logical_id"]): item for item in protected_before_entries}
     manifest_entry = before_by_id.get(f"{case.case_id}/bundle-manifest")
     if manifest_entry is None:
@@ -4210,7 +4591,10 @@ def unread_bundle_observation(
 
 
 def _peak_working_set() -> int:
+    """Peak working-set size of this process in bytes, read through psapi (Windows only)."""
     class PROCESS_MEMORY_COUNTERS(ctypes.Structure):
+        """ctypes layout of the Windows PROCESS_MEMORY_COUNTERS structure."""
+
         _fields_ = [
             ("cb", ctypes.c_ulong),
             ("PageFaultCount", ctypes.c_ulong),
@@ -4240,6 +4624,7 @@ def _peak_working_set() -> int:
 
 
 def scratch_tree_bytes(root: Path) -> int:
+    """Total size in bytes of all files under `root`; raises VWStop if any reparse point appears."""
     total = 0
     for directory, subdirectories, files in os.walk(root, topdown=True, followlinks=False):
         directory_path = Path(directory)
@@ -4256,12 +4641,19 @@ def scratch_tree_bytes(root: Path) -> int:
     return total
 
 
+# -- running one case: capture, worker process, probes, completion checks --
 def capture_case(
     case: ResolvedCaseFiles,
     protected_before_entries: Sequence[Mapping[str, Any]],
     configuration_sha256: str,
     scratch_run: Path,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    """Capture every page of one calibration case in this process.
+
+    Returns (case report, resource record with wall/CPU time, memory and scratch peak, fresh asset
+    observations). A VWStop inside turns the whole case into UNREAD records rather than raising.
+    Raises VWStop("VW-CLEANUP") if the scratch directory outgrows its hard cap.
+    """
     started_wall, started_cpu = time.perf_counter(), time.process_time()
     scratch_peak = scratch_tree_bytes(scratch_run)
     fresh_asset_observations: list[dict[str, Any]] = []
@@ -4328,6 +4720,10 @@ def _case_worker_entry(
     configuration_sha256: str,
     scratch_run: Path,
 ) -> None:
+    """Entry point of a spawned case worker: install the audit hook, run capture_case, send the result.
+
+    Sends ("ok", value, activity) or ("error", reason info, activity) down `connection`, then closes it.
+    """
     EVENT_ACTIVITY.reset()
     try:
         install_event_activity_audit()
@@ -4350,6 +4746,11 @@ def run_case_worker(
     configuration_sha256: str,
     scratch_run: Path,
 ) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]]]:
+    """Run capture_case for one case in a fresh spawned process and return its result.
+
+    Starts the process, waits on a pipe for its message, folds the child's network/GPU counts into
+    the parent's, records its PID as a child that exited, and raises VWStop if it failed.
+    """
     context = mp.get_context("spawn")
     parent_connection, child_connection = context.Pipe(duplex=False)
     worker = context.Process(
@@ -4388,6 +4789,10 @@ def run_case_worker(
 
 
 def _activity_probe_worker_entry(connection: Any, probe: str) -> None:
+    """Child-side probe: try a loopback socket connect or a GPU DLL load and report the denied counts.
+
+    The audit hook is expected to deny the attempt; the activity snapshot is sent down `connection`.
+    """
     EVENT_ACTIVITY.reset()
     try:
         install_event_activity_audit()
@@ -4445,6 +4850,10 @@ def run_all_case_workers(
     configuration_sha256: str,
     scratch_run: Path,
 ) -> tuple[list[dict[str, Any]], list[dict[str, Any]], dict[str, list[dict[str, Any]]]]:
+    """Run the three calibration cases one after another, each in its own worker process.
+
+    Returns (case reports, resource records, fresh asset observations keyed by case id).
+    """
     reports: list[dict[str, Any]] = []
     resources: list[dict[str, Any]] = []
     fresh_assets: dict[str, list[dict[str, Any]]] = {}
@@ -4464,6 +4873,7 @@ def run_all_case_workers(
 
 
 def require_completed_cases(case_reports: Sequence[Mapping[str, Any]]) -> None:
+    """Raise VWStop (using the first UNREAD reason) unless every case is measured with no unreads or conflicts."""
     for case in case_reports:
         if case.get("procedure_status") != "measured" or case.get("unreads") or case.get("conflicts"):
             unreads = case.get("unreads")
@@ -4471,10 +4881,12 @@ def require_completed_cases(case_reports: Sequence[Mapping[str, Any]]) -> None:
             raise VWStop(reason, "calibration case did not complete")
 
 
+# -- semantic checks: failure type, reason table and ordering predicates --
 class SemanticFailure(VWStop):
     """One exact named semantic predicate failed or was procedurally unread."""
 
     def __init__(self, name: str, reason: str, *, unread: bool = False):
+        """Record the check name and whether it was unread rather than failed; reason is the VWStop reason."""
         super().__init__(reason, name)
         self.name = name
         self.unread = unread
@@ -4522,11 +4934,16 @@ ORDINARY_CHECK_NAMES = tuple(
 
 
 def _semantic_assert(name: str, condition: bool, *, unread: bool = False) -> None:
+    """Raise SemanticFailure for the named check (reason from CHECK_REASON_CODES) when `condition` is false."""
     if not condition:
         raise SemanticFailure(name, CHECK_REASON_CODES[name], unread=unread)
 
 
 def _schema_engine(repo_root: Path) -> Any:
+    """Load (once) the selftest module that holds the bound-schema validator, by file path, and return it.
+
+    Side effects: registers the module in sys.modules and executes the selftest file's top level.
+    """
     module_name = "_visual_witness_capture_schema_engine"
     if module_name in sys.modules:
         return sys.modules[module_name]
@@ -4542,20 +4959,24 @@ def _schema_engine(repo_root: Path) -> Any:
 
 
 def assert_capture_schema(repo_root: Path, report: Mapping[str, Any]) -> None:
+    """Validate the report against the bound capture schema using the selftest module's validator."""
     engine = _schema_engine(repo_root)
     schema = engine.load_bound_schema(repo_root)
     engine.assert_bound_schema(report, schema)
 
 
 def _canonical_object_unique(items: Sequence[Any]) -> bool:
+    """True when no two items have the same canonical JSON form."""
     return len({canonical_json_bytes(item) for item in items}) == len(items)
 
 
 def _sorted_unique_strings(items: Any) -> bool:
+    """True when `items` is a list of strings already sorted and without duplicates."""
     return isinstance(items, list) and all(isinstance(item, str) for item in items) and items == sorted(set(items))
 
 
 def _disposition_key(item: Mapping[str, Any]) -> tuple[Any, ...]:
+    """Sort key for conflict / UNREAD / inaccessible records: scope, reason, blocking, detail, evidence (None first)."""
     reason = item.get("reason_code")
     evidence = item.get("evidence_sha256")
     return (
@@ -4568,6 +4989,7 @@ def _disposition_key(item: Mapping[str, Any]) -> tuple[Any, ...]:
 
 
 def _recursive_order_contract(value: Any) -> bool:
+    """Walk a report and check every reason_codes list and every conflicts / unreads / inaccessible list is ordered."""
     if isinstance(value, dict):
         for key, child in value.items():
             if key == "reason_codes" and not _sorted_unique_strings(child):
@@ -4585,11 +5007,14 @@ def _recursive_order_contract(value: Any) -> bool:
 
 
 def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str, Mapping[str, Any]]) -> bool:
+    """True when a candidate's nested lists (edge touches, recovery tiles, evidence ids, table tracks and cells)
+    are in the canonical order and free of duplicates."""
     recovery = candidate["edge_recovery"]
     touches = recovery["touched_internal_edges"]
     relation_rank = {"equals-min-boundary": 0, "equals-max-boundary": 1, "straddles": 2}
     direction_rank = {"negative": 0, "positive": 1, "both": 2}
     def touch_key(item):
+        """Sort key for an edge touch: x before y, then coordinate, relation rank, direction rank."""
         return (
             0 if item["axis"] == "x" else 1,
             item["coordinate_px"],
@@ -4627,6 +5052,7 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
                 if not _sorted_unique_strings(track["member_primitive_ids"]):
                     return False
             def track_key(track):
+                """Sort key for a table track: axis, extent start, extent end, member ids."""
                 return (
                     track["axis_px"], track["extent_start_px"], track["extent_end_px"],
                     tuple(track["member_primitive_ids"]),
@@ -4645,6 +5071,8 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
 
 
 def _canonical_arrays(report: Mapping[str, Any]) -> bool:
+    """True when every array in the report (cases, markdown, assets, pages, tiles, primitives, candidates,
+    relationships, runtime modules, workers, residue, semantic checks) is in its canonical order."""
     payload = report["capture_payload"]
     cases = payload["cases"]
     if payload["case_census"]["case_ids"] != list(ALLOWED_CASE_IDS):
@@ -4692,6 +5120,7 @@ def _canonical_arrays(report: Mapping[str, Any]) -> bool:
                     "item_list_index_0based", "emitted_edge_index_0based", "engine_number_observed",
                 )
                 def key(item):
+                    """Sort key for a provenance record: its six index fields in order, None as -1."""
                     return tuple(-1 if item[name] is None else item[name] for name in names)
                 if provenance != sorted(provenance, key=key) or len({canonical_json_bytes(item) for item in provenance}) != len(provenance):
                     return False
@@ -4734,6 +5163,7 @@ def _canonical_arrays(report: Mapping[str, Any]) -> bool:
 
 
 def _box_strings_valid(values: Any) -> bool:
+    """True when `values` is four 6-decimal number strings forming a box with x0 < x1 and y0 < y1."""
     return (
         isinstance(values, list)
         and len(values) == 4
@@ -4750,6 +5180,11 @@ def validate_ordinary_semantics(
     roots: OutputRoots,
     fresh_assets: Mapping[str, Sequence[Mapping[str, Any]]],
 ) -> None:
+    """Run every ordinary semantic check on a finished report, raising SemanticFailure on the first that fails.
+
+    Re-derives ids, tiles, relationships and censuses from the report and compares them with what it
+    states; also checks resources, protected tree, privacy/cleanup, output roots and residue.
+    """
     payload = report["capture_payload"]
     observations = report["run_observations"]
 
@@ -4792,6 +5227,7 @@ def validate_ordinary_semantics(
     )
     _semantic_assert("status-null-reason-coherence", not procedural_unread, unread=procedural_unread)
 
+    # Source and bundle: all three source hashes agree, manifest/markdown/asset hashes match what was expected.
     source_bundle_ok = True
     for case in cases:
         source = case["source"]
@@ -4820,6 +5256,7 @@ def validate_ordinary_semantics(
     except (KeyError, VWStop):
         raise SemanticFailure("page-map-coherence", CHECK_REASON_CODES["page-map-coherence"])
 
+    # One flag per semantic check; the loop below clears a flag when any page, primitive or candidate violates it.
     bbox_ok = True
     render_ok = True
     tile_ref_ok = True
@@ -4836,6 +5273,7 @@ def validate_ordinary_semantics(
     recovery_ok = True
     crop_ok = True
     text_ok = True
+    # Walk every page of every case, re-checking render, tiles, primitives, candidates and relationships.
     for case in cases:
         source_sha = case["source"]["observed_sha256"]
         for page in case["pages"]:
@@ -4924,6 +5362,7 @@ def validate_ordinary_semantics(
         expected_census = case_class_census(case["pages"])
         census_ok &= case["class_census"] == expected_census
 
+    # Report the accumulated flags as named checks.
     _semantic_assert("bbox-order-range-transform", bbox_ok)
     _semantic_assert("render-rgb-arithmetic", render_ok)
     _semantic_assert("tile-id-bbox-reference", tile_ref_ok)
@@ -4993,7 +5432,9 @@ def validate_ordinary_semantics(
     )
 
 
+# -- semantic check objects and probe evidence hashes --
 def pre_verifier_subject_sha256(report: Mapping[str, Any]) -> str:
+    """Hash of the capture payload plus run observations with the independent-verification part removed."""
     observations = copy.deepcopy(report["run_observations"])
     observations.pop("independent_verification", None)
     return domain_hash(
@@ -5010,6 +5451,7 @@ def semantic_check_object(
     subject_sha256: str,
     validator_code_sha256: str,
 ) -> dict[str, Any]:
+    """Build the report entry for one semantic check; pass/fail entries carry a hashed evidence value."""
     reasons = [] if status == "pass" else [CHECK_REASON_CODES[name]]
     evidence: str | None = None
     if status in ("pass", "fail"):
@@ -5035,6 +5477,7 @@ def semantic_check_object(
 
 
 def build_ordinary_semantic_checks(report: Mapping[str, Any]) -> tuple[list[dict[str, Any]], str, str]:
+    """Mark every ordinary check as pass. Returns (check objects, subject hash, hash of the check list)."""
     subject = pre_verifier_subject_sha256(report)
     validator_sha = report["run_observations"]["producer"]["semantic_validator_code_sha256"]
     checks = [
@@ -5046,6 +5489,10 @@ def build_ordinary_semantic_checks(report: Mapping[str, Any]) -> tuple[list[dict
 
 
 def build_preverifier_semantic_checks(report: Mapping[str, Any]) -> tuple[list[dict[str, Any]], str, str]:
+    """Like build_ordinary_semantic_checks, but first require cleanup and protected AFTER to be verified.
+
+    Raises VWStop if the last completed gate is not CLEANUP-VERIFIED or those observations are not actual.
+    """
     if LAST_COMPLETED_GATE != "CLEANUP-VERIFIED":
         raise VWStop("VW-IDENTITY", "pre-verifier subject requires actual protected AFTER and cleanup")
     observations = report.get("run_observations")
@@ -5061,6 +5508,7 @@ def build_preverifier_semantic_checks(report: Mapping[str, Any]) -> tuple[list[d
 
 
 def _literal_domain_hash(domain_text: str, value: Any) -> str:
+    """SHA-256 of a literal domain text, a NUL byte, then the canonical JSON of `value`."""
     return sha256_bytes(domain_text.encode("utf-8") + b"\0" + canonical_json_bytes(value))
 
 
@@ -5073,6 +5521,7 @@ def generic_probe_evidence(
     reason_codes: Sequence[str],
     result_projection: Mapping[str, Any],
 ) -> str:
+    """Evidence hash binding a probe's id, code hash, subject, status, reasons and result."""
     return domain_hash(
         "probe",
         {
@@ -5088,6 +5537,7 @@ def generic_probe_evidence(
 
 
 def heldout_probe(capture_code_sha256: str) -> str:
+    """Evidence hash for the held-out selector probe (held-out cases rejected, none resolved to paths)."""
     subject = _literal_domain_hash(
         "file-portal/vw-e2-probe-subject/heldout-selector-v1/r2",
         {
@@ -5111,8 +5561,11 @@ def heldout_probe(capture_code_sha256: str) -> str:
     )
 
 
+# -- event isolation measurement: child processes and open ports --
 @dataclass(frozen=True)
 class IsolationMeasurement:
+    """Process IDs belonging to the event, those still alive, and TCP/UDP ports they own."""
+
     event_pids: tuple[int, ...]
     live_event_pids: tuple[int, ...]
     owned_ports: tuple[int, ...]
@@ -5122,10 +5575,13 @@ IsolationProvider = Callable[[set[int]], IsolationMeasurement]
 
 
 def _windows_process_parent_map() -> dict[int, int]:
+    """Snapshot the Windows process table as {pid: parent pid} (Toolhelp32); raises VWStop("UNREAD") on failure."""
     if os.name != "nt":
         raise VWStop("UNREAD", "event descendant measurement requires Windows")
 
     class PROCESSENTRY32W(ctypes.Structure):
+        """ctypes layout of the Windows PROCESSENTRY32W structure."""
+
         _fields_ = [
             ("dwSize", wintypes.DWORD),
             ("cntUsage", wintypes.DWORD),
@@ -5172,24 +5628,32 @@ def _windows_process_parent_map() -> dict[int, int]:
 
 
 def _network_order_port(raw_port: int) -> int:
+    """Swap the two bytes of a 16-bit port stored in network byte order."""
     value = int(raw_port) & 0xFFFF
     return ((value & 0xFF) << 8) | ((value >> 8) & 0xFF)
 
 
 def _windows_owner_port_rows() -> list[tuple[int, int]]:
+    """List (owning pid, local port) for every TCP and UDP endpoint (IPv4 and IPv6) via iphlpapi."""
     if os.name != "nt":
         raise VWStop("UNREAD", "event port measurement requires Windows")
     iphlpapi = ctypes.WinDLL("iphlpapi", use_last_error=True)
 
     class TCP4(ctypes.Structure):
+        """ctypes row layout of the IPv4 TCP owner-PID table."""
+
         _fields_ = [(name, wintypes.DWORD) for name in (
             "state", "local_addr", "local_port", "remote_addr", "remote_port", "pid"
         )]
 
     class UDP4(ctypes.Structure):
+        """ctypes row layout of the IPv4 UDP owner-PID table."""
+
         _fields_ = [(name, wintypes.DWORD) for name in ("local_addr", "local_port", "pid")]
 
     class TCP6(ctypes.Structure):
+        """ctypes row layout of the IPv6 TCP owner-PID table."""
+
         _fields_ = [
             ("local_addr", ctypes.c_ubyte * 16), ("local_scope", wintypes.DWORD),
             ("local_port", wintypes.DWORD), ("remote_addr", ctypes.c_ubyte * 16),
@@ -5198,12 +5662,15 @@ def _windows_owner_port_rows() -> list[tuple[int, int]]:
         ]
 
     class UDP6(ctypes.Structure):
+        """ctypes row layout of the IPv6 UDP owner-PID table."""
+
         _fields_ = [
             ("local_addr", ctypes.c_ubyte * 16), ("local_scope", wintypes.DWORD),
             ("local_port", wintypes.DWORD), ("pid", wintypes.DWORD),
         ]
 
     def rows(function_name: str, family: int, table_class: int, row_type: type[ctypes.Structure]) -> list[tuple[int, int]]:
+        """Call one iphlpapi table function twice (size, then fill) and return (pid, port) for rows with a port."""
         function = getattr(iphlpapi, function_name)
         function.argtypes = (
             ctypes.c_void_p, ctypes.POINTER(wintypes.DWORD), wintypes.BOOL,
@@ -5240,6 +5707,7 @@ def _windows_owner_port_rows() -> list[tuple[int, int]]:
 
 
 def native_isolation_measurement(known_event_pids: set[int]) -> IsolationMeasurement:
+    """Expand the known event PIDs to all their descendants, then report which are alive and which ports they own."""
     parents = _windows_process_parent_map()
     event = {int(pid) for pid in known_event_pids if isinstance(pid, int) and not isinstance(pid, bool) and pid > 0}
     changed = True
@@ -5260,6 +5728,8 @@ def isolation_probe(
     provider: IsolationProvider | None = None,
     transitional_pids: Iterable[int] = (),
 ) -> tuple[str, dict[str, Any], IsolationMeasurement]:
+    """Check that no event child process survives (except listed transitional ones), no port is held,
+    and no network or GPU attempt was counted. Returns (evidence hash, result dict, measurement)."""
     provider = native_isolation_measurement if provider is None else provider
     try:
         measurement = provider(set(EVENT_CHILD_PIDS) | set(EVENT_OBSERVED_DESCENDANT_PIDS))
@@ -5317,6 +5787,7 @@ def isolation_probe(
 
 
 def cleanup_probe(capture_code_sha256: str, run_id: str, *, removed: bool, part_files: int) -> str:
+    """Evidence hash for the cleanup probe (was the event scratch removed, how many .part files remain)."""
     prefix = f"vw-e2-r2-{run_id}-"
     subject = _literal_domain_hash(
         "file-portal/vw-e2-probe-subject/cleanup-v1/r2",
@@ -5338,10 +5809,16 @@ def cleanup_probe(capture_code_sha256: str, run_id: str, *, removed: bool, part_
     )
 
 
+# -- privacy scan: the private-string dictionary and the schema-licensed string check --
 def _private_dictionary(manifest: CalibrationManifest, cases: Sequence[ResolvedCaseFiles]) -> tuple[list[str], str]:
+    """Collect the private strings (root, titles, paths, file names) that must never appear in the report.
+
+    Returns (sorted case-folded strings, their domain hash).
+    """
     values: set[str] = set()
 
     def add(value: Any) -> None:
+        """Add a non-empty string to the dictionary in backslash, case-folded form."""
         if isinstance(value, str) and value:
             values.add(value.replace("/", "\\").casefold())
 
@@ -5359,6 +5836,7 @@ def _private_dictionary(manifest: CalibrationManifest, cases: Sequence[ResolvedC
 
 
 def _string_leaves(value: Any, pointer: str = "") -> Iterator[tuple[str, str]]:
+    """Yield (JSON pointer, text) for every string in a nested dict / list value, in sorted key order."""
     if isinstance(value, str):
         yield pointer or "/", value
     elif isinstance(value, dict):
@@ -5371,12 +5849,14 @@ def _string_leaves(value: Any, pointer: str = "") -> Iterator[tuple[str, str]]:
 
 
 def _schema_pointer_tokens(pointer: str) -> list[str]:
+    """Split a JSON pointer into its unescaped tokens (empty list if it does not start with "/")."""
     if not pointer.startswith("/"):
         return []
     return [token.replace("~1", "/").replace("~0", "~") for token in pointer[1:].split("/")]
 
 
 def _schema_expand_nodes(node: Any, root: Mapping[str, Any], seen: set[int] | None = None) -> list[Mapping[str, Any]]:
+    """Return a schema node plus every node reachable through $ref, allOf / anyOf / oneOf and if / then / else."""
     if not isinstance(node, dict):
         return []
     seen = set() if seen is None else set(seen)
@@ -5408,6 +5888,7 @@ def _schema_expand_nodes(node: Any, root: Mapping[str, Any], seen: set[int] | No
 
 
 def _schema_nodes_at_pointer(schema: Mapping[str, Any], pointer: str) -> list[Mapping[str, Any]]:
+    """Find the schema nodes that describe the report location named by a JSON pointer (empty if none)."""
     candidates: list[Mapping[str, Any]] = [schema]
     for token in _schema_pointer_tokens(pointer):
         next_candidates: list[Mapping[str, Any]] = []
@@ -5433,6 +5914,7 @@ def _schema_nodes_at_pointer(schema: Mapping[str, Any], pointer: str) -> list[Ma
     return expanded
 
 
+# Schema patterns too broad to license a string on their own (see _string_is_location_licensed).
 _BROAD_OPAQUE_PATTERNS = frozenset(
     (
         r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$",
@@ -5442,6 +5924,7 @@ _BROAD_OPAQUE_PATTERNS = frozenset(
 
 
 def _contract_path(value: Mapping[str, Any], *tokens: str) -> Any:
+    """Follow a chain of dict keys into `value`; return None as soon as one is missing."""
     current: Any = value
     for token in tokens:
         if not isinstance(current, dict) or token not in current:
@@ -5515,6 +5998,8 @@ def _string_is_location_licensed(
     packet: Mapping[str, Any],
     schema: Mapping[str, Any],
 ) -> bool:
+    """True when a retained string at `pointer` is allowed there by the schema (const / enum / pattern /
+    date-time), by the packet's grammars, or by one of the fixed shape rules below."""
     nodes = _schema_nodes_at_pointer(schema, pointer)
     if not nodes:
         return False
@@ -5573,6 +6058,8 @@ def retained_string_scan(
     schema: Mapping[str, Any],
     private_dictionary: Sequence[str],
 ) -> dict[str, int]:
+    """Scan every string in the report for path-like text, long base64-like text, private identifiers
+    and strings not licensed by their location. Returns the four hit counts."""
     path_hits = base64_hits = private_hits = unlicensed_hits = 0
     for pointer, text_value in _string_leaves(value):
         normalized = text_value.replace("/", "\\").casefold()
@@ -5608,6 +6095,10 @@ def redaction_probe(
     private_dictionary_sha256: str,
     capture_code_sha256: str,
 ) -> tuple[str, dict[str, int]]:
+    """Run the string scan on the report and return (probe evidence hash, result counts).
+
+    The probe passes only when every count is zero.
+    """
     subject_observations = copy.deepcopy(report["run_observations"])
     subject_observations.pop("independent_verification", None)
     subject_observations["privacy"].pop("redaction_probe_sha256", None)
@@ -5645,7 +6136,9 @@ def redaction_probe(
     return evidence, result
 
 
+# -- cleanup, the report file, run observations and the independent verifier --
 def _part_file_count(evidence_run: Path, run_id: str) -> int:
+    """Count leftover "<prefix>*.part" files in the evidence run directory."""
     prefix = f"vw-e2-r2-{run_id}-"
     count = 0
     for child in evidence_run.iterdir():
@@ -5655,6 +6148,10 @@ def _part_file_count(evidence_run: Path, run_id: str) -> int:
 
 
 def cleanup_scratch(roots: OutputRoots, run_id: str) -> tuple[dict[str, Any], list[str]]:
+    """Delete the event scratch directory tree, then record whether it is gone and no .part file remains.
+
+    Side effect: shutil.rmtree on roots.scratch_run. Returns (cleanup record, sorted residue names).
+    """
     capture_sha = sha256_file(Path(__file__))
     if roots.scratch_run.exists():
         scratch_tree_bytes(roots.scratch_run)
@@ -5674,6 +6171,10 @@ def cleanup_scratch(roots: OutputRoots, run_id: str) -> tuple[dict[str, Any], li
 
 
 def create_new_json(path: Path, value: Any) -> tuple[bytes, str]:
+    """Write canonical JSON plus a newline to a NEW file (exclusive create), fsync, and read it back.
+
+    Returns (bytes written, their SHA-256); raises VWStop if the file exists, cannot be written, or differs.
+    """
     raw = canonical_json_bytes(value) + b"\n"
     try:
         with path.open("xb") as handle:
@@ -5689,6 +6190,7 @@ def create_new_json(path: Path, value: Any) -> tuple[bytes, str]:
 
 
 def _utc_now() -> str:
+    """The current UTC time as an ISO-8601 string with microseconds and a trailing Z."""
     return dt.datetime.now(dt.timezone.utc).isoformat(timespec="microseconds").replace("+00:00", "Z")
 
 
@@ -5708,6 +6210,8 @@ def _base_run_observations(
     isolation_evidence: str,
     isolation_result: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Assemble the run_observations part of the report (producer, resources, privacy, protected tree,
+    cleanup, residue). Raises VWStop("VW-CLEANUP") if the isolation measurement is not clean."""
     producer = producer_observation(repo_root, configuration_sha256)
     if (
         isolation_result.get("event_child_process_count") != 0
@@ -5779,10 +6283,13 @@ def _base_run_observations(
 
 @dataclass(frozen=True)
 class VerifierInvocation:
+    """A started independent-verifier child process and the wall-clock time (ns since epoch) it started."""
+
     process: Any = field(repr=False)
     started_epoch_ns: int
 
 
+# Exact key set the independent verifier's result object must have.
 VERIFIER_RESULT_KEYS = frozenset(
     (
         "verifier", "status", "probe_id", "verifier_code_sha256", "packet_sha256",
@@ -5793,6 +6300,10 @@ VERIFIER_RESULT_KEYS = frozenset(
 
 
 def _start_verifier(repo_root: Path, roots: OutputRoots) -> VerifierInvocation:
+    """Start windows-converter/visual_witness_verify.py as a child process with piped stdin/stdout/stderr.
+
+    Records its PID in EVENT_CHILD_PIDS and the ACTIVE_VERIFIER global. `roots` is deleted unused.
+    """
     global ACTIVE_VERIFIER
     del roots
     verifier = repo_root / "windows-converter/visual_witness_verify.py"
@@ -5823,6 +6334,10 @@ def _validate_independent_result(
     *,
     repo_root: Path,
 ) -> dict[str, Any]:
+    """Check the verifier's result against the request: key set, hashes, fixed names, and its own evidence hash.
+
+    Returns a copy of the result; raises VWStop on any difference.
+    """
     if set(result) != VERIFIER_RESULT_KEYS:
         raise VWStop("VW-NEGATIVE-CONTROL", "independent verifier result keys differ")
     payload = request.get("capture_payload")
@@ -5871,6 +6386,11 @@ def _finish_verifier(
     *,
     repo_root: Path,
 ) -> dict[str, Any]:
+    """Send the request to the verifier over stdin, wait up to 60 s, and validate what it returns.
+
+    Folds the verifier's network/GPU activity counts into the parent's, records its exit, clears
+    ACTIVE_VERIFIER, and returns the validated result. Raises VWStop on timeout or any bad output.
+    """
     global ACTIVE_VERIFIER
     process = invocation.process
     request_bytes = canonical_json_bytes(request) + b"\n"
@@ -5910,6 +6430,10 @@ def _assemble_final_report(
     ordinary_checks: Sequence[Mapping[str, Any]],
     independent: Mapping[str, Any],
 ) -> dict[str, Any]:
+    """Add the independent verification and the full semantic-check list to the report and compute report_id.
+
+    The report-id check is built last because its subject hash covers the rest of the report.
+    """
     validator_sha = report["run_observations"]["producer"]["semantic_validator_code_sha256"]
     if independent.get("status") != "Verified-independent" or not isinstance(independent.get("evidence_sha256"), str):
         raise VWStop("VW-NEGATIVE-CONTROL", "independent verifier did not pass")
@@ -5949,7 +6473,9 @@ def _assemble_final_report(
     return report
 
 
+# -- receipt: schema check and construction --
 def _load_bound_json(repo_root: Path, relative: Path, expected_bytes: int, expected_sha: str) -> Mapping[str, Any]:
+    """Read a JSON object under repo_root, requiring the frozen size and SHA-256; raises VWStop on mismatch."""
     raw = (repo_root / relative).read_bytes()
     if len(raw) != expected_bytes or sha256_bytes(raw) != expected_sha:
         raise VWStop("GROUND-DRIFT", "bound schema identity mismatch")
@@ -5960,6 +6486,7 @@ def _load_bound_json(repo_root: Path, relative: Path, expected_bytes: int, expec
 
 
 def assert_receipt_schema(repo_root: Path, receipt: Mapping[str, Any]) -> Mapping[str, Any]:
+    """Validate the receipt against the bound event-receipt schema; returns the schema, raises VWStop on failure."""
     schema_path = Path("docs/contracts/visual-witness-event-receipt-v1.schema.json")
     schema = _load_bound_json(repo_root, schema_path, 12483, "ae057c25216cbbe64c551752faa7ae603137343746dbacb46f990d69736e7b4f")
     engine = _schema_engine(repo_root)
@@ -5980,6 +6507,10 @@ def _build_receipt(
     repo_head_after: str,
     negative_control_suite_identity: str,
 ) -> dict[str, Any]:
+    """Build the COMPLETE event receipt dict from the packet and the finished report and its saved bytes.
+
+    Raises VWStop if the negative controls did not run or the event used the GPU or network.
+    """
     observations = report["run_observations"]
     resources = observations["resources"]
     independent = observations["independent_verification"]
@@ -6043,7 +6574,11 @@ def persist_complete_output_payloads(
     receipt_builder: Callable[[bytes, str], Mapping[str, Any]],
     receipt_validator: Callable[[Mapping[str, Any]], None],
 ) -> dict[str, Any]:
-    """Persist report then receipt in the packet-frozen create and validation order."""
+    """Persist report then receipt in the packet-frozen create and validation order.
+
+    Writes the report file, reads it back, builds and validates the receipt from the saved bytes,
+    then writes the receipt file; repository HEAD is re-checked between steps. Returns the receipt.
+    """
 
     global LAST_COMPLETED_GATE
 
@@ -6089,6 +6624,7 @@ def persist_complete_output_payloads(
     return receipt
 
 
+# -- the whole event, failure exit records and the command line --
 def run_event(
     *,
     repo_root: Path,
@@ -6098,6 +6634,14 @@ def run_event(
     run_id: str,
     selected_case_ids: Sequence[str],
 ) -> dict[str, Any]:
+    """Run the whole VW-E2-R2 event and return the COMPLETE receipt.
+
+    Order: verify repository ground and negative controls; read the manifest and resolve case
+    files; prepare output roots; hash the protected tree (BEFORE); capture each case in a worker
+    process; start the independent verifier; clean up scratch; hash the protected tree (AFTER);
+    build and check the report; get the verifier's result; write the report and receipt.
+    Updates the module-level gate globals as each gate completes; raises VWStop on any failure.
+    """
     global ACTIVE_ROOTS, ACTIVE_RUN_ID, ACTIVE_VERIFIER, LAST_COMPLETED_GATE
     EVENT_CHILD_PIDS.clear()
     EVENT_CHILD_EXITED_PIDS.clear()
@@ -6271,6 +6815,7 @@ def run_event(
     receipt_path = roots.evidence_run / f"vw-e2-r2-{run_id}-receipt.json"
 
     def build_receipt(prepared_report_bytes: bytes, prepared_report_sha: str) -> Mapping[str, Any]:
+        """Build the receipt for the report bytes just saved (closure over this run's packet and report)."""
         return _build_receipt(
             packet=packet,
             report=report,
@@ -6283,6 +6828,7 @@ def run_event(
         )
 
     def validate_receipt_for_persistence(candidate: Mapping[str, Any]) -> None:
+        """Check the receipt against its schema and the retained-string scan; raise VWStop if rejected."""
         receipt_schema = assert_receipt_schema(repo_root, candidate)
         receipt_scan = retained_string_scan(
             candidate,
@@ -6306,6 +6852,7 @@ def run_event(
 
 
 def minimal_attempt_exit(*, status: str, last_completed_gate: str, reason_code: str) -> dict[str, Any]:
+    """Build the small attempt-exit record for a failed run; unknown status, gate or reason fall back to defaults."""
     if status not in ("STOPPED", "FAILED", "UNREAD"):
         status = "FAILED"
     if last_completed_gate not in (
@@ -6331,6 +6878,7 @@ def minimal_attempt_exit(*, status: str, last_completed_gate: str, reason_code: 
 
 
 def _failure_status(reason: str) -> str:
+    """Map a reason code to the attempt-exit status: UNREAD, STOPPED or FAILED."""
     if reason == "UNREAD" or reason.endswith("-UNREAD") or reason in ("VW-RENDER-UNREAD", "VW-COORDINATE-UNREAD"):
         return "UNREAD"
     if reason in ("GROUND-DRIFT", "AUTHORITY-MISSING", "VW-HELDOUT-CONTAMINATION"):
@@ -6343,6 +6891,10 @@ def persist_partial_root_attempt_exit(
     run_id: str,
     failure: Mapping[str, Any],
 ) -> bool:
+    """Write the attempt-exit JSON into the evidence run directory left by a failed root setup.
+
+    Returns True if written, False if the directory is missing, a reparse point, or the write fails.
+    """
     evidence_run = context.evidence_run_created
     if evidence_run is None or not evidence_run.is_dir() or _is_reparse(evidence_run):
         return False
@@ -6356,6 +6908,8 @@ def persist_partial_root_attempt_exit(
 
 @dataclass(frozen=True)
 class CLIArguments:
+    """Parsed command-line options: repo root, private manifest, evidence root, scratch root, run id, case ids."""
+
     repo_root: Path
     private_manifest: Path
     evidence_root: Path
@@ -6365,6 +6919,11 @@ class CLIArguments:
 
 
 def parse_cli_arguments(argv: Sequence[str] | None) -> CLIArguments:
+    """Parse "--option value" pairs (sys.argv when argv is None) into CLIArguments.
+
+    Only six options are allowed and each (except --case-id) may appear once; anything else raises
+    VWStop("AUTHORITY-MISSING").
+    """
     tokens = list(sys.argv[1:] if argv is None else argv)
     singles: dict[str, str] = {}
     cases: list[str] = []
@@ -6407,6 +6966,12 @@ def main(
     *,
     event_runner: Callable[..., Mapping[str, Any]] | None = None,
 ) -> int:
+    """Command-line entry point: run the event and print the receipt JSON, or print an attempt-exit record.
+
+    Returns 0 on success and 2 on any failure; on failure it also kills a running verifier, removes
+    scratch, tries to save the attempt-exit file, and writes the reason code to stderr.
+    `event_runner` lets a test replace run_event.
+    """
     global ACTIVE_ROOTS, ACTIVE_RUN_ID, ACTIVE_VERIFIER, LAST_COMPLETED_GATE
     ACTIVE_ROOTS = None
     ACTIVE_RUN_ID = None
@@ -6430,6 +6995,7 @@ def main(
     except BaseException as exc:
         reason = exc.reason if isinstance(exc, VWStop) else "UNREAD"
         partial_context = exc.context if isinstance(exc, PartialRootFailure) else None
+        # Failure path: stop a running verifier, remove scratch, then save and print the attempt-exit record.
         if ACTIVE_VERIFIER is not None:
             try:
                 if ACTIVE_VERIFIER.poll() is None:

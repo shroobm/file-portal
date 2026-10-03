@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""page_geometry_selftest.py — the page-geometry predictors' tripwires (S209 E13; SYM-142 / SYM-143). Hermetic: the fixture PDF
+"""WHAT THIS FILE DOES: selftest for page_geometry.py. It draws small PDFs in memory with pymupdf (prose pages, pages
+stored rotated 90 or 270 degrees, a page of 48 plus-minus glyphs) and calls pg.page_geometry() with hand-made Table
+block lists and flagged-page lists, checking the rotation counts, symbol counts, worst-page ordering and the
+None-not-zero rules. Prints one ok/RED line per case and an N/N tally; exit 0 when all pass, else 1. No files are used.
+
+page_geometry_selftest.py — the page-geometry predictors' tripwires (S209 E13; SYM-142 / SYM-143). Hermetic: the fixture PDF
 is DRAWN here by pymupdf (a prose page, a page stored Rotate-90 with a Table block on it, a page of 48 ± glyphs — a symbol the
 base font can draw; the check mark's category is the same), never read from disk; no pipeline, no GPU. Each case violates the
 property its rule stands for: the rotated table page counts once and leads the worst list; a rotated page without a table is
@@ -15,17 +20,21 @@ import fitz
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import page_geometry as pg  # noqa: E402
 
+# -- test harness: counters and the case() recorder --
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one test case: count it, count it green when cond is truthy, print an ok/RED line (detail shown if red)."""
     global ok, n
     n += 1
     ok += 1 if cond else 0
     print("  [%d] %s %s%s" % (n, "ok " if cond else "RED", name, ("  <- " + str(detail)[:200]) if (detail and not cond) else ""))
 
 
+# -- fixture builder, then the cases (run at import time, in order) --
 def fixture(glyphs=48, rotation=90):
+    """Return an in-memory 3-page PDF: prose, a page stored with the given rotation, and a page of `glyphs` symbols."""
     doc = fitz.open()
     p = doc.new_page(width=612, height=792)
     p.insert_text((72, 72), "The framework compares implementations and impacts across the case projects", fontsize=10)
@@ -88,5 +97,6 @@ out9 = pg.page_geometry(three, [{"page": 0, "block_type": "Table", "bbox": [0, 0
                                {"page": 2, "block_type": "TableGroup", "bbox": [0, 0, 1, 1], "html": ""}], "clean", pages_flagged=[3])
 case("worst is ordered: the flagged rotated table (p.3) first, the unflagged rotated table (p.1) next, the rotated page without a table (p.2) last",
      [r["page"] for r in out9["worst"]] == [3, 1, 2] and out9["rotated_with_tables"] == 2 and out9["rotated_flagged"] == 1, out9)
+# -- the tally and exit code --
 print("==== page_geometry selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

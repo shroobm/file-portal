@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Tripwires for analyst.process's per-chunk accept-time guards: J32-B (the per-chunk INPUT-
+"""WHAT THIS FILE DOES: a self-running test script for analyst.py. Each `@case(...)` block below is one check; the
+decorator runs it at import time, prints "ok" or "BAD", and records failures. At the end the script prints a summary
+and exits 1 if any case failed. Run it directly with the interpreter named below (it is not a pytest module). It
+replaces the model call with scripted answers and refuses all network use, points FP_PIPELINE and the dump ledger at
+temporary directories, and writes only inside those. Some "negative control" cases patch a copy of analyst.py's
+source text in memory (never the file on disk) to prove a guard is what stops a defect.
+
+Tripwires for analyst.process's per-chunk accept-time guards: J32-B (the per-chunk INPUT-
 WINDOW survival guard, threshold 0.50, action reject, signed Rab 2026-09-05), SYM-074 (the
 `</think>` leak guard) and J34 (the output/input word-ratio INFLATION guard, threshold 1.5,
 action reject, signed Rab 2026-09-05 "J34 1.5x reject"). Synthetic, CPU-only, no GPU, no
@@ -49,6 +56,7 @@ import tempfile
 import types
 from pathlib import Path
 
+# -- setup: quarantine directory, environment and module import --
 HERE = Path(__file__).parent
 QUARANTINE = Path(tempfile.mkdtemp(prefix="fp-analyst-selftest-"))
 os.environ["FP_PIPELINE"] = str(QUARANTINE)
@@ -69,6 +77,7 @@ _NET_CALLS: list[str] = []
 
 
 def _no_network(req, timeout=None):
+    """Stand-in for urlopen: records the requested URL in _NET_CALLS and always raises RuntimeError."""
     url = getattr(req, "full_url", None) or str(req)
     _NET_CALLS.append(url)
     raise RuntimeError("analyst_selftest reached the network: " + url + " (the GPU law: no case may load a model)")
@@ -76,12 +85,15 @@ def _no_network(req, timeout=None):
 
 analyst.urllib.request.urlopen = _no_network
 
+# -- test harness: the @case decorator and helpers --
 failed: list[str] = []
 ran: list[str] = []
 
 
 def case(name):
+    """Decorator factory: runs the decorated function at once; prints ok/BAD and records the name in ran/failed."""
     def deco(fn):
+        """Run `fn` now, catching AssertionError as a failure; returns `fn` unchanged."""
         ran.append(name)
         try:
             fn()
@@ -94,6 +106,7 @@ def case(name):
 
 
 def words(n, prefix="tok"):
+    """A string of `n` distinct space-separated words (prefix01 prefix02 ...), used as synthetic chunk text."""
     return " ".join(f"{prefix}{i:02d}" for i in range(1, n + 1))
 
 
@@ -103,6 +116,7 @@ def scripted(candidates):
     calls = {"i": 0}
 
     def gen(prompt):
+        """Return the next scripted candidate, ignoring the prompt."""
         idx = calls["i"]
         calls["i"] += 1
         return candidates[idx]
@@ -144,6 +158,7 @@ def run(markdown, candidates, module=analyst, tables=False):
 # ---------------------------------------------------------------------------
 @case("J32-B (a) faithful reflow (hyphen fix + punctuation only) -> passed, survival ~= 1.0")
 def _():
+    """A faithful reflow passes (survival near 1.0); the comma edits are reverted; the journal is dumped."""
     md = ("The committee met in Septem-\nber to review the annual budget, carefully, "
           "and approved the plan unanimously today for everyone involved in the project")
     candidate = ("The committee met in September to review the annual budget carefully "
@@ -168,6 +183,7 @@ B_MD = "\n\n".join([words(15, f"para{p}tok") for p in range(1, 6)])  # 5 distinc
 
 @case("J32-B (b) candidate drops 3 of 5 paragraphs -> rejected (survival < 0.50)")
 def _():
+    """A candidate that drops 3 of 5 paragraphs is rejected as 'survival' and the original chunk ships."""
     paras = B_MD.split("\n\n")
     candidate = "\n\n".join(paras[:2])  # only the first 2 of 5 survive
     out, meta = run(B_MD, [candidate])
@@ -178,6 +194,7 @@ def _():
 
 @case("J32-B (c) the runaway shape (a short phrase looped 441x) -> rejected (survival)")
 def _():
+    """A candidate that is one short phrase looped 441 times is rejected as 'survival'."""
     md = words(30, "alpha")
     candidate = "{1 - t} " * 441  # SYM-056's shape: shares almost no words with the input
     out, meta = run(md, [candidate])
@@ -187,6 +204,7 @@ def _():
 
 @case("J32-B (d) journal round-trip carries reason + survival; an old-shape record still resumes")
 def _():
+    """Write journal lines (new and old shape) to a file and check _load_journal reads reason and survival back."""
     work = QUARANTINE / "journal-roundtrip"
     work.mkdir(parents=True, exist_ok=True)
     jpath = work / "chunks.jsonl"
@@ -206,6 +224,7 @@ def _():
 
 @case("J32-B (e) a chunk with 0 windows (short) -> passed, survival None")
 def _():
+    """A two-word chunk has no windows to score: it passes with survival None."""
     md = "Hi there"  # 2 words -- below WINDOW_MIN_WORDS, make_windows returns []
     fenced, _ = analyst.fence(md)
     assert tn.chunk_survival(fenced, "Hi there indeed") is None
@@ -215,6 +234,7 @@ def _():
 
 @case("J32-B (f) NEGATIVE CONTROL: threshold -> 0.0 makes (b)'s candidate PASS (watched)")
 def _():
+    """Negative control: with the survival threshold set to 0.0 the deletion passes; restored, it is rejected again."""
     paras = B_MD.split("\n\n")
     candidate = "\n\n".join(paras[:2])
     real_threshold = analyst.ANALYST_CHUNK_SURVIVAL_MIN
@@ -232,6 +252,7 @@ def _():
 
 @case('J32-B (g) the fence fires FIRST: an IMG-token change is "fence", not "survival"')
 def _():
+    """A candidate that loses an image token is counted under 'fence', not 'survival' (the token check runs first)."""
     md = "![[assets/fig1.png]]\n\n" + words(30, "beta")
     fenced, embeds = analyst.fence(md)
     assert "⟦IMG-0⟧" in fenced
@@ -250,6 +271,7 @@ THINK_MD = words(20, "gamma")
 
 @case("SYM-074 (a) a candidate carrying </think> (else identical) -> rejected, think_leak")
 def _():
+    """A candidate carrying a closing think tag is rejected as 'think_leak' and the original ships."""
     candidate = THINK_MD + "\n</think>"
     out, meta = run(THINK_MD, [candidate])
     assert meta["chunks_rejected"] == 1 and meta["rejections"]["think_leak"] == 1, meta
@@ -258,6 +280,7 @@ def _():
 
 @case("SYM-115 (d) a candidate ending in the leaked soft switch `/no_think` -> rejected, think_leak, the original ships")
 def _():
+    """A candidate ending in the leaked '/no_think' soft switch is rejected as 'think_leak'."""
     candidate = THINK_MD + " /no_think"
     out, meta = run(THINK_MD, [candidate])
     assert meta["chunks_rejected"] == 1 and meta["rejections"]["think_leak"] == 1, meta
@@ -266,6 +289,7 @@ def _():
 
 @case("SYM-115 (e) a bare `/think` on its own line -> rejected, think_leak")
 def _():
+    """A bare '/think' on its own line is rejected as 'think_leak'."""
     candidate = THINK_MD + "\n/think\n"
     out, meta = run(THINK_MD, [candidate])
     assert meta["chunks_rejected"] == 1 and meta["rejections"]["think_leak"] == 1, meta
@@ -273,6 +297,7 @@ def _():
 
 @case("SYM-115 (f) a URL path containing /think in prose -> passed (not over-broad)")
 def _():
+    """A URL path containing '/think' is ordinary prose: the chunk passes."""
     md = "the discussion continues at https://example.com/think/more for every reader who reviews it carefully"
     out, meta = run(md, [md])
     assert meta["chunks_passed"] == 1 and meta["rejections"]["think_leak"] == 0, meta
@@ -280,6 +305,7 @@ def _():
 
 @case("SYM-115 (g) NEGATIVE CONTROL: only the switch test removed -> (d)'s candidate PASSES while (a)'s still rejects")
 def _():
+    """Negative control: exec a copy of analyst.py without the soft-switch test; '/no_think' then passes."""
     target = "or _THINK_SWITCH.search(candidate)"
     src = (HERE / "analyst.py").read_text(encoding="utf-8")
     assert src.count(target) == 1, f"switch test not found exactly once ({src.count(target)})"
@@ -303,6 +329,7 @@ def _():
 
 @case('SYM-074 (b) the plain word "think" in prose -> passed (not over-broad)')
 def _():
+    """The ordinary word 'think' in prose does not trip the guard: the chunk passes."""
     md = "I think this analysis is correct and complete for every reader who reviews it"
     candidate = "I think this analysis is correct and complete for every reader who reviews it"
     out, meta = run(md, [candidate])
@@ -311,6 +338,7 @@ def _():
 
 @case("SYM-074 (c) an opening <think> alone -> rejected")
 def _():
+    """A candidate with only an opening think tag is rejected as 'think_leak'."""
     candidate = "<think>" + THINK_MD
     out, meta = run(THINK_MD, [candidate])
     assert meta["chunks_rejected"] == 1 and meta["rejections"]["think_leak"] == 1, meta
@@ -318,6 +346,7 @@ def _():
 
 @case("SYM-074 (d) NEGATIVE CONTROL: the think-leak guard removed -> (a)'s candidate PASSES")
 def _():
+    """Negative control: exec a copy of analyst.py with the think-leak condition set to False; the tag passes."""
     # The SAME "blank the guard, watch red, restore" technique convert_and_ship_selftest.py's
     # T17 uses: a literal string patch of the ONE guard line (not the elif/else chain it
     # belongs to), exec'd into a fresh module so the real analyst.py on disk is never touched.
@@ -352,6 +381,7 @@ INF_MD = "\n\n".join([words(15, f"inf{p}tok") for p in range(1, 4)])  # 3 paragr
 
 @case("J34 (a) a 2x verbatim duplicate -> survival 1.0 (J32-B is blind to it) but REJECTED, inflation")
 def _():
+    """A 2x verbatim duplicate scores survival 1.0 (survival is blind to it) but is rejected as 'inflation'."""
     candidate = INF_MD + "\n\n" + INF_MD  # every input window survives; the bulk doubles
     fenced, _ = analyst.fence(INF_MD)
     assert tn.chunk_survival(fenced, candidate) == 1.0, "the constructed case must be invisible to J32-B"
@@ -374,6 +404,7 @@ HTML_DOC = ("```html\n<!DOCTYPE html>\n<html lang=\"en\">\n<head>\n  <meta chars
 
 @case("S180 (a) the 2026-08-31 specimen — a </think> leak then an HTML document wrapping the chunk -> rejected, think_leak (the first gate)")
 def _():
+    """The 2026-08-31 specimen (a think leak then an HTML document) is rejected as 'think_leak'; the original ships."""
     candidate = "\\rm Int(1-t)/E \\\\ & - & \\rm Int(1-t)/E\n</think>\n\n" + HTML_DOC + INF_MD + "\n</code></pre></div>\n</body>\n</html>\n```\n"
     out, meta = run(INF_MD, [candidate])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
@@ -383,6 +414,7 @@ def _():
 
 @case("S180 (b) the HTML document alone (no think tag) — survival 1.0 by construction — -> rejected, inflation (the ratio far above 1.5x)")
 def _():
+    """The HTML document alone (survival 1.0) is rejected as 'inflation'; the original ships."""
     candidate = HTML_DOC + INF_MD + "\n</code></pre></div>\n</body>\n</html>\n```\n"
     fenced, _ = analyst.fence(INF_MD)
     assert tn.chunk_survival(fenced, candidate) == 1.0, "the document wraps every input window — the survival gate cannot see it"
@@ -396,6 +428,7 @@ def _():
 
 @case("J34 (b) a faithful rewrite at ~1.09x (four words added) -> passed")
 def _():
+    """A rewrite at about 1.09x passes the ratio guard; the whitelist then reverts the four inserted words."""
     candidate = INF_MD + " " + words(4, "extra")  # 49 / 45 = 1.0889, under the 1.5 lever
     fenced, _ = analyst.fence(INF_MD)
     r = tn.word_ratio(fenced, candidate)
@@ -410,6 +443,7 @@ def _():
 
 @case("J34 (c) NEGATIVE CONTROL: lever -> inf makes (a)'s duplicate PASS (watched)")
 def _():
+    """Negative control: with the inflation limit set to infinity the duplicate passes; restored, it is rejected."""
     candidate = INF_MD + "\n\n" + INF_MD
     real = analyst.ANALYST_CHUNK_INFLATION_MAX
     try:
@@ -426,6 +460,7 @@ def _():
 
 @case('J34 (d) survival fires FIRST: a deletion is "survival", never a low ratio')
 def _():
+    """A deleted-paragraph candidate is counted under 'survival' only, never under 'inflation'."""
     paras = B_MD.split("\n\n")
     candidate = "\n\n".join(paras[:2])  # J32-B (b)'s fixture: 2 of 5 paragraphs, ratio 0.4
     out, meta = run(B_MD, [candidate])
@@ -434,6 +469,7 @@ def _():
 
 @case("J34 (e) the lever's edge is STRICT: 67 of 45 words (1.4889) passes, 68 (1.5111) rejects")
 def _():
+    """The inflation limit is strict: a ratio of 1.4889 passes and 1.5111 is rejected."""
     fenced, _ = analyst.fence(INF_MD)
     under = INF_MD + " " + words(22, "pad")   # 67 words
     over = INF_MD + " " + words(23, "pad")    # 68 words
@@ -447,6 +483,7 @@ def _():
 @case("J34 (f) journal round-trip: ratio rides beside survival on inflation rejections AND passes; "
       "0 input words -> ratio None (never a reject)")
 def _():
+    """Journal lines carry the ratio where it was computed; word_ratio returns None for an empty input."""
     assert tn.word_ratio("", "anything at all") is None
     assert tn.word_ratio("   \n\t ", "anything") is None
     path = QUARANTINE / "journal-j34.jsonl"
@@ -472,6 +509,7 @@ CJK_MD = "这是一个测试段落，用来验证膨胀守卫在没有空格的�
 @case("J34 (g) R1: a 2x verbatim CJK duplicate -> ratio 2.0 (characters), REJECTED; the pre-R1 "
       "word count read it as 1.0 (watched)")
 def _():
+    """A doubled CJK chunk (no spaces) is rejected as 'inflation' (ratio counts characters); a faithful one passes."""
     candidate = CJK_MD + CJK_MD
     fenced, _ = analyst.fence(CJK_MD)
     # the failure the fleet found, reproduced as the control: whitespace-split words see ONE
@@ -509,6 +547,7 @@ J41_CANDIDATES = [J41_CAND_PASS, J41_CAND_SURVIVAL, J41_CAND_INFLATION]
 
 @case("J41 (a) 3-chunk run (pass / survival-reject / inflation-reject) -> chunk_scores in order")
 def _():
+    """A three-chunk run (pass, survival reject, inflation reject) yields three score rows with the right keys."""
     out, meta = run(J41_MD, J41_CANDIDATES)
     assert meta["chunks_passed"] == 1 and meta["rejections"]["survival"] == 1 \
         and meta["rejections"]["inflation"] == 1, meta
@@ -529,6 +568,7 @@ def _():
 
 @case("SYM-151 (S209 E14, Codex MSG-CDX-0088): the resume key binds the MODEL and the program's TEXT, not only its name")
 def _():
+    """_resume_key is stable, and changes when the model or the program's text changes."""
     fenced, _ = analyst.fence("a chunk of text whose journal must never be resumed by another model or prompt")
     key0 = analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM)
     assert key0 == analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM), "the key is not stable"
@@ -548,6 +588,7 @@ def _():
 
 @case('J41 (b) resumed old-shape journal record -> a row with no s/r, x="fence"')
 def _():
+    """Resume an old-shape journal record through process(); the score row must be {"i": 1, "x": "fence"}."""
     md = "a resumed short chunk of text about nothing in particular at all today"
     fenced, _ = analyst.fence(md)
     key = analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM)
@@ -559,6 +600,7 @@ def _():
         analyst._append_journal(h, 1, fenced, "rejected", fenced)
 
     def refuse(prompt):
+        """Stand-in generator that fails the test if called (the chunk must come from the journal)."""
         raise AssertionError("should not be called: the only chunk is fully resumed")
     real_gen = analyst._generate
     analyst._generate = refuse
@@ -573,6 +615,7 @@ def _():
 @case("J41 (c) NEGATIVE CONTROL: the collector line blanked in analyst.py -> chunk_scores GONE from "
       "meta (watched); the real module still carries it")
 def _():
+    """Negative control: exec a copy of analyst.py with the chunk_scores line blanked; meta then lacks chunk_scores."""
     # S118 refuter's amendment: the first version of this control deleted the key from the
     # test's own dict, which proves dict deletion, not the collector. This is the SYM-074 (d)
     # technique instead — blank the ONE line that puts chunk_scores into meta, exec the patched
@@ -600,6 +643,7 @@ def _():
 
 @case("J41 (d) size: json.dumps(chunk_scores) stays under 60 bytes/chunk")
 def _():
+    """The JSON size of chunk_scores stays under 60 bytes per chunk."""
     out, meta = run(J41_MD, J41_CANDIDATES)
     n = len(meta["chunk_scores"])
     size = len(json.dumps(meta["chunk_scores"]))
@@ -615,6 +659,7 @@ J46_MD = J46_PAD + "\n\nThe 81 members voted in Septem-\nber and the plan, caref
 
 @case("J46 (a) a passed chunk ships RECONCILED: hyphen + markup accepted, a numeral change and a deletion reverted")
 def _():
+    """Hyphen and markup edits ship; numeral, punctuation and deletion edits are reverted; tallies are exact."""
     candidate = J46_PAD + "\n\nThe 18 members voted in September and the plan passed with code intact."
     out, meta = run(J46_MD, [candidate])
     assert meta["chunks_passed"] == 1, meta
@@ -629,6 +674,7 @@ def _():
 
 @case("J46 (b) a candidate with no edit carries no `e` and no edits counted (absent, not null)")
 def _():
+    """An unchanged candidate yields empty edit tallies and no 'e' key in its score row."""
     out, meta = run(J46_MD, [J46_MD])
     assert meta["edits"] == {"accepted": {}, "reverted": {}, "chunks_reconciled": 0, "whitelist": sorted(analyst.ew.FULL)}, meta["edits"]
     assert "e" not in meta["chunk_scores"][0], meta["chunk_scores"]
@@ -636,6 +682,7 @@ def _():
 
 @case("J46 (d) an accepted-only candidate (one hyphen join, nothing reverted): e = [1, 0], chunks_reconciled 0")
 def _():
+    """A candidate with one hyphen join and nothing reverted gives e = [1, 0] and chunks_reconciled 0."""
     candidate = J46_PAD + "\n\nThe 81 members voted in September and the plan, carefully drafted, passed with `code` intact."
     out, meta = run(J46_MD, [candidate])
     assert "September" in out, out
@@ -645,6 +692,7 @@ def _():
 
 @case("J46 (c) NEGATIVE CONTROL: the accept path with ew.reconcile replaced by identity ships the candidate's numeral")
 def _():
+    """Negative control: with ew.reconcile replaced by identity, the candidate's changed numeral ships."""
     candidate = J46_PAD + "\n\nThe 18 members voted in September and the plan, carefully drafted, passed with `code` intact."
     real = analyst.ew.reconcile
     try:
@@ -666,6 +714,7 @@ S183_MD = "\n\n".join(S183_PARAS)
 @case("S183 (SYM-091) one paragraph of five dropped: the per-chunk guard reads 0.8 and PASSES it (the blind zone, unchanged) "
       "-- the acceptor reverts the deletion and the shipped chunk carries all five paragraphs")
 def _():
+    """One of five paragraphs dropped scores 0.8 (passes the guard); the whitelist reverts the deletion."""
     candidate = "\n\n".join(S183_PARAS[:2] + S183_PARAS[3:])   # the third paragraph gone
     fenced, _ = analyst.fence(S183_MD)
     guard = tn.chunk_survival(fenced, candidate)
@@ -679,6 +728,7 @@ def _():
 @case("S183 (SYM-104) `100` -> `10` in a many-window chunk: ONE window of nine fails, the guard reads 0.8889 and PASSES "
       "(the blind zone: a digit moves the fraction less than the lever) -- the acceptor reverts the numeral and `100` ships")
 def _():
+    """A '100' changed to '10' scores 8/9 (passes the guard); the whitelist reverts the numeral."""
     md = "\n\n".join(S183_PARAS[:4]) + " the sample held 100 units in total"   # 96 + 7 words: eight windows + a kept 7-word tail
     candidate = md.replace("100 units", "10 units")
     fenced, _ = analyst.fence(md)
@@ -694,6 +744,7 @@ def _():
 # ---------------------------------------------------------------------------
 @case("S146-E5 (a) the bound is 2x the chunk's estimated tokens, never under 512, never over NUM_CTX")
 def _():
+    """_num_predict_for gives 2x the estimated tokens, floored at 512, capped at NUM_CTX, above the inflation limit."""
     assert analyst._num_predict_for("x" * 3000) == 2000, analyst._num_predict_for("x" * 3000)   # 1000 est. tokens x 2.0
     assert analyst._num_predict_for("x" * 10) == analyst.ANALYST_NUM_PREDICT_MIN
     assert analyst._num_predict_for("x" * 100000) == analyst.NUM_CTX
@@ -704,26 +755,33 @@ def _():
 class _FakeOllama:
     """urlopen stand-in: captures the request body, answers with the scripted reply."""
     def __init__(self, reply):
+        """Keep the scripted `reply` dict and an empty list of captured request bodies."""
         self.reply, self.bodies = reply, []
 
     def __call__(self, req, timeout=None):
+        """Capture the request's JSON body; return a context-manager response whose read() gives the reply."""
         self.bodies.append(json.loads(req.data.decode("utf-8")))
         payload = json.dumps(self.reply).encode("utf-8")
 
         class _R:
+            """A minimal fake HTTP response usable in a `with` block."""
             def __enter__(self_inner):
+                """Return the response itself."""
                 return self_inner
 
             def __exit__(self_inner, *a):
+                """Do nothing on exit; never suppress an exception."""
                 return False
 
             def read(self_inner):
+                """Return the scripted reply as JSON bytes."""
                 return payload
         return _R()
 
 
 @case("S146-E5 (b) the local request carries options.num_predict; a reply that stopped on the bound reads done_reason=length")
 def _():
+    """_generate sends options.num_predict (argument or per-call bound) and records done_reason in _last_call."""
     real = analyst.urllib.request.urlopen
     fake = _FakeOllama({"response": "cut mid-", "done_reason": "length", "eval_count": 2000, "prompt_eval_count": 900})
     analyst.urllib.request.urlopen = fake
@@ -748,10 +806,12 @@ def _():
 
 @case("S146-E5 (c) process(): a chunk whose reply stopped on the bound is REJECTED as truncated — the original ships, the reason is counted")
 def _():
+    """A reply that stopped on the generation bound is rejected as 'truncated' and the original ships."""
     test_ledger()
     md = "The committee met in September to review the annual budget and approved it without changes.\n"
 
     def cut_short(prompt):
+        """Stand-in generator: reports done_reason 'length' and returns a cut-off text."""
         analyst._last_call.clear()
         analyst._last_call.update({"done_reason": "length", "output_tokens": 512, "prompt_tokens": 40})
         return "The committee met in September to review the annual budget and approved it without changes. The committee met in"
@@ -770,10 +830,12 @@ def _():
 
 @case("S146-E5 (d) NEGATIVE CONTROL: the same candidate with done_reason=stop is NOT rejected as truncated (the normal path judges it)")
 def _():
+    """Negative control: the same text with done_reason 'stop' is not rejected as truncated."""
     test_ledger()
     md = "The committee met in September to review the annual budget and approved it without changes.\n"
 
     def stopped(prompt):
+        """Stand-in generator: reports done_reason 'stop' and returns the input unchanged."""
         analyst._last_call.clear()
         analyst._last_call.update({"done_reason": "stop", "output_tokens": 30, "prompt_tokens": 40})
         return md.strip()
@@ -798,10 +860,12 @@ S151_MD = S150_MD.replace("Outro paragraph.", "Outro paragraph on revenue and co
 
 @case("S150-E3 (a) tables=True: the layer repairs the exhibit BEFORE the chunks (REVENUE labelled, the title captioned, ٠ -> •); the record rides meta.geometry; the class counts in edits; the whitelist names it")
 def _():
+    """With tables=True the table layer repairs the exhibit before chunking; see meta.geometry and meta.edits."""
     test_ledger()
     seen = {}
 
     def gen(prompt):
+        """Stand-in generator: counts calls and hands the chunk back unchanged."""
         seen["n"] = seen.get("n", 0) + 1
         return prompt[len(analyst.load_program("readability")):]   # the model hands its chunk back unchanged
     real_gen = analyst._generate
@@ -823,6 +887,7 @@ def _():
 
 @case("S150-E3 (b) NEGATIVE CONTROL: the layer explicitly OFF (tables=False; the default was off S150–S153) — no layer, geometry None, the whitelist as shipped, the exhibit as it came")
 def _():
+    """Negative control: with tables=False there is no geometry record and the exhibit is left as it came."""
     out, meta = run(S150_MD, [S150_MD], tables=False)
     assert meta["geometry"] is None and "table-geometry" not in meta["edits"]["whitelist"], meta["edits"]
     assert "| R | pricing? | • | a |" in out and "٠" in out, out
@@ -830,10 +895,12 @@ def _():
 
 @case("S154 (a) THE LEVER: ANALYST_TABLES is True (Rab's word 'all signed', 2026-09-15) and process(tables=None) runs the layer by default — geometry recorded, table-geometry in the whitelist, the exhibit repaired")
 def _():
+    """ANALYST_TABLES is True, so process() with no tables argument runs the table layer."""
     assert analyst.ANALYST_TABLES is True, analyst.ANALYST_TABLES
     test_ledger()
 
     def gen(prompt):
+        """Stand-in generator: hands the chunk back unchanged."""
         return prompt[len(analyst.load_program("readability")):]   # the model hands its chunk back unchanged
     real_gen = analyst._generate
     analyst._generate = gen
@@ -849,6 +916,7 @@ def _():
 
 @case("S156 (a) THE READING: process(vision=…) hands the page reading to the layer — its facts ride meta.geometry.vision (one table matched, the span from the reading), the text otherwise as the layer leaves it")
 def _():
+    """process(vision=...) passes the page reading to the table layer; its facts appear in meta.geometry.vision."""
     test_ledger()
     reading = {"format": "vision-reading/1", "produced_by": "selftest", "tables": [{"anchor": ["pricing?"], "kind": "table", "rails": [{"word": "REVENUE", "rows": [1, 3]}]}]}
     real_gen = analyst._generate
@@ -874,9 +942,11 @@ def _():
 
 @case("S150-E3 (c) the grid program's resolver: the backend's first word in capitals; `?`, a non-word, an empty reply and a backend error are None; the bound is 24 tokens and restored after")
 def _():
+    """_word_resolver returns the model's first word in capitals, None for unusable replies; call bounds restored."""
     prompts = []
 
     def gen(p):
+        """Stand-in generator: records the prompt and the active num_predict bound; answers 'revenue'."""
         prompts.append((p, analyst._call_bound.get("num_predict")))
         return "revenue\n"
     analyst._call_bound["num_predict"] = 4096
@@ -905,6 +975,7 @@ def _():
     temps = []
 
     def gen_t(p):
+        """Stand-in generator: records the active temperature bound; answers 'HIGH'."""
         temps.append(analyst._call_bound.get("temperature"))
         return "HIGH"
     analyst._call_bound["temperature"] = None
@@ -912,6 +983,7 @@ def _():
     assert temps == [0.0] and analyst._call_bound.get("temperature") is None, (temps, analyst._call_bound)  # deterministic for the word, restored after
 
     def boom(p):
+        """Stand-in generator that always raises."""
         raise RuntimeError("ollama down")
     assert analyst._word_resolver(boom)("HGH", []) is None
     analyst._call_bound.clear()
@@ -919,6 +991,7 @@ def _():
 
 @case("S150-E3 (d) a resolver's wrong word is refused by the layer — S151: not a word of the book — the rail stays, the refusal is on the record")
 def _():
+    """A resolver word that is not a word of the book is refused; the rail stays and the refusal is recorded."""
     test_ledger()
     real_gen = analyst._generate
     analyst._generate = lambda prompt: prompt[len(analyst.load_program("readability")):]
@@ -941,6 +1014,7 @@ def _():
 
 @case("S157-E6 (a) the record names the readability pass's SAMPLER: nothing sent today -> None + whose recipe applied (J49's mechanical half)")
 def _():
+    """With no sampler values set, the record shows None and 'model default'; the request carries only num_ctx."""
     saved = dict(analyst.ANALYST_SAMPLER)
     try:
         analyst.ANALYST_SAMPLER.update({"temperature": None, "seed": None})
@@ -956,6 +1030,7 @@ def _():
 
 @case("S157-E6 (b) the lever's values ride the local request and the record (temperature 0, seed 7) — the values are Rab's, the plumbing is proved here")
 def _():
+    """The sampler lever's temperature and seed appear in the local request options and in the record."""
     saved = dict(analyst.ANALYST_SAMPLER)
     try:
         analyst.ANALYST_SAMPLER.update({"temperature": 0.0, "seed": 7})
@@ -972,6 +1047,7 @@ def _():
 
 @case("S157-E6 (c) NEGATIVE CONTROL: the grid program's per-call 0.0 keeps precedence over the lever, and the Gemini record pins its 0.2")
 def _():
+    """The per-call temperature 0.0 beats the lever, and the Gemini record shows temperature 0.2 and no seed."""
     saved = dict(analyst.ANALYST_SAMPLER)
     try:
         analyst.ANALYST_SAMPLER.update({"temperature": 0.9, "seed": None})
@@ -990,12 +1066,14 @@ def _():
 
 @case("S157-E9 NETWORK: no case reached urlopen — the selftest never touches a real Ollama (the GPU law; S156 (a)'s control had)")
 def _():
+    """No earlier case reached urlopen, and the network guard is still installed."""
     assert _NET_CALLS == [], "urlopen reached %d time(s): %s" % (len(_NET_CALLS), _NET_CALLS[:3])
     assert analyst.urllib.request.urlopen is _no_network, "a case replaced the network guard and did not restore it"
 
 
 @case("S157-E17 (a) B12/SYM-034: a failed local call captures Ollama's own log tail, ledgers it, and meta.backend_failures names chunk, class and id")
 def _():
+    """A failed local call captures a planted Ollama log tail and ledgers it; meta.backend_failures names it."""
     import tempfile
     test_ledger()
     tmp = Path(tempfile.mkdtemp(prefix="ollama-log-"))
@@ -1005,6 +1083,7 @@ def _():
     analyst.OLLAMA_SERVER_LOG = fake_log
 
     def boom(prompt):
+        """Stand-in generator that raises a planted TimeoutError."""
         raise TimeoutError("planted stall")
     analyst._generate = boom
     try:
@@ -1024,6 +1103,7 @@ def _():
 
 @case("S157-E17 (b) NEGATIVE CONTROL: a run with no failure has an empty backend_failures and writes no capture")
 def _():
+    """Negative control: a run with no failure has an empty backend_failures and writes no capture file."""
     before = len(list(analyst.ANALYST_WORK.glob("_captures/ollama-*.log")))
     out, meta = run(words(60), [words(60)])
     assert meta["backend_failures"] == [] and meta["chunks_failed"] == 0, meta["backend_failures"]
@@ -1032,12 +1112,14 @@ def _():
 
 @case("S157-E17 (c) no server.log at the path -> the row reads UNREAD (never a fabricated id); the error still named; the original ships")
 def _():
+    """With no server.log present the failure row reads UNREAD, the error is still named, the original ships."""
     import tempfile
     test_ledger()
     saved_log, saved_gen = analyst.OLLAMA_SERVER_LOG, analyst._generate
     analyst.OLLAMA_SERVER_LOG = Path(tempfile.mkdtemp(prefix="no-log-")) / "server.log"
 
     def boom(prompt):
+        """Stand-in generator that raises a planted ConnectionRefusedError."""
         raise ConnectionRefusedError("planted refusal")
     analyst._generate = boom
     try:
@@ -1052,6 +1134,7 @@ def _():
 @case("S209 E10 (SYM-139): _bash resolves an EXISTING interpreter — by name, else Git's install — and never returns a bare name; the "
       "dump says UNREAD with the reason when nothing resolves")
 def _():
+    """_bash returns an existing bash path or None; with the search patched to find nothing it returns None."""
     b = analyst._bash()
     assert b is None or (os.path.isfile(b) and b.lower().endswith(("bash", "bash.exe"))), b
     saved = analyst.BASH_CANDIDATES
@@ -1068,6 +1151,7 @@ def _():
 # ---------------------------------------------------------------------------
 # SYM-187 — the code-fence guard (S213 E17, signed Rab 2026-09-25, Desk c7b3aa7c: "build it")
 # ---------------------------------------------------------------------------
+# fixtures: a chunk of prose around one fenced python code block
 _BT = "`" * 3
 _PROSE = ("The function below reads a table of observations and fits a linear model to them, then prints the "
           "estimated coefficients so that the reader can compare them with the values reported in the text.")
@@ -1076,11 +1160,13 @@ FENCE_MD = _PROSE + "\n\n" + _BT + "python\n" + _CODE + "\n" + _BT + "\n\n" + _P
 
 
 def _fence_lines(text):
+    """The stripped lines of `text` that contain a triple-backtick fence, in order."""
     return [ln.strip() for ln in text.splitlines() if _BT in ln]
 
 
 @case("SYM-187 (a) a candidate that DROPS the closing fence (else identical) -> rejected, reason code_fence; the original ships")
 def _():
+    """A candidate that drops the closing fence is rejected as 'code_fence' and the original ships."""
     out, meta = run(FENCE_MD, [FENCE_MD.replace("print(beta)\n" + _BT + "\n", "print(beta)\n")])
     assert meta["chunks_passed"] == 0 and meta["chunks_rejected"] == 1, meta
     assert meta["rejections"] == {"fence": 0, "survival": 0, "think_leak": 0, "inflation": 0, "truncated": 0,
@@ -1092,6 +1178,7 @@ def _():
 
 @case("SYM-187 (b) the closing fence GLUED onto the code line ('print(beta)```') -> rejected, code_fence")
 def _():
+    """A closing fence glued onto the last code line is rejected as 'code_fence'."""
     out, meta = run(FENCE_MD, [FENCE_MD.replace("print(beta)\n" + _BT, "print(beta)" + _BT)])
     assert meta["rejections"]["code_fence"] == 1 and meta["chunks_passed"] == 0, meta
     assert _fence_lines(out) == _fence_lines(FENCE_MD), _fence_lines(out)
@@ -1100,6 +1187,7 @@ def _():
 @case("SYM-187 (c) the closing fence JOINED to the next prose line ('``` The function above') -> rejected, code_fence "
       "(the reader would take the rest of the page as code; the live analyst shipped this shape, measured 2026-09-25)")
 def _():
+    """A closing fence joined onto the next prose line is rejected as 'code_fence'."""
     out, meta = run(FENCE_MD, [FENCE_MD.replace("\n" + _BT + "\n\nThe function above", "\n" + _BT + " The function above", 1)])
     assert meta["rejections"]["code_fence"] == 1 and meta["rejections"]["survival"] == 0, meta
     assert _fence_lines(out) == _fence_lines(FENCE_MD), _fence_lines(out)
@@ -1108,6 +1196,7 @@ def _():
 @case("SYM-187 (c2) a pure ADDITION to the opening fence line ('```python # fit') is reverted by the J46 whitelist before "
       "this guard looks -> passed with the edit reverted; the fence lines ship as they came (whose job each shape is)")
 def _():
+    """Text added to the opening fence line is reverted by the whitelist; the chunk passes, fence lines unchanged."""
     out, meta = run(FENCE_MD, [FENCE_MD.replace(_BT + "python\n", _BT + "python # fit the model\n", 1)])
     assert meta["chunks_passed"] == 1 and meta["rejections"]["code_fence"] == 0, meta
     assert _fence_lines(out) == _fence_lines(FENCE_MD), _fence_lines(out)
@@ -1115,6 +1204,7 @@ def _():
 
 @case("SYM-187 (d) CONTROL: a hyphen fix in the prose with every fence line intact -> passed, code_fence 0")
 def _():
+    """Control: a prose hyphen fix with every fence line intact passes with no code_fence rejection."""
     out, meta = run(FENCE_MD, [FENCE_MD.replace("coefficients", "coeffi- cients", 1)])
     assert meta["chunks_passed"] == 1 and meta["rejections"]["code_fence"] == 0, meta
     assert meta["code_fences"]["fence_lines_same"] is True, meta["code_fences"]
@@ -1123,6 +1213,7 @@ def _():
 @case("SYM-187 (e) NEGATIVE CONTROL: the guard's reader blanked -> (a)'s dropped fence SHIPS; re-read with the real reader, "
       "the shipped fence lines differ from the input's (watched)")
 def _():
+    """Negative control: with an empty fence reader the dropped fence ships; the real reader sees the damage."""
     real = analyst._code_fence_lines
     try:
         analyst._code_fence_lines = lambda text: []    # both sides empty: the chunk guard can never see a difference
@@ -1138,6 +1229,7 @@ def _():
 @case("SYM-187 (f) RESUME: a journal from before the guard holds a PASSED chunk that dropped a fence -> rejected on "
       "resume, code_fence; the original ships")
 def _():
+    """A journalled PASSED chunk that dropped a fence is rejected as 'code_fence' on resume; the original ships."""
     fenced, _ = analyst.fence(FENCE_MD)
     key = analyst._resume_key(fenced, "local", analyst.DEFAULT_PROGRAM)
     work_dir = analyst.ANALYST_WORK / key
@@ -1147,6 +1239,7 @@ def _():
         analyst._append_journal(h, 1, fenced, "passed", damaged)
 
     def refuse(prompt):
+        """Stand-in generator that fails the test if called (the chunk must come from the journal)."""
         raise AssertionError("should not be called: the only chunk is fully resumed")
     real_gen = analyst._generate
     analyst._generate = refuse

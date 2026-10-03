@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""observability/error_families.py — THE ERROR CLASS FAMILIES, made mechanical (S123, Rab's order 2026-09-10:
+"""WHAT THIS FILE DOES: holds the error-family tables (METHOD families for ERROR-BIN.md classes, MECHANISM
+families for SYMPTOM-INDEX.md rows) and a small command-line tool over them. `--census` reads ERROR-BIN.md and
+SYMPTOM-INDEX.md and checks every ERR class and SYM id is placed in a family (exit 1 if not); `--place "<text>"`
+suggests the nearest families for new failure words; `--selftest` runs built-in controls; `--bin <file>` censuses
+another register. Entry point: main(argv). Reads the two register files (and a given --bin file); writes only
+stdout (the selftest writes temporary copies in the system temp dir). Used by the filing process and by tests.
+
+observability/error_families.py — THE ERROR CLASS FAMILIES, made mechanical (S123, Rab's order 2026-09-10:
 "Start describing error class families, and putting them into our project folder, so then we can derive error
 patterns faster, and group them accordingly." — "on all errors.")
 
@@ -28,6 +35,7 @@ import sys
 import tempfile
 from pathlib import Path
 
+# -- paths: this folder, the repo root, and the two registers the census reads --
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 ERROR_BIN = REPO / "ERROR-BIN.md"
@@ -208,6 +216,7 @@ MECHANISM = {
     ),
 }
 
+# -- --place vocabulary: signature words per family --
 # signature words for --place (lower-case substrings); a family's probe is the answer
 SIGNATURES = {
     "M1 CLAIM-BEFORE-PROBE": ["verified", "confirmed", "done", "clean", "running", "monitor", "unfiled", "no register", "exists", "does not exist"],
@@ -237,6 +246,7 @@ SIGNATURES = {
     "S16 GUARD-COARSER-THAN-THE-DEFECT": ["threshold", "margin", "granularity", "window-overlap", "one-directional", "resolution"],
 }
 
+# -- row patterns: how an ERROR-BIN row and a SYMPTOM-INDEX row are recognised in the markdown tables --
 # The class cell may be bold (ERR-014: `**PREDICATE-COLLAPSE**`) or carry a parenthetical (ERR-056: `CONTROL-LEAK
 # (new class)`); a SYM id cell may carry a provenance note (SYM-037..039: `SYM-037 *(was SYM-028, ThinkPad lane…)*`).
 # The first census missed exactly those four rows — the guard fired on real history before the tool was trusted.
@@ -244,7 +254,9 @@ ERR_ROW = re.compile(r"^\| ((?:ERR|IB)-\d{4}-\d\d-\d\d-\d{3}) \| \*{0,2}([A-Z][A
 SYM_ROW = re.compile(r"^\| (SYM-\d{3})\b[^|]*\|")
 
 
+# -- register readers --
 def _lines(path: Path):
+    """Read a text file as UTF-8, turn CRLF into LF, and return its lines as a list of strings."""
     return io.open(path, encoding="utf-8", newline="").read().replace("\r\n", "\n").split("\n")
 
 
@@ -269,7 +281,9 @@ def read_symptom_index(path: Path):
     return out
 
 
+# -- family lookups and the three commands (census, place, selftest) --
 def class_family():
+    """Return {ERR class name: METHOD family name}. Exits (SystemExit) if a class is placed in two families."""
     fam = {}
     for name, (_m, _p, classes) in METHOD.items():
         for c in classes:
@@ -280,6 +294,7 @@ def class_family():
 
 
 def sym_family():
+    """Return {SYM id: MECHANISM family name}. Exits (SystemExit) if an id is placed in two families."""
     fam = {}
     for name, (_m, _p, ids) in MECHANISM.items():
         for i in ids:
@@ -290,18 +305,25 @@ def sym_family():
 
 
 def census(error_bin: Path, symptom_index: Path, out=sys.stdout) -> int:
+    """Count every register row by family and print the table to `out`.
+
+    Returns 1 if an ERR class is unknown, a SYM row is unplaced, or a placed id is absent from the
+    register (a ghost); otherwise 0. Reads the two register files; writes only to `out`.
+    """
     rc = 0
     cf, sf = class_family(), sym_family()
     errs = read_error_bin(error_bin)
     syms = read_symptom_index(symptom_index)
     counts = {name: 0 for name in list(METHOD) + list(MECHANISM)}
     unknown_classes, unplaced = [], []
+    # tally each ERR row by its class's family; a class with no family is collected as unknown
     for eid, klass in errs:
         f = cf.get(klass)
         if f is None:
             unknown_classes.append((eid, klass))
         else:
             counts[f] += 1
+    # tally each SYM row by its id's family; an id with no family is collected as unplaced
     for sid, head in syms:
         f = sf.get(sid)
         if f is None:
@@ -337,6 +359,10 @@ def census(error_bin: Path, symptom_index: Path, out=sys.stdout) -> int:
 
 
 def place(text: str, out=sys.stdout) -> int:
+    """Print the (up to three) families whose signature words best match `text`, with mechanism and probe.
+
+    Returns 0 on a match, 1 (prints UNREAD) when no signature word matches. Writes only to `out`.
+    """
     t = text.lower()
     scored = []
     for name, words in SIGNATURES.items():
@@ -357,9 +383,15 @@ def place(text: str, out=sys.stdout) -> int:
 
 
 def selftest() -> int:
+    """Run positive and negative controls on the census, the parsers, --place and --bin.
+
+    Returns 0 if every check passes, else 1. Prints PASS/FAIL lines; writes temporary register copies
+    to the system temp dir (removed afterwards).
+    """
     passed = total = 0
 
     def check(name, ok):
+        """Count one check and print its PASS/FAIL line (updates the enclosing passed/total)."""
         nonlocal passed, total
         total += 1
         passed += bool(ok)
@@ -423,7 +455,12 @@ def selftest() -> int:
     return 0 if passed == total else 1
 
 
+# -- command-line dispatch --
 def main(argv) -> int:
+    """Dispatch on argv: --selftest, --place <text>, --bin <path>, else the default census.
+
+    Returns the chosen command's exit code (2 when --bin lacks an existing file path).
+    """
     if "--selftest" in argv:
         return selftest()
     if "--place" in argv:
@@ -438,5 +475,6 @@ def main(argv) -> int:
     return census(ERROR_BIN, SYMPTOM_INDEX)
 
 
+# -- script entry point --
 if __name__ == "__main__":
     sys.exit(main(sys.argv[1:]))

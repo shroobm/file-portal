@@ -1,4 +1,9 @@
-"""THE PLANTED-DECOY NEGATIVE CONTROL for a structure-first lane.
+"""WHAT THIS FILE DOES: a self-contained test script (run directly, no arguments). It writes four tiny
+synthetic PDFs into a fresh temp folder, reads each with read_tree(), applies gate(), prints one table
+row per case and a RED/GREEN line, and exits 1 on any mismatch. Needs only pymupdf; no network, no GPU.
+Nothing imports it; the module-level code at the bottom is the driver.
+
+THE PLANTED-DECOY NEGATIVE CONTROL for a structure-first lane.
 
 Builds four synthetic PDFs by hand (no GPU, no marker, no network) and runs ONE reader
 over all four. The reader must be watched FAILING on the controls, or "the lane read the
@@ -26,11 +31,19 @@ from pathlib import Path
 
 import pymupdf
 
+# -- constants: the planted token (only in /Alt) and the visible page text --
 SENTINEL = "ZQX-TREE-SENTINEL-7F3A"
 GLYPH = "VISIBLE GLYPH TEXT ONLY"
 
 
+# -- decoy builder: writes one hand-made PDF --
 def build(path: Path, *, tagged=True, alt=True, rotten=False):
+    """Write a one-page synthetic PDF to `path` and return `path`.
+
+    tagged: include the /StructTreeRoot objects; alt: put SENTINEL in the Figure's /Alt;
+    rotten: make every element /NonStruct with MCIDs that do not exist. Side effect: writes the file.
+    """
+    # page content stream: a paragraph (MCID 0) and a drawn rectangle as a Figure (MCID 1)
     content = (
         "/P <</MCID 0>> BDC\n"
         "BT /F1 12 Tf 20 150 Td (" + GLYPH + ") Tj ET\n"
@@ -47,6 +60,7 @@ def build(path: Path, *, tagged=True, alt=True, rotten=False):
     mcid_p, mcid_f = (77, 78) if rotten else (0, 1)
     alt_entry = (" /Alt (" + SENTINEL + ")") if (alt and not rotten) else ""
 
+    # object table: PDF object number -> object body text (object 4 is the content stream, filled below)
     objs = {
         1: cat,
         2: "<< /Type /Pages /Kids [3 0 R] /Count 1 >>",
@@ -67,6 +81,7 @@ def build(path: Path, *, tagged=True, alt=True, rotten=False):
         for k in (6, 7, 8, 9, 10):
             objs.pop(k)
 
+    # serialise: header, each object (recording its byte offset), then xref table and trailer
     out = bytearray(b"%PDF-1.7\n%\xe2\xe3\xcf\xd3\n")
     offsets = {}
     for num in sorted(objs):
@@ -97,6 +112,7 @@ def build(path: Path, *, tagged=True, alt=True, rotten=False):
 # THE READER UNDER TEST -- one function, run over all four decoys, no special cases.
 # Door B (raw xref walk) because Door A drops Figures (mapping.md 1.5).
 # --------------------------------------------------------------------------------
+# -- reader constants: indirect-reference pattern and the standard structure role names --
 _REF = re.compile(r"(\d+) 0 R")
 STD_ROLES = {"Document", "Part", "Sect", "Div", "P", "H", "H1", "H2", "H3", "H4", "H5",
              "H6", "L", "LI", "Lbl", "LBody", "Table", "TR", "TH", "TD", "THead", "TBody",
@@ -125,6 +141,7 @@ def read_tree(path):
             for cs in page.get_contents():
                 for mm in re.finditer(rb"/MCID\s+(\d+)", doc.xref_stream(cs)):
                     live_mcids.add(int(mm.group(1)))
+        # depth-first walk of the structure tree by object number; `seen` guards against cycles
         seen, stack = set(), [int(m.group(1))]
         while stack:
             x = stack.pop()
@@ -157,6 +174,8 @@ def read_tree(path):
 
 # THE GATE the design proposes -- stated as code so the decoys can be run through it.
 def gate(rec, pages):
+    """Classify a read_tree() record: returns "untagged", "tagged-hollow", "tagged-rotten(roles)",
+    "tagged-rotten(mcid)" or "tagged". `pages` is accepted but not used. No side effects."""
     if not rec["tagged"]:
         return "untagged"
     if rec["elems"] == 0:
@@ -169,7 +188,9 @@ def gate(rec, pages):
     return "tagged"
 
 
+# -- driver: build the four decoys, read and gate each, report --
 tmp = Path(tempfile.mkdtemp(prefix="fp-decoy-"))
+# each case: (name, build() options, sentinel expected in the tree?, expected gate verdict)
 cases = [
     ("D1 tagged+sentinel", dict(tagged=True, alt=True, rotten=False), True, "tagged"),
     ("D2 tree REMOVED", dict(tagged=False, alt=True, rotten=False), False, "untagged"),
@@ -182,6 +203,7 @@ FAIL = []
 print("case\t\t\tglyph_has_sentinel\ttree_has_sentinel\telems\troles\t\t\tgate\texpected")
 for name, kw, want_sentinel, want_gate in cases:
     p = build(tmp / (name.split()[0] + ".pdf"), **kw)
+    # glyph view: the plain visible text, to prove the sentinel is not in it
     with pymupdf.open(p) as d:
         glyphs = "".join(pg.get_text() for pg in d)
         pages = d.page_count
@@ -191,6 +213,7 @@ for name, kw, want_sentinel, want_gate in cases:
     glyph_sent = SENTINEL in glyphs
     print("\t".join([name.ljust(20), str(glyph_sent).ljust(8), str(tree_sent).ljust(8),
                      str(rec["elems"]), str(rec["roles"])[:34].ljust(34), g, want_gate]))
+    # collect any deviation from the expected results as a failure message
     if glyph_sent:
         FAIL.append(name + ": sentinel leaked into the GLYPH stream -- decoy is invalid")
     if tree_sent != want_sentinel:

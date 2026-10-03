@@ -1,4 +1,9 @@
-"""dashboard.serve -- the sorted/ feed (S214 E16): a temp sorted/ tree, a loopback port, the token file present and
+"""WHAT THIS FILE DOES: pytest tests for dashboard.serve (the sorted/ HTTP feed). Each test builds a
+small sorted/ tree in pytest's tmp_path, starts a real server on 127.0.0.1 with an OS-assigned port,
+and checks the JSON listing, the filters, the token gate and the thumbnail refusals. Writes only
+under tmp_path; run by pytest. The lock tests are in test_serve_lock.py.
+
+dashboard.serve -- the sorted/ feed (S214 E16): a temp sorted/ tree, a loopback port, the token file present and
 absent. Asserted: the listing's shape and counts, the category and photo-date filters, the gate's positive and negative
 controls, /health never gated, a traversal refused before any read, a thumbnail of a non-photo refused, a thumbnail of a
 photo either a JPEG (an image library present) or an honest 501 (none) -- never a 200 with nothing in it."""
@@ -16,6 +21,7 @@ from dashboard import serve
 from dashboard.config import Paths, Settings
 
 
+# -- helpers: the fixture tree, the server launcher, the GET client --
 def _tree(root):
     """sorted/photos/2026/09/a.jpg (a real tiny JPEG header is not needed for the listing; the thumbnail test
     accepts 415/501 for bytes no library can read), sorted/photos/2025/12/b.jpg, sorted/documents/x.pdf,
@@ -33,9 +39,12 @@ def _tree(root):
 
 
 def _server(root, token_line=None, no_token=False):
+    """Start the real handler on a free 127.0.0.1 port in a daemon thread; optionally write
+    <root>/serve.token first. Returns (server, base_url). The caller must call server.shutdown()."""
     if token_line is not None:
         (root / serve.TOKEN_FILE).write_text(token_line, encoding="utf-8")
     state = serve._State(root, Settings(), no_token=no_token)
+    # find a free port by binding port 0 and reading it back, then release it for the server
     with socket.socket() as s:
         s.bind(("127.0.0.1", 0))
         port = s.getsockname()[1]
@@ -45,6 +54,8 @@ def _server(root, token_line=None, no_token=False):
 
 
 def _get(url, token=None, raw=False):
+    """GET `url` with the proof header (and X-FP-Token if given); return (status, body, content type)
+    where the body is JSON-decoded unless raw=True and the status is 200 (HTTP errors are decoded as JSON)."""
     # X-FP-Local: a File Portal tool's proof that a GET is not a foreign page's <img> or link
     # (Handler._proven; test_serve_lock.py holds the requests that must be refused without it)
     headers = {"X-FP-Local": "1"}
@@ -58,7 +69,9 @@ def _get(url, token=None, raw=False):
         return e.code, json.load(e), e.headers.get("Content-Type", "")
 
 
+# -- tests: the listing, the gate, the thumbnail route --
 def test_sorted_document_shape_and_filters(tmp_path):
+    """sorted_document gives the right counts, entry keys, category filter and from-date filter."""
     _tree(tmp_path)
     paths = Paths.from_root(tmp_path)
     doc = serve.sorted_document(paths, Settings(), None, None, None)
@@ -74,6 +87,7 @@ def test_sorted_document_shape_and_filters(tmp_path):
 
 
 def test_routes_identity_only_when_no_token_file_and_no_token_flag(tmp_path):
+    """With --no-token every route answers: /health, /sorted (filtered and bad filters) and unknown routes."""
     # the tailnet identity alone admits only on the operator's explicit --no-token (S214 E16's
     # default became fail-closed 2026-09-30: no token and no flag is a 503, see test_serve_lock.py)
     _tree(tmp_path)
@@ -95,6 +109,7 @@ def test_routes_identity_only_when_no_token_file_and_no_token_flag(tmp_path):
 
 
 def test_gate_with_a_token(tmp_path):
+    """With a serve.token file: /health stays open; a missing or wrong token is 403; the right one is 200."""
     _tree(tmp_path)
     server, base = _server(tmp_path, "s3cret\n")
     try:
@@ -114,6 +129,7 @@ def test_gate_with_a_token(tmp_path):
 
 
 def test_thumbnail_refusals_and_honesty(tmp_path):
+    """/thumb refuses traversal, non-photos, missing files and a bad px, and never returns 200 for non-images."""
     _tree(tmp_path)
     server, base = _server(tmp_path, no_token=True)
     try:

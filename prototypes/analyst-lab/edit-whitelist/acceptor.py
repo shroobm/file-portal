@@ -1,4 +1,11 @@
-r"""Ask C — the DIFF-WHITELIST ACCEPTOR (quarantined prototype, zero pipeline coupling).
+r"""WHAT THIS FILE DOES: the prototype diff-whitelist acceptor. reconcile(input, candidate, rungs, policy) compares an
+analyst input chunk with the model's output word by word, keeps only edits that are equivalent under the chosen
+whitelist (equivalent/norm) and reverts the rest; label() names each edit's class. run_policy() applies it to all
+pairs and audit_with() audits under a patched normaliser; main() runs the controls and the FULL and STRICT policies,
+prints the results and writes reconciled_<policy>.md, results_edit_samples.json and results_acceptor.json into the
+current directory. Reads the held bundle via common.py/align.py. Imported by promotion_* and reference-repair.
+
+Ask C — the DIFF-WHITELIST ACCEPTOR (quarantined prototype, zero pipeline coupling).
 
 Given (input chunk, candidate) as the analyst sees them (fenced, raw markdown):
   1. whitespace-tokenise both, keep every token's offsets;
@@ -42,6 +49,7 @@ from rapidfuzz.distance import Levenshtein
 from common import analyst, fa, load_bundle, ladder, tn  # noqa: F401
 from align import build_pairs
 
+# -- regexes and constants for the whitelist rungs (tokens, quotes, escapes, links, hyphens, ligatures, markup) --
 _WS_TOKEN = re.compile(r"\S+")
 _QUOTES = tn._QUOTES
 _ESC = re.compile(r"\\([\\`*_{}\[\]()#+\-.!$|<>~\"'])")
@@ -56,7 +64,10 @@ _WS = re.compile(r"\s+")
 _DIGIT = re.compile(r"\d")
 
 
+# -- equivalence test: normalise both spans under the rungs and compare --
 def _urls(text: str, rungs: set[str]) -> collections.Counter:
+    """Count the link targets (urls) found in text, removing markdown escapes first when the escape rung is on.
+    Returns a Counter of url strings."""
     # escapes come off BEFORE the link regex: Marker writes a citation as `[[2\]](#page-490-0)`
     # and the escaped bracket hides the link from a naive regex (S119 R1, first acceptor run)
     if "escape" in rungs:
@@ -65,6 +76,8 @@ def _urls(text: str, rungs: set[str]) -> collections.Counter:
 
 
 def norm(text: str, rungs: set[str]) -> str:
+    """Normalise text with NFKC and quote unification, then each enabled rung (escape, link, markup, hyphen), and
+    remove all whitespace. Pure function; returns the space-free string."""
     t = unicodedata.normalize("NFKC", text).translate(_QUOTES)
     if "escape" in rungs:
         t = _ESC.sub(r"\1", t)
@@ -79,6 +92,8 @@ def norm(text: str, rungs: set[str]) -> str:
 
 
 def equivalent(a: str, b: str, rungs: set[str]) -> bool:
+    """True when spans a and b are equal after normalisation under rungs, with equal link-target sets when the link
+    rung is on, or when the ligature rung can turn every garbled glyph in a into a ligature that yields b."""
     if "link" in rungs and _urls(a, rungs) != _urls(b, rungs):
         return False
     na, nb = norm(a, rungs), norm(b, rungs)
@@ -100,6 +115,7 @@ def equivalent(a: str, b: str, rungs: set[str]) -> bool:
     return False
 
 
+# -- policies (rung sets) and the edit labeller --
 FULL = {"escape", "link", "markup", "hyphen", "ligature"}
 STRICT = {"markup", "hyphen"}
 
@@ -113,6 +129,7 @@ def label(a: str, b: str) -> str:
         return "deletion"
     if equivalent(a, b, set()):
         return "reflow"
+    # try each single rung (then two combined) in turn; the first that makes the spans equivalent names the edit
     for name, rungs in (("hyphen", {"hyphen"}), ("escape", {"escape"}), ("link", {"link"}),
                         ("markup", {"markup"}), ("ligature", {"ligature"}),
                         ("markup+link", {"markup", "link"}), ("markup+escape", {"markup", "escape"})):
@@ -131,8 +148,10 @@ def label(a: str, b: str) -> str:
     return "substitution"
 
 
+# -- the reconciler: splice accepted edits and reverted originals into one text --
 def reconcile(inp: str, cand: str, rungs: set[str], policy: str = "whitelist") -> tuple[str, list]:
     """Returns (reconciled text, edit log [(label, accepted, a_span, b_span)])."""
+    # tokenise both texts, remembering each token's character offsets
     ta = [(m.start(), m.end()) for m in _WS_TOKEN.finditer(inp)]
     tb = [(m.start(), m.end()) for m in _WS_TOKEN.finditer(cand)]
     wa = [inp[s:e] for s, e in ta]
@@ -140,10 +159,11 @@ def reconcile(inp: str, cand: str, rungs: set[str], policy: str = "whitelist") -
     if wa == wb and policy != "all":
         # token-identical: whitespace/paragraphing is the only difference; keep the candidate
         return cand, []
+    # walk the word-level opcodes: equal runs are copied from the candidate; each other edit is accepted or reverted
     ops = Levenshtein.opcodes(wa, wb)
     out = []
     log = []
-    prev_end_b = 0        # candidate offset after the last emitted candidate segment
+    prev_end_b = 0       # candidate offset after the last emitted candidate segment
     prev_end_a = 0
     first = True
     for op in ops:
@@ -156,6 +176,7 @@ def reconcile(inp: str, cand: str, rungs: set[str], policy: str = "whitelist") -
             prev_end_a = ta[s1 - 1][1]
             first = False
             continue
+        # a non-equal edit: decide accept (keep candidate span) or revert (restore the input span)
         a_span = inp[ta[s0][0]:ta[s1 - 1][1]] if s1 > s0 else ""
         b_span = cand[tb[d0][0]:tb[d1 - 1][1]] if d1 > d0 else ""
         if policy == "all":
@@ -184,12 +205,16 @@ def reconcile(inp: str, cand: str, rungs: set[str], policy: str = "whitelist") -
         if s1 > s0:
             prev_end_a = ta[s1 - 1][1]
         first = False
+    # whatever follows the last emitted segment (trailing whitespace) goes on the end
     tail = cand[prev_end_b:] if tb else inp[prev_end_a:]
     out.append(tail)
     return "".join(out), log
 
 
+# -- drivers: apply the reconciler to every pair, and audit under a patched normaliser --
 def run_policy(pairs, embeds, policy, rungs, tag):
+    """Reconcile every pair under policy/rungs and rebuild the document body. The tag argument is not used inside
+    the function. Returns (unfenced body text, Counter keyed by (label, 'accepted'/'reverted'))."""
     recon = []
     counts = collections.Counter()
     for p in pairs:
@@ -203,6 +228,8 @@ def run_policy(pairs, embeds, policy, rungs, tag):
 
 
 def audit_with(prepare, sidecar, body):
+    """Run fidelity_audit.audit_analyst(sidecar, body) with prepare patched in as prepare_output (both bindings),
+    restoring the originals afterwards. Returns the audit dict."""
     real = tn.prepare_output
     tn.prepare_output = prepare
     fa.prepare_output = prepare
@@ -213,11 +240,15 @@ def audit_with(prepare, sidecar, body):
         fa.prepare_output = real
 
 
+# -- ladder-variant regexes (escape-first, ligature-blind) used by the audits below and by promotion_* scripts --
 _V3 = re.compile(r"\\(?=[^\w\s]|_)")
 _LIG_BLIND = re.compile(r"ffi|ffl|fi|fl|ff")
 
 
+# -- entry point --
 def main():
+    """Run the shipped baseline, the accept-all and accept-none controls, then the FULL and STRICT policies under
+    three ladders; print the results, write reconciled_<policy>.md plus two JSON files in the current directory."""
     b = load_bundle()
     pairs, stats = build_pairs(b)
     fenced_out, embeds_out = analyst.fence(b["shipped_body"])
@@ -243,14 +274,18 @@ def main():
           f"| ladder words == sidecar: {same_words}")
     results["control_none"] = (a_none["doc_survival"], a_none["runs_total"], same_words)
 
+    # the two alternative ladders defined as local functions: v3b (escape-first plus ligature-blind), v3c (plus cites)
     real_prepare = tn.prepare_output
     def _v3b(markdown: str) -> str:
+        """Ladder v3b: strip escaping backslashes, apply the shipped prepare_output, drop ligature letter groups."""
         return _LIG_BLIND.sub("", real_prepare(_V3.sub("", markdown)))
     _CITE = re.compile(r"\[\[([^\]\n]*)\]\]\(([^)\n]*)\)")   # Marker's `[[n]](url)` once unescaped
     def _v3c(markdown: str) -> str:
+        """Ladder v3c: v3b plus the [[n]](url) citation form collapsed to its text."""
         # v3b + the citation-link form collapsed to its text (the class B's classifier calls link-syntax)
         return _LIG_BLIND.sub("", real_prepare(_CITE.sub(r"\1", _V3.sub("", markdown))))
 
+    # run each policy: reconcile, audit under three ladders, print class counts, write the reconciled body to disk
     sample_log = {}
     for name, rungs in (("FULL", FULL), ("STRICT", STRICT)):
         body, counts = run_policy(pairs, embeds_out, "whitelist", rungs, name)
@@ -284,6 +319,7 @@ def main():
                 print("     still failing:", w[:100])
         # a sample of the edit log per class (first 3 of each)
         seen = collections.defaultdict(list)
+        # re-run the reconciler to collect up to three edit samples per (class, accepted/reverted)
         for p in pairs:
             _, log = reconcile(p["input"], p["output"], rungs, "whitelist")
             for lab, acc_, a_, b_ in log:

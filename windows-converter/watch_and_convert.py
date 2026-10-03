@@ -1,4 +1,10 @@
-"""Desktop conveyor front door (S17): watch a local drop folder, convert arrivals.
+"""WHAT THIS FILE DOES: the long-running intake watcher. main() polls the drop folder for PDFs, decides when each
+is fully copied (IntakeTracker), and hands the first ready one to a single worker thread, which runs
+convert_and_ship.py as a child process (convert_one). It reads analyst-mode.txt, the chat-hold file and the card
+mutex; it writes .gpu-lock, .intake-state.json, the watcher log, and moves finished PDFs to drop/done or
+drop/failed. Started by the widget or by hand; one instance only (a named mutex).
+
+Desktop conveyor front door (S17): watch a local drop folder, convert arrivals.
 
 Drop a PDF into DROP_DIR and it goes through the full slice-1 pipeline (policy-routed
 Marker -> bundle -> anchor -> ship to ThinkPad staging -> existing exporter). Analyst
@@ -34,6 +40,7 @@ from pathlib import Path
 import fp_paths
 from events import emit
 
+# -- configuration: folders, state files, child command and timing constants --
 # FP_PIPELINE / FP_CONVERT exist for the deferral-gate tripwire, which runs THIS file for real
 # against an isolated root and a stub converter (SYM-010: never the live dirs, never Marker).
 # Unset - the production case - nothing changes. Roots resolve through fp_paths (S108).
@@ -65,7 +72,9 @@ TIMEOUT_S = int(os.environ.get("FP_CONVERT_TIMEOUT_S", "28800"))
 logger = logging.getLogger("fp-desktop-watcher")
 
 
+# -- small helpers: analyst mode, timestamps, file readiness probe --
 def analyst_mode() -> str:
+    """Read analyst-mode.txt; returns one of off/local/gemini/ask, or "off" if unreadable or unknown."""
     # "ask" parks conversions in pending/ for the widget's pre-flight card (S18).
     try:
         mode = MODE_FILE.read_text(encoding="utf-8").strip().lower()
@@ -75,6 +84,7 @@ def analyst_mode() -> str:
 
 
 def _utc_now() -> str:
+    """Current UTC time as an ISO-8601 string with milliseconds and a trailing Z."""
     return datetime.now(timezone.utc).isoformat(timespec="milliseconds").replace("+00:00", "Z")
 
 
@@ -115,8 +125,11 @@ def _open_without_write_sharing(path: Path) -> bool:
     return True
 
 
+# -- intake tracking: what the watcher knows about each file in drop/ --
 @dataclass
 class _Tracked:
+    """What is known about one dropped file: last size and mtime, when first seen (wall and monotonic
+    clocks), and since when its size/mtime have been unchanged."""
     size: int
     mtime_ns: int
     first_seen_wall: str
@@ -128,6 +141,7 @@ class IntakeTracker:
     """Non-blocking reconciliation state.  Filesystem observations remain the authority."""
 
     def __init__(self, quiet_s: float = QUIET_S, readiness_probe=_open_without_write_sharing):
+        """Set the quiet period and the readiness probe (injectable); start with no tracked files."""
         self.quiet_s = quiet_s
         self.readiness_probe = readiness_probe
         self.files: dict[str, _Tracked] = {}
@@ -147,6 +161,7 @@ class IntakeTracker:
         now_mono = time.monotonic()
         now_wall = datetime.now(timezone.utc)
         restored = 0
+        # re-adopt each receipt row whose file still has the same size and mtime; skip malformed rows
         for row in receipt["items"]:
             try:
                 name = str(row["name"])
@@ -169,11 +184,15 @@ class IntakeTracker:
         return restored
 
     def reconcile(self, paths: list[Path], now: float | None = None) -> list[dict]:
+        """Compare the PDFs now in drop/ with what is tracked; returns one row per file (name, bytes, mtime_ns,
+        phase receiving/settling/ready, first_seen_at, wait_s, quiet_s) in filename order. Forgets vanished files."""
         now = time.monotonic() if now is None else now
         present = {p.name for p in paths}
+        # forget files that left the folder
         for stale in set(self.files) - present:
             del self.files[stale]
         rows: list[dict] = []
+        # classify each file: new or changed = receiving; unchanged < quiet_s = settling; else probe for a writer
         for path in sorted(paths, key=lambda p: p.name):
             try:
                 stat = path.stat()
@@ -208,12 +227,14 @@ class IntakeTracker:
         return rows
 
     def next_quiet_delay(self, now: float | None = None) -> float:
+        """Seconds until the soonest tracked file finishes its quiet period (at least 0.05), else POLL_S."""
         now = time.monotonic() if now is None else now
         remaining = [self.quiet_s - (now - f.unchanged_since) for f in self.files.values()]
         positive = [n for n in remaining if n > 0]
         return max(0.05, min(positive)) if positive else POLL_S
 
 
+# -- state receipt, directory-change wake hint, and single-instance / card-ownership checks (Windows API) --
 def _atomic_write_state(rows: list[dict], active: str | None, wake_mode: str,
                         card_state: str = "UNREAD") -> None:
     """Watcher-only, dot-then-replace publication.  Failure is cosmetic and best-effort."""
@@ -267,6 +288,7 @@ def _directory_change_listener(wake: threading.Event) -> None:
         ctypes.c_void_p,
     ]
     k32.CloseHandle.argtypes = [wintypes.HANDLE]
+    # open the drop folder, block on change notifications and set `wake`; reopen after any failure
     while True:
         handle = k32.CreateFileW(str(DROP_DIR), file_list_directory, share_all, None,
                                  open_existing, backup_semantics, None)
@@ -337,6 +359,7 @@ def _card_mutex_busy() -> bool | None:
         k32.CloseHandle(handle)
 
 
+# -- deferral and the assistant's chat-hold on the card --
 # One deferral log/event per PDF per hold episode - the loop retries every POLL_S seconds and a
 # held card can stay held for a long chat; a log line every 5 s would bury the signal.
 _deferred: set[str] = set()
@@ -425,6 +448,7 @@ def chat_hold() -> str | None:
     return None
 
 
+# -- converting one PDF: move the source, run the child converter, classify its exit --
 def _move_source(pdf: Path, dest_dir: Path, outcome: str) -> str:
     """Move the converted source out of drop/; returns where it went, for the DONE/FAILED line.
 
@@ -451,6 +475,9 @@ def _move_source(pdf: Path, dest_dir: Path, outcome: str) -> str:
 
 
 def convert_one(pdf: Path) -> str:
+    """Convert one PDF by running convert_and_ship.py as a child (analyst flags follow analyst-mode.txt).
+    Returns "deferred" (chat-hold, PDF stays in drop/), "done" (exit 0, or the ship-failed exit; PDF moved to
+    drop/done) or "failed" (other exit or timeout; PDF to drop/failed with its stderr). Writes/removes .gpu-lock."""
     hold = chat_hold()
     if hold:
         if pdf.name not in _deferred:
@@ -496,6 +523,7 @@ def convert_one(pdf: Path) -> str:
             out, err = child.communicate()
     finally:
         LOCK_FILE.unlink(missing_ok=True)
+    # classify the child's outcome: clean exit, ship-failed exit (still done), or failure/timeout
     if child.returncode == 0 and not timed_out:
         went = _move_source(pdf, DONE_DIR, "done")
         logger.info("DONE %s -> %s | %s", pdf.name, went,
@@ -530,10 +558,12 @@ def convert_one(pdf: Path) -> str:
         return "failed"
 
 
+# -- the single conversion worker thread --
 class _Worker:
     """Exactly one conversion worker; intake reconciliation never blocks behind Marker."""
 
     def __init__(self, wake: threading.Event):
+        """Create the one-slot job queue and start the daemon worker thread; `wake` is set after each job."""
         self.wake = wake
         self.jobs: queue.Queue[Path] = queue.Queue(maxsize=1)
         self._lock = threading.Lock()
@@ -542,10 +572,12 @@ class _Worker:
         threading.Thread(target=self._run, name="file-portal-convert", daemon=True).start()
 
     def snapshot(self) -> tuple[bool, str | None]:
+        """Return (a job is reserved, name of the active PDF or None), read under the lock."""
         with self._lock:
             return self._reserved, self._active
 
     def submit(self, pdf: Path) -> bool:
+        """Queue `pdf` for conversion; returns False if a job is already reserved, True once queued."""
         with self._lock:
             if self._reserved:
                 return False
@@ -556,6 +588,8 @@ class _Worker:
         return True
 
     def _run(self) -> None:
+        """Worker thread body: take a job, recheck the file has no writer, convert it, then clear the active
+        state and wake the main loop. Any exception is logged and emitted as a worker_error event."""
         while True:
             pdf = self.jobs.get()
             try:
@@ -578,7 +612,9 @@ class _Worker:
                 self.wake.set()
 
 
+# -- the main loop --
 def _pdfs_in_drop() -> list[Path]:
+    """List non-hidden .pdf files directly in the drop folder; [] if the folder cannot be read."""
     try:
         return [p for p in DROP_DIR.iterdir()
                 if p.is_file() and not p.name.startswith(".") and p.suffix.lower() in PATTERNS]
@@ -592,6 +628,8 @@ def _next_dispatch(rows: list[dict]) -> str | None:
 
 
 def main() -> None:
+    """Run the watcher forever: create folders, set up logging, claim the single-instance mutex (exit 3 if
+    taken), start the worker and the change listener, then loop reconcile -> dispatch -> publish state."""
     for d in (DROP_DIR, DONE_DIR, FAILED_DIR):
         d.mkdir(parents=True, exist_ok=True)
     if not MODE_FILE.exists():
@@ -617,6 +655,7 @@ def main() -> None:
                 DROP_DIR, wake_mode, POLL_S, QUIET_S, MODE_FILE)
     if restored:
         logger.info("restored first-seen age for %s waiting PDF(s)", restored)
+    # one pass per wake-up or poll interval; an error in a pass is logged and the loop continues
     while True:
         try:
             paths = _pdfs_in_drop()
@@ -639,6 +678,7 @@ def main() -> None:
                     LOCK_FILE.unlink(missing_ok=True)
                     logger.warning("REAPED stale .gpu-lock for %s; card mutex is idle", lock_name)
                     emit("intake", "stale-lock-reaped", source=lock_name)
+            # while the assistant or another process holds the card, mark ready files as deferred
             hold = chat_hold()
             if hold or (not busy and external_block and not active):
                 for row in rows:

@@ -1,4 +1,9 @@
-"""Tripwires for SYM-056 — the report-only LaTeX environment balance (signed Rab 2026-09-03).
+"""WHAT THIS FILE DOES: selftest script for fidelity_audit.latex_balance (counts LaTeX \\begin without a matching \\end).
+It runs the checks L1 to L8 at import time (no main function), prints one ok/FAIL line per check and a GREEN/RED
+verdict line, and exits 1 if any check failed. It reads fidelity_audit.py's source text, builds one tiny PDF in a temp
+dir (deleted afterwards) and writes nothing else. Nobody imports it; it is run directly.
+
+Tripwires for SYM-056 — the report-only LaTeX environment balance (signed Rab 2026-09-03).
 
 Run with the marker-env interpreter (fidelity_audit imports pymupdf and rapidfuzz at module
 level):
@@ -44,10 +49,12 @@ sys.path.insert(0, str(HERE))
 
 import fidelity_audit as fa  # noqa: E402
 
+# -- failure list and the check() reporter --
 FAILURES: list[str] = []
 
 
 def check(cond: bool, label: str) -> None:
+    """Print an ok/FAIL line for one check and add the label to FAILURES when cond is false."""
     print(("  ok  " if cond else "  FAIL") + f"  {label}")
     if not cond:
         FAILURES.append(label)
@@ -111,6 +118,7 @@ def greedy_first_unmatched(text: str, env: str) -> int | None:
     open (first-in-first-out) instead of the innermost. Same count, different line."""
     opens: list[int] = []
     ends = 0
+    # record the line of every begin and count every end of the environment
     for m in re.finditer(r"\\(begin|end)\s*\{" + env + r"\}", text):
         if m.group(1) == "begin":
             opens.append(text.count("\n", 0, m.start()) + 1)
@@ -146,6 +154,7 @@ STRAY = (
     "\\end{align}$$\n"             # line 4 — closes line 3
 )
 b5 = fa.latex_balance(STRAY)
+# print each environment's four numbers for the reader
 for env, d in sorted(b5["environments"].items()):
     print(f"    {env}: begin {d['begin']} end {d['end']} stray_end {d['stray_end']} "
           f"unterminated {d['unterminated']} line {d['line']}")
@@ -189,6 +198,7 @@ try:
 
     doc = pymupdf.open()
     page = doc.new_page()
+    # write three lines of witness text onto the page, then save the PDF into the temp dir
     for i, line in enumerate([
         "the quick brown fox jumps over the lazy dog again and again",
         "a second line of witness text with enough words to be scored",
@@ -237,6 +247,7 @@ print(f"\n{'RED: ' + str(total) + ' tripwire(s) fired' if FAILURES else 'GREEN'}
       f"({n_checks - total}/{n_checks})")
 if FAILURES:
     print("Failed:")
+    # list each failed label
     for f in FAILURES:
         print(f"  - {f}")
 sys.exit(1 if FAILURES else 0)

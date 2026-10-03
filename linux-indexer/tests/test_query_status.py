@@ -1,4 +1,9 @@
-"""The read-only surfaces over a store the reconciler built: query in each mode with filters,
+"""WHAT THIS FILE DOES: tests for the read-only side of the indexer: query.run() in each mode with
+filters, fts_query() and fuse() on their own, status.run() against the vault, and the HTTP routes of
+serve.py on a loopback port. Builds its index with the helpers and fake embedder from
+test_reconcile.py. No network beyond 127.0.0.1, no real models.
+
+The read-only surfaces over a store the reconciler built: query in each mode with filters,
 returning the documented hit shape or a calm `available: false`; status comparing the index
 tip to the vault NOW; the HTTP endpoint's routes on a loopback port. The hash embedder stands
 in for the model, so vector-leg ORDER is meaningless here -- what is asserted is shape, the
@@ -27,7 +32,9 @@ from tests.test_reconcile import (
 __all__ = ["paths"]  # the fixture is imported for pytest, not re-exported for style
 
 
+# -- shared setup: build a two-book index, and the expected hit shape --
 def indexed(paths):
+    """Commit two bundles (book A unaudited, book B lane scan with verdict flag) and reconcile them."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     vault_bundle(
         paths,
@@ -54,7 +61,9 @@ HIT_KEYS = [
 ]
 
 
+# -- query behaviour --
 def test_no_index_is_a_calm_answer_not_an_error(paths):
+    """With no index, query and status both answer available: False instead of raising."""
     doc = query.run(paths.root, SETTINGS, "anything", embedder=HashEmbedder())
     assert doc["available"] is False
     doc = status.run(paths.root)
@@ -62,6 +71,7 @@ def test_no_index_is_a_calm_answer_not_an_error(paths):
 
 
 def test_keyword_mode_answers_without_any_model(paths):
+    """Keyword mode finds the right bundle with no embedder given, and the hit has the documented keys."""
     indexed(paths)
 
     doc = query.run(paths.root, SETTINGS, "Frege assertion", mode="keyword")  # no embedder
@@ -74,6 +84,7 @@ def test_keyword_mode_answers_without_any_model(paths):
 
 
 def test_hybrid_fuses_both_legs_and_names_them(paths):
+    """Hybrid mode returns at most top_k hits, sorted by score, each naming the legs that found it."""
     indexed(paths)
 
     doc = query.run(paths.root, SETTINGS, "recursive theorem", top_k=3, embedder=HashEmbedder())
@@ -89,6 +100,7 @@ def test_hybrid_fuses_both_legs_and_names_them(paths):
 
 
 def test_filters_narrow_by_bundle_lane_and_verdict(paths):
+    """The bundle, lane and verdict filters each restrict the hits; a filter matching nothing gives []."""
     indexed(paths)
     embedder = HashEmbedder()
 
@@ -104,12 +116,14 @@ def test_filters_narrow_by_bundle_lane_and_verdict(paths):
 
 
 def test_query_refuses_a_foreign_embedder(paths):
+    """An embedder whose model name differs from the index's gives available: False with a reason."""
     indexed(paths)
     doc = query.run(paths.root, SETTINGS, "x", embedder=HashEmbedder(name="other"))
     assert doc["available"] is False and "other" in doc["reason"]
 
 
 def test_fts_query_never_passes_user_syntax_through():
+    """fts_query quotes every word and joins with OR, so search operators typed by a user are plain words."""
     assert (
         fts_query('requisite "variety" OR NOT (x)') == '"requisite" OR "variety" OR "OR" OR "NOT"'
     )
@@ -118,6 +132,7 @@ def test_fts_query_never_passes_user_syntax_through():
 
 
 def test_fusion_prefers_what_both_legs_agree_on():
+    """fuse() ranks a passage found by two legs first and names both legs in matched_by."""
     fused = fuse({"vector": [(1, 0.1), (2, 0.2)], "keyword": [(2, -3.0), (3, -2.0)]})
     assert [pid for pid, _, _ in fused][0] == 2
     assert dict((pid, by) for pid, _, by in fused) == {
@@ -127,7 +142,9 @@ def test_fusion_prefers_what_both_legs_agree_on():
     }
 
 
+# -- status and the HTTP routes --
 def test_status_in_sync_flips_when_the_vault_moves(paths):
+    """status.run reports in_sync True after indexing and False once a new vault commit lands."""
     indexed(paths)
     doc = status.run(paths.root)
     assert doc["in_sync"] is True and doc["bundles"] == 2 and doc["passages"] > 0
@@ -147,6 +164,8 @@ def _tool_get(url):
 
 
 def test_serve_routes_on_loopback(paths):
+    """Start the HTTP handler on a free 127.0.0.1 port and check /health, /status and /query (GET and
+    POST), including a 400 for an empty question. Starts and stops a server thread."""
     indexed(paths)
     state = serve._State.__new__(serve._State)
     state.root, state.settings = paths.root, SETTINGS
@@ -183,6 +202,7 @@ def test_serve_routes_on_loopback(paths):
 
 
 def test_filters_apply_inside_every_leg_not_after_the_fetch(paths):
+    """A bundle filter still answers from the small bundle when a long bundle dominates the common word."""
     # PLANTED starvation: bundle A is long and full of "the"; the unfiltered top-k for "the"
     # belongs to A entirely. A --bundle b filter must still answer from B (Observed on the
     # real vault 2026-09-09: --bundle claude "the" returned nothing under post-filtering).
@@ -201,6 +221,7 @@ def test_filters_apply_inside_every_leg_not_after_the_fetch(paths):
 
 
 def test_title_leg_finds_what_the_body_never_says(paths):
+    """A number that appears only in the file name (an ISBN) is found by the title leg, first passage."""
     vault_bundle(
         paths,
         "Inbox/brain-of-the-firm--aa11aa11",
@@ -223,6 +244,8 @@ def test_title_leg_finds_what_the_body_never_says(paths):
 
 
 def test_serve_rejects_what_is_not_a_question(paths):
+    """POST /query answers 400 for non-object JSON, bad JSON or an overlong question, 413 for a huge
+    declared body, and 200 for a good question. Starts and stops a server thread."""
     indexed(paths)
     state = serve._State.__new__(serve._State)
     state.root, state.settings, state.embedder, state.reranker = paths.root, SETTINGS, None, None
@@ -236,6 +259,7 @@ def test_serve_rejects_what_is_not_a_question(paths):
     base = f"http://127.0.0.1:{port}"
 
     def post(body, **headers):
+        """POST `body` to /query with the extra headers; returns the HTTP status code (errors included)."""
         req = urllib.request.Request(base + "/query", data=body, headers=headers)
         try:
             return urllib.request.urlopen(req, timeout=10).status

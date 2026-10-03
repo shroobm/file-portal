@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""ledger_check.py [<ledger dir>] — verify a dump ledger (S141, provenance/extend-dump-ledger-not-invent-manifest):
+"""WHAT THIS FILE DOES: command-line checker for a dump ledger directory. Entry point is main(argv); it reads
+LEDGER.md and LEDGER.jsonl (and the files the twin rows point at) and prints one line per ledger row plus a summary.
+It writes nothing. It is run by hand or by ledger_check_selftest.py (in this folder), which exercises it on a temp ledger.
+
+ledger_check.py [<ledger dir>] — verify a dump ledger (S141, provenance/extend-dump-ledger-not-invent-manifest):
 every LEDGER.md row (seven columns) has a well-formed id/utc/sha; every LEDGER.jsonl twin row recomputes its own
 row_sha256 (canonical JSON, sorted keys, no whitespace, over the row without that field) and agrees with its md row on
 id/bytes/sha256; for a twin row whose `path` still exists, the bytes and sha256 reproduce (a copy-mode dump whose bytes
@@ -12,11 +16,14 @@ import re
 import sys
 from pathlib import Path
 
-ROW = re.compile(r"^\| (D\d{4}) \| (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \| ([^|]+) \| ([^|]+) \| (.*) \| (\d+) \| `([0-9a-f]{64})` \|\s*$")
+# -- the pattern one LEDGER.md table row must match (id, utc, lane, category, subject, bytes, sha256) --
+ROW =re.compile(r"^\| (D\d{4}) \| (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \| ([^|]+) \| ([^|]+) \| (.*) \| (\d+) \| `([0-9a-f]{64})` \|\s*$")
 
 
+# -- file hashing helper --
 def digest(path):
-    h = hashlib.sha256()
+    """Read the file at `path` in 1 MiB chunks; return (byte count, sha256 hex digest). Read-only."""
+    h =hashlib.sha256()
     n = 0
     with io.open(path, "rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
@@ -25,7 +32,10 @@ def digest(path):
     return n, h.hexdigest()
 
 
+# -- the checker itself --
 def main(argv):
+    """Check the ledger in argv[1] (default: this file's folder). Prints findings to stdout; reads files only.
+    Returns 0 if every check agrees, 1 if any disagreement, 2 if there is no LEDGER.md."""
     d = Path(argv[1]) if len(argv) > 1 else Path(__file__).resolve().parent
     md = d / "LEDGER.md"
     if not md.is_file():
@@ -33,6 +43,7 @@ def main(argv):
         return 2
     rows = {}
     bad = 0
+    # pass 1: parse the md table rows (lines starting "| D") into rows[id] = (bytes, sha256, subject)
     for ln in io.open(md, encoding="utf-8", errors="replace"):
         if not ln.startswith("| D"):
             continue
@@ -42,6 +53,7 @@ def main(argv):
             bad += 1
             continue
         rows[m.group(1)] = (int(m.group(6)), m.group(7), m.group(5).strip())
+    # pass 2: load the optional JSON-lines twin file into twins[id] = row; unparsable lines count as disagreements
     twins = {}
     jl = d / "LEDGER.jsonl"
     if jl.is_file():
@@ -55,13 +67,15 @@ def main(argv):
                 bad += 1
                 continue
             twins[r.get("id")] = r
+    # pass 3: for each md row, compare against its twin: own row hash, md-vs-twin agreement, bytes on disk, producer
     for rid, (nbytes, sha, subject) in rows.items():
         t = twins.get(rid)
         if not t:
             print("  %s: md row (no twin — pre-S141) · %d bytes · %s…" % (rid, nbytes, sha[:12]))
             continue
         parts = []
-        want = t.get("row_sha256")
+        # recompute the twin row's own hash: canonical JSON (sorted keys, no spaces) of the row minus row_sha256
+        want =t.get("row_sha256")
         canon = json.dumps({k: v for k, v in t.items() if k != "row_sha256"}, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         got = hashlib.sha256(canon).hexdigest()
         if got == want:
@@ -74,6 +88,7 @@ def main(argv):
         else:
             parts.append("md != twin ✗ (bytes %s/%s, sha %s…/%s…)" % (nbytes, t.get("bytes"), sha[:8], str(t.get("sha256"))[:8]))
             bad += 1
+        # if the dumped file still exists, re-hash it; a missing file is reported but is not a disagreement
         p = t.get("path")
         if p and Path(p).is_file():
             n, s = digest(p)
@@ -88,6 +103,7 @@ def main(argv):
         if pr:
             parts.append("producer %s blob %s" % (Path(pr.get("path", "?")).name, str(pr.get("blob", ""))[:8] or "UNREAD"))
         print("  %s: %s · %s" % (rid, " · ".join(parts), subject[:60]))
+    # pass 4: any twin row whose id has no md row is a disagreement
     for rid in twins:
         if rid not in rows:
             print("  %s: twin row WITHOUT an md row ✗" % rid)
@@ -96,5 +112,6 @@ def main(argv):
     return 1 if bad else 0
 
 
+# -- command-line entry --
 if __name__ == "__main__":
     sys.exit(main(sys.argv))

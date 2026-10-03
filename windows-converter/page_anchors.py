@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""page_anchors.py — Obsidian page anchors for a bundle's markdown, from its own blocks.json (S209 E6, 2026-09-20; Rab signed
+"""WHAT THIS FILE DOES: adds Obsidian page anchors (` ^p<N>`) to a converted book's markdown, using the page numbers in
+the bundle's blocks.json. Main entry point: anchor_markdown(md, blocks) -> (markdown, pages_anchored, pages_total).
+It is pure (strings in, string out). Run as a script it only reports how many pages it would anchor and writes nothing.
+Caller: convert_and_ship.py (anchors_at_ship(), behind a lever).
+
+page_anchors.py — Obsidian page anchors for a bundle's markdown, from its own blocks.json (S209 E6, 2026-09-20; Rab signed
 the Desk proposal 7b1ef158 as (b): built into the line behind a lever, OFF until he turns it).
 
 marker's markdown carries no page marks; blocks.json knows every block's page. `anchor_markdown` appends an Obsidian block
@@ -28,6 +33,7 @@ import json
 import re
 import sys
 
+# -- patterns and tuning constants: anchor and block-id regexes, block types, key lengths, fence and table limits --
 ANCHOR_RE = re.compile(r"(?:^|\s)\^p(\d+)\s*$")          # a trailing ` ^pN`, or a bare `^pN` line (the form for tables)
 BLOCK_ID_RE = re.compile(r"(?:^|\s)\^[A-Za-z0-9-]+\s*$")
 TEXT_TYPES = ("Text", "SectionHeader", "ListItem", "ListGroup", "Caption", "TextInlineMath", "Footnote", "Handwriting")
@@ -40,6 +46,7 @@ MAX_FENCE = 120            # a fenced region longer than this is a runaway fence
 TABLE_REACH = 4            # a table block's key may land on the table's caption/header line; the rows start within this many lines
 
 
+# -- text helpers: normalise, strip html, longest increasing run --
 def _norm(s: str):
     """Lower-case alphanumerics only, with a map from each kept char back to its offset in `s`."""
     out = []
@@ -52,6 +59,7 @@ def _norm(s: str):
 
 
 def _plain(html: str) -> str:
+    """Strip html tags from a string (None reads as empty) and collapse whitespace. Returns plain text."""
     return re.sub(r"\s+", " ", re.sub(r"<[^>]+>", " ", html or "")).strip()
 
 
@@ -77,8 +85,10 @@ def _increasing_run(seq: list[int]) -> list[int]:
     return out[::-1]
 
 
+# -- the anchoring pass and the command-line entry point --
 def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     """Returns (markdown, pages_anchored, pages_total). Idempotent: a page already carrying ^p<N> is left alone."""
+    # setup: split into lines keeping the file's own line ending, and record each line's character offset
     nl = "\r\n" if "\r\n" in md else "\n"
     lines = md.split(nl)
     starts = []
@@ -91,6 +101,7 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     have = {int(m.group(1)) for ln in lines for m in [ANCHOR_RE.search(ln)] if m}
     by_page: dict[int, list[dict]] = {}
     tables: dict[int, list[dict]] = {}
+    # group the text blocks and the table blocks by page number
     for b in blocks:
         p = b.get("page")
         if p is None:
@@ -103,6 +114,7 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     pages = sorted(set(by_page) | set(tables))
     fence_lines = set()
     open_at = None
+    # find fenced code regions (``` pairs); a region longer than MAX_FENCE lines is treated as a runaway and ignored
     for i, ln in enumerate(lines):
         if ln.strip().startswith("```"):
             if open_at is None:
@@ -113,6 +125,7 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
                 open_at = None
 
     def line_of(char: int) -> int:
+        """Binary-search the line number that holds the given character offset of the original text."""
         lo, hi = 0, len(starts) - 1
         while lo < hi:
             mid = (lo + hi + 1) // 2
@@ -123,6 +136,7 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
         return lo
 
     def is_row(i: int) -> bool:
+        """True when line i is a markdown table row (starts with a pipe)."""
         return lines[i].lstrip().startswith("|")
 
     # S209 E10 (NBC, 25 of 84 anchored and 13 of those on the WRONG page): a key that recurs in the book — a footnote
@@ -135,11 +149,13 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     counts: dict[str, int] = {}
 
     def occurrences(key: str) -> int:
+        """How many times the key occurs in the normalised book text (cached in `counts`)."""
         if key not in counts:
             counts[key] = norm.count(key)
         return counts[key]
 
     def key_of(b: dict) -> str:
+        """The search key of a block: its html as plain text, normalised, cut to KEY_LEN characters."""
         key, _ = _norm(_plain(b.get("html", "")))
         return key[:KEY_LEN]
 
@@ -147,6 +163,7 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     # kept (NBC's p.13 footnote survives only at p.3's) — and one such key would fence every page before it; the TRUSTED
     # once-only keys are the longest run whose positions increase with the pages, and only those lead or fence
     once_keys = []                        # (page, position, key), page order then position
+    # collect each page's keys that occur exactly once in the book, with their position
     for p in pages:
         for b in by_page.get(p, []):
             key = key_of(b)
@@ -155,11 +172,13 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     once_keys.sort()
     trusted = {(once_keys[i][0], once_keys[i][2]) for i in _increasing_run([pos for _, pos, _ in once_keys])}
     unique_at: dict[int, int] = {}
+    # per page, the earliest trusted once-only position
     for p, at, key in once_keys:
         if (p, key) in trusted and (p not in unique_at or at < unique_at[p]):
             unique_at[p] = at
     fence: dict[int, int] = {}
     ahead = len(norm) + 1
+    # walking from the last page back, fence[p] = the first trusted once-only position of any LATER page
     for p in reversed(pages):
         fence[p] = ahead
         if p in unique_at:
@@ -170,6 +189,7 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
     table_ends = set()                    # tables already given an id (a table spanning pages is one markdown block)
     cursor = 0
     anchored = 0
+    # main loop, one page at a time: find the page's candidate hits, then place its id on a text line, else on a table
     for p in pages:
         human = p + 1
         # every text block of the page is a candidate: a once-only key from the top, a recurring one forward from the
@@ -195,6 +215,7 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
         if human in have:
             continue
         placed = False
+        # try each hit in order; the id goes at the end of the paragraph that holds the hit
         for hit, key in hits:
             line_no = line_of(idx[hit])
             if line_no in fence_lines:
@@ -251,6 +272,7 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
             anchored += 1
             cursor = hit + len(key)
             break
+    # apply the table-form ids last, from the bottom up, so earlier line numbers stay valid
     for end, human in sorted(inserts, reverse=True):
         piece = ["", "^p%d" % human]
         if end + 1 < len(lines) and lines[end + 1].strip():
@@ -260,6 +282,8 @@ def anchor_markdown(md: str, blocks: list[dict]) -> tuple[str, int, int]:
 
 
 def main(argv: list[str]) -> int:
+    """Command line: argv = [book.md, blocks.json]. Reads both files, prints how many pages would be anchored,
+    writes nothing. Returns 2 (and prints the module doc) when arguments are missing, else 0."""
     if len(argv) < 2:
         print(__doc__)
         return 2

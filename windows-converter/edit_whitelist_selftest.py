@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""edit_whitelist_selftest.py — the tripwire for edit_whitelist.py (J46, S140; docs/32 §6: a guard born today gets its
+"""WHAT THIS FILE DOES: selftest for edit_whitelist.py, the acceptor that decides which edits an analyst model made to
+converted text are kept (escapes, links, markup, hyphen joins, ligature repairs, reflow, table geometry) and which are
+reverted (numerals, deletions, insertions, substitutions, punctuation or case). It calls ew.reconcile() and ew.tally() on
+small hand-written text pairs and prints one ok/RED line per case, then a green count; exit 0 when all pass, else 1.
+It reads and writes no files.
+
+edit_whitelist_selftest.py — the tripwire for edit_whitelist.py (J46, S140; docs/32 §6: a guard born today gets its
 tripwire today). Two CONTROLS first (accept-all returns the candidate byte-for-byte; accept-none returns the input's
 words), then one case per whitelist rung with its NEGATIVE control (the edit the rung must NOT admit), then the classes
 the whitelist reverts by policy (numeral, deletion, insertion, substitution, punctuation/case — Rab's slot), the S140
@@ -12,15 +18,18 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import edit_whitelist as ew  # noqa: E402
 
+# -- test harness: the results list, the case() recorder and the rec() shortcut --
 results = []
 
 
 def case(name, ok, note=""):
+    """Record one test case: append its pass/fail to results and print an ok/RED line (note appended if given)."""
     results.append(bool(ok))
     print("  [%2d] %s %s%s" % (len(results) - 1, "ok " if ok else "RED", name, ("  — " + note) if note else ""))
 
 
 def rec(inp, cand, rungs=ew.FULL, policy="whitelist"):
+    """Shortcut for ew.reconcile(inp, cand, rungs, policy). Returns (resulting text, log of per-hunk decisions)."""
     return ew.reconcile(inp, cand, rungs, policy)
 
 
@@ -72,6 +81,7 @@ case("ligature: a word-start garble `%ere` -> `There` is accepted", t == "There 
 t, lg = rec("it was Di\"cult", "it was Dicult")
 case("ligature NEGATIVE: a dropped garble with no replacement is reverted", t == "it was Di\"cult" and not lg[0][1])
 # S140 review, Logic#1 (reproduced): an apostrophe in a contraction is never a garble
+# loop: four contraction pairs, each must be reverted
 for i_, c_ in (("he wasn't sure", "he wasnfft sure"), ("and 'tis so old", "and fftis so old"), ("it's fine", "itfts fine"), ("they'll go", "theyffll go")):
     t, lg = rec(i_, c_)
     case("ligature NEGATIVE (S140 review): `%s` -> `%s` is reverted (a contraction's apostrophe is not a garble)" % (i_, c_), t == i_ and not lg[0][1])

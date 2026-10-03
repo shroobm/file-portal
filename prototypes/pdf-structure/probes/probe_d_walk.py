@@ -1,4 +1,8 @@
-"""Walk the structure tree pymupdf 1.28.0 exposes via TEXT_COLLECT_STRUCTURE.
+"""WHAT THIS FILE DOES: a one-off inspection script. Usage: probe_d_walk.py [pdf_path [page_index]] (defaults:
+the WTPDF sample, page 10). It prints the structure-element tree of one page with bboxes and text, then a
+whole-document tally of element tags and nesting depth. Read-only; stdout only; needs pymupdf; no callers.
+
+Walk the structure tree pymupdf 1.28.0 exposes via TEXT_COLLECT_STRUCTURE.
 
 Prints, for ONE page: every StructElem node as raw/std tag, its bbox, and the
 glyph text beneath it. Then whole-document element-type counts.
@@ -6,6 +10,7 @@ glyph text beneath it. Then whole-document element-type counts.
 import sys, collections
 import pymupdf
 
+# -- command line and setup: pdf path and page index (both optional) --
 P = sys.argv[1] if len(sys.argv) > 1 else r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf"
 PAGE = int(sys.argv[2]) if len(sys.argv) > 2 else 10
 FLAGS = pymupdf.TEXTFLAGS_DICT | pymupdf.TEXT_COLLECT_STRUCTURE
@@ -15,7 +20,9 @@ print("FILE:", P)
 print("pages:", doc.page_count, "markinfo:", doc.markinfo)
 
 
+# -- helpers: text of a block, union of two boxes, and the recursive tree walk --
 def block_text(b):
+    """Return the text of stext text block `b`: spans joined per line, lines joined with spaces."""
     out = []
     for l in b.get("lines", []):
         out.append("".join(s["text"] for s in l.get("spans", [])))
@@ -23,6 +30,7 @@ def block_text(b):
 
 
 def union(a, b):
+    """Return the smallest box (x0, y0, x1, y1) containing boxes `a` and `b`; either may be None."""
     if a is None:
         return b
     if b is None:
@@ -67,6 +75,7 @@ def walk(blocks, depth, sink, path=()):
     return ub
 
 
+# -- one page: walk it and print the nodes indented by depth --
 page = doc[PAGE]
 d = page.get_text("dict", flags=FLAGS)
 sink = []
@@ -92,6 +101,7 @@ raw_ct = collections.Counter()
 std_ct = collections.Counter()
 maxdepth = 0
 struct_pages = 0
+# walk every page, counting each tag (raw and standard names), the deepest nesting, and pages with any structure
 for pno in range(doc.page_count):
     s = []
     dd = doc[pno].get_text("dict", flags=FLAGS)

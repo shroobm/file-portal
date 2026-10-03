@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """room.py - relay-room: THE SERVER + THE CLI.  [BUILDER B]
 
+WHAT THIS FILE DOES: it is the one program a person starts to run the relay room.  `room.py serve` runs a local
+HTTP server (127.0.0.1) that serves the UI page room.html, a JSON API and a live event stream (SSE) over the shared
+chat log state/room.md; `room.py init|say|state|claim|status|selftest` are the command-line side.  It reads
+state/room.md, state/config.json and the status files (through roomlog.py and status.py), appends entries to the log
+(through roomlog only), writes state/server.json (its heartbeat) and runs gate.py as a subprocess.  It is started by
+hand by the operator; catcher.py (one per lane) runs beside it and the models call the CLI.
+
 Contract: CONTRACT.md - §3 (the HTTP surface), §6 (the launch story + the model's CLI),
 §4.5 (the board it serves), §5.4 (the trails it serves).
 
@@ -103,10 +110,13 @@ class Refused(Exception):
     """A refusal with an HTTP code and a REMEDY.  Never a bare 'invalid input'."""
 
     def __init__(self, code: int, message: str):
+        """Store the HTTP status `code` and the remedy sentence `message` (also passed to Exception)."""
         super().__init__(message)
         self.code = code
         self.message = message
 
+
+# -- JSON file helpers (read with an honest status, write atomically) --
 
 def _read_json(path: Path):
     """(obj, 'ok'|'MISSING'|'UNREAD', reason).  A failed probe never returns a healthy empty dict."""
@@ -136,7 +146,11 @@ def _write_json(path: Path, obj) -> Path:
     return p
 
 
+# -- configuration: defaults, state/config.json, and per-run overrides --
+
 def load_config(overrides=None) -> dict:
+    """Build the config dict: roomlog.DEFAULTS, then known keys from state/config.json, then non-None `overrides`.
+    Side effects: sets the module global _CONFIG_STATUS; prints "UNREAD: ..." to stderr when config.json is bad."""
     global _CONFIG_STATUS
     cfg = dict(roomlog.DEFAULTS)
     obj, st, reason = _read_json(roomlog.STATE / "config.json")
@@ -161,11 +175,14 @@ _CFG = None
 
 
 def cfg(*, refresh=False, overrides=None) -> dict:
+    """Return the cached config dict, loading it on first use or when `refresh` is true (sets global _CFG)."""
     global _CFG
     if _CFG is None or refresh:
         _CFG = load_config(overrides)
     return _CFG
 
+
+# -- change detection for the event stream (file signatures, payload signatures) --
 
 def _sig(path):
     """(mtime_ns, size) or None when the probe failed.  None is a READING - 'we looked and it
@@ -183,6 +200,7 @@ def _strip(o):
     if isinstance(o, dict):
         out = {}
         for k, v in o.items():
+            # drop clock-driven keys; mask digit runs inside reason/detail sentences
             if k in VOLATILE_KEYS:
                 continue
             if isinstance(v, str) and (k == "detail" or k.endswith("reason")):
@@ -196,6 +214,8 @@ def _strip(o):
         return round(o, 1)
     return o
 
+
+# -- gate.py subprocess and quarantine helpers --
 
 def _lock_detail(lock_dir: Path) -> str:
     """Turn a LockTimeout into the sentence §2.6 demands, with the real pid and the real age."""
@@ -277,6 +297,7 @@ def token_gate(presented, expected):
 # ----------------------------------------------------------------------------------------
 
 def _remedy_declaration() -> str:
+    """The remedy sentence returned when a caller declares a state that only gate.py or a probe may set."""
     return ("blocked-on-ack and blocked-on-rab are readings of the relay-gate sidecar, not "
             "declarations - set them with gate.py (escalate / post) against FP_COORD="
             f"{roomlog.COORD}. UNREAD and STALE are derived from a failed or old probe and can "
@@ -287,6 +308,7 @@ def op_say(*, frm, to, body, re_=None, kind="say") -> dict:
     """Append one entry to room.md.  §3.3 POST /api/say and §6.3 `room.py say`."""
     c = cfg()
     speakers = tuple(roomlog.SPEAKERS)
+    # validate every field first; each failure raises Refused(400) with a remedy sentence
     if frm not in speakers:
         raise Refused(400, f"`from` must be one of {'/'.join(speakers)} - got {frm!r}. "
                            "The grammar is closed (CONTRACT §2.3); a new speaker needs a new "
@@ -311,6 +333,7 @@ def op_say(*, frm, to, body, re_=None, kind="say") -> dict:
 
     read = roomlog.read_log()
     re_resolved, re_note = True, None
+    # check whether the message being answered (`re_`) exists in the log; an unreadable log is reported, not guessed
     if re_:
         if read.status == "ok":
             re_resolved = any(e.id == re_ for e in read.entries)
@@ -323,6 +346,7 @@ def op_say(*, frm, to, body, re_=None, kind="say") -> dict:
     except roomlog.LockTimeout:
         raise Refused(503, _lock_detail(roomlog.STATE / "room.lock"))
 
+    # which model lanes will see this entry
     if to in tuple(roomlog.LANES):
         lanes = [to]
     elif to == "all":
@@ -410,6 +434,7 @@ def op_model_state(*, lane, state, ticket=None, note=None) -> dict:
 # ----------------------------------------------------------------------------------------
 
 def entry_json(e) -> dict:
+    """Turn one parsed log entry into the JSON dict the API and the event stream send (empty `re` becomes None)."""
     r = e.re
     if r in (None, "", "-", "\u2014"):
         r = None
@@ -448,6 +473,7 @@ def log_document(since=None) -> dict:
 
 
 def _unread_lane(lane: str, reason: str) -> dict:
+    """Build a board row that reads UNREAD for `lane`, carrying `reason` (used when the board cannot be rendered)."""
     return {"rendered_agent": "UNREAD", "rendered_model": "UNREAD",
             "agent_reason": reason,
             "model_reason": ("the publisher of this reading is UNREAD, so the reading is UNREAD "
@@ -519,16 +545,22 @@ def flight_document(mid=None) -> dict:
 # ----------------------------------------------------------------------------------------
 
 class RoomHandler(BaseHTTPRequestHandler):
+    """The HTTP request handler: GET routes (page, /api/log, /api/status, /api/flight, /api/events, /api/health) and
+    the token-gated POST routes (/api/say, /api/claim, /api/model/state).  One instance per request."""
+
     server_version = "fp-relay-room/v1"
     sys_version = ""
     protocol_version = "HTTP/1.1"
 
     def log_message(self, fmt, *args):       # the console belongs to the operator, not to access logs
+        """Silence the default per-request access log line."""
         pass
 
     # -------- response plumbing --------
 
     def _send(self, body: bytes, code=200, ctype="application/json; charset=utf-8", extra=None):
+        """Write a full HTTP response: status `code`, Content-Type, Content-Length, `extra` headers, then `body`
+        (the body is skipped for HEAD).  Never adds a CORS header."""
         self.send_response(code)
         self.send_header("Content-Type", ctype)
         self.send_header("Content-Length", str(len(body)))
@@ -542,9 +574,12 @@ class RoomHandler(BaseHTTPRequestHandler):
             self.wfile.write(body)
 
     def _json(self, payload, code=200):
+        """Send `payload` as a UTF-8 JSON response with status `code`."""
         self._send(json.dumps(payload, ensure_ascii=False).encode("utf-8"), code)
 
     def _fail(self, exc):
+        """Answer an unexpected exception `exc` with a 500 JSON body (with a traceback tail); a client that has
+        already gone away is only noted on stderr."""
         # A DEAD SOCKET IS NOT A DEFECT, and must not be reported as one. Observed while running
         # the app for the first time: the browser aborted a request mid-response (WinError 10053,
         # ConnectionAbortedError), which raised in _send, which called _fail, which tried to write
@@ -568,6 +603,7 @@ class RoomHandler(BaseHTTPRequestHandler):
                              f"(client gone); original: {exc}\n")
 
     def _health(self) -> dict:
+        """The /api/health document: pid, port, token mode, live SSE count, config status, heartbeat error."""
         srv = self.server
         if srv.token is _NO_GATE:
             mode = "in-process"
@@ -590,6 +626,7 @@ class RoomHandler(BaseHTTPRequestHandler):
     # -------- GET --------
 
     def do_GET(self):
+        """Dispatch a GET by path to the page, a JSON document or the event stream; unknown paths answer 404."""
         parsed = urlparse(self.path)
         path, q = parsed.path, parse_qs(parsed.query)
         try:
@@ -614,6 +651,7 @@ class RoomHandler(BaseHTTPRequestHandler):
             self._fail(exc)
 
     def _page(self):
+        """Serve room.html (read fresh from disk each time) with the CSP header; answer 503 text if it is unreadable."""
         # §3.1 / S65: read FRESH per request, so a UI edit reaches the operator on F5 rather
         # than on the next server respawn.
         try:
@@ -633,6 +671,8 @@ class RoomHandler(BaseHTTPRequestHandler):
     # -------- POST --------
 
     def do_POST(self):
+        """Run the token gate, parse the JSON body, then dispatch to op_say / op_claim / op_model_state by path.
+        Side effect: a Rab `say` records the server's last_say_utc."""
         deny = token_gate(self.headers.get("X-FP-Token"), self.server.token)
         if deny:
             # Drain the request body first: answering while the client is still sending makes
@@ -709,6 +749,7 @@ class RoomHandler(BaseHTTPRequestHandler):
     # -------- SSE (§3.4) --------
 
     def _emit(self, name: str, payload) -> None:
+        """Write one SSE frame (`event: name`, one data line of compact JSON) and flush it to the client."""
         data = json.dumps(payload, separators=(",", ":"), ensure_ascii=False)
         if "\n" in data or "\r" in data:             # a raw newline would split the frame
             data = data.replace("\r", "\\r").replace("\n", "\\n")
@@ -716,6 +757,8 @@ class RoomHandler(BaseHTTPRequestHandler):
         self.wfile.flush()
 
     def _events(self):
+        """GET /api/events: refuse with 503 past the client cap, otherwise send SSE headers and run _stream until the
+        client leaves.  Side effect: keeps srv.sse_clients counted up and down."""
         srv = self.server
         c = srv.cfg
         cap = int(c.get("max_sse_clients", 8))
@@ -741,6 +784,8 @@ class RoomHandler(BaseHTTPRequestHandler):
             self.close_connection = True
 
     def _stream(self, c: dict) -> None:
+        """The SSE loop for one client using config `c`: each tick it emits new `entry` frames, a `log` summary, a
+        `status` board frame and changed `flight` trails, plus a keep-alive ping, until the server stops."""
         srv = self.server
         poll_s = float(c.get("poll_s", 0.5))
         ping_s = float(c.get("sse_ping_s", 10.0))
@@ -836,11 +881,18 @@ class RoomHandler(BaseHTTPRequestHandler):
             pass
 
 
+# -- the server object and its heartbeat thread --
+
 class RoomServer(ThreadingHTTPServer):
+    """A threaded HTTP server that carries the shared state the handlers read: token, config, live SSE client
+    count, stop flag, last Rab say time, heartbeat error and any FP_COORD override."""
+
     daemon_threads = True
     allow_reuse_address = True
 
     def __init__(self, addr, handler, *, token, config):
+        """Bind to `addr` with `handler`; `token` is the secret (None = read-only, _NO_GATE = in-process); `config`
+        is the config dict."""
         self.token = token
         self.cfg = config
         self.sse_clients = 0
@@ -853,7 +905,7 @@ class RoomServer(ThreadingHTTPServer):
         super().__init__(addr, handler)
 
 
-def _heartbeat(srv: RoomServer) -> None:
+def _heartbeat(srv: RoomServer) -> None:  # runs on a daemon thread started by cmd_serve
     """state/server.json - room.py is its SOLE writer (§1.3).  Written unconditionally every
     tick: the heartbeat IS the product, and a heartbeat that only appears when something
     changed cannot distinguish 'quiet' from 'dead'."""
@@ -925,6 +977,8 @@ def ensure_preamble() -> str:
 
 
 def cmd_init(a) -> int:
+    """`room.py init`: create the state directories, config.json and the room.md preamble, then run `gate.py init`
+    for each lane.  Prints a report; returns 1 if any gate init did not return 0, else 0."""
     dirs = [roomlog.STATE, roomlog.FLIGHT_DIR, roomlog.HANDOFF_DIR, roomlog.COORD,
             roomlog.STATE / "tmp"]
     dirs += [roomlog.HANDOFF_DIR / lane for lane in roomlog.LANES]
@@ -971,6 +1025,8 @@ def cmd_init(a) -> int:
 
 
 def _banner(port: int, token) -> None:
+    """Print the launch banner: the URL (with ?token= when there is one), the state and coord dirs, and the catcher
+    commands to start."""
     if token is None:
         url = f"http://127.0.0.1:{port}/"
     else:
@@ -990,6 +1046,8 @@ def _banner(port: int, token) -> None:
 
 
 def cmd_serve(a) -> int:
+    """`room.py serve`: refuse (return 1) if state/ is missing; otherwise start the heartbeat thread and serve HTTP on
+    127.0.0.1:a.port until Ctrl+C, then stop the SSE threads and close the server.  Returns 0 on a clean stop."""
     c = cfg(refresh=True, overrides={"port": a.port})
     if not roomlog.STATE.exists():
         print(f"UNREAD: {roomlog.STATE} does not exist - run `room.py init` first. Serving "
@@ -1029,7 +1087,9 @@ def _read_body_arg(spec: str) -> str:
 
 
 def cmd_say(a) -> int:
-    body = _read_body_arg(a.body)
+    """`room.py say`: read the body (file or stdin), append one entry through op_say, print its id and lanes.
+    Returns 0 (a refusal raises Refused, handled in main)."""
+    body =_read_body_arg(a.body)
     out = op_say(frm=a.frm, to=a.to, body=body, re_=a.re, kind=a.kind)
     print(f"{out['id']} · {out['utc']} · from: {a.frm} → to: {a.to} · {out['digest'][:19]}…")
     if out["lanes"]:
@@ -1044,7 +1104,8 @@ def cmd_say(a) -> int:
 
 
 def cmd_state(a) -> int:
-    out = op_model_state(lane=a.lane, state=a.state, ticket=a.ticket, note=a.note)
+    """`room.py state`: declare a model-layer state for a lane through op_model_state and print the result."""
+    out =op_model_state(lane=a.lane, state=a.state, ticket=a.ticket, note=a.note)
     print(f"{a.lane}: model state={out['state']} ticket={out['ticket']} @ {out['utc']}")
     if out.get("note"):
         print(f"  note: {out['note']}")
@@ -1052,7 +1113,8 @@ def cmd_state(a) -> int:
 
 
 def cmd_claim(a) -> int:
-    trail = op_claim(lane=a.lane, mid=a.id, note=a.note)
+    """`room.py claim`: a model claims a message through op_claim (writes stage `delivered`) and prints the new stage."""
+    trail =op_claim(lane=a.lane, mid=a.id, note=a.note)
     stage = trail.get("trails", {}).get(a.lane, {})
     print(f"{a.lane}: claimed {a.id} — trail now {stage.get('rendered')} at "
           f"{stage.get('stage')} ({stage.get('stage_index')}/8)")
@@ -1060,6 +1122,7 @@ def cmd_claim(a) -> int:
 
 
 def _fmt_lane(lane: str, d: dict) -> str:
+    """Format one lane's board row (agent reading, model reading, reasons, in-flight message) as text lines."""
     ra, rm = d.get("rendered_agent"), d.get("rendered_model")
     out = [f"  {lane:<6} AGENT {ra}"]
     if d.get("agent_reason"):
@@ -1075,7 +1138,8 @@ def _fmt_lane(lane: str, d: dict) -> str:
 
 
 def cmd_status(a) -> int:
-    board = board_document(None)
+    """`room.py status`: print the board (each lane and the log line) to stdout, plus raw JSON with --json.  Returns 0."""
+    board =board_document(None)
     print(f"relay-room board · {board.get('utc')}")
     if board.get("board_status") != "ok":
         print(f"  BOARD {board.get('board_status')}: {board.get('reason')}")
@@ -1144,11 +1208,16 @@ def _snapshot_tree(d: Path):
 
 
 def cmd_selftest(a) -> int:
+    """`room.py selftest`: run the server end to end on a throwaway state tree under state/ (token gate, CORS,
+    log/claim/trail, SSE, one catcher pass) and print PASS/FAIL/UNREAD lines.  Side effects: redirects roomlog's
+    path constants, sets FP_ROOM_STATE, starts a server thread, runs subprocesses, removes the tree unless a.keep.
+    Returns 0, 1 (a failure) or 2 (something unmeasured)."""
     import http.client
 
     results = []          # (name, "PASS"|"FAIL"|"UNREAD", detail)
 
     def record(name, ok, detail=""):
+        """Append one (name, PASS|FAIL, detail) result row; returns `ok`."""
         results.append((name, "PASS" if ok else "FAIL", detail))
         return ok
 
@@ -1187,7 +1256,8 @@ def cmd_selftest(a) -> int:
                          daemon=True).start()
 
         def call(method, path, payload=None, headers=None):
-            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
+            """One HTTP request to the test server; returns (status, parsed JSON or raw text, response headers)."""
+            conn =http.client.HTTPConnection("127.0.0.1", port, timeout=15)
             body = json.dumps(payload).encode("utf-8") if payload is not None else None
             h = dict(headers or {})
             if body is not None:
@@ -1394,8 +1464,11 @@ def cmd_selftest(a) -> int:
 
 
 # ----------------------------------------------------------------------------------------
+# -- command-line entry: argument parser and main() --
 
 def build_parser() -> argparse.ArgumentParser:
+    """Build the argparse parser with the subcommands init, serve, say, state, claim, status and selftest; each
+    sets `fn` to its cmd_* function."""
     p = argparse.ArgumentParser(
         prog="room.py", description="relay-room: the server and the model's CLI (CONTRACT §3, §6)")
     sub = p.add_subparsers(dest="cmd", required=True)
@@ -1444,6 +1517,8 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main(argv=None) -> int:
+    """Program entry: force UTF-8 on stdout/stderr, parse `argv`, run the chosen command; a Refused or lock timeout
+    prints "REFUSED" to stderr and returns 1, Ctrl+C returns 130."""
     # §2.1: gate.py's · — … come back as ? on the Windows console codepage otherwise (measured).
     for stream in (sys.stdout, sys.stderr):
         try:

@@ -1,4 +1,9 @@
-"""Segment the shipped DDIA body into the 492 per-chunk counterparts of the analyst's inputs.
+"""WHAT THIS FILE DOES: splits the shipped DDIA body back into one piece per analyst input chunk and pairs each piece
+with its input. Entry points: segment() (find chunk boundaries in the fenced shipped body), piece_text() (strip the
+join separator) and build_pairs(bundle) -> (pair records, stats), used by classify, acceptor and the promotion_*
+scripts. The __main__ block prints alignment diagnostics. Reads the held bundle via common.py; writes nothing.
+
+Segment the shipped DDIA body into the 492 per-chunk counterparts of the analyst's inputs.
 
 HOW THE SHIPPED BODY WAS MADE (analyst.process, read at e19e0e0):
     fenced, embeds = fence(marker_body); chunks = _chunks(fenced)
@@ -27,11 +32,15 @@ import re
 
 from common import analyst, load_bundle  # noqa: F401
 
+# -- token regexes: a whitespace-delimited token, and an image placeholder token --
 _WS_TOKEN = re.compile(r"\S+")
 _TOK = re.compile(r"⟦IMG-(\d+)⟧")
 
 
+# -- tokenising and boundary search helpers --
 def key_of(tok: str) -> str:
+    """Return the search key of a token: '<imgN>' for an image placeholder, else the casefolded token with
+    non-alphanumerics dropped (may be empty). Pure function."""
     m = _TOK.search(tok)
     if m:
         return f"<img{m.group(1)}>"
@@ -39,10 +48,13 @@ def key_of(tok: str) -> str:
 
 
 def tokens_with_offsets(text: str):
+    """Return a list of (start, end, token) for every whitespace-delimited token in text."""
     return [(m.start(), m.end(), m.group(0)) for m in _WS_TOKEN.finditer(text)]
 
 
 def _find_subseq(keys, anchor, lo, hi):
+    """Find the first index in keys[lo:hi] where the list anchor occurs as a contiguous run. Returns the index,
+    or -1 when there is none."""
     n = len(anchor)
     first = anchor[0]
     i = lo
@@ -56,8 +68,10 @@ def _find_subseq(keys, anchor, lo, hi):
         i += 1
 
 
+# -- segmentation of the shipped body into per-chunk pieces --
 def segment(fenced_shipped: str, chunks_in: list[str], rejected: set[int] = frozenset()) -> list[dict]:
     """`rejected` holds 1-based chunk indices the manifest marks rejected (they ship verbatim)."""
+    # prepare search keys for both sides: the shipped tokens and each input chunk's tokens
     toks = tokens_with_offsets(fenced_shipped)
     keys = [key_of(t[2]) for t in toks]
     n_chunks = len(chunks_in)
@@ -72,6 +86,7 @@ def segment(fenced_shipped: str, chunks_in: list[str], rejected: set[int] = froz
     methods = []
     cursor_ne = 0          # position in ne_keys
     import bisect
+    # walk the chunks in order, locating where chunk k+1 starts in the shipped body (verbatim, anchor, fuzzy, or guess)
     for k in range(n_chunks - 1):
         this_len = len(chunk_keys[k])
         lo = cursor_ne
@@ -124,6 +139,7 @@ def segment(fenced_shipped: str, chunks_in: list[str], rejected: set[int] = froz
                 pos = lo + b0.a - b0.b
                 pos = max(lo, min(pos, hi - 1))
                 method = f"fuzzy(size={b0.size})"
+        # (c) last resort: cut at the proportional position and flag it
         if pos == -1:
             pos = min(len(ne_keys) - 1, lo + this_len)
             method = "unaligned"
@@ -141,6 +157,7 @@ def segment(fenced_shipped: str, chunks_in: list[str], rejected: set[int] = froz
         starts.append(cut)
         methods.append(method)
         cursor_ne = pos
+    # turn the cut offsets into pieces; they must concatenate back to the shipped body exactly
     pieces = []
     for k in range(n_chunks):
         a = starts[k]
@@ -160,7 +177,11 @@ def piece_text(p: dict, first: bool) -> str:
     return t
 
 
+# -- pair construction --
 def build_pairs(bundle: dict) -> tuple[list[dict], dict]:
+    """Segment the bundle's shipped body and pair every piece with its input chunk. Returns (list of records with
+    i, input, output, prefix separator, method, status, s, r, x; stats dict with token and rejected-chunk counts).
+    No side effects."""
     fenced_out, embeds_out = analyst.fence(bundle["shipped_body"])
     chunks_in = bundle["chunks_in"]
     cs = bundle["chunk_scores"]
@@ -168,6 +189,7 @@ def build_pairs(bundle: dict) -> tuple[list[dict], dict]:
     pairs = []
     stats = {"tokens_in": len(bundle["embeds"]), "tokens_out": len(embeds_out), "methods": {},
              "rejected_verbatim": 0, "rejected_total": 0, "rejected_mismatch": []}
+    # one record per piece; count methods, and check that rejected chunks came out verbatim
     for k, p in enumerate(pieces):
         out_text = piece_text(p, first=(k == 0))
         row = cs.get(k + 1, {})
@@ -187,6 +209,7 @@ def build_pairs(bundle: dict) -> tuple[list[dict], dict]:
     return pairs, stats
 
 
+# -- main: diagnostics that check the segmentation against the manifest --
 if __name__ == "__main__":
     b = load_bundle()
     pairs, stats = build_pairs(b)
@@ -203,6 +226,7 @@ if __name__ == "__main__":
     # word ratio per pair vs manifest r for passed rows (a second-shaped check of the segmentation)
     from common import tn
     diffs = []
+    # compare each passed pair's recomputed word ratio with the manifest's
     for p in pairs:
         if p["status"] == "passed" and p["r"] is not None:
             r2 = tn.word_ratio(p["input"], p["output"])
@@ -211,6 +235,7 @@ if __name__ == "__main__":
     print("passed pairs with manifest ratio:", len(diffs), "| |ratio - manifest r| <= 0.005:",
           sum(1 for d in diffs if d[0] <= 0.005), "| worst 5:", diffs[:5])
     s_diffs = []
+    # same comparison for per-chunk survival
     for p in pairs:
         if p["status"] == "passed" and p["s"] is not None:
             s2 = tn.chunk_survival(p["input"], p["output"])

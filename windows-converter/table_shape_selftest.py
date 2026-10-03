@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""table_shape_selftest.py — the structural-table measure's tripwires (S209 E11; S211 Lane A). Hermetic: the fixture PDF is
+"""WHAT THIS FILE DOES: selftest for table_shape.py. It draws small PDFs in memory with pymupdf (a ruled table, an
+unruled grid, pages with gutters) and checks that table_shape.table_shape() and its helpers read column and row loss
+correctly, including the "unwitnessed is None, never a measured zero" rule. Run it as a script: it prints one line per
+case plus a N/N tally and exits 0 (all green) or 1. It reads and writes no files and starts no pipeline or GPU work.
+
+table_shape_selftest.py — the structural-table measure's tripwires (S209 E11; S211 Lane A). Hermetic: the fixture PDF is
 DRAWN here by pymupdf (a ruled 5 × 4 table with cell text; an unruled text grid), never read from disk; no pipeline, no
 GPU. Each case violates the property its rule stands for: a ruled table Marker wrote two columns narrow reads columns_lost
 2 over population 1 (rows 0); a block whose cells share no text with the page is no witness (disagree, no count, columns_lost
@@ -16,23 +21,28 @@ import fitz
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import table_shape as ts  # noqa: E402
 
+# -- test harness: counters and the case() recorder --
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one test case: count it, count it green when cond is truthy, print an ok/RED line (detail shown if red)."""
     global ok, n
     n += 1
     ok += 1 if cond else 0
     print("  [%d] %s %s%s" % (n, "ok " if cond else "RED", name, ("  <- " + str(detail)[:200]) if (detail and not cond) else ""))
 
 
+# -- fixture geometry and cell text (grid size, origin, cell width and row height in PDF points) --
 ROWS, COLS = 5, 4
 X0, Y0, CW, RH = 72, 100, 110, 24
 CELLS = [["Item", "2026", "2025", "Change"], ["Net income", "1307", "1065", "23"], ["Revenue", "4053", "3449", "18"],
          ["Expenses", "2093", "1925", "9"], ["Provisions", "246", "149", "65"]]
 
 
+# -- fixture builders --
 def ruled_page(doc):
+    """Add a page to doc holding a ruled ROWS x COLS table with the CELLS text. Returns (page, table bbox as a list)."""
     page = doc.new_page(width=612, height=792)
     for r in range(ROWS + 1):
         page.draw_line((X0, Y0 + r * RH), (X0 + COLS * CW, Y0 + r * RH), width=0.8)
@@ -45,9 +55,11 @@ def ruled_page(doc):
 
 
 def html(rows, ncols):
+    """Build a Marker-style <table> html string from rows, keeping only the first ncols cells of each row."""
     return "<table>" + "".join("<tr>" + "".join("<td>%s</td>" % x for x in row[:ncols]) + "</tr>" for row in rows) + "</table>"
 
 
+# -- the cases, run at import time in order (each builds a fixture, calls table_shape, asserts through case()) --
 # 1 · a ruled table Marker wrote two columns narrow: witnessed by lines, columns_lost 2, rows_lost 0
 doc = fitz.open()
 page, bbox = ruled_page(doc)
@@ -142,6 +154,8 @@ UNIT_CELLS = [["Item", "2026", "2025", "Change"], ["Net income", "2.7", "2.8", "
 
 
 def gutter_page(doc, gutter_texts):
+    """Add a ruled page to doc with a ruled gutter inside columns 2-4; gutter_texts(r, c) gives each gutter cell's text.
+    Returns (page, table bbox as a list)."""
     page = doc.new_page(width=612, height=792)
     GW = 24                                                       # the gutter's width, ruled inside each figure column
     for r in range(ROWS + 1):
@@ -190,5 +204,6 @@ case("SYM-181 G2: the geometry is a reading beside the number — SYM-145's and 
      and all(len(w["column_geometry"]) == len(w["shapes"]) for w in out145["worst"] + outU["worst"]),
      (out145["worst"], outU["worst"]))
 
+# -- the tally and exit code --
 print("==== table_shape selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

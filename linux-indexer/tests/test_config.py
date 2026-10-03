@@ -1,10 +1,16 @@
-"""Levers (docs/18 modularity gate): every key has a signed default and a range or menu;
+"""WHAT THIS FILE DOES: pytest tests for indexer.config: the default settings, the fallback and
+naming of bad lever values, the max-below-target rule, the range and menu helpers, and that
+Paths.ensure_exist never creates the vault. Writes only into pytest's tmp_path.
+
+Levers (docs/18 modularity gate): every key has a signed default and a range or menu;
 anything missing, unparseable or out of range falls back AND is named, never silently ignored."""
 
 from indexer.config import Paths, Settings, lever_menu, lever_range
 
 
+# -- loading settings: defaults and fallbacks --
 def test_absent_file_means_signed_defaults_and_no_fallbacks(tmp_path):
+    """A missing toml file yields every default lever and an empty fallbacks list."""
     settings = Settings.load(tmp_path / "nope.toml")
     assert settings.effective() == {
         "passage_chars": 800,
@@ -21,6 +27,7 @@ def test_absent_file_means_signed_defaults_and_no_fallbacks(tmp_path):
 
 
 def test_out_of_range_wrong_type_and_off_menu_fall_back_and_are_named(tmp_path):
+    """Bad values (too small, wrong type, not on the menu) revert to defaults and are listed."""
     toml = tmp_path / "indexer.toml"
     toml.write_text(
         '[index]\npassage_chars = 5\nthreads = "x"\ntop_k = true\nquery_mode = "magic"\n'
@@ -43,6 +50,7 @@ def test_out_of_range_wrong_type_and_off_menu_fall_back_and_are_named(tmp_path):
 
 
 def test_max_below_target_is_raised_to_target_and_named(tmp_path):
+    """A passage_max_chars below passage_chars is raised to passage_chars and named."""
     toml = tmp_path / "indexer.toml"
     toml.write_text("[index]\npassage_chars = 1000\npassage_max_chars = 300\n")
 
@@ -52,13 +60,16 @@ def test_max_below_target_is_raised_to_target_and_named(tmp_path):
     assert settings.fallbacks == ("passage_max_chars=300->1000",)
 
 
+# -- bounds helpers and directories --
 def test_menus_and_ranges_are_the_bounds_the_loader_enforces():
+    """lever_range and lever_menu report the bounds the loader checks against."""
     assert lever_range("top_k") == (1, 50)
     assert lever_menu("query_mode") == ("hybrid", "vector", "keyword")
     assert lever_menu("model") == ()
 
 
 def test_ensure_exist_never_creates_the_vault(tmp_path):
+    """ensure_exist makes the index, models and logs directories but not the vault repo."""
     paths = Paths.from_root(tmp_path / "file-portal")
     paths.ensure_exist()
     assert paths.index.is_dir() and paths.models.is_dir() and paths.logs.is_dir()

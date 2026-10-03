@@ -1,4 +1,8 @@
-"""S157 E54 (B32 U01 + U05, Codex's 2026-08-27 completion audit, verified at the source S157 E51):
+"""WHAT THIS FILE DOES: pytest tests for two allocator behaviours: the startup sweep of files that
+arrived while the service was down (sweep_inbox), and the 'rejected' status record written when an
+allocation fails. Builds a temporary tree under tmp_path; touches nothing else.
+
+S157 E54 (B32 U01 + U05, Codex's 2026-08-27 completion audit, verified at the source S157 E51):
 
 U01 — a restart with pre-existing inbox files must allocate each exactly once (run() used to arm the watch and never
 look, so a file that arrived while the service was down waited for a touch that never came).
@@ -15,6 +19,7 @@ from allocator.config import Paths
 from allocator.main import InboxHandler, sweep_inbox
 from allocator.status import StatusWriter
 
+# -- test fixtures: a rules.toml text and two helpers --
 RULES = """
 [defaults]
 unmatched_destination = "sorted/misc"
@@ -29,6 +34,7 @@ destination = "sorted/documents"
 
 
 def make(tmp_path: Path) -> tuple[InboxHandler, Paths, Path]:
+    """Create the folder tree (documents and misc categories) and rules.toml; return handler, Paths, rules path."""
     paths = Paths.from_root(tmp_path / "file-portal")
     paths.ensure_exist()
     (paths.inbox / "documents").mkdir()
@@ -43,6 +49,7 @@ def make(tmp_path: Path) -> tuple[InboxHandler, Paths, Path]:
 
 
 def events(paths: Paths) -> list[dict]:
+    """Return the events in logs/status.json, or [] if the file does not exist yet."""
     p = paths.logs / "status.json"
     return json.loads(p.read_text())["events"] if p.exists() else []
 
@@ -51,6 +58,7 @@ def events(paths: Paths) -> list[dict]:
 
 
 def test_startup_sweep_allocates_preexisting_files_exactly_once(tmp_path):
+    """sweep_inbox moves three waiting files, records each once, and a second sweep finds nothing."""
     handler, paths, _ = make(tmp_path)
     (paths.inbox / "documents" / "a.txt").write_bytes(b"one")
     (paths.inbox / "documents" / "b.txt").write_bytes(b"two")
@@ -70,6 +78,7 @@ def test_startup_sweep_allocates_preexisting_files_exactly_once(tmp_path):
 
 
 def test_startup_sweep_skips_in_progress_dotfiles_and_empty_inbox(tmp_path):
+    """An empty inbox sweeps to 0, and a dot-prefixed in-progress file is left in place unrecorded."""
     handler, paths, _ = make(tmp_path)
     assert sweep_inbox(handler, paths) == 0  # an empty inbox is a clean zero, not an error
     (paths.inbox / "documents" / ".part-still-arriving.txt").write_bytes(b"partial")
@@ -89,9 +98,11 @@ def test_negative_control_without_the_sweep_a_preexisting_file_is_never_allocate
 # ---------------------------------------------------------------- U05: a terminal outcome on failure
 
 
+# -- failure outcomes: a failed allocation is recorded, a vanished file is not --
 def test_failed_allocation_records_a_terminal_rejected_outcome_and_leaves_the_file(
     tmp_path, caplog
 ):
+    """A broken rules.toml leaves the file in the inbox and writes one 'rejected' event with the reason."""
     handler, paths, rules_path = make(tmp_path)
     rules_path.write_text("this is not valid toml [[[")
     f = paths.inbox / "documents" / "a.txt"
@@ -122,6 +133,7 @@ def test_negative_control_a_file_that_vanished_under_the_handler_records_nothing
     original = handler._allocate
 
     def allocate_then_lose_the_race(path):
+        """Stand-in for _allocate: delete the file (as if another path moved it) then raise FileNotFoundError."""
         path.unlink()  # the other path moved it first
         raise FileNotFoundError(str(path))
 
@@ -135,6 +147,7 @@ def test_negative_control_a_file_that_vanished_under_the_handler_records_nothing
 
 
 def test_control_a_successful_allocation_still_records_allocated_only(tmp_path):
+    """Control: a normal file produces exactly one 'allocated' event and nothing else."""
     handler, paths, _ = make(tmp_path)
     f = paths.inbox / "documents" / "ok.txt"
     f.write_bytes(b"fine")

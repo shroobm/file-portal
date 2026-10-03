@@ -1,4 +1,9 @@
-"""COST: what the tagged-lane probe adds to convert_and_ship.probe(), re-measured.
+"""WHAT THIS FILE DOES: a timing script (run directly, no arguments). For four named books in Downloads it
+times, per page, plain get_text, get_texttrace and the structure-collecting dict extraction on up to 25
+sampled pages, plus the catalog /StructTreeRoot lookup, and prints one tab-separated row per book.
+Read-only; stdout only; needs pymupdf; no callers.
+
+COST: what the tagged-lane probe adds to convert_and_ship.probe(), re-measured.
 
 Three operations timed separately on the same pages of the same real books:
   A  page.get_text()                              -- probe()'s chars/page half
@@ -24,6 +29,7 @@ BOOKS = [
     "claude-code-up-and-running.pdf",
 ]
 
+# file name -> first path found under Downloads
 index = {}
 for p in DL.rglob("*.pdf"):
     index.setdefault(p.name, p)
@@ -31,7 +37,9 @@ for p in DL.rglob("*.pdf"):
 N = 25  # pages sampled per book
 
 
+# -- timing helpers --
 def timeit(path, fn):
+    """Open the PDF at `path`, call fn(page) on up to N evenly spaced pages; return (ms per page, pages timed)."""
     with pymupdf.open(path) as doc:
         n = doc.page_count
         step = max(1, n // N)
@@ -43,6 +51,7 @@ def timeit(path, fn):
 
 
 def struct_root_ms(path, reps=5):
+    """Open `path` `reps` times and look up /StructTreeRoot; return (mean ms per open, tree present?)."""
     t0 = time.perf_counter()
     for _ in range(reps):
         with pymupdf.open(path) as doc:
@@ -52,6 +61,7 @@ def struct_root_ms(path, reps=5):
     return (time.perf_counter() - t0) / reps * 1000.0, present
 
 
+# -- driver: time operations A-D on each book and print one row --
 print("book\tpages_timed\tA_get_text_ms/pp\tB_texttrace_ms/pp\tC_dict+struct_ms/pp"
       "\tC_minus_A_ms/pp\tD_StructTreeRoot_ms/doc\ttree?")
 for name in BOOKS:

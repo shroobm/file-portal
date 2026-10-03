@@ -1,4 +1,13 @@
-"""J24 — the block records that today's convert computes and then throws away (signed 2026-09-01).
+"""WHAT THIS FILE DOES: a stand-in for the `marker_single` command that the converter runs as a subprocess.
+It converts one PDF (or page slice) to markdown exactly as marker_single would, and also writes a
+`<stem>.blocks.json` beside it holding each block's page, polygon and bbox. Entry point: `main(argv)`
+(run as a script). Other functions are pure helpers: they fix up marker's chunk payload
+(`normalize_chunk_payload`), merge per-slice blocks files (`merge_block_files`, `merge_block_records`)
+and build the small summary for the manifest (`summarize`). Reads: the PDF and marker's models, the
+FP_FIXES environment variable, nvidia-smi. Writes: marker's markdown output and the blocks file. Callers:
+the converter launches it as a child process; the merge and summary helpers are imported by the converter.
+
+J24 — the block records that today's convert computes and then throws away (signed 2026-09-01).
 
 A drop-in for `marker_single.exe` on the argv this converter actually sends it, plus one extra
 artifact: `<stem>.blocks.json`, one record per block with its ABSOLUTE page, its polygon and its
@@ -56,6 +65,8 @@ import sys
 from pathlib import Path
 
 
+# -- helper: read the graphics card's free memory --
+
 def _card_free_mib():
     """The card's free memory in MiB from nvidia-smi, or None when it cannot be read (fixes.batch_sizes(None) → {} —
     an unread card lowers nothing; a lowered batch is a reading's consequence, never a guess's)."""
@@ -65,6 +76,8 @@ def _card_free_mib():
         return int(out[0].strip()) if out else None
     except Exception:  # noqa: BLE001 — no nvidia-smi, no card, a refusal: None
         return None
+
+# -- constants: output file name, record schema version, image extension --
 
 # The extra artifact's name, beside marker's own `<stem>.md` / `<stem>_meta.json` in the same
 # output dir. Deliberately NOT `<stem>.json`: that is what marker itself writes for the json and
@@ -84,6 +97,8 @@ BLOCKS_SCHEMA = 1  # lever-waiver: a schema VERSION, not a threshold - readers c
 # FILENAMES, which is the join key a reader actually wants.
 DEFAULT_IMAGE_EXT = "jpeg"
 
+
+# -- block record normalising: page correction and asset names --
 
 def absolute_page_from_block_id(block_id: str) -> int | None:
     """The block's TRUE absolute page number, read out of the block's OWN id string.
@@ -116,6 +131,7 @@ def absolute_page_from_block_id(block_id: str) -> int | None:
     confidently wrong page is the failure this function exists to prevent.
     """
     parts = str(block_id).split("/")
+    # split the id on "/" and read the page number from segment [2]; any other shape gives None
     # "/page/12/SectionHeader/0" -> ["", "page", "12", "SectionHeader", "0"]
     if len(parts) < 3 or parts[1] != "page":
         return None
@@ -153,6 +169,7 @@ def normalize_chunk_payload(payload: dict, *, source: str,
     unresolved = 0
     pages: set[int] = set()
     disagreements = 0
+    # one output record per input block: correct the page, count the problems, swap image data for file names
     for b in blocks_in:
         page = absolute_page_from_block_id(b.get("id", ""))
         if page is None:
@@ -196,6 +213,8 @@ def normalize_chunk_payload(payload: dict, *, source: str,
     }
 
 
+# -- merging per-slice records into one book-level record --
+
 def merge_block_records(records: list[dict]) -> dict:
     """Concatenate per-slice records into one.
 
@@ -218,6 +237,7 @@ def merge_block_records(records: list[dict]) -> dict:
     # S210 E2: the per-slice extraction counts survive the merge, summed, the re-OCR'd pages concatenated (each slice's are
     # absolute page numbers already); a slice without the key (a pre-S210 cache) leaves `extraction` None — UNREAD, never 0.
     extraction: dict | None = None
+    # fold each slice record into the running totals (blocks joined, counts summed)
     for rec in records:
         blocks.extend(rec.get("blocks") or [])
         page_info.update(rec.get("page_info") or {})
@@ -261,6 +281,9 @@ def merge_block_records(records: list[dict]) -> dict:
 
 
 def _sum_fixes_stats(records: list[dict]) -> dict | None:
+    """Add up the `fixes_stats` counters (chars seen, dropped, lifted) over the slice records.
+
+    Returns the summed dict, or None when no record carried the key. No side effects."""
     total: dict | None = None
     for rec in records:
         st = rec.get("fixes_stats")
@@ -284,6 +307,7 @@ def merge_block_files(paths, dest: Path, *, slices_total: int) -> dict:
     """
     records: list[dict] = []
     unreadable: list[str] = []
+    # load each slice file; keep those with the expected schema, list the rest by name and reason
     for p in paths:
         name = Path(p).name
         try:
@@ -307,6 +331,8 @@ def merge_block_files(paths, dest: Path, *, slices_total: int) -> dict:
     dest.write_text(json.dumps(merged, ensure_ascii=False), encoding="utf-8")
     return summarize(merged, dest)
 
+
+# -- the manifest summary --
 
 def summarize(record: dict, path: Path | None = None) -> dict:
     """The small block that rides in manifest.json — counts and honesty flags, never the blocks
@@ -332,6 +358,7 @@ def summarize(record: dict, path: Path | None = None) -> dict:
     }
     if record.get("unreadable"):
         out["unreadable"] = record["unreadable"]
+    # record the blocks file's size when a path was given (None if it cannot be read)
     if path is not None:
         try:
             out["bytes"] = path.stat().st_size
@@ -350,6 +377,7 @@ def extraction_of(document) -> dict:
     read per page; nothing is inferred from the lane."""
     pages_surya: list[int] = []
     pdftext = surya = unread = 0
+    # tally each page by the extraction method it names; remember the 1-based numbers of re-OCR'd pages
     for i, page in enumerate(getattr(document, "pages", None) or []):
         m = getattr(page, "text_extraction_method", None)
         if m == "pdftext":
@@ -366,7 +394,15 @@ def extraction_of(document) -> dict:
 EXTRACTION_PAGES_CAP = 200
 
 
+# -- the script entry point --
+
 def main(argv: list[str]) -> int:
+    """Run one conversion the way marker_single does, then add the blocks sidecar.
+
+    Input: argv, the marker_single argument list (PDF path first). Returns 0 (a failure while
+    building the blocks is printed, never raised). Writes marker's markdown output and
+    `<stem>.blocks.json` into the output folder; prints progress lines; sets three environment
+    variables; imports marker (loads GPU models) and, if FP_FIXES is set, installs patches."""
     # Mirrors marker/scripts/convert_single.py's own preamble, which sets these BEFORE importing
     # anything from marker. Same order here, for the same reason.
     import os
@@ -402,6 +438,7 @@ def main(argv: list[str]) -> int:
     # memory is under fixes._LOW_FREE_FRACTION of its total. Off (no env): nothing installed, the stock converter.
     fix_names = [n for n in os.environ.get("FP_FIXES", "").split(",") if n]
     fix_overrides: dict = {}
+    # when fixes are named: install them, and collect any config overrides they ask for
     if fix_names:
         import fixes
         fix_applied = fixes.apply(fix_names, log=print)
@@ -415,6 +452,7 @@ def main(argv: list[str]) -> int:
         fix_overrides.update(fixes.config_overrides(fix_applied["applied"]))
         if fixes.config_overrides(fix_applied["applied"]):
             print("fixes: config overrides %s (a get_chars fix keeps pdftext in-process)" % fixes.config_overrides(fix_applied["applied"]), flush=True)
+    # build the converter from the parsed config, with any fix overrides applied on top
     cfg = config_parser.generate_config_dict()
     cfg.update(fix_overrides)
     converter_cls = config_parser.get_converter_cls()
@@ -457,11 +495,13 @@ def main(argv: list[str]) -> int:
         from marker.renderers.markdown import MarkdownRenderer
         from marker.settings import settings
 
+        # skip the blocks entirely when the requested output format is not markdown
         if converter.renderer is not MarkdownRenderer:
             # Only the markdown lane is wired for this; any other requested format already
             # writes its own structured output and this would just shadow it.
             print("J24 blocks skipped: renderer is not MarkdownRenderer", flush=True)
             return 0
+        # render the cached document a second time as chunks and normalise it into the block record
         t_chunk = time.perf_counter()
         chunk = converter.resolve_dependencies(ChunkRenderer)(document)
         payload = json.loads(chunk.model_dump_json(exclude=["metadata"]))
@@ -484,6 +524,7 @@ def main(argv: list[str]) -> int:
         if fix_names:   # S211: the fixes applied in THIS process and the wrapper's live counters, for the manifest
             import fixes
             record.update(fixes.manifest_record(fix_names, fixes.stats()))
+        # write the blocks file beside the markdown and print a one-line receipt with the timings
         dest = Path(out_folder) / (fname_base + BLOCKS_SUFFIX)
         dest.write_text(json.dumps(record, ensure_ascii=False), encoding="utf-8")
         print("J24 blocks written: {} ({} blocks, pages {}-{}, {} bytes, "

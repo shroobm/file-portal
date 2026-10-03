@@ -1,4 +1,8 @@
-"""Three things the mapping needs measured, not inferred:
+"""WHAT THIS FILE DOES: a one-off measurement script (run directly, no arguments). It opens the WTPDF sample
+PDF (path hard-coded in P), prints three sections to stdout: a Markdown table built from the tag tree,
+declared-versus-geometric reading order over all pages, and timing. Read-only; needs pymupdf; no callers.
+
+Three things the mapping needs measured, not inferred:
 
  (1) TABLE: can a Markdown table be emitted straight from Table/TR/TH/TD without any
      geometric grid inference? (bears on SYM-056 and SYM-067)
@@ -9,13 +13,16 @@
 import re, time, collections
 import pymupdf
 
+# -- helpers over the stext structure tree (block type 2 = a structure element, 0 = text) --
 FL = pymupdf.TEXTFLAGS_DICT | pymupdf.TEXT_COLLECT_STRUCTURE
 
 
 def first_table_page(doc):
+    """Return the index of the first page whose structure tree holds a "Table" element, else None."""
     for i in range(doc.page_count):
         d = doc[i].get_text("dict", flags=FL)
 
+        # recursive: does any nested structure block carry the raw tag "Table"?
         def has(bl):
             for b in bl:
                 if b.get("type") == 2:
@@ -30,6 +37,7 @@ def first_table_page(doc):
 
 
 def text_of(b):
+    """Return the glyph text under structure block `b` (children joined by spaces), as one string."""
     out = []
     for x in b.get("blocks", []) if b.get("type") == 2 else []:
         out.append(text_of(x))
@@ -39,6 +47,7 @@ def text_of(b):
 
 
 def find(bl, tag, acc):
+    """Append to list `acc` every structure block under `bl` whose raw tag equals `tag`; return `acc`."""
     for b in bl:
         if b.get("type") == 2:
             if b.get("raw") == tag:
@@ -47,6 +56,7 @@ def find(bl, tag, acc):
     return acc
 
 
+# -- section 1: build a Markdown table straight from Table/TR/TH/TD --
 P = r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf"
 doc = pymupdf.open(P)
 pno = first_table_page(doc)
@@ -57,6 +67,7 @@ print("Table elements on page:", len(tables))
 t = tables[0]
 rows = find([t], "TR", [])
 print("declared rows (TR):", len(rows))
+# one entry per declared row: a list of (TH-or-TD, cell text)
 md = []
 for ri, r in enumerate(rows):
     cells = []
@@ -68,6 +79,7 @@ for ri, r in enumerate(rows):
         print("  TR%-2d %s" % (ri, [(k, v[:34]) for k, v in cells]))
 print()
 print("--- emitted Markdown, NO geometry used, NO \\begin{array} needed ---")
+# print up to six rows as Markdown, padding short rows; a separator line follows an all-TH first row
 if md:
     w = max(len(r) for r in md)
     for ri, r in enumerate(md[:6]):
@@ -86,6 +98,7 @@ print("=== (2) READING ORDER: declared depth-first vs geometric default ===")
 
 
 def declared_stream(page):
+    """Return the text of `page` in the tag tree's declared (depth-first) order, one string per text block."""
     out = []
 
     def w(bl):
@@ -98,6 +111,7 @@ def declared_stream(page):
     return out
 
 
+# compare per page: declared order vs pymupdf's default geometric order (whitespace-normalised lists)
 agree = diff = nopages = 0
 sample = []
 for i in range(doc.page_count):
@@ -124,6 +138,7 @@ for i, d, g, nd, ng in sample:
 # ---- (3) cost ----
 print()
 print("=== (3) COST (numerator seconds / denominator pages, this file, CPU) ===")
+# time plain get_text() against get_text("dict") with structure collection over every page
 for label, fl in (("witness get_text() [today]", None),
                   ("get_text dict +STRUCT", FL)):
     t0 = time.perf_counter()
@@ -141,11 +156,13 @@ for label, fl in (("witness get_text() [today]", None),
 
 
 def get(x, k):
+    """Return xref_get_key(x, k) from the module-level `doc`, or None when the key is absent."""
     v = doc.xref_get_key(x, k)
     return None if (not v or v[0] == "null") else v
 
 
 def kids(x):
+    """Return the object numbers of the indirect children listed in object x's /K entry (else [])."""
     k = get(x, "K")
     if not k:
         return []
@@ -156,6 +173,7 @@ def kids(x):
     return []
 
 
+# time a full walk of the tag tree through raw xref reads, also touching five attribute keys per element
 t0 = time.perf_counter()
 cat = doc.pdf_catalog()
 root = int(get(cat, "StructTreeRoot")[1].split()[0])

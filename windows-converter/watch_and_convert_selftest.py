@@ -1,4 +1,11 @@
-"""Hermetic Conveyor State tripwires.  No Marker, GPU, widget, or live pipeline is touched."""
+"""WHAT THIS FILE DOES: selftest script for watch_and_convert.py (the drop-folder watcher: IntakeTracker readiness
+phases, the atomic intake-state receipt, dispatch order, the UTF-8 log setting, and convert_one's handling of the
+child's exit code). It runs its checks at import time (no main function), prints one ok/FAIL line each and a final
+SELFTEST PASS/FAIL line, and exits 1 on any failure. It sets FP_PIPELINE to a temp quarantine dir, writes only there,
+temporarily replaces functions on the watch_and_convert module, runs one small python subprocess, and on Windows
+opens a file handle on purpose. Nobody imports it; it is run directly.
+
+Hermetic Conveyor State tripwires.  No Marker, GPU, widget, or live pipeline is touched."""
 
 import json
 import os
@@ -14,15 +21,18 @@ sys.path.insert(0, str(Path(__file__).parent))
 
 import watch_and_convert as w  # noqa: E402
 
+# -- failure list and the check() reporter --
 FAILURES: list[str] = []
 
 
 def check(cond: bool, label: str) -> None:
+    """Print an ok/FAIL line for one check and add the label to FAILURES when cond is false."""
     print(("  ok  " if cond else "  FAIL") + f"  {label}")
     if not cond:
         FAILURES.append(label)
 
 
+# -- shared fixture: a drop folder with one PDF inside the quarantine dir --
 drop = QUARANTINE / "drop"
 drop.mkdir(parents=True)
 pdf = drop / "book.pdf"
@@ -141,6 +151,7 @@ _s125_planted = _s125_call.group(1).replace('encoding="utf-8",', "") if _s125_ca
 check('encoding="utf-8"' not in _s125_planted and _s125_call is not None,
       "SYM-125 (b) NEGATIVE CONTROL: the encoding planted out of a copy of the call reds the proxy")
 
+# the probe script run in a child process: logs one line with or without encoding="utf-8" and reports how the file decodes
 _S125_PROBE = (
     "import logging, sys, tempfile, pathlib\n"
     "p = pathlib.Path(tempfile.mkdtemp()) / 'w.log'\n"
@@ -157,6 +168,8 @@ _S125_PROBE = (
 
 
 def _s125_run(mode: str) -> str:
+    """Run the probe in a child python with the legacy locale forced; mode is "fixed" or "bare". Returns the
+    child's combined stdout and stderr, stripped. Side effect: the child writes a log in its own temp dir."""
     env = dict(os.environ, PYTHONIOENCODING="utf-8", PYTHONUTF8="0", PYTHONLEGACYWINDOWSFSENCODING="0")
     r = _s125_sp.run([sys.executable, "-X", "utf8=0", "-c", _S125_PROBE, mode], capture_output=True, text=True, env=env, encoding="utf-8", errors="replace")
     return (r.stdout + r.stderr).strip()
@@ -182,15 +195,23 @@ import convert_and_ship as _cas  # noqa: E402
 check(_wac.SHIP_FAILED_EXIT == _cas.SHIP_FAILED_EXIT == 98, "E6 (0) the watcher's SHIP_FAILED_EXIT equals convert_and_ship's (98) — one number, two files")
 
 
+# -- E6: a stub child process and a runner that drives convert_one with it --
 class _E6Child:
+    """Stand-in for subprocess.Popen's child: exits with a chosen code and prints canned output."""
+
     def __init__(self, code):
+        """Store the exit code as returncode and a fake pid."""
         self.returncode, self.pid = code, 4242
 
     def communicate(self, timeout=None):
+        """Return (stdout, stderr) text matching the stored exit code; the timeout is ignored."""
         return ("ANCHORED x\nSHIP-FAILED B: ship failed: tar=1 ssh=255" if self.returncode == 98 else "DONE", "Traceback: Marker died" if self.returncode == 1 else "")
 
 
 def _e6_run(code):
+    """Run watch_and_convert.convert_one on a fixture PDF with the child stubbed to exit with `code`. Creates the
+    fixture PDF and the done/failed dirs in the quarantine, swaps five module attributes for the call and restores
+    them. Returns (result, pdf file name, list of emitted events)."""
     drop = QUARANTINE / "e6drop"
     drop.mkdir(exist_ok=True)
     pdf = drop / ("book-%s.pdf" % code)
@@ -198,6 +219,7 @@ def _e6_run(code):
     for d in (_wac.DONE_DIR, _wac.FAILED_DIR):
         d.mkdir(parents=True, exist_ok=True)
     emits = []
+    # stub out the child process, chat hold, analyst mode, event emitter and lock file for the duration of the call
     saved = (_wac.subprocess.Popen, _wac.chat_hold, _wac.analyst_mode, _wac.emit, _wac.LOCK_FILE)
     _wac.subprocess.Popen = lambda *a, **k: _E6Child(code)
     _wac.chat_hold = lambda: None

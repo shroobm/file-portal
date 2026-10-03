@@ -1,5 +1,11 @@
 #!/usr/bin/env python
-"""Acceptance harness for the Repair Bench (Stage G, docs/19 §7).
+"""WHAT THIS FILE DOES: a script (entry point main(), exit code 0 = all checks pass) that copies the held Valentine
+bundle into a sandbox, drives bench.Bench through repairs, pastes, transcribe, collapse, ledger, undo, triage and
+report checks, runs one local HTTP round against the bench handler, and finally confirms the real held bundle's
+hashes are unchanged. It reads the held bundle at HELD_VAL, writes only inside the sandbox, and prints one line per
+check plus a PASS/FAIL summary. Run by hand; nothing imports it.
+
+Acceptance harness for the Repair Bench (Stage G, docs/19 §7).
 
 Drives the REAL `Bench` class over a SANDBOX copy of the REAL held Valentine bundle — real
 zones, real source-PDF rasters, real provenance stamps — then one live HTTP round through the
@@ -21,6 +27,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import bench as B  # noqa: E402
 
+# -- constants: the held bundle under test and the sample pasted image --
 HELD_VAL = Path(r"C:\Users\Bndit\ml\library\held\b6fbdd75f6242f53")
 # Port 0 = the OS assigns a genuinely free one. A hardcoded port once landed the harness on
 # Rab's LIVE bench via Windows SO_REUSEADDR (2026-08-06 — his server answered sandbox=False;
@@ -29,19 +36,28 @@ HELD_VAL = Path(r"C:\Users\Bndit\ml\library\held\b6fbdd75f6242f53")
 TINY_PNG_B64 = ("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJ"
                 "AAAADUlEQVR42mP8z8BQDwAEhQGAhKmMIQAAAABJRU5ErkJggg==")
 
+# -- check bookkeeping: every check() call is recorded here and summarized at the end of main() --
 results: list[tuple[str, bool]] = []
 
 
 def check(name: str, cond: bool) -> None:
+    """Record one named check in the module-level results list and print an ok/FAIL line for it."""
     results.append((name, bool(cond)))
     print(("  ok   " if cond else "  FAIL ") + name, flush=True)
 
 
 def sha(p: Path) -> str:
+    """Return the SHA-256 hex digest of the file's bytes."""
     return hashlib.sha256(p.read_bytes()).hexdigest()
 
 
+# -- the harness itself: sections 1 to 9 run in order on one sandbox bench --
 def main() -> int:
+    """Run every acceptance section against a sandbox copy of the held bundle and print the results.
+
+    Returns 0 when all checks passed, 1 otherwise. Side effects: creates a sandbox under the bundle's .sandbox folder
+    (kept for inspection), starts a local HTTP server on a free port in section 8, writes REPAIRS.md there."""
+    # record the real bundle's hashes now so section 9 can prove it was not touched
     md_real = next(p for p in HELD_VAL.iterdir() if p.suffix == ".md")
     before = {p.name: sha(p) for p in (md_real, HELD_VAL / "manifest.json")}
     # BASELINE-AWARE (S65): the real Valentine is a LIVE patient — Rab's own repairs may
@@ -51,6 +67,7 @@ def main() -> int:
         .get("repairs", [])
 
     def base_shift(line: int) -> int:
+        """Return 3 lines per pre-existing repair whose zone_line lies above the given line (the expected drift)."""
         return sum(3 for r in base_reps if r.get("zone_line") is not None
                    and r["zone_line"] < line)
 
@@ -132,10 +149,11 @@ def main() -> int:
           isinstance(rs["degeneration_now"]["flagged"], bool))
 
     # ---- 8. one live HTTP round through the real handler ------------------------------------
+    # start the bench handler on a free local port in a background thread; get() fetches a path from it
     server = ThreadingHTTPServer(("127.0.0.1", 0), B.make_handler(bench))
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    get = lambda p: urllib.request.urlopen(f"http://127.0.0.1:{port}{p}", timeout=15)  # noqa: E731
+    get =lambda p: urllib.request.urlopen(f"http://127.0.0.1:{port}{p}", timeout=15)  # noqa: E731
     check("GET / serves the bench UI", b"Repair Bench" in get("/").read())
     wire_state = json.loads(get("/api/state").read())
     check(f"GET /api/state over the wire agrees (got sandbox={wire_state.get('sandbox')!r}, "
@@ -191,6 +209,7 @@ def main() -> int:
         check("empty transcription refused as a discard", False)
     except ValueError:
         check("empty transcription refused as a discard", True)
+    # temporarily point the bench at a missing interpreter and lock file; restored in the finally block
     real_docling_py, real_gpu_lock = B.DOCLING_PY, B.GPU_LOCK
     try:
         B.DOCLING_PY = Path(r"C:\nonexistent\python.exe")
@@ -402,6 +421,7 @@ def main() -> int:
     check("sandbox kept a .bench-bak of the md",
           bench.md_path.with_suffix(".md.bench-bak").is_file())
 
+    # summary: list the failed check names, print the sandbox location, return the exit code
     failed = [n for n, ok in results if not ok]
     print(f"\n{'PASS' if not failed else 'FAIL'} — {len(results) - len(failed)}/{len(results)} checks"
           + (f"; failed: {failed}" if failed else ""), flush=True)

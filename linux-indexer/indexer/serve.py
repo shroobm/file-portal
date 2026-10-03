@@ -1,4 +1,11 @@
-"""Opt-in HTTP JSON endpoint on the LOOPBACK interface only, for anything that would rather
+"""WHAT THIS FILE DOES: the small HTTP server that answers questions about the search index. It
+serves /health, /status, /query and /graph as JSON on 127.0.0.1, behind several locks (peer address,
+Funnel header, Host/Origin/fetch-site checks, proof of origin on GETs, and a token file). Entry point:
+main() (run as `python -m indexer.serve`). It reads <root>/serve.token, the index store and the model
+files, runs `tailscale status --json` once at start, and (for /graph only) rewrites the graph cache
+beside the index. Called by Control's Library tab, session tools, curl, and tests/test_serve_lock.py.
+
+Opt-in HTTP JSON endpoint on the LOOPBACK interface only, for anything that would rather
 speak HTTP than ssh: the dashboard, a phone window (docs/14 Phase A), curl, or the widget --
 fronted by `tailscale serve`, which is the pattern docs/06 names for a new surface ("a
 tailscale serve-fronted endpoint with its own auth ... rather than exposing anything new").
@@ -93,6 +100,7 @@ from indexer.config import DEFAULT_ROOT, Paths, Settings, lever_menu, lever_rang
 from indexer.embed import FastEmbedder, Reranker
 from indexer.store import Store
 
+# -- bind address, token file name and the fixed error text --
 BIND = "127.0.0.1"  # loopback only, by construction (docs/06); reach it through tailscale serve
 TOKEN_FILE = (
     "serve.token"  # <root>/serve.token: the operator's own auth, outside the repo (S214 E16)
@@ -102,6 +110,7 @@ NO_TOKEN_ERROR = (
     "writes <root>/serve.token (or starts this server with --no-token)"
 )
 
+# -- peer lock: allowed address ranges, the bare 403 bytes, the Funnel header name, refusal counter --
 # File Portal answers only this machine and the tailnet (Rab, 2026-09-30: "absolute locked inside
 # my tailscale vpn"). The same block sits in every File Portal server; keep the names.
 _PEER_CIDRS = ("127.0.0.0/8", "::1/128", "100.64.0.0/10", "fd7a:115c:a1e0::/48")
@@ -114,8 +123,10 @@ _REFUSALS = 0
 _REFUSALS_LOCK = threading.Lock()
 
 
+# -- address checks: peer_ok (who may connect), bind_ok (where we may listen), refusal log --
 def peer_ok(addr: object) -> bool:
     """True only for loopback or a Tailscale address; fails closed on anything unparseable."""
+    # strip an IPv6 zone ("%eth0"), parse, and unwrap an IPv4-mapped IPv6 address to plain IPv4
     try:
         ip = ipaddress.ip_address(str(addr).split("%", 1)[0])
     except ValueError:
@@ -147,6 +158,7 @@ def _count_refusal(addr: object, why: str = "not loopback or tailnet") -> None:
         pass
 
 
+# -- request-lock constants: Host regex, accepted fetch-sites, proof headers, refusal texts, tailnet read bounds --
 # Lock 3: what a WEB PAGE (not a person, not a tool) can send. The peer lock admits his own devices,
 # and a foreign page open in his browser on one of them fires requests from that device (behind
 # `tailscale serve` it is 127.0.0.1 besides). The module docstring says what each rule can and
@@ -176,6 +188,7 @@ TAILNET_READ_PAUSE_S = 5.0  # lever-waiver: a startup retry bound; three attempt
 TAILNET_READ_TIMEOUT_S = 5  # lever-waiver: a CLI timeout bound; a hung attempt is cut here
 
 
+# -- header parsing and the Host / Origin / Referer name checks --
 def _host_of(value: object) -> str:
     """The host of a Host header, or of an Origin's or Referer's authority: '[::1]:8765' -> '::1',
     'Name.TS.net.:8080' -> 'name.ts.net' (lower-case, brackets off, ONE trailing dot dropped); ''
@@ -201,6 +214,7 @@ def _tailscale_status(timeout: float) -> dict:
     """`tailscale status --json` as a dict. The ONE place this file runs the tailscale CLI; a
     missing CLI, a timeout or a non-zero exit raises, and tailnet_names() decides what that
     means."""
+    # find the CLI on PATH, falling back to its usual Linux location
     exe = shutil.which("tailscale") or "/usr/bin/tailscale"
     argv = [exe, "status", "--json"]
     done = subprocess.run(argv, capture_output=True, timeout=timeout, check=True)
@@ -213,6 +227,7 @@ def tailnet_names(read=None, sleep=time.sleep) -> frozenset[str]:
     TAILNET_READ_TRIES attempts, TAILNET_READ_PAUSE_S apart; an empty set when every attempt fails
     (or the name is blank), and main() then runs the loose pin and says so."""
     read = read or _tailscale_status
+    # retry loop: pause between attempts; the first attempt that yields a usable name wins
     for attempt in range(TAILNET_READ_TRIES):
         if attempt:
             sleep(TAILNET_READ_PAUSE_S)
@@ -278,6 +293,7 @@ def referer_ok(value: object, names: frozenset[str] | None) -> bool:
     return own_name(_host_of(re.split(r"[/?#\\]", rest, maxsplit=1)[0]), names)
 
 
+# -- the token file: reading it, and aborting startup when it cannot be read --
 def read_token(root: Path) -> str:
     """The operator's token, one line; "" only when the file is absent or blank (no token).
 
@@ -307,7 +323,12 @@ MAX_BODY_BYTES = 65536  # lever-waiver: Rab; a safety bound, moves only if a rea
 MAX_QUERY_CHARS = 2000  # lever-waiver: Rab; a safety bound, moves only if a real client needs more
 
 
+# -- server state: the shared settings, lock, token and warm models every request handler uses --
 class _State:
+    """Everything one running server shares: root, settings, query lock, token and gate flag, the
+    Host-pin names, and the embedder/reranker (loaded here, once). Reads the index metadata and the
+    model files; the embedder is built only if an index already exists."""
+
     def __init__(self, root: Path, settings: Settings, *, no_token=False, token=None, names=None):
         self.root = root
         self.settings = settings
@@ -324,6 +345,7 @@ class _State:
         self.embedder = None
         self.reranker = None
         store = Store(paths.index)
+        # if an index exists, read which embedding model it used and load that model now
         if store.exists():
             store.open_readonly()
             try:
@@ -337,9 +359,17 @@ class _State:
             self.reranker = Reranker(settings.rerank, settings.threads, paths.models)
 
 
+# -- the request handler: built per server so every method closes over that server's _State --
 def _handler(state: _State):
+    """Build and return the Handler class (a BaseHTTPRequestHandler subclass) bound to `state`.
+    No side effects of its own; the class applies the locks above and serves the four routes."""
+
     class Handler(BaseHTTPRequestHandler):
+        """One HTTP connection: peer lock, Funnel lock, request locks, token gate, then the route."""
+
         def handle(self) -> None:
+            """Per-connection entry: refuse a non-loopback, non-tailnet peer with the bare 403, else
+            hand on to the stdlib. Writes the 403 to the socket and counts the refusal."""
             # The peer lock: a connection from anywhere but loopback or the tailnet gets a bare 403
             # and is closed before any request line is read, for every method (HEAD/OPTIONS/PUT and
             # malformed lines included). A TRIPWIRE only: behind `tailscale serve` every peer is
@@ -361,6 +391,9 @@ def _handler(state: _State):
             super().handle()
 
         def parse_request(self) -> bool:
+            """Parse the request line and headers, then apply the Funnel lock and the request locks.
+            Returns True to let the request proceed, False after writing a refusal (bare 403 for
+            Funnel, a JSON 403 naming the rule otherwise) and counting it."""
             # The Funnel lock. `tailscale funnel` puts a port on the PUBLIC internet, and behind
             # `tailscale serve` a public caller reaches this socket from 127.0.0.1 exactly as a
             # tailnet caller does, so the peer lock above cannot tell the two apart. Tailscale's
@@ -436,6 +469,8 @@ def _handler(state: _State):
             return proven
 
         def _send(self, code: int, doc: dict) -> None:
+            """Write `doc` as a JSON response with status `code`, plus the no-sniff and no-framing
+            headers. Writes to the client socket; returns nothing."""
             body = json.dumps(doc, ensure_ascii=False).encode("utf-8")
             self.send_response(code)
             self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -446,6 +481,9 @@ def _handler(state: _State):
             self.wfile.write(body)
 
         def _admitted(self) -> bool:
+            """The token gate. True when the request may proceed: --no-token with no token set, or
+            an X-FP-Token header equal to the token. Otherwise sends a 503 (no token configured)
+            or 403 (missing or wrong token) and returns False."""
             token = getattr(state, "token", "") or ""
             if not token:
                 # Fail closed: with no token only the operator's explicit --no-token admits (the
@@ -466,6 +504,9 @@ def _handler(state: _State):
             return False
 
         def _query(self, params: dict) -> None:
+            """Validate the query parameters (q, k, mode, bundle, lane, verdict) and answer with
+            query.run()'s document under the state lock; a bad value gets a 400 and no model call.
+            `params` is a dict of strings from the URL query or a JSON body."""
             text = (params.get("q") or "").strip()
             if not text:
                 self._send(400, {"error": "q (query text) required"})
@@ -503,6 +544,8 @@ def _handler(state: _State):
             self._send(200, doc)
 
         def do_GET(self) -> None:
+            """Route a GET: /health is open; every other route passes the token gate and the proof
+            of origin first, then /status, /query or /graph run, else a 404. Sends one JSON answer."""
             url = urlparse(self.path)
             if url.path == "/health":
                 self._send(200, {"ok": True})  # the documented contract; the gate never touches it
@@ -521,6 +564,8 @@ def _handler(state: _State):
                 self._send(404, {"error": "unknown route"})
 
         def _graph(self) -> None:
+            """Answer /graph: the Library graph from graph.cached() (which may rewrite graph.json
+            beside the index when the vault's tip moved), or {"available": false} with no index."""
             paths = Paths.from_root(
                 state.root
             )  # the module's own way (S214 E24: the first cut called the constructor and 502'd)
@@ -538,6 +583,8 @@ def _handler(state: _State):
             self._send(200, doc)
 
         def do_POST(self) -> None:
+            """Route a POST: only /query, with a JSON-object body (at most MAX_BODY_BYTES) after the
+            token gate. Anything else is a 404, 400 or 413; the body is read here, nowhere earlier."""
             # By here parse_request has refused a POST carrying a foreign or "null" Origin (every
             # browser POST carries one, so a simple cross-site POST never gets this far; one with
             # none is a tool) and before its body was read. The gate next: an unknown route is not
@@ -565,13 +612,20 @@ def _handler(state: _State):
                 return
             self._query({k: ("" if v is None else str(v)) for k, v in params.items()})
 
-        def log_message(self, fmt, *args):  # one line per request on stderr, no client noise
+        def log_message(self, fmt, *args):
+            """Replace the stdlib access log: write one line per request to stderr."""
+            # one line per request on stderr, no client noise
             sys.stderr.write(f"{self.address_string()} {fmt % args}\n")
 
     return Handler
 
 
+# -- startup: command line, the refuse-to-start checks, then the serve loop --
 def main() -> None:
+    """Command-line entry. Parses --root/--config/--port/--no-token, refuses to start on a wide bind
+    or an unreadable token file, reads the tailnet names, loads the state (and models), binds
+    BIND:port and serves until interrupted. Prints its gate and pin status to stderr; exits via
+    sys.exit(message) on a refusal."""
     parser = argparse.ArgumentParser(description="File Portal index HTTP endpoint (loopback)")
     parser.add_argument(
         "--root", type=Path, default=DEFAULT_ROOT, help="file-portal root directory"
@@ -592,6 +646,7 @@ def main() -> None:
         sys.exit(f"refusing to start: BIND {BIND!r} is not a literal loopback or Tailscale address")
     token = _token_or_exit(args.root)
     names = tailnet_names()  # the Host pin: read ONCE, here, never at import or per request
+    # describe the Host pin: this machine's names when known, otherwise the loose fallback
     if names:
         pin = f"Host pinned to loopback, localhost and {', '.join(sorted(names))}"
     else:
@@ -605,6 +660,7 @@ def main() -> None:
     port = args.port if args.port is not None else settings.serve_port
     state = _State(args.root, settings, no_token=args.no_token, token=token, names=names or None)
     server = ThreadingHTTPServer((BIND, port), _handler(state))
+    # the one-line description of the token gate that is printed with the listening address
     if state.token:
         gate = "token gated"
     elif args.no_token:

@@ -1,4 +1,9 @@
-"""Page 0 of WTPDF: two /Figure StructElem with /Alt are declared there.
+"""WHAT THIS FILE DOES: a one-off inspection script (run directly, no arguments). On page 0 of the WTPDF
+sample (path hard-coded) it prints the images pymupdf sees, the structure tree with bboxes, and whether the
+declared Figure alt-text strings appear in the plain page text; then it repeats the Alt/ActualText check for
+the whole document. Read-only; stdout only; needs pymupdf; no callers.
+
+Page 0 of WTPDF: two /Figure StructElem with /Alt are declared there.
 Does the stext structure view show them? Does get_images? Does plain text?
 This is the SYM-053 shape: declared asset + declared words vs. what extraction sees.
 """
@@ -19,6 +24,7 @@ d = pg.get_text("dict", flags=FL)
 
 
 def dump(blocks, dep=0):
+    """Print `blocks` indented by depth `dep`: structure blocks as <tag>, text blocks, image blocks."""
     for b in blocks:
         t = b.get("type")
         bb = tuple(round(v, 1) for v in b["bbox"]) if b.get("bbox") else None
@@ -53,11 +59,13 @@ import re
 
 
 def get(x, k):
+    """Return xref_get_key(x, k) on `doc`, or None when the key is absent."""
     v = doc.xref_get_key(x, k)
     return None if (not v or v[0] == "null") else v
 
 
 def kids_of(x):
+    """Return the object numbers of the indirect children in object x's /K entry (else [])."""
     k = get(x, "K")
     if not k:
         return []
@@ -70,6 +78,7 @@ def kids_of(x):
 
 cat = doc.pdf_catalog()
 root = int(get(cat, "StructTreeRoot")[1].split()[0])
+# walk the tree collecting (object, text) pairs for every /Alt and /ActualText
 seen, stack = set(), list(kids_of(root))
 alts, acts = [], []
 while stack:
@@ -84,6 +93,7 @@ while stack:
     a2 = get(x, "ActualText")
     if a2:
         acts.append((x, a2[1]))
+# the "witness" is the plain text of every page; report declared strings that never occur in it
 witness = "".join(doc[i].get_text() for i in range(doc.page_count))
 miss_alt = [s for _, s in alts if s.strip() and s.strip() not in witness]
 miss_act = [s for _, s in acts if s.strip() and s.strip() not in witness]

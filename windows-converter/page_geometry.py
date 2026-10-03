@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""page_geometry.py — THE PAGE'S GEOMETRY AND ITS SYMBOL GLYPHS, two predictors (S209 E13; B40; SYM-142 / SYM-143 — Stanford
+"""WHAT THIS FILE DOES: measures, per page of a source PDF, its stored rotation and its symbol glyphs (check marks,
+radicals, arrows), and reports which pages are rotated, rotated with a Marker Table block, or symbol-heavy. Entry
+point: page_geometry(doc, blocks, lane, pages_flagged) returns a report-only dict for the manifest. It reads the PDF
+through pymupdf (fitz) and the blocks.json list passed in; it writes nothing. Called by fidelity_audit.py.
+
+page_geometry.py — THE PAGE'S GEOMETRY AND ITS SYMBOL GLYPHS, two predictors (S209 E13; B40; SYM-142 / SYM-143 — Stanford
 CIFE's technical report: sixteen of 113 pages stored Rotate-90, and on eight of them Marker's one Table block per page held only
 two-letter shards while the layer and Marker's own extractor read the page whole; on p.32 the layer's 48 check marks came out as
 the word `second` written 291 times).
@@ -19,6 +24,7 @@ from __future__ import annotations
 
 import unicodedata
 
+# -- constants: block types, symbol classes, caps --
 TABLE_TYPES = ("Table", "TableGroup")
 SYMBOL_CATS = ("Sm", "So")          # math symbols, other symbols: √ ✓ ≠ ∆ → ★ …
 SYMBOL_MIN = 10                     # symbol glyphs on a page before it counts as a symbol page
@@ -27,7 +33,9 @@ ROTATED_CAP = 50                    # rotated page numbers listed; the count is 
 SAMPLE_GLYPHS = 8
 
 
+# -- symbol extraction and the per-page report --
 def _symbols(text: str) -> list[str]:
+    """Return the non-ASCII symbol characters (unicode category Sm or So) found in text, in order; no side effects."""
     # ASCII symbols (+ < = > | ~ ^ $) are glyphs every recogniser reads; the class is the glyph it has no word for (√ ✓ ≠ ∆)
     return [c for c in (text or "") if ord(c) >= 128 and unicodedata.category(c) in SYMBOL_CATS]
 
@@ -54,6 +62,7 @@ def page_geometry(doc, blocks: list[dict], lane: str, pages_flagged=None) -> dic
             out["rotated_pages"] = None
             out["reason"] = "the source could not be opened for its geometry"
             return out
+    # pages (0-based) that carry a Table block, the 1-based flagged pages, and whether the scan lane applies
     tables_on = {b.get("page") for b in (blocks or []) if b.get("block_type") in TABLE_TYPES and b.get("page") is not None}
     flagged = {int(p) for p in (pages_flagged or [])}
     scan = lane != "clean"
@@ -62,6 +71,7 @@ def page_geometry(doc, blocks: list[dict], lane: str, pages_flagged=None) -> dic
         out["symbol_glyphs_total"] = None
         out["symbols_reason"] = "the scan lane's layer is an OCR of the picture: its symbols are the OCR's, not the source's"
     out["pages_total"] = len(doc)
+    # per page: read rotation and symbols, update the counts, and list rotated / symbol-heavy pages
     for i in range(len(doc)):
         p1 = i + 1
         try:
@@ -92,6 +102,7 @@ def page_geometry(doc, blocks: list[dict], lane: str, pages_flagged=None) -> dic
         if n_sym is not None and n_sym >= SYMBOL_MIN:
             symbol_worst.append({"page": p1, "rotation": rot, "tables": int(i in tables_on), "flagged": int(p1 in flagged),
                                  "symbol_glyphs": n_sym, "sample": sample})
+    # rank the rotated pages (table+flagged first), record the true total, then cut to WORST_CAP
     worst.sort(key=lambda r: (-(r["tables"] and r["flagged"]), -r["tables"], -r["flagged"], r["page"]))
     # S212: the cut now SAYS what it cut. `worst` has always been capped at WORST_CAP and the block recorded only the
     # survivors, so a reader met ten pages with no way to tell ten-of-eleven from ten-of-two-hundred — a cut wearing a
@@ -99,6 +110,7 @@ def page_geometry(doc, blocks: list[dict], lane: str, pages_flagged=None) -> dic
     # the hard way. The population rides beside the sample; nothing is measured differently and no threshold moves.
     out["worst_total"] = len(worst)
     del worst[WORST_CAP:]
+    # same for the symbol pages, ranked by glyph count
     symbol_worst.sort(key=lambda r: (-(r["symbol_glyphs"] or 0), r["page"]))
     out["symbol_worst_total"] = len(symbol_worst)
     del symbol_worst[WORST_CAP:]

@@ -1,4 +1,9 @@
-"""prototypes/docling-calibration/calibrate.py — the S71 calibration run (S28->S30 tradition).
+"""WHAT THIS FILE DOES: a stand-alone command-line benchmark. For each chosen book it renders a few PDF pages
+(whole page, and a middle-band crop), runs the granite-docling model on the GPU, and appends one JSON line per
+sample (seconds, peak VRAM, DocTags length, table count, text-agreement scores) to results.jsonl next to this file.
+Entry point: main(), run from the command line with --books. Reads PDFs from the DONE folder; nothing else calls it.
+
+prototypes/docling-calibration/calibrate.py — the S71 calibration run (S28->S30 tradition).
 
 Measures granite-docling-258M on THIS machine's real corpus before any trust is extended:
 per-page wall seconds, peak VRAM, DocTags/table emission, and (clean lane) witness agreement —
@@ -27,11 +32,13 @@ import torch
 from PIL import Image
 from transformers import AutoProcessor
 
+# -- model class: newer transformers name first, older name as fallback --
 try:
     from transformers import AutoModelForImageTextToText as ModelCls
 except ImportError:  # older transformers
     from transformers import AutoModelForVision2Seq as ModelCls
 
+# -- constants: model id, input/output paths, render dpi, prompt text --
 MODEL = "ibm-granite/granite-docling-258M"
 DONE = Path(r"C:\Users\Bndit\ml\library\drop\done")
 GPU_LOCK = Path(r"C:\Users\Bndit\ml\library\.gpu-lock")
@@ -59,7 +66,9 @@ BOOKS = {
 }
 
 
+# -- text-agreement scoring helpers --
 def norm(s: str) -> str:
+    """Normalize text for comparison: NFKC, casefold, collapse whitespace. Takes a string, returns a string."""
     s = unicodedata.normalize("NFKC", s).casefold()
     return re.sub(r"\s+", " ", s).strip()
 
@@ -68,6 +77,7 @@ def window_survival(witness: str, output: str, w: int = 12) -> float | None:
     """Fraction of witness 12-word windows found verbatim in output (exact containment
     after normalization). The audit's idea, fuzzless — a floor, not the full metric."""
     wn, on = norm(witness).split(), norm(output)
+    # non-overlapping windows of w words taken from the witness text
     wins = [" ".join(wn[i:i + w]) for i in range(0, max(0, len(wn) - w), w)]
     if not wins:
         return None
@@ -76,6 +86,7 @@ def window_survival(witness: str, output: str, w: int = 12) -> float | None:
 
 def numeric_jaccard(witness: str, output: str) -> float | None:
     """Multiset-lite: Jaccard over the sets of numeric tokens — the table-stakes tokens."""
+    # numeric token = a digit followed by digits, commas or dots
     nums = lambda t: set(re.findall(r"\d[\d,.]*", t))
     a, b = nums(witness), nums(output)
     if not a and not b:
@@ -83,7 +94,10 @@ def numeric_jaccard(witness: str, output: str) -> float | None:
     return round(len(a & b) / max(1, len(a | b)), 4)
 
 
+# -- model run and DocTags conversion --
 def doctags_to_md(tags: str, img) -> tuple[str, int]:
+    """Convert the model's DocTags string (plus its source image) to markdown via docling_core.
+    Returns (markdown, count of <otsl> table markers in the tags). No side effects."""
     from docling_core.types.doc import DoclingDocument
     from docling_core.types.doc.document import DocTagsDocument
     clean = tags.replace("<|end_of_text|>", "").strip()
@@ -94,6 +108,8 @@ def doctags_to_md(tags: str, img) -> tuple[str, int]:
 
 
 def run_one(model, proc, img, max_new: int) -> tuple[str, float, float]:
+    """Run the model once on one image, generating at most max_new tokens on the GPU.
+    Returns (raw DocTags text, wall seconds for generate, peak VRAM in MiB). Resets CUDA peak-memory stats."""
     messages = [{"role": "user", "content": [{"type": "image"},
                                              {"type": "text", "text": PROMPT}]}]
     prompt = proc.apply_chat_template(messages, add_generation_prompt=True)
@@ -103,12 +119,16 @@ def run_one(model, proc, img, max_new: int) -> tuple[str, float, float]:
     out = model.generate(**inputs, max_new_tokens=max_new, do_sample=False)
     secs = time.time() - t0
     vram = torch.cuda.max_memory_allocated() / 1024**2
+    # decode only the newly generated tokens (drop the prompt part)
     tags = proc.batch_decode(out[:, inputs["input_ids"].shape[1]:],
                              skip_special_tokens=False)[0]
     return tags, secs, vram
 
 
+# -- result output --
 def record(rec: dict) -> None:
+    """Append one sample dict as a JSON line to OUT, flush and fsync it, and print a one-line summary.
+    Side effects: writes results.jsonl, prints to stdout."""
     with open(OUT, "a", encoding="utf-8") as f:
         f.write(json.dumps(rec, ensure_ascii=False) + "\n")
         f.flush()
@@ -119,7 +139,10 @@ def record(rec: dict) -> None:
           f"tables={rec.get('tables')}", flush=True)
 
 
+# -- command-line entry point --
 def main() -> int:
+    """Parse --books / --fp16-ab, refuse if the GPU lock exists (returns 2), else measure every chosen
+    book's pages and crops per dtype and record each sample. Returns 0. Loads the model on CUDA."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--books", required=True)
     ap.add_argument("--fp16-ab", action="store_true")
@@ -129,6 +152,7 @@ def main() -> int:
         print("REFUSED: .gpu-lock present — the line owns the card (serialization law).")
         return 2
 
+    # one pass per precision: bf16 always, fp16 too when --fp16-ab is given
     dtypes = [("bf16", torch.bfloat16)] + ([("fp16", torch.float16)] if args.fp16_ab else [])
     for dname, dt in dtypes:
         t0 = time.time()
@@ -137,6 +161,7 @@ def main() -> int:
         load_s = round(time.time() - t0, 1)
         print(f"[{dname}] loaded in {load_s}s", flush=True)
 
+        # per book: open its PDF, measure the full pages, then the crops
         for bid in args.books.split(","):
             b = BOOKS[bid]
             doc = pymupdf.open(DONE / b["pdf"])
@@ -149,6 +174,7 @@ def main() -> int:
                 img = Image.open(io.BytesIO(pix.tobytes("png")))
                 tags, secs, vram = run_one(model, proc, img, 4096)
                 md, tables = doctags_to_md(tags, img)
+                # witness text comes from the PDF's own text layer, only for "clean" lanes
                 wit = page.get_text() if b["lane"].startswith("clean") else ""
                 record({"book": bid, "lane": b["lane"], "mode": "page", "page": pno,
                         "dtype": dname, "dpi": DPI, "img": list(img.size),
@@ -177,6 +203,7 @@ def main() -> int:
                         "doctags_chars": len(tags), "md_chars": len(md), "tables": tables,
                         "window_survival": window_survival(wit, md) if wit else None,
                         "numeric_jaccard": numeric_jaccard(wit, md) if wit else None})
+        # free the model and GPU cache, then log the load time as its own record
         del model
         torch.cuda.empty_cache()
         record({"book": "-", "mode": "load", "dtype": dname, "secs": load_s,

@@ -1,4 +1,8 @@
-"""S108 writer identity on the allocator's status feed.
+"""WHAT THIS FILE DOES: pytest tests for allocator/status.py's writer identity. They record events
+into a temporary status.json and check each new one carries source_component, and that older
+records without it are kept unchanged. Writes only under pytest's tmp_path.
+
+S108 writer identity on the allocator's status feed.
 
 Two services append to the same logs/status.json (this allocator and the converter), so every
 NEW record must name its writer via ``source_component``. Pre-S108 records without the field
@@ -12,11 +16,15 @@ from pathlib import Path
 from allocator.status import SOURCE_COMPONENT, StatusWriter
 
 
+# -- helper --
 def read_events(path: Path) -> list[dict]:
+    """Return the events list parsed from the status.json at path."""
     return json.loads(path.read_text(encoding="utf-8"))["events"]
 
 
+# -- writer identity tests --
 def test_every_new_record_names_its_writer(tmp_path):
+    """Every record written now has source_component equal to 'allocator'."""
     assert SOURCE_COMPONENT == "allocator"
     path = tmp_path / "status.json"
     writer = StatusWriter(path)
@@ -28,6 +36,7 @@ def test_every_new_record_names_its_writer(tmp_path):
 
 
 def test_pre_s108_records_are_never_rewritten(tmp_path):
+    """An old record without source_component is carried forward unchanged when a new one is added."""
     path = tmp_path / "status.json"
     legacy = {
         "ts": "2026-01-01T00:00:00+00:00",

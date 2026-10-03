@@ -1,5 +1,14 @@
 #!/usr/bin/env python
-"""THE REPAIR BENCH — Stage G prototype (docs/19 §7, docs/18 "the Repair Bench").
+"""WHAT THIS FILE DOES: the Repair Bench server and its logic core. It opens one converted bundle
+(a folder holding one .md, an optional manifest.json and an assets/ folder) or a bare PDF, shows the
+source PDF page beside the markdown, and lets an operator repair flagged zones. Main entry points:
+class Bench (all state and file mutation, no HTTP), the HTTP handler and server classes further
+down, and main() (command line, starts the server). It reads the bundle, the source PDF, signatures.json
+and the converter's manifest; it writes the .md, manifest.json, assets/_repair_pN_k.png crops, the
+repairs.jsonl change ledger, a REPAIRS.md report and a .md.bench-bak backup inside the bundle (or a .sandbox/ copy). Called by bench.html over HTTP
+and by the acceptance test scripts that drive Bench directly. The original header follows unchanged.
+
+THE REPAIR BENCH — Stage G prototype (docs/19 §7, docs/18 "the Repair Bench").
 
 Rab's design, his words load-bearing: **"the human IS the vision model."** The audit can say
 *where* a conversion went wrong (degeneration zones, omission runs) but not what the page
@@ -47,6 +56,7 @@ from datetime import datetime, timezone
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer as _StdThreadingHTTPServer
 from pathlib import Path
 
+# -- paths, library folders and rendering constants --
 BENCH_DIR = Path(__file__).resolve().parent
 REPO = BENCH_DIR.parents[1]
 HELD = Path(r"C:\Users\Bndit\ml\library\held")
@@ -87,7 +97,9 @@ FULL_EVIDENCE_REMEDY = "full-evidence review required"
 _MISSING = object()
 
 
+# -- small helpers: time stamp, manifest counts, repetition (loop) detectors, front matter --
 def _now_iso() -> str:
+    """Current UTC time as an ISO-8601 string to the second. No side effects."""
     return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
@@ -216,11 +228,15 @@ def _last_process_diagnostic(text: str, limit: int = 300) -> str:
     return (lines[-1] if lines else "no diagnostic emitted")[:limit]
 
 
+# -- class Bench: one open bundle (or bare PDF) and every operation on it --
 class Bench:
     """The testable core: all state + mutation, no HTTP. The acceptance harness drives this
     directly AND over the wire, so the logic is proven twice."""
 
     def __init__(self, bundle_dir: Path, pdf: Path | None = None, sandbox: bool = False):
+        """Open a bundle dir, a held sha16 name, or a bare PDF. Inputs: path, optional source PDF,
+        sandbox flag (copy the bundle into .sandbox/ and work on the copy). Reads manifest.json,
+        creates assets/ in a bundle; raises SystemExit if the path is unusable."""
         src_dir = Path(bundle_dir)
         if not src_dir.is_dir() and (HELD / str(bundle_dir)).is_dir():
             src_dir = HELD / str(bundle_dir)  # bare sha16 convenience
@@ -277,6 +293,7 @@ class Bench:
         self._finish_init()
 
     def _finish_init(self) -> None:
+        """Set up the lazy caches and locks shared by bundle mode and bare-PDF mode. No I/O."""
         self._doc = None
         self._bak_done = False
         # S62b (the Okular pass): lazy per-page text index + TOC + zone-location votes.
@@ -303,6 +320,8 @@ class Bench:
 
     # ---- read side --------------------------------------------------------------------------
     def body(self) -> str:
+        """The markdown body (front matter removed, newlines normalised); "" in bare-PDF mode.
+        Reads the .md bytes each call and reuses the cached text when the bytes are unchanged."""
         if self.md_path is None:
             return ""
         # S215 E36 (Rab 10:16Z: "repair bench is really slow"): state() decoded and split the whole file 71 times per call. The
@@ -352,11 +371,13 @@ class Bench:
         return lines, norm, low
 
     def zones(self) -> list[dict]:
-        det = (self.manifest.get("fidelity", {}).get("convert", {})
+        """The audit's worst degeneration zones from the manifest (a copy; empty if none)."""
+        det =(self.manifest.get("fidelity", {}).get("convert", {})
                .get("tripwires", {}).get("degeneration_detail", {}))
         return list(det.get("worst") or [])
 
     def runs(self) -> list[dict]:
+        """The audit's omission runs from the manifest (a copy; empty if none)."""
         return list(self.manifest.get("fidelity", {}).get("convert", {}).get("runs") or [])
 
     def evidence_counts(self, *, runs_shown: int | None = None,
@@ -404,6 +425,8 @@ class Bench:
 
     @classmethod
     def _bank(cls) -> list[dict]:
+        """The signature list from signatures.json beside this file, loaded once and cached on
+        the class; a missing or bad file gives an empty list."""
         if cls._BANK is None:
             try:
                 raw = (Path(__file__).parent / "signatures.json").read_text(encoding="utf-8")
@@ -415,6 +438,7 @@ class Bench:
     def _detect(self, rule: str, site: dict, win: list[str]) -> str | None:
         """Return the EVIDENCE that fired this rule, or None. Never a bare True: the operator
         is owed what the machine actually saw, in the same breath as the conclusion."""
+        # one branch per detector rule named in signatures.json; each returns evidence text or None
         if rule == "omission_run":
             # S157 E44 (B15): the site IS the audit's omission run — the evidence is what the audit measured, not the
             # neighbourhood (a run has no markdown of its own: that is the defect). Fires only on run-shaped sites.
@@ -476,6 +500,7 @@ class Bench:
         at = max(1, int(line or site.get("line") or 1)) - 1
         win = lines[max(0, at - 4): at + 12]
         bank = {s["id"]: s for s in self._bank()}
+        # every signature, in consequence order, whose detector fired, paired with its evidence
         hits = [(sid, bank[sid], ev) for sid in self._ORDER if sid in bank
                 for ev in [self._detect(bank[sid].get("detect", ""), site, win)] if ev]
         if not hits:
@@ -514,7 +539,10 @@ class Bench:
                 "auto": s.get("auto", ""), "matched_on": ev, "cite": s.get("cite", ""),
                 "caution": caution, "also": [h[0] for h in hits[1:]]}
 
+    # -- the state snapshot the page renders (zones, runs, repairs, page labels, identity) --
     def state(self) -> dict:
+        """The whole bench state as one JSON-ready dict: bundle facts, every zone and omission run
+        with its anchor line, outcome and diagnosis, repairs, page count and PDF availability."""
         body_lines = self.body().count("\n") + 1
         pages = int(self.manifest.get("pages") or 0)
         if not pages:
@@ -528,6 +556,7 @@ class Bench:
         md_lines = int(det_md_lines or body_lines)
         reps = self.manifest.get("repairs", [])
         runs = []
+        # one entry per omission run: anchor line, outcome, diagnosis, repaired flag
         # The producer already bounds this retained list. A second 40-row slice hid reviewable
         # sites and made the state count disagree with the manifest population.
         for r in self.runs():
@@ -539,6 +568,7 @@ class Bench:
                          "repaired": at is not None
                          and any(rec.get("zone_line") == at for rec in reps)})
         zones = []
+        # one entry per degeneration zone: guessed page, live line, outcome, diagnosis, repaired/collapsed flags
         for z in self.zones():
             guess = max(1, min(pages, round(z["line"] / md_lines * pages))) if md_lines else 1
             at, anchor = self._resolve_zone_line(z)
@@ -738,10 +768,13 @@ class Bench:
             raise RuntimeError("OK-15 evidence returned no valid JSON") from exc
 
     def _require_md(self) -> None:
+        """Guard for write paths: raise ValueError in bare-PDF (reading) mode, where there is no .md."""
         if self.md_path is None:
             raise ValueError("reading mode — this is a bare PDF; there is no markdown to edit")
 
     def doc(self):
+        """The open pymupdf (fitz) document for the source PDF, opened once and cached.
+        Raises RuntimeError when no PDF is on the bench."""
         if self.pdf is None:
             raise RuntimeError("no source PDF on the bench")
         if self._doc is None:
@@ -750,6 +783,7 @@ class Bench:
         return self._doc
 
     def page_png(self, n: int, dpi: int = RASTER_DPI) -> bytes:
+        """Render 1-based page n (clamped to the book) at dpi and return the PNG bytes."""
         page = self.doc().load_page(max(0, min(self.doc().page_count - 1, n - 1)))
         return page.get_pixmap(dpi=dpi).tobytes("png")
 
@@ -775,6 +809,7 @@ class Bench:
             return None
 
         def px(x: int, y: int) -> tuple[int, int, int]:
+            """The (R, G, B) of the pixel at x, y in the raw sample buffer."""
             o = y * stride + x * ncomp
             return samples[o], samples[o + 1], samples[o + 2]
 
@@ -784,10 +819,12 @@ class Bench:
         paper = tuple(sorted(c[i] for c in corners)[len(corners) // 2] for i in range(3))
 
         def content(x: int, y: int) -> bool:
+            """True when the pixel differs from the paper colour by more than the threshold."""
             p = px(x, y)
             return (abs(p[0] - paper[0]) > threshold or abs(p[1] - paper[1]) > threshold
                     or abs(p[2] - paper[2]) > threshold)
 
+        # scan inward from each edge for the first row/column holding ink; blank page -> None
         top = next((y for y in range(h) if any(content(x, y) for x in range(w))), None)
         if top is None:
             return None
@@ -814,6 +851,7 @@ class Bench:
         x1, y1 = min(1.0, x1 + m), min(1.0, y1 + m)
 
         def cap(lo: float, hi: float) -> tuple[float, float]:
+            """Widen the span lo..hi to at least min_keep, centred, shifted to stay inside 0..1."""
             if hi - lo >= min_keep:
                 return lo, hi
             c = (lo + hi) / 2
@@ -882,6 +920,8 @@ class Bench:
         return self._texts
 
     def find(self, q: str, limit: int = 40) -> dict:
+        """Full-text search over the PDF's pages. Input: query (3+ chars) and a page limit.
+        Returns {q, pages:[{page,count,excerpt}], searchable, total_hits}; builds the index once."""
         q = unicodedata.normalize("NFKC", " ".join(q.strip().lower().split()))
         if len(q) < 3:
             return {"q": q, "pages": [], "searchable": True, "error": "need 3+ characters"}
@@ -984,6 +1024,7 @@ class Bench:
         rbounds = [y0, *sorted(row_divs), y1]
 
         def bucket(bounds: list[float], v: float) -> int:
+            """Index of the band in `bounds` that contains v (the last band if v is past the end)."""
             for i in range(len(bounds) - 1):
                 if v < bounds[i + 1]:
                     return i
@@ -996,6 +1037,7 @@ class Bench:
         # boundary char failed containment about half the time, silently dropping digits
         # from the extracted table or silently skipping the char-split entirely.
         EPS = 2e-5
+        # place each word (or, if it straddles a column divider, each of its characters) in a grid cell
         for w in words:
             wx0, wy0, wx1, wy1, text = w[0], w[1], w[2], w[3], str(w[4])
             crossed = any(wx0 < d < wx1 for d in col_divs)
@@ -1025,6 +1067,7 @@ class Bench:
 
     @staticmethod
     def table_markdown(cells: list[list[str]]) -> str:
+        """Render a grid of cell strings as a pipe table (first row = header); "" if empty."""
         if not cells or not cells[0]:
             return ""
         head, *body = cells
@@ -1045,6 +1088,7 @@ class Bench:
         page = self.doc().load_page(max(0, min(self.doc().page_count - 1, n - 1)))
         r = page.rect
         chars: list[list] = []
+        # collect every character box on the page (page fractions) for splitting words across dividers
         try:
             for block in page.get_text("rawdict")["blocks"]:
                 for line in block.get("lines", []):
@@ -1109,6 +1153,7 @@ class Bench:
             ])
         return out
 
+    # -- text layer (word boxes) and locating a zone's true page --
     def textlayer(self, n: int) -> dict:
         """OK-5: every word on page n with its normalized rect — the one address type the
         drag-select, precise highlights, and future zone anchors all share. words-mode now;
@@ -1163,6 +1208,7 @@ class Bench:
         # long lines contribute several 5-word shingles (short shingles survive the PDF's own
         # typography better than one long one — measured on Damodaran).
         needles: list[str] = []
+        # widen the window around the zone line until at least 4 five-word phrases are found
         for reach in (10, 25, 45):
             needles.clear()
             for ln in lines[max(0, at - reach):min(len(lines), at + reach // 2)]:
@@ -1180,6 +1226,7 @@ class Bench:
                 break
         needles = needles[:12]
         votes: dict[int, int] = {}
+        # each page containing a needle gets a vote; the page with most votes wins
         for nd in needles:
             for i, text in enumerate(idx):
                 if nd in text:
@@ -1197,6 +1244,8 @@ class Bench:
 
     # ---- write side -------------------------------------------------------------------------
     def _backup_once(self) -> None:
+        """Copy the .md to <name>.md.bench-bak the first time this session writes (never overwrites
+        an existing backup). Side effect: one file copy."""
         bak = self.md_path.with_suffix(".md.bench-bak")
         if not self._bak_done and not bak.exists():
             shutil.copy2(self.md_path, bak)
@@ -1205,6 +1254,7 @@ class Bench:
     # ---- THE CHOKEPOINT + the repair ledger (S76, docs/28 — signed by Rab) ------------------
     @property
     def ledger_path(self) -> Path:
+        """Path of the append-only change ledger, repairs.jsonl, inside the bundle folder."""
         return self.dir / "repairs.jsonl"
 
     def ledger(self) -> list[dict]:
@@ -1223,6 +1273,7 @@ class Bench:
 
     @staticmethod
     def _sha(text: str) -> str:
+        """First 16 hex characters of the SHA-256 of text; the ledger's body fingerprint."""
         return hashlib.sha256(text.encode("utf-8")).hexdigest()[:16]
 
     @staticmethod
@@ -1260,6 +1311,7 @@ class Bench:
         sha_before, sha_after = self._sha(old_body), self._sha(new_body)
         seq = len(self.ledger())
         events = []
+        # one ledger event per changed region (removal, addition or edit) found by the line diff
         for tag, i1, i2, j1, j2 in difflib.SequenceMatcher(
                 None, old_lines, new_lines, autojunk=False).get_opcodes():
             if tag == "equal":
@@ -1384,6 +1436,7 @@ class Bench:
                 "matches_disk": self._sha(self.body()) == writes[-1][1]}
 
     def _next_asset(self, page: int) -> str:
+        """The next unused crop file name for a page, _repair_p<page>_<k>.png (k = highest + 1)."""
         ks = [int(m.group(2)) for p in self.assets.iterdir()
               if (m := ASSET_RE.match(p.name)) and int(m.group(1)) == page]
         return f"_repair_p{page}_{max(ks, default=0) + 1}.png"
@@ -1417,6 +1470,7 @@ class Bench:
     # ---- outcome triage (S76, docs/28 §4) ---------------------------------------------------
     @staticmethod
     def zone_key(z: dict) -> str:
+        """The triage key for a zone: "z" plus its recorded line number."""
         return f"z{z['line']}"
 
     @staticmethod
@@ -1571,6 +1625,7 @@ class Bench:
 
     @staticmethod
     def _has_pipe(l: str) -> bool:
+        """True when the line contains a table pipe that is not an escaped \\| ."""
         return "|" in l.replace("\\|", "")
 
     @classmethod
@@ -1942,9 +1997,12 @@ class Bench:
                 "delta_lines": delta, "at": at, "para_lines": [first, last]}
 
     def _fence(self, text: str) -> tuple[str, list[str]]:
+        """Replace each image embed in text with an opaque IMG-n token before the text goes to the
+        model. Returns (fenced text, the original embeds in token order)."""
         tokens: list[str] = []
 
         def sub(m: re.Match) -> str:
+            """Record one matched embed and return its numbered placeholder token."""
             tokens.append(m.group(0))
             return f"⟦IMG-{len(tokens)}⟧"
 
@@ -2045,6 +2103,9 @@ class Bench:
 
     # ---- the re-score PREVIEW (never writes; audit policy is Rab's signature) ---------------
     def rescore_preview(self) -> dict:
+        """Preview only: re-run the fidelity_audit degeneration check on the current body and report
+        it beside the repair coverage, with a vault recommendation. Imports fidelity_audit read-only;
+        writes nothing (no fidelity block, no verdict)."""
         self._require_md()
         sys.path.insert(0, str(REPO / "windows-converter"))
         try:
@@ -2064,6 +2125,7 @@ class Bench:
         complete = cov["completeness"] == "complete" and cov["unseen"] == 0
         eligible = (not det.get("flagged")) and open_sites == 0 and complete
         blockers = []
+        # collect every reason the vault recommendation cannot be "eligible"
         if det.get("flagged"):
             blockers.append("degeneration is still present in the text")
         if open_sites:
@@ -2194,6 +2256,7 @@ def library_listing() -> dict:
     """Server-side enumeration for the picker — the browser can never hand us a real path,
     so the bench offers the pipeline's own places, newest first."""
     def bundles(root: Path, cap: int = 30) -> list[dict]:
+        """List up to `cap` newest single-.md bundle folders under root with their manifest facts."""
         out: list[dict] = []
         if not root.is_dir():
             return out
@@ -2532,11 +2595,16 @@ _DRAIN_CAP = 1 << 20
 _DRAIN_TIMEOUT = 5
 
 
+# -- the request handler: routes, the token gate and the checks above, wired to one Bench --
 def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
+    """Build the request-handler class for a Bench. Inputs: the Bench, the POST token (or _NO_GATE
+    for in-process tests), an optional fp-tokens.css path to serve, extra allowed Host names.
+    Returns the Handler class; the served Bench can later be swapped via server.bench."""
     bench0 = bench
     allowed = {str(h).strip().lower() for h in hosts if str(h).strip()}
 
     class Handler(BaseHTTPRequestHandler):
+        """One HTTP connection: GET routes read, POST routes (token-gated) change the bundle."""
         # S215 E36 (round seven): HTTP/1.1, so a browser revalidates /api/md and the page images by their ETags (Edge sends no
         # If-None-Match to an HTTP/1.0 answer — measured); every answer carries its Content-Length (_send) and every refused
         # POST drains its body, so a kept-alive connection is safe; an idle one is closed after 30 s
@@ -2544,6 +2612,8 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
         timeout = 30
 
         def handle(self):
+            """Serve one connection, but first refuse (bare 403, close) any peer that is not loopback
+            or tailnet. Side effect: writes the 403 bytes and counts the refusal."""
             # the peer lock: a connection from anywhere but loopback or the tailnet gets a bare 403 and is closed,
             # before any request line is read, for every method (HEAD/OPTIONS/PUT/... and malformed lines included)
             try:
@@ -2562,9 +2632,11 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
             super().handle()
 
         def log_message(self, *a):  # quiet
+            """Silence the base class's per-request log line."""
             pass
 
         def _send(self, code: int, body: bytes, ctype: str = "application/json", headers=None):
+            """Write a complete response: status, content type, extra headers, length, then the body."""
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             for k, v in (headers or {}).items():   # S215 E36 (round seven): ETag / Cache-Control on the two heavy reads
@@ -2575,6 +2647,7 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
             self.wfile.write(body)
 
         def _json(self, obj, code: int = 200, headers=None):
+            """Answer with obj serialised as JSON and the given status code."""
             self._send(code, json.dumps(obj).encode("utf-8"), headers=headers)
 
         def _content_length(self):
@@ -2623,6 +2696,8 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
             self._json(body, code, headers={"Connection": "close"} if close else None)
 
         def do_GET(self):
+            """Handle a GET: run the Host, proxy and cross-page checks, then dispatch on the URL path
+            to a read-only route (page, state, md, page image, assets, search, table, library...)."""
             bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
             if not host_header_ok(self.headers, self.server.server_address[0], allowed):   # round four; round nine: one Host header only
                 self._json({"error": HOST_REFUSED}, 421)
@@ -2725,6 +2800,7 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
                     # "none" = the caller DELETED the last divider — an empty list, which a
                     # blank query value cannot carry (parse_qs drops blanks; review MAJOR)
                     def _divs(key):
+                        """Parse the cols/rows divider list from the query: None if absent, [] for none/blank."""
                         if key not in q:
                             return None
                         v = q[key][0]
@@ -2739,6 +2815,9 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
                 self._json({"error": str(exc)[:300]}, 500)
 
         def do_POST(self):
+            """Handle a POST: Host, proxy, cross-page and token checks first, then read the JSON body and
+            dispatch on the path to a mutating route (repair, md save, open, transcribe, collapse, assist,
+            undo, triage, report). Side effects: writes bundle files; /api/open swaps the served bench."""
             bench = getattr(self.server, "bench", bench0)  # S66: the picker can swap it
             if not host_header_ok(self.headers, self.server.server_address[0], allowed):   # round four; round nine: one Host header only
                 self._refuse(421, HOST_REFUSED)   # the body drained first, bounded (see _refuse)
@@ -2835,6 +2914,7 @@ class ThreadingHTTPServer(_StdThreadingHTTPServer):
         allow_reuse_address = False   # SYM-192: on Windows SO_REUSEADDR lets a second process bind a listening port (co-binding)
 
     def server_bind(self):
+        """Bind the listening socket; on Windows first mark it exclusive so no second copy can share the port."""
         # SYM-192: Windows-only exclusive bind; a refused bind raises OSError (WinError 10048/10013) and is never swallowed here
         if os.name == "nt" and hasattr(socket, "SO_EXCLUSIVEADDRUSE"):
             self.socket.setsockopt(socket.SOL_SOCKET, socket.SO_EXCLUSIVEADDRUSE, 1)
@@ -2875,7 +2955,11 @@ def _bind_arg(value):
     return value
 
 
+# -- command line entry point --
 def main():
+    """Command-line entry: parse arguments, open the Bench, print a banner, then either run the
+    one-shot --unsplit-tables maintenance and exit, or serve HTTP on loopback (plus an optional
+    tailnet address) until interrupted."""
     # The console may be cp1252 (the preview launcher's is; PowerShell's usually isn't) —
     # the banner's ✓/· glyphs must never crash the server. errors="replace" keeps whatever
     # encoding the console really has and degrades glyphs to '?' instead of dying — the

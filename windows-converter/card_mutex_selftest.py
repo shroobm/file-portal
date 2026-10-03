@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Tripwire for the card mutex (SYM-033/SYM-042; docs/37 §3.2, signed 2026-08-17).
+"""WHAT THIS FILE DOES: tripwire for the Windows named mutex that lets only one converter process own the GPU card. It
+imports convert_and_ship (cs.acquire_card_mutex / cs.release_card_mutex) with a unique mutex name and a scratch
+pipeline root, then re-runs itself as child processes (--role waiter / holder-release / holder-abandon) to prove
+blocking, release, and abandoned-mutex recovery. Prints ok/FAIL lines; exit 0 when all fired, else 1. It takes the
+real OS mutex under a test-only name and creates a temp folder; it does not touch the live card mutex.
+
+Tripwire for the card mutex (SYM-033/SYM-042; docs/37 §3.2, signed 2026-08-17).
 
 A guard born today gets its tripwire today (docs/32 §6). The property under guard: at most
 ONE converter process owns the card, for every entry path, enforced by the OS — and a dead
@@ -28,6 +34,7 @@ import time
 import uuid
 from pathlib import Path
 
+# -- isolation: a per-run mutex name, a scratch pipeline root and a fast poll, exported before the import below --
 HERE = Path(__file__).parent
 # INHERIT the name when a parent set one — a child re-running this module top must contend
 # on the PARENT'S mutex, not mint its own (the first version did, and its "contention" case
@@ -44,12 +51,15 @@ import convert_and_ship as cs  # noqa: E402
 
 
 def child(role: str, hold_s: float = 0.0) -> subprocess.Popen:
+    """Start this same file as a child process in the given role (hold_s = seconds to hold). Returns the Popen,
+    with stdout piped so the parent can read its TRYING / ACQUIRED / CARD BUSY lines."""
     return subprocess.Popen(
         [sys.executable, str(Path(__file__).resolve()), "--role", role, str(hold_s)],
         env=ENV, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
         encoding="utf-8", errors="replace")
 
 
+# -- child mode: when started with --role, act as waiter / releasing holder / abandoning holder, then exit --
 if "--role" in sys.argv:
     role, hold_s = sys.argv[sys.argv.index("--role") + 1], float(sys.argv[-1])
     # TRYING lands BEFORE the acquire so the parent can hold until the contention is real —
@@ -65,10 +75,12 @@ if "--role" in sys.argv:
         os._exit(0)  # die owning it — the abandonment case
     sys.exit(0)
 
+# -- parent mode: counters, the check() recorder, then cases 0-3 --
 passed = failed = 0
 
 
 def check(name: str, ok: bool) -> None:
+    """Print an ok/FAIL line for case name and update the passed / failed counters."""
     global passed, failed
     print(("  ok  " if ok else "  FAIL"), name)
     passed, failed = passed + (1 if ok else 0), failed + (0 if ok else 1)

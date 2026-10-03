@@ -1,4 +1,12 @@
-"""P-1 — figure coverage: did the figures on each source page reach the output?
+"""WHAT THIS FILE DOES
+    Report-only checker that asks, page by page, whether each source-PDF page that carries a figure
+    (raster image or vector drawing cluster) has at least one figure asset in the converted bundle.
+    Entry points: `coverage(pdf, bundle)` returns the report dict; `main()` is the command line
+    (`--pdf`, `--bundle`, `--json`, `--no-hashes`). It reads the PDF (PyMuPDF), the bundle's `assets/`
+    folder and `manifest.json`, and the operator's lever file; it writes nothing. Not wired into the
+    converter; run by hand or by the sittings' probes.
+
+P-1 — figure coverage: did the figures on each source page reach the output?
 
 docs/41 §2 P-1, signed by Rab 2026-08-20 ("lets do items 6-9" / "lets do P-1"). Built S102.
 
@@ -133,6 +141,7 @@ from pathlib import Path
 
 import pymupdf
 
+# -- size and clustering thresholds (defaults of the levers below) --
 # ── thresholds, all in POINTS (72/inch), all named in the report ───────────────
 # A "figure region" must be big enough to be a figure a reader would miss. These are first
 # guesses, deliberately conservative, and CALIBRATION (docs/15 §9) is what earns them.
@@ -213,6 +222,7 @@ VETO_ACCOUNTED_FOR = 0.60
 # repaired page map: unfiltered precision 2/12 sampled = 16.7 %; restricted to pages carrying a
 # FIGURE N.N caption, 5/6 adjudicated = 83 %. It changes what is REPORTED FIRST, never what is
 # detected — the full list is always present, so triage can never hide a page.
+# -- the lever table: file location, allowed triage modes, and key -> (type, default, allowed range) --
 LEVER_FILE = Path(r"C:\Users\Bndit\ml\library\figure-triage.txt")
 TRIAGE_ALLOWED = ("caption", "off")
 LEVER_SPEC: dict[str, tuple[type, object, object]] = {
@@ -235,6 +245,7 @@ LEVER_SPEC: dict[str, tuple[type, object, object]] = {
     "table_overlap":      (float, VETO_TABLE_OVERLAP,     (0.0, 1.0)),
     "accounted_for":      (float, VETO_ACCOUNTED_FOR,     (0.0, 1.0)),
 }
+# -- caption patterns used by the triage (which uncovered pages are read first) --
 _FIG_CAPTION_RE = re.compile(r"\bFIGURE\s+\d+\.\d+", re.I)
 # ...but NOT when the page opens as an "ILLUSTRATION N.N" worked example. Those pages routinely
 # cross-REFERENCE a figure in their prose while containing none, and they are the dominant false
@@ -253,6 +264,7 @@ _CAPTION_HEAD_CHARS = 900  # lever-waiver: Fable/Rab at the bench only. This is 
 # the feature that prompted the framework also found the framework's first blind spot.
 
 
+# -- reading the operator's lever file --
 def levers(path: Path | None = None, text: str | None = None) -> dict:
     """Read the operator's lever file. Returns EFFECTIVE values plus, per key, why.
 
@@ -260,6 +272,7 @@ def levers(path: Path | None = None, text: str | None = None) -> dict:
     an unknown key or an out-of-range number all fall back to the default and are NAMED in
     `rejected` so the report can say what was ignored rather than silently ignoring it.
     """
+    # start from the defaults; the file (or the explicit text) may only override them
     eff = {k: spec[1] for k, spec in LEVER_SPEC.items()}
     rejected: list[str] = []
     if text is None:
@@ -294,6 +307,7 @@ def levers(path: Path | None = None, text: str | None = None) -> dict:
                     "source": f"defaults (undecodable {p})"}
     else:
         source = "explicit"
+    # parse key=value lines: strip # comments, check the key and the range, keep the valid ones
     for lineno, raw in enumerate(text.splitlines(), 1):
         line = raw.split("#", 1)[0].strip()
         if not line:
@@ -325,6 +339,7 @@ def levers(path: Path | None = None, text: str | None = None) -> dict:
     return {"values": eff, "rejected": rejected, "source": source}
 
 
+# -- bundle asset naming: marker's _page_<id>_<Figure|Picture>_<n>.<ext> --
 _ASSET_RE = re.compile(r"_page_(\d+)_(Figure|Picture)_(\d+)\.(?:jpe?g|png)$", re.I)
 
 # ── SYM-050: the pre-S60 doubled-offset map, its signature, and the S106 repair ───────────────
@@ -384,15 +399,19 @@ def _manifest_slice_size(bundle_dir: Path) -> int | None:
     return v if isinstance(v, int) and v > 0 else None
 
 
+# -- rectangle arithmetic and clustering helpers (rects are (x0, y0, x1, y1) in points) --
 def _rect_area(r) -> float:
+    """Area of rect `r` = (x0, y0, x1, y1) in pt^2; negative sides count as zero. Pure."""
     return max(0.0, r[2] - r[0]) * max(0.0, r[3] - r[1])
 
 
 def _merge(a, b):
+    """Smallest rect enclosing rects `a` and `b`, returned as a 4-tuple. Pure."""
     return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
 
 
 def _touches(a, b, gap: float) -> bool:
+    """True when rects `a` and `b` overlap or lie within `gap` points of each other. Pure."""
     return not (
         a[2] + gap < b[0] or b[2] + gap < a[0] or a[3] + gap < b[1] or b[3] + gap < a[1]
     )
@@ -458,6 +477,7 @@ def _nonrect_items(drawings, bbox, min_span: float) -> int:
     return n
 
 
+# -- text and table measures used by the vetoes --
 def region_text_stats(page, bbox) -> dict:
     """Is the text inside this region PROSE, or scattered labels?
 
@@ -519,6 +539,7 @@ def _covered_frac(bbox, others) -> float:
 
 
 def _covered_by(bbox, others, frac: float) -> bool:
+    """True when any single rect in `others` covers at least `frac` of `bbox`'s area. Pure."""
     r = pymupdf.Rect(bbox)
     a = r.get_area()
     if not a:
@@ -541,6 +562,7 @@ def is_prose_block(stats: dict, lv: dict | None = None) -> bool:
             and stats["mean_words_per_line"] >= lv["words_per_line"])
 
 
+# -- finding figure-like regions in the source PDF --
 def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | None = None) -> dict:
     """Per 1-based page: the figure-like regions, raster and vector, with why each qualified.
 
@@ -602,6 +624,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
                 for i in probe
             )
             infos = page.get_image_info(hashes=True) if (use_hashes and candidate) else probe
+            # raster pass: keep each displayed image that survives the area, side and full-page filters
             for info in infos:
                 bbox = tuple(info.get("bbox") or (0, 0, 0, 0))
                 area = _rect_area(bbox)
@@ -628,6 +651,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
             rects = []
             lines = []
             drawings = page.get_drawings()
+            # vector pass, step 1: split drawing paths into positive-area rects and zero-area lines
             for d in drawings:
                 r = tuple(d.get("rect") or (0, 0, 0, 0))
                 if _rect_area(r) <= 0:
@@ -638,6 +662,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
                 rects.append(r)
             anchored = _anchored_lines(rects, lines, lv["cluster_gap_pt"]) if lines else []
             lines_clustered += len(anchored)
+            # vector pass, step 2: cluster nearby paths, then apply the size filters and the three vetoes
             for bbox, npaths in _cluster(rects + anchored, lv["cluster_gap_pt"]):
                 area = _rect_area(bbox)
                 if npaths < lv["vector_min_paths"] or area < lv["min_area_pt2"]:
@@ -716,6 +741,7 @@ def source_figure_regions(pdf_path: Path, use_hashes: bool = True, lv: dict | No
             )}
 
 
+# -- reading the bundle, comparing it with the source, and the command line --
 def output_asset_pages(bundle_dir: Path) -> dict:
     """Per 1-based page: how many figure assets the bundle attributes to it.
 
@@ -738,6 +764,12 @@ def output_asset_pages(bundle_dir: Path) -> dict:
 
 def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
              lv: dict | None = None) -> dict:
+    """Build the per-page figure coverage report for one PDF and one converted bundle.
+
+    Inputs: the source PDF, the bundle folder, whether to md5-hash images, and optional explicit lever values
+    (default: read the lever file). Returns the report dict (counts, uncovered pages, triage lists, SYM-050
+    state, effective conditions). Reads files only; writes nothing and sets no verdict.
+    """
     lever = levers() if lv is None else {"values": lv, "rejected": [], "source": "explicit"}
     lv = lever["values"]
     src = source_figure_regions(pdf_path, use_hashes=use_hashes, lv=lv)
@@ -818,6 +850,7 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
                               "signature does not match — page map untrustworthy (SYM-050) "
                               "and the S106 formula does NOT apply")
 
+    # per-page detail for each uncovered page (region count, kinds, largest area, first four boxes)
     detail = []
     for p in uncovered:
         regions = src["pages"][p]
@@ -888,7 +921,11 @@ def coverage(pdf_path: Path, bundle_dir: Path, use_hashes: bool = True,
 
 
 def main() -> int:
-    ap = argparse.ArgumentParser(description="P-1 figure coverage (report-only, CPU-only)")
+    """Command line: parse --pdf/--bundle/--json/--no-hashes, run `coverage`, print the report.
+
+    Returns 0 on success, 2 when the PDF or bundle path is missing. Prints to stdout/stderr only.
+    """
+    ap =argparse.ArgumentParser(description="P-1 figure coverage (report-only, CPU-only)")
     ap.add_argument("--pdf", required=True, type=Path)
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--json", action="store_true")
@@ -903,6 +940,7 @@ def main() -> int:
         print(f"no such bundle dir: {a.bundle}", file=sys.stderr)
         return 2
     rep = coverage(a.pdf, a.bundle, use_hashes=not a.no_hashes)
+    # print the raw report as JSON, or the short human summary with the READ FIRST triage list
     if a.json:
         print(json.dumps(rep, indent=1))
     else:

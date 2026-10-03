@@ -1,4 +1,9 @@
-"""Tripwires for SYM-067 / J29 — the table-aware degeneration gate (signed Rab 2026-09-04).
+"""WHAT THIS FILE DOES: selftest script for fidelity_audit.degeneration (the loop detector that ignores markdown table
+rows) and fidelity_audit._locate_degenerate (which finds the page of a flagged block). It runs the checks D1 to D11
+and D-LOC at import time (no main function), prints one ok/FAIL line per check and a GREEN/RED verdict, and exits 1
+if any check failed. It reads fidelity_audit.py's source text and writes nothing. Nobody imports it; it is run directly.
+
+Tripwires for SYM-067 / J29 — the table-aware degeneration gate (signed Rab 2026-09-04).
 
 Run with the marker-env interpreter (fidelity_audit imports pymupdf and rapidfuzz at module
 level), and with a UTF-8 console — this file prints its own arrows and ellipses, and Windows
@@ -53,16 +58,19 @@ sys.path.insert(0, str(HERE))
 
 import fidelity_audit as fa  # noqa: E402
 
+# -- failure list and the check() reporter --
 FAILURES: list[str] = []
 
 
 def check(cond: bool, label: str) -> None:
+    """Print an ok/FAIL line for one check and add the label to FAILURES when cond is false."""
     print(("  ok  " if cond else "  FAIL") + f"  {label}")
     if not cond:
         FAILURES.append(label)
 
 
-LOOP = ("the stage of " * 300).strip()                       # Beer-class: zlib low, trigram 298
+# -- synthetic test bodies: a looping paragraph, a sparse empty-cell table, and ordinary prose --
+LOOP = ("the stage of " * 300).strip()                      # Beer-class: zlib low, trigram 298
 SPARSE = "| Item | Value | Note |\n|---|---|---|\n" + "\n".join("| | | |" for _ in range(60))
 PROSE = ("Discount the expected cash flows at the cost of capital and compare the present value "
          "with the market price; the difference is the margin of safety the analyst reports.")
@@ -204,6 +212,7 @@ print(f"\n{'RED: ' + str(total) + ' tripwire(s) fired' if FAILURES else 'GREEN'}
       f"({n_checks - total}/{n_checks})")
 if FAILURES:
     print("Failed:")
+    # list each failed label
     for f_ in FAILURES:
         print(f"  - {f_}")
 sys.exit(1 if FAILURES else 0)

@@ -1,9 +1,15 @@
-"""Verifier: recount survey.tsv, diff it against the live Downloads listing, read WTPDF's
+"""WHAT THIS FILE DOES: a verifier script (run directly, no arguments). It re-reads survey.tsv (written by
+probe_h_survey.py, kept in a scratchpad folder), compares its rows with the PDFs currently in Downloads,
+prints the WTPDF RoleMap and MarkInfo, and counts files in the installed marker package that mention the
+structure tree. Paths are hard-coded. Read-only; stdout only (re-wrapped as UTF-8).
+
+Verifier: recount survey.tsv, diff it against the live Downloads listing, read WTPDF's
 RoleMap, and count the marker package's structure-tree references. Read-only."""
 import sys, io, os, glob, re, collections
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 OUT = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/pdfua/out/"
 
+# -- part 1: recount the survey table (first row is the header) --
 rows = [l.rstrip("\n").split("\t") for l in open(OUT + "survey.tsv", encoding="utf-8", errors="replace")]
 hdr, data = rows[0], rows[1:]
 print("survey.tsv data rows:", len(data))
@@ -19,6 +25,7 @@ print("YES distinct-by-signature:", len(sig))
 marked_false_yes = [(r[0][:40], r[2], r[4]) for r in yes if r[2] == "False"]
 print("YES rows with Marked=False:", marked_false_yes)
 
+# -- part 2: compare the survey with the PDFs in Downloads now --
 live = sorted(os.path.basename(p) for p in glob.glob(r"C:/Users/Bndit/Downloads/*.pdf"))
 print("live Downloads *.pdf count:", len(live))
 surv = [r[0] for r in data]
@@ -29,6 +36,7 @@ new_now = [n for n in live58 if n not in surv]
 print("in survey but not live now:", missing_now)
 print("live now but not in survey:", new_now)
 
+# -- part 3: WTPDF role map, mark info and pymupdf structure-related names --
 import pymupdf
 doc = pymupdf.open(r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf")
 cat = doc.pdf_catalog()
@@ -42,6 +50,7 @@ print("pymupdf names containing STRUCT:", len(names), names[:12])
 
 # marker package grep (design.md 0)
 mk = r"C:/Users/Bndit/ml/marker-env/Lib/site-packages/marker"
+# list the marker package's .py files that mention the structure tree
 hits = []
 for dp, dn, fn in os.walk(mk):
     for f in fn:

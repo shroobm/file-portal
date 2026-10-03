@@ -1,4 +1,10 @@
-"""Query: hybrid retrieval over the store -- a vector leg (the model), a keyword leg (FTS5 BM25
+"""WHAT THIS FILE DOES: answers a question from the index. run() opens the index read-only, runs
+the vector, keyword and title searches (per the chosen mode), fuses them, optionally reranks, and
+returns one dict (hits plus the conditions of the search). main() is the command line: question
+from --query or stdin, one JSON line on stdout. Reads index.sqlite; writes nothing. Called by
+serve.py and `python -m indexer.query`.
+
+Query: hybrid retrieval over the store -- a vector leg (the model), a keyword leg (FTS5 BM25
 over passage text) and a title leg (BM25 over each bundle's source filename, note name and
 vault path -- where an ISBN or a title lives when the body never says it), fused by reciprocal
 rank, optionally re-ordered by a cross-encoder. Modes are a lever (`query_mode`): `keyword`
@@ -30,9 +36,11 @@ from indexer.config import DEFAULT_ROOT, Paths, Settings, lever_menu, lever_rang
 from indexer.embed import Embedder, FastEmbedder, Reranker
 from indexer.store import Store, fuse
 
+# -- constant: candidate multiplier per search leg --
 _LEG_FACTOR = 4  # lever-waiver: Rab; candidates per leg as a multiple of top_k, moves on a measured recall number
 
 
+# -- the query itself --
 def run(
     root: Path,
     settings: Settings,
@@ -45,6 +53,10 @@ def run(
     embedder: Embedder | None = None,
     reranker: Reranker | None = None,
 ) -> dict:
+    """Search the index under `root` for `text`. Optional top_k, mode (vector/keyword/hybrid) and
+    bundle/lane/verdict filters override the settings; embedder/reranker may be injected (tests).
+    Returns {"available": False, "reason": ...} if no index or the model differs, else the hits
+    with tip, model and effective levers. Read-only; may load a model."""
     paths = Paths.from_root(root)
     store = Store(paths.index)
     if not store.exists():
@@ -57,6 +69,7 @@ def run(
         shas = store.shas_where(bundle, lane, verdict)
         legs: dict[str, list] = {}
         leg_k = max(n * _LEG_FACTOR, n)
+        # vector leg: needs the same model the index was built with
         if mode in ("vector", "hybrid"):
             embedder = embedder or FastEmbedder(meta["model"], settings.threads, paths.models)
             if embedder.name != meta.get("model"):
@@ -66,9 +79,11 @@ def run(
                     f"{embedder.name!r}",
                 }
             legs["vector"] = store.search_vector(embedder.embed_query(text), leg_k, shas)
+        # keyword and title legs: no model needed
         if mode in ("keyword", "hybrid"):
             legs["keyword"] = store.search_keyword(text, leg_k, shas)
             legs["title"] = store.search_titles(text, leg_k, shas)
+        # merge the legs, load the passages behind the best ids, and shape each hit
         fused = fuse(legs)
         rows = store.fetch([pid for pid, _, _ in fused[: max(n * _LEG_FACTOR, n)]])
         hits = []
@@ -76,6 +91,7 @@ def run(
             if pid not in rows:
                 continue
             hits.append({**rows[pid], "score": round(score, 5), "matched_by": matched_by})
+        # optional rerank: score each hit against the question and reorder (no hit is dropped)
         rerank_model = settings.rerank if reranker is None else reranker.name
         if rerank_model != "off" and hits:
             reranker = reranker or Reranker(settings.rerank, settings.threads, paths.models)
@@ -103,7 +119,11 @@ def run(
         store.close()
 
 
+# -- command line --
 def main() -> None:
+    """Command-line entry: parse arguments, read the question (--query or stdin, up to 65536
+    characters), run the query and print one JSON document. Exits 1 with one stderr line on a
+    missing question, a bad --top-k or any failure. Reads the config file and the index."""
     parser = argparse.ArgumentParser(description="File Portal index query (JSON on stdout)")
     parser.add_argument(
         "--root", type=Path, default=DEFAULT_ROOT, help="file-portal root directory"

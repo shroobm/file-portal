@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Acceptance harness for the glass detector — docs/29 §5.1.
+"""WHAT THIS FILE DOES: a runnable self-test (exit 0 = pass) for observability/glass_detector.py. It runs the
+detector as a subprocess against the real repo, compares its verdicts with the ANSWER_KEY below, checks
+dispositions.json, and plants throwaway producer/renderer files to prove the guards fire. It prints one
+ok/FAIL line per check. It writes only temporary files (system temp dir) and calls git read-only.
+Entry point: main(). Run directly as a script.
+
+Acceptance harness for the glass detector — docs/29 §5.1.
 
 The detector's only real claim is that it reproduces mechanically what the S77 lanes found by
 hand. So the harness IS that claim, pinned: docs/29 §7's ranked findings become an answer key
@@ -26,6 +32,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+# -- paths and constants: repo root, this folder, the detector under test, the allowed disposition names --
 ROOT = Path(__file__).resolve().parent.parent
 HERE = Path(__file__).resolve().parent
 DETECTOR = HERE / "glass_detector.py"
@@ -65,15 +72,23 @@ ANSWER_KEY = [
     ("dict_hit", "evidence", "a signed threshold (docs/15) whose input was never built — the null is the record of it; silence signed S191"),
 ]
 
+# -- check bookkeeping: every check() call is recorded here and summarised at the end of main() --
 results: list[tuple[str, bool]] = []
 
 
 def check(name: str, cond: bool) -> None:
+    """Record one named pass/fail result in `results` and print an ok/FAIL line. Returns nothing."""
     results.append((name, bool(cond)))
     print(("  ok   " if cond else "  FAIL ") + name, flush=True)
 
 
+# -- the harness itself: main() runs sections [1] to [6] and returns the process exit code --
 def main() -> int:
+    """Run every acceptance section against the real detector; print results; return 0 (pass) or 1 (fail).
+
+    Side effects: runs the detector and git as subprocesses, reads dispositions.json, prints to stdout.
+    """
+    # make stdout/stderr UTF-8 so the box-drawing and non-ASCII text below cannot crash printing
     for stream in (sys.stdout, sys.stderr):
         try:
             stream.reconfigure(encoding="utf-8", errors="replace")  # type: ignore[union-attr]
@@ -82,6 +97,7 @@ def main() -> int:
 
     print("──────── GLASS DETECTOR ACCEPTANCE · docs/29 §5.1 ────────\n")
 
+    # one full census of the real trees, as JSON; every later section reads this result
     proc = subprocess.run(
         [sys.executable, str(DETECTOR), "--json"],
         capture_output=True,
@@ -94,12 +110,14 @@ def main() -> int:
         return 1
     data = json.loads(proc.stdout)
 
+    # map each key name to the set of verdicts the detector gave it (a key may appear in several lanes)
     verdicts: dict[str, set[str]] = {}
     for lane in data["lanes"].values():
         for row in lane["rows"]:
             verdicts.setdefault(row["key"], set()).add(row["verdict"])
 
     print("  [1] reproduces the S77 hand census (docs/29 §7)")
+    # compare each answer-key row with what the detector said; a missing key is a failure
     for key, expected, why in ANSWER_KEY:
         seen = verdicts.get(key)
         if seen is None:
@@ -146,6 +164,7 @@ def main() -> int:
         print(f"       {k:8} {(', '.join(sorted(seen)) if seen else 'not extracted'):10} {why}")
 
     print("\n  [3] dispositions.json is a record of judgment")
+    # every signed disposition must use a valid verdict name and carry a non-empty reason
     cfg = json.loads((HERE / "dispositions.json").read_text(encoding="utf-8"))
     for sig, entry in cfg.get("dispositions", {}).items():
         check(f"{sig}: disposition is one of the five", entry.get("disposition") in VALID)
@@ -166,6 +185,7 @@ def main() -> int:
     # made the whole signed mode exit 1. It reported PASS 13/13 over a broken feature.
     # docs/31 §1.2. Every check below therefore runs against a REAL, NON-EMPTY diff.
     print("\n  [5] §5.4 same-commit scoping, against a real diff")
+    # pick two recent git refs: one whose diff adds an extractable key, one whose diff has non-ASCII text
     keyed, nonascii = _exercising_ref()
     total = sum(len(lane["rows"]) for lane in data["lanes"].values())
 
@@ -205,6 +225,7 @@ def main() -> int:
     else:
         check("a stale signature is caught in the SIGNED (--since) mode", stale)
 
+    # summary: list failed check names, print the census line, and turn failures into the exit code
     failed = [n for n, ok in results if not ok]
     print(f"\n{'PASS' if not failed else 'FAIL'} — {len(results) - len(failed)}/{len(results)} checks")
     for n in failed:
@@ -216,7 +237,12 @@ def main() -> int:
     return 1 if failed else 0
 
 
+# -- subprocess helpers: run the detector (JSON census or bare exit code) and git --
 def _census(extra: list[str]) -> dict:
+    """Run the detector with --json plus `extra` args and return the parsed JSON dict.
+
+    Raises RuntimeError when the detector prints nothing to stdout. Runs a subprocess in the repo root.
+    """
     proc = subprocess.run(
         [sys.executable, str(DETECTOR), "--json", *extra],
         capture_output=True,
@@ -230,6 +256,7 @@ def _census(extra: list[str]) -> dict:
 
 
 def _rc(extra: list[str]) -> int:
+    """Run the detector with the `extra` args and return only its process exit code."""
     return subprocess.run(
         [sys.executable, str(DETECTOR), *extra],
         capture_output=True,
@@ -240,6 +267,7 @@ def _rc(extra: list[str]) -> int:
 
 
 def _diff_since(ref: str) -> str | None:
+    """Return `git diff -U0 <ref>` text limited to *.py and *.rs files, or None if git fails (bad ref)."""
     out = subprocess.run(
         ["git", "-C", str(ROOT), "diff", "-U0", ref, "--", "*.py", "*.rs"],
         capture_output=True,
@@ -250,6 +278,7 @@ def _diff_since(ref: str) -> str | None:
     return out.stdout if out.returncode == 0 else None
 
 
+# -- scenario builders: each plants a broken config or file and reports whether the detector caught it --
 def _exercising_ref() -> tuple[str | None, str | None]:
     """Two refs, each chosen for the PROPERTY it must exercise — never for a proxy.
 
@@ -265,6 +294,7 @@ def _exercising_ref() -> tuple[str | None, str | None]:
     the caller reports that as a skip, never as a pass.
     """
     keyed = nonascii = None
+    # walk back one commit at a time (up to 39) until both properties have been found
     for n in range(1, 40):
         ref = f"HEAD~{n}"
         diff = _diff_since(ref)
@@ -296,7 +326,9 @@ def _tmp_cfg(mutate) -> str:
 
 
 def _empty_glob_is_caught() -> bool:
+    """Point a lane at a producer file that does not exist; True if --enforce then exits 1."""
     def break_it(cfg):
+        """Replace the config's lanes with one whose producer glob matches nothing."""
         cfg["lanes"] = [
             {
                 "name": "bench",
@@ -320,6 +352,7 @@ def _stale_caught_under_since() -> bool | None:
     the last keyed commit past the window — the docstring above `_exercising_ref` foretold this shape. Now: the
     keyed ref when there is one, else HEAD~1; None (the caller prints SKIP) only when there is no diff at all."""
     def plant(cfg):
+        """Replace the config's dispositions with one signature naming a key that does not exist."""
         cfg["dispositions"] = {
             "bench:zz_key_that_no_longer_exists": {
                 "disposition": "DEAD",
@@ -346,6 +379,7 @@ def _planted_glitch_is_caught() -> bool:
     renderer can possibly name, in a throwaway lane, and require the detector to report it."""
     import tempfile
 
+    # build a one-lane config in a throwaway folder: a producer with two keys, a renderer naming only one
     with tempfile.TemporaryDirectory() as td:
         d = Path(td)
         (d / "producer.py").write_text(
@@ -386,6 +420,7 @@ def _planted_branch_is_listed_not_fatal() -> bool:
     listing is warn-only: --enforce returns 0 for a lane whose only unseen key is a branch key. Both halves are the case."""
     import tempfile
 
+    # throwaway lane: the producer sets one key by subscript on a branch and returns a rendered key
     with tempfile.TemporaryDirectory() as td:
         d = Path(td)
         (d / "producer.py").write_text(
@@ -421,5 +456,6 @@ def _planted_branch_is_listed_not_fatal() -> bool:
         return not out2.get("subscript_warn") and not out2.get("stale")
 
 
+# -- script entry point --
 if __name__ == "__main__":
     sys.exit(main())

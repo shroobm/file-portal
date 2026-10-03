@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Tripwire for the SIGNED watcher deferral gate (docs/33 §2.3; room-chat README §5).
+"""WHAT THIS FILE DOES: end-to-end tripwire for the watcher's deferral gate. main() builds a temp pipeline root, starts
+the real watch_and_convert.py as a child process with a stub converter, then drives five phases: A held (PDF waits while
+chat-hold.json exists), B cleared (it converts once the hold is removed), C stale (a dead pid's hold is reaped),
+D a full-width-colon CJK file name, E a source that vanishes mid-conversion. It writes files only under that temp root,
+spawns and finally tree-kills the watcher, and takes about 40 s. Prints ok/BAD lines; exit 0 all fired, 1 otherwise.
+
+Tripwire for the SIGNED watcher deferral gate (docs/33 §2.3; room-chat README §5).
 
 The requirement, in the design's own words: "drop a PDF while the hold is set, prove it defers
 AND prove it converts the moment the hold clears." This runs the REAL watch_and_convert.py -
@@ -17,18 +23,23 @@ import time
 import uuid
 from pathlib import Path
 
+# -- shared state and the check() recorder --
 HERE = Path(__file__).parent
 failed: list[str] = []
 
 
 def check(name: str, ok: bool, detail: str = "") -> None:
+    """Print an ok/BAD line for check name (detail shown only on failure) and append failures to the failed list."""
     print(f"  {'ok  ' if ok else 'BAD '} {name}" + (f"  [{detail}]" if detail and not ok else ""))
     if not ok:
         failed.append(name)
 
 
 def main() -> int:
-    root = Path(tempfile.mkdtemp(prefix="fp-gate-"))
+    """Run phases A-E against a real watcher child process in a temp pipeline root.
+    Returns 0 when every check passed, 1 otherwise. Side effects: temp files, a spawned process (killed in finally)."""
+    # -- setup: temp root, the stub converter script, the initial hold file --
+    root =Path(tempfile.mkdtemp(prefix="fp-gate-"))
     drop = root / "drop"
     drop.mkdir(parents=True)
     (root / "analyst-mode.txt").write_text("off\n", encoding="utf-8")
@@ -50,6 +61,7 @@ def main() -> int:
 
     # Isolated from the LIVE watcher and the widget's card (S141): per-run mutex names, or the test
     # watcher exits 3 (the fixed watcher mutex is owned) / defers behind a real convert.
+    # -- start the watcher child process with the isolated environment --
     tag = uuid.uuid4().hex[:12]
     env = {**os.environ, "FP_PIPELINE": str(root), "FP_CONVERT": str(stub),
            "FP_WATCHER_MUTEX": f"Local\\fp-watcher-selftest-{tag}",
@@ -77,6 +89,7 @@ def main() -> int:
 
         # Phase B - CLEARED. The same PDF must convert on the next poll.
         hold.unlink(missing_ok=True)   # missing_ok: a reaper bug must fail CHECKS, not crash the suite
+        # poll up to 30 s for the stub to write its marker
         deadline = time.monotonic() + 30
         while time.monotonic() < deadline and not marker.exists():
             time.sleep(1)
@@ -146,9 +159,11 @@ def main() -> int:
             time.sleep(1)
         check("vanished: the watcher converted and archived the NEXT PDF", (drop / "done" / "after.pdf").exists())
     finally:
+        # always stop the watcher and its children, even when a check raised
         subprocess.run(["taskkill", "/pid", str(watcher.pid), "/t", "/f"],
                        capture_output=True)  # tree-kill, never a bare kill (SYM-006)
 
+    # verdict
     print()
     if failed:
         print(f"TRIPWIRES DISARMED - {len(failed)} failed: {failed}")

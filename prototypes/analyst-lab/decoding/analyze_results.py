@@ -1,4 +1,9 @@
-"""prototypes/analyst-lab/decoding/analyze_results.py -- post-hoc analysis of decoding_experiment.py's
+"""WHAT THIS FILE DOES: post-hoc analysis script. main() reads the generations written by decoding_experiment.py
+(JSONL under $TEMP/r2), prints per-setting survival tables and the a-vs-b, manifest, determinism and strict-system
+comparisons, and writes analysis.json (numbers only) beside this file. numerals_missing() counts input digit tokens
+absent from an output. Uses ddia_pairs and edit_taxonomy; run directly.
+
+prototypes/analyst-lab/decoding/analyze_results.py -- post-hoc analysis of decoding_experiment.py's
 JSONL ($TEMP/r2/gen_results.jsonl; book text stays there). Prints the per-setting table and writes
 analysis.json (numbers only) beside this file.
 
@@ -21,6 +26,7 @@ import statistics
 import sys
 from collections import Counter, defaultdict
 
+# -- setup: import path for the sibling modules and the input file location --
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import ddia_pairs  # noqa: E402
@@ -30,21 +36,29 @@ import text_norm as tn  # noqa: E402
 JSONL = pathlib.Path(os.environ.get("TEMP", r"C:\Temp")) / "r2" / "gen_results.jsonl"
 
 
+# -- helpers --
 def numerals_missing(inp: str, out: str) -> int:
+    """Count digit tokens in the input's content view that are missing from the output's (multiset difference).
+    Pure function; returns an int."""
     a = Counter(et.NUM.findall(et.numeral_view(inp)))
     b = Counter(et.NUM.findall(et.numeral_view(out)))
     return sum((a - b).values())
 
 
+# -- entry point --
 def main() -> None:
+    """Load the DDIA pairs and the JSONL generations, print every comparison table, and write analysis.json next to
+    this file. Reads the bundle and the JSONL; returns nothing."""
     m, chunks_in, outs, cs = ddia_pairs.pairs()
     rows = [json.loads(ln) for ln in JSONL.read_text(encoding="utf-8").splitlines() if ln.strip()]
     by = defaultdict(list)
+    # group the generations by setting, adding the clean numeral-loss count to each row
     for r in rows:
         r["num_missing_clean"] = numerals_missing(chunks_in[r["i"] - 1], r["output"])
         by[r["setting"]].append(r)
     report = {"generations": len(rows), "settings": {}}
     print(f"generations analysed: {len(rows)}")
+    # per-setting summary row: survival statistics, numeral losses, fence failures, timing
     for s, rs in by.items():
         sv = [r["survival"] for r in rs if r["survival"] is not None]
         rep = {

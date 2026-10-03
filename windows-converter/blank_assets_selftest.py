@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""blank_assets_selftest.py — the tripwires of blank_assets.py (SYM-053, S188 E7): a white JPEG the size of the S108 specimen
+"""WHAT THIS FILE DOES: selftest for blank_assets.py. In a temp folder it draws small images with PIL (flat paper, a
+gradient, near-blank crops, a corrupt file), calls ba.scan() with different thresholds, and also runs blank_assets.py
+as a child process to check its exit codes (0 clean, 1 referenced blank, 2 usage). Prints one ok/RED line per case and
+a GREEN/RED tally; exit 0 when all fired, else 1. Needs PIL (run under marker-env); writes only to the temp folder.
+
+blank_assets_selftest.py — the tripwires of blank_assets.py (SYM-053, S188 E7): a white JPEG the size of the S108 specimen
 reads blank and REFERENCED when the body names it (the positive control — the page that looks covered); a gradient PNG
 does not read blank; a near-blank crop (std ≈ 0.5) reads blank under the lever and NOT under a lowered one — the NEGATIVE
 CONTROL that shows the flag is the lever's, not a constant's; a corrupt .jpeg reads UNREAD and is never counted blank;
@@ -20,10 +25,12 @@ except Exception as exc:  # noqa: BLE001
     print("UNREAD: PIL is not importable in this interpreter (%s) — run under marker-env" % type(exc).__name__)
     sys.exit(1)
 
+# -- test harness: counters and the check() / _write() helpers --
 fired, silent = 0, 0
 
 
 def check(cond, label):
+    """Record one case: count it fired when cond is truthy, else silent, and print an ok/RED line with label."""
     global fired, silent
     print(("  ok    " if cond else "  RED   ") + label)
     if cond:
@@ -33,9 +40,11 @@ def check(cond, label):
 
 
 def _write(path, img):
+    """Save the PIL image img to path (format chosen by the extension)."""
     img.save(path)
 
 
+# -- the cases: build the fixture images in a temp folder, scan them, then drive the command line --
 with tempfile.TemporaryDirectory() as td:
     assets = os.path.join(td, "assets")
     os.makedirs(assets)
@@ -85,6 +94,7 @@ with tempfile.TemporaryDirectory() as td:
     # are near-blank, not blank; the flat specimen is blank, not near-blank; an image is in at most one band.
     verso = Image.new("L", (200, 300), 245)
     px = verso.load()
+    # draw a faint dark band on every seventh row to imitate bleed-through
     for y in range(0, 300, 7):          # faint bleed-through: every seventh row slightly darker
         for x in range(60, 140):
             px[x, y] = 232
@@ -126,5 +136,6 @@ with tempfile.TemporaryDirectory() as td:
     check("near-blank=1 referenced=1" in p1.stdout and "_page_27_Picture_0.jpeg" in p1.stdout and "near-blank=0" in p0.stdout,
           "(o) CLI: the near-blank band is printed with its count and names (1 on the planted bundle, 0 on the clean one)")
 
+# -- the tally and exit code --
 print("%s (%d/%d)" % ("GREEN" if not silent else "RED", fired, fired + silent))
 sys.exit(1 if silent else 0)

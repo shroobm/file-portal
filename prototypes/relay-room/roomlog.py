@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """roomlog.py - the append-only chat log, its lock, its digests, and the flight trail.
 
+WHAT THIS FILE DOES: owns every path, constant and low-level read/write of the relay-room's
+shared files. It writes entries to state/room.md (append_entry), parses it back (read_log),
+guards writes with a directory lock (Lock), checks every write path stays under ROOT
+(assert_inside), and appends/reads per-message flight records in state/flight/<id>.jsonl
+(append_stage, render_trails, render_trail). Callers: room.py, catcher.py, status.py and the
+tests. It imports only the standard library.
+
 The keystone module of prototypes/relay-room/: room.py, catcher.py and status.py all import it
 and nothing here imports them. Stdlib only (L6). Implements CONTRACT.md §2 and §5 exactly.
 
@@ -65,6 +72,7 @@ def gate_py_status():
     return "MISSING", (f"gate.py is not at {GATE_PY} — set FP_GATE_PY to the real "
                        f".claude/skills/relay-gate/gate.py, or run from the repo tree.")
 
+# -- who may speak, the entry kinds, and the default thresholds --
 LANES = ("Fable", "Codex")
 SPEAKERS = ("Rab", "Fable", "Codex")
 KINDS = ("say", "note", "error")
@@ -91,6 +99,7 @@ LOCK_TIMEOUT_S = DEFAULTS["lock_timeout_s"]
 LOCK_STALE_S = DEFAULTS["lock_stale_s"]
 MAX_MESSAGE_CHARS = DEFAULTS["max_message_chars"]
 
+# -- entry format constants: the end-of-entry marker and the file preamble --
 TERMINATOR_TOKEN = "<!-- /RM-"
 
 PREAMBLE = (
@@ -150,15 +159,20 @@ def parse_utc(s):
 # ---------- digests (semantically identical to gate.py:106-114) ----------
 
 def canonical(text: str) -> str:
+    """Normalise text for hashing: unify newlines to LF, strip trailing spaces per line and
+    leading/trailing blank lines. Returns the normalised string; pure."""
     lines = [ln.rstrip() for ln in text.replace("\r\n", "\n").replace("\r", "\n").split("\n")]
     return "\n".join(lines).strip("\n")
 
 
 def digest(text: str) -> str:
+    """'sha256:<hex>' of canonical(text), the body digest stored in each entry header. Pure."""
     return "sha256:" + hashlib.sha256(canonical(text).encode("utf-8")).hexdigest()
 
 
 def new_id(speaker: str, body: str, *, nonce=lambda: secrets.token_hex(8)) -> str:
+    """Mint an entry id 'RM-<12 hex>' from the ns clock, speaker, canonical body and a random
+    nonce (see section 2.4 above). Reads the clock; writes nothing."""
     raw = f"{time.time_ns()}\x1f{speaker}\x1f{canonical(body)}\x1f{nonce()}"
     return "RM-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
 
@@ -188,6 +202,8 @@ class Lock:
     """os.mkdir is atomic on Windows and POSIX, stdlib, no msvcrt."""
 
     def __init__(self, dir_path, *, timeout_s=LOCK_TIMEOUT_S, stale_s=LOCK_STALE_S, owner="?"):
+        """Prepare a lock on directory `dir_path` (must be inside ROOT). Nothing is created
+        until the lock is entered. `owner` is a label recorded in owner.json."""
         self.dir = assert_inside(dir_path)
         self.timeout_s = float(timeout_s)
         self.stale_s = float(stale_s)
@@ -195,7 +211,11 @@ class Lock:
         self.broke = None          # set when this acquirer broke a stale lock
 
     def __enter__(self):
+        """Acquire the lock by creating the directory, retrying until the timeout (raises
+        LockTimeout). A lock older than stale_s is broken and recorded in self.broke. Writes
+        owner.json inside the lock directory."""
         deadline = time.time() + self.timeout_s
+        # Retry loop: mkdir succeeds = lock held; otherwise break a stale lock or wait.
         while True:
             try:
                 self.dir.parent.mkdir(parents=True, exist_ok=True)
@@ -230,6 +250,8 @@ class Lock:
         return self
 
     def __exit__(self, *exc):
+        """Release the lock: remove owner.json and the directory, retrying for up to 2 s; warn
+        on stderr if it cannot be released. Always returns False (never hides an exception)."""
         # MEASURED (S109): the first cut swallowed both failures, and on Windows that leaked the
         # lock. A waiter's `_held()` read of owner.json holds a momentary handle; the owner's
         # unlink then fails with a sharing violation, rmdir fails "directory not empty", both
@@ -256,12 +278,14 @@ class Lock:
         return False
 
     def _held(self) -> dict:
+        """The holder's owner.json as a dict, or {} when it is missing or unreadable."""
         try:
             return json.loads((self.dir / "owner.json").read_text(encoding="utf-8"))
         except Exception:
             return {}
 
     def _age(self):
+        """Seconds since the lock directory was last modified, or None if it cannot be read."""
         try:
             return time.time() - self.dir.stat().st_mtime
         except OSError:
@@ -289,10 +313,12 @@ LogRead = namedtuple(
 
 
 def terminator(mid: str) -> str:
+    """The closing marker line for entry `mid`. Pure."""
     return f"<!-- /{mid} -->"
 
 
 def _header_line(mid, utc, frm, to, re_, kind, dg_hex) -> str:
+    """Format an entry's '## RM-...' header line (the shape HEADER_RE parses). Pure."""
     return (f"## {mid} · {utc} · from: {frm} → to: {to} · re: {re_ or '—'} "
             f"· kind: {kind} · body-sha256:{dg_hex}")
 
@@ -312,6 +338,10 @@ def _last_byte_lead(path: Path) -> str:
 
 def append_entry(*, frm, to, body, re_=None, kind="say", path=None,
                  nonce=lambda: secrets.token_hex(8)) -> Entry:
+    """Validate and append one entry (header, body, terminator) to the log under a lock.
+    Inputs: speaker `frm`, addressee `to`, `body`, optional reply id `re_`, `kind`, `path`.
+    Returns the new Entry. Raises ValueError on bad input, SystemExit on id collision or a
+    path outside ROOT, LockTimeout if the lock is not obtained. Writes room.md (and its lock)."""
     # S157 E52 (J5): `path=ROOM_MD` as a DEFAULT bound the live file at import — `room.py selftest`'s redirect of the
     # module constant never reached it, and the server half wrote the live room.md from a "throwaway" tree. Resolved at
     # call time now, like every other constant this module reads.
@@ -379,6 +409,9 @@ def append_entry(*, frm, to, body, re_=None, kind="say", path=None,
 
 
 def read_log(path=None) -> LogRead:
+    """Parse the log file into a LogRead (status ok/MISSING/UNREAD, preamble, entries, debris,
+    torn count, size, read time). Read-only. Torn entries and stray text are reported, never
+    merged or dropped."""
     path = Path(ROOM_MD if path is None else path)   # S157 E52: resolved at call time (see append_entry)
     read_at = utc_now()
     if not path.exists():
@@ -401,6 +434,7 @@ def read_log(path=None) -> LogRead:
     pending_debris, last_id = [], None
 
     def flush_debris():
+        """Turn the stray lines gathered between entries into one debris record and reset."""
         nonlocal pending_debris
         text = "\n".join(pending_debris).strip()
         if text:
@@ -409,6 +443,8 @@ def read_log(path=None) -> LogRead:
                            "reason": "text between a terminator and the next header"})
         pending_debris = []
 
+    # Main scan: walk line by line; non-header lines become preamble or debris, a header starts
+    # an entry whose body runs to its terminator (or is marked torn).
     while i < n:
         line = lines[i]
         m = HEADER_RE.match(line)
@@ -459,6 +495,7 @@ def read_log(path=None) -> LogRead:
         j = i + 1
         if j < n and lines[j].strip() == "":
             j += 1
+        # Collect body lines until this entry's terminator; a new header first means torn.
         while j < n:
             if lines[j] == term:
                 j += 1
@@ -502,6 +539,7 @@ BY_RE = re.compile(r"^(catcher|model):(Fable|Codex)$")
 
 
 def flight_path(mid: str) -> Path:
+    """Path of message `mid`'s flight record (state/flight/<mid>.jsonl), checked to be inside ROOT."""
     return assert_inside(FLIGHT_DIR / f"{mid}.jsonl")
 
 
@@ -534,6 +572,8 @@ def append_stage(mid, stage, by, ok=True, note=None, detail=None):
 
 
 def _read_flight(mid):
+    """Read a flight file. Returns (status, valid rows, torn line count, invalid row count)
+    where status is "ok", "MISSING" or "UNREAD: ...". Re-applies the stage-writer rules."""
     p = flight_path(mid)
     if not p.exists():
         return "MISSING", [], 0, 0

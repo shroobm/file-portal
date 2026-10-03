@@ -1,4 +1,11 @@
-"""Tripwires for J24 — the block-record sidecar (signed Rab 2026-09-01).
+"""WHAT THIS FILE DOES: a top-to-bottom script (not a pytest module) that tests marker_blocks.py, the sidecar that
+writes a per-book block record (blocks.json) next to marker's markdown, and its wiring inside convert_and_ship.py.
+It runs when executed: each section (B1..B8) prints a heading, calls the real functions on synthetic data, and records
+every result through check(). Nothing is returned; the process exits 1 if any check failed, else 0. Side effects: it
+creates a temporary quarantine directory (set as FP_PIPELINE before the imports), swaps some convert_and_ship
+functions for stubs, installs a fake `marker` package in sys.modules, and deletes the quarantine at the end.
+
+Tripwires for J24 — the block-record sidecar (signed Rab 2026-09-01).
 
 Run with the marker-env interpreter (convert_and_ship imports pymupdf at module level;
 marker_blocks itself needs nothing but stdlib until main() runs):
@@ -62,10 +69,12 @@ sys.path.insert(0, str(HERE))
 import marker_blocks  # noqa: E402  stdlib-only until main() runs — safe to import directly
 import convert_and_ship as cas  # noqa: E402  (env must be set first)
 
+# -- shared test helpers: the check recorder and the synthetic block builders --
 FAILURES: list[str] = []
 
 
 def check(cond: bool, label: str) -> None:
+    """Print one ok/FAIL line for `label`; when `cond` is false, append the label to FAILURES. Returns None."""
     print(("  ok  " if cond else "  FAIL") + f"  {label}")
     if not cond:
         FAILURES.append(label)
@@ -90,13 +99,18 @@ def block_record(blocks: list[dict], *, source: str, slices_total: int = 1) -> d
 
 
 class EmitRecorder:
+    """A stand-in for convert_and_ship.emit that records each event instead of writing it anywhere."""
+
     def __init__(self):
+        """Start with an empty list of recorded events."""
         self.events = []
 
     def __call__(self, stage, event, **fields):
+        """Record one event as ("<stage>/<event>", fields); returns None."""
         self.events.append((f"{stage}/{event}", fields))
 
     def named(self, key):
+        """Return the field dicts of every recorded event whose "<stage>/<event>" name equals `key`."""
         return [f for k, f in self.events if k == key]
 
 
@@ -132,6 +146,7 @@ raw_payload_800 = {
 
 
 def _b1_check(record: dict) -> bool:
+    """True when `record` carries the true absolute pages (800 and 999, page_min/page_max) and not the decoy values."""
     p0, p1 = record["blocks"][0]["page"], record["blocks"][1]["page"]
     return (p0 == 800 and p0 != DECOY_FIRST
             and p1 == 999 and p1 != DECOY_SECOND
@@ -152,6 +167,8 @@ print("  [watched-failing] swapping in the last-segment bug (marker's own real d
 
 
 def _wrong_last_segment(block_id):
+    """The planted wrong implementation: read the page from the id's LAST segment (the block counter) instead of
+    its page segment. Returns an int or None; no side effects."""
     parts = str(block_id).split("/")
     if len(parts) < 3 or parts[1] != "page":
         return None
@@ -238,12 +255,15 @@ class BlocksMarkerStub:
     file (mirrors marker_single.exe / FP_BLOCKS=off / a chunk-render fault)."""
 
     def __init__(self, blocks_per_range: dict | None = None, wall: float = 50.0):
+        """Store the per-page-range block records to write, the fake wall time, and an empty call log."""
         self.blocks_per_range = blocks_per_range or {}
         self.wall = wall
         self.calls: list[str] = []
 
     def __call__(self, engine_src, engine_stem, out_root, extra, pages, source_name,
                  page_range=None, progress_prefix="", progress_context=None):
+        """Act as convert_and_ship._run_marker: log the page range, create out_dir, write the blocks file when one is
+        configured for that range, and return (out_dir, fake markdown text, wall seconds, fake peak memory)."""
         self.calls.append(page_range)
         out_dir = Path(out_root) / engine_stem
         out_dir.mkdir(parents=True, exist_ok=True)
@@ -480,40 +500,59 @@ cas._done_identity_mismatch = REAL_DONE_MISMATCH
 print("B4 markdown byte-identity across block-pass success / failure / skip (main())")
 
 
+# -- fakes of the marker package surface, enough for marker_blocks.main() to run its real control flow --
 class FakeDocument:
+    """A fake marker document: just a list of page placeholders."""
+
     def __init__(self, n):
+        """Make `n` placeholder pages."""
         self.pages = list(range(n))
 
 
 class FakeRendered:
+    """A fake rendered result carrying only the markdown text."""
+
     def __init__(self, text):
+        """Keep `text` as the markdown."""
         self.markdown = text
 
 
 class FakeChunkOutput:
+    """A fake chunk-renderer result that serialises a canned payload."""
+
     def __init__(self, payload):
+        """Keep the canned payload dict."""
         self._payload = payload
 
     def model_dump_json(self, exclude=None):
+        """Return the canned payload as a JSON string (the `exclude` argument is ignored)."""
         return json.dumps(self._payload)
 
 
 class FakeConverter:
+    """A fake marker converter whose behaviour is steered by the shared `control` dict."""
+
     def __init__(self, config, artifact_dict, processor_list, renderer, llm_service, control):
+        """Keep the renderer and the control dict; the other marker constructor arguments are ignored."""
         self.renderer = renderer
         self.control = control
         self.page_count = 0
 
     def filepath_to_str(self, fpath):
+        """Return a context manager that yields `fpath` unchanged."""
         return contextlib.nullcontext(fpath)
 
     def build_document(self, temp_path):
+        """Return a FakeDocument with control["pages"] pages."""
         return FakeDocument(self.control["pages"])
 
     def resolve_dependencies(self, target):
+        """Return a callable standing in for the renderer `target`: the chunk renderer yields the canned payload
+        (or raises control["chunk_raises"]); any other target yields the same fixed markdown."""
         control = self.control
 
         def _call(document):
+            """Render `document` for the chosen target as described in resolve_dependencies."""
             if target is control["ChunkRenderer"]:
                 if control.get("chunk_raises") is not None:
                     raise control["chunk_raises"]
@@ -528,39 +567,55 @@ class FakeConverter:
 
 
 class FakeConfigParser:
+    """A fake marker ConfigParser that answers from the shared `control` dict."""
+
     def __init__(self, kwargs, control):
+        """Keep the control dict; `kwargs` is ignored."""
         self.control = control
 
     def get_converter_cls(self):
+        """Return a factory that builds FakeConverter objects bound to the control dict."""
         control = self.control
         return lambda **kw: FakeConverter(control=control, **kw)
 
     def generate_config_dict(self):
+        """Return an empty config dict."""
         return {}
 
     def get_processors(self):
+        """Return an empty processor list."""
         return []
 
     def get_renderer(self):
+        """Return the renderer class chosen in control["renderer_cls"]."""
         return self.control["renderer_cls"]
 
     def get_llm_service(self):
+        """Return None (no LLM service)."""
         return None
 
     def get_output_folder(self, fpath):
+        """Return control["out_dir"] as a string."""
         return str(self.control["out_dir"])
 
     def get_base_filename(self, fpath):
+        """Return control["fname_base"]."""
         return self.control["fname_base"]
 
 
 class FakeCtx:
+    """A fake click context that carries only a params dict."""
+
     def __init__(self, params):
+        """Keep `params`."""
         self.params = params
 
 
 def install_fake_marker(control: dict) -> dict:
+    """Install a fake `marker` package (and the submodules marker_blocks.main imports) into sys.modules, wired to
+    `control`. Replaces any earlier marker modules. Returns `control`, with the renderer classes added to it."""
     def mk(name):
+        """Create an empty module called `name`, register it in sys.modules and return it."""
         m = types.ModuleType(name)
         sys.modules[name] = m
         return m
@@ -591,6 +646,7 @@ def install_fake_marker(control: dict) -> dict:
     models_mod.create_model_dict = lambda: {}
 
     def _save_output(rendered, out_folder, fname_base):
+        """Fake marker.output.save_output: log the markdown in control and write <fname_base>.md into out_folder."""
         control.setdefault("save_output_calls", []).append(rendered.markdown)
         p = Path(out_folder)
         p.mkdir(parents=True, exist_ok=True)
@@ -599,16 +655,23 @@ def install_fake_marker(control: dict) -> dict:
     output_mod.save_output = _save_output
 
     class _CLI:
+        """Fake convert_single_cli command object."""
+
         @staticmethod
         def make_context(prog_name, argv):
+            """Return a FakeCtx whose params hold the first argv entry as "fpath"."""
             return FakeCtx({"fpath": argv[0]})
 
     convert_single_mod.convert_single_cli = _CLI
 
     class MarkdownRenderer:
+        """Marker class standing for marker's markdown renderer (compared by identity)."""
+
         pass
 
     class ChunkRenderer:
+        """Marker class standing for marker's chunk renderer (compared by identity)."""
+
         pass
 
     markdown_mod.MarkdownRenderer = MarkdownRenderer
@@ -618,12 +681,15 @@ def install_fake_marker(control: dict) -> dict:
     control.setdefault("renderer_cls", MarkdownRenderer)
 
     class _Settings:
+        """Fake marker settings object holding only the image format."""
+
         OUTPUT_IMAGE_FORMAT = "JPEG"
 
     settings_mod.settings = _Settings()
     return control
 
 
+# -- B4 scenarios A, B, C: run marker_blocks.main() against the fake package and compare the markdown --
 control = {"pages": 2, "out_dir": QUARANTINE / "b4" / "run-a", "fname_base": "book",
           "markdown_text": "# Chapter\n\nSame text either way.\n",
           "chunk_payload": {"blocks": [{"id": "/page/0/Text/0", "block_type": "Text",
@@ -660,6 +726,8 @@ control["chunk_raises"] = None
 
 
 class OtherRenderer:
+    """A renderer class that is not MarkdownRenderer, to make main() skip the blocks lane."""
+
     pass
 
 
@@ -684,6 +752,8 @@ check(save_idx < chunk_idx,
 
 
 def _order_ok(text: str) -> bool:
+    """True when "save_output(rendered" appears before "ChunkRenderer)(document)" in `text` (raises ValueError if
+    either token is missing)."""
     return text.index("save_output(rendered") < text.index("ChunkRenderer)(document)")
 
 
@@ -701,6 +771,7 @@ check(_order_ok(correct_order_sample), "and passes a correctly-ordered sample")
 
 
 # ---------- verdict ----------
+# remove the temp quarantine, then count the check( lines in this file's own source to print "passed/total"
 shutil.rmtree(QUARANTINE, ignore_errors=True)
 n_checks = len(__import__("re").findall(r"^\s*check\(", Path(__file__).read_text(encoding="utf-8"),
                                         __import__("re").M))
@@ -724,11 +795,16 @@ check(_m3["extraction"]["pdftext"] == 3 and _m3["extraction"]["pages_surya"] == 
 
 
 class _P:
+    """A fake page carrying only its text_extraction_method."""
+
     def __init__(self, m):
+        """Keep the extraction method name (or None)."""
         self.text_extraction_method = m
 
 
 class _D:
+    """A fake document with four pages of mixed extraction methods, for extraction_of()."""
+
     pages = [_P("pdftext"), _P("surya"), _P(None), _P("surya")]
 
 

@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
-"""table_witness.py — THE CELL-LEVEL WITNESS (S211 Lane C: table_shape.py's geometry says a table lost rows or columns;
+"""WHAT THIS FILE DOES: compares the tables Marker wrote (rendered HTML rows in a bundle's blocks.json) with the words
+the source PDF itself carries inside each table's box, and reports which rows were dropped, merged, split, echoed or
+cut. Main entry points: table_witness(pdf_path, blocks, pages, lane) returns one report dict (read-only; opens the PDF
+with pymupdf, writes nothing), and main(argv) is the command line (`table_witness.py <bundle_dir> [--pages 1,2]
+[--pdf-dir DIR]`) that loads manifest.json and blocks.json from a bundle, runs the witness and prints a summary.
+Called by the converter's audit step and by hand; it is report-only and never changes a bundle.
+
+table_witness.py — THE CELL-LEVEL WITNESS (S211 Lane C: table_shape.py's geometry says a table lost rows or columns;
 this module says WHICH row, and how — dropped whole, merged into a neighbour, split across two, echoed, a header cut
 mid-word, or carried onto the next page). Report-only, stdlib + pymupdf, standing alone (nothing here is imported from
 fidelity_audit.py — the two functions it would otherwise share, `_numeric_word` and the `_NUM_TOKEN` regex, are copied
@@ -47,7 +54,8 @@ from __future__ import annotations
 import difflib
 import re
 
-BAND_Y_FRACTION = 0.6          # a word joins the open band when its y-centre sits within this fraction of the
+# -- tuning constants: band clustering, echo detection, box handling and report limits (each explained beside it) --
+BAND_Y_FRACTION = 0.6         # a word joins the open band when its y-centre sits within this fraction of the
                                 # table's median word height of the band's own running mean centre
 ECHO_SIMILARITY = 0.85         # difflib.SequenceMatcher ratio at/above which a rendered row is a near-duplicate
 # S211 E5 (the verifier's item 3, read on Desjardins p.249): the OCR echo of a row is NOT a near-duplicate string — its
@@ -81,6 +89,7 @@ TABLE_TYPES = ("Table", "TableGroup")
 _NUM_TOKEN = re.compile(r"(?<![\d,])\d{1,3}(?:,\d{3})+(?![\d,])|(?<![\d,.])\d{4,}(?![\d,])")   # grouped thousands, or 4+ digits
 
 
+# -- word and label helpers: is a word a figure, does a label appear in a text --
 def _numeric_word(word: str) -> bool:
     """copied from fidelity_audit._numeric_word: a word that IS a figure — a number token whole, digits and their
     punctuation only, or a figure with its unit glued (`1000nm`, `12%`, `4.5x`) — a word that begins with a digit is
@@ -122,6 +131,7 @@ def _merge_evidence(fc: str, label: str, others: list[tuple]) -> "tuple | None":
     merges on CIBC p.162, seven on RBC p.41, and the control page BMO Q3 p.63 named a shape it does not carry). The
     `<BR>` marker alone is no evidence: a two-line label wraps over a `<br>` too."""
     found = None
+    # test each other band's label: a disjoint second label in this cell is a merge (figured) or a join (figure-less)
     for ol, figured in others:
         if ol.lower() == label.lower() or not _label_in(ol, fc):
             continue
@@ -133,6 +143,7 @@ def _merge_evidence(fc: str, label: str, others: list[tuple]) -> "tuple | None":
     return found
 
 
+# -- reading the rendered html: regexes for rows, cells, line breaks and tags, then the row parser --
 _TR_SPLIT = re.compile(r"(?i)<tr[^>]*>")
 _CELL_RE = re.compile(r"(?is)<(t[dh])[^>]*>(.*?)</t[dh]>")
 _BR_RE = re.compile(r"(?i)<br\s*/?>")
@@ -153,6 +164,7 @@ def _rendered_rows(html: str) -> list[dict]:
     ` <BR> `), is_header (the row carries a `<th>`), first_cell, figures (`_NUM_TOKEN` over the row's whole text),
     text (the row's cells joined). A `<tr>` with no `<td>`/`<th>` inside it is skipped (no cell, no row)."""
     rows: list[dict] = []
+    # split the html at each <tr>; the first piece (before any row) is dropped
     for idx, frag in enumerate(_TR_SPLIT.split(html or "")[1:]):
         cell_matches = _CELL_RE.findall(frag)
         if not cell_matches:
@@ -166,6 +178,7 @@ def _rendered_rows(html: str) -> list[dict]:
     return rows
 
 
+# -- row bands from the source's own words: which bands count, their labels, and the y-clustering --
 def _data_figures(figs: list[str]) -> list[str]:
     """the figures that are not bare years — a band carrying only years (a column-header line 'October 31 2025 2024',
     a note 'The total balances were 2025, 2024, 2023') is a header or prose, never a data row."""
@@ -173,6 +186,7 @@ def _data_figures(figs: list[str]) -> list[str]:
 
 
 def _qualifies(band: dict) -> bool:
+    """True when `band` has a non-empty label and at least one data figure (a bare year does not count)."""
     return bool(band["label"]) and bool(_data_figures(band["figures"]))
 
 
@@ -180,6 +194,7 @@ def _band_label(words: list[tuple]) -> str:
     """the leading non-numeric words of a band (mirrors fidelity_audit._row_label's test on a layer line), at most
     LABEL_MAX_WORDS; empty when the band opens with a number."""
     label: list[str] = []
+    # take words from the left until the first figure or the word limit
     for w in words:
         if _numeric_word(w[4]):
             break
@@ -201,6 +216,7 @@ def _cluster_bands(words: list[tuple]) -> list[dict]:
     raw_bands: list[list] = []
     current: list = []
     current_y = None
+    # sweep top to bottom: close the open band when a word's centre is farther than `tol` from its running mean
     for w in ordered:
         yc = (w[1] + w[3]) / 2
         if current and abs(yc - current_y) > tol:
@@ -211,6 +227,7 @@ def _cluster_bands(words: list[tuple]) -> list[dict]:
     if current:
         raw_bands.append(current)
     bands: list[dict] = []
+    # turn each raw word group into a band record (words left to right, label, figures, text)
     for raw in raw_bands:
         row_words = sorted(raw, key=lambda w: w[0])
         text = " ".join(w[4] for w in row_words)
@@ -219,6 +236,7 @@ def _cluster_bands(words: list[tuple]) -> list[dict]:
     return bands
 
 
+# -- the four per-band readings: merged, split, matched, dropped --
 def _classify_band(i: int, band: dict, bands: list[dict], rows: list[dict]) -> tuple[str, dict]:
     """one band already filtered to carry a label AND at least one figure, against the table's rendered rows.
     Checked in order MERGED, SPLIT, MATCHED, else DROPPED — each narrower than the one before it (SPLIT before
@@ -240,13 +258,16 @@ def _classify_band(i: int, band: dict, bands: list[dict], rows: list[dict]) -> t
                  if j != i and b["figures"] and b["label"].lower() == label.lower()]
 
     def overlap(row, s=fig_set):
+        """How many figures of set `s` (default: this band's) the rendered `row` carries."""
         return len(s & set(row["figures"]))
 
     def figs_in(row):
+        """True when every figure of this band is among the figures of the rendered `row`."""
         return bool(fig_set) and fig_set.issubset(set(row["figures"]))
 
     label_rows = [r for r in rows if _label_in(label, r["first_cell"])]
     own: list[dict] = []
+    # pick this band's own rendered row(s) among the rows whose first cell holds its label
     if label_rows:
         best = max(overlap(r) for r in label_rows)
         if best > 0:
@@ -255,6 +276,7 @@ def _classify_band(i: int, band: dict, bands: list[dict], rows: list[dict]) -> t
             own = [r for r in label_rows if not any(overlap(r, s) for s in twin_figs)]   # a twin's row is not this band's
     figures_agree = bool(own) and figs_in(own[0])
     joined = None
+    # MERGED check: a second figured label in the row's first cell returns at once; a figure-less one is remembered
     for row in own:
         ev = _merge_evidence(row["first_cell"], label, others)
         if ev and ev[0] == "merged":
@@ -262,6 +284,7 @@ def _classify_band(i: int, band: dict, bands: list[dict], rows: list[dict]) -> t
                               "evidence": "other:" + ev[1]}
         if ev and joined is None:
             joined = {"label": label, "row": row["idx"], "first_cell": row["first_cell"], "joined": ev[1]}
+    # SPLIT check: the figures spread whole across two adjacent rows, neither holding them all, not both labelled
     if not figures_agree:
         for k in range(len(rows) - 1):
             r1, r2 = rows[k], rows[k + 1]
@@ -284,6 +307,7 @@ def _classify_band(i: int, band: dict, bands: list[dict], rows: list[dict]) -> t
     return "dropped", {"label": label, "figures": figs, "label_rendered_for_twin": bool(label_rows)}
 
 
+# -- readings over the rendered rows themselves: echo pairs, header cuts, cross-page candidate --
 def _row_key(first_cell: str) -> str:
     """the first cell's first four words, lower-cased and stripped of everything but letters and digits — the key a
     rendered row and a layer band share (an en-dash against a hyphen, a footnote mark, a wrapped tail: none of them
@@ -300,6 +324,7 @@ def _figure_echo_share(fa: list[str], fb: list[str]) -> "float | None":
         return None
     n = min(len(fa), len(fb))
     similar = 0
+    # count aligned figure pairs of equal length whose characters mostly agree in place
     for a, b in zip(fa[:n], fb[:n]):
         if len(a) == len(b) and sum(1 for x, y in zip(a, b) if x == y) / len(a) >= ECHO_FIGURE_CHAR_SHARE:
             similar += 1
@@ -317,6 +342,7 @@ def _echo_pairs(rows: list[dict], layer_figs: set, bands: list[dict]) -> list[di
     OCR echo, whose label is garbled so the text ratio never reaches the threshold, and whose corrupted figures the
     layer never carried)."""
     pairs: list[dict] = []
+    # compare each rendered row with the row before it: text echo first, then the figure echo
     for k in range(1, len(rows)):
         a, b = rows[k - 1], rows[k]
         if a["empty"] or b["empty"] or not a["text"].strip() or not b["text"].strip():
@@ -345,6 +371,8 @@ def _echo_pairs(rows: list[dict], layer_figs: set, bands: list[dict]) -> list[di
 
 
 def _is_proper_affix(cell_text: str, word: str) -> bool:
+    """True when the header cell text is a proper prefix or suffix of `word` (both alphabetic, long enough, not
+    equal, compared case-insensitively) -- the sign of a header cut mid-word."""
     c = cell_text.strip().lower()
     w = word.strip().lower()
     if len(c) < HEADER_CUT_MIN_CELL_LETTERS or len(w) < HEADER_CUT_MIN_LETTERS:
@@ -358,6 +386,7 @@ def _header_cuts(rows: list[dict], bands: list[dict]) -> list[dict]:
     """header cells (every `<th>`, or — when the table carries none — the first rendered row's cells) whose text is
     a proper prefix or suffix of some word the layer carries anywhere in the table's box."""
     header_cells: list[tuple[int, str]] = []
+    # collect the cells of every header row; the first row is the fallback below
     for row in rows:
         if row["is_header"]:
             header_cells.extend((row["idx"], c) for c in row["cells"])
@@ -366,6 +395,7 @@ def _header_cuts(rows: list[dict], bands: list[dict]) -> list[dict]:
     layer_words = [w[4] for b in bands for w in b["words"]]
     cuts: list[dict] = []
     seen: set[tuple[int, str]] = set()
+    # for each header cell, report the first layer word it is a cut piece of (one report per cell)
     for row_idx, cell in header_cells:
         if (row_idx, cell) in seen:
             continue
@@ -390,7 +420,10 @@ def _cross_page_candidate(bbox, page_height: float, bands: list[dict], next_firs
     return bool(next_first_band["figures"])
 
 
+# -- reading one table block: the UNREAD record, geometry guards, and the per-table report --
 def _unread_table(block: dict, reason: str) -> dict:
+    """The report record for a table that could not be read: empty readings, with `reason` in `unread` and
+    `rows_unread`. The page is shown 1-based. No side effects."""
     return {"page": block["page"] + 1, "block_type": block.get("block_type"), "bbox": block.get("bbox"),
             "rows_layer": None, "rows_rendered": None, "rows_rendered_empty": None, "bands_qualifying": None,
             "bands": [], "matched": [], "dropped": [], "merged": [], "collapsed": [], "split": [], "echo": [],
@@ -421,6 +454,7 @@ def _figures_outside_box(page, clip, bands: list[dict], rows: list[dict]) -> lis
     rendered = set(f for r in rows for f in r["figures"])
     inside = set(f for b in bands for f in b["figures"])   # the whole box's figures: a header year on a band's line
     found: list[str] = []                                   # outside the box is the neighbour table's, not a short box
+    # for each qualifying band, look at page words on its line that sit beyond the clip's left/right edges
     for band in bands:
         if not _qualifies(band):
             continue
@@ -482,6 +516,7 @@ def _read_table(page, block: dict, next_first_band: "dict | None") -> dict:
     merged: list[dict] = []
     split: list[dict] = []
     label_joined: list[dict] = []
+    # classify every qualifying band and file the result under matched / merged / split / dropped
     for i, band in enumerate(bands):
         if not _qualifies(band):
             continue
@@ -500,6 +535,7 @@ def _read_table(page, block: dict, next_first_band: "dict | None") -> dict:
     # S211 E5 (RBC AR p.147/p.150, TD AR p.49/p.123 read straight): a rendered cell that swallowed the whole table —
     # 31 bands' labels in row 0's first cell, 47 empty rows after it — is a COLLAPSE, its own reading, not 31 merges
     by_row: dict[int, list[dict]] = {}
+    # group the merges by rendered row; a row with COLLAPSE_MIN_BANDS or more becomes one collapse reading
     for m in merged:
         by_row.setdefault(m["row"], []).append(m)
     collapsed: list[dict] = []
@@ -520,6 +556,7 @@ def _read_table(page, block: dict, next_first_band: "dict | None") -> dict:
             "rows_unread": rows_unread}
 
 
+# -- the public entry point: read every table of a document and total the readings --
 def table_witness(pdf_path, blocks: list[dict], pages: "list[int] | None" = None, lane: str = "clean") -> dict:
     """`pdf_path` a path to the source PDF (or an already-open pymupdf document, for a caller/selftest that has one
     open already), `blocks` blocks.json's list, `pages` an optional list of 1-indexed page numbers to restrict to
@@ -598,6 +635,8 @@ def table_witness(pdf_path, blocks: list[dict], pages: "list[int] | None" = None
     first_band_cache: dict[int, "dict | None"] = {}
 
     def _first_band_of_page(pn: int):
+        """The first row band of the first table block on page index `pn` (cached), or None if there is no
+        readable table there. Used as the 'next page' evidence for the cross-page reading."""
         if pn in first_band_cache:
             return first_band_cache[pn]
         blist = by_page.get(pn)
@@ -613,6 +652,7 @@ def table_witness(pdf_path, blocks: list[dict], pages: "list[int] | None" = None
         first_band_cache[pn] = result
         return result
 
+    # read each table block against its page; an index outside the document is recorded as UNREAD
     for b in tables_blocks:
         p = b["page"]
         if p < 0 or p >= len(doc):
@@ -651,6 +691,7 @@ def table_witness(pdf_path, blocks: list[dict], pages: "list[int] | None" = None
     out["cross_page_population"] = len(evaluated)
     out["cross_page_candidates"] = sum(1 for t in evaluated if t["cross_page_candidate"]) if evaluated else None
     def _score(t):
+        """A table's damage score: dropped + merged + split rows plus the bands inside its collapses."""
         return len(t["dropped"]) + len(t["merged"]) + len(t["split"]) + sum(c["bands"] for c in t["collapsed"])
 
     scored = sorted(read, key=lambda t: -_score(t))
@@ -659,6 +700,7 @@ def table_witness(pdf_path, blocks: list[dict], pages: "list[int] | None" = None
     # many tables were actually candidates. This module already does the right thing one field up
     # (`cross_page_population` beside `cross_page_candidates`); this is the same rule where it was missed.
     out["worst_total"] = sum(1 for t in scored if _score(t) > 0)
+    # list the worst tables (at most WORST_CAP), stopping at the first table with no damage
     for t in scored[:WORST_CAP]:
         score = _score(t)
         if score <= 0:
@@ -669,7 +711,10 @@ def table_witness(pdf_path, blocks: list[dict], pages: "list[int] | None" = None
     return out
 
 
+# -- command line: load a bundle from disk and print a text summary --
 def _load_bundle(bundle_dir):
+    """Read manifest.json and blocks.json from `bundle_dir`; return (manifest dict, list of blocks). Raises if either
+    file is missing or not valid JSON."""
     import json
     import pathlib
 
@@ -681,6 +726,8 @@ def _load_bundle(bundle_dir):
 
 
 def main(argv=None) -> int:
+    """Command-line entry: parse `argv` (bundle_dir, --pages, --pdf-dir), run table_witness on the bundle's source PDF
+    and print per-table lines and a final summary to stdout. Returns 0."""
     import argparse
     import pathlib
 
@@ -699,6 +746,7 @@ def main(argv=None) -> int:
     print("bundle: %s" % bundle_dir.name)
     print("source: %s" % pdf_path)
     print("tables_total=%s tables_read=%s tables_unread=%s" % (result["tables_total"], result["tables_read"], result["tables_unread"]))
+    # one summary line per table, then one line per finding (dropped, merged, split, ...)
     for t in result["tables"]:
         if t["unread"] is not None:
             print("  p.%d %s UNREAD: %s" % (t["page"], t["block_type"], t["unread"]))

@@ -1,4 +1,9 @@
-"""S157 E51 (B32 U03): scripts/install.sh must install the vault-fixity service AND timer beside the converter service.
+"""WHAT THIS FILE DOES: pytest tests that read scripts/install.sh and the vault-fixity systemd units
+as text and check that the script installs, templates and enables them. One test runs the system
+`sed` on the service file; one edits an in-memory copy of the script as a negative control. Reads
+repository files only; writes nothing.
+
+S157 E51 (B32 U03): scripts/install.sh must install the vault-fixity service AND timer beside the converter service.
 
 Codex's 2026-08-27 completion audit found the units shipped in systemd/ with placeholders and a comment promising that
 install.sh substituted them, while install.sh installed only the converter — a fresh machine had no weekly fixity check.
@@ -14,17 +19,21 @@ import shutil
 import subprocess
 from pathlib import Path
 
+# -- file locations --
 ROOT = Path(__file__).resolve().parents[1]
 INSTALL = ROOT / "scripts" / "install.sh"
 SERVICE = ROOT / "systemd" / "file-portal-vault-fixity.service"
 TIMER = ROOT / "systemd" / "file-portal-vault-fixity.timer"
 
 
+# -- helpers --
 def _text(p: Path) -> str:
+    """Read a file as UTF-8 text with CRLF line endings turned into LF."""
     return p.read_text(encoding="utf-8").replace("\r\n", "\n")
 
 
 def _enables_timer(script: str) -> bool:
+    """True if the script text has a line that runs systemctl --user enable --now on the fixity timer."""
     return (
         re.search(
             r"^systemctl --user enable --now file-portal-vault-fixity\.timer\s*$", script, re.M
@@ -33,7 +42,9 @@ def _enables_timer(script: str) -> bool:
     )
 
 
+# -- tests --
 def test_units_exist_and_the_service_carries_the_placeholders_the_script_substitutes():
+    """Both unit files exist; the service has the two placeholders, the timer has none."""
     assert SERVICE.is_file() and TIMER.is_file()
     svc = _text(SERVICE)
     assert "__WORKDIR__" in svc and "__EXEC_PATH__" in svc
@@ -41,6 +52,7 @@ def test_units_exist_and_the_service_carries_the_placeholders_the_script_substit
 
 
 def test_install_script_installs_and_enables_the_fixity_timer():
+    """install.sh names both units, enables the timer and templates the service with sed."""
     script = _text(INSTALL)
     assert "file-portal-vault-fixity.service" in script
     assert "file-portal-vault-fixity.timer" in script
@@ -54,6 +66,7 @@ def test_install_script_installs_and_enables_the_fixity_timer():
 
 
 def test_the_templating_leaves_no_placeholder(tmp_path: Path):
+    """Running sed with the script's two substitutions leaves no placeholder in the service text."""
     sed = shutil.which("sed")
     if not sed:
         import pytest
@@ -77,6 +90,7 @@ def test_the_templating_leaves_no_placeholder(tmp_path: Path):
 
 
 def test_negative_control_a_script_without_the_timer_line_fails_the_check(tmp_path: Path):
+    """Removing every timer line from a copy of the script makes the timer check fail."""
     script = _text(INSTALL)
     stripped = "\n".join(
         ln for ln in script.split("\n") if "file-portal-vault-fixity.timer" not in ln

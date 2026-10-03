@@ -1,4 +1,13 @@
-"""Slice 2 — the link-fenced product analyst (docs/12).
+"""WHAT THIS FILE DOES: the "analyst" stage of the converter. It takes the markdown a conversion produced, cuts it
+into ~4000-character chunks, asks a language model (local Ollama qwen3:8b, or Gemini Flash) to tidy each chunk's
+prose, and accepts a rewritten chunk only if a set of guards pass (asset tokens intact, no deleted or inflated
+text, no moved code fences, only whitelisted edits); otherwise the original chunk ships. Main entry points:
+process() (the whole pass; returns markdown and a metadata dict), preflight() (the JSON for the pre-flight card),
+unload() (release the model from VRAM). It reads prompt files from prompts/ and events/rules files; it writes a
+progress heartbeat file, a per-run chunk journal (for resume), and captured Ollama log tails. Called by the
+converter pipeline after Marker has exited, and by the widget's pre-flight card.
+
+Slice 2 — the link-fenced product analyst (docs/12).
 
 Reformat converted markdown for readability with a local LLM, WITHOUT ever letting it
 touch the packaging: every asset embed is swapped for an opaque token before the model
@@ -27,6 +36,7 @@ import ladder_lever  # J44 (S182): the per-chunk guard runs the SAME ladder the 
 import table_geometry as tg  # S150 E3: the table-geometry layer (propose → invariant → apply) and the class's law
 import text_norm as tn
 
+# -- model, endpoints and size constants --
 MODEL = "qwen3:8b"
 OLLAMA_URL = "http://localhost:11434/api/generate"
 # S79 — RESIDENCY. Measured on the S76 Beer with this module's own program and chunker:
@@ -47,11 +57,13 @@ OLLAMA_URL = "http://localhost:11434/api/generate"
 # is an append, not an expiry — the permanence rule's shape, one stage over.
 #
 # The hold must simply outlast any gap BETWEEN chunks; it is not the thing that frees the card.
+# Next: how long Ollama keeps the model loaded between chunks (see the residency note above).
 KEEP_ALIVE_HOLD = "30m"
 GEMINI_MODEL = "gemini-flash-latest"  # stable alias, resolves to current Flash
 GEMINI_URL = f"https://generativelanguage.googleapis.com/v1beta/models/{GEMINI_MODEL}:generateContent"
 CHUNK_TARGET = 4000  # chars; well inside an 8k context with prompt + thinking room
 NUM_CTX = 8192
+# -- accept-time guard thresholds (survival and inflation) and the generation bound --
 # J32-B (docs/54-repair-road, lever-waiver: threshold 0.50 signed Rab 2026-09-05, MOVED to 0.80
 # on his word 2026-09-09 — "B" on the S118 walkthrough — after DDIA 2e held at analyst-phase
 # 0.9683 with a 264-word paragraph deleted from a chunk that scored ≈0.56 and passed at 0.50).
@@ -100,6 +112,7 @@ ANALYST_CHUNK_INFLATION_MAX = 1.5  # lever-waiver: Rab's word only ("J34 1.5x re
 ANALYST_NUM_PREDICT_FACTOR = 2.0
 ANALYST_NUM_PREDICT_MIN = 512
 _call_bound: dict = {}  # process() -> _generate(): the bound for the NEXT local call (the twin of _last_call)
+# -- sampler settings and request building --
 # S157 E6 (J49, the mechanical half): the readability pass's SAMPLER. None = the option is NOT sent and the model's own
 # Modelfile recipe decides (qwen3:8b under ollama 0.33.2 read `temperature 0.6, top_p 0.95, top_k 20, repeat_penalty 1` at
 # S119 R2 — Historical; the pipeline does not re-read it). The grid program's calls pin 0.0 through _call_bound regardless.
@@ -147,6 +160,9 @@ def _num_predict_for(chunk: str) -> int:
     """The generation bound for one chunk: 2x its estimated tokens, never under 512, never over NUM_CTX."""
     est_tokens = max(1, len(chunk) // 3)
     return int(min(NUM_CTX, max(ANALYST_NUM_PREDICT_MIN, est_tokens * ANALYST_NUM_PREDICT_FACTOR)))
+
+
+# -- progress heartbeat, throughput figures and the embed/token patterns --
 # Stage C (docs/18 §4C): per-chunk liveness, the S42 progress-file pattern — overwritten every
 # chunk (zero flight-recorder growth); the file's mtime is the heartbeat the widget ages.
 ANALYST_PROGRESS = fp_paths.root("analyst_progress")
@@ -180,7 +196,9 @@ GRID_PROGRAM = "grid-word"
 GRID_NUM_PREDICT = 32  # a word or a few (rails the OCR ran together answer as a phrase), never a paragraph
 
 
+# -- prompt programs and the grid-word resolver --
 def load_program(program: str) -> str:
+    """Read prompts/<program>.txt, strip it, append a blank-line separator; raises OSError if missing."""
     path = PROMPTS_DIR / f"{program}.txt"
     return path.read_text(encoding="utf-8").strip() + "\n\n"
 
@@ -192,8 +210,11 @@ def _word_resolver(generate):
     template = load_program(GRID_PROGRAM).strip()
 
     def resolve(letters: str, context: list) -> str | None:
-        prompt = (template.replace("{LETTERS}", " ".join(letters))
+        """Ask the model (via `generate`) for the word the spaced letters spell; returns it, or None if unusable."""
+        # build the prompt from the template: letters spaced out, context rows trimmed to 80 chars
+        prompt =(template.replace("{LETTERS}", " ".join(letters))
                   .replace("{CONTEXT}", " / ".join(c[:80] for c in context if c) or "(no text)") + "\n\n")
+        # pin the per-call bound for this one short call, and restore the old values in the finally below
         saved = _call_bound.get("num_predict")
         saved_t = _call_bound.get("temperature")
         _call_bound["num_predict"] = GRID_NUM_PREDICT
@@ -205,6 +226,7 @@ def _word_resolver(generate):
         finally:
             _call_bound["num_predict"] = saved
             _call_bound["temperature"] = saved_t
+        # take the reply's first line, strip quote/punctuation characters, upper-case it
         head = reply.strip().splitlines()[0].strip() if reply and reply.strip() else ""
         head = re.sub(r"[`*\"'.,:;]", "", head).strip().upper()
         words = head.split()
@@ -214,12 +236,14 @@ def _word_resolver(generate):
         if words and all(len(w) == 1 for w in words):
             words = ["".join(words)]
             head = words[0]
+        # refuse an empty, "?", over-long, many-word or non-alphabetic answer
         if not head or head == "?" or len(head) > 40 or len(words) > 4 or not all(w.isalpha() for w in words):
             return None
         return " ".join(words)
     return resolve
 
 
+# -- fencing: code-fence lines, asset-embed tokens, chunking --
 # SYM-115: qwen's soft switches, leaked as bare tokens — preceded by start-of-text or whitespace (never by a
 # URL's `/` or a word), followed by a word boundary. `/no_think` and `/think` both.
 _THINK_SWITCH = re.compile(r"(?:^|\s)/(?:no_)?think\b")
@@ -236,9 +260,11 @@ def _code_fence_lines(text: str) -> list[str]:
 
 
 def fence(markdown: str) -> tuple[str, list[str]]:
+    """Replace every asset embed in `markdown` with an opaque token; returns (fenced text, embeds in token order)."""
     embeds: list[str] = []
 
     def _swap(match: re.Match) -> str:
+        """Record one matched embed and return its numbered token."""
         embeds.append(match.group(0))
         return f"⟦IMG-{len(embeds) - 1}⟧"
 
@@ -246,12 +272,14 @@ def fence(markdown: str) -> tuple[str, list[str]]:
 
 
 def unfence(text: str, embeds: list[str]) -> str:
+    """Put each token in `text` back to its original embed from `embeds`; returns the restored text."""
     return _TOKEN.sub(lambda m: embeds[int(m.group(1))], text)
 
 
 def _chunks(text: str) -> list[str]:
     """Split on blank lines into ~CHUNK_TARGET-char pieces; never inside a paragraph."""
     out, cur, size = [], [], 0
+    # accumulate paragraphs until the next one would pass CHUNK_TARGET, then close the chunk
     for para in text.split("\n\n"):
         if size + len(para) > CHUNK_TARGET and cur:
             out.append("\n\n".join(cur))
@@ -263,6 +291,7 @@ def _chunks(text: str) -> list[str]:
     return out
 
 
+# -- backends: Gemini (paced, with retries) and local Ollama --
 # Free-tier Flash is 5 requests/min (verified on the user's quota dashboard,
 # 2026-07-19): a 47-chunk book fired unpaced got 41 rate-limit failures in 57 s.
 # 13 s spacing ≈ 4.6 RPM keeps a safety margin; 429s additionally retry with backoff.
@@ -289,6 +318,7 @@ def _generate_gemini(prompt: str) -> str:
         "generationConfig": {"temperature": 0.2},
     }).encode("utf-8")
     last_err = "unknown"
+    # up to 3 attempts: pace to the RPM floor, post, retry rate-limit/server/transport errors with backoff
     for attempt in range(3):
         wait = _GEMINI_MIN_INTERVAL_S - (time.monotonic() - _gemini_last_call)
         if wait > 0:
@@ -343,6 +373,8 @@ def _generate_gemini(prompt: str) -> str:
 
 
 def _generate(prompt: str, num_predict: int | None = None) -> str:
+    """One prompt through local Ollama (qwen3:8b, non-streaming); returns the stripped reply text. Raises RuntimeError
+    on an Ollama error; records the token counters in _last_call (side effect)."""
     # S146 E5 (SYM-129): the request carries a generation bound. Without one, chunk 296 of the
     # University 4e journal ran 681 tokens in / 5,170 out (7.59x) and a runaway can run to the
     # 900 s client timeout below, taking the whole phase with it. The bound is 2x the chunk's
@@ -404,9 +436,11 @@ def unload() -> None:
 
 
 def _tokens_of(text: str) -> list[str]:
+    """The sorted list of asset tokens found in `text` (a multiset, used to compare a chunk with its candidate)."""
     return sorted(_TOKEN.findall(text))
 
 
+# -- chunk-level resume journal and per-chunk score rows --
 # ---------- chunk-level resume (S61) ----------
 #
 # Built the morning a power cut killed Damodaran's analyst pass at chunk 936 of 969 — nine
@@ -437,6 +471,7 @@ def _resume_key(fenced: str, backend: str, program: str) -> str:
 
 
 def _chunk_hash(chunk: str) -> str:
+    """The first 16 hex characters of the SHA-256 of the chunk text (the journal's identity check for a chunk)."""
     return hashlib.sha256(chunk.encode("utf-8")).hexdigest()[:16]
 
 
@@ -452,6 +487,7 @@ def _load_journal(path: Path, chunks: list[str]) -> dict[int, dict]:
         text = path.read_text(encoding="utf-8")
     except OSError:
         return done
+    # one JSON record per line; keep only records whose index and input hash match the current chunking
     for line in text.splitlines():
         if not line.strip():
             continue
@@ -518,6 +554,7 @@ def _score_row(i: int, status: str, reason: str | None = None,
     return row
 
 
+# -- the main pass: process() --
 def process(markdown: str, backend: str = "local",
             program: str = DEFAULT_PROGRAM, tables: bool | None = None,
             resolver=None, vision: dict | None = None) -> tuple[str, dict]:
@@ -588,6 +625,7 @@ def process(markdown: str, backend: str = "local",
               f"(journal {journal_path.name})", flush=True)
 
     def _progress(pos: int) -> None:
+        """Overwrite the progress heartbeat file with position, total, s/chunk and ETA; ignores write errors."""
         # Best-effort per-chunk heartbeat — a write failure must never affect analysis.
         # The rate is measured over chunks GENERATED this run, never resumed ones: after a
         # resume, dividing by position would report a rate the GPU never achieved and an ETA
@@ -605,6 +643,7 @@ def process(markdown: str, backend: str = "local",
 
     _progress(resumed)
     handle = None
+    # main loop: per chunk, replay a journalled result or call the backend and run the guards in order
     try:
         try:
             work_dir.mkdir(parents=True, exist_ok=True)
@@ -612,6 +651,7 @@ def process(markdown: str, backend: str = "local",
         except OSError:
             handle = None  # unjournalled is worse, but never a reason to refuse the work
         for i, chunk in enumerate(chunks, 1):
+            # resumed chunk: take the earlier run's result (re-checking code fences) and count it
             if i in done:
                 rec = done[i]
                 text_r = rec.get("text", chunk)
@@ -646,6 +686,7 @@ def process(markdown: str, backend: str = "local",
                                                survival=rec.get("survival"),
                                                ratio=rec.get("ratio")))
                 continue
+            # fresh chunk: set the generation bound and call the backend; on any error the original ships
             _last_call.clear()  # S146 E5: a stale done_reason must never outlive its own call
             _call_bound["num_predict"] = _num_predict_for(chunk) if backend == "local" else None
             try:
@@ -668,6 +709,7 @@ def process(markdown: str, backend: str = "local",
                 # of a completed call (passed / rejected) are worth remembering.
                 _progress(i)
                 continue
+            # add this call's token counters to the run totals
             call_out = _last_call.get("output_tokens")
             call_prompt = _last_call.get("prompt_tokens")
             if call_out is not None:
@@ -689,6 +731,7 @@ def process(markdown: str, backend: str = "local",
             # (a 16-word sentence tail and the next paragraph gone). The switch is a think-control token
             # like the tags above, so it is the same reason, not a new key (the key set is pinned by T17
             # and three asserts). Word-boundaried: `/think` inside a URL path is prose, not a leak.
+            # guard chain, first failure wins: truncated, think leak, token fence, survival, inflation, code fence
             if _last_call.get("done_reason") == "length":
                 # S146 E5 (SYM-129): the backend stopped on the generation bound — the candidate
                 # is cut mid-thought by construction and was already past every acceptable size
@@ -757,6 +800,7 @@ def process(markdown: str, backend: str = "local",
                 rejected += 1
                 rejections["fence"] += 1
                 status, text, reason = "rejected", chunk, "fence"
+            # record the outcome: journal it (durable), add its score row, update the heartbeat
             generated += 1
             if handle:
                 _append_journal(handle, i, chunk, status, text, reason=reason, survival=survival,
@@ -784,6 +828,7 @@ def process(markdown: str, backend: str = "local",
     raw_duration = time.perf_counter() - t0  # unrounded for the rate — a 0.0 display-round
     duration = round(raw_duration, 1)        # must not erase a real (fast) run's goodput
     fence_in, fence_out = _code_fence_lines(fenced), _code_fence_lines("\n\n".join(out))
+    # the metadata record for the manifest: counts, rejections, edits, geometry, tokens, rates, scores
     meta = {
         "model": GEMINI_MODEL if backend == "gemini" else MODEL,
         "backend": backend,
@@ -853,6 +898,7 @@ def process(markdown: str, backend: str = "local",
     return unfence("\n\n".join(out), embeds), meta
 
 
+# -- Ollama log capture and journal dump (evidence ledgered through dumps/dump.sh) --
 OLLAMA_SERVER_LOG = Path.home() / "AppData" / "Local" / "Ollama" / "server.log"   # ollama's own log on this machine
 # S209 E10 (SYM-139): dumps/dump.sh is run through `bash`, and the WATCHER's environment on this machine carries no `bash` on
 # its PATH — every manifest since S141 reads `chunk_journal_dump: UNREAD … [WinError 2]`, the journal never ledgered. The
@@ -861,6 +907,7 @@ BASH_CANDIDATES = ("C:/Program Files/Git/bin/bash.exe", "C:/Program Files/Git/us
 
 
 def _bash() -> str | None:
+    """Find a bash executable (PATH first, then Git's known install paths); returns its path or None."""
     found = shutil.which("bash")
     if found:
         return found
@@ -935,6 +982,7 @@ def _dump_journal(journal_path, run_key: str) -> str:
         return "UNREAD: dump.sh did not run (%s)" % e
 
 
+# -- pre-flight card: GPU check, ETAs, rules, preflight() --
 def gpu_busy(threshold_mib: int = 2000) -> tuple[bool, int]:
     """Is the GPU meaningfully occupied (e.g. a game)? Used by the pre-flight card."""
     try:
@@ -962,6 +1010,7 @@ def measured_rates(backend: str, max_samples: int = 12) -> list[float]:
     the event stream turning into self-calibrating ETAs (docs/13)."""
     rates: list[float] = []
     try:
+        # keep the chars/duration rate of each finished analyst run on this backend
         for line in EVENTS_FILE.read_text(encoding="utf-8").splitlines():
             try:
                 ev = json.loads(line)
@@ -991,6 +1040,8 @@ def eta_range(chars: int, backend: str) -> tuple[int, int]:
 
 
 def load_rules() -> dict:
+    """Read the rules JSON file; returns its dict, or {} if the file is missing or unparseable. (Purpose of the
+    rules content is not evident from the code.)"""
     try:
         return json.loads(RULES_FILE.read_text(encoding="utf-8"))
     except (OSError, ValueError):

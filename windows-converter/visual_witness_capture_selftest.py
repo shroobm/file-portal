@@ -1,4 +1,11 @@
-"""Synthetic-only verifier and self-test for the VW-E2-R2 capture producer.
+"""WHAT THIS FILE DOES: a unittest suite plus a small schema checker for the visual-witness capture producer
+(visual_witness_capture.py, imported here as vw) and its independent verifier (visual_witness_verify.py).
+It holds a minimal JSON Schema validator (validate_schema), fixture builders, and test classes that drive vw
+with synthetic PDFs, fake processes and mocks; it also runs vw as a subprocess for two command-line stop cases.
+Entry point: main() runs every test, or with --schema-check-report <file> checks one report against the bound
+capture schema (exit 0 = valid). It reads the packet and schema files under the repo and writes only temp dirs.
+
+Synthetic-only verifier and self-test for the VW-E2-R2 capture producer.
 
 This file never resolves a corpus path.  Its schema engine implements only the JSON
 Schema 2020-12 vocabulary used by the exact bound capture schema; unsupported keywords
@@ -31,6 +38,7 @@ import pymupdf
 import visual_witness_capture as vw
 
 
+# -- schema engine: the JSON Schema keywords this file's validator understands --
 SUPPORTED_SCHEMA_KEYWORDS = frozenset(
     {
         "$schema",
@@ -72,11 +80,14 @@ SUPPORTED_SCHEMA_KEYWORDS = frozenset(
 
 @dataclass(frozen=True)
 class SchemaFailure:
+    """One schema violation: path is the JSON location (like $.a[0].b), message says what rule failed."""
+
     path: str
     message: str
 
 
 def _json_equal(left: Any, right: Any) -> bool:
+    """Return True when two values have identical canonical JSON bytes (False if either cannot be encoded)."""
     try:
         return vw.canonical_json_bytes(left) == vw.canonical_json_bytes(right)
     except vw.VWStop:
@@ -84,6 +95,7 @@ def _json_equal(left: Any, right: Any) -> bool:
 
 
 def _pointer(root: Mapping[str, Any], reference: str) -> Any:
+    """Resolve a local "#/a/b" JSON pointer inside root (handles ~0 and ~1 escapes); non-local refs raise."""
     if not reference.startswith("#/"):
         raise AssertionError(f"unsupported non-local schema reference {reference!r}")
     value: Any = root
@@ -94,6 +106,7 @@ def _pointer(root: Mapping[str, Any], reference: str) -> Any:
 
 
 def _is_type(value: Any, type_name: str) -> bool:
+    """Return True if value is of the named JSON Schema type (booleans are not integers; numbers must be finite)."""
     return {
         "null": value is None,
         "boolean": isinstance(value, bool),
@@ -106,6 +119,7 @@ def _is_type(value: Any, type_name: str) -> bool:
 
 
 def _valid_datetime(value: str) -> bool:
+    """Return True if value is an ISO date-time string ending in "Z" (UTC) that Python can parse."""
     if not isinstance(value, str) or not value.endswith("Z"):
         return False
     try:
@@ -116,6 +130,10 @@ def _valid_datetime(value: str) -> bool:
 
 
 def validate_schema(instance: Any, schema: Mapping[str, Any], *, root: Mapping[str, Any] | None = None, path: str = "$") -> list[SchemaFailure]:
+    """Check instance against schema (recursively) and return the list of SchemaFailure found; [] means valid.
+
+    Raises AssertionError on an unsupported keyword or non-local $ref. No side effects.
+    """
     root = schema if root is None else root
     unknown = set(schema) - SUPPORTED_SCHEMA_KEYWORDS
     if unknown:
@@ -124,6 +142,7 @@ def validate_schema(instance: Any, schema: Mapping[str, Any], *, root: Mapping[s
         return validate_schema(instance, _pointer(root, schema["$ref"]), root=root, path=path)
     failures: list[SchemaFailure] = []
 
+    # type check: a type mismatch returns at once, since the later checks assume the right type
     expected_types = schema.get("type")
     if expected_types is not None:
         if isinstance(expected_types, str):
@@ -149,6 +168,7 @@ def validate_schema(instance: Any, schema: Mapping[str, Any], *, root: Mapping[s
         if "maximum" in schema and instance > schema["maximum"]:
             failures.append(SchemaFailure(path, "above maximum"))
 
+    # object rules: minProperties, required members, per-property schemas, additionalProperties
     if isinstance(instance, dict):
         if len(instance) < int(schema.get("minProperties", 0)):
             failures.append(SchemaFailure(path, "fewer than minProperties"))
@@ -165,6 +185,7 @@ def validate_schema(instance: Any, schema: Mapping[str, Any], *, root: Mapping[s
             elif isinstance(schema.get("additionalProperties"), dict):
                 failures.extend(validate_schema(value, schema["additionalProperties"], root=root, path=f"{path}.{key}"))
 
+    # array rules: size limits, uniqueness, prefixItems/items, contains with min/maxContains
     if isinstance(instance, list):
         if len(instance) < int(schema.get("minItems", 0)):
             failures.append(SchemaFailure(path, "fewer than minItems"))
@@ -189,6 +210,7 @@ def validate_schema(instance: Any, schema: Mapping[str, Any], *, root: Mapping[s
             if matching < minimum or (maximum is not None and matching > int(maximum)):
                 failures.append(SchemaFailure(path, f"contains count {matching} outside [{minimum},{maximum}]"))
 
+    # combinators: allOf, anyOf, oneOf, not, and if/then/else
     for subschema in schema.get("allOf", []):
         failures.extend(validate_schema(instance, subschema, root=root, path=path))
     if "anyOf" in schema and not any(not validate_schema(instance, item, root=root, path=path) for item in schema["anyOf"]):
@@ -208,7 +230,9 @@ def validate_schema(instance: Any, schema: Mapping[str, Any], *, root: Mapping[s
     return failures
 
 
+# -- schema loading and the shared receipt fixture --
 def assert_bound_schema(report: Any, schema: Mapping[str, Any]) -> None:
+    """Validate report against schema; raise vw.VWStop("VW-IDENTITY") listing up to 12 failures. Returns None."""
     failures = validate_schema(report, schema)
     if failures:
         preview = "; ".join(f"{item.path}: {item.message}" for item in failures[:12])
@@ -216,6 +240,10 @@ def assert_bound_schema(report: Any, schema: Mapping[str, Any]) -> None:
 
 
 def load_bound_schema(repo_root: Path) -> Mapping[str, Any]:
+    """Read the capture schema file under repo_root, check its size and sha256 against vw's pinned values, return it.
+
+    Raises vw.VWStop("GROUND-DRIFT") on an identity mismatch or a non-object root.
+    """
     path = repo_root / vw.CAPTURE_SCHEMA_RELATIVE_PATH
     raw = path.read_bytes()
     if len(raw) != vw.CAPTURE_SCHEMA_BYTES or vw.sha256_bytes(raw) != vw.CAPTURE_SCHEMA_SHA256:
@@ -227,6 +255,10 @@ def load_bound_schema(repo_root: Path) -> Mapping[str, Any]:
 
 
 def _complete_receipt_fixture(repo_root: Path) -> tuple[dict[str, Any], Mapping[str, Any]]:
+    """Build a synthetic complete report and run vw._build_receipt on it; return (receipt, packet).
+
+    Reads the packet file under repo_root and runs vw's frozen negative controls; writes nothing.
+    """
     packet = vw.strict_json_file(repo_root / vw.PACKET_RELATIVE_PATH)
     ordinary = [
         vw.semantic_check_object(
@@ -284,11 +316,16 @@ def _complete_receipt_fixture(repo_root: Path) -> tuple[dict[str, Any], Mapping[
     return receipt, packet
 
 
+# -- tests: the schema engine itself and the bound capture/receipt schemas --
 class SchemaEngineSelfTest(unittest.TestCase):
+    """Tests that the local schema validator is strict and that the bound schemas validate as intended."""
+
     def setUp(self) -> None:
+        """Load the pinned capture schema once per test into self.schema."""
         self.schema = load_bound_schema(Path(__file__).resolve().parents[1])
 
     def test_bound_schema_uses_only_supported_keywords(self) -> None:
+        """Every keyword used in the bound schema must be one this file's validator supports."""
         vocabulary = {
             key
             for node in _walk(self.schema)
@@ -299,12 +336,14 @@ class SchemaEngineSelfTest(unittest.TestCase):
         self.assertTrue(vocabulary <= SUPPORTED_SCHEMA_KEYWORDS)
 
     def test_duplicate_and_nonfinite_json_bite(self) -> None:
+        """Strict JSON parsing must reject duplicate object keys and NaN."""
         with self.assertRaises(vw.VWStop):
             vw.strict_json_bytes(b'{"a":1,"a":2}')
         with self.assertRaises(vw.VWStop):
             vw.strict_json_bytes(b'{"a":NaN}')
 
     def test_schema_negative_additional_property_bites(self) -> None:
+        """A valid tile passes; the same tile with an invented member must fail (additionalProperties false)."""
         definition = self.schema["$defs"]["tile"]
         tile = {
             "tile_id": "p000001-x000000-y000000",
@@ -317,6 +356,7 @@ class SchemaEngineSelfTest(unittest.TestCase):
         self.assertTrue(validate_schema(poisoned, definition, root=self.schema))
 
     def test_complete_receipt_validates_and_else_minproperties_bite(self) -> None:
+        """A complete receipt validates and has no unlicensed strings; bad consent_receipt shapes must fail."""
         repo = Path(__file__).resolve().parents[1]
         receipt, _packet = _complete_receipt_fixture(repo)
         receipt_schema = vw.assert_receipt_schema(repo, receipt)
@@ -333,14 +373,19 @@ class SchemaEngineSelfTest(unittest.TestCase):
         self.assertTrue(any("minProperties" in failure.message for failure in failures))
 
 
+# -- tests: the frozen core of vw (controls, CLI stops, rounding, tiling, identities, guards) --
 class FrozenCoreSelfTest(unittest.TestCase):
+    """Tests of vw's frozen pure functions and its command-line stop behaviour."""
+
     def test_production_negative_control_suite_executes_and_nonbite_stops(self) -> None:
+        """The frozen negative controls return the packet hash; if a control stops biting, VW-NEGATIVE-CONTROL."""
         self.assertEqual(vw.PACKET_SHA256, vw.execute_frozen_negative_controls())
         with mock.patch.object(vw, "check_tile_union", return_value={"status": "measured"}):
             with self.assertRaisesRegex(vw.VWStop, "VW-NEGATIVE-CONTROL"):
                 vw.execute_frozen_negative_controls()
 
     def test_production_cli_missing_argument_has_no_argparse_leakage(self) -> None:
+        """Run the capture CLI without --scratch-root: exit 2, one JSON line, AUTHORITY-MISSING, no argparse usage."""
         capture = Path(__file__).with_name("visual_witness_capture.py")
         completed = subprocess.run(
             [
@@ -366,6 +411,8 @@ class FrozenCoreSelfTest(unittest.TestCase):
         self.assertNotIn(b"usage", completed.stderr.lower())
 
     def test_production_cli_heldout_stop_is_minimal_and_pre_resolution(self) -> None:
+        """Run the capture CLI with held-out case VW-H01: it must stop with VW-HELDOUT-CONTAMINATION
+        before any path resolves."""
         capture = Path(__file__).with_name("visual_witness_capture.py")
         completed = subprocess.run(
             [
@@ -394,6 +441,7 @@ class FrozenCoreSelfTest(unittest.TestCase):
         self.assertEqual(b"VW-HELDOUT-CONTAMINATION", completed.stderr.strip())
 
     def test_packet_and_configuration_binding(self) -> None:
+        """The packet file's size and sha256, and its frozen configuration hash, match vw's pinned constants."""
         repo = Path(__file__).resolve().parents[1]
         raw = (repo / vw.PACKET_RELATIVE_PATH).read_bytes()
         self.assertEqual(vw.PACKET_BYTES, len(raw))
@@ -402,12 +450,15 @@ class FrozenCoreSelfTest(unittest.TestCase):
         self.assertEqual(vw.EXPECTED_CONFIG_SHA256, vw.config_sha256(packet["frozen_configuration"]))
 
     def test_half_even_and_negative_zero(self) -> None:
+        """Point and normalized strings round half-to-even and never print a negative zero."""
         self.assertEqual("1.234568", vw.point_string("1.2345675"))
         self.assertEqual("1.234566", vw.point_string("1.2345665"))
         self.assertEqual("0.000000", vw.point_string("-0.0000001"))
         self.assertEqual("0.000000000", vw.normalized_string("-0.0000000001"))
 
     def test_tile_properties_and_frozen_center_hole(self) -> None:
+        """Tiles cover every pixel exactly; a planted set of rectangles with a center hole
+        has union area 8 and VW-TILE-GAP."""
         for width, height in ((1, 1), (17, 31), (1024, 1024), (1025, 2047), (2501, 999)):
             tiles = vw.make_tiles(1, width, height)
             result = vw.check_tile_union(width, height, tiles)
@@ -424,6 +475,8 @@ class FrozenCoreSelfTest(unittest.TestCase):
             vw.check_tile_union(3, 3, planted)
 
     def test_source_identity_gate_and_id_domains(self) -> None:
+        """A mismatched source hash stops with VW-SOURCE-HASH; primitive and payload ids
+        use their own hash domain prefixes."""
         sha = "1" * 64
         source = {
             "status": "measured",
@@ -452,6 +505,8 @@ class FrozenCoreSelfTest(unittest.TestCase):
         self.assertEqual(expected, vw.capture_payload_sha256(payload))
 
     def test_heldout_guard_precedes_resolver(self) -> None:
+        """The case-id guard must reject a held-out id before the resolver spy sees anything;
+        allowed ids pass in order."""
         observed: list[str] = []
         with self.assertRaisesRegex(vw.VWStop, "VW-HELDOUT-CONTAMINATION"):
             vw.lexical_case_guard(["VW-T01", "VW-H01"], resolver_spy=observed.append)
@@ -460,7 +515,9 @@ class FrozenCoreSelfTest(unittest.TestCase):
         self.assertEqual(["VW-T01", "VW-T03"], observed)
 
     def test_two_pixel_gap_clusters_three_does_not(self) -> None:
+        """Boxes 2 pixels apart join one component (gap=2); boxes 3 pixels apart stay separate."""
         def primitive(identifier: str, bbox: list[int]) -> dict[str, Any]:
+            """Build a minimal primitive record (id and bbox only)."""
             return {"primitive_id": "sha256:" + identifier * 64, "bbox": bbox}
 
         at_two = [primitive("1", [0, 0, 1, 1]), primitive("2", [3, 0, 4, 1])]
@@ -469,6 +526,7 @@ class FrozenCoreSelfTest(unittest.TestCase):
         self.assertEqual(2, len(vw.connected_components(at_three, bbox_key="bbox", gap=2)))
 
     def test_protected_inventory_mutation_bites(self) -> None:
+        """Changing a protected file between two inventories must stop with VW-PROTECTED-TREE (temp file only)."""
         with tempfile.TemporaryDirectory() as temporary:
             path = Path(temporary) / "source.pdf"
             path.write_bytes(b"before")
@@ -480,6 +538,7 @@ class FrozenCoreSelfTest(unittest.TestCase):
                 vw.compare_protected_inventories(before_entries, before_digest, after_entries, after_digest)
 
     def test_blank_synthetic_page_completes_six_procedures(self) -> None:
+        """A blank 72x72 page yields no candidates and all six class procedures measured; clear() empties the render."""
         document = pymupdf.open()
         page = document.new_page(width=72, height=72)
         source_bytes = document.tobytes()
@@ -504,6 +563,8 @@ class FrozenCoreSelfTest(unittest.TestCase):
         self.assertEqual(b"", capture.render_rgb)
 
     def test_frozen_page_map_fixtures_and_same_check_poison(self) -> None:
+        """Page-id maps: an out-of-range id is untrustworthy, a known 200-page slice pattern
+        is repaired (sym050), and a stale retained map stops."""
         sha = "1" * 64
         source = {
             "status": "measured",
@@ -516,6 +577,7 @@ class FrozenCoreSelfTest(unittest.TestCase):
         inventory = {"status": "measured", "match": True, "count": 2}
 
         def assets(ids: Sequence[int]) -> list[dict[str, Any]]:
+            """Build fake asset observations, one per page id, with ordinals in list order."""
             return [
                 {"asset_ordinal": ordinal, "page_id_0based": page_id, "bytes": 1, "sha256": "2" * 64}
                 for ordinal, page_id in enumerate(ids)
@@ -554,8 +616,12 @@ class FrozenCoreSelfTest(unittest.TestCase):
             vw.assert_retained_page_map(retained, fresh)
 
 
+# -- tests: the bounded native-git probe (fixed binary, fixed environment, activity bookkeeping) --
 class BoundNativeGitProbeSelfTest(unittest.TestCase):
+    """Tests of vw._git: only allowed git commands run, with a fixed binary, environment and process accounting."""
+
     def setUp(self) -> None:
+        """Save vw's global activity/pid/head state, then reset it so each test starts clean."""
         self.repo = Path(__file__).resolve().parents[1]
         self.original_activity = copy.deepcopy(vw.EVENT_ACTIVITY)
         self.original_children = set(vw.EVENT_CHILD_PIDS)
@@ -570,6 +636,7 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
         vw.EVENT_MEASURED_GIT_HEADS.clear()
 
     def tearDown(self) -> None:
+        """Put back the vw globals that setUp saved."""
         vw.EVENT_ACTIVITY = self.original_activity
         vw.EVENT_CHILD_PIDS.clear()
         vw.EVENT_CHILD_PIDS.update(self.original_children)
@@ -583,33 +650,44 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
 
     @staticmethod
     def _fake_process(pid: int, stdout: bytes):
+        """Return a stand-in subprocess object with the given pid that exits 0 and yields stdout."""
         class FakeProcess:
+            """Minimal Popen look-alike: pid, returncode, poll, communicate, kill."""
+
             def __init__(self) -> None:
+                """Set pid from the enclosing call and a returncode of 0."""
                 self.pid = pid
                 self.returncode = 0
 
             def poll(self) -> int:
+                """Return the (already final) return code."""
                 return self.returncode
 
             def communicate(self, timeout: float | None = None) -> tuple[bytes, bytes]:
+                """Return the canned stdout and empty stderr; the timeout is ignored."""
                 del timeout
                 return stdout, b""
 
             def kill(self) -> None:
+                """Mark the fake process as killed (returncode -9)."""
                 self.returncode = -9
 
         return FakeProcess()
 
     def test_allowed_probes_register_exit_and_exact_sanitized_controls(self) -> None:
+        """Two allowed git calls (rev-parse, diff) with Popen mocked: check the command, cwd,
+        stdio, env and pid bookkeeping."""
         observed: list[tuple[list[str], dict[str, Any]]] = []
         head = vw.REPOSITORY_SHA
         processes = iter((self._fake_process(41001, (head + "\n").encode("ascii")), self._fake_process(41002, b"x\0")))
 
         def fake_popen(command: list[str], **kwargs: Any):
+            """Record the command and keyword arguments, then hand back the next fake process."""
             observed.append((list(command), dict(kwargs)))
             return next(processes)
 
         def clean_measurement(known):
+            """Report the known pids as the only event pids, with no live pids and no ports."""
             return vw.IsolationMeasurement(tuple(sorted(known)), (), ())
         vw.install_event_activity_audit()
         with mock.patch.object(vw.subprocess, "Popen", side_effect=fake_popen), mock.patch.object(
@@ -651,6 +729,8 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
         vw.require_event_activity_reconciled(0)
 
     def test_binary_hash_mismatch_and_disallowed_arguments_stop_before_spawn(self) -> None:
+        """A wrong git binary hash stops with VW-DEPENDENCY-DRIFT, and fetch/remote/ls-remote/status
+        stop with GROUND-DRIFT; no process is spawned."""
         with mock.patch.object(vw.subprocess, "Popen") as popen, mock.patch.object(
             vw, "stable_file_observation", return_value={"bytes": vw.GIT_EXECUTABLE_BYTES, "sha256": "0" * 64}
         ):
@@ -671,6 +751,8 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
         self.assertEqual(0, vw.EVENT_ACTIVITY.native_git_expected_processes)
 
     def test_exact_binary_ignores_injected_path_wrapper_and_runtime_inventory_binds_it(self) -> None:
+        """A fake git.cmd/git.exe placed on PATH must never run; real git calls are counted
+        and the runtime inventory lists git."""
         with tempfile.TemporaryDirectory() as temporary:
             trap = Path(temporary)
             sentinel = trap / "path-wrapper-called.txt"
@@ -697,6 +779,7 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
         )
 
         def synthetic_observation(path: Path, _reason: str) -> dict[str, Any]:
+            """Return the pinned git size/hash for the git executable path and a dummy size/hash for any other file."""
             if Path(path) == vw.GIT_EXECUTABLE:
                 return {"bytes": vw.GIT_EXECUTABLE_BYTES, "sha256": vw.GIT_EXECUTABLE_SHA256}
             return {"bytes": 1, "sha256": "1" * 64}
@@ -713,6 +796,8 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
         )
 
     def test_local_config_filter_control_triggers_but_production_status_does_not(self) -> None:
+        """In a temp repo, plain git runs a local clean-filter helper but vw._git status is
+        refused (GROUND-DRIFT) and never runs it."""
         self.assertIn(("GIT_CONFIG", "NUL"), vw.GIT_FIXED_ENVIRONMENT)
         self.assertIn(("GIT_ATTR_SOURCE", "0" * 40), vw.GIT_FIXED_ENVIRONMENT)
         with tempfile.TemporaryDirectory() as temporary:
@@ -737,6 +822,8 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
             )
 
             def control_git(*arguments: str, check: bool = True) -> subprocess.CompletedProcess[bytes]:
+                """Run the pinned git binary directly in the temp repo (a control, not through vw._git);
+                returns the result."""
                 return subprocess.run(
                     [
                         str(vw.GIT_EXECUTABLE),
@@ -792,6 +879,8 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
             self.assertFalse(sentinel.exists(), "production Git loaded the repository-local filter helper")
 
     def test_missing_native_reconciliation_blocks_completion(self) -> None:
+        """One expected git process with none reconciled must make
+        require_event_activity_reconciled stop with UNREAD."""
         vw.install_event_activity_audit()
         vw.EVENT_ACTIVITY.native_git_expected_processes = 1
         vw.EVENT_ACTIVITY.native_git_reconciled_processes = 0
@@ -799,8 +888,13 @@ class BoundNativeGitProbeSelfTest(unittest.TestCase):
             vw.require_event_activity_reconciled(0)
 
 
+# -- tests: reading the repository HEAD directly, and the report/receipt persistence order --
 class DirectRepositoryHeadSelfTest(unittest.TestCase):
+    """Tests of vw.resolve_repository_head_direct and of persist_complete_output_payloads."""
+
     def test_symbolic_loose_and_worktree_commondir_packed_refs(self) -> None:
+        """The direct HEAD reader agrees with git on this repo and resolves loose refs and
+        worktree packed-refs in temp dirs."""
         repository = Path(__file__).resolve().parents[1]
         # REPOSITORY_SHA is the packet's frozen ancestor anchor, not a promise that
         # every later checkout stays at that commit.  The bounded-Git tests above
@@ -862,6 +956,8 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
             self.assertEqual(packed_oid, vw.resolve_repository_head_direct(worktree))
 
     def test_receipt_builder_observes_exact_persisted_report(self) -> None:
+        """The report file must be on disk, byte-identical, before the receipt builder and
+        validator run (in that order)."""
         old_oid = "3" * 40
         original_gate = vw.LAST_COMPLETED_GATE
         with tempfile.TemporaryDirectory() as temporary:
@@ -878,6 +974,8 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
             order: list[str] = []
 
             def build_receipt(report_bytes: bytes, report_sha: str) -> Mapping[str, Any]:
+                """Check the report file matches the bytes and hash given, note the call order,
+                return a small receipt."""
                 order.append("receipt-builder")
                 self.assertTrue(report_path.is_file())
                 self.assertEqual(report_path.read_bytes(), report_bytes)
@@ -889,6 +987,7 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
                 }
 
             def validate_receipt(candidate: Mapping[str, Any]) -> None:
+                """Note the call order and check the report file exists with the size the receipt claims."""
                 order.append("receipt-validator")
                 self.assertTrue(report_path.is_file())
                 self.assertEqual(report_path.stat().st_size, candidate["report_bytes"])
@@ -910,6 +1009,7 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
             self.assertEqual(vw.canonical_json_bytes(receipt) + b"\n", receipt_path.read_bytes())
 
     def test_concurrent_head_change_after_report_preserves_report_and_emits_attempt_exit(self) -> None:
+        """If HEAD moves after the report is written: keep the report, write no receipt, exit 2 with GROUND-DRIFT."""
         old_oid = "3" * 40
         new_oid = "4" * 40
         original_gate = vw.LAST_COMPLETED_GATE
@@ -938,10 +1038,13 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
             receipt_path = evidence_run / f"vw-e2-r2-{run_id}-receipt.json"
 
             def event_runner(**_kwargs: Any) -> Mapping[str, Any]:
+                """Stand-in event run: set vw's active roots/run id, then persist a prepared report and receipt."""
                 vw.ACTIVE_ROOTS = roots
                 vw.ACTIVE_RUN_ID = run_id
 
                 def build_receipt(report_bytes: bytes, report_sha: str) -> Mapping[str, Any]:
+                    """Check the saved report, then move the ref to a new commit to simulate
+                    a concurrent HEAD change."""
                     self.assertEqual(report_path.read_bytes(), report_bytes)
                     reference.write_text(new_oid + "\n", encoding="ascii")
                     return {"report_sha256": report_sha, "repo_head_after": old_oid}
@@ -988,6 +1091,8 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
             self.assertEqual(vw.canonical_json_bytes(attempt) + b"\n", attempt_path.read_bytes())
 
     def test_receipt_validation_failure_preserves_report_without_receipt(self) -> None:
+        """A receipt validator that raises VW-IDENTITY leaves the report on disk, no receipt,
+        and gate REPORT-CREATED."""
         old_oid = "5" * 40
         original_gate = vw.LAST_COMPLETED_GATE
         with tempfile.TemporaryDirectory() as temporary:
@@ -1002,6 +1107,7 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
             report_path, receipt_path = output / "report.json", output / "receipt.json"
 
             def reject_receipt(_candidate: Mapping[str, Any]) -> None:
+                """Confirm the report exists, then raise a synthetic VW-IDENTITY failure."""
                 self.assertTrue(report_path.is_file())
                 raise vw.VWStop("VW-IDENTITY", "synthetic receipt validation failure")
 
@@ -1023,7 +1129,9 @@ class DirectRepositoryHeadSelfTest(unittest.TestCase):
             self.assertFalse(receipt_path.exists())
 
 
+# -- table-rule fixtures and tests --
 def _table_primitive(index: int, p0: tuple[int, int], p1: tuple[int, int]) -> dict[str, Any]:
+    """Build a synthetic line primitive from p0 to p1 (pixel coordinates) with a padded numeric id and bbox."""
     return {
         "primitive_id": "sha256:" + f"{index:064x}",
         "geometry": {"kind": "line", "p0": [vw.point_string(p0[0]), vw.point_string(p0[1])], "p1": [vw.point_string(p1[0]), vw.point_string(p1[1])]},
@@ -1032,11 +1140,15 @@ def _table_primitive(index: int, p0: tuple[int, int], p1: tuple[int, int]) -> di
 
 
 def _text_primitive(index: int, bbox: list[int]) -> dict[str, Any]:
+    """Build a synthetic text primitive with a padded numeric id and the given pixel bbox."""
     return {"primitive_id": "sha256:" + f"{index:064x}", "bbox_px_half_open": bbox}
 
 
 class TableRuleSelfTest(unittest.TestCase):
+    """Tests of vw.table_candidate_evidence: which line/text layouts count as a table candidate."""
+
     def setUp(self) -> None:
+        """Build a 3x3 line grid (self.grid), four text boxes (self.text), a parent id and an identity matrix."""
         self.grid = []
         index = 1
         for y in (10, 50, 90):
@@ -1055,6 +1167,8 @@ class TableRuleSelfTest(unittest.TestCase):
         self.identity = (1, 0, 0, 1, 0, 0)
 
     def test_four_cell_text_grid_is_inferred_not_truth(self) -> None:
+        """A grid with text in four cells gives evidence marked Inferred, with semantic truth
+        UNREAD and 4 occupied cells."""
         evidence = vw.table_candidate_evidence(self.grid, self.text, self.identity, self.parent)
         self.assertIsNotNone(evidence)
         assert evidence is not None
@@ -1063,6 +1177,8 @@ class TableRuleSelfTest(unittest.TestCase):
         self.assertEqual(4, evidence["measurements"]["occupied_text_cells"])
 
     def test_rectangle_crosshair_empty_grid_and_raster_do_not_pass(self) -> None:
+        """A lone rectangle, a crosshair, a grid without text, and text without lines
+        each give no table evidence (None)."""
         rectangle = [
             _table_primitive(1, (10, 10), (90, 10)),
             _table_primitive(2, (90, 10), (90, 90)),
@@ -1076,6 +1192,7 @@ class TableRuleSelfTest(unittest.TestCase):
         self.assertIsNone(vw.table_candidate_evidence([], self.text, self.identity, self.parent))
 
     def test_below_intersection_and_axis_displacement_do_not_pass(self) -> None:
+        """A grid missing its vertical lines, or with a displaced horizontal segment, gives no table evidence."""
         missing = self.grid[:-2]
         self.assertIsNone(vw.table_candidate_evidence(missing, self.text, self.identity, self.parent))
         displaced = copy.deepcopy(self.grid)
@@ -1084,6 +1201,7 @@ class TableRuleSelfTest(unittest.TestCase):
         self.assertIsNone(vw.table_candidate_evidence(displaced, self.text, self.identity, self.parent))
 
     def test_disconnected_flowchart_boxes_do_not_form_global_table(self) -> None:
+        """Four separate boxes with labels (a flowchart) must not be read as one table."""
         primitives: list[dict[str, Any]] = []
         index = 200
         for left, top in ((10, 10), (150, 10), (10, 150), (150, 150)):
@@ -1101,7 +1219,9 @@ class TableRuleSelfTest(unittest.TestCase):
         self.assertIsNone(vw.table_candidate_evidence(primitives, labels, self.identity, self.parent))
 
 
+# -- page capture: coordinates, rendering, and failure locality --
 def _measured_source(raw: bytes) -> dict[str, Any]:
+    """Build a "measured" source observation in which manifest, recorded and observed hashes all equal sha256(raw)."""
     value = vw.sha256_bytes(raw)
     return {
         "status": "measured",
@@ -1113,7 +1233,11 @@ def _measured_source(raw: bytes) -> dict[str, Any]:
 
 
 class CoordinateRenderAndLocalitySelfTest(unittest.TestCase):
+    """Tests of vw.capture_page on synthetic pages: rotation, cropbox, render slicing, local failure scope."""
+
     def test_rotations_nonzero_cropbox_and_roundtrip(self) -> None:
+        """For each page rotation (0/90/180/270) with a non-zero cropbox, capture a line
+        and expect a measured report."""
         for rotation in (0, 90, 180, 270):
             document = pymupdf.open()
             page = document.new_page(width=160, height=120)
@@ -1133,12 +1257,15 @@ class CoordinateRenderAndLocalitySelfTest(unittest.TestCase):
             capture.clear()
 
     def test_rgb_truncation_and_out_of_bounds_bite(self) -> None:
+        """rgb_slice must stop with VW-CROP-BOUNDS on a truncated buffer or a box outside the image."""
         with self.assertRaisesRegex(vw.VWStop, "VW-CROP-BOUNDS"):
             vw.rgb_slice(b"\x00" * 11, 2, [0, 0, 1, 1])
         with self.assertRaisesRegex(vw.VWStop, "VW-CROP-BOUNDS"):
             vw.rgb_slice(b"\x00" * 12, 2, [0, 0, 2, 3])
 
     def test_vector_unknown_is_local_to_dependent_procedures(self) -> None:
+        """If vector extraction fails, only vector, stroke-cluster and table are UNREAD;
+        the other three stay measured."""
         document = pymupdf.open()
         page = document.new_page(width=72, height=72)
         raw = document.tobytes()
@@ -1160,14 +1287,20 @@ class CoordinateRenderAndLocalitySelfTest(unittest.TestCase):
         self.assertTrue(capture.report["unreads"])
 
     def test_exact_api_shape_rejects_string_and_bool(self) -> None:
+        """Coordinate and box helpers reject strings and booleans with VW-COORDINATE-UNREAD."""
         with self.assertRaisesRegex(vw.VWStop, "VW-COORDINATE-UNREAD"):
             vw._api_xy(("1", 2))
         with self.assertRaisesRegex(vw.VWStop, "VW-COORDINATE-UNREAD"):
             vw._api_box((0, False, 1, 2))
 
 
+# -- tests: output roots, tile recovery, id invariants, minimal exits --
 class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
+    """Tests of output-root preparation and rollback, edge recovery, primitive dedup and the minimal exit object."""
+
     def test_output_root_asymmetric_collisions_roll_back_only_new_child(self) -> None:
+        """A pre-existing run dir in either root stops with VW-PRIVACY and only a directory
+        this call created is removed."""
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary).resolve()
             evidence, scratch = base / "evidence", base / "scratch"
@@ -1196,6 +1329,7 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
             self.assertFalse((scratch / "evidence-collision").exists())
 
     def test_output_root_second_create_error_rolls_back_new_evidence(self) -> None:
+        """If creating the scratch run dir fails, the evidence run dir just created is rolled back (VW-PRIVACY)."""
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary).resolve()
             evidence, scratch = base / "evidence", base / "scratch"
@@ -1204,6 +1338,7 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
             original_mkdir = Path.mkdir
 
             def selective_mkdir(path: Path, *args: Any, **kwargs: Any) -> None:
+                """Raise PermissionError for the scratch "io-error" dir; otherwise call the real Path.mkdir."""
                 if path == scratch / "io-error":
                     raise PermissionError("synthetic")
                 original_mkdir(path, *args, **kwargs)
@@ -1219,6 +1354,8 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
             self.assertFalse((scratch / "io-error").exists())
 
     def test_output_root_rollback_failure_retains_typed_context_and_one_attempt_exit(self) -> None:
+        """When rollback itself fails, PartialRootFailure (VW-CLEANUP) keeps its context
+        and main() leaves one attempt-exit file."""
         with tempfile.TemporaryDirectory() as temporary:
             base = Path(temporary).resolve()
             evidence, scratch = base / "evidence", base / "scratch"
@@ -1233,6 +1370,7 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
             original_rmdir = Path.rmdir
 
             def selective_rmdir(path: Path) -> None:
+                """Raise PermissionError when removing the evidence run dir; otherwise call the real Path.rmdir."""
                 if path == evidence_run:
                     raise PermissionError("synthetic rollback failure")
                 original_rmdir(path)
@@ -1249,6 +1387,7 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
             self.assertIsNone(caught.exception.context.scratch_run_created)
             self.assertEqual("preserve", sentinel.read_text(encoding="utf-8"))
             def fail_with_partial_context(**_kwargs: Any) -> Mapping[str, Any]:
+                """Stand-in event run: set vw's active run id, then raise the PartialRootFailure caught above."""
                 vw.ACTIVE_RUN_ID = run_id
                 raise caught.exception
 
@@ -1280,6 +1419,8 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
             self.assertFalse(vw.persist_partial_root_attempt_exit(caught.exception.context, run_id, failure))
 
     def test_four_tile_corner_recovery_hashes_whole_page_crop(self) -> None:
+        """A box at a four-tile corner recovers via a whole-page recrop whose size and hash
+        match an independent slice."""
         width = height = 1100
         raw = bytes((index % 251 for index in range(width * height * 3)))
         tiles = vw.populate_tile_hashes(raw, width, height, 1)
@@ -1291,6 +1432,8 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
         self.assertEqual(vw.sha256_bytes(expected), recovery["recovery_rgb_sha256"])
 
     def test_reversed_geometry_id_invariant_but_provenance_binds_payload(self) -> None:
+        """A line and its reverse merge to one primitive with the same id, but the payload
+        hash still depends on provenance."""
         sha = "1" * 64
         projection = {
             "source_sha256": sha,
@@ -1331,6 +1474,8 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
         self.assertNotEqual(vw.capture_payload_sha256(first), vw.capture_payload_sha256(second))
 
     def test_create_new_and_minimal_exit_are_biting(self) -> None:
+        """The minimal attempt-exit object has exactly the expected keys; writing the same
+        JSON file twice stops (VW-CLEANUP)."""
         expected_keys = {
             "format_id", "event_id", "event_revision", "packet_sha256", "created_at_utc", "status",
             "last_completed_gate", "reason_code", "claim_status", "schema_conformance", "next_event_authority",
@@ -1344,6 +1489,7 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
                 vw.create_new_json(target, exit_object)
 
     def test_root_overlap_rejected_before_children(self) -> None:
+        """A scratch root nested inside the evidence root stops with VW-PRIVACY before any run dir is created."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary).resolve()
             nested = root / "nested"
@@ -1358,7 +1504,9 @@ class BoundaryIdentityAndOutputSelfTest(unittest.TestCase):
             self.assertFalse((root / "synthetic").exists())
 
 
+# -- independent verifier fixtures: loader, fake process, request/result and payload builders --
 def _load_verifier_module() -> Any:
+    """Import visual_witness_verify.py (next to this file) as a fresh module and return it; executes that file."""
     path = Path(__file__).with_name("visual_witness_verify.py")
     spec = importlib.util.spec_from_file_location("_vw_verify_selftest", path)
     assert spec is not None and spec.loader is not None
@@ -1368,25 +1516,38 @@ def _load_verifier_module() -> Any:
 
 
 class _FakeVerifierProcess:
+    """Stand-in for the verifier subprocess: fixed pid, canned return code and stdout,
+    records the input it was given."""
+
     def __init__(self, *, returncode: int, stdout: bytes) -> None:
+        """Store the canned return code and stdout; observed_input starts as None."""
         self.pid = 99001
         self.returncode = returncode
         self._stdout = stdout
         self.observed_input: bytes | None = None
 
     def communicate(self, input: bytes | None = None, timeout: float | None = None) -> tuple[bytes, bytes]:
+        """Remember the input bytes and return the canned stdout with empty stderr; timeout is ignored."""
         del timeout
         self.observed_input = input
         return self._stdout, b""
 
     def poll(self) -> int:
+        """Return the canned return code."""
         return self.returncode
 
     def kill(self) -> None:
+        """Mark the fake process as killed (returncode -9)."""
         self.returncode = -9
 
 
 def _transport_request_and_result(repo: Path) -> tuple[dict[str, Any], dict[str, Any]]:
+    """Build an empty-case verifier request and the matching valid "Verified-independent" result.
+
+    Returns (request, result).
+
+    Reads visual_witness_verify.py under repo to hash it.
+    """
     payload: dict[str, Any] = {
         "config_sha256": vw.EXPECTED_CONFIG_SHA256,
         "cases": [],
@@ -1422,6 +1583,7 @@ def _transport_request_and_result(repo: Path) -> tuple[dict[str, Any], dict[str,
 
 
 def _canonical_order_fixture() -> dict[str, Any]:
+    """Build a small synthetic report whose arrays are all in canonical order (one page, one candidate, three cases)."""
     classes = list(vw.CLASS_ORDER)
     census = [{"class": name, "reason_codes": []} for name in classes]
     procedures = [{"class": name, "reason_codes": []} for name in classes]
@@ -1483,6 +1645,7 @@ def _canonical_order_fixture() -> dict[str, Any]:
     }
 
     def case(case_id: str, pages: list[dict[str, Any]]) -> dict[str, Any]:
+        """Build one case record with the given id and pages, plus the shared census and empty bookkeeping."""
         return {
             "case_id": case_id,
             "bundle": {
@@ -1519,14 +1682,20 @@ def _canonical_order_fixture() -> dict[str, Any]:
     }
 
 
+# -- tests: isolation probes, canonical ordering, verifier transport, redaction scan, repeatability --
 class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
+    """Tests of the isolation probe, canonical array order, the verifier pipe, the redaction scanner and determinism."""
+
     def test_native_isolation_provider_empty_event_scope_is_measurable(self) -> None:
+        """With no known event pids, the native isolation measurement still returns empty pid and port tuples."""
         measurement = vw.native_isolation_measurement(set())
         self.assertEqual((), measurement.event_pids)
         self.assertEqual((), measurement.live_event_pids)
         self.assertEqual((), measurement.owned_ports)
 
     def test_spawned_worker_audit_denies_and_reconciles_network_and_gpu_attempts(self) -> None:
+        """Spawn probe workers that try a loopback network call and a GPU library load;
+        both must be counted, then restored."""
         original = copy.deepcopy(vw.EVENT_ACTIVITY)
         original_children = set(vw.EVENT_CHILD_PIDS)
         original_exited = set(vw.EVENT_CHILD_EXITED_PIDS)
@@ -1551,12 +1720,15 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.EVENT_CHILD_EXITED_PIDS.update(original_exited)
 
     def test_full_canonical_order_mutations_bite_producer_and_independent_verifier(self) -> None:
+        """Reordering any canonical array (even with a re-hashed payload) must fail
+        both vw and the independent verifier."""
         verifier = _load_verifier_module()
         base = _canonical_order_fixture()
         self.assertTrue(vw._canonical_arrays(base))
         self.assertTrue(verifier._canonical_payload_order(base["capture_payload"]))
 
         def rehash(report: dict[str, Any]) -> None:
+            """Recompute the report's capture payload hash in place so only the order, not the hash, is wrong."""
             report["capture_payload"]["capture_payload_sha256"] = vw.capture_payload_sha256(
                 report["capture_payload"]
             )
@@ -1581,6 +1753,7 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         self.assertFalse(vw._canonical_arrays(residue_poison))
 
     def test_preverifier_subject_requires_actual_cleanup_and_protected_after(self) -> None:
+        """Pre-verifier semantic checks need gate CLEANUP-VERIFIED and cleanup.verified true; other states stop."""
         report = _canonical_order_fixture()
         observations = report["run_observations"]
         observations["producer"]["semantic_validator_code_sha256"] = "1" * 64
@@ -1602,15 +1775,19 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.LAST_COMPLETED_GATE = original_gate
 
     def test_verifier_pipe_transport_authenticates_bytes_activity_exit_and_result(self) -> None:
+        """_finish_verifier must reject bad exit codes, stray bytes, wrong hashes, wrong config
+        and network use; it accepts a valid result."""
         repo = Path(__file__).resolve().parents[1]
         request, valid_result = _transport_request_and_result(repo)
         original = copy.deepcopy(vw.EVENT_ACTIVITY)
         clean_activity = {"instrumentation_ready": True, "network_call_count": 0, "gpu_call_count": 0}
 
         def encoded(result: Any, activity: Mapping[str, Any] = clean_activity) -> bytes:
+            """Encode {"activity", "result"} as canonical JSON plus a newline, as the verifier prints it."""
             return vw.canonical_json_bytes({"activity": dict(activity), "result": result}) + b"\n"
 
         def invocation(process: _FakeVerifierProcess) -> vw.VerifierInvocation:
+            """Wrap a fake process in a vw.VerifierInvocation (second field 0; meaning not evident from the code)."""
             return vw.VerifierInvocation(process, 0)
 
         try:
@@ -1666,9 +1843,12 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.EVENT_ACTIVITY.reconciled_child_processes = original.reconciled_child_processes
 
     def test_production_verifier_requires_gap_area_eight_and_config_identity(self) -> None:
+        """The verifier accepts the right planted gap area (8) and config hash, and reports
+        CONFLICT for area 7 or 9, a wrong config or reordered cases."""
         verifier = _load_verifier_module()
         repo = Path(__file__).resolve().parents[1]
         def empty_page(page_1based: int) -> dict[str, Any]:
+            """Build a page record with no tiles, facts or candidates and one empty procedure per class."""
             return {
                 "page_1based": page_1based,
                 "tiles": [],
@@ -1708,7 +1888,10 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         original_unread = verifier.VerifyUnread
 
         class CapturedUnread(original_unread):
+            """VerifyUnread subclass that also records each message in unread_messages (for the failure text)."""
+
             def __init__(self, message: str) -> None:
+                """Record the message, then initialise the base exception."""
                 unread_messages.append(message)
                 super().__init__(message)
 
@@ -1746,6 +1929,7 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             self.assertIn("VW-NEGATIVE-CONTROL", reordered_result["reason_codes"])
 
     def test_isolation_provider_transition_and_final_measurement_match(self) -> None:
+        """A transitional child pid is excluded from the count, and before/after measurements give the same hash."""
         original_children = set(vw.EVENT_CHILD_PIDS)
         original_exited = set(vw.EVENT_CHILD_EXITED_PIDS)
         original_descendants = set(vw.EVENT_OBSERVED_DESCENDANT_PIDS)
@@ -1758,12 +1942,14 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.EVENT_ACTIVITY.reset()
             vw.EVENT_CHILD_PIDS.add(101)
             def before_provider(_known):
+                """Fake provider: pids 101 and 102 exist, 101 is live, no ports."""
                 return vw.IsolationMeasurement((101, 102), (101,), ())
             before_hash, before_result, _before = vw.isolation_probe(
                 "1" * 64, provider=before_provider, transitional_pids=(101,)
             )
             self.assertEqual(0, before_result["event_child_process_count"])
             def after_provider(_known):
+                """Fake provider: pids 101 and 102 exist, none live, no ports."""
                 return vw.IsolationMeasurement((101, 102), (), ())
             after_hash, after_result, _after = vw.isolation_probe("1" * 64, provider=after_provider)
             self.assertEqual(before_hash, after_hash)
@@ -1779,6 +1965,8 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.EVENT_ACTIVITY.gpu_call_count = original_gpu
 
     def test_isolation_provider_descendant_port_counter_and_unavailable_bite(self) -> None:
+        """The probe counts a live descendant pid, an owned port, and a network call;
+        a provider that raises gives UNREAD."""
         original_children = set(vw.EVENT_CHILD_PIDS)
         original_descendants = set(vw.EVENT_OBSERVED_DESCENDANT_PIDS)
         original_network = vw.EVENT_ACTIVITY.network_call_count
@@ -1789,22 +1977,26 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.EVENT_OBSERVED_DESCENDANT_PIDS.clear()
             vw.EVENT_ACTIVITY.reset()
             def descendant(_known):
+                """Fake provider: a descendant pid 202 of child 201 is live; no ports."""
                 return vw.IsolationMeasurement((201, 202), (201, 202), ())
             _digest, result, _measurement = vw.isolation_probe(
                 "1" * 64, provider=descendant, transitional_pids=(201,)
             )
             self.assertEqual(1, result["event_child_process_count"])
             def port_provider(_known):
+                """Fake provider: only pid 201, no live pids, one owned port (49152)."""
                 return vw.IsolationMeasurement((201,), (), (49152,))
             _digest, result, _measurement = vw.isolation_probe("1" * 64, provider=port_provider)
             self.assertEqual(1, result["event_child_port_count"])
             vw.EVENT_ACTIVITY.network_call_count = 1
             def clean_provider(_known):
+                """Fake provider: only pid 201, nothing live, no ports."""
                 return vw.IsolationMeasurement((201,), (), ())
             _digest, result, _measurement = vw.isolation_probe("1" * 64, provider=clean_provider)
             self.assertTrue(result["network_used"])
 
             def unavailable(_known: set[int]) -> vw.IsolationMeasurement:
+                """Fake provider that always fails with OSError."""
                 raise OSError("synthetic")
 
             with self.assertRaisesRegex(vw.VWStop, "UNREAD"):
@@ -1818,11 +2010,14 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             vw.EVENT_ACTIVITY.gpu_call_count = original_gpu
 
     def test_redaction_is_schema_location_aware_and_rejects_opaque_source_token(self) -> None:
+        """The string scanner allows the exact page-map formula where licensed, but flags
+        other text, packet quotes and hashes."""
         repo = Path(__file__).resolve().parents[1]
         packet = vw.strict_json_file(repo / vw.PACKET_RELATIVE_PATH)
         schema = load_bound_schema(repo)
 
         def subject(value: str) -> dict[str, Any]:
+            """Wrap value as the page_map formula string of a one-case payload, to scan it in that location."""
             return {
                 "capture_payload": {
                     "cases": [
@@ -1845,6 +2040,7 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         self.assertEqual(1, wrong_location_hash["unlicensed_string_hits"])
 
     def test_redaction_scanner_catches_path_base64_and_unlicensed_text(self) -> None:
+        """A report holding a Windows path, a long base64-like blob and free text trips every scanner counter."""
         repo = Path(__file__).resolve().parents[1]
         packet = vw.strict_json_file(repo / vw.PACKET_RELATIVE_PATH)
         schema = load_bound_schema(repo)
@@ -1865,6 +2061,7 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         self.assertGreater(result["unlicensed_string_hits"], 0)
 
     def test_probe_and_semantic_unread_hashes_bite(self) -> None:
+        """Different probe results give different evidence hashes; an UNREAD semantic check carries no evidence hash."""
         first = vw.generic_probe_evidence(
             probe_id="cleanup-v1", probe_code_sha256="1" * 64, subject_sha256="2" * 64,
             status="pass", reason_codes=[], result_projection={"event_scratch_removed": True, "part_files_remaining": 0},
@@ -1881,6 +2078,8 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         self.assertEqual("UNREAD", unread["claim_status"])
 
     def test_independent_identity_chain_and_exact_gap_negative(self) -> None:
+        """The verifier's id chain passes for consistent ids and fails after tampering;
+        its union area of the planted gap is 8."""
         verifier = _load_verifier_module()
         source_sha = "1" * 64
         primitive_projection = {
@@ -1919,6 +2118,7 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         self.assertEqual(8, verifier.exact_union_area(planted))
 
     def test_synthetic_capture_payload_repeatability(self) -> None:
+        """Capturing the same synthetic PDF twice gives byte-identical page reports, payloads and payload hashes."""
         document = pymupdf.open()
         page = document.new_page(width=144, height=144)
         page.draw_rect(pymupdf.Rect(20, 20, 124, 124), width=1)
@@ -1929,6 +2129,7 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         source = _measured_source(source_bytes)
 
         def capture_once() -> dict[str, Any]:
+            """Reopen the PDF bytes, capture page 1, return a deep copy of its report and clear the capture."""
             with pymupdf.open(stream=source_bytes, filetype="pdf") as reopened:
                 capture = vw.capture_page(
                     reopened[0], page_1based=1, source_observation=source,
@@ -1947,6 +2148,7 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         self.assertEqual("measured", first_page["render"]["status"])
 
         def case(case_id: str, page_report: Mapping[str, Any]) -> dict[str, Any]:
+            """Build a measured case record around one page report, with a class census and empty bundle."""
             return {
                 "case_id": case_id, "procedure_status": "measured", "pages": [copy.deepcopy(page_report)],
                 "class_census": vw.case_class_census([page_report]), "source": dict(source), "bundle": {},
@@ -1961,6 +2163,8 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
         self.assertEqual(first["capture_payload_sha256"], second["capture_payload_sha256"])
 
     def test_corrupt_pdf_maps_to_minimal_nonreceipt(self) -> None:
+        """A non-PDF source makes main() exit 2 with VW-RENDER-UNREAD and one minimal
+        UNREAD exit object (no receipt)."""
         with tempfile.TemporaryDirectory() as temporary:
             root = Path(temporary)
             source_path = root / "corrupt.pdf"
@@ -1992,6 +2196,8 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
                 {"logical_id": "VW-T01/bundle-manifest", "bytes": 0, "sha256": "3" * 64}
             ]
             def corrupt_event_runner(**_kwargs: Any) -> Mapping[str, Any]:
+                """Stand-in event run: run the worker on the corrupt case, then require completion
+                (which must raise)."""
                 case_report, _resource, _assets = vw.run_case_worker(
                     case, protected_before, vw.EXPECTED_CONFIG_SHA256, root
                 )
@@ -2028,7 +2234,9 @@ class PrivacyProbeAndVerifierSelfTest(unittest.TestCase):
             self.assertNotEqual("COMPLETE", exit_object.get("status"))
 
 
+# -- helpers and the command-line entry point --
 def _walk(value: Any):
+    """Yield value and then, depth first, every dict value and list item nested inside it."""
     yield value
     if isinstance(value, dict):
         for child in value.values():
@@ -2039,6 +2247,9 @@ def _walk(value: Any):
 
 
 def main(argv: Sequence[str] | None = None) -> int:
+    """Run the self-test: with --schema-check-report <file>, validate that report against the bound schema (0 = valid);
+    otherwise run every test in this module and return 0 if all passed, else 1. Prints test progress to stderr.
+    """
     parser = argparse.ArgumentParser(description="Synthetic-only VW-E2-R2 self-test")
     parser.add_argument("--schema-check-report", type=Path)
     args = parser.parse_args(argv)

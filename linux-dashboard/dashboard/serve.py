@@ -1,4 +1,12 @@
-"""Opt-in HTTP JSON endpoint for the `sorted/` tree, on the LOOPBACK interface only -- the sorted
+"""WHAT THIS FILE DOES: a small read-only HTTP server (standard library only) that publishes the
+dashboard's sorted/ tree as JSON (/sorted), small JPEG thumbnails (/thumb) and a liveness check
+(/health). Entry point: main() (run as `python -m dashboard.serve`), which checks the bind address,
+reads <root>/serve.token, reads this machine's tailnet names once, then serves on 127.0.0.1 until
+interrupted. _handler(state) builds the request handler that applies every lock described below.
+It reads the sorted/ tree, serve.token and dashboard.toml, runs the `tailscale` CLI once at start,
+and writes only to stderr. Called by the operator (or a service) and by tests/test_serve*.py.
+
+Opt-in HTTP JSON endpoint for the `sorted/` tree, on the LOOPBACK interface only -- the sorted
 browse the GTK dashboard shows on the ThinkPad's own screen, made readable from the tailnet
 through `tailscale serve` (docs/06: "a tailscale serve-fronted endpoint with its own auth ...
 rather than exposing anything new"). The same shape as linux-indexer/indexer/serve.py: binds
@@ -91,6 +99,7 @@ from urllib.parse import parse_qs, urlparse
 from dashboard.config import ALL_CATEGORIES, CONFIG_PATH, DEFAULT_ROOT, Paths, Settings
 from dashboard.scanner import scan
 
+# -- constants: bind address, token file, defaults, error text --
 BIND = "127.0.0.1"  # loopback only, by construction (docs/06); reach it through tailscale serve
 TOKEN_FILE = "serve.token"  # <root>/serve.token, the operator's, outside the repo
 DEFAULT_PORT = 8766  # lever-waiver: a port, not a threshold (the indexer's serve takes 8765); overridden by --port
@@ -102,6 +111,7 @@ NO_TOKEN_ERROR = (
     "writes <root>/serve.token (or starts this server with --no-token)"
 )
 
+# -- lock 1: the peer lock (who may connect) and the bind check --
 # File Portal answers only this machine and the tailnet (Rab, 2026-09-30: "absolute locked inside
 # my tailscale vpn"). The same block sits in every File Portal server; keep the names.
 _PEER_CIDRS = ("127.0.0.0/8", "::1/128", "100.64.0.0/10", "fd7a:115c:a1e0::/48")
@@ -117,9 +127,11 @@ _REFUSALS_LOCK = threading.Lock()
 def peer_ok(addr: object) -> bool:
     """True only for loopback or a Tailscale address; fails closed on anything unparseable."""
     try:
+        # drop an IPv6 zone suffix ("%eth0") before parsing
         ip = ipaddress.ip_address(str(addr).split("%", 1)[0])
     except ValueError:
         return False
+    # an IPv4-mapped IPv6 address is judged as the IPv4 address it wraps
     if ip.version == 6 and ip.ipv4_mapped is not None:
         ip = ip.ipv4_mapped
     return any(ip.version == n.version and ip in n for n in _PEER_NETS)
@@ -147,6 +159,7 @@ def _count_refusal(addr: object, why: str = "not loopback or tailnet") -> None:
         pass
 
 
+# -- lock 3: the request locks (Host pin, Origin, Sec-Fetch-Site, proof of origin) and their constants --
 # Lock 3: what a WEB PAGE (not a person, not a tool) can send. The peer lock admits his own devices,
 # and a foreign page open in his browser on one of them fires requests from that device (behind
 # `tailscale serve` it is 127.0.0.1 besides). The module docstring says what each rule can and
@@ -278,6 +291,7 @@ def referer_ok(value: object, names: frozenset[str] | None) -> bool:
     return own_name(_host_of(re.split(r"[/?#\\]", rest, maxsplit=1)[0]), names)
 
 
+# -- the token gate: reading the operator's token file --
 def read_token(root: Path) -> str:
     """The operator's token, one line; "" only when the file is absent or blank (no token).
 
@@ -301,6 +315,7 @@ def _token_or_exit(root: Path) -> str:
         )
 
 
+# -- the two data routes' work: the /sorted listing and the /thumb image --
 def sorted_document(
     paths: Paths,
     settings: Settings,
@@ -310,6 +325,7 @@ def sorted_document(
 ) -> dict:
     """The scan() model as JSON-ready dicts; paths relative to sorted/ so nothing about the
     machine's layout leaves it beyond what the dashboard itself shows."""
+    # eff = the settings for this one request: the caller's date bounds and category override the defaults
     eff = settings
     if date_from is not None or date_to is not None:
         eff = replace(
@@ -320,6 +336,7 @@ def sorted_document(
     if category is not None:
         eff = replace(eff, enabled_categories=[category])
     model = scan(paths, eff)
+    # turn each scanned Entry into a plain dict, with the path relative to sorted/
     categories = {}
     for name, entries in model.items():
         categories[name] = [
@@ -344,6 +361,7 @@ def sorted_document(
 def thumbnail(paths: Paths, rel: str, px: int) -> tuple[bytes | None, int, str]:
     """(jpeg bytes, 200, "") for a photo under sorted/photos; else (None, code, reason).
     Resolved paths must stay under sorted/photos -- a traversal is a 400, not a read."""
+    # path checks first: refuse absolute paths and ".." before touching the disk
     if not rel or rel.startswith(("/", "\\")) or ".." in Path(rel).parts:
         return None, 400, "path must be relative to sorted/ and inside it"
     target = (paths.sorted / rel).resolve()
@@ -353,6 +371,7 @@ def thumbnail(paths: Paths, rel: str, px: int) -> tuple[bytes | None, int, str]:
     if not target.is_file():
         return None, 404, "no such photo"
     px = max(32, min(THUMB_PX_MAX, px))
+    # first choice: GdkPixbuf (what the dashboard itself uses); any failure falls through to Pillow
     try:  # the ThinkPad's own way (the dashboard already uses GdkPixbuf)
         import gi
 
@@ -367,6 +386,7 @@ def thumbnail(paths: Paths, rel: str, px: int) -> tuple[bytes | None, int, str]:
         sys.stderr.write(
             f"thumb: GdkPixbuf path unavailable ({e.__class__.__name__}); trying Pillow\n"
         )
+    # second choice: Pillow; no library at all is an honest 501, an unreadable image a 415
     try:
         from PIL import Image
 
@@ -381,8 +401,12 @@ def thumbnail(paths: Paths, rel: str, px: int) -> tuple[bytes | None, int, str]:
         return None, 415, f"not an image this library can read: {e.__class__.__name__}"
 
 
+# -- the server's shared state and the request handler --
 class _State:
+    """What the handler needs: paths, settings, the token, the --no-token choice and the Host pin names."""
+
     def __init__(self, root: Path, settings: Settings, *, no_token=False, token=None, names=None):
+        """Store the state; reads <root>/serve.token (via read_token) when `token` is not given."""
         self.paths = Paths.from_root(root)
         self.settings = settings
         self.token = read_token(root) if token is None else token
@@ -393,8 +417,16 @@ class _State:
 
 
 def _handler(state: _State):
+    """Return a request-handler class bound to `state`; the class applies the peer, Funnel and request
+    locks, then the token gate and the routes. No I/O until the class is used by a server."""
+
     class Handler(BaseHTTPRequestHandler):
+        """One HTTP connection: GET only (other methods get the stdlib's 501)."""
+
+        # -- the locks, in the order a connection meets them --
         def handle(self) -> None:
+            """Serve one connection, but first refuse a peer that is not loopback or tailnet with a
+            bare 403 (writes to the socket; counts the refusal on stderr)."""
             # The peer lock: a connection from anywhere but loopback or the tailnet gets a bare 403
             # and is closed before any request line is read, for every method (HEAD/OPTIONS/PUT and
             # malformed lines included). A TRIPWIRE only: behind `tailscale serve` every peer is
@@ -416,6 +448,8 @@ def _handler(state: _State):
             super().handle()
 
         def parse_request(self) -> bool:
+            """Parse the request line and headers, then apply the Funnel lock and the request locks.
+            Returns True to go on to a do_* method; False after the refusal has been written."""
             # The Funnel lock. `tailscale funnel` puts a port on the PUBLIC internet, and behind
             # `tailscale serve` a public caller reaches this socket from 127.0.0.1 exactly as a
             # tailnet caller does, so the peer lock above cannot tell the two apart. Tailscale's
@@ -490,7 +524,9 @@ def _handler(state: _State):
                 self._send(403, {"error": UNPROVEN_ERROR, "reason": UNPROVEN_REASON})
             return proven
 
+        # -- writing answers --
         def _head(self, code: int, ctype: str, length: int) -> None:
+            """Write the status line and the standard headers (type, length, nosniff, no-framing)."""
             self.send_response(code)
             self.send_header("Content-Type", ctype)
             self.send_header("Content-Length", str(length))
@@ -499,15 +535,20 @@ def _handler(state: _State):
             self.end_headers()
 
         def _send(self, code: int, doc: dict) -> None:
+            """Answer with `doc` as UTF-8 JSON and status `code`."""
             body = json.dumps(doc, ensure_ascii=False).encode("utf-8")
             self._head(code, "application/json; charset=utf-8", len(body))
             self.wfile.write(body)
 
         def _send_bytes(self, code: int, data: bytes, ctype: str) -> None:
+            """Answer with raw `data` of content type `ctype` and status `code`."""
             self._head(code, ctype, len(data))
             self.wfile.write(data)
 
+        # -- the token gate and the routes --
         def _admitted(self) -> bool:
+            """The token gate. True when the request may go on: --no-token with no token file, or an
+            X-FP-Token header equal to the token. Otherwise sends a 503 or 403 and returns False."""
             token = getattr(state, "token", "") or ""
             if not token:
                 # Fail closed: with no token only the operator's explicit --no-token admits (the
@@ -528,6 +569,8 @@ def _handler(state: _State):
             return False
 
         def do_GET(self) -> None:
+            """Route a GET: /health (open), then the token gate and proof of origin, then /sorted or
+            /thumb; anything else is a 404. Query errors are 400s. Reads the sorted/ tree only."""
             url = urlparse(self.path)
             params = {k: v[0] for k, v in parse_qs(url.query).items()}
             if url.path == "/health":
@@ -543,6 +586,7 @@ def _handler(state: _State):
                     self._send(400, {"error": f"category must be one of {ALL_CATEGORIES}"})
                     return
                 date_from, date_to = params.get("from"), params.get("to")
+                # from= and to= must each be empty or yyyy-mm
                 for label, value in (("from", date_from), ("to", date_to)):
                     if value is not None and value != "" and not _YEAR_MONTH_RE.match(value):
                         self._send(400, {"error": f"{label} must be yyyy-mm"})
@@ -565,12 +609,17 @@ def _handler(state: _State):
                 self._send(404, {"error": "unknown route"})
 
         def log_message(self, fmt, *args):  # one line per request on stderr, no client noise
+            """Write one access-log line (client address and the formatted message) to stderr."""
             sys.stderr.write(f"{self.address_string()} {fmt % args}\n")
 
     return Handler
 
 
+# -- startup --
 def main() -> None:
+    """Command-line entry: parse --root/--config/--port/--no-token, run the startup checks (bind, token
+    file, Host pin), then serve until Ctrl-C. Reads serve.token, dashboard.toml and the tailscale CLI;
+    exits with a message if the bind is wide or the token file is unreadable."""
     parser = argparse.ArgumentParser(description="File Portal sorted/ HTTP endpoint (loopback)")
     parser.add_argument(
         "--root", type=Path, default=DEFAULT_ROOT, help="file-portal root directory"
@@ -592,6 +641,7 @@ def main() -> None:
         sys.exit(f"refusing to start: BIND {BIND!r} is not a literal loopback or Tailscale address")
     token = _token_or_exit(args.root)
     names = tailnet_names()  # the Host pin: read ONCE, here, never at import or per request
+    # say on stderr which Host pin is in force (pinned names, or the loose fallback)
     if names:
         pin = f"Host pinned to loopback, localhost and {', '.join(sorted(names))}"
     else:
@@ -605,6 +655,7 @@ def main() -> None:
     port = args.port if args.port is not None else getattr(settings, "serve_port", DEFAULT_PORT)
     state = _State(args.root, settings, no_token=args.no_token, token=token, names=names or None)
     server = ThreadingHTTPServer((BIND, port), _handler(state))
+    # describe the gate in the startup line: token gated, identity only, or closed
     if state.token:
         gate = "token gated"
     elif args.no_token:

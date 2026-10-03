@@ -1,4 +1,10 @@
-"""fp_paths - the ONE resolver for pipeline filesystem roots (S108 Lane E, value-map bet 1).
+"""WHAT THIS FILE DOES: resolves the named pipeline folders (drop, done, failed, library ...) listed in roots.json
+into absolute paths, so no other module hard-codes a path. Entry points: root(name), pipeline_root(), known_roots();
+run as a script it performs the scratch-root selftest. It reads roots.json (beside this file) and the FP_PIPELINE
+environment variable; it writes nothing, except that the selftest sets FP_PIPELINE for its own process and imports
+the consumer modules (events, watch_and_convert, analyst, backend_parity, convert_and_ship).
+
+fp_paths - the ONE resolver for pipeline filesystem roots (S108 Lane E, value-map bet 1).
 
 Every path the desktop converter lane touches under the pipeline tree is named once in
 roots.json (beside this file) and resolved here. FP_PIPELINE relocates the whole tree -
@@ -28,11 +34,14 @@ import json
 import os
 from pathlib import Path
 
+# -- the registry file and its in-process cache --
 _REGISTRY_FILE = Path(__file__).with_name("roots.json")
 _registry: dict | None = None
 
 
+# -- resolver functions (the public contract) --
 def _load() -> dict:
+    """Read roots.json once and cache it in the module global; returns the parsed dict. Raises if missing or malformed."""
     global _registry
     if _registry is None:
         with open(_REGISTRY_FILE, encoding="utf-8") as f:
@@ -61,6 +70,7 @@ def root(name: str) -> Path:
 
 
 def known_roots() -> list[str]:
+    """Return every root name registered in roots.json, as a list of strings."""
     return list(_load()["roots"].keys())
 
 
@@ -85,6 +95,8 @@ _OWNED = {
 
 
 def _selftest() -> int:
+    """Run the scratch-root tripwire: point FP_PIPELINE at a temp dir, import each owned module, check every root and
+    constant resolves under it, then census the owned sources for the live-library literal. Prints; returns 0 or 1."""
     import importlib
     import re
     import tempfile
@@ -96,6 +108,7 @@ def _selftest() -> int:
         print(f"scratch root: {scratch}")
 
         def under(p: Path) -> bool:
+            """True when path p resolves to somewhere inside the scratch root."""
             return Path(p).resolve().is_relative_to(scratch)
 
         # 1. every registered root resolves under the scratch root
@@ -107,6 +120,7 @@ def _selftest() -> int:
               f"{'PASS' if not bad else 'FAIL'}")
 
         # 2. import each owned module; its resolver-fed constants sit under scratch
+        # (loop: one import per owned module; an import failure is counted and printed, not raised)
         for mod_name, attrs in _OWNED.items():
             try:
                 mod = importlib.import_module(mod_name)

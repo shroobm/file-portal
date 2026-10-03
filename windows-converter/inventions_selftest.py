@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""inventions_selftest.py — the tripwires for fidelity_audit.audit_inventions (S209 B35, report-only). Hermetic: witness pages
+"""WHAT THIS FILE DOES: a self-test script for fidelity_audit (audit_inventions, audit_numbers, leader_survival,
+audit_convert). Running it executes numbered cases at module level, prints one line per case and a final
+"N/N" line, and exits 0 if all pass, 1 otherwise. Some cases draw small fixture PDFs with pymupdf into temp
+folders; nothing else is read or written. Run by hand or by the session's test runs; nothing imports it.
+
+inventions_selftest.py — the tripwires for fidelity_audit.audit_inventions (S209 B35, report-only). Hermetic: witness pages
 as strings, blocks as dicts — no PDF, no pipeline. Each case violates the property its rule stands for: a clean page counts
 0 invented and 0 lost; a planted invented word is counted with its specimen and its page; the witness's word the blocks lack
 counts as lost, never as invented; a page with no blocks is not measured (pages_measured says so; the ratio's base is
@@ -12,6 +17,7 @@ word that is a line-end fragment Marker correctly rejoined with the next witness
 lost_total keeping its old meaning. S213 adds the tripwires for fidelity_audit.leader_survival, the second survival
 figure (the S212 sign sheet's item 4, report-only) — pure strings, plus one fixture PDF drawn here for the wiring through
 audit_convert. Prints `==== inventions selftest: N/N ====`, exit 0 green · 1 red."""
+# -- imports: stdlib, pymupdf (fitz) for fixture PDFs, and the module under test --
 import os
 import sys
 import tempfile
@@ -20,10 +26,16 @@ import fitz
 
 import fidelity_audit as fa
 
+# -- test harness: pass counter and the case() reporter --
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one test case: bump the counters and print ok/RED with the name (and detail if red).
+
+    Inputs: a case name, a truthy/falsy condition, optional detail shown only on failure.
+    Side effects: updates the globals ok and n and prints one line.
+    """
     global ok, n
     n += 1
     ok += 1 if cond else 0
@@ -31,11 +43,14 @@ def case(name, cond, detail=""):
 
 
 def block(page, text):
+    """Build a minimal Marker-style Text block dict for the given page index, wrapping text in <p>."""
     return {"page": page, "block_type": "Text", "html": "<p>%s</p>" % text}
 
 
 # the fixtures' pages are one sentence each — under the audit's PAGE_MIN_WORDS (15), the line survival draws for a near-blank
 # witness; cases 1–9 test the arithmetic, so the line is lowered to 1 for them and restored for case 10, which tests the line
+# -- cases 1-13: audit_inventions basics (clean page, invented words, unmeasured pages, entities, hyphens, equations,
+# repeats, ligatures) --
 _SAVED_MIN = fa.PAGE_MIN_WORDS
 fa.PAGE_MIN_WORDS = 1
 W1 = "The regulator can block only as much disturbance as it has variety to match."
@@ -64,6 +79,7 @@ case("the scan lane names its number disagreement, not invention", "disagreement
 r = fa.audit_inventions([W1, W2], [])
 case("no blocks → pages_measured 0 and invented_ratio None (not measured, never 0)", r["pages_measured"] == 0 and r["invented_ratio"] is None, r)
 # 7 · audit_convert without blocks leaves the key None (not measured), never a zero-shaped block
+# (inspect audit_convert's signature; any failure is reported as a red case)
 try:
     import inspect
     sig = inspect.signature(fa.audit_convert)
@@ -109,6 +125,7 @@ LIG = ("<p>The definition of a finite sequence with real coefficients follows fr
 r = fa.audit_inventions([WIT_LIG], [{"page": 0, "html": LIG}])
 case("ligature glyphs in the layer (ﬁ ﬃ ﬀ) against Marker's plain letters count 0 invented and 0 lost; the one real invention counts",
      r["invented_total"] == 1 and r["lost_total"] == 0 and r["worst"][0]["specimens"] == ["garble"], r)
+# -- cases 14-23: invention classes, audit_numbers (duplicated figures, missing rows, OCR flag) --
 # 14 · S209 E14 (B40 BUILT): every invented word falls in one of four classes — JOINED (two neighbouring layer words run
 # together), FRAGMENT (a piece of a lost word), DROPPED LETTER (one letter off a lost word — SYM-148), GARBLE (none of these)
 WIT_CL = ("The electronics and the credentials of the field engineers were checked against the register of the province "
@@ -187,6 +204,7 @@ case("_row_label: the words before the first figure, at most six; empty when the
 # Figure box, printed beside a table on the same y-bands): a missing figure whose OWN word sits inside a Figure/Picture
 # block's bbox is a chart's tick, moved out of `missing` into `missing_in_figures`. Fixture PDF drawn here (never read from
 # disk), same pattern as figure_text_selftest.py's page_with_chart — the geometry has to be real for a containment test.
+# (fixture: draw a PDF page with a boxed chart and one tick label, saved to a temp folder)
 _FIG_BOX = [72, 100, 400, 300]
 _numfig_dir = tempfile.mkdtemp(prefix="fp-numfig-")
 _numfig_doc = fitz.open()
@@ -215,6 +233,7 @@ case("audit_numbers: no Figure/Picture box in blocks reads missing_in_figures_to
 # missing): a figure inside a box on a band that OPENS WITH WORDS INSIDE THE SAME BOX is a labelled row (a mis-boxed table
 # or a chart's labelled bar) — it STAYS under missing and is counted apart as missing_in_figures_labelled. Fixture: the box
 # holds `Credit 2,491,090` on one band (labelled) and a bare `150,000` on another (a tick).
+# (fixture: a boxed region holding one labelled row and one bare tick on separate bands)
 _LAB_BOX = [72, 100, 400, 300]
 _lab_dir = tempfile.mkdtemp(prefix="fp-numfig-lab-")
 _lab_doc = fitz.open()
@@ -234,6 +253,7 @@ case("audit_numbers: inside one Figure box, the labelled row `Credit 2,491,090 5
      and r_lab["worst"][0]["missing_rows"][0] == {"row": "Credit", "figures": 3}, r_lab)
 # 26c · the p.41 shape, the case that must NOT change: the chart's tick shares its band with a table row label printed OUTSIDE
 # the box (the table beside the chart) — the label is not the chart's, so the tick stays a tick (missing_in_figures 1, labelled 0)
+# (fixture: a table row outside the chart box and a tick inside it, on the same band)
 _beside_dir = tempfile.mkdtemp(prefix="fp-numfig-beside-")
 _beside_doc = fitz.open()
 _beside_page = _beside_doc.new_page(width=612, height=792)
@@ -249,6 +269,7 @@ r_beside = fa.audit_numbers(_beside_raw, [{"page": 0, "block_type": "Figure", "b
 case("audit_numbers: a tick whose band carries the TABLE's row label outside the chart box stays a tick (missing_in_figures 1, "
      "labelled 0, missing_total 0) — the label must lie inside the box to count",
      r_beside["missing_total"] == 0 and r_beside["missing_in_figures_total"] == 1 and r_beside["missing_in_figures_labelled_total"] == 0, r_beside)
+# -- cases 27-33: hyphen-joined fragments, compound hyphens, inline tags, unit-glued figures --
 # 27 · S211 LANE B (Bill C-288: `circons` + `tance` where Marker correctly wrote `circonstance`) — a lost witness word that
 # is the LAST word on its raw line, with nothing (or a hyphen / soft hyphen) trailing it, and that joins with the very next
 # witness word into a word Marker's blocks DO carry, is not a real omission: lost_hyphen_joined names it, lost_total keeps
@@ -323,6 +344,7 @@ case("audit_numbers: `<i>VLSI 2023</i>,` reads extra 0 (the negative control rea
      and r_br["extra_total"] == 0 and r_br["missing_total"] == 0, (r_tag, r_sup, r_br))
 # 33 · S211 E3 (Waterloo's AFM scan, `1000nm`): the page word carries a unit glued to the figure; the missing token is the digits
 # alone — the key inside the word must reach the containment test, so the figure inside its own Figure box is a tick
+# (fixture: a boxed page holding the unit-glued word 1000nm)
 _unit_dir = tempfile.mkdtemp(prefix="fp-numfig-unit-")
 _unit_doc = fitz.open()
 _unit_page = _unit_doc.new_page(width=612, height=792)
@@ -335,6 +357,7 @@ case("audit_numbers: a unit-glued figure (`1000nm`) inside its Figure box reads 
      "control: the verbatim-word key never matched — missing 1)",
      r_unit["missing_total"] == 0 and r_unit["missing_in_figures_total"] == 1, r_unit)
 
+# -- cases 34-44: citation lists, blank-layer floor, running-head furniture --
 # 34 · S211 E6 (SYM-177, McGill's photonic-computing thesis p.104 `[101,102]` and p.109 `[71,107-109]`): a reference list
 # writes its numbers exactly as a grouped thousand does, and Marker renders the citation correctly — so the comma-joined run
 # is in the layer and not in the blocks, and the measure read a lost figure. 14 of the shelf's 1,716 missing figures were this.
@@ -392,6 +415,7 @@ case("audit_numbers (negative control): the duplicated-figure page of case 16 re
 # head reads `PRL 95, 025701 (2005)` across four PageHeader blocks that all ship EMPTY html): Marker BOXES the furniture and
 # empties it on purpose (all 18,724 such blocks on the shelf), so the head's figures are in the layer and not in the blocks,
 # and were booked as lost. A missing token whose own word box sits inside a PageHeader/PageFooter box is furniture.
+# (fixture: a page with a figure in the running-head box and another in the body)
 _HEAD_BOX = [40.0, 10.0, 560.0, 40.0]
 _fur_dir = tempfile.mkdtemp(prefix="fp-numfur-")
 _fur_doc = fitz.open()
@@ -415,6 +439,7 @@ case("audit_numbers: with NO PageHeader/PageFooter block in the record, missing_
      "head's own figure stays counted — 025701 and 48,215 both missing, nothing silently exempted",
      r_nofur["missing_in_furniture"] is None and r_nofur["missing_total"] == 2, r_nofur)
 
+# -- cases 45-52: leader_survival (dot-leader contents pages), with fixture strings and a helper --
 # 45-51 · S213 (the S212 sign sheet's item 4, SYM-168): THE SECOND SURVIVAL FIGURE, report-only. A contents page's dot
 # leaders are layout Marker rightly drops (`Acknowledgements ........ ix` ships as `Acknowledgements ix`), so the witness's
 # windows over the dots are booked as lost words. leader_survival re-scores only the pages that carry a leader, with the dots
@@ -438,10 +463,16 @@ _PROSE_RAW = ("He paused... 12 of them had gone before him, and the rest would f
 
 
 def _leader_run(raw_pages, md, scores_override=None):
+    """Score witness pages against markdown output and run fa.leader_survival on them.
+
+    Inputs: raw witness page strings, the output markdown, optional planted (score, windows) list.
+    Returns (baseline survival or None, the leader_survival result dict). No files touched.
+    """
     pages = fa.prepare_witness(raw_pages)
     out = fa.prepare_output(md)
     idx, freq = fa._build_index(out)
-    scored = [fa._score_page(p, out, idx, freq, False, fuzzy=True) for p in pages]
+    # score every page the way the main loop does, then fold into a weighted baseline
+    scored =[fa._score_page(p, out, idx, freq, False, fuzzy=True) for p in pages]
     got = [(s, nw) for s, _r, nw in scored]
     wsum = sum(s * nw for s, nw in got if s is not None)
     wn = sum(nw for s, nw in got if s is not None)
@@ -493,6 +524,7 @@ case("leader_survival: no scorable window anywhere reads None (UNREAD), not 1.0"
      lead51["survival_without_leaders"] is None and lead51["windows_total"] == 0, lead51)
 # 52 · THE WIRING, through audit_convert on a drawn PDF: the block carries `leaders` beside doc_survival, and the verdict
 # cannot see it — the leader figure forced to 0.0 changes nothing compute_verdict returns.
+# (fixture: draw the contents lines onto a PDF page, then run audit_convert on it)
 _toc_dir = tempfile.mkdtemp(prefix="fp-leaders-")
 _toc_doc = fitz.open()
 _toc_page = _toc_doc.new_page(width=612, height=792)
@@ -586,5 +618,6 @@ case("F3: the footer's `2627` on a band that opens with `Report` reads missing_i
      r56["missing_total"] == 0 and r56["missing_in_furniture"] == 1, {k: r56[k] for k in ("missing_total", "missing_in_furniture", "missing_years")})
 fa.PAGE_MIN_WORDS = _saved_min_53
 
+# -- summary line and exit code (0 = all cases ok, 1 = any red) --
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

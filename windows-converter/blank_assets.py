@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""blank_assets.py — SYM-053's tripwire, REPORT-ONLY (S188 E7): a bundle's image assets read for BLANK crops.
+"""WHAT THIS FILE DOES: scans the images in a converted bundle's assets/ folder and reports which are blank (flat
+paper) or near-blank, and whether the bundle's markdown body references them. Entry points: scan(assets_dir, body)
+returns a record dict; main(argv) is the command line. It reads image files (with PIL) and the bundle's .md files; it
+writes nothing and changes nothing. Callers: convert_and_ship.py and blank_assets_selftest.py.
+
+blank_assets.py — SYM-053's tripwire, REPORT-ONLY (S188 E7): a bundle's image assets read for BLANK crops.
 
 The defect (S108, Codex's visual pass; Beer p129): Marker selects a blank sub-region of a scan page and omits the hand-drawn
 callouts beside it; the body then carries an image reference for that page, so the page LOOKS covered while the diagram's
@@ -22,6 +27,7 @@ from __future__ import annotations
 import os
 import sys
 
+# -- thresholds and display caps (report-only levers) --
 # The lever: a crop whose grayscale standard deviation is under this is paper (or one flat tone). The S108 specimen reads
 # 0.00; Equity Research's blank first page 0.00; a real crop reads tens. Kept low on purpose — a faint scan with a real
 # drawing reads well above 1.0 — and named so the census (lever_census) and a reader can see it is a threshold.
@@ -36,6 +42,7 @@ BLANK_SHOWN_CAP = 25  # lever-waiver: a display cap, NUM-3's shape — the TRUE 
 IMAGE_EXT = (".jpeg", ".jpg", ".png", ".webp", ".gif", ".bmp", ".tif", ".tiff")
 
 
+# -- reading one image, scanning a folder, command line --
 def _measure(path: str) -> dict:
     """One image's grayscale statistics, or an UNREAD record naming why."""
     try:
@@ -58,11 +65,13 @@ def scan(assets_dir: str, body: str, blank_sd: float = BLANK_SD, near_blank_sd: 
     literals, not subscripts). `body` is the markdown the assets are referenced from (the pre-analyst body).
     Two bands: blank (sd < blank_sd — flat paper) and near_blank (blank_sd <= sd < near_blank_sd — a scanned blank page,
     or a page whose only content is a few words); an image is in at most one."""
+    # list the image files by extension (empty when the folder is absent)
     names = []
     if assets_dir and os.path.isdir(assets_dir):
         names = sorted(f for f in os.listdir(assets_dir) if f.lower().endswith(IMAGE_EXT))
     blank, near, unread = [], [], []
     read = 0
+    # measure each image and sort it into the unread / blank / near-blank list
     for f in names:
         m = _measure(os.path.join(assets_dir, f))
         if "unread" in m:
@@ -96,11 +105,14 @@ def scan(assets_dir: str, body: str, blank_sd: float = BLANK_SD, near_blank_sd: 
 
 
 def main(argv: list[str]) -> int:
+    """Command line: for each bundle dir in argv[1:], join its .md bodies, scan its assets/ and print one summary line.
+    Returns 0 (no referenced blank), 1 (some bundle has one or is unreadable), 2 (usage)."""
     if len(argv) < 2:
         print("usage: blank_assets.py <bundle_dir> ...")
         return 2
     red = 0
     for bundle in argv[1:]:
+        # gather the bundle's markdown (not the .marker.md copy) into one body string
         body = ""
         try:
             for f in os.listdir(bundle):

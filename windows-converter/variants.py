@@ -1,4 +1,10 @@
-"""LANE A — THE VARIANT REGISTRY AND THE WHITELIST (S211).
+"""WHAT THIS FILE DOES: keeps a registry (one JSON file) of every converted variant of each source PDF, keyed by
+the PDF's sha256, and picks which variant is "selected" by comparing measured fidelity numbers. Entry points:
+register(bundle_dir) reads a bundle's manifest.json and stores a summary; select(sha) chooses the whitelisted
+variant; selected_dir(sha) returns its path; rename_entry() follows a renamed bundle; the CLI offers
+register / select / show / list. Reads bundle manifests, reads and writes the registry file only.
+
+LANE A — THE VARIANT REGISTRY AND THE WHITELIST (S211).
 
 Rab's word: every final converted bundle must remain in the system; a whitelist names which
 variant "pops up", by the verdicts and the lessening of errors, faithful and true — no text
@@ -26,6 +32,7 @@ import tempfile
 from datetime import datetime, timezone
 from pathlib import Path
 
+# -- registry file location and atomic load/save --
 # The registry lives apart from any one bundle — one file naming every variant of every sha256
 # ever converted. The integrator registers a root; this module never touches fp_paths.py.
 _DEFAULT_REGISTRY = "C:/Users/Bndit/ml/library/variants.json"
@@ -47,6 +54,7 @@ def _registry_path() -> Path:
 
 
 def _load_registry() -> dict:
+    """Read the registry JSON file; returns {} when it is absent or blank. No side effects."""
     path = _registry_path()
     if not path.is_file():
         return {}
@@ -75,6 +83,7 @@ def _write_registry_atomic(registry: dict) -> None:
         raise
 
 
+# -- reading a bundle's manifest into a flat summary --
 def _infer_root(bundle_path: Path) -> str:
     """"anchor" | "held" from the bundle's own path — the two roots convert_and_ship.py writes
     into (ANCHOR / HELD). A path with no "held" component is an anchor copy by construction."""
@@ -114,8 +123,10 @@ def summarize(bundle_dir) -> dict:
     agreement = witness_kind == "agreement"
 
     def _loss(v):
+        """Return v, or None (unread) when the witness kind is "agreement" (see the comment above)."""
         return None if agreement else v
 
+    # the flat summary: identity, verdict, then the measured counts (None = not measured)
     return {
         "dir": bp.name,
         "root": _infer_root(bp),
@@ -184,6 +195,7 @@ def _fixes_effective(fixes: list, stats) -> bool | None:
     return bool(stats.get("chars_seen"))
 
 
+# -- registering a bundle into the registry --
 def register(bundle_dir) -> dict:
     """summarize(bundle_dir) and store it under registry[sha]["variants"][dir] (idempotent — the
     same bundle registered twice yields the same stored entry). Tracks registry[sha]["original"]
@@ -213,6 +225,8 @@ def register(bundle_dir) -> dict:
     return entry
 
 
+# -- ranking and comparing variants --
+# the summary fields whose counts are summed as "errors" when ranking
 _ERROR_FIELDS = ("words_lost", "inventions_total", "rows_lost", "columns_lost",
                   "numbers_missing", "numbers_extra")
 
@@ -241,6 +255,7 @@ _EXCL_PREFERRED = {"words_lost": "words_lost_excl_joined", "inventions_total": "
 
 
 def _verdict_rank(verdict) -> int:
+    """Map a verdict string to an int: pass 3, flag 2, anything else 1. Pure."""
     if verdict == "pass":
         return 3
     if verdict == "flag":
@@ -273,6 +288,7 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
     unread: list[str] = []
 
     def not_more(name: str) -> None:
+        """Check candidate[name] <= baseline[name]; None on a side goes to `unread`, a rise to `violations`."""
         c, b = candidate.get(name), baseline.get(name)
         if c is None or b is None:
             unread.append(name + " unread")
@@ -280,6 +296,7 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
             violations.append("%s increased: %s > %s" % (name, c, b))
 
     def not_less(name: str) -> None:
+        """Check candidate[name] >= baseline[name]; None on a side goes to `unread`, a fall to `violations`."""
         c, b = candidate.get(name), baseline.get(name)
         if c is None or b is None:
             unread.append(name + " unread")
@@ -347,6 +364,7 @@ def faithful(candidate: dict, baseline: dict) -> tuple[bool, list[str], list[str
     return (len(violations) == 0, violations, unread)
 
 
+# -- selection: notes, run fingerprints, pairwise comparison and the select() driver --
 _SAME_CONVERSION_NOTE = ("the SAME conversion as the bundle it is folded into (converted_at %s and every measured "
                          "number equal): one run parked in two places, not a second reading — folded before the "
                          "ranking so it is never weighed against itself, kept here and never deleted")
@@ -503,6 +521,7 @@ def select(sha: str, reset: bool = False) -> dict:
     if baseline is None:
         raise ValueError("could not determine a baseline for sha %r" % (sha,))
 
+    # variants in dir-name order; copies of one conversion are folded out below
     ordered = sorted(variants.values(), key=lambda v: v.get("dir") or "")
     # S211 E6: ONE conversion can stand in two places — the shipped copy under anchor/ and S209's park under
     # held/<sha16> — and the registry, which enumerates directories, then weighs it against itself and lists the
@@ -526,6 +545,7 @@ def select(sha: str, reset: bool = False) -> dict:
             same_conversion.append(_same_conversion(loser, winner))
     folded_dirs = {e["dir"] for e in same_conversion}
     ordered = [v for v in ordered if v.get("dir") not in folded_dirs]
+    # split the remaining variants into candidates (faithful to the baseline) and refused ones
     candidates: list[dict] = []
     refused: list[dict] = []
     for v in ordered:
@@ -549,6 +569,7 @@ def select(sha: str, reset: bool = False) -> dict:
     excluded_fields: dict = {}
     analyst_confounded: list[dict] = []
     analyst_decided: list[dict] = []
+    # sort each candidate against the baseline into better / tied / (named-worse) buckets
     for c in candidates:
         if c.get("dir") == baseline.get("dir"):
             continue
@@ -585,6 +606,7 @@ def select(sha: str, reset: bool = False) -> dict:
     selected = max(better, key=lambda c: (rank(c), 1 if c.get("root") == "anchor" else 0)) if better else baseline
     tied_entries = [{"dir": c.get("dir"), "note": _TIE_NOTE} for c in tied]
 
+    # build the human-readable reason sentence stored with the selection
     errors, none_fields = _error_sum(selected)
     none_note = " [None treated as 0: %s]" % ", ".join(none_fields) if none_fields else ""
     tie_note = ""
@@ -613,6 +635,7 @@ def select(sha: str, reset: bool = False) -> dict:
            baseline.get("dir"), len(refused), len(variants), tie_note, excl_note) + decided_note
     )
 
+    # record the outcome in the sha's bucket and save the registry (variants/original untouched)
     bucket["selected"] = selected.get("dir")
     bucket["reason"] = reason
     bucket["refused"] = refused
@@ -627,6 +650,7 @@ def select(sha: str, reset: bool = False) -> dict:
     return bucket
 
 
+# -- registry maintenance and lookup --
 def rename_entry(sha: str, old_dir: str, new_path) -> dict | None:
     """S211 (the held park supersedes by RENAME, never by deletion): the entry stored under old_dir
     moves to the renamed bundle's basename with its path updated; if it was the selected one, the
@@ -665,6 +689,7 @@ def selected_dir(sha: str) -> str | None:
     return entry.get("path")
 
 
+# -- command line --
 def _print_show(bucket: dict) -> None:
     """S211 Lane C: the CLI's `show` no longer dumps the raw per-sha JSON blob (still available
     via `list`, or by reading the registry file directly) -- it prints selected / tied / refused
@@ -691,6 +716,8 @@ def _print_show(bucket: dict) -> None:
 
 
 def _cli(argv=None) -> int:
+    """Parse argv (register / select / show / list), run the command, print its result; returns the exit code.
+    register and select write the registry file."""
     parser = argparse.ArgumentParser(prog="variants.py", description="the variant registry and whitelist (Lane A, S211)")
     sub = parser.add_subparsers(dest="command", required=True)
 
@@ -709,6 +736,7 @@ def _cli(argv=None) -> int:
 
     args = parser.parse_args(argv)
 
+    # dispatch on the sub-command
     if args.command == "register":
         print(json.dumps(register(args.bundle_dir), indent=2))
         return 0

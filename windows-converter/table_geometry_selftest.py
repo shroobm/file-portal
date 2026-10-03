@@ -1,4 +1,11 @@
-"""table_geometry_selftest — the reading half's tripwires (S150). Every rule with a case and a negative control.
+"""WHAT THIS FILE DOES
+    Self-test script for the `table_geometry` module (the layer that reads and repairs markdown tables in a
+    converted book). Entry point: `main()`, run as `python table_geometry_selftest.py` (with the real
+    interpreter). It builds small markdown fixtures in memory, calls `table_geometry` functions on them, and
+    prints one ok/FAIL line per case; exit status 0 when every case passes, 1 otherwise. It reads and writes
+    no files and uses no network.
+
+table_geometry_selftest — the reading half's tripwires (S150). Every rule with a case and a negative control.
     python table_geometry_selftest.py
 """
 from __future__ import annotations
@@ -7,11 +14,13 @@ import sys
 
 import table_geometry as tg
 
+# -- run counters and the check() helper --
 FAILS = 0
 N = 0
 
 
 def check(name, cond, detail=""):
+    """Record one test case: count it, print "ok" or "FAIL" with the optional `detail`. Mutates FAILS and N."""
     global FAILS, N
     N += 1
     if cond:
@@ -21,6 +30,7 @@ def check(name, cond, detail=""):
         print("  FAIL " + name + (" — " + detail if detail else ""))
 
 
+# -- fixtures: markdown tables as the OCR/converter produced them (the text below is test DATA) --
 VALENTINE = """Exhibit 8.2 Best Practice (Knowledge): Questions to Investigate before or during Interviews with Management (continued)
 
 |                  | Start with this source to investigate before meeting management |    |    |    |    |    |    |    |    | ment |    |    |
@@ -65,8 +75,14 @@ REGRESS = ("|  |  | Standard | 1 | P- | Lower | Upper | Lower | Upper |\n|---|--
            "| Intercept | 0.74 | 0.12 | 6.1 | 0.00 | 0.50 | 0.98 | 0.50 | 0.98 |\n| X Variable | 1.00 | 0.21 | 4.8 | 0.00 | 0.58 | 1.42 | 0.58 | 1.42 |\n\ntail")
 
 
+# -- the test run: numbered groups [1]..[16] plus the stub, SYM-134, SYM-144 and SYM-152 cases --
 def main():
+    """Run every case against `table_geometry` (imported as tg), print the results and a total line.
+
+    Returns 0 when all cases pass, 1 when any failed. No files, processes or network.
+    """
     print("[1] the reading: blocks, cells, fences")
+    # fixture lines for the group-1 reading cases (a clean 3-column table)
     L = HEALTHY.split("\n")
     check("a clean table is one block (0,1,3)", tg.table_blocks(L) == [(0, 1, 3)])
     check("cells: edges dropped, escaped and code-span pipes kept", tg.cells("| a\\|b | `x|y` | c |") == ["a|b", "`x|y`", "c"])
@@ -120,6 +136,7 @@ def main():
           all(tg.letters_fit(a, b)[0] for a, b in (("HGH", "HIGH"), ("LLO", "LOW"), ("6OSTs", "COSTS"), ("VAĀON", "VALUATION"), ("FNANČĹ", "FINANCIAL"), ("MGMT", "MGMT"))))
     check("letters_fit NEGATIVE: ABCD does not fit GRADE; one letter fits nothing; a non-word is refused",
           not tg.letters_fit("ABCD", "GRADE")[0] and not tg.letters_fit("A", "AND")[0] and not tg.letters_fit("HGH", "H1GH")[0])
+    # group-4 cases below: propose repairs with a stand-in resolver, apply them, then try planted bad edits
     WORDS = {"RlvĖNUE": "REVENUE", "6OSTMGMT": "COSTS MGMT"}   # two rails the OCR ran together: the resolver answers a phrase
     resolver = lambda letters, ctx: WORDS.get(letters)  # noqa: E731
     props = tg.propose(V, resolver)
@@ -159,6 +176,7 @@ def main():
           tg.propose(HEALTHY.split("\n"), resolver) == [] and tg.propose(RATING.split("\n"), lambda s, c: "ABCD") == [])
 
     def mutate(rows, idx, fn):
+        """Return a copy of `rows` with row `idx` replaced by fn(row); the input list is untouched."""
         rows = list(rows)
         rows[idx] = fn(rows[idx])
         return rows
@@ -398,6 +416,7 @@ def main():
     check("the invariant names the lift: REVENUE at row 2 of the table, lifted 1 row onto its run", facts["labels"][0]["word"] == "REVENUE" and facts["labels"][0]["row"] == 2 and facts["labels"][0]["lifted"] == 1, str(facts["labels"]))
     # the negatives, each a shape the first cut produced or could: onto the header row; onto a blank row with no run beneath; over another run's letters; over a filled cell
     def put(row, word):   # the row with its first cell set to word
+        """Return markdown table `row` with its first cell replaced by `word`. Pure string work."""
         return "| " + word + " |" + row.split("|", 2)[2]
     hdr = list(A)
     hdr[2] = put(hdr[2], "REVENUE")
@@ -669,6 +688,7 @@ def main():
     check("invariant NEGATIVE: a kept cell changed is refused", not okl and any("not the before table cut" in w for w in whyl), str(whyl))
     check("no leak on the healthy fixtures or p.175's split shape", tg.propose_leaks(HEALTHY.split(chr(10))) == [] and tg.propose_leaks(P175.split(chr(10))) == [], "")
 
+    # stub fixtures and checks: tiny header-only tables, the "trace" and "frame" classes, and the UNFRAME_STUBS lever
     # ---- S160 E6: the STUBS — a header with no filled body cell, unframed to the prose it is; the lever OFF by default ----
     STUBS = "\n".join([
         "Some prose above.",
@@ -764,6 +784,7 @@ def main():
           str((t_off == STUBS, r_rec["stubs"], len(r_rec["unframes_proposed"]))))
     check("geometry_pass: the proposed record carries the line each stub would become",
           [x["text"] for x in r_rec["unframes_proposed"]] == ["Figure 7.5 Default Spreads and Ratings", "Phi loson hv", "Announce ment Date"], str(r_rec["unframes_proposed"]))
+    # turn the module lever ON for one run, and always put the saved value back afterwards
     saved = tg.UNFRAME_STUBS
     try:
         tg.UNFRAME_STUBS = True

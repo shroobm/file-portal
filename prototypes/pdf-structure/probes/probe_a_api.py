@@ -1,5 +1,11 @@
+"""WHAT THIS FILE DOES: a one-off API inventory (run directly, no arguments). It prints the installed
+pymupdf version and every module-level, Document, Page, TextPage, Story and Xml name that matches
+struct / tag / mark / mcid / logic / role, then whether six xref methods exist on Document. No files
+are read or written; stdout only; no callers.
+"""
 import pymupdf, re
 print("pymupdf", pymupdf.__version__)
+# names in the pymupdf module that mention structure-related words
 names = dir(pymupdf)
 pat = re.compile(r'struct|tag|mark|mcid|logic|role', re.I)
 print("MODULE-LEVEL matches:", sorted(n for n in names if pat.search(n)))

@@ -1,4 +1,9 @@
-"""Shared loaders for the edit-whitelist prototype (quarantined: prototypes/README.md).
+"""WHAT THIS FILE DOES: shared helpers for the sibling edit-whitelist scripts (acceptor, align, classify, promotion_*).
+Entry points: load_bundle() reads the held DDIA bundle (manifest, sidecar, shipped markdown) and rebuilds the analyst's
+chunks; ladder() applies the shipped text-normalisation ladder. It writes nothing; importing it also puts
+windows-converter on sys.path and sets FP_PIPELINE to a temp folder. Callers: the other scripts in this folder.
+
+Shared loaders for the edit-whitelist prototype (quarantined: prototypes/README.md).
 
 Reads the held DDIA bundle READ-ONLY and rebuilds the analyst's 492 chunks exactly as
 analyst.process does (fence -> _chunks). Nothing here is imported by the pipeline.
@@ -8,6 +13,7 @@ import os
 import pathlib
 import sys
 
+# -- paths and environment: repo root, converter modules on sys.path, quarantine pipeline folder --
 REPO = pathlib.Path(__file__).resolve().parents[3]
 WC = REPO / "windows-converter"
 sys.path.insert(0, str(WC))
@@ -17,6 +23,7 @@ import analyst  # noqa: E402
 import fidelity_audit as fa  # noqa: E402
 import text_norm as tn  # noqa: E402
 
+# -- fixed locations of the held DDIA bundle and its source PDF (absolute machine paths) --
 LIB = pathlib.Path(r"C:\Users\Bndit\ml\library")
 HELD = LIB / "held" / "fc1f068c3a8eeb63"
 PDF = (LIB / "drop" / "done" /
@@ -24,12 +31,16 @@ PDF = (LIB / "drop" / "done" /
        "Chris Riccomini -- 2, 2026 -- O'Reilly Media, Incorporated -- isbn13 9781098119065 --.pdf")
 
 
+# -- loaders --
 def load_bundle(held: pathlib.Path = HELD) -> dict:
+    """Read the held bundle folder (read-only) and return a dict: manifest, sidecar text/path, shipped markdown, its
+    frontmatter and body, the fenced input, embeds, the analyst's chunks and per-chunk scores. No side effects."""
     manifest = json.loads((held / "manifest.json").read_text(encoding="utf-8"))
     sidecar_path = held / manifest["marker_body"]["file"]
     sidecar_text = sidecar_path.read_text(encoding="utf-8")
     md_path = next(p for p in held.glob("*.md"))
     shipped_md = md_path.read_text(encoding="utf-8")
+    # shipped markdown is "---\nfrontmatter---\nbody"; split once into the three parts
     parts = shipped_md.split("---\n", 2)
     shipped_body = parts[2] if len(parts) == 3 else shipped_md
     fenced_in, embeds = analyst.fence(sidecar_text)
@@ -49,6 +60,7 @@ def load_bundle(held: pathlib.Path = HELD) -> dict:
     }
 
 
+# -- text normalisation --
 def ladder(text: str) -> str:
     """The shipped j32a-v2 ladder, exactly as audit_analyst applies it."""
     return tn.punct_free(tn.unescape(tn.prepare_output(text)))

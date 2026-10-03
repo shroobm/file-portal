@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""latex_structure_selftest.py — the tripwires of latex_structure.py (SYM-056, S168 E3): a balanced document is valid (the
+"""WHAT THIS FILE DOES: selftest for latex_structure.py. It calls ls.check() on small LaTeX-bearing strings (balanced,
+unterminated, crossed, runaway column spec), temporarily changes ls.MAX_SPEC_COLS for the negative control, and runs
+latex_structure.py as a child process on two temp .md files to check exit codes (0, 1, 2). Prints one ok/BAD line per
+case and a GREEN or FAILED tally; exit 0 when all fired, else 1. Writes only to a temp folder it does not delete.
+
+latex_structure_selftest.py — the tripwires of latex_structure.py (SYM-056, S168 E3): a balanced document is valid (the
 positive control); the S109 specimen (`\\begin{array}{c*36}` with no close) reads unterminated 1 + runaway 1 and INVALID; a
 strict-literal delta counts per environment (the MSG-CDX-0014 reading); an `\\end` that closes nothing is unopened; crossed
 nesting is misordered though the counts balance (the counter alone would pass it — the walk catches it); a 36-`c` spec is
@@ -14,10 +19,12 @@ import tempfile
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import latex_structure as ls  # noqa: E402
 
+# -- test harness: counters and the check() recorder --
 N = FAILS = 0
 
 
 def check(name, cond, detail=""):
+    """Record one case: count it, print an ok/BAD line for name (detail shown on failure), count failures."""
     global N, FAILS
     N += 1
     if cond:
@@ -27,6 +34,7 @@ def check(name, cond, detail=""):
         print("  BAD  " + name + (" — " + detail if detail else ""))
 
 
+# -- sample documents, then the cases (run at import time, in order) --
 GOOD = "Text.\n\n$$\\begin{array}{cc} a & b \\\\ c & d \\end{array}$$\n\n\\begin{equation} x \\end{equation}\n\nMore.\n"
 SPECIMEN = "para\n\n$$\\begin{array}{cccccccccccccccccccccccccccccccccccc} 1 & 2 \\\\ 3 & 4$$\n\nnext para\n"
 r = ls.check(GOOD)
@@ -51,7 +59,7 @@ ls.MAX_SPEC_COLS = 40
 r = ls.check(SPECIMEN)
 ls.MAX_SPEC_COLS = keep
 check("NEGATIVE CONTROL: with MAX_SPEC_COLS raised to 40 the 36-c spec is NOT flagged (the flag is the lever's) — and the array is still unterminated", not r["runaway"] and r["unterminated"] == 1 and not r["valid"], str(r))
-# the CLI
+# the CLI: write a valid and an invalid .md to a temp folder and run the script on them as a child process
 d = tempfile.mkdtemp(prefix="ls-")
 good_p, bad_p = os.path.join(d, "good.md"), os.path.join(d, "bad.md")
 open(good_p, "w", encoding="utf-8").write(GOOD)

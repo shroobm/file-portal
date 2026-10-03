@@ -1,4 +1,9 @@
-"""S149 — the insertion rule, the un-split and the three refuters' cases, exercised on temp bundles through the bench's
+"""WHAT THIS FILE DOES: a unittest module for the bench's table-boundary behaviour. It builds throwaway bundle folders
+(book.md + manifest.json) in the temp directory and checks, through bench.Bench, that a repair pasted at a table is
+placed after the table, that unsplit_tables() moves trapped repair blocks out of tables (and is idempotent), and that
+fences, header-less tables and duplicate asset names are handled. Writes only to temp folders it removes again.
+
+S149 — the insertion rule, the un-split and the three refuters' cases, exercised on temp bundles through the bench's
 own class (no server). Run from prototypes/repair-bench with the marker-env interpreter (bench imports fitz):
     C:/Users/Bndit/ml/marker-env/Scripts/python.exe test_table_boundary.py
 The page-side twin is test_table_health.js (node)."""
@@ -16,6 +21,7 @@ from pathlib import Path
 
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
+# -- environment setup: a throwaway pipeline folder, then import the bench module under test --
 # setdefault evaluates its argument even when FP_PIPELINE is already set, so the throwaway is made either way - and is removed at exit either way
 _PIPE_TMP = tempfile.mkdtemp(prefix="fp-test-pipe-")
 atexit.register(shutil.rmtree, _PIPE_TMP, True)   # S215 round nine: it was never removed (one fp-test-pipe-* left per run)
@@ -23,8 +29,11 @@ os.environ.setdefault("FP_PIPELINE", _PIPE_TMP)
 import bench  # noqa: E402
 
 
+# -- fixtures: a tiny PNG builder and the sample table / book body used by the cases --
 def png1x1() -> str:
+    """Build a valid 1x1 white PNG in memory and return it base64-encoded (the pasted-image payload)."""
     def chunk(t, d):
+        """Return one PNG chunk: length, type, data, CRC."""
         return struct.pack(">I", len(d)) + t + d + struct.pack(">I", zlib.crc32(t + d) & 0xFFFFFFFF)
     raw = b"\x89PNG\r\n\x1a\n" + chunk(b"IHDR", struct.pack(">IIBBBBB", 1, 1, 8, 2, 0, 0, 0)) \
         + chunk(b"IDAT", zlib.compress(b"\x00\xff\xff\xff")) + chunk(b"IEND", b"")
@@ -35,27 +44,35 @@ TABLE = ["| a | b | c |", "|---|---|---|", "| 1 | 2 | 3 |", "| 4 | 5 | 6 |"]
 BODY = ["# T", "", "para one", "", *TABLE, "", "para two", "", "tail"]
 
 
+# -- cases on one shared bundle (book.md holds BODY, no repairs yet) --
 class S149TableBoundary(unittest.TestCase):
+    """The insertion rule and the un-split, exercised on a bundle built from BODY."""
+
     def setUp(self):
+        """Create a fresh temp bundle with BODY as book.md and an empty manifest, and open it as self.b."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-s149-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\n" + "\n".join(BODY), encoding="utf-8")
         (self.tmp / "manifest.json").write_text(json.dumps({"repairs": []}), encoding="utf-8")
         self.b = bench.Bench(self.tmp)
 
     def tearDown(self):
+        """Delete the temp bundle."""
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def body_lines(self):
+        """Return the current book.md body (front matter removed) as a list of lines."""
         fm, body = bench.split_frontmatter((self.tmp / "book.md").read_text(encoding="utf-8"))
         return body.split("\n")
 
     def test_table_span(self):
+        """_table_span returns the table's (start, end) for a line inside it, and None outside or out of range."""
         self.assertEqual(bench.Bench._table_span(BODY, 4), (4, 7))
         self.assertEqual(bench.Bench._table_span(BODY, 6), (4, 7))
         self.assertIsNone(bench.Bench._table_span(BODY, 2))
         self.assertIsNone(bench.Bench._table_span(BODY, 99))
 
     def test_a_paste_at_a_table_header_lands_after_the_table(self):
+        """A repair aimed at the table's header row is inserted after the whole table, and the record says so."""
         # the header row is body line 5 (1-based): the S149 split case
         r = self.b.repair(zone_line=5, page=1, image_b64=png1x1())
         lines = self.body_lines()
@@ -71,6 +88,7 @@ class S149TableBoundary(unittest.TestCase):
         self.assertEqual(rec["zone_line"], 5)
 
     def test_negative_control_a_paste_in_a_paragraph_lands_right_after_it(self):
+        """Control: a repair aimed at an ordinary paragraph is inserted right after that paragraph, no redirect."""
         r = self.b.repair(zone_line=3, page=1, image_b64=png1x1())   # "para one"
         lines = self.body_lines()
         self.assertIsNone(r["placed_after_table"])
@@ -81,12 +99,14 @@ class S149TableBoundary(unittest.TestCase):
         self.assertNotIn("placed_after_table", self.b.manifest["repairs"][-1])
 
     def test_a_paste_at_the_last_row_is_already_after_the_table(self):
+        """A repair aimed at the table's last row needs no redirect and leaves the table intact."""
         r = self.b.repair(zone_line=8, page=1, image_b64=png1x1())   # the last row
         self.assertIsNone(r["placed_after_table"])
         self.assertEqual(r["inserted_after_line"], 8)
         self.assertEqual(self.body_lines()[4:8], TABLE)
 
     def test_the_drift_ledger_uses_where_the_lines_went(self):
+        """_adjusted_line shifts a line number only when it lies below the inserted lines."""
         self.b.repair(zone_line=5, page=1, image_b64=png1x1())        # placed after line 8
         # a zone on the table's third row (line 7) sits ABOVE the inserted lines: no shift
         self.assertEqual(self.b._adjusted_line(7), 7)
@@ -94,6 +114,7 @@ class S149TableBoundary(unittest.TestCase):
         self.assertEqual(self.b._adjusted_line(10), 13)
 
     def test_unsplit_moves_a_pair_out_of_a_table_and_is_idempotent(self):
+        """unsplit_tables moves an image+comment pair trapped in a table to after it; a second run moves none."""
         split = ["# T", "", "| a | b | c |", "", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->",
                  "|---|---|---|", "| 1 | 2 | 3 |", "| 4 | 5 | 6 |", "", "tail"]
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\n" + "\n".join(split), encoding="utf-8")
@@ -117,6 +138,7 @@ class S149TableBoundary(unittest.TestCase):
         self.assertEqual(bench.Bench(self.tmp).unsplit_tables()["moved"], [])
 
     def test_unsplit_leaves_a_pair_outside_a_table_alone(self):
+        """Control: a pair that is not inside a table is not moved and the body is unchanged."""
         ok = ["# T", "", "para", "", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->", "", *TABLE]
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\n" + "\n".join(ok), encoding="utf-8")
         b = bench.Bench(self.tmp)
@@ -128,21 +150,26 @@ class S149Refuted(unittest.TestCase):
     """The three refuters' findings, each a tripwire now."""
 
     def setUp(self):
+        """Create an empty temp folder; each case writes its own bundle into it through bundle()."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-s149r-"))
 
     def tearDown(self):
+        """Delete the temp folder."""
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def bundle(self, body_lines, repairs=None):
+        """Write book.md from body_lines and a manifest holding repairs, and return the opened bench.Bench."""
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\n" + "\n".join(body_lines), encoding="utf-8")
         (self.tmp / "manifest.json").write_text(json.dumps({"repairs": repairs or []}), encoding="utf-8")
         return bench.Bench(self.tmp)
 
     def body(self):
+        """Return the current book.md body (front matter removed) as a list of lines."""
         fm, body = bench.split_frontmatter((self.tmp / "book.md").read_text(encoding="utf-8"))
         return body.split("\n")
 
     def test_two_blocks_trapped_in_one_table_both_leave_in_one_pass(self):
+        """Two repair blocks inside one table both move out in a single unsplit_tables() pass."""
         split = ["# T", "", "| a | b |", "|---|---|", "| 1 | 2 |", "", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->",
                  "| 3 | 4 |", "", "![[assets/_repair_p1_2.png]]", "<!-- repair p1 · repair-bench -->", "| 5 | 6 |", "| 7 | 8 |", "", "tail"]
         b = self.bundle(split, [{"id": "fpr-1", "zone_line": 3, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop"},
@@ -158,6 +185,7 @@ class S149Refuted(unittest.TestCase):
         self.assertEqual(bench.Bench._table_blocks(self.body()), [(2, 3, 7)])
 
     def test_pipes_inside_a_code_fence_are_not_a_table(self):
+        """Pipes inside a code fence are not a table: no redirect on repair, and unsplit leaves them alone."""
         body = ["# T", "", "```", "| not | a | table |", "| still | code |", "```", "", "para", "", "| a | b |", "|---|---|", "| 1 | 2 |"]
         b = self.bundle(body)
         self.assertIsNone(bench.Bench._table_span(body, 3))
@@ -172,6 +200,7 @@ class S149Refuted(unittest.TestCase):
         self.assertEqual(self.body(), split)
 
     def test_a_table_without_leading_pipes_is_a_table(self):
+        """A table written without leading pipes is still detected, and a repair at its header lands after it."""
         body = ["a | b", "--- | ---", "1 | 2", "3 | 4", "", "tail"]
         b = self.bundle(body)
         self.assertEqual(bench.Bench._table_blocks(body), [(0, 1, 3)])
@@ -180,6 +209,7 @@ class S149Refuted(unittest.TestCase):
         self.assertEqual(self.body()[0:4], body[0:4])
 
     def test_a_transcription_record_carries_its_anchor(self):
+        """transcribe_apply at a table row records at_line_orig and placed_after_table; the drift ledger follows."""
         body = ["# T", "", "para", "", "| a | b |", "|---|---|", "| 1 | 2 |", "| 3 | 4 |", "", "tail"]
         b = self.bundle(body)
         r = b.transcribe_apply(zone_line=5, page=1, markdown="read text")
@@ -190,6 +220,7 @@ class S149Refuted(unittest.TestCase):
         self.assertEqual(b._adjusted_line(9), 9 + rec["lines"])
 
     def test_a_duplicate_asset_name_is_reported_not_stomped(self):
+        """Two records sharing one asset name: the move reports 'ambiguous' and the old record is not overwritten."""
         split = ["| a | b |", "|---|---|", "", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->", "| 1 | 2 |", "", "tail"]
         b = self.bundle(split, [{"id": "fpr-OLD", "zone_line": 1, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop", "at_line_orig": 1},
                                 {"id": "fpr-REAL", "zone_line": 1, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop"}])
@@ -200,6 +231,7 @@ class S149Refuted(unittest.TestCase):
         self.assertEqual(self.body()[0:3], ["| a | b |", "|---|---|", "| 1 | 2 |"], "the table still healed")
 
     def test_a_moved_block_always_gets_its_blank_line(self):
+        """A moved block is preceded by a blank line so it cannot be read as another table row."""
         split = ["| a | b |", "|---|---|", "![[assets/_repair_p1_1.png]]", "<!-- repair p1 · repair-bench -->", "| 1 | 2 |", "", "tail"]
         b = self.bundle(split, [{"id": "fpr-1", "zone_line": 1, "page": 1, "asset": "_repair_p1_1.png", "mode": "crop"}])
         b.unsplit_tables()
@@ -209,6 +241,7 @@ class S149Refuted(unittest.TestCase):
         self.assertTrue(lines[4].startswith("![[assets/"))
 
     def test_a_transcription_block_trapped_in_a_table_is_moved(self):
+        """A transcribed-text block (not only an image pair) trapped in a table is moved out and recorded."""
         split = ["| a | b |", "|---|---|", "", "read line one", "read line two", "<!-- transcribed p1 · granite-docling-258M · repair-bench -->",
                  "| 1 | 2 |", "", "tail"]
         b = self.bundle(split, [{"id": "fpr-T", "zone_line": 1, "page": 1, "asset": None, "mode": "transcribe", "lines": 4}])

@@ -1,4 +1,10 @@
-"""prototypes/analyst-lab/decoding/decoding_experiment.py -- THE ONE BOUNDED GPU EXPERIMENT (S119 R2).
+"""WHAT THIS FILE DOES: the bounded GPU experiment that sends sampled DDIA chunks to the local ollama model under
+three request shapes (shipped, greedy, greedy plus a strict system line) and scores each reply. Entry point main()
+(run directly, returns an exit code). Reads the held bundle via ddia_pairs; writes a chat-hold file in the library
+(removed in finally), full texts to $TEMP/r2/gen_results.jsonl, a log, and results.json beside this file; calls
+ollama over HTTP and nvidia-smi. analyze_results.py reads its output.
+
+prototypes/analyst-lab/decoding/decoding_experiment.py -- THE ONE BOUNDED GPU EXPERIMENT (S119 R2).
 
 Question: how much of the analyst's ~3 % window loss is the SAMPLER (temperature) versus the model's
 judgement? Same chunks, same program prefix, same ollama endpoint; three request shapes:
@@ -36,12 +42,14 @@ import time
 import urllib.request
 from collections import Counter
 
+# -- setup: import path and the shipped analyst/text_norm modules (ddia_pairs wires sys.path to windows-converter) --
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import ddia_pairs  # noqa: E402  (sets sys.path to windows-converter + FP_PIPELINE quarantine)
 import analyst  # noqa: E402
 import text_norm as tn  # noqa: E402
 
+# -- paths, generation cap, numeral regex and the strict system prompt --
 LIB = pathlib.Path(r"C:\Users\Bndit\ml\library")
 GPU_LOCK = LIB / ".gpu-lock"
 HOLD = LIB / "chat-hold.json"
@@ -59,7 +67,9 @@ STRICT_SYSTEM = ("You are a copy-typist, not an editor. Reproduce the user's mar
                  "reorder, paraphrase or add a sentence, paragraph, list item, table row or number.")
 
 
+# -- logging and machine probes --
 def log(msg: str) -> None:
+    """Print a timestamped line and append it to the experiment log file. Side effects: stdout and LOG."""
     line = f"{time.strftime('%H:%M:%S')} {msg}"
     print(line, flush=True)
     with LOG.open("a", encoding="utf-8") as h:
@@ -67,6 +77,7 @@ def log(msg: str) -> None:
 
 
 def nvsmi() -> str:
+    """Run nvidia-smi and return its used/total GPU memory line, or an error string. Side effect: a subprocess."""
     try:
         r = subprocess.run(["nvidia-smi", "--query-gpu=memory.used,memory.total", "--format=csv,noheader"],
                            capture_output=True, text=True, timeout=20)
@@ -76,6 +87,8 @@ def nvsmi() -> str:
 
 
 def ollama_ps() -> str:
+    """Ask the local ollama /api/ps endpoint which models are loaded; return the first 300 characters of the reply
+    or an error string. Side effect: one HTTP GET to localhost."""
     try:
         with urllib.request.urlopen("http://localhost:11434/api/ps", timeout=10) as r:
             return r.read().decode("utf-8")[:300]
@@ -83,8 +96,11 @@ def ollama_ps() -> str:
         return f"ps failed: {e}"
 
 
+# -- ollama requests --
 def generate_with(prompt: str, options: dict, system: str | None = None) -> tuple[str, dict]:
-    """The shipped body shape (analyst._generate) with extra options merged in."""
+    """The shipped body shape (analyst._generate) with extra options merged in.
+    Inputs: prompt text, sampler options, optional system line. Returns (stripped reply text, timing/count metadata).
+    Side effect: one blocking HTTP POST to the ollama endpoint (900 s timeout); RuntimeError on an error reply."""
     body = {"model": analyst.MODEL, "stream": False, "keep_alive": analyst.KEEP_ALIVE_HOLD,
             "prompt": prompt, "options": {"num_ctx": analyst.NUM_CTX, **options}, "think": False}
     if system:
@@ -101,6 +117,8 @@ def generate_with(prompt: str, options: dict, system: str | None = None) -> tupl
 
 
 def unload() -> str:
+    """Tell ollama to unload the model (keep_alive 0). Returns the first 200 characters of the reply or an error
+    string. Side effect: one HTTP POST."""
     try:
         body = json.dumps({"model": analyst.MODEL, "keep_alive": 0}).encode("utf-8")
         req = urllib.request.Request(analyst.OLLAMA_URL, data=body, headers={"Content-Type": "application/json"})
@@ -110,7 +128,10 @@ def unload() -> str:
         return f"unload failed: {e}"
 
 
+# -- scoring --
 def score(chunk: str, out: str) -> dict:
+    """Score one generation against its input chunk: survival, word ratio, fence tokens intact, think-tag leak,
+    numeral counts (in/missing/extra), identity and word counts. Pure function; returns a dict."""
     a = Counter(NUM.findall(chunk))
     b = Counter(NUM.findall(out))
     missing = a - b
@@ -130,12 +151,17 @@ def score(chunk: str, out: str) -> dict:
     }
 
 
+# -- experiment driver --
 def main() -> int:
+    """Run the whole experiment: preflight the GPU lock and hold file, choose the sample, write the hold, generate
+    sequentially (aborting if .gpu-lock appears), then in finally remove the hold, unload the model and write the
+    summary. Returns 2 if the preflight refuses, else 0."""
     log(f"pid {os.getpid()} start; python {sys.executable}")
     # (i) preflight
     if GPU_LOCK.exists() or HOLD.exists():
         log(f"UNREAD: preflight refused -- .gpu-lock exists={GPU_LOCK.exists()} chat-hold exists={HOLD.exists()}")
         return 2
+    # choose the sample: the 20 lowest-survival passed chunks, the survival-rejected ones, and 8 seeded random others
     m, chunks_in, outs, cs = ddia_pairs.pairs()
     prefix = analyst.load_program("readability")
     passed = sorted((r for r in cs.values() if "x" not in r and "s" in r), key=lambda r: r["s"])
@@ -145,6 +171,7 @@ def main() -> int:
     rnd = random.Random(7)
     rand8 = sorted(rnd.sample(rest, 8))
     sample = low20 + rej12 + rand8
+    # det5 = five chunks repeated for the determinism check (b2) and the strict-system run (c)
     det5 = low20[:5]
     plan = [(i, "a") for i in sample]
     plan_b = [(i, "b") for i in sample]
@@ -169,6 +196,7 @@ def main() -> int:
     done = 0
     aborted = None
     t_all = time.perf_counter()
+    # generation loop: one request at a time; each result is appended to the JSONL as it arrives
     try:
         for n, (i, setting) in enumerate(order, 1):
             if GPU_LOCK.exists():  # (v)
@@ -177,6 +205,7 @@ def main() -> int:
                 break
             chunk = chunks_in[i - 1]
             t0 = time.perf_counter()
+            # pick the request shape by setting: a = shipped, b/b2 = greedy, c = greedy plus strict system line
             if setting == "a":
                 out = analyst._generate(prefix + chunk)  # THE SHIPPED REQUEST, verbatim code path
                 meta = dict(analyst._last_call)

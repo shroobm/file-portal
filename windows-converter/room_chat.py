@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""The Room's assistant — quarantined prototype (S79, docs/33).
+"""WHAT THIS FILE DOES: a small local web server (stdlib only) that serves the Room's chat page
+(room_chat.html) and runs a llama-server child process as the "assistant". Routes: GET / (page),
+/api/status, /api/state, /api/models; POST /api/load, /api/unload, /api/ask (token-gated). It reads the
+curated docs listed in CORPUS and the pipeline folder (PIPE); it writes chat-hold.json (the GPU
+hold), chat-stderr.log and room-chat-withheld.jsonl under PIPE. Entry point: main() (run as a script,
+normally spawned by the widget with --token). Nothing else imports it.
+
+The Room's assistant — quarantined prototype (S79, docs/33).
 
 Rab's spec: a button loads the model, a window opens and greets you with a model-loaded
 confirmation, a button unloads it, and **a convert cannot happen while the chat is loaded, and
@@ -25,6 +32,7 @@ coupling except two marker files whose ownership is spelled out in `_hold` below
 """
 from __future__ import annotations
 
+# -- imports (stdlib plus the sibling module corpus_schema) --
 import argparse
 import hmac
 import json
@@ -40,6 +48,7 @@ import urllib.request
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 
+# -- paths and ports: this folder, the repo root, the pipeline folder, the port ranges --
 HERE = Path(__file__).parent
 REPO = HERE.parent  # S85: promoted from prototypes/room-chat (two deep) to windows-converter (one)
 PIPE = Path(os.environ.get("FP_PIPELINE", r"C:\Users\Bndit\ml\library"))
@@ -58,6 +67,7 @@ LLAMA_PORTS = range(7110, 7120)
 LOAD_TIMEOUT_FLOOR_S = 90
 LOAD_TIMEOUT_PER_GB_S = 12
 
+# -- default model file (overridable by FP_CHAT_MODEL or --model) --
 MODEL_GGUF = Path(os.environ.get(
     "FP_CHAT_MODEL",
     r"C:\Users\Bndit\.ollama\models\blobs"
@@ -85,6 +95,10 @@ GPU_LOCK = PIPE / ".gpu-lock"
 
 
 def _hold_write(port: int, model: str) -> None:
+    """Write chat-hold.json (our pid, the llama port, the model name, a timestamp) to claim the GPU.
+
+    Side effect: overwrites the HOLD file under PIPE. Raises OSError if the write fails.
+    """
     HOLD.write_text(json.dumps({
         "held_by": "room-chat", "pid": os.getpid(), "port": port, "model": model,
         "since": time.strftime("%Y-%m-%dT%H:%M:%S%z"),
@@ -93,6 +107,7 @@ def _hold_write(port: int, model: str) -> None:
 
 
 def _hold_clear() -> None:
+    """Delete chat-hold.json to release the GPU claim; a missing or locked file is ignored."""
     try:
         HOLD.unlink(missing_ok=True)
     except OSError:
@@ -146,9 +161,15 @@ HF_HUB_CACHE = Path.home() / ".cache" / "huggingface" / "hub"
 
 
 def discover_models() -> list[dict]:
+    """List the model files on this device as dicts {id, kind, path, gb[, note]}.
+
+    Reads the ollama manifests and the Hugging Face cache from disk (no network); returns [] if
+    neither store exists. No side effects.
+    """
     out = []
     man_root = OLLAMA_STORE / "manifests"
     if man_root.is_dir():
+        # ollama store: each manifest names a model blob; skip manifests whose blob is missing
         for mf in sorted(p for p in man_root.rglob("*") if p.is_file()):
             try:
                 man = json.loads(mf.read_text(encoding="utf-8"))
@@ -163,6 +184,7 @@ def discover_models() -> list[dict]:
             except Exception:  # noqa: BLE001 - one unreadable manifest never hides the rest
                 continue
     if HF_HUB_CACHE.is_dir():
+        # llama.cpp / Hugging Face cache: every .gguf except projector companions
         for g in sorted(HF_HUB_CACHE.glob("models--*/snapshots/*/*.gguf")):
             if "mmproj" in g.name.lower():
                 continue  # a projector is a companion file, not a loadable chat model
@@ -174,6 +196,7 @@ def discover_models() -> list[dict]:
     return out
 
 
+# -- corpus loading and the system prompt --
 def load_corpus() -> tuple[str, dict[str, list[str]]]:
     """Returns (context_text, {path: lines}) — the lines are what citations are checked against."""
     parts, index = [], {}
@@ -205,6 +228,8 @@ thrown away and replaced with a refusal:
 """
 
 
+# -- citation patterns used by the guard below --
+# CITE_RE matches "(docs/NN §N)" or "(path:line)" in an answer.
 CITE_RE = re.compile(r"\((docs/[\w.\-]+(?:\.md)?)\s*§?\s*([\d.]+)?\)|\(([\w./\\-]+):(\d+)\)")
 
 # S88 (Rab: "if something trips … search for your exact answer"): the paren form above is the
@@ -233,6 +258,7 @@ def _enforce_citation(answer: str, index: dict[str, list[str]]) -> tuple[str, li
     if "I don't know" in answer:
         return answer, [], "honest-refusal"
     found, resolved = CITE_RE.findall(answer), []
+    # pass 1: strict paren-form citations, each resolved against the corpus index
     for doc, sec, path, line in found:
         target = doc or path
         if not target:
@@ -251,6 +277,7 @@ def _enforce_citation(answer: str, index: dict[str, list[str]]) -> tuple[str, li
     # S88: the format-forgiving pass — see DOC_TOKEN_RE's comment. Same stem resolution, same
     # refusal for anything the corpus does not hold; only the punctuation requirement dies.
     seen = {c.split("§")[0].split(":")[0] for c in resolved}
+    # pass 2: any bare docs/NN token not already counted, resolved the same way
     for tok in DOC_TOKEN_RE.findall(answer):
         tgt = tok.rstrip(".,;:").replace("\\", "/").strip()
         if not tgt or tgt in seen:
@@ -261,6 +288,7 @@ def _enforce_citation(answer: str, index: dict[str, list[str]]) -> tuple[str, li
         if hit:
             resolved.append(tgt)
         seen.add(tgt)
+    # nothing resolved: replace the answer with the refusal text
     if not resolved:
         return ("I don't know — that isn't in the manual I was given.\n\n"
                 "(An answer was produced but carried no citation that resolves to a document "
@@ -270,7 +298,10 @@ def _enforce_citation(answer: str, index: dict[str, list[str]]) -> tuple[str, li
 
 # ── the model server: spawn, readiness, unload ───────────────────────────────────────────────
 class Llama:
+    """Owns one llama-server child process: load it, ask it, unload it, report its status."""
+
     def __init__(self, exe: Path, model: Path):
+        """Remember the llama-server executable and default model path; nothing is started yet."""
         self.exe, self.model = exe, model
         self.model_name: str | None = None   # the picker id - an ollama blob's filename is a sha
         self.proc: subprocess.Popen | None = None
@@ -280,9 +311,11 @@ class Llama:
 
     @property
     def loaded(self) -> bool:
+        """True while the child process is alive and a port has been assigned."""
         return self.proc is not None and self.proc.poll() is None and self.port is not None
 
     def _free_port(self) -> int:
+        """Return the first port in LLAMA_PORTS that refuses a local connection; RuntimeError if none."""
         for p in LLAMA_PORTS:
             with socket.socket() as s:
                 if s.connect_ex(("127.0.0.1", p)) != 0:
@@ -290,6 +323,12 @@ class Llama:
         raise RuntimeError(f"no free port in {LLAMA_PORTS.start}..{LLAMA_PORTS.stop}")
 
     def load(self, model: Path | None = None, name: str | None = None) -> dict:
+        """Start llama-server on the chosen model and wait until its /health says ok.
+
+        Inputs: optional model path and picker id. Returns status(). Side effects: writes the GPU
+        hold, spawns the process (stderr to chat-stderr.log), may unload a different loaded model.
+        Raises RuntimeError if a convert is running, files are missing, the process dies or times out.
+        """
         # S85: the picker. A different model while one is loaded = unload first, then load -
         # never two on the card (SYM-022). Same model already up = the status, free.
         if model is not None and self.loaded and model != self.model:
@@ -324,6 +363,7 @@ class Llama:
         self.started = time.perf_counter()
         gb = self.model.stat().st_size / 1e9
         ceiling = LOAD_TIMEOUT_FLOOR_S + LOAD_TIMEOUT_PER_GB_S * gb
+        # poll /health until ok, the process exits, or the size-scaled ceiling passes
         while time.perf_counter() - self.started < ceiling:
             if self.proc.poll() is not None:              # DIED — not "did not come up"
                 _hold_clear()
@@ -346,6 +386,7 @@ class Llama:
                            f"alive — this is a timeout, not a crash)")
 
     def unload(self) -> dict:
+        """Stop the child (terminate, then kill), reset the fields, clear the hold; returns status()."""
         if self.proc is not None:
             try:
                 self.proc.terminate()
@@ -360,6 +401,7 @@ class Llama:
         return self.status()
 
     def status(self) -> dict:
+        """Return a dict of loaded flag, port, model name and size, load time, uptime, hold file, convert."""
         return {"loaded": self.loaded, "port": self.port,
                 "model": self.model_name or (self.model.name if self.model else None),
                 "model_gb": round(self.model.stat().st_size / 1e9, 2) if self.model.is_file() else None,
@@ -369,6 +411,10 @@ class Llama:
                 "convert_running": convert_running()}
 
     def ask(self, question: str, context: str) -> str:
+        """Send one stateless chat request (system prompt + corpus + question) to the local server.
+
+        Returns the model's reply text. Network: POST to 127.0.0.1 only, 300 s timeout; errors propagate.
+        """
         body = json.dumps({
             "model": "chat",
             "messages": [{"role": "system", "content": SYSTEM + "\n\n" + context},
@@ -395,6 +441,7 @@ WITHHELD_LOG = PIPE / "room-chat-withheld.jsonl"
 
 
 def _log_withheld(q: str, raw: str) -> None:
+    """Append one JSON line (time, question, raw answer, doc tokens) to the withheld log; never raises."""
     try:
         line = json.dumps({"ts": time.strftime("%Y-%m-%dT%H:%M:%S"), "q": q[:500],
                            "raw": raw[:4000], "tokens": DOC_TOKEN_RE.findall(raw)[:20]},
@@ -407,12 +454,15 @@ def _log_withheld(q: str, raw: str) -> None:
 
 # ── the surface's own state, read from disk, never from the model (docs/33 §2.1) ─────────────
 def pipeline_state() -> dict:
+    """Read-only snapshot of the pipeline folder: counts of held/anchor/pending/drop PDFs, two mode files, convert."""
     def count(sub, pat="*"):
+        """Number of entries matching pat under PIPE/sub, or None if unreadable."""
         try:
             return len([p for p in (PIPE / sub).glob(pat)])
         except OSError:
             return None
     def read(name):
+        """Stripped text of PIPE/name, or None if unreadable."""
         try:
             return (PIPE / name).read_text(encoding="utf-8").strip()
         except OSError:
@@ -434,7 +484,9 @@ MUTATING_POSTS = ("/api/load", "/api/unload", "/api/ask")
 
 
 def token_gate(presented: str | None, expected: str | None) -> str | None:
-    """None = admitted. A string = the honest 403 reason. Constant-time compare."""
+    """Check the X-FP-Token header against the --token secret.
+
+    None = admitted. A string = the honest 403 reason. Constant-time compare."""
     if expected is None:
         return ("mutating routes are disabled: room_chat.py was started without --token. "
                 "Restart it as `room_chat.py --token <secret>` (the widget does this itself) "
@@ -457,16 +509,24 @@ TOKEN_SHIM = (
 )
 
 
+# -- the HTTP handler: page, read-only GET routes, token-gated POST routes --
 class Handler(BaseHTTPRequestHandler):
+    """Request handler; main() sets the class attributes llama, context, index and token before serving."""
+
     llama: Llama
     context: str
     index: dict
     token: str | None = None
 
     def log_message(self, *a):    # quiet; last words go to the stderr file
+        """Silence the default per-request access log."""
         pass
 
     def _send(self, code, payload, ctype="application/json"):
+        """Write a response: status code, headers, body (bytes as-is, anything else as JSON).
+
+        HTML responses also get a Content-Security-Policy header.
+        """
         raw = payload if isinstance(payload, bytes) else json.dumps(payload).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", ctype)
@@ -486,6 +546,7 @@ class Handler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        """Serve the chat page (with the token shim), /api/status, /api/state, /api/models; else 404."""
         if self.path.split("?")[0] in ("/", "/index.html"):
             page = (HERE / "room_chat.html").read_bytes()
             # Inject the token shim before the first element so it runs ahead of the page's
@@ -506,6 +567,7 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
     def do_POST(self):
+        """Token-gate every POST, then handle /api/load, /api/unload, /api/ask; errors become 500 JSON."""
         # The loopback-token gate, BEFORE any parse or dispatch (see MUTATING_POSTS above).
         deny = token_gate(self.headers.get("X-FP-Token"), self.token)
         if deny:
@@ -545,7 +607,12 @@ class Handler(BaseHTTPRequestHandler):
         self._send(404, {"error": "not found"})
 
 
+# -- entry point --
 def main() -> None:
+    """Parse arguments, load the corpus, reap a stale hold, then serve on 127.0.0.1 until Ctrl+C.
+
+    Side effects: may delete chat-hold.json, prints status lines, unloads the model on exit.
+    """
     ap = argparse.ArgumentParser()
     ap.add_argument("--port", type=int, default=UI_PORT_DEFAULT)
     ap.add_argument("--llama", default=os.environ.get("FP_LLAMA_SERVER", r"C:\Users\Bndit\ml\llama\llama-server.exe"))
@@ -567,6 +634,7 @@ def main() -> None:
     # written by a dead previous instance would make the watcher defer forever. We are the hold's
     # single writer, so reaping our predecessor's is lawful - keyed on pid liveness, mechanical.
     # (The watcher carries the same reap for the case where the chat server never comes back.)
+    # read the previous hold; remove it if its pid is dead or the file is malformed
     try:
         stale = json.loads(HOLD.read_text(encoding="utf-8"))
         pid = int(stale.get("pid", -1))

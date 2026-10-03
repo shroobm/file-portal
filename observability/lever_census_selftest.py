@@ -9,6 +9,10 @@ that the regex gate's own class is NOT this census's (a `NAME = 0.42` line is th
   (f) `lines` restricts to the added lines                      (g) the diff mode reads only ADDED lines from a real repo
   (h) NEGATIVE CONTROL: `NAME = 0.42` alone yields nothing here (the regex gate's class)
   (i) a selftest path is exempt in the diff mode (POLICY law 2)
+
+WHAT THIS FILE DOES: a script-style selftest for observability/lever_census.py (imported as `lc`). It feeds source
+strings to lc.census_source() and builds a throwaway git repo in a temp directory to test lc.census_since(). It
+prints one ok/BAD line per case, removes the temp repo, and exits 1 if any case failed, else 0. Run directly.
 """
 from __future__ import annotations
 
@@ -22,17 +26,20 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import lever_census as lc  # noqa: E402
 
+# -- setup: make lever_census importable; lists of failed and executed case names --
 failed: list[str] = []
 ran: list[str] = []
 
 
 def case(name, cond, detail=""):
+    """Record and print one case: ok if `cond` is true, else BAD with `detail`; failures are added to `failed`."""
     ran.append(name)
     print(("  ok   " if cond else "  BAD  ") + name + ("" if cond else f": {detail}"))
     if not cond:
         failed.append(name)
 
 
+# -- string-source cases (a), (b), (d), (h): SRC is DATA parsed by the census, one literal per blind class --
 SRC = '''import math
 LIMIT = 0.42
 def f(x, floor=0.8, n=3):
@@ -68,8 +75,10 @@ try:
     env = {**os.environ, "GIT_AUTHOR_NAME": "t", "GIT_AUTHOR_EMAIL": "t@t", "GIT_COMMITTER_NAME": "t", "GIT_COMMITTER_EMAIL": "t@t"}
 
     def g(*args):
+        """Run `git -C <temp repo> <args>` with a fixed identity; raises on a non-zero exit; returns the result."""
         return subprocess.run(["git", "-C", str(tmp), *args], capture_output=True, text=True, env=env, check=True)
 
+    # build the repo: a base commit, then a second commit that adds literals and a selftest file (which must be exempt)
     g("init", "-q")
     (tmp / "windows-converter").mkdir()
     mod = tmp / "windows-converter" / "mod.py"

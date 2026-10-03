@@ -1,4 +1,9 @@
-"""The Library graph (S214 E24): centroids from the stored vectors, edges by cosine with a floor and
+"""WHAT THIS FILE DOES: tests for indexer/graph.py (the Library graph) and its /graph route in
+serve.py. Builds small throwaway stores with four fake books and hand-made vectors, then checks
+centroids, edges, terms, the built document and the graph.json cache. Writes only to pytest's temp
+folders. No model, no network beyond 127.0.0.1.
+
+The Library graph (S214 E24): centroids from the stored vectors, edges by cosine with a floor and
 a per-book k, terms by tf-idf, the cache keyed by the tip and the levers. A store with four small
 books and hand-made vectors; a NEGATIVE control (two orthogonal books are not joined); no model."""
 
@@ -8,10 +13,12 @@ from indexer import graph
 from indexer.passages import Passage
 from indexer.store import Store
 
+# -- test data builders: vector size, empty store, passage, book, the four-book seed --
 DIM = 4
 
 
 def _store(tmp_path):
+    """Create and open a writable Store in `tmp_path` for a made-up model with DIM-sized vectors."""
     s = Store(tmp_path)
     s.open(
         model="test-model",
@@ -24,10 +31,12 @@ def _store(tmp_path):
 
 
 def _passage(i, text):
+    """A Passage numbered `i` with the given text, a dummy heading and no page hint."""
     return Passage(index=i, heading="h", page_hint=None, text=text)
 
 
 def _book(store, sha, md_name, texts, vecs, meta=None):
+    """Add one book to the store: one passage per text, with the given vectors and extra metadata."""
     common = {
         "note": f"Inbox/{md_name}",
         "md_name": md_name + ".md",
@@ -41,6 +50,7 @@ def _book(store, sha, md_name, texts, vecs, meta=None):
 
 
 def _seed(store):
+    """Fill the store with four books (a, b parallel; c orthogonal; d without vectors), tip 'deadbeef'."""
     # two books on the same subject (parallel vectors), one on another (orthogonal), one without vectors
     _book(
         store,
@@ -77,7 +87,10 @@ def _seed(store):
     store.set_meta(tip="deadbeef")
 
 
+# -- the tests --
 def test_centroids_edges_and_terms(tmp_path):
+    """Centroids are unit length and absent for a book without vectors; parallel books are joined,
+    orthogonal ones are not; shared terms need two books; LaTeX and broken-hyphen tokens are not words."""
     s = _store(tmp_path)
     _seed(s)
     cents = graph.centroids(s)
@@ -104,6 +117,8 @@ def test_centroids_edges_and_terms(tmp_path):
 
 
 def test_build_lists_every_book_and_the_levers(tmp_path):
+    """build() lists all four books as nodes (the vectorless one flagged), records the levers and
+    stop-list version, has weighted edges, and is plain JSON."""
     s = _store(tmp_path)
     _seed(s)
     doc = graph.build(s)
@@ -189,6 +204,7 @@ def test_graph_route_serves_the_document(tmp_path):
 
 
 def test_cache_follows_the_tip_and_the_levers(tmp_path):
+    """cached() writes graph.json, reuses it on the same tip and levers, and rebuilds when either changes."""
     s = _store(tmp_path)
     _seed(s)
     first = graph.cached(tmp_path, s)

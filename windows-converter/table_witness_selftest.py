@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""table_witness_selftest.py — the cell-level witness's tripwires. Hermetic: every fixture PDF is DRAWN here by
+"""WHAT THIS FILE DOES: the self-test for `table_witness.py`. It is a script, not a library: importing it
+runs everything. It draws small PDF pages with pymupdf, builds matching or damaged table html, calls
+`table_witness.table_witness(...)` and records one numbered result per case through `case(...)`. At the
+end it prints an "N/N" summary line and exits 0 when all cases passed, 1 otherwise. Helpers: `case`,
+`row_html`, `table_html`, `block_a`, `draw`, `one`. Reads and writes no files; no network, no GPU.
+
+table_witness_selftest.py — the cell-level witness's tripwires. Hermetic: every fixture PDF is DRAWN here by
 pymupdf (labelled rows with figures, placed by hand at known coordinates); nothing is read from disk, no pipeline, no
 GPU. Every defect case is paired with its own negative control on the SAME layer — the clean html that must read 0
 for that one signal — so a case that could pass by construction (a measure that always says "dropped") is caught by
@@ -12,23 +18,33 @@ import fitz
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import table_witness as tw  # noqa: E402
 
+# -- test machinery: result counters and the case recorder --
+
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one numbered test result: bump the counters `n` (cases run) and `ok` (cases passed) and print an
+    "ok" or "RED" line, with `detail` (cut to 300 characters) only when `cond` is false. Changes module globals."""
     global ok, n
     n += 1
     ok += 1 if cond else 0
     print("  [%d] %s %s%s" % (n, "ok " if cond else "RED", name, ("  <- " + str(detail)[:300]) if (detail and not cond) else ""))
 
 
+# -- html builders for the table under test --
+
 def row_html(cells):
+    """One html table row: each item of `cells` becomes a <td>. Returns the string."""
     return "<tr>" + "".join("<td>%s</td>" % c for c in cells) + "</tr>"
 
 
 def table_html(*rows):
+    """Wrap row strings (from `row_html`) in a <table> element. Returns the string."""
     return "<table>" + "".join(rows) + "</table>"
 
+
+# -- layout constants for the drawn fixture pages: font size, origin, row height, column x positions --
 
 FS = 10
 X0, Y0, RH = 72, 100, 24
@@ -38,6 +54,7 @@ LABEL_X, FIG1_X, FIG2_X = X0, X0 + 150, X0 + 250
 ROWS_A = [("Net income", "1,307", "1,065"), ("Revenue", "4,053", "3,449"), ("Expenses", "2,093", "1,925")]
 docA = fitz.open()
 pageA = docA.new_page(width=612, height=792)
+# draw each row: its label at the left and its two figures in the two figure columns
 for r, (label, f1, f2) in enumerate(ROWS_A):
     y = Y0 + r * RH + 16
     pageA.insert_text((LABEL_X, y), label, fontsize=FS)
@@ -47,10 +64,14 @@ BBOX_A = [X0 - 4, Y0 - 4, FIG2_X + 60, Y0 + len(ROWS_A) * RH + 4]
 
 
 def block_a(html):
+    """The one-block list that `table_witness` takes for page A: a Table block on page 0 over BBOX_A
+    carrying the given `html`. Returns the list."""
     return [{"page": 0, "block_type": "Table", "bbox": BBOX_A, "html": html}]
 
 
 HTML_A_CLEAN = table_html(*(row_html([label, f1, f2]) for label, f1, f2 in ROWS_A))
+
+# -- cases 1-4: page A, a clean match and the dropped / merged / split defects --
 
 # 1 · clean match: everything present, matched 3, dropped/merged/split/echo/header_cut all 0 — the shared baseline
 # every later case's negative control refers back to
@@ -104,6 +125,8 @@ case("split: Net income's two figures spread over two adjacent rows (the second 
      len(tA_split["split"]) == 1 and tA_split["split"][0]["label"] == "Net income"
      and tA_split["split"][0]["rows"] == [0, 1] and len(tA_split["matched"]) == 2, tA_split)
 
+# -- cases 5-6: pages B and C, the echo and header_cut defects --
+
 # ---- PAGE B: one labelled row, for ECHO ----
 docB = fitz.open()
 pageB = docB.new_page(width=612, height=792)
@@ -144,6 +167,8 @@ case("header_cut: 'Tra'/'ansfer' each read as a proper prefix/suffix of the page
      len(outC_cut["tables"][0]["header_cut"]) == 2 and outC_whole["tables"][0]["header_cut"] == [],
      (outC_cut["tables"][0], outC_whole["tables"][0]))
 
+# -- cases 7-10: inputs the witness cannot read must be named as unread, never crash --
+
 # 7 · UNREAD — an html without a <tr>: named, never a crash; its negative control is case 1 (the same shape of block,
 # real <tr> rows, unread None)
 outA_notr = tw.table_witness(docA, [{"page": 0, "block_type": "Table", "bbox": BBOX_A, "html": "<p>no rows here</p>"}])
@@ -170,6 +195,8 @@ case("no Table block at all: tables_total 0, tables_read 0, every *_total None (
      out_none["tables_total"] == 0 and out_none["tables_read"] == 0 and out_none["rows_dropped_total"] is None
      and out_none["rows_merged_total"] is None and out_none["echo_total"] is None
      and out_none["cross_page_candidates"] is None and out_none["worst"] == [] and out_none["tables"] == [], out_none)
+
+# -- cases 11-12: a two-page document for the cross-page candidate reading --
 
 # ---- PAGES D0/D1: a two-page document for CROSS_PAGE ----
 docD = fitz.open()
@@ -212,6 +239,8 @@ case("cross_page_candidate's negative controls: False when the next page's first
      outD_nofig["tables"][0]["cross_page_candidate"] is False and outD_mid["tables"][0]["cross_page_candidate"] is None,
      (outD_nofig["tables"][0], outD_mid["tables"][0]))
 
+# -- case 14: page F, labels that are substrings of one another --
+
 # ---- PAGE F: two labelled rows whose labels are substrings of one another (Scotiabank p.51 read live: "Secured
 # funding" is a raw substring of "Unsecured funding") ----
 docF = fitz.open()
@@ -234,6 +263,8 @@ case("a label that is a raw substring of a different, unrelated label (Secured/U
      len(tF["matched"]) == 2 and tF["merged"] == [] and tF["dropped"] == [] and tF["split"] == [], tF)
 
 
+# -- cases 15-26: the S211 E5 fixes, each paired with a negative control; two helpers first --
+
 # ---- S211 E5: the fixes read from the verifier's twelve pages, each with its negative control on the same layer ----
 
 
@@ -241,6 +272,7 @@ def draw(rows, x_label=LABEL_X, y0=Y0, rh=RH, fig_xs=(FIG1_X, FIG2_X, FIG2_X + 8
     """a page with labelled rows (label, fig, fig, ...) at known coordinates; returns (doc, bbox)."""
     doc = fitz.open()
     page = doc.new_page(width=612, height=792)
+    # one text line per row: first cell as the label, the rest as figures in the figure columns
     for r, cells in enumerate(rows):
         y = y0 + r * rh + 16
         page.insert_text((x_label, y), cells[0], fontsize=FS)
@@ -250,6 +282,8 @@ def draw(rows, x_label=LABEL_X, y0=Y0, rh=RH, fig_xs=(FIG1_X, FIG2_X, FIG2_X + 8
 
 
 def one(doc, bbox, html, lane="clean"):
+    """Run `table_witness` on page 0 of `doc` for a single Table block (box `bbox`, rendered `html`) in the given
+    `lane`, and return that block's result dict (the first entry of its "tables" list)."""
     return tw.table_witness(doc, [{"page": 0, "block_type": "Table", "bbox": bbox, "html": html}], lane=lane)["tables"][0]
 
 
@@ -395,5 +429,6 @@ case("a /Rotate 90 page reads unread 'the page is rotated (/Rotate 90) ...'; the
      (tU_rot["unread"] or "").startswith("the page is rotated (/Rotate 90)") and tU_flat["unread"] is None
      and len(tU_flat["matched"]) == 1, (tU_rot, tU_flat))
 
+# final summary line; exit status 1 if any case was red
 print("==== table_witness selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Tripwires for the Room's assistant (S79, docs/33).
+"""WHAT THIS FILE DOES: acceptance tests for room_chat.py (the Room's assistant). It loads room_chat.py as a module
+against a scratch pipeline folder and checks the citation guard (_enforce_citation), the GPU mutex and hold file
+(Llama.load/unload, convert_running), the port and timeout settings, and the projection law (pipeline_state, SYSTEM
+prompt). Run as a script: prints ok/FAIL lines, exits 1 if any case failed. It writes only to a temp folder that it
+deletes at the end; no GPU, llama-server or network is used.
+
+Tripwires for the Room's assistant (S79, docs/33).
 
 docs/32 §6 predicts the next proxy substitution appears in whatever is built next to enforce a
 rule. What is built here is a MUTEX and a CITATION GUARD — a lock is a proxy for exclusion, and a
@@ -36,25 +42,30 @@ spec = importlib.util.spec_from_file_location("chat", HERE / "room_chat.py")
 chat = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(chat)
 
+# -- test harness: pass/fail counters and the ok / bad / check recorders --
 passed = failed = 0
 
 
 def ok(name):
+    """Print a passing line for case name and count it."""
     global passed
     print(f"  ok   {name}")
     passed += 1
 
 
 def bad(name, why):
+    """Print a FAIL line for case name with the reason why, and count it."""
     global failed
     print(f"  FAIL {name}\n       {why}")
     failed += 1
 
 
 def check(name, cond, why=""):
+    """Record case name as ok when cond is truthy, else as a failure carrying why."""
     ok(name) if cond else bad(name, why)
 
 
+# -- section 1: the citation guard cases (answers are admitted only when they cite a document in the corpus) --
 print(f"\nscratch pipeline: {SCRATCH}\n")
 print("── the citation guard (docs/33 §2.2) ──")
 
@@ -113,6 +124,7 @@ check("S88: a withheld answer leaves an evidence line",
       _wl.is_file() and "docs/33" in _wl.read_text(encoding="utf-8"),
       "no evidence line written — the refusal is unexplainable again")
 
+# -- section 2: the mutex cases (a model may not load while a convert holds the card; the hold file is cleaned up) --
 print("\n── the mutex (docs/33 §2.3, signed) ──")
 
 lock = SCRATCH / ".gpu-lock"
@@ -155,6 +167,7 @@ llama.unload()
 check("unload clears the hold — release is an ACT", not hold.exists(),
       "unload left the hold behind; the card would never come back")
 
+# -- section 3: load-timeout and port-range cases (the lifecycle borrowed from the Repair Bench) --
 print("\n── the borrowed lifecycle (docs/33 §2.4, §2.5) ──")
 
 check("the load ceiling is not bench.rs's 6 s", chat.LOAD_TIMEOUT_FLOOR_S >= 60,
@@ -168,6 +181,7 @@ check("the model ports do not collide with the bench", not (set(chat.LLAMA_PORTS
 check("the UI port does not collide with the bench", chat.UI_PORT_DEFAULT not in bench_range,
       "the chat UI would take a port the bench expects")
 
+# -- section 4: projection-law cases (live numbers come from code, not from the model) --
 print("\n── the projection law (docs/33 §2.1, signed) ──")
 
 check("live state is served as DATA, not narrated by the model",
@@ -176,6 +190,7 @@ check("live state is served as DATA, not narrated by the model",
 check("the system prompt forbids stating live values", "Never state a live number" in chat.SYSTEM,
       "nothing tells the model to stay out of the projection's lane")
 
+# -- cleanup and verdict: delete the scratch folder, print the tally, exit 1 if anything failed --
 import shutil  # noqa: E402  (used only here, at the point of use for scratch cleanup)
 shutil.rmtree(SCRATCH, ignore_errors=True)
 print(f"\n{'-'*46}")

@@ -1,4 +1,9 @@
-"""Degeneration tripwire -- the calibrated zlib+trigram detector, ported from the Desktop.
+"""WHAT THIS FILE DOES: detects "looping" conversion output (a model stuck repeating itself). The one
+entry point is degeneration(markdown), which returns a dict {flagged, repeated_lines, md_lines,
+worst[], ...}. It is pure: it reads only the markdown string, touches no files, and its result is
+recorded as evidence in manifest.json by the converter service (report-mode, never blocks).
+
+Degeneration tripwire -- the calibrated zlib+trigram detector, ported from the Desktop.
 
 Port of ``windows-converter/fidelity_audit.py::degeneration()`` (docs/15 §5; thresholds §9.1;
 AND-rule recalibration §9.2). The Desktop lane has carried this detector since 2026-07-20; the
@@ -20,6 +25,7 @@ import re
 import zlib
 from collections import Counter
 
+# -- calibrated thresholds --
 # docs/15 §9.1 priors, §9.2 recalibration. A loop is BOTH crushed-compressible AND has an
 # extreme repeated word-trigram -- require both (AND). Wide margin either side of the gate:
 # table max trigram observed 28 vs loop min observed 1674.
@@ -29,6 +35,7 @@ DEGEN_BLOCK_MIN_CHARS = 200
 DEGEN_LINE_REPEAT = 20  # longest CONTIGUOUS run of one normalized line beyond this flags
 
 
+# -- the detector --
 def degeneration(markdown: str) -> dict:
     """Per-paragraph zlib ratio + max repeated trigram (word, or char for space-free/CJK
     blocks), plus a repeated-output-line check. Same output shape as the Desktop audit's
@@ -38,6 +45,7 @@ def degeneration(markdown: str) -> dict:
     flagged = False
     worst = []
     pos = 0
+    # pass 1: score each long paragraph by compressibility and repeated trigram
     for para in markdown.split("\n\n"):
         line_no = markdown.count("\n", 0, pos) + 1
         pos += len(para) + 2
@@ -68,6 +76,7 @@ def degeneration(markdown: str) -> dict:
     # (the decoder gets stuck), so measure the longest RUN of consecutive identical non-blank
     # lines -- NOT the total count. Legitimate structure repeats but is DISTRIBUTED (section
     # headings, table rows), giving a run of 1. Blanks and table rows never count toward a run.
+    # pass 2: longest run of identical consecutive non-blank, non-table lines
     max_run, run, prev = 0, 0, None
     for ln in markdown.splitlines():
         s = ln.strip()
@@ -79,6 +88,7 @@ def degeneration(markdown: str) -> dict:
     repeated_lines = max_run if max_run > DEGEN_LINE_REPEAT else 0
     if repeated_lines:
         flagged = True
+    # most suspicious first (lowest zlib ratio, then highest trigram), then build the report
     worst.sort(key=lambda w: (w["zlib"], -w["max_trigram"]))
     return {
         "flagged": flagged,

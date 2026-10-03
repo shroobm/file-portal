@@ -1,4 +1,11 @@
-"""Read-only OK-15 PDF evidence for the Repair Bench quarantine.
+"""WHAT THIS FILE DOES: collects read-only evidence about one PDF (page labels, embedded thumbnails, reading order
+against Xpdf pdftotext, optional-content layers, MuPDF warnings) and prints it as one JSON record. Entry points:
+collect(pdf_path, source_sha256) returns the report dict, compact(report) projects a short summary, and main() is the
+command line (--pdf, --source-sha256). It only reads the PDF (checking its hash before and after), may run the
+pdftotext executable as a subprocess, and writes a disposable copy only inside a temp folder. Called by the
+Repair Bench (via subprocess) and tested by ok15_evidence_selftest.py.
+
+Read-only OK-15 PDF evidence for the Repair Bench quarantine.
 
 OK-15 adds five observations without changing conversion semantics:
 
@@ -35,17 +42,21 @@ from typing import Any, Callable
 import pymupdf
 
 
+# -- constants: report schema name, capture scale, pdftotext time limit, token pattern --
 SCHEMA = "file-portal.ok15-evidence.v1"
 CAPTURE_SCALE = 0.25  # 18 dpi: invokes the renderer without retaining a page image.
 PDFTOTEXT_TIMEOUT_S = 180
 _TOKEN_RE = re.compile(r"[^\W_]+(?:['’][^\W_]+)?", re.UNICODE)
 
 
+# -- hashing helpers --
 def _sha256_bytes(data: bytes) -> str:
+    """Return the SHA-256 hex digest of a bytes value."""
     return hashlib.sha256(data).hexdigest()
 
 
 def _sha256_file(path: Path) -> str:
+    """Return the SHA-256 hex digest of a file, read in 1 MiB chunks."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for chunk in iter(lambda: handle.read(1 << 20), b""):
@@ -53,6 +64,7 @@ def _sha256_file(path: Path) -> str:
     return digest.hexdigest()
 
 
+# -- MuPDF warnings and text helpers --
 def _warning_lines(*, reset: bool = True) -> list[str]:
     """Drain MuPDF's process-global warning buffer into stable, nonblank lines."""
     raw = pymupdf.TOOLS.mupdf_warnings(reset=1 if reset else 0) or ""
@@ -60,23 +72,28 @@ def _warning_lines(*, reset: bool = True) -> list[str]:
 
 
 def _tokens(text: str) -> list[str]:
+    """Split text into lowercase word tokens (NFKC-normalized, case-folded) using _TOKEN_RE."""
     normalized = unicodedata.normalize("NFKC", text).casefold()
     return _TOKEN_RE.findall(normalized)
 
 
 def _text_from_blocks(page: Any) -> str:
+    """Return the page's text blocks joined by newlines, in PyMuPDF's native (unsorted) block order."""
     # sort=False is intentional: this is PyMuPDF's native block sequence, the
     # sequence the Xpdf default reading-order oracle is being compared against.
     return "\n".join(str(block[4]) for block in page.get_text("blocks", sort=False))
 
 
 def _sequence_evidence(pymupdf_text: str, pdftotext_text: str) -> dict[str, Any]:
+    """Compare the token sequences of the two texts and return a 'measured' dict: a disposition (exact, order-only
+    difference, or content/order difference), token counts, the first differing index and sequence hashes."""
     left = _tokens(pymupdf_text)
     right = _tokens(pdftotext_text)
     left_counts = collections.Counter(left)
     right_counts = collections.Counter(right)
     exact = left == right
     same_multiset = left_counts == right_counts
+    # classify: identical order, same words in another order, or different words
     if exact:
         disposition = "exact"
     elif same_multiset:
@@ -100,7 +117,9 @@ def _sequence_evidence(pymupdf_text: str, pdftotext_text: str) -> dict[str, Any]
     }
 
 
+# -- the pdftotext oracle: locating and running the Xpdf executable --
 def _pdftotext_candidates() -> list[Path]:
+    """Return the de-duplicated paths where pdftotext may live: FP_PDFTOTEXT, PATH, then the Git for Windows copy."""
     candidates: list[Path] = []
     configured = os.environ.get("FP_PDFTOTEXT")
     if configured:
@@ -110,6 +129,7 @@ def _pdftotext_candidates() -> list[Path]:
         candidates.append(Path(found))
     # The File Portal Windows host carries Xpdf here through Git for Windows.
     candidates.append(Path(r"C:\Program Files\Git\mingw64\bin\pdftotext.exe"))
+    # drop repeats, comparing paths case-insensitively and keeping the first of each
     unique: list[Path] = []
     seen: set[str] = set()
     for path in candidates:
@@ -121,6 +141,7 @@ def _pdftotext_candidates() -> list[Path]:
 
 
 def _tool_version(executable: Path) -> str:
+    """Run the executable with -v and return the first non-blank line of its output (max 200 chars)."""
     proc = subprocess.run(
         [str(executable), "-v"], capture_output=True, timeout=10, check=False
     )
@@ -131,6 +152,10 @@ def _tool_version(executable: Path) -> str:
 
 
 def _run_pdftotext(pdf_path: Path, page_count: int) -> dict[str, Any]:
+    """Run pdftotext on the PDF as a subprocess and split its output into pages on form feeds.
+
+    Returns {'status': 'measured', 'pages': [...], 'tool': {...}} or an 'UNREAD' dict with a reason (tool missing,
+    non-zero exit, non-UTF-8 output, wrong page count, or an OS/subprocess error)."""
     executable = next((path for path in _pdftotext_candidates() if path.is_file()), None)
     if executable is None:
         return {
@@ -171,6 +196,7 @@ def _run_pdftotext(pdf_path: Path, page_count: int) -> dict[str, Any]:
                 "pages": None,
                 "tool": tool,
             }
+        # pages are separated by form feeds; a trailing empty piece is not a page
         pages = text.split("\f")
         if pages and not pages[-1].strip():
             pages.pop()
@@ -191,7 +217,12 @@ def _run_pdftotext(pdf_path: Path, page_count: int) -> dict[str, Any]:
         }
 
 
+# -- per-page /Thumb probe and optional-content (OCG) layer handling --
 def _thumb_evidence(doc: Any, page_index: int) -> dict[str, Any]:
+    """Inspect the page's optional /Thumb entry without decoding the image.
+
+    Returns {'status': 'absent'}, an 'UNREAD' dict with a reason, or a 'present' dict with the image dictionary's
+    width, height, bits, colorspace, filter and a hash of the dictionary text."""
     page_xref = doc.page_xref(page_index)
     key_type, value = doc.xref_get_key(page_xref, "Thumb")
     if key_type in ("null", "none") or not value or value == "null":
@@ -230,6 +261,7 @@ def _thumb_evidence(doc: Any, page_index: int) -> dict[str, Any]:
 
 
 def _ocg_inventory(doc: Any) -> dict[str, Any]:
+    """List the document's optional-content groups (xref, name, initial state, intent, usage) in a 'measured' dict."""
     groups = []
     for xref, meta in sorted(doc.get_ocgs().items()):
         groups.append({
@@ -266,6 +298,7 @@ def _open_capture_doc(pdf_path: Path, ocg: dict[str, Any], scratch: Path) -> tup
             "all_groups_off_verified": True,
             "groups_forced_off": 0,
         }
+    # switch every group off in a second copy of the PDF, save it into scratch, reopen it, and verify none is still on
     derived = scratch / "ocg-off-evidence-copy.pdf"
     editor = None
     try:
@@ -301,6 +334,7 @@ def _open_capture_doc(pdf_path: Path, ocg: dict[str, Any], scratch: Path) -> tup
         }
 
 
+# -- the collector: runs all five probes over every page and assembles the report --
 def collect(
     pdf_path: Path,
     source_sha256: str,
@@ -316,6 +350,7 @@ def collect(
             f"source identity mismatch before evidence: expected {source_sha256[:16]}, "
             f"read {identity_before[:16]}"
         )
+    # discard any warnings left over from earlier work, then open the source and attribute new ones to the open
     drain_warnings = warning_reader or _warning_lines
     drain_warnings()
     source_doc = pymupdf.open(str(pdf_path))
@@ -333,6 +368,7 @@ def collect(
             "semantic_use": "none; OCG inventory failed",
             "reason": f"OCG inventory failed: {type(exc).__name__}: {exc}"[:300],
         }
+    # run the reading-order oracle; a measured result with the wrong page count is downgraded to UNREAD
     oracle = (pdftotext_probe or _run_pdftotext)(pdf_path, page_count)
     if (oracle.get("status") == "measured"
             and (not isinstance(oracle.get("pages"), list)
@@ -357,6 +393,8 @@ def collect(
                 }
             capture_open_warnings = drain_warnings()
             try:
+                # per-page loop: label, thumb, block text and a small source render, then reading order,
+                # the OCG-off render, and the warnings attributed to this page
                 for page_index in range(page_count):
                     page_number = page_index + 1
                     drain_warnings()
@@ -410,6 +448,7 @@ def collect(
                     # to the renderer when MuPDF may have emitted it from another probe.
                     source_page_warnings = drain_warnings()
 
+                    # reading order: compare this page's text with the oracle's page, else record why not
                     if oracle.get("status") == "measured" and pymupdf_text is not None:
                         record["reading_order"] = _sequence_evidence(
                             pymupdf_text, oracle["pages"][page_index]
@@ -422,6 +461,7 @@ def collect(
                             "reason": str(reason or "reading-order oracle unavailable")[:300],
                         }
 
+                    # record the hash of the small source-view render (pixels themselves are not kept)
                     if source_pixmap is None:
                         record["capture_raster"] = {
                             "status": "UNREAD",
@@ -441,6 +481,7 @@ def collect(
                             "pixels_retained": False,
                         }
 
+                    # the OCG-off variant: render the same page from the all-groups-off copy and compare hashes
                     ocg_warnings: list[str] = []
                     if ocg["status"] != "measured":
                         record["capture_raster"]["ocg_off_variant"] = {
@@ -492,6 +533,7 @@ def collect(
     finally:
         source_doc.close()
 
+    # summary figures derived from the per-page records
     warning_pages = [item["page"] for item in pages
                      if item["mupdf_warnings"]["source_page_probes"]
                      or item["mupdf_warnings"]["ocg_off_variant"]]
@@ -513,6 +555,7 @@ def collect(
         item["capture_raster"].get("ocg_off_variant", {}).get("differs_from_source_view") is True
         for item in pages
     )
+    # overall status: UNREAD with no pages, partial if any probe was unread, else measured
     overall = "measured"
     page_probe_unread = any(
         item["page_label"].get("status") == "UNREAD"
@@ -527,6 +570,7 @@ def collect(
     elif page_probe_unread or ocg["status"] == "UNREAD":
         overall = "partial"
 
+    # refuse to report if the source file changed while it was being read
     identity_after = _sha256_file(pdf_path)
     if identity_after != identity_before:
         raise RuntimeError(
@@ -579,6 +623,7 @@ def collect(
     }
 
 
+# -- projection for the Bench and the command-line entry point --
 def compact(report: dict[str, Any]) -> dict[str, Any]:
     """Return the read-only projection suitable for the Bench operator surface."""
     return {
@@ -590,6 +635,9 @@ def compact(report: dict[str, Any]) -> dict[str, Any]:
 
 
 def main() -> int:
+    """Command line: parse --pdf and --source-sha256, run collect, print the report as one compact JSON line.
+
+    Returns 0. Reads the PDF; may run pdftotext; prints to stdout."""
     parser = argparse.ArgumentParser(description="read-only OK-15 Repair Bench evidence")
     parser.add_argument("--pdf", type=Path, required=True)
     parser.add_argument("--source-sha256", required=True)

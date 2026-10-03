@@ -1,4 +1,9 @@
-"""Out-of-band P-1 re-score for assembled Desktop conversion bundles.
+"""WHAT THIS FILE DOES: command-line tool that re-scores a finished conversion bundle for missing figures. Entry
+points: run_rescore(bundle_dir, ...) returns the report dict, main() parses --bundle / --pdf / --source-root /
+--no-hashes / --json and prints it. It reads the bundle's manifest.json, its one markdown file, its assets folder and
+the source PDF (all read only), calls figure_coverage (imported as fc), and writes only to stdout/stderr.
+
+Out-of-band P-1 re-score for assembled Desktop conversion bundles.
 
 This host is deliberately outside ``convert_and_ship.py``. It reads one source PDF and one
 assembled ``anchor/<bundle>`` directory, calls the report-only P-1 instrument, and adds a
@@ -31,6 +36,7 @@ from urllib.parse import unquote
 import figure_coverage as fc
 
 
+# -- constants and the error type: image suffixes, markdown asset-reference patterns, RescoreUnread --
 ASSET_SUFFIXES = {".jpeg", ".jpg", ".png"}
 OBSIDIAN_ASSET_RE = re.compile(r"!\[\[assets/([^|\]]+)(?:\|[^\]]*)?\]\]", re.I)
 MARKDOWN_ASSET_RE = re.compile(r"!\[[^\]]*\]\((?:\./)?assets/([^\s\)]+)(?:\s+[^\)]*)?\)", re.I)
@@ -40,6 +46,7 @@ class RescoreUnread(RuntimeError):
     """The requested observation cannot be admitted from the supplied paths."""
 
 
+# -- small I/O helpers: utf-8 output, file hashing, manifest and source resolution --
 def write_utf8(stream, value: str) -> None:
     """Write one line without trusting the Windows console's legacy text encoding."""
     payload = (value + "\n").encode("utf-8")
@@ -52,6 +59,7 @@ def write_utf8(stream, value: str) -> None:
 
 
 def sha256_file(path: Path) -> str:
+    """SHA-256 hex digest of a file, read in 1 MiB blocks. Reads the file; returns the digest string."""
     digest = hashlib.sha256()
     with path.open("rb") as handle:
         for block in iter(lambda: handle.read(1024 * 1024), b""):
@@ -60,6 +68,7 @@ def sha256_file(path: Path) -> str:
 
 
 def read_manifest(bundle_dir: Path) -> dict:
+    """Load <bundle_dir>/manifest.json as a dict. Raises RescoreUnread if it is unreadable or not a JSON object."""
     path = bundle_dir / "manifest.json"
     try:
         value = json.loads(path.read_text(encoding="utf-8"))
@@ -71,6 +80,9 @@ def read_manifest(bundle_dir: Path) -> dict:
 
 
 def resolve_source(bundle_dir: Path, pdf_path: Path | None, source_root: Path | None) -> tuple[Path, dict, str]:
+    """Find the source PDF (the given path, else source_root + the manifest's source name) and check its SHA-256
+    against the manifest. Returns (pdf_path, manifest, observed_sha). Raises RescoreUnread on any missing or
+    mismatched piece. Reads files only."""
     manifest = read_manifest(bundle_dir)
     manifest_name = manifest.get("source")
     manifest_sha = manifest.get("source_sha256")
@@ -95,11 +107,15 @@ def resolve_source(bundle_dir: Path, pdf_path: Path | None, source_root: Path | 
     return pdf_path, manifest, observed_sha
 
 
+# -- inventories: markdown asset references, source raster objects, per-page asset counts --
 def _normalize_reference(value: str) -> str:
+    """Reduce an asset reference to its bare file name (URL-decoded, backslashes read as slashes)."""
     return Path(unquote(value).replace("\\", "/")).name
 
 
 def markdown_asset_references(bundle_dir: Path) -> tuple[Path, list[str]]:
+    """Read the bundle's single root .md file and list the asset file names it references (Obsidian and plain
+    markdown image forms). Returns (markdown_path, names). Raises RescoreUnread if not exactly one .md file."""
     markdown_files = sorted(bundle_dir.glob("*.md"))
     if len(markdown_files) != 1:
         raise RescoreUnread(
@@ -116,6 +132,8 @@ def markdown_asset_references(bundle_dir: Path) -> tuple[Path, list[str]]:
 
 
 def source_raster_inventory(pdf_path: Path) -> dict:
+    """Count the raster images embedded in the source PDF (unique objects, occurrences, per-page unique counts)
+    by opening it with pymupdf from memory. Returns a dict. Raises RescoreUnread if the PDF cannot be read."""
     try:
         data = pdf_path.read_bytes()
     except OSError as exc:
@@ -147,6 +165,8 @@ def source_raster_inventory(pdf_path: Path) -> dict:
 
 
 def repaired_asset_page_counts(bundle_dir: Path, coverage_report: dict) -> dict[int, int]:
+    """Output asset count per source page. When the coverage report says the SYM-050 doubled page offset was
+    detected, each page is mapped back to its true page and the counts merged. Returns {page: count}."""
     naive = fc.output_asset_pages(bundle_dir)["per_page"]
     detected = coverage_report.get("sym050_doubled_offset", {}).get("detected") is True
     if not detected:
@@ -164,13 +184,18 @@ def final_conversion_inventory(
     coverage_report: dict,
     lane: str | None = None,
 ) -> dict:
+    """Build the final-conversion inventory: source raster counts against the bundle's asset files and markdown
+    references, plus candidate pages (source rasters but zero or fewer assets). On the scan lane the candidate
+    lists are None and the status is UNREAD. Reads files only; returns a dict."""
     raster = source_raster_inventory(pdf_path)
     markdown_path, references = markdown_asset_references(bundle_dir)
+    # image files in the bundle's assets folder (empty list when there is no assets folder)
     asset_files = sorted(
         path for path in (bundle_dir / "assets").iterdir()
         if path.is_file() and path.suffix.lower() in ASSET_SUFFIXES
     ) if (bundle_dir / "assets").is_dir() else []
 
+    # compare referenced names with files on disk (case-insensitive) in both directions
     file_names = {path.name.casefold(): path.name for path in asset_files}
     referenced_names = {name.casefold(): name for name in references}
     missing_files = sorted(referenced_names[key] for key in referenced_names.keys() - file_names.keys())
@@ -243,12 +268,15 @@ def final_conversion_inventory(
     }
 
 
+# -- the re-score itself and the command-line entry point --
 def run_rescore(
     bundle_dir: Path,
     pdf_path: Path | None = None,
     source_root: Path | None = None,
     use_hashes: bool = True,
 ) -> dict:
+    """Verify the source identity, run figure_coverage.coverage (P-1) and the final-conversion inventory.
+    Returns the full report dict. Raises RescoreUnread if the bundle or source cannot be admitted. Reads only."""
     if not bundle_dir.is_dir():
         raise RescoreUnread(f"bundle directory is absent at {bundle_dir}")
     source, manifest, source_sha = resolve_source(bundle_dir, pdf_path, source_root)
@@ -278,6 +306,8 @@ def run_rescore(
 
 
 def main() -> int:
+    """Command line entry: parse arguments, run the re-score, print JSON (--json) or a short summary to stdout.
+    Returns 0 on success, 2 (message on stderr) when the observation is UNREAD."""
     parser = argparse.ArgumentParser(description="Out-of-band P-1 and final-conversion inventory")
     parser.add_argument("--bundle", required=True, type=Path)
     source_group = parser.add_mutually_exclusive_group(required=True)
@@ -303,6 +333,7 @@ def main() -> int:
         write_utf8(sys.stdout, json.dumps(report, indent=1, ensure_ascii=False))
         return 0
 
+    # human summary: bundle name, P-1 page coverage line, then the inventory (or UNREAD) line and the interpretation
     p1 = report["p1_page_coverage"]
     inventory = report["final_conversion_inventory"]
     lines = [report["bundle"]]

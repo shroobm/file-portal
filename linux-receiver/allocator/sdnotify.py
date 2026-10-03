@@ -1,4 +1,9 @@
-"""systemd notify/watchdog helper -- stdlib only, no python-systemd dependency.
+"""WHAT THIS FILE DOES: lets the allocator tell systemd it is ready and still alive.
+Entry points: sd_notify(state) sends one status line to systemd's notify socket, and
+watchdog_armed() says whether systemd expects heartbeats. It reads the NOTIFY_SOCKET and
+WATCHDOG_USEC environment variables and writes one datagram to a unix socket. Called by main.py.
+
+systemd notify/watchdog helper -- stdlib only, no python-systemd dependency.
 
 Duplicated in linux-receiver/allocator/sdnotify.py and linux-converter/converter/sdnotify.py
 (the same one-file port pattern as status.py); keep the copies identical.
@@ -13,6 +18,7 @@ import os
 import socket
 
 
+# -- sending a message to systemd --
 def sd_notify(state: str) -> None:
     """Best-effort datagram to $NOTIFY_SOCKET; silently a no-op outside systemd.
 
@@ -22,6 +28,8 @@ def sd_notify(state: str) -> None:
     addr = os.environ.get("NOTIFY_SOCKET")
     if not addr:
         return
+    # No socket address means we are not under systemd: do nothing (return above).
+    # A leading "@" marks a Linux abstract socket, which the OS wants spelled with a NUL byte.
     if addr.startswith("@"):  # abstract-namespace socket
         addr = "\0" + addr[1:]
     try:
@@ -32,6 +40,7 @@ def sd_notify(state: str) -> None:
         pass
 
 
+# -- asking whether the watchdog is on --
 def watchdog_armed() -> bool:
     """True when systemd armed a watchdog for this process ($WATCHDOG_USEC present)."""
     usec = os.environ.get("WATCHDOG_USEC", "")

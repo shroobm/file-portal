@@ -1,4 +1,12 @@
-"""Tripwires for the stall-recovery ladder (OK-17, signed Rab 2026-08-30).
+"""WHAT THIS FILE DOES: the self-test suite for convert_and_ship.py (the Windows converter that runs Marker on a PDF,
+optionally the analyst, audits fidelity, and ships the bundle to the Linux vault). It is a plain script, not pytest:
+running it executes every tripwire (T0 .. T29 plus the named cases) at import time, prints one "ok"/"FAIL" line per
+check(), and exits 0 (GREEN) or 1 (RED). It imports convert_and_ship as `cas` and monkeypatches its Marker runner,
+emit(), ship() and friends with stubs; it reads (never writes) the converter source, watch_and_convert.py,
+fidelity_audit.py, the widget's event-vocab.js and docs/22 for parity checks. All pipeline state goes to a temp
+quarantine directory (FP_PIPELINE). Called by hand or by the session's verification step; nothing imports it.
+
+Tripwires for the stall-recovery ladder (OK-17, signed Rab 2026-08-30).
 
 Run with the marker-env interpreter (convert_and_ship imports pymupdf at module level):
   C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe convert_and_ship_selftest.py
@@ -34,6 +42,7 @@ Each tripwire names what breaks if it fires:
                                      to build one window (SYM-057) — a tripwire IN WAITING behind EXPECT_FIXED_SYM057
 """
 
+# -- imports and the quarantine environment (FP_PIPELINE and the dump ledger are set BEFORE the converter import) --
 import ast
 import hashlib
 import json
@@ -58,16 +67,20 @@ sys.path.insert(0, str(HERE))
 
 import convert_and_ship as cas  # noqa: E402  (env must be set first)
 
+# -- the check() recorder: every tripwire below reports through it --
 FAILURES: list[str] = []
 
 
 def check(cond: bool, label: str) -> None:
+    """Print one ok/FAIL line for `label` and, on failure, append the label to FAILURES (read by the verdict)."""
     print(("  ok  " if cond else "  FAIL") + f"  {label}")
     if not cond:
         FAILURES.append(label)
 
 
+# -- test doubles for the Marker runner and the event emitter --
 def stall(elapsed: float = 30.0) -> cas._MarkerStallError:
+    """Build the stalled-Marker exception the stub raises (frozen 900 s, given elapsed time, fake VRAM)."""
     return cas._MarkerStallError(
         "stub stall", frozen_s=900, elapsed_s=elapsed, source="stub.pdf",
         page_range=None, signature={"vram_mib": 9999})
@@ -82,6 +95,7 @@ class MarkerStub:
 
     def __init__(self, plan: dict | None = None, wall: float = 50.0,
                  assets_per_range: dict | None = None):
+        """Store the stall plan, the wall-seconds each success reports, and the asset names to create per page range."""
         self.plan = plan or {}
         self.wall = wall
         self.assets = assets_per_range or {}
@@ -90,6 +104,8 @@ class MarkerStub:
 
     def __call__(self, engine_src, engine_stem, out_root, extra, pages, source_name,
                  page_range=None, progress_prefix="", progress_context=None):
+        """Stand in for _run_marker: log the call, raise a stall if planned, else write assets, return fakes."""
+        # find the recognition batch size the caller put in the argument list
         batch = None
         args = list(extra)
         for i, a in enumerate(args):
@@ -109,29 +125,37 @@ class MarkerStub:
 
 
 class EmitRecorder:
+    """Stand-in for the converter's emit(): keeps (stage/event, fields) pairs in memory instead of writing events."""
+
     def __init__(self):
+        """Start with an empty event list."""
         self.events = []
 
     def __call__(self, stage, event, **fields):
+        """Record one emitted event as ("stage/event", fields)."""
         self.events.append((f"{stage}/{event}", fields))
 
     def named(self, key):
+        """Return the field dicts of every recorded event whose "stage/event" key equals `key`."""
         return [f for k, f in self.events if k == key]
 
 
 def with_stub(stub):
+    """Install `stub` as the converter's _run_marker and a fresh EmitRecorder as its emit; return the recorder."""
     cas._run_marker = stub
     rec = EmitRecorder()
     cas.emit = rec
     return rec
 
 
+# -- saved originals and the slice-runner helper --
 REAL_RUN_MARKER = cas._run_marker
 REAL_OLLAMA_UNLOAD = cas._ollama_unload  # T17 no-ops it (no network on a stub run)
 SLICE_ARGS = ["--recognition_batch_size", "8"]
 
 
 def run_slice(stub, start=0, end=199, batch=8):
+    """Run _run_slice_with_retries over pages start..end with `stub`; return (result, recorder, stub)."""
     rec = with_stub(stub)
     out_root = QUARANTINE / "work" / "marker-out"
     result = cas._run_slice_with_retries(
@@ -301,6 +325,7 @@ print("T8 invocation bound + outer cap")
 
 
 def worst_invocations(batch, depth=0):
+    """Return the worst-case number of Marker calls for a lever `batch`: ladder rungs plus two children per split."""
     ladder = len(cas._slice_retry_batches(batch))
     if depth >= cas.STALL_RETRY_MAX_SPLITS:
         return ladder
@@ -341,16 +366,22 @@ print("T11 ollama unload")
 
 
 class FakeResponse:
+    """Minimal urlopen() response: a context manager whose read() returns the bytes it was built with."""
+
     def __init__(self, payload):
+        """Keep the bytes payload that read() will return."""
         self.payload = payload
 
     def read(self):
+        """Return the stored payload bytes."""
         return self.payload
 
     def __enter__(self):
+        """Enter the with-block; the response is its own context."""
         return self
 
     def __exit__(self, *a):
+        """Leave the with-block without swallowing exceptions."""
         return False
 
 
@@ -358,12 +389,14 @@ class FakeUrllib:
     """Scripted urllib.request: records calls; ps_payload drives /api/ps; raises on demand."""
 
     def __init__(self, ps_payload=None, fail=False):
+        """Set the /api/ps reply, whether every call should fail, and an empty call log."""
         self.ps_payload = ps_payload or {"models": []}
         self.fail = fail
         self.calls = []
         self.Request = _real_urllib.Request
 
     def urlopen(self, url_or_req, timeout=None):
+        """Log the URL and return a FakeResponse with the scripted JSON, or raise OSError when fail is set."""
         if self.fail:
             raise OSError("connection refused")
         url = url_or_req if isinstance(url_or_req, str) else url_or_req.full_url
@@ -492,6 +525,7 @@ try:
     calls15 = [0]
 
     def fake_generate(prompt):
+        """Fake analyst._generate: sets token counters; the 2nd call returns a fence-violating (tampered) text."""
         calls15[0] += 1
         analyst._last_call.clear()
         analyst._last_call.update({"prompt_tokens": 100, "output_tokens": 40})
@@ -517,6 +551,7 @@ try:
           "review M5: every token sum names its own denominator")
 
     def counterless_generate(prompt):
+        """Fake analyst._generate that reports no token counters at all (clears _last_call) and echoes the body."""
         analyst._last_call.clear()
         return prompt.split("\n\n", 1)[-1] if "\n\n" in prompt else prompt
 
@@ -603,17 +638,21 @@ class FakeAnalyst:
     CHUNK_TARGET = 6000  # lever-waiver: a test double's attribute, not a decision - it mirrors the shape of analyst.CHUNK_TARGET (the real lever, analyst.py) so the stub's chunker signature matches; any value works, and moving the real lever does not move this
 
     def __init__(self, meta):
+        """Keep a copy of the meta dict process() will return and an empty log of (body length, backend) calls."""
         self.meta = dict(meta)
         self.seen = []
 
     def process(self, body, backend="local"):
+        """Log the call and return the body plus FAKE_TAIL with a copy of the scripted meta."""
         self.seen.append((len(body), backend))
         return body + FAKE_TAIL, dict(self.meta)
 
     def load_rules(self):
+        """Return no rules (the real analyst loads its rule file here)."""
         return {}
 
     def unload(self):
+        """Do nothing (the real analyst unloads its model here)."""
         return None
 
 
@@ -717,6 +756,7 @@ check(d17b.get("chunks_generated", 0) is None and d17b.get("goodput_accepted_tok
 # Negative control: the SAME run with the two emit statements textually removed from convert().
 # Blanking their line spans (not deleting them) keeps every other line number identical, so the
 # control differs from the subject in exactly the two statements under test and nothing else.
+# blank the two analyst emit statements in a copy of convert()'s source, then exec the copy as module `nc`
 NC_LINES = CAS_SRC.splitlines(keepends=True)
 _nc_fn = next(n for n in ast.walk(ast.parse(CAS_SRC))
               if isinstance(n, ast.FunctionDef) and n.name == "convert")
@@ -753,9 +793,11 @@ class MarkerBodyFakeAnalyst:
     CHUNK_TARGET = 6000  # lever-waiver: shape-only test-double attribute, see T17's FakeAnalyst
 
     def __init__(self):
+        """Start with no recorded input text."""
         self.seen_text = None
 
     def process(self, body, backend="local"):
+        """Record the body it was handed, then return a rewritten body and a minimal fake meta."""
         self.seen_text = body
         return body + "\n\nANALYST REWROTE THIS", {
             "model": "fake", "backend": backend, "program": "fake",
@@ -763,9 +805,11 @@ class MarkerBodyFakeAnalyst:
         }
 
     def load_rules(self):
+        """Return no rules."""
         return {}
 
     def unload(self):
+        """Do nothing."""
         return None
 
 
@@ -796,15 +840,21 @@ def drive_marker_body(module, work_name: str, use_analyst: bool, fake=None):
 # S156 E2: the page reading travels with the book — beside the dropped PDF at conversion (copied into the bundle), beside the
 # bundle at the J42 re-analysis; handed to analyst.process ONLY when present; a file that is not a reading is refused aloud.
 class VisionFakeAnalyst(MarkerBodyFakeAnalyst):
+    """Fake analyst that also records the extra keyword arguments (e.g. vision=) process() receives."""
+
     def __init__(self):
+        """Run the parent setup and start an empty list of received keyword-argument dicts."""
         super().__init__()
         self.kwargs = []
 
     def process(self, body, backend="local", **kw):
+        """Record the keyword arguments, then behave like the parent's process()."""
         self.kwargs.append(kw)
         return super().process(body, backend=backend)
 
 
+# Vision sidecar cases: a <stem>.vision.json beside the PDF reaches the analyst and is copied into the bundle;
+# malformed or wrong-format sidecars are refused; apply_analyst reads <bundle>/vision.json.
 _vfx = VisionFakeAnalyst()
 _vwork = QUARANTINE / "t18v-vision"
 _vwork.mkdir(parents=True, exist_ok=True)
@@ -900,6 +950,7 @@ _real_write_bytes = Path.write_bytes
 
 
 def _raising_write_bytes(self, *a, **kw):
+    """Path.write_bytes replacement: raise OSError (disk full) for the sidecar's .part file, else write normally."""
     if self.name.endswith(cas.MARKER_BODY_SUFFIX + ".part"):
         raise OSError("disk full (simulated)")
     return _real_write_bytes(self, *a, **kw)
@@ -922,6 +973,7 @@ check(not (tmp18c / f"{bundle18c}{cas.MARKER_BODY_SUFFIX}.part").exists(),
 # (d): NEGATIVE CONTROL — the writer removed. Same blank-the-line-span technique T17 uses on
 # convert()'s analyst emits, applied here to the _write_marker_body_safe call.
 NC18_SRC = (HERE / "convert_and_ship.py").read_text(encoding="utf-8")
+# blank the _write_marker_body_safe call in a copy of convert()'s source, then exec the copy as module `nc18`
 NC18_LINES = NC18_SRC.splitlines(keepends=True)
 _nc18_fn = next(n for n in ast.walk(ast.parse(NC18_SRC))
                 if isinstance(n, ast.FunctionDef) and n.name == "convert")
@@ -990,22 +1042,26 @@ class ReaudFakes:
     fail, the final blocks say otherwise) exercises the actual rule, not a stubbed answer."""
 
     def __init__(self, convert_result, analyst_result):
+        """Keep the two canned audit blocks and empty call logs for each stage audit."""
         self.convert_result = convert_result
         self.analyst_result = analyst_result
         self.convert_calls: list[dict] = []
         self.analyst_calls: list[dict] = []
 
     def audit_convert(self, pdf_path, markdown, lane, asset_count=None):
+        """Log the arguments and return the canned convert-stage audit block."""
         self.convert_calls.append({"pdf_path": Path(pdf_path), "markdown": markdown,
                                     "lane": lane, "asset_count": asset_count})
         return self.convert_result
 
     def audit_analyst(self, marker_markdown, analyst_markdown):
+        """Log both texts (the reference and the analyst output) and return the canned analyst-stage block."""
         self.analyst_calls.append({"marker_markdown": marker_markdown,
                                     "analyst_markdown": analyst_markdown})
         return self.analyst_result
 
 
+# -- canned audit results and the synthetic held-bundle builders for the re-audit cases --
 PASS_CONVERT = {"doc_survival": 0.99, "pages_flagged": [], "runs_total": 0, "runs": [],
                 "kind": "fidelity", "tripwires": {"degeneration": False}}
 PASS_ANALYST = {"doc_survival": 0.999, "runs": [], "runs_total": 0}
@@ -1086,6 +1142,7 @@ def run_reaudit(module, bundle_id: str, *, convert_result, analyst_result, dry_r
     ship_calls: list[dict] = []
 
     def _stub_ship(tmp_dir, bundle_name, source_sha):
+        """Replace ship(): record the staging dir, bundle name and source sha instead of sending anything."""
         ship_calls.append({"tmp_dir": Path(tmp_dir), "bundle_name": bundle_name,
                             "source_sha": source_sha})
 
@@ -1101,6 +1158,7 @@ def run_reaudit(module, bundle_id: str, *, convert_result, analyst_result, dry_r
     held_dir_path = (module.HELD / bundle_id).resolve()
 
     def _spy_copytree(src, dst, *a, **kw):
+        """Wrap shutil.copytree: after the copy from held_dir, remember the sorted file list of the staging copy."""
         result = real_copytree(src, dst, *a, **kw)
         # shutil.copytree recurses into itself for subdirectories (e.g. assets/), so the
         # FIRST call this spy sees is often a nested one, not held_dir -> staging — match on
@@ -1131,6 +1189,7 @@ def run_reaudit(module, bundle_id: str, *, convert_result, analyst_result, dry_r
     return fakes, rec, ship_calls, raised, captured_staging_files
 
 
+# -- T19 re-audit cases (1) to (12): each drives reaudit() against synthetic held bundles --
 # (1) + (2) + (3) + (5) + (7): a healthy flag/pass re-audit on a bundle with a sidecar,
 # bench files, and blocks.json.
 held1, manifest1 = make_held_bundle("shaa1111111111111", name="paper1")
@@ -1250,6 +1309,7 @@ held3, manifest3 = make_held_bundle("shaa3333333333333", name="paper3",
 
 
 def _hash_dir(d):
+    """Return a sorted list of (relative path, sha256) for every file under directory `d` (to prove it is unchanged)."""
     return sorted(
         (str(p.relative_to(d)), hashlib.sha256(p.read_bytes()).hexdigest())
         for p in d.rglob("*") if p.is_file()
@@ -1691,6 +1751,7 @@ def run_reanalyze(source):
     rec = EmitRecorder()
 
     def _fake_apply(bundle_dir, bundle_name, backend):
+        """Replace apply_analyst: capture the work copy's note, manifest and sidecar presence; return a fake meta."""
         captured["note"] = (bundle_dir / f"{bundle_name}.md").read_text(encoding="utf-8")
         captured["manifest"] = json.loads((bundle_dir / "manifest.json").read_text(encoding="utf-8"))
         captured["sidecar_present"] = (bundle_dir / f"{bundle_name}{cas.MARKER_BODY_SUFFIX}").is_file()
@@ -1713,6 +1774,7 @@ def run_reanalyze(source):
     return captured, ship_calls, rec, exit_msg
 
 
+# J42 cases: (a) verified sidecar re-analyses, (b) stale sidecar refuses, (c) no sidecar refuses
 SIDECAR = "MARKER BODY REFERENCE TEXT\n\nthe pre-analyst paragraph\n"
 make_anchor_bundle("j42good", source="j42good.pdf", sidecar_text=SIDECAR)
 cap, ships, rec, msg = run_reanalyze("j42good.pdf")
@@ -1753,6 +1815,7 @@ _b27calls = []
 
 
 def _b27_apply(bundle_dir, bundle_name, backend):
+    """Fake apply_analyst: log the backend, rewrite the note with an analyst block and "PASS", mark the manifest."""
     _b27calls.append(backend)
     md = bundle_dir / f"{bundle_name}.md"
     raw = md.read_text(encoding="utf-8")
@@ -1769,6 +1832,7 @@ _b27ships = []
 
 
 def _b27_ship(*a, **k):
+    """Fake ship(): fail with RuntimeError on the first call (the ThinkPad away), succeed afterwards."""
     _b27ships.append(1)
     if len(_b27ships) == 1:
         raise RuntimeError("offline")  # the ThinkPad away on the first attempt — the card flips `failed`
@@ -1854,6 +1918,7 @@ finally:
 
 # ---------- T21: the card's ceiling names WHO holds it (S146 E3, SYM-132) ----------
 print("T21 per-process memory signature")
+# canned typeperf (per-process GPU memory) and tasklist outputs used by the T21 fakes
 TYPEPERF_TEXT = (
     r'"(PDH-CSV 4.0)","\\HOST\GPU Process Memory(pid_111_luid_0x0_0x1_phys_0)\Total Committed",'
     r'"\\HOST\GPU Process Memory(pid_222_luid_0x0_0x1_phys_0)\Total Committed",'
@@ -1866,10 +1931,14 @@ TASKLIST_TEXT = ('"python.exe","111","Console","1","3,500,000 K"\n'
 
 
 class FakeRunT13:
+    """Fake subprocess.run for T21: answers typeperf, tasklist and nvidia-smi with canned text."""
+
     def __init__(self, typeperf=TYPEPERF_TEXT, smi="45, 9300, 10240\n"):
+        """Set the canned typeperf and nvidia-smi output and an empty log of program names called."""
         self.typeperf, self.smi, self.calls = typeperf, smi, []
 
     def __call__(self, args, **kw):
+        """Log args[0] and return a result object carrying the canned stdout for that program (empty if unknown)."""
         self.calls.append(args[0])
         text = {"typeperf": self.typeperf, "tasklist": TASKLIST_TEXT, "nvidia-smi": self.smi}.get(args[0], "")
         return types.SimpleNamespace(stdout=text, stderr="", returncode=0)
@@ -1954,24 +2023,34 @@ print("T22 ship move-aside")
 
 
 class FakeTarT22:
+    """Fake Popen for the local tar process in ship(): always finished with return code 0."""
+
     def __init__(self):
+        """Give it a dummy stdout object, return code 0 and a killed flag."""
         self.stdout, self.returncode, self.killed = object(), 0, False
 
     def poll(self):
+        """Report the process as already exited with 0."""
         return 0
 
     def wait(self, timeout=None):
+        """Return 0 immediately."""
         return 0
 
     def kill(self):
+        """Remember that kill() was called."""
         self.killed = True
 
 
 class FakeSshRunT22:
+    """Fake subprocess.run for the ssh leg of ship(): records each command and returns canned stdout."""
+
     def __init__(self, stdout=""):
+        """Set the stdout text to return and an empty list of recorded commands."""
         self.stdout_text, self.cmds = stdout, []
 
     def __call__(self, args, **kw):
+        """Record the command arguments and return a successful result with the canned stdout."""
         self.cmds.append(args)
         return types.SimpleNamespace(returncode=0, stdout=self.stdout_text, stderr="")
 
@@ -2015,6 +2094,7 @@ _stub_none = types.SimpleNamespace()
 
 
 def _dist_raises(name):
+    """Fake importlib.metadata.version that always fails (no such distribution installed)."""
     raise RuntimeError("no distribution named %s" % name)
 
 
@@ -2058,11 +2138,13 @@ def _t23_tree():
 
 
 def _t23_alive(pid: int) -> bool:
-    r = _t23_sp.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"], capture_output=True, text=True)
+    """Return True if tasklist still lists process `pid` (runs the Windows tasklist command)."""
+    r =_t23_sp.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"], capture_output=True, text=True)
     return str(pid) in r.stdout
 
 
 def _t23_reap(*pids):
+    """Force-kill each given pid and its children with taskkill /t /f (test cleanup, no result returned)."""
     for pid in pids:
         _t23_sp.run(["taskkill", "/pid", str(pid), "/t", "/f"], capture_output=True)
 
@@ -2113,7 +2195,8 @@ _t25_root = QUARANTINE / "t25"
 
 
 def _t25_bundle(name: str, verdict: str = "fail") -> Path:
-    d = _t25_root / name
+    """Create an incoming bundle dir under the T25 root (manifest with the verdict, one .md) and return its path."""
+    d =_t25_root / name
     shutil.rmtree(d, ignore_errors=True)
     d.mkdir(parents=True)
     (d / "manifest.json").write_text(json.dumps({"source": name + ".pdf", "fidelity": {"verdict": verdict}}), encoding="utf-8")
@@ -2122,7 +2205,8 @@ def _t25_bundle(name: str, verdict: str = "fail") -> Path:
 
 
 def _t25_occupant(sha16: str, repairs: bool, bench_bak: bool) -> Path:
-    o = cas.HELD / sha16
+    """Create a held/<sha16> occupant with a KEEP.txt file, optionally a repairs list and a .bench-bak; return it."""
+    o =cas.HELD / sha16
     shutil.rmtree(o, ignore_errors=True)
     o.mkdir(parents=True)
     m = {"source": "old.pdf", "fidelity": {"verdict": "fail"}}
@@ -2352,6 +2436,7 @@ _e6_emits = []
 cas.emit = lambda kind, status, **kw: _e6_emits.append((kind, status, kw))
 try:
     def _e6_raise_rt(tmp_dir, bundle_name, source_sha):
+        """Fake ship() that fails the way the real one does after emitting ship/failed: RuntimeError."""
         raise RuntimeError("ship failed: tar=1 ssh=255 dial tcp 100.107.238.61:22")
     cas.ship = _e6_raise_rt
     _e6_code = None
@@ -2366,6 +2451,7 @@ try:
     _e6_emits.clear()
     import subprocess as _e6_sp
     def _e6_raise_to(tmp_dir, bundle_name, source_sha):
+        """Fake ship() whose ssh leg times out (TimeoutExpired), with nothing emitted yet."""
         raise _e6_sp.TimeoutExpired(cmd="tailscale ssh", timeout=600)
     cas.ship = _e6_raise_to
     _e6_code = None
@@ -2391,6 +2477,7 @@ finally:
     cas.ship, cas.emit = _e6_real_ship, _e6_real_emit
 
 # ---------- verdict ----------
+# restore the real runner, delete the quarantine, count the check( lines in this file, print GREEN/RED, set exit code
 cas._run_marker = REAL_RUN_MARKER
 shutil.rmtree(QUARANTINE, ignore_errors=True)
 total = sum(1 for _ in FAILURES)

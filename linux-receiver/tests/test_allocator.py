@@ -1,4 +1,8 @@
-"""Unit tests for the InboxHandler: allocation, collision policies, quarantine, guards,
+"""WHAT THIS FILE DOES: pytest tests for allocator/main.py's InboxHandler. Each test builds a
+temporary file-portal tree, drops a file in inbox/documents, calls the handler directly and
+checks where the file ended up and what status.json says. Writes only under pytest's tmp_path.
+
+Unit tests for the InboxHandler: allocation, collision policies, quarantine, guards,
 and the status feed. The handler is exercised directly (no observer thread needed)."""
 
 import json
@@ -10,6 +14,7 @@ from allocator.config import Paths
 from allocator.main import InboxHandler
 from allocator.status import StatusWriter
 
+# -- test fixtures: a rules.toml template (policy and 1 MB limit) and small helpers --
 RULES = """
 [defaults]
 unmatched_destination = "sorted/misc"
@@ -24,6 +29,7 @@ destination = "sorted/documents"
 
 
 def make_handler(tmp_path: Path, policy: str = "rename") -> tuple[InboxHandler, Paths]:
+    """Create the folder tree and rules.toml under tmp_path; return an InboxHandler and its Paths."""
     paths = Paths.from_root(tmp_path / "file-portal")
     paths.ensure_exist()
     (paths.inbox / "documents").mkdir()
@@ -34,16 +40,20 @@ def make_handler(tmp_path: Path, policy: str = "rename") -> tuple[InboxHandler, 
 
 
 def drop(paths: Paths, name: str, content: bytes = b"hello") -> Path:
+    """Write a file into inbox/documents with the given name and bytes; return its path."""
     file_path = paths.inbox / "documents" / name
     file_path.write_bytes(content)
     return file_path
 
 
 def read_status(paths: Paths) -> list[dict]:
+    """Return the events list parsed from logs/status.json."""
     return json.loads((paths.logs / "status.json").read_text())["events"]
 
 
+# -- allocation and collision policies --
 def test_matching_file_is_allocated(tmp_path):
+    """A .txt in documents moves to sorted/documents and one 'allocated' event is recorded."""
     handler, paths = make_handler(tmp_path)
     dropped = drop(paths, "a.txt")
     handler._handle(dropped)
@@ -57,12 +67,14 @@ def test_matching_file_is_allocated(tmp_path):
 
 
 def test_unmatched_file_goes_to_misc(tmp_path):
+    """A file matching no pattern lands in the default sorted/misc folder."""
     handler, paths = make_handler(tmp_path)
     handler._handle(drop(paths, "a.bin"))
     assert (paths.root / "sorted/misc/a.bin").exists()
 
 
 def test_collision_rename_appends_suffix(tmp_path):
+    """Policy rename: a second a.txt becomes 'a (1).txt' and the first is untouched."""
     handler, paths = make_handler(tmp_path, policy="rename")
     handler._handle(drop(paths, "a.txt", b"first"))
     handler._handle(drop(paths, "a.txt", b"second"))
@@ -72,6 +84,7 @@ def test_collision_rename_appends_suffix(tmp_path):
 
 
 def test_collision_overwrite_replaces(tmp_path):
+    """Policy overwrite: the second a.txt replaces the first and no numbered copy appears."""
     handler, paths = make_handler(tmp_path, policy="overwrite")
     handler._handle(drop(paths, "a.txt", b"first"))
     handler._handle(drop(paths, "a.txt", b"second"))
@@ -81,6 +94,7 @@ def test_collision_overwrite_replaces(tmp_path):
 
 
 def test_collision_skip_leaves_file_in_inbox(tmp_path):
+    """Policy skip: the second a.txt stays in the inbox and a 'skipped' event is recorded."""
     handler, paths = make_handler(tmp_path, policy="skip")
     handler._handle(drop(paths, "a.txt", b"first"))
     second = drop(paths, "a.txt", b"second")
@@ -91,7 +105,9 @@ def test_collision_skip_leaves_file_in_inbox(tmp_path):
     assert read_status(paths)[-1]["action"] == "skipped"
 
 
+# -- quarantine and ignored files --
 def test_oversized_file_is_quarantined(tmp_path):
+    """A 2 MB file over the 1 MB limit moves to quarantine and a 'rejected' event names the limit."""
     handler, paths = make_handler(tmp_path)  # max_file_size_mb = 1
     big = drop(paths, "big.txt", b"x" * (2 * 1024 * 1024))
     handler._handle(big)
@@ -104,6 +120,7 @@ def test_oversized_file_is_quarantined(tmp_path):
 
 
 def test_quarantine_collision_renames_not_overwrites(tmp_path):
+    """Two oversized files of one name both survive in quarantine (the second gets ' (1)')."""
     handler, paths = make_handler(tmp_path)
     handler._handle(drop(paths, "big.txt", b"x" * (2 * 1024 * 1024)))
     handler._handle(drop(paths, "big.txt", b"y" * (2 * 1024 * 1024)))
@@ -113,6 +130,7 @@ def test_quarantine_collision_renames_not_overwrites(tmp_path):
 
 
 def test_files_inside_quarantine_are_ignored(tmp_path):
+    """A file already in quarantine is left alone and writes no status."""
     handler, paths = make_handler(tmp_path)
     quarantined = paths.quarantine / "stuck.txt"
     quarantined.write_bytes(b"x")
@@ -123,6 +141,7 @@ def test_files_inside_quarantine_are_ignored(tmp_path):
 
 
 def test_dotfiles_are_ignored_as_in_progress_temp_files(tmp_path):
+    """A dot-prefixed temp file is not allocated; it stays until the completing rename."""
     handler, paths = make_handler(tmp_path)
     temp = drop(paths, ".a.txt.3xY9Zq")
     handler._handle(temp)
@@ -131,12 +150,15 @@ def test_dotfiles_are_ignored_as_in_progress_temp_files(tmp_path):
 
 
 def test_missing_file_is_a_noop(tmp_path):
+    """Handling a path that does not exist does nothing and writes no status."""
     handler, paths = make_handler(tmp_path)
     handler._handle(paths.inbox / "documents" / "ghost.txt")
     assert not (paths.logs / "status.json").exists()
 
 
+# -- error handling, status feed and helpers --
 def test_allocation_errors_do_not_propagate(tmp_path, caplog):
+    """A broken rules.toml makes _handle log 'failed to allocate' instead of raising."""
     handler, paths = make_handler(tmp_path)
     bad_rules = tmp_path / "rules.toml"
     bad_rules.write_text("this is not valid toml [[[")
@@ -146,6 +168,7 @@ def test_allocation_errors_do_not_propagate(tmp_path, caplog):
 
 
 def test_status_feed_is_bounded_and_survives_corruption(tmp_path):
+    """Starting from a corrupt status.json, five records with max_events=3 leave only the newest three."""
     paths = Paths.from_root(tmp_path / "file-portal")
     paths.ensure_exist()
     status = StatusWriter(paths.logs / "status.json", max_events=3)
@@ -159,12 +182,14 @@ def test_status_feed_is_bounded_and_survives_corruption(tmp_path):
 
 
 def test_wait_until_stable_returns_when_size_stops_changing(tmp_path):
+    """_wait_until_stable returns on a file whose size does not change."""
     file_path = tmp_path / "f.bin"
     file_path.write_bytes(b"x" * 10)
     InboxHandler._wait_until_stable(file_path, interval=0.01, timeout=1.0)
 
 
 def test_wait_until_stable_handles_vanishing_file(tmp_path):
+    """_wait_until_stable returns without error when the file does not exist."""
     InboxHandler._wait_until_stable(tmp_path / "gone.bin", interval=0.01, timeout=1.0)
 
 
@@ -178,6 +203,7 @@ def test_wait_until_stable_handles_vanishing_file(tmp_path):
     ],
 )
 def test_resolve_collision_matrix(tmp_path, existing, policy, expected):
+    """Table test of _resolve_collision: (file exists?, policy) -> expected name or None."""
     dest = tmp_path / "a.txt"
     if existing:
         dest.write_bytes(b"x")

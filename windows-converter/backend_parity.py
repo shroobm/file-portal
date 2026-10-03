@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Backend parity harness — may a candidate backend replace Ollama for the analyst?
+"""WHAT THIS FILE DOES: a command-line measurement harness. main() runs the same sampled book chunks through
+Ollama and through llama.cpp's llama-server (started and stopped here), checks a token gate (output size,
+stop reason, image fence) and then throughput (prefill and decode rates), and prints the tables. It reads a
+book markdown file, calls analyst.py helpers, shells out to nvidia-smi and curl, reads the converter's
+.gpu-lock file, and writes backend_parity.json (raw results) beside this file. Run by hand; not imported.
+
+Backend parity harness — may a candidate backend replace Ollama for the analyst?
 
 Answers two separate questions, because they fail for different reasons and one does not imply
 the other:
@@ -94,6 +100,7 @@ from pathlib import Path
 import analyst
 import fp_paths
 
+# -- constants: paths, port, units and timeouts --
 LLAMA_EXE = Path(r"C:\Users\Bndit\ml\llama\llama-server.exe")
 # The Ollama blob IS the gguf - same bytes, so the comparison cannot drift on weights.
 # Verified S80: this sha resolves to exactly one manifest, registry.ollama.ai/library/qwen3/8b.
@@ -124,6 +131,7 @@ MS_PER_S = 1e3             # llama.cpp reports MILLIseconds - a 10^6 difference,
 def _phases_ollama(r: dict) -> dict:
     """Ollama /api/generate -> phases in SECONDS. None where the field is absent."""
     def s(key: str) -> float | None:
+        """Ollama duration field `key` converted from nanoseconds to seconds, or None if absent."""
         v = r.get(key)
         return None if v is None else v / NS_PER_S
     return {"prefill_tok": r.get("prompt_eval_count"), "prefill_s": s("prompt_eval_duration"),
@@ -140,6 +148,7 @@ def _phases_llamacpp(r: dict) -> dict:
     t = r.get("timings") or {}
     usage = r.get("usage") or {}
     def s(key: str) -> float | None:
+        """llama.cpp timing field `key` converted from milliseconds to seconds, or None if absent."""
         v = t.get(key)
         return None if v is None else v / MS_PER_S
     return {"prefill_tok": t.get("prompt_n", usage.get("prompt_tokens")), "prefill_s": s("prompt_ms"),
@@ -157,6 +166,7 @@ def rate(tokens: int | None, seconds: float | None) -> float | None:
     return tokens / seconds
 
 
+# -- thresholds and the arithmetic that judges a run --
 # How much of a prompt may arrive from the KV cache before its prefill rate stops describing
 # prefill. The shared part of every request here is the ~90-token readability program, so a few
 # percent is structural and harmless; a fifth is not.
@@ -229,6 +239,7 @@ def order_drift_verdict(first_mean: float, last_mean: float) -> tuple[float, boo
 
 
 def fmt_rate(v: float | None) -> str:
+    """Format a rate with one decimal and thousands separators; None prints as UNREAD. Pure."""
     return UNREAD if v is None else f"{v:,.1f}"
 
 
@@ -236,6 +247,7 @@ def summarise(values: list[float | None], unit: str) -> str:
     """docs/34 rule 3: n and a spread, never a bare mean. p95 only once n is big enough to
     mean anything - at n=5 the 95th percentile IS the maximum, and dressing the maximum up in
     a percentile's clothing is a proxy wearing a reputation."""
+    # drop unreported values; p95 only from n >= 20, otherwise show min and max
     vals = sorted(v for v in values if v is not None)
     if not vals:
         return f"{UNREAD} (no arm reported a duration)"
@@ -340,6 +352,8 @@ def gpu_state() -> tuple[int | None, int | None]:
 
 
 def post(url: str, body: dict, timeout: int = REQUEST_TIMEOUT_S) -> dict:
+    """POST `body` as JSON to `url` through the curl executable; returns the parsed JSON reply.
+    Raises RuntimeError if curl fails; subprocess.TimeoutExpired if no reply within `timeout` seconds."""
     raw = json.dumps(body).encode("utf-8")
     proc = subprocess.run(["curl", "-s", "-X", "POST", url,
                            "-H", "Content-Type: application/json", "--data-binary", "@-"],
@@ -350,6 +364,7 @@ def post(url: str, body: dict, timeout: int = REQUEST_TIMEOUT_S) -> dict:
 
 
 def _row(rec: dict) -> str:
+    """Format one chunk's measurement record as a single aligned console line. Pure."""
     return (f"  chunk {rec['chunk']:>4}  in {rec['in_chars']:>5}c/{rec['prefill_tok'] or 0:>5}t  "
             f"out {rec['out_chars']:>5}c/{rec['decode_tok'] or 0:>5}t  stop={rec['stop']:<7} "
             f"fence={'ok' if rec['fence'] else 'BAD':<3}  "
@@ -358,6 +373,7 @@ def _row(rec: dict) -> str:
 
 
 # ── the arms ─────────────────────────────────────────────────────────────────────────────────
+# -- run_arm measures one configuration; main() drives the whole experiment and prints the report --
 
 def run_arm(label: str, send, picked: list[tuple[int, str]], warm_chunk: str | None) -> list[dict]:
     """One configuration under test. `send(chunk) -> (raw_response, text, phases, stop)`.
@@ -386,6 +402,7 @@ def run_arm(label: str, send, picked: list[tuple[int, str]], warm_chunk: str | N
             # calibration too. The judge is the arm's MEDIAN, at reporting time.
             print(f"  warmup prefill {wtps:,.0f} tok/s  (informational - the outlier judge is "
                   f"the arm's own median)", flush=True)
+    # measure each picked chunk once: time it, record phases, fence check and the cross-check clock
     arm = []
     for i, chunk in picked:
         t0 = time.perf_counter()
@@ -427,6 +444,9 @@ def run_arm(label: str, send, picked: list[tuple[int, str]], warm_chunk: str | N
 
 
 def main() -> int:
+    """Run the whole experiment: cold start, Ollama arm, llama-server arms, A-B-A recheck, then print the
+    token gate, throughput and speedup tables. Starts and stops llama-server, calls nvidia-smi/curl, writes
+    the raw JSON to --out. Returns 0 on completion, 1 if a conversion is running (refuses to measure)."""
     ap = argparse.ArgumentParser()
     ap.add_argument("--book", type=Path, default=DEFAULT_BOOK)
     ap.add_argument("-n", "--chunks", type=int, default=5)
@@ -490,6 +510,7 @@ def main() -> int:
     meta: dict[str, str] = {"ollama": ollama_ver}
 
     def ollama_send(chunk: str):
+        """Send program + chunk to Ollama; returns (raw reply, stripped text, phases in seconds, stop reason)."""
         r = post(analyst.OLLAMA_URL, {
             "model": analyst.MODEL, "stream": False, "keep_alive": analyst.KEEP_ALIVE_HOLD,
             "prompt": program + chunk, "options": {"num_ctx": analyst.NUM_CTX}, "think": False})
@@ -537,7 +558,9 @@ def main() -> int:
         meta["llamacpp_load_s"] = f"{load_s:.1f}"
 
         def make_llama_send(extra: dict):
+            """Build a send(chunk) function for llama-server; `extra` is merged into the request body."""
             def send(chunk: str):
+                """Send program + chunk to llama-server; returns (raw reply, text, phases in seconds, finish reason)."""
                 r = post(f"http://127.0.0.1:{PORT}/v1/chat/completions",
                          {"model": "qwen3", "stream": False, "cache_prompt": False,
                           "messages": [{"role": "user", "content": program + chunk}], **extra})
@@ -600,6 +623,7 @@ def main() -> int:
     print("1. TOKEN GATE - does it write the same SIZE of thing, stop by itself, pass the fence?")
     print("=" * 96)
     print(f"{'arm':<26}{'decode tok':>11}{'max':>8}{'not-stop':>10}{'fence bad':>11}{'vs ollama':>12}")
+    # totals for the incumbent (Ollama) arm: the bar every candidate is judged against
     incumbent = results["ollama_think_false"]
     ref = sum(r["decode_tok"] or 0 for r in incumbent)
     # THE INCUMBENT DEFINES THE BAR, it does not have to be perfect. The first draft required zero
@@ -608,6 +632,7 @@ def main() -> int:
     # A candidate has to be no WORSE than what is already shipping, which is the actual question.
     ref_fence = sum(1 for r in incumbent if not r["fence"])
     ref_stop = sum(1 for r in incumbent if r["stop"] != "stop")
+    # one gate row per candidate arm (the recheck arm is only for drift)
     gate = {}
     for label, rows in results.items():
         if label == "ollama_recheck":
@@ -636,6 +661,7 @@ def main() -> int:
     print(f"  builds: ollama {meta.get('ollama')} - llama.cpp {meta.get('llamacpp', '?')}"
           f" - llama.cpp cold load {meta.get('llamacpp_load_s', '?')}s (excluded below)")
     def _cache_total(rows: list[dict]) -> str:
+        """Total cached prompt tokens across an arm's rows as text; UNREAD when no row reported the field."""
         vals = [r.get("cached_tok") for r in rows]
         return UNREAD if all(v is None for v in vals) else str(sum(v or 0 for v in vals))
     cache = {lb: _cache_total(rows) for lb, rows in results.items()}

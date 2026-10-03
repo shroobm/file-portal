@@ -1,4 +1,10 @@
-"""prototypes/analyst-lab/decoding/edit_taxonomy.py -- WHAT did qwen3:8b change on DDIA, and which
+"""WHAT THIS FILE DOES: census script. main() walks the aligned passed (input, output) pairs of the DDIA bundle,
+classifies each changed chunk by the smallest transformation that explains it (classify_edit), classifies each lost
+12-word window (shipped ladder, v3, ligature, cite rungs, fuzzy match), counts missing numerals and removed/added
+words, prints the censuses and writes taxonomy.json (numbers only) beside this file. Also exports regexes and
+helpers (numeral_view, norm_ws, prep) used by analyze_results.py. Reads the library read-only.
+
+prototypes/analyst-lab/decoding/edit_taxonomy.py -- WHAT did qwen3:8b change on DDIA, and which
 changes cost survival windows? Over the aligned PASSED pairs (ddia_pairs), two censuses:
 
   1. EDIT census (raw text, whitespace-insensitive): every chunk whose output != input is classified
@@ -27,6 +33,7 @@ import re
 import sys
 from collections import Counter
 
+# -- setup: import path for sibling modules; rapidfuzz is optional (fuzz is None without it) --
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import ddia_pairs  # noqa: E402
@@ -37,6 +44,7 @@ try:
 except ImportError:  # pragma: no cover
     fuzz = None
 
+# -- regexes: Marker span anchors, backslash escapes, heading markers, ligatures, digit tokens, image tokens, links --
 SPAN = re.compile(r'<span id="[^"]*"></span>')
 ESC = re.compile(r"\\(?=[^\w\s]|_)")
 HEAD = re.compile(r"(?m)^\s{0,3}#{1,6}\s*")
@@ -52,11 +60,15 @@ def numeral_view(t: str) -> str:
 WS = re.compile(r"\s+")
 
 
+# -- whitespace normalising and edit classification --
 def norm_ws(t: str) -> str:
+    """Collapse every whitespace run in t to a single space and trim the ends. Returns the new string."""
     return WS.sub(" ", t).strip()
 
 
 def classify_edit(inp: str, out: str) -> str:
+    """Name the smallest cumulative transformation that turns inp into out: identical, span, escape, heading,
+    punct, or other (checked in that order). Pure function; returns the label string."""
     if norm_ws(inp) == norm_ws(out):
         return "identical"
     a, b = SPAN.sub("", inp), SPAN.sub("", out)
@@ -76,7 +88,10 @@ def classify_edit(inp: str, out: str) -> str:
 CITE = re.compile(r"\(#page-[\d-]+\)")  # the anchor target of Marker's footnote/citation links
 
 
+# -- ladder variants for the lost-window census --
 def prep(t: str, v3: bool = False, lig: bool = False, cite: bool = False) -> str:
+    """Normalise t with the shipped ladder, optionally adding the cite-anchor strip (cite), the escape strip before
+    markdown handling (v3) and ligature-letter removal (lig). Pure function; returns the normalised string."""
     if cite:
         t = CITE.sub("", t)  # symmetric: `[\[2\]](#page-49-0)` and `[[2](#page-49-0)]` both -> `2`
     if v3:
@@ -87,7 +102,10 @@ def prep(t: str, v3: bool = False, lig: bool = False, cite: bool = False) -> str
     return s
 
 
+# -- entry point --
 def main() -> None:
+    """Run both censuses over the aligned passed pairs, print the results and write taxonomy.json beside this
+    file. Reads the bundle via ddia_pairs; returns nothing."""
     m, chunks_in, outs, cs = ddia_pairs.pairs()
     edit = Counter()
     lost = Counter()
@@ -98,6 +116,7 @@ def main() -> None:
     numeral_examples = []
     per_chunk_other = []
     words_removed = Counter(); words_removed_total = 0; words_added_total = 0
+    # per chunk: skip unaligned or analyst-rejected chunks, classify the edit, then census windows, numerals, words
     for k, o in enumerate(outs):
         i = k + 1
         if o is None or cs[i].get("x"):
@@ -121,6 +140,7 @@ def main() -> None:
         wins_cite = tn.make_windows(ref_cite, False)
         # the v3 ladders re-window, so match by index where counts agree, else by content
         for idx, w in enumerate(wins):
+            # a window already present in the output is not lost; otherwise find the first rung that rescues it
             if tn.space_free(w) in out_flat:
                 continue
             w3 = wins_v3[idx] if idx < len(wins_v3) and len(wins_v3) == len(wins) else None
@@ -142,12 +162,14 @@ def main() -> None:
                     lost["deletion (<70)"] += 1
             else:
                 lost["unclassified (no rapidfuzz)"] += 1
+        # numeral check: digit tokens in the input's content view that the output lacks
         a = Counter(NUM.findall(numeral_view(c)))
         b = Counter(NUM.findall(numeral_view(o)))
         miss = a - b
         wa = Counter(tn.punct_free(tn.prepare_output(c)).split())
         wb = Counter(tn.punct_free(tn.prepare_output(o)).split())
         removed = sum((wa - wb).values()); added = sum((wb - wa).values())
+        # bucket the chunk by how many input words are absent from the output
         wm = "0" if removed == 0 else "1-3" if removed <= 3 else "4-10" if removed <= 10 else "11-50" if removed <= 50 else ">50"
         words_removed[wm] += 1
         words_removed_total += removed; words_added_total += added
@@ -156,6 +178,7 @@ def main() -> None:
             numeral_tokens += sum(miss.values())
             if len(numeral_examples) < 8:
                 numeral_examples.append((i, list(miss.items())[:3], list((b - a).items())[:3]))
+    # report: print the censuses, then write the numbers-only JSON
     lost_total = sum(lost.values())
     print(f"aligned passed pairs: {n_pairs}; input windows {windows_total}; lost windows {lost_total} "
           f"({lost_total / windows_total * 100:.2f} % of these chunks' windows)")

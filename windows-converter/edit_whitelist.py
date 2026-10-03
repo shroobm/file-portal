@@ -1,4 +1,13 @@
-r"""edit_whitelist — the DIFF-WHITELIST ACCEPTOR (J46; S119 R1 measured, promoted S140, Rab signed C+A 2026-09-12).
+r"""WHAT THIS FILE DOES: decides which edits of the analyst's rewritten text are kept. It compares the
+input chunk with the model's candidate chunk word by word and keeps an edit only if it is on a fixed
+list of harmless kinds (quotes, escapes, link syntax, markup, hyphens, ligature repairs, reflow);
+every other edit is undone. Main entry points: `reconcile(inp, cand, rungs, policy)` returns the
+reconciled text plus an edit log, and `tally(log)` counts that log by class. Helpers: `norm`,
+`equivalent`, `label` (judging), `_mask_tables`/`_unmask_tables` (table handling), `_aligned`,
+`_hunks`, `_peel`, `_walk` (word alignment). Pure text in, text out: no files, no network. Callers:
+`analyst.process` (named in the text below) and the selftest `edit_whitelist_selftest.py`.
+
+edit_whitelist — the DIFF-WHITELIST ACCEPTOR (J46; S119 R1 measured, promoted S140, Rab signed C+A 2026-09-12).
 
 Faithfulness by construction. After the fence, survival and ratio checks, `analyst.process` calls
 `reconcile(chunk, candidate, FULL)` on every chunk it is about to accept:
@@ -54,6 +63,8 @@ from rapidfuzz.distance import Levenshtein
 
 import text_norm as tn
 
+# -- patterns: the regular expressions behind each whitelist rung --
+
 _WS_TOKEN = re.compile(r"\S+")
 _QUOTES = tn._QUOTES
 _ESC = re.compile(r"\\([\\`*_{}\[\]()#+\-.!$|<>~\"'])")
@@ -69,6 +80,8 @@ _MARKUP = re.compile(r"(?m)^\s{0,3}#{1,6}\s*|`|\*|(?<!\w)_|_(?!\w)|^\s*>\s?|\||^
 _BRACKETS = re.compile(r"[\[\]]")
 _WS = re.compile(r"\s+")
 _DIGIT = re.compile(r"\d")
+
+# -- policies (rung sets), edit class names and the table placeholder token --
 
 FULL = frozenset({"escape", "link", "markup", "hyphen", "ligature"})
 STRICT = frozenset({"markup", "hyphen"})
@@ -86,7 +99,11 @@ _TBL = "⟦TBL-%d⟧"
 _TBL_RE = re.compile(r"⟦TBL-(\d+)⟧")
 
 
+# -- judging one pair of spans: normalise, compare, name the edit --
+
 def _urls(text: str, rungs) -> list:
+    """The ordered list of link URLs found in `text` (backslash escapes removed first when the
+    "escape" rung is on). Pure; used to check that an edit leaves the same links in the same order."""
     # escapes come off BEFORE the link regex: Marker writes a citation as `[[2\]](#page-490-0)`
     # and the escaped bracket hides the link from a naive regex (S119 R1, first acceptor run).
     # S140 review (Logic#2 / Test#1, reproduced): the ORDERED list, not a multiset — two links inside one hunk
@@ -132,6 +149,7 @@ def equivalent(a: str, b: str, rungs) -> bool:
     if "ligature" in rungs and (_GARBLE_IN.search(na) or _GARBLE_START.search(na)) and len(na) <= 600:
         # rebuild na as a regex where every garble char becomes the ligature alternation
         pat = ""
+        # walk the normalised input span character by character, skipping apostrophes that are real contractions
         for j, ch in enumerate(na):
             left = na[j - 1] if j else ""
             right = na[j + 1:j + 3]
@@ -154,6 +172,7 @@ def label(a: str, b: str) -> str:
     # empty span and an accepted deletion read as an accepted content loss in the tally)
     if a.strip() and b.strip() and equivalent(a, b, set()):
         return "reflow"
+    # try each single rung (then two combined) in order; the first that makes the spans equal names the edit
     for name, rungs in (("hyphen", {"hyphen"}), ("escape", {"escape"}), ("link", {"link"}),
                         ("markup", {"markup"}), ("ligature", {"ligature"}),
                         ("markup+link", {"markup", "link"}), ("markup+escape", {"markup", "escape"})):
@@ -180,6 +199,8 @@ def label(a: str, b: str) -> str:
     return "substitution"
 
 
+# -- table handling: judge tables whole, hide them from the word alignment, put them back --
+
 def _mask_tables(inp: str, cand: str):
     """S150 E3: the tables of both texts paired by position and judged whole by the grid invariant; each pair is swapped
     for one token ⟦TBL-k⟧ on both sides so the word alignment treats it as equal, and the chosen text (the candidate's
@@ -191,6 +212,7 @@ def _mask_tables(inp: str, cand: str):
     if not ba or len(ba) != len(bb):
         return inp, cand, None
     entries = []
+    # pair table k of the input with table k of the candidate; identical pairs pass, differing pairs are judged whole
     for k, ((ha, da, ea), (hb, db, eb)) in enumerate(zip(ba, bb)):
         a_text = "\n".join(la[ha:ea + 1])
         b_text = "\n".join(lb[hb:eb + 1])
@@ -204,6 +226,7 @@ def _mask_tables(inp: str, cand: str):
         b_full = "\n".join(lb[b0:eb + 1])
         entries.append({"k": k, "a": a_text, "b": b_full, "choice": b_full if ok else a_text, "judged": True,
                         "accepted": ok, "a_span": (ha, ea), "b_span": (b0, eb), "reasons": reasons})
+    # swap each table for its placeholder token, last table first so earlier line numbers stay valid
     for ent in reversed(entries):
         tok = _TBL % ent["k"]
         ha, ea = ent["a_span"]
@@ -214,6 +237,8 @@ def _mask_tables(inp: str, cand: str):
 
 
 def _unmask_tables(text: str, entries: list, log: list) -> tuple[str, list]:
+    """Put the chosen table text back in place of each placeholder token in `text`, and append a
+    "table-geometry" entry to `log` for every table that was judged. Returns (text, log); mutates `log`."""
     by_k = {e["k"]: e for e in entries}
     text = _TBL_RE.sub(lambda m: by_k[int(m.group(1))]["choice"] if int(m.group(1)) in by_k else m.group(0), text)
     for e in entries:
@@ -221,6 +246,8 @@ def _unmask_tables(text: str, entries: list, log: list) -> tuple[str, list]:
             log.append(("table-geometry", bool(e["accepted"]), e["a"], e["b"]))
     return text, log
 
+
+# -- the main entry point: reconcile a candidate against its input --
 
 def reconcile(inp: str, cand: str, rungs=FULL, policy: str = "whitelist") -> tuple[str, list]:
     """Returns (reconciled text, edit log [(label, accepted, a_span, b_span)]). `policy`: "whitelist"
@@ -250,6 +277,7 @@ def reconcile(inp: str, cand: str, rungs=FULL, policy: str = "whitelist") -> tup
     prev_end_a = 0
     first = True
     reverted_in = False   # the last emitted segment was the INPUT's (a reverted edit)
+    # rebuild the output piece by piece: equal pieces come from the candidate; each edit is kept or reverted
     for op in ops:
         tag, s0, s1, d0, d1 = op
         if tag == "equal":
@@ -305,6 +333,8 @@ def reconcile(inp: str, cand: str, rungs=FULL, policy: str = "whitelist") -> tup
     return "".join(out), log
 
 
+# -- word alignment: keys, exact-then-keyed opcodes, hunks, peeling --
+
 _NONWORD = re.compile(r"[^\w]")
 _LIGS_IN_KEY = re.compile(r"ffi|ffl|ff|fi|fl|ft|fk|fj|fb|fh|st|th")
 
@@ -323,6 +353,7 @@ def _split_region(wa, wb, s0, s1, d0, d1):
     ka = [_key(w) for w in wa[s0:s1]]
     kb = [_key(w) for w in wb[d0:d1]]
     out = []
+    # for each key-level opcode: keep non-equal ones as they are; split equal runs wherever the raw tokens differ
     for o in Levenshtein.opcodes(ka, kb):
         if o.tag != "equal":
             out.append((o.tag, s0 + o.src_start, s0 + o.src_end, d0 + o.dest_start, d0 + o.dest_end))
@@ -348,6 +379,7 @@ def _aligned(wa, wb):
     out = []
     exact = [(o.tag, o.src_start, o.src_end, o.dest_start, o.dest_end) for o in Levenshtein.opcodes(wa, wb)]
     i = 0
+    # copy equal opcodes through; gather each run of non-equal ones into one region and refine it by keys
     while i < len(exact):
         if exact[i][0] == "equal":
             out.append(exact[i])
@@ -374,6 +406,7 @@ def _hunks(ops, inp, cand, ta, tb, rungs, policy):
     raw = list(ops)
     out = []
     i = 0
+    # equal opcodes pass through; each run of non-equal ones is peeled into hunks (whitelist policy) or kept as is
     while i < len(raw):
         if raw[i][0] == "equal":
             out.append(raw[i])
@@ -394,10 +427,14 @@ def _hunks(ops, inp, cand, ta, tb, rungs, policy):
 
 
 def _span_a(inp, ta, s0, s1):
+    """The input's text from token s0 up to (not including) token s1, using the token offsets `ta`;
+    "" when the range is empty. Pure."""
     return inp[ta[s0][0]:ta[s1 - 1][1]] if s1 > s0 else ""
 
 
 def _span_b(cand, tb, d0, d1):
+    """The candidate's text from token d0 up to (not including) token d1, using the token offsets `tb`;
+    "" when the range is empty. Pure."""
     return cand[tb[d0][0]:tb[d1 - 1][1]] if d1 > d0 else ""
 
 
@@ -413,6 +450,7 @@ def _peel(inp, cand, ta, tb, s0, s1, d0, d1, rungs, depth=0, run=None):
     if m == 0 or n == 0 or (m == 1 and n == 1) or m > 12 or n > 12 or depth > 6:
         return [("replace" if m and n else ("delete" if m else "insert"), s0, s1, d0, d1)]
     best = None  # (size, i, j, side)
+    # search every prefix pair and suffix pair of the region for the largest one that is equivalent
     for i in range(1, m + 1):
         for j in range(1, n + 1):
             if i == m and j == n:
@@ -434,10 +472,14 @@ def _peel(inp, cand, ta, tb, s0, s1, d0, d1, rungs, depth=0, run=None):
 
 
 def _walk(inp, cand, ta, tb, run, rungs):
+    """Go through a run of opcodes and merge each group of 3, else 2, neighbours that are
+    equivalent together into one "hunk"; other opcodes pass through unchanged. Returns the new op
+    list. Pure."""
     out = []
     k = 0
     while k < len(run):
         took = False
+        # try a window of 3 opcodes, then 2, starting at k
         for w in (3, 2):
             if k + w <= len(run):
                 s0, s1 = run[k][1], run[k + w - 1][2]
@@ -453,6 +495,8 @@ def _walk(inp, cand, ta, tb, run, rungs):
             k += 1
     return out
 
+
+# -- reporting: count the edit log --
 
 def tally(log: list) -> dict:
     """The edit log as counts by class: {"accepted": {class: n}, "reverted": {class: n}} — the manifest's

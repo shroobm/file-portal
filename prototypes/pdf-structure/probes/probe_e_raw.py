@@ -1,4 +1,10 @@
-"""What the stext STRUCT block does NOT carry, and can xref walking supply it?
+"""WHAT THIS FILE DOES: a one-off measurement script (run directly, no arguments). On the WTPDF sample (path
+hard-coded) it prints a raw stext structure block, then walks the tag tree by raw xref reads and prints
+counts of /Alt, /ActualText, /Lang, /A and /Pg, the Figure objects, a sample attribute object and the
+TH/TD cells. Read-only; stdout only; needs pymupdf; no callers. (Its third item, a no-tree control, is
+not implemented in the code below.)
+
+What the stext STRUCT block does NOT carry, and can xref walking supply it?
 
 1. Dump one raw STRUCT block dict verbatim (all keys).
 2. Walk /StructTreeRoot by xref: count StructElem, harvest /Alt /ActualText
@@ -17,6 +23,7 @@ d = doc[10].get_text("dict", flags=FLAGS)
 
 
 def find_struct(blocks):
+    """Return the first structure block (type 2) found in `blocks`, searching nested ones; None if none."""
     for b in blocks:
         if b.get("type") == 2:
             return b
@@ -27,6 +34,7 @@ def find_struct(blocks):
     return None
 
 
+# print the block's top-level keys, replacing the child list by its length to keep the output short
 sb = find_struct(d["blocks"])
 shallow = {k: (("<%d children>" % len(v)) if k == "blocks" else v)
            for k, v in sb.items()}
@@ -51,6 +59,7 @@ print("root ParentTree:", doc.xref_get_key(root_xref, "ParentTree"))
 
 
 def as_xref(v):
+    """Return the object number if `v` is an ("xref", "N 0 R") pair, else None."""
     if v and v[0] == "xref":
         return int(v[1].split()[0])
     return None
@@ -71,6 +80,8 @@ def kids_of(x):
     return out
 
 
+# walk every reachable element, counting tag types and which optional keys it carries
+# (xref_get_key returns a truthy ('null','null') tuple for absent keys, so these counts are inflated)
 seen = set()
 tally = collections.Counter()
 alt_ct = 0
@@ -115,6 +126,7 @@ for f in figures:
 # a table cell with attributes
 print()
 print("=== sample /A attribute object ===")
+# show the first element that has an /A entry (among at most 4000 reached objects)
 for x in list(seen)[:4000]:
     a = doc.xref_get_key(x, "A")
     if a:
@@ -129,6 +141,7 @@ else:
 # TH scope/headers
 print()
 print("=== TH elements: Scope / Headers / ColSpan ===")
+# print the keys of the first three table header/data cells and count all of them
 n_th = 0
 for x in seen:
     s = doc.xref_get_key(x, "S")

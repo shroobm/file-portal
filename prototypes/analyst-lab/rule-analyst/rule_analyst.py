@@ -1,4 +1,9 @@
-r"""prototypes/analyst-lab/rule-analyst/rule_analyst.py -- does the analyst's STATED job need an LLM?
+r"""WHAT THIS FILE DOES: a rule-based stand-in for the LLM analyst. rule_analyst(chunk, vocab) joins hyphenated line
+breaks and space-split words using the document's own vocabulary (build_vocab, dehyphenate, join_splits);
+heading_lines() lists headings. main() scores the rules against the real DDIA pairs and writes results.json beside
+this file; selftest() (run with --selftest) is the negative control. Reads the held bundle via ddia_pairs; no network.
+
+prototypes/analyst-lab/rule-analyst/rule_analyst.py -- does the analyst's STATED job need an LLM?
 
 prompts/readability.txt asks for exactly four things: fix mid-word hyphenation splits
 ('unexpect edly' -> 'unexpectedly'), normalize heading levels, keep paragraphs intact, keep the
@@ -31,6 +36,7 @@ import re
 import sys
 from collections import Counter
 
+# -- setup: import path to the sibling decoding folder and the shipped converter modules --
 HERE = pathlib.Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE.parent / "decoding"))
 import ddia_pairs  # noqa: E402
@@ -38,6 +44,7 @@ import analyst  # noqa: E402
 import fidelity_audit as fa  # noqa: E402
 import text_norm as tn  # noqa: E402
 
+# -- constants and regexes: vocabulary floor, hard-hyphen and space-hyphen patterns, word, candidate pair, heading --
 VOCAB_MIN = 3  # lever-waiver: the self-dictionary's frequency floor for a space-split join (S119 R2, quarantined prototype) — a pipeline lever only if J47 graduates this pass; Rab's word then
 _HYPHEN_NL = re.compile(r"(\w)-\n(\w)")
 _HYPHEN_SP = re.compile(r"(\w)- (\w)")
@@ -46,19 +53,26 @@ _PAIR = re.compile(r"(?<![\w-])([a-z]{2,})[ ]([a-z]{2,})(?![\w-])")
 _HEAD = re.compile(r"(?m)^(#{1,6})\s+(.*)$")
 
 
+# -- the two rules and the heading reader --
 def build_vocab(text: str) -> Counter:
+    """Count lower-cased alphabetic words in text (the document's self-dictionary). Returns a Counter."""
     return Counter(w.lower() for w in _WORD.findall(text))
 
 
 def dehyphenate(text: str) -> tuple[str, int]:
+    """R-HYPHEN: remove a hyphen plus newline between two word characters. Returns (new text, number of joins)."""
     out, n = _HYPHEN_NL.subn(r"\1\2", text)
     return out, n
 
 
 def join_splits(text: str, vocab: Counter, min_count: int = VOCAB_MIN) -> tuple[str, int, list[str]]:
+    """R-SPLIT: join two adjacent lower-case words when their join is a frequent word in vocab and at least one half
+    is not. Returns (new text, number of joins, list of 'a b->ab' examples). Pure function."""
     joined: list[str] = []
 
     def _fix(m: re.Match) -> str:
+        """Regex replacement callback: return the joined word if the vocabulary test passes, else the match
+        unchanged; records each join in the enclosing list."""
         a, b = m.group(1), m.group(2)
         ab = a + b
         if vocab[ab] >= min_count and (vocab[a] < min_count or vocab[b] < min_count):
@@ -71,16 +85,23 @@ def join_splits(text: str, vocab: Counter, min_count: int = VOCAB_MIN) -> tuple[
 
 
 def rule_analyst(chunk: str, vocab: Counter) -> tuple[str, dict]:
+    """Apply both rules to one chunk. Returns (new chunk text, stats dict with hyphen_joins, space_joins and up to
+    five examples). Pure function."""
     out, n_h = dehyphenate(chunk)
     out, n_s, examples = join_splits(out, vocab)
     return out, {"hyphen_joins": n_h, "space_joins": n_s, "examples": examples[:5]}
 
 
 def heading_lines(text: str) -> list[tuple[int, str]]:
+    """List the markdown headings in text as (level, stripped title) pairs. Pure function."""
     return [(len(m.group(1)), m.group(2).strip()) for m in _HEAD.finditer(text)]
 
 
+# -- measurement driver --
 def main() -> None:
+    """Measure the rules on the DDIA bundle: count input hyphenations, run the rules on all chunks, audit the
+    rule-based body against the shipped LLM body, tally what the LLM did on aligned passed chunks, print the
+    results and write results.json beside this file. Returns nothing."""
     m, sidecar_text, shipped_body = ddia_pairs.load_bundle()
     m, chunks_in, outs, cs = ddia_pairs.pairs()
     vocab = build_vocab(sidecar_text)
@@ -120,6 +141,7 @@ def main() -> None:
     head_level_changed = head_removed = head_added = 0
     n_pairs = 0
     other_changes = 0
+    # per aligned passed chunk: compare the LLM output with the rules' candidates and count heading changes
     for k, o in enumerate(outs):
         i = k + 1
         if o is None or cs[i].get("x"):
@@ -175,6 +197,7 @@ def main() -> None:
     }, indent=1), encoding="utf-8")
 
 
+# -- negative control and entry point --
 def selftest() -> None:
     """NEGATIVE CONTROL: the detectors must FIRE on a planted split, or the zero counts above mean
     nothing. Planted: a hard hyphenation and an 'unexpect edly' space split inside real DDIA prose."""

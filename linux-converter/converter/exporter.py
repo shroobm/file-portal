@@ -1,4 +1,12 @@
-"""Exporter (L11/L12): ships converted bundles from library/staging/ into the vault repo.
+"""WHAT THIS FILE DOES: the converter's vault exporter. It takes each finished bundle folder in
+library/staging/ and commits it to the vault git repo (new note, or an in-place replace for a
+"supersede" re-convert), pushes it, checks the pushed blobs in the bare repo, and only then
+deletes the staging copy. Entry points: Exporter.export() / Exporter.sweep(), the
+ExportHandler watchdog handler, append_receipt() and slugify(). Reads: staging bundles
+(manifest.json, bless.json). Writes: vault-work clone and bare repo (via git), receipts.jsonl.
+Called by converter/main.py (run) and converter/fixity.py (append_receipt).
+
+Exporter (L11/L12): ships converted bundles from library/staging/ into the vault repo.
 
 Transport is the wiring resolved in Open Decision #4: a non-bare working clone at
 <root>/vault-work whose origin is the local bare repo <root>/vault.git; the Desktop's
@@ -40,11 +48,15 @@ from converter.config import Paths
 
 logger = logging.getLogger("file-portal-converter")
 
+# -- vault location constants --
+
 VAULT_BRANCH = "main"  # HEAD of the bare repo is pinned to refs/heads/main (Decision #4)
 # Decision #6's "Library/Inbox/<slug>--<sha8>" is VAULT-relative; the repo root already IS
 # the vault's Library folder (Decision #4: only Library/ is a repo), so repo-relative it is
 # plain Inbox/ (L14 — the doubled path shipped as Library/Library/Inbox/ in the vault).
 INBOX_REL = Path("Inbox")
+
+# -- receipts file, spot-check sampling, and the vault-shipping levers --
 
 # Stage C2 (docs/19 §3.3, Rab signed S58): the seam receipt. Every EXPORT-* outcome used to
 # exist ONLY in this service's journal — a machine the Desktop cannot read (docs/19 law 12) —
@@ -91,10 +103,14 @@ MARKER_BODY_SUFFIX = ".marker.txt"  # the bundle-side suffix (windows-converter/
 SHIP_MARKER_BODY_TO_VAULT = False  # lever-waiver: J33, Rab decided OUT 2026-09-05 (stay out of the vault; the manifest names the omission); flips to True only on his word
 
 
+# -- receipt writing, git identity, errors and small helpers --
+
+
 def append_receipt(root: Path, outcome: str, **fields) -> None:
     """Append one seam receipt to <root>/receipts.jsonl. Best-effort and never raises:
     telemetry must never cost the operation it reports on. Shared by the Exporter and the
     fixity check (converter/fixity.py)."""
+    # Build the JSON record (UTC timestamp + outcome + caller fields); any failure only warns.
     try:
         record = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),
@@ -136,9 +152,13 @@ class ExportError(Exception):
 
 def slugify(name: str) -> str:
     """Filesystem/URL-safe bundle slug: lowercase, non-alphanumerics collapsed to '-'."""
+    # Collapse runs of non-alphanumerics to one "-", trim, then cap at 60 characters.
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     slug = slug[:60].rstrip("-")
     return slug or "untitled"
+
+
+# -- blocks.json and Marker-body sidecar handling (J28 / J33 levers) --
 
 
 def _blocks_status(bundle_dir: Path) -> dict:
@@ -165,6 +185,7 @@ def _skip_blocks(bundle_dir: Path):
     still ships."""
 
     def _ignore(src, _names):
+        """Return {blocks.json} when src is the bundle root, else an empty set."""
         return {BLOCKS_NAME} if Path(src) == bundle_dir else set()
 
     return _ignore
@@ -200,6 +221,7 @@ def _skip_marker_body(bundle_dir: Path):
     that happens to end in .marker.txt inside assets/ is a different file and still ships."""
 
     def _ignore(src, names):
+        """Return the names ending in the sidecar suffix, only for the bundle root directory."""
         if Path(src) != bundle_dir:
             return set()
         return {n for n in names if n.endswith(MARKER_BODY_SUFFIX)}
@@ -214,6 +236,7 @@ def _combine_skip(*ignores):
     active = [ig for ig in ignores if ig is not None]
 
     def _ignore(src, names):
+        """Return the union of every active filter's exclusions for this directory."""
         result: set = set()
         for ig in active:
             result |= ig(src, names)
@@ -222,7 +245,12 @@ def _combine_skip(*ignores):
     return _ignore
 
 
+# -- git helpers --
+
+
 def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
+    """Run `git -C repo <args>` and return the finished process (text output captured).
+    Never raises on a non-zero exit; the caller reads returncode."""
     return subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
@@ -231,10 +259,14 @@ def _git(repo: Path, *args: str) -> subprocess.CompletedProcess:
 
 
 def _git_check(repo: Path, *args: str) -> str:
+    """Run a git command via _git; return its stripped stdout, or raise ExportError if it failed."""
     proc = _git(repo, *args)
     if proc.returncode != 0:
         raise ExportError(f"git {' '.join(args)}: {proc.stderr.strip() or proc.stdout.strip()}")
     return proc.stdout.strip()
+
+
+# -- the Exporter: all vault-repo work --
 
 
 class Exporter:
@@ -242,6 +274,7 @@ class Exporter:
     run on different threads; git operations must never interleave)."""
 
     def __init__(self, paths: Paths):
+        """Keep the folder layout and create the lock that serializes exports."""
         self.paths = paths
         self._lock = threading.Lock()
 
@@ -261,6 +294,7 @@ class Exporter:
         """Count prior `exported` receipts — the spot-check counter's source of truth."""
         try:
             with open(self.paths.root / RECEIPTS_NAME, encoding="utf-8") as fh:
+                # Count lines whose JSON outcome is "exported"; unparseable lines are skipped.
                 count = 0
                 for line in fh:
                     try:
@@ -353,6 +387,7 @@ class Exporter:
         return merged
 
     def export(self, bundle_dir: Path) -> None:
+        """Export one staging bundle under the lock; failures are logged and receipted, not raised."""
         # A single bad bundle must not kill the observer thread or block later exports.
         with self._lock:
             try:
@@ -365,6 +400,9 @@ class Exporter:
                 self._receipt("failed", bundle_dir, error=f"{type(exc).__name__}: {exc}"[:200])
 
     def _export(self, bundle_dir: Path) -> None:
+        """Do the real export of one bundle: sync the vault clone, handle supersede or dedup,
+        refuse failing verdicts, copy and commit the bundle, push, verify blobs in the bare
+        repo, delete staging, write the receipt. Raises ExportError on any git or setup failure."""
         if not bundle_dir.is_dir() or bundle_dir.name.startswith("."):
             return
         vault_work, vault_bare = self.paths.vault_work, self.paths.vault_bare
@@ -438,6 +476,7 @@ class Exporter:
             if loc.returncode > 1:
                 raise ExportError(f"supersede locate grep failed: {loc.stderr.strip()}")
             prefix = f"{VAULT_BRANCH}:"  # `git grep <rev>` prefixes every hit with "<rev>:"
+            # Strip that "<rev>:" prefix from each hit, leaving repo-relative manifest paths.
             matches = [
                 line[len(prefix) :] if line.startswith(prefix) else line
                 for line in loc.stdout.splitlines()
@@ -556,6 +595,7 @@ class Exporter:
 
         # L12 gate: the commit and every file's blob must be readable from the BARE repo.
         _git_check(vault_bare, "cat-file", "-e", f"{commit_sha}^{{commit}}")
+        # Verify every shipped bundle file exists as a blob in the bare repo (skips unshipped files).
         for file in sorted(p for p in bundle_dir.rglob("*") if p.is_file()):
             rel = file.relative_to(bundle_dir)
             # J28: a deliberately unshipped blocks.json has no blob to verify -- the gate must
@@ -579,6 +619,7 @@ class Exporter:
             target_rel,
             commit_sha[:8],
         )
+        # Build the extra receipt fields (degeneration flag, spot-check flag), then write it.
         extra = {}
         # Surface the linux-lane degeneration verdict at the seam (docs/29: a measured value
         # that reaches nobody is the defect) — a flagged-but-published conversion must be
@@ -686,6 +727,7 @@ class Exporter:
             shutil.copyfile(new_marker_body, target / old_marker_body_name)
         _git_check(vault_work, "add", "--", target_rel.as_posix())
 
+        # Files git now sees as changed under HEAD; decides resume / no-op / real supersede below.
         changed = [
             line
             for line in _git_check(
@@ -766,6 +808,9 @@ class Exporter:
         )
 
 
+# -- the watchdog handler for library/staging/ --
+
+
 class ExportHandler(FileSystemEventHandler):
     """Watches library/staging/ RECURSIVELY (J58, Rab signed 2026-09-10, S126; non-recursive before).
     The converter publishes bundles by atomic rename within staging, which is an on_moved of a
@@ -782,6 +827,7 @@ class ExportHandler(FileSystemEventHandler):
     BLESS = "bless.json"
 
     def __init__(self, exporter: Exporter):
+        """Keep the Exporter to call and the staging folder to watch."""
         self.exporter = exporter
         self.staging = Path(exporter.paths.staging)
 
@@ -804,6 +850,7 @@ class ExportHandler(FileSystemEventHandler):
         return self._bundle_of(p.parent)
 
     def on_moved(self, event):
+        """Watchdog callback: a renamed-in bundle directory, or a renamed-in bless.json, triggers export."""
         if event.is_directory:
             bundle_dir = self._bundle_of(event.dest_path)
             if bundle_dir is not None:
@@ -817,6 +864,7 @@ class ExportHandler(FileSystemEventHandler):
             self.exporter.export(bundle_dir)
 
     def on_created(self, event):
+        """Watchdog callback: a new top-level bundle directory; waits until stable, then exports."""
         # The dot-check must happen BEFORE the stability wait: the converter assembles two
         # dot-prefixed temp dirs inside staging per bundle, and their created events would
         # otherwise each hold the dispatch thread for the full timeout (the dir gets renamed
@@ -832,6 +880,7 @@ class ExportHandler(FileSystemEventHandler):
         self.exporter.export(bundle_dir)
 
     def on_closed(self, event):
+        """Watchdog callback: a finished in-place write of bless.json inside a bundle re-exports it."""
         # inotify IN_CLOSE_WRITE: the completion signal for an in-place write -- the bless click's
         # scp. Only bless.json directly inside a top-level bundle is a signal (J58).
         if event.is_directory:

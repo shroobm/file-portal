@@ -1,4 +1,9 @@
-"""Re-measure reading order HONESTLY.
+"""WHAT THIS FILE DOES: a one-off measurement script (run directly, no arguments). For three hard-coded PDFs
+(first 60 pages each) it compares the tag tree's declared text order with pymupdf's geometric order as a
+whitespace-free character stream, prints per-file counts of identical and differing pages, runs two
+negative controls, and prints one concrete divergence on WTPDF page 0. Read-only; stdout only; needs pymupdf.
+
+Re-measure reading order HONESTLY.
 
 probe_j compared block LISTS, which conflates finer segmentation with different order.
 Here: compare the whitespace-normalized concatenated CHARACTER STREAM of the page.
@@ -11,11 +16,13 @@ and compare a deliberately reversed declared stream (must be ~all differing).
 import re, difflib
 import pymupdf
 
+# -- helpers: the two text orders as lists of whitespace-normalised fragments --
 FL = pymupdf.TEXTFLAGS_DICT | pymupdf.TEXT_COLLECT_STRUCTURE
 NORM = lambda s: re.sub(r"\s+", " ", s).strip()
 
 
 def declared_frags(page):
+    """Return the non-empty text blocks of `page` in tag-tree (declared) order, whitespace-normalised."""
     out = []
 
     def w(bl):
@@ -29,6 +36,7 @@ def declared_frags(page):
 
 
 def geom_frags(page):
+    """Return the non-empty text blocks of `page` in pymupdf's default geometric order, normalised."""
     out = []
     for b in page.get_text("dict")["blocks"]:
         if b.get("type") == 0:
@@ -44,9 +52,10 @@ for P in (r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf",
     same = differ = 0
     shown = 0
     print("=== %s (first %d pages) ===" % (P.split("/")[-1][:52], N))
+    # per page: equal character streams mean the same reading order; show up to two differing pages
     for i in range(N):
         p = doc[i]
-        ds = NORM(" ".join(declared_frags(p))).replace(" ", "")
+        ds =NORM(" ".join(declared_frags(p))).replace(" ", "")
         gs = NORM(" ".join(geom_frags(p))).replace(" ", "")
         if not ds and not gs:
             continue
@@ -54,6 +63,7 @@ for P in (r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf",
             same += 1
         else:
             differ += 1
+            # same characters in a different sequence is a true order difference; otherwise content differs
             if shown < 2 and ds and gs and sorted(ds) == sorted(gs):
                 # same characters, different sequence => a TRUE order difference
                 sm = difflib.SequenceMatcher(None, gs, ds)

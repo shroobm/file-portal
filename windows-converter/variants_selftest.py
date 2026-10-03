@@ -1,4 +1,11 @@
-"""Selftest for variants.py (LANE A, S211). stdlib only. NEVER touches the real library --
+"""WHAT THIS FILE DOES: a plain-assert test suite for variants.py, the registry that records every conversion
+variant of a source document (keyed by source sha256), compares them and selects the best faithful one. Entry point:
+main() (run the file directly); it runs every function listed in TESTS, prints "N/N ok" and returns 0 or 1. Each test
+builds fake bundle directories (manifest.json plus an assets folder) under a temporary directory, registers them with
+variants.register(), and asserts on variants.select(), faithful(), summarize(), rank() and the private helpers.
+Reads and writes only temporary files; the real library is never touched. Called by hand or by a test runner.
+
+Selftest for variants.py (LANE A, S211). stdlib only. NEVER touches the real library --
 every registry and every bundle_dir lives under a fresh tempfile.TemporaryDirectory(), and
 FP_VARIANTS is redirected there for the duration of each test.
 
@@ -21,6 +28,7 @@ import variants  # noqa: E402
 
 
 # ---------- fixtures ----------
+# -- builders for fake manifests and bundle directories used by every test below --
 
 def _manifest(
     sha="deadbeef00000000000000000000000000000000000000000000000000000000",
@@ -33,6 +41,9 @@ def _manifest(
     omit_inventions=False, omit_tables=False, omit_figures=False, omit_numbers=False,
     omit_analyst=False, words_lost_excl=None, inventions_excl=None, kind=None,
 ) -> dict:
+    """Build a synthetic manifest dict (the shape variants.summarize reads) from keyword knobs: sha, verdict, phase,
+    survival and error counts. The omit_* flags drop a whole measure block to simulate an older manifest. Returns the
+    dict; no side effects."""
     convert: dict = {
         "doc_survival": survival_convert,
         "pages_flagged": pages_flagged if pages_flagged is not None else [],
@@ -79,6 +90,8 @@ def _manifest(
 
 
 def _make_bundle(library_dir: Path, root_kind: str, name: str, n_assets: int = 2, **kw) -> Path:
+    """Create <library_dir>/<root_kind>/<name>/ holding n_assets dummy files under assets/ and a manifest.json built
+    by _manifest(**kw). Writes files on disk (inside the caller's temp dir); returns the bundle directory path."""
     bundle_dir = library_dir / root_kind / name
     (bundle_dir / "assets").mkdir(parents=True, exist_ok=True)
     for i in range(n_assets):
@@ -106,8 +119,10 @@ def _isolated():
 
 
 # ---------- tests ----------
+# -- selection and refusal rules: verdict, error count, assets, rows, degeneration --
 
 def test_two_variants_better_verdict_selected():
+    """Of two variants of one source, the one with the better verdict (pass over flag) is selected."""
     with _isolated() as td:
         sha = "sha-verdict-0001"
         a = _make_bundle(td, "anchor", "A-flag", sha=sha, verdict="flag",
@@ -121,6 +136,7 @@ def test_two_variants_better_verdict_selected():
 
 
 def test_equal_verdict_fewer_errors_selected():
+    """With equal verdicts, the variant that lost fewer words is selected."""
     with _isolated() as td:
         sha = "sha-errors-0002"
         a = _make_bundle(td, "anchor", "A-more-errors", sha=sha, verdict="pass",
@@ -134,6 +150,7 @@ def test_equal_verdict_fewer_errors_selected():
 
 
 def test_asset_loss_refused():
+    """A candidate with fewer asset files than the baseline is listed under refused (violation names assets)."""
     with _isolated() as td:
         sha = "sha-assets-0003"
         base = _make_bundle(td, "anchor", "A-baseline", sha=sha, verdict="flag",
@@ -151,6 +168,7 @@ def test_asset_loss_refused():
 
 
 def test_rows_lost_rose_refused():
+    """A candidate whose rows_lost rose above the baseline's is refused (violation names rows_lost)."""
     with _isolated() as td:
         sha = "sha-rows-0004"
         base = _make_bundle(td, "anchor", "A-baseline", sha=sha, verdict="flag",
@@ -167,6 +185,7 @@ def test_rows_lost_rose_refused():
 
 
 def test_degeneration_true_refused():
+    """A candidate flagged degeneration=True against a clean baseline is refused (violation names degeneration)."""
     with _isolated() as td:
         sha = "sha-degen-0005"
         base = _make_bundle(td, "anchor", "A-baseline", sha=sha, verdict="flag",
@@ -183,6 +202,7 @@ def test_degeneration_true_refused():
 
 
 def test_columns_unsupported_reads_unread_not_violation():
+    """When neither side witnessed table lines, faithful() reports columns as UNREAD, never as a violation."""
     # Neither side witnessed a table line (tables_witnessed_lines=0) -- columns_lost must never
     # be judged; it reads "columns unsupported" in `unread`, and faithful() must still say ok.
     cand = {
@@ -202,6 +222,7 @@ def test_columns_unsupported_reads_unread_not_violation():
 
 
 def test_register_idempotent():
+    """Registering the same bundle twice returns the same entry and leaves one variant in the registry."""
     with _isolated() as td:
         sha = "sha-idem-0007"
         b = _make_bundle(td, "anchor", "A-only", sha=sha, verdict="pass",
@@ -214,6 +235,7 @@ def test_register_idempotent():
 
 
 def test_original_never_deleted_after_supersede():
+    """After a better variant supersedes the first, the original stays in the registry and keeps its date."""
     with _isolated() as td:
         sha = "sha-supersede-0008"
         a = _make_bundle(td, "anchor", "A-original", sha=sha, verdict="flag",
@@ -230,6 +252,7 @@ def test_original_never_deleted_after_supersede():
 
 
 def test_negative_control_faithful_better_candidate_is_selected():
+    """Negative control: a strictly better, fully faithful candidate is selected and nothing is refused."""
     # Proves refusal is not blanket: a strictly-better, fully-faithful candidate DOES win, and
     # the refused list stays empty for it.
     with _isolated() as td:
@@ -251,6 +274,7 @@ def test_negative_control_faithful_better_candidate_is_selected():
 
 
 def test_absent_measure_reads_none():
+    """A measure missing from the manifest reads None in summarize(); a measured zero elsewhere stays 0."""
     with _isolated() as td:
         b = _make_bundle(td, "anchor", "C-partial", sha="sha-absent-0010",
                           converted_at="2026-01-01T00:00:00+00:00",
@@ -736,6 +760,7 @@ def test_the_counted_apart_keys_cannot_move_the_ranking():
     assert variants._error_sum(base)[1] == variants._error_sum(loud)[1], (variants._error_sum(base), variants._error_sum(loud))
 
 
+# -- the test list main() runs, in order --
 TESTS = [
     test_fixes_effective_reading,
     test_tie_incumbent_stays_selected_newer_listed_tied,
@@ -771,8 +796,11 @@ TESTS = [
 
 
 def main() -> int:
+    """Run every test in TESTS, print each failure with its traceback and an "N/N ok" line; return 0 if all
+    passed, else 1. An exception inside a test counts as a failure."""
     passed = 0
     failed = []
+    # run each test; an exception is recorded as a failure instead of stopping the run
     for t in TESTS:
         try:
             t()

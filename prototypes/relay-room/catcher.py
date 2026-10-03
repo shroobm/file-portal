@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """catcher.py - relay-room, BUILDER C: THE AGENT. One process per lane.
 
+WHAT THIS FILE DOES: it is the background watcher for one lane (Fable or Codex).  Every few seconds it reads
+state/room.md, finds new `say` messages addressed to its lane, records stages in the flight trail, writes a handoff
+envelope under state/handoff/<lane>/, calls the quarantined gate.py, mirrors model-to-model messages onto the
+quarantined relay bus, and rewrites state/status-<lane>.json as its heartbeat.  Entry points: main() (the command
+line) and the Catcher class (run / one_cycle).  It is started by hand beside room.py; room.py's selftest and the
+test suite also call it.
+
     python catcher.py --lane Fable          (alias: --as Fable)
     python catcher.py --lane Codex --once   (one pass, then exit - for the tripwires)
 
@@ -55,6 +62,7 @@ from datetime import datetime, timezone
 import roomlog
 import status
 
+# -- constants shared by the whole agent --
 PROTOCOL = status.PROTOCOL
 LANES = status.LANES
 GATE_TIMEOUT_S = 60.0  # lever-waiver: Rab; moves on measured gate.py subprocess latencies under real load, not a guess
@@ -83,6 +91,7 @@ def _read(path) -> str:
 
 
 def other_lane(lane):
+    """Return the peer lane's name: the lane that is not `lane` (LANES has exactly two)."""
     return LANES[1] if lane == LANES[0] else LANES[0]
 
 
@@ -101,7 +110,10 @@ class Catcher:
     """One lane's agent. `one_cycle()` is the whole machine; the loop just repeats it."""
 
     def __init__(self, lane, interval=None, quiet=False, out=None):
-        self.lane = status._lane(lane)
+        """Set up one lane's agent: read thresholds from the status config, validate the interval (seconds), and
+        initialise the cycle counters, journal and last-seen state.  Writes nothing to disk.  `out` is the stream
+        for printed signals (default stdout); `quiet` suppresses printing."""
+        self.lane =status._lane(lane)
         self.peer = other_lane(self.lane)
         cfg, self.cfg_source = status.config()
         self.cfg = cfg
@@ -153,6 +165,7 @@ class Catcher:
             pass
 
     def banner(self):
+        """Print the start-up banner (paths, thresholds, quarantine and allowed gate commands) unless quiet."""
         if self.quiet:
             return
         w = [f"relay-room catcher · lane {self.lane} · pid {self.pid} · started {self.started_utc}",
@@ -174,6 +187,8 @@ class Catcher:
     # ------------------------------------------------------------------ start-up
 
     def start(self):
+        """Start-up: create the state directories, record (and log a note) if an inherited FP_COORD is overridden,
+        and run `gate.py init` when this lane has no sidecar yet.  Writes directories and possibly a room note."""
         for d in (roomlog.STATE, roomlog.COORD, roomlog.FLIGHT_DIR,
                   roomlog.HANDOFF_DIR / self.lane, tmp_dir()):
             roomlog.assert_inside(d).mkdir(parents=True, exist_ok=True)
@@ -211,6 +226,7 @@ class Catcher:
     # ------------------------------------------------------------------ the journal
 
     def journal_path(self):
+        """Path of this lane's handled-journal: state/handled-<lane>.json."""
         return roomlog.STATE / f"handled-{self.lane.lower()}.json"
 
     def load_journal(self, log):
@@ -260,6 +276,7 @@ class Catcher:
                 kind="error")
 
     def mirrors_from_log(self, log):
+        """Rebuild the {room id: relay MSG id} map from this lane's own mirror notes in `log` ({} if unreadable)."""
         out = {}
         if getattr(log, "status", None) != "ok":
             return out
@@ -270,6 +287,7 @@ class Catcher:
         return out
 
     def save_journal(self):
+        """Stamp and atomically write the journal to disk; a failure is printed, not raised."""
         try:
             self.journal["updated_utc"] = roomlog.utc_now()
             _atomic_json(self.journal_path(), self.journal)
@@ -351,7 +369,9 @@ class Catcher:
         return rec
 
     def gate_failure(self, argv, exc):
-        _d, sidecar_st, sidecar_reason = status.read_sidecar(self.lane)
+        """Build, store (self.gate_rec) and return an UNREAD gate record for a gate.py call that could not be run
+        (`argv` is the command tried, `exc` the exception)."""
+        _d,sidecar_st, sidecar_reason = status.read_sidecar(self.lane)
         rec = {
             "status": "UNREAD",
             "reason": (f"gate.py could not be RUN ({type(exc).__name__}: "
@@ -373,7 +393,9 @@ class Catcher:
     # -- asserts argv[2] - the subcommand - is in {init, post, ticket, status, inbox}.
 
     def gate_init(self):
-        argv = [sys.executable, str(roomlog.GATE_PY), "init", "--as", self.lane]
+        """Run `gate.py init --as <lane>` as a subprocess; returns the gate record (also stored in self.gate_rec).
+        Side effect: gate.py creates this lane's sidecar in the quarantined coord dir."""
+        argv =[sys.executable, str(roomlog.GATE_PY), "init", "--as", self.lane]
         try:
             proc = subprocess.run(
                 [sys.executable, str(roomlog.GATE_PY), "init", "--as", self.lane],
@@ -419,7 +441,7 @@ class Catcher:
 
     # ------------------------------------------------------------------ trails
 
-    def trail_for(self, mid, log, now=None):
+    def trail_for(self, mid, log, now=None):  # returns (trail, lane trail, error text or None)
         """(whole trail object, this lane's sub-trail or None). render_trail is Builder A's; only
         its documented keys are touched (CONTRACT §5.4)."""
         try:
@@ -433,6 +455,7 @@ class Catcher:
 
     @staticmethod
     def stage_map(lane_t):
+        """Map stage name -> stage dict for a lane sub-trail (empty dict when `lane_t` is None or has no stages)."""
         out = {}
         for s in ((lane_t or {}).get("stages") or []):
             if isinstance(s, dict) and s.get("name"):
@@ -440,7 +463,8 @@ class Catcher:
         return out
 
     def reached(self, lane_t, stage):
-        s = self.stage_map(lane_t).get(stage)
+        """True when the named `stage` is marked reached in the lane sub-trail `lane_t`."""
+        s =self.stage_map(lane_t).get(stage)
         return bool(s and s.get("reached"))
 
     # ------------------------------------------------------------------ the cycle
@@ -462,12 +486,15 @@ class Catcher:
         return self.publish()
 
     def set_agent(self, state, detail):
+        """Set the agent-layer state and detail text; the since-time moves only when the state itself changes."""
         if state != self.agent_state:
             self.agent_since = roomlog.utc_now()
         self.agent_state = state
         self.agent_detail = detail
 
     def _cycle_body(self, now=None):
+        """The work of one cycle: read the log, pick the oldest uncaught inbound `say`, catch and hand it (or run a
+        mirror pass if there is none), then recompute the in-flight reading.  May raise; one_cycle handles that."""
         # 1 - read the log. An unreadable log is NEVER "no new messages".
         log = roomlog.read_log()
         self.log_read = {
@@ -536,7 +563,10 @@ class Catcher:
     # ------------------------------------------------------------------ catch + hand
 
     def catch_and_hand(self, entry, log, now=None):
-        subj = roomlog.subject(entry.body, 80)
+        """Catch one inbound `entry`: verify its digest, write stage `caught`; if it is sound, call gate.py `ticket`
+        (unless the sidecar is blocked-on-rab), write the handoff envelope and stage `handed`, and update the
+        journal.  Side effects: log stages and notes, envelope file, journal file, one gate.py subprocess."""
+        subj =roomlog.subject(entry.body, 80)
         self.set_agent("catching", f"reading {entry.id} from {entry.frm} and verifying its digest")
         self.publish()
 
@@ -817,7 +847,7 @@ class Catcher:
             }
         return None
 
-    def surface_trail(self, entry, lane_t):
+    def surface_trail(self, entry, lane_t):  # prints one terminal line per new stage
         """One line per NEW stage. The stages a model writes (`delivered`, `model-working`) are
         surfaced here too - this terminal is how a human sees the model answer the agent."""
         stage = (lane_t or {}).get("stage")
@@ -929,6 +959,8 @@ class Catcher:
     # ------------------------------------------------------------------ the loop
 
     def run(self, once=False):
+        """Print the banner, start up, then run one cycle (`once`, returns its status doc) or loop every
+        self.interval seconds until Ctrl+C (returns None).  Writes the lane's status file each cycle."""
         self.banner()
         self.start()
         if once:
@@ -949,7 +981,10 @@ class Catcher:
         return None
 
 
+# -- command-line entry point --
+
 def main(argv=None):
+    """Parse --lane/--as, --interval, --once, --quiet from `argv`, build a Catcher and run it; returns 0."""
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")

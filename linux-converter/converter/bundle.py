@@ -1,4 +1,11 @@
-"""Bundle assembly: frontmatter, Obsidian link rewrite, manifest, atomic publish.
+"""WHAT THIS FILE DOES: builds the output bundle for one converted document. It stamps the YAML
+frontmatter, rewrites image links to Obsidian embeds, writes the .md and manifest.json into a
+temp directory, and publishes that directory to the anchor and staging folders by rename.
+Entry points: assemble(), publish(), render_frontmatter(), clamp_name(), sha256_of(),
+unique_path(). Called by converter/main.py (ConvertHandler._convert) and by the exporter's
+tests; it reads the source file only to hash it.
+
+Bundle assembly: frontmatter, Obsidian link rewrite, manifest, atomic publish.
 
 A bundle is a folder -- <name>/<name>.md + assets/ + manifest.json -- never a bare file. It is
 assembled in a dot-prefixed temp directory and published by atomic rename, so a partial bundle
@@ -14,7 +21,9 @@ import shutil
 from datetime import datetime, timezone
 from pathlib import Path
 
-# Inline image links, e.g. ![](x.png) or ![alt](/abs/path/x.png "title"). External URLs are
+# -- image link rewriting --
+
+# Inline image links, e.g.![](x.png) or ![alt](/abs/path/x.png "title"). External URLs are
 # left alone; everything else is rewritten to an Obsidian embed pointing into assets/.
 _IMAGE_LINK = re.compile(r"!\[[^\]]*\]\(\s*<?([^)>\s]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 
@@ -28,12 +37,16 @@ def rewrite_image_links(markdown: str) -> str:
     """
 
     def _replace(match: re.Match) -> str:
+        """Return the embed text for one matched link; external URLs come back unchanged."""
         target = match.group(1)
         if target.startswith(("http://", "https://", "data:")):
             return match.group(0)
         return f"![[assets/{Path(target).name}]]"
 
     return _IMAGE_LINK.sub(_replace, markdown)
+
+
+# -- frontmatter and name helpers --
 
 
 def render_frontmatter(
@@ -48,6 +61,7 @@ def render_frontmatter(
 ) -> str:
     """YAML frontmatter stamped on every output -- OCR text is probabilistic, extracted text
     is not, and the vault must be able to tell them apart (Open Decision #3, 2026-07-09)."""
+    # Fixed key order; the detected chars/page prints as "~" (YAML null) when no probe ran.
     lines = [
         "---",
         "conversion:",
@@ -58,6 +72,7 @@ def render_frontmatter(
         + ("~" if chars_per_page_detected is None else f"{chars_per_page_detected:.1f}"),
         f"  ocr: {'true' if ocr else 'false'}",
     ]
+    # ocr_dpi appears only for OCR (scan lane) conversions.
     if ocr_dpi is not None:
         lines.append(f"  ocr_dpi: {ocr_dpi}")
     lines += [
@@ -78,6 +93,7 @@ def clamp_name(name: str, max_bytes: int = 80) -> str:
     the vault prefix. ext4's 255-byte component limit (the original 200-byte rationale, L13)
     holds a fortiori. Clamps on utf-8 bytes without splitting a codepoint.
     """
+    # Short enough already: return untouched. Otherwise cut on bytes, dropping a split codepoint.
     if len(name.encode("utf-8")) <= max_bytes:
         return name
     clamped = name.encode("utf-8")[:max_bytes].decode("utf-8", errors="ignore")
@@ -85,11 +101,15 @@ def clamp_name(name: str, max_bytes: int = 80) -> str:
 
 
 def sha256_of(path: Path) -> str:
+    """Return the hex SHA-256 of the file at path, read in 1 MiB chunks (read-only)."""
     digest = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
             digest.update(chunk)
     return digest.hexdigest()
+
+
+# -- assembling and publishing the bundle --
 
 
 def unique_path(dest: Path) -> Path:
@@ -100,6 +120,7 @@ def unique_path(dest: Path) -> Path:
         return dest
     stem, suffix = dest.stem, dest.suffix
     n = 1
+    # Count up " (1)", " (2)", ... until a name is free.
     while True:
         candidate = dest.with_name(f"{stem} ({n}){suffix}")
         if not candidate.exists():
@@ -142,4 +163,5 @@ def publish(tmp_dir: Path, bundle_name: str, anchor: Path, staging: Path) -> tup
 
 
 def utcnow() -> datetime:
+    """Return the current time as a timezone-aware UTC datetime (a seam tests can replace)."""
     return datetime.now(timezone.utc)

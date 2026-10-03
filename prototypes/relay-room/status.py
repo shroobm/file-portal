@@ -1,6 +1,15 @@
 #!/usr/bin/env python3
 """status.py - relay-room, BUILDER C: the status documents and the UNREAD/STALE ladder.
 
+WHAT THIS FILE DOES: a library that reads and writes the small JSON status files under
+roomlog.STATE (status-<lane>.json, model-<lane>.json, server.json) and the relay-gate sidecar
+under roomlog.COORD (ack-<lane>.json), then turns them into the board shown to the operator.
+Main entry points: render_board() (the whole GET /api/status document), render_lane(),
+render_server(), board_lines() (terminal text), write_status() and write_server() (atomic
+writers), write_model_declared() and the read_* / *_view readers. Callers: catcher.py (writes
+its lane's status), room.py (server and CLI) and test_room_c.py. It imports roomlog for paths,
+the clock and the quarantine check.
+
 The two layers this file exists to keep apart (CONTRACT §4.1):
 
   AGENT LAYER  - mechanical. A loop, a poll, a file write, a subprocess exit code. Cheap,
@@ -71,9 +80,12 @@ def _read(path) -> str:
     with io.open(path, encoding="utf-8", errors="replace") as fh:
         return fh.read()
 
+# -- paths: where each status file lives, per lane --
 # ---------------------------------------------------------------- paths
 
 def _lane(lane) -> str:
+    """Normalise a lane name to its canonical spelling in LANES (case-insensitive); raise
+    ValueError for an unknown lane. No side effects."""
     s = str(lane).strip()
     for known in LANES:
         if s.lower() == known.lower():
@@ -84,18 +96,22 @@ def _lane(lane) -> str:
 
 
 def status_path(lane) -> "os.PathLike":
+    """Path of the lane's catcher status document (state/status-<lane>.json). Pure."""
     return roomlog.STATE / f"status-{_lane(lane).lower()}.json"
 
 
 def declared_path(lane) -> "os.PathLike":
+    """Path of the lane's model declaration file (state/model-<lane>.json). Pure."""
     return roomlog.STATE / f"model-{_lane(lane).lower()}.json"
 
 
 def sidecar_path(lane) -> "os.PathLike":
+    """Path of the lane's relay-gate sidecar (coord/ack-<lane>.json). Pure."""
     return roomlog.COORD / f"ack-{_lane(lane).lower()}.json"
 
 
 def server_path() -> "os.PathLike":
+    """Path of the server heartbeat document (state/server.json). Pure."""
     return roomlog.STATE / "server.json"
 
 
@@ -116,6 +132,7 @@ def rel(p) -> str:
 # ---------------------------------------------------------------- time
 
 def utc_now() -> str:
+    """Current UTC time as a millisecond stamp string; delegates to roomlog.utc_now."""
     return roomlog.utc_now()
 
 
@@ -143,6 +160,8 @@ def parse_utc(s):
 
 
 def now_dt(now=None) -> datetime:
+    """Coerce `now` (None, a datetime or a stamp string) to an aware UTC datetime; falls back
+    to the real clock when it is None or unparseable. No side effects."""
     if now is None:
         return datetime.now(timezone.utc)
     if isinstance(now, datetime):
@@ -353,6 +372,8 @@ def read_declared(lane):
 
 
 def declared_view(lane):
+    """The `model.declared` sub-object of the status document: status/state/utc/age_s/ticket/
+    note/path/reason built from read_declared. Reads one file; writes nothing."""
     lane = _lane(lane)
     d, st, reason = read_declared(lane)
     if st != "ok":
@@ -734,6 +755,7 @@ def render_board(*, now=None):
                 "debris": None, "bytes": None, "read_utc": None},
     }
 
+    # Only when the server document read fine: re-read it for the SSE client count (null on failure).
     srv = board["server"]
     if srv.get("rendered") == "ok":
         try:
@@ -741,6 +763,7 @@ def render_board(*, now=None):
             board["rab"]["sse_clients"] = d.get("sse_clients")
         except Exception:
             board["rab"]["sse_clients"] = None      # null, never 0 - 0 is a reading
+    # Fill the log block from roomlog.read_log; counts stay null unless the read was "ok".
     try:
         log = roomlog.read_log()
         board["log"] = {
@@ -779,6 +802,7 @@ def board_lines(board=None):
                f"token={s.get('token_mode')} age={age_phrase(s.get('age_s'))}")
     if s.get("reason"):
         out.append(f"           -> {s['reason']}")
+    # One block per lane: agent/model verdicts, their reasons, then the in-flight message if any.
     for lane, L in b["lanes"].items():
         out.append(f"  {lane:<8} AGENT {L['rendered_agent']:<15} MODEL {L['rendered_model']}")
         if L.get("agent_reason"):

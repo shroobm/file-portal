@@ -1,4 +1,9 @@
-"""systemd notify/watchdog helper -- stdlib only, no python-systemd dependency.
+"""WHAT THIS FILE DOES: lets the converter talk to systemd. sd_notify(state) sends a status string
+(for example READY=1 or WATCHDOG=1) to the socket named by $NOTIFY_SOCKET; watchdog_armed() says
+whether systemd set a watchdog timeout. Writes only to that unix socket; does nothing outside
+systemd. Called by the converter service's main loop.
+
+systemd notify/watchdog helper -- stdlib only, no python-systemd dependency.
 
 Duplicated in linux-receiver/allocator/sdnotify.py and linux-converter/converter/sdnotify.py
 (the same one-file port pattern as status.py); keep the copies identical.
@@ -13,6 +18,7 @@ import os
 import socket
 
 
+# -- notify and watchdog helpers --
 def sd_notify(state: str) -> None:
     """Best-effort datagram to $NOTIFY_SOCKET; silently a no-op outside systemd.
 
@@ -24,6 +30,7 @@ def sd_notify(state: str) -> None:
         return
     if addr.startswith("@"):  # abstract-namespace socket
         addr = "\0" + addr[1:]
+    # send one datagram; errors are ignored
     try:
         with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as sock:
             sock.connect(addr)

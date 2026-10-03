@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""figure_text_selftest.py — the chart-text measure's tripwires (S209 E13). Hermetic: the fixture PDF is DRAWN here by pymupdf (a
+"""WHAT THIS FILE DOES: a standalone self-test script for figure_text.figure_text(). It draws a one-page PDF in
+memory with pymupdf, calls figure_text on it with hand-made Figure blocks, and prints one ok/RED line per case
+plus a final N/N total. Reads no files, writes none; exits 0 if every case passes, 1 otherwise. Run by hand or by
+a gate; nothing imports it.
+
+figure_text_selftest.py — the chart-text measure's tripwires (S209 E13). Hermetic: the fixture PDF is DRAWN here by pymupdf (a
 page with a chart's legend words inside a rectangle and prose outside it), never read from disk; no pipeline, no GPU. Each
 case violates the property its rule stands for: a figure whose box holds six layer words and whose caption ships two reads
 6 against 2 and is not silent; a figure with no caption is silent; words outside the box are never counted; the scan lane
@@ -13,21 +18,27 @@ import fitz
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import figure_text as ft  # noqa: E402
 
+# -- test harness: pass/total counters and the case() recorder --
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one test case: bump the total, bump the pass count if cond is truthy, print an ok/RED line
+    (with the first 200 chars of detail when red). Returns None; mutates the module globals ok and n."""
     global ok, n
     n += 1
     ok += 1 if cond else 0
     print("  [%d] %s %s%s" % (n, "ok " if cond else "RED", name, ("  <- " + str(detail)[:200]) if (detail and not cond) else ""))
 
 
+# -- fixture: the figure box, its six legend words, and the function that draws them --
 BOX = [72, 100, 400, 300]
 LEGEND = ["Goods", "excluding", "food", "energy", "Durable", "Services"]
 
 
 def page_with_chart(doc):
+    """Add one 612x792 page to the open pymupdf document doc: prose above, a rectangle BOX holding the six LEGEND
+    words, prose below. Returns the new page. Side effect: mutates doc in memory only."""
     page = doc.new_page(width=612, height=792)
     page.insert_text((72, 60), "The monetary policy report discusses inflation and growth", fontsize=10)
     page.draw_rect(fitz.Rect(*BOX), width=0.5)
@@ -37,6 +48,7 @@ def page_with_chart(doc):
     return page
 
 
+# -- the cases: build the fixture, call figure_text, assert on the counts it returns --
 doc = fitz.open()
 page_with_chart(doc)
 fig = {"page": 0, "block_type": "Figure", "bbox": BOX, "html": "<p>Chart legend</p>"}

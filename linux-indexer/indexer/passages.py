@@ -1,4 +1,9 @@
-"""Body markdown -> passages, the indexer's unit. NOT the analyst's "chunk" (docs/34 §6: a
+"""WHAT THIS FILE DOES: cuts a book's markdown body into passages (the pieces that get embedded and
+searched). strip_frontmatter() removes the leading `---` block; split_passages() returns a list of
+Passage objects, each with its text, nearest heading and a page hint. Pure text processing: no files,
+network or globals. Called by reconcile.py.
+
+Body markdown -> passages, the indexer's unit. NOT the analyst's "chunk" (docs/34 §6: a
 chunk is ~4,000 characters of book markdown); a passage is ~passage_chars characters of one
 section, packed on paragraph boundaries.
 
@@ -20,6 +25,7 @@ embedded; everything else is kept verbatim.
 import re
 from dataclasses import dataclass
 
+# -- regular expressions: headings, figure embeds, page hints, HTML, whitespace --
 _HEADING_RE = re.compile(r"^(#{1,6})\s+(.*?)\s*#*\s*$")
 _EMBED_RE = re.compile(r"!\[\[[^\]]*\]\]")
 _PAGE_HINT_RE = re.compile(r"!\[\[assets/_page_(\d+)_")
@@ -29,14 +35,18 @@ _WS_RE = re.compile(r"[ \t]+")
 _HEADING_JUNK_RE = re.compile(r"[*_`]+")
 
 
+# -- the passage record --
 @dataclass(frozen=True)
 class Passage:
+    """One passage: its position in the book, its text, the heading in force and a page hint."""
+
     index: int
     text: str
     heading: str
     page_hint: int | None
 
 
+# -- cleaning helpers --
 def strip_frontmatter(text: str) -> str:
     """Drop a leading `---` ... `---` block. A body that does not open with the fence, or
     never closes it, is returned untouched -- guessing would eat prose."""
@@ -50,6 +60,7 @@ def strip_frontmatter(text: str) -> str:
 
 
 def _clean_heading(raw: str) -> str:
+    """Heading text for metadata: markdown emphasis marks removed, spaces collapsed, cut to 120 chars."""
     return _WS_RE.sub(" ", _HEADING_JUNK_RE.sub("", raw)).strip()[:120]
 
 
@@ -67,11 +78,14 @@ def _paragraphs(body: str) -> list[tuple[str, str, int | None, bool]]:
     buf_opens = False
 
     def flush() -> None:
+        """Close the paragraph being collected: append it to `out` and empty the buffer."""
         if buf:
             out.append((" ".join(buf), buf_heading, buf_page, buf_opens))
             buf.clear()
 
     in_fence = False
+    # line by line (HTML comments blanked first): track page hints, code fences and headings;
+    # a blank line ends a paragraph, a heading line starts a new one
     for line in _HTML_COMMENT_RE.sub(" ", body).split("\n"):
         hint = _PAGE_HINT_RE.search(line)
         if hint:
@@ -95,7 +109,9 @@ def _paragraphs(body: str) -> list[tuple[str, str, int | None, bool]]:
     return out
 
 
+# -- splitting and packing --
 def _hard_split(text: str, limit: int) -> list[str]:
+    """Cut `text` into pieces of at most `limit` characters, at a space when one is usable."""
     pieces = []
     while len(text) > limit:
         cut = text.rfind(" ", 0, limit)
@@ -109,6 +125,9 @@ def _hard_split(text: str, limit: int) -> list[str]:
 
 
 def split_passages(body: str, passage_chars: int, passage_max_chars: int) -> list[Passage]:
+    """Split a markdown body into Passages of about `passage_chars` characters, packed on paragraph
+    boundaries; no paragraph piece exceeds `passage_max_chars`. Returns them in order."""
+    # first: break paragraphs that are longer than the hard cap into pieces
     paragraphs = []
     for text, heading, page, opens in _paragraphs(body):
         for i, piece in enumerate(_hard_split(text, passage_max_chars)):
@@ -117,6 +136,7 @@ def split_passages(body: str, passage_chars: int, passage_max_chars: int) -> lis
     buf = ""
     buf_heading = ""
     buf_page: int | None = None
+    # then: pack pieces into a passage until the next one would overflow or opens a new section
     for text, heading, page, opens in paragraphs:
         if buf and (opens or len(buf) + 2 + len(text) > passage_chars):
             passages.append(Passage(len(passages), buf, buf_heading, buf_page))

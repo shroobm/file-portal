@@ -1,4 +1,10 @@
-"""windows-converter/text_norm.py -- the pure normalisation ladder (docs/15 SS3, docs/54 J32-A).
+"""WHAT THIS FILE DOES: text normalisation helpers used to compare two versions of a document's text.
+Entry points: prepare_output / prepare_for (markdown to a flat comparison string), make_windows (cut into
+word windows), chunk_survival (how much of an input chunk survives in a rewritten output) and word_ratio
+(how much bulk came back). It reads and writes nothing (pure functions, no files, no network, no globals
+changed). Callers: fidelity_audit.py (re-exports the shared core) and analyst.py (per-chunk accept guards).
+
+windows-converter/text_norm.py -- the pure normalisation ladder (docs/15 SS3, docs/54 J32-A).
 
 PURE MODULE: no pymupdf, no rapidfuzz, no I/O. This is deliberate -- analyst.py imports this
 module too (J32-B's per-chunk survival guard, analyst.py:299 process()), and analyst.py must
@@ -52,6 +58,8 @@ _WS = re.compile(r"\s+")
 # degeneration_selftest / latex_balance_selftest battery is the control).
 # ---------------------------------------------------------------------------
 def _common(text: str) -> str:
+    """Unicode-normalise (NFKC), straighten curly quotes and dashes, and join words split by a line-end hyphen.
+    Input: any text. Returns the cleaned text. No side effects."""
     text = unicodedata.normalize("NFKC", text)
     text = text.translate(_QUOTES)
     text = _DEHYPHEN.sub(r"\1\2", text)
@@ -59,10 +67,14 @@ def _common(text: str) -> str:
 
 
 def _finalize(text: str) -> str:
+    """Case-fold the text, collapse every whitespace run to one space and trim the ends. Returns the string."""
     return _WS.sub(" ", text.casefold()).strip()
 
 
 def _strip_markdown(t: str) -> str:
+    """Remove markdown syntax (embeds, links, html tags, headings, quotes, code fences, table rules, emphasis marks)
+    and keep the visible words. Input: markdown text. Returns the stripped text. No side effects."""
+    # each line below removes or unwraps one kind of markdown syntax (named in its trailing comment)
     t = re.sub(r"!\[\[[^\]]*\]\]", " ", t)                 # ![[assets/img]] embeds
     t = re.sub(r"!\[[^\]]*\]\([^)]*\)", " ", t)            # ![alt](url) images
     t = re.sub(r"\[\[([^\]]*)\]\]", r"\1", t)              # [[wikilink]] -> inner
@@ -78,10 +90,12 @@ def _strip_markdown(t: str) -> str:
 
 
 def prepare_output(markdown: str) -> str:
+    """The v2 comparison form of markdown: normalise, strip markdown, fold case and spacing. Returns a string."""
     return _finalize(_strip_markdown(_common(markdown)))
 
 
 def is_cjk(text: str) -> bool:
+    """True when more than 30 percent of the first 4000 non-space characters are CJK. Pure; returns a bool."""
     sample = re.sub(r"\s", "", text)[:4000]
     if not sample:
         return False
@@ -89,6 +103,8 @@ def is_cjk(text: str) -> bool:
 
 
 def make_windows(text: str, cjk: bool) -> list[str]:
+    """Cut text into non-overlapping windows: 24-character slices for CJK, 12-word groups otherwise. Windows
+    shorter than the minimum are dropped. Input: text and the cjk flag. Returns a list of strings. Pure."""
     if cjk:
         s = text.replace(" ", "")
         out = [s[i:i + CJK_WINDOW_CHARS] for i in range(0, len(s), CJK_WINDOW_CHARS)]
@@ -103,7 +119,10 @@ def make_windows(text: str, cjk: bool) -> list[str]:
 
 
 def _merge_runs(windows: list[str], failed: list[bool], page) -> list[dict]:
+    """Group consecutive failed windows into runs of 2 or more. Input: the windows, a parallel failed flag list,
+    and a page label. Returns one dict (page, words, excerpt) per run. Pure."""
     runs, i = [], 0
+    # walk the windows; on a failed one, extend j to the end of the failed stretch and record it if long enough
     while i < len(windows):
         if failed[i]:
             j = i
@@ -223,6 +242,7 @@ def prepare_for(markdown: str, ladder: str = LADDER_V2) -> str:
     raise ValueError(f"unknown ladder {ladder!r}; one of {LADDERS}")
 
 
+# -- the per-chunk guards called by analyst.py: survival (containment) and word ratio (bulk) --
 def chunk_survival(input_text: str, output_text: str, ladder: str = LADDER_V2) -> float | None:
     """J32-B's per-chunk accept-time guard (analyst.py:299 process(), after the fence check
     passes): the fraction of the INPUT chunk's 12-word windows, built on the SAME normalisation
@@ -236,6 +256,8 @@ def chunk_survival(input_text: str, output_text: str, ladder: str = LADDER_V2) -
     SYM-057's rule is that an unmeasurable result must never read as a clean one, and here the
     caller's rule is the mirror image -- an unmeasurable result must never read as a FAILING
     one either, so `survival is None` must never be rejected."""
+    # normalise both sides with the same ladder, cut the input into windows, and count the windows whose
+    # space-free text is found inside the space-free output
     ref = punct_free(unescape(prepare_for(input_text, ladder)))
     out = punct_free(unescape(prepare_for(output_text, ladder)))
     cjk = is_cjk(ref[:4000])
@@ -267,6 +289,7 @@ def word_ratio(input_text: str, output_text: str) -> float | None:
     special-cases. When the INPUT reads as CJK (`is_cjk`, the same 2 % CJK-character rule
     make_windows uses), bulk is counted in non-whitespace CHARACTERS on both sides instead.
     The English path is byte-identical to the measurement signed on."""
+    # CJK text has no word gaps, so count non-space characters; other text counts whitespace-split words
     if is_cjk(input_text[:4000]):
         n_in = len(_WS.sub("", input_text))
         n_out = len(_WS.sub("", output_text))

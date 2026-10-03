@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""A4: generate and verify the filesystem-contract key registry.
+"""WHAT THIS FILE DOES: builds and checks observability/schemas.json, the registry of which keys each pipeline
+file format carries (events.jsonl, coverage_rescore --json output, slice .done files, progress files and the
+conversion ledger). It reads the Python writer sources and the Python/Rust/JS consumer sources as text and
+syntax trees (never imports or runs them), derives the key sets, and compares them. Entry point: main(), with
+--check (fail on drift), --write (regenerate schemas.json) or --print (emit the JSON to stdout). Writes only
+schemas.json (via a .tmp file) under --write. Used as a tripwire by tests and the closeout checks.
+
+A4: generate and verify the filesystem-contract key registry.
 
 The registry is evidence, not a second source of truth.  Every writer key below is extracted
 from the Python syntax that actually builds the persisted/stdout record.  Every consumer key is
@@ -22,6 +29,7 @@ from pathlib import Path
 from typing import Iterable
 
 
+# -- constants: where the registry lives and which source files are the writers and the consumers --
 REGISTRY_REL = Path("observability/schemas.json")
 WRITER_SOURCES = (
     "windows-converter/events.py",
@@ -45,12 +53,15 @@ CONSUMER_SOURCES = (
 )
 
 
+# -- error and shape types --
 class RegistryError(RuntimeError):
     """The source cannot prove a complete writer/consumer key contract."""
 
 
 @dataclass(frozen=True)
 class EventShape:
+    """The keys of one event: `required` are on every branch, `possible` are on at least one."""
+
     required: frozenset[str]
     possible: frozenset[str]
 
@@ -63,7 +74,9 @@ class PathShape:
     possible: frozenset[str]
 
 
+# -- reading and parsing source files --
 def _read(root: Path, relative: str) -> str:
+    """Return the UTF-8 text of root/relative; raise RegistryError ("UNREAD source") if it cannot be read."""
     path = root / relative
     try:
         return path.read_text(encoding="utf-8")
@@ -72,6 +85,7 @@ def _read(root: Path, relative: str) -> str:
 
 
 def _tree(root: Path, relative: str) -> ast.Module:
+    """Parse the Python file root/relative into an AST; raise RegistryError on a read or syntax failure."""
     try:
         return ast.parse(_read(root, relative), filename=relative)
     except SyntaxError as exc:
@@ -96,17 +110,21 @@ def _functions(tree: ast.Module) -> dict[str, ast.FunctionDef | ast.AsyncFunctio
 
 
 def _function(tree: ast.Module, name: str, source: str) -> ast.FunctionDef | ast.AsyncFunctionDef:
+    """Return the named function (or "Class.method") from the tree; raise RegistryError if it is gone."""
     found = _functions(tree).get(name)
     if found is None:
         raise RegistryError(f"writer function disappeared: {source}:{name}")
     return found
 
 
+# -- dict-literal key and path extraction --
 def _literal_string(node: ast.AST | None) -> str | None:
+    """Return the node's value if it is a string literal, else None."""
     return node.value if isinstance(node, ast.Constant) and isinstance(node.value, str) else None
 
 
 def _dict_keys(node: ast.Dict, *, context: str) -> set[str]:
+    """Return the top-level string keys of a dict literal; raise RegistryError on a ** spread or non-literal key."""
     keys: set[str] = set()
     for key in node.keys:
         if key is None:
@@ -119,6 +137,10 @@ def _dict_keys(node: ast.Dict, *, context: str) -> set[str]:
 
 
 def _dict_paths(node: ast.Dict, *, context: str, prefix: str = "") -> set[str]:
+    """Return every dotted key path in a dict literal, descending into nested dict values.
+
+    Raises RegistryError on a ** spread or a non-literal key.
+    """
     paths: set[str] = set()
     for key, value in zip(node.keys, node.values):
         if key is None:
@@ -133,7 +155,9 @@ def _dict_paths(node: ast.Dict, *, context: str, prefix: str = "") -> set[str]:
     return paths
 
 
+# -- paths of the dicts a function returns, and branch merging --
 def _return_dicts(function: ast.AST, *, context: str) -> list[ast.Dict]:
+    """Return the dict literals directly returned by `return` statements; raise RegistryError if there are none."""
     returns = [node.value for node in ast.walk(function) if isinstance(node, ast.Return)]
     dicts = [node for node in returns if isinstance(node, ast.Dict)]
     if not dicts:
@@ -142,6 +166,7 @@ def _return_dicts(function: ast.AST, *, context: str) -> list[ast.Dict]:
 
 
 def _return_paths(tree: ast.Module, name: str, source: str) -> set[str]:
+    """Return the union of dotted key paths over every literal dict the named function returns."""
     function = _function(tree, name, source)
     paths: set[str] = set()
     for node in _return_dicts(function, context=f"{source}:{name}"):
@@ -150,7 +175,9 @@ def _return_paths(tree: ast.Module, name: str, source: str) -> set[str]:
 
 
 def _prefix_path_shape(shape: PathShape, prefix: str) -> PathShape:
+    """Return a copy of `shape` with `prefix` put in front of every path (an empty path becomes the prefix)."""
     def prefixed(path: str) -> str:
+        """Add the enclosing prefix to one path ("[]" list-item paths join without a dot)."""
         if path.startswith("[]"):
             return f"{prefix}{path}"
         return f"{prefix}.{path}" if path else prefix
@@ -162,6 +189,7 @@ def _prefix_path_shape(shape: PathShape, prefix: str) -> PathShape:
 
 
 def _merge_path_branches(shapes: list[PathShape]) -> PathShape:
+    """Merge alternative branches: required = paths in every branch, possible = paths in any branch."""
     if not shapes:
         return PathShape(frozenset(), frozenset())
     required = set(shapes[0].required)
@@ -173,6 +201,7 @@ def _merge_path_branches(shapes: list[PathShape]) -> PathShape:
 
 
 def _target_path(node: ast.AST, variable: str) -> str | None:
+    """For an assignment target like variable["a"]["b"], return "a.b" ("" for the bare variable); else None."""
     if isinstance(node, ast.Name):
         return "" if node.id == variable else None
     if isinstance(node, ast.Subscript):
@@ -193,6 +222,8 @@ def _named_path_shape(
     """Resolve branch-assigned dicts, later key writes, and list item appends."""
     assignments: list[ast.AST] = []
     possible: set[str] = set()
+    # scan every statement in the function: assignments to the variable or its subscripts, then
+    # .append(...) and .update(...) calls on it
     for node in ast.walk(function):
         if isinstance(node, (ast.Assign, ast.AnnAssign)):
             targets = node.targets if isinstance(node, ast.Assign) else [node.target]
@@ -246,6 +277,7 @@ def _named_path_shape(
                 child = _value_path_shape(function, keyword.value, context=context, seen=seen)
                 possible.update(_prefix_path_shape(child, keyword.arg).possible)
 
+    # each whole-variable assignment is one branch; merge them, then add the later-written paths as possible
     branches = [
         _value_path_shape(function, value, context=context, seen=seen)
         for value in assignments
@@ -261,6 +293,10 @@ def _value_path_shape(
     context: str,
     seen: frozenset[str] = frozenset(),
 ) -> PathShape:
+    """Work out the PathShape of one expression: dict literal, conditional, named variable, or list/tuple/set.
+
+    `seen` guards against a variable that refers to itself. Anything else yields an empty shape.
+    """
     if isinstance(node, ast.Dict):
         required: set[str] = set()
         possible: set[str] = set()
@@ -309,6 +345,7 @@ def _value_path_shape(
 
 
 def _return_path_shape(tree: ast.Module, name: str, source: str) -> PathShape:
+    """Merge the path shapes of every literal dict the named function returns; RegistryError if it returns none."""
     function = _function(tree, name, source)
     returned = [node.value for node in ast.walk(function) if isinstance(node, ast.Return)]
     literal_returns = [node for node in returned if isinstance(node, ast.Dict)]
@@ -322,7 +359,9 @@ def _return_path_shape(tree: ast.Module, name: str, source: str) -> PathShape:
     )
 
 
+# -- locating the one dict a function builds or writes --
 def _assigned_dict(function: ast.AST, variable: str, *, context: str) -> ast.Dict:
+    """Return the single dict literal assigned to `variable` in the function; RegistryError unless exactly one."""
     found: list[ast.Dict] = []
     for node in ast.walk(function):
         if not isinstance(node, (ast.Assign, ast.AnnAssign)):
@@ -338,6 +377,10 @@ def _assigned_dict(function: ast.AST, variable: str, *, context: str) -> ast.Dic
 
 
 def _dict_passed_to_write(function: ast.AST, marker: str, *, context: str) -> ast.Dict:
+    """Find the dict literal given to dumps() inside a `<...marker...>.write_text(...)` call.
+
+    RegistryError unless exactly one such dict exists.
+    """
     candidates: list[ast.Dict] = []
     for call in (node for node in ast.walk(function) if isinstance(node, ast.Call)):
         if not isinstance(call.func, ast.Attribute) or call.func.attr != "write_text":
@@ -356,7 +399,9 @@ def _dict_passed_to_write(function: ast.AST, marker: str, *, context: str) -> as
     return candidates[0]
 
 
+# -- resolving ** spreads in emit() calls --
 def _function_local_values(function: ast.AST) -> dict[str, ast.AST]:
+    """Map each simple local variable in a function to the last expression assigned to it."""
     values: dict[str, ast.AST] = {}
     for node in ast.walk(function):
         if isinstance(node, ast.Assign) and len(node.targets) == 1 and isinstance(node.targets[0], ast.Name):
@@ -367,6 +412,7 @@ def _function_local_values(function: ast.AST) -> dict[str, ast.AST]:
 
 
 def _tuple_strings(node: ast.AST) -> set[str] | None:
+    """Return the strings of a tuple/list/set literal, or None if it is not one or holds a non-string."""
     if not isinstance(node, (ast.Tuple, ast.List, ast.Set)):
         return None
     values = {_literal_string(item) for item in node.elts}
@@ -381,6 +427,12 @@ def _spread_shape(
     context: str,
     seen: frozenset[str] = frozenset(),
 ) -> EventShape:
+    """Work out which keys a `**spread` in an emit() call can contribute, as an EventShape.
+
+    Handles dict literals, dict comprehensions over literal tuples, conditionals, local variables,
+    calls to same-file functions that return dict literals, and the `.signature` attribute special case.
+    Raises RegistryError for any spread it cannot resolve.
+    """
     if isinstance(node, ast.Dict):
         keys = frozenset(_dict_keys(node, context=context))
         return EventShape(keys, keys)
@@ -426,11 +478,18 @@ def _spread_shape(
     )
 
 
+# -- events.jsonl: the writer side --
 def _event_writer_shapes(root: Path) -> tuple[set[str], dict[str, dict[str, list[str]]], list[str]]:
+    """Derive the events.jsonl writer contract from the sources under root/windows-converter.
+
+    Returns (envelope keys from events.emit, {"stage/event": required and optional key lists},
+    the source files that call emit). Raises RegistryError if the shape cannot be proven.
+    """
     events_tree = _tree(root, "windows-converter/events.py")
     emit_fn = _function(events_tree, "emit", "windows-converter/events.py")
     record = _assigned_dict(emit_fn, "record", context="windows-converter/events.py:emit")
     base: set[str] = set()
+    # the envelope: every literal key in emit()'s `record` dict (the `**fields` spread is proven at call sites)
     for key, value in zip(record.keys, record.values):
         if key is None and isinstance(value, ast.Name) and value.id == "fields":
             continue  # the call-site extraction below is the proof for this deliberate spread
@@ -440,6 +499,7 @@ def _event_writer_shapes(root: Path) -> tuple[set[str], dict[str, dict[str, list
         base.add(name)
     variants: dict[str, list[EventShape]] = {}
     emitter_sources: list[str] = []
+    # visit every converter .py file; for each emit(stage, event, ...) call record the keys it passes
     for path in sorted((root / "windows-converter").glob("*.py")):
         relative = path.relative_to(root).as_posix()
         tree = _tree(root, relative)
@@ -476,6 +536,7 @@ def _event_writer_shapes(root: Path) -> tuple[set[str], dict[str, dict[str, list
             emitter_sources.append(relative)
     if not variants:
         raise RegistryError("no events.jsonl emit variants found")
+    # merge all call sites of one stage/event: required = keys in every call, optional = keys in only some
     collapsed: dict[str, dict[str, list[str]]] = {}
     for variant, shapes in sorted(variants.items()):
         required = set(shapes[0].required)
@@ -490,6 +551,8 @@ def _event_writer_shapes(root: Path) -> tuple[set[str], dict[str, dict[str, list
     return base, collapsed, emitter_sources
 
 
+# -- events.jsonl: the consumer side (Rust and JS readers, found by pattern matching on their text) --
+# regexes: Rust `var["key"]`, JS `e.field`, a JS vocabulary line `"stage/event": ...,`, and a Rust identifier
 _RUST_INDEX = re.compile(r'\b([A-Za-z_][A-Za-z0-9_]*)\["([A-Za-z_][A-Za-z0-9_]*)"\]')
 _JS_FIELD = re.compile(r'\be\.([A-Za-z_][A-Za-z0-9_]*)\b')
 _JS_VARIANT = re.compile(r'^\s*"([a-z0-9_-]+/[a-z0-9_-]+)"\s*:\s*(.*),\s*$')
@@ -497,6 +560,7 @@ _RUST_IDENT = r"[A-Za-z_][A-Za-z0-9_]*"
 
 
 def _rust_index_map(text: str) -> dict[str, set[str]]:
+    """Map each Rust variable to the set of string keys it is indexed with (`var["key"]`) in `text`."""
     by_variable: dict[str, set[str]] = {}
     for variable, key in _RUST_INDEX.findall(text):
         by_variable.setdefault(variable, set()).add(key)
@@ -504,6 +568,7 @@ def _rust_index_map(text: str) -> dict[str, set[str]]:
 
 
 def _rust_event_variables(text: str) -> set[str]:
+    """Return the Rust variables indexed with both "stage" and "event", i.e. the ones holding event rows."""
     return {
         variable
         for variable, keys in _rust_index_map(text).items()
@@ -512,6 +577,7 @@ def _rust_event_variables(text: str) -> set[str]:
 
 
 def _rust_event_indexes(text: str, *, only_variable: str | None = None) -> set[str]:
+    """Return the keys read from event-row variables in `text` (only from `only_variable` when given)."""
     by_variable = _rust_index_map(text)
     event_variables = _rust_event_variables(text)
     if only_variable is not None:
@@ -520,6 +586,7 @@ def _rust_event_indexes(text: str, *, only_variable: str | None = None) -> set[s
 
 
 def _brace_body(text: str, opening: int) -> str:
+    """Return the `{...}` block starting at index `opening`, braces included; RegistryError if unterminated."""
     depth = 0
     for index in range(opening, len(text)):
         depth += text[index] == "{"
@@ -532,6 +599,7 @@ def _brace_body(text: str, opening: int) -> str:
 def _rust_derived_event_aliases(text: str) -> list[tuple[str, set[str]]]:
     """Follow a selected event into its assigned name and any `Some(alias)` arm."""
     derived: list[tuple[str, set[str]]] = []
+    # matches `let slot = ... .find(|src| src["stage"] == "x" ... src["event"] == "y" ...);`
     pattern = re.compile(
         rf'let\s+(?P<slot>{_RUST_IDENT})\s*=\s*[^;]{{0,1200}}?\.(?:r?find)\('
         rf'\|(?P<source>{_RUST_IDENT})\|\s*(?P=source)\["stage"\]\s*==\s*'
@@ -539,6 +607,8 @@ def _rust_derived_event_aliases(text: str) -> list[tuple[str, set[str]]]:
         rf'"(?P<event>[a-z_]+)".{{0,300}}?\)[^;]{{0,300}}?;',
         flags=re.DOTALL,
     )
+    # for each selected event: collect keys read from the slot afterwards, then keys read inside a
+    # `match slot { Some(alias) => {...} }` arm
     for match in pattern.finditer(text):
         tail_start = match.end()
         slot = match.group("slot")
@@ -566,6 +636,11 @@ def _rust_derived_event_aliases(text: str) -> list[tuple[str, set[str]]]:
 
 
 def _event_consumers(root: Path) -> tuple[set[str], dict[str, set[str]]]:
+    """Collect the event keys the Rust and JS readers use.
+
+    Returns (keys read from any event, {"stage/event": keys read for that event}). Reads the five Rust
+    files plus event-vocab.js, main.js and room.js under root; raises RegistryError on unreadable input.
+    """
     global_keys: set[str] = set()
     variants: dict[str, set[str]] = {}
     for relative in (
@@ -582,6 +657,8 @@ def _event_consumers(root: Path) -> tuple[set[str], dict[str, set[str]]]:
         # an unrelated shadowed `later` receipt row in algedonic.rs.
         global_keys.update(_rust_event_indexes(text, only_variable="ev"))
         # Current Rust readers express variants as adjacent stage/event predicates or match arms.
+        # Form 1: `v["stage"] == "x" ... v["event"] == "y"` followed by a { block } or a statement;
+        # take that body and record the keys read from `v` in it.
         for match in re.finditer(
             rf'(?P<variable>{_RUST_IDENT})\["stage"\]\s*==\s*"(?P<stage>[a-z_]+)"'
             rf'.{{0,260}}?(?P=variable)\["event"\]\s*==\s*"(?P<event>[a-z_]+)"',
@@ -606,6 +683,7 @@ def _event_consumers(root: Path) -> tuple[set[str], dict[str, set[str]]]:
             variants.setdefault(f"{match.group('stage')}/{match.group('event')}", set()).update(
                 _rust_event_indexes(body, only_variable=match.group("variable"))
             )
+        # Form 2: a match arm `(Some("stage"), Some("event")) => { ... }`; record the event-row keys read inside it
         for match in re.finditer(
             r'\(Some\("([a-z_]+)"\),\s*Some\("([a-z_]+)"\)\)[^\n]*=>\s*\{(.*?)(?:\n\s*\}|\n\s*_\s*=>)',
             text,
@@ -622,6 +700,7 @@ def _event_consumers(root: Path) -> tuple[set[str], dict[str, set[str]]]:
         for variant, keys in _rust_derived_event_aliases(text):
             global_keys.update(keys)
             variants.setdefault(variant, set()).update(keys)
+        # file-specific readers: algedonic.rs's sfield(ev, &[...]) helper and assay.rs's scored["..."] reads
         if relative.endswith("algedonic.rs"):
             for call in re.findall(r'sfield\(ev,\s*&\[([^]]+)\]\)', text):
                 global_keys.update(re.findall(r'"([A-Za-z_][A-Za-z0-9_]*)"', call))
@@ -629,6 +708,8 @@ def _event_consumers(root: Path) -> tuple[set[str], dict[str, set[str]]]:
             variants.setdefault("audit/scored", set()).update(
                 re.findall(r'scored\["([A-Za-z_][A-Za-z0-9_]*)"\]', text)
             )
+    # JS side: event-vocab.js lines give per-variant fields; main.js productClock and
+    # room.js `const local =` give global keys
     vocab = _read(root, "windows-widget/src/event-vocab.js")
     for line in vocab.splitlines():
         match = _JS_VARIANT.match(line)
@@ -645,10 +726,12 @@ def _event_consumers(root: Path) -> tuple[set[str], dict[str, set[str]]]:
     return global_keys, variants
 
 
+# -- Python consumers: key paths read from named objects --
 def _python_name_paths(function: ast.AST, roots: dict[str, str]) -> set[str]:
     """Resolve literal subscript/get paths rooted at named consumer objects."""
     aliases = dict(roots)
     changed = True
+    # repeat until no new alias appears: `x = root["a"]` makes x an alias for path "a"
     while changed:
         changed = False
         for node in ast.walk(function):
@@ -659,6 +742,7 @@ def _python_name_paths(function: ast.AST, roots: dict[str, str]) -> set[str]:
                 aliases[node.targets[0].id] = path
                 changed = True
     paths: set[str] = set()
+    # collect every `obj["a"]["b"]` subscript path and every `obj.get("a")` call on a known object
     for node in ast.walk(function):
         path = _subscript_path(node, aliases)
         if path:
@@ -677,6 +761,7 @@ def _python_name_paths(function: ast.AST, roots: dict[str, str]) -> set[str]:
 
 
 def _subscript_path(node: ast.AST, aliases: dict[str, str]) -> str | None:
+    """Return the dotted path of `name["a"]["b"]` where `name` is a known alias; None if not resolvable."""
     if isinstance(node, ast.Name):
         return aliases.get(node.id)
     if isinstance(node, ast.Subscript):
@@ -688,10 +773,16 @@ def _subscript_path(node: ast.AST, aliases: dict[str, str]) -> str | None:
 
 
 def _regex_keys(text: str, pattern: str) -> set[str]:
+    """Return the set of all matches of `pattern` (a regex with one group) in `text`."""
     return set(re.findall(pattern, text))
 
 
+# -- assembling the contracts and checking writer/consumer parity --
 def _contract_shapes(root: Path) -> dict[str, dict]:
+    """Build the contract entry for each of the six file formats (writer keys, consumer keys, formats).
+
+    Reads the writer and consumer sources under root, then runs _assert_parity on the result and returns it.
+    """
     convert_source = "windows-converter/convert_and_ship.py"
     convert_tree = _tree(root, convert_source)
     convert_functions = _functions(convert_tree)
@@ -708,6 +799,7 @@ def _contract_shapes(root: Path) -> dict[str, dict]:
         context=f"{convert_source}:_write_progress",
     )
     convert_progress_optional: set[str] = set()
+    # optional progress keys: dict literals passed as progress_context= to any _run_marker(...) call
     for call in (node for node in ast.walk(convert_tree) if isinstance(node, ast.Call)):
         if not (
             (isinstance(call.func, ast.Name) and call.func.id == "_run_marker")
@@ -763,6 +855,7 @@ def _contract_shapes(root: Path) -> dict[str, dict]:
     convert_progress_consumed = _regex_keys(line_text, r'p\["([A-Za-z_][A-Za-z0-9_]*)"\]')
     convert_progress_consumed.update(_regex_keys(line_text, r'cp_field\("([A-Za-z_][A-Za-z0-9_]*)"\)'))
     analyst_progress_consumed = set()
+    # analyst progress keys the widget reads: v["key"] on lines that mention analyst_progress.as_ref()
     for line in line_text.splitlines():
         if "analyst_progress.as_ref()" in line:
             analyst_progress_consumed.update(_regex_keys(line, r'v\["([A-Za-z_][A-Za-z0-9_]*)"\]'))
@@ -786,6 +879,7 @@ def _contract_shapes(root: Path) -> dict[str, dict]:
     base, event_variants, event_emitter_sources = _event_writer_shapes(root)
     event_global_consumed, event_variant_consumed = _event_consumers(root)
 
+    # the registry body: one entry per file format, each listing writers, consumers and key paths
     contracts = {
         "events.jsonl": {
             "format": "jsonl",
@@ -863,6 +957,7 @@ def _contract_shapes(root: Path) -> dict[str, dict]:
 
 
 def _assert_parity(contracts: dict[str, dict]) -> None:
+    """Raise RegistryError if any consumer reads a key or path that no writer registers (or an unknown event)."""
     events = contracts["events.jsonl"]
     union = set(events["envelope_required_keys"])
     for shape in events["variants"].values():
@@ -889,7 +984,9 @@ def _assert_parity(contracts: dict[str, dict]) -> None:
             raise RegistryError(f"{name} consumer uses unregistered path(s): {sorted(missing)}")
 
 
+# -- the public surface: build, serialize, check, and the command line --
 def build_registry(root: Path) -> dict:
+    """Return the full registry dict (version, authority, scope, contracts) for the repo at `root`."""
     root = root.resolve()
     return {
         "registry_version": 1,
@@ -914,11 +1011,13 @@ def build_registry(root: Path) -> dict:
 
 
 def registry_bytes(root: Path) -> bytes:
+    """Return the registry as the exact UTF-8 JSON bytes that schemas.json must contain (sorted keys, indent 2)."""
     text = json.dumps(build_registry(root), ensure_ascii=False, indent=2, sort_keys=True) + "\n"
     return text.encode("utf-8")
 
 
 def check_registry(root: Path, registry_path: Path | None = None) -> None:
+    """Raise RegistryError unless the file at registry_path (default schemas.json) equals the freshly built bytes."""
     path = registry_path or root / REGISTRY_REL
     expected = registry_bytes(root)
     try:
@@ -932,10 +1031,16 @@ def check_registry(root: Path, registry_path: Path | None = None) -> None:
 
 
 def _repo_root() -> Path:
+    """Return the repository root (the parent of this file's folder)."""
     return Path(__file__).resolve().parents[1]
 
 
 def main(argv: Iterable[str] | None = None) -> int:
+    """Command-line entry: --check, --write or --print (exactly one), optional --repo-root.
+
+    Returns 0 on success and 1 (message on stderr) when a RegistryError occurs. --write replaces
+    observability/schemas.json through a temporary file; --print writes the JSON bytes to stdout.
+    """
     parser = argparse.ArgumentParser(description="A4 filesystem-contract schema registry")
     action = parser.add_mutually_exclusive_group(required=True)
     action.add_argument("--check", action="store_true", help="fail on parity or checked-in drift")
@@ -964,5 +1069,6 @@ def main(argv: Iterable[str] | None = None) -> int:
     return 0
 
 
+# -- script entry point --
 if __name__ == "__main__":
     raise SystemExit(main())

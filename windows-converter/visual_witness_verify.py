@@ -1,4 +1,11 @@
-"""Independent, CPU-only VW-E2-R2 fixed-sample verifier.
+"""WHAT THIS FILE DOES: a stand-alone checker for the visual-witness E2 capture. It reads one canonical JSON
+request on stdin (--stdio, with --repo-root), re-reads the frozen packet and schema under docs/contracts, the
+VW-T03 source PDF and its page 210, recomputes hashes, ordering rules and the first identity chain, and prints one
+canonical JSON wrapper {activity, result} on stdout. Exit code 0 = Verified-independent, 2 = conflict or unread,
+3 = failure. It writes no file. Main entry points: main() and verify_request(). Called as a child process by
+visual_witness_capture.py (which also hashes this file's bytes into its evidence).
+
+Independent, CPU-only VW-E2-R2 fixed-sample verifier.
 
 The producer gives this program one canonical JSON request over an anonymous child
 stdin pipe.  It rereads the exact public contracts, the VW-T03 source bytes, and page
@@ -8,6 +15,7 @@ output is one authenticated canonical JSON wrapper over stdout; it writes no fil
 
 from __future__ import annotations
 
+# -- imports --
 import argparse
 import hashlib
 import json
@@ -18,6 +26,7 @@ from typing import Any, Mapping, Sequence
 import pymupdf
 
 
+# -- frozen ground: contract file locations, expected sizes and hashes, hash domain prefixes, planted-gap control --
 PACKET_RELATIVE = Path("docs/contracts/visual-witness-e2-packet-r2.json")
 SCHEMA_RELATIVE = Path("docs/contracts/visual-witness-e2-capture-v1.schema.json")
 PACKET_SHA256 = "ebc047b8d963a8e3b92ebd7479055dbf78121fad93094f38c902ce9f92cc6769"
@@ -44,6 +53,7 @@ PLANTED_GAP_RECTANGLES = [
 ]
 PLANTED_GAP_EXPECTED_AREA = 8
 PLANTED_GAP_VALID_PIXELS = 9
+# -- required orderings and rule ids for the capture payload --
 CASE_ORDER = ("VW-T01", "VW-T02", "VW-T03")
 CLASS_ORDER = ("raster", "vector", "stroke-cluster", "scan-component", "text-block", "table")
 RULE_IDS = {
@@ -54,6 +64,7 @@ RULE_IDS = {
     "text-block": "VW2-R2-TEXT-1",
     "table": "VW2-R2-TABLE-1",
 }
+# -- activity audit: counts (and refuses) network and GPU use while the verifier runs --
 _ACTIVITY = {"instrumentation_ready": False, "network_call_count": 0, "gpu_call_count": 0}
 _AUDIT_INSTALLED = False
 _AUDIT_ACTIVE = False
@@ -63,6 +74,10 @@ _GPU_AUDIT_TOKENS = (
 
 
 def _activity_audit(event: str, args: tuple[Any, ...]) -> None:
+    """Python audit hook: once active, count and refuse any socket event or GPU-looking process/library load.
+
+    Raises PermissionError on a denied event; updates the _ACTIVITY counters.
+    """
     if not _AUDIT_ACTIVE:
         return
     if event.startswith("socket."):
@@ -77,6 +92,7 @@ def _activity_audit(event: str, args: tuple[Any, ...]) -> None:
 
 
 def install_activity_audit() -> None:
+    """Register _activity_audit once with sys.addaudithook and switch it on; VerifyUnread if unsupported."""
     global _AUDIT_INSTALLED, _AUDIT_ACTIVE
     if not hasattr(sys, "addaudithook"):
         raise VerifyUnread("Python audit instrumentation unavailable")
@@ -88,14 +104,19 @@ def install_activity_audit() -> None:
 
 
 def activity_snapshot() -> dict[str, Any]:
+    """Return a copy of the activity counters (instrumentation_ready, network and gpu call counts)."""
     return dict(_ACTIVITY)
 
 
 class VerifyUnread(RuntimeError):
+    """Raised when an input cannot be read or is malformed; the verdict then becomes UNREAD, not a pass."""
+
     pass
 
 
+# -- JSON and hashing helpers --
 def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
+    """json object_pairs_hook: build a dict but raise VerifyUnread on a duplicate key."""
     result: dict[str, Any] = {}
     for key, value in pairs:
         if key in result:
@@ -105,6 +126,7 @@ def _pairs(pairs: list[tuple[str, Any]]) -> dict[str, Any]:
 
 
 def load_json_bytes(raw: bytes) -> Any:
+    """Strictly decode UTF-8 JSON bytes (no duplicate keys, no NaN/Infinity); VerifyUnread on any fault."""
     try:
         return json.loads(
             raw.decode("utf-8", "strict"),
@@ -116,6 +138,7 @@ def load_json_bytes(raw: bytes) -> Any:
 
 
 def load_json(path: Path) -> Any:
+    """Read a file and parse it with load_json_bytes; VerifyUnread if the file cannot be read."""
     try:
         return load_json_bytes(path.read_bytes())
     except OSError as exc:
@@ -123,19 +146,23 @@ def load_json(path: Path) -> Any:
 
 
 def canonical(value: Any) -> bytes:
+    """Canonical JSON bytes: sorted keys, no spaces, UTF-8, NaN refused."""
     return json.dumps(value, sort_keys=True, separators=(",", ":"), ensure_ascii=False, allow_nan=False).encode("utf-8")
 
 
 def digest(data: bytes) -> str:
+    """Hex SHA-256 of the given bytes."""
     return hashlib.sha256(data).hexdigest()
 
 
 def _projection_hash(domain: str, value: Any, *, tagged: bool = False) -> str:
+    """SHA-256 of a domain prefix plus the canonical JSON of value; with tagged=True the result starts "sha256:"."""
     value_hash = digest(DOMAINS[domain] + canonical(value))
     return "sha256:" + value_hash if tagged else value_hash
 
 
 def _file_identity(path: Path, byte_count: int, expected: str) -> bool:
+    """True if the file at path has exactly byte_count bytes and the expected SHA-256; VerifyUnread if unreadable."""
     try:
         raw = path.read_bytes()
     except OSError as exc:
@@ -143,8 +170,14 @@ def _file_identity(path: Path, byte_count: int, expected: str) -> bool:
     return len(raw) == byte_count and digest(raw) == expected
 
 
+# -- tile and page-210 geometry checks --
 def exact_union_area(rectangles: Sequence[Sequence[int]]) -> int:
+    """Area of the union of half-open integer rectangles [x0, y0, x1, y1] (overlaps counted once).
+
+    Raises VerifyUnread for a malformed or out-of-bounds rectangle. Pure computation.
+    """
     parsed: list[tuple[int, int, int, int]] = []
+    # validate each rectangle's shape and bounds
     for rectangle in rectangles:
         if (
             not isinstance(rectangle, list)
@@ -158,6 +191,7 @@ def exact_union_area(rectangles: Sequence[Sequence[int]]) -> int:
         parsed.append((x0, y0, x1, y1))
     xs = sorted({edge for rectangle in parsed for edge in (rectangle[0], rectangle[2])})
     area = 0
+    # sweep each vertical strip between neighbouring x edges and merge the y intervals that cover it
     for x0, x1 in zip(xs, xs[1:]):
         intervals = sorted((y0, y1) for left, y0, right, y1 in parsed if left < x1 and right > x0)
         if not intervals:
@@ -176,6 +210,10 @@ def exact_union_area(rectangles: Sequence[Sequence[int]]) -> int:
 
 
 def _rgb_slice(raw: bytes, width: int, bbox: Sequence[int]) -> bytes:
+    """Cut the rows of a half-open bbox out of packed RGB8 bytes of the given pixel width.
+
+    VerifyUnread if the buffer is not a whole number of rows or the bbox leaves the image.
+    """
     if len(raw) % (width * 3):
         raise VerifyUnread("render RGB shape unread")
     height = len(raw) // (width * 3)
@@ -187,6 +225,11 @@ def _rgb_slice(raw: bytes, width: int, bbox: Sequence[int]) -> bytes:
 
 
 def _verify_page_210(source_path: Path, source: Mapping[str, Any], retained: Mapping[str, Any]) -> bool:
+    """Re-render page 210 of the VW-T03 PDF and compare it to the retained record.
+
+    Checks the source hash, the render's size/hash, that the tiles cover the page exactly, and each
+    tile's bytes and hash. Reads the PDF (no writes). False on any mismatch; VerifyUnread if unreadable.
+    """
     try:
         raw_source = source_path.read_bytes()
     except OSError as exc:
@@ -198,6 +241,7 @@ def _verify_page_210(source_path: Path, source: Mapping[str, Any], retained: Map
         if document.page_count < 210:
             return False
         page = document[209]
+        # render page 210 at 8/3 scale as RGB without alpha (the frozen render recipe)
         pixmap = page.get_pixmap(
             matrix=pymupdf.Matrix(8 / 3, 8 / 3),
             colorspace=pymupdf.csRGB,
@@ -220,6 +264,7 @@ def _verify_page_210(source_path: Path, source: Mapping[str, Any], retained: Map
             "reason_codes": [],
         }:
             return False
+        # the tiles must cover the whole page, and each tile's bytes must hash as recorded
         tiles = retained.get("tiles")
         if not isinstance(tiles, list) or exact_union_area([tile["bbox_px_half_open"] for tile in tiles]) != width * height:
             return False
@@ -232,15 +277,19 @@ def _verify_page_210(source_path: Path, source: Mapping[str, Any], retained: Map
         raise VerifyUnread("VW-T03 page 210 API unread") from exc
 
 
+# -- ordering checks on the capture payload --
 def _canonical_object_unique(items: Sequence[Any]) -> bool:
+    """True if no two items have the same canonical JSON form."""
     return len({canonical(item) for item in items}) == len(items)
 
 
 def _sorted_unique_strings(items: Any) -> bool:
+    """True if items is a list of strings in sorted order with no duplicates."""
     return isinstance(items, list) and all(isinstance(item, str) for item in items) and items == sorted(set(items))
 
 
 def _disposition_key(item: Mapping[str, Any]) -> tuple[Any, ...]:
+    """Sort key for a conflicts/unreads entry: scope, reason, blocking, detail code, evidence (None sorts first)."""
     reason, evidence = item.get("reason_code"), item.get("evidence_sha256")
     return (
         item.get("scope"), (0, "") if reason is None else (1, reason), item.get("blocking"),
@@ -249,6 +298,7 @@ def _disposition_key(item: Mapping[str, Any]) -> tuple[Any, ...]:
 
 
 def _recursive_payload_order(value: Any) -> bool:
+    """Walk a payload: every reason_codes list must be sorted-unique and every conflicts/unreads list sorted."""
     if isinstance(value, dict):
         for key, child in value.items():
             if key == "reason_codes" and not _sorted_unique_strings(child):
@@ -265,11 +315,17 @@ def _recursive_payload_order(value: Any) -> bool:
 
 
 def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str, Mapping[str, Any]]) -> bool:
+    """True if one region candidate's nested lists are in the required order and free of duplicates.
+
+    Covers edge-recovery touches and tile ids, primitive id lists, and the table evidence's tracks and cells.
+    May raise KeyError/TypeError on a malformed candidate (the caller turns that into UNREAD).
+    """
     recovery = candidate["edge_recovery"]
     relation_rank = {"equals-min-boundary": 0, "equals-max-boundary": 1, "straddles": 2}
     direction_rank = {"negative": 0, "positive": 1, "both": 2}
     touches = recovery["touched_internal_edges"]
     def touch_key(item):
+        """Sort key for a touched internal edge: axis, coordinate, relation rank, neighbour direction rank."""
         return (
             0 if item["axis"] == "x" else 1, item["coordinate_px"],
             relation_rank[item["relation"]], direction_rank[item["neighbor_direction"]],
@@ -289,6 +345,7 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
         return False
     if not _sorted_unique_strings(candidate["captured_text"]["source_text_primitive_ids"]):
         return False
+    # per class evidence: id lists sorted; table evidence also gets its tracks and cells checked
     for evidence in candidate["class_evidence"]:
         if not _sorted_unique_strings(evidence["source_primitive_ids"]):
             return False
@@ -303,6 +360,7 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
                 if not _sorted_unique_strings(track["member_primitive_ids"]):
                     return False
             def key(track):
+                """Sort key for a table track: axis position, extent start and end, member ids."""
                 return (
                     track["axis_px"], track["extent_start_px"], track["extent_end_px"],
                     tuple(track["member_primitive_ids"]),
@@ -321,6 +379,7 @@ def _candidate_deep_order(candidate: Mapping[str, Any], tile_by_id: Mapping[str,
 
 def _canonical_payload_order(payload: Mapping[str, Any]) -> bool:
     """Independently enforce the packet order that precedes sample selection."""
+    # walks cases, pages, tiles, primitives, candidates and relationships; any malformed shape becomes UNREAD
     try:
         cases = payload["cases"]
         if payload["case_census"]["case_ids"] != list(CASE_ORDER):
@@ -385,6 +444,7 @@ def _canonical_payload_order(payload: Mapping[str, Any]) -> bool:
                 for primitive in primitives:
                     provenance = primitive["source_evidence"]["provenance_records"]
                     def provenance_key(item):
+                        """Sort key for a provenance record: its index fields in order, None as -1."""
                         return tuple(
                             -1 if item[name] is None else item[name] for name in provenance_names
                         )
@@ -414,7 +474,13 @@ def _canonical_payload_order(payload: Mapping[str, Any]) -> bool:
 
 
 def _identity_chain(payload: Mapping[str, Any]) -> bool:
+    """Recompute the ids of the first relationship, its source candidate and that candidate's first primitive.
+
+    True only if all three stored ids equal the hashes of their projections. VerifyUnread if no first
+    relationship exists or its chain is broken. Pure computation.
+    """
     first: tuple[Mapping[str, Any], Mapping[str, Any], Mapping[str, Any], Mapping[str, Any]] | None = None
+    # find the first page (in case order) that has a relationship
     for case in payload.get("cases", []):
         source_sha = case.get("source", {}).get("observed_sha256")
         for page in case.get("pages", []):
@@ -467,7 +533,13 @@ def _identity_chain(payload: Mapping[str, Any]) -> bool:
     )
 
 
+# -- the verdict: run every check, collect conflict codes, build the evidence wrapper --
 def verify_request(request: Mapping[str, Any], repo_root: Path) -> dict[str, Any]:
+    """Run all checks on one request and return the result dict (status, reason codes, hashes, evidence hash).
+
+    Reads the packet, schema, this file's own bytes and the VW-T03 PDF; writes nothing. Status is
+    CONFLICT if any check disagrees, UNREAD if an input could not be read, else Verified-independent.
+    """
     conflicts: set[str] = set()
     unread = False
     payload = request.get("capture_payload")
@@ -518,6 +590,7 @@ def verify_request(request: Mapping[str, Any], repo_root: Path) -> dict[str, Any
     except VerifyUnread:
         unread = True
 
+    # conflict beats unread; unread beats pass
     if conflicts:
         status, reasons = "CONFLICT", sorted(conflicts)
     elif unread:
@@ -544,6 +617,10 @@ def verify_request(request: Mapping[str, Any], repo_root: Path) -> dict[str, Any
 
 
 def _create_new(path: Path, value: Any) -> None:
+    """Write canonical JSON plus a newline to a NEW file (mode "xb", fails if it exists); VerifyUnread on OSError.
+
+    (Not called anywhere in this file; the module docstring says it writes no file.)
+    """
     raw = canonical(value) + b"\n"
     try:
         with path.open("xb") as handle:
@@ -553,13 +630,20 @@ def _create_new(path: Path, value: Any) -> None:
         raise VerifyUnread("verifier output create failed") from exc
 
 
+# -- entry point --
 def main(argv: Sequence[str] | None = None) -> int:
+    """Command-line entry: read one canonical request from stdin, verify it, print the wrapper to stdout.
+
+    Returns 0 (Verified-independent), 2 (conflict or unread) or 3 (any failure). Side effects: installs
+    the audit hook, reads stdin, writes stdout only.
+    """
     parser = argparse.ArgumentParser(description="VW-E2-R2 fixed independent verifier")
     parser.add_argument("--repo-root", type=Path, required=True)
     parser.add_argument("--stdio", action="store_true", required=True)
     args = parser.parse_args(argv)
     result: Mapping[str, Any] | None = None
     exit_code = 3
+    # read a size-capped stdin request that must already be in canonical form, then verify it
     try:
         install_activity_audit()
         raw = sys.stdin.buffer.read(268_435_457)

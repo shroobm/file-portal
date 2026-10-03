@@ -1,4 +1,10 @@
-"""The Library graph (S214 E24; Rab, 2026-09-27 22:14Z: "all obsidian vault books and up to date ones
+"""WHAT THIS FILE DOES: builds the Library graph document from an open index store. build() returns
+nodes (one per book), edges (books whose average passage vectors are close) and shared terms;
+cached() returns the same document from graph.json beside the index when the index tip and the
+settings are unchanged, else rebuilds and rewrites that file. Reads the store; writes graph.json
+only. Called by serve.py for the /graph route.
+
+The Library graph (S214 E24; Rab, 2026-09-27 22:14Z: "all obsidian vault books and up to date ones
 that get sent to the vault in the future show up as a network cell graph in library"; 2026-09-28
 17:52Z: "all three" readings).
 
@@ -25,6 +31,7 @@ from pathlib import Path
 
 from indexer.store import Store
 
+# -- constants: cache file name, graph levers, word pattern, stop words --
 GRAPH_FILE = "graph.json"
 EDGE_K = 4  # lever-waiver: Rab; neighbours kept per book, moves on how the graph reads
 MIN_SIM = 0.30  # lever-waiver: Rab; the cosine under which two books are not joined
@@ -51,11 +58,14 @@ _STOP = frozenset(
 STOP_VERSION = 3  # lever-waiver: a version tag of the word rule, not a threshold — bumped when the stoplist or the regex changes (S214 E24: 2 dropped LaTeX tokens, 3 the trailing hyphen); part of the cache key
 
 
+# -- vector helpers and centroids --
 def _decode(blob: bytes) -> list[float]:
+    """Unpack a stored vector (little-endian 32-bit floats) into a list of floats."""
     return list(struct.unpack(f"<{len(blob) // 4}f", blob))
 
 
 def _norm(v: list[float]) -> list[float]:
+    """Scale a vector to unit length (a zero vector is returned unscaled)."""
     n = math.sqrt(sum(x * x for x in v)) or 1.0
     return [x / n for x in v]
 
@@ -64,6 +74,7 @@ def centroids(store: Store) -> dict[str, list[float]]:
     """Mean passage vector per book, unit length; a book without vectors is absent here."""
     sums: dict[str, list[float]] = {}
     counts: Counter = Counter()
+    # add up every passage vector per book, counting how many went in
     for row in store.db.execute("SELECT sha, embedding FROM passages_vec"):
         vec = _decode(row["embedding"])
         acc = sums.get(row["sha"])
@@ -76,12 +87,14 @@ def centroids(store: Store) -> dict[str, list[float]]:
     return {sha: _norm([x / counts[sha] for x in acc]) for sha, acc in sums.items()}
 
 
+# -- edges between books --
 def edges_from(
     cents: dict[str, list[float]], edge_k: int = EDGE_K, min_sim: float = MIN_SIM
 ) -> list[dict]:
     """Undirected edges: each book's top-k neighbours by cosine at or above min_sim, deduplicated."""
     shas = sorted(cents)
     kept: dict[tuple[str, str], float] = {}
+    # for each book, score every other book by dot product (cosine of unit vectors), keep the top k
     for a in shas:
         sims = []
         for b in shas:
@@ -100,6 +113,7 @@ def edges_from(
     ]
 
 
+# -- terms per book and shared terms --
 def terms_from(
     store: Store, top_terms: int = TOP_TERMS, max_terms: int = MAX_TERMS
 ) -> tuple[dict[str, list[dict]], list[dict]]:
@@ -107,6 +121,7 @@ def terms_from(
     books). Shared: a term carried by at least two books, with those books, the strongest first."""
     tf: dict[str, Counter] = {}
     total: Counter = Counter()
+    # count the words of every passage per book (stop words and possessives left out)
     for row in store.db.execute("SELECT sha, text FROM passages"):
         words = [
             w for w in _WORD.findall(row["text"].lower()) if w not in _STOP and not w.endswith("'s")
@@ -115,12 +130,15 @@ def terms_from(
             continue
         tf.setdefault(row["sha"], Counter()).update(words)
         total[row["sha"]] += len(words)
+    # document frequency: in how many books does each term occur
     n_books = max(1, len(tf))
     df: Counter = Counter()
     for counts in tf.values():
         df.update(counts.keys())
     per_book: dict[str, list[dict]] = {}
     shared: dict[str, dict] = {}
+    # score each term of each book by tf-idf (terms seen under twice are skipped), keep the top
+    # terms per book and note which books carry each kept term
     for sha, counts in tf.items():
         scored = []
         for term, c in counts.items():
@@ -136,6 +154,7 @@ def terms_from(
             entry = shared.setdefault(t, {"term": t, "books": [], "weight": 0.0})
             entry["books"].append(sha)
             entry["weight"] += s
+    # a shared term is one kept by at least two books; strongest first
     shared_terms = [e for e in shared.values() if len(e["books"]) >= 2]
     shared_terms.sort(key=lambda e: (-len(e["books"]), -e["weight"]))
     for e in shared_terms:
@@ -143,6 +162,7 @@ def terms_from(
     return per_book, shared_terms[:max_terms]
 
 
+# -- assembling and caching the document --
 def build(
     store: Store,
     edge_k: int = EDGE_K,
@@ -155,6 +175,7 @@ def build(
     cents = centroids(store)
     per_book, shared = terms_from(store, top_terms, max_terms)
     nodes = []
+    # one node per bundle row: a display title (file name without .md/.pdf) plus its metadata
     for row in store.db.execute(
         "SELECT sha, note, md_name, source, indexed_tip, passages, meta FROM bundles ORDER BY note"
     ):
@@ -216,6 +237,7 @@ def cached(index_dir: Path, store: Store, **levers) -> dict:
         **levers,
         "stop": STOP_VERSION,
     }
+    # reuse graph.json only when it was built from this tip with these levers
     if tip and path.is_file():
         try:
             doc = json.loads(path.read_text(encoding="utf-8"))
@@ -228,6 +250,7 @@ def cached(index_dir: Path, store: Store, **levers) -> dict:
     # test, the one the first cut lacked)
     doc = build(store, **{k: v for k, v in wanted.items() if k != "stop"})
     doc["cached"] = False
+    # write the cache through a temporary file, then rename it over graph.json
     if tip:
         tmp = path.with_suffix(".json.tmp")
         tmp.write_text(json.dumps(doc, ensure_ascii=False), encoding="utf-8")

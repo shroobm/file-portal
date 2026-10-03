@@ -1,4 +1,9 @@
-"""CROSS-CHECK (second, differently-shaped method).
+"""WHAT THIS FILE DOES: a one-off cross-check script (run directly, no arguments). It compares a Figure's
+bounding box as pymupdf derives it with the box the PDF author declared, on the WTPDF sample, then runs
+two negative controls (a wrong element, and an untagged PDF). Paths are hard-coded; read-only; prints
+results to stdout; needs pymupdf; no callers.
+
+CROSS-CHECK (second, differently-shaped method).
 
 Method A: pymupdf stext with TEXT_COLLECT_STRUCTURE -> a tree whose element bboxes
           are DERIVED (union of the glyph/image boxes MuPDF places under the element).
@@ -14,17 +19,20 @@ and the same comparison on a DELIBERATELY WRONG element must disagree.
 import re, sys
 import pymupdf
 
+# -- setup and xref helpers (the document is the module-level `doc`) --
 P = r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf"
 doc = pymupdf.open(P)
 FL = pymupdf.TEXTFLAGS_DICT | pymupdf.TEXT_COLLECT_STRUCTURE
 
 
 def get(x, k):
+    """Return xref_get_key(x, k) on `doc`, or None when the key is absent (pymupdf's ('null','null'))."""
     v = doc.xref_get_key(x, k)
     return None if (not v or v[0] == "null") else v
 
 
 def kids(x):
+    """Return the object numbers of the indirect children in object x's /K entry (else [])."""
     k = get(x, "K")
     if not k:
         return []
@@ -35,6 +43,7 @@ def kids(x):
     return []
 
 
+# collect every structure element (an object with /S) by walking the tree from the root
 cat = doc.pdf_catalog()
 root = int(get(cat, "StructTreeRoot")[1].split()[0])
 seen, stack, elems = set(), list(kids(root)), []
@@ -83,6 +92,7 @@ found = []
 
 
 def walk(bl, path=()):
+    """Collect into the global `found` a (tag path, bbox) pair for every "Figure" structure block under `bl`."""
     for b in bl:
         if b.get("type") == 2:
             p = path + (b.get("raw"),)
@@ -96,6 +106,7 @@ print("Figure structs stext reports on page %d: %d" % (target[2], len(found)))
 for p, bb in found:
     print("   path=%s  derived bbox=%s" % ("/".join(p), tuple(round(v, 2) for v in bb)))
 
+# largest per-edge difference between the derived and the declared box; 2 pt is the agreement tolerance
 if found:
     a = found[0][1]
     b = declared_topdown
@@ -114,6 +125,7 @@ other = None
 
 
 def walk2(bl):
+    """Set the global `other` to the bbox of the first "P" structure block found under `bl` (depth-first)."""
     global other
     for b in bl:
         if b.get("type") == 2 and b.get("raw") == "P" and other is None:
@@ -133,6 +145,7 @@ if other:
 print()
 print("=== NEGATIVE CONTROL 2: untagged PDF must yield no structure ===")
 NEG = r"C:/Users/Bndit/Downloads/Ashby - An Introduction to Cybernetics (1956).pdf"
+# an untagged scanned book: its first 20 pages must show zero structure blocks, yet still have text
 nd = pymupdf.open(NEG)
 ncat = nd.pdf_catalog()
 nst = nd.xref_get_key(ncat, "StructTreeRoot")
@@ -141,6 +154,7 @@ cnt = 0
 
 
 def cnt3(bl):
+    """Add to the global counter `cnt` the number of structure blocks (type 2) under `bl`, nested ones too."""
     global cnt
     for b in bl:
         if b.get("type") == 2:

@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""latex_structure.py — SYM-056's structural check on converter markdown (S168 E3): every `\\begin{X}` balanced against its
+"""WHAT THIS FILE DOES: checks converter markdown for broken LaTeX structure: unbalanced begin/end environments,
+an end that closes the wrong environment, and absurdly wide array/tabular column specs. Entry points: check(md)
+returns a report dict; main(argv) is the command line over .md files. Reads only the text or files given; writes
+nothing. Imported by convert_and_ship.py and by latex_structure_selftest.py.
+
+latex_structure.py — SYM-056's structural check on converter markdown (S168 E3): every `\\begin{X}` balanced against its
 `\\end{X}` per environment name (the strict-literal delta the Codex lane's MSG-CDX-0014 asked for), the nesting walked (a
 `\\end{X}` that closes nothing, or closes the wrong environment, is named with its line), and runaway column specs flagged
 (an `array`/`tabular` spec wider than MAX_SPEC_COLS — the S109 specimen was 36 `c`s). Read-only, stdlib, no engine.
@@ -17,6 +22,7 @@ import re
 import sys
 from collections import Counter
 
+# -- the column-width lever and the patterns that find begin/end tokens --
 MAX_SPEC_COLS = 20  # lever: the widest honest column spec seen on the shelf is far below the S109 runaway (36)
 # Whitespace-aware on purpose: the Codex lane's MSG-CDX-0014 found one Ashby opener written as `\begin` + CRLF + `{array}` that a
 # strict-literal `\begin{array}` misses while its closer is counted (60 literal vs 61 semantic). `begin_literal` keeps the strict
@@ -28,6 +34,7 @@ _SPEC_ENVS = {"array", "tabular", "tabularx", "matrix"}
 _TOKENS = re.compile(r"\\(begin|end)\s*\{([A-Za-z*]+)\}(?:\{([^}\n]*)\})?")
 
 
+# -- the checks --
 def _spec_width(spec: str) -> int:
     """Column letters in a spec: `c`, `l`, `r`, `p{…}`; a `*{n}{c}` repeat counts n."""
     rep = re.search(r"\*\{?(\d+)\}?", spec)
@@ -37,6 +44,8 @@ def _spec_width(spec: str) -> int:
 
 
 def check(md: str) -> dict:
+    """Check markdown text md: count begin/end per environment, walk the nesting, flag runaway column specs.
+    Returns the report dict (begin, end, delta, misordered, runaway, valid ...). Pure function, no side effects."""
     begins = Counter(m.group(1) for m in _BEGIN.finditer(md))
     ends = Counter(m.group(1) for m in _END.finditer(md))
     envs = sorted(set(begins) | set(ends))
@@ -44,6 +53,7 @@ def check(md: str) -> dict:
     stack, misordered, unopened = [], [], 0
     runaway = []
     line_of = lambda pos: md.count("\n", 0, pos) + 1  # noqa: E731
+    # walk begin/end tokens in order with a stack: a begin pushes; an end must match the top, else it is misordered
     for m in _TOKENS.finditer(md):
         kind, env, spec = m.group(1), m.group(2), m.group(3)
         if kind == "begin":
@@ -74,10 +84,13 @@ def check(md: str) -> dict:
 
 
 def main(argv: list[str]) -> int:
+    """Command line: check each .md file named in argv[1:] and print one summary line each.
+    Returns 0 when all are valid, 1 when any is invalid or unreadable, 2 on usage error."""
     if len(argv) < 2:
         print("usage: latex_structure.py <file.md> ...")
         return 2
     red = 0
+    # one file per pass; an unreadable file is reported and counts as red
     for path in argv[1:]:
         try:
             md = open(path, encoding="utf-8", errors="replace").read()

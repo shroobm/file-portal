@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""table_shape.py — THE STRUCTURAL-TABLE MEASURE (S209 E11; the frontier's item 1, the bank tables: 17 of 35 NBC tables
+"""WHAT THIS FILE DOES: measures how many table columns and rows the converter (Marker) lost, by comparing each
+Table block in blocks.json with the source PDF's own table geometry. Main entry point: table_shape(doc, blocks,
+lane), which returns a report dict (counts, worst pages) and is report-only. It opens the source PDF with pymupdf
+(read only) and writes nothing. Callers: the converter's manifest/fidelity step (caller not visible in this file).
+
+table_shape.py — THE STRUCTURAL-TABLE MEASURE (S209 E11; the frontier's item 1, the bank tables: 17 of 35 NBC tables
 flagged, RBC 25/30, CIBC 21/22, Scotia 31/33, TD 11/29 — survival could say a table page lost words, never its SHAPE).
 
 For every Table block Marker wrote (blocks.json: `page`, `bbox` in PDF points, `html`), the source's own table geometry
@@ -29,7 +34,8 @@ from __future__ import annotations
 
 import re
 
-CELL_AGREE = 0.5           # the floor on Marker's non-empty cells found in the witness's text; below it the witness is none
+# -- tuning constants: agreement floor, row tolerance, strategies, unit-sign pattern, display caps --
+CELL_AGREE = 0.5          # the floor on Marker's non-empty cells found in the witness's text; below it the witness is none
 ROW_TOL = 0.25             # a lines witness whose row count is off Marker's by more than this share (or 2 rows) is no witness
                            # for columns: RBC's sparse rulings read 4 × 17 against Marker's 20 × 13 with the cells agreeing
 STRATEGIES = ("lines", "text")
@@ -39,7 +45,9 @@ WORST_CAP = 10
 TABLE_TYPES = ("Table", "TableGroup")   # S209 E13 (SYM-147, Codex MSG-CDX-0085): NBC p.57's damage sat in a TableGroup the measure never read
 
 
+# -- reading Marker's table html --
 def _norm(s: str) -> str:
+    """Lower-case a string and keep only 0-9 and a-z (None reads as empty), so cell texts compare loosely."""
     return re.sub(r"[^0-9a-z]+", "", (s or "").lower())
 
 
@@ -47,6 +55,7 @@ def _marker_cells(html: str) -> tuple[int, int, list[str]]:
     """rows, width (the widest row), the non-empty normalised cell texts of a Table block's html."""
     rows = re.split(r"(?i)<tr[^>]*>", html or "")[1:]
     widths, cells = [], []
+    # for each row: count its td/th cells (for the width) and collect the non-empty normalised cell texts
     for r in rows:
         tds = re.findall(r"(?is)<t[dh][^>]*>(.*?)</t[dh]>", r)
         widths.append(len(tds))
@@ -57,7 +66,8 @@ def _marker_cells(html: str) -> tuple[int, int, list[str]]:
     return len(rows), (max(widths) if widths else 0), cells
 
 
-GEOMETRY_WIDTHS = 7          # S211 E8: how many distinct column widths the geometry note prints before saying "and N
+# -- reading the source PDF's table geometry (pymupdf find_tables) --
+GEOMETRY_WIDTHS = 7        # S211 E8: how many distinct column widths the geometry note prints before saying "and N
 # more distinct" — a display cap on a READING, not a measurement bound. Nothing in this module computes a number from
 # the widths: SYM-181's actual fix needs a threshold and that number is Rab's, so this deliberately has none.
 
@@ -78,6 +88,7 @@ def _witness(page, clip):
     """(strategy, rows, cols, joined normalised cell text, the witness's own column widths) of the largest table
     pymupdf finds inside the box, or None. The widths are a READING for the worst entry (S211 E8) and no number in
     this module is computed from them."""
+    # try the lines strategy first, then the text strategy; the first one that finds a table is used
     for strat in STRATEGIES:
         try:
             tf = page.find_tables(clip=clip, strategy=strat)
@@ -112,6 +123,7 @@ def _witness(page, clip):
     return None
 
 
+# -- report assembly: population keys, the geometry note, and the main measure --
 def _finish(out: dict) -> dict:
     """the population keys and the None-for-unwitnessed rule, applied at every return point (S211 Lane A; docs/34;
     Rab's word 2026-09-21: a measure may never assert a number it cannot support — an unwitnessed columns_lost /
@@ -149,7 +161,10 @@ def _geometry_note(widths: list) -> str:
 
 
 def table_shape(doc, blocks: list[dict], lane: str) -> dict:
-    """`doc` an open pymupdf document (the source) or its path, `blocks` blocks.json's list, `lane` "clean" or "scan"."""
+    """`doc` an open pymupdf document (the source) or its path, `blocks` blocks.json's list, `lane` "clean" or "scan".
+    Returns the report dict (counts, per-document lost columns/rows, `worst` pages). Opens the PDF read only when
+    given a path; writes nothing."""
+    # pick out the table blocks that have a page and a box
     tables = [b for b in blocks if b.get("block_type") in TABLE_TYPES and b.get("bbox") and b.get("page") is not None]
     worst: list[dict] = []                # the worst pages, appended at the end (a list the returned block names)
     out = {"meaning": "the source's table geometry inside each Marker table box against Marker's rows and width; "
@@ -180,6 +195,8 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
             out["reason"] = "the source could not be opened for its geometry"
             return _finish(out)
     per_page: dict[int, dict] = {}
+    # for each table block: read Marker's rows/width, ask for the source's witness inside the block's box, check the
+    # witness agrees with Marker's cell text, then tally lost/gained columns and rows per page
     for b in tables:
         p = b["page"]
         if p < 0 or p >= len(doc):
@@ -235,6 +252,7 @@ def table_shape(doc, blocks: list[dict], lane: str) -> dict:
     # sample; nothing is measured differently and no threshold moves. A page enters the ranking only if it lost
     # something — the sort key is columns*10 + rows, so a page that lost neither is not a candidate for "worst".
     out["worst_total"] = sum(1 for v in per_page.values() if v["columns_lost"] or v["rows_lost"])
+    # keep the WORST_CAP pages that lost the most (columns weigh 10x a row) in the returned `worst` list
     for v in sorted(per_page.values(), key=lambda v: -(v["columns_lost"] * 10 + v["rows_lost"]))[:WORST_CAP]:
         worst.append({"page": v["page"], "columns_lost": v["columns_lost"], "rows_lost": v["rows_lost"],
                       "shapes": v["shapes"], "column_geometry": v["column_geometry"]})

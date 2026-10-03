@@ -1,4 +1,11 @@
-"""Tripwire for figure_coverage.py (P-1). A guard born today gets its tripwire today.
+"""WHAT THIS FILE DOES: the self-test for `figure_coverage.py`. It builds small PDFs and fake bundles in a
+temporary folder, runs the `figure_coverage` functions on them, and prints a PASS or FAIL line per case.
+Entry point: `main()` (run as a script); it returns 0 when every case passed and 1 otherwise, and prints
+a final "X/Y" line. Helpers: `check` (records one case), `_png` (makes a small image), `_bundle` (makes a
+fake bundle folder with asset files). Reads and writes only a temp folder (removed at the end); one case
+also launches `figure_coverage.py` as a subprocess. Needs pymupdf; no GPU, no network.
+
+Tripwire for figure_coverage.py (P-1). A guard born today gets its tripwire today.
 
 ASCII-only output on purpose: the first draft printed box-drawing characters and CRASHED on
 its own summary line under Windows cp1252 -- after all 12 cases had passed. A guard that
@@ -24,11 +31,17 @@ import pymupdf
 sys.path.insert(0, str(Path(__file__).parent))
 import figure_coverage as fc  # noqa: E402
 
+# -- test bookkeeping: pass and total counters --
+
 PASS = 0
 TOTAL = 0
 
 
+# -- helpers: case recorder and fixture builders --
+
 def check(name: str, ok: bool, detail: str = "") -> None:
+    """Record one test case: add to the TOTAL (and PASS if `ok`) counters and print a PASS or FAIL
+    line, with `detail` under a FAIL. Changes the module globals; prints to stdout; returns nothing."""
     global PASS, TOTAL
     TOTAL += 1
     if ok:
@@ -49,14 +62,22 @@ def _bundle(tmp: Path, pages_with_assets: list[int], name: str = "b") -> Path:
     """A bundle shaped exactly like a real one: assets/ named with 0-INDEXED pages."""
     d = tmp / name
     (d / "assets").mkdir(parents=True, exist_ok=True)
+    # one dummy asset file per listed page number
     for i, p in enumerate(pages_with_assets):
         (d / "assets" / f"_page_{p}_Figure_{i}.jpeg").write_bytes(b"jpegbytes")
     return d
 
 
+# -- the test run: all cases, in order --
+
 def main() -> int:
+    """Run every figure_coverage test case against synthetic PDFs and bundles in a temp folder.
+
+    Returns 0 if all cases passed, else 1. Side effects: creates and finally deletes a temp
+    directory, runs figure_coverage.py three times as a subprocess, prints the case lines."""
     tmp = Path(tempfile.mkdtemp(prefix="fp-p1-"))
     try:
+        # -- group: figure detection and the coverage question (cases 1-11) --
         # 1 — a genuine raster figure is found
         doc = pymupdf.open()
         pg = doc.new_page()
@@ -146,6 +167,7 @@ def main() -> int:
         # a 401-page, slice-size-200 specimen with the only figure on true page 301. The old
         # converter would file its zero-based asset id 300 as 500; naive page 501 is out of
         # range and misses the figure, while the signed inverse maps it back to page 301.
+        # build the 401-page PDF; only page index 300 carries an image
         doc = pymupdf.open()
         for page_index in range(401):
             pg = doc.new_page()
@@ -192,6 +214,7 @@ def main() -> int:
               rep5["coverage"] is None and rep5["pages_with_source_figures"] == 0,
               f"cov={rep5['coverage']}")
 
+        # -- group: the prose / table / frame vetoes, tested on measured numbers --
         # ── the vetoes (S104), tested on REAL measured statistics ──────────────────────────
         # Synthetic PDFs were tried first and abandoned: reproducing a textbook sidebar or a
         # flow diagram well enough to exercise the vetoes end-to-end takes a fixture more
@@ -232,6 +255,7 @@ def main() -> int:
               min(1.0, 0.45 + fc._covered_frac(frame, [(100.0, 100.0, 400.0, 250.0)]))
               >= fc.VETO_ACCOUNTED_FOR)
 
+        # -- group: the operator levers (defaults, in-range values, refused values) --
         # ---- the levers (signed Rab S106; docs/18 §2 modularity law) ----
         # Every case below drives fc.levers() or fc.coverage() for real. None asserts on a
         # literal it just defined — S105 Lane B proved that shape stays green while the guard
@@ -256,6 +280,7 @@ def main() -> int:
         rules_pdf = tmp / "rules18.pdf"
         doc18 = pymupdf.open()
         pg18 = doc18.new_page(width=600, height=800)
+        # draw six thin black bars down the page
         for k in range(6):
             pg18.draw_rect(pymupdf.Rect(60, 100 + 60 * k, 540, 108 + 60 * k), fill=(0, 0, 0))   # 480x8pt bars: area 3,840 each
         doc18.save(rules_pdf)
@@ -277,6 +302,7 @@ def main() -> int:
         check("LEVER BITES: bad enum, unknown key and malformed line are each refused and named",
               r["values"]["mode"] == "caption" and len(r["rejected"]) == 3, str(r["rejected"]))
 
+        # -- group: the triage (which uncovered pages are read first) and the caption convention --
         # ---- the triage: it ORDERS, it must never HIDE ----
         doc = pymupdf.open()
         p1 = doc.new_page()
@@ -325,8 +351,9 @@ def main() -> int:
               unmet["triage_convention"] == "unmet" and unmet["triage_captioned_pages"] == 0
               and unmet["uncovered_captioned"] == [] and unmet["uncovered_other"] == [1],
               f"{unmet['triage_convention']} / {unmet['triage_captioned_pages']} / {unmet['uncovered_other']}")
+        # run figure_coverage.py itself as a command-line program on the same fixtures and check its printed output
         import subprocess
-        here = Path(__file__).resolve().parent / "figure_coverage.py"
+        here =Path(__file__).resolve().parent / "figure_coverage.py"
         cli = subprocess.run([sys.executable, str(here), "--pdf", str(conv), "--bundle", str(empty_c)],
                              capture_output=True, text=True, encoding="utf-8", errors="replace")
         check("SYM-095 SURFACE: the human branch prints TRIAGE INERT on the unmet book (and still prints both lists)",
@@ -341,6 +368,7 @@ def main() -> int:
         check("SYM-095: the JSON form carries triage_convention unmet",
               json.loads(cli_json.stdout).get("triage_convention") == "unmet", cli_json.stdout[:200])
 
+        # -- group: the ILLUSTRATION-versus-FIGURE caption precedence --
         # The ILLUSTRATION precedence. This exact rule was measured but NOT shipped in the
         # first S106 build: the code promoted 16 of 49 pages while the 83 % had been measured
         # on the 8 the precedence leaves. Caught by re-measuring shipped-vs-measured. The case
@@ -362,11 +390,15 @@ def main() -> int:
               "promoted, while a genuine caption on the next page is",
               capt == [2], f"captioned_pages={capt}, expected [2]")
 
+        # -- group: zero-area line clustering and the table veto's disqualifier (SYM-049, cases 37-41) --
         # ── S157 E25 (SYM-049): zero-area paths clustered when ANCHORED; the table veto disqualified by curves ──
         # The S104 note above records why the first synthetic diagram never clustered: its connectors were zero-area
         # lines and were dropped. That drop is the SYM-049 mechanism (Cyb p.34, p.78 measured lost at S105). The
         # fixtures below are the S105 specimens' SHAPES, not their bytes; the corpus measure is the E25 record.
         def _grid(pg, x0=100, y0=100, cols=4, rows=5, w=90, h=30):
+            """Draw a ruled table on page `pg`: cols x rows cells of size w x h from corner (x0, y0), with
+            a short text label in each cell. Draws on the page only; returns nothing."""
+            # vertical rules, then horizontal rules, then the cell labels
             for i in range(cols + 1):
                 pg.draw_line(pymupdf.Point(x0 + i * w, y0), pymupdf.Point(x0 + i * w, y0 + rows * h), color=(0, 0, 0))
             for j in range(rows + 1):
@@ -466,6 +498,7 @@ def main() -> int:
               str({k: rep25[k] for k in ("veto_table_max_nonrect", "zero_area_min_len_pt", "nonrect_min_span_pt")}))
 
     finally:
+        # always remove the temp folder, even when a case raised
         shutil.rmtree(tmp, ignore_errors=True)
 
     print(f"==== figure_coverage selftest: {PASS}/{TOTAL} ====")

@@ -1,4 +1,10 @@
-"""Exporter tests against REAL git repositories on a temp root -- the assertions read the
+"""WHAT THIS FILE DOES: pytest tests for converter/exporter.py. Each test creates a real bare git
+repo plus a working clone under a temp root, puts a fake bundle in library/staging/, runs
+Exporter.export()/sweep() (or the ExportHandler events), and then inspects the bare repo and
+logs/receipts.jsonl: new notes, duplicate skips, supersede replaces, verdict refusals, the
+blocks.json and Marker-body levers, and spot-check receipts. No network; run by pytest in CI.
+
+Exporter tests against REAL git repositories on a temp root -- the assertions read the
 bare repo's committed tree (`git cat-file`, `rev-list --count`), not log text, because the
 L12 contract is about what the bare repo provably holds. No watcher: export()/sweep() are
 called directly, same style as test_main."""
@@ -11,12 +17,15 @@ import pytest
 from converter.config import Paths
 from converter.exporter import MARKER_BODY_SUFFIX, Exporter, slugify
 
+# -- shared constants and helpers (git runner, fixture, bundle builders, bare-repo readers) --
+
 SHA_A = "aa11" * 16
 SHA_B = "bb22" * 16
 IDENT = ["-c", "user.name=test", "-c", "user.email=test@test.invalid"]
 
 
 def git(repo, *args, check=True):
+    """Run git in repo (gpg signing off) and return stripped stdout; assert success if check."""
     proc = subprocess.run(
         ["git", "-C", str(repo), "-c", "commit.gpgsign=false", *args],
         capture_output=True,
@@ -29,6 +38,7 @@ def git(repo, *args, check=True):
 
 @pytest.fixture
 def paths(tmp_path):
+    """Fixture: a Paths layout with a seeded bare vault repo and a working clone of it."""
     p = Paths.from_root(tmp_path / "file-portal")
     p.ensure_exist()
     # Wire the vault pair the way Decision #4 did manually: bare repo + working clone,
@@ -51,6 +61,7 @@ def paths(tmp_path):
 
 
 def make_bundle(paths, name, sha):
+    """Create a plain staging bundle (.md, one asset, manifest.json) for source hash sha."""
     bundle = paths.staging / name
     (bundle / "assets").mkdir(parents=True)
     (bundle / f"{name}.md").write_text(f"---\nsource_sha256: {sha}\n---\nbody\n")
@@ -62,10 +73,12 @@ def make_bundle(paths, name, sha):
 
 
 def bare_commits(paths):
+    """Return how many commits the bare repo's main branch holds."""
     return int(git(paths.vault_bare, "rev-list", "--count", "main"))
 
 
 def bare_has(paths, rel):
+    """Return True if main in the bare repo contains the path rel."""
     return (
         subprocess.run(
             ["git", "-C", str(paths.vault_bare), "cat-file", "-e", f"main:{rel}"],
@@ -76,6 +89,7 @@ def bare_has(paths, rel):
 
 
 def bare_show(paths, rel):
+    """Return the text of the file rel as committed on main in the bare repo."""
     return git(paths.vault_bare, "show", f"main:{rel}")
 
 
@@ -100,7 +114,11 @@ def make_supersede_bundle(
     return bundle
 
 
+# -- create-path tests: happy path, duplicates, git failures, sweep --
+
+
 def test_slugify():
+    """slugify lowercases, collapses punctuation, falls back to "untitled", caps at 60."""
     assert slugify("My Paper (1)") == "my-paper-1"
     assert slugify("already-clean") == "already-clean"
     assert slugify("___") == "untitled"
@@ -108,6 +126,7 @@ def test_slugify():
 
 
 def test_export_happy_path(paths):
+    """A new bundle is committed under Inbox/<slug>--<sha8>, pushed, and the staging copy deleted."""
     bundle = make_bundle(paths, "My Paper (1)", SHA_A)
     Exporter(paths).export(bundle)
 
@@ -123,6 +142,7 @@ def test_export_happy_path(paths):
 
 
 def test_duplicate_sha_is_noop(paths):
+    """Re-exporting a bundle with an already-vaulted source hash adds no commit; staging is cleared."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))
     dup = make_bundle(paths, "paper re-drop", SHA_A)  # same source, new conversion
@@ -134,6 +154,7 @@ def test_duplicate_sha_is_noop(paths):
 
 
 def test_duplicate_detected_after_desktop_filed_it(paths):
+    """A duplicate is still detected after the note was moved out of Inbox/ in the vault."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))
     # Desktop files the note out of Inbox/ and pushes -- manifest travels with it.
@@ -150,6 +171,7 @@ def test_duplicate_detected_after_desktop_filed_it(paths):
 
 
 def test_git_failure_keeps_staging(paths):
+    """With the bare repo missing, the export fails and the staging bundle is kept."""
     bundle = make_bundle(paths, "paper", SHA_A)
     paths.vault_bare.rename(paths.vault_bare.with_name("vault.gone"))
     Exporter(paths).export(bundle)
@@ -157,6 +179,7 @@ def test_git_failure_keeps_staging(paths):
 
 
 def test_push_failure_then_resume(paths):
+    """A failed push keeps staging; after the push URL is fixed, the same commit is pushed."""
     bundle = make_bundle(paths, "paper", SHA_A)
     git(paths.vault_work, "remote", "set-url", "--push", "origin", str(paths.root / "nope"))
     Exporter(paths).export(bundle)
@@ -174,6 +197,7 @@ def test_push_failure_then_resume(paths):
 
 
 def test_incomplete_bundle_kept(paths):
+    """A folder with no manifest.json is not exported and is left in staging."""
     bundle = paths.staging / "broken"
     bundle.mkdir()
     (bundle / "broken.md").write_text("no manifest")
@@ -183,6 +207,7 @@ def test_incomplete_bundle_kept(paths):
 
 
 def test_sweep_exports_and_ignores_dot_dirs(paths):
+    """sweep() exports every real bundle in staging and skips dot-prefixed temp folders."""
     a = make_bundle(paths, "one", SHA_A)
     b = make_bundle(paths, "two", SHA_B)
     part = paths.staging / ".part-in-progress"
@@ -197,6 +222,7 @@ def test_sweep_exports_and_ignores_dot_dirs(paths):
 
 
 def test_supersede_replaces_note_filed_out_of_inbox(paths):
+    """A supersede remedy replaces the note at its filed location, not at a recomputed Inbox/ path."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "beer", SHA_A))
     # Desktop files the note out of Inbox/ and pushes -- supersede must locate it there.
@@ -219,6 +245,7 @@ def test_supersede_replaces_note_filed_out_of_inbox(paths):
 
 
 def test_supersede_preserves_old_md_name_when_slug_differs(paths):
+    """A supersede keeps the vaulted note's original .md filename even if the remedy's slug differs."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "brain of the firm", SHA_A))  # md == "brain of the firm.md"
     dest = f"Inbox/brain-of-the-firm--{SHA_A[:8]}"
@@ -233,6 +260,7 @@ def test_supersede_preserves_old_md_name_when_slug_differs(paths):
 
 
 def test_supersede_swaps_assets(paths):
+    """A supersede removes the old assets/ files and commits the remedy's assets instead."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))  # ships assets/page-1.png
     dest = f"Inbox/paper--{SHA_A[:8]}"
@@ -321,6 +349,7 @@ def test_bless_outside_a_top_level_bundle_is_ignored(paths):
 
 
 def test_supersede_fail_verdict_refuses_and_keeps_staging(paths):
+    """A supersede remedy whose verdict is `fail` is refused; the vault is untouched."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))
     dup = make_supersede_bundle(paths, "paper", SHA_A, verdict="fail")
@@ -332,6 +361,7 @@ def test_supersede_fail_verdict_refuses_and_keeps_staging(paths):
 
 
 def test_supersede_missing_fidelity_refuses(paths):
+    """A supersede remedy with no fidelity block is refused (fail closed)."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))
     dup = make_supersede_bundle(paths, "paper", SHA_A, verdict=None)  # no fidelity block
@@ -342,6 +372,7 @@ def test_supersede_missing_fidelity_refuses(paths):
 
 
 def test_supersede_ambiguous_refuses(paths):
+    """If two vaulted notes share the source hash, the supersede refuses and keeps staging."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))
     # Hand-plant a SECOND vaulted note with the same source_sha (bypassing dedup) so the
@@ -361,6 +392,7 @@ def test_supersede_ambiguous_refuses(paths):
 
 
 def test_supersede_miss_creates_new_note(paths):
+    """A supersede bundle whose hash is not vaulted falls through to a normal new-note create."""
     # Intent says supersede but the sha is not vaulted -> a normal create.
     bundle = make_supersede_bundle(paths, "fresh", SHA_B)
     Exporter(paths).export(bundle)
@@ -372,6 +404,7 @@ def test_supersede_miss_creates_new_note(paths):
 
 
 def test_supersede_noop_identical_bytes(paths):
+    """A remedy byte-identical to the vaulted note makes no commit and leaves the worktree clean."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))  # md body "body", asset b"\x89PNG fake"
 
@@ -400,6 +433,7 @@ def test_supersede_noop_identical_bytes(paths):
 
 
 def test_no_supersede_field_still_skips(paths):
+    """Regression guard: a same-hash re-drop without a supersede block is still a plain skip."""
     # Regression guard on today's create-only contract: a same-sha re-drop WITHOUT the field
     # is the old no-op, never a replace.
     exp = Exporter(paths)
@@ -412,6 +446,7 @@ def test_no_supersede_field_still_skips(paths):
 
 
 def test_supersede_commit_without_push_resumes(paths):
+    """A supersede committed locally but not pushed is re-pushed on retry, without a second commit."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))
     dest = f"Inbox/paper--{SHA_A[:8]}"
@@ -438,6 +473,7 @@ def test_supersede_commit_without_push_resumes(paths):
 # Spot-check sampling + degeneration surfacing (2026-08-16).
 # ---------------------------------------------------------------------------
 def read_receipts(paths):
+    """Return the parsed records of <root>/receipts.jsonl, skipping unparseable lines."""
     records = []
     for ln in (paths.root / "receipts.jsonl").read_text().splitlines():
         try:
@@ -448,6 +484,7 @@ def read_receipts(paths):
 
 
 def test_spot_check_fires_on_exactly_the_nth_accept(paths, monkeypatch):
+    """With SPOT_CHECK_EVERY=3, only the third accepted export carries spot_check."""
     import converter.exporter as exporter_mod
 
     monkeypatch.setattr(exporter_mod, "SPOT_CHECK_EVERY", 3)
@@ -460,6 +497,7 @@ def test_spot_check_fires_on_exactly_the_nth_accept(paths, monkeypatch):
 
 
 def test_spot_check_counter_survives_restart(paths, monkeypatch):
+    """The spot-check count comes from receipts.jsonl, so a new Exporter keeps counting."""
     # The counter derives from receipts.jsonl, not process memory: a NEW Exporter instance
     # (a service restart) must keep counting where the old one stopped.
     import converter.exporter as exporter_mod
@@ -472,6 +510,7 @@ def test_spot_check_counter_survives_restart(paths, monkeypatch):
 
 
 def test_spot_check_counts_only_exported_outcomes_and_tolerates_torn_lines(paths, monkeypatch):
+    """Only `exported` receipts count toward the spot-check; other outcomes and torn lines do not."""
     import converter.exporter as exporter_mod
 
     monkeypatch.setattr(exporter_mod, "SPOT_CHECK_EVERY", 2)
@@ -487,6 +526,7 @@ def test_spot_check_counts_only_exported_outcomes_and_tolerates_torn_lines(paths
 
 
 def test_degeneration_flag_reaches_the_receipt(paths):
+    """A manifest with degeneration.flagged puts degeneration_flagged in the receipt; export still lands."""
     bundle = make_bundle(paths, "loopy", SHA_A)
     manifest = json.loads((bundle / "manifest.json").read_text())
     manifest["degeneration"] = {"flagged": True, "repeated_lines": 0, "md_lines": 9, "worst": []}
@@ -499,6 +539,7 @@ def test_degeneration_flag_reaches_the_receipt(paths):
 
 
 def test_clean_manifest_adds_no_flag_keys(paths):
+    """A clean manifest yields a receipt with no degeneration or spot-check keys."""
     Exporter(paths).export(make_bundle(paths, "plain", SHA_A))
     exported = [r for r in read_receipts(paths) if r["outcome"] == "exported"]
     assert "degeneration_flagged" not in exported[0]
@@ -535,6 +576,7 @@ def bare_size(paths, rel):
 
 
 def vault_manifest(paths, dest):
+    """Return the committed manifest.json under dest in the bare repo, parsed."""
     return json.loads(bare_show(paths, f"{dest}/manifest.json"))
 
 
@@ -546,6 +588,7 @@ def ship_blocks(monkeypatch, value):
 
 
 def test_blocks_held_is_recorded_in_the_manifest_not_silently_dropped(paths):
+    """With the blocks lever OUT, blocks.json stays out of the vault and the manifest records its size."""
     # No monkeypatch: this is the lever as the module ships it (OUT, pending Rab's word).
     bundle = make_bundle(paths, "paper", SHA_A)
     n = plant_blocks(bundle)
@@ -570,6 +613,7 @@ def test_blocks_held_is_recorded_in_the_manifest_not_silently_dropped(paths):
 
 
 def test_blocks_ship_byte_identical_when_the_lever_says_in(paths, monkeypatch):
+    """With the blocks lever IN, blocks.json is committed byte-for-byte and the manifest says shipped."""
     ship_blocks(monkeypatch, True)
     bundle = make_bundle(paths, "paper", SHA_A)
     n = plant_blocks(bundle)
@@ -587,6 +631,7 @@ def test_blocks_ship_byte_identical_when_the_lever_says_in(paths, monkeypatch):
 
 
 def test_bundle_without_blocks_records_absence(paths):
+    """A bundle with no blocks.json gets blocks = {present_in_bundle: False} in the vault manifest."""
     # "no block records" and "block records deliberately left behind" must not read the same.
     Exporter(paths).export(make_bundle(paths, "plain", SHA_A))
     dest = f"Inbox/plain--{SHA_A[:8]}"
@@ -595,6 +640,7 @@ def test_bundle_without_blocks_records_absence(paths):
 
 
 def test_supersede_carries_blocks_when_the_lever_says_in(paths, monkeypatch):
+    """With the lever IN, a supersede remedy's blocks.json is committed too."""
     ship_blocks(monkeypatch, True)
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))  # vaulted before J24: no block records
@@ -615,6 +661,7 @@ def test_supersede_carries_blocks_when_the_lever_says_in(paths, monkeypatch):
 
 
 def test_supersede_held_records_it_and_stale_block_records_do_not_survive(paths, monkeypatch):
+    """If the lever flips OUT before a supersede, the old vaulted blocks.json is removed."""
     ship_blocks(monkeypatch, True)
     exp = Exporter(paths)
     first = make_bundle(paths, "paper", SHA_A)
@@ -677,6 +724,7 @@ def ship_marker_body(monkeypatch, value):
 
 
 def test_marker_body_held_is_recorded_and_sha256_survives_the_fold(paths):
+    """With the Marker-body lever OUT, the sidecar stays out and the manifest keeps the desktop's sha256."""
     # No monkeypatch: the lever as the module ships it (OUT, pending Rab's word -- like blocks).
     bundle = make_bundle(paths, "paper", SHA_A)
     n = plant_marker_body(bundle, "paper")
@@ -696,6 +744,7 @@ def test_marker_body_held_is_recorded_and_sha256_survives_the_fold(paths):
 
 
 def test_marker_body_ships_byte_identical_when_the_lever_says_in(paths, monkeypatch):
+    """With the Marker-body lever IN, the sidecar is committed byte-for-byte."""
     ship_marker_body(monkeypatch, True)
     bundle = make_bundle(paths, "paper", SHA_A)
     n = plant_marker_body(bundle, "paper")
@@ -710,6 +759,7 @@ def test_marker_body_ships_byte_identical_when_the_lever_says_in(paths, monkeypa
 
 
 def test_bundle_without_marker_body_records_absence(paths):
+    """A bundle with no sidecar gets marker_body = {present_in_bundle: False} in the vault manifest."""
     # "no sidecar" and "sidecar deliberately left behind" must not read the same.
     Exporter(paths).export(make_bundle(paths, "plain", SHA_A))
     dest = f"Inbox/plain--{SHA_A[:8]}"
@@ -718,6 +768,7 @@ def test_bundle_without_marker_body_records_absence(paths):
 
 
 def test_supersede_marker_body_out_stale_sidecar_does_not_survive(paths, monkeypatch):
+    """If the lever flips OUT before a supersede, the old vaulted sidecar is removed."""
     ship_marker_body(monkeypatch, True)
     exp = Exporter(paths)
     first = make_bundle(paths, "paper", SHA_A)
@@ -753,12 +804,14 @@ def test_supersede_marker_body_out_stale_sidecar_does_not_survive(paths, monkeyp
 # none), and the sweep re-reads a held fail and says so again.
 # ---------------------------------------------------------------------------
 def set_fidelity(bundle, verdict):
+    """Rewrite the bundle's manifest.json so fidelity.verdict equals verdict."""
     manifest = json.loads((bundle / "manifest.json").read_text())
     manifest["fidelity"] = {"verdict": verdict}
     (bundle / "manifest.json").write_text(json.dumps(manifest))
 
 
 def test_first_ingest_fail_verdict_refuses_and_keeps_staging(paths):
+    """A first ingest with verdict `fail` is refused: staging kept, vault untouched, ingest-held receipt."""
     exp = Exporter(paths)
     bundle = make_bundle(paths, "paper", SHA_A)
     set_fidelity(bundle, "fail")
@@ -774,6 +827,7 @@ def test_first_ingest_fail_verdict_refuses_and_keeps_staging(paths):
 
 
 def test_first_ingest_flag_verdict_still_ingests(paths):
+    """A first ingest with verdict `flag` is still committed to the vault."""
     exp = Exporter(paths)
     bundle = make_bundle(paths, "paper", SHA_A)
     set_fidelity(bundle, "flag")
@@ -784,6 +838,7 @@ def test_first_ingest_flag_verdict_still_ingests(paths):
 
 
 def test_first_ingest_missing_fidelity_still_ingests(paths):
+    """A first ingest with no fidelity block is still committed to the vault."""
     exp = Exporter(paths)
     exp.export(make_bundle(paths, "paper", SHA_A))  # no fidelity block at all
 
@@ -791,6 +846,7 @@ def test_first_ingest_missing_fidelity_still_ingests(paths):
 
 
 def test_first_ingest_held_fail_is_re_read_by_the_sweep_and_held_again(paths):
+    """A held `fail` bundle is re-read by sweep() and held again, with a second ingest-held receipt."""
     exp = Exporter(paths)
     bundle = make_bundle(paths, "paper", SHA_A)
     set_fidelity(bundle, "fail")

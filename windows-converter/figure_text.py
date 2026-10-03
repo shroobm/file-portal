@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""figure_text.py — CHART TEXT AS TEXT, the measure (S209 E13; B41; the frontier's item 9: a chart's legend, axis labels and data
+"""WHAT THIS FILE DOES: for every Figure/Picture block Marker wrote, compares the words the source PDF's own text
+layer holds inside the figure's box against the words Marker shipped for it, and reports figures that are silent
+(layer words, none shipped). Entry point: figure_text(doc, blocks, lane) returns a report-only dict for the manifest.
+It reads the PDF through pymupdf (fitz) and the blocks list passed in; it writes nothing. Called by fidelity_audit.py.
+
+figure_text.py — CHART TEXT AS TEXT, the measure (S209 E13; B41; the frontier's item 9: a chart's legend, axis labels and data
 labels are text the source's layer carries and Marker's blocks drop — the AI Index: 10,551 layer words inside 479 figure
 boxes, 680 shipped; the MPR: 409 against 8).
 
@@ -16,13 +21,16 @@ from __future__ import annotations
 
 import re
 
+# -- constants: figure block types, caps, the word pattern (3+ letters) --
 FIG_TYPES = ("Figure", "Picture", "FigureGroup", "PictureGroup")
 WORST_CAP = 10
 SAMPLE_WORDS = 8
 _WORD = re.compile(r"[^\W\d_]{3,}")
 
 
+# -- word extraction and the figure report --
 def _words(text: str) -> list[str]:
+    """Return the letter-only words of three or more characters in text (None-safe); no side effects."""
     return _WORD.findall(text or "")
 
 
@@ -48,6 +56,7 @@ def figure_text(doc, blocks: list[dict], lane: str) -> dict:
             out["reason"] = "the source could not be opened for its words"
             return out
     per_page: dict[int, dict] = {}
+    # per figure: clip the page to its box, read the layer words, compare with Marker's shipped words, tally per page
     for b in figs:
         p = b["page"]
         if p < 0 or p >= len(doc):
@@ -64,6 +73,7 @@ def figure_text(doc, blocks: list[dict], lane: str) -> dict:
             out["figures_unread"] += 1
             continue
         layer = [w for w in layer if _WORD.search(w)]
+        # shipped words = Marker's html with the tags blanked out
         shipped = _words(re.sub(r"<[^>]+>", " ", b.get("html", "") or ""))
         if layer:
             out["figures_with_layer_words"] += 1

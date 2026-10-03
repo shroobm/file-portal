@@ -1,5 +1,12 @@
 """windows-converter/fidelity_audit.py — The Survival Audit (docs/15).
 
+WHAT THIS FILE DOES: scores a finished conversion without changing it. It reads a source PDF (through pymupdf) and
+the Marker markdown made from it, and builds a "fidelity" dict: survival of the PDF's text in the markdown, tripwires
+(repetition loops, LaTeX imbalance, invented words, duplicated or missing figures) and a pass/flag/fail verdict. The
+entry points are audit_convert, audit_analyst, compute_verdict, verdict_with_phase and build_fidelity_block (listed
+below); main() is a standalone command line. It writes nothing to disk and prints JSON only when run as a script.
+It is called by convert_and_ship.py and imports text_norm, table_shape, table_witness, figure_text and page_geometry.
+
 Measures how much of a source PDF survives into the Marker markdown (convert stage) and
 how much of the Marker markdown survives the qwen formatting pass (analyst stage), using
 window-survival containment against an ephemeral pymupdf witness. Deterministic, CPU-only,
@@ -98,6 +105,7 @@ WITNESS_COVERAGE_FLOOR = 0.50  # lever-waiver: Rab's word 2026-09-13 (Desk bf4d5
 # Windows long-path safety (docs/15 §8 / F5: pre-L15 vault paths reach 349 chars).
 # ---------------------------------------------------------------------------
 def _longpath(p) -> str:
+    """Return the absolute path p as a string, with the Windows \\\\?\\ long-path prefix added on nt. No side effects."""
     p = os.path.abspath(str(p))
     if os.name == "nt" and not p.startswith("\\\\?\\"):
         return "\\\\?\\" + p
@@ -105,6 +113,7 @@ def _longpath(p) -> str:
 
 
 def read_text(path) -> str:
+    """Read a UTF-8 text file (long-path safe) and return its whole content as a string. Reads one file."""
     with open(_longpath(path), "r", encoding="utf-8") as f:
         return f.read()
 
@@ -114,6 +123,7 @@ def prepare_witness(pages_raw: list[str]) -> list[str]:
     pages = [_common(p) for p in pages_raw]
     n = len(pages)
     line_pagecount: Counter = Counter()
+    # count, for each distinct line, how many pages carry it (running heads and footers repeat)
     for p in pages:
         for line in {ln.strip() for ln in p.splitlines() if ln.strip()}:
             line_pagecount[line] += 1
@@ -121,6 +131,7 @@ def prepare_witness(pages_raw: list[str]) -> list[str]:
     threshold = max(2, int(round(0.4 * n)))
     repeated = {ln for ln, c in line_pagecount.items() if n >= 3 and c >= threshold}
     out = []
+    # drop the repeated lines from every page, then finalize each page's text
     for p in pages:
         kept = [ln for ln in p.splitlines() if ln.strip() and ln.strip() not in repeated]
         out.append(_finalize("\n".join(kept)))
@@ -151,6 +162,8 @@ def extract_witness(pdf_path) -> tuple[list[str], int]:
 # Windowing + scoring (docs/15 §4).
 # ---------------------------------------------------------------------------
 def _build_index(output_final: str) -> tuple[dict, dict]:
+    """Index the output text by whitespace-separated word. Returns (word -> list of start offsets, word -> count).
+    Pure function; used by the fuzzy matcher and the reorder test to find a word's neighbourhood."""
     idx: dict[str, list[int]] = {}
     freq: dict[str, int] = {}
     for m in re.finditer(r"\S+", output_final):
@@ -161,6 +174,9 @@ def _build_index(output_final: str) -> tuple[dict, dict]:
 
 
 def _fuzzy_hit(window: str, output_search: str, idx: dict, freq: dict, cjk: bool) -> bool:
+    """True when a witness window that has no exact match is still found approximately (rapidfuzz partial_ratio at
+    FUZZY_PASS or more) near the window's rarest word in the output. Inputs: the window, the output stream, the word
+    index and counts from _build_index, and the CJK flag. Pure; returns a bool."""
     if cjk:
         # Small CJK docs: partial_ratio against the whole (space-free) output is cheap.
         return fuzz.partial_ratio(window, output_search) >= FUZZY_PASS
@@ -169,6 +185,7 @@ def _fuzzy_hit(window: str, output_search: str, idx: dict, freq: dict, cjk: bool
         return False
     rare = min(anchors, key=lambda w: freq[w])
     span = len(window)
+    # probe a slice of the output around each occurrence of the rarest word (capped) for a close match
     for off in idx[rare][:FUZZY_ANCHOR_CAP]:
         seg = output_search[max(0, off - span): off + span + len(rare)]
         if fuzz.partial_ratio(window, seg) >= FUZZY_PASS:
@@ -215,6 +232,7 @@ def _score_page(page_text: str, output_search: str, idx: dict, freq: dict,
     if not windows:
         return None, [], 0
     failed = []
+    # a window passes on an exact substring hit, or (when fuzzy) on an approximate hit
     for w in windows:
         hit = w in output_search
         if not hit and fuzzy:
@@ -255,6 +273,7 @@ def _blank_table_rows(markdown: str) -> tuple[str, int]:
     2026-09-04; tripwire D11). A whitespace-only line keeps the surrounding prose in ONE
     paragraph exactly as the raw body did, and strip() removes it from the measured text."""
     out, n = [], 0
+    # one pass over the lines: table rows become a single space, everything else is kept as is
     for ln in markdown.splitlines(keepends=True):
         body = ln.rstrip("\r\n")
         if _TABLE_ROW.match(body):
@@ -274,6 +293,7 @@ def _degenerate_blocks(markdown: str) -> list[tuple[dict, int]]:
     let it back in as loss."""
     found: list[tuple[dict, int]] = []
     pos = 0
+    # walk the markdown paragraph by paragraph, tracking the character offset to recover line numbers
     for para in markdown.split("\n\n"):
         # The line of the paragraph's FIRST NON-BLANK character. A blanked table leaves an odd
         # run of newlines that split() hands to the next paragraph as a leading "\n"; counting
@@ -393,6 +413,7 @@ def mask_degenerate_reference(markdown: str) -> tuple[str, dict]:
     lines = text.split("\n")
     report: list[dict] = []
     words = 0
+    # blank every line of each flagged block, counting the words removed
     for blk, line_end in blocks:
         lo, hi = blk["line"] - 1, min(line_end, len(lines))
         words += sum(len(ln.split()) for ln in lines[lo:hi])
@@ -438,6 +459,7 @@ def degeneration(markdown: str, strip_table_rows: bool = True) -> dict:
             "table_rows_stripped": table_rows_stripped}
 
 
+# -- reference-free and sampled checks --
 def garbage_rate(output_final: str):
     """Reference-free OCR-junk signal (docs/15 §5, QuPipe-style): fraction of alpha
     tokens (len>=4) with no vowel. Zero-dependency stand-in for dict-hit (wordfreq absent)."""
@@ -578,6 +600,7 @@ _FRAG_TAIL = re.compile(r"[\-­]?\s*")
 LOST_JOINED_SPECIMENS = 6  # S211 LANE B: specimens kept for lost_hyphen_joined_specimens
 
 
+# -- small helpers for the inventions audit --
 def _one_edit(a: str, b: str) -> bool:
     """True when `a` is `b` with one letter dropped, added or changed (SYM-148: `feld` from `field`, `identifes` from
     `identifies`). Lengths within one; one pass, no allocation."""
@@ -600,6 +623,7 @@ def _inventions_page(marker: int, witness: int, invented: int, lost: int, invent
             "invented_net": invented_net, "lost_net": lost_net, "specimens": specimens}
 
 
+# -- invented-word audit (report-only): words in the output the source page lacks, and the reverse --
 def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fidelity", pdf_path=None) -> dict:
     """S209 B35 (2026-09-20) — THE AUDIT'S BLIND SIDE, report-only. Survival counts what the output LOST against the
     witness; a re-OCR'd clean page can also INVENT words the layer never had (RBC Q3, Marker's own re-OCR of a born-digital
@@ -615,6 +639,7 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     cmd_re = re.compile(r"\\[A-Za-z]+")
     by_page: dict[int, list[str]] = {}
     latex_commands = 0
+    # gather each page's words from Marker's blocks (equations set aside, tags stripped, ligatures folded)
     for b in blocks or []:
         p = b.get("page")
         if p is None:
@@ -670,6 +695,7 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     furniture_readable = bool(pdf_path) and bool(fur_boxes_all)
     lost_in_furniture = 0
     lost_in_furniture_specimens: list[dict] = []
+    # per page: compare Marker's words with the layer's words and tally invented, lost and classed words
     for pnum, raw in enumerate(pages_raw, start=1):
         mw = by_page.get(pnum)
         if not mw:
@@ -882,6 +908,7 @@ def _citation_tokens(raw: str, missing) -> "Counter":
         if hits and allb:
             out[tok] = n
     return out
+# -- constants for the figure (number) audit --
 NUMBERS_SPECIMENS = 6
 NUMBERS_MISSING_MIN = 3   # S210 E2 (SYM-154's next cut): missing figures on a page before the page enters `worst` on its missing side alone
 NUMBERS_ROWS = 4          # S210 E2: the layer's rows named per worst page (the row label before the first figure), most figures lost first
@@ -1075,6 +1102,7 @@ def _missing_in_figures(pdf_path, pnum: int, missing: "Counter", fig_boxes: list
     return hits
 
 
+# -- figure audit (report-only): number tokens duplicated or missing per page --
 def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_pages: list | None = None) -> dict:
     """S210 E1 (SYM-147's row-level loss; B36's next cut) — THE DUPLICATED-FIGURE TELL, report-only. NBC's Q3 report shipped
     with p.57's securities-loaned figures moved onto the row above: every number was still on the page, so survival saw no
@@ -1092,6 +1120,7 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
     exactly what they counted before this cut."""
     from html import unescape
     by_page: dict[int, list[str]] = {}
+    # gather each page's number tokens from Marker's blocks (1-indexed page keys)
     for b in blocks or []:
         p = b.get("page")
         if p is None:
@@ -1110,6 +1139,7 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
     # S211 E7 (SYM-180): the same containment test against the furniture Marker boxed and emptied on purpose
     fur_boxes_all = _furniture_boxes_by_page(blocks)
     furniture_readable = bool(fur_boxes_all) and pdf_path is not None
+    # the result dict starts with zeroed counters (None where a split cannot be read) and the shared `worst` list
     out = {"meaning": "number tokens Marker's blocks carry MORE often than the source's layer on the same page (moved, duplicated "
                       "or OCR'd figures — the loss survival and the tables' geometry cannot see) and the layer's the blocks lack; "
                       "a bare year (1900–2099) the blocks lack is counted apart as missing_years (running heads Marker drops); a "
@@ -1135,6 +1165,7 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
            "pages_with_missing": 0, "missing_in_figures_total": (0 if figures_readable else None),
            "missing_in_figures_labelled_total": (0 if figures_readable else None), "worst": worst}
     from collections import Counter
+    # per page: compare Marker's number tokens with the layer's, set aside the explained ones, record the rest
     for pnum, raw in enumerate(pages_raw, start=1):
         mk = by_page.get(pnum) or []
         lay = Counter(_NUM_TOKEN.findall(raw or ""))
@@ -1278,6 +1309,7 @@ def leader_survival(witness_pages: list[str], page_scores: list, output_search: 
     page_scores: per witness page, in order, (score|None, n_windows) from audit_convert's loop. No window anywhere reads
     None — a zero over zero — never 1.0."""
     weighted, windows, removed, pages = 0.0, 0, 0, 0
+    # re-score only pages that carry a leader; reuse the main loop's score for every other page
     for page, (score, nwin) in zip(witness_pages, page_scores):
         treated, k = _LEADER_PUNCT4.subn(r"\1 \2", page)
         if k:
@@ -1299,6 +1331,10 @@ def leader_survival(witness_pages: list[str], page_scores: list, output_search: 
 
 def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = None, blocks: list | None = None,
                   ocr_pages: list | None = None) -> dict:
+    """The convert-stage audit: score the Marker markdown against the PDF's own text layer. Inputs: the PDF path, the
+    markdown, the lane ("clean" or "scan"), an optional count of exported assets, the optional Marker blocks record
+    and the list of OCR'd pages. Returns the "convert" block (survival, flagged pages, runs, tripwires and the
+    report-only measures). Reads the PDF; writes nothing."""
     kind = "agreement" if lane == "scan" else "fidelity"
     witness_label = "embedded-ocr" if lane == "scan" else "pymupdf"
     pages_raw, embedded_images = extract_witness(pdf_path)
@@ -1313,6 +1349,7 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
     scored, runs, pages_flagged, surviving = 0, [], [], 0
     weighted_sum, total_windows = 0.0, 0
     page_scores = []  # S213: (score, n_windows) per page, handed to leader_survival so no page is scored twice
+    # score every witness page; collect flagged pages and omission runs, and the window-weighted document score
     for pnum, page in enumerate(witness_pages, start=1):
         score, page_runs, nwin = _score_page(page, output_search, idx, freq, cjk, fuzzy=True)
         page_scores.append((score, nwin))
@@ -1434,6 +1471,7 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
 _REGEX_ID = "j32a-v2"
 
 
+# -- analyst-stage audit: does the formatted output keep the Marker text (near-exact) --
 def audit_analyst(marker_markdown: str, analyst_markdown: str, ladder: str | None = None) -> dict:
     """Near-exact containment: the Marker doc IS the reference (docs/15 §6/§9.4). No fuzzy.
     S131 (docs/15 §12.1): blocks of the reference that degeneration() flags are masked first.
@@ -1501,6 +1539,7 @@ def audit_analyst(marker_markdown: str, analyst_markdown: str, ladder: str | Non
             "reference_masked": reference_masked}
 
 
+# -- verdict and the manifest block --
 def compute_verdict(convert_block: dict, analyst_block: dict | None) -> str:
     """The verdict string (every caller's contract); the phase that decided it is verdict_with_phase()'s second value."""
     return verdict_with_phase(convert_block, analyst_block)[0]
@@ -1582,6 +1621,8 @@ def fail_phases(convert_block: dict, analyst_block: dict | None) -> list:
 
 
 def build_fidelity_block(convert_block: dict, analyst_block: dict | None = None) -> dict:
+    """Assemble the manifest "fidelity" object: schema version, the convert block, the analyst block when given, the
+    verdict, the deciding phase and every failing phase. Pure; returns a new dict."""
     block = {"version": SCHEMA_VERSION, "convert": convert_block}
     if analyst_block is not None:
         block["analyst"] = analyst_block
@@ -1594,7 +1635,9 @@ def build_fidelity_block(convert_block: dict, analyst_block: dict | None = None)
 # CLI (standalone use / spot checks; the watcher calls the functions directly).
 # ---------------------------------------------------------------------------
 def main():
-    ap = argparse.ArgumentParser(description="Survival Audit (docs/15), report-only.")
+    """Command-line entry: parse --pdf/--md/--lane/--asset-count/--analyst-ref, run the requested audit stage(s), print
+    the fidelity block as JSON on stdout. Reads the named files; exits through argparse on bad arguments."""
+    ap =argparse.ArgumentParser(description="Survival Audit (docs/15), report-only.")
     ap.add_argument("--pdf", type=Path)
     ap.add_argument("--md", type=Path, required=True)
     ap.add_argument("--lane", choices=["clean", "scan"], default="clean")

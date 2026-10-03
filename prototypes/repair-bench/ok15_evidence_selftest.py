@@ -1,4 +1,9 @@
-"""Hermetic OK-15 tripwires: synthetic PDFs only, no GPU or pipeline directories.
+"""WHAT THIS FILE DOES: a unittest module for ok15_evidence.py. It builds small synthetic PDFs in a temp folder
+(fixture), runs ev.collect and the helper functions against them with stubbed pdftotext and warning readers, and checks
+the evidence report (labels, thumbnails, reading order, optional-content groups, source immutability, CLI output).
+Writes only to temp folders it removes again; run it directly with the Marker interpreter.
+
+Hermetic OK-15 tripwires: synthetic PDFs only, no GPU or pipeline directories.
 
 Run with the Marker environment (PyMuPDF is required):
   C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe -B ok15_evidence_selftest.py
@@ -23,17 +28,22 @@ sys.path.insert(0, str(HERE))
 import ok15_evidence as ev  # noqa: E402
 
 
+# -- helpers: hashing, native text, and the synthetic PDF fixture --
 def file_sha(path: Path) -> str:
+    """Return the SHA-256 hex digest of the file's bytes."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def native_pages(path: Path) -> list[str]:
+    """Return PyMuPDF's native text-block text for each page of the PDF, one string per page."""
     with pymupdf.open(path) as doc:
         return ["\n".join(str(block[4]) for block in page.get_text("blocks", sort=False))
                 for page in doc]
 
 
 def fixture(path: Path, *, labels: bool = True, duplicate_labels: bool = False) -> None:
+    """Write a 3-page synthetic PDF to path: an optional-content layer and an image used as page one's /Thumb,
+    two text columns on page two, and page labels (roman then decimal, duplicated, or none per the flags)."""
     doc = pymupdf.open()
     first = doc.new_page(width=200, height=200)
     first.insert_text((20, 35), "primary body survives")
@@ -64,21 +74,29 @@ def fixture(path: Path, *, labels: bool = True, duplicate_labels: bool = False) 
     doc.close()
 
 
+# -- the tests --
 class OK15EvidenceTests(unittest.TestCase):
+    """Tripwires for ok15_evidence.collect and its helpers, on synthetic PDFs."""
+
     def setUp(self) -> None:
+        """Create a temp folder (self.root) for the PDFs of one test."""
         self.temp = tempfile.TemporaryDirectory(prefix="fp-ok15-test-")
         self.root = Path(self.temp.name)
 
     def tearDown(self) -> None:
+        """Remove the temp folder."""
         self.temp.cleanup()
 
     def test_all_five_probes_and_source_immutability(self) -> None:
+        """Full collect on the fixture: labels, thumb, reading order, OCG and warnings are reported, the source file
+        is unchanged, and no raw page text appears in the evidence."""
         source = self.root / "five.pdf"
         fixture(source)
         before = file_sha(source)
         native = native_pages(source)
         oracle_pages = list(native)
         oracle_pages[1] = " ".join(reversed(ev._tokens(native[1])))
+        # scripted MuPDF warning batches handed out in order by the stub warning reader
         drains = collections.deque([
             [], ["document-open-warning"], [],  # reset, source open, capture open
             [], ["page-one-source-warning"], [], ["page-one-ocg-warning"],
@@ -86,6 +104,7 @@ class OK15EvidenceTests(unittest.TestCase):
         ])
 
         def oracle(_path: Path, count: int) -> dict:
+            """Stub pdftotext probe: checks the page count asked for and returns the scrambled page texts."""
             self.assertEqual(3, count)
             return {
                 "status": "measured",
@@ -120,6 +139,7 @@ class OK15EvidenceTests(unittest.TestCase):
         self.assertNotIn("primary body survives", encoded, "raw page text leaked into evidence")
 
     def test_no_label_definition_is_measured_ordinal_fallback(self) -> None:
+        """A PDF with no page-label definitions reports plain ordinal labels 1..3 with source ordinal-fallback."""
         source = self.root / "fallback.pdf"
         fixture(source, labels=False)
         native = native_pages(source)
@@ -136,6 +156,7 @@ class OK15EvidenceTests(unittest.TestCase):
         self.assertEqual(0, report["summary"]["non_ordinal_label_pages"])
 
     def test_duplicate_labels_map_to_lists(self) -> None:
+        """When two pages share a label, the label maps to a list of both 1-based page numbers."""
         source = self.root / "duplicate.pdf"
         fixture(source, duplicate_labels=True)
         native = native_pages(source)
@@ -150,6 +171,7 @@ class OK15EvidenceTests(unittest.TestCase):
                          ["label_to_pages_1based"]["A-1"])
 
     def test_oracle_unread_is_partial_not_false_zero(self) -> None:
+        """An UNREAD pdftotext oracle makes the report 'partial' with no pages compared, never a false zero."""
         source = self.root / "oracle-unread.pdf"
         fixture(source)
         report = ev.collect(
@@ -169,6 +191,7 @@ class OK15EvidenceTests(unittest.TestCase):
         self.assertTrue(all(p["reading_order"]["status"] == "UNREAD" for p in report["pages"]))
 
     def test_wrong_oracle_page_count_is_unread(self) -> None:
+        """An oracle that returns the wrong number of pages is treated as unread: 'partial', nothing compared."""
         source = self.root / "wrong-count.pdf"
         fixture(source)
         report = ev.collect(
@@ -183,12 +206,14 @@ class OK15EvidenceTests(unittest.TestCase):
         self.assertEqual(0, report["summary"]["reading_order_pages_compared"])
 
     def test_source_identity_mismatch_refuses_before_probe(self) -> None:
+        """A wrong expected SHA-256 makes collect raise RuntimeError before any probe runs."""
         source = self.root / "identity.pdf"
         fixture(source)
         with self.assertRaisesRegex(RuntimeError, "identity mismatch before evidence"):
             ev.collect(source, "0" * 64)
 
     def test_cli_emits_one_json_record_from_isolated_process(self) -> None:
+        """Run ok15_evidence.py as a child process: it exits 0 and prints exactly one JSON line on stdout."""
         source = self.root / "cli.pdf"
         fixture(source)
         proc = subprocess.run(
@@ -206,6 +231,7 @@ class OK15EvidenceTests(unittest.TestCase):
     @unittest.skipUnless(any(path.is_file() for path in ev._pdftotext_candidates()),
                              "no pdftotext executable on this host")
     def test_installed_pdftotext_default_mode_smoke(self) -> None:
+        """Smoke test with a real pdftotext (skipped when none is installed): all 3 pages compared, version recorded."""
         source = self.root / "xpdf-smoke.pdf"
         fixture(source)
         report = ev.collect(source, file_sha(source))
@@ -215,18 +241,25 @@ class OK15EvidenceTests(unittest.TestCase):
         self.assertRegex(report["producer"]["pdftotext"]["version"], r"(?i)xpdf|pdftotext")
 
     def test_thumb_absent_malformed_and_nonimage_are_distinct(self) -> None:
+        """_thumb_evidence reports 'absent', a broken reference, and a non-image target as three different results."""
         class FakeDoc:
+            """Minimal stand-in for a PyMuPDF document answering the three calls _thumb_evidence makes."""
+
             def __init__(self, value, is_image=True):
+                """Store the fixed /Thumb key value and whether the target counts as an image."""
                 self.value = value
                 self.is_image = is_image
 
             def page_xref(self, _index):
+                """Return a fixed page object number (7)."""
                 return 7
 
             def xref_get_key(self, _xref, _key):
+                """Return the preset (type, value) pair for any key."""
                 return self.value
 
             def xref_is_image(self, _xref):
+                """Return the preset image flag."""
                 return self.is_image
 
         self.assertEqual("absent", ev._thumb_evidence(FakeDoc(("null", "null")), 0)["status"])
@@ -236,9 +269,11 @@ class OK15EvidenceTests(unittest.TestCase):
         )
 
     def test_zero_ocg_path_opens_no_unused_capture_document(self) -> None:
+        """With no optional-content groups, _open_capture_doc must not open a second document (open is made to fail)."""
         original_open = ev.pymupdf.open
 
         def forbidden_open(*_args, **_kwargs):
+            """Replacement for pymupdf.open that fails the test if it is ever called."""
             raise AssertionError("zero OCGs must not open an unused capture document")
 
         ev.pymupdf.open = forbidden_open
@@ -254,6 +289,7 @@ class OK15EvidenceTests(unittest.TestCase):
         self.assertTrue(setup["all_groups_off_verified"])
 
     def test_sequence_dispositions_do_not_invent_a_score(self) -> None:
+        """_sequence_evidence names exact / order-only / content differences and carries no score or verdict."""
         exact = ev._sequence_evidence("alpha beta", "alpha beta")
         order = ev._sequence_evidence("alpha beta", "beta alpha")
         content = ev._sequence_evidence("alpha beta", "alpha gamma")

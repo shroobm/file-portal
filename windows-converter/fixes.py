@@ -1,5 +1,12 @@
 # -*- coding: utf-8 -*-
-"""fixes.py — LANE B, S211: THE FIXES AS LEVERS. Six mechanisms proved on copies in S210 (never on the
+"""WHAT THIS FILE DOES: a registry of named, switchable patches ("fixes") for the Marker PDF converter. The
+entry points are read_lever(path) (parse a lever file of fix names), apply(names) (install them by replacing
+classes or wrapping functions inside marker and pdftext at run time), stats(), config_overrides(), manifest_record()
+and the pure helpers lane_rule, is_rule_line, is_loop, merge_retry and batch_sizes. It reads the lever file and
+may call nvidia-smi; it writes the FP_FIXES environment variable and prints log lines. It is imported by
+marker_blocks.py (and so by convert_and_ship.py), never run directly.
+
+fixes.py — LANE B, S211: THE FIXES AS LEVERS. Six mechanisms proved on copies in S210 (never on the
 
 line), installed here as named, reversible patches a job can turn on by naming them in a lever file.
 Nothing in this module runs unless `apply()` is called with the names to turn on — importing it alone
@@ -59,6 +66,7 @@ FIXES = (
     "loop-line-retry",   # S213 E6: a block-mode OCR result that loops is re-read line by line (LoopRetryOcrBuilder)
 )
 
+# -- lever file reading: the "for:" header pattern and read_lever --
 _FOR_LINE = re.compile(r"^for\s*:", re.IGNORECASE)
 
 
@@ -76,6 +84,7 @@ def read_lever(path) -> list:
         return []
     names = []
     seen = set()
+    # one pass over the file: skip comments and the header, reject unknown names, keep first occurrence order
     with io.open(path, encoding="utf-8") as fh:
         for raw in fh:
             line = raw.strip()
@@ -115,8 +124,13 @@ class FractionLineBuilder(LineBuilder):
     area in pt² to 0.1) — copied from overlap_fix_proof.py verbatim."""
 
     def check_line_overlaps(self, document_page, provider_lines) -> bool:
+        """Decide whether a page's provider lines are usable (True) or overlap too much / leave the page (False).
+
+        Inputs: the document page and its provider lines. Pure computation, no side effects; uses no self state.
+        """
         boxes = [ln.line.polygon.bbox for ln in provider_lines]
         page_bbox = document_page.polygon.expand(5, 5).bbox
+        # any line box outside the page (with a 5-unit margin) fails the page at once
         for b in boxes:
             if b[0] < page_bbox[0] or b[1] < page_bbox[1] or b[2] > page_bbox[2] or b[3] > page_bbox[3]:
                 return False
@@ -125,6 +139,7 @@ class FractionLineBuilder(LineBuilder):
         m = matrix_intersection_area(boxes, boxes)
         areas = np.array([max(1e-6, (b[2] - b[0]) * (b[3] - b[1])) for b in boxes])
         frac = m / areas[:, None]
+        # a line fails the page when more than 2 boxes cover over FRACTION of its own area
         for i in range(len(boxes)):
             if int(np.sum(frac[i] > FRACTION)) > 2:
                 return False
@@ -168,6 +183,7 @@ def merge_retry(block_ids, page_lines, looped, retry_lines):
     for p, (ids, lines) in enumerate(zip(block_ids, page_lines)):
         re_read = dict(zip(looped.get(p, []), retry_lines.get(p, [])))
         ni, nl = [], []
+        # copy each block through, swapping in its line-by-line re-read where one exists
         for bid, line in zip(ids, lines):
             if bid in re_read:
                 lids, lres = re_read[bid]
@@ -185,15 +201,20 @@ class _Precomputed:
     """Stands in for the recognition model inside the parent's ocr_extraction: returns the results already computed."""
 
     def __init__(self, results):
+        """Keep the precomputed per-page results; disable the progress bar the parent may toggle."""
         self.results = results
         self.disable_tqdm = True
 
     def __call__(self, **kwargs):
+        """Ignore all arguments and return the stored results."""
         return self.results
 
 
 class _PageResult:
+    """A minimal page result object: just the list of recognised text lines."""
+
     def __init__(self, text_lines):
+        """Store the page's recognised text lines."""
         self.text_lines = text_lines
 
 
@@ -205,9 +226,15 @@ class LoopRetryOcrBuilder(OcrBuilder):
     """OcrBuilder whose block-mode results are checked for a loop and, where one is found, re-read line by line."""
 
     def get_ocr_images_polygons_ids(self, document, pages, provider):
+        """Run the parent's collection step, then remember each OCR block's line ids and line polygons.
+
+        Returns the parent's tuple unchanged. Side effect: sets self._retry_lines (block id -> line ids and
+        line polygons in image pixels) for use by ocr_extraction.
+        """
         out = super().get_ocr_images_polygons_ids(document, pages, provider)
         images, _polys, ids, _texts = out
         self._retry_lines = {}      # block id -> ([line ids], [line polygons in image pixels])
+        # for every block queued for OCR, rescale its line boxes from page units to image pixels
         for p, page in enumerate(pages):
             page_size = provider.get_page_bbox(page.page_id).size
             image_size = images[p].size
@@ -226,6 +253,11 @@ class LoopRetryOcrBuilder(OcrBuilder):
         return out
 
     def ocr_extraction(self, document, pages, images, block_polygons, block_ids, block_original_texts):
+        """Read blocks as the parent does, re-read any looping block line by line, then let the parent apply results.
+
+        Calls the recognition model (GPU) once for the blocks and once more for looped blocks only; updates the
+        loop counters in _STATE["stats"] and prints a log line when a re-read happens. Returns nothing.
+        """
         if sum(len(b) for b in block_polygons) == 0:
             return
         real = self.recognition_model
@@ -237,18 +269,21 @@ class LoopRetryOcrBuilder(OcrBuilder):
                        input_text=block_original_texts, **common)
         retry = getattr(self, "_retry_lines", {})
         looped = {}
+        # first pass: note which blocks' block-mode text loops
         for p, (ids, res) in enumerate(zip(block_ids, results)):
             for bid, line in zip(ids, res.text_lines):
                 if bid in retry:
                     _STATE["stats"]["loop_blocks_checked"] = _STATE["stats"].get("loop_blocks_checked", 0) + 1
                     if is_loop(getattr(line, "text", "")):
                         looped.setdefault(p, []).append(bid)
+        # second pass (only if something looped): re-read those blocks' lines and splice the results in
         if looped:
             pages_r = sorted(looped)
             polys_r = [[poly for bid in looped[p] for poly in retry[bid][1]] for p in pages_r]
             res_r = real(images=[images[p] for p in pages_r], task_names=[self.ocr_task_name] * len(pages_r),
                          polygons=polys_r, input_text=[[""] * len(x) for x in polys_r], **common)
             retry_lines = {}
+            # split each page's flat line results back into one chunk per looped block
             for p, r in zip(pages_r, res_r):
                 k, per_block = 0, []
                 for bid in looped[p]:
@@ -267,6 +302,7 @@ class LoopRetryOcrBuilder(OcrBuilder):
             block_ids = new_ids
             block_polygons = [[None] * len(ids) for ids in new_ids]      # only counted by the parent, never read
             block_original_texts = [[""] * len(ids) for ids in new_ids]
+        # hand the precomputed results to the parent's apply code, then always restore the real model
         self.recognition_model = _Precomputed(results)
         try:
             super().ocr_extraction(document, pages, images, block_polygons, block_ids, block_original_texts)
@@ -274,7 +310,9 @@ class LoopRetryOcrBuilder(OcrBuilder):
             self.recognition_model = real
 
 
+# -- installers: each swaps a class or function inside marker/pdftext (idempotent) --
 def _install_loop_retry(log):
+    """Point marker.converters.pdf.OcrBuilder at LoopRetryOcrBuilder (once); log the change via log()."""
     import marker.converters.pdf as mcp
 
     if getattr(mcp, "OcrBuilder", None) is LoopRetryOcrBuilder:
@@ -285,6 +323,7 @@ def _install_loop_retry(log):
 
 
 def _install_overlap_gate(log):
+    """Point marker.converters.pdf.LineBuilder at FractionLineBuilder (once); log the change via log()."""
     import marker.converters.pdf as mcp
 
     if getattr(mcp, "LineBuilder", None) is FractionLineBuilder:
@@ -299,6 +338,7 @@ def _install_overlap_gate(log):
 # overlap_fix_proof.py's install_metric_patch(), which patches this exact name). Composed in ONE
 # wrapper chain, clip first then lift, installed at most once (idempotent — see _STATE).
 # ---------------------------------------------------------------------------------------------------
+# shared module state: which patches are on, plus running counters (read back by stats())
 _STATE = {
     "get_chars_installed": False,
     "clip_on": False,
@@ -320,6 +360,7 @@ def _clip_offpage_chars(chars, page_bbox, stats):
     lo_x, lo_y = -1.0, -1.0
     hi_x, hi_y = width + 1.0, height + 1.0
     kept = []
+    # keep a char unless its whole box lies outside the page with a 1-unit margin; count the drops
     for ch in chars:
         b = ch["bbox"].bbox
         if b[2] < lo_x or b[0] > hi_x or b[3] < lo_y or b[1] > hi_y:
@@ -340,6 +381,7 @@ def _lift_charboxes(textpage, chars, page_bbox, page_rotation, stats):
         return chars
     x_start, y_start, x_end, y_end = page_bbox
     page_height = math.ceil(abs(y_end - y_start))
+    # per char: compare the tight ink box with the loose box and shift the loose box up when it sits too low
     for ch in chars:
         if ch.get("rotation", 0) != 0:
             continue
@@ -359,6 +401,7 @@ def _lift_charboxes(textpage, chars, page_bbox, page_rotation, stats):
 
 
 def _install_get_chars(log):
+    """Wrap pdftext.pdf.pages.get_chars once with the clip/lift chain; later calls only log nothing and return."""
     import pdftext.pdf.pages as pp
 
     if _STATE["get_chars_installed"] and getattr(pp.get_chars, "_fp_fixes_wrapper", False):
@@ -367,6 +410,7 @@ def _install_get_chars(log):
     stats = _STATE["stats"]
 
     def _wrapped_get_chars(textpage, page_bbox, page_rotation, quote_loosebox=True):
+        """Call the original get_chars, count the chars, then run whichever of clip and lift are switched on."""
         chars = orig(textpage, page_bbox, page_rotation, quote_loosebox)
         stats["chars_seen"] += len(chars)
         if _STATE["clip_on"]:
@@ -428,6 +472,7 @@ _LOWERED_BATCH = {"detection_batch_size": 4, "table_rec_batch_size": 4}
 
 
 def _card_total_mib():
+    """Total GPU memory in MiB from nvidia-smi (5 s timeout); the 10240 fallback if it cannot be queried."""
     try:
         import subprocess
 
@@ -473,11 +518,13 @@ def apply(names, log=print) -> dict:
     report's fidelity_audit diff for why an env var and not a function argument).
     """
     names = list(names)
+    # refuse the whole call if any name is not in the closed set
     for n in names:
         if n not in FIXES:
             raise ValueError("fixes.apply: unknown fix name %r" % (n,))
 
     applied = []
+    # switch on each named fix: install a patch or just record the pure ones as active
     for n in names:
         if n == "overlap-fraction-gate":
             _install_overlap_gate(log)
@@ -497,6 +544,7 @@ def apply(names, log=print) -> dict:
         elif n in ("lane-share-rule", "degen-rule-line", "table-batch-ceiling", "ligature-repair"):
             applied.append(n)   # pure functions / passes the integrator calls where they apply; recorded as active
 
+    # publish the active names in FP_FIXES, merged with any already there, for other processes to read
     if applied:
         prior = os.environ.get("FP_FIXES", "")
         merged = sorted(set(prior.split(",")) | set(applied)) if prior else sorted(set(applied))
@@ -509,6 +557,7 @@ def apply(names, log=print) -> dict:
     return {"applied": applied, "stats": dict(_STATE["stats"])}
 
 
+# -- config overrides, live counters and the manifest record --
 GET_CHARS_FIXES = ("charbox-lift", "offpage-clip")
 
 

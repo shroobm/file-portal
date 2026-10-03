@@ -1,4 +1,10 @@
-"""Conversion engines: the text-layer probe and the PyMuPDF4LLM / Pandoc calls.
+"""WHAT THIS FILE DOES: the conversion engines of the Linux converter. It picks an engine for a
+filename (resolve_engine), measures how much text a PDF carries (probe_chars_per_page, page_count,
+chars_per_page_of_markdown), and runs the two converters: run_pymupdf (.pdf/.epub) and run_pandoc
+(.docx). Reads source documents and settings; writes images/media into an assets directory and
+returns markdown text. Called by the converter service; the markdown is bundled elsewhere.
+
+Conversion engines: the text-layer probe and the PyMuPDF4LLM / Pandoc calls.
 
 Dispatch is first-match over extension patterns, the same shape as the allocator's
 rules.py -- one routing idiom in the repo, not two.
@@ -23,8 +29,11 @@ import pymupdf
 from converter.config import Settings
 
 
+# -- engine table and dispatch --
 @dataclass(frozen=True)
 class Engine:
+    """One conversion engine: its name and the filename patterns it handles."""
+
     name: str
     patterns: list[str]
 
@@ -37,12 +46,18 @@ ENGINES = [
 
 
 def resolve_engine(filename: str) -> Engine | None:
+    """Return the first Engine whose pattern matches the lowercased filename, else None.
+
+    Pure function: no files touched.
+    """
+    # walk the table in order; the first matching pattern decides
     for engine in ENGINES:
         if any(fnmatch.fnmatch(filename.lower(), pattern) for pattern in engine.patterns):
             return engine
     return None
 
 
+# -- page and text-layer measurements --
 def probe_chars_per_page(path: Path) -> float:
     """Average extractable text characters per page -- the pre-flight text-layer test.
 
@@ -61,10 +76,12 @@ def chars_per_page_of_markdown(markdown: str, page_count: int) -> float:
 
 
 def page_count(path: Path) -> int:
+    """Return the page count of the document at path (at least 1). Opens the file read-only."""
     with pymupdf.open(path) as doc:
         return doc.page_count or 1
 
 
+# -- the two converters --
 def run_pymupdf(src: Path, assets_dir: Path, lane: str, settings: Settings) -> str:
     """Convert a .pdf/.epub to markdown, writing images into assets_dir.
 
@@ -84,11 +101,13 @@ def run_pymupdf(src: Path, assets_dir: Path, lane: str, settings: Settings) -> s
     bundle.rewrite_image_links normalizes them afterwards.
     """
     assets_dir.mkdir(parents=True, exist_ok=True)
+    # base options shared by both lanes
     kwargs = {
         "write_images": True,
         "image_path": str(assets_dir),
         "dpi": settings.image_dpi,
     }
+    # scan lane redoes OCR at our resolution; any other lane keeps existing text
     if lane == "scan":
         kwargs.update(
             use_ocr=OCRMode.FORCE_DROP_OLD,
@@ -108,6 +127,7 @@ def run_pandoc(src: Path, assets_dir: Path) -> str:
     subfolder; they are flattened into assets_dir so every bundle has one assets layout.
     """
     assets_dir.mkdir(parents=True, exist_ok=True)
+    # run the pandoc command line (5-minute limit) and capture its output
     result = subprocess.run(
         [
             "pandoc",
@@ -126,6 +146,7 @@ def run_pandoc(src: Path, assets_dir: Path) -> str:
     if result.returncode != 0:
         raise RuntimeError(f"pandoc exited {result.returncode}: {result.stderr.strip()[:500]}")
 
+    # flatten the media/ subfolder into assets_dir, then remove the empty folder
     media = assets_dir / "media"
     if media.is_dir():
         for item in media.iterdir():

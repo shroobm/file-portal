@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""projection_selftest.py — tripwires over the widget's JS SOURCE for the projection-drift class (SYM-043, docs/40 §3.1:
+"""WHAT THIS FILE DOES: a stand-alone self-test script. Run bare, it reads main.js and room.js (and checks their text
+with string and regex tests), prints one ok/RED line per case, then a summary line, and exits 0 only when every case
+passes and every negative control fired. It writes no files; nothing else imports it (it runs on import, top to bottom).
+
+projection_selftest.py — tripwires over the widget's JS SOURCE for the projection-drift class (SYM-043, docs/40 §3.1:
 a working mechanism and its human-facing sentence disagreeing). Born S157 E53 (2026-09-15) with B11's repair and the
 B32 U04 fix; stdlib only; reads main.js / room.js / index.html beside this file; runs anywhere (CI's python job can carry
 it warn-only). Every case is a SOURCE proxy for a rendered property — said so in its name — and each has a negative
@@ -18,6 +22,7 @@ import os
 import re
 import sys
 
+# -- source files under test and the patterns the checks use --
 HERE = os.path.dirname(os.path.abspath(__file__))
 MAIN = io.open(os.path.join(HERE, "main.js"), encoding="utf-8").read()
 ROOM = io.open(os.path.join(HERE, "room.js"), encoding="utf-8").read()
@@ -39,25 +44,31 @@ def b11_clean(src: str) -> bool:
 
 
 def u04_newest(src: str) -> bool:
+    """True when src takes the newest-first tail element (tail[0]) and never the .slice(-1)[0] form."""
     return WALL_NEWEST.search(src) is not None and WALL_OLDEST.search(src) is None
 
 
 def j16_dock_has_age(src: str) -> bool:
+    """True when src (main.js) contains both the Dock's 'oldest' age readout and the 'wait UNREAD' fallback text."""
     return "oldest ${pfAge(oldest)}" in src and "wait UNREAD" in src
 
 
 def j16_room_has_age(src: str) -> bool:
+    """True when src (room.js) contains the queue row's 'sat' age, 'wait UNREAD' fallback and 'waiting' ETA text."""
     return "sat ${ageText(" in src and "wait UNREAD" in src and "waiting ${etaText(f.wait_s)}" in src
 
 
+# -- test harness: the results list and the case() recorder --
 results = []
 
 
 def case(name, ok, detail=""):
+    """Record (name, bool(ok), detail) in results and print an 'ok'/'RED' line (detail shown only when red)."""
     results.append((name, bool(ok), detail))
     print("  %s  %s%s" % ("ok " if ok else "RED", name, (" — " + detail) if detail and not ok else ""))
 
 
+# -- cases: B11 (swap note wording), U04 (Wall event line), J16 (age readouts), each with negative controls --
 case("B11 main.js: the swap note is not 'manual / supersede pending' while the ⟳ handler exists (source proxy)", b11_clean(MAIN))
 case("B11 room.js: the same", b11_clean(ROOM))
 case("B11 the note now names the mechanism ('supersedes the vaulted note') in both files",
@@ -126,6 +137,7 @@ case("docs/18 NEGATIVE CONTROL: a second liveness source planted into room.js (`
 case("docs/18 NEGATIVE CONTROL: a pid-file read planted into main.js reds the check",
      not one_truth_source(MAIN + '\nconst raw = await readTextFile("watcher.pid");\n', ROOM))
 
+# -- summary and exit code: 1 if any case is red, else 0 --
 red = [r for r in results if not r[1]]
 controls = [r for r in results if "CONTROL" in r[0]]
 print("projection selftest: %d/%d · controls %d/%d fired" % (len(results) - len(red), len(results), sum(1 for c in controls if c[1]), len(controls)))

@@ -1,4 +1,9 @@
-"""Tests for the sd_notify helper -- a real AF_UNIX datagram socket stands in for systemd.
+"""WHAT THIS FILE DOES: pytest tests for converter/sdnotify.py. A fixture opens a real unix datagram
+socket under a temp directory and points NOTIFY_SOCKET at it; tests check that sd_notify delivers
+the state, that it does nothing when the socket is absent or dead, and how watchdog_armed reads
+WATCHDOG_USEC. Uses monkeypatched environment variables only.
+
+Tests for the sd_notify helper -- a real AF_UNIX datagram socket stands in for systemd.
 
 Mirror copy in linux-receiver/tests/test_sdnotify.py (the helper is duplicated by design;
 so is its test). AF_UNIX socket paths are capped ~108 bytes, so the socket binds under a
@@ -14,8 +19,10 @@ import pytest
 from converter.sdnotify import sd_notify, watchdog_armed
 
 
+# -- fixture: a fake systemd socket --
 @pytest.fixture
 def notify_socket(monkeypatch):
+    """Bind a unix datagram socket in a short temp dir, set NOTIFY_SOCKET to it, and yield it."""
     with tempfile.TemporaryDirectory(prefix="sdn-") as tmp:
         path = Path(tmp) / "notify.sock"
         with socket.socket(socket.AF_UNIX, socket.SOCK_DGRAM) as server:
@@ -25,22 +32,28 @@ def notify_socket(monkeypatch):
             yield server
 
 
+# -- sd_notify tests --
 def test_sends_state_to_notify_socket(notify_socket):
+    """The state string sent by sd_notify arrives on the socket unchanged."""
     sd_notify("READY=1")
     assert notify_socket.recv(64) == b"READY=1"
 
 
 def test_noop_without_notify_socket(monkeypatch):
+    """With NOTIFY_SOCKET unset, sd_notify returns quietly."""
     monkeypatch.delenv("NOTIFY_SOCKET", raising=False)
     sd_notify("WATCHDOG=1")  # must simply not raise
 
 
 def test_noop_on_dead_socket_path(monkeypatch):
+    """With NOTIFY_SOCKET pointing at a path that does not exist, sd_notify returns quietly."""
     monkeypatch.setenv("NOTIFY_SOCKET", "/nonexistent/notify.sock")
     sd_notify("WATCHDOG=1")  # connection failure is swallowed by design
 
 
+# -- watchdog_armed test --
 def test_watchdog_armed_reads_usec(monkeypatch):
+    """watchdog_armed is True only for a positive whole number in WATCHDOG_USEC."""
     monkeypatch.setenv("WATCHDOG_USEC", "90000000")
     assert watchdog_armed() is True
     monkeypatch.setenv("WATCHDOG_USEC", "0")

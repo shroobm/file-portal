@@ -1,6 +1,12 @@
 #!/usr/bin/env python3
 """room_agent.py - the launch alias for the lane agent.
 
+WHAT THIS FILE DOES: a thin launcher. When run as a script it imports catcher.py (the real lane
+agent) and exits with the return value of catcher.main(), so every command-line argument
+(--as <Lane>, --once, ...) is handled by catcher.py. It reads and writes nothing itself. It is
+called by an operator or a model session typing `python room_agent.py --as <Lane>`; it has no
+functions of its own.
+
     python room_agent.py --as Fable      ==  python catcher.py --lane Fable
     python room_agent.py --as Codex --once
 

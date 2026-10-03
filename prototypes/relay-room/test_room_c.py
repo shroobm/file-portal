@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """test_room_c.py - BUILDER C's tripwires (CONTRACT §8), written the day the guards were.
 
+WHAT THIS FILE DOES: unittest tests for status.py, the catcher and the parts of roomlog.py they
+use. Each test builds a throwaway directory tree (class Fixture), points roomlog's path
+constants at it, writes status/sidecar JSON files into it, and checks what status.render_lane,
+write_status, read_sidecar and catcher.Catcher return. Some tests run the real gate.py as a
+subprocess against the temporary coord directory. Run it with: python -m unittest test_room_c -v
+It writes only to temporary directories and restores roomlog's constants after each test.
+
 WHY THIS FILE IS NOT `test_room.py`: the contract puts every builder's tripwires in one
 `test_room.py`, assembled by all four. Four builders are writing in parallel and cannot ask
 each other questions; four writers on one path means three of them lose their work to the
@@ -39,7 +46,10 @@ HERE = Path(__file__).resolve().parent
 PY = sys.executable
 
 
+# -- shared helpers and the base fixture --
+
 def stamp(dt):
+    """Format a datetime as the millisecond UTC stamp string the documents use. Pure."""
     return dt.strftime("%Y-%m-%dT%H:%M:%S.") + f"{dt.microsecond // 1000:03d}Z"
 
 
@@ -48,6 +58,8 @@ class Fixture(unittest.TestCase):
     lets FP_COORD point outside it (CONTRACT §8 preamble)."""
 
     def setUp(self):
+        """Create a temp tree, save roomlog's path constants, redirect them into the tree, make
+        the state directories, and record `self.now`."""
         self.tmp = Path(tempfile.mkdtemp(prefix="relay-room-c-"))
         self._saved = {k: getattr(roomlog, k) for k in
                        ("ROOT", "STATE", "COORD", "ROOM_MD", "FLIGHT_DIR", "HANDOFF_DIR")}
@@ -62,6 +74,7 @@ class Fixture(unittest.TestCase):
         self.now = datetime.now(timezone.utc)
 
     def tearDown(self):
+        """Restore roomlog's saved path constants and delete the temp tree."""
         for k, v in self._saved.items():
             setattr(roomlog, k, v)
         shutil.rmtree(self.tmp, ignore_errors=True)
@@ -69,6 +82,7 @@ class Fixture(unittest.TestCase):
     # -- builders -------------------------------------------------------------
 
     def doc(self, lane="Fable", agent_state="watching", model_state="idle", **over):
+        """Build a valid, fresh status document for `lane`; keyword overrides replace top-level keys."""
         d = {
             "protocol": status.PROTOCOL, "writer": f"catcher:{lane}", "lane": lane,
             "pid": 1, "started_utc": stamp(self.now), "heartbeat_utc": stamp(self.now),
@@ -92,18 +106,22 @@ class Fixture(unittest.TestCase):
         return d
 
     def put(self, lane, obj):
+        """Write `obj` (raw string or JSON-able value) straight to the lane's status file,
+        bypassing write_status so malformed files can be planted."""
         p = status.status_path(lane)
         p.parent.mkdir(parents=True, exist_ok=True)
         with io.open(p, "w", encoding="utf-8") as fh:
             fh.write(obj if isinstance(obj, str) else json.dumps(obj))
 
     def put_sidecar(self, lane, obj):
+        """Write `obj` (raw string or JSON-able value) to the lane's relay-gate sidecar file."""
         p = status.sidecar_path(lane)
         p.parent.mkdir(parents=True, exist_ok=True)
         with io.open(p, "w", encoding="utf-8") as fh:
             fh.write(obj if isinstance(obj, str) else json.dumps(obj))
 
     def good_sidecar(self, lane="Fable", state="idle", **over):
+        """Return a valid sidecar dict for `lane` in `state`; keyword overrides replace keys."""
         d = {"writer": lane, "protocol": status.GATE_PROTOCOL, "updated_utc": stamp(self.now),
              "state": state, "occupant": None, "current_ticket": None,
              "sent": [], "confirmed": [], "escalations": []}
@@ -111,6 +129,8 @@ class Fixture(unittest.TestCase):
         return d
 
     def gate_init_both(self):
+        """Run the real gate.py `init` for both lanes as subprocesses, with FP_COORD set to the
+        temporary coord directory, so real sidecars exist there."""
         for lane in ("Fable", "Codex"):
             subprocess.run([PY, str(roomlog.GATE_PY), "init", "--as", lane],
                            capture_output=True, encoding="utf-8", errors="replace",
@@ -120,8 +140,10 @@ class Fixture(unittest.TestCase):
 # =========================================================== T8 / T8b - the agent ladder
 
 class TestAgentLadder(Fixture):
+    """Tests of the agent-layer rules in status.render_lane (rules 1-9 of the ladder)."""
 
     def rules(self):
+        """Nine (rule number, planted file content) cases; None means no file at all."""
         old = stamp(self.now - timedelta(seconds=40))
         return [
             (1, None),
@@ -136,6 +158,7 @@ class TestAgentLadder(Fixture):
         ]
 
     def test_T8_every_rule_renders_unread_or_stale_never_health(self):
+        """Every broken-document case renders UNREAD (or STALE for rule 9), never a healthy state."""
         for n, obj in self.rules():
             with self.subTest(rule=n):
                 if obj is None:
@@ -150,12 +173,14 @@ class TestAgentLadder(Fixture):
                 self.assertNotEqual(r["rendered_model"], "idle")
 
     def test_T8_control_a_valid_document_renders_its_state(self):
+        """Control: a valid document renders its own agent state with no reason."""
         self.put("Fable", self.doc(agent_state="handing"))
         r = status.render_lane("Fable", now=self.now)
         self.assertEqual(r["rendered_agent"], "handing")
         self.assertIsNone(r["agent_reason"])
 
     def test_T8b_every_unread_carries_a_remedy(self):
+        """Every UNREAD/STALE case carries a non-trivial reason sentence for agent and model."""
         for n, obj in self.rules():
             with self.subTest(rule=n):
                 if obj is None:
@@ -169,6 +194,7 @@ class TestAgentLadder(Fixture):
                 self.assertTrue((r["model_reason"] or "").strip(), f"rule {n} model reason")
 
     def test_T19_a_lane_may_not_exempt_itself_from_L2(self):
+        """An out-of-range stale_after_s renders UNREAD; an in-range one (control) renders normally."""
         self.put("Fable", self.doc(**{"stale_after_s": 99999}))
         self.assertEqual(status.render_lane("Fable", now=self.now)["rendered_agent"], "UNREAD")
         self.put("Fable", self.doc(**{"stale_after_s": 30}))          # control
@@ -178,8 +204,10 @@ class TestAgentLadder(Fixture):
 # =========================================================== T8c - the on-disk enum
 
 class TestWriteRefusals(Fixture):
+    """Tests of what write_status and write_model_declared refuse to put on disk."""
 
     def test_T8c_write_status_refuses_the_readers_verdicts(self):
+        """write_status raises ValueError when an agent or model state is UNREAD or STALE."""
         for bad in ("UNREAD", "STALE"):
             with self.subTest(agent=bad):
                 with self.assertRaises(ValueError) as cm:
@@ -192,12 +220,14 @@ class TestWriteRefusals(Fixture):
                     status.write_status("Fable", d)
 
     def test_T8c_control_a_valid_document_is_written_and_reads_back(self):
+        """Control: a valid document is written and read_status returns it."""
         status.write_status("Fable", self.doc(agent_state="mirroring"))
         d, st, reason = status.read_status("Fable")
         self.assertEqual((st, reason), ("ok", None))
         self.assertEqual(d["agent"]["state"], "mirroring")
 
     def test_T8c_a_null_model_state_is_legal_and_renders_unread(self):
+        """A null model state may be written, and it renders the model layer as UNREAD."""
         d = self.doc()
         d["model"]["state"] = None                      # the honest publish when probes fail
         d["model"]["sidecar"] = {"status": "UNREAD", "reason": "ack-fable.json does not exist",
@@ -208,6 +238,7 @@ class TestWriteRefusals(Fixture):
         self.assertNotEqual(r["rendered_model"], "idle")
 
     def test_T12_declaring_a_sidecar_state_is_refused(self):
+        """write_model_declared refuses blocked-on-* / UNREAD / STALE; idle, working, composing pass."""
         for bad in ("blocked-on-ack", "blocked-on-rab", "UNREAD", "STALE"):
             with self.subTest(state=bad):
                 with self.assertRaises(ValueError) as cm:
@@ -220,8 +251,10 @@ class TestWriteRefusals(Fixture):
 # =========================================================== T9 / T9b - staleness
 
 class TestStaleness(Fixture):
+    """Tests of the age thresholds that turn a heartbeat into STALE."""
 
     def test_T9_both_directions(self):
+        """A heartbeat 16 s old is STALE (with an age in the reason); 14 s old is healthy."""
         self.put("Fable", self.doc(**{"heartbeat_utc": stamp(self.now - timedelta(seconds=16))}))
         r = status.render_lane("Fable", now=self.now)
         self.assertEqual(r["rendered_agent"], "STALE")
@@ -244,6 +277,7 @@ class TestStaleness(Fixture):
         self.assertNotEqual(a["rendered_agent"], b["rendered_agent"])
 
     def test_T10_a_derived_reading_is_never_fresher_than_its_publisher(self):
+        """A stale agent forces the model reading to UNREAD; a fresh one (control) shows idle."""
         old = stamp(self.now - timedelta(seconds=60))
         self.put("Fable", self.doc(model_state="idle", **{"heartbeat_utc": old}))
         r = status.render_lane("Fable", now=self.now)
@@ -259,8 +293,10 @@ class TestStaleness(Fixture):
 # =========================================================== T11 / T12b - the model layer
 
 class TestModelLayer(Fixture):
+    """Tests of the model-layer rules: the sidecar probe versus the model's own declaration."""
 
     def sidecar_fixtures(self):
+        """Six (name, planted sidecar content) cases that the sidecar reader must call UNREAD."""
         good = self.good_sidecar()
         return [
             ("missing", None),
@@ -272,6 +308,8 @@ class TestModelLayer(Fixture):
         ]
 
     def test_T11_a_failed_sidecar_probe_beats_a_fresh_declaration(self):
+        """For each bad sidecar, read_sidecar gives UNREAD with a remedy and the model renders
+        UNREAD even beside a fresh 'idle' declaration."""
         for name, obj in self.sidecar_fixtures():
             with self.subTest(rule=name):
                 p = status.sidecar_path("Fable")
@@ -294,6 +332,7 @@ class TestModelLayer(Fixture):
                 self.assertNotEqual(r["rendered_model"], "idle")
 
     def test_T11_control_a_readable_sidecar_renders_its_state(self):
+        """Control: a readable sidecar in state working renders the model as working."""
         self.put_sidecar("Fable", self.good_sidecar(state="working"))
         d = self.doc(model_state="working")
         d["model"]["sidecar"] = status.sidecar_view("Fable")
@@ -301,6 +340,7 @@ class TestModelLayer(Fixture):
         self.assertEqual(status.render_lane("Fable", now=self.now)["rendered_model"], "working")
 
     def test_T12b_a_declaration_may_not_clear_a_block(self):
+        """A sidecar blocked-on-rab / blocked-on-ack still renders even when the model declares idle."""
         for blocked in ("blocked-on-rab", "blocked-on-ack"):
             with self.subTest(state=blocked):
                 self.put_sidecar("Fable", self.good_sidecar(state=blocked))
@@ -325,8 +365,10 @@ class TestModelLayer(Fixture):
 # =========================================================== T15 - the UNREAD trail
 
 class TestTrails(Fixture):
+    """Tests of roomlog's flight-trail rendering and its stage-writer rules."""
 
     def test_T15_an_entry_with_no_flight_file_is_UNREAD_not_typed(self):
+        """A logged message with no flight file renders UNREAD, with all eight stages listed."""
         e = roomlog.append_entry(frm="Rab", to="Fable", body="a question")
         log = roomlog.read_log()
         t = roomlog.render_trails(e.id, log=log, now=self.now)   # S157 E52: the §5.4 object is render_trails
@@ -337,6 +379,7 @@ class TestTrails(Fixture):
         self.assertEqual(len(lane["stages"]), 8)          # never an empty trail
 
     def test_T13_writer_half_an_agent_may_not_claim_delivery(self):
+        """append_stage refuses 'delivered' and 'model-working' from a catcher; 'caught' is accepted."""
         e = roomlog.append_entry(frm="Rab", to="Fable", body="a question")
         for stage in ("delivered", "model-working"):
             with self.subTest(stage=stage):
@@ -349,13 +392,17 @@ class TestTrails(Fixture):
 # =========================================================== T16 - quarantine
 
 class TestQuarantine(Fixture):
+    """Tests that nothing is written outside the prototype's own tree."""
 
     def test_T16_assert_inside_both_directions(self):
+        """assert_inside accepts a path under STATE and exits for a path in the system temp dir."""
         self.assertTrue(roomlog.assert_inside(roomlog.STATE / "x.json"))
         with self.assertRaises(SystemExit):
             roomlog.assert_inside(Path(tempfile.gettempdir()) / "definitely-outside.json")
 
     def test_T16_a_foreign_FP_COORD_is_overridden_and_left_empty(self):
+        """With FP_COORD pointing elsewhere, the catcher's gate_init still writes inside the
+        quarantined coord directory and leaves the foreign directory empty. Restores the env var."""
         foreign = Path(tempfile.mkdtemp(prefix="foreign-coord-"))
         saved = os.environ.get("FP_COORD")
         os.environ["FP_COORD"] = str(foreign)
@@ -378,6 +425,7 @@ class TestQuarantine(Fixture):
 # =========================================================== T24 / T26 - the gate allow-list
 
 class TestGateAllowList(Fixture):
+    """Tests that catcher.py only ever calls the allowed gate.py subcommands."""
 
     ALLOWED = {"init", "post", "ticket", "status", "inbox"}
     FORBIDDEN = {"check", "confirm", "escalate", "resolve"}
@@ -405,6 +453,7 @@ class TestGateAllowList(Fixture):
         return found
 
     def test_T24_the_subcommand_is_always_in_the_allow_list(self):
+        """Every subprocess.run argv literal in catcher.py names an allowed gate subcommand."""
         argvs = self.argv_literals()
         self.assertGreaterEqual(len(argvs), 3,
                                 "no subprocess.run list literals found - the parser is looking "
@@ -426,6 +475,7 @@ class TestGateAllowList(Fixture):
         self.assertIn(subs[0], self.FORBIDDEN)          # the guard would have fired
 
     def test_T26_the_mirror_carries_no_ticket(self):
+        """Every `post` call in catcher.py omits --ticket and --override."""
         posts = [a for a in self.argv_literals() if a[2] == "post"]
         self.assertTrue(posts, "no `post` invocation found")
         for argv in posts:
@@ -462,11 +512,15 @@ class TestGateAllowList(Fixture):
 # =========================================================== T25 - GUARD B carried across
 
 class TestGuardB(Fixture):
+    """Tests that the catcher never takes a ticket from a lane that is blocked on Rab."""
 
     def a_message_for_fable(self):
+        """Append a Rab-to-Fable message to the temp log and return the Entry."""
         return roomlog.append_entry(frm="Rab", to="Fable", body="please look at the ladder")
 
     def test_T25_a_blocked_on_rab_sidecar_is_never_ticketed(self):
+        """With the sidecar blocked-on-rab, one catcher cycle skips the gate, keeps the block,
+        and still writes the handoff envelope."""
         self.gate_init_both()
         self.put_sidecar("Fable", self.good_sidecar(
             state="blocked-on-rab",
@@ -489,6 +543,7 @@ class TestGuardB(Fixture):
                         "the envelope must still be written - the message is not lost")
 
     def test_T25_control_an_idle_sidecar_IS_ticketed(self):
+        """Control: with an idle sidecar, one catcher cycle takes the ticket and sets state working."""
         self.gate_init_both()
         e = self.a_message_for_fable()
         c = catcher.Catcher("Fable", interval=2.0, quiet=True)
@@ -506,9 +561,11 @@ class TestGuardB(Fixture):
 # =========================================================== T27 - rc 0 is not health
 
 class TestExitCodeIsNotHealth(Fixture):
+    """Tests that Catcher.gate_record judges gate output, not just the process exit code."""
 
     def test_T27_rc_zero_while_printing_UNREAD_is_UNREAD(self):
-        self.gate_init_both()                      # a perfectly healthy sidecar on disk
+        """A gate call that exits 0 but prints UNREAD is recorded as UNREAD."""
+        self.gate_init_both()                     # a perfectly healthy sidecar on disk
         c = catcher.Catcher("Fable", interval=2.0, quiet=True)
         proc = subprocess.CompletedProcess(
             args=[PY, str(roomlog.GATE_PY), "inbox", "--as", "Fable"],
@@ -520,6 +577,7 @@ class TestExitCodeIsNotHealth(Fixture):
         self.assertIn("exit code is not a health reading", rec["reason"])
 
     def test_T27_control_a_real_successful_call_reads_ok(self):
+        """Control: a clean exit with a normal ticket line is recorded as ok."""
         self.gate_init_both()
         c = catcher.Catcher("Fable", interval=2.0, quiet=True)
         proc = subprocess.CompletedProcess(
@@ -528,6 +586,7 @@ class TestExitCodeIsNotHealth(Fixture):
         self.assertEqual(c.gate_record(proc)["status"], "ok")
 
     def test_T27_an_unreadable_sidecar_outranks_a_clean_exit(self):
+        """A damaged sidecar makes gate_record UNREAD even when the exit code is 0."""
         self.put_sidecar("Fable", "{ torn")
         c = catcher.Catcher("Fable", interval=2.0, quiet=True)
         proc = subprocess.CompletedProcess(args=["x", "y", "ticket"], returncode=0,
@@ -540,9 +599,11 @@ class TestExitCodeIsNotHealth(Fixture):
 # =========================================================== crash safety
 
 class TestCrashSafety(Fixture):
+    """Tests of the catcher's behaviour when its inputs are missing, torn or unusual."""
 
     def test_an_unreadable_log_is_never_no_new_messages(self):
-        c = catcher.Catcher("Fable", interval=2.0, quiet=True)
+        """With no room.md, one cycle reports agent state error and a null (not zero) entry count."""
+        c =catcher.Catcher("Fable", interval=2.0, quiet=True)
         doc = c.one_cycle(now=self.now)                       # room.md does not exist
         self.assertEqual(doc["agent"]["state"], "error")
         self.assertEqual(doc["agent"]["log_read"]["status"], "MISSING")
@@ -550,6 +611,7 @@ class TestCrashSafety(Fixture):
         self.assertTrue(doc["agent"]["last_error"])
 
     def test_a_torn_journal_is_rebuilt_from_the_log_not_read_as_empty(self):
+        """A corrupt journal file is rebuilt from the log and marked REBUILT with a reason."""
         roomlog.append_entry(frm="Rab", to="Fable", body="hello")
         c = catcher.Catcher("Fable", interval=2.0, quiet=True)
         with io.open(c.journal_path(), "w", encoding="utf-8") as fh:
@@ -559,6 +621,7 @@ class TestCrashSafety(Fixture):
         self.assertIn("rebuilt_reason", c.journal)
 
     def test_the_publish_never_writes_a_verdict_about_itself(self):
+        """The document a cycle publishes never carries UNREAD or STALE as its own state."""
         self.gate_init_both()
         roomlog.append_entry(frm="Rab", to="Fable", body="hello")
         c = catcher.Catcher("Fable", interval=2.0, quiet=True)

@@ -1,5 +1,14 @@
 #!/usr/bin/env python3
-"""selftest.py - the LAW PROOF harness for prototypes/relay-room.
+"""WHAT THIS FILE DOES
+A stand-alone command-line program (entry point: main(), run as `python selftest.py`) that checks the
+relay-room prototype against its eight laws. It copies the sibling modules (roomlog, status, catcher,
+room, room.html) into a temp directory, runs registered checks against that copy (and against small
+deliberately-broken "control" implementations defined here), starts room.py as a subprocess on a free
+local port, and prints one PASS / FAIL / UNREAD line per check. It reads the real coordination/ and
+state/ trees only to snapshot them, writes only inside the temp directory, and exits 0 or 1.
+Nothing else in the repo imports it; it is run by hand or by the session.
+
+selftest.py - the LAW PROOF harness for prototypes/relay-room.
 
 This is not the tripwire suite. `test_room.py` (CONTRACT.md §8) proves the 39 named tripwires
 T1-T28 against the finished build. THIS file proves the EIGHT LAWS of CONTRACT.md §0, and it
@@ -120,6 +129,7 @@ def _canonical(text: str) -> str:
 
 
 def _bare_digest(text: str) -> str:
+    """Return the hex SHA-256 of the canonical form of text (the body digest used in entry headers)."""
     return hashlib.sha256(_canonical(text).encode("utf-8")).hexdigest()
 
 
@@ -134,6 +144,7 @@ class Unread(Exception):
     """The check could not be RUN. Not a pass. Not a skip. Carries a remedy (L1b)."""
 
     def __init__(self, reason: str, remedy: str):
+        """Store the reason the check could not run and the remedy sentence; no side effects."""
         super().__init__(reason)
         self.reason = reason
         self.remedy = remedy
@@ -192,7 +203,11 @@ def expect_fail(probe, *args, **kwargs) -> str:
 
 def _fixture_entry(mid: str, body: str, *, frm="Rab", to="Fable", re_=None, kind="say",
                    utc=None) -> str:
-    hdr = (f"## {mid}{SEP}{utc or _utc()}{SEP}from: {frm}{ARROW}to: {to}"
+    """Build one well-formed log entry (header, blank line, body, terminator) as text.
+
+    Raises RuntimeError if the header it built fails this file's own grammar. No file is written.
+    """
+    hdr =(f"## {mid}{SEP}{utc or _utc()}{SEP}from: {frm}{ARROW}to: {to}"
            f"{SEP}re: {re_ or EMDASH}{SEP}kind: {kind}{SEP}body-sha256:{_bare_digest(body)}")
     if not SELFTEST_HEADER_RE.match(hdr):            # the fixture builder checks itself
         raise RuntimeError(f"selftest fixture built a header its own grammar rejects: {hdr!r}")
@@ -203,6 +218,7 @@ _fixture_counter = [0]
 
 
 def _fixture_id(seed: str) -> str:
+    """Return a fresh unique "RM-" plus 12 hex id from the seed, a counter and the clock."""
     _fixture_counter[0] += 1
     raw = f"{seed}\x1f{_fixture_counter[0]}\x1f{time.time_ns()}"
     return "RM-" + hashlib.sha256(raw.encode("utf-8")).hexdigest()[:12]
@@ -324,6 +340,7 @@ def valid_status_doc(lane: str, *, heartbeat: str = None, stale_after_s: float =
 # ---------------------------------------------------------------------------------------------
 
 def scan_log_bytes(path: Path) -> dict:
+    """Read a log file and return its raw bytes, text, header ids, headers, terminators and glued lines."""
     raw = path.read_bytes()
     text = raw.decode("utf-8", "replace").replace("\r\n", "\n").replace("\r", "\n")
     lines = text.split("\n")
@@ -394,7 +411,8 @@ def probe_concurrent(append, path: Path, *, per_lane: int = 25) -> None:
     barrier = threading.Barrier(len(lanes))
 
     def worker(tag):
-        barrier.wait()                                # make them collide on purpose
+        """Thread body: wait at the barrier, then append per_lane messages, recording any exception."""
+        barrier.wait()                               # make them collide on purpose
         for i in range(per_lane):
             try:
                 append(path, f"lane {tag} message {i}")
@@ -560,6 +578,7 @@ def probe_no_html_injection(html: str) -> None:
 # ---------------------------------------------------------------------------------------------
 
 def imports_of(src: str, filename: str) -> set:
+    """Parse Python source and return the set of top-level module names it imports (absolute imports only)."""
     mods = set()
     tree = ast.parse(src, filename)
     for node in ast.walk(tree):
@@ -573,6 +592,7 @@ def imports_of(src: str, filename: str) -> set:
 
 
 def http(method: str, url: str, *, headers=None, body=None, timeout=15):
+    """Make one HTTP request; return (status code, header dict, body bytes). HTTP errors are returned, not raised."""
     req = urllib.request.Request(url, data=body, headers=headers or {}, method=method)
     try:
         with urllib.request.urlopen(req, timeout=timeout) as resp:
@@ -582,7 +602,8 @@ def http(method: str, url: str, *, headers=None, body=None, timeout=15):
 
 
 def free_port() -> int:
-    s = socket.socket()
+    """Ask the OS for a free TCP port on 127.0.0.1 (binds briefly, then closes) and return its number."""
+    s =socket.socket()
     try:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
@@ -608,6 +629,7 @@ def snapshot(path: Path) -> dict:
 
 
 def diff_snapshot(before: dict, after: dict) -> list:
+    """Compare two snapshot() dicts; return one "path: old -> new" line per entry that differs."""
     keys = set(before) | set(after)
     out = []
     for k in sorted(keys):
@@ -631,6 +653,7 @@ def run_py(args, *, env=None, cwd=None, timeout=60):
 
 
 def human_age(seconds: float) -> str:
+    """Format a number of seconds as "NmSSs" (or "Ns" under a minute); negatives count as zero."""
     seconds = max(0.0, float(seconds))
     m, s = divmod(int(seconds), 60)
     return f"{m}m{s:02d}s" if m else f"{s}s"
@@ -641,12 +664,16 @@ def human_age(seconds: float) -> str:
 # ---------------------------------------------------------------------------------------------
 
 class _UngatedHandler(BaseHTTPRequestHandler):
+    """Request handler of the deliberately unguarded control server: GET /api/health, and a POST that always writes."""
+
     protocol_version = "HTTP/1.1"
 
     def log_message(self, *a):                        # silence
+        """Suppress the default per-request logging to stderr."""
         pass
 
     def _json(self, obj, code=200):
+        """Send obj as a JSON response with the given status code."""
         raw = json.dumps(obj).encode("utf-8")
         self.send_response(code)
         self.send_header("Content-Type", "application/json; charset=utf-8")
@@ -655,13 +682,15 @@ class _UngatedHandler(BaseHTTPRequestHandler):
         self.wfile.write(raw)
 
     def do_GET(self):
+        """Answer /api/health with ok; every other path gets a 404 JSON error."""
         if self.path.startswith("/api/health"):
             self._json({"ok": True, "note": "unguarded control server"})
         else:
             self._json({"error": "no such route"}, 404)
 
     def do_POST(self):
-        n = int(self.headers.get("Content-Length", "0") or 0)
+        """Discard the request body, append a line to the server's room_md file (no token check), reply 200."""
+        n =int(self.headers.get("Content-Length", "0") or 0)
         self.rfile.read(n)
         # THE DEFECT, in three lines: it writes without ever looking for a token.
         with io.open(self.server.room_md, "a", encoding="utf-8", newline="") as fh:
@@ -670,6 +699,7 @@ class _UngatedHandler(BaseHTTPRequestHandler):
 
 
 def start_ungated_server(room_md: Path):
+    """Start the unguarded control server on a free port in a daemon thread; return (server, base URL)."""
     port = free_port()
     srv = ThreadingHTTPServer(("127.0.0.1", port), _UngatedHandler)
     srv.room_md = room_md
@@ -682,7 +712,10 @@ def start_ungated_server(room_md: Path):
 # ---------------------------------------------------------------------------------------------
 
 class Ctx:
+    """Shared state for one selftest run: temp paths, loaded modules and sources, the live server, cleanups."""
+
     def __init__(self, tmp: Path):
+        """Record the temp directory and derive the staged, state, probe, foreign-coord and gatebox paths."""
         self.tmp = tmp
         self.staged = tmp / "relay-room"
         self.state = self.staged / "state"
@@ -702,6 +735,7 @@ class Ctx:
 
     # -- staged tree ---------------------------------------------------------------------
     def stage(self):
+        """Copy the relay-room tree (minus state/, caches, .git) into the temp dir and create the scratch dirs."""
         self.staged.mkdir(parents=True, exist_ok=True)
         for item in sorted(ROOT.iterdir()):
             if item.name in STAGE_SKIP_DIRS:
@@ -716,6 +750,11 @@ class Ctx:
         self.gatebox.mkdir(parents=True, exist_ok=True)
 
     def load_modules(self):
+        """Import roomlog, status, catcher and room from the staged copy into self.mods.
+
+        A module that is missing, fails to import, or resolves to a ROOT other than the staged copy is stored
+        as None with the reason in self.mod_reason. Side effect: puts the staged dir first on sys.path.
+        """
         sys.path.insert(0, str(self.staged))
         import importlib
         for name in ("roomlog", "status", "catcher", "room"):
@@ -760,7 +799,8 @@ class Ctx:
             self.html = html.read_text(encoding="utf-8", errors="replace")
 
     def need(self, name: str):
-        mod = self.mods.get(name)
+        """Return the loaded module called name, or raise Unread (with a remedy) if it is unavailable."""
+        mod =self.mods.get(name)
         if mod is None:
             raise Unread(
                 self.mod_reason.get(name) or f"{name} is not available",
@@ -768,6 +808,7 @@ class Ctx:
         return mod
 
     def need_source(self, fname: str) -> str:
+        """Return the source text of fname (room.html is read from self.html); raise Unread if it has not landed."""
         if fname not in self.sources and fname != "room.html":
             raise Unread(f"{fname} has not landed under {ROOT}",
                          f"write {fname} per CONTRACT.md §9, then re-run this selftest")
@@ -831,7 +872,11 @@ class Ctx:
             "not open and not closed")
 
     def run_init(self):
-        room_py = self.staged / "room.py"
+        """Run `room.py init` in the staged tree with a foreign FP_COORD planted; record exit code and output.
+
+        Sets self.init_rc (127 if room.py is missing) and self.init_out. Spawns a subprocess (90 s limit).
+        """
+        room_py =self.staged / "room.py"
         if not room_py.exists():
             self.init_rc, self.init_out = 127, "room.py missing"
             return
@@ -858,6 +903,7 @@ class Ctx:
         self.init_out = (proc.stdout or "") + (proc.stderr or "")
 
     def close(self):
+        """Run the registered cleanup callbacks in reverse order, ignoring any error they raise."""
         for fn in reversed(self.cleanup):
             try:
                 fn()
@@ -866,6 +912,7 @@ class Ctx:
 
 
 def _stop(proc, log):
+    """Terminate (then kill if needed) a server subprocess and close its log file; never raises."""
     try:
         proc.terminate()
         proc.wait(timeout=5)
@@ -900,7 +947,8 @@ def _l0_1(ctx):
 def _l0_2(ctx):
     """Proves 'the guard fired' is distinguishable from 'everything always fires'."""
     def always_true_probe():
-        assert True                                    # a probe that measures nothing
+        """A probe that can never fail (used to prove expect_fail rejects it as a tautology)."""
+        assert True                                   # a probe that measures nothing
     try:
         expect_fail(always_true_probe)
     except Tautology:
@@ -911,6 +959,7 @@ def _l0_2(ctx):
                              "line below is worthless")
 
     def honest_probe():
+        """A probe that always fails (used to prove expect_fail accepts a real failure)."""
         assert False, "the thing under test is wrong"
     note = expect_fail(honest_probe)
     return f"tautology detector works; {note}"
@@ -918,6 +967,7 @@ def _l0_2(ctx):
 
 @register("L0", "L0.3", "roll call: which of the six build files have landed")
 def _l0_3(ctx):
+    """Report which build files exist and import; raise Unread if any is missing or unusable."""
     present = [f for f in BUILD_FILES if (ROOT / f).exists()]
     missing = [f for f in BUILD_FILES if not (ROOT / f).exists()]
     broken = [f"{n} ({r})" for n, r in ctx.mod_reason.items() if r and (ROOT / f"{n}.py").exists()]
@@ -936,6 +986,7 @@ def _l0_3(ctx):
 
 @register("L1", "L1.1", "a MISSING status file renders UNREAD, not idle")
 def _l1_1(ctx):
+    """Delete the staged status file and require status.render_lane to answer UNREAD with a remedy."""
     st = ctx.need("status")
     p = ctx.state / "status-fable.json"
     if p.exists():
@@ -947,6 +998,7 @@ def _l1_1(ctx):
 @register("L1", "L1.2", "control: a renderer without the ladder calls the same file idle",
           control=True)
 def _l1_2(ctx):
+    """Control: the ladder-less naive renderer must fail the missing-file probe."""
     ctx.state.mkdir(parents=True, exist_ok=True)
     p = ctx.state / "status-fable.json"
     if p.exists():
@@ -955,6 +1007,7 @@ def _l1_2(ctx):
                        lambda lane: naive_render_lane(ctx.state, lane), "Fable")
 
 
+# -- labels of the six malformed status documents (the second item is unused; None or a literal) --
 MALFORMED_FIXTURES = [
     ("not JSON at all", "{ this is not json"),
     ("a JSON list, not an object", "[1, 2, 3]"),
@@ -966,7 +1019,9 @@ MALFORMED_FIXTURES = [
 
 
 def _write_malformed(ctx, label):
-    p = ctx.state / "status-fable.json"
+    """Write the malformed status-fable.json named by label into the staged state dir; return its path."""
+    # One branch per fixture label; an unknown label is a harness bug and raises RuntimeError.
+    p =ctx.state / "status-fable.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     if label == "not JSON at all":
         p.write_text("{ this is not json", encoding="utf-8")
@@ -992,6 +1047,7 @@ def _write_malformed(ctx, label):
 
 @register("L1", "L1.3", "a MALFORMED status file renders UNREAD, not idle (6 fixtures)")
 def _l1_3(ctx):
+    """For each malformed fixture, require render_lane to answer UNREAD with a remedy."""
     st = ctx.need("status")
     for label, _ in MALFORMED_FIXTURES:
         _write_malformed(ctx, label)
@@ -1002,6 +1058,7 @@ def _l1_3(ctx):
 @register("L1", "L1.4", "control: the same six documents render idle without the ladder",
           control=True)
 def _l1_4(ctx):
+    """Control: the naive renderer must fail the malformed-file probe on all six fixtures."""
     notes = []
     for label, _ in MALFORMED_FIXTURES:
         _write_malformed(ctx, label)
@@ -1012,6 +1069,7 @@ def _l1_4(ctx):
 
 @register("L1", "L1.5", "every UNREAD verdict carries a remedy sentence (L1b)")
 def _l1_5(ctx):
+    """Across the missing file and every malformed fixture, each UNREAD/STALE verdict must carry a reason."""
     st = ctx.need("status")
     checked, bare = 0, []
     p = ctx.state / "status-fable.json"
@@ -1039,12 +1097,14 @@ def _l1_5(ctx):
 
 @register("L1", "L1.6", "a MISSING room.md reads back MISSING, not 'ok with zero entries'")
 def _l1_6(ctx):
+    """Require roomlog.read_log on an absent file to report a non-ok status (MISSING/UNREAD) with a reason."""
     rl = ctx.need("roomlog")
     p = ctx.probe / "room-absent.md"
     if p.exists():
         p.unlink()
 
     def read(path):
+        """Adapter: call read_log and return its status, entries and reason as a plain dict."""
         r = rl.read_log(path)
         return {"status": getattr(r, "status", None), "entries": getattr(r, "entries", None),
                 "reason": getattr(r, "reason", None)}
@@ -1056,6 +1116,7 @@ def _l1_6(ctx):
 @register("L1", "L1.7", "control: a reader that calls an absent log an empty healthy log",
           control=True)
 def _l1_7(ctx):
+    """Control: the naive reader (absent log = empty ok log) must fail the missing-log probe."""
     p = ctx.probe / "room-absent.md"
     if p.exists():
         p.unlink()
@@ -1066,6 +1127,7 @@ def _l1_7(ctx):
 
 @register("L2", "L2.1", "an OLD heartbeat renders STALE with an age, not healthy")
 def _l2_1(ctx):
+    """Write a status file with a 105-second-old heartbeat and require STALE with an age in the reason."""
     st = ctx.need("status")
     stale_after = 15.0
     old = _utc(datetime.now(timezone.utc) - timedelta(seconds=stale_after + 90))
@@ -1077,6 +1139,7 @@ def _l2_1(ctx):
 
 @register("L2", "L2.2", "the other direction: a FRESH heartbeat renders its real state")
 def _l2_2(ctx):
+    """Write a status file with a fresh heartbeat and require render_lane to show the real state 'watching'."""
     st = ctx.need("status")
     doc = valid_status_doc("Fable", heartbeat=_utc(), stale_after_s=15.0,
                            agent_state="watching")
@@ -1088,6 +1151,7 @@ def _l2_2(ctx):
 @register("L2", "L2.3", "control: a renderer with no clock calls the stale lane healthy",
           control=True)
 def _l2_3(ctx):
+    """Control: the clock-less naive renderer must fail the stale-heartbeat probe."""
     old = _utc(datetime.now(timezone.utc) - timedelta(seconds=105))
     doc = valid_status_doc("Fable", heartbeat=old, stale_after_s=15.0)
     (ctx.state / "status-fable.json").write_text(json.dumps(doc), encoding="utf-8")
@@ -1097,6 +1161,7 @@ def _l2_3(ctx):
 
 @register("L2", "L2.4", "a lane may not exempt itself: stale_after_s=99999 renders UNREAD")
 def _l2_4(ctx):
+    """Write a status file with stale_after_s=99999 and a 10-minute-old heartbeat; require UNREAD with a reason."""
     st = ctx.need("status")
     doc = valid_status_doc("Fable", heartbeat=_utc(datetime.now(timezone.utc)
                                                    - timedelta(seconds=600)),
@@ -1114,7 +1179,9 @@ def _l2_4(ctx):
 # ---- L3 - APPENDS NEVER ERASE ----------------------------------------------------------------
 
 def _roomlog_appender(rl):
+    """Wrap roomlog.append_entry into an append(path, body) -> id function usable by the probes."""
     def app(path: Path, body: str) -> str:
+        """Append body from Rab to Fable via roomlog.append_entry and return the new RM- id."""
         entry = rl.append_entry(frm="Rab", to="Fable", body=body, path=path)
         mid = getattr(entry, "id", None)
         if mid is None and isinstance(entry, (tuple, list)):
@@ -1127,6 +1194,7 @@ def _roomlog_appender(rl):
 
 @register("L3", "L3.1", "last byte is not a newline: the next append leads with one")
 def _l3_1(ctx):
+    """Run the last-byte probe (torn file, then append) against the real roomlog appender."""
     rl = ctx.need("roomlog")
     probe_last_byte(_roomlog_appender(rl), ctx.probe / "room-lastbyte.md")
     return ("the torn line stayed torn, the new header landed at column 0, and the prefix is "
@@ -1136,11 +1204,13 @@ def _l3_1(ctx):
 @register("L3", "L3.2", "control: an appender without the last-byte check glues the record on",
           control=True)
 def _l3_2(ctx):
+    """Control: the appender without the last-byte check must fail the last-byte probe."""
     return expect_fail(probe_last_byte, naive_append, ctx.probe / "room-lastbyte-control.md")
 
 
 @register("L3", "L3.3", "read_log sees the torn remnant as debris AND the new entry as an entry")
 def _l3_3(ctx):
+    """After appending to a torn file, require read_log to list the new entry, report the debris, verify its digest."""
     rl = ctx.need("roomlog")
     p = ctx.probe / "room-torn-read.md"
     p.write_bytes(("# relay-room \u00b7 the chat log\n\n" + TORN_REMNANT).encode("utf-8"))
@@ -1161,6 +1231,7 @@ def _l3_3(ctx):
 
 @register("L3", "L3.4", "the log is never rewritten: the prefix is byte-identical after an append")
 def _l3_4(ctx):
+    """Run the prefix-immutability probe against the real roomlog appender."""
     rl = ctx.need("roomlog")
     probe_prefix_immutable(_roomlog_appender(rl), ctx.probe / "room-prefix.md")
     return "sha256 of the pre-append prefix is unchanged after the append"
@@ -1169,12 +1240,14 @@ def _l3_4(ctx):
 @register("L3", "L3.5", "control: a 'tidy' appender that rewrites the file changes the prefix",
           control=True)
 def _l3_5(ctx):
+    """Control: the rewriting appender must fail the prefix-immutability probe."""
     return expect_fail(probe_prefix_immutable, rewriting_append,
                        ctx.probe / "room-prefix-control.md")
 
 
 @register("L3", "L3.6", "no module opens the log in a truncating mode (source grep)")
 def _l3_6(ctx):
+    """Grep every module's source (except this file) for opens of the log in truncating modes; Unread if none."""
     sources = {n: s for n, s in ctx.sources.items() if n != "selftest.py"}
     if not sources:
         raise Unread(
@@ -1182,8 +1255,10 @@ def _l3_6(ctx):
             f"scanned is zero readings, not a clean bill of health",
             "land roomlog.py / room.py / catcher.py / status.py, then re-run this selftest")
     bad = []
+    # Matches open(..., "w"/"w+"/"r+"/"wb"/"wb+") on one line, or a .truncate( call.
     pat = re.compile(r"""open\s*\([^)\n]*?["'](?:w|w\+|r\+|wb|wb\+)["']|\.truncate\s*\(""")
     for name, src in sources.items():
+        # Flag a line if it looks log-related and has a truncating open (or any line with "ROOM" and a match).
         for i, line in enumerate(src.split("\n"), 1):
             if "room.md" in line or "ROOM_MD" in line or "roomlog" in line.lower():
                 if pat.search(line):
@@ -1198,6 +1273,7 @@ def _l3_6(ctx):
 
 @register("L3", "L3.7", "two lanes appending at once: 50 records, 50 ids, 0 lost")
 def _l3_7(ctx):
+    """Run the two-thread concurrent-append probe against roomlog, then confirm read_log sees 50 clean entries."""
     rl = ctx.need("roomlog")
     t0 = time.time()
     probe_concurrent(_roomlog_appender(rl), ctx.probe / "room-concurrent.md", per_lane=25)
@@ -1219,6 +1295,7 @@ def _l3_7(ctx):
 @register("L3", "L3.8", "control: the same two lanes without a lock lose records",
           control=True)
 def _l3_8(ctx):
+    """Control: the lock-less read-modify-write appender must lose records under the concurrent probe."""
     return expect_fail(probe_concurrent, lost_update_append,
                        ctx.probe / "room-concurrent-control.md", per_lane=25)
 
@@ -1227,6 +1304,7 @@ def _l3_8(ctx):
 
 @register("L4", "L4.1", "a mutating POST with NO token is refused 403 and writes nothing")
 def _l4_1(ctx):
+    """Start the live server and require a token-less POST /api/say to get 403 with a remedy and no write."""
     proc, base, token = ctx.live_server()
     probe_token_refused(base, ctx.state / "room.md")
     return f"POST /api/say with no X-FP-Token -> 403 + remedy, room.md byte-identical ({base})"
@@ -1234,6 +1312,7 @@ def _l4_1(ctx):
 
 @register("L4", "L4.2", "a mutating POST with the WRONG token is refused 403")
 def _l4_2(ctx):
+    """POST /api/say with a wrong X-FP-Token and require 403 with a remedy message."""
     proc, base, token = ctx.live_server()
     payload = json.dumps({"from": "Rab", "to": "Fable", "re": None, "kind": "say",
                           "body": "wrong token"}).encode("utf-8")
@@ -1252,6 +1331,7 @@ def _l4_2(ctx):
 
 @register("L4", "L4.3", "the other direction: WITH the token the gate lets the request through")
 def _l4_3(ctx):
+    """POST /api/say with the correct token and require anything but 403; reports whether room.md grew."""
     proc, base, token = ctx.live_server()
     before = (ctx.state / "room.md").read_bytes() if (ctx.state / "room.md").exists() else b""
     payload = json.dumps({"from": "Rab", "to": "Fable", "re": None, "kind": "say",
@@ -1273,6 +1353,7 @@ def _l4_3(ctx):
 @register("L4", "L4.4", "control: an ungated server accepts the tokenless POST and writes",
           control=True)
 def _l4_4(ctx):
+    """Control: start the ungated server and require the token-refusal probe to fail against it."""
     room = ctx.tmp / "control-room.md"
     room.write_text("# relay-room \u00b7 the chat log\n\n", encoding="utf-8", newline="")
     srv, base = start_ungated_server(room)
@@ -1285,8 +1366,10 @@ def _l4_4(ctx):
 
 @register("L4", "L4.5", "no route carries an Access-Control-Allow-* header")
 def _l4_5(ctx):
+    """GET six routes and POST one on the live server; fail if any response has an Access-Control-Allow-* header."""
     proc, base, token = ctx.live_server()
     offenders = []
+    # GET each route and collect any CORS header found.
     for path in ("/", "/api/health", "/api/log", "/api/status", "/api/flight",
                  "/api/nope-404"):
         try:
@@ -1313,6 +1396,7 @@ def _l4_5(ctx):
 
 @register("L5", "L5.1", "the code refuses to write outside its own directory")
 def _l5_1(ctx):
+    """Require roomlog.assert_inside to refuse two outside paths and admit a path under the staged state dir."""
     rl = ctx.need("roomlog")
     inside = ctx.state / "inside.md"
     outside = ROOT.parent / "ESCAPE-must-never-be-written.md"
@@ -1327,12 +1411,14 @@ def _l5_1(ctx):
 @register("L5", "L5.2", "control: an identity guard admits the escape path",
           control=True)
 def _l5_2(ctx):
+    """Control: an identity guard (admits everything) must fail the assert_inside probe."""
     return expect_fail(probe_assert_inside, lambda p: p, ctx.state / "inside.md",
                        ROOT.parent / "ESCAPE-must-never-be-written.md")
 
 
 @register("L5", "L5.3", "gate.py honours FP_COORD: the real coordination/ is not touched")
 def _l5_3(ctx):
+    """Run gate.py init with FP_COORD set to a temp box; require the file lands there, real coordination/ unchanged."""
     if not GATE_PY.exists():
         raise Unread(f"gate.py is not at {GATE_PY}",
                      "the relay-gate skill must be installed; CONTRACT.md §6.4 pins this one "
@@ -1356,6 +1442,7 @@ def _l5_3(ctx):
 
 @register("L5", "L5.4", "a FOREIGN FP_COORD in the environment is overridden, not inherited")
 def _l5_4(ctx):
+    """After `room.py init` ran with a foreign FP_COORD, require that directory empty and the staged coord/ created."""
     if not (ctx.staged / "room.py").exists():
         raise Unread(f"room.py has not landed under {ROOT}",
                      "write room.py per CONTRACT.md §3/§6.4, then re-run this selftest")
@@ -1384,6 +1471,7 @@ def _l5_4(ctx):
 
 @register("L5", "L5.5", "no module imports pipeline code")
 def _l5_5(ctx):
+    """Scan every module's imports and fail if any is a pipeline package (converter, observability, ...)."""
     sources = {n: s for n, s in ctx.sources.items() if n != "selftest.py"}
     if not sources:
         raise Unread(
@@ -1403,6 +1491,7 @@ def _l5_5(ctx):
 
 @register("L6", "L6.1", "every import in every module is stdlib or a sibling")
 def _l6_1(ctx):
+    """Require every import in every module (except this file) to be stdlib or a sibling module."""
     sources = {n: s for n, s in ctx.sources.items() if n != "selftest.py"}
     if not sources:
         raise Unread(
@@ -1417,12 +1506,14 @@ def _l6_1(ctx):
 @register("L6", "L6.2", "control: a module importing a third-party package is caught",
           control=True)
 def _l6_2(ctx):
+    """Control: a fake module importing `requests` must fail the stdlib-only probe."""
     return expect_fail(probe_stdlib_only,
                        {"control.py": "import json\nimport requests\nfrom roomlog import ROOT\n"})
 
 
 @register("L6", "L6.3", "this selftest is itself stdlib-only")
 def _l6_3(ctx):
+    """Run the stdlib-only probe on this file's own source."""
     src = ctx.sources.get("selftest.py")
     if src is None:
         raise Unread("selftest.py could not read itself", "check file permissions on " + str(ROOT))
@@ -1434,12 +1525,14 @@ def _l6_3(ctx):
 
 @register("L7", "L7.1", "room.html reaches nothing off the machine")
 def _l7_1(ctx):
+    """Run the self-contained-HTML probe (no remote URLs, imports, fonts or stylesheets) on room.html."""
     probe_self_contained_html(ctx.need_source("room.html"))
     return "no absolute URL, no @import, no font host, no external stylesheet"
 
 
 @register("L7", "L7.2", "room.html never assembles HTML from strings")
 def _l7_2(ctx):
+    """Run the no-HTML-injection probe (no innerHTML and similar) on room.html."""
     probe_no_html_injection(ctx.need_source("room.html"))
     return "no innerHTML / outerHTML / document.write / insertAdjacentHTML / new Function"
 
@@ -1447,6 +1540,7 @@ def _l7_2(ctx):
 @register("L7", "L7.3", "control: a page with a CDN script and innerHTML is caught by both",
           control=True)
 def _l7_3(ctx):
+    """Control: a page with a CDN script and innerHTML must fail both HTML probes."""
     bad = ('<script src="https://cdn.example.com/x.js"></script>'
            '<div id="a"></div><script>a.innerHTML = "<b>hi</b>";</script>')
     a = expect_fail(probe_self_contained_html, bad)
@@ -1456,6 +1550,7 @@ def _l7_3(ctx):
 
 @register("L7", "L7.4", "room.html names every state it must be able to render")
 def _l7_4(ctx):
+    """Require room.html to contain every agent, model and stage state name plus UNREAD and STALE."""
     html = ctx.need_source("room.html")
     agent = ("watching", "catching", "handing", "awaiting-model", "mirroring", "error")
     model = ("idle", "working", "composing", "blocked-on-ack", "blocked-on-rab")
@@ -1472,6 +1567,7 @@ def _l7_4(ctx):
 
 @register("L8", "L8.1", "test_room.py exists and names the tripwires that guard the eight laws")
 def _l8_1(ctx):
+    """Require test_room.py to exist and mention the tripwire ids (T3, T6, T8, ...) that guard the laws."""
     p = ROOT / "test_room.py"
     if not p.exists():
         raise Unread(
@@ -1495,6 +1591,7 @@ def _l8_1(ctx):
 
 @register("L5", "L5.6", "FINAL: the real coordination/ is byte-for-byte unchanged")
 def _l5_6(ctx):
+    """Re-snapshot the real coordination/ and require it identical to the snapshot taken at the start."""
     after = snapshot(REAL_COORD)
     drift = diff_snapshot(ctx.coord_before, after)
     assert not drift, (
@@ -1506,6 +1603,7 @@ def _l5_6(ctx):
 
 @register("L5", "L5.7", "FINAL: the live prototype state/ tree is byte-for-byte unchanged")
 def _l5_7(ctx):
+    """Re-snapshot the live prototype state/ tree and require it identical to the snapshot taken at the start."""
     after = snapshot(REAL_STATE)
     drift = diff_snapshot(ctx.state_before, after)
     assert not drift, (
@@ -1519,6 +1617,7 @@ def _l5_7(ctx):
 
 @register("L8", "L8.2", "FINAL: every control in this run actually fired")
 def _l8_2(ctx):
+    """Require that every control check recorded so far in RESULTS has verdict PASS (it fired)."""
     controls = [r for r in RESULTS if r["control"]]
     assert controls, "no controls ran at all - nothing here is proven both ways"
     dead = [f"{r['cid']} ({r['verdict']})" for r in controls if r["verdict"] != PASS]
@@ -1537,6 +1636,11 @@ BAR = "\u2500" * 92
 
 
 def main(argv=None) -> int:
+    """Command-line entry point: parse flags, stage the tree, run every check, print the table, return 0 or 1.
+
+    Flags: --verbose, --keep, --list. Creates and (unless --keep) removes a temp directory; spawns room.py
+    subprocesses through the checks. Exit 1 on any FAIL or UNREAD.
+    """
     try:
         sys.stdout.reconfigure(encoding="utf-8", errors="replace")
         sys.stderr.reconfigure(encoding="utf-8", errors="replace")
@@ -1585,6 +1689,7 @@ def main(argv=None) -> int:
         return 1
 
     counts = {PASS: 0, FAIL: 0, UNREAD: 0}
+    # Run each registered check in order, turning its outcome into PASS / UNREAD / FAIL and printing a line.
     for law, cid, title, fn, is_control in CHECKS:
         t0 = time.time()
         remedy = ""
@@ -1652,6 +1757,7 @@ def main(argv=None) -> int:
 
 
 def _wrap(text: str, width: int):
+    """Word-wrap text to the given width and return at most 8 lines (an empty text gives [""])."""
     text = " ".join(str(text).split())
     if not text:
         return [""]

@@ -1,4 +1,9 @@
-"""The control room's event stream (docs/13 keystone): every pipeline stage appends one
+"""WHAT THIS FILE DOES: the pipeline's telemetry writer. emit(stage, event, **fields) appends one JSON line (UTC
+timestamp, process id, stage, event, plus any extra fields) to the events file whose path comes from
+fp_paths.root("events"). It creates the parent folder if needed, heals a torn last line, swallows every error, and
+returns None. Every pipeline stage calls it; the widget tails the file.
+
+The control room's event stream (docs/13 keystone): every pipeline stage appends one
 JSON line to <gpu_pipeline_dir>\\events.jsonl; the widget tails it. Append-only, one
 writer at a time per process, newline-delimited — reconstructible truth on disk.
 """
@@ -15,8 +20,10 @@ import fp_paths
 EVENTS_FILE = fp_paths.root("events")
 
 
+# -- the one public function --
 def emit(stage: str, event: str, **fields) -> None:
     """Best-effort append; the pipeline must never fail because telemetry did."""
+    # Build the record, then append it as one line; any failure is swallowed at the bottom.
     try:
         record = {
             "ts": datetime.now(timezone.utc).isoformat(timespec="seconds"),

@@ -1,4 +1,10 @@
-"""Status CLI: is the index in step with the vault? One JSON document, no model load, exit 0.
+"""WHAT THIS FILE DOES: the `status` command-line tool of the indexer. It opens the index database
+read-only, asks the vault's bare repo for its current tip, and prints one JSON document comparing
+the two. Entry points: run(root) returns the dict; main() parses --root, prints it, exits 0.
+Reads: the index file and the vault repo. Writes: nothing but stdout. Called by operators and
+by anything polling the index's health.
+
+Status CLI: is the index in step with the vault? One JSON document, no model load, exit 0.
 `in_sync` is true only when the last run reconciled to the vault's CURRENT tip and refused
 nothing; anything else is false or null (docs/18: liveness is proven, never remembered --
 the tip comparison is made now, against the bare repo, not read back from memory)."""
@@ -13,11 +19,16 @@ from indexer.store import Store
 from indexer.vault import Vault
 
 
+# -- building the status document --
 def run(root: Path) -> dict:
+    """Build the status dict for the file-portal root `root`: the vault's tip now, the index's
+    recorded tip, counts and levers. Returns {"available": False, ...} when no index exists.
+    Opens the index read-only; writes nothing."""
     paths = Paths.from_root(root)
     vault = Vault(paths.vault_bare)
     vault_tip = vault.tip() if vault.exists() else None
     store = Store(paths.index)
+    # No index file yet: report that calmly, with the vault tip if there is one.
     if not store.exists():
         return {
             "available": False,
@@ -32,6 +43,7 @@ def run(root: Path) -> dict:
         store.close()
     index_tip = meta.get("tip")
     identity = json.loads(meta["model_identity"]) if "model_identity" in meta else {}
+    # Tips and the model hash are shortened (8 and 16 characters) for display.
     return {
         "available": True,
         "index": str(store.db_path),
@@ -50,7 +62,9 @@ def run(root: Path) -> dict:
     }
 
 
+# -- command-line entry --
 def main() -> None:
+    """CLI entry: parse --root, print run(root) as one JSON line on stdout, exit 0 always."""
     parser = argparse.ArgumentParser(description="File Portal index status (JSON on stdout)")
     parser.add_argument(
         "--root", type=Path, default=DEFAULT_ROOT, help="file-portal root directory"

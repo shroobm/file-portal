@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Hermetic negative controls for A4's source-generated schema registry."""
+"""Hermetic negative controls for A4's source-generated schema registry.
+
+WHAT THIS FILE DOES: a script-style selftest for observability/schema_registry.py (imported as `sr`). It copies the
+writer and consumer source files into a scratch directory, plants one deliberate mutation per case, and checks that
+sr.check_registry() rejects it (a "negative" case) or that the real tree passes (a "positive" case). It reads the
+repo's tracked sources, writes only to temporary directories it removes, and prints one ok/FAIL line per check.
+Exit code is 1 if any check failed, else 0. Run directly; nothing imports it.
+"""
 from __future__ import annotations
 
 import hashlib
@@ -10,11 +17,13 @@ from pathlib import Path
 import schema_registry as sr
 
 
+# -- globals and helpers: repo root, pass/fail counters, and the small utilities every case uses --
 ROOT = Path(__file__).resolve().parents[1]
 passed = failed = 0
 
 
 def check(name: str, condition: bool) -> None:
+    """Print one ok/FAIL line for `name` and bump the module-level passed/failed counters."""
     global passed, failed
     print(("  ok  " if condition else "  FAIL"), name)
     passed += int(condition)
@@ -22,10 +31,14 @@ def check(name: str, condition: bool) -> None:
 
 
 def digest(path: Path) -> str:
+    """SHA-256 hex digest of the file's bytes (reads the file)."""
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def scratch_repo() -> Path:
+    """Make a temp directory holding copies of every writer/consumer source plus a fresh registry; return its path.
+
+    Side effects: creates the directory (the caller removes it) and copies files from the real repo."""
     root = Path(tempfile.mkdtemp(prefix="fp-a4-schema-"))
     for relative in sorted(set(sr.WRITER_SOURCES + sr.CONSUMER_SOURCES)):
         source = ROOT / relative
@@ -39,6 +52,7 @@ def scratch_repo() -> Path:
 
 
 def mutate(root: Path, relative: str, old: str, new: str) -> None:
+    """Replace the one occurrence of `old` with `new` in root/relative; raise AssertionError unless it occurs once."""
     path = root / relative
     text = path.read_text(encoding="utf-8")
     if text.count(old) != 1:
@@ -47,6 +61,7 @@ def mutate(root: Path, relative: str, old: str, new: str) -> None:
 
 
 def rejects(root: Path) -> bool:
+    """True if sr.check_registry(root) raises RegistryError (the mutation was caught), else False."""
     try:
         sr.check_registry(root)
     except sr.RegistryError:
@@ -54,6 +69,7 @@ def rejects(root: Path) -> bool:
     return False
 
 
+# -- snapshot: digests of the real source files, compared at the end to prove the run left them untouched --
 tracked = [ROOT / relative for relative in sorted(set(sr.WRITER_SOURCES + sr.CONSUMER_SOURCES))]
 before = {path: digest(path) for path in tracked}
 
@@ -182,6 +198,7 @@ mutate(case, "windows-converter/figure_coverage.py", 'sym050 = {"detected": Fals
 check("negative: unresolved nested update fails closed", rejects(case))
 shutil.rmtree(case)
 
+# -- final check: the real sources are byte-identical to the snapshot, then the summary and exit code --
 after = {path: digest(path) for path in tracked}
 check("source-only test leaves production writers and consumers byte-identical", before == after)
 

@@ -1,4 +1,8 @@
-"""Seam receipts: mirror copy of `append_receipt` from linux-converter/converter/exporter.py
+"""WHAT THIS FILE DOES: gives the indexer one function, append_receipt(), that appends a JSON line
+(a "receipt" of what a run did) to <root>/receipts.jsonl. It writes only that file, never raises,
+and is called by the reconcile run; the exporter and fixity check append to the same file.
+
+Seam receipts: mirror copy of `append_receipt` from linux-converter/converter/exporter.py
 (the one-file port pattern the Linux lanes already use for sdnotify.py and status.py). Keep
 the two copies identical: the byte shape of a line is asserted by the widget's seam test
 (windows-widget/src-tauri/src/receipts.rs) and the torn-line healing is SYM-037's fix.
@@ -17,11 +21,13 @@ import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
+# -- module constants --
 logger = logging.getLogger("file-portal-indexer")
 
 RECEIPTS_NAME = "receipts.jsonl"
 
 
+# -- writing a receipt --
 def append_receipt(root: Path, outcome: str, **fields) -> None:
     """Append one seam receipt to <root>/receipts.jsonl. Best-effort and never raises:
     telemetry must never cost the operation it reports on. Mirror of the converter's; the
@@ -38,6 +44,7 @@ def append_receipt(root: Path, outcome: str, **fields) -> None:
         # if the file doesn't end in a newline, start with one (the torn line stays torn --
         # readers already skip unparseable lines -- but this record survives). Observed shape,
         # not hypothetical: S76 took two power cuts mid-run.
+        # Look at the file's last byte; a missing or empty file raises OSError and needs no lead.
         lead = ""
         try:
             with open(receipts_path, "rb") as check:

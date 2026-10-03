@@ -1,3 +1,7 @@
+"""WHAT THIS FILE DOES: a one-off API inventory (run directly, no arguments). It prints pymupdf's
+TEXT_COLLECT_STRUCTURE and PDF_STRUCT_PRESENT constants and lists every name in pymupdf.mupdf that
+contains "struct". No files are read or written; stdout only; no callers.
+"""
 import pymupdf, re
 print("TEXT_COLLECT_STRUCTURE =", pymupdf.TEXT_COLLECT_STRUCTURE)
 print("PDF_STRUCT_PRESENT =", pymupdf.PDF_STRUCT_PRESENT)

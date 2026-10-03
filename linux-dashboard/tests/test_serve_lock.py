@@ -1,4 +1,10 @@
-"""dashboard.serve -- the locks under the token gate (Rab, 2026-09-30: "absolute locked inside my
+"""WHAT THIS FILE DOES: pytest tests for the lock layers of dashboard.serve (peer lock, bind check,
+token gate, Funnel lock, Host/Origin/Sec-Fetch-Site/proof-of-origin request locks, the tailnet-name
+read). Each test breaks one rule and expects that guard to answer; most drive the real handler class
+through a fake connection (no network), a few use a real server on 127.0.0.1. Writes only under
+pytest's tmp_path (removed at exit) and stderr captures; never runs the tailscale CLI. Run by pytest.
+
+dashboard.serve -- the locks under the token gate (Rab, 2026-09-30: "absolute locked inside my
 tailscale vpn, and no one can access it"). Each test violates one rule and must see its guard fire,
 after a positive control: the peer lock (loopback and tailnet in, everything else a bare 403 before
 any request line is read), the bind check at startup (a wide bind never starts), and the token
@@ -30,6 +36,7 @@ import pytest
 from dashboard import serve
 from dashboard.config import Paths, Settings
 
+# -- constants shared by the tests: HTTP methods, peer and bind address lists, the proof header --
 METHODS = ("GET", "POST", "HEAD", "OPTIONS", "PUT")
 ALLOWED_PEERS = ("127.0.0.1", "::1", "100.64.0.7", "fd7a:115c:a1e0::1")
 REFUSED_PEERS = ("192.168.2.207", "8.8.8.8", "::ffff:192.168.2.207", "2001:db8::7f00:1")
@@ -45,6 +52,7 @@ _REAL_TAILNET_NAMES = serve.tailnet_names
 _REAL_TAILSCALE_STATUS = serve._tailscale_status
 
 
+# -- fixtures that apply to the whole file --
 @pytest.fixture(autouse=True)
 def _no_tailscale_cli(monkeypatch):
     """No test in this file may run the tailscale CLI. main() reads the Host pin's names once; that
@@ -53,10 +61,12 @@ def _no_tailscale_cli(monkeypatch):
     calls = []
 
     def fake_names():
+        """Stand-in for serve.tailnet_names: count the call and return the fixed NAMES."""
         calls.append(1)
         return NAMES
 
     def never(timeout):
+        """Stand-in for serve._tailscale_status: fails the test, since no test may reach the CLI."""
         pytest.fail("a test reached the tailscale CLI wrapper")
 
     monkeypatch.setattr(serve, "tailnet_names", fake_names)
@@ -72,6 +82,7 @@ def _drop_the_pytest_temp_base(tmp_path_factory):
     atexit.register(shutil.rmtree, str(tmp_path_factory.getbasetemp()), True)
 
 
+# -- the peer lock and the bind check: (address, expected) table and the tests over it --
 PEERS = [
     ("127.0.0.1", True),
     ("::1", True),
@@ -97,29 +108,35 @@ PEERS = [
 
 @pytest.mark.parametrize(("addr", "expected"), PEERS)
 def test_peer_ok_table(addr, expected):
+    """peer_ok gives the expected yes/no for every address in PEERS."""
     assert serve.peer_ok(addr) is expected
 
 
 @pytest.mark.parametrize("addr", ["100.64.0.1", "127.0.0.1", "::1"])
 def test_bind_ok_accepts_a_literal_loopback_or_tailnet_ip(addr):
+    """bind_ok admits a literal loopback or tailnet IP."""
     assert serve.bind_ok(addr) is True
 
 
 @pytest.mark.parametrize("addr", [*WIDE_BINDS, "::ffff:0.0.0.0"])
 def test_bind_ok_refuses_wildcards_lan_public_and_names(addr):
+    """bind_ok refuses wildcards, LAN and public addresses and host names."""
     assert serve.bind_ok(addr) is False
 
 
 def test_the_shipped_bind_passes_its_own_check():
+    """The BIND constant shipped in serve.py is 127.0.0.1 and passes bind_ok."""
     assert serve.bind_ok(serve.BIND) and serve.BIND == "127.0.0.1"
 
 
+# -- test doubles and helpers: a fake connection, request builders, the handler driver --
 class _Recorded(io.BytesIO):
     """A request stream that notes, as the server closes it, what was left unread."""
 
     unread = None
 
     def close(self):
+        """Record the unread rest of the stream in `.unread`, then close it."""
         if not self.closed:
             self.unread = self.read()
         super().close()
@@ -129,17 +146,21 @@ class _FakeConn:
     """The accepted socket, stood in for: a canned request to read, every byte written captured."""
 
     def __init__(self, request):
+        """Keep the canned request bytes as a readable stream; start with nothing sent."""
         self.sent = bytearray()
         self.stream = _Recorded(request)
 
     def makefile(self, mode, bufsize=-1):
+        """Return the request stream for reading (and as the write file, whose bytes are not kept)."""
         return self.stream
 
     def sendall(self, data):
+        """Capture the bytes the server writes."""
         self.sent += bytes(data)
 
 
 def _req(method, path="/health"):
+    """A minimal raw request (request line, Host: x, blank line) as bytes."""
     return f"{method} {path} HTTP/1.1\r\nHost: x\r\n\r\n".encode()
 
 
@@ -158,6 +179,7 @@ def _request(method, path, host=LABEL, headers=(), body=b""):
 
 
 def _state(root, **kw):
+    """A serve._State over `root` with default Settings; keyword options pass through."""
     return serve._State(root, Settings(), **kw)
 
 
@@ -175,9 +197,11 @@ def _drive(cls, client_address, raw):
     return bytes(conn.sent)
 
 
+# -- peer lock tests: refused peers get the bare 403, allowed peers reach their method --
 @pytest.mark.parametrize("peer", REFUSED_PEERS)
 @pytest.mark.parametrize("raw", REQUESTS)
 def test_a_refused_peer_gets_the_bare_403_and_no_method_runs(tmp_path, peer, raw):
+    """A peer outside loopback/tailnet gets exactly _FORBIDDEN and no do_* method runs."""
     ran = []
     cls = _recording(serve._handler(_state(tmp_path, no_token=True)), ran)
     assert _drive(cls, (peer, 5555), raw) == serve._FORBIDDEN
@@ -187,6 +211,7 @@ def test_a_refused_peer_gets_the_bare_403_and_no_method_runs(tmp_path, peer, raw
 @pytest.mark.parametrize("peer", ALLOWED_PEERS)
 @pytest.mark.parametrize("method", METHODS)
 def test_an_allowed_peer_reaches_every_method(tmp_path, peer, method):
+    """An allowed peer reaches the do_<method> and the guard itself writes no bytes (positive control)."""
     ran = []
     cls = _recording(serve._handler(_state(tmp_path, no_token=True)), ran)
     sent = _drive(cls, (peer, 5555), _req(method))
@@ -195,11 +220,13 @@ def test_an_allowed_peer_reaches_every_method(tmp_path, peer, method):
 
 
 def test_the_403_is_exactly_the_bare_refusal():
+    """_FORBIDDEN is the exact bytes of a bodiless 403 that closes the connection."""
     expected = b"HTTP/1.0 403 Forbidden\r\nContent-Length: 0\r\nConnection: close\r\n\r\n"
     assert serve._FORBIDDEN == expected
 
 
 def test_a_tailnet_peer_gets_a_normal_answer_from_the_real_handler(tmp_path):
+    """A tailnet peer asking /health gets the real 200 JSON answer."""
     cls = serve._handler(_state(tmp_path, no_token=True))
     sent = _drive(cls, ("100.64.0.7", 5555), _req("GET"))
     head, _, body = sent.partition(b"\r\n\r\n")
@@ -208,6 +235,7 @@ def test_a_tailnet_peer_gets_a_normal_answer_from_the_real_handler(tmp_path):
 
 
 def test_a_malformed_line_from_an_allowed_peer_is_the_servers_own_400(tmp_path):
+    """A malformed request line from an allowed peer gets the stdlib's own error, not the bare 403."""
     ran = []
     cls = _recording(serve._handler(_state(tmp_path, no_token=True)), ran)
     sent = _drive(cls, ("127.0.0.1", 5555), b"x\r\n")
@@ -215,6 +243,7 @@ def test_a_malformed_line_from_an_allowed_peer_is_the_servers_own_400(tmp_path):
 
 
 def test_a_forwarded_header_cannot_buy_a_refused_peer_entry(tmp_path):
+    """X-Forwarded-For / Forwarded headers naming loopback do not let a refused peer in."""
     raw = b"\r\n".join(
         [
             b"GET /health HTTP/1.1",
@@ -230,17 +259,22 @@ def test_a_forwarded_header_cannot_buy_a_refused_peer_entry(tmp_path):
 
 
 class _Hostile:
+    """An object whose str() raises: stands in for an address that cannot even be printed."""
+
     def __str__(self):
+        """Always raise RuntimeError."""
         raise RuntimeError("an address that cannot even be printed")
 
 
 @pytest.mark.parametrize("client_address", [("", 1), "", (), (_Hostile(), 1)])
 def test_an_unreadable_peer_address_fails_closed(tmp_path, client_address):
+    """An empty, malformed or unprintable client address is refused with the bare 403."""
     cls = serve._handler(_state(tmp_path, no_token=True))
     assert _drive(cls, client_address, _req("GET")) == serve._FORBIDDEN
 
 
 def test_refusals_are_noted_first_five_then_every_thousandth(monkeypatch, capsys):
+    """_count_refusal writes to stderr for the first five refusals, then every 1000th."""
     monkeypatch.setattr(serve, "_REFUSALS", 0)
     for _ in range(1000):
         serve._count_refusal("192.168.2.207")
@@ -250,6 +284,7 @@ def test_refusals_are_noted_first_five_then_every_thousandth(monkeypatch, capsys
 
 
 def test_the_refusal_note_never_raises(monkeypatch):
+    """_count_refusal swallows any error, even from an address that cannot be printed."""
     monkeypatch.setattr(serve, "_REFUSALS", 0)
     serve._count_refusal(_Hostile())
 
@@ -267,6 +302,8 @@ def _running(state):
 
 
 def _get(port, path, token=None):
+    """GET http://127.0.0.1:<port><path> with the X-FP-Local proof (and X-FP-Token if given);
+    return (status, decoded JSON body), including for HTTP error statuses."""
     # a File Portal tool's own proof of origin (Handler._proven), so what is under test here is
     # the gate, not the proof; the refusals of a GET without it are in the last section below
     req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers={"X-FP-Local": "1"})
@@ -279,7 +316,9 @@ def _get(port, path, token=None):
         return e.code, json.load(e)
 
 
+# -- token gate tests: fail-closed defaults over real sockets --
 def test_a_refused_peer_over_a_real_socket_and_the_server_survives(tmp_path, monkeypatch):
+    """Over a real socket a refused peer gets the bare 403 and the server keeps answering."""
     with _running(_state(tmp_path, no_token=True)) as port:
         assert _get(port, "/health")[0] == 200, "positive control: loopback is let in"
         with monkeypatch.context() as m:
@@ -293,6 +332,7 @@ def test_a_refused_peer_over_a_real_socket_and_the_server_survives(tmp_path, mon
 
 
 def test_no_token_and_no_flag_answers_503_on_every_route_but_health(tmp_path):
+    """With no token file and no --no-token, every route but /health is a 503."""
     with _running(_state(tmp_path)) as port:
         assert _get(port, "/health") == (200, {"ok": True, "gated": False})
         for path in ("/sorted", "/thumb?path=photos/a.jpg", "/nope", "/"):
@@ -301,18 +341,21 @@ def test_no_token_and_no_flag_answers_503_on_every_route_but_health(tmp_path):
 
 
 def test_a_blank_token_file_is_no_token(tmp_path):
+    """A serve.token holding only whitespace counts as no token (503)."""
     (tmp_path / serve.TOKEN_FILE).write_text("  \n", encoding="utf-8")
     with _running(_state(tmp_path)) as port:
         assert _get(port, "/sorted")[0] == 503
 
 
 def test_the_no_token_flag_is_the_only_way_to_identity_only(tmp_path):
+    """With no_token=True the gate admits and the route's own answers (404, 400) show through."""
     with _running(_state(tmp_path, no_token=True)) as port:
         assert _get(port, "/nope")[0] == 404, "past the gate, on to the route's own answer"
         assert _get(port, "/sorted?category=nope")[0] == 400
 
 
 def test_a_token_still_gates_when_the_no_token_flag_is_also_given(tmp_path):
+    """A token file wins over --no-token: no or wrong token is 403, the right token passes."""
     (tmp_path / serve.TOKEN_FILE).write_text("s3cret\n", encoding="utf-8")
     with _running(_state(tmp_path, no_token=True)) as port:
         assert _get(port, "/nope")[0] == 403
@@ -321,6 +364,7 @@ def test_a_token_still_gates_when_the_no_token_flag_is_also_given(tmp_path):
 
 
 def test_a_state_with_no_gate_attributes_is_closed(tmp_path):
+    """A state object missing its token attributes still fails closed with a 503."""
     state = serve._State.__new__(serve._State)
     state.paths = Paths.from_root(tmp_path)
     state.settings = Settings()
@@ -329,13 +373,16 @@ def test_a_state_with_no_gate_attributes_is_closed(tmp_path):
 
 
 def test_read_token_treats_only_a_missing_file_as_no_token(tmp_path):
+    """read_token returns "" for an absent file but raises OSError for any other read failure."""
     assert serve.read_token(tmp_path) == "", "positive control: absent is no token"
     (tmp_path / serve.TOKEN_FILE).mkdir()
     with pytest.raises(OSError):  # the old code swallowed this and admitted everyone
         serve.read_token(tmp_path)
 
 
+# -- startup tests: main() with a faked command line and a faked server --
 def _argv(monkeypatch, root, *extra):
+    """Set sys.argv to run dashboard.serve with --root/--config under `root` plus `extra` flags."""
     argv = [
         "dashboard.serve",
         "--root",
@@ -348,7 +395,10 @@ def _argv(monkeypatch, root, *extra):
 
 
 def _refuse_everything(monkeypatch):
+    """Make creating a server or a state fail the test: proves startup aborted before either."""
+
     def boom(*args, **kwargs):
+        """Fail the test: a socket or state must not be created."""
         raise AssertionError("a socket or state was created before the refusal")
 
     monkeypatch.setattr(serve, "ThreadingHTTPServer", boom)
@@ -356,13 +406,19 @@ def _refuse_everything(monkeypatch):
 
 
 def _capture_server(monkeypatch):
+    """Replace ThreadingHTTPServer with a fake that records (address, handler class) in the returned
+    list and ends main() at once via KeyboardInterrupt."""
     made = []
 
     class FakeServer:
+        """Records how main() built the server; opens no socket."""
+
         def __init__(self, addr, handler):
+            """Record the bind address and handler class."""
             made.append((addr, handler))
 
         def serve_forever(self):
+            """Raise KeyboardInterrupt so main() returns."""
             raise KeyboardInterrupt
 
     monkeypatch.setattr(serve, "ThreadingHTTPServer", FakeServer)
@@ -371,6 +427,7 @@ def _capture_server(monkeypatch):
 
 @pytest.mark.parametrize("bind", WIDE_BINDS)
 def test_a_wide_bind_never_starts(tmp_path, monkeypatch, bind):
+    """main() exits with "refusing to start" for every wide BIND, before creating any file or socket."""
     _argv(monkeypatch, tmp_path)
     _refuse_everything(monkeypatch)
     monkeypatch.setattr(serve, "BIND", bind)
@@ -383,6 +440,7 @@ def test_a_wide_bind_never_starts(tmp_path, monkeypatch, bind):
 
 @pytest.mark.parametrize("extra", [(), ("--no-token",)])
 def test_a_token_file_that_cannot_be_read_aborts_startup(tmp_path, monkeypatch, extra):
+    """A serve.token that is a directory aborts startup, with or without --no-token."""
     (tmp_path / serve.TOKEN_FILE).mkdir()
     _argv(monkeypatch, tmp_path, *extra)
     _refuse_everything(monkeypatch)
@@ -394,6 +452,7 @@ def test_a_token_file_that_cannot_be_read_aborts_startup(tmp_path, monkeypatch, 
 
 
 def test_a_token_file_that_is_not_text_aborts_startup(tmp_path, monkeypatch):
+    """A serve.token of undecodable bytes raises in read_token and aborts main()."""
     (tmp_path / serve.TOKEN_FILE).write_bytes(b"\xff\xfe\x00\x80")
     with pytest.raises(UnicodeDecodeError):
         serve.read_token(tmp_path)
@@ -405,6 +464,7 @@ def test_a_token_file_that_is_not_text_aborts_startup(tmp_path, monkeypatch):
 
 
 def test_main_starts_closed_by_default_and_says_so(tmp_path, monkeypatch, capsys):
+    """main() with no token and no flag prints CLOSED and builds a handler that answers 503."""
     made = _capture_server(monkeypatch)
     _argv(monkeypatch, tmp_path)
     serve.main()
@@ -416,6 +476,7 @@ def test_main_starts_closed_by_default_and_says_so(tmp_path, monkeypatch, capsys
 
 
 def test_main_with_the_no_token_flag_says_so_and_admits(tmp_path, monkeypatch, capsys):
+    """main() --no-token mentions the flag on stderr and builds a handler that admits (404 on /nope)."""
     made = _capture_server(monkeypatch)
     _argv(monkeypatch, tmp_path, "--no-token")
     serve.main()
@@ -425,6 +486,7 @@ def test_main_with_the_no_token_flag_says_so_and_admits(tmp_path, monkeypatch, c
 
 
 def test_main_with_a_token_file_is_gated(tmp_path, monkeypatch, capsys):
+    """main() with a token file says "token gated" and builds a handler that asks for X-FP-Token."""
     (tmp_path / serve.TOKEN_FILE).write_text("s3cret\n", encoding="utf-8")
     made = _capture_server(monkeypatch)
     _argv(monkeypatch, tmp_path)
@@ -450,6 +512,7 @@ FUNNEL_VALUES = [
 
 
 def _raw(method, path, headers=(), body=b""):
+    """A raw request with Host: x plus the given header lines and optional body, as bytes."""
     lines = [f"{method} {path} HTTP/1.1", "Host: x", *headers]
     if body:
         lines.append(f"Content-Length: {len(body)}")
@@ -459,6 +522,7 @@ def _raw(method, path, headers=(), body=b""):
 @pytest.mark.parametrize("value", FUNNEL_VALUES)
 @pytest.mark.parametrize("method", METHODS)
 def test_a_funnel_request_gets_the_bare_403_and_no_method_runs(tmp_path, method, value):
+    """A request with the Funnel header, any value, gets the bare 403 and no do_* method runs."""
     ran = []
     cls = _recording(serve._handler(_state(tmp_path, no_token=True)), ran)
     raw = _raw(method, "/health", [f"{FUNNEL}: {value}"])
@@ -468,6 +532,7 @@ def test_a_funnel_request_gets_the_bare_403_and_no_method_runs(tmp_path, method,
 
 @pytest.mark.parametrize("name", [FUNNEL.lower(), FUNNEL.upper(), "Tailscale-funnel-REQUEST"])
 def test_the_funnel_header_is_matched_whatever_its_case(tmp_path, name):
+    """The Funnel header name is matched case-insensitively."""
     cls = serve._handler(_state(tmp_path, no_token=True))
     raw = _raw("GET", "/health", [f"{name}: ?1"])
     assert _drive(cls, ("100.64.0.7", 5555), raw) == serve._FORBIDDEN
@@ -476,12 +541,14 @@ def test_the_funnel_header_is_matched_whatever_its_case(tmp_path, name):
 @pytest.mark.parametrize("gate", [{"no_token": True}, {}, {"token": "s3cret"}])
 @pytest.mark.parametrize("path", ["/health", "/sorted", "/thumb?path=photos/a.jpg", "/nope"])
 def test_a_funnel_request_is_refused_before_the_route_and_the_token_gate(tmp_path, gate, path):
+    """A Funnel request is refused bare under every gate setting and path, even with the right token."""
     cls = serve._handler(_state(tmp_path, **gate))
     raw = _raw("GET", path, [f"{FUNNEL}: ?1", "X-FP-Token: s3cret"])
     assert _drive(cls, ("127.0.0.1", 5555), raw) == serve._FORBIDDEN, "even with the right token"
 
 
 def test_the_same_requests_without_the_funnel_header_are_answered_normally(tmp_path):
+    """Without the exact Funnel header (a look-alike name included) requests get normal answers."""
     cls = serve._handler(_state(tmp_path, token="s3cret"))
     serve_identity = ["Tailscale-User-Login: rab@example.com", "X-FP-Token: s3cret"]
     for headers, path, status in (
@@ -495,6 +562,7 @@ def test_the_same_requests_without_the_funnel_header_are_answered_normally(tmp_p
 
 
 def test_a_funnel_request_body_is_never_read(tmp_path):
+    """The body of a refused Funnel POST is left unread."""
     body = b'{"q": "x"}'
     conn = _FakeConn(_raw("POST", "/sorted", [f"{FUNNEL}: ?1"], body))
     serve._handler(_state(tmp_path, no_token=True))(conn, ("127.0.0.1", 5555), None)
@@ -503,6 +571,7 @@ def test_a_funnel_request_body_is_never_read(tmp_path):
 
 
 def test_a_funnel_refusal_is_noted_on_stderr(tmp_path, monkeypatch, capsys):
+    """A Funnel refusal writes one stderr line mentioning Funnel and numbered #1."""
     monkeypatch.setattr(serve, "_REFUSALS", 0)
     cls = serve._handler(_state(tmp_path, no_token=True))
     _drive(cls, ("127.0.0.1", 5555), _raw("GET", "/health", [f"{FUNNEL}: ?1"]))
@@ -511,6 +580,7 @@ def test_a_funnel_refusal_is_noted_on_stderr(tmp_path, monkeypatch, capsys):
 
 
 def test_a_funnel_request_over_a_real_socket_and_the_server_survives(tmp_path):
+    """Over a real socket a Funnel request gets the bare 403 and the server still answers /health."""
     with _running(_state(tmp_path, token="s3cret")) as port:
         with socket.create_connection(("127.0.0.1", port), timeout=10) as s:
             s.sendall(_raw("GET", "/health", [f"{FUNNEL}: ?1"]))
@@ -542,10 +612,12 @@ def ran(monkeypatch):
     calls = []
 
     def sorted_doc(*args):
+        """Stand-in for serve.sorted_document: record "sorted" and return an empty listing."""
         calls.append("sorted")
         return {"categories": {}}
 
     def thumb(*args):
+        """Stand-in for serve.thumbnail: record "thumb" and return a 404 result."""
         calls.append("thumb")
         return None, 404, "no such photo"
 
@@ -618,17 +690,20 @@ OTHER_HOSTS = [
 
 @pytest.mark.parametrize("host", OUR_HOSTS)
 def test_the_host_pin_admits_loopback_localhost_and_this_machines_names(tmp_path, ran, host):
+    """Host values in OUR_HOSTS pass the Host pin and reach /sorted."""
     code, _, _ = _ask(_pinned(tmp_path, no_token=True), host=host, headers=[LOCAL])
     assert code == 200 and ran == ["sorted"]
 
 
 @pytest.mark.parametrize("host", OTHER_HOSTS)
 def test_the_host_pin_refuses_every_other_name(tmp_path, ran, host):
+    """Host values in OTHER_HOSTS get a 403 with reason "host" and the route never runs."""
     code, doc, _ = _ask(_pinned(tmp_path, no_token=True), host=host, headers=[LOCAL])
     assert code == 403 and doc["reason"] == "host" and ran == []
 
 
 def test_a_request_with_no_host_or_two_hosts_is_refused(tmp_path, ran):
+    """A request with no Host header, or two Host headers, is refused with reason "host"."""
     cls = _pinned(tmp_path, no_token=True)
     for kw in (
         {"host": None, "headers": [LOCAL]},
@@ -677,6 +752,7 @@ def _cls_for(tmp_path, pin):
 @pytest.mark.parametrize("pin", ["pinned", "loose"])
 @pytest.mark.parametrize("host", MAPPED_LOOPBACK_HOSTS)
 def test_the_host_check_admits_ipv4_mapped_loopback_forms(tmp_path, ran, ipaddress_of, pin, host):
+    """IPv4-mapped loopback Hosts pass under both pins and both Python behaviours."""
     assert _ask(_cls_for(tmp_path, pin), host=host, headers=[LOCAL])[0] == 200
     assert ran == ["sorted"]
 
@@ -686,23 +762,27 @@ def test_the_host_check_admits_ipv4_mapped_loopback_forms(tmp_path, ran, ipaddre
 def test_the_host_check_refuses_ipv4_mapped_forms_of_anything_else(
     tmp_path, ran, ipaddress_of, pin, host
 ):
+    """IPv4-mapped forms of non-loopback addresses are refused as "host" (after a positive control)."""
     assert _ask(_cls_for(tmp_path, pin), host="[::ffff:127.0.0.1]", headers=[LOCAL])[0] == 200
     code, doc, _ = _ask(_cls_for(tmp_path, pin), host=host, headers=[LOCAL])
     assert code == 403 and doc["reason"] == "host" and ran == ["sorted"]
 
 
+# -- the loose pin (names None: the tailscale read failed at start) --
 LOOSE_OK = ["x", "archlinux", TAILNET, "anything.ts.net", "a.b.ts.net", "localhost", "[::1]:8766"]
 LOOSE_NO = [FOREIGN, "a.b.example", "ts.net", ".ts.net", "x.ts.net.example", "100.64.0.7", ""]
 
 
 @pytest.mark.parametrize("host", LOOSE_OK)
 def test_the_loose_pin_admits_single_label_and_ts_net_names(tmp_path, ran, host):
+    """With names None (the loose pin) single-label and *.ts.net Hosts are admitted."""
     cls = serve._handler(_state(tmp_path, no_token=True))  # names None: the tailscale read failed
     assert _ask(cls, host=host, headers=[LOCAL])[0] == 200
 
 
 @pytest.mark.parametrize("host", LOOSE_NO)
 def test_the_loose_pin_still_refuses_everything_else(tmp_path, ran, host):
+    """The loose pin still refuses foreign names, IP literals and malformed Hosts."""
     cls = serve._handler(_state(tmp_path, no_token=True))
     code, doc, _ = _ask(cls, host=host, headers=[LOCAL])
     assert code == 403 and doc["reason"] == "host" and ran == []
@@ -724,6 +804,7 @@ def test_the_loose_pin_still_refuses_everything_else(tmp_path, ran, host):
     ],
 )
 def test_host_of_reads_host_and_port_and_nothing_else(raw, host):
+    """_host_of extracts a lower-case host from host[:port] and returns "" for anything else."""
     assert serve._host_of(raw) == host
 
 
@@ -767,12 +848,14 @@ FOREIGN_ORIGINS = [
 
 @pytest.mark.parametrize("origin", OUR_ORIGINS)
 def test_a_present_origin_that_is_ours_is_admitted(tmp_path, ran, origin):
+    """An Origin naming a pinned tailnet name passes and the route runs."""
     code, _, _ = _ask(_pinned(tmp_path, no_token=True), headers=[LOCAL, f"Origin: {origin}"])
     assert code == 200 and ran == ["sorted"]
 
 
 @pytest.mark.parametrize("origin", FOREIGN_ORIGINS)
 def test_a_foreign_or_null_origin_is_refused_even_with_the_proof_header(tmp_path, ran, origin):
+    """A foreign, "null" or malformed Origin is refused with reason "origin" despite X-FP-Local."""
     # a cross-origin fetch() GET carries its page's Origin; a page cannot add X-FP-Local without a
     # preflight that never succeeds, but the Origin is refused on its own either way
     cls = _pinned(tmp_path, no_token=True)
@@ -784,6 +867,7 @@ def test_a_foreign_or_null_origin_is_refused_even_with_the_proof_header(tmp_path
 def test_a_loopback_or_mapped_origin_is_not_ours_though_its_host_passes(
     tmp_path, ran, ipaddress_of, origin
 ):
+    """A loopback or IPv4-mapped Origin is refused as "origin" even though the same Host passes."""
     # a page served from loopback is some other app on this machine, and its simple requests carry
     # an Origin naming loopback; the Host check admits loopback (tailscale serve may rewrite Host
     # to 127.0.0.1:<port>), the Origin check must not
@@ -795,6 +879,7 @@ def test_a_loopback_or_mapped_origin_is_not_ours_though_its_host_passes(
 
 
 def test_two_origin_headers_are_refused(tmp_path, ran):
+    """Two Origin headers on one request are refused as "origin"."""
     cls = _pinned(tmp_path, no_token=True)
     headers = [LOCAL, f"Origin: http://{TAILNET}", f"Origin: http://{TAILNET}"]
     code, doc, _ = _ask(cls, headers=headers)
@@ -803,6 +888,7 @@ def test_two_origin_headers_are_refused(tmp_path, ran):
 
 @pytest.mark.parametrize("value", ["same-origin", "none", "SAME-ORIGIN", " none "])
 def test_sec_fetch_site_own_values_pass_and_are_a_proof_on_their_own(tmp_path, ran, value):
+    """Sec-Fetch-Site same-origin or none passes and counts as proof without any other header."""
     # Sent only to https URLs and loopback; over plain http a browser sends none of these headers
     code, _, _ = _ask(_pinned(tmp_path, no_token=True), headers=[f"Sec-Fetch-Site: {value}"])
     assert code == 200 and ran == ["sorted"]
@@ -810,12 +896,14 @@ def test_sec_fetch_site_own_values_pass_and_are_a_proof_on_their_own(tmp_path, r
 
 @pytest.mark.parametrize("value", ["cross-site", "CROSS-SITE", "same-site", "", "nonsense"])
 def test_sec_fetch_site_anything_else_is_refused_even_with_the_proof_header(tmp_path, ran, value):
+    """Any other Sec-Fetch-Site value is refused as "fetch-site" despite X-FP-Local."""
     cls = _pinned(tmp_path, no_token=True)
     code, doc, _ = _ask(cls, headers=[LOCAL, f"Sec-Fetch-Site: {value}"])
     assert code == 403 and doc["reason"] == "fetch-site" and ran == []
 
 
 def test_a_cross_site_link_click_is_refused_too(tmp_path, ran):
+    """A cross-site navigation (link click) with Sec-Fetch-* headers is refused as "fetch-site"."""
     cls = _pinned(tmp_path, no_token=True)
     nav = ["Sec-Fetch-Site: cross-site", "Sec-Fetch-Mode: navigate", "Sec-Fetch-Dest: document"]
     code, doc, _ = _ask(cls, headers=nav)
@@ -823,6 +911,7 @@ def test_a_cross_site_link_click_is_refused_too(tmp_path, ran):
 
 
 def test_the_proof_rule_refuses_a_cross_site_fetch_site_on_its_own(tmp_path, ran):
+    """With the parse-time lock disabled, the GET proof rule alone refuses a cross-site request."""
     # defence in depth: with the parse-time lock switched off, the GET rule alone still refuses a
     # cross-site Sec-Fetch-Site, even beside the custom header (the browser's word outranks it)
     cls = _pinned(tmp_path, no_token=True)
@@ -831,11 +920,13 @@ def test_the_proof_rule_refuses_a_cross_site_fetch_site_on_its_own(tmp_path, ran
     assert code == 403 and doc["reason"] == "unproven-origin" and ran == []
 
 
+# -- proof-of-origin tests: what a GET must carry (Referer, custom header, token) --
 GETS = ["/sorted", "/sorted?category=photos", "/thumb?path=photos/a.jpg", "/nope", "/"]
 
 
 @pytest.mark.parametrize("path", GETS)
 def test_a_plain_http_get_with_no_origin_and_no_referer_is_refused(tmp_path, ran, path):
+    """A browser-like GET with no Origin, Referer or proof header is refused as "unproven-origin"."""
     # what a foreign page's <img>, link, iframe, navigation or form GET sends: a Host and nothing
     # that says where it came from. The route never runs, an unknown route included.
     code, doc, _ = _ask(_pinned(tmp_path, no_token=True), path=path, headers=BROWSER)
@@ -879,6 +970,7 @@ LOOPBACK_REFERERS = [
 @pytest.mark.parametrize("referer", FOREIGN_REFERERS)
 @pytest.mark.parametrize("path", ["/sorted", "/thumb?path=photos/a.jpg"])
 def test_a_plain_http_get_with_a_foreign_referer_is_refused(tmp_path, ran, path, referer):
+    """A GET whose Referer is foreign or malformed is refused as "unproven-origin"."""
     # a foreign page can suppress its Referer, never forge one that names our host
     cls = _pinned(tmp_path, no_token=True)
     code, doc, _ = _ask(cls, path=path, headers=[*BROWSER, f"Referer: {referer}"])
@@ -887,12 +979,14 @@ def test_a_plain_http_get_with_a_foreign_referer_is_refused(tmp_path, ran, path,
 
 @pytest.mark.parametrize("referer", OUR_REFERERS)
 def test_a_get_with_a_referer_that_names_our_host_is_a_proof(tmp_path, ran, referer):
+    """A Referer naming a pinned tailnet name is accepted as proof."""
     cls = _pinned(tmp_path, no_token=True)
     assert _ask(cls, headers=[*BROWSER, f"Referer: {referer}"])[0] == 200 and ran == ["sorted"]
 
 
 @pytest.mark.parametrize("referer", LOOPBACK_REFERERS)
 def test_a_loopback_or_mapped_referer_is_no_proof(tmp_path, ran, ipaddress_of, referer):
+    """A loopback or IPv4-mapped Referer proves nothing, but X-FP-Local alongside it does."""
     # the same rule as the Origin: a page served from loopback is some other app on this machine
     cls = _pinned(tmp_path, no_token=True)
     positive = [*BROWSER, f"Referer: http://{TAILNET}:8080/x"]
@@ -904,11 +998,13 @@ def test_a_loopback_or_mapped_referer_is_no_proof(tmp_path, ran, ipaddress_of, r
 
 @pytest.mark.parametrize("header", ["X-FP-Local: 1", "X-FP-Local:", "X-FP-Local: any value"])
 def test_a_get_with_the_custom_header_is_a_proof_whatever_its_value(tmp_path, ran, header):
+    """X-FP-Local is proof whatever its value, even empty."""
     cls = _pinned(tmp_path, no_token=True)
     assert _ask(cls, headers=[*BROWSER, header])[0] == 200 and ran == ["sorted"]
 
 
 def test_the_token_header_is_a_proof_too_and_the_gate_still_comes_first(tmp_path, ran):
+    """X-FP-Token also proves a GET, and the token gate answers before the proof rule does."""
     # X-FP-Token is as un-forgeable by a cross-site browser request as X-FP-Local (both force a
     # preflight), and every gated client already sends it; with a token set the gate judges it
     cls = _pinned(tmp_path, token="s3cret")
@@ -921,6 +1017,7 @@ def test_the_token_header_is_a_proof_too_and_the_gate_still_comes_first(tmp_path
 
 
 def test_health_needs_no_proof_but_still_answers_to_no_foreign_host_or_origin(tmp_path):
+    """/health needs no proof header, but a foreign Host or Origin is still refused there."""
     cls = _pinned(tmp_path, token="s3cret")
     assert _ask(cls, path="/health", headers=BROWSER)[:2] == (200, {"ok": True, "gated": True})
     referer = f"Referer: http://{FOREIGN}/"
@@ -930,6 +1027,7 @@ def test_health_needs_no_proof_but_still_answers_to_no_foreign_host_or_origin(tm
     assert _ask(cls, path="/health", headers=[origin])[1]["reason"] == "origin"
 
 
+# -- POST, CORS and parse-order tests --
 SIMPLE_POSTS = [
     ("text/plain", b'{"q": "x"}'),
     ("application/x-www-form-urlencoded", b"q=x&mode=keyword"),
@@ -953,6 +1051,7 @@ SIMPLE_POSTS = [
     ],
 )
 def test_a_simple_cross_site_post_is_refused_with_its_body_unread(tmp_path, ctype, body, origin):
+    """A "simple" cross-site POST (foreign, null or loopback Origin) is refused and its body unread."""
     # a browser always sends Origin on a POST; "null" is a sandboxed frame, a data: URL, or a page
     # under Referrer-Policy: no-referrer; a page served from loopback is some other app on this
     # machine. This server has no POST route, but the lock does not depend on that: no do_POST
@@ -971,6 +1070,7 @@ def test_a_simple_cross_site_post_is_refused_with_its_body_unread(tmp_path, ctyp
     "headers", [[], [f"Origin: http://{TAILNET}:8080"], [f"Origin: http://{LABEL}"]]
 )
 def test_a_post_with_no_origin_or_one_of_ours_reaches_its_method(tmp_path, headers):
+    """A POST with no Origin (a tool) or one of our own Origins reaches do_POST."""
     # no Origin on a POST means a tool, not a browser; our own Origin is our own page
     ran = []
     cls = _recording(_pinned(tmp_path, no_token=True), ran)
@@ -979,6 +1079,7 @@ def test_a_post_with_no_origin_or_one_of_ours_reaches_its_method(tmp_path, heade
 
 
 def test_no_answer_carries_a_cors_header_so_a_preflight_can_never_succeed(tmp_path, ran):
+    """No answer (preflight, refusal or success) carries an Access-Control-* header."""
     cls = _pinned(tmp_path, token="s3cret")
     preflight = [
         f"Origin: http://{FOREIGN}",
@@ -998,12 +1099,14 @@ def test_no_answer_carries_a_cors_header_so_a_preflight_can_never_succeed(tmp_pa
 
 
 def test_a_funnel_request_is_refused_bare_before_the_request_locks(tmp_path):
+    """A Funnel request gets the bare 403, not the JSON "host" refusal, even with a foreign Host."""
     cls = _pinned(tmp_path, no_token=True)
     for host in (FOREIGN, TAILNET):
         raw = _request("GET", "/sorted", host=host, headers=[f"{FUNNEL}: ?1", LOCAL])
         assert _drive(cls, ("127.0.0.1", 5555), raw) == serve._FORBIDDEN
 
 
+# -- real client shapes: the headers each real caller sends must still pass --
 # what `tailscale serve` adds when it relays a tailnet request to a loopback port
 SERVE_HEADERS = [
     "X-Forwarded-For: 100.64.0.7",
@@ -1046,12 +1149,14 @@ CLIENTS = {
     "path", ["/sorted?category=photos&from=2026-01", "/thumb?path=photos/a.jpg"]
 )
 def test_every_real_client_shape_still_passes(tmp_path, ran, client, path):
+    """Each client shape in CLIENTS gets through every lock to the route (200 or 404)."""
     host, headers = CLIENTS[client]
     code, _, _ = _ask(_pinned(tmp_path, token="s3cret"), path=path, host=host, headers=headers)
     assert code in (200, 404) and ran, (client, path)
 
 
 def test_the_switchboard_probe_shape_passes_on_both_hosts(tmp_path):
+    """The Switchboard's token-less /health probe is answered on the tailnet Host and the loopback Host."""
     # widgets/switchboard/Switchboard.ps1 probes <peer>/sorted/health: Invoke-WebRequest, no token
     agent = "User-Agent: Mozilla/5.0 (Windows NT 10.0; en-US) WindowsPowerShell/5.1.19041.4648"
     cls = _pinned(tmp_path, token="s3cret")
@@ -1061,6 +1166,7 @@ def test_the_switchboard_probe_shape_passes_on_both_hosts(tmp_path):
 
 
 def test_every_answer_carries_nosniff_and_forbids_framing(tmp_path, ran, monkeypatch):
+    """Every kind of answer (200, 403, 404, 503, a JPEG) has nosniff and frame-ancestors 'none'."""
     cls = _pinned(tmp_path, no_token=True)
     gated = _pinned(tmp_path, token="s3cret")
     closed = _pinned(tmp_path)
@@ -1084,6 +1190,7 @@ def test_every_answer_carries_nosniff_and_forbids_framing(tmp_path, ran, monkeyp
 
 
 def test_a_request_refusal_is_noted_on_stderr_with_its_reason(tmp_path, monkeypatch, capsys):
+    """A request-lock refusal logs its reason on stderr and never echoes what the caller typed."""
     monkeypatch.setattr(serve, "_REFUSALS", 0)
     _ask(_pinned(tmp_path, no_token=True), host=FOREIGN)
     err = capsys.readouterr().err
@@ -1092,9 +1199,11 @@ def test_a_request_refusal_is_noted_on_stderr_with_its_reason(tmp_path, monkeypa
 
 
 def test_the_request_locks_over_a_real_socket(tmp_path, ran):
+    """The Host, Origin and proof locks give the same answers over a real socket."""
     with _running(_state(tmp_path, names=NAMES, no_token=True)) as port:
 
         def get(path, **headers):
+            """GET `path` with the given headers; return (status, decoded JSON body)."""
             req = urllib.request.Request(f"http://127.0.0.1:{port}{path}", headers=headers)
             try:
                 with urllib.request.urlopen(req, timeout=10) as r:
@@ -1145,6 +1254,7 @@ def _loose(tmp_path, **kw):
 
 @pytest.mark.parametrize("origin", LOOSE_ORIGINS)
 def test_the_loose_pin_refuses_every_origin_even_with_the_proof_header(tmp_path, ran, origin):
+    """Under the loose pin every Origin is refused as "origin" (pinned control passes first)."""
     pinned = [LOCAL, f"Origin: http://{TAILNET}:8080"]
     assert _ask(_pinned(tmp_path, no_token=True), headers=pinned)[0] == 200, "control: pinned"
     cls = _loose(tmp_path, no_token=True)
@@ -1154,6 +1264,7 @@ def test_the_loose_pin_refuses_every_origin_even_with_the_proof_header(tmp_path,
 
 @pytest.mark.parametrize("referer", LOOSE_REFERERS)
 def test_the_loose_pin_takes_no_referer_as_proof(tmp_path, ran, referer):
+    """Under the loose pin no Referer counts as proof ("unproven-origin")."""
     pinned = [*BROWSER, f"Referer: http://{TAILNET}:8080/x"]
     assert _ask(_pinned(tmp_path, no_token=True), headers=pinned)[0] == 200, "control: pinned"
     cls = _loose(tmp_path, no_token=True)
@@ -1162,6 +1273,7 @@ def test_the_loose_pin_takes_no_referer_as_proof(tmp_path, ran, referer):
 
 
 def test_the_loose_pin_still_proves_by_the_custom_headers_and_sec_fetch_site(tmp_path, ran):
+    """Under the loose pin X-FP-Local, X-FP-Token and Sec-Fetch-Site same-origin still prove a GET."""
     cls = _loose(tmp_path, no_token=True)
     for header in (LOCAL, "X-FP-Token: anything", "Sec-Fetch-Site: same-origin"):
         assert _ask(cls, headers=[*BROWSER, header])[0] == 200, header
@@ -1170,6 +1282,7 @@ def test_the_loose_pin_still_proves_by_the_custom_headers_and_sec_fetch_site(tmp
 
 
 def test_the_loose_pin_refuses_a_posts_own_looking_origin_and_admits_a_tool(tmp_path):
+    """Under the loose pin a POST with any Origin is refused (body unread); one with none reaches do_POST."""
     ran = []
     cls = _recording(_loose(tmp_path, no_token=True), ran)
     headers = [f"Origin: http://{TAILNET}"]
@@ -1182,6 +1295,7 @@ def test_the_loose_pin_refuses_a_posts_own_looking_origin_and_admits_a_tool(tmp_
     assert ran == ["POST"], "no Origin on a POST is a tool, and still passes"
 
 
+# -- unit tests of own_name, origin_ok and referer_ok against pins --
 # A pin that held an IP literal cannot happen (the names come from a DNS name), but the rule is
 # "refused outright", so it is tested against a pin that does.
 IP_PIN = frozenset(
@@ -1221,6 +1335,7 @@ IP_PIN = frozenset(
     ],
 )
 def test_own_name_is_a_pinned_tailnet_name_and_nothing_else(name, names, expected):
+    """own_name is True only for a non-IP name that is in the pin."""
     assert serve.own_name(name, names) is expected
 
 
@@ -1236,13 +1351,16 @@ def test_own_name_is_a_pinned_tailnet_name_and_nothing_else(name, names, expecte
     ],
 )
 def test_origin_and_referer_refuse_an_ip_literal_even_if_the_pin_held_it(authority):
+    """origin_ok and referer_ok refuse any IP-literal authority, even from a pin that contains IPs."""
     assert serve.origin_ok(f"http://{TAILNET}:8080", IP_PIN) is True, "positive control"
     assert serve.referer_ok(f"http://{TAILNET}/x", IP_PIN) is True, "positive control"
     assert serve.origin_ok(f"http://{authority}", IP_PIN) is False
     assert serve.referer_ok(f"http://{authority}/x?y=z", IP_PIN) is False
 
 
+# -- the one-time tailnet-name read (tailnet_names) and its CLI wrapper --
 def _status_doc(name):
+    """A minimal `tailscale status --json` document whose Self.DNSName is `name`."""
     return {"Self": {"DNSName": name}}
 
 
@@ -1250,10 +1368,12 @@ class _Reads:
     """A fake `tailscale status --json`: each call takes the next outcome, raising an exception."""
 
     def __init__(self, *outcomes):
+        """Queue the outcomes (documents or exceptions) to return or raise, one per call."""
         self.outcomes = list(outcomes)
         self.timeouts = []
 
     def __call__(self, timeout):
+        """Record the timeout, then raise the next outcome if it is an exception, else return it."""
         self.timeouts.append(timeout)
         outcome = self.outcomes.pop(0)
         if isinstance(outcome, BaseException):
@@ -1262,12 +1382,14 @@ class _Reads:
 
 
 def test_tailnet_names_is_the_full_name_and_its_first_label():
+    """tailnet_names returns the lower-cased MagicDNS name and its first label after one read."""
     reads, sleeps = _Reads(_status_doc("Thinkbox.Tail-Test.ts.net.")), []
     assert _REAL_TAILNET_NAMES(read=reads, sleep=sleeps.append) == NAMES
     assert reads.timeouts == [5] and sleeps == []
 
 
 def test_tailnet_names_retries_three_times_five_seconds_apart():
+    """After failed reads tailnet_names retries, pausing 5.0 s between attempts, up to three tries."""
     timeout = subprocess.TimeoutExpired(["tailscale"], 5)
     reads, sleeps = _Reads(OSError("no such file"), timeout, _status_doc(TAILNET)), []
     assert _REAL_TAILNET_NAMES(read=reads, sleep=sleeps.append) == NAMES
@@ -1275,6 +1397,7 @@ def test_tailnet_names_retries_three_times_five_seconds_apart():
 
 
 def test_tailnet_names_gives_up_after_three_attempts_with_an_empty_set():
+    """Three failing or blank reads give an empty frozenset."""
     bad = subprocess.CalledProcessError(1, ["tailscale"])
     reads, sleeps = _Reads(bad, _status_doc(""), {"Self": None}), []
     assert _REAL_TAILNET_NAMES(read=reads, sleep=sleeps.append) == frozenset()
@@ -1283,14 +1406,18 @@ def test_tailnet_names_gives_up_after_three_attempts_with_an_empty_set():
 
 @pytest.mark.parametrize("doc", [[], {}, {"Self": {}}, _status_doc(None), _status_doc(" . ")])
 def test_tailnet_names_reads_a_blank_or_odd_document_as_a_failed_read(doc):
+    """A blank, missing or oddly shaped status document counts as a failed read."""
     sleeps = []
     assert _REAL_TAILNET_NAMES(read=_Reads(doc, doc, doc), sleep=sleeps.append) == frozenset()
 
 
 def test_the_cli_wrapper_runs_a_fixed_argv_with_a_timeout_and_no_shell(monkeypatch):
+    """_tailscale_status runs a fixed argv list with a timeout and check=True, no shell, and
+    falls back to /usr/bin/tailscale when the CLI is not on PATH."""
     seen = []
 
     def fake_run(argv, **kw):
+        """Stand-in for subprocess.run: record the call and return canned status JSON."""
         seen.append((argv, kw))
         return subprocess.CompletedProcess(argv, 0, stdout=b'{"Self": {"DNSName": "a.b.ts.net."}}')
 
@@ -1308,6 +1435,7 @@ def test_the_cli_wrapper_runs_a_fixed_argv_with_a_timeout_and_no_shell(monkeypat
 def test_main_reads_the_names_once_and_pins_the_host(
     tmp_path, monkeypatch, capsys, _no_tailscale_cli
 ):
+    """main() reads the tailnet names once, announces the Host pin and applies it to requests."""
     made = _capture_server(monkeypatch)
     _argv(monkeypatch, tmp_path, "--no-token")
     serve.main()
@@ -1327,6 +1455,7 @@ def test_main_reads_the_names_once_and_pins_the_host(
 
 
 def test_main_runs_the_loose_pin_and_says_so_in_one_line(tmp_path, monkeypatch, capsys):
+    """When the names read comes back empty, main() runs the loose pin and says so in one stderr line."""
     monkeypatch.setattr(serve, "tailnet_names", lambda: frozenset())
     made = _capture_server(monkeypatch)
     _argv(monkeypatch, tmp_path, "--no-token")
@@ -1346,6 +1475,7 @@ def test_main_runs_the_loose_pin_and_says_so_in_one_line(tmp_path, monkeypatch, 
     assert _answer(sent)[1]["reason"] == serve.UNPROVEN_REASON
 
 
+# -- documentation check: curl examples in the README and scripts must send the proof header --
 # The last round's item 3: in --no-token mode a scripted client of a proven route (every GET but
 # /health) must send X-FP-Local: 1, so a curl line in this package's README or scripts that hits one
 # must carry the header (or X-FP-Token). A curl at /health needs neither.
@@ -1366,6 +1496,7 @@ def _unproven_curls(text):
 
 
 def test_the_curl_checker_flags_a_proven_route_without_the_header():
+    """_unproven_curls flags exactly the curl lines that hit a non-/health route without the header."""
     text = "\n".join(
         [
             "curl https://h.ts.net/dash/sorted",
@@ -1383,6 +1514,7 @@ def test_the_curl_checker_flags_a_proven_route_without_the_header():
 
 
 def test_no_curl_line_in_this_package_hits_a_proven_route_without_the_header():
+    """Reads the package README and scripts/ files; no curl line in them may omit the proof header."""
     files = [PACKAGE / "README.md", *sorted((PACKAGE / "scripts").glob("*"))]
     assert len(files) > 1 and all(f.is_file() for f in files)
     for path in files:

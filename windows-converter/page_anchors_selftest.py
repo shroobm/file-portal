@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""page_anchors_selftest.py — the anchors' tripwires (S209 E6). Hermetic: no files, no pipeline. Each case violates the
+"""WHAT THIS FILE DOES: selftest for page_anchors.py, which tags each source page in the converted markdown with an
+anchor id like "^p3". It calls pa.anchor_markdown(markdown, blocks) on small in-memory strings with hand-made block
+lists (paragraphs, tables, lists, fences, footnotes, CRLF text) and checks where, and whether, anchors land. Prints one
+ok/RED line per case and an N/N tally; exit 0 when all pass, else 1. It reads and writes no files.
+
+page_anchors_selftest.py — the anchors' tripwires (S209 E6). Hermetic: no files, no pipeline. Each case violates the
 property its rule stands for: a page anchored on its first paragraph; a second run adds nothing (idempotent); a table-only
 page gets the structured form (a bare `^pN` line after the table, a blank line each side) and a second run adds nothing; a hit
 on a table row yields to the next-nearest hit; a contents list that quotes the next page's heading does not take its anchor;
@@ -11,10 +16,12 @@ import sys
 
 import page_anchors as pa
 
+# -- test harness: counters, the case() recorder and the block() fixture builder --
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one test case: count it, count it green when cond is truthy, print an ok/RED line (detail shown if red)."""
     global ok, n
     n += 1
     ok += 1 if cond else 0
@@ -22,9 +29,11 @@ def case(name, cond, detail=""):
 
 
 def block(page, text, kind="Text"):
+    """Build one Marker-style block dict for the given 0-based page, wrapping text in a <p> (kind sets block_type)."""
     return {"page": page, "block_type": kind, "html": "<p>%s</p>" % text}
 
 
+# -- sample paragraphs used as page text, then the numbered cases (run at import time, in order) --
 P1 = "The regulator can block only as much disturbance as it has variety to match, and no more than that."
 P2 = "Feedback that is too brusque will make the rudder overshoot, and the ship will hunt about its course."
 P3 = "A table of contributions to growth follows on this page, with four year columns and a memo line below."
@@ -130,5 +139,6 @@ md18 = "%s\n\n%s\n\n%s\n\n%s\n" % (P1, FN, P2, P3)
 out18, a18, t18 = pa.anchor_markdown(md18, [block(0, P1), block(0, FN, "Footnote"), block(1, P2), block(2, P3), block(3, FN, "Footnote")])
 case("a once-only key whose only instance is on an earlier page neither fences the pages before it nor anchors its own",
      a18 == 3 and t18 == 4 and (P1 + " ^p1") in out18 and (P2 + " ^p2") in out18 and (P3 + " ^p3") in out18 and "^p4" not in out18, out18)
+# -- the tally and exit code --
 print("==== page_anchors selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

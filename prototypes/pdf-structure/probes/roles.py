@@ -1,8 +1,13 @@
+"""WHAT THIS FILE DOES: a small probe (run directly, no arguments). It imports read_tree, SEMANTIC_ROLES and
+index from gate_real.py (which runs gate_real's whole survey on import), then prints the role breakdown of
+two named PDFs: the bojieli AI-agent book and the Beer "Diagnosing" book. Read-only; stdout only.
+"""
 import sys
 from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 from gate_real import read_tree, SEMANTIC_ROLES, index  # noqa: E402
 
+# for each named PDF: find it in the index (falling back to a 20-character prefix match), print role shares
 for name in ("bojieli_ai-agent-book： 《深入理解 AI Agent：设计原理与工程实践》（李博杰）.pdf",
              "DIAGNOSING THE SYSTEM FOR ORGANIZATIONS STAFFORD BEER.pdf"):
     p = index.get(name)

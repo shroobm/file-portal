@@ -1,5 +1,9 @@
 # -*- coding: utf-8 -*-
-"""bundle_name_selftest.py — the tripwire for clamp_name (S209 E8, SYM-137): a bundle name may never end in a space or a
+"""WHAT THIS FILE DOES: a standalone self-test script for convert_and_ship.clamp_name(). It points FP_PIPELINE at a
+fresh temp folder, imports convert_and_ship, runs six name cases, prints one ok/RED line per case and a final N/N
+total, and exits 0 if all pass, 1 otherwise. Creates a temp directory; writes nothing else. Nothing imports it.
+
+bundle_name_selftest.py — the tripwire for clamp_name (S209 E8, SYM-137): a bundle name may never end in a space or a
 dot, whatever its length — Windows drops both when it creates the directory, and the ship then copies into a path that does
 not exist (WinError 3; the Spring Economic Update, 2026-09-20 19:30Z). Run with the marker-env interpreter (convert_and_ship
 imports pymupdf at module level); FP_PIPELINE at a temp dir before import (SYM-010). Cases: a short name with a trailing
@@ -13,16 +17,20 @@ os.environ["FP_PIPELINE"] = tempfile.mkdtemp(prefix="bundle-name-selftest-")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import convert_and_ship as cas  # noqa: E402
 
+# -- test harness: pass/total counters and the case() recorder --
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one test case: bump the total, bump the pass count if cond is truthy, print an ok/RED line
+    (with the first 140 chars of repr(detail) when red). Returns None; mutates the module globals ok and n."""
     global ok, n
     n += 1
     ok += 1 if cond else 0
     print("  [%d] %s %s%s" % (n, "ok " if cond else "RED", name, ("  <- " + repr(detail)[:140]) if (detail and not cond) else ""))
 
 
+# -- the cases: each calls clamp_name on a name shape and checks the trimmed result --
 case("a short name with a trailing space loses it", cas.clamp_name("Spring Economic Update 2026 - ") == "Spring Economic Update 2026 -", cas.clamp_name("Spring Economic Update 2026 - "))
 case("a short name with a trailing dot loses it", cas.clamp_name("Report to Shareholders.") == "Report to Shareholders", cas.clamp_name("Report to Shareholders."))
 seu = "Department of Finance Canada (budget.canada.ca) _ Spring Economic Update 2026 - "

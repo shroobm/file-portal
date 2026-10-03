@@ -1,11 +1,18 @@
-"""Verifier: locate cited clauses/tables in the source .txt files and print the PAGE marker
+"""WHAT THIS FILE DOES: a verifier script (run directly, no arguments). It searches the plain-text copies of
+the PDF standards (ISO 32000-2, PDF/UA-1 and -2, WTPDF, and others, in the scratchpad folder named by SRC)
+for a fixed list of clauses and table headings (list Q), and prints each hit with the page marker it sits
+under. It also prints three occurrence counts. Read-only; stdout only (re-wrapped as UTF-8); no callers.
+
+Verifier: locate cited clauses/tables in the source .txt files and print the PAGE marker
 each sits under, plus a few lines of context. Read-only."""
 import re, sys, io
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 SRC = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/pdfua/"
 
+# -- text loading: each file is read once and cached with a page number per line --
 _cache = {}
 def pgmap(name):
+    """Return (lines, page_per_line) for the file `name` under SRC; cached. Page comes from PAGE markers."""
     if name in _cache:
         return _cache[name]
     lines = open(SRC + name, encoding="utf-8", errors="replace").read().split("\n")
@@ -18,7 +25,10 @@ def pgmap(name):
     _cache[name] = (lines, pg)
     return _cache[name]
 
+# -- search: print matches for a regex with page numbers and trailing context lines --
 def find(name, pat, maxhits=6, ctx=0, flags=0):
+    """Print up to `maxhits` lines of file `name` matching regex `pat`, each with its page and `ctx` following
+    lines; print a NO MATCH line when nothing matches. Output goes to stdout only."""
     lines, pg = pgmap(name)
     rx = re.compile(pat, flags)
     n = 0
@@ -34,6 +44,7 @@ def find(name, pat, maxhits=6, ctx=0, flags=0):
     if n == 0:
         print(f"   {name}: NO MATCH for /{pat}/")
 
+# -- query list: (label, file, regex, max hits, context lines), grouped by source document --
 ISO = "iso32000-2.txt"
 Q = [
     ("14.8.2.5.1 heading", ISO, r"^14\.8\.2\.5\.1\b", 3, 2),
@@ -108,6 +119,7 @@ Q = [
     # declarations
     ("DECL guarantee", "declarations.txt", r"guarantee", 3, 1),
 ]
+# run every query in order
 for label, name, pat, mh, ctx in Q:
     print(f"### {label}   /{pat}/")
     find(name, pat, maxhits=mh, ctx=ctx)

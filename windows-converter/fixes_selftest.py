@@ -1,5 +1,11 @@
 # -*- coding: utf-8 -*-
-"""fixes_selftest.py — LANE B selftest for fixes.py. Run under marker-env (imports marker + pdftext,
+"""WHAT THIS FILE DOES: selftest script for fixes.py (the converter's runtime patches to marker and pdftext). It runs
+numbered check groups at import time, one after another (there is no main function), prints a PASS/FAIL line per
+check and "N/N ok" at the end, and exits 0 only when every check passed. It writes files only inside temp dirs, but
+it does swap functions on pdftext and marker modules in the running process (restoring only the OcrBuilder swap).
+Nobody imports it; it is run directly.
+
+fixes_selftest.py — LANE B selftest for fixes.py. Run under marker-env (imports marker + pdftext,
 same as fixes.py itself does — see fixes.py's own docstring for why one interpreter suffices):
 
   C:\\Users\\Bndit\\ml\\marker-env\\Scripts\\python.exe fixes_selftest.py
@@ -24,12 +30,14 @@ os.environ.setdefault("PYTHONIOENCODING", "utf-8")
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import fixes  # noqa: E402
 
+# -- result counters and the check() reporter --
 PASS = 0
 FAIL = 0
 FAILED_NAMES = []
 
 
 def check(name, cond):
+    """Record one check: bump PASS or FAIL (and remember the name on failure) and print a PASS/FAIL line."""
     global PASS, FAIL
     if cond:
         PASS += 1
@@ -85,32 +93,49 @@ with tempfile.TemporaryDirectory(prefix="fp-fixes-selftest-") as tmp:
 from marker.builders.line import LineBuilder  # noqa: E402
 
 
+# -- synthetic stand-ins for marker's page, line and polygon objects (just enough shape for the overlap check) --
 class _Box:
+    """Stand-in for a polygon: holds a bbox list [x0, y0, x1, y1]."""
+
     def __init__(self, bbox):
+        """Store the bbox as a list."""
         self.bbox = list(bbox)
 
 
 class _Polygon:
+    """Stand-in for a page polygon that can be expanded by a margin."""
+
     def __init__(self, bbox):
+        """Store the page bbox as a list."""
         self._bbox = list(bbox)
 
     def expand(self, dx, dy):
+        """Return a _Box grown by dx on the left and right and dy on the top and bottom."""
         x0, y0, x1, y1 = self._bbox
         return _Box([x0 - dx, y0 - dy, x1 + dx, y1 + dy])
 
 
 class _Line:
+    """Stand-in for a text line: carries a polygon box."""
+
     def __init__(self, bbox):
+        """Wrap the bbox in a _Box as the line's polygon."""
         self.polygon = _Box(bbox)
 
 
 class _ProviderLine:
+    """Stand-in for a provider line entry: carries a _Line under .line."""
+
     def __init__(self, bbox):
+        """Wrap the bbox in a _Line."""
         self.line = _Line(bbox)
 
 
 class _DocPage:
+    """Stand-in for a document page: carries a _Polygon under .polygon."""
+
     def __init__(self, page_bbox):
+        """Wrap the page bbox in a _Polygon."""
         self.polygon = _Polygon(page_bbox)
 
 
@@ -154,7 +179,9 @@ from pdftext.schema import Bbox  # noqa: E402
 PAGE_BBOX = (0.0, 0.0, 612.0, 792.0)  # x_start, y_start, x_end, y_end (a US-letter page, pdfium bbox shape)
 
 
+# -- synthetic pdftext characters and a fake text page for the offpage-clip and charbox-lift checks --
 def _char(bbox, char_idx=0, font_size=10.0, rotation=0, ch="x"):
+    """Build one synthetic pdftext character dict (bbox, char, rotation, font info, char_idx)."""
     return {
         "bbox": Bbox(list(bbox)),
         "char": ch,
@@ -169,9 +196,11 @@ class _FakeTextPage:
     coordinates, exactly the signature _lift_charboxes calls (pdftext's real PdfTextPage.get_charbox)."""
 
     def __init__(self, boxes):
+        """Store a {char index: tight box} map."""
         self._boxes = boxes
 
     def get_charbox(self, i, loose=False):
+        """Return the stored tight box for char index i (the loose flag is ignored)."""
         return self._boxes[i]
 
 
@@ -183,6 +212,7 @@ _FAKE_CHARS = [OFFPAGE_CHAR, ONPAGE_CHAR, STRADDLE_CHAR]
 
 
 def _fake_orig_get_chars(textpage, page_bbox, page_rotation, quote_loosebox=True):
+    """Stand-in for pdftext's original get_chars: ignores its inputs and returns a copy of the three fake chars."""
     return list(_FAKE_CHARS)
 
 

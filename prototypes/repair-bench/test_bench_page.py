@@ -1,5 +1,11 @@
 #!/usr/bin/env python
-"""test_bench_page.py — the first tests this repo has ever pointed at the Bench GLASS (B5).
+"""WHAT THIS FILE DOES: the unittest suite for the Repair Bench (bench.py + bench.html) and its sibling room_chat.py.
+It reads bench.html, bench.py, room_chat.py and the widget's JS sources as text and checks their shapes, and it also
+starts throwaway in-process HTTP servers over temporary bundle folders to check the live wire (token gate, Host/Origin
+checks, tailnet lock, caches, port ownership). Run it directly (python test_bench_page.py) or through unittest; it
+writes only to temp folders and sets FP_PIPELINE to a temp folder before importing room_chat. No other file calls it.
+
+test_bench_page.py — the first tests this repo has ever pointed at the Bench GLASS (B5).
 
 S108 Lane D. Stdlib only; the runner is a bare CPython:
 
@@ -53,6 +59,7 @@ from unittest import mock
 from http.server import HTTPServer, ThreadingHTTPServer
 from pathlib import Path
 
+# -- paths, and the import-time environment the suite needs before bench/room_chat load --
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parents[1]
 
@@ -65,6 +72,7 @@ sys.path.insert(0, str(REPO / "windows-converter"))
 import bench  # noqa: E402
 import room_chat  # noqa: E402
 
+# -- the source texts under test, read once at import (the tests slice and search these strings) --
 BENCH_HTML = (HERE / "bench.html").read_text(encoding="utf-8")
 BENCH_PY = (HERE / "bench.py").read_text(encoding="utf-8")
 ROOM_PY = (REPO / "windows-converter" / "room_chat.py").read_text(encoding="utf-8")
@@ -162,20 +170,24 @@ BAD_CLAIM_JS = "`zones ${rep} repaired`"                 # numerator with no den
 BAD_CLAIM_PY = "f\"**{cov['addressed']} addressed.**\""  # same defect, python side
 
 
+# -- source-text regression tests for bench.html / bench.py (S106 fixtures, token census, claims) --
 class TestS106Regressions(unittest.TestCase):
     """The two S106 regressions as named fixtures (register rows d7ffd11 / 3659ec7)."""
 
     def test_s106_regression_ctxrange_is_not_the_render_range(self):
+        """Positive control: bench.html's renderLines does not assign ctxRange."""
         body = js_function_body(BENCH_HTML, "renderLines")
         self.assertFalse(renderlines_leaks_ctxrange(body),
                          "renderLines assigns ctxRange — the 4d06588 data-loss shape: one AI-fix "
                          "click would send the whole file to the model and splice back its stump")
 
     def test_s106_regression_ctxrange_negative_control(self):
+        """Negative control: the check flags the synthetic BAD_RENDERLINES snippet."""
         self.assertTrue(renderlines_leaks_ctxrange(BAD_RENDERLINES),
                         "the check failed to catch the very regression it exists for")
 
     def test_s106_regression_ctxrange_callers_still_bound_the_slice(self):
+        """renderCtxPlain and renderCtx still set ctxRange, each with its bounded slice."""
         # d7ffd11 moved the assignment to the callers, bounded. Both must still set it.
         for caller, bound in (("renderCtxPlain", r"Math\.min\(r\.lines,\s*40\)"),
                               ("renderCtx", r"Math\.min\(r\.lines,\s*at\s*\+\s*12\)")):
@@ -184,12 +196,14 @@ class TestS106Regressions(unittest.TestCase):
             self.assertRegex(body, bound, f"{caller}'s ctxRange bound has changed shape")
 
     def test_s106_regression_arrow_keys_must_not_flip_pages_while_typing(self):
+        """The keydown arrow handler in bench.html consults isContentEditable."""
         handler = js_handler_around(BENCH_HTML, 'e.key === "ArrowLeft"')
         self.assertTrue(arrow_handler_guards_typing(handler),
                         "the keydown arrow handler no longer consults isContentEditable — "
                         "ArrowLeft/Right while typing would flip the PDF page and clear the crop")
 
     def test_s106_regression_arrow_keys_negative_control(self):
+        """Negative control: the check flags the unguarded BAD_KEYDOWN snippet."""
         self.assertFalse(arrow_handler_guards_typing(BAD_KEYDOWN),
                          "the check failed to catch the unguarded pre-3659ec7 handler")
 
@@ -198,18 +212,21 @@ class TestTokenGateCensus(unittest.TestCase):
     """Every mutating route is token-checked — census, ordering, and the gate function."""
 
     def test_bench_census_matches_do_post_dispatch(self):
+        """bench.MUTATING_POSTS equals the /api/ routes bench.py's do_POST dispatches."""
         routes = set(re.findall(r'self\.path == "(/api/[a-z_]+)"', BENCH_PY))
         self.assertEqual(routes, set(bench.MUTATING_POSTS),
                          "bench.py's POST dispatch and MUTATING_POSTS disagree — a route was "
                          "added or removed without updating the enumerated gate census")
 
     def test_room_chat_census_matches_do_post_dispatch(self):
+        """room_chat.MUTATING_POSTS equals the /api/ routes room_chat.py's do_POST dispatches."""
         do_post = py_function_body(ROOM_PY, "do_POST")
         routes = set(re.findall(r'self\.path == "(/api/[a-z]+)"', do_post))
         self.assertEqual(routes, set(room_chat.MUTATING_POSTS),
                          "room_chat.py's POST dispatch and MUTATING_POSTS disagree")
 
     def test_gate_runs_before_any_dispatch_in_both_files(self):
+        """In both do_POST bodies, the token_gate call sits before the first route comparison."""
         for name, src in (("bench.py", BENCH_PY), ("room_chat.py", ROOM_PY)):
             do_post = py_function_body(src, "do_POST")
             gate_at = do_post.find("token_gate(")
@@ -219,6 +236,7 @@ class TestTokenGateCensus(unittest.TestCase):
                             f"{name}: the token gate must run BEFORE any route dispatch")
 
     def test_token_gate_semantics_both_modules(self):
+        """token_gate refuses (no token, missing, wrong) and admits (match) in bench and room_chat."""
         for mod in (bench, room_chat):
             self.assertIn("started without --token", mod.token_gate("anything", None),
                           f"{mod.__name__}: no-token refusal must say WHY and how to fix it")
@@ -227,11 +245,13 @@ class TestTokenGateCensus(unittest.TestCase):
             self.assertIsNone(mod.token_gate("secret", "secret"))      # match admits
 
     def test_bench_no_gate_sentinel_admits_in_process_harnesses(self):
+        """The _NO_GATE sentinel makes bench.token_gate admit (for in-process harnesses)."""
         # acceptance.py constructs make_handler(bench) directly, inside the process boundary;
         # the sentinel default must keep that path open while main() always applies the policy.
         self.assertIsNone(bench.token_gate(None, bench._NO_GATE))
 
     def test_bench_html_attaches_the_header(self):
+        """bench.html's api() sends X-FP-Token and the page reads ?token= at load."""
         api_fn = BENCH_HTML[BENCH_HTML.index("async function api("):]
         api_fn = api_fn[:api_fn.index("}\n") + 1]
         self.assertIn("X-FP-Token", api_fn, "bench.html's api() no longer attaches the token")
@@ -239,6 +259,7 @@ class TestTokenGateCensus(unittest.TestCase):
                       "bench.html no longer reads ?token= at load")
 
     def test_room_chat_serves_the_shim_before_the_page_script(self):
+        """room_chat.TOKEN_SHIM carries X-FP-Token and room_chat.html has a <title> injection point."""
         self.assertIn("X-FP-Token", room_chat.TOKEN_SHIM.decode("utf-8"))
         page = (REPO / "windows-converter" / "room_chat.html").read_bytes()
         # the injection point exists, and the shim goes in front of it
@@ -249,22 +270,26 @@ class TestClaimDenominators(unittest.TestCase):
     """Counted claims name numerator AND denominator (measurement-language law, docs/34)."""
 
     def test_zone_chip_claim_names_both(self):
+        """The zones chip line in bench.html carries numerator and denominator."""
         line = next(ln for ln in BENCH_HTML.splitlines()
                     if '$("bzones").textContent' in ln)
         self.assertTrue(claim_names_denominator(line),
                         f"the zones chip claim lost its denominator: {line.strip()!r}")
 
     def test_rescore_coverage_claim_names_both(self):
+        """The "site(s) addressed" line in bench.html carries numerator and denominator."""
         line = next(ln for ln in BENCH_HTML.splitlines() if "site(s) addressed" in ln)
         self.assertTrue(claim_names_denominator(line),
                         f"the re-score coverage claim lost its denominator: {line.strip()!r}")
 
     def test_report_addressed_claim_names_both(self):
+        """The "shown addressed" line in bench.py's report carries numerator and denominator."""
         line = next(ln for ln in BENCH_PY.splitlines() if "shown addressed" in ln)
         self.assertTrue(claim_names_denominator(line),
                         f"the REPAIRS.md addressed claim lost its denominator: {line.strip()!r}")
 
     def test_negative_controls_fail_the_same_check(self):
+        """The one-sided BAD_CLAIM_JS and BAD_CLAIM_PY strings fail claim_names_denominator."""
         self.assertFalse(claim_names_denominator(BAD_CLAIM_JS))
         self.assertFalse(claim_names_denominator(BAD_CLAIM_PY))
 
@@ -274,6 +299,7 @@ class TestS192OwedPrints(unittest.TestCase):
     now says it. Source truths (the DOM never loads here — B5's honest limit): the string is wired to the field."""
 
     def test_locate_confidence_names_its_two_sides(self):
+        """The locate status line has numerator and denominator, the latter from r.needles."""
         line = next(ln for ln in BENCH_HTML.splitlines() if "⌖ located: p" in ln)
         self.assertTrue(claim_names_denominator(line),
                         f"the locate confidence lost its two sides: {line.strip()!r}")
@@ -281,10 +307,12 @@ class TestS192OwedPrints(unittest.TestCase):
                       "the denominator must be the response's needles count, not a literal")
 
     def test_locate_negative_control_the_old_one_sided_string_fails(self):
+        """Negative control: the old one-sided locate string fails claim_names_denominator."""
         old = "status(`⌖ located: p${r.page} (confidence ${r.confidence})`);"
         self.assertFalse(claim_names_denominator(old))
 
     def test_ledger_view_prints_the_disk_half_beside_the_chain(self):
+        """The ledger view prints the disk-matches-chain half on the same line as the chain status."""
         src = BENCH_HTML
         self.assertIn("aud.matches_disk === true", src)
         self.assertIn("aud.matches_disk === false", src)
@@ -293,28 +321,33 @@ class TestS192OwedPrints(unittest.TestCase):
         self.assertIn("${disk}", chain_line, "the disk half must ride on the chain line, not elsewhere")
 
     def test_search_head_names_pages_and_hits(self):
+        """The search tab heading prints both the page count and r.total_hits."""
         line = next(ln for ln in BENCH_HTML.splitlines() if '$("search-tab").textContent = r.pages.length' in ln)
         self.assertIn("r.total_hits", line)
         self.assertIn("pages ·", line)
         self.assertIn("hits", line)
 
     def test_undo_line_names_regions_and_chars(self):
+        """The undo status line prints regions, chars restored and undo depth."""
         line = next(ln for ln in BENCH_HTML.splitlines() if "↩ undone — byte-identical" in ln)
         self.assertIn("r.regions", line)
         self.assertIn("r.chars_restored", line)
         self.assertIn("r.undo_depth", line)
 
     def test_the_responses_carry_what_the_page_prints(self):
+        """bench.py still returns the response keys the page prints (needles, votes, matches_disk, ...)."""
         # bench.py untouched: the fields the page reads must be the ones the routes return
         for key in ("\"needles\"", "\"votes\"", "\"matches_disk\"", "\"total_hits\"", "\"regions\"", "\"chars_restored\""):
             self.assertIn(key, BENCH_PY, f"bench.py no longer returns {key}")
 
 
+# -- diagnosis, page buttons and completeness-count tests on throwaway bundles (B15, B13, M6) --
 class TestB15OmissionSignature(unittest.TestCase):
     """B15 (S157 E44): an omission run diagnoses as G — reason, highlight, solution, with the run's own measurements as the
     evidence — and a degeneration zone does NOT fire G (the negative control: the rule is run-shaped, never a catch-all)."""
 
     def _bench(self) -> bench.Bench:
+        """Build a temp bundle (book.md + manifest with 2 omission runs, 1 degeneration zone); return a Bench."""
         holder = tempfile.TemporaryDirectory(prefix="fp-test-b15-")
         self.addCleanup(holder.cleanup)
         root = Path(holder.name)
@@ -334,6 +367,7 @@ class TestB15OmissionSignature(unittest.TestCase):
         return bench.Bench(root)
 
     def test_an_omission_run_diagnoses_as_G_with_its_own_measurements_as_evidence(self):
+        """Each omission run gets signature G (Inferred), with word count and page (or UNREAD) as evidence."""
         st = self._bench().state()
         runs = st["runs"]
         self.assertEqual(len(runs), 2)
@@ -349,6 +383,7 @@ class TestB15OmissionSignature(unittest.TestCase):
         self.assertIn("UNREAD", unplaced)   # a null page is the audit's blindness, said, never rendered as page 0
 
     def test_negative_control_a_degeneration_zone_does_not_fire_G(self):
+        """Negative control: the degeneration zone diagnoses as E (the loop signature), not G."""
         st = self._bench().state()
         zones = st["zones"]
         self.assertEqual(len(zones), 1)
@@ -356,6 +391,7 @@ class TestB15OmissionSignature(unittest.TestCase):
         self.assertEqual(zones[0]["diagnosis"]["signature"], "E")   # the loop signature, as before
 
     def test_the_bank_carries_G_after_the_six(self):
+        """The signature bank lists E, C, A, D, B, F, G and the diagnosis order starts with G."""
         ids = [s["id"] for s in bench.Bench._bank()]
         self.assertEqual(ids, ["E", "C", "A", "D", "B", "F", "G"])
         self.assertEqual(bench.Bench._ORDER[0], "G")
@@ -369,12 +405,14 @@ class TestB13BenchButtons(unittest.TestCase):
     copy of the page without a button fails the source check; a dismissal without a reason is refused by the server."""
 
     def test_the_page_carries_the_three_controls_and_their_handlers(self):
+        """bench.html contains the ledger/report/triage button ids and their handler calls."""
         for needle in ('id="ledger-btn"', 'id="report-btn"', 'id="report-write"', 'id="ledger"', 'id="report"',
                        'api("/api/ledger")', 'api("/api/report", { write: !!write })', 'api("/api/triage", { key: site.key, outcome, reason })',
                        "function triageRow(site)", "async function triage(site, outcome)"):
             self.assertIn(needle, BENCH_HTML, needle)
 
     def test_the_page_offers_only_the_human_only_outcomes(self):
+        """TRIAGE_MANUAL in bench.html equals bench.OUTCOMES_MANUAL; derived outcomes have no button."""
         m = re.search(r'const TRIAGE_MANUAL = \[([^\]]*)\];', BENCH_HTML)
         self.assertIsNotNone(m)
         offered = sorted(x.strip().strip('"') for x in m.group(1).split(","))
@@ -384,10 +422,12 @@ class TestB13BenchButtons(unittest.TestCase):
             self.assertNotIn(f'data-triage="{derived}"', BENCH_HTML)
 
     def test_negative_control_a_page_without_the_ledger_button_fails_the_source_check(self):
+        """Negative control: a copy of the page with the ledger button id altered no longer contains it."""
         planted = BENCH_HTML.replace('id="ledger-btn"', 'id="ledger-btm"', 1)
         self.assertNotIn('id="ledger-btn"', planted)
 
     def _bundle(self) -> "bench.Bench":
+        """Build a temp bundle (book.md + manifest with one omission run); return a Bench on it."""
         holder = tempfile.TemporaryDirectory(prefix="fp-test-b13-")
         self.addCleanup(holder.cleanup)
         root = Path(holder.name)
@@ -398,6 +438,7 @@ class TestB13BenchButtons(unittest.TestCase):
         return bench.Bench(root)
 
     def test_the_three_routes_answer_through_the_real_handler(self):
+        """Live HTTP: /api/triage (reason required), /api/ledger and /api/report behave on a temp bundle."""
         subject = self._bundle()
         httpd = ThreadingHTTPServer(("127.0.0.1", 0), bench.make_handler(subject))
         port = httpd.server_address[1]
@@ -440,18 +481,21 @@ class TestM6Completeness(unittest.TestCase):
 
     @staticmethod
     def _runs(count: int) -> list[dict]:
+        """Return `count` synthetic omission-run dicts (page, words, excerpt)."""
         return [{"page": i + 1, "words": 20 + i,
                  "excerpt": f"line {i + 1} alpha beta gamma delta"}
                 for i in range(count)]
 
     @staticmethod
     def _zones(count: int) -> list[dict]:
+        """Return `count` synthetic degeneration-zone dicts (line, chars, distinct_lines, excerpt)."""
         return [{"line": i + 1, "chars": 80 + i, "distinct_lines": 2,
                  "excerpt": f"line {i + 1} alpha beta gamma delta"}
                 for i in range(count)]
 
     def _bench(self, *, runs: int, zones: int, runs_total=..., zones_total=...,
                runs_cap=..., zones_cap=...) -> bench.Bench:
+        """Build a temp bundle with the given runs/zones and optional totals and caps; return a Bench."""
         holder = tempfile.TemporaryDirectory(prefix="fp-test-m6-")
         self.addCleanup(holder.cleanup)
         root = Path(holder.name)
@@ -487,6 +531,7 @@ class TestM6Completeness(unittest.TestCase):
 
     @staticmethod
     def _address_every_shown_site(subject: bench.Bench) -> None:
+        """Mark every shown zone and run as dismissed in the Bench's in-memory manifest triage."""
         st = subject.state()
         subject.manifest["triage"] = {
             site["key"]: {"outcome": "dismissed-noise", "reason": "M6 test disposition"}
@@ -495,6 +540,7 @@ class TestM6Completeness(unittest.TestCase):
 
     @staticmethod
     def _preview(subject: bench.Bench) -> dict:
+        """Return subject.rescore_preview() with a stub fidelity_audit module patched into sys.modules."""
         # Keep this glass harness stdlib-only: M6 tests the recommendation join, while the
         # fidelity module's own suite owns degeneration. The real marker-env pass runs later.
         fake = types.SimpleNamespace(degeneration=lambda _body: {
@@ -503,6 +549,7 @@ class TestM6Completeness(unittest.TestCase):
             return subject.rescore_preview()
 
     def test_future_capped_totals_block_false_bless_even_when_shown_sites_are_addressed(self):
+        """With 636 sites unseen behind the caps, coverage is partial and the vault recommendation is ineligible."""
         subject = self._bench(runs=25, zones=10, runs_total=634, zones_total=37,
                               runs_cap=25, zones_cap=10)
         self._address_every_shown_site(subject)
@@ -521,6 +568,7 @@ class TestM6Completeness(unittest.TestCase):
         self.assertIn("full-evidence review", preview["vault_recommendation"]["why"])
 
     def test_legacy_at_cap_is_unread_and_names_reconversion_remedy(self):
+        """A legacy manifest at its cap reports "total UNREAD" and the re-convert remedy; not eligible."""
         subject = self._bench(runs=25, zones=10)
         self._address_every_shown_site(subject)
         counts = subject.state()["evidence_counts"]
@@ -535,6 +583,7 @@ class TestM6Completeness(unittest.TestCase):
                       preview["vault_recommendation"]["why"])
 
     def test_legacy_under_cap_is_exact_not_needlessly_unread(self):
+        """A legacy manifest under its cap counts as complete with exact totals."""
         subject = self._bench(runs=7, zones=2)
         counts = subject.state()["evidence_counts"]
         self.assertEqual(("complete", 7, "7"),
@@ -545,6 +594,7 @@ class TestM6Completeness(unittest.TestCase):
                           counts["zones"]["total"], counts["zones"]["label"]))
 
     def test_future_complete_totals_use_the_shared_n_of_m_grammar(self):
+        """Labels read "n of m", and event-vocab.js plus the widget JS use the same countOfTotal helper."""
         subject = self._bench(runs=7, zones=2, runs_total=7, zones_total=2,
                               runs_cap=25, zones_cap=10)
         counts = subject.state()["evidence_counts"]
@@ -563,6 +613,7 @@ class TestM6Completeness(unittest.TestCase):
             WIDGET_ROOM)
 
     def test_display_limits_do_not_corrupt_manifest_completeness(self):
+        """A display slice smaller than the retained list leaves completeness "partial", not changed by display caps."""
         subject = self._bench(runs=60, zones=0, runs_total=531, zones_total=0,
                               runs_cap=100, zones_cap=10)
         count = subject.state()["evidence_counts"]["runs"]
@@ -580,6 +631,7 @@ class TestM6Completeness(unittest.TestCase):
             self.assertIn('displaySliceNote(runs.length, 3, "details")', source)
 
     def test_producer_cap_overflow_remains_malformed(self):
+        """More runs than the producer's cap makes the count "malformed" with no total."""
         subject = self._bench(runs=101, zones=0, runs_total=531, zones_total=0,
                               runs_cap=100, zones_cap=10)
         count = subject.state()["evidence_counts"]["runs"]
@@ -588,6 +640,7 @@ class TestM6Completeness(unittest.TestCase):
         self.assertIn("producer cap of 100", count["reason"])
 
     def test_rescore_counts_the_retained_list_not_an_arbitrary_preview_slice(self):
+        """rescore_preview reports the full retained zone list as complete "8 of 8"."""
         subject = self._bench(runs=0, zones=0, runs_total=0, zones_total=0,
                               runs_cap=25, zones_cap=10)
         fake = types.SimpleNamespace(degeneration=lambda _body: {
@@ -602,6 +655,7 @@ class TestM6Completeness(unittest.TestCase):
                           current["count"]["total"], current["count"]["label"]))
 
     def test_malformed_or_contradictory_totals_are_unread_and_fail_closed(self):
+        """Bad totals (bool, string, negative, below shown) read as malformed and the vault recommendation refuses."""
         for bad in (True, "634", -1, 6):
             with self.subTest(total=bad):
                 subject = self._bench(runs=7, zones=0, runs_total=bad, zones_total=0,
@@ -613,6 +667,7 @@ class TestM6Completeness(unittest.TestCase):
                 self.assertFalse(self._preview(subject)["vault_recommendation"]["eligible"])
 
     def test_wire_projects_completeness_and_the_fail_closed_recommendation(self):
+        """Live HTTP: /api/state shows "25 of 634" and /api/rescore is ineligible with 636 unseen."""
         subject = self._bench(runs=25, zones=10, runs_total=634, zones_total=37,
                               runs_cap=25, zones_cap=10)
         self._address_every_shown_site(subject)
@@ -640,6 +695,8 @@ class TestM6Completeness(unittest.TestCase):
 
 # ---- the live wire: fail-closed 403, wrong-token 403, right-token admitted -------------------
 def _post(port: int, path: str, payload: dict, token: str | None = None):
+    """POST `payload` as JSON to 127.0.0.1:port/path, adding X-FP-Token if given.
+    Returns (status, parsed JSON, or {"raw": first 200 bytes} when the body is not JSON)."""
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
     headers = {"Content-Type": "application/json"}
     if token is not None:
@@ -655,6 +712,7 @@ def _post(port: int, path: str, payload: dict, token: str | None = None):
 
 
 def _get(port: int, path: str, token: str | None = None):
+    """GET 127.0.0.1:port/path, adding X-FP-Token if given; return (status, raw body bytes)."""
     conn = http.client.HTTPConnection("127.0.0.1", port, timeout=10)
     headers = {"X-FP-Token": token} if token is not None else {}
     conn.request("GET", path, headers=headers)
@@ -683,7 +741,12 @@ BENIGN = {
 
 
 class LiveBenchServer:
+    """A live bench.py HTTP server on a free loopback port over a throwaway bundle.
+    close() stops it and deletes the temp folder."""
+
     def __init__(self, token, tokens_css=None):
+        """Make a temp bundle with a three-line book.md and serve it on a daemon thread.
+        token and tokens_css are passed to bench.make_handler."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-bundle-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one\nline two\nline three",
                                           encoding="utf-8")
@@ -695,16 +758,19 @@ class LiveBenchServer:
         self.thread.start()
 
     def close(self):
+        """Stop the server, close its socket and delete the temp bundle."""
         self.httpd.shutdown()
         self.httpd.server_close()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
 
+# -- live-server tests: fp-tokens.css route, --also-bind listeners, the 403 token gate --
 class TestTokensCss(unittest.TestCase):
     """S215 E25: GET /fp-tokens.css serves the ONE file named by --tokens-css (the design system's sheet, private, beside the
     widgets) and nothing else; without it the route is a 404 that names the remedy, and the page's own fallbacks carry."""
 
     def test_with_a_sheet_the_route_serves_its_bytes_as_css(self):
+        """With a tokens sheet configured, GET /fp-tokens.css returns its exact bytes; a near-miss path is a 404."""
         tmp = Path(tempfile.mkdtemp(prefix="fp-test-tokens-"))
         sheet = tmp / "fp-tokens.css"
         sheet.write_text(":root { --fp-clay: #d97757; }\n", encoding="utf-8")
@@ -720,6 +786,7 @@ class TestTokensCss(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_without_a_sheet_the_route_is_a_404_that_names_the_remedy(self):
+        """With no sheet configured, /fp-tokens.css is a 404 whose error text mentions --tokens-css."""
         srv = LiveBenchServer(token=None)
         try:
             code, body = _get(srv.port, "/fp-tokens.css")
@@ -729,6 +796,7 @@ class TestTokensCss(unittest.TestCase):
             srv.close()
 
     def test_a_sheet_path_that_is_not_a_file_is_a_404_too(self):
+        """A configured sheet path that does not exist gives a 404."""
         srv = LiveBenchServer(token=None, tokens_css=str(Path(tempfile.gettempdir()) / "fp-no-such-sheet.css"))
         try:
             self.assertEqual(404, _get(srv.port, "/fp-tokens.css")[0])
@@ -741,6 +809,7 @@ class TestServeOn(unittest.TestCase):
     address here) — both answer the same routes; the flag is on the command line."""
 
     def test_two_addresses_one_handler(self):
+        """serve_on on 127.0.0.1 and 127.0.0.2 gives both a 200 on /api/state (skipped if 127.0.0.2 won't bind)."""
         import socket
         s = socket.socket()
         s.bind(("127.0.0.1", 0))
@@ -773,6 +842,7 @@ class TestServeOn(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_the_flag_is_on_the_command_line(self):
+        """Runs `bench.py --help` in a subprocess and checks the output lists --also-bind."""
         import subprocess
         out = subprocess.run([sys.executable, str(HERE / "bench.py"), "--help"], capture_output=True, text=True, timeout=60).stdout
         self.assertIn("--also-bind", out)
@@ -784,6 +854,7 @@ class TestFailClosed403Live(unittest.TestCase):
     refused write provably did not happen."""
 
     def test_no_token_server_refuses_every_mutating_route_and_writes_nothing(self):
+        """Without --token every mutating POST and the evidence GET answer 403 and book.md is unchanged."""
         srv = LiveBenchServer(token=None)
         try:
             before = (srv.tmp / "book.md").read_bytes()
@@ -802,6 +873,7 @@ class TestFailClosed403Live(unittest.TestCase):
             srv.close()
 
     def test_token_server_refuses_missing_and_wrong_and_admits_right(self):
+        """With a token set, a missing or wrong X-FP-Token gets 403 on every mutating route; the right one passes."""
         srv = LiveBenchServer(token="lane-d-secret")
         try:
             for route in bench.MUTATING_POSTS:
@@ -820,6 +892,8 @@ class TestFailClosed403Live(unittest.TestCase):
             srv.close()
 
     def test_room_chat_gate_live(self):
+        """room_chat.Handler fails closed without a token (403) and admits the right token.
+        Handler.token is restored afterwards."""
         # Handler.token is class state; no Llama is attached, so an admitted POST fails
         # AFTER the gate (500) — which is exactly the proof wanted: admitted, then the
         # route's own logic spoke. Nothing can spawn: there is no llama instance at all.
@@ -858,6 +932,7 @@ class TestOK0RepairIdentity(unittest.TestCase):
     ID_RE = re.compile(r"^fpr-[0-9a-f]{32}$")
 
     def test_new_records_get_unique_ids_and_legacy_records_stay_untouched(self):
+        """Two repairs on a temp bundle get distinct fpr-<32 hex> ids; the legacy record gains no id."""
         tmp = Path(tempfile.mkdtemp(prefix="fp-test-ok0-"))
         try:
             (tmp / "book.md").write_text("---\nt: 1\n---\nalpha\nbeta\ngamma",
@@ -882,6 +957,7 @@ class TestOK0RepairIdentity(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_negative_control_the_predicate_rejects_non_ids(self):
+        """Negative control: ID_RE rejects empty, non-hex, short and foreign ids."""
         for bad in ("", "fpr-nothex", "fpr-" + "a" * 31, "okular-123"):
             self.assertIsNone(self.ID_RE.match(bad),
                               f"the id predicate admitted {bad!r}")
@@ -892,6 +968,7 @@ class TestOK5TextLayer(unittest.TestCase):
     the fitz call is one line; everything testable lives outside it)."""
 
     def test_normalize_clamps_rounds_and_drops_junk(self):
+        """Bench.normalize_words clamps boxes to 0..1, drops blank and malformed words, keeps the rest."""
         words = bench.Bench.normalize_words(
             [(10, 20, 110, 40, "alpha", 0, 0, 0),
              (-5, -5, 700, 900, "overflow"),          # clamps to 0..1, never beyond
@@ -907,30 +984,41 @@ class TestOK5TextLayer(unittest.TestCase):
                 self.assertTrue(0.0 <= v <= 1.0, f"{v} escaped the page")
 
     def test_degenerate_geometry_is_an_empty_layer_not_a_crash(self):
+        """A zero or negative page width/height gives an empty word list instead of an error."""
         self.assertEqual(bench.Bench.normalize_words([(1, 1, 2, 2, "x")], 0, 100), [])
         self.assertEqual(bench.Bench.normalize_words([(1, 1, 2, 2, "x")], 100, -3), [])
 
     def _bench_with_fake_doc(self, pages=40):
+        """Return (Bench, temp folder) whose PDF document is replaced by an in-memory fake of `pages` pages."""
         tmp = Path(tempfile.mkdtemp(prefix="fp-test-ok5-"))
         (tmp / "book.md").write_text("---\nt: 1\n---\nalpha", encoding="utf-8")
         b = bench.Bench(tmp)
 
         class FakeRect:
+            """A fixed 500 x 800 page rectangle."""
+
             width, height = 500.0, 800.0
 
         class FakePage:
+            """A fake PDF page that holds one word, "word-p<n>"."""
+
             rect = FakeRect()
 
             def __init__(self, n):
+                """Remember the 1-based page number."""
                 self.n = n
 
             def get_text(self, kind):
+                """Return the page's single word tuple whatever `kind` is asked."""
                 return [(10, 10, 90, 30, f"word-p{self.n}")]
 
         class FakeDoc:
+            """A fake PDF document with `pages` pages."""
+
             page_count = pages
 
             def load_page(self, i):
+                """Return the fake page for zero-based index i."""
                 return FakePage(i + 1)
 
         b.pdf = tmp / "book.pdf"  # doc()'s no-PDF guard checks presence, not bytes
@@ -938,6 +1026,7 @@ class TestOK5TextLayer(unittest.TestCase):
         return b, tmp
 
     def test_lazy_lru_bounded_and_refreshed(self):
+        """The text-layer cache stays within TEXTLAYER_LRU and a re-read page is refreshed, not evicted."""
         b, tmp = self._bench_with_fake_doc()
         try:
             first = b.textlayer(1)
@@ -955,6 +1044,7 @@ class TestOK5TextLayer(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_page_number_is_clamped_to_the_book(self):
+        """textlayer(0) reads page 1 and textlayer(99) reads the last page of a 3-page book."""
         b, tmp = self._bench_with_fake_doc(pages=3)
         try:
             self.assertEqual(b.textlayer(0)["page"], 1)
@@ -963,6 +1053,7 @@ class TestOK5TextLayer(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_textlayer_route_is_read_only_get_never_a_mutating_post(self):
+        """/api/textlayer appears in bench.py's do_GET and not in the mutating-POST census region."""
         src = (Path(__file__).parent / "bench.py").read_text(encoding="utf-8")
         self.assertIn('"/api/textlayer"', src)
         get_part = src[src.index("def do_GET"):src.index("def do_POST")]
@@ -973,6 +1064,7 @@ class TestOK5TextLayer(unittest.TestCase):
                          "textlayer may never join the mutating POST census")
 
     def test_client_layer_exists_with_eviction_and_alt_gate(self):
+        """bench.html fetches the layer, has wordsInRect, evicts its cache and gates selection on Alt."""
         html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
         self.assertIn("/api/textlayer?n=", html, "client never fetches the layer")
         self.assertIn("wordsInRect", html)
@@ -987,9 +1079,11 @@ class TestOK4SearchSuite(unittest.TestCase):
     W = 0.02  # a word box helper: y row r, x slot c
 
     def _w(self, c, r, text):
+        """Return a word box [x0, y0, x1, y1, text] for column slot c and row r."""
         return [c * 0.1, r * 0.1, c * 0.1 + 0.08, r * 0.1 + 0.03, text]
 
     def test_hyphen_split_across_lines_matches_and_boxes_per_line(self):
+        """A word hyphenated across two lines matches whole and returns one box per line."""
         words = [self._w(0, 0, "smart"), self._w(1, 0, "invest-"),
                  self._w(0, 1, "ment"), self._w(1, 1, "works")]
         boxes = bench.Bench.match_in_words(words, "investment")
@@ -998,27 +1092,32 @@ class TestOK4SearchSuite(unittest.TestCase):
         self.assertAlmostEqual(boxes[1][1], 0.1, places=5)
 
     def test_ligature_query_matches_via_nfkc(self):
+        """A PDF ligature character matches a plain-letter query (NFKC folding)."""
         words = [self._w(0, 0, "ﬁnance")]  # PDF's ﬁ ligature
         self.assertEqual(len(bench.Bench.match_in_words(words, "finance")), 1)
 
     def test_multiword_and_multiple_occurrences(self):
+        """A two-word query is found twice in a word list that contains it twice."""
         words = [self._w(0, 0, "cash"), self._w(1, 0, "flow"), self._w(2, 0, "and"),
                  self._w(0, 1, "cash"), self._w(1, 1, "flow")]
         self.assertEqual(len(bench.Bench.match_in_words(words, "cash flow")), 2)
 
     def test_negative_control_absent_text_is_an_honest_empty(self):
+        """Negative control: a query not in the words returns no boxes."""
         words = [self._w(0, 0, "alpha"), self._w(1, 0, "beta")]
         self.assertEqual(bench.Bench.match_in_words(words, "gamma"), [])
         self.assertEqual(bench.Bench.match_in_words([], "gamma"), [])
         self.assertEqual(bench.Bench.match_in_words(words, "   "), [])
 
     def test_hyphen_only_word_is_not_a_glue_trap(self):
+        """A lone "-" word between two words does not join them into one searchable token."""
         # a bare "-" word must not silently weld its neighbours into one token
         words = [self._w(0, 0, "a"), self._w(1, 0, "-"), self._w(2, 0, "b")]
         self.assertEqual(bench.Bench.match_in_words(words, "ab"), [],
                          "the lone hyphen glued two words that are not one")
 
     def test_client_suite_census(self):
+        """bench.html still contains each named OK-4 search behaviour (debounce, staleness guard, highlights, ...)."""
         html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
         for needle, why in [
             ("SEARCH_DEBOUNCE_MS = 700", "the 700 ms typeahead constant"),
@@ -1033,6 +1132,7 @@ class TestOK4SearchSuite(unittest.TestCase):
             self.assertIn(needle, html, f"OK-4 client census missing: {why}")
 
     def test_server_rects_falls_back_to_the_word_stream(self):
+        """bench.py's rects() still calls match_in_words (the hyphenation-aware fallback)."""
         src = (Path(__file__).parent / "bench.py").read_text(encoding="utf-8")
         at = src.index("def rects(")
         self.assertIn("match_in_words", src[at:at + 1400],
@@ -1044,6 +1144,7 @@ class TestOK6TableTool(unittest.TestCase):
     cross a divider (the audit's words-only failure), and pipe-safety — all pure."""
 
     def test_divider_guessing_finds_the_valleys_and_ignores_noise(self):
+        """guess_dividers returns one divider in the gap between two ink columns and none for a tiny gap."""
         # two columns of ink: 0.1-0.3 and 0.5-0.8 → one divider at the gap's middle
         divs = bench.Bench.guess_dividers([(0.1, 0.2), (0.15, 0.3), (0.5, 0.7), (0.6, 0.8)],
                                           0.05, 0.9)
@@ -1052,6 +1153,7 @@ class TestOK6TableTool(unittest.TestCase):
         self.assertEqual(bench.Bench.guess_dividers([(0.1, 0.3), (0.302, 0.5)], 0.0, 0.6), [])
 
     def test_central_pixel_bucketing_builds_the_grid(self):
+        """bucket_cells places words into a 2x2 grid by centre point; table_markdown renders it as pipes."""
         words = [[0.10, 0.10, 0.20, 0.14, "name"], [0.60, 0.10, 0.70, 0.14, "value"],
                  [0.10, 0.30, 0.22, 0.34, "cash"], [0.60, 0.30, 0.72, 0.34, "42"]]
         cells = bench.Bench.bucket_cells(words, [], [0.05, 0.05, 0.95, 0.40],
@@ -1063,6 +1165,7 @@ class TestOK6TableTool(unittest.TestCase):
         self.assertIn("| cash | 42 |", md)
 
     def test_word_crossing_a_divider_is_split_by_its_chars(self):
+        """With chars supplied, a word straddling a divider is split between the two cells."""
         # ONE word "AB12" straddles the divider at 0.5 — words-only would dump it whole into
         # the left cell; the chars pull "AB" left and "12" right (the audit's exact case)
         word = [[0.40, 0.10, 0.60, 0.14, "AB12"]]
@@ -1073,6 +1176,7 @@ class TestOK6TableTool(unittest.TestCase):
         self.assertEqual(cells, [["AB", "12"]])
 
     def test_words_only_fallback_when_no_chars_supplied(self):
+        """Without chars, the whole word lands in the cell holding its centre."""
         # center 0.48 — clearly left of the 0.5 divider (a dead-center tie is degenerate
         # and may land either side; the contract is center-bucketing, not tie-breaking)
         word = [[0.40, 0.10, 0.56, 0.14, "AB12"]]
@@ -1083,6 +1187,7 @@ class TestOK6TableTool(unittest.TestCase):
                          "never invented")
 
     def test_pipes_in_cell_text_are_escaped(self):
+        """A "|" in cell text comes out as "\\|" so it cannot break the markdown table."""
         cells = bench.Bench.bucket_cells([[0.1, 0.1, 0.2, 0.14, "a|b"]], [],
                                          [0.0, 0.0, 1.0, 1.0], [], [])
         self.assertEqual(cells[0][0], "a\\|b", "an unescaped pipe eats the table's own syntax")
@@ -1114,6 +1219,7 @@ class TestOK6TableTool(unittest.TestCase):
                       "the deferred place listener lost its staleness guard")
 
     def test_client_table_census(self):
+        """bench.html still contains each named OK-6 table-tool control and rule."""
         html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
         for needle, why in [
             ('id="tablebtn"', "the arming button"),
@@ -1130,6 +1236,7 @@ class TestOK8ZoomAndOK12Grammar(unittest.TestCase):
     census pins every named behavior so a refactor cannot silently drop one)."""
 
     def test_ok8_census(self):
+        """bench.html still contains each named OK-8 zoom/loupe/night-mode behaviour."""
         html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
         for needle, why in [
             ('value="fitpage"', "fit-page spliced into the zoom ladder"),
@@ -1143,6 +1250,7 @@ class TestOK8ZoomAndOK12Grammar(unittest.TestCase):
         self.assertNotIn("? 140 : 220", html, "the old two-rung dpi ladder is still wired")
 
     def test_ok12_census(self):
+        """bench.html still contains each named OK-12 toast/status behaviour."""
         html = (Path(__file__).parent / "bench.html").read_text(encoding="utf-8")
         for needle, why in [
             ("2500 + m.length * 35", "length-proportional toast timeouts"),
@@ -1163,6 +1271,7 @@ class TestOK7TrimBox(unittest.TestCase):
 
     @staticmethod
     def raster(w, h, paper=(250, 250, 248), content_rect=None):
+        """Return (RGB bytes, row stride) of a w x h paper-coloured image with an optional dark content rectangle."""
         buf = bytearray()
         for y in range(h):
             for x in range(w):
@@ -1172,10 +1281,12 @@ class TestOK7TrimBox(unittest.TestCase):
         return bytes(buf), w * 3
 
     def test_blank_page_yields_none_not_a_phantom_box(self):
+        """A page with no content gives no trim box."""
         s, stride = self.raster(60, 90)
         self.assertIsNone(bench.Bench.bbox_from_samples(s, 60, 90, stride))
 
     def test_content_box_found_then_padded_and_capped(self):
+        """The content box is found, pad_and_cap widens it, and a tiny box is floored at TRIM_MIN_KEEP."""
         s, stride = self.raster(100, 100, content_rect=(30, 40, 70, 80))
         tight = bench.Bench.bbox_from_samples(s, 100, 100, stride)
         self.assertAlmostEqual(tight[0], 0.30, places=2)
@@ -1193,6 +1304,7 @@ class TestOK7TrimBox(unittest.TestCase):
             self.assertLessEqual(v, 1.0)
 
     def test_negative_control_content_at_the_edge_defeats_the_crop_honestly(self):
+        """Content touching the top edge keeps the box top at about 0 (no invented margin)."""
         # content touching row 0 (a header bleed, a scanner border): top must be 0 — the
         # measurement reports what is there rather than inventing a margin
         s, stride = self.raster(60, 60, content_rect=(0, 0, 60, 2))
@@ -1200,6 +1312,7 @@ class TestOK7TrimBox(unittest.TestCase):
         self.assertLessEqual(box[1], 0.01)
 
     def test_paper_estimate_survives_one_dark_corner(self):
+        """A dark block in one corner does not make the whole page read as paper."""
         # a photo block covering the top-left corner must not poison the paper estimate
         s, stride = self.raster(80, 80, content_rect=(0, 0, 20, 20))
         box = bench.Bench.bbox_from_samples(s, 80, 80, stride)
@@ -1208,6 +1321,7 @@ class TestOK7TrimBox(unittest.TestCase):
         self.assertLessEqual(box[1], 0.01)
 
     def test_trimbox_route_is_read_only_get_never_a_mutating_post(self):
+        """/api/trimbox exists in bench.py and is not in MUTATING_POSTS."""
         self.assertIn('"/api/trimbox"', BENCH_PY)
         self.assertNotIn("/api/trimbox", bench.MUTATING_POSTS,
                          "trimbox computes and caches — it must never join the mutating census")
@@ -1218,6 +1332,7 @@ class TestOK1ViewportSource(unittest.TestCase):
     rule, and restore winning over the zone-0 auto-jump."""
 
     def test_view_store_keys_on_the_stable_source_id_first(self):
+        """viewStoreKey in bench.html keys on source_sha16 and has a pdf_only branch."""
         body = js_function_body(BENCH_HTML, "viewStoreKey")
         self.assertIn("source_sha16", body,
                       "the view store no longer keys on the stable source id — a pipeline "
@@ -1229,6 +1344,7 @@ class TestOK1ViewportSource(unittest.TestCase):
                       "would share a single view store (marks/position/trim cross-pollution)")
 
     def test_reader_mode_gets_a_real_identity_from_the_pdf_bytes(self):
+        """Two different bare PDFs get different, stable 16-hex source ids from Bench.state()."""
         tmp = Path(tempfile.mkdtemp(prefix="fp-test-viewid-"))
         try:
             a, b = tmp / "bookA.pdf", tmp / "bookB.pdf"
@@ -1246,6 +1362,7 @@ class TestOK1ViewportSource(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_history_overwrites_same_page_and_caps_at_100(self):
+        """histRecord overwrites a same-page entry, caps history at 100 and splices the forward tail."""
         body = js_function_body(BENCH_HTML, "histRecord")
         self.assertIn(".page === vp.page", body, "the same-page overwrite branch is gone — "
                       "plain scrolling would spam the history")
@@ -1253,10 +1370,12 @@ class TestOK1ViewportSource(unittest.TestCase):
         self.assertIn("splice", body, "a page change no longer erases the forward tail")
 
     def test_persisted_history_is_the_last_ten(self):
+        """saveViewStore persists only the last ten history entries (slice(-10))."""
         body = js_function_body(BENCH_HTML, "saveViewStore")
         self.assertIn("slice(-10)", body, "the persisted history is no longer capped at 10")
 
     def test_load_prefers_the_saved_place_over_the_zone_autojump(self):
+        """In load(), restoreView is tried before the select-zone-0 auto-jump."""
         body = js_function_body(BENCH_HTML, "load")
         self.assertIn("restoreView(store)", body)
         self.assertLess(body.index("if (restoreView(store))"),
@@ -1264,6 +1383,7 @@ class TestOK1ViewportSource(unittest.TestCase):
                         "load() auto-jumps to zone 0 before consulting the saved viewport")
 
     def test_negative_control_a_push_only_history_fails_the_same_checks(self):
+        """Negative control: a push-only history snippet lacks the same-page and cap markers."""
         bad = "{ vhist.push(vp); vidx = vhist.length - 1; }"
         self.assertNotIn(".page === vp.page", bad)
         self.assertNotIn("100", bad)
@@ -1274,12 +1394,14 @@ class TestOK2PlaceholderSource(unittest.TestCase):
     so fast loads never flash it."""
 
     def test_goto_routes_through_the_placeholder_path(self):
+        """goto() calls setPageImage and does not set the page image src directly."""
         body = js_function_body(BENCH_HTML, "goto")
         self.assertIn("setPageImage(", body)
         self.assertNotIn('pageimg").src', body,
                          "goto sets img.src directly — the placeholder path is bypassed")
 
     def test_placeholder_only_appears_inside_the_delay_callback(self):
+        """In setPageImage the placeholder is un-hidden only after the setTimeout, never before."""
         body = js_function_body(BENCH_HTML, "setPageImage")
         self.assertIn("setTimeout", body)
         at_timer = body.index("setTimeout")
@@ -1289,11 +1411,13 @@ class TestOK2PlaceholderSource(unittest.TestCase):
                          "the placeholder shows before the delay — fast pages pay the flash")
 
     def test_negative_control_an_immediate_placeholder_fails_the_same_check(self):
+        """Negative control: a snippet that un-hides before the timer is detected by the same position test."""
         bad = '{ ph.hidden = false; setTimeout(() => {}, 120); img.src = url; }'
         at_timer = bad.index("setTimeout")
         self.assertIn("hidden = false", bad[:at_timer])
 
     def test_overlays_ride_the_image_inside_pageinner(self):
+        """bench.html has #pageinner and appends highlight boxes into it."""
         # OK-7's CSS crop shifts #pageinner; highlights must live there or trim would strand them
         self.assertIn('id="pageinner"', BENCH_HTML)
         self.assertIn('$("pageinner").appendChild', BENCH_HTML,
@@ -1313,16 +1437,19 @@ class TestReviewFixes(unittest.TestCase):
     """The 2026-08-30 three-lens review's confirmed findings, pinned so they cannot return."""
 
     def test_pagephold_hidden_override_exists(self):
+        """bench.html's stylesheet has a #pagephold[hidden] display:none override."""
         self.assertTrue(css_hidden_override_present(BENCH_HTML, "pagephold"),
                         "#pagephold[hidden]{display:none} is gone — with an author "
                         "display:block, ph.hidden=true is a NO-OP and the dpi-30 placeholder "
                         "stays painted over every subsequent page (review CRITICAL)")
 
     def test_pagephold_hidden_override_negative_control(self):
+        """Negative control: a stylesheet snippet without the override fails css_hidden_override_present."""
         bad = "#pagephold { position:absolute; display:block; }"
         self.assertFalse(css_hidden_override_present(bad, "pagephold"))
 
     def test_restored_load_still_binds_the_zone_context(self):
+        """load() still calls selectZone(0, true) on a restored view and selectZone keeps its keepView parameter."""
         body = js_function_body(BENCH_HTML, "load")
         self.assertIn("selectZone(0, true)", body,
                       "a restored view no longer binds zone context — zone stays null, "
@@ -1333,6 +1460,7 @@ class TestReviewFixes(unittest.TestCase):
                       "selectZone lost its keepView parameter")
 
     def test_history_walk_never_overwrites_the_destination_entry(self):
+        """During a history walk histRecord saves and returns without writing the current view over the entry."""
         body = js_function_body(BENCH_HTML, "histRecord")
         self.assertRegex(body,
                          r"if \(navFromHist\) \{ navFromHist = false; saveViewStore\(\); "
@@ -1342,6 +1470,7 @@ class TestReviewFixes(unittest.TestCase):
                          "destination's scroll offset")
 
     def test_marks_key_on_identity_not_render_index(self):
+        """renderMarks resolves marks by their ts identity, and bench.html has no ondblclick."""
         body = js_function_body(BENCH_HTML, "renderMarks")
         self.assertIn("findIndex", body)
         self.assertIn("dataset.ts", body,
@@ -1352,6 +1481,7 @@ class TestReviewFixes(unittest.TestCase):
                          "must stay on its own ✎ control")
 
     def test_trim_select_arms_with_a_clean_crop(self):
+        """The trim button handler in bench.html clears the stale repair rect when arming (source pattern check)."""
         at = BENCH_HTML.index('$("trimbtn").onclick')
         handler = BENCH_HTML[at:at + 700]
         self.assertIn("clearCrop()", handler,
@@ -1359,6 +1489,7 @@ class TestReviewFixes(unittest.TestCase):
                       "arming would commit the previous crop as the global trim box")
 
     def test_alt_history_prevents_browser_back(self):
+        """The Alt+arrow handler calls preventDefault and a beforeunload guard exists."""
         handler = js_handler_around(BENCH_HTML, 'e.key === "ArrowLeft"')
         alt_at = handler.index("altKey")
         self.assertIn("preventDefault", handler[alt_at:alt_at + 120],
@@ -1368,12 +1499,14 @@ class TestReviewFixes(unittest.TestCase):
                       "on any navigation")
 
     def test_pad_and_cap_rejects_garbage_boxes(self):
+        """pad_and_cap raises ValueError on inverted, zero-size and out-of-range boxes."""
         for bad in ([0.6, 0.6, 0.4, 0.4], [0.5, 0.5, 0.5, 0.5], [-0.1, 0, 0.5, 0.5]):
             with self.assertRaises(ValueError,
                                    msg=f"pad_and_cap answered confidently on garbage {bad}"):
                 bench.Bench.pad_and_cap(bad)
 
     def test_trim_constants_are_live_at_their_call_sites(self):
+        """bench.py passes the class TRIM_* constants (not frozen defaults) at its call sites."""
         self.assertIn("self.pad_and_cap(box, self.TRIM_PAD, self.TRIM_MIN_KEEP)", BENCH_PY,
                       "pad_and_cap is called on frozen defaults — tuning Bench.TRIM_PAD "
                       "or TRIM_MIN_KEEP would silently do nothing")
@@ -1385,6 +1518,7 @@ class TestOK15EvidenceWiring(unittest.TestCase):
     """The collector has its own PyMuPDF harness; these pin its read-only Bench projection."""
 
     def test_evidence_route_is_get_only_and_never_mutating(self):
+        """/api/evidence is a GET behind token_gate and a lock, not in MUTATING_POSTS; the page sends the token."""
         self.assertIn('url.path == "/api/evidence"', BENCH_PY)
         self.assertNotIn("/api/evidence", bench.MUTATING_POSTS,
                          "OK-15 quarantine evidence must never become a write route")
@@ -1399,6 +1533,7 @@ class TestOK15EvidenceWiring(unittest.TestCase):
                       js_function_body(BENCH_HTML, "api"))
 
     def test_operator_surface_names_every_probe_and_its_non_gate(self):
+        """renderEvidence in bench.html names every probe and shows UNREAD reasons, retry and navigable pages."""
         body = js_function_body(BENCH_HTML, "renderEvidence")
         for phrase in ["per-page MuPDF warnings", "logical labels", "order-only differences",
                        "all-OCG-off", "embedded /Thumb"]:
@@ -1422,6 +1557,7 @@ class TestOK15EvidenceWiring(unittest.TestCase):
                       "suspect evidence pages are no longer navigable")
 
     def test_collection_failure_is_cached_and_retry_is_explicit(self):
+        """A failed evidence collection is cached as UNREAD (one call) and only retry=True runs it again."""
         self.assertEqual(
             "RuntimeError: useful terminal reason",
             bench._last_process_diagnostic(
@@ -1437,6 +1573,7 @@ class TestOK15EvidenceWiring(unittest.TestCase):
             calls = []
 
             def fail(actual):
+                """Stand-in collector: record the call, then raise a RuntimeError."""
                 calls.append(actual)
                 raise RuntimeError("synthetic permanent failure")
 
@@ -1459,6 +1596,7 @@ class TestOK15EvidenceWiring(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_concurrent_collection_returns_in_progress_without_second_child(self):
+        """A second evidence request during a running collection returns IN-PROGRESS at once; no second run starts."""
         tmp = Path(tempfile.mkdtemp(prefix="fp-test-ok15-concurrent-"))
         try:
             pdf = tmp / "slow.pdf"
@@ -1468,6 +1606,7 @@ class TestOK15EvidenceWiring(unittest.TestCase):
             calls, result = [], {}
 
             def slow(actual):
+                """Stand-in collector: signal start, wait for release, then return a measured report."""
                 calls.append(actual)
                 started.set()
                 if not release.wait(2):
@@ -1497,6 +1636,7 @@ class TestOK15EvidenceWiring(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_page_labels_reach_toolbar_and_thumbnail_rail(self):
+        """goto() and buildThumbs() in bench.html read st.page_labels, and bench.py falls back to the page number."""
         goto = js_function_body(BENCH_HTML, "goto")
         thumbs = js_function_body(BENCH_HTML, "buildThumbs")
         self.assertIn("st.page_labels?.[page - 1]", goto)
@@ -1523,6 +1663,7 @@ class TestS214ScannerLink(unittest.TestCase):
     state is loaded, and ◫ geometry opens the Scanner on this book's dir name and this page. Source-level, like the rest."""
 
     def test_hash_page_routes_through_goto_after_state(self):
+        """applyHashPage reads #p=<n>, waits for st.pages, calls goto and is bound to hashchange."""
         body = js_function_body(BENCH_HTML, "applyHashPage")
         self.assertIn("goto(", body, "the address's page must go through goto, the bench's one page function")
         self.assertIn("st.pages", body, "a page is honoured only once the state (st.pages) is loaded")
@@ -1532,6 +1673,7 @@ class TestS214ScannerLink(unittest.TestCase):
         self.assertNotIn("setPageImage(", body)
 
     def test_geometry_button_opens_the_scanner_on_this_book_and_page(self):
+        """The geometry button opens the Scanner on port 7180 with this bundle and page, without the bench token."""
         self.assertIn('id="geo-btn"', BENCH_HTML, "the toolbar carries ◫ geometry")
         # S215 E34 (round four): at the address the bench was opened by, the loopback only as the fallback — the literal
         # 127.0.0.1 sent the phone to itself
@@ -1544,6 +1686,7 @@ class TestS214ScannerLink(unittest.TestCase):
         self.assertNotIn("token", seg[seg.index(":7180/?dir="):seg.index(":7180/?dir=") + 200])
 
 
+# -- Host-header checks, phone layout, peer lists and the picker's book swap across listeners --
 class TestHostCheck(unittest.TestCase):
     """S215 round four (DNS rebinding): a Host that is not the bench's own name is refused before any route (GET and POST);
     its loopback names, its listening address and a --host name pass; every answer says Referrer-Policy: no-referrer; an
@@ -1551,6 +1694,7 @@ class TestHostCheck(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
+        """Pick a free loopback port, build a temp bundle and serve it with token t0k and the extra host name."""
         import socket
         s = socket.socket()
         s.bind(("127.0.0.1", 0))
@@ -1563,12 +1707,14 @@ class TestHostCheck(unittest.TestCase):
 
     @classmethod
     def tearDownClass(cls):
+        """Stop the servers and delete the temp bundle."""
         for srv in cls.servers:
             srv.shutdown()
             srv.server_close()
         shutil.rmtree(cls.tmp, ignore_errors=True)
 
     def ask(self, method, host, path="/api/state", body=None):
+        """Send one request to the class server with a chosen Host header; return (status, body bytes, headers dict)."""
         conn = http.client.HTTPConnection("127.0.0.1", self.port, timeout=10)
         conn.putrequest(method, path, skip_host=True)
         conn.putheader("Host", host)
@@ -1582,21 +1728,25 @@ class TestHostCheck(unittest.TestCase):
         return r.status, data, hdr
 
     def test_foreign_host_refused_get(self):
+        """A GET with a foreign Host header is a 421 that says the bench answers only to its own names."""
         s, data, _ = self.ask("GET", "evil.example:%d" % self.port)
         self.assertEqual(s, 421)
         self.assertIn(b"own names", data)
 
     def test_foreign_host_refused_post_before_the_token(self):
+        """A POST with a foreign Host header is a 421 (checked before the token)."""
         s, _, _ = self.ask("POST", "evil.example:%d" % self.port, "/api/repair", b'{"zone_line": 1}')
         self.assertEqual(s, 421)
 
     def test_own_names_pass_and_no_referrer(self):
+        """Loopback names and the configured host name get 200 with Referrer-Policy: no-referrer."""
         for h in ("127.0.0.1:%d" % self.port, "localhost:%d" % self.port, "desktop-bndit:%d" % self.port):
             s, _, hdr = self.ask("GET", h)
             self.assertEqual(s, 200, h)
             self.assertEqual(hdr.get("Referrer-Policy"), "no-referrer", h)
 
     def test_unbindable_also_bind_leaves_loopback(self):
+        """With a stubbed listener class, an unbindable extra address is skipped and the loopback server still runs."""
         import socket
         s = socket.socket()
         s.bind(("127.0.0.1", 0))
@@ -1613,6 +1763,7 @@ class TestHostCheck(unittest.TestCase):
         asked, real_class = [], bench.ThreadingHTTPServer
 
         def stub(addr, handler):
+            """Record the address asked for; real server for loopback, simulated EADDRNOTAVAIL for any other."""
             asked.append(addr)
             if not ipaddress.ip_address(addr[0]).is_loopback:
                 raise OSError(errno.EADDRNOTAVAIL, "Cannot assign requested address (stub: no socket was made)")
@@ -1634,6 +1785,7 @@ class TestE34Phone(unittest.TestCase):
     never inside the program block or the S147 layout module."""
 
     def test_the_strip_wraps_every_tool_and_carries_no_id(self):
+        """The header's htools span contains every tool button and has no id attribute of its own."""
         a = BENCH_HTML.index('<span class="htools">')
         b = BENCH_HTML.index("</header>")
         strip = BENCH_HTML[a:b]
@@ -1642,12 +1794,14 @@ class TestE34Phone(unittest.TestCase):
         self.assertNotIn("id=", BENCH_HTML[a:a + len('<span class="htools">') + 1], "the strip carries no id (the S147 invariant's id set)")
 
     def test_desk_layout_untouched_and_phone_rules_present(self):
+        """bench.html carries the desk (display:contents) and phone/short-screen CSS rules for the tool strip."""
         self.assertIn(".htools { display:contents; }", BENCH_HTML)
         self.assertIn("html.lay-phone .htools { display:flex;", BENCH_HTML)
         self.assertIn("html.lay-short header { flex-wrap:nowrap;", BENCH_HTML)
         self.assertIn("html.lay-short #upper { max-height:min(var(--upper-h, 64px), 45vh); }", BENCH_HTML)
 
     def test_lay_short_is_set_outside_the_program_and_the_layout_module(self):
+        """The lay-short class is toggled by its own script, not inside the main program or the S147 layout module."""
         program = BENCH_HTML[BENCH_HTML.index("<script>\nconst $ = (id)"):]
         program = program[:program.index("</script>")]
         layout = BENCH_HTML[BENCH_HTML.index("/* ---- S147 · the layout module"):]
@@ -1662,6 +1816,7 @@ class TestPeersAndDot(unittest.TestCase):
     dot is its own name."""
 
     def test_servers_share_their_peers(self):
+        """serve_on's two listeners hold the same peers list (skipped if 127.0.0.2 cannot bind)."""
         import socket
         s = socket.socket()
         s.bind(("127.0.0.1", 0))
@@ -1682,11 +1837,13 @@ class TestPeersAndDot(unittest.TestCase):
             shutil.rmtree(tmp, ignore_errors=True)
 
     def test_the_picker_swaps_every_listener(self):
+        """bench.py's book-swap code loops over the shared peers list instead of assigning to self.server only."""
         src = Path(bench.__file__).read_text(encoding="utf-8")
         self.assertIn('for srv in getattr(self.server, "peers", None) or [self.server]:', src)
         self.assertNotIn("                    self.server.bench = new_bench\n", src)
 
     def test_trailing_dot(self):
+        """bench.host_name strips the trailing dot and lower-cases a Host value with a port."""
         self.assertEqual(bench.host_name("Desktop-Bndit.tailc44e8c.ts.net.:7077"), "desktop-bndit.tailc44e8c.ts.net")
         self.assertTrue(bench.host_ok("localhost.:7077", "127.0.0.1"))
 
@@ -1722,6 +1879,7 @@ def _picker_swap_probe(mod):
             hosts = ("127.0.0.1", "127.0.0.2")
 
             def call(host, method, path, body=None):
+                """One request to `host` with the token (when a body is sent); return (status, parsed JSON)."""
                 conn = http.client.HTTPConnection(host, port, timeout=10)
                 conn.request(method, path, body=body,
                              headers={"X-FP-Token": "t0k", "Content-Type": "application/json"} if body is not None else {})
@@ -1764,6 +1922,7 @@ class TestPickerSwapLive(unittest.TestCase):
     one listener of a two-listener serve_on and the OTHER listener must show it (and the reverse), on loopback addresses only."""
 
     def test_a_swap_posted_to_either_listener_is_seen_on_both(self):
+        """Opening a book through either listener changes the book shown by both (skipped if unbindable)."""
         rows, why = _picker_swap_probe(bench)
         if why:
             self.skipTest(why + " -- UNREAD, not a pass")
@@ -1789,12 +1948,14 @@ class TestPickerSwapMutants(unittest.TestCase):
     SWAP = "srv.bench = new_bench"
 
     def test_the_unchanged_source_passes_the_probe_when_loaded_as_a_mutant(self):
+        """Positive control: bench.py loaded as a copy with no change still satisfies the swap probe."""
         rows, why = _picker_swap_probe(_bench_mutant(self.SWAP, self.SWAP))
         if why:
             self.skipTest(why + " -- UNREAD, not a pass")
         self.assertTrue(_swap_reaches_both(rows), rows)
 
     def test_each_broken_swap_fails_the_probe(self):
+        """Four broken versions of the swap statement each make the live probe fail."""
         mutants = (
             ("pass: the loop runs and swaps nothing", "pass"),
             ("only the listener that was asked", "if srv is self.server: srv.bench = new_bench"),
@@ -1809,10 +1970,12 @@ class TestPickerSwapMutants(unittest.TestCase):
                 self.assertFalse(_swap_reaches_both(rows), "%s: the live probe still passes, so it cannot tell (%r)" % (name, rows))
 
 
+# -- host-dot edge case, body cache and HTTP/1.1 validators --
 class TestHostDots(unittest.TestCase):
     """S215 E37 (round six, 18): a Host of only dots is refused, never read as 'no Host sent'"""
 
     def test_dots_only_refused_names_with_a_dot_admitted(self):
+        """bench.host_ok refuses dot-only Hosts, admits a trailing-dot name, and admits a missing Host on loopback."""
         self.assertFalse(bench.host_ok(".", "127.0.0.1"))
         self.assertFalse(bench.host_ok(".:7077", "127.0.0.1"))
         self.assertFalse(bench.host_ok("::1.", "127.0.0.1"))
@@ -1820,6 +1983,7 @@ class TestHostDots(unittest.TestCase):
         self.assertTrue(bench.host_ok(None, "127.0.0.1"), "no Host at all: the loopback still admits a local tool")
 
     def test_negative_control_the_old_strip(self):
+        """Negative control: the old trailing-dot strip turned "." into an empty string."""
         old = lambda name: name[:-1] if name.endswith(".") else name   # noqa: E731 — the round-five line
         self.assertEqual(old("."), "", "the old strip turned '.' into '' (read as no Host)")
 
@@ -1829,20 +1993,24 @@ class TestBodyCache(unittest.TestCase):
     state() is the same warm and cold."""
 
     def setUp(self):
+        """Make a temp bundle with a two-line book.md and a Bench on it."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-cache-"))
         self.md = self.tmp / "book.md"
         self.md.write_text("---\ntitle: t\n---\nline one\nline  two\n", encoding="utf-8")
         self.b = bench.Bench(self.tmp)
 
     def tearDown(self):
+        """Delete the temp bundle."""
         shutil.rmtree(self.tmp, ignore_errors=True)
 
     def test_read_once_per_change(self):
+        """An unchanged file returns the same cached body string and the split lines are as expected."""
         a = self.b.body()
         self.assertIs(self.b.body(), a, "an unchanged file is not read again (the same string object)")
         self.assertEqual(self.b._lines()[1], ["line one", "line two", ""])
 
     def test_an_outside_write_is_seen(self):
+        """A write by another process (with a later mtime) is picked up by body() and _lines()."""
         self.b.body()
         import os
         import time as _t
@@ -1853,6 +2021,7 @@ class TestBodyCache(unittest.TestCase):
         self.assertIn("changed by another hand", self.b._lines()[1])
 
     def test_the_bench_write_drops_its_copy(self):
+        """After the bench's own _write_body, body() returns the new text."""
         self.b.body()
         self.b._write_body("rewritten by the bench\n", gesture="manual-edit", note="test")
         self.assertIn("rewritten by the bench", self.b.body())
@@ -1869,15 +2038,18 @@ class TestBodyCache(unittest.TestCase):
         self.assertIn("bbbb", self.b._lines()[1])
 
     def test_crlf_decoded_as_read_text_does(self):
+        """A CRLF file's body equals what split_frontmatter gives for the same file read as text."""
         self.md.write_bytes(b"---\r\ntitle: t\r\n---\r\none\r\ntwo\r\n")
         self.assertEqual(self.b.body(), bench.split_frontmatter(self.md.read_text(encoding="utf-8"))[1])
 
     def test_the_resolvers_agree_with_their_pre_e36_forms(self):
+        """The cached run-line and zone-line lookups give the same answers as the pre-E36 re-split code."""
         body = "Alpha  Beta\tGamma delta\n  The QUICK brown   fox jumps over\nplain line\nthe quick BROWN fox again here\n"
         self.md.write_text("---\ntitle: t\n---\n" + body, encoding="utf-8")
         b = bench.Bench(self.tmp)
 
         def run_old(run):                       # bench.py before E36, written out
+            """The old run-to-line lookup: first line holding the run's first 6..3 excerpt words, or None."""
             words = (run.get("excerpt") or "").split()
             if len(words) < 3:
                 return None
@@ -1894,6 +2066,7 @@ class TestBodyCache(unittest.TestCase):
             return None
 
         def zone_hits_old(excerpt):
+            """The old zone lookup: 1-based numbers of the lines containing the excerpt."""
             return [i + 1 for i, ln in enumerate(b.body().split("\n")) if excerpt in " ".join(ln.split())]
         for ex in ("the quick brown fox never here", "Alpha Beta Gamma delta", "QUICK brown fox jumps over the", "no such words at all"):
             self.assertEqual(b._resolve_run_line({"excerpt": ex}), run_old({"excerpt": ex}), ex)
@@ -1902,6 +2075,7 @@ class TestBodyCache(unittest.TestCase):
             self.assertEqual(got, zone_hits_old(ex), ex)
 
     def test_md_and_page_revalidate(self):
+        """GET /api/md gives an ETag, a matching If-None-Match gets 304, a file change gets 200 and a new tag."""
         srv = bench.serve_on(["127.0.0.1"], 0, bench.make_handler(self.b))
         try:
             threading.Thread(target=srv[0].serve_forever, daemon=True).start()   # serve_on leaves the first to its caller
@@ -1950,6 +2124,7 @@ class TestBodyCache(unittest.TestCase):
                 s.shutdown(); s.server_close()
 
     def test_state_same_warm_and_cold(self):
+        """state() from a fresh Bench and from a warmed one serialise to the same JSON."""
         cold = bench.Bench(self.tmp).state()
         self.b.state()
         warm = self.b.state()
@@ -1957,6 +2132,7 @@ class TestBodyCache(unittest.TestCase):
 
 
 
+# -- E38 windowed markdown pane: source-shape helpers and their tests --
 def e38_block(src: str) -> str:
     """the S215 E38 <script> block (the windowed pane), from its head comment to its </script>"""
     at = src.index("/* S215 E38 (Rab, Desk 4354924f")
@@ -1983,26 +2159,33 @@ class TestE38WindowedPane(unittest.TestCase):
     markdown pane draws the lines near the screen; the editor and the desk draw the whole file, as before."""
 
     def setUp(self):
+        """Take bench.html with LF line endings and cut out the E38 script block."""
         self.src = BENCH_HTML.replace("\r\n", "\n")
         self.block = e38_block(self.src)
 
     def test_rebinds_the_programs_own_functions_only(self):
+        """The E38 block rebinds five program functions and its marker text appears only outside the program block."""
         for name in ("renderLines", "ctxText", "scrollToLine", "markTableHealth", "toggleView"):
             self.assertIn(f"{name} = function", self.block, f"E38 no longer rebinds {name}")
         self.assertNotIn("S215 E38", self.src[self.src.index("const $ = (id) =>"):self.src.index("/* ---- S147 · the layout module")],
                          "E38 must live outside the program block")
 
     def test_window_only_on_the_phone_and_never_while_editing(self):
+        """Positive control: the real E38 block passes e38_window_rule_ok."""
         self.assertTrue(e38_window_rule_ok(self.block))
 
     def test_window_rule_negative_control(self):
+        """Negative control: removing the editing guard from the block fails e38_window_rule_ok."""
         self.assertFalse(e38_window_rule_ok(self.block.replace("phone() && !editing()", "phone()")),
                          "the helper failed to catch a window drawn under the editor")
 
     def test_the_editor_gets_the_whole_file_first(self):
+        """Positive control: the real E38 block passes e38_edit_order_ok."""
         self.assertTrue(e38_edit_order_ok(self.block))
 
     def test_the_editor_order_negative_controls(self):
+        """Negative controls: two altered blocks (window inside an edit click; whole file drawn too late)
+        fail the order check."""
         self.assertFalse(e38_edit_order_ok(self.block.replace("!viewOn && windowed() && !inEditClick", "!viewOn && windowed()")),
                          "the helper failed to catch toggleView drawing a window inside a ✎ click (the editor would get a slice)")
         swapped = self.block.replace("    if (!editing() && win) { keep = firstOnScreen(); whole(); }\n", "").replace(
@@ -2011,20 +2194,24 @@ class TestE38WindowedPane(unittest.TestCase):
         self.assertFalse(e38_edit_order_ok(swapped), "the helper failed to catch the whole file drawn AFTER the pane became editable")
 
     def test_a_slice_never_feeds_the_programs_highlight_path_or_the_save(self):
+        """draw() clears renderedText and ctxText returns the whole mdText when windowed."""
         draw = self.block[self.block.index("function draw("):self.block.index("function whole(")]
         self.assertIn("renderedText = null", draw)
         self.assertRegex(self.block, r"ctxText = function \(\) \{ return win \? mdText : _ctxText\(\); \};")
 
     def test_class_changes_are_acted_on_in_an_animation_frame(self):
+        """Class changes on the root are handled once per animation frame through a MutationObserver."""
         self.assertRegex(self.block, r"const later = function \(\) \{ if \(!modeRaf\) modeRaf = requestAnimationFrame\(settle\); \};")
         self.assertIn('new MutationObserver(later).observe(root, { attributes: true, attributeFilter: ["class"] })', self.block)
 
     def test_round_six_refit_after_a_turn_fit_modes_only(self):
+        """After a turn, the block re-applies zoom only when the zoom value is fit or fitpage."""
         tail = self.block[self.block.index("round six (22)"):]
         self.assertIn("requestAnimationFrame(", tail)
         self.assertRegex(tail, r'z\.value === "fit" \|\| z\.value === "fitpage"\) && typeof applyZoom === "function"\) applyZoom\(\)')
 
     def test_round_six_sideways_css(self):
+        """The sideways (lay-short) CSS lets the chips swipe and keeps the safe-area padding."""
         self.assertIn("html.lay-short .patient { flex:none; max-width:34vw; overflow-x:auto;", self.src)
         self.assertNotRegex(self.src, r"html\.lay-short \.patient \{[^}]*overflow:hidden", "sideways the chips must swipe (round six, 20)")
         self.assertIn("padding-bottom:env(safe-area-inset-bottom)", self.src)
@@ -2041,6 +2228,7 @@ def e38_leave_ok(block: str) -> bool:
 
 
 def e38_selection_ok(block: str) -> bool:
+    """True when the block skips redraw while a selection is open and its copy handler copies true lines."""
     scroll = block[block.index('ctx.addEventListener("scroll"'):block.index("function settle()")]
     cp = block[block.index('document.addEventListener("copy"'):]
     return ("selOpenInPane()" in scroll and "}, true);" in cp and "stopImmediatePropagation" in cp
@@ -2051,33 +2239,40 @@ class TestE38RoundEight(unittest.TestCase):
     """S215 E38, round eight (wf_1b9eba3a) and round seven's preload profile: the fixes' shapes, each with its negative control."""
 
     def setUp(self):
+        """Take bench.html with LF line endings and cut out the E38 script block."""
         self.src = BENCH_HTML.replace("\r\n", "\n")
         self.block = e38_block(self.src)
 
     def test_leaving_the_editor_keeps_the_line(self):
+        """Positive control: the real block passes e38_leave_ok."""
         self.assertTrue(e38_leave_ok(self.block))
 
     def test_leaving_the_editor_negative_control(self):
+        """Negative control: swapping the exact-height redraw or rounding for the old forms fails e38_leave_ok."""
         self.assertFalse(e38_leave_ok(self.block.replace("draw(firstOfWhole(), true);   // round eight: the whole file's own row height",
                                                          "draw(firstOnScreen());")), "the helper missed the 2 %-per-cycle drift")
         self.assertFalse(e38_leave_ok(self.block.replace("Math.round((ctx.scrollTop - PAD)", "Math.floor((ctx.scrollTop - PAD)")),
                          "the helper missed the floor that lost one line per cycle")
 
     def test_a_selection_is_never_redrawn_and_copies_true_lines(self):
+        """Positive control: the real block passes e38_selection_ok."""
         self.assertTrue(e38_selection_ok(self.block))
 
     def test_selection_negative_control(self):
+        """Negative control: dropping the selection guard or the capture-phase copy handler fails e38_selection_ok."""
         self.assertFalse(e38_selection_ok(self.block.replace("      if (!win || selOpenInPane()) return;\n", "      if (!win) return;\n")))
         self.assertFalse(e38_selection_ok(self.block.replace("  }, true);\n  // round six (22)", "  });\n  // round six (22)")),
                          "the copy must be captured before the pane's own handler")
 
     def test_table_marks_follow_the_buffer(self):
+        """draw() refreshes table marks (tbFresh) and tbFresh returns early when the buffer is unchanged."""
         draw = self.block[self.block.index("function draw("):self.block.index("function whole(")]
         self.assertIn("tbFresh();", draw)
         fresh = self.block[self.block.index("function tbFresh()"):self.block.index("function selOpenInPane()")]
         self.assertIn("if (tbFor === mdText) return;", fresh)
 
     def test_an_unsized_frame_reads_no_layout(self):
+        """With no window size the block returns defaults, not layout reads; draw() skips scrolling when hidden."""
         self.assertIn("const unsized = () => !innerWidth || !innerHeight;", self.block)
         self.assertIn("const firstOnScreen = () => unsized() ? 0 :", self.block)
         self.assertIn("const rowsOnScreen = () => unsized() ? 40 :", self.block)
@@ -2085,6 +2280,7 @@ class TestE38RoundEight(unittest.TestCase):
         self.assertIn("if (!hidden) ctx.scrollTop =", draw)
 
     def test_e34_more_once_per_frame(self):
+        """The E34 script batches its "more" updates into one animation frame, driven by observers and a timer."""
         at = self.src.index("/* S215 E34 (Rab, Desk 8b065892 08:12:09Z")   # the script's head (the CSS's carries the date)
         e34 = self.src[at:self.src.index("</script>", at)]
         self.assertIn("function moreSoon() { if (!moreRaf) moreRaf = requestAnimationFrame(", e34)
@@ -2103,14 +2299,17 @@ class _FakeReader(io.BytesIO):
     at_close = None
 
     def __init__(self, data):
+        """Wrap `data` bytes and start an empty list of read sizes."""
         super().__init__(data)
         self.sizes = []
 
     def read(self, size=-1):
+        """Record the requested size, then read as BytesIO does."""
         self.sizes.append(size)
         return super().read(size)
 
     def close(self):
+        """Remember the read position at the first close, then close."""
         if self.at_close is None:
             self.at_close = self.tell()
         super().close()
@@ -2120,22 +2319,28 @@ class _FakeConn:
     """a socket that speaks from a byte string and keeps what is written to it; nothing here touches a network"""
 
     def __init__(self, raw):
+        """Keep the request bytes `raw`; start with nothing sent, no reader and no timeouts."""
         self.raw, self.sent, self.reader, self.timeouts = raw, [], None, []
 
     def settimeout(self, t):
+        """Record the timeout the handler asked for."""
         self.timeouts.append(t)
 
     def makefile(self, mode="rb", bufsize=-1):
+        """Return (and remember) a _FakeReader over the request bytes."""
         self.reader = _FakeReader(self.raw)
         return self.reader
 
     def sendall(self, data):
+        """Keep a copy of the bytes the handler writes."""
         self.sent.append(bytes(data))
 
     def close(self):
+        """Do nothing (there is no real socket)."""
         pass
 
     def wire(self):
+        """Return everything written to the connection, joined."""
         return b"".join(self.sent)
 
 
@@ -2148,6 +2353,7 @@ def _raw(method, path="/api/state", host="100.108.102.101:7077", headers=None, b
 
 
 def _free_port():
+    """Ask the OS for a free loopback port number (bind to 0, read it, close) and return it."""
     s = socket.socket()
     s.bind(("127.0.0.1", 0))
     port = s.getsockname()[1]
@@ -2156,10 +2362,13 @@ def _free_port():
 
 
 class TestTailnetLock(unittest.TestCase):
-    TRUSTED = ("127.0.0.1", "::1", "100.97.237.60", "100.108.102.101", "fd7a:115c:a1e0::1", "::ffff:100.97.237.60")
+    """The peer lock and the listener lock: only loopback and tailnet peers are served, wide binds are refused."""
+
+    TRUSTED =("127.0.0.1", "::1", "100.97.237.60", "100.108.102.101", "fd7a:115c:a1e0::1", "::ffff:100.97.237.60")
     STRANGERS = ("192.168.2.207", "8.8.8.8", "::ffff:192.168.2.207", "2001:db8::7f00:1")
 
     def setUp(self):
+        """Make a temp bundle (cleaned up after) and a fake server object holding a tailnet listen address."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-lock-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one\nline two", encoding="utf-8")
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
@@ -2179,9 +2388,12 @@ class TestTailnetLock(unittest.TestCase):
         calls = []
 
         class Spy(base):
+            """The real handler class; its do_* methods are replaced below."""
+
             pass
         for m in ("GET", "POST", "HEAD", "OPTIONS", "PUT"):
             def do(self, _m=m):
+                """Record the method name, consume the request body, answer with a small JSON."""
                 calls.append(_m)
                 self.rfile.read(int(self.headers.get("Content-Length") or 0))   # a real method consumes its body
                 self._json({"spy": _m})
@@ -2190,12 +2402,14 @@ class TestTailnetLock(unittest.TestCase):
 
     # -- the tables
     def test_peer_ok_table(self):
+        """bench.peer_ok accepts loopback and tailnet addresses and refuses LAN, public and junk values."""
         for ip in ("127.0.0.1", "::1", "100.97.237.60", "100.108.102.101", "fd7a:115c:a1e0::1", "::ffff:100.97.237.60"):
             self.assertTrue(bench.peer_ok(ip), ip)
         for ip in ("192.168.2.207", "8.8.8.8", "::ffff:192.168.2.207", "2001:db8::7f00:1", "", "not-an-ip"):
             self.assertFalse(bench.peer_ok(ip), repr(ip))
 
     def test_peer_ok_edges_fail_closed(self):
+        """peer_ok at the range edges and for look-alike or non-string values fails closed."""
         # the ends of 100.64.0.0/10 and of the tailnet's ULA range, and things that only look right
         for ip in ("100.64.0.0", "100.127.255.255", "fd7a:115c:a1e0:ffff:ffff:ffff:ffff:ffff", "127.255.255.255", "::ffff:127.0.0.1"):
             self.assertTrue(bench.peer_ok(ip), ip)
@@ -2206,6 +2420,7 @@ class TestTailnetLock(unittest.TestCase):
         self.assertTrue(bench.peer_ok("100.97.237.60%1"), "a scope id is stripped, never trusted to change the answer")
 
     def test_bind_ok_table(self):
+        """bench.bind_ok accepts the tailnet address and loopback and refuses wide, named or malformed addresses."""
         for ip in ("100.108.102.101", "127.0.0.1"):
             self.assertTrue(bench.bind_ok(ip), ip)
         for ip in ("", "0.0.0.0", "::", "192.168.2.102", "desktop-bndit", "localhost", "8.8.8.8", "::ffff:0.0.0.0", "0", None,
@@ -2229,6 +2444,7 @@ class TestTailnetLock(unittest.TestCase):
             self.assertTrue(conn.wire().startswith(b"HTTP/1.1 200") and b'"bundle"' in conn.wire(), (peer, conn.wire()[:80]))
 
     def test_a_stranger_gets_the_bare_403_for_every_method_and_not_a_byte_is_read(self):
+        """Stranger peers get bench._FORBIDDEN for every method and garbage input; zero bytes read, no do_* run."""
         Spy, calls = self.spy()
         requests = {
             "GET": _raw("GET", "/api/state"), "POST": _raw("POST", "/api/md", body=b'{"text": "x"}'), "HEAD": _raw("HEAD", "/"),
@@ -2250,6 +2466,7 @@ class TestTailnetLock(unittest.TestCase):
             self.assertNotIn(b"bundle", conn.wire())
 
     def test_a_stranger_with_the_right_token_writes_nothing(self):
+        """A stranger peer's valid-token write is refused and book.md is unchanged; a tailnet peer's is saved."""
         real = bench.make_handler(bench.Bench(self.tmp), token="t0k")
         body = json.dumps({"text": "---\ntitle: t\n---\nA STRANGER WAS HERE"}).encode("utf-8")
         req = _raw("POST", "/api/md", headers={"X-FP-Token": "t0k", "Content-Type": "application/json"}, body=body)
@@ -2263,6 +2480,7 @@ class TestTailnetLock(unittest.TestCase):
         self.assertNotEqual((self.tmp / "book.md").read_bytes(), before)
 
     def test_an_unreadable_peer_address_is_refused(self):
+        """Empty, None or malformed peer address values get the bare 403 with nothing read."""
         real = bench.make_handler(bench.Bench(self.tmp))
         for peer in ((), None, ("not-an-ip", 1), ("", 1), (None, 1), ("100.97.237.60.9", 1)):
             conn = _FakeConn(_raw("GET"))
@@ -2272,6 +2490,7 @@ class TestTailnetLock(unittest.TestCase):
             self.assertEqual(conn.reader.at_close, 0, repr(peer))
 
     def test_a_refusal_is_noted_five_times_then_every_thousandth_and_never_raises(self):
+        """_count_refusal prints refusals 1-5 then every 1000th, and swallows an error from a dead console."""
         old = bench._refusals
         try:
             bench._refusals = 0
@@ -2291,6 +2510,7 @@ class TestTailnetLock(unittest.TestCase):
 
     # -- lock two: the listener
     def test_serve_on_refuses_a_wide_bind_before_building_anything(self):
+        """serve_on raises ValueError for any non-loopback/non-tailnet address before building a server."""
         handler = bench.make_handler(bench.Bench(self.tmp), token=None)
         for binds in (["0.0.0.0"], ["127.0.0.1", "0.0.0.0"], ["127.0.0.1", ""], ["127.0.0.1", "::"], ["127.0.0.1", "192.168.2.102"],
                       ["127.0.0.1", "desktop-bndit"], ["127.0.0.1", "localhost"], ["localhost"], ["192.168.2.102", "127.0.0.1"]):
@@ -2307,6 +2527,7 @@ class TestTailnetLock(unittest.TestCase):
         built, real_class = [], bench.ThreadingHTTPServer
 
         def recording(*a, **k):
+            """Stand-in listener class: refuse any non-loopback address, otherwise build and record a real server."""
             if a[0][0] != "127.0.0.1":   # round three: a mutant that removed the lock still cannot reach a bind on a non-loopback address
                 raise AssertionError("the test forbids a bind on %r: serve_on asked for a non-loopback listener" % (a[0],))
             srv = real_class(*a, **k)
@@ -2341,6 +2562,7 @@ class TestTailnetLock(unittest.TestCase):
     WIDE_ALSO_BIND = ("0.0.0.0", "", "::", "::ffff:0.0.0.0", "192.168.2.102", "desktop-bndit", "localhost", "8.8.8.8", "0")
 
     def test_a_wide_also_bind_stops_the_start_before_a_socket_or_a_bench_exists(self):
+        """bench.py in a subprocess with a refused --also-bind exits 2 before any bind; a tailnet address passes."""
         gone = str(Path(tempfile.gettempdir()) / "fp-no-such-bundle-for-the-lock-test")
         env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
 
@@ -2357,6 +2579,7 @@ class TestTailnetLock(unittest.TestCase):
                  "runpy.run_path(script, run_name='__main__')\n")
 
         def start(also):
+            """Run bench.py in a bind-forbidding child with --also-bind `also`; return (CompletedProcess, port)."""
             port = _free_port()
             r = subprocess.run([sys.executable, "-c", guard, str(HERE / "bench.py"), gone, "--port", str(port), "--also-bind", also],
                                capture_output=True, text=True, encoding="utf-8", errors="replace", timeout=60, env=env)
@@ -2408,6 +2631,7 @@ class TestTailnetLock(unittest.TestCase):
         return code, err.getvalue(), out.getvalue(), server.called, made_bench.called
 
     def test_a_wide_also_bind_is_refused_by_main_before_a_bench_or_a_server_is_built(self):
+        """In-process, bench.main() exits 2 for each wide --also-bind with Bench and server stubs never called."""
         gone = str(Path(tempfile.gettempdir()) / "fp-no-such-bundle-for-the-lock-test")
         for also in self.WIDE_ALSO_BIND:
             code, err, out, server_called, bench_called = self._main_with([gone, "--port", "0", "--also-bind", also])
@@ -2429,6 +2653,7 @@ class TestTailnetLock(unittest.TestCase):
         self.assertEqual(served.call_args[0][0], ["127.0.0.1", "100.108.102.101"])
 
     def test_bind_arg_is_the_argparse_form_of_the_same_rule(self):
+        """bench._bind_arg returns an accepted address and raises ArgumentTypeError for the wide ones."""
         import argparse
         self.assertEqual(bench._bind_arg("100.108.102.101"), "100.108.102.101")
         for bad in ("0.0.0.0", "", "::", "192.168.2.102", "desktop-bndit"):
@@ -2436,7 +2661,9 @@ class TestTailnetLock(unittest.TestCase):
                 bench._bind_arg(bad)
 
     def test_the_docs_server_in_launch_json_binds_loopback(self):
+        """Every http.server entry in .claude/launch.json passes --bind 127.0.0.1."""
         def binds_loopback(args):
+            """True when args carry --bind followed by 127.0.0.1."""
             return "--bind" in args and args.index("--bind") + 1 < len(args) and args[args.index("--bind") + 1] == "127.0.0.1"
         self.assertFalse(binds_loopback(["-m", "http.server", "8321", "--directory", "docs"]), "negative control: no --bind")
         self.assertFalse(binds_loopback(["-m", "http.server", "8321", "--bind", "0.0.0.0"]), "negative control: a wide --bind")
@@ -2447,11 +2674,13 @@ class TestTailnetLock(unittest.TestCase):
             self.assertTrue(binds_loopback(c["runtimeArgs"]), "%s: python -m http.server answers every interface without --bind 127.0.0.1" % c["name"])
 
 
+# -- refused-request body draining, proxy-header refusal and the lock's mutation probe --
 class TestPreAuthDrain(unittest.TestCase):
     """2026-09-30: a POST refused before its body was used (421, 403) drains at most _DRAIN_CAP bytes, in chunks of 64 KiB or less, and
     waits at most _DRAIN_TIMEOUT on a sender that stalls; a Content-Length that is not a whole number answers 400 and closes."""
 
     def setUp(self):
+        """Make a temp bundle, a token-gated handler class and a fake server address."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-drain-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
@@ -2459,6 +2688,7 @@ class TestPreAuthDrain(unittest.TestCase):
         self.server = types.SimpleNamespace(server_address=("100.108.102.101", 7077))
 
     def drive(self, raw):
+        """Run the handler over a fake connection from a tailnet peer with bytes `raw`; return the connection."""
         conn = _FakeConn(raw)
         self.handler(conn, ("100.97.237.60", 5555), self.server)
         return conn
@@ -2475,6 +2705,7 @@ class TestPreAuthDrain(unittest.TestCase):
         self.assertEqual(conn.reader.sizes, [len(body)])
 
     def test_a_content_length_that_is_not_a_whole_number_is_a_400_and_nothing_is_read(self):
+        """A non-numeric or signed Content-Length gets a 400 with Connection: close and no body read."""
         for bad in ("-1", "-5", "abc", "+5", "5.0", "0x10", "1e3", "5 5", "5,5", "-0", "99999999999999999999999 x"):
             for label, req in (
                     ("wrong token", _raw("POST", "/api/md", headers={"X-FP-Token": "wrong", "Content-Length": bad})),
@@ -2495,6 +2726,7 @@ class TestPreAuthDrain(unittest.TestCase):
         self.assertTrue(conn.wire().startswith(b"HTTP/1.1 403"), conn.wire()[:40])
 
     def test_a_declared_length_past_the_cap_is_read_to_the_cap_in_chunks_and_the_connection_closes(self):
+        """A refused POST with a body past _DRAIN_CAP is read only to the cap, in chunks of 64 KiB or less."""
         body = b"x" * 300000
         with mock.patch.object(bench, "_DRAIN_CAP", 150000):
             for label, req in (("wrong token", _raw("POST", "/api/md", headers={"X-FP-Token": "wrong"}, body=body)),
@@ -2508,6 +2740,7 @@ class TestPreAuthDrain(unittest.TestCase):
                 self.assertIn(b"Connection: close", conn.wire(), label)
 
     def test_a_body_framed_by_transfer_encoding_is_not_drained_and_the_connection_closes(self):
+        """A chunked refused POST is answered 403 with Connection: close and nothing is read."""
         # no Content-Length at all: the bytes after the headers are a chunked body the bench does not parse
         conn = self.drive(_raw("POST", "/api/md", headers={"X-FP-Token": "wrong", "Transfer-Encoding": "chunked"})
                           + b"5\r\nhello\r\n0\r\n\r\n")
@@ -2516,6 +2749,7 @@ class TestPreAuthDrain(unittest.TestCase):
         self.assertEqual(conn.reader.sizes, [])
 
     def test_a_sender_that_stalls_is_answered_at_the_drain_timeout_not_the_connections_30_seconds(self):
+        """Over a real loopback socket, a sender that stops mid-body gets its 403 within seconds."""
         httpd = ThreadingHTTPServer(("127.0.0.1", 0), self.handler)
         threading.Thread(target=httpd.serve_forever, daemon=True).start()
         self.addCleanup(lambda: (httpd.shutdown(), httpd.server_close()))
@@ -2540,6 +2774,7 @@ class TestPreAuthDrain(unittest.TestCase):
         self.assertLess(took, 5, "the stalled drain held the thread for %.1f s" % took)
 
     def test_live_bad_length_answers_400_on_both_sides_of_the_gate_and_the_server_carries_on(self):
+        """On a live server, a Content-Length of -5 gets a 400 with or without a token, and the next request works."""
         srv = LiveBenchServer(token="t0k")
         try:
             for tok in (None, "wrong", "t0k"):
@@ -2566,10 +2801,12 @@ class TestProxyMarkers(unittest.TestCase):
     reverse proxy arrive FROM loopback, which the peer lock admits) and is refused, GET and POST, before the token is looked at."""
 
     def setUp(self):
+        """Start a token-gated live bench server (closed after each test)."""
         self.srv = LiveBenchServer(token="t0k")
         self.addCleanup(self.srv.close)
 
     def req(self, method, path, headers=None, body=None):
+        """Send one request to the live server; return (status, body bytes)."""
         conn = http.client.HTTPConnection("127.0.0.1", self.srv.port, timeout=10)
         conn.request(method, path, body=body, headers=headers or {})
         r = conn.getresponse()
@@ -2593,6 +2830,7 @@ class TestProxyMarkers(unittest.TestCase):
         self.assertEqual(code, 200)
 
     def test_every_marker_refuses_get_and_post(self):
+        """Each proxy/forwarding header (any case, plus the prefix families) gets 403 on GET and POST; no write."""
         before = (self.srv.tmp / "book.md").read_bytes()
         # the two families are matched by PREFIX: X-Forwarded-* and Tailscale-* (Funnel's Tailscale-Funnel-Request, Serve's
         # Tailscale-User-Login / -Name / -Profile-Pic and Tailscale-App-Capabilities / -Headers-Info, and any name Tailscale adds later)
@@ -2611,6 +2849,7 @@ class TestProxyMarkers(unittest.TestCase):
         self.assertEqual((self.srv.tmp / "book.md").read_bytes(), before, "a proxied POST with the right token still wrote")
 
     def test_a_proxied_request_from_loopback_is_the_case_the_peer_lock_cannot_see(self):
+        """A loopback peer carrying X-Forwarded-For is refused 403; the same peer without it gets 200."""
         tmp = self.srv.tmp
         handler = bench.make_handler(bench.Bench(tmp), token="t0k")
         server = types.SimpleNamespace(server_address=("127.0.0.1", 7077))
@@ -2623,6 +2862,7 @@ class TestProxyMarkers(unittest.TestCase):
         self.assertTrue(conn.wire().startswith(b"HTTP/1.1 200"), conn.wire()[:40])
 
     def test_a_foreign_host_is_still_a_421_first(self):
+        """A foreign Host plus a proxy header answers 421 (the Host check runs first)."""
         conn = http.client.HTTPConnection("127.0.0.1", self.srv.port, timeout=10)
         conn.putrequest("GET", "/api/state", skip_host=True)
         conn.putheader("Host", "evil.example:%d" % self.srv.port)
@@ -2634,6 +2874,7 @@ class TestProxyMarkers(unittest.TestCase):
         self.assertEqual(r.status, 421)
 
     def test_proxy_marker_table(self):
+        """bench.proxy_marker names proxy-style headers (even empty) and ignores ordinary client headers."""
         import email.message
         msg = email.message.Message()
         self.assertIsNone(bench.proxy_marker(msg))
@@ -2672,6 +2913,7 @@ def _lock_probe(mod):
         server = types.SimpleNamespace(server_address=("100.108.102.101", 7077))
 
         def run(peer, raw):
+            """Run the handler over a fake connection from `peer` with request bytes `raw`; return the connection."""
             conn = _FakeConn(raw)
             with contextlib.redirect_stdout(io.StringIO()):
                 handler(conn, (peer, 5555), server)
@@ -2731,11 +2973,13 @@ class TestTailnetLockMutants(unittest.TestCase):
     )
 
     def test_the_real_source_and_its_unchanged_copy_hold(self):
+        """The lock probe reports nothing on the real bench module and on an unchanged mutant copy."""
         self.assertEqual(_lock_probe(bench), [])
         same = "            if not ok:"
         self.assertEqual(_lock_probe(_bench_mutant(same, same)), [], "the source loaded as a mutant, unchanged, must hold too")
 
     def test_each_weakened_guard_is_caught(self):
+        """Each source mutant in MUTANTS makes the lock probe report at least one failure."""
         for name, old, new in self.MUTANTS:
             with self.subTest(mutant=name):
                 failures = _lock_probe(_bench_mutant(old, new))
@@ -2798,6 +3042,7 @@ class _ForeignFixture:
     and never spawns a child. snapshot() is the bundle's bytes: 'nothing happened' is read off it, never assumed"""
 
     def __init__(self, hosts=()):
+        """Build the temp bundle and serve it on a free loopback port (token t0k); `hosts` are extra accepted names."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-foreign-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one\nline two\nline three", encoding="utf-8")
         self.bench = bench.Bench(self.tmp)
@@ -2809,36 +3054,44 @@ class _ForeignFixture:
         self.origin = "http://127.0.0.1:%d" % self.port
 
     def snapshot(self):
+        """Return {relative path: sha256} for every file in the temp bundle."""
         return {str(p.relative_to(self.tmp)): hashlib.sha256(p.read_bytes()).hexdigest()
                 for p in sorted(self.tmp.rglob("*")) if p.is_file()}
 
     def close(self):
+        """Stop the server and delete the temp bundle."""
         self.httpd.shutdown()
         self.httpd.server_close()
         shutil.rmtree(self.tmp, ignore_errors=True)
 
 
+# -- foreign-page tests: Origin, Referer and Fetch Metadata rules on a live loopback server --
 class TestForeignPageOverPlainHttp(unittest.TestCase):
     """2026-09-30 round three, rules (5): what a foreign web page open in his browser can fire at the bench with NO Fetch Metadata - a blind
     GET (no Origin, maybe no Referer) and a simple POST (its own Origin, or 'null') - changes nothing, and every real client still passes."""
 
     @classmethod
     def setUpClass(cls):
+        """Start one shared live fixture for the whole class."""
         cls.srv = _ForeignFixture()
 
     @classmethod
     def tearDownClass(cls):
+        """Stop the shared fixture."""
         cls.srv.close()
 
     def setUp(self):
+        """Take a snapshot of the bundle and clear the recorded evidence calls."""
         self.before = self.srv.snapshot()
         self.srv.evidence.clear()
 
     def nothing_happened(self, what):
+        """Assert the bundle bytes are unchanged and the evidence collector was not called since setUp."""
         self.assertEqual(self.srv.snapshot(), self.before, "%s changed the bundle" % what)
         self.assertEqual(self.srv.evidence, [], "%s started the evidence collector" % what)
 
     def foreign_origins(self):
+        """Return a tuple of Origin values that are not the bench's own (look-alikes, null, other ports and hosts)."""
         p = self.srv.port
         return ("http://evil.example", "https://evil.example", "http://evil.example:80", "http://evil.example:%d" % p, "null", "NULL",
                 "http://127.0.0.1:1", "http://localhost:1", "https://127.0.0.1:%d" % p, "http://127.0.0.1.evil.example:%d" % p,
@@ -2848,6 +3101,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
 
     # -- B: the non-GET routes refuse a foreign page's simple request
     def test_a_simple_post_from_a_foreign_origin_is_refused_in_every_content_type(self):
+        """A POST with a foreign Origin, in any simple content type, with or without the token, is 403 "origin"."""
         body = json.dumps({"text": "---\ntitle: t\n---\nA FOREIGN PAGE WAS HERE"})
         boundary = "----fpboundary"
         multipart = ('--%s\r\nContent-Disposition: form-data; name="text"\r\n\r\nA FOREIGN PAGE WAS HERE\r\n--%s--\r\n' % (boundary, boundary))
@@ -2868,6 +3122,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
         self.nothing_happened("a simple POST from a foreign origin")
 
     def test_every_mutating_route_refuses_a_foreign_and_a_null_origin_even_with_the_right_token(self):
+        """Every route in MUTATING_POSTS answers 403 "origin" to a foreign or null Origin even with the right token."""
         for route in bench.MUTATING_POSTS:
             for origin in ("http://evil.example", "null", "http://127.0.0.1:1"):
                 code, _, _, parsed = _ask(self.srv.port, "POST", route, {"Origin": origin, "X-FP-Token": "t0k", "Content-Type": "text/plain"},
@@ -2887,6 +3142,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
                 self.assertNotIn("reason", parsed or {}, route)
 
     def test_an_origin_less_post_is_a_non_browser_client_and_goes_on_to_the_token_gate(self):
+        """A POST with no Origin is judged by the token alone: right token saves, none gets the token-gate 403."""
         payload = json.dumps({"text": "---\ntitle: t\n---\nfrom a script"}).encode("utf-8")
         code, _, _, parsed = _ask(self.srv.port, "POST", "/api/md", {"X-FP-Token": "t0k", "Content-Type": "application/json"}, payload)
         self.assertEqual((code, (parsed or {}).get("saved")), (200, True), "PowerShell / urllib: no Origin, the token")
@@ -2902,6 +3158,8 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
 
     # -- the token is read from a HEADER and from nowhere else (a header is preflight-protected; a query string and a form field are not)
     def test_the_token_is_read_from_a_header_and_from_nowhere_else(self):
+        """A token sent in the query, body, form, cookie or Authorization header is not accepted.
+        The source is also checked to read the token from the header only."""
         payload = json.dumps({"text": "---\ntitle: t\n---\nSMUGGLED", "token": "t0k", "X-FP-Token": "t0k"}).encode("utf-8")
         attempts = (
             ("a query string", "/api/md?token=t0k", {"Content-Type": "application/json"}, payload),
@@ -2933,6 +3191,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
 
     # -- C: the one GET with a side effect
     def test_the_side_effect_get_refuses_a_blind_request(self):
+        """GET /api/evidence without proof of origin (no or foreign Referer) is 403 "unproven-origin"."""
         p = self.srv.port
         blind = (("no header at all", {}),
                  ("a foreign Referer", {"Referer": "http://evil.example/page"}),
@@ -2948,6 +3207,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
         self.nothing_happened("a blind GET of the side-effect route")
 
     def test_the_side_effect_get_is_admitted_only_with_proof(self):
+        """GET /api/evidence with the token and a proof-of-origin shape runs the collector; proof alone is 403."""
         p, ours = self.srv.port, self.srv.origin
         # what the page sends over plain http: the token, and NO Referer (every answer of the bench says Referrer-Policy: no-referrer)
         for what, headers in (("the page's own shape on the tailnet (token, no Referer)", {"X-FP-Token": "t0k"}),
@@ -2973,6 +3233,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
         self.assertEqual(self.srv.evidence, [])
 
     def test_a_spelling_that_does_not_dispatch_never_reaches_the_evidence_collector(self):
+        """Odd spellings of /api/evidence are 404 (or refused for a blind '//') and never call the collector."""
         for path in ("/api/evidence/", "/API/EVIDENCE", "/api//evidence", "/api/evidence%2f", "/api/evidence%00", "/api/evidenc", "/api/evidences"):
             code, _, _, parsed = _ask(self.srv.port, "GET", path, {"X-FP-Token": "t0k"})
             self.assertEqual(code, 404, path)
@@ -2988,6 +3249,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
 
     # -- C, the other side: a page or the data, read, stays open to a typed, bookmarked or blind visit
     def test_a_read_only_get_is_answered_with_no_origin_and_no_referer_and_with_a_foreign_referer(self):
+        """Read-only GET routes are not refused by the request rules for blind requests, and nothing changes."""
         routes = ("/", "/?token=t0k&theme=dark", "/api/state", "/api/md", "/api/ledger", "/api/asset?name=none.png", "/api/toc", "/api/find?q=line",
                   "/api/textlayer?n=1", "/fp-tokens.css", "/vendor/markdown-it.min.js", "/api/page?n=1", "/api/locate?i=0")
         for headers in ({}, {"Referer": "http://evil.example/page"}, {"Referer": "garbage"},
@@ -3001,6 +3263,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
         self.nothing_happened("a blind GET of a page or of the data")
 
     def test_a_get_with_a_foreign_origin_is_refused_too(self):
+        """A GET carrying a foreign Origin is 403 "origin" on pages, data and the evidence route."""
         for origin in self.foreign_origins():
             for path in ("/", "/api/state", "/api/md", "/api/evidence"):
                 code, _, _, parsed = _ask(self.srv.port, "GET", path, {"Origin": origin, "X-FP-Token": "t0k"})
@@ -3008,6 +3271,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
         self.nothing_happened("a cross-origin GET")
 
     def test_two_origin_headers_are_refused(self):
+        """A POST with two Origin headers (any mix) is 403 "origin" even with the token."""
         for first, second in ((self.srv.origin, "http://evil.example"), ("http://evil.example", self.srv.origin), (self.srv.origin, self.srv.origin)):
             code, _, _, parsed = _ask(self.srv.port, "POST", "/api/md", [("Origin", first), ("Origin", second), ("X-FP-Token", "t0k")],
                                       json.dumps({"text": "---\ntitle: t\n---\ntwo origins"}).encode("utf-8"))
@@ -3045,9 +3309,12 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
 
     # -- the Sec-Fetch-Site rule, where the browser sends it (loopback, https): the Desk's shape, with Dest document OR iframe
     def test_sec_fetch_site_refuses_cross_site_except_a_navigation_of_the_page_itself(self):
+        """Cross-site Fetch Metadata is refused (403 "fetch-site") except navigations to the page itself.
+        Same-origin and same-site requests pass."""
         p, tok = self.srv.port, {"X-FP-Token": "t0k"}
 
         def sf(site, mode="cors", dest="empty"):
+            """Return the three Sec-Fetch-* headers for the given site, mode and destination."""
             return {"Sec-Fetch-Site": site, "Sec-Fetch-Mode": mode, "Sec-Fetch-Dest": dest}
         refused = (
             ("a cross-site fetch of the data", "/api/state", sf("cross-site")),
@@ -3090,6 +3357,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
 
     # -- the other verbs answer nothing, and nothing carries a CORS allowance
     def test_head_options_and_the_other_verbs_do_nothing_and_no_answer_is_readable_cross_origin(self):
+        """HEAD, OPTIONS, PUT, DELETE, PATCH and TRACE answer 501, and no answer carries Access-Control-* headers."""
         p = self.srv.port
         foreign = {"Origin": "http://evil.example", "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "x-fp-token, content-type",
                    "X-FP-Token": "t0k"}
@@ -3110,6 +3378,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
 
     # -- every real client's exact shape still passes
     def test_every_real_client_shape_still_passes(self):
+        """Positive control: the exact request shapes of the widget, Control frame, Scanner, phone and scripts pass."""
         p, tok, ours = self.srv.port, "t0k", self.srv.origin
         page = {"Sec-Fetch-Site": "same-origin", "Sec-Fetch-Mode": "cors", "Sec-Fetch-Dest": "empty", "X-FP-Token": tok, "Accept": "*/*"}
         shapes = (
@@ -3144,6 +3413,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
         self.assertEqual(_ask(p, "GET", "/api/state")[0], 200, "the bench survived a bare connect")
 
     def test_the_comments_and_the_readme_say_where_each_rule_fires(self):
+        """README.md and bench.py both contain the wording that says where each request rule applies."""
         readme = (HERE / "README.md").read_text(encoding="utf-8")
         for text, name in ((BENCH_PY, "bench.py"), (readme, "README.md")):
             self.assertIn("fires only where browsers send it", text, name)
@@ -3154,6 +3424,7 @@ class TestForeignPageOverPlainHttp(unittest.TestCase):
         self.assertNotIn("Nothing reads `Origin` or `Sec-Fetch-Site`", readme, "the README still says the bench reads neither")
 
 
+# -- in-process request-rule tests for tailnet and loopback listeners, and the origin/referer tables --
 class TestTailnetShapes(unittest.TestCase):
     """The same rules over the listener a phone or another tailnet device reaches: a bench bound to its tailnet address, driven in-process
     (no socket, no request to any address), every request carrying NO Fetch Metadata - what a browser sends over plain http."""
@@ -3163,6 +3434,7 @@ class TestTailnetShapes(unittest.TestCase):
     PORT = 7077
 
     def setUp(self):
+        """Make a temp bundle and a handler for a tailnet-bound bench whose evidence collector is a recorder."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-shapes-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
@@ -3173,12 +3445,14 @@ class TestTailnetShapes(unittest.TestCase):
         self.server = types.SimpleNamespace(server_address=(self.BOUND, self.PORT))
 
     def send(self, method, path, headers=None, body=b"", host=None):
+        """Drive one in-process request from a tailnet peer; return (status, parsed JSON or None)."""
         conn = _FakeConn(_raw(method, path, host=host or "%s:%d" % (self.BOUND, self.PORT), headers=headers, body=body))
         with contextlib.redirect_stdout(io.StringIO()):
             self.handler(conn, ("100.97.237.60", 5555), self.server)
         return _wire_answer(conn)[:2]
 
     def write(self, origin, extra=None, host=None):
+        """POST a small /api/md write with the token and the given Origin (None = none); return (status, parsed)."""
         body = json.dumps({"text": "---\ntitle: t\n---\nwritten by %s" % (origin or "a script")}).encode("utf-8")
         headers = {"X-FP-Token": "t0k", "Content-Type": "text/plain;charset=UTF-8", **(extra or {})}
         if origin is not None:
@@ -3186,6 +3460,7 @@ class TestTailnetShapes(unittest.TestCase):
         return self.send("POST", "/api/md", headers, body, host)
 
     def test_our_own_origins_are_admitted(self):
+        """Writes with the tailnet address or tailnet names as Origin (or no Origin) are saved."""
         # S215 round nine (1): the loopback names (127.0.0.1, localhost, [::1]) are NOT here any more - on the tailnet listener they are not ours
         # (test_a_loopback_name_is_not_ours_on_the_tailnet_listener; the loopback listener keeps them: TestRoundNineListeners)
         for origin in ("http://100.108.102.101:7077", "http://desktop-bndit:7077", "http://desktop-bndit.tailnet-test.ts.net:7077",
@@ -3198,6 +3473,7 @@ class TestTailnetShapes(unittest.TestCase):
                           "127.0.0.2", "127.1.2.3")
 
     def test_a_loopback_name_is_not_ours_on_the_tailnet_listener(self):
+        """On the tailnet listener a loopback Origin or Referer is refused; the tailnet forms are proof."""
         before = (self.tmp / "book.md").read_bytes()
         for name in self.LOOPBACK_SPELLINGS:
             origin = "http://%s:7077" % name
@@ -3217,6 +3493,7 @@ class TestTailnetShapes(unittest.TestCase):
             self.assertIn("X-FP-Token", (parsed or {}).get("error", ""), ok)
 
     def test_a_page_on_any_other_site_port_or_device_is_refused(self):
+        """Writes whose Origin is another port, device, scheme, look-alike host or null are 403 "origin"."""
         before = (self.tmp / "book.md").read_bytes()
         for origin in ("http://100.108.102.101:7078", "http://100.108.102.101", "http://100.97.237.60:7077", "http://phone.tailnet-test.ts.net:7077",
                        "http://192.168.2.102:7077", "http://evil.example:7077", "https://100.108.102.101:7077", "null",
@@ -3226,6 +3503,7 @@ class TestTailnetShapes(unittest.TestCase):
         self.assertEqual((self.tmp / "book.md").read_bytes(), before)
 
     def test_the_phone_over_plain_http_passes_and_a_blind_evidence_get_does_not(self):
+        """Read routes serve a phone; the evidence GET needs the token and refuses blind or foreign-Referer requests."""
         for path in ("/", "/api/state", "/api/md", "/api/ledger"):
             self.assertEqual(self.send("GET", path, {"User-Agent": "Mozilla/5.0 (iPhone)"})[0], 200, path)
         self.assertEqual(self.send("GET", "/api/evidence", {"X-FP-Token": "t0k"}), (200, {"spy": "evidence"}))
@@ -3242,6 +3520,7 @@ class TestTailnetShapes(unittest.TestCase):
         self.assertEqual(self.evidence, [])
 
     def test_no_fetch_metadata_means_the_sec_fetch_rule_is_inert_and_the_origin_rule_carries_the_lock(self):
+        """Without Sec-Fetch-* headers reads are served; the Origin/proof rules still refuse writes and evidence."""
         # with no Sec-Fetch-* a cross-site navigation cannot be told from a typed address: read routes answer it, and the lock is Origin + proof
         self.assertEqual(self.send("GET", "/", {"Referer": "http://evil.example/"})[0], 200)
         self.assertEqual(self.write("http://evil.example:7077")[1]["reason"], "origin")
@@ -3274,6 +3553,7 @@ class TestRoundNineListeners(unittest.TestCase):
     PORT = 7077
 
     def setUp(self):
+        """Make a temp bundle and a handler (no extra host names) whose evidence collector is a recorder."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-round9-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
@@ -3283,6 +3563,7 @@ class TestRoundNineListeners(unittest.TestCase):
         self.handler = bench.make_handler(self.bench, token="t0k", hosts=())
 
     def on(self, bound, method, path, headers=None, body=b""):
+        """Drive one in-process loopback-peer request to a listener bound at `bound`; return (status, parsed JSON)."""
         host = ("[%s]:%d" if ":" in bound else "%s:%d") % (bound, self.PORT)
         conn = _FakeConn(_raw(method, path, host=host, headers=headers, body=body))
         with contextlib.redirect_stdout(io.StringIO()):
@@ -3290,10 +3571,12 @@ class TestRoundNineListeners(unittest.TestCase):
         return _wire_answer(conn)[:2]
 
     def write(self, bound, origin):
+        """POST a small /api/md write with the token and the given Origin to the listener at `bound`."""
         body = json.dumps({"text": "---\ntitle: t\n---\nwritten from %s" % origin}).encode("utf-8")
         return self.on(bound, "POST", "/api/md", {"X-FP-Token": "t0k", "Content-Type": "text/plain;charset=UTF-8", "Origin": origin}, body)
 
     def test_the_loopback_listener_keeps_its_loopback_names(self):
+        """On 127.0.0.1 and ::1 listeners, loopback-name Origins are saved and loopback Referers count as proof."""
         for bound in ("127.0.0.1", "::1"):
             for name in ("127.0.0.1", "localhost", "localhost.", "LOCALHOST", "[::1]"):
                 origin = "http://%s:%d" % (name, self.PORT)
@@ -3307,12 +3590,14 @@ class TestRoundNineListeners(unittest.TestCase):
         self.assertEqual(self.evidence, [])
 
     def test_the_loopback_listener_still_refuses_what_is_not_its_own(self):
+        """Loopback listeners still answer 403 "origin" to foreign, tailnet, null, other-port and https Origins."""
         for bound in ("127.0.0.1", "::1"):
             for origin in ("http://evil.example:7077", "http://100.108.102.101:7077", "null", "http://localhost:7078", "https://localhost:7077"):
                 code, parsed = self.write(bound, origin)
                 self.assertEqual((code, (parsed or {}).get("reason")), (403, "origin"), (bound, origin))
 
     def test_a_loopback_stand_in_takes_its_own_address_and_not_the_other_loopback_names(self):
+        """A listener bound at 127.0.0.2 accepts its own address as Origin and refuses the other loopback names."""
         code, parsed = self.write("127.0.0.2", "http://127.0.0.2:%d" % self.PORT)
         self.assertEqual((code, (parsed or {}).get("saved")), (200, True), "its own address is ours")
         before = (self.tmp / "book.md").read_bytes()
@@ -3328,6 +3613,7 @@ class TestOriginAndProofTables(unittest.TestCase):
     BOUND, NAMES, PORT = "100.108.102.101", ("desktop-bndit", "desktop-bndit.tailnet-test.ts.net"), 7077
 
     def test_authority_table(self):
+        """bench._authority parses host[:port] forms into (host, port) and returns None for malformed values."""
         good = {"127.0.0.1": ("127.0.0.1", 80), "127.0.0.1:7077": ("127.0.0.1", 7077), "[::1]": ("::1", 80), "[::1]:7077": ("::1", 7077),
                 "Desktop-BNDIT:7077": ("desktop-bndit", 7077), "name.:7077": ("name", 7077), "a.b.c": ("a.b.c", 80), " 127.0.0.1:1 ": ("127.0.0.1", 1),
                 "127.0.0.1:65535": ("127.0.0.1", 65535)}
@@ -3339,6 +3625,7 @@ class TestOriginAndProofTables(unittest.TestCase):
             self.assertIsNone(bench._authority(text), repr(text))
 
     def test_origin_ok_table(self):
+        """bench.origin_ok accepts the tailnet address and names (any case); refuses loopback, null, look-alikes."""
         ok = lambda v: bench.origin_ok(v, self.BOUND, self.NAMES, self.PORT)   # noqa: E731
         for v in ("http://100.108.102.101:7077", "http://desktop-bndit:7077",
                   "http://desktop-bndit.tailnet-test.ts.net:7077", "http://desktop-bndit.tailnet-test.ts.net.:7077", "HTTP://DESKTOP-BNDIT:7077", " http://desktop-bndit:7077 "):
@@ -3375,6 +3662,7 @@ class TestOriginAndProofTables(unittest.TestCase):
             self.assertFalse(bench.origin_ok("http://%s:7077" % n, "127.0.0.2", self.NAMES, self.PORT), "a stand-in on 127.0.0.2 does not take the other loopback names: " + n)
 
     def test_loopback_name_table(self):
+        """bench._loopback_name is true for loopback spellings and false for other names and addresses."""
         for n in ("localhost", "127.0.0.1", "127.0.0.2", "127.1.2.3", "::1", "0:0:0:0:0:0:0:1", "::ffff:127.0.0.1", "::ffff:7f00:1"):
             self.assertTrue(bench._loopback_name(n), n)
         for n in ("", "100.108.102.101", "desktop-bndit", "evil.example", "::ffff:100.64.0.1", "localhost.evil.example", "127.0.0.1.evil.example", "128.0.0.1",
@@ -3386,6 +3674,7 @@ class TestOriginAndProofTables(unittest.TestCase):
         import email.message
 
         def hosts(*values):
+            """Build a header set carrying one Host header line per value given."""
             m = email.message.Message()
             for v in values:
                 m["Host"] = v      # Message.__setitem__ appends: a header given twice is two header lines, as on the wire
@@ -3404,6 +3693,7 @@ class TestOriginAndProofTables(unittest.TestCase):
         self.assertTrue(ok(hosts("127.0.0.1:7077"), "127.0.0.1"))
 
     def test_referer_ok_table(self):
+        """bench.referer_ok accepts Referers on the tailnet address/names; refuses loopback, foreign and junk."""
         ok = lambda v: bench.referer_ok(v, self.BOUND, self.NAMES, self.PORT)   # noqa: E731
         for v in ("http://100.108.102.101:7077/", "http://desktop-bndit:7077/api/state", "http://desktop-bndit.tailnet-test.ts.net:7077/?token=t0k&theme=dark#p=3",
                   "http://desktop-bndit:7077"):
@@ -3415,9 +3705,11 @@ class TestOriginAndProofTables(unittest.TestCase):
             self.assertFalse(ok(v), repr(v))
 
     def test_proof_and_refusal_table(self):
+        """bench.page_refusal returns None (admit) or a reason string for header sets across GET and POST routes."""
         import email.message
 
         def hdrs(**kw):
+            """Build a header set from keyword arguments (underscores become hyphens)."""
             m = email.message.Message()
             for k, v in kw.items():
                 m[k.replace("_", "-")] = v
@@ -3448,11 +3740,13 @@ class TestOriginAndProofTables(unittest.TestCase):
         self.assertEqual(ref(two, method="GET", path="/api/state"), "origin")
 
 
+# -- GET route classification and the proof that read-only GETs change nothing --
 class TestGetRouteCensus(unittest.TestCase):
     """A: every route the server answers is classified - so a GET added later cannot be a side effect nobody looked at - and the read-only ones
     are shown, by source and on the wire, to change nothing."""
 
     def test_every_get_route_is_classified(self):
+        """The routes in do_GET equal READ_ONLY_GETS plus SIDE_EFFECT_GETS, and the classes do not overlap wrongly."""
         do_get = py_function_body(BENCH_PY, "do_GET")
         routes = set(re.findall(r'url\.path == "(/[^"]*)"', do_get))
         prefixes = set(re.findall(r'url\.path\.startswith\("(/[^"]*)"\)', do_get))
@@ -3467,10 +3761,12 @@ class TestGetRouteCensus(unittest.TestCase):
 
     @staticmethod
     def writes_something(src):
+        """Return the write/spawn markers (file writes, subprocess, rename, ...) found in the source text `src`."""
         return [t for t in (".write_text(", ".write_bytes(", "subprocess", "os.remove", "unlink(", "shutil.", "_write_body", "manifest_path", "open(", "_undo",
                             "mkdir(", "os.replace", "rename(") if t in src]
 
     def test_the_read_only_get_branches_hold_no_write_or_spawn(self):
+        """bench.py's do_GET source has no write or spawn marker; the checker is shown to see a planted write."""
         do_get = py_function_body(BENCH_PY, "do_GET")
         evidence = do_get[do_get.index('url.path == "/api/evidence"'):do_get.index('url.path == "/api/toc"')]
         rest = do_get.replace(evidence, "")
@@ -3486,6 +3782,7 @@ class TestReadOnlyGetsChangeNothing(unittest.TestCase):
     foreign page can send) and the bundle's bytes, the source PDF and the in-memory undo stack are identical afterwards."""
 
     def setUp(self):
+        """Skip without PyMuPDF; else build a temp bundle with a 3-page PDF and serve it on a free loopback port."""
         try:
             import fitz
         except ImportError:
@@ -3506,9 +3803,11 @@ class TestReadOnlyGetsChangeNothing(unittest.TestCase):
         self.addCleanup(lambda: (self.httpd.shutdown(), self.httpd.server_close(), self.bench._doc is not None and self.bench._doc.close()))
 
     def snapshot(self):
+        """Return {relative path: sha256} for every file in the temp bundle."""
         return {str(p.relative_to(self.tmp)): hashlib.sha256(p.read_bytes()).hexdigest() for p in sorted(self.tmp.rglob("*")) if p.is_file()}
 
     def test_no_read_only_get_writes_spawns_or_changes_an_answer(self):
+        """Every read-only GET gives its expected status; bundle files, the PDF and the undo stack stay unchanged."""
         served = {"/": 200, "/api/state": 200, "/api/md": 200, "/api/page?n=1&dpi=40": 200, "/api/asset?name=_repair_p1_1.png": 404, "/api/ledger": 200,
                   "/api/rescore": 200, "/api/toc": 200, "/api/find?q=alpha": 200, "/api/rects?n=1&q=alpha": 200, "/api/locate?i=0": 500,
                   "/api/trimbox?n=1": 200, "/api/textlayer?n=1": 200, "/api/table?n=1&rect=0,0,1,1": 200, "/api/library": 200, "/fp-tokens.css": 404,
@@ -3546,6 +3845,7 @@ def _request_probe(mod):
         evil = json.dumps({"text": "---\ntitle: t\n---\nEVIL"}).encode("utf-8")   # what every refused write below carries: it must never land
 
         def run(method, path, headers=None, payload=b"", extra=b"", bound=None, host=None):
+            """Drive one in-process request (extra raw header lines allowed); return (status, parsed JSON)."""
             raw = _raw(method, path, host=host or "%s:7077" % (bound or "100.108.102.101"), headers=headers, body=payload)
             if extra:
                 raw = raw.replace(b"\r\n\r\n", b"\r\n" + extra + b"\r\n\r\n", 1)
@@ -3555,10 +3855,12 @@ def _request_probe(mod):
             return _wire_answer(conn)[:2]
 
         def spy(self, retry=False):
+            """Stand-in for Bench.ok15_evidence: record the retry flag and return a marker."""
             calls.append(retry)
             return {"spy": 1}
 
         def sf(site, mode="cors", dest="empty"):
+            """Return the three Sec-Fetch-* headers for the given site, mode and destination."""
             return {"Sec-Fetch-Site": site, "Sec-Fetch-Mode": mode, "Sec-Fetch-Dest": dest}
         with mock.patch.object(mod.Bench, "ok15_evidence", spy):
             # positive controls
@@ -3581,6 +3883,7 @@ def _request_probe(mod):
                     bad.append("positive control: %s Origin is refused on its own listener" % what)
 
             def expect(label, got, want_status, want_reason):
+                """Append a failure line to `bad` unless the (status, parsed) answer matches status and reason."""
                 code, parsed = got
                 if (code, (parsed or {}).get("reason")) != (want_status, want_reason):
                     bad.append("%s: answered %s %s, wanted %s %s" % (label, code, (parsed or {}).get("reason"), want_status, want_reason))
@@ -3661,17 +3964,20 @@ class TestRequestCheckMutants(unittest.TestCase):
     )
 
     def test_the_real_source_and_its_unchanged_copy_hold(self):
+        """The request probe reports nothing on the real bench module and on an unchanged mutant copy."""
         self.assertEqual(_request_probe(bench), [])
         same = "    if site and site not in FETCH_SITE_PASS:"
         self.assertEqual(_request_probe(_bench_mutant(same, same)), [], "the source loaded as a mutant, unchanged, must hold too")
 
     def test_each_weakened_guard_is_caught(self):
+        """Each source mutant in MUTANTS makes the request probe report at least one failure."""
         for name, old, new in self.MUTANTS:
             with self.subTest(mutant=name):
                 failures = _request_probe(_bench_mutant(old, new))
                 self.assertTrue(failures, "%s: the probe still reports nothing, so it cannot tell" % name)
 
 
+# -- exclusive-port tests (SYM-192) and the rotated-page text layer test (S218 E7) --
 class _StaleCopy(HTTPServer):
     """a server as the bench built it BEFORE SYM-192: the stdlib's default, SO_REUSEADDR asked for (spelled out, so the test does not
     lean on a stdlib default); also the negative control's first server"""
@@ -3683,6 +3989,7 @@ class TestExclusivePortFollowsThePlatform(unittest.TestCase):
     stdlib's SO_REUSEADDR, so a restart rebinds at once there)"""
 
     def test_the_listener_class_keeps_the_stdlib_default_off_windows(self):
+        """bench.ThreadingHTTPServer derives from the stdlib class; address reuse is off only on Windows (nt)."""
         self.assertTrue(issubclass(bench.ThreadingHTTPServer, ThreadingHTTPServer))
         self.assertEqual(bool(bench.ThreadingHTTPServer.allow_reuse_address), os.name != "nt", "os.name is %r" % (os.name,))
         self.assertEqual(bool(ThreadingHTTPServer.allow_reuse_address), True, "control: the stdlib's own default is reuse-on")
@@ -3696,12 +4003,14 @@ class TestExclusivePort(unittest.TestCase):
     OS-assigned ports; every server opened here is closed. Control: the stdlib's class, SO_REUSEADDR asked for, DOES co-bind here."""
 
     def setUp(self):
+        """Make a temp bundle and an ungated handler class for the listener tests."""
         self.tmp = Path(tempfile.mkdtemp(prefix="fp-test-exclusive-"))
         (self.tmp / "book.md").write_text("---\ntitle: t\n---\nline one", encoding="utf-8")
         self.addCleanup(shutil.rmtree, self.tmp, ignore_errors=True)
         self.handler = bench.make_handler(bench.Bench(self.tmp), token=None)
 
     def held(self, cls, addr="127.0.0.1", port=0):
+        """Build a listener of class `cls` bound at (addr, port); it is closed on cleanup. Returns the server."""
         srv = cls((addr, port), self.handler)
         self.addCleanup(srv.server_close)
         return srv
@@ -3716,12 +4025,14 @@ class TestExclusivePort(unittest.TestCase):
         self.fail("%s bound %s:%d beside the listener that holds it (co-binding)" % (cls.__name__, addr, port))
 
     def test_a_second_copy_of_the_same_class_is_refused(self):
+        """A second bench listener on a port already held is refused with an "in use" error."""
         first = self.held(bench.ThreadingHTTPServer)
         port = first.server_address[1]
         e = self.refused(bench.ThreadingHTTPServer, port)
         self.assertTrue(bench._port_in_use(e), "refused, but not as 'in use': %r (winerror %r)" % (e, getattr(e, "winerror", None)))
 
     def test_a_stale_copy_neither_binds_beside_the_new_one_nor_holds_the_port_against_it(self):
+        """An old-style (address-reuse) listener cannot bind beside the new bench, nor the new one beside it."""
         # the field case: the new bench starts while an old one (SO_REUSEADDR, no lock) is up - refused; and the old one cannot start beside a new one
         new = self.held(bench.ThreadingHTTPServer)
         self.assertTrue(bench._port_in_use(self.refused(_StaleCopy, new.server_address[1])), "a stale copy bound beside the new bench")
@@ -3730,6 +4041,7 @@ class TestExclusivePort(unittest.TestCase):
         self.assertTrue(bench._port_in_use(e), "the new bench bound beside a stale copy: %r" % (e,))
 
     def test_negative_control_the_default_class_co_binds_on_this_machine(self):
+        """Negative control: the address-reuse class does bind twice on one port here."""
         # if THIS passed because nothing could ever co-bind, the refusals above would prove nothing: here the plain class binds twice
         first = self.held(_StaleCopy)
         second = None
@@ -3757,6 +4069,7 @@ class TestExclusivePort(unittest.TestCase):
         return mod
 
     def test_negative_control_the_source_without_the_lock_co_binds(self):
+        """Negative control: bench.py's source with the exclusive-port lock switched off binds twice on one port."""
         # the refusals above must be the lock's work and not the machine's: the same source with the lock switched off binds twice
         mod = self._bench_without_the_lock()
         self.assertIs(mod.ThreadingHTTPServer.allow_reuse_address, True)
@@ -3771,6 +4084,7 @@ class TestExclusivePort(unittest.TestCase):
                 second.server_close()
 
     def test_a_restart_rebinds_the_same_port_within_two_seconds(self):
+        """After serving five requests and shutting down, the same port can be bound again within 2 seconds."""
         first = bench.ThreadingHTTPServer(("127.0.0.1", 0), self.handler)
         port = first.server_address[1]
         threading.Thread(target=first.serve_forever, daemon=True).start()
@@ -3800,12 +4114,14 @@ class TestExclusivePort(unittest.TestCase):
         self.assertIsNotNone(again, "port %d did not rebind within 2 s (%d attempts): %r" % (port, attempts, last))
 
     def test_the_first_listener_refused_stops_serve_on_loudly(self):
+        """serve_on raises an "in use" OSError when the first (loopback) listener's port is already held."""
         held = self.held(bench.ThreadingHTTPServer)
         with self.assertRaises(OSError) as cm:
             bench.serve_on(["127.0.0.1"], held.server_address[1], self.handler)
         self.assertTrue(bench._port_in_use(cm.exception), repr(cm.exception))
 
     def test_a_later_listener_refused_says_the_port_is_in_use_and_the_loopback_bench_runs(self):
+        """If a later address (127.0.0.2) is held, serve_on prints "already in use" and returns only loopback."""
         try:
             held = self.held(bench.ThreadingHTTPServer, "127.0.0.2")
         except OSError as e:
@@ -3824,6 +4140,7 @@ class TestExclusivePort(unittest.TestCase):
         self.assertIn("already in use", said)
 
     def test_the_command_line_start_exits_non_zero_when_the_port_is_held(self):
+        """Running bench.py in a subprocess on a held port exits non-zero with an OSError on stderr."""
         held = self.held(bench.ThreadingHTTPServer)
         env = {**os.environ, "PYTHONIOENCODING": "utf-8"}
         r = subprocess.run([sys.executable, str(HERE / "bench.py"), str(self.tmp), "--port", str(held.server_address[1])],
@@ -3841,6 +4158,7 @@ class TestS218E7RotatedTextlayer(unittest.TestCase):
     A fake page without `rotation` (the LRU tests above) takes the old path untouched."""
 
     def _bench_with(self, rotation):
+        """Build a temp bundle with a one-page PDF (word ROTWORD) rotated `rotation` degrees; return the Bench."""
         import fitz
         tmp = Path(tempfile.mkdtemp(prefix="fp-test-e7-"))
         self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
@@ -3858,6 +4176,7 @@ class TestS218E7RotatedTextlayer(unittest.TestCase):
         return b
 
     def _expected(self, b, rotated: bool):
+        """Return (expected normalized ROTWORD box, its raw word tuple, the page rect), through rotation if asked."""
         page = b.doc().load_page(0)
         r = page.rect
         raw = [w for w in page.get_text("words") if w[4] == "ROTWORD"][0]
@@ -3866,6 +4185,7 @@ class TestS218E7RotatedTextlayer(unittest.TestCase):
         return [rect.x0 / r.width, rect.y0 / r.height, rect.x1 / r.width, rect.y1 / r.height], raw, r
 
     def test_rotated_page_words_sit_where_the_visible_page_shows_them(self):
+        """On a 90-degree page, textlayer() returns the word box in visible-page coordinates, inside the page."""
         try:
             import fitz  # noqa: F401
         except ImportError:
@@ -3883,6 +4203,7 @@ class TestS218E7RotatedTextlayer(unittest.TestCase):
                         f"the box must lie inside the visible page, not clamped to its edge: {box}")
 
     def test_unrotated_page_is_unchanged(self):
+        """Control: on an unrotated page, textlayer() returns the raw word rect over the page dimensions."""
         try:
             import fitz  # noqa: F401
         except ImportError:
@@ -3894,6 +4215,7 @@ class TestS218E7RotatedTextlayer(unittest.TestCase):
             self.assertAlmostEqual(a, e, places=4)
 
 
+# -- script entry: run the suite, then delete the temp pipeline folder created at import --
 if __name__ == "__main__":
     try:
         unittest.main(verbosity=2)

@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""Tripwire for emit()'s torn-line healing (SYM-037, ported from exporter.append_receipt).
+"""WHAT THIS FILE DOES: tripwire for events.emit(), which appends one JSON line to the pipeline's events file and heals
+a torn last line (one missing its newline). It points FP_PIPELINE at a temp folder, imports events, then writes the
+events file in five states (healthy, torn record, torn garbage, missing, empty), calls emit(), and checks the lines
+that result. Prints ok/FAIL lines; exit 0 when all fired, else 1. It writes only inside the temp folder, which it does
+not delete.
+
+Tripwire for emit()'s torn-line healing (SYM-037, ported from exporter.append_receipt).
 
 A guard born today gets its tripwire today (docs/32 §6): each case VIOLATES the property the
 guard stands for and requires the guard to answer. Case 1 is the positive control — a healthy
@@ -22,20 +28,24 @@ os.environ["FP_PIPELINE"] = str(SCRATCH)
 sys.path.insert(0, str(Path(__file__).parent))
 import events  # noqa: E402
 
+# -- test harness: counters, the check() recorder and two reading helpers --
 passed = failed = 0
 
 
 def check(name: str, ok: bool) -> None:
+    """Print an ok/FAIL line for case name and update the passed / failed counters."""
     global passed, failed
     print(("  ok  " if ok else "  FAIL"), name)
     passed, failed = passed + (1 if ok else 0), failed + (0 if ok else 1)
 
 
 def lines() -> list[str]:
+    """Return the scratch events file's lines (read as UTF-8)."""
     return events.EVENTS_FILE.read_text(encoding="utf-8").splitlines()
 
 
 def parseable(raw: list[str]) -> list[dict]:
+    """Return the JSON objects for those lines in raw that parse as JSON, skipping the ones that do not."""
     out = []
     for line in raw:
         try:
@@ -45,6 +55,7 @@ def parseable(raw: list[str]) -> list[dict]:
     return out
 
 
+# -- the five cases, run at import time in order; each rewrites the events file, calls emit(), checks the lines --
 # 1 — positive control: append to a well-terminated file adds ONE line and no blank.
 events.EVENTS_FILE.write_text('{"seed": 1}\n', encoding="utf-8")
 events.emit("test", "control")

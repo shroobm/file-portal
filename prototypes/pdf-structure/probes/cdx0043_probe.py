@@ -1,4 +1,9 @@
-"""Fable's independent re-run of MSG-CDX-0043's two controls. No GPU, no pipeline."""
+"""WHAT THIS FILE DOES: a check script (run directly, no arguments). It imports bench.py from the
+repair-bench prototype, runs bench.evidence_count() on a positive case, a negative case and an isolation
+sweep, then a deliberate-mismatch control on the check() helper itself, and prints PASS or FINDINGS.
+It also runs `git rev-parse HEAD` in the repo to print the commit. No files written.
+
+Fable's independent re-run of MSG-CDX-0043's two controls. No GPU, no pipeline."""
 import sys, json, subprocess
 sys.path.insert(0, r"C:/Users/Bndit/Projects/file-portal/prototypes/repair-bench")
 import bench
@@ -10,8 +15,10 @@ print(f"bench.LEGACY_RUN_CAP = {bench.LEGACY_RUN_CAP}")
 print(f"evidence_count signature = {bench.evidence_count.__code__.co_varnames[:5]}")
 print()
 
+# -- check helper: print ok/FAIL for one comparison and record failures in `fails` --
 fails = []
 def check(label, got, want):
+    """Print whether `got` equals `want` under `label`; append `label` to the global `fails` if not."""
     ok = got == want
     print(f"  {'ok  ' if ok else 'FAIL'}  {label}\n         got={got!r}")
     if not ok:

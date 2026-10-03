@@ -1,4 +1,9 @@
-"""Filesystem roots and levers for the indexer. Mirrors linux-converter/converter/config.py --
+"""WHAT THIS FILE DOES: defines where the indexer keeps its files (Paths), the tunable settings
+(Settings, read from config/indexer.toml with range checks and signed defaults) and two helpers
+that report a lever's allowed range or menu. Reads the TOML file only; writes nothing except the
+directories created by Paths.ensure_exist. Used by reconcile.py, query.py, serve.py and status.py.
+
+Filesystem roots and levers for the indexer. Mirrors linux-converter/converter/config.py --
 all paths live under the receiving user's home directory on purpose (see docs/06-security-model.md).
 
 The index is DERIVED data: everything under <root>/index can be deleted and rebuilt from the
@@ -12,8 +17,11 @@ from dataclasses import dataclass
 from pathlib import Path
 
 
+# -- the directory layout under the receiving user's root --
 @dataclass(frozen=True)
 class Paths:
+    """The folders the indexer uses, all derived from one root directory (immutable)."""
+
     root: Path
     index: Path
     models: Path
@@ -22,6 +30,7 @@ class Paths:
 
     @classmethod
     def from_root(cls, root: Path) -> "Paths":
+        """Build a Paths from a root directory: input root, returns Paths; touches no disk."""
         return cls(
             root=root,
             # index.sqlite (passages, embeddings, keyword index, run record) lives here.
@@ -38,10 +47,12 @@ class Paths:
         )
 
     def ensure_exist(self) -> None:
+        """Create the index, models and logs directories if absent (not the vault); returns None."""
         for path in (self.index, self.models, self.logs):
             path.mkdir(parents=True, exist_ok=True)
 
 
+# -- default root and the table of levers (settings that can be tuned) --
 DEFAULT_ROOT = Path.home() / "file-portal"
 
 # Signed defaults and admissible ranges (docs/18 modularity gate): key -> (default, low, high).
@@ -64,8 +75,12 @@ _STR_LEVERS = {
 }
 
 
+# -- the loaded settings --
 @dataclass(frozen=True)
 class Settings:
+    """The indexer's lever values for one run (immutable); `fallbacks` names any value that was
+    replaced by its default."""
+
     passage_chars: int
     passage_max_chars: int
     threads: int
@@ -79,6 +94,9 @@ class Settings:
 
     @classmethod
     def load(cls, path: Path) -> "Settings":
+        """Read the [index] table of the TOML file at `path` and return a validated Settings.
+        A missing file counts as empty; bad or out-of-range values fall back to defaults and are
+        listed in `fallbacks`. Reads one file; writes nothing."""
         try:
             with open(path, "rb") as f:
                 raw = tomllib.load(f).get("index", {})
@@ -86,12 +104,14 @@ class Settings:
             raw = {}
         values: dict = {}
         fallbacks = []
+        # integer levers: must be a real int (not a bool) inside the admissible range
         for key, (default, low, high) in _INT_LEVERS.items():
             value = raw.get(key, default)
             if isinstance(value, bool) or not isinstance(value, int) or not low <= value <= high:
                 fallbacks.append(f"{key}={value!r}->{default}")
                 value = default
             values[key] = value
+        # string levers: must be a non-empty string, and on the menu when one exists
         for key, (default, menu) in _STR_LEVERS.items():
             value = raw.get(key, default)
             if (
@@ -102,6 +122,7 @@ class Settings:
                 fallbacks.append(f"{key}={value!r}->{default}")
                 value = default
             values[key] = value.strip()
+        # cross-check: the hard passage cap may not be smaller than the target passage size
         if values["passage_max_chars"] < values["passage_chars"]:
             fallbacks.append(
                 f"passage_max_chars={values['passage_max_chars']}->{values['passage_chars']}"
@@ -114,6 +135,7 @@ class Settings:
         return {key: getattr(self, key) for key in (*_INT_LEVERS, *_STR_LEVERS)}
 
 
+# -- helpers for command-line overrides --
 def lever_range(key: str) -> tuple[int, int]:
     """The admissible range of an integer lever, for CLI overrides to honour the same bounds."""
     _, low, high = _INT_LEVERS[key]
@@ -121,4 +143,5 @@ def lever_range(key: str) -> tuple[int, int]:
 
 
 def lever_menu(key: str) -> tuple[str, ...]:
+    """The allowed values of a string lever as a tuple (empty when any non-empty string is allowed)."""
     return tuple(_STR_LEVERS[key][1] or ())

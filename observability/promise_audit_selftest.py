@@ -7,6 +7,10 @@
   (e) a malformed line is skipped and COUNTED, never a crash             (f) the JSON form carries the same numbers
   (g) NEGATIVE CONTROL: a file with converted events but no promise reads 'no promised conversion', not a ratio of anything
   (h) a non-converted event (convert/slice, analyst/done) is never counted as a conversion
+
+WHAT THIS FILE DOES: a script-style selftest. It writes planted events.jsonl files into a temp directory, runs
+promise_audit's functions and its command line (via subprocess) against them, and prints one ok/RED line per check.
+It reads and writes only inside the temp directory. Exit code is 1 if any check was RED, else 0. Run directly.
 """
 from __future__ import annotations
 
@@ -17,6 +21,7 @@ import subprocess
 import sys
 import tempfile
 
+# -- setup: make promise_audit importable from this folder; counters of passing (fired) and failing (silent) --
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
 import promise_audit as pa  # noqa: E402
@@ -25,6 +30,7 @@ fired = silent = 0
 
 
 def check(cond: bool, label: str) -> None:
+    """Print an ok/RED line for `label` and bump the module-level fired (pass) or silent (fail) counter."""
     global fired, silent
     print(("  ok    " if cond else "  RED   ") + label)
     if cond:
@@ -33,15 +39,19 @@ def check(cond: bool, label: str) -> None:
         silent += 1
 
 
+# -- fixture builder: one JSON line shaped like a pipeline event --
 def ev(ts, source, pages, actual, promised=None, basis=None, samples=None, stage="convert", event="converted"):
-    d = {"ts": ts, "pid": 1, "stage": stage, "event": event, "source": source, "pages": pages, "s_per_page": actual, "wall_s": round(actual * pages, 1)}
+    """Return a JSON string for one event; promise fields are added only when `promised` is given."""
+    d ={"ts": ts, "pid": 1, "stage": stage, "event": event, "source": source, "pages": pages, "s_per_page": actual, "wall_s": round(actual * pages, 1)}
     if promised is not None:
         d.update({"promised_s_per_page": promised, "promised_eta_s": int(promised * pages), "estimate_basis": basis, "estimate_samples": samples})
     return json.dumps(d)
 
 
+# -- the cases (a)-(j), all inside one temp directory that is removed on exit --
 with tempfile.TemporaryDirectory() as td:
-    p = os.path.join(td, "events.jsonl")
+    # main fixture: three promised conversions, one unpromised, one non-conversion event and one malformed line
+    p =os.path.join(td, "events.jsonl")
     with io.open(p, "w", encoding="utf-8") as f:
         f.write(ev("2026-09-17T05:00:00+00:00", "first.pdf", 100, 2.0, 1.0, "similar", 3) + "\n")          # ratio 0.50
         f.write(ev("2026-09-17T05:10:00+00:00", "sliceish.pdf", 10, 1.0, stage="convert", event="slice") + "\n")  # not a conversion
@@ -75,6 +85,7 @@ with tempfile.TemporaryDirectory() as td:
     check(r_txt.returncode == 0 and "median 1.00x" in r_txt.stdout and "within 2x 2 of 3" in r_txt.stdout and "unpromised 1" in r_txt.stdout
           and "1 malformed line(s) skipped" in r_txt.stdout and "no promise (basis none)" in r_txt.stdout,
           "(g') the text form's summary line: median, within 2x, unpromised, malformed; the unpromised row says so")
+    # negative-control fixture: converted events that carry no promise at all
     q = os.path.join(td, "nopromise.jsonl")
     with io.open(q, "w", encoding="utf-8") as f:
         f.write(ev("2026-09-17T05:00:00+00:00", "a.pdf", 100, 2.0) + "\n")
@@ -99,5 +110,6 @@ with tempfile.TemporaryDirectory() as td:
           and "ratio UNREAD" in r_ut.stdout and "no promise" not in r_ut.stdout and "unmeasured 1" in r_ut.stdout,
           "(j) a promise with an actual of 0.0 reads UNMEASURED (ratio UNREAD), never 'no promise', and the summary counts it apart")
 
+# -- summary and exit code --
 print("%s (%d/%d)" % ("GREEN" if not silent else "RED", fired, fired + silent))
 sys.exit(1 if silent else 0)

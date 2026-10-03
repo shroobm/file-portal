@@ -1,4 +1,9 @@
-"""windows-converter/ladder_lever.py -- the J44 normalisation-ladder lever (SYM-076; S182).
+"""WHAT THIS FILE DOES: read_ladder() returns the id of the text-normalisation ladder to use, as a string. It reads
+the lever file at fp_paths.root("ladder"), strips and lowercases it, and returns it if text_norm lists it as a
+known ladder, else text_norm.LADDER_V2. Read-only; never raises on a missing or unreadable file. Callers are
+fidelity_audit.audit_analyst and analyst.process.
+
+windows-converter/ladder_lever.py -- the J44 normalisation-ladder lever (SYM-076; S182).
 
 The ONE reader of `ladder.txt` under the pipeline root (roots.json `ladder`). text_norm stays a
 pure module (analyst.py must never carry fidelity_audit's dependencies), so the two callers of
@@ -13,7 +18,11 @@ import fp_paths
 import text_norm as tn
 
 
+# -- the lever reader --
 def read_ladder() -> str:
+    """Return the ladder id named in the ladder lever file (lowercased), or LADDER_V2 when the file is absent,
+    unreadable or names an unknown ladder. Side effect: reads one file."""
+    # Any read failure or unknown value falls back to the v2 default.
     try:
         value = fp_paths.root("ladder").read_text(encoding="utf-8").strip().lower()
     except (OSError, KeyError):

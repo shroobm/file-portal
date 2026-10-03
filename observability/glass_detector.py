@@ -1,5 +1,13 @@
 #!/usr/bin/env python3
-"""The glass detector — docs/29 §5.1, made mechanical.
+"""WHAT THIS FILE DOES: the glass detector, a command-line census tool. It reads the lanes and signed
+dispositions in observability/dispositions.json, extracts the dict keys that Python and Rust producer files
+return or persist, and checks whether any renderer file (html/js/rs) names each key. Each key is reported as
+glass (a renderer names it), a signed silence, or a GLITCH. Entry point: main() (run as a script).
+Reads: dispositions.json, producer and renderer files, `git diff` (for --since). Writes: stdout/stderr only.
+Exit codes: 0 normal, 1 under --enforce when a glitch/stale signature/empty glob exists, 2 on bad config or lane.
+Called by: observability/acceptance.py and the session closeout ritual.
+
+The glass detector — docs/29 §5.1, made mechanical.
 
     For every dict a producer returns or persists, walk its keys and confirm each is
     referenced by at least one renderer.
@@ -55,6 +63,7 @@ import subprocess
 import sys
 from pathlib import Path
 
+# -- paths: repo root and the default dispositions config --
 ROOT = Path(__file__).resolve().parent.parent
 CONFIG = Path(__file__).resolve().parent / "dispositions.json"
 
@@ -82,6 +91,7 @@ class _PyProducer(ast.NodeVisitor):
     """
 
     def __init__(self) -> None:
+        """Start with an empty result list (`found`) and two sets that remember dicts/functions already scanned."""
         self.found: list[tuple[str, int, str]] = []  # (key, lineno, context)
         # Two independent double-count sources, both measured on the real tree (docs/31 §1.13:
         # analyst.py harvested 90 keys for 49 distinct, +84%). (1) _harvest recursed via
@@ -94,14 +104,18 @@ class _PyProducer(ast.NodeVisitor):
         self._seen_fns: set[int] = set()
 
     def visit_FunctionDef(self, node: ast.FunctionDef) -> None:  # noqa: N802
+        """AST visitor hook: scan this function for escaping dicts, then visit nested nodes."""
         self._scan_function(node)
         self.generic_visit(node)
 
     def visit_AsyncFunctionDef(self, node: ast.AsyncFunctionDef) -> None:  # noqa: N802
+        """AST visitor hook: same as visit_FunctionDef, for async functions."""
         self._scan_function(node)
         self.generic_visit(node)
 
     def _scan_function(self, fn: ast.AST) -> None:
+        """Find the dicts that leave one function (returned, appended to a returned list, or json-dumped)
+        and harvest their keys into self.found. Skips a function already scanned. No files touched."""
         if id(fn) in self._seen_fns:
             return
         self._seen_fns.add(id(fn))
@@ -116,6 +130,7 @@ class _PyProducer(ast.NodeVisitor):
         #    findings this detector exists to reproduce.
         returned_names: set[str] = set()
         escaping: list[ast.Dict] = []
+        # collect every dict literal and every variable name found inside any `return` expression
         for n in ast.walk(fn):
             if isinstance(n, ast.Return) and n.value is not None:
                 for sub in ast.walk(n.value):
@@ -126,6 +141,7 @@ class _PyProducer(ast.NodeVisitor):
 
         # 2. dicts assigned to, or appended to, something that is returned
         #    (two passes: a returned dict's values can name more locals, e.g. {"runs": runs})
+        # (repeat twice so a name picked up on the first pass can pull in more dicts on the second)
         for _ in range(2):
             for d in list(escaping):
                 for v in d.values:
@@ -155,6 +171,7 @@ class _PyProducer(ast.NodeVisitor):
                         if isinstance(a, ast.Dict):
                             escaping.append(a)
 
+        # record the string keys of every escaping dict, tagged with this function's name
         for d in escaping:
             self._harvest(d, name)
 
@@ -173,6 +190,10 @@ class _PyProducer(ast.NodeVisitor):
 
 
 def keys_from_python(path: Path) -> list[tuple[str, int, str]]:
+    """Return (key, line, function name) for every escaping dict key in one Python file.
+
+    Reads the file; on a syntax or decode error prints a warning to stderr and returns an empty list.
+    """
     try:
         tree = ast.parse(path.read_text(encoding="utf-8"))
     except (SyntaxError, UnicodeDecodeError) as e:
@@ -183,6 +204,7 @@ def keys_from_python(path: Path) -> list[tuple[str, int, str]]:
     return p.found
 
 
+# -- patterns for finding keys in Rust source and in added diff lines --
 _JSON_BANG = re.compile(r"json!\s*\(")
 _RS_KEY = re.compile(r'"([A-Za-z_][A-Za-z0-9_]*)"\s*:')
 _SERDE_RENAME = re.compile(r'#\[serde\s*\(\s*rename\s*=\s*"([^"]+)"')
@@ -204,6 +226,7 @@ def branch_keys_from_python(path: Path) -> list[tuple[str, int, str]]:
     except (SyntaxError, UnicodeDecodeError):
         return []
     found: list[tuple[str, int, str]] = []
+    # inside every function, look at assignments (`x["k"] = ...`, `x["k"] += ...`) and setdefault("k", ...) calls
     for fn in ast.walk(tree):
         if not isinstance(fn, (ast.FunctionDef, ast.AsyncFunctionDef)):
             continue
@@ -260,6 +283,7 @@ def keys_from_rust(path: Path) -> list[tuple[str, int, str]]:
 
 
 def keys_from(path: Path) -> list[tuple[str, int, str]]:
+    """Dispatch on file suffix: .py to keys_from_python, .rs to keys_from_rust, anything else yields no keys."""
     if path.suffix == ".py":
         return keys_from_python(path)
     if path.suffix == ".rs":
@@ -286,6 +310,7 @@ def resolve_glob(pattern: str) -> list[Path]:
 
 
 def rel(p: Path) -> str:
+    """Return the path relative to the repo root as a string (the full path if it lies outside the repo)."""
     try:
         return str(p.relative_to(ROOT))
     except ValueError:
@@ -293,10 +318,12 @@ def rel(p: Path) -> str:
 
 
 def renderer_text(paths: list[Path]) -> str:
+    """Read every existing renderer file (bad bytes replaced) and join them into one searchable text blob."""
     return "\n".join(p.read_text(encoding="utf-8", errors="replace") for p in paths if p.is_file())
 
 
 def referenced(key: str, blob: str, cache: dict[str, bool]) -> bool:
+    """True if `key` appears as a whole word in `blob`; results are memoised in `cache` (mutated)."""
     if key in cache:
         return cache[key]
     hit = re.search(r"\b" + re.escape(key) + r"\b", blob) is not None
@@ -337,6 +364,7 @@ def added_keys_since(ref: str) -> set[str] | None:
         return None
 
     keys: set[str] = set()
+    # scan only added diff lines (not the "+++" file headers) and collect key names in three dialects
     for line in proc.stdout.splitlines():
         if not line.startswith("+") or line.startswith("+++"):
             continue
@@ -357,9 +385,15 @@ def added_keys_since(ref: str) -> set[str] | None:
 
 
 # --------------------------------------------------------------------------------------------
+# -- the command-line driver and the human-readable report --
 
 
 def main() -> int:
+    """Parse arguments, validate dispositions.json, run the census over every selected lane and print it.
+
+    Returns 0 normally, 1 under --enforce when unsigned glitches, stale signatures or empty globs exist,
+    and 2 for a bad disposition or unknown lane. Reads config, producer/renderer files and git; prints only.
+    """
     # Windows consoles default to cp1252 and this report is full of box-drawing and §.
     for stream in (sys.stdout, sys.stderr):
         try:
@@ -378,6 +412,7 @@ def main() -> int:
     cfg = json.loads(Path(args.config).read_text(encoding="utf-8"))
     signed: dict[str, dict] = cfg.get("dispositions", {})
 
+    # every signed disposition must use a known verdict word and carry a reason, else exit 2
     for k, v in signed.items():
         d = v.get("disposition")
         if d not in VALID_DISPOSITIONS:
@@ -410,6 +445,7 @@ def main() -> int:
     used_signatures: set[str] = set()
     empty_globs: list[str] = []
 
+    # main loop: one pass per lane; resolve its producer and renderer files, then judge each producer key
     for lane in cfg["lanes"]:
         if args.lane and lane["name"] not in args.lane:
             continue
@@ -427,6 +463,7 @@ def main() -> int:
         cache: dict[str, bool] = {}
 
         lane_rows: list[dict] = []
+        # verdict per key: glass (renderer names it), the signed disposition, or GLITCH (neither)
         for prod in producers:
             for key, lineno, ctx in keys_from(prod):
                 if len(key) < MIN_KEY_LEN:
@@ -491,6 +528,7 @@ def main() -> int:
     # 613 "keys" for 335). docs/31 §1.13.
     distinct_glitches = sorted({(g[0], g[1]) for g in glitches})
 
+    # output: JSON document for tools, or the readable census plus the warn-only subscript list
     if args.json:
         print(
             json.dumps(
@@ -526,6 +564,11 @@ def main() -> int:
 
 
 def _print_census(report, glitches, distinct_glitches, stale, empty_globs, fell_back, args) -> None:
+    """Print the readable census: scope line, per-lane tallies, empty globs, glitches, stale signatures.
+
+    Inputs are main()'s results (report per lane, glitch tuples, stale names, empty globs, whether
+    --since fell back, parsed args). Prints to stdout only; returns nothing.
+    """
     print("──────── GLASS DETECTOR · docs/29 §5.1 ────────")
     if args.since and not fell_back:
         print(f"    scope: keys added since {args.since} (§5.4 same-commit rule)")
@@ -575,5 +618,6 @@ def _print_census(report, glitches, distinct_glitches, stale, empty_globs, fell_
     )
 
 
+# -- script entry point --
 if __name__ == "__main__":
     sys.exit(main())

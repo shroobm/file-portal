@@ -1,4 +1,9 @@
-"""Survey: which PDFs on this machine actually carry a structure tree, and how rich.
+"""WHAT THIS FILE DOES: a survey script. Usage: probe_h_survey.py [pdf ...] (default: every PDF in the
+Downloads folder). For each PDF it prints one tab-separated row: pages, /Marked flag, whether a structure
+tree exists, element and tag-type counts, Alt/ActualText/Pg/A counts, and the stext structure-block count
+over the first 25 pages. Read-only; stdout only; needs pymupdf; no callers.
+
+Survey: which PDFs on this machine actually carry a structure tree, and how rich.
 
 Includes NEGATIVE CONTROLS (scanned / untagged corpus books) so the detector is
 watched failing, per the brief's negative-control requirement.
@@ -9,7 +14,11 @@ import pymupdf
 FL = pymupdf.TEXTFLAGS_DICT | pymupdf.TEXT_COLLECT_STRUCTURE
 
 
+# -- per-file probe --
 def probe(path, max_pages=None):
+    """Measure one PDF; return a dict of results (file, pages, markinfo, StructTreeRoot, elems, types, top,
+    Alt, ActualText, Pg, A, Table, Figure, H, stext_structs), or {"file", "error"} if it cannot be opened.
+    The stext count covers only the first `max_pages` pages. Read-only."""
     r = {"file": os.path.basename(path)}
     try:
         d = pymupdf.open(path)
@@ -31,10 +40,12 @@ def probe(path, max_pages=None):
         return r
 
     def get(x, k):
+        """Return xref_get_key(x, k) on this document, or None when the key is absent."""
         v = d.xref_get_key(x, k)
         return None if (not v or v[0] == "null") else v
 
     def kids(x):
+        """Return the object numbers of the indirect children in object x's /K entry (else [])."""
         k = get(x, "K")
         if not k:
             return []
@@ -44,6 +55,7 @@ def probe(path, max_pages=None):
             return [int(m.group(1)) for m in re.finditer(r"(\d+)\s+(\d+)\s+R", k[1])]
         return []
 
+    # walk the tree (capped at 400000 objects), tallying tag types and optional keys per element
     root = int(r["StructTreeRoot"].split()[0])
     seen, stack = set(), list(kids(root))
     S = collections.Counter()
@@ -77,6 +89,7 @@ def probe(path, max_pages=None):
     pages = range(min(d.page_count, max_pages or d.page_count))
 
     def cnt(bl):
+        """Return the number of structure blocks (type 2) in `bl`, including nested ones."""
         c = 0
         for b in bl:
             if b.get("type") == 2:
@@ -94,6 +107,7 @@ def probe(path, max_pages=None):
     return r
 
 
+# -- driver: probe each candidate (first 25 pages for the stext count) and print one row each --
 CANDIDATES = sys.argv[1:] or sorted(glob.glob(r"C:/Users/Bndit/Downloads/*.pdf"))
 hdr = ("file", "pages", "Marked", "STRoot", "elems", "types", "H", "Table",
        "Figure", "Alt", "ActualText", "Pg", "A", "stext")

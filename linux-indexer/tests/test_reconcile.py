@@ -1,4 +1,9 @@
-"""Reconcile tests against a REAL bare vault on a temp root, same doctrine as the converter's
+"""WHAT THIS FILE DOES: tests for indexer/reconcile.py. Each test builds a real bare git vault in a
+temporary folder, commits bundles to it, runs reconcile() with a fake hash-based embedder, then
+checks the index database and the receipts file. It also holds helpers (git, vault_bundle,
+open_store, ...) that test_query_status.py imports. No network, no real models.
+
+Reconcile tests against a REAL bare vault on a temp root, same doctrine as the converter's
 test_exporter: the vault pair is built by the fixture with real git, bundles are committed and
 pushed the way the exporter ships them (Inbox/<slug>--<sha8>/{<name>.md, manifest.json,
 assets/}), and assertions read what the code provably wrote -- the SQLite store on disk (the
@@ -21,6 +26,7 @@ from indexer.config import Paths, Settings
 from indexer.reconcile import reconcile
 from indexer.store import Store
 
+# -- fixtures data: two fake source hashes, git identity, small-passage settings, two book bodies --
 SHA_A = "aa11" * 16
 SHA_B = "bb22" * 16
 IDENT = ["-c", "user.name=test", "-c", "user.email=test@test.invalid"]
@@ -49,6 +55,7 @@ BODY_B = (
 )
 
 
+# -- the fake embedder --
 class HashEmbedder:
     """Deterministic, model-free vectors: sha256 of the text, eight bytes, unit-normalised.
     Counts its calls so a test can prove the model was NOT consulted."""
@@ -56,27 +63,34 @@ class HashEmbedder:
     dim = 8
 
     def __init__(self, name="hash-8"):
+        """Set the model name the fake reports and start the call counter at zero."""
         self.name = name
         self.calls = 0
 
     def _vec(self, text):
+        """Eight-number unit vector derived from the SHA-256 of `text` (same text, same vector)."""
         raw = hashlib.sha256(text.encode("utf-8")).digest()[: self.dim]
         vec = [(b - 128) / 128 for b in raw]
         norm = sum(x * x for x in vec) ** 0.5 or 1.0
         return [x / norm for x in vec]
 
     def embed_passages(self, texts):
+        """Count the call and return one fake vector per text."""
         self.calls += 1
         return [self._vec(t) for t in texts]
 
     def embed_query(self, text):
+        """Return the fake vector for one question (not counted as a call)."""
         return self._vec(text)
 
     def identity(self):
+        """A fixed identity dict (name, dim, runtime 'test', all-zero model hash)."""
         return {"name": self.name, "dim": self.dim, "runtime": "test", "model_sha256": "0" * 64}
 
 
+# -- helpers: git, vault layout, store reading, receipts reading --
 def git(repo, *args, check=True):
+    """Run git in `repo` (signing off); with check=True assert it succeeded. Returns stdout, stripped."""
     proc = subprocess.run(
         ["git", "-C", str(repo), "-c", "commit.gpgsign=false", *args],
         capture_output=True,
@@ -89,6 +103,8 @@ def git(repo, *args, check=True):
 
 @pytest.fixture
 def paths(tmp_path):
+    """Fixture: a Paths under a temp folder with a bare vault and a working clone, seeded with one
+    commit and pushed. The tests add bundles through the clone."""
     p = Paths.from_root(tmp_path / "file-portal")
     p.ensure_exist()
     # Wire the vault pair the way Decision #4 did manually: bare repo + working clone,
@@ -108,10 +124,12 @@ def paths(tmp_path):
 
 
 def work_of(paths):
+    """The folder of the working clone of the vault (a sibling of the root)."""
     return paths.root.parent / "vault-work"
 
 
 def commit_all(paths, message):
+    """Stage everything in the working clone, commit with `message` and push to the bare vault."""
     work = work_of(paths)
     git(work, "add", "-A")
     git(work, *IDENT, "commit", "-m", message)
@@ -137,12 +155,14 @@ def vault_bundle(paths, note, name, sha, body=BODY_A, manifest=None, commit=True
 
 
 def open_store(paths):
+    """Open the index database read-only and return the Store."""
     store = Store(paths.index)
     store.open_readonly()
     return store
 
 
 def passage_rows(store, sha):
+    """The passages of bundle `sha` as a list of dicts (id, idx, heading, page_hint, text), in order."""
     return [
         dict(r)
         for r in store.db.execute(
@@ -153,6 +173,7 @@ def passage_rows(store, sha):
 
 
 def read_receipts(paths):
+    """The receipts file as a list of dicts; a missing file gives [] and unreadable lines are skipped."""
     out = []
     try:
         lines = (paths.root / "receipts.jsonl").read_text().splitlines()
@@ -170,6 +191,7 @@ def read_receipts(paths):
 
 
 def test_first_run_indexes_every_bundle_and_writes_one_receipt(paths):
+    """Two new bundles: both indexed, vectors match passages, metadata stored, one receipt written."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     vault_bundle(paths, "Inbox/book-b--bb22bb22", "Book B", SHA_B, body=BODY_B)
     embedder = HashEmbedder()
@@ -200,6 +222,7 @@ def test_first_run_indexes_every_bundle_and_writes_one_receipt(paths):
 
 
 def test_second_run_is_quiet_and_never_consults_the_model(paths):
+    """A second run on an unchanged vault embeds nothing and writes no new receipt."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     assert reconcile(paths.root, SETTINGS, embedder=HashEmbedder()) == 0
     again = HashEmbedder()
@@ -211,6 +234,7 @@ def test_second_run_is_quiet_and_never_consults_the_model(paths):
 
 
 def test_page_hint_and_heading_ride_on_the_passage(paths):
+    """Passages carry their heading and a 1-based page hint from the figure embed; embeds are stripped."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     reconcile(paths.root, SETTINGS, embedder=HashEmbedder())
 
@@ -226,6 +250,7 @@ def test_page_hint_and_heading_ride_on_the_passage(paths):
 
 
 def test_supersede_replaces_that_bundle_in_place(paths):
+    """A changed body at the same path replaces only that bundle's passages; the other is untouched."""
     bundle = vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     vault_bundle(paths, "Inbox/book-b--bb22bb22", "Book B", SHA_B, body=BODY_B)
     reconcile(paths.root, SETTINGS, embedder=HashEmbedder())
@@ -253,6 +278,7 @@ def test_supersede_replaces_that_bundle_in_place(paths):
 
 
 def test_manifest_only_change_rewrites_metadata_without_the_model(paths):
+    """A manifest-only change (bless) updates metadata, keeps passages, skips the model; a withdrawn key goes."""
     bundle = vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     reconcile(paths.root, SETTINGS, embedder=HashEmbedder())
     manifest = json.loads((bundle / "manifest.json").read_text())
@@ -282,6 +308,7 @@ def test_manifest_only_change_rewrites_metadata_without_the_model(paths):
 
 
 def test_desktop_filing_keeps_identity_and_adds_no_duplicates(paths):
+    """Moving a bundle to another folder keeps its passages and updates its note path; no re-embedding."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     embedder = HashEmbedder()
     reconcile(paths.root, SETTINGS, embedder=embedder)
@@ -302,6 +329,7 @@ def test_desktop_filing_keeps_identity_and_adds_no_duplicates(paths):
 
 
 def test_deleted_bundle_passages_are_removed(paths):
+    """A bundle deleted from the vault loses its passages, vectors and keyword entries."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     vault_bundle(paths, "Inbox/book-b--bb22bb22", "Book B", SHA_B, body=BODY_B)
     reconcile(paths.root, SETTINGS, embedder=HashEmbedder())
@@ -326,6 +354,7 @@ def test_deleted_bundle_passages_are_removed(paths):
 
 
 def test_two_bodies_are_refused_and_the_rest_still_index(paths):
+    """A bundle with two .md files is refused (exit 1); a REPAIRS.md report is not a body; others index."""
     bundle = vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A, commit=False)
     (bundle / "Book A (copy).md").write_text("# a second body\n")
     good = vault_bundle(paths, "Inbox/book-b--bb22bb22", "Book B", SHA_B, body=BODY_B, commit=False)
@@ -345,6 +374,7 @@ def test_two_bodies_are_refused_and_the_rest_still_index(paths):
 
 
 def test_a_sha_vaulted_twice_refuses_both_copies(paths):
+    """The same source hash in two bundles: both copies are refused and neither is indexed."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A, commit=False)
     vault_bundle(paths, "Inbox/book-a-again--aa11aa11", "Book A again", SHA_A)
 
@@ -356,6 +386,7 @@ def test_a_sha_vaulted_twice_refuses_both_copies(paths):
 
 
 def test_missing_vault_fails_loudly(paths):
+    """With the vault folder gone, reconcile returns 2 and writes an `index-failed` receipt."""
     shutil.rmtree(paths.vault_bare)
 
     assert reconcile(paths.root, SETTINGS, embedder=HashEmbedder()) == 2
@@ -366,6 +397,7 @@ def test_missing_vault_fails_loudly(paths):
 
 
 def test_model_mismatch_is_refused_until_an_explicit_rebuild(paths):
+    """A different model name is refused without embedding; rebuild=True re-indexes under the new model."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     assert reconcile(paths.root, SETTINGS, embedder=HashEmbedder()) == 0
     other = HashEmbedder(name="hash-8-other")
@@ -386,6 +418,7 @@ def test_model_mismatch_is_refused_until_an_explicit_rebuild(paths):
 
 
 def test_the_store_is_the_only_record(paths):
+    """Deleting the database makes the next run re-add everything; no side state file exists."""
     # NEGATIVE CONTROL: no state file exists to lie; delete the store and the next run
     # re-adds everything from the vault, because there is nothing else to trust.
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
@@ -402,6 +435,7 @@ def test_the_store_is_the_only_record(paths):
 
 
 def test_lever_fallbacks_are_named_in_the_receipt(paths):
+    """Settings that fell back to defaults are named in the receipt and in the meta table."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     settings = Settings(**{**SETTINGS.__dict__, "fallbacks": ("threads='x'->4",)})
 
@@ -412,6 +446,7 @@ def test_lever_fallbacks_are_named_in_the_receipt(paths):
 
 
 def test_unknown_model_name_is_a_receipt_not_a_traceback(paths):
+    """An unknown model name gives exit 1 and an `index-failed` receipt naming the catalogue, not a crash."""
     vault_bundle(paths, "Inbox/book-a--aa11aa11", "Book A", SHA_A)
     settings = Settings(**{**SETTINGS.__dict__, "model": "nobody/no-such-model"})
 

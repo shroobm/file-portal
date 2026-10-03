@@ -1,6 +1,11 @@
 #!/usr/bin/env python3
 """promise_audit.py — the promise-vs-actual line docs/18 §3.7 said was never filed (S189 E3; warn-only).
 
+WHAT THIS FILE DOES: reads the pipeline's events.jsonl, keeps the `convert/converted` events, and prints how the
+estimator's promised seconds-per-page compared with the actual. Entry points: main() (command line), read_events(),
+audit() and summary_line(). It reads one events file (default ~/ml/library/events.jsonl) and writes only to stdout.
+Called by hand or by close tooling, and tested by promise_audit_selftest.py.
+
 Every `convert/converted` event has carried the estimator's PROMISE beside the ACTUAL since OK-17 (`promised_s_per_page`,
 `promised_eta_s`, `estimate_basis`, `estimate_samples` next to `s_per_page`, `wall_s`, `pages`). Nothing read them back at a
 close; S188 E1 read them by hand once and found five of six of a day's promises outside 2×. This reads them every time.
@@ -23,13 +28,16 @@ import os
 import statistics
 import sys
 
-DEFAULT_EVENTS = os.path.join(os.path.expanduser("~"), "ml", "library", "events.jsonl")
+# -- constant: where the events file lives unless --events says otherwise --
+DEFAULT_EVENTS =os.path.join(os.path.expanduser("~"), "ml", "library", "events.jsonl")
 
 
+# -- reading and computing --
 def read_events(path: str) -> tuple[list[dict], int]:
     """Every `convert/converted` event in file order, and the count of malformed lines skipped."""
     rows, bad = [], 0
     with io.open(path, encoding="utf-8", errors="replace") as f:
+        # one JSON object per line; blank lines are ignored, unparseable lines are counted, other events are dropped
         for line in f:
             line = line.strip()
             if not line:
@@ -49,6 +57,7 @@ def audit(rows: list[dict], last: int | None = None) -> dict:
     if last:
         rows = rows[-last:]
     lines, ratios = [], []
+    # build one record per conversion and classify it: promised (has a ratio), unpromised, or unmeasured
     for ev in rows:
         actual = ev.get("s_per_page")
         promised = ev.get("promised_s_per_page")
@@ -76,8 +85,9 @@ def audit(rows: list[dict], last: int | None = None) -> dict:
             except (TypeError, ValueError):
                 rec["ratio"] = None
         lines.append(rec)
+    # summary figures: ratios inside 2x either way, and the two ratios farthest from 1.0 on a log scale
     within = [r for r, _ in ratios if 0.5 <= r <= 2.0]
-    worst = sorted(ratios, key=lambda t: abs(__import__("math").log(t[0])) if t[0] > 0 else 0, reverse=True)[:2]
+    worst =sorted(ratios, key=lambda t: abs(__import__("math").log(t[0])) if t[0] > 0 else 0, reverse=True)[:2]
     unmeasured = sum(1 for r in lines if r["class"] == "unmeasured")
     return {
         "conversions": len(lines),
@@ -91,7 +101,9 @@ def audit(rows: list[dict], last: int | None = None) -> dict:
     }
 
 
+# -- output and command line --
 def summary_line(a: dict, bad: int = 0) -> str:
+    """One text line summarising audit() output `a` (median, within 2x, unpromised, worst) plus `bad` skipped lines."""
     unm = (" · unmeasured %d (a promise, no actual — resumed runs)" % a["unmeasured"]) if a.get("unmeasured") else ""
     if a["promised"] == 0:
         return "no promised conversion in the window (%d conversion(s), %d unpromised)%s%s" % (
@@ -103,6 +115,7 @@ def summary_line(a: dict, bad: int = 0) -> str:
 
 
 def main(argv: list[str]) -> int:
+    """Parse argv, read the events file, print per-conversion lines and a summary (or JSON); return 0, or 2 on usage."""
     ap = argparse.ArgumentParser(description="promise vs actual over the converted events (warn-only)")
     ap.add_argument("--events", default=DEFAULT_EVENTS)
     ap.add_argument("--last", type=int, default=None, help="only the newest N converted events")
@@ -124,6 +137,7 @@ def main(argv: list[str]) -> int:
         res["malformed_skipped"] = bad
         print(json.dumps(res, indent=1))
         return 0
+    # text form: one printed row per conversion, in one of three shapes by class
     for rec in res["lines"]:
         if rec["class"] == "unpromised":
             print("  %s %5s pp  actual %-7s  no promise (basis %s)  %s" % (rec["ts"], rec["pages"], rec["actual_s_per_page"], rec["basis"] or "none", rec["source"]))

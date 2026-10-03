@@ -1,8 +1,17 @@
+"""WHAT THIS FILE DOES: a one-off parser (run directly from the folder holding the input). It reads the text
+dump table5_raw.txt (Table 5 of ISO/TS 32005, extracted from the PDF), drops page furniture, and groups the
+remaining tokens into row blocks: a type name, then child occurrence markers and child type names, then
+parent occurrence markers and parent type names. It prints a row list to stdout, counts and errors to
+stderr, and writes table5_parsed.json in the current folder. No callers.
+"""
 import re, json, sys
 
+# -- load the raw text lines --
 with open("table5_raw.txt", encoding="utf-8") as f:
     raw_lines = [l.rstrip("\n") for l in f]
 
+# -- noise and token vocabularies --
+# lines that are page furniture (headers, footers, licence stamp) and are skipped
 NOISE_EXACT = {
     "Structure Type", "Children", "Parents", "Occ.",
     "Table 5 (continued)",
@@ -16,8 +25,10 @@ NOISE_EXACT = {
     "c",  # stray OCR artifact observed twice mid-sequence (lines ~3794, ~4929 of table5_raw.txt)
 }
 
+# occurrence markers (how many times a child or parent may appear)
 OCC_SET = {"0..n", "1..n", "0..1", "1", "∅*", "‡", "[a]", "[b]"}
 
+# -- step 1: filter the lines into data tokens, remembering each token's source line --
 tokens = []
 token_src_line = []  # 1-based line number in table5_raw.txt, for traceability
 dropped_digit_lines = []
@@ -39,6 +50,7 @@ for i, l in enumerate(raw_lines, start=1):
 print(f"Total data tokens after noise filtering: {len(tokens)}", file=sys.stderr)
 print(f"Dropped bare page-number digit lines: {len(dropped_digit_lines)}", file=sys.stderr)
 
+# -- step 2: group tokens into row blocks with a cursor `pos` --
 rows = []
 pos = 0
 n_tok = len(tokens)
@@ -53,6 +65,7 @@ while pos < n_tok:
         continue
     pos += 1
 
+    # run of occurrence markers, then that many child type names
     children_occ = []
     while pos < n_tok and tokens[pos] in OCC_SET:
         children_occ.append(tokens[pos])
@@ -62,6 +75,7 @@ while pos < n_tok:
     child_lines = token_src_line[pos:pos+n]
     pos += n
 
+    # same shape again for the parents
     parents_occ = []
     while pos < n_tok and tokens[pos] in OCC_SET:
         parents_occ.append(tokens[pos])
@@ -78,6 +92,7 @@ while pos < n_tok:
         "parents": list(zip(parents_types, parents_occ, parent_lines)),
     })
 
+# -- step 3: report and save --
 print(f"Parsed {len(rows)} row-blocks", file=sys.stderr)
 print(f"Parse errors: {len(errors)}", file=sys.stderr)
 for e in errors:

@@ -1,9 +1,15 @@
-"""Re-measure: of the operator's REAL converted corpus (anchor bundles), how many source
+"""WHAT THIS FILE DOES: a quarantine probe (run directly, no arguments). It lists the distinct source works
+behind the bundle manifests under the anchor library folder, finds each PDF on disk, counts its
+/StructElem objects by scanning every xref, and prints one tab-separated row per work (tree present,
+element count, tag types, /Marked flag, elements per page). Read-only; stdout only; needs pymupdf; no callers.
+
+Re-measure: of the operator's REAL converted corpus (anchor bundles), how many source
 PDFs carry a structure tree, and how dense is it? Read-only. No GPU."""
 import json, re, sys
 from pathlib import Path
 import pymupdf
 
+# -- locations --
 ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
 SEARCH = [Path(r"C:\Users\Bndit\Downloads"), Path(r"C:\Users\Bndit\ml\library"),
           Path(r"C:\Users\Bndit\Documents")]
@@ -37,6 +43,7 @@ for root in SEARCH:
     except OSError:
         pass
 
+# -- measurement: one PDF in, tree facts out (STRUCT below is defined but not used by the code here) --
 STRUCT = re.compile(r"/StructTreeRoot\s+(\d+)\s+(\d+)\s+R")
 
 def probe_tree(path):
@@ -66,6 +73,7 @@ def probe_tree(path):
                         types.add(s[1])
         return has, n, len(types), marked, pages
 
+# -- driver: probe each work (errors are recorded in the row, not raised), then print the table --
 rows = []
 for src, w in sorted(works.items()):
     p = index.get(src)

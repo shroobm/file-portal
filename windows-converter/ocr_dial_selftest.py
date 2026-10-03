@@ -1,5 +1,10 @@
 # -*- coding: utf-8 -*-
-"""ocr_dial_selftest.py — the tripwires for B33's dial (S209 E8, record-only). Run with the marker-env interpreter
+"""WHAT THIS FILE DOES: selftest for the OCR "dial" in convert_and_ship.py: the progress-bar accumulator (_note_ocr_bar),
+ocr_dial(), estimate_from_ledger() and the ledger row written by _ledger_record(). It points FP_PIPELINE at a temp
+folder before importing, writes fake ledger rows to the temp ledger file, and checks the results. Prints one ok/RED
+line per case and an N/N tally; exit 0 when all pass, else 1. Needs the marker-env interpreter (pymupdf import).
+
+ocr_dial_selftest.py — the tripwires for B33's dial (S209 E8, record-only). Run with the marker-env interpreter
 (convert_and_ship imports pymupdf at module level); FP_PIPELINE is pointed at a temp dir BEFORE import so the ledger and
 every root land in quarantine (SYM-010: never the live dirs). Cases: the bars accumulate by distinct total, a prefixed
 stage counts, another stage does not; ocr_dial sums and divides by the pages it is given; estimate_from_ledger names its
@@ -15,10 +20,12 @@ os.environ["FP_PIPELINE"] = _TMP
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 import convert_and_ship as cas  # noqa: E402
 
+# -- test harness: counters and the case() recorder --
 ok = n = 0
 
 
 def case(name, cond, detail=""):
+    """Record one test case: count it, count it green when cond is truthy, print an ok/RED line (detail shown if red)."""
     global ok, n
     n += 1
     ok += 1 if cond else 0
@@ -72,5 +79,6 @@ cas._ledger_record(_m2, 128.0, 8000)
 _row2 = json.loads(cas.LEDGER_FILE.read_text(encoding="utf-8").strip().splitlines()[-1])
 case("NEGATIVE CONTROL: a manifest with only the boolean `ocr` reads ocr_lines None (the defect's shape), never a number",
      _row2.get("ocr_lines") is None and _row2.get("ocr_lines_per_page") is None, _row2)
+# -- the tally and exit code --
 print("==== ocr_dial selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)

@@ -1,4 +1,9 @@
-"""Door A density over the operator's REAL converted corpus (10 distinct anchor works).
+"""WHAT THIS FILE DOES: a quarantine probe (run directly, no arguments). It reads each bundle manifest under
+the anchor library folder, finds the source PDFs on disk, samples up to 25 pages per PDF through pymupdf's
+structure view ("Door A"), and prints one tab-separated row per work with a tagged / tagged-hollow /
+untagged verdict plus a verdict tally. Read-only; stdout only; needs pymupdf; no callers.
+
+Door A density over the operator's REAL converted corpus (10 distinct anchor works).
 
 Second, differently-shaped method against corpus_probe.py's xref /Type-count (which is a
 FLOOR: ISO 32000-2 makes StructElem's /Type optional, so a producer may omit it).
@@ -12,12 +17,14 @@ from pathlib import Path
 
 import pymupdf
 
+# -- locations and flags --
 ANCHOR = Path(r"C:\Users\Bndit\ml\library\anchor")
 SEARCH = [Path(r"C:\Users\Bndit\Downloads"), Path(r"C:\Users\Bndit\ml\library"),
           Path(r"C:\Users\Bndit\Documents")]
 
 FL = pymupdf.TEXTFLAGS_DICT | pymupdf.TEXT_COLLECT_STRUCTURE
 
+# -- corpus listing: distinct works (by source file name) from the bundle manifests, then PDF paths on disk --
 works = {}
 for d in sorted(ANCHOR.iterdir()):
     m = d / "manifest.json"
@@ -39,7 +46,10 @@ for root in SEARCH:
         pass
 
 
+# -- measurement: count structure blocks on sampled pages --
 def walk(blocks, counts, types, depth, maxdepth):
+    """Recurse through stext `blocks`: add each structure block to counts[0], its tag to set `types`,
+    and raise maxdepth[0] to the deepest nesting seen. Mutates the three accumulators; returns nothing."""
     for b in blocks:
         if b.get("type") == 2:
             counts[0] += 1
@@ -56,6 +66,7 @@ def door_a(path, sample_pages):
     chars = 0
     t0 = time.perf_counter()
     with pymupdf.open(path) as doc:
+        # evenly spaced sample of page indexes
         n = doc.page_count
         step = max(1, n // sample_pages)
         idxs = list(range(0, n, step))[:sample_pages]
@@ -66,6 +77,7 @@ def door_a(path, sample_pages):
     return counts[0], len(types), maxdepth[0], time.perf_counter() - t0, len(idxs), chars
 
 
+# -- driver: one row per work, then the verdict tally --
 HEAD = ["work", "lane", "pages", "sampled", "structelem", "std_types", "maxdepth",
         "elem_per_pp", "chars_per_pp", "ms_per_page", "VERDICT"]
 print("\t".join(HEAD))

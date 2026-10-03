@@ -1,4 +1,9 @@
-"""Re-measure with the null-tuple bug fixed, and settle the Figure discrepancy.
+"""WHAT THIS FILE DOES: a one-off measurement script (run directly, no arguments). It walks the WTPDF sample's
+structure tree through raw xref reads and prints: feature counts per element, the contents of attribute
+objects, any declared /BBox, and the Figure count from xref versus pymupdf's text extraction. The path is
+hard-coded; read-only; prints to stdout; needs pymupdf; no callers.
+
+Re-measure with the null-tuple bug fixed, and settle the Figure discrepancy.
 
 pymupdf's Document.xref_get_key returns ('null','null') for an ABSENT key, which
 is truthy. probe_e counted every element as having /Alt. Fixed here.
@@ -6,11 +11,13 @@ is truthy. probe_e counted every element as having /Alt. Fixed here.
 import re, json, collections
 import pymupdf
 
+# -- setup and xref helpers (the document is the module-level `doc`) --
 P = r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf"
 doc = pymupdf.open(P)
 
 
 def get(x, k):
+    """Return xref_get_key(x, k) on `doc`, or None when the key is absent (the fix for the truthy null tuple)."""
     v = doc.xref_get_key(x, k)
     if not v or v[0] == "null":
         return None
@@ -18,12 +25,14 @@ def get(x, k):
 
 
 def as_xref(v):
+    """Return the object number if `v` is an ("xref", "N 0 R") pair from get(), else None."""
     if v and v[0] == "xref":
         return int(v[1].split()[0])
     return None
 
 
 def kids_of(x):
+    """Return the object numbers of the indirect children in object x's /K entry (single ref or array)."""
     k = get(x, "K")
     if not k:
         return []
@@ -35,6 +44,7 @@ def kids_of(x):
     return []
 
 
+# -- walk the tree from the root, collecting every structure element --
 cat = doc.pdf_catalog()
 root_xref = int(get(cat, "StructTreeRoot")[1].split()[0])
 
@@ -52,6 +62,7 @@ while stack:
 print("=== FIXED XREF WALK ===")
 print("objects reached:", len(seen), "| StructElem (has /S or Type=/StructElem):", len(elems))
 
+# -- tally which optional keys each element carries, and how many of each tag type --
 feat = collections.Counter()
 Sct = collections.Counter()
 for x in elems:
@@ -79,6 +90,7 @@ for x in elems:
     if not a:
         continue
     ax = as_xref(a)
+    # /A is either one attribute object or an array of them; gather the object numbers
     objs = []
     if ax:
         objs = [ax]
@@ -108,6 +120,7 @@ for x in elems:
     if not a:
         continue
     ax = as_xref(a)
+    # candidate attribute objects for this element (single ref or array), then look for a /BBox key
     cands = [ax] if ax else ([int(m.group(1)) for m in re.finditer(r"(\d+)\s+(\d+)\s+R", a[1])] if a[0] == "array" else [])
     for o in cands:
         if "BBox" in doc.xref_get_keys(o):
@@ -123,6 +136,7 @@ figs = [x for x in elems if (get(x, "S") or ("", ""))[1] == "/Figure"]
 print("xref /Figure StructElem:", len(figs))
 for f in figs:
     pg = as_xref(get(f, "Pg"))
+    # map the page object number to a zero-based page index
     pno = None
     for i in range(doc.page_count):
         if doc[i].xref == pg:
@@ -137,6 +151,7 @@ print("TEXTFLAGS_DICT =", pymupdf.TEXTFLAGS_DICT,
 
 
 def count_std(blocks, ct, want):
+    """Walk stext `blocks` recursively; add to ct[0] each structure block tagged `want`, to ct[1] each image."""
     for b in blocks:
         if b.get("type") == 2:
             if b.get("raw") == want:
@@ -146,6 +161,7 @@ def count_std(blocks, ct, want):
             ct[1] += 1
 
 
+# count Figure structure blocks and image blocks over all pages, with and without image preservation
 for flagname, fl in (("TEXTFLAGS_DICT|STRUCT", FL),
                      ("|IMAGES", FL | pymupdf.TEXT_PRESERVE_IMAGES)):
     ct = [0, 0]

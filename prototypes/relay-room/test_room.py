@@ -1,6 +1,13 @@
 #!/usr/bin/env python3
 """test_room.py - the tripwires for prototypes/relay-room/ (CONTRACT.md §8, law L8).
 
+WHAT THIS FILE DOES: a unittest suite that checks the relay-room laws (L1 to L8) against
+roomlog.py (the log reader/appender) and against the source text of the other .py files and
+room.html in this folder. Entry point: unittest discover, or running this file directly. It reads
+every *.py and room.html next to it, and writes scratch fixtures (logs, lock directories, flight
+records) under roomlog.STATE, deleting the flight files it makes. Each guard test has a
+"control" test that proves the guard can fail.
+
 Run:  python -m unittest discover -s <ROOT> -p "test_room.py"
 
 L8: a guard born today gets its tripwire today, AND the tripwire must be proven to FAIL against
@@ -41,6 +48,7 @@ sys.path.insert(0, str(ROOT))
 
 import roomlog  # noqa: E402
 
+# -- law-to-tripwire map and the declared coverage gap --
 # L8.1 reads this: which tripwires guard which law.
 TRIPWIRES = {
     "L1 UNREAD is never idle": ["T18", "T15", "T8"],
@@ -67,11 +75,15 @@ NOT_YET = ["T3", "T4", "T12", "T20", "T21", "T24", "T25", "T26", "T27_live", "T2
 # newline control) joined it at S157 E59 — 27 checks. Nothing in NOT_YET is unexercised anywhere now; the list stays
 # true of THIS file.
 
+# -- source snapshots read by the source-level tests --
+# SRC: file name -> text of every .py in this folder; HTML: text of room.html.
 SRC = {p.name: p.read_text(encoding="utf-8", errors="replace")
        for p in ROOT.glob("*.py")}
 HTML = (ROOT / "room.html").read_text(encoding="utf-8", errors="replace")
 
 
+# -- fixture helpers --
+# Counter that makes each fixture directory name unique within this process.
 _FIXTURE_SEQ = [0]
 
 
@@ -97,20 +109,24 @@ def naive_append(path: Path, body: str) -> str:
     return mid
 
 
+# -- L3: appends never erase (torn files, locks, id collisions, torn entries, missing logs) --
 class L3AppendsNeverErase(unittest.TestCase):
     """The law that SYM-037 paid for."""
 
     def setUp(self):
+        """Make a fresh fixture directory and the text of a torn (newline-less) last line."""
         self.d = _fixture_dir()
         self.torn = "2026-08-24T00:00:00.000Z partial body line torn in half by a crash mid-write"
 
     def _seed_torn(self, name):
+        """Write a log file ending mid-line (no final newline); return its path."""
         p = self.d / name
         p.write_bytes(("# relay-room · the chat log\n\n" + self.torn).encode("utf-8"))
         self.assertFalse(p.read_bytes().endswith(b"\n"), "fixture must NOT end in a newline")
         return p
 
     def test_T6_last_byte_check(self):
+        """Appending to a torn file keeps the old bytes, shows the remnant as debris, and the new entry reads back."""
         p = self._seed_torn("t6.md")
         before = p.read_bytes()
         mid = roomlog.append_entry(frm="Rab", to="Fable", body="the record that must survive",
@@ -153,12 +169,14 @@ class L3AppendsNeverErase(unittest.TestCase):
             self.assertNotIn(".truncate(", src, f"{name} calls truncate()")
 
     def test_T6b_lock_holds_under_two_threads(self):
+        """Two threads append 25 entries each; all 50 must land with unique ids, no torn entries, no debris."""
         p = self.d / "t6b.md"
         p.write_text("# relay-room · the chat log\n\n", encoding="utf-8", newline="")
         errors = []
         barrier = threading.Barrier(2)
 
         def worker(tag):
+            """Wait at the barrier, then append 25 entries; record any exception into `errors`."""
             barrier.wait()
             for i in range(25):
                 try:
@@ -188,6 +206,7 @@ class L3AppendsNeverErase(unittest.TestCase):
         barrier = threading.Barrier(2)
 
         def unlocked(tag):
+            """Write one entry at a captured end-of-file offset with no lock (the failure the lock prevents)."""
             # DETERMINISTIC, not probabilistic. The first cut appended in "a" mode with an
             # injected sleep and was FLAKY: O_APPEND is atomic for small writes here, so the two
             # writers usually did NOT corrupt each other and this control passed clean about half
@@ -232,6 +251,7 @@ class L3AppendsNeverErase(unittest.TestCase):
                         f"so T6b is a tautology")
 
     def test_T6c_stale_lock_is_broken_not_silent(self):
+        """An old lock directory is taken over, the takeover is recorded in `lk.broke`, and the lock is released."""
         d = self.d / "stale.lock"
         d.mkdir()
         os.utime(d, (time.time() - 999, time.time() - 999))
@@ -252,6 +272,7 @@ class L3AppendsNeverErase(unittest.TestCase):
         d.rmdir()
 
     def test_T7_id_reroll_on_collision(self):
+        """With a pinned nonce, two identical appends must still receive different ids (the re-roll)."""
         p = self.d / "t7.md"
         const = lambda: "deadbeefdeadbeef"                              # noqa: E731
         a = roomlog.append_entry(frm="Rab", to="Fable", body="same body", path=p, nonce=const)
@@ -269,6 +290,7 @@ class L3AppendsNeverErase(unittest.TestCase):
         self.assertEqual(one, two, "the derivation is not deterministic; the control is invalid")
 
     def test_T17_torn_entry_not_merged(self):
+        """An entry missing its terminator is flagged torn, and the entry after it is still parsed separately."""
         p = self.d / "t17.md"
         a, b = "RM-" + "a" * 12, "RM-" + "b" * 12
         dga = roomlog.digest("first").split(":", 1)[1]
@@ -289,7 +311,8 @@ class L3AppendsNeverErase(unittest.TestCase):
         self.assertEqual(r.torn, 1)
 
     def test_T18_missing_is_not_ok_with_zero(self):
-        r = roomlog.read_log(self.d / "does-not-exist.md")
+        """A log file that does not exist reads as status MISSING with a remedy, never as ok with zero entries."""
+        r =roomlog.read_log(self.d / "does-not-exist.md")
         self.assertEqual(r.status, "MISSING", "a missing log read back as something else")
         self.assertTrue((r.reason or "").strip(), "MISSING with no remedy (L1b)")
         self.assertNotEqual(r.status, "ok")
@@ -304,6 +327,7 @@ class L3AppendsNeverErase(unittest.TestCase):
         self.assertEqual(len(r.entries), 0)
 
     def test_T18a_terminator_token_refused_but_hash_heading_ok(self):
+        """A body with a terminator token is refused (ValueError); a body line starting with ## round-trips."""
         p = self.d / "t18a.md"
         with self.assertRaises(ValueError):
             roomlog.append_entry(frm="Rab", to="Fable", body="x <!-- /RM-abc --> y", path=p)
@@ -316,9 +340,13 @@ class L3AppendsNeverErase(unittest.TestCase):
         self.assertTrue(got[0].digest_ok)
 
 
+# -- L1/L2 and L5.2: UNREAD is never idle, staleness is not health, stage authorship --
 class L1L2UnreadAndStale(unittest.TestCase):
+    """Tests of how a message's trail (log entry plus flight record) is rendered."""
+
     def test_T15_entry_with_no_flight_is_UNREAD_not_typed(self):
-        d = _fixture_dir()
+        """An entry with no flight record renders UNREAD, and the remedy names the lane."""
+        d =_fixture_dir()
         p = d / "room.md"
         e = roomlog.append_entry(frm="Rab", to="Fable", body="hello", path=p)
         log = roomlog.read_log(p)
@@ -339,6 +367,7 @@ class L1L2UnreadAndStale(unittest.TestCase):
         self.assertTrue(landed["reached"], "landed was not derived from the log")
 
     def test_T13_writer_refuses_and_reader_ignores(self):
+        """append_stage refuses a stage with the wrong author (derived stage, unknown author, wrong lane)."""
         with self.assertRaises(ValueError):
             roomlog.append_stage("RM-" + "a" * 12, "landed", "catcher:Fable")
         with self.assertRaises(ValueError):
@@ -349,7 +378,8 @@ class L1L2UnreadAndStale(unittest.TestCase):
             roomlog.append_stage("RM-" + "a" * 12, "model-working", "catcher:Codex")
 
     def test_T14_failed_stage_stops_the_trail(self):
-        d = _fixture_dir()
+        """A stage recorded ok:false renders FAILED, and a later ok stage does not count as reached."""
+        d =_fixture_dir()
         p = d / "room.md"
         e = roomlog.append_entry(frm="Rab", to="Fable", body="hi", path=p)
         fp = roomlog.flight_path(e.id)
@@ -381,7 +411,8 @@ class L1L2UnreadAndStale(unittest.TestCase):
         fp.unlink()
 
     def test_T15b_stalled_trail_is_not_quiet(self):
-        d = _fixture_dir()
+        """A trail whose last stage is 600 s old (stall limit 90 s) renders STALLED with a 'stalled at' reason."""
+        d =_fixture_dir()
         p = d / "room.md"
         e = roomlog.append_entry(frm="Rab", to="Fable", body="hi", path=p)
         fp = roomlog.flight_path(e.id)
@@ -412,8 +443,12 @@ class L1L2UnreadAndStale(unittest.TestCase):
         self.assertIsNotNone(roomlog.parse_utc(roomlog.utc_now()))
 
 
+# -- L5: quarantine (paths must stay inside this prototype's folder) --
 class L5Quarantine(unittest.TestCase):
+    """Tests of roomlog.assert_inside and the location of the gate script."""
+
     def test_T16_assert_inside_refuses_outside(self):
+        """A path in the system temp folder makes assert_inside exit (SystemExit)."""
         with self.assertRaises(SystemExit):
             roomlog.assert_inside(Path(tempfile.gettempdir()) / "definitely-outside.md")
 
@@ -428,34 +463,44 @@ class L5Quarantine(unittest.TestCase):
             roomlog.assert_inside(Path(tempfile.gettempdir()) / "relay-room" / "x.md")
 
     def test_T16_gate_py_is_outside_and_is_never_written(self):
+        """roomlog.GATE_PY must not live inside this prototype's folder."""
         self.assertFalse(str(roomlog.GATE_PY).startswith(str(roomlog.ROOT) + os.sep),
                          "GATE_PY should live outside this prototype")
 
 
+# -- L6/L7: stdlib only, self-contained HTML (checked on source text) --
 class L6L7SourceLaws(unittest.TestCase):
+    """Source-text checks over every .py file and over room.html."""
+
     def test_T6d_stdlib_only(self):
+        """No .py file in this folder imports a listed third-party package."""
+        # Matches an import line naming one of the banned third-party packages.
         third_party = re.compile(r"^\s*(?:import|from)\s+(requests|numpy|flask|aiohttp|yaml|"
                                  r"pydantic|httpx|django|pandas)\b", re.M)
         for name, src in SRC.items():
             self.assertIsNone(third_party.search(src), f"{name} imports a third-party package")
 
     def test_T22_no_html_injection_sinks(self):
+        """room.html contains none of the listed HTML-injection calls (innerHTML, document.write, ...)."""
         for sink in ("innerHTML", "outerHTML", "document.write", "insertAdjacentHTML",
                      "new Function"):
             self.assertNotIn(sink, HTML, f"room.html uses {sink}")
 
     def test_T23_no_external_resources(self):
+        """room.html loads nothing external: no http(s) or // src/href, no @import, no Google Fonts."""
         for pat in (r'src\s*=\s*["\']https?:', r'src\s*=\s*["\']//',
                     r'href\s*=\s*["\']https?:', r"@import", "fonts.googleapis"):
             self.assertIsNone(re.search(pat, HTML), f"room.html references {pat}")
 
     def test_T23b_ui_can_name_every_state(self):
+        """Every roomlog stage name, plus UNREAD and STALE, appears in room.html."""
         for s in roomlog.STAGES:
             self.assertIn(s, HTML, f"room.html cannot name stage {s}, so it cannot render it")
         for lit in ("UNREAD", "STALE"):
             self.assertIn(lit, HTML, f"room.html cannot name {lit}")
 
     def test_T23c_theme_blocks_and_root_tokens(self):
+        """room.html has a dark media query, a data-theme dark block, and CSS variables before the first @media."""
         self.assertIn("prefers-color-scheme: dark", HTML)
         self.assertIn('[data-theme="dark"]', HTML)
         root = set(re.findall(r"(--[a-z0-9-]+)\s*:", HTML.split("@media")[0]))
@@ -466,7 +511,8 @@ class L4FailClosedSource(unittest.TestCase):
     """Source-level halves of L4. The live-server halves (T3, T4) are in NOT_YET."""
 
     def test_T2_token_gate_precedes_route_dispatch(self):
-        src = SRC.get("room.py", "")
+        """In room.py do_POST, the token_gate( call comes before the first route comparison (skip if no do_POST)."""
+        src =SRC.get("room.py", "")
         m = re.search(r"def do_POST\b", src)
         if not m:
             self.skipTest("room.py has no do_POST")
@@ -487,15 +533,21 @@ class L4FailClosedSource(unittest.TestCase):
             self.assertIsNone(emit.search(src), f"{name} SENDS a CORS header")
 
 
+# -- L8: honesty (the coverage gap is declared, every law names a tripwire) --
 class L8Honesty(unittest.TestCase):
+    """Tests of this file's own declarations (NOT_YET and TRIPWIRES)."""
+
     def test_the_not_yet_list_is_declared_not_hidden(self):
+        """NOT_YET is non-empty and still names T28."""
         self.assertTrue(NOT_YET, "NOT_YET must name what this file does not cover")
         self.assertIn("T28", NOT_YET)
 
     def test_every_law_names_at_least_one_tripwire(self):
+        """Each law key in TRIPWIRES maps to a non-empty list."""
         for law, names in TRIPWIRES.items():
             self.assertTrue(names, f"{law} names no tripwire")
 
 
+# -- script entry: run the whole suite verbosely --
 if __name__ == "__main__":
     unittest.main(verbosity=2)

@@ -1,16 +1,23 @@
-"""Passage splitting on the shapes the real vault holds (Observed 2026-09-09): two frontmatter
+"""WHAT THIS FILE DOES: pytest tests for indexer.passages (split_passages, strip_frontmatter):
+frontmatter removal, heading and page-hint tracking, cleanup of embeds/HTML/comments, hard
+caps on huge lines, packing at paragraph boundaries, and empty input. Pure functions; no files.
+
+Passage splitting on the shapes the real vault holds (Observed 2026-09-09): two frontmatter
 forms, headings, Obsidian embeds as the only page signal, inline HTML, a 30,000-character
 single line. Pure functions, no fixtures."""
 
 from indexer.passages import split_passages, strip_frontmatter
 
+# -- sample input --
 ANALYST_FM = (
     "---\nanalyst:\n  model: qwen3:8b\n  chunks_passed: 35\nconversion:\n  engine: marker\n"
     "  chars_per_page_detected: ~\n  source_sha256: 1234e5" + "0" * 58 + "\n---\n# Body\n\ntext\n"
 )
 
 
+# -- frontmatter --
 def test_frontmatter_both_shapes_are_stripped_by_fence_scan():
+    """Both frontmatter forms (analyst and conversion) are cut off at the closing fence."""
     assert strip_frontmatter(ANALYST_FM) == "# Body\n\ntext\n"
     assert strip_frontmatter("---\nconversion:\n  lane: scan\n---\n![[assets/x.png]]\n") == (
         "![[assets/x.png]]\n"
@@ -18,11 +25,14 @@ def test_frontmatter_both_shapes_are_stripped_by_fence_scan():
 
 
 def test_frontmatter_absent_or_unclosed_is_left_alone():
+    """Text with no frontmatter, or a fence never closed, comes back unchanged."""
     assert strip_frontmatter("# No fence\n\n---\n") == "# No fence\n\n---\n"
     assert strip_frontmatter("---\nnever: closed\n") == "---\nnever: closed\n"
 
 
+# -- splitting: headings, cleanup, caps, packing --
 def test_headings_and_page_hints_belong_to_the_passage_they_open():
+    """Each passage carries its governing heading and a 1-based page hint from the embeds."""
     body = (
         "# One\n\nfirst paragraph\n\n![[assets/_page_0_Figure_0.jpeg]]\n\n## Two\n\nsecond "
         "paragraph\n\n![[assets/_page_7_Picture_2.jpeg]]\n\nthird paragraph\n"
@@ -37,6 +47,7 @@ def test_headings_and_page_hints_belong_to_the_passage_they_open():
 
 
 def test_embeds_tags_and_comments_are_removed_from_the_text():
+    """Obsidian embeds, HTML tags and HTML comments do not appear in passage text."""
     body = (
         'Para with <sup>1</sup> note<br>and <span id="page-3-0"></span>anchor\n\n'
         "<!-- Start of picture text -->\n\n![[assets/_page_2_Figure_1.jpeg]]\n\nafter\n"
@@ -48,6 +59,7 @@ def test_embeds_tags_and_comments_are_removed_from_the_text():
 
 
 def test_a_degenerate_line_is_hard_capped():
+    """A 30,000-character single line is split so no passage exceeds the max and nothing is lost."""
     # Brain of the Firm line 1600: 32,294 characters of "## The Control of the Control of ..."
     body = "## " + "The Control of " * 2200 + "\n\nnormal paragraph\n"
     got = split_passages(body, passage_chars=800, passage_max_chars=1200)
@@ -57,6 +69,7 @@ def test_a_degenerate_line_is_hard_capped():
 
 
 def test_packing_respects_the_target_and_paragraph_boundaries():
+    """Paragraphs are packed up to the target size and are never cut mid-paragraph."""
     paragraphs = [f"paragraph number {i} with some filler words in it" for i in range(20)]
     got = split_passages("\n\n".join(paragraphs) + "\n", passage_chars=150, passage_max_chars=300)
     assert all(len(p.text) <= 150 for p in got)
@@ -65,17 +78,20 @@ def test_packing_respects_the_target_and_paragraph_boundaries():
 
 
 def test_empty_body_yields_no_passages():
+    """An empty body, or one holding only an embed, produces no passages."""
     assert split_passages("", 800, 1200) == []
     assert split_passages("\n\n![[assets/_page_0_Figure_0.jpeg]]\n\n", 800, 1200) == []
 
 
 def test_code_fence_lines_are_never_headings():
+    """A '#' line inside a code fence is text, not a heading."""
     body = "# Real\n\n```\n# not a heading\ncode\n```\n\nafter\n"
     got = split_passages(body, passage_chars=200, passage_max_chars=400)
     assert {p.heading for p in got} == {"Real"}
 
 
 def test_hard_split_never_sheds_a_crumb():
+    """A 1,500-character heading line splits into 1200 + 302 characters, losing nothing."""
     body = "# " + "H" * 1500 + "\n"
     got = split_passages(body, passage_chars=800, passage_max_chars=1200)
     assert [len(p.text) for p in got] == [1200, 302]

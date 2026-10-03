@@ -24,7 +24,6 @@ import io
 import os
 import subprocess
 import sys
-import tempfile
 
 
 def _strip_docstrings(tree: ast.AST) -> ast.AST:
@@ -33,7 +32,9 @@ def _strip_docstrings(tree: ast.AST) -> ast.AST:
             body = getattr(node, "body", None)
             if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant) \
                     and isinstance(body[0].value.value, str):
-                node.body = body[1:] or [ast.Pass()]
+                # a module may be empty once its docstring is gone (an `__init__.py` that gained one); a def/class
+                # body may not, so the placeholder keeps both sides comparable (a docstring-only def strips to `pass`)
+                node.body = body[1:] if isinstance(node, ast.Module) else (body[1:] or [ast.Pass()])
     return tree
 
 
@@ -98,6 +99,8 @@ def selftest() -> int:
         ("a class docstring and a method docstring added", base.replace("class C:\n", "class C:\n    \"\"\"C.\"\"\"\n").replace("    def m(self):\n", "    def m(self):\n        \"\"\"One.\"\"\"\n"), 0),
         ("a section banner comment", base.replace("\n\nclass C:", "\n\n# ── the class ──\nclass C:"), 0),
         ("unchanged", base, 0),
+        ("an EMPTY module gains a docstring (the __init__.py case)", "\"\"\"The package.\"\"\"\n", 0),
+        ("a docstring-only def gains a comment", base.replace("    def m(self):\n        return 1\n", "    def m(self):\n        \"\"\"One.\"\"\"\n        # the one\n        return 1\n"), 0),
         ("MUTANT a statement added", base.replace("    y = x + 1\n", "    y = x + 1\n    y += 1\n"), 1),
         ("MUTANT a constant changed", base.replace("x + 1", "x + 2"), 1),
         ("MUTANT a name changed", base.replace("def f(x)", "def f(z)"), 1),
@@ -109,7 +112,8 @@ def selftest() -> int:
     ]
     bad = 0
     for name, after, want in cases:
-        code, msg = gate(base, after, "selftest")
+        before = "" if name.startswith("an EMPTY module") else base
+        code, msg = gate(before, after, "selftest")
         ok = code == want
         bad += not ok
         print("%s %s -> %d (want %d) %s" % ("PASS" if ok else "FAIL", name, code, want, msg[:90]))

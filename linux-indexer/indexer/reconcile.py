@@ -1,4 +1,11 @@
-"""Reconcile the passage store to the vault's main tip -- the Index station's one operation.
+"""WHAT THIS FILE DOES: reconcile() brings the index database up to date with the vault. It takes a
+file lock, lists every bundle at the vault's newest commit, adds, replaces, updates or removes
+bundles in the database to match, writes the run record into the database, and appends one receipt
+line when something changed. Returns an exit code (0 ok, 1 some bundle refused or a failure, 2 vault
+missing). Reads the vault (via vault.py); writes index.sqlite, a lock file and receipts. Called by
+main.py (the command line, the git hook and the daily timer).
+
+Reconcile the passage store to the vault's main tip -- the Index station's one operation.
 
 Design (docs/11 Phase 3 passed 2026-07-19; built 2026-09-09 on Rab's go, OPEN-TASKS D7):
 
@@ -42,6 +49,7 @@ from indexer.receipts import append_receipt
 from indexer.store import Store, StoreMismatch
 from indexer.vault import Vault, VaultError
 
+# -- module constants: logger, version, lock file name, sha pattern --
 logger = logging.getLogger("file-portal-indexer")
 
 INDEXER_VERSION = "0.1.0"
@@ -49,6 +57,7 @@ LOCK_NAME = ".reconcile.lock"
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 
 
+# -- helpers: manifest flattening and failure reporting --
 def manifest_metadata(manifest: dict) -> dict:
     """Flatten the manifest keys worth carrying on every bundle (docs/15 §7 shapes as found at
     HEAD 2026-09-09). Scalars only, and absent stays absent: a manifest without `fidelity` is
@@ -77,17 +86,22 @@ def manifest_metadata(manifest: dict) -> dict:
 
 
 def _fail(root: Path, tip: str | None, error: str) -> None:
+    """Log an INDEX-FAIL line and append an `index-failed` receipt (error cut to 200 chars)."""
     logger.error("INDEX-FAIL %s", error)
     fields = {"tip": tip[:8]} if tip else {}
     append_receipt(root, "index-failed", **fields, error=error[:200])
 
 
+# -- the entry point and the locked body of a run --
 def reconcile(
     root: Path,
     settings: Settings,
     embedder: Embedder | None = None,
     rebuild: bool = False,
 ) -> int:
+    """Run one reconcile under an exclusive file lock (a second run waits for the first).
+    `embedder` may be injected (tests); `rebuild` empties the database first. Returns 0 ok,
+    1 failure or refused bundles, 2 vault missing. Creates folders, a lock file and receipts."""
     paths = Paths.from_root(root)
     paths.ensure_exist()
     for note in settings.fallbacks:
@@ -102,16 +116,20 @@ def reconcile(
 
 
 def _reconcile_locked(paths, vault, settings, embedder, rebuild) -> int:
+    """The work of one run, called while the lock is held: compare the vault to the database,
+    apply the changes, record the run in meta, write the receipt. Returns the exit code."""
     tip = vault.tip()
     if tip is None:
         _fail(paths.root, None, "branch tip unresolvable")
         return 1
 
     store = Store(paths.index)
+    # --rebuild: delete the database file and its WAL/SHM side files so the run starts empty
     if rebuild:
         for suffix in ("", "-wal", "-shm"):
             Path(str(store.db_path) + suffix).unlink(missing_ok=True)
         logger.info("INDEX-REBUILD %s emptied on request", store.db_path)
+    # open the store (refuses on a settings mismatch), identify the model, list the bundles
     try:
         embedder = embedder or FastEmbedder(settings.model, settings.threads, paths.models)
         store.open(
@@ -131,6 +149,7 @@ def _reconcile_locked(paths, vault, settings, embedder, rebuild) -> int:
         _fail(paths.root, tip, f"{type(exc).__name__}: {exc}")
         return 1
 
+    # bookkeeping for the run: what the store already holds, counters, and which bundles changed
     known = store.all_bundles()
     counts = {"added": 0, "replaced": 0, "updated": 0, "removed": 0, "refused": 0, "unchanged": 0}
     changed: list[str] = []
@@ -138,6 +157,7 @@ def _reconcile_locked(paths, vault, settings, embedder, rebuild) -> int:
     live: set[str] = set()
     embed_s = 0.0
 
+    # pass 1: read each manifest and require a 64-hex source_sha256; unreadable ones are refused
     parsed = []
     for bundle in bundles:
         try:
@@ -150,8 +170,10 @@ def _reconcile_locked(paths, vault, settings, embedder, rebuild) -> int:
             logger.error("INDEX-REFUSE %s: %s", bundle.note, exc)
             continue
         parsed.append((bundle, manifest, sha))
+    # a sha that appears in more than one bundle is ambiguous: both copies get refused below
     duplicated = {sha for sha, n in Counter(sha for _, _, sha in parsed).items() if n > 1}
 
+    # pass 2: per bundle, refuse bad shapes, else leave alone / rewrite metadata / re-embed the body
     for bundle, manifest, sha in parsed:
         if sha in duplicated:
             counts["refused"] += 1
@@ -207,6 +229,7 @@ def _reconcile_locked(paths, vault, settings, embedder, rebuild) -> int:
             continue
         live.add(sha)
 
+    # pass 3: remove stored bundles that are no longer in the vault (unless they were just refused)
     for sha, entry in known.items():
         if sha in live or sha in refused_shas:
             continue
@@ -220,6 +243,7 @@ def _reconcile_locked(paths, vault, settings, embedder, rebuild) -> int:
         changed.append(entry["note"])
         logger.info("INDEX-REMOVED %s (%d passages)", entry["note"], n)
 
+    # record the run in the meta table, then close the store
     total = store.count()
     result = "fail" if counts["refused"] else "pass"
     store.set_meta(
@@ -234,12 +258,14 @@ def _reconcile_locked(paths, vault, settings, embedder, rebuild) -> int:
     )
     store.close()
 
+    # nothing changed and nothing refused: log and return without a receipt
     if not any(counts[k] for k in ("added", "replaced", "updated", "removed", "refused")):
         logger.info(
             "INDEX-SKIP tip %s already indexed (%d bundles, %d passages)", tip[:8], len(live), total
         )
         return 0
 
+    # build the receipt fields (name the bundle when exactly one changed) and append the receipt
     fields: dict = {"result": result, "tip": tip[:8]}
     if len(changed) == 1:
         fields["bundle"] = changed[0].rsplit("/", 1)[-1]

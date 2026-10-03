@@ -1,5 +1,13 @@
 """Desktop GPU converter (Phase 4 slice 1): PDF -> Marker -> bundle -> ThinkPad staging.
 
+WHAT THIS FILE DOES: converts one PDF into a markdown "bundle" (manifest.json, the .md, assets, blocks.json) using
+the Marker engine on the desktop GPU, scores the result with the fidelity audit, optionally runs the analyst pass,
+and ships the bundle to the ThinkPad staging folder over ssh/tar (or parks it in held/ or pending/). Entry points are
+main() (command line: convert, --resume, --reanalyze, --reaudit), convert(), ship(), defer(), resume(), reanalyze()
+and reaudit(). It reads the source PDF, the lever files under the pipeline roots (fp_paths), the cost ledger and the
+chunk-work cache; it writes bundles, progress/estimate files, held and pending folders, and events (events.emit).
+Callers: the widget's watcher (spawns it per dropped PDF), the Assay re-convert/re-analyze buttons, and hand runs.
+
 The output bundle is format-identical to linux-converter's (docs/12 contract): the name
 budget, frontmatter, link rewrite, manifest keys, and dot-then-atomic delivery all mirror
 converter/bundle.py so the existing exporter consumes it with zero ThinkPad changes.
@@ -130,6 +138,7 @@ def _audit_analyst_safe(marker_body: str, analyst_body: str, manifest: dict, nam
         emit("audit", "error", phase="analyst", error=str(exc)[:150])
 
 
+# -- constants: engine paths, pipeline roots (lever files, queues), remote target, stall limits --
 MARKER = Path(r"C:\Users\Bndit\ml\marker-env\Scripts\marker_single.exe")
 # J24 (signed Rab 2026-09-01): the block-record sidecar — a marker_single drop-in that renders
 # the SAME built document twice (markdown, then chunks) so page/polygon/bbox stop being computed
@@ -172,6 +181,7 @@ STALL_RETRY_MAX_SPLITS = 2        # lever-waiver: Rab signed OK-17; bounds the l
 STALL_RECOVERY_BATCH = 4          # lever-waiver: Rab signed OK-17; recovery-only memory-relief value, deliberately BELOW CHUNK_BATCH_ALLOWED — never a lever choice (review 2026-08-30)
 
 
+# -- exceptions raised by the Marker subprocess runner --
 class _MarkerRunError(RuntimeError):
     """Base marker-runtime failure with structured diagnostics."""
 
@@ -181,6 +191,7 @@ class _MarkerStallError(_MarkerRunError):
 
     def __init__(self, message: str, *, frozen_s: int, elapsed_s: int,
                  source: str, page_range: str | None, signature: dict) -> None:
+        """Keep the stall facts (frozen seconds, elapsed seconds, source, page range, GPU signature) on the error."""
         super().__init__(message)
         self.frozen_s = frozen_s
         self.elapsed_s = elapsed_s
@@ -193,12 +204,14 @@ class _MarkerTimeoutError(_MarkerRunError):
     """Raised when the outer timeout fires while Marker is still running."""
 
     def __init__(self, message: str, *, elapsed_s: int, pages: int, timeout_s: int) -> None:
+        """Keep the timeout facts (elapsed seconds, page count, the timeout that fired) on the error."""
         super().__init__(message)
         self.elapsed_s = elapsed_s
         self.pages = pages
         self.timeout_s = timeout_s
 
 
+# -- live progress file, OCR-bar tally, and thread-safe liveness tracking --
 # S42: live convert progress (docs/16 §8 #3). The widget's line.rs reads this file while a
 # convert holds the .gpu-lock; the Room shows the real Marker/surya stage + per-page count.
 # ENTIRELY best-effort: writing/parsing this must never affect the conversion (see convert()).
@@ -220,6 +233,7 @@ OCR_HEAVY_LINES_PER_PAGE = 20      # above this a ledger row reads as a re-OCR'd
 
 
 def _note_ocr_bar(stage: str, total: int) -> None:
+    """Append a "Recognizing Text" bar's total to _OCR_BARS when it is a new bar (module global; no return)."""
     # a chunked run prefixes the stage ("slice 2/5 · Recognizing Text") — the suffix is the bar's name
     if stage.endswith(OCR_STAGE) and total > 0 and (not _OCR_BARS or _OCR_BARS[-1] != total):
         _OCR_BARS.append(total)
@@ -233,6 +247,8 @@ def ocr_dial(pages: int) -> dict:
 
 def _write_progress(stage: str, pct: int, n: int, total: int,
                     context: dict | None = None) -> None:
+    """Write the live progress record (stage, percent, n/total, extra context) to PROGRESS_FILE as JSON.
+    Also notes OCR bars. Best-effort: a write failure is swallowed."""
     _note_ocr_bar(stage, total)
     try:
         record = {
@@ -255,6 +271,7 @@ class _ProgressLiveness:
     """
 
     def __init__(self, clock=time.monotonic):
+        """Set up the lock, the last-seen (stage, n, total) key and the time of the last change (clock is injectable)."""
         self._clock = clock
         self._lock = threading.Lock()
         self._last: tuple[str, int, int] | None = None
@@ -262,6 +279,7 @@ class _ProgressLiveness:
 
     def observe(self, stage: str, pct: int, n: int, total: int,
                 context: dict | None = None) -> bool:
+        """Record one progress observation. Returns True (and writes the progress file) if the tuple changed."""
         key = (stage, n, total)
         with self._lock:
             if key == self._last:
@@ -272,17 +290,20 @@ class _ProgressLiveness:
         return True
 
     def age(self) -> float:
+        """Seconds since the progress tuple last changed (never negative)."""
         with self._lock:
             return max(0.0, self._clock() - self._changed_at)
 
 
 def _clear_progress() -> None:
+    """Delete PROGRESS_FILE if present; ignores OS errors."""
     try:
         PROGRESS_FILE.unlink()
     except OSError:
         pass
 
 
+# -- the estimate file (ETA promise) and the process-tree kill helper --
 # Stage E (docs/19 §5): the ledger-fed promise, written ONCE at convert start so the widget can
 # project it verbatim. Python is the only authority on the estimate (blind spot #1: never derive
 # the same number twice in two languages); line.rs reads this file, it never recomputes it.
@@ -300,6 +321,7 @@ def _resumable_pages(source_sha: str, pages: int, extra: list[str]) -> int:
         book_work = CHUNK_WORK / source_sha[:16]
         if not book_work.is_dir():
             return 0
+        # count pages in every slice-NNNNN-NNNNN folder whose .done file still passes the resume identity check
         import marker  # marker-env only; the same version stamp the resume gate compares
         marker_version = marker_version_stamp(marker)
         done_pages = 0
@@ -349,6 +371,7 @@ def _write_estimate_safe(source: str, pages: int, lane: str, chars: float,
 
 
 def _clear_estimate() -> None:
+    """Delete ESTIMATE_FILE if present; ignores OS errors."""
     try:
         ESTIMATE_FILE.unlink()
     except OSError:
@@ -412,6 +435,7 @@ def _job_fixes(src: Path) -> list[str]:
     # S211 CORRECTIONS row 2: the tenant writes the drop file through its own SAFE_NAME rule (an em dash, a tilde → "_"),
     # so the names are compared on their letters and digits alone — the lever's spelling and the file's need not agree
     # on punctuation, only on the words
+    # skeleton = the name reduced to lowercase letters and digits, so punctuation differences do not matter
     skeleton = lambda s: re.sub(r"[^A-Za-z0-9]+", "", s).lower()  # noqa: E731
     if skeleton(target) != skeleton(src.name):
         print(f"FIXES lever names {target!r}, not this job ({src.name!r}) — ignored", flush=True)
@@ -488,6 +512,7 @@ def acquire_card_mutex() -> object | None:
               f"proceeding UNGUARDED", flush=True)
         emit("convert", "card_mutex", state="unavailable")
         return None
+    # try to take the mutex without waiting; if busy, poll until it is free (wait is printed, never silent)
     WAIT_ABANDONED, WAIT_TIMEOUT = 0x80, 0x102  # WAIT_OBJECT_0 = 0x00 (immediate acquire; no branch needed for it below)
     poll_ms = int(os.environ.get("FP_CARD_MUTEX_POLL_MS", "30000"))
     result = k32.WaitForSingleObject(handle, 0)
@@ -516,6 +541,7 @@ def release_card_mutex(handle: object | None) -> None:
         k32.CloseHandle(handle)
 
 
+# -- chunking helpers: when to slice, slice ranges, asset page numbering --
 def should_chunk(pages: int, lane: str) -> bool:
     """docs/18 §5.2's lane-aware threshold. Unknown lanes take the stricter bar."""
     return pages > CHUNK_THRESHOLD_PAGES.get(lane, min(CHUNK_THRESHOLD_PAGES.values()))
@@ -558,6 +584,7 @@ def out_of_range_assets(names: list[str], start: int, end: int) -> list[str]:
             if (p := asset_page(n)) is not None and not (start <= p <= end)]
 
 
+# -- GPU facts: per-process memory, ceiling moment, nvidia-smi signature, ollama unload --
 def _gpu_top_committers(limit: int = 3, floor_mib: int = 64) -> list[dict]:
     """S146 E3 (SYM-132): WHO holds the card — the top committers of GPU memory by the WDDM
     per-process counter `\\GPU Process Memory(*)\\Total Committed`, one sample through typeperf
@@ -574,6 +601,7 @@ def _gpu_top_committers(limit: int = 3, floor_mib: int = 64) -> list[dict]:
         lines = [ln for ln in out.stdout.splitlines() if ln.startswith('"')]
         if len(lines) < 2:
             return []
+        # typeperf CSV: header row names columns ...pid_<N>_..., second row holds the byte values; keep rows >= floor
         header = next(csv.reader([lines[0]]))
         values = next(csv.reader([lines[1]]))
         rows = []
@@ -916,6 +944,7 @@ def _attach_blocks_safe(tmp_dir: Path, manifest: dict, chunk_stats: dict, name: 
 
 
 # ---------- J33: the Marker body sidecar (signed Rab 2026-09-05) ----------
+# -- report-only structure checks (LaTeX, blank assets) and the Marker body sidecar writer --
 
 def _latex_structure_safe(body: str, manifest: dict, name: str = "") -> dict | None:
     """S175 E4 (his word 8ca8279b; SYM-056's validator, built S168, wired here): latex_structure.check() over the
@@ -1023,12 +1052,16 @@ def _write_marker_body_safe(tmp_dir: Path, bundle_name: str, body: str, manifest
 
 
 # ---------- bundle contract, mirrored from linux-converter/converter/bundle.py ----------
+# -- bundle helpers: image link rewrite, name clamp, slug, sha256, frontmatter --
 
 _IMAGE_LINK = re.compile(r"!\[[^\]]*\]\(\s*<?([^)>\s]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 
 
 def rewrite_image_links(markdown: str) -> str:
+    """Rewrite local markdown image links ![alt](path) to Obsidian embeds ![[assets/<filename>]].
+    Remote (http/https) and data: links are left alone. Pure function: takes text, returns text."""
     def _replace(match: re.Match) -> str:
+        """Replacement for one regex match: the embed form for a local target, the original text otherwise."""
         target = match.group(1)
         if target.startswith(("http://", "https://", "data:")):
             return match.group(0)
@@ -1038,6 +1071,8 @@ def rewrite_image_links(markdown: str) -> str:
 
 
 def clamp_name(name: str, max_bytes: int = 80) -> str:
+    """Shorten a bundle name to at most max_bytes of UTF-8 (cutting on a character boundary) and strip trailing
+    spaces and dots; returns "untitled" if nothing is left. Pure function."""
     # S209 E8 (SYM-137): Windows drops trailing spaces and dots when it CREATES a directory, so a bundle name ending in
     # either ships into a folder that exists under another name — the Spring Economic Update's 80-char drop stem ended
     # "… 2026 - " and its ship died on WinError 3 after a 28-minute analyst pass. The short branch rstrips too.
@@ -1048,11 +1083,13 @@ def clamp_name(name: str, max_bytes: int = 80) -> str:
 
 
 def slugify(name: str) -> str:
+    """Lowercase the name into a dash-separated [a-z0-9] slug of at most 60 characters ("untitled" if empty)."""
     slug = re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
     return slug[:60].rstrip("-") or "untitled"
 
 
 def sha256_of(path: Path) -> str:
+    """Return the hex SHA-256 of the file at path, read in 1 MiB chunks."""
     digest = hashlib.sha256()
     with open(path, "rb") as f:
         for chunk in iter(lambda: f.read(1 << 20), b""):
@@ -1061,6 +1098,8 @@ def sha256_of(path: Path) -> str:
 
 
 def render_frontmatter(engine, lane, lane_reason, chars, ocr, ocr_dpi, converted_at, sha):
+    """Build the YAML frontmatter block (conversion: engine, lane, chars/page, ocr, time, source sha) and return it
+    as text ending in a blank line. Pure function; mirrors linux-converter's bundle.py shape."""
     lines = [
         "---",
         "conversion:",
@@ -1103,6 +1142,7 @@ def probe(path: Path) -> tuple[float, int, bool, dict]:
     total_spans = 0
     ocr_font_spans = 0            # S211 (SYM-156's scope): EVERY span in an OCR font is counted, not only the first
     ocr_font_trigger: str | None = None
+    # walk every page: total the extracted characters and vote over the text spans (invisible type 3, OCR font names)
     with pymupdf.open(path) as doc:
         pages = doc.page_count or 1
         total = 0
@@ -1116,6 +1156,7 @@ def probe(path: Path) -> tuple[float, int, bool, dict]:
                     ocr_font_spans += 1
                     if ocr_font_trigger is None:
                         ocr_font_trigger = str(span.get("font", ""))[:60]
+    # decide whether the text layer is an OCR overlay: the lane-share-rule fix (if on) or the stock vote below
     ratio = (invisible_spans / total_spans) if total_spans else 0.0
     if "lane-share-rule" in os.environ.get("FP_FIXES", "").split(","):
         # S211, the fixes lever `lane-share-rule` (SYM-156, proved over the catalog in S210's lane_rule_census.py): the
@@ -1215,6 +1256,7 @@ def estimate_from_ledger(pages: int, lane: str, chars_per_page: float) -> dict |
                  if r.get("lane") == lane and r.get("s_per_page") is not None]
     if not same_lane:
         return None
+    # take the 3 rows nearest in chars/page and use the median of their seconds/page
     neighbours = sorted(same_lane,
                         key=lambda r: abs((r.get("chars_per_page") or 0) - chars_per_page))[:3]
     rates = sorted(r["s_per_page"] for r in neighbours)
@@ -1337,6 +1379,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
     liveness = _ProgressLiveness()
 
     def _reader(pipe) -> None:
+        """Thread body: drain Marker's output into `captured` and feed progress bars to `liveness`; never raises."""
         try:
             for line in pipe:  # text mode: universal newlines split tqdm's \r refreshes into lines
                 captured.append(line)
@@ -1382,6 +1425,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
     next_gpu_sample = time.perf_counter()
 
     def _kill_and_clear() -> None:
+        """Kill Marker and its children, reap it, join the reader and remove the progress file."""
         _kill_tree(proc.pid)  # /T first — proc.kill() alone would orphan marker's real python
         proc.kill()
         proc.wait()
@@ -1394,6 +1438,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
     # in-memory clock also means a cosmetic write failure cannot falsely kill a healthy convert.
     # The process cadence is 5 s for operator responsiveness; GPU sampling remains 30 s because
     # nvidia-smi is a subprocess and must not become a new hot loop.
+    # monitor loop: every 5 s check exit, sample the GPU every 30 s, enforce the outer timeout, kill on frozen progress
     while True:
         try:
             proc.wait(timeout=5)
@@ -1433,6 +1478,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
                 f"(kill-early policy, docs/18 §5.1); marker's last words: {_marker_last_words(captured)}",
                 frozen_s=int(frozen_s), elapsed_s=int(elapsed), source=source_name,
                 page_range=page_range, signature=sig)
+    # Marker exited: collect the single .md it wrote and hand back (out_dir, markdown, wall seconds, peak MiB)
     reader.join(timeout=5)
     _clear_progress()
     wall = time.perf_counter() - t0
@@ -1445,6 +1491,7 @@ def _run_marker(engine_src: Path, engine_stem: str, out_root: Path, extra: list[
     return out_dir, md_files[0].read_text(encoding="utf-8"), wall, peak_mib
 
 
+# -- slice runner: batch ladder, retry-and-split on stall, block merge, resume identity, chunked convert --
 def _with_batch(extra: list[str], size: int) -> list[str]:
     """`route()`'s args with the recognition batch replaced by the slice lever's value."""
     out = list(extra)
@@ -1495,6 +1542,7 @@ def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str
     last: Exception | None = None
     retry_wall = 0.0
 
+    # try each batch size in the ladder; a stall moves to the next one, any other error propagates
     for attempt, batch in enumerate(attempts, 1):
         try:
             shutil.rmtree(out_root, ignore_errors=True)  # fresh output root each attempt
@@ -1555,6 +1603,7 @@ def _run_slice_with_retries(source_name: str, engine_src: Path, engine_stem: str
     if split_depth >= STALL_RETRY_MAX_SPLITS or (end - start + 1) <= STALL_RETRY_SPLIT_MIN_PAGES:
         raise last or RuntimeError(f"slice stalled and retries exhausted: {page_range}")
 
+    # all batch sizes stalled: split the page range in half and run each half through this same function
     mid = (start + end) // 2
     if mid < start or mid >= end:
         raise last or RuntimeError(f"invalid split point while recovering slice: {page_range}")
@@ -1693,6 +1742,7 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     emit("convert", "chunking", source=source_name, pages=pages, slices=total,
          slice_size=SLICE_PAGES, batch=batch)
 
+    # per-slice accumulators: markdown parts, block files, GPU seconds, resumed counts, peak VRAM
     parts: list[str] = []
     # J24: one entry per slice that HAS blocks. Deliberately not one per slice — the gap is the
     # point: `slices_with_blocks` vs `slices_total` is how the merged record admits it is
@@ -1706,6 +1756,7 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
     resumed_count = 0
     converted_pages = 0   # pages actually converted in THIS run — the honest denominator
     peak_mib = 0
+    # one pass per slice: reuse a finished slice whose .done matches this job, else convert it and publish it
     for i, (start, end) in enumerate(ranges, 1):
         slice_dir = book_work / f"slice-{start:05d}-{end:05d}"
         # Resume admission (F-02's repair): a finished slice is reused only when its .done
@@ -1832,6 +1883,7 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
         # cached before J24 existed.
         if (slice_dir / "slice.blocks.json").is_file():
             block_files.append(slice_dir / "slice.blocks.json")
+        # copy this slice's figure images into the merged assets folder
         for img in sorted(slice_dir.iterdir()):
             if img.suffix.lower() in (".jpeg", ".jpg", ".png"):
                 shutil.copy2(img, merged_assets / img.name)
@@ -1867,9 +1919,14 @@ def _convert_chunked(source_name: str, engine_src: Path, engine_stem: str, work:
 
 
 # ---------- the slice ----------
+# -- convert(): the main per-document conversion --
 
 def convert(src: Path, work: Path, use_analyst: bool = False,
             analyst_backend: str = "local") -> tuple[Path, str, dict]:
+    """Convert one PDF into a bundle directory under `work` and return (tmp_dir, bundle_name, manifest).
+    Steps: consume the supersede marker, read the fixes lever, probe and route, convert whole or in slices,
+    assemble assets/markdown/manifest, run the audits and the optional analyst. Side effects: copies the PDF into
+    `work`, runs Marker on the GPU, writes progress/estimate/ledger files, emits events, sets FP_FIXES in os.environ."""
     # Claim the ⟳ remedy intent FIRST (consume-once, docs/15 §14.2): read and delete before any
     # work happens, so a marker can never survive this conversion. Stamped into the manifest
     # further down, once the source sha is known and can be checked against it.
@@ -1884,6 +1941,7 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         print(f"FIXES {src.name}: {fix_names} (the lever {FIXES_FILE.name} names this job)", flush=True)
     else:
         os.environ.pop("FP_FIXES", None)
+    # probe the PDF's text layer, pick the engine arguments and lane, and record the routing decision
     chars, pages, ocr_fonts, ocr_evidence = probe(src)
     extra, lane, lane_reason = route(chars, ocr_fonts)
     print(f"PROBE {src.name}: {chars:.1f} chars/page, {pages} pages, ocr_fonts={ocr_fonts}"
@@ -1987,6 +2045,7 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     _clear_estimate()  # the promise's live audience (the convert bar) is done with it
 
     # Assemble the bundle in a dot-prefixed temp dir keyed on the source sha (L13 idiom).
+    # (copy figure images into assets/, build the frontmatter and the manifest dict)
     bundle_name = clamp_name(src.stem)
     tmp_dir = work / f".part-{source_sha[:16]}"
     assets = tmp_dir / "assets"
@@ -2056,6 +2115,7 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     # ligatures are restored from the source's own text layer — a word absent from the layer whose ONE ligature
     # expansion is in it; every repair recorded under `ligature_repair`. Before the audit, so the measures score the
     # repaired body; the layer read here with pymupdf, page by page, as the inventions measure reads it.
+    # ligature repair (only when the fixes lever names it): fix the body, then the same words in blocks.json
     if "ligature-repair" in fix_names:
         try:
             import ligature_repair
@@ -2103,6 +2163,7 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     if reading:
         shutil.copy2(src.parent / f"{src.stem}.vision.json", tmp_dir / "vision.json")
     _write_marker_body_safe(tmp_dir, bundle_name, body, manifest, src.name)
+    # optional inline analyst pass: rewrites the body, adds an analyst block to the frontmatter, scores the analyst stage
     if use_analyst:
         # Marker has exited: the GPU is free for the analyst (Phase 2 serialization).
         import analyst
@@ -2174,6 +2235,7 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
         print(f"ANALYST done: {analyst_meta}", flush=True)
     # S209 E6: page anchors at ship, behind the lever — after both gates have scored `body`, before the bundle is written
     manifest["anchors"] = {"lever": "on" if anchors_at_ship() else "off"}
+    # lever on: add page anchors (^pN ids) to the body from blocks.json; every outcome is noted in the manifest
     if manifest["anchors"]["lever"] == "on":
         blocks_path = tmp_dir / BLOCKS_BUNDLE_FILE
         if blocks_path.is_file():
@@ -2186,6 +2248,7 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
                 manifest["anchors"]["note"] = f"anchoring failed, the body shipped unanchored: {type(exc).__name__}: {str(exc)[:120]}"
         else:
             manifest["anchors"]["note"] = "no blocks.json in the bundle — nothing anchored"
+    # write the final markdown note and manifest.json into the bundle dir
     (tmp_dir / f"{bundle_name}.md").write_text(frontmatter + body, encoding="utf-8")
     (tmp_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
     # The bundle STAYS in the ASCII .part-<sha16> dir locally: Windows bsdtar mangles
@@ -2195,7 +2258,9 @@ def convert(src: Path, work: Path, use_analyst: bool = False,
     return tmp_dir, bundle_name, manifest
 
 
+# -- anchor copies, variant registry, ship to the ThinkPad, analyst application, pending/resume --
 def unique_anchor(dest: Path) -> Path:
+    """Return dest if it does not exist, else the first free "<name> (N)" sibling path. Creates nothing."""
     if not dest.exists():
         return dest
     n = 1
@@ -2239,6 +2304,7 @@ def ship(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
         f"if [ -e {dest} ]; then mv {dest} {aside} || exit 97; echo MOVED-ASIDE {aside}; fi && "
         f"mv {part} {dest}"
     )
+    # local tar of the bundle dir is piped into tailscale ssh, which unpacks it on the ThinkPad and renames it
     tar = subprocess.Popen(
         ["tar", "-cf", "-", "-C", str(tmp_dir), "."], stdout=subprocess.PIPE
     )
@@ -2269,6 +2335,7 @@ def ship(tmp_dir: Path, bundle_name: str, source_sha: str) -> None:
 
 
 def shell_quote(s: str) -> str:
+    """Wrap s in single quotes for a POSIX shell, escaping embedded single quotes (used in the remote ssh command)."""
     return "'" + s.replace("'", "'\\''") + "'"
 
 
@@ -2294,6 +2361,7 @@ def apply_analyst(bundle_dir: Path, bundle_name: str, backend: str) -> dict:
     the note's frontmatter and manifest in place. Used by the --resume (widget card) path."""
     import analyst
 
+    # split the note into frontmatter head and body, run the analyst on the body, rebuild head with an analyst block
     md_path = bundle_dir / f"{bundle_name}.md"
     raw = md_path.read_text(encoding="utf-8")
     head, body = raw.split("---\n", 2)[1], raw.split("---\n", 2)[2]
@@ -2355,6 +2423,7 @@ def defer(tmp_dir: Path, bundle_name: str, manifest: dict, markdown_chars: int) 
         ship(tmp_dir, bundle_name, manifest["source_sha256"])
         return "auto-local"
 
+    # park a copy of the bundle in pending/<id> with a card JSON for the widget's pre-flight decision
     pend_id = manifest["source_sha256"][:16]
     PENDING.mkdir(parents=True, exist_ok=True)
     dest = PENDING / pend_id
@@ -2426,6 +2495,7 @@ def resume(pend_id: str, backend: str) -> None:
 
 
 # ---------- the analyst-only re-run (docs/19 §3.1) ----------
+# -- analyst-only re-run helpers: frontmatter pattern, pre-analyst restore, anchored-copy lookup, reanalyze() --
 
 _ANALYST_FM = re.compile(r"^analyst:\n(?:  [^\n]*\n)*", re.M)
 
@@ -2462,6 +2532,7 @@ def _anchor_copies(source: str) -> list[tuple[Path, dict, str]]:
     out: list[tuple[Path, dict, str, float]] = []
     if not ANCHOR.is_dir():
         return []
+    # scan each anchor folder: keep those whose manifest names this source and that hold exactly one .md
     for entry in sorted(ANCHOR.iterdir()):
         if not entry.is_dir():
             continue
@@ -2502,6 +2573,7 @@ def reanalyze(source: str, backend: str) -> None:
         sys.exit(f"REANALYZE refused: no anchored bundle records source {source!r}")
     pre = [c for c in copies if not c[1].get("analyst")]
     sidecar_text: str | None = None
+    # no pre-analyst copy exists: look for an analysed copy whose Marker-body sidecar verifies by sha256 and size
     if not pre:
         # J42 (S140, signed Rab 2026-09-12 as C's road): every anchored copy is analyst output —
         # but J33's sidecar (`<name>.marker.txt`, hash-bound in manifest.marker_body) IS the
@@ -2546,6 +2618,7 @@ def reanalyze(source: str, backend: str) -> None:
     emit("analyst", "rerun", source=source, bundle=bundle_name, backend=backend,
          from_verdict=from_verdict, sha=source_sha[:16])
 
+    # work on a temp copy: restore pre-analyst state if needed, run the analyst, stamp supersede, anchor, ship
     with tempfile.TemporaryDirectory(prefix="fp-reanalyze-") as work_str:
         work = Path(work_str) / bundle_name
         shutil.copytree(bundle_dir, work)
@@ -2587,6 +2660,7 @@ def reanalyze(source: str, backend: str) -> None:
 
 # ---------- J31: re-audit a repaired held bundle (D-1, signed Rab 2026-09-05) ----------
 
+# -- re-audit of repaired held bundles --
 def _reaudit_skip_bench_files(_src, names):
     """copytree() filter for the J31 staging copy: everything under held/<ID> travels EXCEPT
     the Repair Bench's own working files — a *.bench-bak, repairs.jsonl, REPAIRS.md — which
@@ -2678,6 +2752,7 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
     body = parts[2] if len(parts) == 3 else raw
 
     sidecar = held_dir / f"{bundle_name}{MARKER_BODY_SUFFIX}"
+    # choose the Marker-body reference text: the verified sidecar first, else the slice cache, else none
     reference_text: str | None = None
     reference_kind: str | None = None
     # R2 (verifier GO_AMENDED, 2026-09-05): the sidecar is an UNVERIFIED file living in a
@@ -2745,6 +2820,7 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
         # re-audit but not the fourteen repairs behind it. The manifest key still wins when present
         # (nothing that had it changes); otherwise the ledger file's bytes are the provenance, and the
         # entry count says how much human work the verdict rests on.
+        # fingerprint the human repairs behind this verdict (manifest key, else repairs.jsonl bytes, else none)
         repairs = manifest.get("repairs")
         ledger_path = held_dir / "repairs.jsonl"
         if repairs is not None:
@@ -2799,6 +2875,7 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
              repairs_digest=repairs_digest, repairs_source=repairs_source,
              repairs_entries=repairs_entries)
 
+        # fail: keep it held (only the manifest is updated); flag/pass: stamp supersede, ship, rename the held copy
         if verdict == "fail":
             # Every failure path leaves held/<ID> byte-unchanged except this manifest write.
             manifest_path.write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
@@ -2842,7 +2919,12 @@ def reaudit(bundle_id: str, dry_run: bool = False) -> None:
                   f"(left in place, not lost): {exc}", flush=True)
 
 
+# -- command line entry point and the ship-failure exit wrapper --
 def main():
+    """Command-line entry: parse arguments, take the card mutex, then dispatch to --set-audit-mode, --reaudit,
+    --resume, --reanalyze, or convert one PDF (anchor copy, then defer / dry-run / hold / ship). Prints a JSON summary
+    of the converted book; exits via sys.exit on refusals. Side effects: GPU mutex, files, ssh, events."""
+    # command line arguments
     ap = argparse.ArgumentParser()
     ap.add_argument("pdf", type=Path, nargs="?")
     ap.add_argument("--dry-run", action="store_true", help="convert + bundle, do not ship")
@@ -2878,6 +2960,7 @@ def main():
     # holding the mutex costs no GPU-hours — it is simply unconditional for every entry.
     acquire_card_mutex()
 
+    # dispatch: the non-convert verbs return early; otherwise fall through to converting args.pdf
     if args.set_audit_mode:
         if not args.writer:
             sys.exit("--set-audit-mode needs --writer (who is setting it)")
@@ -2903,6 +2986,7 @@ def main():
     if not src.is_file():
         sys.exit(f"not a file: {src}")
 
+    # convert in a temp work dir, keep an anchor copy, then park / skip / hold / ship the bundle
     with tempfile.TemporaryDirectory(prefix="fp-convert-") as work_str:
         work = Path(work_str)
         tmp_dir, bundle_name, manifest = convert(src, work, use_analyst=args.analyst,

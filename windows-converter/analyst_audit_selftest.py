@@ -1,5 +1,12 @@
 #!/usr/bin/env python3
-"""Tripwires for the J32-A normalised analyst-stage comparison (docs/15 §9.4, docs/54-repair-
+"""WHAT THIS FILE DOES: the self-test for the analyst-stage audit in `fidelity_audit.py` (and the
+text normalising in `text_norm.py`). It is a script, not a library: importing it runs every case. Each
+case is a small function marked with the `case(name)` decorator, which runs it at once, prints "ok" or
+"BAD", and records failures. At the end it prints a summary line and exits 1 if any case failed. Reads
+nothing from disk apart from a throwaway temp folder (set as FP_PIPELINE and removed part-way through
+the file); no network, no GPU. Callers: run by hand or by the test runner with the marker-env interpreter.
+
+Tripwires for the J32-A normalised analyst-stage comparison (docs/15 §9.4, docs/54-repair-
 road/README.md §2, signed: Proposal A). Synthetic, CPU-only, no files, no network -- every case
 here is a shape the un-normalised audit_analyst got wrong (an escape/punctuation/spacing
 difference counted as loss) or must still catch (a real deletion). Same doctrine as
@@ -31,6 +38,8 @@ import os
 import shutil
 import tempfile
 
+# -- setup: a throwaway pipeline root so the live ladder lever file is never read --
+
 # J44 (S182): the ladder lever is a file under the pipeline root -- this suite must never read the LIVE tree's
 # lever (a `j32a-v3` there would silently run every case under v3). A throwaway root, removed at the end.
 _QUARANTINE = tempfile.mkdtemp(prefix="fp-ladder-selftest-")
@@ -41,12 +50,18 @@ import fidelity_audit as fa  # noqa: E402
 import ladder_lever  # noqa: E402
 import fp_paths  # noqa: E402
 
+# -- test machinery: result lists, the case decorator, a word-list helper --
+
 failed: list[str] = []
 ran: list[str] = []
 
 
 def case(name):
+    """Decorator factory: `@case("name")` runs the decorated test function immediately, prints
+    "ok" or "BAD" with the name, and appends to the module lists `ran` and `failed`. Returns the
+    decorator; the decorator returns the function unchanged."""
     def deco(fn):
+        """Run `fn` now as one test case; an AssertionError marks the case failed. Returns `fn`."""
         ran.append(name)
         try:
             fn()
@@ -59,11 +74,15 @@ def case(name):
 
 
 def words(n, prefix="alpha"):
+    """A string of `n` distinct made-up words, "<prefix>01 <prefix>02 ...", for building test text."""
     return " ".join(f"{prefix}{i:02d}" for i in range(1, n + 1))
 
 
+# -- cases (a)-(g): the normalising ladder (what survives, what is a real loss, negative controls) --
+
 @case("(a) escape-only difference survives (marker's own \\( \\) escapes)")
 def _():
+    """Case (a): a text differing only by backslash escapes is judged fully surviving (1.0)."""
     ref = "the committee met in \\(1960-2023\\) to review the annual budget carefully"
     out = "the committee met in (1960-2023) to review the annual budget carefully"
     block = fa.audit_analyst(ref, out)
@@ -75,6 +94,7 @@ def _():
 
 @case("(b) punctuation-only difference survives (a dropped comma)")
 def _():
+    """Case (b): a text differing only by a dropped comma still survives fully."""
     ref = "the committee, met in the annual budget report today"
     out = "the committee met in the annual budget report today"
     block = fa.audit_analyst(ref, out)
@@ -83,6 +103,7 @@ def _():
 
 @case("(c) spacing-only difference survives (double spaces / a line break)")
 def _():
+    """Case (c): a text differing only in spacing and line breaks still survives fully."""
     ref = "the  committee   met\nin the annual budget report today"
     out = "the committee met in the annual budget report today"
     block = fa.audit_analyst(ref, out)
@@ -91,6 +112,7 @@ def _():
 
 @case("(d) a POISONED window (a real deletion) fails, and a run >= 25 words fails the verdict")
 def _():
+    """Case (d): removing 36 real words lowers survival, makes a run of 25+ words, and gives verdict "fail"."""
     ref = words(60)
     tok = ref.split()
     # drop windows 1, 2 and 3 (0-based, 12 words each) -- 36 real words gone, so the run is
@@ -109,6 +131,7 @@ def _():
 @case("(e) a backslash before a LETTER is LaTeX and stays -- THROUGH fa.audit_analyst (R5): "
       "'\\rm' vs 'rm' is a real content loss, the escape-only case still survives")
 def _():
+    """Case (e): "\\rm" versus "rm" counts as a real loss, while the escape-only text of (a) still survives."""
     # v1 (before R5): punct_free's [^\w\s] deleted every backslash unconditionally, so
     # unescape()'s letter-vs-punctuation distinction never reached a comparison -- \rm and rm
     # compared identical, the exact outcome the ticket rejected. This asserts through the real
@@ -130,10 +153,13 @@ def _():
 @case("(e') NEGATIVE CONTROL: restore v1's punct_free ([^\\w\\s], backslash NOT excluded) -> "
       "case (e) goes falsely green")
 def _():
+    """Case (e'): negative control. Temporarily swaps in the old punct_free; (e)'s text must then read as
+    fully surviving. Restores the real function afterwards (changes `fa.punct_free` while it runs)."""
     import re as _re
     _v1_punct = _re.compile(r"[^\w\s]", _re.UNICODE)
 
     def _v1_punct_free(t):
+        """The old (v1) punctuation remover: delete every non-word, non-space character, backslash included."""
         return tn._WS.sub(" ", _v1_punct.sub("", t)).strip()
 
     real_punct_free = fa.punct_free
@@ -155,6 +181,7 @@ def _():
 
 @case("(f) the CJK path is unchanged: space-free containment, ladder applied, no crash")
 def _():
+    """Case (f): Chinese text with added punctuation survives fully; a real deletion in it still fails."""
     ref = "这是一个测试用的中文段落用来验证窗口切分与空格无关的匹配规则是否正常工作的情况"
     out = "这是一个测试用的中文段落，用来验证窗口切分与空格无关的匹配规则是否正常工作的情况。"
     assert tn.is_cjk(ref), "fixture must classify as CJK for this case to test anything"
@@ -168,6 +195,8 @@ def _():
 
 @case("(g) NEGATIVE CONTROL: the WHOLE ladder disabled (regex_id 'none') -> case (a) now FAILS")
 def _():
+    """Case (g): negative control. Temporarily turns off both ladder steps; case (a)'s text must then fail.
+    Restores `fa.unescape` and `fa.punct_free` afterwards (changes them while it runs)."""
     # PRE-R5 this comment read "disabling unescape ALONE proves nothing": punct_free's old
     # [^\w\s] regex deleted every backslash regardless of what unescape already did to it, so
     # punct_free(unescape(x)) == punct_free(x) for any x and the two steps were one pipeline,
@@ -195,6 +224,8 @@ def _():
     assert fa.audit_analyst(ref, out)["doc_survival"] == 1.0
 
 
+# -- fixtures and cases (h)-(l), (m): masking a looping reference block, and the page-count verdict --
+
 # S131 fixtures: Marker's loop, as the Zero to One sidecar carried it -- a heading that repeats
 # a trigram hundreds of times (zlib << DEGEN_ZLIB_MAX, trigram >> DEGEN_TRIGRAM_MAX).
 LOOP = "# INTERNATIONAL PROPERTY " + "AND ROUTE " * 200
@@ -208,6 +239,7 @@ CONVERT_OK = {"tripwires": {"degeneration": False}, "kind": "fidelity", "doc_sur
 @case("(h) S131: a degenerate block in the REFERENCE is masked -- a body without it reads 1.0, "
       "no run, and reference_masked names the block")
 def _():
+    """Case (h): a looping block in the reference is masked, so a body without it reads 1.0 and the mask is recorded."""
     assert fa.degeneration(REF_WITH_LOOP)["flagged"], "fixture must trip the detector on its own"
     block = fa.audit_analyst(REF_WITH_LOOP, PARA_A + "\n\n" + PARA_B)
     assert block["doc_survival"] == 1.0, block
@@ -224,6 +256,7 @@ def _():
       "reads flag, never pass; a block covering 400 of 465 passes; a block with no page counts (pre-S144) "
       "is unchanged")
 def _():
+    """Case (m), page-count form: the verdict weighs how many pages the witness scored out of the total."""
     # Rab's word (Desk bf4d5d05); born of S142 E1 F5 — Valentine's scan read `1.0 over 1 page` as a pass-shaped
     # number. A witness that saw under half the book localises nothing; the verdict weighs its denominator.
     thin = dict(CONVERT_OK, pages_scored=1, pages_total=465)
@@ -241,6 +274,7 @@ def _():
 @case("(i) S131: a REAL loss beside the mask still fails -- the whole of PARA_B gone reads as a "
       "run >= 25 words and the verdict is fail")
 def _():
+    """Case (i): a real loss beside the masked loop still produces a long run and verdict "fail"."""
     block = fa.audit_analyst(REF_WITH_LOOP, PARA_A)
     assert block["doc_survival"] < 0.995, block
     assert any(r["words"] >= 25 for r in block["runs"]), block
@@ -252,6 +286,8 @@ def _():
 @case("(j) NEGATIVE CONTROL: the mask disabled -> case (h)'s body FAILS the way S130 did "
       "(the loop counted as a run of hundreds of words)")
 def _():
+    """Case (j): negative control. Temporarily disables the loop mask; case (h)'s body must then fail.
+    Restores `fa.mask_degenerate_reference` afterwards (changes it while it runs)."""
     real_mask = fa.mask_degenerate_reference
     try:
         fa.mask_degenerate_reference = lambda t: (t, {"blocks": [], "words": 0})
@@ -270,6 +306,7 @@ def _():
       "neighbours in the reference, so the body's extra block costs it the seam windows "
       "(a dip, never a run), and the convert gate's degeneration tripwire still fails it")
 def _():
+    """Case (k): a body that kept the loop gets no reward; the degeneration tripwire still fails it."""
     body = PARA_A + "\n\n" + LOOP + "\n\n" + PARA_B
     block = fa.audit_analyst(REF_WITH_LOOP, body)
     clean = fa.audit_analyst(REF_WITH_LOOP, PARA_A + "\n\n" + PARA_B)
@@ -287,7 +324,8 @@ def _():
 @case("(l) S131: a CRLF reference masks the same block as its LF twin -- same block report, "
       "same words, and the clean body reads 1.0 either way")
 def _():
-    crlf_ref = REF_WITH_LOOP.replace("\n", "\r\n")
+    """Case (l): a reference with Windows line endings masks the same block as its Unix-line-ending twin."""
+    crlf_ref =REF_WITH_LOOP.replace("\n", "\r\n")
     _lf_text, lf_report = fa.mask_degenerate_reference(REF_WITH_LOOP)
     crlf_text, crlf_report = fa.mask_degenerate_reference(crlf_ref)
     assert crlf_report == lf_report and len(crlf_report["blocks"]) == 1, (crlf_report, lf_report)
@@ -298,6 +336,8 @@ def _():
     assert fa.mask_degenerate_reference(clean_crlf) == (clean_crlf, {"blocks": [], "words": 0})
 
 
+# -- fixtures and cases (m)-(q): the v3 ladder behind its lever file (J44) --
+
 # ---------------------------------------------------------------- J44 (S182): ladder v3 behind a lever, OFF
 SYM076_REF = "the planner rewrites the call to within\\_recursive before the optimiser sees the subquery plan at all here"
 SYM076_OUT = "the planner rewrites the call to within_recursive before the optimiser sees the subquery plan at all here"
@@ -306,6 +346,7 @@ SYM076_OUT = "the planner rewrites the call to within_recursive before the optim
 @case("(m) J44 rung 1: the SYM-076 specimen -- `within\\_recursive` vs `within_recursive` reads 0.0 under v2 "
       "(the defect reproduced) and 1.0 under v3 (the escape set gains the underscore)")
 def _():
+    """Case (m), SYM-076 form: an escaped underscore reads as a loss under ladder v2 and as a match under v3."""
     assert fa.audit_analyst(SYM076_REF, SYM076_OUT, ladder="j32a-v2")["doc_survival"] == 0.0
     v3 = fa.audit_analyst(SYM076_REF, SYM076_OUT, ladder="j32a-v3")
     assert v3["doc_survival"] == 1.0 and v3["normalisation"]["regex_id"] == "j32a-v3", v3
@@ -314,6 +355,7 @@ def _():
 @case("(n) J44 keeps R5 under v3: `\\rm` vs `rm` is STILL a real loss (1 of 2 windows) under both ladders -- the underscore is the only "
       "addition to the escape set")
 def _():
+    """Case (n): "\\rm" versus "rm" is still a real loss (survival 0.5 of 2 windows) under both v2 and v3."""
     ref = "the macro expands to \\rm before the layout pass and the renderer then reads it back as text"
     out = "the macro expands to rm before the layout pass and the renderer then reads it back as text"
     v3, v2 = fa.audit_analyst(ref, out, ladder="j32a-v3"), fa.audit_analyst(ref, out, ladder="j32a-v2")
@@ -330,6 +372,8 @@ CITE_OUT = ("alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu 
 @case("(o) J44 rung 3: Marker's `[\\[n\\]](#page-N-K)` vs the model's `[n](#page-N-K)` -- a failed window under v2, "
       "1.0 under v3; and a DELETED tail under v3 still fails (the rung rescues no deletion)")
 def _():
+    """Case (o): a citation link written with escaped brackets fails under v2, passes under v3.
+    A deleted tail still fails under v3."""
     assert fa.audit_analyst(CITE_REF, CITE_OUT, ladder="j32a-v2")["doc_survival"] < 1.0
     assert fa.audit_analyst(CITE_REF, CITE_OUT, ladder="j32a-v3")["doc_survival"] == 1.0
     deleted = "alpha beta gamma delta epsilon zeta eta theta iota kappa lambda mu [2](#page-49-0)"
@@ -339,6 +383,8 @@ def _():
 @case("(o') negative control: v3's rungs disabled (prepare_for reverted to prepare_output) -> (m) and (o) FAIL under "
       "the v3 id -- the rungs, not the id, are what passes them (watched)")
 def _():
+    """Case (o'): negative control. Temporarily replaces `fa.prepare_for` with the plain version so the v3
+    rungs are off; cases (m) and (o) must then fail. Restores the real function afterwards."""
     saved = fa.prepare_for
     fa.prepare_for = lambda md, ladder="j32a-v2": tn.prepare_output(md)
     try:
@@ -351,6 +397,8 @@ def _():
 @case("(p) J44 the lever: absent -> v2; garbage -> v2; `J32A-V3` (case, whitespace) -> v3; audit_analyst with no "
       "ladder named READS the file; chunk_survival takes the same id; an unknown id given by hand RAISES")
 def _():
+    """Case (p): the ladder lever file. Absent or garbage reads as v2, a v3 id (any case or spacing) reads as v3,
+    and an unknown id given by hand raises. Writes and deletes the lever file inside the temp pipeline root."""
     lever = fp_paths.root("ladder")
     lever.unlink(missing_ok=True)
     assert ladder_lever.read_ladder() == "j32a-v2"
@@ -375,6 +423,7 @@ def _():
 @case("(q) POSITIVE CONTROL: under v2 -- the default, the lever absent -- every shape the suite knows is BYTE-IDENTICAL "
       "to prepare_output, chunk_survival and audit_analyst read what they read before J44 (the shipped numbers do not move)")
 def _():
+    """Case (q): with v2 as the default, a list of sample texts gives identical results through every entry point."""
     shapes = [
         "the committee met in \\(1960-2023\\) to review the annual budget carefully",
         "a heading\n\n# Title\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\nsee [the paper](http://x/y) and ![img](a.png) plus `code` and *em*",
@@ -389,12 +438,18 @@ def _():
         assert blk == fa.audit_analyst(a, b, ladder="j32a-v2") and blk["normalisation"]["regex_id"] == "j32a-v2"
 
 
+# remove the throwaway pipeline root; the cases below do not need it
+
 shutil.rmtree(_QUARANTINE, ignore_errors=True)
+
+# -- cases (v)-(w): table-header and list reorder reporting --
 
 @case("(v) SYM-138: a stacked table header the analyst merged into one row reads as a REORDER (report-only), a deleted one as an omission")
 def _():
+    """Case (v): two table header rows merged into one read as a report-only REORDER run.
+    Deleting them is an omission."""
     pre, post = words(24, "pre"), words(24, "post")
-    raw = ("| | Less than | 1 to 3 | | 3 to 6 | 6 months | Up to 1 | Over 1 to | Over |\n"
+    raw =("| | Less than | 1 to 3 | | 3 to 6 | 6 months | Up to 1 | Over 1 to | Over |\n"
            "| | 1 month | months | | months | to 1 year | year | 2 years | 2 years |")
     merged = "| | Less than 1 month | 1 to 3 months | | 3 to 6 months | 6 months to 1 year | Up to 1 year | Over 1 to 2 years | Over 2 years | Total | Total |"
     ref = pre + "\n" + raw + "\n" + post
@@ -412,6 +467,7 @@ def _():
 
 @case("(w) S209 E13 (Desjardins): a run whose only missing tokens are the ladder's lone backslashes (a list re-rendered) reads REORDER — the bag counts words")
 def _():
+    """Case (w): a run missing only the ladder's lone backslash tokens (a re-rendered bullet list) reads as REORDER."""
     pre, post = words(24, "pre"), words(24, "post")
     # Marker escapes a literal asterisk inside a bullet (`- \* Lesser effect …`, Desjardins p.35); the ladder's unescape set
     # does not cover `\*`, punct_free deletes the asterisk and keeps the orphaned backslash as a token, and the analyst's
@@ -428,6 +484,7 @@ def _():
     assert b["runs_reorder"] == b["runs_total"], b
 
 
+# final summary: exit status 1 if any case failed
 print()
 if failed:
     print(f"TRIPWIRES DISARMED — {len(failed)} failed of {len(ran)}: {failed}")

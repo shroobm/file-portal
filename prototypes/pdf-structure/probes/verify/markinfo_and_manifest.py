@@ -1,4 +1,9 @@
-"""Verifier: (1) resolve the survey-vs-corpus_probe disagreement on /MarkInfo /Marked by
+"""WHAT THIS FILE DOES: a verifier script (run directly, no arguments). It prints three things from hard-coded
+paths: the /MarkInfo /Marked flag of six PDFs in Downloads read three ways; selected fields of one held
+bundle manifest (14c66834bdfeaa2e); and exact line ranges of a text copy of ISO 32000-2 in the scratchpad.
+Read-only; stdout only (re-wrapped as UTF-8); needs pymupdf; no callers.
+
+Verifier: (1) resolve the survey-vs-corpus_probe disagreement on /MarkInfo /Marked by
 reading it three ways; (2) read the held manifest 14c66834bdfeaa2e for the 404/531 question;
 (3) quote exact ISO 32000-2 lines for NonStruct, Suspects, 14.8.1, Table 377 BBox, 14.8.4.8.3.
 Read-only."""
@@ -6,6 +11,7 @@ import sys, io, json, re
 sys.stdout = io.TextIOWrapper(sys.stdout.buffer, encoding="utf-8", errors="replace")
 import pymupdf
 
+# -- part 1: /MarkInfo read three ways for each file --
 DL = r"C:/Users/Bndit/Downloads/"
 files = [
     "bojieli_ai-agent-book： 《深入理解 AI Agent：设计原理与工程实践》（李博杰 著）开源主仓库：全书正文、编译版 PDF 与按章配套代码 (2026-07-18 3：4….pdf",
@@ -18,6 +24,7 @@ files = [
 import glob, os
 print("=== /MarkInfo /Marked read three ways ===")
 for f in files:
+    # fall back to a 20-character prefix match when the exact file name is not there
     p = DL + f
     if not os.path.exists(p):
         cands = glob.glob(DL + f[:20] + "*")
@@ -36,6 +43,7 @@ for f in files:
     d.close()
 
 print()
+# -- part 2: the held manifest's fidelity records --
 print("=== held manifest 14c66834bdfeaa2e ===")
 m = json.load(open(r"C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/manifest.json", encoding="utf-8"))
 print("top keys:", sorted(m.keys()))
@@ -57,9 +65,11 @@ for k in ("verdict", "audit", "supersede", "held", "source", "pages", "lane", "l
         print(f"  {k}: {s[:300]}")
 
 print()
+# -- part 3: quote fixed line ranges of the ISO text copy --
 print("=== exact ISO 32000-2 lines ===")
 lines = open(r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/pdfua/iso32000-2.txt", encoding="utf-8", errors="replace").read().split("\n")
 def show(a, b, label):
+    """Print lines a..b (1-based, inclusive) of the global `lines`, each cut to 180 characters, under `label`."""
     print(f"--- {label} (L{a}-L{b})")
     for i in range(a - 1, b):
         print(f"  L{i+1}: {lines[i].rstrip()[:180]}")

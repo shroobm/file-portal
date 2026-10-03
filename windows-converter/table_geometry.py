@@ -1,4 +1,12 @@
-"""table_geometry — the reading half of the table-geometry layer (S150, Rab signed 2026-09-14: "build the new analyst… see what
+"""WHAT THIS FILE DOES: finds the markdown pipe tables in a document (a list of lines), measures their shape, and
+repairs the shapes the converter's OCR pass breaks (rotated row labels read letter by letter, a chopped title row,
+wrapped labels, a stacked second heading, a leaked next-table head, empty padding columns, header-only stub tables).
+Pure text in, text out: no file, process or network access. Main entry points: census(lines) and
+orphan_runs(lines) (read only), propose(...) (what would change), and geometry_pass(text, ...) (apply, keeping only
+what an invariant function admits). Every repair is a propose / apply / invariant trio plus a *_pass driver.
+The edit acceptor shares grid_invariant; the callers are outside this file (purpose not evident from the code).
+
+table_geometry — the reading half of the table-geometry layer (S150, Rab signed 2026-09-14: "build the new analyst… see what
 we gained, and lost, and what is still missing"). Pure functions, no I/O, no model, no GPU.
 
 THE UNIT is the table a renderer reads (GFM, markdown-it, Obsidian's own parser near enough): a header line holding an unescaped
@@ -19,6 +27,7 @@ import re
 import unicodedata
 from dataclasses import dataclass, field, asdict
 
+# -- shared patterns and glyph constants (delimiter row, <br>, bullet dot, letter cells) --
 DELIM = re.compile(r"^\s*\|?\s*:?-+:?\s*(\|\s*:?-+:?\s*)*\|?\s*$")
 BR = re.compile(r"<br\s*/?>", re.I)
 DOT = "•"
@@ -47,6 +56,7 @@ def fence_mask(lines: list[str]) -> list[bool]:
 
 
 def has_pipe(line: str) -> bool:
+    """True when the line holds at least one unescaped `|`. Pure."""
     return "|" in line.replace("\\|", "")
 
 
@@ -79,6 +89,7 @@ def cells(row: str) -> list[str]:
 
 
 def is_repair_line(line: str) -> bool:
+    """True for a line a repair step wrote (an `![[assets/_repair` embed or a `<!-- repair` / `<!-- transcribed` comment)."""
     return line.startswith("![[assets/_repair") or line.startswith("<!-- repair ") or line.startswith("<!-- transcribed ")
 
 
@@ -90,8 +101,10 @@ def health(lines: list[str]) -> list[dict]:
     n = len(lines)
 
     def pipe_row(k):
+        """True when line k exists, is outside a code fence and starts with `|` (a candidate table row)."""
         return k < n and not mask[k] and lines[k].lstrip().startswith("|")
 
+    # pass 1: every real table block - header/delimiter agreement, ragged rows, lines glued to the last row, split tails
     for h, d, e in table_blocks(lines):
         covered.update(range(h, e + 1))
         want, dc = len(cells(lines[h])), len(cells(lines[d]))
@@ -118,6 +131,7 @@ def health(lines: list[str]) -> list[dict]:
                 covered.add(q)
                 q += 1
             issues.append({"line": j + 1, "reason": "these rows are cut off from their header — a renderer shows them as plain text"})
+    # pass 2: pipe-row runs outside any table block (orphans) - say why a renderer shows them as plain text
     i = 0
     while i < n:
         if i in covered or not pipe_row(i):
@@ -266,6 +280,8 @@ def _letterish(cell: str) -> bool:
 
 
 def read_table(lines: list[str], h: int, d: int, e: int) -> TableReading:
+    """Measure one table block (header line h, delimiter line d, last line e, 0-based): fills and returns a TableReading
+    (shape, title-row kind, letter column, dot matrix, wrapped labels, index signature). Pure; changes nothing."""
     rows = [cells(lines[k]) for k in range(h, e + 1) if k != d]
     header = rows[0] if rows else []
     delim = cells(lines[d])
@@ -318,6 +334,7 @@ def read_table(lines: list[str], h: int, d: int, e: int) -> TableReading:
                 cur = []
         if cur:
             runs.append("".join(cur))
+        # (runs: each stretch of consecutive letter cells in column 1, bared, joined into one string per stretch)
         t.letter_runs = runs
         t.letters_in_order = "".join(runs)
     # S152 E4: an index read as a table (a signature, no repair — the census names it; the layer leaves it alone)
@@ -376,6 +393,7 @@ def orphan_runs(lines: list[str]) -> list[dict]:
 # for a title lifted to a caption, and a label must FIT the letters the OCR read. The same invariant is what the
 # acceptor (edit_whitelist, rung "table-geometry") applies to a model's edit of a table, so one law guards both roads.
 
+# -- letter folding and the word check (does a label fit the letters the OCR read) --
 TITLE_MIN = 20          # a spanning title is a phrase (≥ 20 characters with a space); "Significance" above "F" is a stacked heading
 
 
@@ -470,6 +488,8 @@ def letters_fit(letters: str, word: str) -> tuple[bool, str]:
 
 
 def _collapse_pattern(pat: list) -> list:
+    """Like collapse_doubles but for a read pattern (a list): adjacent equal entries collapse to one. Pure."""
+    # keep an entry only when it differs from the one kept just before it
     out: list = []
     for p in pat:
         if not out or out[-1] != p:
@@ -485,6 +505,7 @@ def _collapse_pattern(pat: list) -> list:
 # the OCR left without a blank row between them (COSTS · MGMT · VALUATION as one run) is split where each word's letters end
 # at a cell — the boundary the picture alone was thought to hold.
 
+# -- the lexicon: word-shape pattern, lexicon builder, best-word search, scoring, stream segmentation --
 WORD = re.compile(r"[A-Za-zÀ-ž][A-Za-zÀ-ž'\-]{2,}")
 
 
@@ -539,6 +560,7 @@ SEGMENT_MIN_SCORE = 1.25   # a word must explain its read this much better than 
 def boundary_collapse(cell_letters: list[str]) -> list[str]:
     """A letter the OCR read twice across a row boundary — `L` on one row, `L O` on the next, for LOW — is one letter: when a
     cell begins with the letter the previous cell ended with, the repeat is dropped (inside a cell nothing is touched)."""
+    # walk the cells in order, trimming the first letter of a cell that repeats the last letter of the cell before it
     out: list[str] = []
     for c in cell_letters:
         # plain Latin letters only: `Ā` after `A` is not a repeat (it is TI merged by the OCR in VALUATION), `L` after `L` is
@@ -581,6 +603,7 @@ def words_from_stream(letters: str, lex: dict, min_len: int = 3, min_count: int 
     for w, cnt in lex.items():
         if len(w) >= min_len and cnt >= min_count:
             by_first.setdefault(w[0], []).append(w)
+    # dynamic programme over letter positions: from each reachable position skip one letter (a gap) or place a word
     best: list = [None] * (n + 1)   # best[p] = (score, explained, items)
     best[0] = (0.0, 0, [])
     for p in range(n):
@@ -620,6 +643,7 @@ def words_from_stream(letters: str, lex: dict, min_len: int = 3, min_count: int 
                         best[p + k] = cand
     if best[n] is None:
         return ([tail] if tail else []), 0, n + len(tail)
+    # read the best path back: words stand alone, runs of gap letters are grouped into one piece each
     pieces: list = []
     for kind, val in best[n][2]:
         if kind == "w":
@@ -721,6 +745,7 @@ def lexicon_segments(cell_letters: list[str], lex: dict, context=None) -> list:
     return best[n][2] if best[n] else []
 
 
+# -- reading helpers for propose: fragment test, text folding, vision-entry match, index-run refusal, span tiling --
 def _fragment_of(long: str, frag: str) -> bool:
     """`ment` beside `…before meeting management`: a chopped tail of the title, read twice."""
     f = _bare(frag).lower()
@@ -765,7 +790,9 @@ def _index_run(lines: list[str], h: int, r: list[int], cell_letters: list[str]) 
     # R3 counts <br> STACKING only (a prose cell's words are not pieces of a stack): every other filled cell of the row
     # stacked to the same depth, each of its parts short — a matrix's entries (`α<br>β`, `0.<br>4`), never wrapped prose
     def stack(cell):
+        """The non-empty parts of a cell split on <br>, stripped."""
         return [p.strip() for p in re.split(r"<br\s*/?>", cell, flags=re.I) if p.strip()]
+    # R3: test each row of the run for a stack depth of two or more matched by every other filled cell on that row
     for k in r:
         cs = cells(lines[k])
         depth = len(stack(cs[0])) if cs else 0
@@ -795,6 +822,7 @@ def _tile_spans(rails: list[dict], first_row: int, last_row: int) -> None:
         p["span"] = [start, max(end, b)]
 
 
+# -- propose: the shape repairs each table asks for (captions, folds, rails, dots), with no byte changed --
 def propose(lines: list[str], resolver=None, lex: dict | None = None, vision: dict | None = None, notes: dict | None = None) -> list[dict]:
     """The shape repairs a table asks for, table by table, without touching a byte: a `caption` (a spanning title lifted
     above the table), a `rail` per letter run (the letters → the word the resolver gives, placed on the run's first row),
@@ -1040,7 +1068,9 @@ def propose(lines: list[str], resolver=None, lex: dict | None = None, vision: di
     return out
 
 
+# -- applying proposals: row rendering, row joins, the fold rule, and the per-table apply with its invariant --
 def _render_row(cs: list[str]) -> str:
+    """Render cells as one markdown pipe row; a `|` inside a cell is escaped unless the cell holds a backtick. Pure."""
     return "| " + " | ".join(c if "`" in c else c.replace("|", "\\|") for c in cs) + " |"
 
 
@@ -1320,11 +1350,13 @@ def apply_admitted(lines: list[str], h: int, d: int, e: int, props: list[dict]) 
 
 # ---- S157 E1: the split pass — a second stacked heading inside a table's body is a second table -------------------------
 
+# -- number-token patterns, the number tests, and the split proposals --
 _NUMTOK = re.compile(r"^[-+]?\d[\d,]*(\.\d+)?%?$|^[-+]?\.\d+%?$")
 _PAGEREF = re.compile(r"^\d{1,4}(-\d{1,4})?$")   # S209 E14 (SYM-152): a page reference or range — a number-shaped token
 
 
 def _is_num(cell: str) -> bool:
+    """True when the whole cell is one number token (optional sign, thousands commas, decimals, percent). Pure."""
     return bool(_NUMTOK.match(cell.strip()))
 
 
@@ -1441,6 +1473,7 @@ def propose_splits(lines: list[str], lex: dict | None = None) -> list[dict]:
         if len(rows) < 4:
             continue
         ncols = len(cells(lines[h]))
+        # look for the first body row (or row pair) that reads as a second heading; one split per table
         for i in range(1, len(rows)):
             pair = 2
             ok, joined, why = (False, [], "") if i + 1 >= len(rows) else _heading_pair(rows[i], rows[i + 1], rows[i - 1], lex)
@@ -1558,10 +1591,13 @@ def _head_streams(lines: list[str], h2: int, d2: int, e2: int) -> tuple[set[str]
 
 
 def _bare_text(cell: str) -> str:
+    """The cell with each <br> turned into a space, stripped. Pure."""
     return BR.sub(" ", cell).strip()
 
 
 def _cell_in_head(cell: str, folded: set[str], stream: str) -> bool:
+    """True when the cell is empty, equals a folded head cell, or (three letters or more) its letters occur inside the
+    head's letter stream. Used to decide whether a tail row is a copy of the next table's head. Pure."""
     t = _fold_text(_bare_text(cell))
     if not t:
         return True
@@ -1583,6 +1619,7 @@ def propose_leaks(lines: list[str]) -> list[dict]:
         folded, stream = _head_streams(lines, h2, d2, e2)
         next_first = next((_fold_text(_bare_text(c)) for c in cells(lines[h2]) if c.strip()), "")
         rows = [cells(lines[k]) for k in range(d + 1, e + 1)]
+        # walk up from the last body row while each row is non-numeric and made only of the next table's head cells
         cut = len(rows)
         while cut > 1:
             r = rows[cut - 1]
@@ -1601,6 +1638,7 @@ def propose_leaks(lines: list[str]) -> list[dict]:
 
 
 def apply_leak(lines: list[str], p: dict) -> list[str]:
+    """The lines with the proposal's drop range (1-based, inclusive) removed. Returns a new list; the input is not changed."""
     a, b = p["drop"][0] - 1, p["drop"][1] - 1
     return lines[:a] + lines[b + 1:]
 
@@ -1632,6 +1670,8 @@ def leak_invariant(before: list[str], after: list[str], p: dict) -> tuple[bool, 
 
 
 def leak_pass(lines: list[str]) -> tuple[list[str], list[dict], list[dict]]:
+    """Apply every leak proposal that leak_invariant admits, bottom-up so line numbers hold. Returns (lines, applied,
+    refused); a refused proposal carries its reasons under "refused". No I/O."""
     props = propose_leaks(lines)
     applied, refused = [], []
     for p in sorted(props, key=lambda x: -x["table"][0]):
@@ -1680,6 +1720,7 @@ def propose_trims(lines: list[str]) -> list[dict]:
 
 
 def _delim_segments(row: str) -> list[str]:
+    """The delimiter row's segments (`---`, `:--:`...) with the outer pipes removed, each stripped. Pure."""
     s = row.strip()
     if s.startswith("|"):
         s = s[1:]
@@ -1750,6 +1791,7 @@ def trim_pass(lines: list[str]) -> tuple[list[str], list[dict], list[dict]]:
     return lines, applied, refused
 
 
+# -- the unframe pass: header-only stub tables (frame vs trace), its levers, proposal, apply, invariant, driver --
 UNFRAME_STUBS = False   # lever-waiver: Rab's word only; set S160 E6 OFF — a STUB (a header whose body has no filled cell: a caption box, a
                         # chopped heading, a footnote framed as a table — 64 of the shelf's 2,513, S157 E5) may also be the trace of a
                         # lost table body (S157 E7's judgement), and unframing would hide the trace; OFF the pass PROPOSES and the record
@@ -1851,6 +1893,7 @@ def unframe_pass(lines: list[str], apply: bool | None = None) -> tuple[list[str]
     return lines, applied, refused, [], traces
 
 
+# -- the driver: all passes in order over a whole markdown text --
 def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: dict | None = None) -> tuple[str, dict]:
     """The layer over a whole markdown text: propose per table, apply on a copy, keep only what the invariant admits.
     Returns (text, record): the record counts tables, proposals, applied, refused and unresolved, lists every label and
@@ -1860,6 +1903,7 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
     calls = {"n": 0}
 
     def counted(letters, context):
+        """Call the caller's resolver and count the call in calls["n"] (reported as resolver_calls)."""
         calls["n"] += 1
         return resolver(letters, context)
 
@@ -1884,6 +1928,7 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
     by_table: dict = {}
     for p in props:
         by_table.setdefault(tuple(p["table"]), []).append(p)
+    # per table (in file order): apply proposals one by one under the invariant and splice the result into the output
     applied, refused, unresolved = [], [], []
     out_lines, pos, checks, dots_fixed = [], 0, 0, 0
     for key in sorted(by_table):
@@ -1903,6 +1948,7 @@ def geometry_pass(text: str, resolver=None, use_lexicon: bool = True, vision: di
             applied.extend(admitted)
             dots_fixed += dots
     out_lines.extend(lines[pos:])
+    # the record: counts and per-kind lists of what was applied, refused and left unresolved
     record = {
         "tables": len(blocks),
         "with_signature": len(by_table),
