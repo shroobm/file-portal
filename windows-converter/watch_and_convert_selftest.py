@@ -325,7 +325,7 @@ _wac._parked.clear()
 # the suite stayed green: the park's end-to-end behaviour rested on two untested lines. main() runs forever, so the
 # tripwire reads its syntax tree: both calls must sit in main()'s loop, the retry BEFORE the folder is read and the
 # wrap AROUND tracker.reconcile, both before worker.snapshot(). A mutant that drops either must fail here.
-import ast as _e9_ast
+import ast as _e9_ast  # noqa: E402 — the tripwire's own import, beside the case it serves (the file's convention)
 _e9_tree = _e9_ast.parse(Path(_wac.__file__).read_text(encoding="utf-8"))
 _e9_main = next(n for n in _e9_tree.body if isinstance(n, _e9_ast.FunctionDef) and n.name == "main")
 _e9_calls = []
