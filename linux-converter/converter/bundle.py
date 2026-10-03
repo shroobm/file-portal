@@ -23,7 +23,7 @@ from pathlib import Path
 
 # -- image link rewriting --
 
-# Inline image links, e.g.![](x.png) or ![alt](/abs/path/x.png "title"). External URLs are
+# Inline image links, e.g. ![](x.png) or ![alt](/abs/path/x.png "title"). External URLs are
 # left alone; everything else is rewritten to an Obsidian embed pointing into assets/.
 _IMAGE_LINK = re.compile(r"!\[[^\]]*\]\(\s*<?([^)>\s]+)>?(?:\s+\"[^\"]*\")?\s*\)")
 

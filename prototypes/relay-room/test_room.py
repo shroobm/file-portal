@@ -312,7 +312,7 @@ class L3AppendsNeverErase(unittest.TestCase):
 
     def test_T18_missing_is_not_ok_with_zero(self):
         """A log file that does not exist reads as status MISSING with a remedy, never as ok with zero entries."""
-        r =roomlog.read_log(self.d / "does-not-exist.md")
+        r = roomlog.read_log(self.d / "does-not-exist.md")
         self.assertEqual(r.status, "MISSING", "a missing log read back as something else")
         self.assertTrue((r.reason or "").strip(), "MISSING with no remedy (L1b)")
         self.assertNotEqual(r.status, "ok")
@@ -346,7 +346,7 @@ class L1L2UnreadAndStale(unittest.TestCase):
 
     def test_T15_entry_with_no_flight_is_UNREAD_not_typed(self):
         """An entry with no flight record renders UNREAD, and the remedy names the lane."""
-        d =_fixture_dir()
+        d = _fixture_dir()
         p = d / "room.md"
         e = roomlog.append_entry(frm="Rab", to="Fable", body="hello", path=p)
         log = roomlog.read_log(p)
@@ -379,7 +379,7 @@ class L1L2UnreadAndStale(unittest.TestCase):
 
     def test_T14_failed_stage_stops_the_trail(self):
         """A stage recorded ok:false renders FAILED, and a later ok stage does not count as reached."""
-        d =_fixture_dir()
+        d = _fixture_dir()
         p = d / "room.md"
         e = roomlog.append_entry(frm="Rab", to="Fable", body="hi", path=p)
         fp = roomlog.flight_path(e.id)
@@ -412,7 +412,7 @@ class L1L2UnreadAndStale(unittest.TestCase):
 
     def test_T15b_stalled_trail_is_not_quiet(self):
         """A trail whose last stage is 600 s old (stall limit 90 s) renders STALLED with a 'stalled at' reason."""
-        d =_fixture_dir()
+        d = _fixture_dir()
         p = d / "room.md"
         e = roomlog.append_entry(frm="Rab", to="Fable", body="hi", path=p)
         fp = roomlog.flight_path(e.id)
@@ -512,7 +512,7 @@ class L4FailClosedSource(unittest.TestCase):
 
     def test_T2_token_gate_precedes_route_dispatch(self):
         """In room.py do_POST, the token_gate( call comes before the first route comparison (skip if no do_POST)."""
-        src =SRC.get("room.py", "")
+        src = SRC.get("room.py", "")
         m = re.search(r"def do_POST\b", src)
         if not m:
             self.skipTest("room.py has no do_POST")

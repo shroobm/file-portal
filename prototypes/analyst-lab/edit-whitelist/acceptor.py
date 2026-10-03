@@ -163,7 +163,7 @@ def reconcile(inp: str, cand: str, rungs: set[str], policy: str = "whitelist") -
     ops = Levenshtein.opcodes(wa, wb)
     out = []
     log = []
-    prev_end_b = 0       # candidate offset after the last emitted candidate segment
+    prev_end_b = 0        # candidate offset after the last emitted candidate segment
     prev_end_a = 0
     first = True
     for op in ops:

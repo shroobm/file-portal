@@ -113,7 +113,7 @@ class Catcher:
         """Set up one lane's agent: read thresholds from the status config, validate the interval (seconds), and
         initialise the cycle counters, journal and last-seen state.  Writes nothing to disk.  `out` is the stream
         for printed signals (default stdout); `quiet` suppresses printing."""
-        self.lane =status._lane(lane)
+        self.lane = status._lane(lane)
         self.peer = other_lane(self.lane)
         cfg, self.cfg_source = status.config()
         self.cfg = cfg
@@ -371,7 +371,7 @@ class Catcher:
     def gate_failure(self, argv, exc):
         """Build, store (self.gate_rec) and return an UNREAD gate record for a gate.py call that could not be run
         (`argv` is the command tried, `exc` the exception)."""
-        _d,sidecar_st, sidecar_reason = status.read_sidecar(self.lane)
+        _d, sidecar_st, sidecar_reason = status.read_sidecar(self.lane)
         rec = {
             "status": "UNREAD",
             "reason": (f"gate.py could not be RUN ({type(exc).__name__}: "
@@ -395,7 +395,7 @@ class Catcher:
     def gate_init(self):
         """Run `gate.py init --as <lane>` as a subprocess; returns the gate record (also stored in self.gate_rec).
         Side effect: gate.py creates this lane's sidecar in the quarantined coord dir."""
-        argv =[sys.executable, str(roomlog.GATE_PY), "init", "--as", self.lane]
+        argv = [sys.executable, str(roomlog.GATE_PY), "init", "--as", self.lane]
         try:
             proc = subprocess.run(
                 [sys.executable, str(roomlog.GATE_PY), "init", "--as", self.lane],
@@ -464,7 +464,7 @@ class Catcher:
 
     def reached(self, lane_t, stage):
         """True when the named `stage` is marked reached in the lane sub-trail `lane_t`."""
-        s =self.stage_map(lane_t).get(stage)
+        s = self.stage_map(lane_t).get(stage)
         return bool(s and s.get("reached"))
 
     # ------------------------------------------------------------------ the cycle
@@ -566,7 +566,7 @@ class Catcher:
         """Catch one inbound `entry`: verify its digest, write stage `caught`; if it is sound, call gate.py `ticket`
         (unless the sidecar is blocked-on-rab), write the handoff envelope and stage `handed`, and update the
         journal.  Side effects: log stages and notes, envelope file, journal file, one gate.py subprocess."""
-        subj =roomlog.subject(entry.body, 80)
+        subj = roomlog.subject(entry.body, 80)
         self.set_agent("catching", f"reading {entry.id} from {entry.frm} and verifying its digest")
         self.publish()
 

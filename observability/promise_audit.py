@@ -29,7 +29,7 @@ import statistics
 import sys
 
 # -- constant: where the events file lives unless --events says otherwise --
-DEFAULT_EVENTS =os.path.join(os.path.expanduser("~"), "ml", "library", "events.jsonl")
+DEFAULT_EVENTS = os.path.join(os.path.expanduser("~"), "ml", "library", "events.jsonl")
 
 
 # -- reading and computing --
@@ -87,7 +87,7 @@ def audit(rows: list[dict], last: int | None = None) -> dict:
         lines.append(rec)
     # summary figures: ratios inside 2x either way, and the two ratios farthest from 1.0 on a log scale
     within = [r for r, _ in ratios if 0.5 <= r <= 2.0]
-    worst =sorted(ratios, key=lambda t: abs(__import__("math").log(t[0])) if t[0] > 0 else 0, reverse=True)[:2]
+    worst = sorted(ratios, key=lambda t: abs(__import__("math").log(t[0])) if t[0] > 0 else 0, reverse=True)[:2]
     unmeasured = sum(1 for r in lines if r["class"] == "unmeasured")
     return {
         "conversions": len(lines),

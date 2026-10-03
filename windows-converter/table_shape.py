@@ -35,7 +35,7 @@ from __future__ import annotations
 import re
 
 # -- tuning constants: agreement floor, row tolerance, strategies, unit-sign pattern, display caps --
-CELL_AGREE = 0.5          # the floor on Marker's non-empty cells found in the witness's text; below it the witness is none
+CELL_AGREE = 0.5           # the floor on Marker's non-empty cells found in the witness's text; below it the witness is none
 ROW_TOL = 0.25             # a lines witness whose row count is off Marker's by more than this share (or 2 rows) is no witness
                            # for columns: RBC's sparse rulings read 4 × 17 against Marker's 20 × 13 with the cells agreeing
 STRATEGIES = ("lines", "text")
@@ -67,7 +67,7 @@ def _marker_cells(html: str) -> tuple[int, int, list[str]]:
 
 
 # -- reading the source PDF's table geometry (pymupdf find_tables) --
-GEOMETRY_WIDTHS = 7        # S211 E8: how many distinct column widths the geometry note prints before saying "and N
+GEOMETRY_WIDTHS = 7          # S211 E8: how many distinct column widths the geometry note prints before saying "and N
 # more distinct" — a display cap on a READING, not a measurement bound. Nothing in this module computes a number from
 # the widths: SYM-181's actual fix needs a threshold and that number is Rab's, so this deliberately has none.
 

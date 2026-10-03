@@ -565,7 +565,7 @@ class TestExitCodeIsNotHealth(Fixture):
 
     def test_T27_rc_zero_while_printing_UNREAD_is_UNREAD(self):
         """A gate call that exits 0 but prints UNREAD is recorded as UNREAD."""
-        self.gate_init_both()                     # a perfectly healthy sidecar on disk
+        self.gate_init_both()                      # a perfectly healthy sidecar on disk
         c = catcher.Catcher("Fable", interval=2.0, quiet=True)
         proc = subprocess.CompletedProcess(
             args=[PY, str(roomlog.GATE_PY), "inbox", "--as", "Fable"],
@@ -599,11 +599,12 @@ class TestExitCodeIsNotHealth(Fixture):
 # =========================================================== crash safety
 
 class TestCrashSafety(Fixture):
-    """Tests of the catcher's behaviour when its inputs are missing, torn or unusual."""
+    """Crash safety: an absent room.md, a torn journal, and the rule that the published document never carries a
+    verdict (UNREAD/STALE) as its own state."""
 
     def test_an_unreadable_log_is_never_no_new_messages(self):
         """With no room.md, one cycle reports agent state error and a null (not zero) entry count."""
-        c =catcher.Catcher("Fable", interval=2.0, quiet=True)
+        c = catcher.Catcher("Fable", interval=2.0, quiet=True)
         doc = c.one_cycle(now=self.now)                       # room.md does not exist
         self.assertEqual(doc["agent"]["state"], "error")
         self.assertEqual(doc["agent"]["log_read"]["status"], "MISSING")

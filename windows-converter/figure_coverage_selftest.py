@@ -353,7 +353,7 @@ def main() -> int:
               f"{unmet['triage_convention']} / {unmet['triage_captioned_pages']} / {unmet['uncovered_other']}")
         # run figure_coverage.py itself as a command-line program on the same fixtures and check its printed output
         import subprocess
-        here =Path(__file__).resolve().parent / "figure_coverage.py"
+        here = Path(__file__).resolve().parent / "figure_coverage.py"
         cli = subprocess.run([sys.executable, str(here), "--pdf", str(conv), "--bundle", str(empty_c)],
                              capture_output=True, text=True, encoding="utf-8", errors="replace")
         check("SYM-095 SURFACE: the human branch prints TRIAGE INERT on the unmet book (and still prints both lists)",

@@ -2364,7 +2364,7 @@ def _free_port():
 class TestTailnetLock(unittest.TestCase):
     """The peer lock and the listener lock: only loopback and tailnet peers are served, wide binds are refused."""
 
-    TRUSTED =("127.0.0.1", "::1", "100.97.237.60", "100.108.102.101", "fd7a:115c:a1e0::1", "::ffff:100.97.237.60")
+    TRUSTED = ("127.0.0.1", "::1", "100.97.237.60", "100.108.102.101", "fd7a:115c:a1e0::1", "::ffff:100.97.237.60")
     STRANGERS = ("192.168.2.207", "8.8.8.8", "::ffff:192.168.2.207", "2001:db8::7f00:1")
 
     def setUp(self):

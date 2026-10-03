@@ -372,7 +372,7 @@ class Bench:
 
     def zones(self) -> list[dict]:
         """The audit's worst degeneration zones from the manifest (a copy; empty if none)."""
-        det =(self.manifest.get("fidelity", {}).get("convert", {})
+        det = (self.manifest.get("fidelity", {}).get("convert", {})
                .get("tripwires", {}).get("degeneration_detail", {}))
         return list(det.get("worst") or [])
 

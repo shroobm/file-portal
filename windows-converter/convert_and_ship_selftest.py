@@ -2139,7 +2139,7 @@ def _t23_tree():
 
 def _t23_alive(pid: int) -> bool:
     """Return True if tasklist still lists process `pid` (runs the Windows tasklist command)."""
-    r =_t23_sp.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"], capture_output=True, text=True)
+    r = _t23_sp.run(["tasklist", "/FI", "PID eq %d" % pid, "/NH"], capture_output=True, text=True)
     return str(pid) in r.stdout
 
 
@@ -2196,7 +2196,7 @@ _t25_root = QUARANTINE / "t25"
 
 def _t25_bundle(name: str, verdict: str = "fail") -> Path:
     """Create an incoming bundle dir under the T25 root (manifest with the verdict, one .md) and return its path."""
-    d =_t25_root / name
+    d = _t25_root / name
     shutil.rmtree(d, ignore_errors=True)
     d.mkdir(parents=True)
     (d / "manifest.json").write_text(json.dumps({"source": name + ".pdf", "fidelity": {"verdict": verdict}}), encoding="utf-8")
@@ -2206,7 +2206,7 @@ def _t25_bundle(name: str, verdict: str = "fail") -> Path:
 
 def _t25_occupant(sha16: str, repairs: bool, bench_bak: bool) -> Path:
     """Create a held/<sha16> occupant with a KEEP.txt file, optionally a repairs list and a .bench-bak; return it."""
-    o =cas.HELD / sha16
+    o = cas.HELD / sha16
     shutil.rmtree(o, ignore_errors=True)
     o.mkdir(parents=True)
     m = {"source": "old.pdf", "fidelity": {"verdict": "fail"}}

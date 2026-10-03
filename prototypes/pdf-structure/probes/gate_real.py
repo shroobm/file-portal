@@ -34,7 +34,7 @@ SEMANTIC_ROLES = {"P", "H", "H1", "H2", "H3", "H4", "H5", "H6", "Title", "L", "L
                   "Aside", "Link"}
 
 # -- gate thresholds (each carries its own waiver note on the line) --
-T1_MIN_ELEM_PER_PAGE = 5.0    # density  # lever-waiver: quarantine probe, not production; fitted on ONE positive (bojieli) per docs/52 VERIFIED.md - Rab moves it when a second tagged work enters the corpus and the gate is re-fitted on n>=2
+T1_MIN_ELEM_PER_PAGE = 5.0     # density  # lever-waiver: quarantine probe, not production; fitted on ONE positive (bojieli) per docs/52 VERIFIED.md - Rab moves it when a second tagged work enters the corpus and the gate is re-fitted on n>=2
 T2_MIN_SEMANTIC_TYPES = 6      # richness  # lever-waiver: quarantine probe, not production; fitted on n=1; a hollow-tree specimen with >=6 roles that should still refuse would move it
 T3_MAX_NONSTRUCT_SHARE = 0.5   # rot: roles  # lever-waiver: quarantine probe, not production; bojieli measures 51.1% NonStruct and still converts - Rab decides the cutoff once a second rotten tree is measured
 T4_MIN_MCID_RESOLVE = 0.90     # rot: content-stream reachability  # lever-waiver: quarantine probe, not production; the ParentTree route (32.6% of elements) was never exercised, so this floor is provisional until it is

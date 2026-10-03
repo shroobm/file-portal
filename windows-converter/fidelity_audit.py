@@ -1637,7 +1637,7 @@ def build_fidelity_block(convert_block: dict, analyst_block: dict | None = None)
 def main():
     """Command-line entry: parse --pdf/--md/--lane/--asset-count/--analyst-ref, run the requested audit stage(s), print
     the fidelity block as JSON on stdout. Reads the named files; exits through argparse on bad arguments."""
-    ap =argparse.ArgumentParser(description="Survival Audit (docs/15), report-only.")
+    ap = argparse.ArgumentParser(description="Survival Audit (docs/15), report-only.")
     ap.add_argument("--pdf", type=Path)
     ap.add_argument("--md", type=Path, required=True)
     ap.add_argument("--lane", choices=["clean", "scan"], default="clean")

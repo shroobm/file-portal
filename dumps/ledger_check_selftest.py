@@ -17,7 +17,7 @@ import tempfile
 from pathlib import Path
 
 # -- shared state: this folder, the interpreter, the list of failed cases and the case counter --
-HERE =Path(__file__).resolve().parent
+HERE = Path(__file__).resolve().parent
 PY = sys.executable
 FAILS = []
 N = 0

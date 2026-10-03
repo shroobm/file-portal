@@ -17,13 +17,13 @@ import sys
 from pathlib import Path
 
 # -- the pattern one LEDGER.md table row must match (id, utc, lane, category, subject, bytes, sha256) --
-ROW =re.compile(r"^\| (D\d{4}) \| (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \| ([^|]+) \| ([^|]+) \| (.*) \| (\d+) \| `([0-9a-f]{64})` \|\s*$")
+ROW = re.compile(r"^\| (D\d{4}) \| (\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ) \| ([^|]+) \| ([^|]+) \| (.*) \| (\d+) \| `([0-9a-f]{64})` \|\s*$")
 
 
 # -- file hashing helper --
 def digest(path):
     """Read the file at `path` in 1 MiB chunks; return (byte count, sha256 hex digest). Read-only."""
-    h =hashlib.sha256()
+    h = hashlib.sha256()
     n = 0
     with io.open(path, "rb") as fh:
         for chunk in iter(lambda: fh.read(1 << 20), b""):
@@ -75,7 +75,7 @@ def main(argv):
             continue
         parts = []
         # recompute the twin row's own hash: canonical JSON (sorted keys, no spaces) of the row minus row_sha256
-        want =t.get("row_sha256")
+        want = t.get("row_sha256")
         canon = json.dumps({k: v for k, v in t.items() if k != "row_sha256"}, sort_keys=True, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
         got = hashlib.sha256(canon).hexdigest()
         if got == want:

@@ -1089,7 +1089,7 @@ def _read_body_arg(spec: str) -> str:
 def cmd_say(a) -> int:
     """`room.py say`: read the body (file or stdin), append one entry through op_say, print its id and lanes.
     Returns 0 (a refusal raises Refused, handled in main)."""
-    body =_read_body_arg(a.body)
+    body = _read_body_arg(a.body)
     out = op_say(frm=a.frm, to=a.to, body=body, re_=a.re, kind=a.kind)
     print(f"{out['id']} · {out['utc']} · from: {a.frm} → to: {a.to} · {out['digest'][:19]}…")
     if out["lanes"]:
@@ -1105,7 +1105,7 @@ def cmd_say(a) -> int:
 
 def cmd_state(a) -> int:
     """`room.py state`: declare a model-layer state for a lane through op_model_state and print the result."""
-    out =op_model_state(lane=a.lane, state=a.state, ticket=a.ticket, note=a.note)
+    out = op_model_state(lane=a.lane, state=a.state, ticket=a.ticket, note=a.note)
     print(f"{a.lane}: model state={out['state']} ticket={out['ticket']} @ {out['utc']}")
     if out.get("note"):
         print(f"  note: {out['note']}")
@@ -1114,7 +1114,7 @@ def cmd_state(a) -> int:
 
 def cmd_claim(a) -> int:
     """`room.py claim`: a model claims a message through op_claim (writes stage `delivered`) and prints the new stage."""
-    trail =op_claim(lane=a.lane, mid=a.id, note=a.note)
+    trail = op_claim(lane=a.lane, mid=a.id, note=a.note)
     stage = trail.get("trails", {}).get(a.lane, {})
     print(f"{a.lane}: claimed {a.id} — trail now {stage.get('rendered')} at "
           f"{stage.get('stage')} ({stage.get('stage_index')}/8)")
@@ -1139,7 +1139,7 @@ def _fmt_lane(lane: str, d: dict) -> str:
 
 def cmd_status(a) -> int:
     """`room.py status`: print the board (each lane and the log line) to stdout, plus raw JSON with --json.  Returns 0."""
-    board =board_document(None)
+    board = board_document(None)
     print(f"relay-room board · {board.get('utc')}")
     if board.get("board_status") != "ok":
         print(f"  BOARD {board.get('board_status')}: {board.get('reason')}")
@@ -1257,7 +1257,7 @@ def cmd_selftest(a) -> int:
 
         def call(method, path, payload=None, headers=None):
             """One HTTP request to the test server; returns (status, parsed JSON or raw text, response headers)."""
-            conn =http.client.HTTPConnection("127.0.0.1", port, timeout=15)
+            conn = http.client.HTTPConnection("127.0.0.1", port, timeout=15)
             body = json.dumps(payload).encode("utf-8") if payload is not None else None
             h = dict(headers or {})
             if body is not None:

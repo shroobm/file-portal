@@ -55,7 +55,7 @@ import difflib
 import re
 
 # -- tuning constants: band clustering, echo detection, box handling and report limits (each explained beside it) --
-BAND_Y_FRACTION = 0.6         # a word joins the open band when its y-centre sits within this fraction of the
+BAND_Y_FRACTION = 0.6          # a word joins the open band when its y-centre sits within this fraction of the
                                 # table's median word height of the band's own running mean centre
 ECHO_SIMILARITY = 0.85         # difflib.SequenceMatcher ratio at/above which a rendered row is a near-duplicate
 # S211 E5 (the verifier's item 3, read on Desjardins p.249): the OCR echo of a row is NOT a near-duplicate string — its

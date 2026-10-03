@@ -24,6 +24,45 @@ import io
 import os
 import subprocess
 import sys
+import tokenize
+
+
+def _docstring_lines(tree: ast.AST) -> set[int]:
+    """Line numbers covered by module/class/function docstrings (the only text a lane may rewrite)."""
+    out: set[int] = set()
+    for node in ast.walk(tree):
+        if isinstance(node, (ast.Module, ast.ClassDef, ast.FunctionDef, ast.AsyncFunctionDef)):
+            body = getattr(node, "body", None)
+            if body and isinstance(body[0], ast.Expr) and isinstance(getattr(body[0], "value", None), ast.Constant) \
+                    and isinstance(body[0].value.value, str):
+                out.update(range(body[0].lineno, body[0].end_lineno + 1))
+    return out
+
+
+def _code_lines(src: str) -> list[str]:
+    """The file's CODE lines, verbatim and in order: every physical line that is not blank, not comment-only and not inside a
+    docstring, with its trailing comment cut off and the right side stripped. Two files with equal code lines differ only in
+    comments, docstrings and blank lines — whitespace INSIDE a code line counts (wave 1 glued `name =value` on 43 lines and the
+    tree could not see it), and a comment dropped into a data string is a changed code line too."""
+    lines = src.splitlines()
+    doc = _docstring_lines(ast.parse(src))
+    comment_at: dict[int, int] = {}
+    try:
+        for t in tokenize.generate_tokens(io.StringIO(src).readline):
+            if t.type == tokenize.COMMENT:
+                comment_at[t.start[0]] = t.start[1]
+    except (tokenize.TokenError, IndentationError, SyntaxError):
+        pass
+    out = []
+    for i, line in enumerate(lines, 1):
+        if i in doc:
+            continue
+        if i in comment_at:
+            line = line[:comment_at[i]]
+        if not line.strip():
+            continue
+        out.append(line.rstrip())
+    return out
 
 
 def _strip_docstrings(tree: ast.AST) -> ast.AST:
@@ -70,7 +109,13 @@ def gate(before: str, after: str, name: str = "<file>") -> tuple[int, str]:
     sa, sb = _skeleton(before), _skeleton(after)
     if sa != sb:
         return 1, "TREE CHANGED beyond comments/docstrings at: %s" % _first_diff(sa, sb)
-    return 0, "OK comment/docstring-only (%d -> %d lines)" % (before.count("\n") + 1, after.count("\n") + 1)
+    ca, cb = _code_lines(before), _code_lines(after)
+    if ca != cb:
+        k = next((i for i, (x, y) in enumerate(zip(ca, cb)) if x != y), min(len(ca), len(cb)))
+        x = ca[k] if k < len(ca) else "<end>"
+        y = cb[k] if k < len(cb) else "<end>"
+        return 1, "CODE LINE CHANGED (whitespace counts; #%d of %d/%d): %r -> %r" % (k + 1, len(ca), len(cb), x.strip()[:70], y.strip()[:70])
+    return 0, "OK comment/docstring-only (%d -> %d lines, %d code lines verbatim)" % (before.count("\n") + 1, after.count("\n") + 1, len(ca))
 
 
 def _read(p: str) -> str:
@@ -109,10 +154,16 @@ def selftest() -> int:
         ("MUTANT a broken docstring", base.replace("def f(x):\n", "def f(x):\n    \"\"\"Add one.\n"), 3),
         ("MUTANT an import added", base.replace("import os\n", "import os\nimport sys\n"), 1),
         ("MUTANT a return value changed", base.replace("return 1", "return 2"), 1),
+        ("MUTANT whitespace glued inside a code line (`y =x`)", base.replace("    y = x + 1\n", "    y =x + 1\n"), 1),
+        ("MUTANT a code line's spacing changed (`x+1`)", base.replace("x + 1", "x+1"), 1),
+        ("a trailing comment added to a code line", base.replace("    y = x + 1\n", "    y = x + 1  # add one\n"), 0),
+        ("a trailing comment re-aligned", base.replace("    return y\n", "    return y   # out\n"), 0),
+        ("MUTANT a comment dropped inside a data string",
+         "DATA = \"\"\"line one\nline two\n\"\"\"\n".replace("line two\n", "line two\n# a comment in data\n"), 1),
     ]
     bad = 0
     for name, after, want in cases:
-        before = "" if name.startswith("an EMPTY module") else base
+        before = "" if name.startswith("an EMPTY module") else ("DATA = \"\"\"line one\nline two\n\"\"\"\n" if "data string" in name else base)
         code, msg = gate(before, after, "selftest")
         ok = code == want
         bad += not ok

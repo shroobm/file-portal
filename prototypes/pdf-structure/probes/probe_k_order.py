@@ -55,7 +55,7 @@ for P in (r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf",
     # per page: equal character streams mean the same reading order; show up to two differing pages
     for i in range(N):
         p = doc[i]
-        ds =NORM(" ".join(declared_frags(p))).replace(" ", "")
+        ds = NORM(" ".join(declared_frags(p))).replace(" ", "")
         gs = NORM(" ".join(geom_frags(p))).replace(" ", "")
         if not ds and not gs:
             continue

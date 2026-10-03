@@ -207,7 +207,7 @@ def _fixture_entry(mid: str, body: str, *, frm="Rab", to="Fable", re_=None, kind
 
     Raises RuntimeError if the header it built fails this file's own grammar. No file is written.
     """
-    hdr =(f"## {mid}{SEP}{utc or _utc()}{SEP}from: {frm}{ARROW}to: {to}"
+    hdr = (f"## {mid}{SEP}{utc or _utc()}{SEP}from: {frm}{ARROW}to: {to}"
            f"{SEP}re: {re_ or EMDASH}{SEP}kind: {kind}{SEP}body-sha256:{_bare_digest(body)}")
     if not SELFTEST_HEADER_RE.match(hdr):            # the fixture builder checks itself
         raise RuntimeError(f"selftest fixture built a header its own grammar rejects: {hdr!r}")
@@ -412,7 +412,7 @@ def probe_concurrent(append, path: Path, *, per_lane: int = 25) -> None:
 
     def worker(tag):
         """Thread body: wait at the barrier, then append per_lane messages, recording any exception."""
-        barrier.wait()                               # make them collide on purpose
+        barrier.wait()                                # make them collide on purpose
         for i in range(per_lane):
             try:
                 append(path, f"lane {tag} message {i}")
@@ -603,7 +603,7 @@ def http(method: str, url: str, *, headers=None, body=None, timeout=15):
 
 def free_port() -> int:
     """Ask the OS for a free TCP port on 127.0.0.1 (binds briefly, then closes) and return its number."""
-    s =socket.socket()
+    s = socket.socket()
     try:
         s.bind(("127.0.0.1", 0))
         return s.getsockname()[1]
@@ -690,7 +690,7 @@ class _UngatedHandler(BaseHTTPRequestHandler):
 
     def do_POST(self):
         """Discard the request body, append a line to the server's room_md file (no token check), reply 200."""
-        n =int(self.headers.get("Content-Length", "0") or 0)
+        n = int(self.headers.get("Content-Length", "0") or 0)
         self.rfile.read(n)
         # THE DEFECT, in three lines: it writes without ever looking for a token.
         with io.open(self.server.room_md, "a", encoding="utf-8", newline="") as fh:
@@ -800,7 +800,7 @@ class Ctx:
 
     def need(self, name: str):
         """Return the loaded module called name, or raise Unread (with a remedy) if it is unavailable."""
-        mod =self.mods.get(name)
+        mod = self.mods.get(name)
         if mod is None:
             raise Unread(
                 self.mod_reason.get(name) or f"{name} is not available",
@@ -876,7 +876,7 @@ class Ctx:
 
         Sets self.init_rc (127 if room.py is missing) and self.init_out. Spawns a subprocess (90 s limit).
         """
-        room_py =self.staged / "room.py"
+        room_py = self.staged / "room.py"
         if not room_py.exists():
             self.init_rc, self.init_out = 127, "room.py missing"
             return
@@ -948,7 +948,7 @@ def _l0_2(ctx):
     """Proves 'the guard fired' is distinguishable from 'everything always fires'."""
     def always_true_probe():
         """A probe that can never fail (used to prove expect_fail rejects it as a tautology)."""
-        assert True                                   # a probe that measures nothing
+        assert True                                    # a probe that measures nothing
     try:
         expect_fail(always_true_probe)
     except Tautology:
@@ -1021,7 +1021,7 @@ MALFORMED_FIXTURES = [
 def _write_malformed(ctx, label):
     """Write the malformed status-fable.json named by label into the staged state dir; return its path."""
     # One branch per fixture label; an unknown label is a harness bug and raises RuntimeError.
-    p =ctx.state / "status-fable.json"
+    p = ctx.state / "status-fable.json"
     p.parent.mkdir(parents=True, exist_ok=True)
     if label == "not JSON at all":
         p.write_text("{ this is not json", encoding="utf-8")

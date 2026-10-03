@@ -212,7 +212,7 @@ def _word_resolver(generate):
     def resolve(letters: str, context: list) -> str | None:
         """Ask the model (via `generate`) for the word the spaced letters spell; returns it, or None if unusable."""
         # build the prompt from the template: letters spaced out, context rows trimmed to 80 chars
-        prompt =(template.replace("{LETTERS}", " ".join(letters))
+        prompt = (template.replace("{LETTERS}", " ".join(letters))
                   .replace("{CONTEXT}", " / ".join(c[:80] for c in context if c) or "(no text)") + "\n\n")
         # pin the per-call bound for this one short call, and restore the old values in the finally below
         saved = _call_bound.get("num_predict")

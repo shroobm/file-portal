@@ -70,7 +70,7 @@ def check(cond: bool, label: str) -> None:
 
 
 # -- synthetic test bodies: a looping paragraph, a sparse empty-cell table, and ordinary prose --
-LOOP = ("the stage of " * 300).strip()                      # Beer-class: zlib low, trigram 298
+LOOP = ("the stage of " * 300).strip()                       # Beer-class: zlib low, trigram 298
 SPARSE = "| Item | Value | Note |\n|---|---|---|\n" + "\n".join("| | | |" for _ in range(60))
 PROSE = ("Discount the expected cash flows at the cost of capital and compare the present value "
          "with the market price; the difference is the margin of safety the analyst reports.")

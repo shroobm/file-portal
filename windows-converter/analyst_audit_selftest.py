@@ -325,7 +325,7 @@ def _():
       "same words, and the clean body reads 1.0 either way")
 def _():
     """Case (l): a reference with Windows line endings masks the same block as its Unix-line-ending twin."""
-    crlf_ref =REF_WITH_LOOP.replace("\n", "\r\n")
+    crlf_ref = REF_WITH_LOOP.replace("\n", "\r\n")
     _lf_text, lf_report = fa.mask_degenerate_reference(REF_WITH_LOOP)
     crlf_text, crlf_report = fa.mask_degenerate_reference(crlf_ref)
     assert crlf_report == lf_report and len(crlf_report["blocks"]) == 1, (crlf_report, lf_report)
@@ -449,7 +449,7 @@ def _():
     """Case (v): two table header rows merged into one read as a report-only REORDER run.
     Deleting them is an omission."""
     pre, post = words(24, "pre"), words(24, "post")
-    raw =("| | Less than | 1 to 3 | | 3 to 6 | 6 months | Up to 1 | Over 1 to | Over |\n"
+    raw = ("| | Less than | 1 to 3 | | 3 to 6 | 6 months | Up to 1 | Over 1 to | Over |\n"
            "| | 1 month | months | | months | to 1 year | year | 2 years | 2 years |")
     merged = "| | Less than 1 month | 1 to 3 months | | 3 to 6 months | 6 months to 1 year | Up to 1 year | Over 1 to 2 years | Over 2 years | Total | Total |"
     ref = pre + "\n" + raw + "\n" + post

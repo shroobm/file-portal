@@ -42,7 +42,7 @@ def check(cond: bool, label: str) -> None:
 # -- fixture builder: one JSON line shaped like a pipeline event --
 def ev(ts, source, pages, actual, promised=None, basis=None, samples=None, stage="convert", event="converted"):
     """Return a JSON string for one event; promise fields are added only when `promised` is given."""
-    d ={"ts": ts, "pid": 1, "stage": stage, "event": event, "source": source, "pages": pages, "s_per_page": actual, "wall_s": round(actual * pages, 1)}
+    d = {"ts": ts, "pid": 1, "stage": stage, "event": event, "source": source, "pages": pages, "s_per_page": actual, "wall_s": round(actual * pages, 1)}
     if promised is not None:
         d.update({"promised_s_per_page": promised, "promised_eta_s": int(promised * pages), "estimate_basis": basis, "estimate_samples": samples})
     return json.dumps(d)
@@ -51,7 +51,7 @@ def ev(ts, source, pages, actual, promised=None, basis=None, samples=None, stage
 # -- the cases (a)-(j), all inside one temp directory that is removed on exit --
 with tempfile.TemporaryDirectory() as td:
     # main fixture: three promised conversions, one unpromised, one non-conversion event and one malformed line
-    p =os.path.join(td, "events.jsonl")
+    p = os.path.join(td, "events.jsonl")
     with io.open(p, "w", encoding="utf-8") as f:
         f.write(ev("2026-09-17T05:00:00+00:00", "first.pdf", 100, 2.0, 1.0, "similar", 3) + "\n")          # ratio 0.50
         f.write(ev("2026-09-17T05:10:00+00:00", "sliceish.pdf", 10, 1.0, stage="convert", event="slice") + "\n")  # not a conversion

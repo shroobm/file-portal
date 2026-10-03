@@ -925,7 +925,7 @@ def main() -> int:
 
     Returns 0 on success, 2 when the PDF or bundle path is missing. Prints to stdout/stderr only.
     """
-    ap =argparse.ArgumentParser(description="P-1 figure coverage (report-only, CPU-only)")
+    ap = argparse.ArgumentParser(description="P-1 figure coverage (report-only, CPU-only)")
     ap.add_argument("--pdf", required=True, type=Path)
     ap.add_argument("--bundle", required=True, type=Path)
     ap.add_argument("--json", action="store_true")

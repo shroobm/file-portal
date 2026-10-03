@@ -153,7 +153,7 @@ def main() -> int:
     server = ThreadingHTTPServer(("127.0.0.1", 0), B.make_handler(bench))
     port = server.server_address[1]
     threading.Thread(target=server.serve_forever, daemon=True).start()
-    get =lambda p: urllib.request.urlopen(f"http://127.0.0.1:{port}{p}", timeout=15)  # noqa: E731
+    get = lambda p: urllib.request.urlopen(f"http://127.0.0.1:{port}{p}", timeout=15)  # noqa: E731
     check("GET / serves the bench UI", b"Repair Bench" in get("/").read())
     wire_state = json.loads(get("/api/state").read())
     check(f"GET /api/state over the wire agrees (got sandbox={wire_state.get('sandbox')!r}, "

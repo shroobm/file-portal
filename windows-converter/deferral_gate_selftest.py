@@ -39,7 +39,7 @@ def main() -> int:
     """Run phases A-E against a real watcher child process in a temp pipeline root.
     Returns 0 when every check passed, 1 otherwise. Side effects: temp files, a spawned process (killed in finally)."""
     # -- setup: temp root, the stub converter script, the initial hold file --
-    root =Path(tempfile.mkdtemp(prefix="fp-gate-"))
+    root = Path(tempfile.mkdtemp(prefix="fp-gate-"))
     drop = root / "drop"
     drop.mkdir(parents=True)
     (root / "analyst-mode.txt").write_text("off\n", encoding="utf-8")

@@ -472,7 +472,7 @@ def _leader_run(raw_pages, md, scores_override=None):
     out = fa.prepare_output(md)
     idx, freq = fa._build_index(out)
     # score every page the way the main loop does, then fold into a weighted baseline
-    scored =[fa._score_page(p, out, idx, freq, False, fuzzy=True) for p in pages]
+    scored = [fa._score_page(p, out, idx, freq, False, fuzzy=True) for p in pages]
     got = [(s, nw) for s, _r, nw in scored]
     wsum = sum(s * nw for s, nw in got if s is not None)
     wn = sum(nw for s, nw in got if s is not None)
