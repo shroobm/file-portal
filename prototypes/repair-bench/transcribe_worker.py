@@ -85,45 +85,105 @@ def _table_rows(md: str) -> list[str]:
     return [ln for ln in md.splitlines() if ln.strip().startswith("|") and not re.match(r"^\s*\|[\s\-|:]+\|\s*$", ln)]
 
 
-def label_span(witness: str, output: str) -> tuple[float | None, list[dict]]:
-    """THE LABEL-SPAN gate: for every data row (a label cell and at least two numbers), find the row's label words in
-    the witness's token stream (words and numbers in reading order; the first in-order match of the label's words within
-    a 12-token window); the row's numbers must then appear IN ORDER among the witness tokens between that label and the
-    next row label of the same table found in the witness — the row's own span. A row whose numbers belong to another
-    label fails here even when the same numbers exist elsewhere on the page; a label the witness never shows fails.
-    Returns (fraction of data rows passing, the failing rows as {row, span}); (None, []) when there is no data row.
-    Measured S218 E10 on the Spring Economic Update p.122: the proposal that gave the title row's numbers to "Bank of
-    Canada" reads 0.75 and names that row; the page's correct second table reads 1.0; the set gate read 1.0 on both."""
+def _is_num(tok: str) -> bool:
+    """A token the number regex matches (digits with optional commas/dots)."""
+    return bool(re.fullmatch(r"\d[\d,.]*", tok))
+
+
+def _witness_rows(stream: list[str]) -> list[tuple[int, list[str], list[str]]]:
+    """The witness's own rows, read from its token stream: a run of word tokens holding at least one word of three
+    letters or more, followed by at least two numbers = one row (start index, label words case-folded, numbers).
+    The year axis (numbers with no words before them) and a one-letter stray are not rows."""
+    rows = []
+    i = 0
+    n = len(stream)
+    while i < n:
+        if _is_num(stream[i]):
+            i += 1
+            continue
+        j = i
+        while j < n and not _is_num(stream[j]):
+            j += 1
+        words = [t.casefold() for t in stream[i:j] if len(t) >= 3]
+        k = j
+        while k < n and _is_num(stream[k]):
+            k += 1
+        nums = [t.replace(",", "") for t in stream[j:k]]
+        if words and len(nums) >= 2:
+            rows.append((i, words, nums))
+        i = k if k > j else j + 1
+    return rows
+
+
+def label_span(witness: str, output: str) -> tuple[float | None, list[dict], list[str]]:
+    """THE LABEL-SPAN gate (S218 E10, sharpened by E10-fix). The witness's token stream (words and numbers in reading
+    order) is read into witness ROWS (a label of words followed by two or more numbers). For every data row of the
+    proposal (a label cell and at least two numbers): find its label words in the witness (the first in-order match of
+    the label inside one run of word tokens - a label ends at its row's first number; 12 tokens at most); the row's
+    numbers (commas removed) must then appear IN ORDER among the witness
+    tokens between that label and the start of the NEXT WITNESS ROW - the row's own span, so no row (the last included)
+    can borrow numbers from a note or a table that follows; a label the witness never shows fails. Then the other way:
+    every witness row that no proposal row claims is a MISSING row (a row the proposal lost, or whose label took other
+    numbers). Returns (fraction = passing proposal rows / (proposal data rows + missing witness rows), the failing
+    proposal rows as {row, span}, the missing witness rows' labels); (None, [], []) when neither side has a data row.
+    Not judged, by design: the first row of a table (the axis), rows whose label has no word of three letters, the
+    ORDER of rows that are each right, and a label repeated in the witness (it matches its first occurrence).
+    Measured on the Spring Economic Update p.122 (S217's pilot): the proposal that gave the title row's numbers to
+    "Bank of Canada" fails that row AND names "spring economic update" missing - 3 of 5 = 0.6; with the Bank of
+    Canada row dropped from the proposal it is named missing; the page's correct second table reads 1.0; the shipped
+    set gate read 1.0 on all of them."""
     stream = _TOK.findall(witness)
     low = [t.casefold() for t in stream]
+    wrows = _witness_rows(stream)
     rows = _table_rows(output)
     data = []
     for ln in rows[1:]:   # the first row is the header: the axis, no label to find
         cells = [c.strip() for c in ln.strip().strip("|").split("|")]
         label = [w.casefold() for w in re.findall(r"[A-Za-z][A-Za-z'-]{2,}", cells[0])] if cells else []
-        ns = _NUM.findall(" ".join(cells[1:]))
+        ns = [t.replace(",", "") for t in _NUM.findall(" ".join(cells[1:]))]
         if label and len(ns) >= 2:
             data.append((ln, label, ns))
     if not data:
-        return None, []
+        # a proposal with no data row is not judged here (a page with no table at all: the invented-words gate reads it)
+        return None, [], []
     starts: dict = {}
     for ln, label, ns in data:
         for i in range(len(low)):
-            if low[i] == label[0] and _subseq(label, low[i:i + 12]):
+            if low[i] != label[0]:
+                continue
+            # the label must sit inside ONE run of word tokens (a row's label ends at its first number; 12 tokens at most):
+            # E10's 12-token window let "Federal Budgetary Balance" anchor on "Federal Revenues 2.6 … Federal Budgetary"
+            # across a row boundary, which the bounded span then judged red (found by E10-fix's own test 2)
+            run = []
+            for t in low[i:i + 12]:
+                if _is_num(t):
+                    break
+                run.append(t)
+            if _subseq(label, run):
                 starts[ln] = i
                 break
+    wstarts = sorted(s for s, _, _ in wrows)
     failing = []
+    claimed: set = set()
     for ln, label, ns in data:
         p = starts.get(ln)
         if p is None:
             failing.append({"row": ln.strip(), "span": None})
             continue
-        later = [s for s in starts.values() if s > p]
+        later = [s for s in wstarts if s > p]
         q = min(later) if later else len(stream)
-        span = stream[p:q]
+        span = [t.replace(",", "") for t in stream[p:q]]
+        # the witness row this label sits in (the nearest witness row start at or before p) is claimed by the proposal
+        mine = [s for s in wstarts if s <= p]
+        if mine:
+            claimed.add(max(mine))
         if not _subseq(ns, span):
             failing.append({"row": ln.strip(), "span": " ".join(span)})
-    return round(1 - len(failing) / len(data), 4), failing
+    missing = [" ".join(words) for s, words, _ in wrows if s not in claimed]
+    total = len(data) + len(missing)
+    if total == 0:
+        return None, [], []
+    return round((len(data) - len(failing)) / total, 4), failing, missing
 
 
 def invented_words(witness: str, output: str) -> list[str]:
@@ -192,14 +252,15 @@ def main() -> int:
         # gate metrics: scored only when a non-empty witness file was given
         gates: dict = {"parse_ok": parse_ok, "tables": tables,
                        "window_survival": None, "numeric_jaccard": None,
-                       "label_span": None, "label_span_failing": [], "invented_words": []}
+                       "label_span": None, "label_span_failing": None, "label_span_missing": None, "invented_words": None}
         if a.witness and os.path.isfile(a.witness):
             wit = open(a.witness, encoding="utf-8").read()
             if wit.strip():
                 gates["window_survival"] = window_survival(wit, md)
                 gates["numeric_jaccard"] = numeric_jaccard(wit, md)
-                # S218 E10 (SYM-195): the row-order and invented-line gates beside the set gate
-                gates["label_span"], gates["label_span_failing"] = label_span(wit, md)
+                # S218 E10 (SYM-195): the row gate (both ways) and the invented-line gate beside the set gate; without a
+                # witness they stay None (the bench shows "—"), never an empty list that reads as "0 invented"
+                gates["label_span"], gates["label_span_failing"], gates["label_span_missing"] = label_span(wit, md)
                 gates["invented_words"] = invented_words(wit, md)
 
         # assemble the result record; ok is false when the parse failed or the markdown is empty
