@@ -154,7 +154,9 @@ class IntakeTracker:
         """
         try:
             receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
-            if receipt.get("v") != 1 or not isinstance(receipt.get("items"), list):
+            # S219 E3-fix: a receipt that is not an object (null, a list, a number) is no receipt - 0 rows, never a raise
+            # (this ran before _restore_parked at boot and an AttributeError here killed the watcher)
+            if not isinstance(receipt, dict) or receipt.get("v") != 1 or not isinstance(receipt.get("items"), list):
                 return 0
         except (OSError, json.JSONDecodeError):
             return 0
@@ -515,8 +517,9 @@ def _apply_park(rows: list[dict]) -> list[dict]:
         row["phase"] = "deferred"
         row["parked"] = True
         row["reason"] = "parked: " + entry["reason"]
-        # S218 E11: what a restart needs to rebuild the entry from the receipt (the watcher's own durable store)
-        row["park_dest"] = entry["dest"].name
+        # S218 E11: what a restart needs to rebuild the entry from the receipt (the watcher's own durable store);
+        # S219 E3-fix: a park HELD without a destination writes park_dest null, so the next restart holds it again
+        row["park_dest"] = entry["dest"].name if entry["dest"] is not None else None
         row["park_outcome"] = entry["outcome"]
         row["parked_since"] = entry["since_wall"]
     return rows
@@ -526,9 +529,13 @@ def _restore_parked(receipt_path: Path) -> int:
     """S218 E11: rebuild the park register from the last receipt at boot - every row marked `parked` whose file is still
     in drop/ with the same size and mtime_ns is parked again (reason, dest, outcome, since); a changed or absent file
     restores nothing. Before this a restart forgot the park and the next poll converted the parked book again.
-    S219 E3 (E11's blind verifier): a row that is not a dict is skipped (it raised AttributeError and killed the boot);
-    a parked row without BOTH `park_dest` and `park_outcome` (E9-era receipts, 19:50-20:49Z on 2026-10-03, had no park
-    keys) is SKIPPED with a log line - never defaulted to done/done, which would have moved a failed-class park into done/."""
+    S219 E3 (E11's blind verifier): a row that is not a dict is skipped (it raised AttributeError and killed the boot).
+    S219 E3-fix (E3's blind verifier): a parked row without BOTH park keys (an old-shape receipt), with a null or an odd
+    `park_dest`, is restored as a park WITHOUT a destination - in the register (never dispatched), never moved by
+    _retry_parked, logged PARK HELD once, for a hand to decide. E3 had SKIPPED such a row, which left its file `ready`
+    in drop/ and the next poll would have converted a finished book again (SYM-190's own symptom); the code before E3
+    guessed done/done (a misfile). A parked row without a name cannot be parked: skipped and counted. The file's
+    presence and identity are checked before anything is logged, so an absent file is dropped silently as before."""
     try:
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         items = receipt.get("items") if receipt.get("v") == 1 else None
@@ -545,28 +552,37 @@ def _restore_parked(receipt_path: Path) -> int:
         try:
             if not row.get("parked"):
                 continue
-            name = str(row["name"])
-            if "park_dest" not in row or "park_outcome" not in row:
-                logger.warning("PARK RESTORE SKIPPED %s: an E9-era row without the park keys - the file stays where it is "
-                               "until a hand or the next park", name)
+            if "name" not in row:
                 skipped += 1
                 continue
+            name = str(row["name"])
             st = (DROP_DIR / name).stat()
             if st.st_size != int(row["bytes"]) or st.st_mtime_ns != int(row["mtime_ns"]):
                 continue
-            dest_name = str(row["park_dest"])
-            dest = FAILED_DIR if dest_name == FAILED_DIR.name else DONE_DIR
+            keyless = "park_dest" not in row or "park_outcome" not in row
+            dest_name = None if keyless else str(row["park_dest"])
+            if dest_name == FAILED_DIR.name:
+                dest = FAILED_DIR
+            elif dest_name == DONE_DIR.name:
+                dest = DONE_DIR
+            else:
+                dest = None   # keyless, null, or a name that is neither done nor failed: held without a destination
             reason = str(row.get("reason") or "")
             reason = reason[len("parked: "):] if reason.startswith("parked: ") else reason
-            _parked[name] = {"reason": reason, "outcome": str(row["park_outcome"]), "dest": dest,
+            outcome = str(row["park_outcome"]) if "park_outcome" in row and row["park_outcome"] is not None else "unknown"
+            _parked[name] = {"reason": reason, "outcome": outcome, "dest": dest,
                              "size": st.st_size, "mtime_ns": st.st_mtime_ns, "since": time.monotonic(),
                              "since_wall": str(row.get("parked_since") or _utc_now())}
-            logger.warning("PARK RESTORED %s from the receipt (parked since %s): %s", name, _parked[name]["since_wall"], reason)
+            if dest is None:
+                logger.warning("PARK HELD %s: parked without a destination (an old-shape or odd receipt row, park_dest=%r) - "
+                               "never dispatched, never moved; a hand decides", name, row.get("park_dest"))
+            else:
+                logger.warning("PARK RESTORED %s from the receipt (parked since %s): %s", name, _parked[name]["since_wall"], reason)
             restored += 1
         except (KeyError, TypeError, ValueError, OSError):
             continue
     if skipped:
-        logger.warning("PARK RESTORE: %d receipt row(s) skipped (not a dict, or parked without the park keys)", skipped)
+        logger.warning("PARK RESTORE: %d receipt row(s) skipped (not a dict, or parked without a name)", skipped)
     return restored
 
 
@@ -575,6 +591,8 @@ def _retry_parked() -> None:
     success log MOVED LATE, emit intake/moved_late with the seconds waited, and forget it."""
     for name in list(_parked):
         entry = _parked[name]
+        if entry["dest"] is None:
+            continue   # S219 E3-fix: held without a destination - never moved, never dispatched; a hand decides
         src = DROP_DIR / name
         try:
             st = src.stat()

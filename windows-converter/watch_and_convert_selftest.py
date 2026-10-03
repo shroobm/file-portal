@@ -423,12 +423,16 @@ class _E3Cap(_e3_logging.Handler):
 _e3_cap = _E3Cap()
 _wac.logger.addHandler(_e3_cap)
 _wac._parked.clear()
-# (1) an E9-era row: parked, but no park_dest / park_outcome / parked_since (the receipts the E9 watcher wrote 19:50-20:49Z)
+# (1) an old-shape row: parked, but no park_dest / park_outcome / parked_since (the shape the E9 watcher would have written)
+# - E3-fix (S219): restored as a park WITHOUT a destination (never dispatched, never moved), not skipped (E3 skipped it, which
+# left the file ready and the next poll would have converted the finished book again)
 _e3_r1 = _e11_receipt(parked=False, extra={"parked": True, "reason": "parked: PermissionError: [WinError 32] held"})
 _e3_n1 = _wac._restore_parked(_e3_r1)
-_e3_skip_lines = [ln for ln in _e3_cap.lines if ln.startswith("PARK RESTORE SKIPPED book-e11.pdf")]
-check(_e3_n1 == 0 and not _wac._parked and len(_e3_skip_lines) == 1,
-      f"E3 (1) a parked row WITHOUT the park keys restores nothing and logs the skip (never dest=done by default) — n={_e3_n1} parked={list(_wac._parked)!r} skip_lines={_e3_skip_lines!r}")
+_e3_held_lines = [ln for ln in _e3_cap.lines if ln.startswith("PARK HELD book-e11.pdf")]
+_e3_e1 = _wac._parked.get("book-e11.pdf")
+check(_e3_n1 == 1 and _e3_e1 is not None and _e3_e1["dest"] is None and _e3_e1["outcome"] == "unknown" and len(_e3_held_lines) == 1
+      and not [ln for ln in _e3_cap.lines if "PARK RESTORED book-e11.pdf" in ln],
+      f"E3 (1) a parked row WITHOUT the park keys is restored as a park without a destination (dest None, outcome unknown, PARK HELD once; never dest=done by default) — n={_e3_n1} entry={_e3_e1!r} held_lines={_e3_held_lines!r}")
 # (2) a non-dict row before a good row: the good row restores, nothing raises
 _e11_receipt()
 _e3_doc = _e11_json.loads(_rcpt.read_text(encoding="utf-8"))
@@ -459,6 +463,91 @@ _e3_os.utime(_p11, ns=(_st11.st_mtime_ns, _st11.st_mtime_ns))
 _e3_top = [s for s in _e9_main.body if isinstance(s, (_e9_ast.Assign, _e9_ast.Expr)) and isinstance(s.value, _e9_ast.Call)
            and getattr(s.value.func, "id", "") == "_restore_parked"]
 check(len(_e3_top) == 1, f"E3 (5) _restore_parked is called by a top-level statement of main() — found {len(_e3_top)}")
+
+# -- E3-fix (S219): a keyless park is HELD, not skipped; BOTH keys pinned per side; the absent file; an odd park_dest; a
+# nameless row; a top-level receipt that is not an object --
+def _e3f_reset():
+    """Clear the register and the captured log lines between the E3-fix cases."""
+    _wac._parked.clear()
+    del _e3_cap.lines[:]
+
+
+def _e3f_lines(prefix):
+    """The captured log lines that start with prefix."""
+    return [ln for ln in _e3_cap.lines if ln.startswith(prefix)]
+
+
+_e3f_rows = [{"name": "book-e11.pdf", "bytes": _st11.st_size, "mtime_ns": _st11.st_mtime_ns, "phase": "ready"},
+             {"name": "book-z11.pdf", "bytes": 1, "mtime_ns": 1, "phase": "ready"}]
+# (1) the keyless park: in the register with dest None; dispatch skips it; a retry moves nothing and logs nothing more
+_e3f_reset()
+_e3f_n1 = _wac._restore_parked(_e11_receipt(parked=False, extra={"parked": True, "reason": "parked: held"}))
+try:
+    _wac._retry_parked()
+    _e3f_exc1 = None
+except Exception as _e:  # noqa: BLE001 — the case IS "does the retry raise on a destination of None"
+    _e3f_exc1 = _e
+check(_e3f_n1 == 1 and _e3f_exc1 is None and _wac._next_dispatch(_e3f_rows) == "book-z11.pdf" and _p11.exists()
+      and "book-e11.pdf" in _wac._parked and len(_e3f_lines("PARK HELD book-e11.pdf")) == 1,
+      f"E3-fix (1) a keyless park is held: never dispatched (next={_wac._next_dispatch(_e3f_rows)!r}), the retry moves nothing and raises nothing (exc={_e3f_exc1!r}), the file still in drop/, PARK HELD once")
+# (2) only park_dest present -> keyless -> held; (3) only park_outcome present -> keyless -> held
+_e3f_reset()
+_e3f_n2 = _wac._restore_parked(_e11_receipt(parked=False, extra={"parked": True, "reason": "parked: held", "park_dest": "done"}))
+check(_e3f_n2 == 1 and _wac._parked.get("book-e11.pdf", {}).get("dest") is None and len(_e3f_lines("PARK HELD")) == 1,
+      f"E3-fix (2) a parked row with ONLY park_dest is keyless: held without a destination — n={_e3f_n2} dest={_wac._parked.get('book-e11.pdf', {}).get('dest')!r}")
+_e3f_reset()
+_e3f_n3 = _wac._restore_parked(_e11_receipt(parked=False, extra={"parked": True, "reason": "parked: held", "park_outcome": "failed"}))
+check(_e3f_n3 == 1 and _wac._parked.get("book-e11.pdf", {}).get("dest") is None and _wac._parked.get("book-e11.pdf", {}).get("outcome") == "failed",
+      f"E3-fix (3) a parked row with ONLY park_outcome is keyless: held, the outcome kept as given — n={_e3f_n3} entry={_wac._parked.get('book-e11.pdf')!r}")
+# (4) a keyless row whose file is ABSENT: nothing restored, nothing logged about it
+_e3f_reset()
+_e3f_n4 = _wac._restore_parked(_e11_receipt(parked=False, extra={"parked": True, "name": "book-gone.pdf", "reason": "parked: held"}))
+check(_e3f_n4 == 0 and not _wac._parked and not _e3f_lines("PARK HELD") and not _e3f_lines("PARK RESTORE"),
+      f"E3-fix (4) a keyless row whose file is absent: nothing restored, no HELD or SKIPPED line — n={_e3f_n4} lines={_e3_cap.lines!r}")
+# (5) an odd park_dest (neither done nor failed) with an outcome: held without a destination, the outcome as given
+_e3f_reset()
+_e3f_n5 = _wac._restore_parked(_e11_receipt(extra={"park_dest": "elsewhere", "park_outcome": "failed"}))
+check(_e3f_n5 == 1 and _wac._parked.get("book-e11.pdf", {}).get("dest") is None and _wac._parked.get("book-e11.pdf", {}).get("outcome") == "failed"
+      and len(_e3f_lines("PARK HELD")) == 1,
+      f"E3-fix (5) park_dest 'elsewhere' with outcome failed: held without a destination, never a silent done — entry={_wac._parked.get('book-e11.pdf')!r}")
+# (6) a parked dict without a name: skipped and counted in the one summary line
+_e3f_reset()
+_e11_receipt()
+_e3f_doc = _e11_json.loads(_rcpt.read_text(encoding="utf-8"))
+_e3f_doc["items"] = [{"parked": True, "bytes": 1, "mtime_ns": 1, "park_dest": "done", "park_outcome": "done"}] + _e3f_doc["items"]
+_rcpt.write_text(_e11_json.dumps(_e3f_doc), encoding="utf-8")
+_e3f_n6 = _wac._restore_parked(_rcpt)
+_e3f_sum = _e3f_lines("PARK RESTORE: ")
+check(_e3f_n6 == 1 and len(_e3f_sum) == 1 and "1 receipt row(s) skipped" in _e3f_sum[0],
+      f"E3-fix (6) a parked dict without a name is skipped and counted once; the good row restores — n={_e3f_n6} summary={_e3f_sum!r}")
+# (7) a top-level receipt that is not an object: tracker.restore returns 0 rows and raises nothing (it ran before _restore_parked at boot)
+_e3f_reset()
+_e3f_bad = []
+for _e3f_txt in ("null", "[]", "5", '"s"'):
+    _rcpt.write_text(_e3f_txt, encoding="utf-8")
+    try:
+        _e3f_r = _wac.IntakeTracker().restore(_rcpt)
+        if _e3f_r != 0:
+            _e3f_bad.append((_e3f_txt, _e3f_r))
+    except Exception as _e:  # noqa: BLE001 — the case IS "does it raise"
+        _e3f_bad.append((_e3f_txt, repr(_e)))
+check(not _e3f_bad, f"E3-fix (7) tracker.restore on a receipt that is null / a list / a number / a string: 0 rows, no raise — bad={_e3f_bad!r}")
+# (8) the round trip of a held park: _apply_park writes park_dest null, the next restore holds it again (never done/done)
+_e3f_reset()
+_wac._parked["book-e11.pdf"] = {"reason": "held by a test", "outcome": "unknown", "dest": None, "size": _st11.st_size, "mtime_ns": _st11.st_mtime_ns,
+                                "since": 0.0, "since_wall": "2026-10-03T22:00:00Z"}
+_e3f_rows8 = _wac._apply_park([{"name": "book-e11.pdf", "bytes": _st11.st_size, "mtime_ns": _st11.st_mtime_ns, "phase": "ready", "first_seen_at": "x", "wait_s": 0, "quiet_s": 0.0}])
+_saved_state8 = _wac.INTAKE_STATE_FILE
+_wac.INTAKE_STATE_FILE = QUARANTINE / "e3f-state.json"
+try:
+    _wac._atomic_write_state(_e3f_rows8, None, "test", "idle")
+    _wac._parked.clear()
+    _e3f_n8 = _wac._restore_parked(_wac.INTAKE_STATE_FILE)
+    _e3f_after8 = _wac._parked.get("book-e11.pdf") or {}
+finally:
+    _wac.INTAKE_STATE_FILE = _saved_state8
+check(_e3f_rows8[0].get("park_dest") is None and _e3f_n8 == 1 and _e3f_after8.get("dest") is None and _e3f_after8.get("outcome") == "unknown",
+      f"E3-fix (8) ROUND TRIP of a held park: the receipt carries park_dest null and the next restore holds it again — row={_e3f_rows8[0].get('park_dest')!r} n={_e3f_n8} after={_e3f_after8!r}")
 _wac.logger.removeHandler(_e3_cap)
 _wac._parked.clear()
 
