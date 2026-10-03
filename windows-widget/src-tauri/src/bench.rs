@@ -217,7 +217,8 @@ pub fn open(
         .spawn()
         .map_err(|e| format!("failed to spawn bench: {e}"))?;
     adopt_into_job(&child); // no orphaned bench servers, by any widget exit (S37)
-                            // Readiness wait: probe the port up to 30 x 200 ms for the server to start listening.
+
+    // Readiness wait: probe the port up to 30 x 200 ms for the server to start listening.
     let mut up = false;
     for _ in 0..30 {
         if TcpStream::connect_timeout(

@@ -324,8 +324,7 @@ fn parse_iso_utc(ts: &str) -> Option<u64> {
     u64::try_from(days * 86_400 + hh * 3_600 + mm * 60 + ss).ok()
 }
 
-/// Unix seconds → the same ISO shape the pipeline writes (for the ack ledger's own stamps).
-/// The current time as the pipeline's ISO-8601 UTC string (used to stamp acks).
+/// The current time as the pipeline's ISO-8601 UTC string (via iso_of), used to stamp the ack ledger's own entries.
 fn now_iso() -> String {
     iso_of(now_epoch())
 }

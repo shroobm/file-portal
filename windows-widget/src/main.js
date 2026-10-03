@@ -31,7 +31,8 @@ import { eventPhrase, countOfTotal, displaySliceNote } from "./event-vocab.js";
 // line instead of a console nobody can open in release builds.
 /**
  * Sends a message to the Rust boot log (debug_log command). Input: msg (any value, stringified).
- * Returns nothing; swallows errors when IPC is not up yet.
+ * Returns nothing. The try/catch stops only a synchronous throw; invoke is async, so a rejected IPC call
+ * lands in the unhandledrejection listener below (which calls dbg again).
  */
 function dbg(msg) {
   try { invoke("debug_log", { msg: String(msg) }); } catch { /* pre-IPC */ }

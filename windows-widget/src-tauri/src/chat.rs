@@ -137,7 +137,8 @@ pub fn open(
         .spawn()
         .map_err(|e| format!("failed to spawn chat server: {e}"))?;
     adopt_into_job(&child); // dies with the widget, by ANY exit (S37)
-                            // Readiness wait: probe the port up to 30 x 200 ms for the UI server to listen.
+
+    // Readiness wait: probe the port up to 30 x 200 ms for the UI server to listen.
     let mut up = false;
     for _ in 0..30 {
         // The UI server is stdlib-instant; 6 s is generous HERE (the model load is elsewhere).

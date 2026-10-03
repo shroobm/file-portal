@@ -12,7 +12,8 @@
 // owns the `fidelity` block in each bundle's manifest.json (schema docs/15 §7) and the
 // audit-mode.txt lever; this module gathers the newest verdict + its localized evidence
 // (degeneration zones, omission runs) + the held queue for the widget's ◎ station and
-// evidence card. Read-only, no state. Terracotta is the UI's to spend — this only reports.
+// evidence card. (Read-only, no state — as first written; since then set_mode, reconvert and bless write
+// audit-mode.txt, drop/.supersede and the bless receipts: see the block above.) Terracotta is the UI's to spend — this only reports.
 
 use crate::vault::CREATE_NO_WINDOW;
 use crate::watcher::spawn_supervised;

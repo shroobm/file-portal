@@ -1,8 +1,8 @@
 // WHAT THIS FILE DOES: the File Portal Windows widget's entry point (a Tauri app).
 // - main() hydrates PATH from the registry, loads the config, shows a native dialog and exits if it
 //   cannot be read, then builds the Tauri app: single-instance plugin, managed state, command table.
-// - Every `#[tauri::command]` below is a thin wrapper the webview calls by name (invoke): it locks the
-//   shared AppConfig, copies out the few paths it needs, and delegates to a sibling module
+// - Every `#[tauri::command]` below is a thin wrapper the webview calls by name (invoke): most lock the
+//   shared AppConfig (chat_stop, chat_status and gpu_vram do not), copy out the few paths they need, and delegate to a sibling module
 //   (line, assay, bench, chat, watcher, vault, room, receipts, algedonic, preflight, events, status, transfer).
 // - Reads: the config (config.rs) and, via the modules, the pipeline directory and the vault.
 //   Writes: only widget-boot.log here (debug_log); all other writes happen inside the modules.
@@ -34,7 +34,8 @@ use tauri::{Manager, State};
 
 // -- shared application state --
 
-/// The one piece of Tauri-managed state: the loaded config behind a Mutex, locked briefly by each command.
+/// The config part of the Tauri-managed state (beside WatcherState, BenchState and ChatState, managed in main()):
+/// the loaded config behind a Mutex, locked briefly by the commands that need a path from it.
 struct AppState {
     config: Mutex<AppConfig>,
 }
@@ -401,7 +402,8 @@ fn last_receipt(state: State<AppState>) -> Result<serde_json::Value, String> {
 }
 // S66: engineering quick-access — a NAMED allowlist target (see line::open_engineering).
 
-/// Command: opens a named engineering target (pipeline, converter or vault folder allowlist); returns a message.
+/// Command: opens a named engineering target from line::open_engineering's allowlist (folders, and files opened in
+/// Notepad); returns the path it opened.
 #[tauri::command]
 fn open_engineering(state: State<AppState>, target: String) -> Result<String, String> {
     let (pipe, conv, vault) = {

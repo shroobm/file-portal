@@ -1,4 +1,4 @@
-# WHAT THIS FILE DOES: finds the newest built File Portal widget exe under windows-widget\src-tauri\target
+# WHAT THIS FILE DOES: finds the first built File Portal widget exe in a fixed search order under windows-widget\src-tauri\target
 # (release preferred, debug as fallback), writes "File Portal.lnk" to the Desktop and the Start Menu
 # (overwriting any existing one), and attempts a best-effort taskbar pin. Entry point: the whole script;
 # normally launched by install-shortcuts.cmd. Reads: the target dir and icons\icon.ico. Exits 1 if no exe.
