@@ -177,7 +177,6 @@ else:
 # The first convert_one cases this suite has: subprocess.Popen stubbed (no child runs), chat_hold off, the lock under the
 # quarantine. Exit 98 → the source under DONE_DIR, no intake/failed, no stderr file; exit 1 (the control) → FAILED_DIR,
 # intake/failed, the stderr file kept; exit 0 → DONE_DIR. And the two constants (the watcher's and the child's) pinned equal.
-import shutil as _e6_shutil  # noqa: E402
 import watch_and_convert as _wac  # noqa: E402
 import convert_and_ship as _cas  # noqa: E402
 check(_wac.SHIP_FAILED_EXIT == _cas.SHIP_FAILED_EXIT == 98, "E6 (0) the watcher's SHIP_FAILED_EXIT equals convert_and_ship's (98) — one number, two files")
@@ -192,8 +191,10 @@ class _E6Child:
 
 
 def _e6_run(code):
-    drop = QUARANTINE / "e6drop"; drop.mkdir(exist_ok=True)
-    pdf = drop / ("book-%s.pdf" % code); pdf.write_bytes(b"%PDF-1.4 fixture")
+    drop = QUARANTINE / "e6drop"
+    drop.mkdir(exist_ok=True)
+    pdf = drop / ("book-%s.pdf" % code)
+    pdf.write_bytes(b"%PDF-1.4 fixture")
     for d in (_wac.DONE_DIR, _wac.FAILED_DIR):
         d.mkdir(parents=True, exist_ok=True)
     emits = []
