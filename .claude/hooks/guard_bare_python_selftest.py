@@ -1,5 +1,10 @@
 #!/usr/bin/env python
-"""guard_bare_python_selftest.py — the tripwires of guard_bare_python.py (SYM-186, S213): the hook is fed PreToolUse payloads
+"""WHAT THIS FILE DOES: a standalone test script for guard_bare_python.py. When run it feeds the hook a list of command
+lines (DENY: must be refused, PASS: must be silent) as payloads on stdin, prints one ok/BAD line per case plus a total,
+and exits 0 only when every case behaved. It also writes a stub hook into a new temp directory (not removed) for the
+negative control. Runs at import time (no main function).
+
+guard_bare_python_selftest.py — the tripwires of guard_bare_python.py (SYM-186, S213): the hook is fed PreToolUse payloads
 on stdin, the way the harness feeds it, and its stdout is read. MUST DENY: every shape of a bare python/python3/py/pip head
 (plain, chained, piped, wrapped, inside bash -c / powershell -Command / cmd /c / eval, find -exec, Start-Process, a python
 heredoc's own head, PowerShell's call operator). MUST PASS: full paths (uv, marker-env, Windows and POSIX forms), variables,
@@ -12,6 +17,7 @@ import subprocess
 import sys
 import tempfile
 
+# -- paths, the two full-path interpreters used in the PASS cases, and the pass/fail counters --
 HERE = os.path.dirname(os.path.abspath(__file__))
 HOOK = os.path.join(HERE, "guard_bare_python.py")
 UV = "C:/Users/Bndit/AppData/Roaming/uv/python/cpython-3.12.13-windows-x86_64-none/python.exe"
@@ -19,7 +25,9 @@ ME = "C:/Users/Bndit/ml/marker-env/Scripts/python.exe"
 N = FAILS = 0
 
 
+# -- helpers: record a result, run the hook, decide whether it denied --
 def check(name, cond, detail=""):
+    """Count one case (N), print an ok/BAD line for `name` (with `detail` when it failed) and count a failure (FAILS)."""
     global N, FAILS
     N += 1
     print(("  ok   " if cond else "  BAD  ") + name + ("" if cond else (" — " + detail if detail else "")))
@@ -28,16 +36,20 @@ def check(name, cond, detail=""):
 
 
 def run(hook, command, tool="Bash"):
+    """Run the script `hook` with a payload carrying `command` for `tool` on stdin (empty stdin when `command` is None).
+    Returns (exit code, stripped stdout)."""
     payload = "" if command is None else json.dumps({"tool_name": tool, "tool_input": {"command": command}})
     r = subprocess.run([sys.executable, hook], input=payload, capture_output=True, text=True, encoding="utf-8")
     return r.returncode, (r.stdout or "").strip()
 
 
 def denied(hook, command, tool="Bash"):
+    """True when the hook exits 0 and prints a deny decision for `command`."""
     rc, out = run(hook, command, tool)
     return rc == 0 and '"permissionDecision": "deny"' in out
 
 
+# -- the cases: (name, command text, tool). DENY = must be refused, PASS = must stay silent --
 DENY = [
     ("plain python3", "python3 -c \"print(1)\"", "Bash"),
     ("plain python", "python script.py", "Bash"),
@@ -91,6 +103,7 @@ PASS = [
     ("unparseable line (fallback): a single-quoted grep pattern holding |py| is data (the replay's one false refusal)",
      "grep -E '\"command\":\"(python3?|py|pip3?)[ \"]' f.jsonl; echo \"it's", "Bash"),
 ]
+# -- the run: empty stdin, every DENY case, every PASS case, the refusal text, then the negative control --
 rc, out = run(HOOK, None)
 check("empty stdin -> silence, exit 0 (a failed probe is UNREAD, never a verdict)", rc == 0 and out == "")
 for name, cmd, tool in DENY:

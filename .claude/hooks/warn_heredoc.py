@@ -1,6 +1,15 @@
 #!/usr/bin/env python
 """PreToolUse/Bash — C3's mechanical half, for ERROR-BIN ERR-009.
 
+WHAT THIS FILE DOES: a Claude Code PreToolUse hook script with no functions: it runs top to bottom when invoked. It
+reads the hook payload (JSON) from stdin, looks at tool_input.command for (1) when any heredoc opener is present, the
+whole command text (not only the heredoc's body) holding backslash escapes or regex constructs and (2) a
+`python -c "..."` / `python -c '...'` program holding a backslash, a backtick or a `$`. Case (2) with a backslash or
+`$` prints a deny JSON; the other findings print a warning JSON (systemMessage and additionalContext); no finding, or
+an unreadable payload, prints nothing. Exit code 0 for every payload the harness sends (a JSON payload that is not an
+object would raise outside the try and exit 1; settings.json's `|| true` absorbs it). It reads stdin and writes stdout
+only.
+
 ERR-009's own remedy, in its words: "anything containing backslashes or nested
 quotes goes in a FILE via Write, never a heredoc." That rule was filed at 02:40
 and broken at least twice afterwards, in the same session, including inside the
@@ -31,6 +40,7 @@ import json
 import re
 import sys
 
+# -- input: the hook payload and the command text --
 try:
     payload = json.load(sys.stdin)
 except Exception:
@@ -38,10 +48,12 @@ except Exception:
 
 cmd = (payload.get("tool_input") or {}).get("command") or ""
 
+# -- detect heredocs in the command --
 # A heredoc: << or <<- , optional quote, then the delimiter word.
 HEREDOC = re.compile(r"<<-?\s*['\"]?([A-Za-z_][A-Za-z0-9_]*)['\"]?")
 marks = list(HEREDOC.finditer(cmd))
 
+# -- detect `python -c "..."` programs: dash_c = their texts, dash_hits = risky characters found in them --
 # S170 (ERR-053 / ERR-054's mechanical half, the same shape one layer over): a `python -c "…"` / `python.exe -c '…'` whose
 # program text carries a backslash, a backtick or a `$` is the heredoc case without the heredoc — the S1xx rule said "NO
 # Markdown or code text in a `python -c` or heredoc, ever — a FILE", and it lived in memory only. Same posture: warn, never
@@ -51,6 +63,7 @@ dash_c = [m.group(2) for m in DASH_C.finditer(cmd)]
 DASH_RISK = re.compile(r"\\|`|\$")
 dash_hits = sorted({h for prog in dash_c for h in DASH_RISK.findall(prog)})
 
+# -- the one blocking case: a backslash or `$` inside a `python -c` program is denied --
 # S213 (Rab, Desk 17258df3, 2026-09-25T17:06:42Z, after he was shown what he gains and loses: "as in I gain from you doing
 # the block, if so, why not. Small incrementals changes that make your work quality increase"): a `python -c` whose program
 # holds a BACKSLASH or a `$` is now REFUSED, not warned. The form is never necessary (a file does all it does), and the
@@ -66,6 +79,7 @@ if block_hits:
                                              "permissionDecisionReason": reason}}))
     sys.exit(0)
 
+# -- the warning path: silent unless a heredoc opener is present and the command holds risky text, or a `python -c` does --
 if not marks and not dash_hits:
     sys.exit(0)
 
@@ -77,6 +91,7 @@ hits = RISK.findall(cmd) if marks else []
 if not hits and not dash_hits:
     sys.exit(0)
 
+# choose the message: the heredoc warning (with delimiters and up to six sample matches) or the `python -c` warning
 if hits:
     delims = ", ".join(sorted({m.group(1) for m in marks}))
     sample = ", ".join(sorted(set(hits))[:6])
@@ -95,6 +110,7 @@ else:
         "Not blocking - if you have already considered this, proceed."
     ).format(s=", ".join(repr(h) for h in dash_hits))
 
+# -- output: the warning JSON - systemMessage (the user) and additionalContext (the model), per the harness's hook contract --
 print(json.dumps({
     "systemMessage": msg,
     "hookSpecificOutput": {

@@ -1,5 +1,11 @@
 #!/usr/bin/env python3
-"""coordination/relay_numerations.py — THE RELAY NUMERATIONS (the NR-set), S120, Rab's order 2026-09-09:
+"""WHAT THIS FILE DOES: a meter that prints the NR-set, a table of numbered measurements of the relay
+bus. It reads coordination/relay.md, the two sidecars ack-fable.json and ack-codex.json, the optional
+coordination/private/relay-watch.log, and runs `git status` and `git diff` (read only) on the repo.
+Entry point is main(argv); `--json` selects JSON output, otherwise a text table. Writes nothing and
+always exits 0. Run directly; "gates read it" (callers are not evident from this file).
+
+coordination/relay_numerations.py — THE RELAY NUMERATIONS (the NR-set), S120, Rab's order 2026-09-09:
 "find real another set of numerations that is strictly between your communication and processes utilizing
 coordination relay". docs/51 numbers the pipeline; this numbers the BUS — measured from `coordination/relay.md`
 (the append-only log) and the two sidecars (`ack-fable.json`, `ack-codex.json`), never from prose.
@@ -22,6 +28,7 @@ import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
+# -- paths, header pattern and constants --
 HERE = Path(__file__).resolve().parent
 REPO = HERE.parent
 RELAY = HERE / "relay.md"
@@ -31,7 +38,10 @@ SLOTS = ("RECAP", "FOR RAB", "SUGGESTED PROMPT")
 STALE_MIN = 45  # lever-waiver: mirrors gate.py's own stale rule (relay-gate SKILL.md, 45 min) — not a second lever; this meter renders the board's reading and moves only with it
 
 
+# -- small helpers: time parsing, sidecar loading, entry parsing, line-ending census, formatting --
 def utc(s: str | None):
+    """Parse the first 16 characters of `s` (YYYY-MM-DDTHH:MM) as a UTC datetime. Returns None for
+    an empty or malformed value. Pure function."""
     if not s:
         return None
     try:
@@ -41,6 +51,8 @@ def utc(s: str | None):
 
 
 def load_sidecar(lane: str):
+    """Read and parse the sidecar JSON for `lane` ("Fable" or "Codex"). Returns (data, "ok") or
+    (None, reason) when the file is absent or unreadable. Reads one file."""
     p = SIDECARS[lane]
     if not p.exists():
         return None, f"{p.name} absent"
@@ -68,25 +80,33 @@ def entries():
 
 
 def eol_census(path: Path):
+    """Count line endings in the file at `path`. Returns (CRLF count, bare-LF count). Reads the file."""
     b = path.read_bytes()
     crlf = b.count(b"\r\n")
     return crlf, b.count(b"\n") - crlf
 
 
 def pct(n, d):
+    """Format `n`/`d` as "n/d = x.x %", or "n/0 UNREAD (empty denominator)" when `d` is zero. Returns str."""
     return f"{n}/{d} = {100.0 * n / d:.1f} %" if d else f"{n}/0 UNREAD (empty denominator)"
 
 
 def minutes(a, b):
+    """Minutes from datetime `a` to datetime `b` (negative if b is earlier). Returns float."""
     return (b - a).total_seconds() / 60.0
 
 
+# -- the meter: builds every NR row, then prints them --
 def main(argv):
+    """Compute the NR rows (NR-00 to NR-15 as present) from the relay files, then print them as a
+    text table or, with "--json" in `argv`, as JSON. Returns 0 in every case. Reads files and runs
+    two read-only git commands; writes only to stdout."""
     as_json = "--json" in argv
     now = datetime.now(timezone.utc)
     rows = []
 
     def row(nid, name, value, numden, tag):
+        """Append one result row (id, name, value, numerator/denominator/conditions text, tag) to `rows`."""
         rows.append({"id": nid, "name": name, "value": value, "numerator_denominator_conditions": numden, "tag": tag})
 
     ents, noncanon = entries()
@@ -204,7 +224,7 @@ def main(argv):
     except (OSError, subprocess.SubprocessError) as e:
         row("NR-12", "peer-owned bytes unstaged", f"UNREAD — git status failed: {e}", "as above", "UNREAD")
 
-    # NR-13/14: the watcher's signals and the handler's turnaround need a signal log the watcher does not yet write
+    # NR-13/14: the watcher's signals and the handler's turnaround, read from the watcher's signal log
     # The tracked watcher (coordination/relay_watch.sh, S120 B8) writes `<UTC YYYY-MM-DDTHH:MM:SSZ> <SIGNAL …>`
     # to coordination/private/relay-watch.log; WATCH ALIVE lines are log-only heartbeats, not signals.
     log = HERE / "private" / "relay-watch.log"
@@ -245,6 +265,7 @@ def main(argv):
             "needs coordination/relay_watch.sh armed", "UNREAD")
         row("NR-14", "handler turnaround (signal → confirmation)", "UNREAD — needs NR-13's log", "confirmed_utc − signal utc per handled signal", "UNREAD")
 
+    # output: JSON document or the two-line-per-row text table
     if as_json:
         print(json.dumps({"measured_utc": now.strftime("%Y-%m-%dT%H:%MZ"), "rows": rows}, indent=1, ensure_ascii=False))
     else:

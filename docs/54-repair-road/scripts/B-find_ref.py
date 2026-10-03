@@ -1,3 +1,8 @@
+"""WHAT THIS FILE DOES: a one-off probe script (run directly, no functions). It reads marker_ref.md from the
+current working directory, prints where the text 'rm ROC' and the LaTeX begin-array marker first occur (with 200
+characters after the latter), and lists the ten longest lines by line number and length. Writes nothing. Nothing
+imports it.
+"""
 merged = open('marker_ref.md', encoding='utf-8').read()
 idx = merged.find('rm ROC')
 print('idx rm ROC', idx)

@@ -1,3 +1,7 @@
+"""WHAT THIS FILE DOES: a one-off probe script (run directly, no functions). It reads marker_ref.md and held.md
+from the current working directory and prints the total line counts, the length of line 5524 in each, and the
+first 200 characters of that line in marker_ref.md. Writes nothing. Nothing imports it.
+"""
 merged = open('marker_ref.md', encoding='utf-8').read()
 lines = merged.split('\n')
 print('marker_ref total lines', len(lines))

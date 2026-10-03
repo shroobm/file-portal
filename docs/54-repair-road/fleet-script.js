@@ -1,12 +1,36 @@
+/**
+ * WHAT THIS FILE DOES
+ * A Workflow-tool script (meta export first, then agent()/parallel() calls) that adversarially verifies three
+ * drafted tickets (J31 re-audit a repaired held bundle, J32 analyst-gate normalisation, J33 retain the Marker
+ * markdown) before they reach the register.
+ * Phase 'Refute': three sonnet lanes (A analyst numbers, B re-audit path, C retain-marker) run in parallel, each
+ * with read-only access to the repo and library, writing under ${OUT}/<lane>/ and returning a LANE_SCHEMA object.
+ * Phase 'Verify': one agent (the session model, effort max) re-runs decisive probes, adjudicates every defect,
+ * rules on each ticket, and writes ${OUT}/VERIFIED.md.
+ * The script itself writes no files; it returns { lanes, verify }. Run by a session through the Workflow tool.
+ */
+
+// -- Script metadata read by the Workflow tool --
 export const meta = {
   name: 'verify-tickets-j31-j33',
   description: 'Refute the measured solutions behind three proposed tickets (re-audit a repaired held bundle; analyst-gate normalisation; retain the Marker markdown) before they reach the register: 3 Sonnet refuter lanes + 1 Fable verifier',
   phases: [{ title: 'Refute' }, { title: 'Verify' }],
 }
+// -- Paths shared by every lane prompt --
+
+// REPO: repository root (read only for the agents). SP: the session scratchpad holding the builder's scripts.
+// OUT: folder under SP where the lanes and the verifier write their reports.
 const REPO = 'C:/Users/Bndit/Projects/file-portal'
 const SP = 'C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad'
 const OUT = SP + '/verify-tickets'
 
+// -- Shared prompt text --
+
+/**
+ * GROUND: the preamble given to every lane and to the verifier. A template literal holding the hard rules,
+ * the materials, and the three draft tickets J31-J33 (each lane section carries one planted false statement).
+ * Interpolates REPO, SP and OUT.
+ */
 const GROUND = `
 GROUND (docs/47). You are one lane of an adversarial verification fleet for Rab's local PDF->markdown pipeline
 ("File Portal", ${REPO}, branch feat/library-pipeline at 11c9af1). Rab's order tonight: "If there is something you
@@ -67,6 +91,10 @@ text beside the bundle md as <name>.marker.md into held/anchor and the shipped t
 vault (blocks.json precedent, SHIP_BLOCKS_TO_VAULT); the bench reads it as a reference pane. Cost +3.5 MB per book
 on disk, 0 in the vault.
 `
+
+// -- Schema and definitions of the refuter lanes --
+
+/** LANE_SCHEMA: schema of one refuter lane's answer: claims with verdicts, measurements, defects, decoy report. */
 const LANE_SCHEMA = { type: 'object', properties: {
   lane: { type: 'string' }, report_file: { type: 'string' },
   claims: { type: 'array', items: { type: 'object', properties: { claim: { type: 'string' }, verdict: { type: 'string', enum: ['CONFIRMED', 'REFUTED', 'PARTIAL', 'UNREAD'] }, evidence: { type: 'string' }, tag: { type: 'string' } }, required: ['claim', 'verdict', 'evidence', 'tag'] } },
@@ -76,6 +104,7 @@ const LANE_SCHEMA = { type: 'object', properties: {
   decoy_report: { type: 'string' }, residue: { type: 'string' } },
   required: ['lane', 'report_file', 'claims', 'measurements', 'negative_control', 'defects', 'ticket_wording_fixes', 'decoy_report', 'residue'] }
 
+/** LANES: the three refuter lanes (key, label, prompt = GROUND plus the lane's own task); A, B and C as above. */
 const LANES = [
   { key: 'A', label: 'refute:analyst-numbers', prompt: `${GROUND}
 YOUR LANE: A — THE ANALYST-STAGE NUMBERS (J32's evidence).
@@ -126,10 +155,16 @@ in exporter.py (SHIP_BLOCKS_TO_VAULT, manifest blocks {present_in_bundle, shippe
 marker_md — quote it. Negative control: a file you know the exporter DOES ship must show up in its ship list.` },
 ]
 
+// -- Phase 1: run the three refuter lanes in parallel --
+
 phase('Refute')
+// Failed lanes yield falsy entries and are filtered out; the log line prints defect counts per lane.
 const lanes = (await parallel(LANES.map(l => () => agent(l.prompt, { label: l.label, phase: 'Refute', schema: LANE_SCHEMA, model: 'sonnet', effort: 'high' })))).filter(Boolean)
 log(`refute lanes done: ${lanes.length}/3 — defects: ${lanes.map(l => l.lane.slice(0, 1) + ':' + l.defects.length).join(' ')}`)
 
+// -- Schema of the verifier's answer --
+
+/** VERIFY_SCHEMA: claims checked, measurements re-run, defects adjudicated, a verdict per ticket, decoys caught. */
 const VERIFY_SCHEMA = { type: 'object', properties: {
   claims_checked: { type: 'array', items: { type: 'object', properties: { lane: { type: 'string' }, claim: { type: 'string' }, verdict: { type: 'string', enum: ['CONFIRMED', 'WRONG', 'OVERSTATED', 'UNREAD'] }, checked_against: { type: 'string' } }, required: ['lane', 'claim', 'verdict', 'checked_against'] } },
   measurements_rerun: { type: 'array', items: { type: 'string' } },
@@ -138,7 +173,10 @@ const VERIFY_SCHEMA = { type: 'object', properties: {
   decoys_caught: { type: 'string' }, report_file: { type: 'string' }, residue: { type: 'string' } },
   required: ['claims_checked', 'measurements_rerun', 'defects_adjudicated', 'ticket_verdicts', 'decoys_caught', 'report_file', 'residue'] }
 
+// -- Phase 2: the verifier --
+
 phase('Verify')
+// The verifier receives GROUND plus the lane outputs as JSON; it is told to trust none of them.
 const verify = await agent(`${GROUND}
 YOUR ROLE: THE VERIFIER (last lane; the session model). Three Sonnet refuter lanes have reported (below). Trust none
 of them: re-run at least two decisive probes per lane yourself (say which), adjudicate every defect, and for each of
@@ -152,4 +190,5 @@ LANE OUTPUTS:
 ${JSON.stringify(lanes, null, 1)}
 `, { label: 'verify:fable', phase: 'Verify', schema: VERIFY_SCHEMA, effort: 'max' })
 log(`verifier: ${verify ? verify.ticket_verdicts.map(t => t.ticket.slice(0, 3) + '=' + t.verdict).join(' ') : 'NULL'}`)
+// The workflow's result: the surviving lane objects and the verifier's object.
 return { lanes, verify }

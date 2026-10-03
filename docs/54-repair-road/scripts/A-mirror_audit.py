@@ -1,4 +1,9 @@
-"""Lane A — independent re-derivation of claim (1): audit_analyst mirror.
+"""WHAT THIS FILE DOES: a one-off verification script; main() is the entry point (run directly). It joins the seven
+Marker slice files into the reference, runs the real fidelity_audit.audit_analyst against the held analyst .md,
+compares doc_survival and runs_total with the held manifest's stored values, and writes the comparison to one
+JSON file (OUT) and stdout. Reads the slice dir, the held .md and the manifest. Run by hand; nothing imports it.
+
+Lane A — independent re-derivation of claim (1): audit_analyst mirror.
 
 Rebuilds the Marker reference from the 7 slice.md files (join = "\n\n", verified against
 convert_and_ship.py:1419/1456), loads the shipped analyst markdown from the held bundle,
@@ -15,13 +20,16 @@ import sys
 sys.path.insert(0, r"C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 
+# -- paths: Marker slice copies, shipped analyst .md, its manifest, result file --
 SLICE_DIR = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker"
 ANALYST_MD = r"C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Four.md"
 MANIFEST = r"C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/manifest.json"
 OUT = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/A/mirror_result.json"
 
 
+# -- the measurement --
 def main():
+    """Rebuild the reference, run audit_analyst, compare with the manifest; prints and writes OUT as JSON."""
     files = sorted(glob.glob(SLICE_DIR + "/slice-*.md"))
     assert len(files) == 7, f"expected 7 slice files, found {len(files)}: {files}"
     parts = [open(f, encoding="utf-8").read() for f in files]

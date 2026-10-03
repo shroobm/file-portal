@@ -1,6 +1,13 @@
 #!/usr/bin/env python
 """PreToolUse (Bash | PowerShell) — J56's mechanical half. Born of ERR-068 / SYM-085 (2026-09-10).
 
+WHAT THIS FILE DOES: a Claude Code PreToolUse hook script. main() reads one JSON payload from stdin (tool_name,
+tool_input.command, cwd, and agent_id for a subagent), decide() turns the command line into allow / deny / bypass, and a
+deny is printed as JSON on stdout. It reads the roots file and, for a push or commit, the session marker and the sessions/
+folder; it runs git as a subprocess (`config --get` for alias and worktree lookups on any verb, `diff --quiet` as the push
+probe) and, on a push, `bash row_check.sh` (the ledger reader); it writes only the guard log.
+Its selftest is guard_git_selftest.py; record_missing() is also imported by guard_record.py.
+
 On 2026-09-10T02:40:41Z an in-place fleet lane ran `git reset --hard feat/library-pipeline` in the SHARED
 main checkout — its brief pointed it at a ground written for worktree lanes — and destroyed the peer lane's
 uncommitted relay entry (MSG-CDX-0064), its `sent` record and its beat. The shared tree had no guard against
@@ -70,6 +77,7 @@ import subprocess
 import sys
 from datetime import datetime, timezone
 
+# -- git verb lists: working-tree destroyers (TIER1), read-only verbs, and the main session's writes --
 TIER1 = ("reset", "checkout", "clean", "stash", "restore", "switch", "read-tree", "checkout-index", "rm", "mv", "apply", "am")
 READ_ONLY = ("status", "log", "diff", "show", "rev-parse", "ls-files", "ls-tree", "ls-remote", "cat-file", "blame", "grep",
              "reflog", "describe", "merge-base", "check-ignore", "check-attr", "shortlog", "count-objects", "fsck",
@@ -90,6 +98,7 @@ LANE_FORMS = {
     "worktree": lambda a: bool(a) and a[0] == "list",
     "stash": lambda a: False,
 }
+# -- command heads that run another program (WRAPPERS) and heads that define command names (DEFINERS) --
 WRAPPERS = ("bash", "sh", "zsh", "dash", "ksh", "fish", "powershell", "pwsh", "cmd", "python", "python3", "py", "uv", "uvx",
             "env", "eval", "exec", "xargs", "find", "timeout", "nohup", "nice", "time", "sudo", "runas", "start", "call",
             "start-process", "saps", "start-job", "sajb", "start-threadjob", "invoke-item", "ii", "invoke-expression", "iex",
@@ -104,29 +113,37 @@ DEFINERS = ("alias", "set-alias", "sal", "new-alias", "nal", "function", "filter
 # mentions-git rule over the whole segment (the R4 red-team case: python -c "os.system('git reset --hard')").
 SHELL_WRAPPERS = ("bash", "sh", "zsh", "dash", "ksh", "fish", "cmd", "powershell", "pwsh", "eval", "iex",
                   "invoke-expression", "invoke-command", "icm", "wsl", "busybox", "script", "source", "xargs", "parallel")
+# -- word lists and patterns: heredoc opener, directory-change words, git environment variables --
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 DIR_WORDS = ("cd", "pushd", "set-location", "push-location", "sl", "chdir")
 ENV_TARGETS = ("GIT_WORK_TREE", "GIT_DIR")
+# -- paths and environment: this repository, the roots file, the log file, the trace file --
 HOOK_DIR = os.path.dirname(os.path.abspath(__file__))
 REPO = os.path.normcase(os.path.realpath(os.path.join(HOOK_DIR, "..", "..")))
 ROOTS_FILE = os.path.join(REPO, "coordination", "private", "git-guard.roots")
 LOG_FILE = os.environ.get("FP_GIT_GUARD_LOG") or os.path.join(REPO, "coordination", "private", "git-guard.log")
 EXTRA_ROOTS_ENV = os.environ.get("FP_GIT_GUARD_EXTRA_ROOTS") or ""
 TRACE_FILE = os.path.join(REPO, "coordination", "private", "git-guard.trace")
+# -- patterns: the logged-bypass prefix (BYPASS), unresolvable paths (UNRESOLVED), encoded commands (ENCODED) --
 BYPASS = re.compile(r"^\s*FP_GIT_GUARD_BYPASS=(['\"])(.{20,}?)\1\s+")
 # a path the guard cannot resolve because the SHELL would expand it at runtime and the guard is not a shell:
 # $VAR, ${VAR}, $(...), backticks, %VAR% (cmd). An UNREAD target must fail closed, never read as "not guarded".
 UNRESOLVED = re.compile(r"\$\w|\$\{|\$\(|`|%[A-Za-z_][A-Za-z0-9_]*%")
 # (segments() below replaced the flat SPLIT regex: a separator inside quotes is data, a $( inside double quotes is a command)
 ENCODED = re.compile(r"(?i)(^|\s)-(enc|encodedcommand|ec|e)\s+\S")
+# the citation appended to many deny reasons
 LAW = "docs/47 §9, J56 (ERR-068 destroyed the peer's uncommitted bytes this way)"
 
 
+# -- logging and the guarded-root list --
 def now():
+    """Current UTC time as `YYYY-MM-DDTHH:MM:SSZ` (a string). No side effects."""
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
 
 
 def log(kind, tool, cwd, cmd, who="-", extra=""):
+    """Append one line (UTC time, kind, tool, agent, cwd, extra, command squeezed to 240 chars) to LOG_FILE, creating its
+    directory. Any failure is swallowed: logging never changes a verdict. Returns None."""
     try:
         os.makedirs(os.path.dirname(LOG_FILE), exist_ok=True)
         with io.open(LOG_FILE, "a", encoding="utf-8", newline="\n") as fh:
@@ -137,6 +154,8 @@ def log(kind, tool, cwd, cmd, who="-", extra=""):
 
 
 def guarded_roots():
+    """Set of normalised guarded checkout roots: REPO, the roots from FP_GIT_GUARD_EXTRA_ROOTS, and each non-comment line
+    of ROOTS_FILE (an unreadable file adds nothing). Reads the file; no other side effects."""
     roots = {REPO}
     for extra in EXTRA_ROOTS_ENV.split(os.pathsep):
         if extra.strip():
@@ -152,6 +171,7 @@ def guarded_roots():
     return roots
 
 
+# -- token and path cleaning helpers --
 def clean_token(t):
     """Remove quotes and bash escapes so `re'set'` and `res\\et` read as `reset` (verbs and options only — never paths)."""
     return t.replace("'", "").replace('"', "").replace("\\", "")
@@ -181,6 +201,7 @@ def to_windows(path):
     return p
 
 
+# -- splitting a command line into segments --
 def subst_end(cmd, i):
     """`cmd[i:]` starts with `$(`; return the index just past its matching `)`, honouring nested `$(`/`(` and quotes inside
     the body (a `\\` escapes inside double quotes there as in bash). Unbalanced → len(cmd): the rest of the text is the
@@ -219,14 +240,17 @@ def segments(cmd, ps=False):
     i, n = 0, len(cmd)
 
     def flush():
+        """Close the segment being built: append its stripped text to `out` when non-empty and empty `buf`."""
         s = "".join(buf).strip()
         if s:
             out.append(s)
         buf.clear()
 
+    # one pass over the characters; `stack` holds the lexical state: "cmd" (command text), "squote" or "dquote"
     while i < n:
         c = cmd[i]
         top = stack[-1]
+        # single quotes: everything is literal until the closing quote
         if top == "squote":
             buf.append(c)
             if c == "'":
@@ -347,6 +371,7 @@ def segments(cmd, ps=False):
     return out
 
 
+# -- repository, token and alias lookups --
 def repo_root_of(path):
     """Walk up to the first `.git`; (root, 'dir'|'file') or (None, None)."""
     try:
@@ -367,10 +392,13 @@ def repo_root_of(path):
 
 
 def tokens(segment):
+    """Split one segment into tokens: a double-quoted string, a single-quoted string or a run of non-space characters
+    (quotes stay on the token). Returns a list of strings."""
     return re.findall(r"\"[^\"]*\"|'[^']*'|\S+", segment)
 
 
 def is_abs(p):
+    """True when `p` is an absolute path, including a Windows drive form (`C:...`) that os.path may not recognise."""
     return os.path.isabs(p) or bool(re.match(r"^[A-Za-z]:", p))
 
 
@@ -387,6 +415,7 @@ def resolve_alias(root, verb):
     return p.stdout.strip()
 
 
+# -- gates for a push or commit in the main session: the ledger-row reader and the session record --
 def row_check_missing(root):
     """J71 (S136): a `git push` from the main session that CARRIES a change to CLAUDE_README.md (the ledger) is refused
     when the newest row does not pass its reader — `.claude/skills/muster/row_check.sh <N>` (J69), N from the session
@@ -453,6 +482,7 @@ def record_missing(root):
     return f"sessions/S{n}-*.md does not exist — open.sh said this session is S{n}; write the record (§1 in Rab's words, the card, the pin) before any instrument"
 
 
+# -- reading git targets, the core.worktree setting and the head of a command segment --
 def targets_named(toks, i, cur, guarded):
     """Scan toks[i:] for git target flags (-C, --work-tree[=], --git-dir[=]); return the guarded root any of them
     names, or a marker string when one is UNREAD (a shell-expanded value), else None. Used when the command HEAD is
@@ -579,7 +609,12 @@ def parse_git(toks, i):
     return "", [], override, alias_on_line
 
 
+# -- the verdict --
 def decide(payload):
+    """Judge one hook payload (a dict). Returns (verdict, reason, tool, cwd, cmd) where verdict is "allow", "deny" or
+    "bypass" and reason is the deny text or the bypass reason. Reads git config / the roots file through helpers, runs
+    git probes as subprocesses and, for a commit or push, reads the session marker and globs sessions/ (record_missing)
+    and on a push runs `bash row_check.sh`; writes nothing itself (main() logs)."""
     tool = payload.get("tool_name") or ""
     tin = payload.get("tool_input") or {}
     cmd = tin.get("command")
@@ -594,6 +629,8 @@ def decide(payload):
     roots = guarded_roots()
 
     def guarded(target):
+        """The guarded root that contains `target` when it is a real checkout (`.git` a directory) in `roots`, else None;
+        a linked worktree (`.git` a file) is not guarded."""
         root, kind = repo_root_of(target)
         if root is None or kind == "file":
             return None
@@ -606,6 +643,7 @@ def decide(payload):
         spellings += [r.lower(), fw.lower(), ("/" + fw[0].lower() + "/" + fw[3:]).lower() if re.match(r"^[a-z]:/", fw.lower()) else fw.lower()]
 
     def names_guarded_root(text):
+        """True when `text` contains any guarded root in one of its spellings (backslash, slash, MSYS), case-insensitive."""
         t = text.replace("\\", "/").lower()
         return any(s.replace("\\", "/") in t for s in spellings)
 
@@ -803,6 +841,7 @@ def decide(payload):
     return "allow", "", tool, cwd, cmd
 
 
+# -- heredoc bodies: shell text is scanned, data is dropped --
 def fold_data_heredocs(cmd, cwd_guarded, names_guarded_root):
     """J64 (S137): a heredoc body is shell text only when its RECEIVER is a shell — `bash <<EOF`, `sh <<EOF`, or the
     opener line pipes into one (`cat <<EOF | sh`). Those bodies stay and are scanned line by line as before (the R1/R2
@@ -860,12 +899,16 @@ def fold_data_heredocs(cmd, cwd_guarded, names_guarded_root):
     return "\n".join(out), None
 
 
+# -- output and entry point --
 def emit_deny(reason):
+    """Print the PreToolUse deny JSON (permissionDecision "deny" plus `reason`) on stdout. Returns None."""
     print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny",
                                              "permissionDecisionReason": reason}}))
 
 
 def main():
+    """Hook entry: read the stdin JSON payload, call decide(), log DENY / BYPASS (and ALLOW when the trace file exists)
+    and print a deny JSON when refusing. An unreadable payload or any exception in decide() is a logged deny. Returns None."""
     try:
         raw = sys.stdin.buffer.read()
         payload = json.loads(raw.decode("utf-8", errors="replace"))

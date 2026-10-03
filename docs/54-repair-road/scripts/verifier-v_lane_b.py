@@ -1,4 +1,10 @@
-"""Verifier re-run of lane B's decisive probes (J31). Read-only; audits run on in-memory copies.
+"""WHAT THIS FILE DOES: a one-off verification script (run directly; run() is its one helper). It audits the
+rebuilt Marker body and the held markdown with fidelity_audit.audit_convert against the source PDF, repairs the
+Marker copy in memory by deleting its worst runaway paragraph, re-audits it, and checks the degeneration detector
+on a synthetic runaway. Reads the library and the PDF; writes one JSON file (OUT). Earlier, shorter version of
+V-v_b.py; run by hand, nothing imports it.
+
+Verifier re-run of lane B's decisive probes (J31). Read-only; audits run on in-memory copies.
 Three audit_convert runs: marker reference (unrepaired), held FULL file (unrepaired, as the
 builder/lane B measured), marker reference repaired (runaway paragraph deleted). Plus the
 negative control on the degeneration detector and compute_verdict with the historical analyst
@@ -12,6 +18,7 @@ import time
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 
+# -- paths, the manifest's stored numbers, and the audit helper --
 OUT = "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/verifier/v_lane_b_result.json"
 PDF = ("C:/Users/Bndit/ml/library/drop/done/Investment Valuation, University Edition _ Tools and -- "
        "Aswath Damodaran -- Fourth Edition, 2023 -- Wiley & Sons, Incorporated, John.pdf")
@@ -35,6 +42,11 @@ R["manifest_convert"] = {"doc_survival": stored["doc_survival"], "pages_scored":
 
 
 def run(name, text):
+    """Run audit_convert on text against the source PDF and record the result in R[name].
+
+    Returns the record dict (survival, flagged pages, degeneration, worst blocks, two verdicts, wall time).
+    Side effects: prints the record, writes the global R; reads the PDF.
+    """
     t0 = time.perf_counter()
     conv = fa.audit_convert(PDF, text, "clean", asset_count=R["asset_count"])
     tw = conv["tripwires"]

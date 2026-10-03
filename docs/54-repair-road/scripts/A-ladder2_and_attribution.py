@@ -1,4 +1,10 @@
-"""Lane A — second, independent pass at claim (2)/(3): reproduces the BUILDER'S ACTUAL
+"""WHAT THIS FILE DOES: a one-off verification script; main() is the entry point (run directly). It rebuilds the
+Marker reference from slice files, audits it against the shipped analyst .md at the unescape + space-free rung,
+attributes each still-failing window to an analyst chunk by position, reports how many windows could not be
+located, and prints chunks 23 and 78. Reads the slice dir, the held .md and the analyst journals; writes one
+JSON file (OUT). Run by hand by the verifier; nothing imports it.
+
+Lane A — second, independent pass at claim (2)/(3): reproduces the BUILDER'S ACTUAL
 METHOD for the per-chunk attribution (unescape + space-free ONLY, positional first-5-word
 location against the shipped analyst.md, chunk boundaries from analyst.fence/_chunks on the
 rebuilt reference) -- but with an OWN unescape regex (not copied from univ4e_chunks.py's
@@ -18,6 +24,7 @@ sys.path.insert(0, r"C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 import analyst  # noqa: E402
 
+# -- paths: Marker slice copies, shipped analyst .md, analyst journal root, result file --
 SLICE_DIR = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker"
 ANALYST_MD = r"C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Four.md"
 JOURNAL_DIR = r"C:/Users/Bndit/ml/library/.analyst-work"
@@ -25,13 +32,17 @@ OUT = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-po
 
 # OWN unescape regex (different in shape from univ4e_chunks.py's ESC -- that one only strips
 # backslash before a fixed whitelist of punctuation; mine strips backslash before ANY single
-# character, same as ladder.py's step-1). Kept as its own function so this file does not import
+# character except a newline (no re.DOTALL), same as ladder.py's step-1). Kept as its own function so this file does not import
 # anything from the builder's scripts, only from the pipeline's own analyst.py/fidelity_audit.py.
 def unescape(t: str) -> str:
+    """Remove a backslash before any single character in t except a newline (`.` without re.DOTALL), so a
+    backslash ending a line - a Markdown hard break - is kept. Returns the new str (pure)."""
     return re.sub(r"\\(.)", r"\1", t)
 
 
+# -- the measurement: window audit, positional attribution, report --
 def main():
+    """Run the whole measurement: reads slices, held .md and journals, prints findings, writes OUT as JSON."""
     files = sorted(glob.glob(SLICE_DIR + "/slice-*.md"))
     marker = "\n\n".join(open(f, encoding="utf-8").read() for f in files)
     held = open(ANALYST_MD, encoding="utf-8").read()
@@ -40,6 +51,7 @@ def main():
     chunks = analyst._chunks(fenced)
     print("n_chunks:", len(chunks), "(manifest: resumed 641 + generated 316 = 957)")
 
+    # merge every journal dir's records that hash-validate against the rebuilt chunks (later dirs overwrite earlier)
     journal = {}
     for d in Path(JOURNAL_DIR).iterdir():
         f = d / "chunks.jsonl"
@@ -63,6 +75,8 @@ def main():
     for c in chunks[:-1]:
         starts.append(starts[-1] + len(c))
 
+    # locate each failing window by its first 5 words (searching forward from the last hit, then from 0)
+    # and count it against the chunk that contains that position
     per_chunk = Counter()
     words_chunk = Counter()
     located = 0
@@ -86,6 +100,7 @@ def main():
           f"({round(100*missed/len(still),1)}% of still-failing windows)")
 
     tot = sum(per_chunk.values())
+    # how many of the worst chunks carry 80 percent of the located loss
     cum, n80 = 0, 0
     for i, n in per_chunk.most_common():
         cum += n

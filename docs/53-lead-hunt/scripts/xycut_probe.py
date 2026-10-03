@@ -1,4 +1,11 @@
-"""Lane A measurement: a ~50-line recursive XY-cut over block bboxes, CPU-only, no GPU.
+"""WHAT THIS FILE DOES: a stand-alone measurement script (run directly, no arguments) that implements a
+recursive XY-cut reading-order sorter over text-block boxes and compares its order with two other
+orders of the same PDF page: pymupdf's raw block order and the structure-tree "declared" order. It
+opens two PDFs under C:/Users/Bndit/Downloads, prints tallies to stdout and writes no file. Its helpers
+(xy_cut, geom_blocks, declared_frags, stream, compare, NORM) are imported by xycut_v2.py and
+xycut_v3_net.py. Needs the pymupdf package.
+
+Lane A measurement: a ~50-line recursive XY-cut over block bboxes, CPU-only, no GPU.
 
 Ground truth (declared order) reused verbatim from probe_k_order.py's declared_frags()
 (structure-tree pre-order, Door A). "Marker's geometric order" reused verbatim from probe_k's
@@ -25,22 +32,26 @@ import difflib
 import sys
 import pymupdf
 
+# -- tuning constants and the whitespace normaliser --
 GAP_PX = 4.0     # minimum white-space band (pt) to count as a cut -- avoids cutting on kerning
 ROW_TOL = 3.0    # y-tolerance (pt) for "same row" in the leaf rule
 
 NORM = lambda s: re.sub(r"\s+", " ", s).strip()
 
 
+# -- the XY-cut algorithm: gap finder and recursive splitter --
 def _gaps(intervals, lo, hi):
     """Given [(a,b), ...] sub-intervals of [lo,hi], return internal gaps >= GAP_PX wide,
     as a sorted list of (gap_start, gap_end)."""
     ivs = sorted(intervals)
+    # merge overlapping or touching intervals into solid runs
     merged = []
     for a, b in ivs:
         if merged and a <= merged[-1][1] + 1e-6:
             merged[-1] = (merged[-1][0], max(merged[-1][1], b))
         else:
             merged.append((a, b))
+    # the spaces between consecutive solid runs that are at least GAP_PX wide are the gaps
     gaps = []
     for i in range(len(merged) - 1):
         g0, g1 = merged[i][1], merged[i + 1][0]
@@ -54,6 +65,7 @@ def xy_cut(blocks):
     carried through). Returns blocks reordered by recursive XY-cut."""
     if len(blocks) <= 1:
         return blocks
+    # step 1: try a horizontal cut at the middle of the first (topmost) Y gap; blocks go by their centre line
     y0 = min(b["bbox"][1] for b in blocks)
     y1 = max(b["bbox"][3] for b in blocks)
     ygaps = _gaps([(b["bbox"][1], b["bbox"][3]) for b in blocks], y0, y1)
@@ -63,6 +75,7 @@ def xy_cut(blocks):
         bot = [b for b in blocks if (b["bbox"][1] + b["bbox"][3]) / 2 > cut]
         if top and bot:
             return xy_cut(top) + xy_cut(bot)
+    # step 2: no usable Y cut, so try a vertical cut at the middle of the first (leftmost) X gap
     x0 = min(b["bbox"][0] for b in blocks)
     x1 = max(b["bbox"][2] for b in blocks)
     xgaps = _gaps([(b["bbox"][0], b["bbox"][2]) for b in blocks], x0, x1)
@@ -72,6 +85,7 @@ def xy_cut(blocks):
         right = [b for b in blocks if (b["bbox"][0] + b["bbox"][2]) / 2 > cut]
         if left and right:
             return xy_cut(left) + xy_cut(right)
+    # step 3: base case, row-major order (y bucketed by ROW_TOL, then x)
     return sorted(blocks, key=lambda b: (round(b["bbox"][1] / ROW_TOL), b["bbox"][0]))
 
 
@@ -83,9 +97,13 @@ FL = pymupdf.TEXTFLAGS_DICT | pymupdf.TEXT_COLLECT_STRUCTURE
 
 
 def declared_frags(page):
+    """Text of every text block of `page` in structure-tree (declared) order, whitespace-normalised,
+    empty ones dropped. Returns a list of str. Reads the page only; no side effects."""
     out = []
 
     def w(bl):
+        """Walk block list `bl` depth-first (type 2 blocks are descended into), appending each
+        type 0 text block's joined span text to the enclosing `out` list."""
         for b in bl:
             if b.get("type") == 2:
                 w(b.get("blocks", []))
@@ -107,10 +125,16 @@ def geom_blocks(page):
 
 
 def stream(frags):
+    """Join the text fragments with spaces, normalise whitespace, then delete every space: one
+    character stream used to compare orders. Returns str; no side effects."""
     return NORM(" ".join(frags)).replace(" ", "")
 
 
 def compare(a_frags, b_frags, label_a, label_b, page_no, show):
+    """Classify two fragment lists of one page. Returns None (both empty), "same" (identical
+    character streams), "reorder" (same characters in a different order) or "content_diff"
+    (different characters). When `show` is true and the result is "reorder", prints one line
+    naming the labels and the difflib similarity ratio."""
     sa, sb = stream(a_frags), stream(b_frags)
     if not sa and not sb:
         return None
@@ -126,6 +150,10 @@ def compare(a_frags, b_frags, label_a, label_b, page_no, show):
 
 
 def run(path, max_pages, negative_control_reversed=True):
+    """Score the first `max_pages` pages of the PDF at `path`: for each non-blank page compare
+    xy-cut vs geometric, xy-cut vs declared and geometric vs declared order, then print the three
+    tallies. Returns the three tally dicts (same / reorder / content_diff / skip counts).
+    `negative_control_reversed` is accepted but not used in the body. Opens the PDF; prints."""
     doc = pymupdf.open(path)
     N = min(doc.page_count, max_pages)
     print("=== %s (first %d pages) ===" % (path.split("/")[-1], N))
@@ -141,6 +169,7 @@ def run(path, max_pages, negative_control_reversed=True):
             xy_vs_decl["skip"] += 1
             geom_vs_decl["skip"] += 1
             continue
+        # tag each block with its original index, then build the three orderings to compare
         for j, b in enumerate(gblocks):
             b["idx"] = j
         xy_ordered = xy_cut(gblocks)
@@ -148,6 +177,7 @@ def run(path, max_pages, negative_control_reversed=True):
         geom_frags_ = [b["text"] for b in gblocks]
         decl_frags = declared_frags(p)
 
+        # tally each pairwise verdict (None means both empty, counted as skip)
         r1 = compare(xy_frags, geom_frags_, "xy-cut", "geometric", i, shown < 3)
         r2 = compare(xy_frags, decl_frags, "xy-cut", "declared", i, False)
         r3 = compare(geom_frags_, decl_frags, "geometric", "declared", i, False)
@@ -180,6 +210,8 @@ def run(path, max_pages, negative_control_reversed=True):
 # ---------------------------------------------------------------------------------------------
 # NEGATIVE CONTROL 1: self-compare (xy_cut is deterministic; must be identical to itself)
 def negctrl_self(path):
+    """Run xy_cut twice on page 0 of the PDF at `path` and print/return whether both text orders
+    are identical (bool). Opens the PDF; prints one line."""
     doc = pymupdf.open(path)
     p = doc[0]
     gblocks = geom_blocks(p)
@@ -202,6 +234,9 @@ def negctrl_self(path):
 # fail the Y-gap test, fall through to the X-projection, find the column gutter, and recover
 # true column-major order.
 def negctrl_two_column():
+    """Build six synthetic blocks forming two full-height columns, order them with a naive y-sort
+    and with xy_cut, print both. Returns True when the naive order is wrong and xy_cut's is the
+    column-major order L0..L2,R0..R2. No file access; prints."""
     left = [{"bbox": (10, 10 + k * 40, 90, 50 + k * 40), "text": "L%d" % k, "idx": k}
             for k in range(3)]   # x 10-90, y 10-50 / 50-90 / 90-130 (contiguous, no row gap)
     right = [{"bbox": (140, 10 + k * 40, 220, 50 + k * 40), "text": "R%d" % k, "idx": k}
@@ -218,6 +253,7 @@ def negctrl_two_column():
     return naive_order != expected and xy_order == expected
 
 
+# -- entry point: negative controls, then the two measured PDFs --
 if __name__ == "__main__":
     print("### NEGATIVE CONTROLS ###")
     negctrl_self(r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf")

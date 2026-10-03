@@ -1,4 +1,9 @@
-"""Negative control: plant a window whose CONTENT the model certainly changed (word swapped
+"""WHAT THIS FILE DOES: a one-off control script (run directly; unescape() and punct_free() are its helpers). It
+plants a 12-word window with one nonsense token into the rebuilt Marker reference and prints whether that window
+is found in the shipped analyst .md at each normalisation stage (all should say False). Reads the slice dir and
+the held .md; writes nothing. Run by hand; nothing imports it.
+
+Negative control: plant a window whose CONTENT the model certainly changed (word swapped
 for an antonym/nonsense token that cannot appear anywhere else in a 3.4M-char finance text)
 and confirm it fails containment at every ladder stage (baseline / unescape / punct-free /
 space-free). If it ever PASSES, the ladder is leaking (a methodology bug), which would
@@ -14,11 +19,15 @@ SLICE_DIR = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-f
 ANALYST_MD = r"C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Four.md"
 
 
+# -- normalisation helpers and inputs --
 def unescape(t):
+    """Remove a backslash before any single character in t except a newline (`.` without re.DOTALL), so a
+    backslash ending a line - a Markdown hard break - is kept. Returns the new str (pure)."""
     return re.sub(r"\\(.)", r"\1", t)
 
 
 def punct_free(t):
+    """Delete every non-word, non-space character in t, then collapse whitespace runs and strip. Pure."""
     t = re.sub(r"[^\w\s]", "", t, flags=re.UNICODE)
     return re.sub(r"\s+", " ", t).strip()
 

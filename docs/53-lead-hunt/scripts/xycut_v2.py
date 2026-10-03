@@ -1,4 +1,11 @@
-"""v2: same xy_cut() core, but margin-band blocks (header/footer -- fully within the top 8% or
+"""WHAT THIS FILE DOES: second XY-cut experiment (run directly, no arguments). Defines xy_cut_v2, which
+takes header/footer blocks out of the xy_cut of xycut_probe.py and puts them back in their raw
+(content-stream) slots, then scores v2 against the declared structure-tree order on the first
+57 pages of Well-Tagged-PDF-WTPDF-1.0.pdf and the first 60 of ISO_32000-2_sponsored_EC3.pdf under
+C:/Users/Bndit/Downloads. Prints tallies; writes nothing. xycut_v3_net.py imports xy_cut_v2 (and,
+because the two run() calls below are at module level, importing it also runs them).
+
+v2: same xy_cut() core, but margin-band blocks (header/footer -- fully within the top 8% or
 bottom 8% of the page height, a common running-header/footer convention) are excluded from the
 recursive cut and re-spliced back at the position they held in pymupdf's raw content-stream
 order. This tests whether the ONE confound found by inspection (WTPDF page 5: a footer block
@@ -8,9 +15,14 @@ geometrically at the bottom but content-stream-first and declared-first) explain
 import pymupdf
 from xycut_probe import xy_cut, geom_blocks, declared_frags, stream, compare, NORM
 
+# -- margin fraction and the margin-excluding XY-cut --
 MARGIN_FRAC = 0.08
 
 def xy_cut_v2(blocks, page_height):
+    """XY-cut with margin blocks (fully inside the top or bottom MARGIN_FRAC of `page_height`)
+    held out: `blocks` is a list of dicts with 'bbox' and 'idx'. The body blocks are ordered by
+    xy_cut and placed where the first body block sat in the input order; margin blocks keep their
+    input slots. Returns the new list. No side effects."""
     lo, hi = MARGIN_FRAC * page_height, (1 - MARGIN_FRAC) * page_height
     margin = [b for b in blocks if b["bbox"][3] <= lo or b["bbox"][1] >= hi]
     body = [b for b in blocks if b not in margin]
@@ -36,6 +48,8 @@ def xy_cut_v2(blocks, page_height):
 
 
 def run(path, max_pages):
+    """Score xy_cut_v2 against the declared order on the first `max_pages` pages of the PDF at
+    `path`; prints the same / reorder / content_diff / skip tallies. Returns None. Opens the PDF."""
     doc = pymupdf.open(path)
     N = min(doc.page_count, max_pages)
     print("=== %s (first %d pages), v2 margin-excluded xy-cut ===" % (path.split("/")[-1], N))
@@ -62,6 +76,7 @@ def run(path, max_pages):
           % (tallies["same"], tallies["reorder"], tallies["content_diff"], tallies["skip"]))
     doc.close()
 
+# -- module-level run on the two measured PDFs (executes on import too) --
 run(r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf", 57)
 print()
 run(r"C:/Users/Bndit/Downloads/ISO_32000-2_sponsored_EC3.pdf", 60)

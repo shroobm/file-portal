@@ -1,6 +1,13 @@
+"""WHAT THIS FILE DOES: a one-off measurement script (run directly, no arguments). For each of nine
+named PDFs in C:/Users/Bndit/ml/library/drop/done it counts the text-trace span types on every page
+with pymupdf, computes the share of invisible spans (type 3 or 7), predicts "scan" when that share is
+over 0.5 and otherwise "clean", and writes the results as JSON to a scratchpad path under
+C:/Users/Bndit/AppData/Local/Temp, then prints one summary line per file. Nothing imports it.
+"""
 import json, os, sys
 import pymupdf
 
+# -- inputs: the folder of finished PDFs, the (file name, lane in the manifest) list, one file known missing --
 DONE = r"C:/Users/Bndit/ml/library/drop/done"
 
 works = [
@@ -17,6 +24,7 @@ works = [
 
 MISSING = ["Designing with Freedom W Sketches from Stafford Beer, Chichester, West Sussex ISBN 13 9780471062202.pdf (scan, per manifest) -- SOURCE NOT ON DISK, UNREAD"]
 
+# -- measurement loop: one result dict per file (an error dict if missing or unopenable) --
 results = []
 for fname, manifest_lane in works:
     path = os.path.join(DONE, fname)
@@ -43,6 +51,7 @@ for fname, manifest_lane in works:
             t = span.get("type")
             mode_counts[t] = mode_counts.get(t, 0) + 1
         sampled += 1
+    # invisible text = render modes 3 and 7 (the OCR-layer signature); ratio of those to all spans
     invisible = mode_counts.get(3, 0) + mode_counts.get(7, 0)
     ratio = (invisible / total_spans) if total_spans else 0.0
     meta = doc.metadata or {}
@@ -63,6 +72,7 @@ for fname, manifest_lane in works:
     })
     doc.close()
 
+# -- output: write the JSON file, then print one line per result --
 out_path = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/leads/lane_measurements.json"
 with open(out_path, "w", encoding="utf-8") as f:
     json.dump({"results": results, "missing": MISSING}, f, indent=2, ensure_ascii=False)

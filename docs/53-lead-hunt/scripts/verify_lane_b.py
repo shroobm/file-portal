@@ -1,3 +1,10 @@
+"""WHAT THIS FILE DOES: a one-off verification script (run directly, no arguments) for the LaTeX
+"array" shapes in one held Markdown book (Damodaran, Investment Valuation, University Edition).
+It calls windows-converter/fidelity_audit.latex_balance on it, counts begin/end{array} pairs, page
+anchors, column-spec widths and empty pipe-table cells per page, then runs latex_balance on the
+matching Markdown files under C:/Users/Bndit/ml/library/anchor for comparison. Reads files, prints
+to stdout, writes nothing. Hard-coded Windows paths; nothing imports it.
+"""
 import sys, re, json, glob
 from collections import Counter
 from pathlib import Path
@@ -11,6 +18,7 @@ print("md lines:", len(lines))
 lb = fa.latex_balance(md)
 print("REAL fidelity_audit.latex_balance:", json.dumps(lb))
 
+# -- page anchors: (line number, page number) of every <span id="page-N-M"> marker --
 PAGE_ANCHOR = re.compile(r'<span id="page-(\d+)-\d+"></span>')
 anchors = sorted((md.count("\n", 0, m.start()) + 1, int(m.group(1))) for m in PAGE_ANCHOR.finditer(md))
 print("anchors:", len(anchors), "first", anchors[0], "last", anchors[-1])
@@ -21,6 +29,8 @@ print("largest anchor gaps (lines, at):", gaps[:3])
 
 
 def nearest(ln):
+    """Page number of the last page anchor at or before line `ln` (1-based); the first anchor's
+    page when none precedes it. Reads the module-level `anchors`; no side effects."""
     best = None
     for l, p in anchors:
         if l <= ln:
@@ -30,11 +40,13 @@ def nearest(ln):
     return best if best is not None else anchors[0][1]
 
 
+# -- direct scan of \begin{array} / \end{array} and the stack check for unterminated ones --
 BEG = re.compile(r"\\begin\s*\{array\}")
 END = re.compile(r"\\end\s*\{array\}")
 begs = [md.count("\n", 0, m.start()) + 1 for m in BEG.finditer(md)]
 ends = [md.count("\n", 0, m.start()) + 1 for m in END.finditer(md)]
 print("direct scan begin{array}:", len(begs), "end{array}:", len(ends))
+# push each begin's line, pop on each end; whatever remains on the stack is unterminated
 stack = []
 for m in re.finditer(r"\\(begin|end)\s*\{array\}", md):
     ln = md.count("\n", 0, m.start()) + 1
@@ -44,6 +56,7 @@ for m in re.finditer(r"\\(begin|end)\s*\{array\}", md):
         stack.pop()
 print("unterminated array lines -> (line, nearest anchor page):", [(l, nearest(l)) for l in stack])
 
+# -- column-spec widths of each array; "degenerate" = 6+ identical letters in the spec --
 widths = Counter()
 degenerate = []
 for m in BEG.finditer(md):
@@ -57,6 +70,7 @@ for m in BEG.finditer(md):
         degenerate.append((md.count("\n", 0, m.start()) + 1, cs))
 print("colspec widths:", dict(widths), "degenerate(>=6 identical):", degenerate)
 
+# -- pipe-table rows and empty cells ("| |") counted per nearest page --
 TR = re.compile(r"^\s*\|.*\|\s*$")
 EC = re.compile(r"\|\s*\|")
 rows = Counter()
@@ -74,6 +88,7 @@ for i, l in enumerate(lines, 1):
 print("pipe rows:", nrows, "pages:", len(rows), "empty markers:", nempty, "pages w/ empty:", len([p for p in empt if empt[p]]))
 print("top11 by empty:", sorted(empt.items(), key=lambda x: -x[1])[:11])
 print("top6 by rows:", sorted(rows.items(), key=lambda x: -x[1])[:6])
+# -- comparison against the anchor copies: arrays with a 30-or-more "c" column spec --
 WIDE = re.compile(r"\\begin\{array\}\{c{30,}\}")
 print("36-c shape in Damodaran held md:", len(WIDE.findall(md)))
 

@@ -1,4 +1,10 @@
-"""Verifier (Fable) - lane C probes for J33 + the 'only one Marker reference on disk' claim (J32).
+"""WHAT THIS FILE DOES: a one-off verification script (run directly, no entry-point function). It measures the
+library's slice sizes, the highest page ids in the held bundles, and then, for every anchor/ pair of an original
+bundle and its "[analyst-...]" re-run, recomputes audit_analyst and compares it with the re-run manifest (running
+the normalisation ladder on pairs that qualify). Reads the library; writes v_c_result.json into folder V and
+prints one JSON line per pair. Run by hand; nothing imports it.
+
+Verifier (Fable) - lane C probes for J33 + the 'only one Marker reference on disk' claim (J32).
 (1) anchor/ pairs: original (no analyst block) vs [analyst-local] re-run of the SAME sha: does
 audit_analyst(orig body, rerun body) reproduce the rerun manifest's fidelity.analyst? If yes, the pair is a
 valid Marker-reference/analyst pair and a second (third...) book exists for J32's calibration. Then the
@@ -14,6 +20,7 @@ import time
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 
+# -- paths, then the slice-size and page-id measurements (sections 2 and 3 of the header) --
 V = ("C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/"
      "3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/V")
 A = "C:/Users/Bndit/ml/library/anchor"
@@ -40,7 +47,9 @@ R["pages_in_held_2025_edition"] = {
 print("slices:", R["slices"], "\npages:", R["pages_in_held"], R["pages_in_held_2025_edition"], flush=True)
 
 
+# -- helpers for the anchor-pair audit --
 def body_of(d):
+    """Return the markdown body (front matter stripped) of the first non-REPAIRS .md file in bundle dir d."""
     # os.listdir, not glob: "[analyst-local]" in a dir name is a glob character class
     md = [os.path.join(d, f) for f in os.listdir(d) if f.endswith(".md") and f != "REPAIRS.md"][0]
     raw = open(md, encoding="utf-8").read()
@@ -48,19 +57,26 @@ def body_of(d):
 
 
 def unesc(t):
+    """Remove a backslash that precedes a punctuation/symbol character in t. Pure."""
     return re.sub(r"\\(?=[^\w\s])", "", t)
 
 
 def punct(t):
+    """Replace non-word characters and underscores in t with spaces and collapse whitespace. Pure."""
     return re.sub(r"\s+", " ", re.sub(r"[^\w\s]|_", " ", t)).strip()
 
 
 def ladder(mb, ab):
+    """Run the baseline, unescape, and unescape+punct+space-free rungs on reference body mb vs analyst body ab.
+
+    Returns a dict {cjk flag, rung name: stats}. Pure apart from fidelity_audit helper calls.
+    """
     ref0, out0 = fa.prepare_output(mb), fa.prepare_output(ab)
     cjk = fa.is_cjk(ref0[:4000])
     out = {"cjk": cjk}
 
     def rung(ref, o, sf):
+        """Window ref and count windows missing from o (spaces ignored if sf or the text is CJK); returns stats."""
         wins = fa.make_windows(ref, cjk)
         if sf or cjk:
             oo = o.replace(" ", "")
@@ -79,6 +95,7 @@ def ladder(mb, ab):
     return out
 
 
+# find anchor pairs: a "<name> [analyst-...]" directory whose base "<name>" directory also exists
 pairs = []
 dirs = sorted(os.listdir(A))
 for d in dirs:
@@ -105,12 +122,14 @@ for orig, rerun in pairs:
            "rerun_manifest_runs_total": exp.get("runs_total"), "rerun_manifest_runs_shown": len(exp.get("runs", [])),
            "recomputed_max_run": max((r["words"] for r in res["runs"]), default=0),
            "rerun_manifest_max_run": max((r["words"] for r in exp.get("runs", [])), default=0)}
+    # does the recomputed audit reproduce the re-run manifest's stored analyst fidelity?
     if exp.get("doc_survival") is None:
         rec["pair_valid_marker_reference"] = "no stored analyst block (computed only)"
     elif abs(res["doc_survival"] - exp["doc_survival"]) < 1e-9:
         rec["pair_valid_marker_reference"] = "reproduces manifest"
     else:
         rec["pair_valid_marker_reference"] = "DOES NOT reproduce"
+    # ladder only for same-source pairs where the original has no analyst block and survival is under 0.995
     if mo.get("source_sha256") == mr.get("source_sha256") and not mo.get("analyst") and res["doc_survival"] < 0.995:
         rec["ladder"] = ladder(ob, rb)
     rec["wall_s"] = round(time.perf_counter() - t, 1)

@@ -1,4 +1,10 @@
-"""Read-only diagnosis of the held University 4e (14c66834bdfeaa2e): why does the verdict fail?
+"""WHAT THIS FILE DOES: a one-off diagnosis script (run directly, no functions). It reads the held bundle's
+manifest and markdown, finds the pre-analyst Marker copy among the anchor/ bundles, runs fidelity_audit's
+degeneration check and audit_analyst on them, reads the source PDF page under the worst runaway line (needs
+pymupdf and the PDF in drop/done), and prints what it finds. Writes univ4e_diag.json beside this script
+(OUT). Run by hand; nothing imports it.
+
+Read-only diagnosis of the held University 4e (14c66834bdfeaa2e): why does the verdict fail?
 (1) the convert-stage degeneration block after J29; (2) the analyst-stage near-exact loss —
 re-run audit_analyst(marker_md, held_md) and classify the omission runs; (3) the real page and
 witness text under the line-8776 runaway. Nothing is written outside the scratchpad."""
@@ -12,6 +18,7 @@ from pathlib import Path
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 
+# -- paths and the held bundle's manifest --
 LIB = Path("C:/Users/Bndit/ml/library")
 HELD = LIB / "held" / "14c66834bdfeaa2e"
 OUT = Path(__file__).with_name("univ4e_diag.json")
@@ -26,6 +33,7 @@ print("chunking:", json.dumps(man.get("chunking"))[:400])
 print("analyst meta keys:", [k for k in man.get("analyst", {}).keys()][:20] if isinstance(man.get("analyst"), dict) else man.get("analyst"))
 
 # ---- which anchor copy is the Marker (pre-analyst) markdown?
+# take the first anchor bundle whose manifest has no analyst block as the Marker (pre-analyst) markdown
 cands = sorted(LIB.glob("anchor/Investment Valuation, University Edition*/"))
 marker_md = None
 for d in cands:
@@ -70,6 +78,7 @@ if src_pdf.exists() and page_anchor:
     for p in (page_anchor - 1, page_anchor, page_anchor + 1):
         if 0 <= p < len(doc):
             txt = doc[p].get_text()
+            # the page is the witness when its text mentions ROC together with a (1 - t) form
             hit = "ROC" in txt and ("1 - t" in txt or "1 − t" in txt or "(1 –" in txt)
             print(f"    pdf page index {p}: {len(txt)} chars, ROC/1-t present: {hit} | {txt[:90]!r}")
             if hit:

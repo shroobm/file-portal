@@ -1,4 +1,10 @@
-"""Verifier re-run of lane A's decisive probes (J32). Read-only on repo + library.
+"""WHAT THIS FILE DOES: a one-off verification script (run directly, no entry-point function). It rebuilds the
+Marker reference from the library slice cache, audits it against the shipped held body with fidelity_audit, climbs
+an own normalisation ladder, attributes failing windows to analyst chunks, tests chunks 23 and 78, reads the
+analyst journal, and runs controls. It reads the library paths named below and writes one JSON file (OUT) plus
+progress prints. Earlier, shorter version of V-v_a.py; run by hand, nothing imports it.
+
+Verifier re-run of lane A's decisive probes (J32). Read-only on repo + library.
 Own reference rebuild from the LIBRARY slice cache (not the scratch copies), the real
 fidelity_audit.audit_analyst, an independent normalisation ladder, own chunk attribution,
 chunk 23/78 deletion-vs-rewording test, rejected-chunk windows, front matter, negative control."""
@@ -14,6 +20,7 @@ sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 import analyst  # noqa: E402
 
+# -- paths: result file OUT, library slice cache, held bundle, analyst journal; R collects every result --
 OUT = "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/verifier/v_lane_a_result.json"
 LIB = "C:/Users/Bndit/ml/library/.chunk-work/14c66834bdfeaa2e"
 HELD_DIR = "C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e"
@@ -53,17 +60,24 @@ print("baseline:", R["baseline"], f"{time.perf_counter()-t0:.0f}s", flush=True)
 
 # --- 3. independent normalisation ladder (own regexes, deliberately not the builder's)
 def unescape(t):
+    """Remove a backslash preceding any character that is not an ASCII letter, digit or whitespace (the class is
+    `[^A-Za-z0-9\\s]`, so a backslash before a non-ASCII letter such as é goes too). Returns str (pure)."""
     # drop a backslash that precedes any non-alphanumeric, non-space character
     return re.sub(r"\\(?=[^A-Za-z0-9\s])", "", t)
 
 
 def punct_free(t):
+    """Replace non-word characters and underscores in t with spaces, collapse whitespace, strip. Pure."""
     # after prepare_output: keep letters/digits (unicode \w minus underscore), collapse the rest
     t = re.sub(r"[^\w\s]+|_", " ", t)
     return re.sub(r"\s+", " ", t).strip()
 
 
 def rung(ref, out, spacefree):
+    """Audit one ladder rung: window ref, test each window against out (spaces ignored if spacefree).
+
+    Returns (stats dict, windows list, failed-flag list). Pure apart from calling fidelity_audit helpers.
+    """
     wins = fa.make_windows(ref, False)
     if spacefree:
         o = out.replace(" ", "")
@@ -98,6 +112,11 @@ R["chunks"] = {"n": len(chunks), "embeds": len(embeds),
 
 
 def attribute(wins, fails, nwords=6):
+    """Attribute each failed window to the analyst chunk containing its first nwords words.
+
+    Finds the key in the lowered fenced text (first occurrence) and maps the position to a chunk number via
+    starts. Returns (summary dict, {chunk number: failed-window count}). Reads module globals low, starts.
+    """
     per = {}
     located = unlocated = 0
     idxs = []
@@ -114,6 +133,7 @@ def attribute(wins, fails, nwords=6):
         per[i] = per.get(i, 0) + 1
         idxs.append(i)
     tot = sum(per.values())
+    # count how many of the worst chunks it takes to reach 80 percent of the located losses
     cum = n80 = 0
     for i, n in sorted(per.items(), key=lambda kv: -kv[1]):
         cum += n
@@ -143,6 +163,10 @@ out_full = out0
 
 
 def para_test(i):
+    """For chunk number i, count paragraphs (8+ words) that are or are not contained in the shipped body.
+
+    Returns a dict of counts plus the first four absent paragraph heads. Reads module globals chunks, out_full.
+    """
     ch = chunks[i - 1]
     paras = [p for p in re.split(r"\n\s*\n", ch) if len(p.split()) >= 8]
     present = absent = 0

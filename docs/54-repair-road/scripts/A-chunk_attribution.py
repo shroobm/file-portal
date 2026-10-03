@@ -1,4 +1,11 @@
-"""Lane A — per-chunk attribution (claim 3) + qualitative diff for chunks 23, 78 (claim re
+"""WHAT THIS FILE DOES: a one-off verification script; main() is the entry point (run directly). It rebuilds the
+Marker reference from seven slice files, chunks it with the analyst's own code, matches the analyst journal to the
+chunks by hash, then audits each chunk's input against its journal output to count failed 12-word windows per
+chunk. It also counts figure/table mentions in reference vs the shipped analyst .md. Reads the slice dir, the
+journal and the held .md; writes one JSON file (OUT) and prints a summary. Note: despite the title below, no
+qualitative diff of chunks 23 and 78 is computed here. Run by hand; nothing imports it.
+
+Lane A — per-chunk attribution (claim 3) + qualitative diff for chunks 23, 78 (claim re
 rewordings). Uses the REAL analyst.fence / analyst._chunks / analyst._chunk_hash /
 analyst._load_journal (pipeline's own code) against the independently rebuilt Marker
 reference, cross-checked against C:/Users/Bndit/ml/library/.analyst-work/d58db211c41b0e17/chunks.jsonl.
@@ -13,12 +20,15 @@ sys.path.insert(0, r"C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 import analyst  # noqa: E402
 
+# -- paths: Marker slice copies, analyst journal, result file --
 SLICE_DIR = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker"
 JOURNAL = r"C:/Users/Bndit/ml/library/.analyst-work/d58db211c41b0e17/chunks.jsonl"
 OUT = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/A/chunk_attribution_result.json"
 
 
+# -- the measurement --
 def main():
+    """Run the per-chunk attribution: reads slices, journal and held .md, prints a summary, writes OUT as JSON."""
     files = sorted(glob.glob(SLICE_DIR + "/slice-*.md"))
     assert len(files) == 7
     marker_ref = "\n\n".join(open(f, encoding="utf-8").read() for f in files)
@@ -69,6 +79,7 @@ def main():
         total_failed += n_failed_exact
         total_windows += n_windows
 
+    # chunks with at least one failed window, worst first; then how many it takes to reach 80 percent of the loss
     chunks_with_loss = [c for c in per_chunk if c.get("failed")]
     chunks_with_loss_sorted = sorted(chunks_with_loss, key=lambda c: -c["failed"])
 

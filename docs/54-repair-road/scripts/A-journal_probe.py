@@ -1,3 +1,9 @@
+"""WHAT THIS FILE DOES: a one-off probe script (run directly, no functions). It rebuilds the Marker reference
+from slice files, cuts it into analyst chunks, then classifies every raw line of one analyst journal
+(chunks.jsonl) as matching its chunk by index and hash, matching a chunk at a different index, hash unknown, or
+index out of range, and prints a few sample hashes. Reads the slice dir and the journal; writes nothing. Run by
+hand; nothing imports it.
+"""
 import glob
 import json
 import sys
@@ -5,6 +11,7 @@ import sys
 sys.path.insert(0, r"C:/Users/Bndit/Projects/file-portal/windows-converter")
 import analyst  # noqa: E402
 
+# -- paths: Marker slice copies and the journal under test --
 SLICE_DIR = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker"
 JOURNAL = r"C:/Users/Bndit/ml/library/.analyst-work/d58db211c41b0e17/chunks.jsonl"
 
@@ -20,6 +27,8 @@ lines = [ln for ln in open(JOURNAL, encoding="utf-8").read().splitlines() if ln.
 recs = [json.loads(ln) for ln in lines]
 print("raw journal lines:", len(recs))
 
+# classify each journal record: same index and hash / hash found at another index / index in range but hash unknown
+# / index out of range
 matched = 0
 mismatched_same_i = 0
 matched_diff_i = 0

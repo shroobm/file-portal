@@ -1,4 +1,9 @@
-"""Net-payoff test: on the pages where Marker's OWN baseline (raw content-stream / pdftext
+"""WHAT THIS FILE DOES: net-payoff script (run directly, no arguments). Imports xy_cut_v2 from
+xycut_v2.py, which itself runs that file's two scoring passes on import, then, for the two PDFs under
+C:/Users/Bndit/Downloads, lists the pages where xy_cut_v2 fixes or breaks agreement with the declared
+order relative to the raw geometric order. Prints only; writes nothing.
+
+Net-payoff test: on the pages where Marker's OWN baseline (raw content-stream / pdftext
 order) already DISAGREES with the declared structure-tree order, does the v2 margin-excluded
 XY-cut FIX any of them (agree with declared where geometric did not), or does it only ADD new
 mismatches of its own? This is the number that actually answers spec #4's question -- not the
@@ -9,6 +14,9 @@ from xycut_probe import xy_cut, geom_blocks, declared_frags, compare
 from xycut_v2 import xy_cut_v2
 
 def run(path, max_pages):
+    """For the first `max_pages` pages of the PDF at `path`: collect pages where raw geometric
+    order differs from declared order, those v2 fixes, and pages geometric got right that v2
+    breaks; print the three lists. Returns None. Opens the PDF; prints."""
     doc = pymupdf.open(path)
     N = min(doc.page_count, max_pages)
     geom_wrong_pages = []
@@ -23,6 +31,7 @@ def run(path, max_pages):
             b["idx"] = j
         decl = declared_frags(p)
         geom_frags = [b["text"] for b in gblocks]
+        # score raw geometric order and v2 order against the declared order for this page
         r_geom = compare(geom_frags, decl, "geom", "decl", i, False)
         v2 = xy_cut_v2(list(gblocks), p.rect.height)
         v2_frags = [b["text"] for b in v2]
@@ -39,5 +48,6 @@ def run(path, max_pages):
     print("  pages geometric got RIGHT that v2 XY-cut BREAKS:   %d -> %s" % (len(xy_breaks), xy_breaks))
     doc.close()
 
+# -- module-level run on the two measured PDFs --
 run(r"C:/Users/Bndit/Downloads/Well-Tagged-PDF-WTPDF-1.0.pdf", 57)
 run(r"C:/Users/Bndit/Downloads/ISO_32000-2_sponsored_EC3.pdf", 60)

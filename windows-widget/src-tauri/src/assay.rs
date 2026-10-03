@@ -8,12 +8,13 @@
 // Writes: audit-mode.txt, drop/.supersede/<source>.json, drop/<source>, a temporary .bless-<sha16>.json.
 // Called from main.rs commands (assay_status, audit_mode_*, assay_reconvert, assay_reanalyze, assay_bless).
 
-// S31: the Assay — the Survival Audit's read side (docs/15 §13). Pure projection: Python
+// S31: the Assay — the Survival Audit's read side (docs/15 §13), a projection plus the writes listed above: Python
 // owns the `fidelity` block in each bundle's manifest.json (schema docs/15 §7) and the
 // audit-mode.txt lever; this module gathers the newest verdict + its localized evidence
 // (degeneration zones, omission runs) + the held queue for the widget's ◎ station and
-// evidence card. It writes audit-mode.txt (set_mode), drop/.supersede (reconvert) and the bless receipts (bless);
-// everything else is a read. Terracotta is the UI's to spend — this only reports.
+// evidence card. Its writes are the header's list (audit-mode.txt; drop/.supersede/<source>.json and a copy of the
+// PDF into drop/<source> for a reconvert; the bless receipt, which bless also scp's to the vault host); reanalyze
+// spawns the converter, and reconvert/bless remove the files they made. Terracotta is the UI's to spend — this only reports.
 
 use crate::vault::CREATE_NO_WINDOW;
 use crate::watcher::spawn_supervised;

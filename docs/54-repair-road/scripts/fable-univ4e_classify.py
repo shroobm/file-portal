@@ -1,4 +1,10 @@
-"""Classify every analyst-stage FAILED window of the held University 4e against the rebuilt Marker
+"""WHAT THIS FILE DOES: a one-off classification script (run directly, no functions). It rebuilds the Marker
+reference from the univ4e-marker/slice-*.md files beside this script, repeats the audit_analyst window audit
+against the held analyst .md, tests whether ignoring spaces alone clears the gate, then classifies each failed
+window by its best fuzzy alignment in the held text (space-only, punctuation-only, small edit, rewrite,
+absent). Prints the class table and writes univ4e_classify.json beside this script. Run by hand; nothing imports it.
+
+Classify every analyst-stage FAILED window of the held University 4e against the rebuilt Marker
 reference (the 7 slice.md files the converter merged). Mirrors fidelity_audit.audit_analyst exactly,
 then asks of each failed window: what did the analyst change? Read-only; JSON to the scratchpad."""
 import json
@@ -12,6 +18,7 @@ sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 from rapidfuzz import fuzz  # noqa: E402
 
+# -- inputs: rebuilt Marker reference, held analyst markdown, manifest --
 SP = Path(__file__).parent
 HELD = Path("C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e")
 slices = sorted((SP / "univ4e-marker").glob("slice-*.md"))
@@ -41,6 +48,8 @@ print(f"SPACE-FREE containment: doc_survival {doc_ns} | failed {failed_ns.count(
       f" (max run words {max((r['words'] for r in runs_ns), default=0)})")
 
 # classify each failed window by its best local alignment in the held text (anchor-based, like _fuzzy_hit)
+# for each failed window: find its rarest word in the held text, fuzzy-align the window around each occurrence,
+# keep the best score, then label the window by that score (>=90 small difference, 60-89 rewrite, <60 absent)
 idx, freq = fa._build_index(out)
 classes = Counter()
 words_by_class = Counter()

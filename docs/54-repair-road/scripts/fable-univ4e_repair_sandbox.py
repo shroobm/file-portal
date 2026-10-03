@@ -1,4 +1,10 @@
-"""SANDBOX proof of the re-audit path: copy the held University 4e to the scratchpad, replace the
+"""WHAT THIS FILE DOES: a one-off sandbox script (run directly, no functions). It deletes and recreates the folder
+univ4e-sandbox beside this script (SB), copies the held bundle into it without assets, replaces the runaway math
+block in the markdown copy with a transcribed derivation (REPAIR), re-runs fidelity_audit's degeneration,
+latex_balance and audit_convert on it (needs the source PDF), and writes fidelity.reaudit.json into SB. The held
+bundle itself is only read. Run by hand; nothing imports it.
+
+SANDBOX proof of the re-audit path: copy the held University 4e to the scratchpad, replace the
 line-8776 math-OCR runaway with the derivation as printed (transcribed from the witness text of the
 footnote, PDF page index 118), re-run the convert-stage audit on the repaired markdown, and compute
 the verdict with the manifest's analyst block. Writes ONLY under the scratchpad."""
@@ -11,6 +17,7 @@ from pathlib import Path
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 
+# -- sandbox setup: fresh copy of the held bundle (the destructive rmtree touches only SB) --
 SP = Path(__file__).parent
 LIB = Path("C:/Users/Bndit/ml/library")
 HELD = LIB / "held" / "14c66834bdfeaa2e"
@@ -23,6 +30,7 @@ man = json.loads((SB / "manifest.json").read_text(encoding="utf-8"))
 text = md_path.read_text(encoding="utf-8")
 lines = text.split("\n")
 
+# -- find the runaway paragraph (asserts exactly one flagged block that starts as expected) --
 deg0 = fa.degeneration(text)
 assert deg0["blocks_total"] == 1, deg0["blocks_total"]
 ln = deg0["worst"][0]["line"]
@@ -30,6 +38,7 @@ para = lines[ln - 1]
 assert para.startswith("$$\\begin{array}{lll} {\\rm ROC}"), para[:60]
 print(f"runaway at line {ln}: {len(para)} chars; replacing with the printed derivation")
 
+# -- the replacement text (DATA: a LaTeX derivation plus an HTML repair note) and the write into the sandbox copy --
 REPAIR = (
     "$$\\begin{aligned}\n"
     "\\mathrm{ROC} + \\frac{D}{E}\\left[\\mathrm{ROC} - i(1-t)\\right]\n"
@@ -44,6 +53,7 @@ lines[ln - 1] = REPAIR
 repaired = "\n".join(lines)
 md_path.write_text(repaired, encoding="utf-8")
 
+# -- re-audit the repaired copy: degeneration, LaTeX balance, convert-stage audit, verdicts, fidelity block --
 deg1 = fa.degeneration(repaired)
 print("after repair: degeneration flagged", deg1["flagged"], "blocks", deg1["blocks_total"], "| md_lines", deg1["md_lines"])
 

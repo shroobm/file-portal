@@ -1,7 +1,14 @@
+"""WHAT THIS FILE DOES: a one-off run script (run directly, no functions; why it is called a negative control is
+not evident from the code). It runs fidelity_audit.audit_convert on held.md in the current working directory
+against the University 4e source PDF, prints the elapsed time, and writes and prints the key numbers
+(survival, flagged pages, runs, degeneration detail) to negctrl_result.json in the current directory. Nothing
+imports it.
+"""
 import sys, json, time
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa
 
+# -- audit the held markdown against the PDF and summarise the convert-stage block --
 pdf = r"C:/Users/Bndit/ml/library/drop/done/Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Fourth Edition, 2023 -- Wiley & Sons, Incorporated, John.pdf"
 md = open("held.md", encoding="utf-8").read()
 t0 = time.time()

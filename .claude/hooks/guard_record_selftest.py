@@ -1,4 +1,10 @@
-"""guard_record_selftest.py — the tripwire for guard_record.py (J63). A throwaway File Portal-shaped root (coordination/,
+"""WHAT THIS FILE DOES: a standalone test script for guard_record.py. main() builds a throwaway repository-shaped folder
+in the temp directory, runs guard_record.py as a subprocess with a hand-built payload per case (Write, Edit, MultiEdit,
+NotebookEdit, Read and one non-JSON text; the last cases read the log instead of running the hook), compares
+the verdict (allow / deny) with the expected one, prints one line per case and a green/red total, and exits 0 only when
+every case matched. It writes only under the temp directory (removed at the end) and a scratch log there.
+
+guard_record_selftest.py — the tripwire for guard_record.py (J63). A throwaway File Portal-shaped root (coordination/,
 sessions/) registered through the hook's environment; payloads fed by subprocess. Case 0 is the positive control (the
 record exists → a write passes); the rest violate the property or prove the exemptions. Deny count derived. Exit 1 on red.
 
@@ -12,11 +18,15 @@ import subprocess
 import sys
 import tempfile
 
+# -- paths and the interpreter used to run the hook --
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guard_record.py")
 PY = sys.executable
 
 
+# -- helpers: run the hook, build a payload --
 def run_hook(payload_text, env_extra):
+    """Run guard_record.py with `payload_text` on stdin and `env_extra` added to the environment. Returns "allow" when it
+    printed nothing, the permissionDecision from its JSON, or "UNPARSEABLE:<text>"."""
     env = dict(os.environ)
     env.update(env_extra)
     p = subprocess.run([PY, HOOK], input=payload_text.encode("utf-8"), capture_output=True, env=env)
@@ -30,11 +40,15 @@ def run_hook(payload_text, env_extra):
 
 
 def payload(tool, path):
+    """Hook payload JSON text for `tool` writing to `path` (file_path, with content "x" and cwd "C:/"). Returns a string."""
     return json.dumps({"session_id": "selftest", "hook_event_name": "PreToolUse", "tool_name": tool,
                        "tool_input": {"file_path": path, "content": "x"}, "cwd": "C:/"})
 
 
+# -- the test run --
 def main():
+    """Build the throwaway root, run every case, print the tally and exit 0 (all green) or 1 (any red). Creates and
+    finally removes a temp directory; runs the hook as a subprocess."""
     tmp = tempfile.mkdtemp(prefix="guard-record-")
     root = os.path.join(tmp, "repo")
     os.makedirs(os.path.join(root, "coordination", "private"))
@@ -46,6 +60,8 @@ def main():
     results, denies = [], []
 
     def case(name, expect, got):
+        """Record one case: compare `got` with `expect`, append the result and print an ok/RED line; a case expecting
+        "deny" is counted for the later log-line check."""
         n = len(results)
         ok = got == expect
         results.append(ok)

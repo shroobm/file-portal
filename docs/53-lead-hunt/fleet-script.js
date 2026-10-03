@@ -1,3 +1,15 @@
+/**
+ * WHAT THIS FILE DOES
+ * A Workflow-tool script (meta export first, then agent()/parallel() calls) that reads the "leads" Rab hunted
+ * (OCR/layout/table/reading-order repos and one paper) against a six-row conversion spec.
+ * Phase 'Read': five sonnet lanes (LANES, one agent() each, run through parallel()) read repos and run CPU-only
+ * measurements on Rab's specimens; each returns a LANE_SCHEMA object and writes ${OUT}/<lane>.md.
+ * Phase 'Verify': one 'fable' agent re-checks licence/VRAM/offline/headline-number claims and re-runs the
+ * measurements, then writes ${OUT}/VERIFIED.md and returns a VERIFY_SCHEMA object.
+ * The script itself touches no files; it returns { lanes, verify }. Run by a session through the Workflow tool.
+ */
+
+// -- Script metadata read by the Workflow tool --
 export const meta = {
   name: 'lead-hunt-read',
   description: "Read the leads Rab hunted against the six-row conversion spec: tests first, then the line where the number is computed; measure what can be measured on his specimens; Fable verifies licence/VRAM/offline claims against the repos' own files",
@@ -7,11 +19,23 @@ export const meta = {
   ],
 }
 
+// -- Paths and command templates shared by every lane prompt --
+
+// REPO: the repository root the agents may read. OUT: scratchpad folder the lanes write their reports into.
 const REPO = 'C:/Users/Bndit/Projects/file-portal'
 const OUT = 'C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/leads'
+// MENV: the converter's python interpreter (marker-env). PAPER_TXT_CMD: command template that prints pages <lo>-<hi>
+// of the arXiv paper as text; embedded in GROUND for the agents to fill in.
 const MENV = 'C:/Users/Bndit/ml/marker-env/Scripts/python.exe'
 const PAPER_TXT_CMD = `PYTHONIOENCODING=utf-8 ${MENV} "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/d6f7a30f-66e5-40d2-a905-b2dd64ee7f44/scratchpad/pdf_text.py" "C:/Users/Bndit/Downloads/2401.11874v2.pdf" <lo> <hi>`
 
+// -- Shared prompt text --
+
+/**
+ * GROUND: the preamble prepended to every lane prompt and to the verifier prompt. A template literal holding
+ * the project context, the six-row spec, the mechanical triage, the reading method and the subagent rules.
+ * Interpolates REPO, OUT and PAPER_TXT_CMD.
+ */
 const GROUND = `
 GROUND. File Portal (Rab's local-first document-conversion pipeline: Marker 1.10.2 + surya 0.17.1 →
 markdown; a local qwen3:8b analyst; a fidelity audit against a pymupdf witness; Obsidian vault).
@@ -71,6 +95,9 @@ HOW YOU WORK — this project's signed law for subagents:
   ${REPO} except to READ.
 `
 
+// -- JSON schemas the lane agents must answer with --
+
+/** LEAD: schema of one reviewed lead (verdict, licence, VRAM, test quality, headline number, next measurement). */
 const LEAD = {
   type: 'object', additionalProperties: false,
   required: ['name', 'spec_rows', 'verdict', 'licence_at_source', 'offline_vram', 'test_quality',
@@ -88,6 +115,8 @@ const LEAD = {
     tag: { type: 'string', enum: ['Observed', 'Verified', 'Inferred', 'Unknown'] },
   },
 }
+
+/** LANE_SCHEMA: schema of one lane's whole answer: its list of LEADs, what it measured, report path, residue. */
 const LANE_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['lane', 'leads', 'measured_on_specimen', 'report_file', 'residue'],
@@ -100,6 +129,12 @@ const LANE_SCHEMA = {
   },
 }
 
+// -- The five reading lanes --
+
+/**
+ * LANES: one entry per reading lane (key = report file stem, model, brief = the lane-specific task text).
+ * A: reading order. B: tables. C: scan-vs-clean lane. D: reconstructors/VLMs. E: frameworks and discard list.
+ */
 const LANES = [
   { key: 'A-reading-order', model: 'sonnet', brief: `LANE A — READING ORDER WITHOUT A TREE (spec #4) — and the paper.
 Read: (1) the paper 2401.11874v2 in full (35 pp, the text command is in GROUND) — what Detect-Order-
@@ -176,9 +211,12 @@ YousifHisham table notebook — open it (raw .ipynb via WebFetch), say in three 
 and whether any cell contains a technique Rab's pipeline lacks.` },
 ]
 
+// -- Phase 1: run the five lanes in parallel --
+
 phase('Read')
 log(`Read: ${LANES.length} lanes`)
 
+// Each lane gets GROUND plus its own brief; a lane that fails yields a falsy entry, filtered out just below.
 const read = await parallel(LANES.map((L) => () =>
   agent(`${GROUND}\n\n${L.brief}\n\nWrite ${OUT}/${L.key}.md and return the structured object.`,
     { label: `read:${L.key}`, phase: 'Read', model: L.model, schema: LANE_SCHEMA })
@@ -186,13 +224,17 @@ const read = await parallel(LANES.map((L) => () =>
 const lanes = read.filter(Boolean)
 log(`${lanes.length}/${LANES.length} lanes returned`)
 
+// digest: a text summary of the lane results (one line per lead, truncated fields) handed to the verifier.
 const digest = lanes.map((l) => `--- ${l.lane} (${l.report_file}) ---
 ${(l.leads || []).map((x) => `  [${x.verdict}] ${x.name} · ${x.spec_rows.join(',')} · ${x.tag} · lic: ${String(x.licence_at_source).slice(0, 60)} · vram: ${String(x.offline_vram).slice(0, 80)}`).join('\n')}
 measured: ${String(l.measured_on_specimen).slice(0, 500)}
 residue: ${String(l.residue).slice(0, 300)}`).join('\n\n')
 
+// -- Phase 2: the verifier --
+
 phase('Verify')
 
+/** VERIFY_SCHEMA: schema of the verifier's answer: claims checked, measurements re-run, ranked leads, build_first. */
 const VERIFY_SCHEMA = {
   type: 'object', additionalProperties: false,
   required: ['claims_checked', 'measurements_rerun', 'ranked_leads', 'build_first', 'report_file', 'residue'],
@@ -226,6 +268,7 @@ const VERIFY_SCHEMA = {
   },
 }
 
+// One 'fable' agent gets GROUND plus the digest, re-checks the claims itself and writes VERIFIED.md.
 const verify = await agent(
   `${GROUND}
 
@@ -250,4 +293,5 @@ Write ${OUT}/VERIFIED.md, most-severe-first, and return the structured object.`,
   { label: 'verify:fable', phase: 'Verify', model: 'fable', schema: VERIFY_SCHEMA }
 )
 
+// The workflow's result: every surviving lane object and the verifier's object.
 return { lanes, verify }

@@ -1,4 +1,10 @@
-"""(1) Normalisation experiments on the analyst gate: does unescaping Marker's backslash escapes
+"""WHAT THIS FILE DOES: a one-off experiment script (run directly). It rebuilds the Marker reference from the
+univ4e-marker/slice-*.md files beside this script, audits it against the held analyst .md at several
+normalisation variants (printing PASS/FAIL per variant), then locates the windows still failing after unescape +
+space-free by Marker line and by page-anchor bucket. Writes univ4e_classify2.json beside this script. Run by
+hand; nothing imports it.
+
+(1) Normalisation experiments on the analyst gate: does unescaping Marker's backslash escapes
 (+ space-free, + punctuation-free) clear 0.995 on University 4e? (2) Where do the ABSENT windows
 live in the book? Read-only."""
 import json
@@ -18,11 +24,17 @@ held = next(HELD.glob("*.md")).read_text(encoding="utf-8")
 ESC = re.compile(r"\\([\\`*_{}\[\]()#+\-.!$|<>~])")   # markdown backslash escapes
 
 
+# -- normalisation helpers --
 def unescape(t):
+    """Remove the markdown backslash escapes matched by ESC from t. Returns the new str (pure)."""
     return ESC.sub(r"\1", t)
 
 
 def variants(m, h):
+    """Build the normalisation variants of reference m and held text h.
+
+    Returns {variant name: (reference text, output text)}. Pure apart from fidelity_audit helper calls.
+    """
     out = {}
     ref0, out0 = fa.prepare_output(m), fa.prepare_output(h)
     out["as shipped"] = (ref0, out0)
@@ -35,6 +47,7 @@ def variants(m, h):
     return out
 
 
+# -- (1) score each variant that still has spaces (the space-free ones are handled in the next loop) --
 res = {}
 base_windows = None
 for name, (ref, out) in variants(marker, held).items():

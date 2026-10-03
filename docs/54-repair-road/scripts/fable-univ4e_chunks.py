@@ -1,4 +1,10 @@
-"""Charge each analyst-stage loss to the chunk that produced it. Re-chunk the rebuilt Marker text with
+"""WHAT THIS FILE DOES: a one-off attribution script (run directly, no functions). It rebuilds the Marker
+reference from univ4e-marker/slice-*.md beside this script, cuts it into analyst chunks, finds the windows that
+still fail after unescape + space-free, charges each to a chunk by position, and prints the worst chunks with
+their journal status. Reads the held .md and the analyst journals; writes univ4e_chunks.json beside this script.
+Run by hand; nothing imports it.
+
+Charge each analyst-stage loss to the chunk that produced it. Re-chunk the rebuilt Marker text with
 the analyst's own fence + _chunks, map every still-failing window (after unescape + space-free) to its
 chunk, and read the chunk's journal status where the journal has it. Read-only."""
 import json
@@ -11,6 +17,7 @@ sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 import analyst  # noqa: E402
 
+# -- inputs: rebuilt Marker reference, held analyst markdown, the unescape helper `un` --
 SP = Path(__file__).parent
 HELD = Path("C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e")
 marker = "\n\n".join(p.read_text(encoding="utf-8") for p in sorted((SP / "univ4e-marker").glob("slice-*.md")))
@@ -18,6 +25,7 @@ held = next(HELD.glob("*.md")).read_text(encoding="utf-8")
 ESC = re.compile(r"\\([\\`*_{}\[\]()#+\-.!$|<>~])")
 un = lambda t: ESC.sub(r"\1", t)  # noqa: E731
 
+# -- chunking and journal: merge every journal dir's records that hash-validate against these chunks --
 fenced, embeds = analyst.fence(marker)
 chunks = analyst._chunks(fenced)
 print("chunks re-cut from the rebuilt Marker text:", len(chunks), "| manifest: resumed 641 + generated 316 = 957")
@@ -60,6 +68,7 @@ for w in still:
     per_chunk[i] += 1
     words_chunk[i] += len(w.split())
 print("windows located:", sum(per_chunk.values()), "| not located:", missed)
+# how many of the worst chunks carry 80 percent of the located loss
 tot = sum(per_chunk.values())
 cum, n80 = 0, 0
 for i, n in per_chunk.most_common():

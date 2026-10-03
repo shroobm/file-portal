@@ -29,7 +29,13 @@ def main(argv):
     rc, out = run(["git", "-C", repo, "status", "--porcelain", "--", "*.py"])
     if rc != 0:
         print("UNREAD: git status failed"); return 2
-    files = sorted(l[3:].strip().strip('"') for l in out.splitlines() if l[:2].strip() in ("M", "MM", "AM") and l[3:].strip().endswith(".py"))
+    # Only files HEAD holds (status M / MM). A staged-new file (A / AM) has no HEAD copy to gate against, and
+    # `git checkout -- <it>` would restore the INDEX copy — through a symlinked directory that overwrites the real file
+    # it points at (S218 wave 4: `.codex/hooks` is a symlink to `.claude/hooks`; nine AM rows there). Skipped, named.
+    files = sorted(l[3:].strip().strip('"') for l in out.splitlines() if l[:2].strip() in ("M", "MM") and l[3:].strip().endswith(".py"))
+    for row in out.splitlines():
+        if row[:2].strip() in ("A", "AM") and row[3:].strip().endswith(".py"):
+            print("SKIP %s | not in HEAD (staged new file): no gate, never reverted" % row[3:].strip().strip('"'))
     if not files:
         print("no modified python files"); return 0
     failed = []

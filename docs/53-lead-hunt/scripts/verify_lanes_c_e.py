@@ -1,8 +1,17 @@
+"""WHAT THIS FILE DOES: a one-off verification script (run directly, no arguments) for the lane
+decision (clean text vs scan) on every PDF in C:/Users/Bndit/ml/library/drop/done. It applies the
+same rule as the converter (OCR-looking font name, or more than half the text spans invisible, or
+under 100 characters per page) with pymupdf, prints one JSON row per PDF, then prints extra probes
+of two named books (Damodaran page 10, Beer "Brain of the Firm" pages 0-11 and four later pages).
+Reads only; prints to stdout; nothing imports it.
+"""
 import os, re, json, pymupdf
 DONE = r"C:/Users/Bndit/ml/library/drop/done"
+# -- lane rule inputs: OCR-font name pattern and the minimum characters per page --
 _OCR_FONT = re.compile(r"glyphless|invisible|ocr", re.IGNORECASE)   # convert_and_ship.py:744 verbatim
 MIN_CHARS_PER_PAGE = 100
 print("pymupdf", pymupdf.__version__)
+# -- per-PDF lane decision: count spans by render mode, look for an OCR font, apply the rule --
 rows = []
 for fname in sorted(os.listdir(DONE)):
     if not fname.lower().endswith(".pdf"): continue
@@ -17,6 +26,7 @@ for fname in sorted(os.listdir(DONE)):
     ratio = inv/tot if tot else 0.0
     cpp = chars/(doc.page_count or 1)
     ocr_layer = trig is not None or (tot > 0 and ratio > 0.5)
+    # decision: enough text plus an OCR layer = scan (untrusted layer); enough text alone = clean; else scan
     if cpp >= MIN_CHARS_PER_PAGE and ocr_layer: lane, why = "scan", "untrusted_ocr_layer"
     elif cpp >= MIN_CHARS_PER_PAGE: lane, why = "clean", "text_layer_present"
     else: lane, why = "scan", "no_text_layer"

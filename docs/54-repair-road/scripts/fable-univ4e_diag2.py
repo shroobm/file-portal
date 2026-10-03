@@ -1,4 +1,10 @@
-"""(1) Are the analyst-stage omission runs LOST text or REORDERED text? Test each manifest run
+"""WHAT THIS FILE DOES: a one-off diagnosis script (run directly, no functions). It takes the omission-run
+excerpts stored in the held manifest (analyst stage top 25, convert stage top 10) and fuzzy-tests whether each is
+present in the held markdown, then searches the source PDF (needs pymupdf and the PDF in drop/done) for the page
+holding the ROC / D/E formula and prints the text around it. Reads the held bundle and the PDF; writes nothing.
+Run by hand; nothing imports it.
+
+(1) Are the analyst-stage omission runs LOST text or REORDERED text? Test each manifest run
 excerpt against the held markdown. (2) Locate the runaway formula's real PDF page. Read-only."""
 import json
 import re
@@ -9,6 +15,7 @@ sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 from rapidfuzz import fuzz  # noqa: E402
 
+# -- inputs: the held bundle's manifest and its prepared markdown --
 LIB = Path("C:/Users/Bndit/ml/library")
 HELD = LIB / "held" / "14c66834bdfeaa2e"
 man = json.loads((HELD / "manifest.json").read_text(encoding="utf-8"))
@@ -21,6 +28,7 @@ print("analyst counters: passed", am.get("chunks_passed"), "rejected", am.get("c
       "resumed", am.get("chunks_resumed"), "generated", am.get("chunks_generated"), "| program", am.get("program"))
 print("analyst block: doc_survival", a["doc_survival"], "runs shown", len(a["runs"]), "of", a.get("runs_total"),
       "| words in shown runs", sum(r["words"] for r in a["runs"]))
+# (1) an excerpt counts as present when its fuzzy partial_ratio against the held text is at least 90
 found = 0
 for r in sorted(a["runs"], key=lambda r: -r["words"])[:25]:
     ex = fa._finalize(fa._strip_markdown(fa._common(r["excerpt"])))

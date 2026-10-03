@@ -1,6 +1,11 @@
 #!/usr/bin/env python
 """PreToolUse/Bash|PowerShell — SYM-186's guard (Rab, Desk c7b3aa7c, 2026-09-25T22:36Z: "guard bare python").
 
+WHAT THIS FILE DOES: a Claude Code PreToolUse hook script. main() reads the hook payload (JSON) from stdin, bad_heads()
+tokenises the command text and returns every command head that is a bare python / py / pip name, and main() prints a deny
+JSON naming them (exit 0) or stays silent. It reads only stdin and writes only stdout; it has no log file and runs no
+other program. Its selftest is guard_bare_python_selftest.py.
+
 On this machine a BARE `python`, `python3`, `py` or `pip` does not fail: since 2026-09-25 04:30Z they resolve to the
 Python Install Manager, which silently downloads and installs a runtime from python.org. It happened twice that day --
 15:17Z (the coordinator's own call) and 18:58Z (a research sub-agent, whose ground rules said "NEVER a bare python3"),
@@ -26,6 +31,7 @@ import re
 import shlex
 import sys
 
+# -- patterns and word lists: what counts as a bare name, separators, wrappers to look past, shells to look inside --
 BARE = re.compile(r"^(?:python(?:\d+(?:\.\d+)*)?w?|py|pip(?:\d+(?:\.\d+)*)?)(?:\.exe)?$", re.I)
 SEP = set(";&|()\n`")
 WRAPPERS = {"env", "timeout", "nohup", "time", "exec", "command", "builtin", "nice", "stdbuf", "xargs", "sudo",
@@ -38,6 +44,7 @@ SHELL_FLAGS = {"-c", "-command", "/c", "/k", "-lc", "-ic"}
 HEREDOC = re.compile(r"<<-?\s*(['\"]?)([A-Za-z_][A-Za-z0-9_]*)\1")
 
 
+# -- reading the command text: heredoc bodies, tokens, quotes, paths --
 def strip_bodies(cmd):
     """Drop heredoc bodies and PowerShell here-string bodies: data, not commands."""
     out, lines, i = [], cmd.split("\n"), 0
@@ -58,6 +65,11 @@ def strip_bodies(cmd):
 
 
 def tokens(cmd, posix):
+    """Split `cmd` into shell-like tokens with shlex (posix quoting rules when `posix`, else shlex's non-POSIX mode,
+    which the caller picks for PowerShell/cmd text although it is not their own quoting: a backtick splits as
+    punctuation and `'` quotes). Separator characters come out as their own tokens and each newline as a "\\n"
+    token. Returns a list of strings;
+    unbalanced quotes raise ValueError (the caller handles it)."""
     lex = shlex.shlex(cmd, posix=posix, punctuation_chars=";&|()`")
     lex.whitespace = " \t\r"
     lex.commenters = ""
@@ -69,13 +81,16 @@ def tokens(cmd, posix):
 
 
 def unquote(t):
+    """Remove one pair of matching surrounding quotes (single or double) from token `t`; otherwise return it unchanged."""
     return t[1:-1] if len(t) >= 2 and t[0] == t[-1] and t[0] in "'\"" else t
 
 
 def is_path(t):
+    """True when token `t` contains `/`, a backslash or `:` (so it names a path, not a bare program name)."""
     return any(c in t for c in "/\\:")
 
 
+# -- finding bare-python command heads --
 def bad_heads(cmd, posix, depth=0):
     """Every bare-python head in cmd (recursing into shell -c strings, one level deep per call, at most 3)."""
     found = []
@@ -90,6 +105,7 @@ def bad_heads(cmd, posix, depth=0):
             if BARE.match(m.group(1)):
                 found.append(m.group(1))
         return found
+    # cut the token list into command parts at separator tokens and check each part's head
     seg = []
     for t in toks + ["\n"]:
         if t and all(c in SEP for c in t):
@@ -101,6 +117,10 @@ def bad_heads(cmd, posix, depth=0):
 
 
 def check_segment(seg, posix, depth):
+    """Find the command head of one part of the command line (list of tokens `seg`) and judge it. Skips variable
+    assignments, wrappers and their options, follows `find -exec`, and recurses into the string given to a shell
+    (-c / -Command / /c / eval) when depth < 3. Returns a list of bare names found (empty when the head is a path, a
+    variable, or not a bare name)."""
     i, n = 0, len(seg)
     while i < n:
         t = unquote(seg[i])
@@ -158,7 +178,12 @@ def check_segment(seg, posix, depth):
     return []
 
 
+# -- hook entry point --
 def main():
+    """Hook entry: read the payload from stdin, run bad_heads() over tool_input.command (posix rules unless the tool is
+    PowerShell), print the deny JSON when any bare head is found. Exits 0 for every payload the harness sends (silence =
+    allow; an unreadable payload is also silence; a JSON payload that is not an object would raise at the tool_input read,
+    outside the try, and exit 1 - which settings.json turns into a deny)."""
     try:
         payload = json.load(sys.stdin)
     except Exception:

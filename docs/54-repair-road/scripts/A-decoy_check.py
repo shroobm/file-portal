@@ -1,4 +1,10 @@
-"""Check claim (6): "the losses concentrate in the front matter's list of figures."
+"""WHAT THIS FILE DOES: a one-off check script (run directly; unescape() is its one helper). It rebuilds the
+Marker reference from slice files, prints which of the first 15 analyst chunks look like front matter, finds the
+windows still failing after unescape + space-free, charges each to a chunk by position, and prints how much of
+the located loss falls in chunks 1-15. Reads the slice dir and the held .md; writes nothing. Run by hand; nothing
+imports it.
+
+Check claim (6): "the losses concentrate in the front matter's list of figures."
 Front matter (title page / TOC / list of figures & tables) sits in the first few chunks of a
 957-chunk book. If losses concentrated there, the top-loss chunks would cluster at low chunk
 indices. Reuses the ladder2 positional attribution (own unescape+space-free regex).
@@ -17,7 +23,9 @@ SLICE_DIR = Path(r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Proje
 ANALYST_MD = Path(r"C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Four.md")
 
 
+# -- helper and inputs --
 def unescape(t):
+    """Remove a backslash before any single character in t. Returns the new str (pure)."""
     return re.sub(r"\\(.)", r"\1", t)
 
 
@@ -45,6 +53,8 @@ starts = [0]
 for c in chunks[:-1]:
     starts.append(starts[-1] + len(c))
 
+# locate each failing window by its first 5 words (searching forward from the last hit, then from 0)
+# and count it against the chunk that contains that position
 per_chunk = Counter()
 pos = 0
 for w in still:

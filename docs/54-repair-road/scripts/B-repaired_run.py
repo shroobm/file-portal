@@ -1,7 +1,14 @@
+"""WHAT THIS FILE DOES: a one-off run script (run directly, no functions; the purpose is not stated in the code).
+It runs fidelity_audit.audit_convert on the markdown file repaired.md in the current working directory against
+the University 4e source PDF, prints and writes the key numbers to repaired_result.json (current directory), then
+prints the verdict computed with the analyst block read from manifest.json (also in the current directory) and
+the convert-alone verdict. Needs those files beside where it is run; nothing imports it.
+"""
 import sys, json, time
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa
 
+# -- audit the repaired markdown against the PDF and summarise the convert-stage block --
 pdf = r"C:/Users/Bndit/ml/library/drop/done/Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Fourth Edition, 2023 -- Wiley & Sons, Incorporated, John.pdf"
 md = open("repaired.md", encoding="utf-8").read()
 t0 = time.time()

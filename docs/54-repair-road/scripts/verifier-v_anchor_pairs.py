@@ -1,4 +1,11 @@
-"""Does more than one Marker reference exist on disk? anchor/ holds original (Marker-only) bundles
+"""WHAT THIS FILE DOES: a one-off verification script (run directly; body_of() is its one helper). For each of the
+four hard-coded (original, re-run) bundle pairs in the library's anchor/ folder it recomputes audit_analyst on
+the two bodies and compares the result with the re-run manifest's stored analyst fidelity. Reads the library;
+meant to write one JSON file (OUT) and print one record per pair - but body_of() globs, and the [analyst-local]
+re-run dir names in PAIRS are glob character classes, so on these pairs it raises IndexError before writing (see
+body_of). Run by hand; nothing imports it. A more general, directory-scanning version of this check is V-v_c.py.
+
+Does more than one Marker reference exist on disk? anchor/ holds original (Marker-only) bundles
 beside [analyst-local] re-runs of the same PDF. apply_analyst() audits body-vs-new_body, so
 audit_analyst(original body, rerun body) must reproduce the rerun manifest's fidelity.analyst if
 the pair is a valid Marker-reference/analyst pair. Read-only."""
@@ -11,6 +18,7 @@ import time
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 
+# -- paths and the (original, re-run) pairs to test --
 OUT = "C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/verifier/v_anchor_pairs_result.json"
 A = "C:/Users/Bndit/ml/library/anchor"
 PAIRS = [
@@ -24,11 +32,15 @@ PAIRS = [
 
 
 def body_of(d):
+    """Return the markdown body (front matter stripped) of the first non-REPAIRS .md file in bundle dir d, found with
+    glob.glob - so a `[` in the directory name is read as a character class: on the [analyst-local] re-run dirs in
+    PAIRS the glob matches nothing and `[0]` raises IndexError (V-v_c.py uses os.listdir for this reason)."""
     md = [p for p in glob.glob(os.path.join(d, "*.md")) if not p.endswith("REPAIRS.md")][0]
     raw = open(md, encoding="utf-8").read()
     return raw.split("---\n", 2)[2] if raw.startswith("---\n") else raw
 
 
+# for each pair: recompute audit_analyst(original body, re-run body) and set it beside the re-run manifest's values
 R = []
 for orig, rerun in PAIRS:
     t0 = time.perf_counter()

@@ -1,3 +1,7 @@
+"""WHAT THIS FILE DOES: a one-off probe script (run directly, no functions). It joins the seven Marker slice files
+and prints the 30 most common backslash-escaped characters in them, then up to eight text snippets around the
+most common one. Reads the slice dir; writes nothing. Nothing imports it.
+"""
 import re, glob
 from collections import Counter
 

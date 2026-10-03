@@ -1,5 +1,12 @@
 """guard_git_selftest.py — the tripwire for guard_git.py (docs/32 §6: a guard born today gets its tripwire today).
 
+WHAT THIS FILE DOES: a standalone test script for guard_git.py. main() creates throwaway git repositories in the temp
+directory (a main checkout, a linked worktree and a bare upstream), runs guard_git.py as a subprocess with a hand-built
+hook payload for every case but the last two (which read the log), compares the verdict
+(allow / deny) to the expected one, prints one line per case and a green/red total, and exits 0 only when every case
+matched. It writes only under the temp directory (removed at the end); the final cases also run the hook with the real
+repository as cwd, which can append to the scratch log it is pointed at.
+
 Builds a throwaway repository under the temp dir with ONE real linked worktree and one unguarded neighbour,
 registers the throwaway main checkout as a guarded root through the hook's environment (never the real roots
 file), points the hook's log at a scratch file, and feeds the hook payloads by subprocess exactly as the harness
@@ -18,16 +25,21 @@ import subprocess
 import sys
 import tempfile
 
+# -- paths and the interpreter used to run the hook --
 HOOK = os.path.join(os.path.dirname(os.path.abspath(__file__)), "guard_git.py")
 REPO = os.path.realpath(os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."))
 PY = sys.executable
 
 
+# -- helpers: run a command, run the hook, build a payload --
 def sh(args, cwd):
+    """Run `args` in `cwd`, raising on a non-zero exit; returns the CompletedProcess (stdout/stderr as text)."""
     return subprocess.run(args, cwd=cwd, capture_output=True, text=True, check=True)
 
 
 def run_hook(payload_text, env_extra):
+    """Run guard_git.py with `payload_text` on stdin and `env_extra` added to the environment. Returns (verdict, process):
+    "allow" when the hook printed nothing, the permissionDecision from its JSON, or "UNPARSEABLE:<text>"."""
     env = dict(os.environ)
     env.update(env_extra)
     p = subprocess.run([PY, HOOK], input=payload_text.encode("utf-8"), capture_output=True, env=env)
@@ -42,6 +54,8 @@ def run_hook(payload_text, env_extra):
 
 
 def payload(tool, cmd, cwd, agent=None):
+    """Build the hook payload JSON text for `tool` running `cmd` in `cwd`; a non-empty `agent` adds agent_id/agent_type
+    (a subagent lane's call). Returns a string."""
     d = {"session_id": "selftest", "hook_event_name": "PreToolUse", "tool_name": tool, "tool_input": {"command": cmd}, "cwd": cwd}
     if agent:
         d["agent_id"] = agent
@@ -49,7 +63,10 @@ def payload(tool, cmd, cwd, agent=None):
     return json.dumps(d, ensure_ascii=False)
 
 
+# -- the test run --
 def main():
+    """Build the fixture repositories, run every case, print the tally and exit 0 (all green) or 1 (any red). Creates and
+    finally removes a temp directory; runs git and the hook as subprocesses."""
     tmp = tempfile.mkdtemp(prefix="guard-selftest-")
     main_repo = os.path.join(tmp, "main")
     other_repo = os.path.join(tmp, "unguarded")
@@ -59,6 +76,8 @@ def main():
     results, expected_denies = [], []
 
     def case(name, expect, got, tool="Bash", ):
+        """Record one case: compare `got` with `expect`, append the result and print an ok/RED line; a case expecting
+        "deny" is counted for the later log-line check."""
         n = len(results)
         ok = got == expect
         results.append(ok)
@@ -67,11 +86,15 @@ def main():
         print(f"  [{n:>3}] {'ok ' if ok else 'RED'} {name}: expect {expect}, got {got}")
 
     def bash(cmd, cwd=None, agent=None, e=None):
+        """Verdict of the hook for a Bash call of `cmd` (cwd defaults to the throwaway main checkout; `e` replaces the
+        hook environment overrides)."""
         return run_hook(payload("Bash", cmd, cwd or main_repo, agent), e if e is not None else env)[0]
 
     def ps(cmd, cwd=None, agent=None):
+        """Verdict of the hook for a PowerShell call of `cmd` (same defaults as bash())."""
         return run_hook(payload("PowerShell", cmd, cwd or main_repo, agent), env)[0]
 
+    # build the fixture: a guarded main checkout, an unguarded neighbour, a linked worktree and three configured aliases
     try:
         for r in (main_repo, other_repo):
             os.makedirs(r)
@@ -314,6 +337,9 @@ def main():
         io.open(os.path.join(main_repo, "sessions", "S42-desktop-2026-09-10.md"), "w").write("# S42\n")
         first_sha = sh(["git", "rev-parse", "--short", "HEAD"], main_repo).stdout.strip()
         def ledger(*rows):
+            """Write CLAUDE_README.md in the fixture main checkout with a Change Ledger table of `rows`, then `git add -A`
+            (everything in the fixture checkout: the first call also commits session.current, the sessions/ record and
+            row_check.sh) and commit ("row")."""
             io.open(os.path.join(main_repo, "CLAUDE_README.md"), "w", encoding="utf-8").write(
                 "# CLAUDE_README\n\n## Change Ledger\n\n| Date | Machine | Milestone | Files | SHA |\n|---|---|---|---|---|\n" + "".join(r + "\n" for r in rows))
             sh(["git", "add", "-A"], main_repo)
@@ -381,6 +407,7 @@ def main():
         case(f"every DENY wrote a log line ({len(expected_denies)} deny cases so far)", len(expected_denies), n_deny)
         n_agent = sum(1 for line in io.open(logf, encoding="utf-8") if " agent=lane-1/selftest-lane " in line) if os.path.exists(logf) else 0
         case("a lane's denials carry its agent id in the log", True, n_agent > 0)
+    # cleanup: remove the linked worktree, then the whole temp directory
     finally:
         try:
             subprocess.run(["git", "worktree", "remove", "--force", wt], cwd=main_repo, capture_output=True)

@@ -1,4 +1,9 @@
-"""SYM-073 cause check: audit_convert on the rebuilt PRE-analyst Marker body vs on the held POST-analyst md.
+"""WHAT THIS FILE DOES: a one-off check script (run directly, no functions). It rebuilds the Marker body from
+univ4e-marker/slice-*.md beside this script, then runs fidelity_audit.audit_convert on it and on the held
+markdown against the source PDF (in drop/done) and prints both results next to the manifest's stored convert
+block. Reads only; writes nothing. Run by hand; nothing imports it.
+
+SYM-073 cause check: audit_convert on the rebuilt PRE-analyst Marker body vs on the held POST-analyst md.
 If the Marker body reproduces the manifest's 0.9334 / 241 / 531 and the held md gives 0.9271 / 257 / 570, the
 two manifest-vs-fresh numbers were audits of two different texts. Read-only."""
 import json
@@ -17,6 +22,7 @@ marker = "\n\n".join(p.read_text(encoding="utf-8") for p in sorted((SP / "univ4e
 held = next(HELD.glob("*.md")).read_text(encoding="utf-8")
 c = man["fidelity"]["convert"]
 print("manifest convert block: doc_survival", c["doc_survival"], "pages_flagged", len(c["pages_flagged"]), "runs_total", c.get("runs_total"))
+# audit both texts against the same PDF and print the convert-stage numbers for comparison with the manifest
 for label, text in (("PRE-analyst Marker body (slice cache)", marker), ("POST-analyst held md", held)):
     t = time.time()
     b = fa.audit_convert(pdf, text, man["lane"], asset_count=None)

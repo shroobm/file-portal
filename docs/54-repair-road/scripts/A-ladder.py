@@ -1,4 +1,9 @@
-"""Lane A — independent normalisation ladder (claim 2), own regexes, not the builder's script.
+"""WHAT THIS FILE DOES: a one-off verification script; main() is the entry point (run directly). It rebuilds the
+Marker reference from seven slice files and scores it against the shipped analyst .md at four cumulative
+normalisation steps (baseline, unescape, punctuation-free, space-free), writing the four score dicts to one JSON
+file (OUT) and printing them. Run by hand; nothing imports it.
+
+Lane A — independent normalisation ladder (claim 2), own regexes, not the builder's script.
 
 Steps, cumulative:
   0 baseline   = fa.prepare_output on both sides (this reproduces claim 1: 0.9402 / 404 runs)
@@ -23,18 +28,22 @@ import sys
 sys.path.insert(0, r"C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 
+# -- paths: Marker slice copies, shipped analyst .md, result file --
 SLICE_DIR = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker"
 ANALYST_MD = r"C:/Users/Bndit/ml/library/held/14c66834bdfeaa2e/Investment Valuation, University Edition _ Tools and -- Aswath Damodaran -- Four.md"
 OUT = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/A/ladder_result.json"
 
+# -- normalisation steps --
 _WS = re.compile(r"\s+")
 
 
 def unescape(t: str) -> str:
+    """Remove a backslash before any single character in t. Returns the new str (pure)."""
     return re.sub(r"\\(.)", r"\1", t)
 
 
 def punct_free(t: str) -> str:
+    """Delete every non-word, non-space character in t, then collapse whitespace runs and strip. Pure."""
     t = re.sub(r"[^\w\s]", "", t, flags=re.UNICODE)
     return _WS.sub(" ", t).strip()
 
@@ -67,7 +76,9 @@ def score(ref_text: str, out_text: str, space_free: bool):
     }
 
 
+# -- the measurement --
 def main():
+    """Run the four ladder steps over the rebuilt reference and the held .md; prints and writes OUT as JSON."""
     files = sorted(glob.glob(SLICE_DIR + "/slice-*.md"))
     assert len(files) == 7
     marker_ref_raw = "\n\n".join(open(f, encoding="utf-8").read() for f in files)

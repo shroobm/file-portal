@@ -1,4 +1,10 @@
-"""Verifier (Fable) - own re-run of lane B's decisive probes for J31. Read-only; audits on in-memory
+"""WHAT THIS FILE DOES: a one-off verification script (run directly; run() is its one helper). It audits the
+rebuilt Marker body and the held markdown with fidelity_audit.audit_convert against the source PDF, each before
+and after deleting its runaway paragraph, checks the degeneration detector on a synthetic runaway, and prints
+verdict combinations. Reads the library and the PDF; writes v_b_result.json into folder V. Run by hand; nothing
+imports it.
+
+Verifier (Fable) - own re-run of lane B's decisive probes for J31. Read-only; audits on in-memory
 copies. audit_convert on: the Marker body rebuilt from the LIBRARY slice cache (unrepaired), the held
 FULL md (unrepaired), each with its runaway paragraph deleted. compute_verdict combos.
 Negative controls on degeneration()."""
@@ -11,6 +17,7 @@ import time
 sys.path.insert(0, "C:/Users/Bndit/Projects/file-portal/windows-converter")
 import fidelity_audit as fa  # noqa: E402
 
+# -- paths, the manifest's stored numbers, and the audit helper --
 V = ("C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/"
      "3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/verify-tickets/V")
 PDF = ("C:/Users/Bndit/ml/library/drop/done/Investment Valuation, University Edition _ Tools and -- "
@@ -35,6 +42,11 @@ R["manifest_convert"] = {"doc_survival": stored["doc_survival"], "pages_scored":
 
 
 def run(name, text):
+    """Run audit_convert on text against the source PDF and record the result in R[name].
+
+    Returns the record dict (survival, flagged pages, degeneration, worst blocks, two verdicts, wall time).
+    Side effects: prints the record, writes the global R; reads the PDF.
+    """
     t = time.perf_counter()
     conv = fa.audit_convert(PDF, text, "clean", asset_count=R["asset_count"])
     tw = conv["tripwires"]
@@ -56,6 +68,7 @@ def run(name, text):
 
 a = run("marker_ref_unrepaired", marker)
 b = run("held_full_unrepaired", held_full)
+# delete the worst runaway paragraph (from its worst line to the next blank line) and re-audit the repaired copy
 lines = marker.split("\n")
 start = a["worst"][0][0] - 1
 end = start

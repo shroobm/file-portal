@@ -1,4 +1,9 @@
-"""Qualitative proof for chunks 23 and 78: diff the journal's recorded OUTPUT ('text' field,
+"""WHAT THIS FILE DOES: a one-off diff script (run directly, no functions). It rebuilds the Marker reference
+from slice files, cuts it into analyst chunks, loads the hash-validated journal records, and for chunks 23 and 78
+prints the status, the character counts and up to six word-level difflib differences between the chunk input and
+the journal output. Reads the slice dir and the journal; writes nothing. Run by hand; nothing imports it.
+
+Qualitative proof for chunks 23 and 78: diff the journal's recorded OUTPUT ('text' field,
 what the run assembled) against the INPUT chunk (from analyst.fence + analyst._chunks on the
 rebuilt reference), word by word, via difflib. Only meaningful where the journal record's hash
 validates against this rebuilt chunk (analyst._load_journal does this check already)."""
@@ -11,6 +16,7 @@ from pathlib import Path
 sys.path.insert(0, r"C:/Users/Bndit/Projects/file-portal/windows-converter")
 import analyst  # noqa: E402
 
+# -- paths: Marker slice copies and the journal under test --
 SLICE_DIR = r"C:/Users/Bndit/AppData/Local/Temp/claude/C--Users-Bndit-Projects-file-portal/3567c0ef-5c0b-42cf-8101-4bb783f0ee67/scratchpad/univ4e-marker"
 JOURNAL = r"C:/Users/Bndit/ml/library/.analyst-work/d58db211c41b0e17/chunks.jsonl"
 
@@ -30,6 +36,7 @@ for idx in (23, 78):
     chunk_in = chunks[idx - 1]
     chunk_out = rec["text"]
     print(f"journal status: {rec.get('status')}  input_chars={len(chunk_in)} output_chars={len(chunk_out)}")
+    # word-level diff of input vs output; print the first six non-equal spans with four words of context
     win = chunk_in.split()
     wout = chunk_out.split()
     sm = difflib.SequenceMatcher(None, win, wout, autojunk=False)
