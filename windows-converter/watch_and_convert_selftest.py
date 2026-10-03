@@ -404,5 +404,63 @@ _e11_main_calls = [c[1] for c in sorted((n.lineno, (n.func.id if isinstance(n.fu
 check("_restore_parked" in _e11_main_calls and "restore" in _e11_main_calls and _e11_main_calls.index("restore") < _e11_main_calls.index("_restore_parked") < _e11_main_calls.index("_retry_parked"),
       f"E11 (7) main() calls _restore_parked after tracker.restore and before the loop's first _retry_parked — calls={_e11_main_calls!r}")
 
+# -- E3 (S219): the park-restore holes E11's blind verifier found - an E9-era row without the park keys is SKIPPED (never
+# defaulted to done/done), a non-dict row cannot kill the boot; the thin spots paid: the mtime branch on a real file, the
+# wiring asserted at main()'s top level --
+import logging as _e3_logging  # noqa: E402 — the tripwire's own import, beside the cases it serves
+
+
+class _E3Cap(_e3_logging.Handler):
+    """Collects the watcher logger's messages so a case can assert on a log line."""
+    def __init__(self):
+        super().__init__()
+        self.lines = []
+
+    def emit(self, record):
+        self.lines.append(record.getMessage())
+
+
+_e3_cap = _E3Cap()
+_wac.logger.addHandler(_e3_cap)
+_wac._parked.clear()
+# (1) an E9-era row: parked, but no park_dest / park_outcome / parked_since (the receipts the E9 watcher wrote 19:50-20:49Z)
+_e3_r1 = _e11_receipt(parked=False, extra={"parked": True, "reason": "parked: PermissionError: [WinError 32] held"})
+_e3_n1 = _wac._restore_parked(_e3_r1)
+_e3_skip_lines = [ln for ln in _e3_cap.lines if ln.startswith("PARK RESTORE SKIPPED book-e11.pdf")]
+check(_e3_n1 == 0 and not _wac._parked and len(_e3_skip_lines) == 1,
+      f"E3 (1) a parked row WITHOUT the park keys restores nothing and logs the skip (never dest=done by default) — n={_e3_n1} parked={list(_wac._parked)!r} skip_lines={_e3_skip_lines!r}")
+# (2) a non-dict row before a good row: the good row restores, nothing raises
+_e11_receipt()
+_e3_doc = _e11_json.loads(_rcpt.read_text(encoding="utf-8"))
+_e3_doc["items"] = [None, 7, "x", ["a"]] + _e3_doc["items"]
+_rcpt.write_text(_e11_json.dumps(_e3_doc), encoding="utf-8")
+_wac._parked.clear()
+try:
+    _e3_n2 = _wac._restore_parked(_rcpt)
+    _e3_exc = None
+except Exception as _e:  # noqa: BLE001 — the case IS "does it raise"
+    _e3_n2, _e3_exc = -1, _e
+check(_e3_exc is None and _e3_n2 == 1 and "book-e11.pdf" in _wac._parked,
+      f"E3 (2) non-dict rows (None, 7, 'x', a list) before a good row: the good row restores, nothing raises — n={_e3_n2} exc={_e3_exc!r}")
+# (3) CONTROL: the full E11 row still restores
+_wac._parked.clear()
+_e3_n3 = _wac._restore_parked(_e11_receipt())
+check(_e3_n3 == 1 and "book-e11.pdf" in _wac._parked, f"E3 (3) CONTROL: a full row (both park keys) restores — n={_e3_n3}")
+# (4) the identity check's mtime branch on a REAL file: same bytes, the mtime moved -> nothing restored
+_wac._parked.clear()
+_e3_receipt_old = _e11_receipt()   # built from _st11 (the old mtime)
+import os as _e3_os  # noqa: E402
+_e3_os.utime(_p11, ns=(_st11.st_mtime_ns + 5_000_000_000, _st11.st_mtime_ns + 5_000_000_000))
+_e3_n4 = _wac._restore_parked(_e3_receipt_old)
+check(_e3_n4 == 0 and not _wac._parked and _p11.stat().st_size == _st11.st_size,
+      f"E3 (4) the file's bytes unchanged but its mtime moved: nothing restored (the mtime branch, on the file itself) — n={_e3_n4}")
+_e3_os.utime(_p11, ns=(_st11.st_mtime_ns, _st11.st_mtime_ns))
+# (5) the wiring: _restore_parked is called by a statement at main()'s TOP level (an `if False:` wrapper fails here)
+_e3_top = [s for s in _e9_main.body if isinstance(s, (_e9_ast.Assign, _e9_ast.Expr)) and isinstance(s.value, _e9_ast.Call)
+           and getattr(s.value.func, "id", "") == "_restore_parked"]
+check(len(_e3_top) == 1, f"E3 (5) _restore_parked is called by a top-level statement of main() — found {len(_e3_top)}")
+_wac.logger.removeHandler(_e3_cap)
+_wac._parked.clear()
+
 print("SELFTEST " + ("PASS" if not FAILURES else f"FAIL ({len(FAILURES)})"))
 raise SystemExit(0 if not FAILURES else 1)

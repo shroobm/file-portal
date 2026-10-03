@@ -525,7 +525,10 @@ def _apply_park(rows: list[dict]) -> list[dict]:
 def _restore_parked(receipt_path: Path) -> int:
     """S218 E11: rebuild the park register from the last receipt at boot - every row marked `parked` whose file is still
     in drop/ with the same size and mtime_ns is parked again (reason, dest, outcome, since); a changed or absent file
-    restores nothing. Before this a restart forgot the park and the next poll converted the parked book again."""
+    restores nothing. Before this a restart forgot the park and the next poll converted the parked book again.
+    S219 E3 (E11's blind verifier): a row that is not a dict is skipped (it raised AttributeError and killed the boot);
+    a parked row without BOTH `park_dest` and `park_outcome` (E9-era receipts, 19:50-20:49Z on 2026-10-03, had no park
+    keys) is SKIPPED with a log line - never defaulted to done/done, which would have moved a failed-class park into done/."""
     try:
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
         items = receipt.get("items") if receipt.get("v") == 1 else None
@@ -534,25 +537,36 @@ def _restore_parked(receipt_path: Path) -> int:
     if not isinstance(items, list):
         return 0
     restored = 0
+    skipped = 0
     for row in items:
+        if not isinstance(row, dict):
+            skipped += 1
+            continue
         try:
             if not row.get("parked"):
                 continue
             name = str(row["name"])
+            if "park_dest" not in row or "park_outcome" not in row:
+                logger.warning("PARK RESTORE SKIPPED %s: an E9-era row without the park keys - the file stays where it is "
+                               "until a hand or the next park", name)
+                skipped += 1
+                continue
             st = (DROP_DIR / name).stat()
             if st.st_size != int(row["bytes"]) or st.st_mtime_ns != int(row["mtime_ns"]):
                 continue
-            dest_name = str(row.get("park_dest") or DONE_DIR.name)
+            dest_name = str(row["park_dest"])
             dest = FAILED_DIR if dest_name == FAILED_DIR.name else DONE_DIR
             reason = str(row.get("reason") or "")
             reason = reason[len("parked: "):] if reason.startswith("parked: ") else reason
-            _parked[name] = {"reason": reason, "outcome": str(row.get("park_outcome") or "done"), "dest": dest,
+            _parked[name] = {"reason": reason, "outcome": str(row["park_outcome"]), "dest": dest,
                              "size": st.st_size, "mtime_ns": st.st_mtime_ns, "since": time.monotonic(),
                              "since_wall": str(row.get("parked_since") or _utc_now())}
             logger.warning("PARK RESTORED %s from the receipt (parked since %s): %s", name, _parked[name]["since_wall"], reason)
             restored += 1
         except (KeyError, TypeError, ValueError, OSError):
             continue
+    if skipped:
+        logger.warning("PARK RESTORE: %d receipt row(s) skipped (not a dict, or parked without the park keys)", skipped)
     return restored
 
 
