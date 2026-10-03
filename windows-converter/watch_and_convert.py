@@ -508,7 +508,7 @@ def convert_one(pdf: Path) -> str:
         # the re-audit tools could not find it until S218 E5). No event is minted here: the intake vocabulary has no `done`
         # kind and T7 forbids one the Room cannot speak; the child's ship/failed carries the fact and the log says it.
         went = _move_source(pdf, DONE_DIR, "done")
-        logger.warning("DONE %s -> %s (SHIP-FAILED: the bundle is on the shelf, not in staging — the ThinkPad was unreachable) | %s",
+        logger.warning("DONE %s -> %s (SHIP-FAILED: the bundle is on the shelf, not in staging — the ship leg failed: ssh, tar or the remote move-aside; the reason is in ship/failed) | %s",
                        pdf.name, went, (out or "").strip().splitlines()[-1] if out else "")
         return "done"
     else:

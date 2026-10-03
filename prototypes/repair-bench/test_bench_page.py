@@ -3832,6 +3832,68 @@ class TestExclusivePort(unittest.TestCase):
         self.assertIn("OSError", r.stderr)
 
 
+class TestS218E7RotatedTextlayer(unittest.TestCase):
+    """S218 E7 (SYM-199): textlayer() on a /Rotate 90 page. get_text("words") rects are in the UNROTATED space; the page
+    rect, the render and the drag are in the visible one. A drawn portrait page with a word near its unrotated bottom-left,
+    rotated 90: the word's normalized box must be where the VISIBLE page shows it (inside 0..1 on both axes, and equal to
+    its unrotated rect through rotation_matrix over the visible dims); the raw rect over the visible dims would put its y
+    past 1 (clamped to 1 - a box on the edge, wrong). Control: rotation 0 - the box equals the raw rect over the dims.
+    A fake page without `rotation` (the LRU tests above) takes the old path untouched."""
+
+    def _bench_with(self, rotation):
+        import fitz
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-e7-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        (tmp / "book.md").write_text("---\ntitle: t\n---\nalpha\n", encoding="utf-8")
+        (tmp / "manifest.json").write_text(json.dumps({"pages": 1, "source": "book.pdf"}), encoding="utf-8")
+        doc = fitz.open()
+        pg = doc.new_page(width=612, height=792)
+        pg.insert_text((72, 700), "ROTWORD", fontsize=14)   # unrotated y 700 > 612, the visible height after a 90 rotation
+        if rotation:
+            pg.set_rotation(rotation)
+        doc.save(str(tmp / "book.pdf"))
+        doc.close()
+        b = bench.Bench(tmp, pdf=tmp / "book.pdf")
+        self.addCleanup(lambda: b._doc is not None and b._doc.close())
+        return b
+
+    def _expected(self, b, rotated: bool):
+        page = b.doc().load_page(0)
+        r = page.rect
+        raw = [w for w in page.get_text("words") if w[4] == "ROTWORD"][0]
+        import fitz
+        rect = fitz.Rect(raw[:4]) * page.rotation_matrix if rotated else fitz.Rect(raw[:4])
+        return [rect.x0 / r.width, rect.y0 / r.height, rect.x1 / r.width, rect.y1 / r.height], raw, r
+
+    def test_rotated_page_words_sit_where_the_visible_page_shows_them(self):
+        try:
+            import fitz  # noqa: F401
+        except ImportError:
+            self.skipTest("pymupdf (fitz) is not importable here - UNREAD, not a pass")
+        b = self._bench_with(90)
+        exp, raw, r = self._expected(b, rotated=True)
+        self.assertEqual(b.doc().load_page(0).rotation, 90)
+        self.assertGreater(raw[1], r.height, "fixture: the word's unrotated y must exceed the visible height")
+        got = [w for w in b.textlayer(1)["words"] if w[4] == "ROTWORD"]
+        self.assertEqual(len(got), 1)
+        box = got[0][:4]
+        for a, e in zip(box, exp):
+            self.assertAlmostEqual(a, e, places=4)
+        self.assertTrue(all(0.0 <= v <= 1.0 for v in box) and box[3] < 1.0,
+                        f"the box must lie inside the visible page, not clamped to its edge: {box}")
+
+    def test_unrotated_page_is_unchanged(self):
+        try:
+            import fitz  # noqa: F401
+        except ImportError:
+            self.skipTest("pymupdf (fitz) is not importable here - UNREAD, not a pass")
+        b = self._bench_with(0)
+        exp, raw, r = self._expected(b, rotated=False)
+        got = [w for w in b.textlayer(1)["words"] if w[4] == "ROTWORD"][0][:4]
+        for a, e in zip(got, exp):
+            self.assertAlmostEqual(a, e, places=4)
+
+
 if __name__ == "__main__":
     try:
         unittest.main(verbosity=2)

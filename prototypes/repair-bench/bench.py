@@ -1120,7 +1120,15 @@ class Bench:
             return self._textlayer[n]
         page = self.doc().load_page(n - 1)
         r = page.rect
-        words = self.normalize_words(page.get_text("words"), r.width, r.height)
+        raw = page.get_text("words")
+        if getattr(page, "rotation", 0):
+            # S218 E7 (SYM-199): get_text("words") rects are in the page's UNROTATED space; r, the render and the drag are in
+            # the visible one, so on a /Rotate page every word address was wrong. rotation_matrix maps unrotated → visible
+            # (the bounding box of the transformed corners, normalized). A fake page without `rotation` takes the old path.
+            import fitz
+            m = page.rotation_matrix
+            raw = [tuple(fitz.Rect(w[0], w[1], w[2], w[3]) * m) + tuple(w[4:]) for w in raw]
+        words = self.normalize_words(raw, r.width, r.height)
         out = {"page": n, "words": words, "count": len(words),
                "searchable": bool(words)}
         self._textlayer[n] = out
@@ -1774,7 +1782,9 @@ class Bench:
         png = page_obj.get_pixmap(dpi=CROP_DPI, clip=clip).tobytes("png")
         # Witness text for the same clip — exists on clean-lane pages, empty on scans; the
         # worker computes the numeric-multiset + window gates only when it has one.
-        witness = page_obj.get_text(clip=clip) or ""
+        # S218 E7 (SYM-199): the pixmap clip above is visible-space; get_text() clips in the UNROTATED space, so on a
+        # /Rotate page the witness was another region's text — and the numeric gate judged the proposal against it.
+        witness = page_obj.get_text(clip=clip * page_obj.derotation_matrix) or ""
         tmp_png = tempfile.NamedTemporaryFile(suffix=".png", delete=False)
         tmp_png.write(png)
         tmp_png.close()
