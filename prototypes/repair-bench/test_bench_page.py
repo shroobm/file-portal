@@ -4216,6 +4216,84 @@ class TestS218E7RotatedTextlayer(unittest.TestCase):
 
 
 # -- script entry: run the suite, then delete the temp pipeline folder created at import --
+class TestS218E7FixRotatedReaders(unittest.TestCase):
+    """S218 E7-fix (SYM-199, the verifier's finding): every reader of page coordinates in the bench takes the visible
+    space. E7 mapped textlayer()'s words and left rects() (search_for hits) and table()'s rawdict chars unrotated, so on
+    a /Rotate 90 page a highlight landed off its word and the char-split fallback found no char inside any word box.
+    A drawn portrait page with one word near its unrotated bottom-left, rotated 90: (1) rects() returns the same box
+    textlayer() gives the word; (2) table() with a column divider through the word splits it by its chars into two
+    non-empty cells that concatenate to the word (unrotated chars leave it whole in one cell); (3) CONTROL: rotation 0
+    gives the raw boxes over the dims and the same split."""
+
+    def _bench_with(self, rotation):
+        import fitz
+        tmp = Path(tempfile.mkdtemp(prefix="fp-test-e7fix-"))
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        (tmp / "book.md").write_text("---\ntitle: t\n---\nalpha\n", encoding="utf-8")
+        (tmp / "manifest.json").write_text(json.dumps({"pages": 1, "source": "book.pdf"}), encoding="utf-8")
+        doc = fitz.open()
+        pg = doc.new_page(width=612, height=792)
+        # the real rotated page (CIFE's landscape tables): text drawn SIDEWAYS in the unrotated space, upright once
+        # the page's /Rotate 90 is applied - so in the visible space the word runs left to right and a column
+        # divider through it must split it by its chars. (E7's own fixture draws upright text that the rotation
+        # turns vertical; that is the inverse of the field and cannot be split by a column.)
+        pg.insert_text((72, 700), "ROTWORD", fontsize=14, rotate=90 if rotation else 0)
+        if rotation:
+            pg.set_rotation(rotation)
+        doc.save(str(tmp / "book.pdf"))
+        doc.close()
+        b = bench.Bench(tmp, pdf=tmp / "book.pdf")
+        self.addCleanup(lambda: b._doc is not None and b._doc.close())
+        return b
+
+    def _word_box(self, b):
+        return [w for w in b.textlayer(1)["words"] if w[4] == "ROTWORD"][0][:4]
+
+    def test_rects_agree_with_textlayer_on_a_rotated_page(self):
+        try:
+            import fitz  # noqa: F401
+        except ImportError:
+            self.skipTest("pymupdf (fitz) is not importable here - UNREAD, not a pass")
+        b = self._bench_with(90)
+        box = self._word_box(b)
+        hits = b.rects(1, "ROTWORD")
+        self.assertEqual(len(hits), 1)
+        for a, e in zip(hits[0], box):
+            self.assertAlmostEqual(a, e, places=3)
+        self.assertTrue(all(0.0 <= v <= 1.0 for v in hits[0]) and hits[0][3] < 1.0, f"off the visible page: {hits[0]}")
+
+    def test_table_splits_a_word_by_its_chars_on_a_rotated_page(self):
+        try:
+            import fitz  # noqa: F401
+        except ImportError:
+            self.skipTest("pymupdf (fitz) is not importable here - UNREAD, not a pass")
+        b = self._bench_with(90)
+        x0, y0, x1, y1 = self._word_box(b)
+        mid = (x0 + x1) / 2
+        t = b.table(1, [x0 - 0.01, y0 - 0.01, x1 + 0.01, y1 + 0.01], col_divs=[mid], row_divs=[])
+        cells = [c.strip() for c in t["markdown"].splitlines()[0].strip("|").split("|")]
+        self.assertEqual(len(cells), 2, t["markdown"])
+        self.assertTrue(cells[0] and cells[1], f"the word was not split by its chars (unrotated char boxes?): {cells}")
+        self.assertEqual((cells[0] + cells[1]).replace(" ", ""), "ROTWORD")
+
+    def test_unrotated_page_readers_unchanged(self):
+        try:
+            import fitz
+        except ImportError:
+            self.skipTest("pymupdf (fitz) is not importable here - UNREAD, not a pass")
+        b = self._bench_with(0)
+        page = b.doc().load_page(0)
+        r = page.rect
+        raw = page.search_for("ROTWORD")[0]
+        hit = b.rects(1, "ROTWORD")[0]
+        for a, e in zip(hit, [raw.x0 / r.width, raw.y0 / r.height, raw.x1 / r.width, raw.y1 / r.height]):
+            self.assertAlmostEqual(a, e, places=4)
+        x0, y0, x1, y1 = self._word_box(b)
+        t = b.table(1, [x0 - 0.01, y0 - 0.01, x1 + 0.01, y1 + 0.01], col_divs=[(x0 + x1) / 2], row_divs=[])
+        cells = [c.strip() for c in t["markdown"].splitlines()[0].strip("|").split("|")]
+        self.assertTrue(cells[0] and cells[1] and (cells[0] + cells[1]).replace(" ", "") == "ROTWORD", cells)
+
+
 if __name__ == "__main__":
     try:
         unittest.main(verbosity=2)

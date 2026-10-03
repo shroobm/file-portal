@@ -1094,7 +1094,8 @@ class Bench:
                 for line in block.get("lines", []):
                     for span in line.get("spans", []):
                         for ch in span.get("chars", []):
-                            bb = ch["bbox"]
+                            # S218 E7-fix (SYM-199): rawdict boxes are unrotated; the words above are visible-space
+                            bb = self._visible(page, ch["bbox"])
                             chars.append([bb[0] / r.width, bb[1] / r.height,
                                           bb[2] / r.width, bb[3] / r.height, ch["c"]])
         except Exception:  # noqa: BLE001 — chars refine, words still stand
@@ -1119,8 +1120,10 @@ class Bench:
         r = page.rect
         out = []
         for hit in page.search_for(q)[:60]:
-            out.append([hit.x0 / r.width, hit.y0 / r.height,
-                        hit.x1 / r.width, hit.y1 / r.height])
+            # S218 E7-fix (SYM-199): search_for hits are unrotated; the overlay draws in the visible space
+            hit = self._visible(page, hit)
+            out.append([hit[0] / r.width, hit[1] / r.height,
+                        hit[2] / r.width, hit[3] / r.height])
         if not out:
             out = self.match_in_words(self.textlayer(n)["words"], q)
         return out
@@ -1154,6 +1157,21 @@ class Bench:
         return out
 
     # -- text layer (word boxes) and locating a zone's true page --
+    @staticmethod
+    def _visible(page, rect) -> tuple:
+        """A rect in the page's UNROTATED space (what get_text, search_for and rawdict report) as the VISIBLE-space
+        rect (page.rect, the render, the drag): the bounding box of the corners through rotation_matrix when the page
+        carries a /Rotate, else unchanged. S218 E7-fix (SYM-199): the ONE map every coordinate reader in this file
+        takes — textlayer(), rects() and table()'s chars — so a rotated page can never leave two readers in two spaces
+        (E7 mapped the words alone and left highlights and char boxes behind). A fake page without `rotation` passes."""
+        x0, y0, x1, y1 = rect[0], rect[1], rect[2], rect[3]
+        if not getattr(page, "rotation", 0):
+            return (x0, y0, x1, y1)
+        import fitz
+        rr = fitz.Rect(x0, y0, x1, y1) * page.rotation_matrix
+        rr.normalize()   # a 90-degree map can hand back x0 > x1; containment tests need the corners in order
+        return (rr.x0, rr.y0, rr.x1, rr.y1)
+
     def textlayer(self, n: int) -> dict:
         """OK-5: every word on page n with its normalized rect — the one address type the
         drag-select, precise highlights, and future zone anchors all share. words-mode now;
@@ -1168,11 +1186,9 @@ class Bench:
         raw = page.get_text("words")
         if getattr(page, "rotation", 0):
             # S218 E7 (SYM-199): get_text("words") rects are in the page's UNROTATED space; r, the render and the drag are in
-            # the visible one, so on a /Rotate page every word address was wrong. rotation_matrix maps unrotated → visible
-            # (the bounding box of the transformed corners, normalized). A fake page without `rotation` takes the old path.
-            import fitz
-            m = page.rotation_matrix
-            raw = [tuple(fitz.Rect(w[0], w[1], w[2], w[3]) * m) + tuple(w[4:]) for w in raw]
+            # the visible one, so on a /Rotate page every word address was wrong. _visible maps unrotated → visible
+            # (E7-fix: the same map rects() and table() take). A fake page without `rotation` takes the old path.
+            raw = [self._visible(page, w) + tuple(w[4:]) for w in raw]
         words = self.normalize_words(raw, r.width, r.height)
         out = {"page": n, "words": words, "count": len(words),
                "searchable": bool(words)}
