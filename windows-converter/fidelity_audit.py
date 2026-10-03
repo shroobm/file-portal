@@ -345,7 +345,7 @@ def _locate_degenerate(degen: dict, blocks: list | None) -> dict:
     for b in blocks:
         if b.get("page") is None:
             continue
-        txt = norm(re.sub(r"<[^>]+>", " ", unescape(b.get("html", "") or "")))
+        txt = norm(unescape(re.sub(r"<[^>]+>", " ", b.get("html", "") or "")))  # S218 E4: unescape LAST (a literal `&lt;` is not a tag)
         if txt:
             texts.append((b, txt))
     for w in worst:
@@ -600,7 +600,7 @@ def _inventions_page(marker: int, witness: int, invented: int, lost: int, invent
             "invented_net": invented_net, "lost_net": lost_net, "specimens": specimens}
 
 
-def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fidelity") -> dict:
+def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fidelity", pdf_path=None) -> dict:
     """S209 B35 (2026-09-20) — THE AUDIT'S BLIND SIDE, report-only. Survival counts what the output LOST against the
     witness; a re-OCR'd clean page can also INVENT words the layer never had (RBC Q3, Marker's own re-OCR of a born-digital
     report: `TLAC loverage satio`, `last guarter` — 0.25 % of ten pages' words; CIBC, not re-OCR'd, 0 on the same measure).
@@ -626,7 +626,12 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         # counted, and the commands are counted apart as `latex_commands`: the equation is not an invention and not a word.
         for m in math_re.findall(html):
             latex_commands += len(cmd_re.findall(m))
-        text = re.sub(r"<[^>]+>", " ", unescape(math_re.sub(" ", html)))
+        # S218 E4 (F2; the sweep's six gap verifiers on Bill C-30, TD Q3): an INLINE text tag inside a word — `Pow<a href=…>er</a>`,
+        # `agen</i><i>cy` — strips to NOTHING, as audit_numbers has done since SYM-169 (:1044); every other tag still strips to a
+        # space (a `<br>` or a `<td>` is a word boundary). C-30 read 167 invented words, 163 of them such splits of words Marker
+        # wrote whole. And the entities are unescaped LAST: unescaping first turned a literal `&lt;` into a tag opener that
+        # swallowed the text up to the next `>` (1,804 of 185,810 shelf blocks; 2,323 figures).
+        text = unescape(re.sub(r"<[^>]+>", " ", _INLINE_TAG_RE.sub("", math_re.sub(" ", html))))
         # S209 E13 (SYM-146, MIT's Real Analysis notes): a LaTeX-typeset layer carries LIGATURE glyphs (ﬁ ﬂ ﬀ — 211 on 66
         # pages) that Marker writes as plain letters: `deﬁnition` and `definition` read as one invented and one lost word
         # each (211 of 8,094 invented, every one a ligature). Both sides folded (NFKC) before the words are counted.
@@ -653,6 +658,17 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     lost_compound_hyphen = 0
     lost_compound_hyphen_specimens: list[dict] = []
     invented_compound_hyphen = 0
+    # S218 E4 (F1; the sweep's seven measured bundles — Bill C-288 55 of 55 lost words, C-30 399 of 479, EMA 733 of 740, RBC AR
+    # 1,393 of 1,889, TD AR 1,047 of 1,318, BMO AR 1,012 of 1,268, Hydro One 519 of 553): Marker locates every running head and
+    # footer as PageHeader/PageFooter and ships it EMPTY on purpose (all 30,108 such blocks on the shelf), so the witness's words
+    # there have no counterpart in the blocks and read LOST. A lost word whose OWN word box sits inside such a block is counted
+    # apart as lost_in_furniture — the words-side twin of SYM-180's missing_in_furniture, taken from the same observable (the
+    # block's bbox, the page's word boxes), never a guess; lost_total and lost_total_excl_joined keep their meaning (the ranked
+    # field does not move), lost_total_excl_furniture says the honest rest. None (UNREAD) without a pdf_path or any furniture block.
+    fur_boxes_all = _furniture_boxes_by_page(blocks) if pdf_path else {}
+    furniture_readable = bool(pdf_path) and bool(fur_boxes_all)
+    lost_in_furniture = 0
+    lost_in_furniture_specimens: list[dict] = []
     for pnum, raw in enumerate(pages_raw, start=1):
         mw = by_page.get(pnum)
         if not mw:
@@ -732,6 +748,11 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         # the lists a READER sees (worst[]'s specimens and the per-page net counts) are net of both exemptions — the
         # Wiener specimens named words the source spells correctly, split only by its own soft hyphens
         lost_net = [lw[i] for i in lost_positions if i not in _joined_positions]
+        if furniture_readable and lost_net and fur_boxes_all.get(pnum):
+            _in_fur = _lost_in_furniture(pdf_path, pnum, lost_net, fur_boxes_all[pnum])
+            lost_in_furniture += len(_in_fur)
+            for w in _in_fur[:max(0, LOST_JOINED_SPECIMENS - len(lost_in_furniture_specimens))]:
+                lost_in_furniture_specimens.append({"page": pnum, "word": w})
         if invented:
             # S211 E3: the specimens a reader sees are NET of the two hyphen exemptions (a rejoined pair's word, a fused
             # compound's halves are the layer's own line-wrap, not inventions); the raw counts keep their meaning beside
@@ -804,6 +825,10 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         "lost_compound_hyphen": lost_compound_hyphen,
         "lost_compound_hyphen_specimens": lost_compound_hyphen_specimens,  # up to LOST_JOINED_SPECIMENS: page, fused, marker_words
         "lost_total_excl_joined": lost_total - lost_hyphen_joined - lost_compound_hyphen,   # the honest rest, net of both exemptions
+        # S218 E4 (F1): lost words whose own box sits in a PageHeader/PageFooter block — counted apart, never out of the totals
+        "lost_in_furniture": lost_in_furniture if furniture_readable else None,
+        "lost_in_furniture_specimens": lost_in_furniture_specimens,       # up to LOST_JOINED_SPECIMENS: page, word
+        "lost_total_excl_furniture": (lost_total - lost_hyphen_joined - lost_compound_hyphen - lost_in_furniture) if furniture_readable else None,
         "witness_words_total": wit_total,
         "pages_with_inventions": len(pages),
         "pages_witness_blank": blank_pages,            # witness under PAGE_MIN_WORDS: OCR of pictures, not judged
@@ -963,6 +988,39 @@ def _furniture_boxes_by_page(blocks) -> dict:
     return boxes
 
 
+def _lost_in_furniture(pdf_path, pnum: int, lost: list, fur_boxes: list) -> list:
+    """S218 E4 (F1) — the words-side twin of `_missing_in_figures` for furniture: of the page's lost witness words (a list,
+    one entry per occurrence), those whose OWN word box (pymupdf `get_text('words')`, the same 3+-letter word rule as the
+    audit, NFKC-folded and lower-cased) sits inside one of the page's PageHeader/PageFooter boxes. One page word spends one
+    lost occurrence, so a word printed in the footer AND lost in the body is counted once as furniture and once as lost. A
+    page that cannot be opened names nothing (an empty list, never a guess)."""
+    if not lost or not fur_boxes:
+        return []
+    try:
+        doc = pymupdf.open(pdf_path)
+        page = doc[pnum - 1]
+        words = page.get_text("words")
+    except Exception:  # noqa: BLE001 — a witness that cannot be read names nothing
+        return []
+    rects = [r for r in (pymupdf.Rect(*b) & page.rect for b in fur_boxes) if not r.is_empty]
+    if not rects:
+        return []
+    from collections import Counter
+    left = Counter(lost)
+    word_re = re.compile(r"[^\W\d_]{3,}")
+    hits: list = []
+    for w in words:
+        pt = pymupdf.Point((w[0] + w[2]) / 2, (w[1] + w[3]) / 2)
+        if not any(pt in r for r in rects):
+            continue
+        for tok in word_re.findall(unicodedata.normalize("NFKC", w[4])):
+            tok = tok.lower()
+            if left.get(tok):
+                left[tok] -= 1
+                hits.append(tok)
+    return hits
+
+
 def _missing_in_figures(pdf_path, pnum: int, missing: "Counter", fig_boxes: list) -> "Counter":
     """S211 LANE B — for each token in `missing` (the layer's figures Marker's blocks lack), whether that token's OWN word
     box on the page (pymupdf `get_text('words')`) sits inside one of the page's Figure/Picture boxes: the same containment
@@ -1041,7 +1099,9 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         # stripped to a space let _NUM_TOKEN take `2023` where the layer's own `2023,` refuses it: an "extra" figure that
         # was never there): inline TEXT tags (i, b, em, strong, span, a, u, code, mark) strip to nothing; every other tag
         # (p, td, br, sup, sub — a footnote mark must never fuse onto its figure) to a space, as before
-        text = re.sub(r"<[^>]+>", " ", _INLINE_TAG_RE.sub("", unescape(b.get("html", "") or "")))
+        # S218 E4 (F2's second half): the entities unescaped LAST — unescaping first turned a literal `&lt;` into a tag opener that
+        # swallowed the figures up to the next `>` (Subcarrier p.50 `ER &lt; 2.5 dB … 1530 nm to 1570 nm`: 2,323 figures shelf-wide)
+        text = unescape(re.sub(r"<[^>]+>", " ", _INLINE_TAG_RE.sub("", b.get("html", "") or "")))
         by_page.setdefault(int(p) + 1, []).extend(_NUM_TOKEN.findall(text))
     worst: list[dict] = []
     fig_boxes_all = _fig_boxes_by_page(blocks)
@@ -1115,8 +1175,14 @@ def audit_numbers(pages_raw: list[str], blocks: list[dict], pdf_path=None, ocr_p
         # the observable instead of the guess. 42 of 1,702 missing figures over 9 documents of 52 when it was read.
         fur: Counter = Counter()
         if furniture_readable and missing:
-            fur = Counter({k: c for k, c in _missing_in_figures(
-                pdf_path, pnum, missing, fur_boxes_all.get(pnum) or []).items() if not isinstance(k, tuple)})
+            # S218 E4 (F3; Wiener's download footer `… 2254528 … 9780262355902 … 2026`, PBO's colophon `Report RP-2627-002-S`):
+            # the helper keys a figure on a band that OPENS WITH A WORD as ("labelled", tok) — a chart rule (a labelled band
+            # inside a Figure box is a table the model mis-boxed). Inside a PageHeader/PageFooter box a label word is the
+            # footer's own text, so the labelled keys are furniture too and are KEPT here; the Figure call below still drops
+            # nothing and still names them apart. Wiener read 706 missing figures with the tuple keys dropped, 367 without.
+            fur = Counter()
+            for k, c in _missing_in_figures(pdf_path, pnum, missing, fur_boxes_all.get(pnum) or []).items():
+                fur[k[1] if isinstance(k, tuple) else k] += c
             missing -= fur
         # S211 LANE B (RBC p.41/p.58): a missing token sitting inside this page's own Figure/Picture box is a chart's axis
         # tick, not a table's dropped figure — moved out of `missing` BEFORE it is counted or handed to the row-band lookup,
@@ -1313,7 +1379,7 @@ def audit_convert(pdf_path, markdown: str, lane: str, asset_count: int | None = 
         # S209 B35, REPORT-ONLY: the words Marker's blocks carry that the layer does not (inventions; disagreement on the
         # scan lane), per page from blocks.json — riding BESIDE survival, unseen by compute_verdict; None = not measured
         # (no blocks handed in), never 0.
-        "inventions": audit_inventions(pages_raw, blocks, kind) if blocks is not None else None,
+        "inventions": audit_inventions(pages_raw, blocks, kind, pdf_path=pdf_path) if blocks is not None else None,
         # S209 E11, REPORT-ONLY: the bank tables' SHAPE — the source's own table geometry (pymupdf find_tables inside each
         # Marker table box) against Marker's rows and width: columns_lost / rows_lost where the witness's cells agree and its
         # shape is credible, tables_disagree / tables_unread for the rest, the scan lane unread with its reason. Beside

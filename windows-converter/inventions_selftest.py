@@ -509,5 +509,81 @@ case("audit_convert writes fidelity.convert.leaders beside doc_survival (8 remov
      and fa.compute_verdict(_forced, None) == fa.compute_verdict(blk52, None), blk52.get("leaders"))
 fa.PAGE_MIN_WORDS = _saved_min_45
 
+# ---- S218 E4 (F1 + F2 + F3): the words measure stops manufacturing losses ----
+_saved_min_53 = fa.PAGE_MIN_WORDS
+fa.PAGE_MIN_WORDS = 1
+# 53 · F2 (Bill C-30: 163 of 167 "invented" words; TD Q3: 4 of 5): an INLINE text tag inside a word — Marker's footnote anchor,
+# an italic span — strips to nothing, so the word Marker wrote whole reads whole; `<br>` and `<sup>` still strip to a space
+_W53 = "The JD Power Study of banking products was published in fiscal 2026 by the agency."
+_M53 = ('<p>The JD Pow<a href="#page-0-3">er</a><sup>4</sup> Stud<a href="#page-0-4">y</a> of banking product<a href="#x">s</a> '
+        'was published in fiscal 2026<sup>38</sup> by the agen</i><i>cy.</p>')
+r53 = fa.audit_inventions([_W53], [{"page": 0, "block_type": "Text", "html": _M53}])
+case("F2: inline anchors and italics inside words (`Pow<a>er</a>`, `agen</i><i>cy`) read 0 invented / 0 lost — the negative "
+     "control below shows the generic strip still splits at a line break",
+     r53["invented_total"] == 0 and r53["lost_total"] == 0, r53["class_specimens"])
+r53b = fa.audit_inventions(["The fiscal year ended well."], [{"page": 0, "block_type": "Text", "html": "<p>The fis<br>cal year ended well.</p>"}])
+case("F2 control: a `<br>` inside a word still splits it (fis + cal invented 2, fiscal lost 1) — only INLINE TEXT tags vanish",
+     r53b["invented_total"] == 2 and r53b["lost_total"] == 1, r53b["class_specimens"])
+# 54 · F2's second half (Subcarrier p.50 `ER < 2.5 dB … 1530 nm to 1570 nm`; 1,804 of 185,810 shelf blocks): the entities are
+# unescaped AFTER the tags are stripped, so a literal `&lt;` is a less-than sign, not a tag opener that swallows the line
+_W54 = "ER < 2.5 dB over the band from 1530 nm to 1570 nm for the carrier wavelength."
+_M54 = "<p>ER &lt; 2.5 dB over the band from 1530 nm to 1570 nm for the carrier wavelength.</p>"
+r54 = fa.audit_inventions([_W54], [{"page": 0, "block_type": "Text", "html": _M54}])
+case("F2: a literal `&lt;` in a block no longer swallows the words after it (0 lost, 0 invented); a real tag still strips",
+     r54["invented_total"] == 0 and r54["lost_total"] == 0, r54)
+r54n = fa.audit_numbers([_W54], [{"page": 0, "block_type": "Text", "html": _M54}])
+case("F2 (audit_numbers): the same `&lt;` block reads missing 0 / extra 0 — 1530 and 1570 are read, not swallowed",
+     r54n["missing_total"] == 0 and r54n["extra_total"] == 0, r54n)
+# 55 · F1 (C-288 55 of 55, C-30 399 of 479, RBC AR 1,393 of 1,889 lost words were running heads): a lost witness word whose OWN
+# word box sits inside a PageHeader/PageFooter block (Marker ships them empty on purpose) is counted apart as lost_in_furniture;
+# lost_total and lost_total_excl_joined keep their meaning. Fixture PDF drawn here, same pattern as cases 24–26.
+_HEAD_BOX = [50, 30, 400, 60]
+_fur_dir = tempfile.mkdtemp(prefix="fp-lostfur-")
+_fur_doc = fitz.open()
+_fur_page = _fur_doc.new_page(width=612, height=792)
+_fur_page.insert_text((_HEAD_BOX[0] + 10, _HEAD_BOX[1] + 20), "Chapter 2 Thin films overview", fontsize=9)      # the running head
+_fur_page.insert_text((72, 200), "The dynamics of polymers in confinement are measured here.", fontsize=11)        # the body
+_fur_pdf = os.path.join(_fur_dir, "head.pdf")
+_fur_doc.save(_fur_pdf)
+_W55 = "Chapter 2 Thin films overview\nThe dynamics of polymers in confinement are measured here."
+_BODY55 = "<p>The dynamics of polymers in confinement are measured here.</p>"
+r55 = fa.audit_inventions([_W55], [{"page": 0, "block_type": "PageHeader", "bbox": _HEAD_BOX, "html": ""},
+                                   {"page": 0, "block_type": "Text", "html": _BODY55}], pdf_path=_fur_pdf)
+case("F1: the four head words (chapter, thin, films, overview) in an emptied PageHeader box read lost_in_furniture 4, "
+     "lost_total 4 unchanged, lost_total_excl_furniture 0 — the honest rest",
+     r55["lost_total"] == 4 and r55["lost_in_furniture"] == 4 and r55["lost_total_excl_furniture"] == 0 and r55["lost_total_excl_joined"] == 4,
+     {k: r55[k] for k in ("lost_total", "lost_in_furniture", "lost_total_excl_furniture", "lost_in_furniture_specimens")})
+r55b = fa.audit_inventions([_W55], [{"page": 0, "block_type": "PageHeader", "bbox": [50, 600, 400, 640], "html": ""},
+                                    {"page": 0, "block_type": "Text", "html": _BODY55}], pdf_path=_fur_pdf)
+case("F1 control: the same words with the PageHeader box elsewhere on the page stay lost (lost_in_furniture 0, measured; "
+     "lost_total_excl_furniture 4) — only real containment counts apart",
+     r55b["lost_total"] == 4 and r55b["lost_in_furniture"] == 0 and r55b["lost_total_excl_furniture"] == 4, r55b["lost_in_furniture"])
+r55c = fa.audit_inventions([_W55], [{"page": 0, "block_type": "Text", "bbox": _HEAD_BOX, "html": ""},
+                                    {"page": 0, "block_type": "Text", "html": _BODY55}], pdf_path=_fur_pdf)
+case("F1 control: an emptied TEXT box over the same words is not furniture — lost_in_furniture None (no furniture block, "
+     "UNREAD), lost_total 4 (an empty block of another type is a real miss, never exempted)",
+     r55c["lost_total"] == 4 and r55c["lost_in_furniture"] is None and r55c["lost_total_excl_furniture"] is None, r55c["lost_in_furniture"])
+r55d = fa.audit_inventions([_W55], [{"page": 0, "block_type": "PageHeader", "bbox": _HEAD_BOX, "html": ""},
+                                    {"page": 0, "block_type": "Text", "html": _BODY55}])
+case("F1 control: without a pdf_path the key reads None (UNREAD), never 0, and the old keys are untouched",
+     r55d["lost_in_furniture"] is None and r55d["lost_total"] == 4, r55d["lost_in_furniture"])
+# 56 · F3 (Wiener's download footer, PBO's colophon `Report RP-2627-002-S`): a missing figure on a FOOTER band that opens with a
+# word is still furniture — the labelled-band rule belongs to charts (case 26b, unchanged), not to PageHeader/PageFooter boxes
+_FOOT_BOX = [50, 720, 400, 745]
+_foot_dir = tempfile.mkdtemp(prefix="fp-labfur-")
+_foot_doc = fitz.open()
+_foot_page = _foot_doc.new_page(width=612, height=792)
+_foot_page.insert_text((_FOOT_BOX[0] + 10, _FOOT_BOX[1] + 15), "Report RP-2627-002-S", fontsize=8)       # the labelled footer
+_foot_pdf = os.path.join(_foot_dir, "foot.pdf")
+_foot_doc.save(_foot_pdf)
+_W56 = "Report RP-2627-002-S is the colophon of the facility engineering study with 3,500 participants."
+r56 = fa.audit_numbers([_W56], [{"page": 0, "block_type": "PageFooter", "bbox": _FOOT_BOX, "html": ""},
+                                {"page": 0, "block_type": "Text", "html": "<p>the colophon of the facility engineering study with 3,500 participants.</p>"}],
+                       pdf_path=_foot_pdf)
+case("F3: the footer's `2627` on a band that opens with `Report` reads missing_in_furniture 1 and missing_total 0 — before this "
+     "cut the labelled key was dropped and it read missing 1 (case 26b, the chart's labelled row, is the control and still reads missing 3)",
+     r56["missing_total"] == 0 and r56["missing_in_furniture"] == 1, {k: r56[k] for k in ("missing_total", "missing_in_furniture", "missing_years")})
+fa.PAGE_MIN_WORDS = _saved_min_53
+
 print("==== inventions selftest: %d/%d ====" % (ok, n))
 sys.exit(0 if ok == n else 1)
