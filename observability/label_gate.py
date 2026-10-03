@@ -107,8 +107,9 @@ def gate(before: str, after: str, name: str = "<file>") -> tuple[int, str]:
         err = _compiles(src, "%s(%s)" % (name, side))
         if err:
             return 3, "DOES NOT COMPILE %s" % err
-    if after.count("\n") < before.count("\n"):
-        return 1, "LINES SHRANK %d -> %d (a labelling edit deletes nothing)" % (before.count("\n") + 1, after.count("\n") + 1)
+    # (the no-shrink rule of wave 1 is gone since Rab's word of 2026-10-03 20:39Z - "anything that is not an accurate
+    # description can be deleted and changed": a stale docstring line may go; the tree and the verbatim code lines
+    # below still prove that no CODE went with it)
     sa, sb = _skeleton(before), _skeleton(after)
     if sa != sb:
         return 1, "TREE CHANGED beyond comments/docstrings at: %s" % _first_diff(sa, sb)
