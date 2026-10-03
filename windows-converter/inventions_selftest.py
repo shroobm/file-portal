@@ -526,11 +526,12 @@ case("F2 control: a `<br>` inside a word still splits it (fis + cal invented 2, 
      r53b["invented_total"] == 2 and r53b["lost_total"] == 1, r53b["class_specimens"])
 # 54 · F2's second half (Subcarrier p.50 `ER < 2.5 dB … 1530 nm to 1570 nm`; 1,804 of 185,810 shelf blocks): the entities are
 # unescaped AFTER the tags are stripped, so a literal `&lt;` is a less-than sign, not a tag opener that swallows the line
-_W54 = "ER < 2.5 dB over the band from 1530 nm to 1570 nm for the carrier wavelength."
-_M54 = "<p>ER &lt; 2.5 dB over the band from 1530 nm to 1570 nm for the carrier wavelength.</p>"
+_W54 = "Extinction ratio ER < 2.5 dB over the band from 1530 nm to 1570 nm for the carrier wavelength."
+_M54 = "<p>Extinction ratio ER &lt; 2.5 dB over the band from 1530 nm to 1570 nm for the carrier wavelength.</p>"
 r54 = fa.audit_inventions([_W54], [{"page": 0, "block_type": "Text", "html": _M54}])
-case("F2: a literal `&lt;` in a block no longer swallows the words after it (0 lost, 0 invented); a real tag still strips",
-     r54["invented_total"] == 0 and r54["lost_total"] == 0, r54)
+case("F2: a literal `&lt;` in a block no longer swallows the words after it (0 lost, 0 invented; the words before the `&lt;` keep the "
+     "page measured — under the old order this fixture read lost 8); a real tag still strips",
+     r54["invented_total"] == 0 and r54["lost_total"] == 0 and r54["pages_measured"] == 1, r54)
 r54n = fa.audit_numbers([_W54], [{"page": 0, "block_type": "Text", "html": _M54}])
 case("F2 (audit_numbers): the same `&lt;` block reads missing 0 / extra 0 — 1530 and 1570 are read, not swallowed",
      r54n["missing_total"] == 0 and r54n["extra_total"] == 0, r54n)

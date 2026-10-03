@@ -345,7 +345,7 @@ def _locate_degenerate(degen: dict, blocks: list | None) -> dict:
     for b in blocks:
         if b.get("page") is None:
             continue
-        txt = norm(unescape(re.sub(r"<[^>]+>", " ", b.get("html", "") or "")))  # S218 E4: unescape LAST (a literal `&lt;` is not a tag)
+        txt = norm(re.sub(r"<[^>]+>", " ", unescape(b.get("html", "") or "")))
         if txt:
             texts.append((b, txt))
     for w in worst:
@@ -626,7 +626,7 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
         # counted, and the commands are counted apart as `latex_commands`: the equation is not an invention and not a word.
         for m in math_re.findall(html):
             latex_commands += len(cmd_re.findall(m))
-        # S218 E4 (F2; the sweep's six gap verifiers on Bill C-30, TD Q3): an INLINE text tag inside a word — `Pow<a href=…>er</a>`,
+        # S218 E4 (F2; two of the sweep's gap verifiers named it, on Bill C-30 and TD Q3): an INLINE text tag inside a word — `Pow<a href=…>er</a>`,
         # `agen</i><i>cy` — strips to NOTHING, as audit_numbers has done since SYM-169 (:1044); every other tag still strips to a
         # space (a `<br>` or a `<td>` is a word boundary). C-30 read 167 invented words, 163 of them such splits of words Marker
         # wrote whole. And the entities are unescaped LAST: unescaping first turned a literal `&lt;` into a tag opener that
@@ -659,7 +659,8 @@ def audit_inventions(pages_raw: list[str], blocks: list[dict], kind: str = "fide
     lost_compound_hyphen_specimens: list[dict] = []
     invented_compound_hyphen = 0
     # S218 E4 (F1; the sweep's seven measured bundles — Bill C-288 55 of 55 lost words, C-30 399 of 479, EMA 733 of 740, RBC AR
-    # 1,393 of 1,889, TD AR 1,047 of 1,318, BMO AR 1,012 of 1,268, Hydro One 519 of 553): Marker locates every running head and
+    # 1,393 of 1,889, TD AR 1,047 of 1,318, BMO AR 1,012 of 1,268, Hydro One 293 of 551 — the census's own reading; its 226 SectionHeader
+    # words are a heading type, not furniture): Marker locates every running head and
     # footer as PageHeader/PageFooter and ships it EMPTY on purpose (all 30,108 such blocks on the shelf), so the witness's words
     # there have no counterpart in the blocks and read LOST. A lost word whose OWN word box sits inside such a block is counted
     # apart as lost_in_furniture — the words-side twin of SYM-180's missing_in_furniture, taken from the same observable (the
