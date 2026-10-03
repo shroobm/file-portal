@@ -2092,7 +2092,10 @@ let tprop = null;
 function gateLine(r) {
   const g = r.gates || {};
   const f = (v) => v == null ? "—" : v;
-  return `gates: numbers J=${f(g.numeric_jaccard)} · windows ${f(g.window_survival)} · tables ${f(g.tables)} · read ${r.secs}s (+${r.load_s}s load) · ${r.vram_mib} MiB peak · ${r.model} · local, nothing leaves this machine`;
+  // S218 E10 (SYM-195): the row-order gate (rows whose numbers sit under their own label in the witness) and the
+  // invented words (in the proposal, on no page) beside the set gate that read a wrong table as 1.0
+  const inv = Array.isArray(g.invented_words) ? g.invented_words : null;
+  return `gates: numbers J=${f(g.numeric_jaccard)} · rows in place ${f(g.label_span)} · invented ${inv == null ? "—" : (inv.length ? inv.length + " (" + inv.slice(0, 4).join(", ") + ")" : "0")} · windows ${f(g.window_survival)} · tables ${f(g.tables)} · read ${r.secs}s (+${r.load_s}s load) · ${r.vram_mib} MiB peak · ${r.model} · local, nothing leaves this machine`;
 }
 $("readbtn").onclick = async () => {
   if (crop == null) return;

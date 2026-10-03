@@ -64,6 +64,76 @@ def numeric_jaccard(witness: str, output: str) -> float | None:
     return round(len(a & b) / max(1, len(a | b)), 4)
 
 
+# -- S218 E10 (SYM-195): the set gate above cannot see a row that moved or a label that took another row's numbers (the
+# sets stay equal), nor a line that is on no page. These two can. --
+_TOK = re.compile(r"\d[\d,.]*|[A-Za-z][A-Za-z'-]{2,}")
+_NUM = re.compile(r"\d[\d,.]*")
+_WORD = re.compile(r"[A-Za-z][A-Za-z'-]{3,}")
+
+
+def _subseq(needle: list, hay: list) -> bool:
+    """True when `needle` appears in `hay` in order (not necessarily adjacent)."""
+    i = 0
+    for x in hay:
+        if i < len(needle) and x == needle[i]:
+            i += 1
+    return i == len(needle)
+
+
+def _table_rows(md: str) -> list[str]:
+    """The pipe-table rows of the markdown, the `|---|` separator lines left out."""
+    return [ln for ln in md.splitlines() if ln.strip().startswith("|") and not re.match(r"^\s*\|[\s\-|:]+\|\s*$", ln)]
+
+
+def label_span(witness: str, output: str) -> tuple[float | None, list[dict]]:
+    """THE LABEL-SPAN gate: for every data row (a label cell and at least two numbers), find the row's label words in
+    the witness's token stream (words and numbers in reading order; the first in-order match of the label's words within
+    a 12-token window); the row's numbers must then appear IN ORDER among the witness tokens between that label and the
+    next row label of the same table found in the witness — the row's own span. A row whose numbers belong to another
+    label fails here even when the same numbers exist elsewhere on the page; a label the witness never shows fails.
+    Returns (fraction of data rows passing, the failing rows as {row, span}); (None, []) when there is no data row.
+    Measured S218 E10 on the Spring Economic Update p.122: the proposal that gave the title row's numbers to "Bank of
+    Canada" reads 0.75 and names that row; the page's correct second table reads 1.0; the set gate read 1.0 on both."""
+    stream = _TOK.findall(witness)
+    low = [t.casefold() for t in stream]
+    rows = _table_rows(output)
+    data = []
+    for ln in rows[1:]:   # the first row is the header: the axis, no label to find
+        cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+        label = [w.casefold() for w in re.findall(r"[A-Za-z][A-Za-z'-]{2,}", cells[0])] if cells else []
+        ns = _NUM.findall(" ".join(cells[1:]))
+        if label and len(ns) >= 2:
+            data.append((ln, label, ns))
+    if not data:
+        return None, []
+    starts: dict = {}
+    for ln, label, ns in data:
+        for i in range(len(low)):
+            if low[i] == label[0] and _subseq(label, low[i:i + 12]):
+                starts[ln] = i
+                break
+    failing = []
+    for ln, label, ns in data:
+        p = starts.get(ln)
+        if p is None:
+            failing.append({"row": ln.strip(), "span": None})
+            continue
+        later = [s for s in starts.values() if s > p]
+        q = min(later) if later else len(stream)
+        span = stream[p:q]
+        if not _subseq(ns, span):
+            failing.append({"row": ln.strip(), "span": " ".join(span)})
+    return round(1 - len(failing) / len(data), 4), failing
+
+
+def invented_words(witness: str, output: str) -> list[str]:
+    """The proposal's words (four letters or more) that the witness does not contain, case-folded for the compare, in
+    the proposal's own spelling, sorted and unique — a line the model wrote from nowhere ("Powered by TCPDF") lands here;
+    an empty list on a proposal that uses only the page's words."""
+    wl = {w.casefold() for w in _WORD.findall(witness)}
+    return sorted({w for w in _WORD.findall(output) if w.casefold() not in wl})
+
+
 # -- entry point: one crop in, one JSON line out --
 def main() -> int:
     """Parse the command line, run the model on --image, print one JSON record (ok, markdown, gates, timings, VRAM).
@@ -121,12 +191,16 @@ def main() -> int:
 
         # gate metrics: scored only when a non-empty witness file was given
         gates: dict = {"parse_ok": parse_ok, "tables": tables,
-                       "window_survival": None, "numeric_jaccard": None}
+                       "window_survival": None, "numeric_jaccard": None,
+                       "label_span": None, "label_span_failing": [], "invented_words": []}
         if a.witness and os.path.isfile(a.witness):
             wit = open(a.witness, encoding="utf-8").read()
             if wit.strip():
                 gates["window_survival"] = window_survival(wit, md)
                 gates["numeric_jaccard"] = numeric_jaccard(wit, md)
+                # S218 E10 (SYM-195): the row-order and invented-line gates beside the set gate
+                gates["label_span"], gates["label_span_failing"] = label_span(wit, md)
+                gates["invented_words"] = invented_words(wit, md)
 
         # assemble the result record; ok is false when the parse failed or the markdown is empty
         ok = parse_ok and bool(md.strip())
