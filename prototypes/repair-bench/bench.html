@@ -2783,7 +2783,7 @@ function cellCount(row) {
   if (parts.length && parts[parts.length - 1].trim() === "") parts.pop();
   return parts.length;
 }
-function isRepairLine(l) { return l.startsWith("![[assets/_repair") || l.startsWith("<!-- repair ") || l.startsWith("<!-- transcribed "); }
+function isRepairLine(l) { return l.startsWith("![[assets/_repair") || l.startsWith("<!-- repair ") || l.startsWith("<!-- transcribed ") || l.startsWith("<!-- restored "); }
 function tableBlocks(lines) {
   const mask = fenceMask(lines), out = []; let i = 0;
   while (i < lines.length - 1) {

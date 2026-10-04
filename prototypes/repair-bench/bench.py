@@ -1373,13 +1373,34 @@ class Bench:
                 out.append([e])
         return out
 
+    @staticmethod
+    def _reverted_seqs(ws: list[list[dict]]) -> set[int]:
+        """The `seq` of every write an undo reverted. An undo written since S220 E7-fix names its
+        target by `reverts_seq`; an older one names it by sha only, which is ambiguous once a
+        gesture is redone after an undo (the redo's `sha_after` equals the reverted write's, so
+        the redo read as already reverted and the next undo refused) — for those the LATEST
+        non-undo write before the undo with that sha is taken."""
+        out: set[int] = set()
+        for i, w in enumerate(ws):
+            e = w[0]
+            if e["gesture"] != "undo" or not e.get("reverts"):
+                continue
+            if e.get("reverts_seq") is not None:
+                out.add(int(e["reverts_seq"]))
+                continue
+            for prev in reversed(ws[:i]):
+                if prev[0]["gesture"] != "undo" and prev[0]["sha_after"] == e["reverts"]:
+                    out.add(int(prev[0]["seq"]))
+                    break
+        return out
+
     def undo_depth(self) -> int:
         """How many changes could still be walked back. Ledger-derived, so a bench restart no
         longer resets it to zero and pretends nothing ever happened."""
         ws = self.writes()
-        reverted = {e["reverts"] for w in ws for e in w if e.get("reverts")}
+        reverted = self._reverted_seqs(ws)
         return len([w for w in ws
-                    if w[0]["gesture"] != "undo" and w[0]["sha_after"] not in reverted])
+                    if w[0]["gesture"] != "undo" and int(w[0]["seq"]) not in reverted])
 
     def undo_ledger(self) -> dict:
         """ctrl-Z, ledger-driven (docs/28 §5.2) — survives a bench restart, which the
@@ -1393,10 +1414,10 @@ class Bench:
         ws = self.writes()
         if not ws:
             raise ValueError("nothing to undo — the ledger is empty")
-        reverted = {e["reverts"] for w in ws for e in w if e.get("reverts")}
+        reverted = self._reverted_seqs(ws)
         target = None
         for w in reversed(ws):
-            if w[0]["gesture"] == "undo" or w[0]["sha_after"] in reverted:
+            if w[0]["gesture"] == "undo" or int(w[0]["seq"]) in reverted:
                 continue
             target = w
             break
@@ -1416,7 +1437,7 @@ class Bench:
         gesture = target[0]["gesture"]
         self._write_body("\n".join(lines), gesture="undo",
                          note=f"reverted a {gesture}",
-                         extra={"reverts": target[0]["sha_after"]})
+                         extra={"reverts": target[0]["sha_after"], "reverts_seq": target[0]["seq"]})
         # provenance must not survive the body it described (the transcribe law, generalised)
         reps = self.manifest.get("repairs", [])
         if reps and reps[-1].get("mode") in ("transcribe", "textlayer", "collapse", "crop", "paste") \
@@ -1426,9 +1447,7 @@ class Bench:
                                           encoding="utf-8")
         return {"undone": True, "gesture": gesture, "regions": len(target),
                 "chars_restored": sum(e["chars"]["removed"] for e in target),
-                "remaining": len([w for w in self.writes()
-                                  if w[0]["gesture"] != "undo"
-                                  and w[0]["sha_after"] not in reverted]) - 1}
+                "remaining": self.undo_depth()}
 
     def ledger_audit(self) -> dict:
         """The chain check: each event's sha_before must equal the previous sha_after, and the

@@ -89,8 +89,10 @@ def cells(row: str) -> list[str]:
 
 
 def is_repair_line(line: str) -> bool:
-    """True for a line a repair step wrote (an `![[assets/_repair` embed or a `<!-- repair` / `<!-- transcribed` comment)."""
-    return line.startswith("![[assets/_repair") or line.startswith("<!-- repair ") or line.startswith("<!-- transcribed ")
+    """True for a line a repair step wrote (an `![[assets/_repair` embed or a `<!-- repair` / `<!-- transcribed` /
+    `<!-- restored` comment - the last is the bench's text-layer restoration, S220 E7)."""
+    return (line.startswith("![[assets/_repair") or line.startswith("<!-- repair ")
+            or line.startswith("<!-- transcribed ") or line.startswith("<!-- restored "))
 
 
 # ---- the health (the S149 rules, the page's own twin) ---------------------------------------------

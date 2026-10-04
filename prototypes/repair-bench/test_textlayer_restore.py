@@ -42,6 +42,17 @@ class TextlayerRestore(unittest.TestCase):
         cls.tmp = Path(tempfile.mkdtemp(prefix="fp-textlayer-"))
         cls.bundle = cls.tmp / "af4aebf6f85049f0"
         shutil.copytree(HELD, cls.bundle)
+        # E7-fix (the blind verifier, 21:03Z): the sandbox starts from the PRE-restoration state whatever the live
+        # bundle holds - every trailing textlayer record is undone through the bench's own undo, so the test is not
+        # one-shot (its first run passed, the act on the real bundle then made every later run fail: two textlayer
+        # records on one page and `_repair_blocks` sees neither). The first-write backup is removed from the copy so a
+        # preview that backed up would show (the verifier's mutant M6 survived because the copy carried one).
+        b = B.Bench(cls.bundle, pdf=PDF, sandbox=False)
+        while (b.manifest.get("repairs") or []) and b.manifest["repairs"][-1].get("mode") == "textlayer":
+            b.undo_ledger()
+        cls.bak = b.md_path.with_suffix(".md.bench-bak")
+        if cls.bak.exists():
+            cls.bak.unlink()
 
     @classmethod
     def tearDownClass(cls):
@@ -66,9 +77,10 @@ class TextlayerRestore(unittest.TestCase):
         self.assertTrue(pv["preview"])
         self.assertEqual(pv["words"], 6)
         self.assertEqual(pv["lines"], 2)
-        self.assertIn("zachary.meisel@us.af.mil", pv["text"])
-        self.assertIn("XSN3YC@uvahealth.org", pv["text"])
-        self.assertTrue(pv["text"].endswith("Hamad)"))
+        # the exact text, in reading order (E7-fix: the verifier's mutant M2 - words sorted right to left - survived
+        # a containment check)
+        self.assertEqual(pv["text"], "zachary.meisel@us.af.mil (Z. Meisel); XSN3YC@uvahealth.org (G.\nHamad)")
+        self.assertFalse(self.bak.exists(), "a preview made the first-write backup - it wrote")
         self._unchanged()
 
     def test_2_insert_undo_exact(self):
@@ -83,6 +95,8 @@ class TextlayerRestore(unittest.TestCase):
         at = r["inserted_after_line"]
         self.assertEqual(lines[at], "")
         self.assertEqual(lines[at + 1] + "\n" + lines[at + 2], r["text"])
+        self.assertEqual(r["text"], "zachary.meisel@us.af.mil (Z. Meisel); XSN3YC@uvahealth.org (G.\nHamad)")
+        self.assertTrue(self.bak.exists(), "the first real write makes the backup")
         self.assertTrue(lines[at + 3].startswith("<!-- restored p4 · pdf-textlayer · 6 words"))
         self.assertEqual(len(b.ledger()), self.events0 + 1, "exactly one event")
         ev = b.ledger()[-1]
@@ -105,6 +119,25 @@ class TextlayerRestore(unittest.TestCase):
         self.assertEqual(b2.ledger()[-1]["reverts"], ev["sha_after"])
         zone = [s for s in b2.coverage()["sites"] if s["kind"] == "zone" and s["at"] == ZONE]
         self.assertEqual(zone[0]["outcome"], "image-restored", "E6's crop is the outcome again")
+        self.assertEqual(_fid_sha(b2), self.fid0)
+
+    def test_2b_redo_after_undo_is_undoable(self):
+        # E7-fix (the verifier's residue, CORRECTIONS 95): gesture -> undo -> the same gesture -> undo. The redo's
+        # sha_after equals the reverted write's, so an undo that identified writes by sha read the redo as already
+        # reverted and refused; the ledger now names the reverted write by its seq.
+        b = self.b
+        d0 = b.undo_depth()
+        b.restore_textlayer(ZONE, PAGE, RECT)
+        b.undo_ledger()
+        r = b.restore_textlayer(ZONE, PAGE, RECT)
+        self.assertEqual(b.undo_depth(), d0 + 1, "the redo counts as one more change to walk back")
+        u = b.undo_ledger()
+        self.assertEqual(u["gesture"], "textlayer")
+        self.assertEqual(u["remaining"], d0)
+        b2 = B.Bench(self.bundle, pdf=PDF, sandbox=False)
+        self.assertEqual(b2._sha(b2.body()), self.sha0)
+        self.assertEqual(len(b2.manifest.get("repairs", [])), self.reps0)
+        self.assertEqual(b2.ledger()[-1].get("reverts_seq"), r and b2.ledger()[-2]["seq"])
         self.assertEqual(_fid_sha(b2), self.fid0)
 
     def test_3_empty_rect_refuses(self):
