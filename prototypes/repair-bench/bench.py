@@ -1419,8 +1419,8 @@ class Bench:
                          extra={"reverts": target[0]["sha_after"]})
         # provenance must not survive the body it described (the transcribe law, generalised)
         reps = self.manifest.get("repairs", [])
-        if reps and reps[-1].get("mode") in ("transcribe", "collapse", "crop", "paste") \
-                and gesture in ("transcribe", "collapse", "crop", "paste"):
+        if reps and reps[-1].get("mode") in ("transcribe", "textlayer", "collapse", "crop", "paste") \
+                and gesture in ("transcribe", "textlayer", "collapse", "crop", "paste"):
             reps.pop()
             self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
                                           encoding="utf-8")
@@ -1464,7 +1464,7 @@ class Bench:
         SIGNED delta (negative — it removes lines). Collapse deliberately uses `delta` rather
         than reusing `lines`, because the UI renders `r.lines || 0` and a negative there would
         corrupt the repairs chip."""
-        if r.get("mode") == "transcribe":
+        if r.get("mode") in ("transcribe", "textlayer"):
             return r.get("lines") or 0
         if r.get("mode") == "collapse":
             return r.get("delta") or 0
@@ -1506,8 +1506,9 @@ class Bench:
         modes = {r.get("mode") for r in self.manifest.get("repairs", [])
                  if r.get("zone_line") == at}
         # strongest claim first: real text beats an image, an image beats mere noise removal
-        for mode, outcome in (("transcribe", "text-restored"), ("crop", "image-restored"),
-                              ("paste", "image-restored"), ("collapse", "collapsed")):
+        for mode, outcome in (("transcribe", "text-restored"), ("textlayer", "text-restored"),
+                              ("crop", "image-restored"), ("paste", "image-restored"),
+                              ("collapse", "collapsed")):
             if mode in modes:
                 return outcome, ""
         return "open", ""
@@ -1752,15 +1753,18 @@ class Bench:
                 blocks.append((s, k + 2, "embed", asset))
                 k += 2
                 continue
-            if l.startswith("<!-- transcribed "):
-                m = re.match(r"<!-- transcribed p(\d+) ", l)
-                page = int(m.group(1)) if m else None
-                cands = [r for r in recs if r.get("mode") == "transcribe" and r.get("page") == page and r.get("lines")]
+            if l.startswith("<!-- transcribed ") or l.startswith("<!-- restored "):
+                # S220 E7: a text-layer restoration block ends in `<!-- restored pN · pdf-textlayer … -->` (mode
+                # "textlayer"); it is scanned exactly like a transcription block, by the ONE matching record's count.
+                m = re.match(r"<!-- (transcribed|restored) p(\d+) ", l)
+                page = int(m.group(2)) if m else None
+                mode = "textlayer" if l.startswith("<!-- restored ") else "transcribe"
+                cands = [r for r in recs if r.get("mode") == mode and r.get("page") == page and r.get("lines")]
                 if len(cands) == 1 and cands[0]["lines"] >= 2:
                     s = max(0, k + 1 - cands[0]["lines"])       # the record's count includes the blank and the comment
                     if not (s < k and lines[s].strip() == ""):
                         s = max(0, k + 2 - cands[0]["lines"])
-                    blocks.append((s, k + 1, "transcribe", cands[0].get("id")))
+                    blocks.append((s, k + 1, mode, cands[0].get("id")))
             k += 1
         return blocks
 
@@ -1929,6 +1933,77 @@ class Bench:
                                       encoding="utf-8")
         return {"inserted_after_line": at, "lines": len(inserted),
                 "undo_depth": self.undo_depth(), "record": rec}
+
+    # ---- the text-layer restoration (S220 E7, Rab's word "Build it", 2026-10-04 20:37Z) ------
+    # The one restoration whose source is the page itself: no model, no card, no OCR. The words
+    # pymupdf reads inside a rectangle come back as TEXT at the zone, provenance mode "textlayer".
+    # Whether the audit credits it is Rab's signature (docs/28 §4); this only records where the
+    # text came from. Born of E6: the nucl-ex footnote restored as a crop could not be searched.
+    def restore_textlayer(self, zone_line: int, page: int, rect: list[float], note: str = "",
+                          preview: bool = False) -> dict:
+        """Insert the page's own words inside `rect` (page fractions) at the zone as text.
+
+        Lines are rebuilt from the word boxes: a word starts a new line when its top lies below
+        the running line's bottom less a quarter of the word's height; words on a line are joined
+        by single spaces in x order. `preview=True` returns the text and writes nothing. Refuses
+        a bad rect, a page out of range, and a rectangle holding no words — nothing to restore is
+        a discard, never an empty block with a provenance record."""
+        self._require_md()
+        try:
+            x0, y0, x1, y1 = (float(v) for v in rect)
+        except (TypeError, ValueError):
+            raise ValueError(f"bad rect {rect!r} (four page fractions)") from None
+        if not (0 <= x0 < x1 <= 1 and 0 <= y0 < y1 <= 1):
+            raise ValueError(f"bad rect {rect} (fractions, x0<x1, y0<y1)")
+        count = self.doc().page_count
+        if not (1 <= int(page) <= count):
+            raise ValueError(f"page {page} is outside 1..{count}")
+        page = int(page)
+        words = [w for w in self.textlayer(page)["words"]
+                 if x0 <= (w[0] + w[2]) / 2 <= x1 and y0 <= (w[1] + w[3]) / 2 <= y1]
+        if not words:
+            raise ValueError(f"no words in the text layer inside {rect} on p{page} — nothing to restore")
+        words.sort(key=lambda w: (w[1], w[0]))
+        text_lines, cur, bottom = [], [], 0.0
+        for w in words:
+            h = max(w[3] - w[1], 1e-6)
+            if cur and w[1] > bottom - 0.25 * h:
+                cur.sort(key=lambda v: v[0])
+                text_lines.append(" ".join(str(v[4]) for v in cur))
+                cur, bottom = [], 0.0
+            cur.append(w)
+            bottom = max(bottom, w[3])
+        if cur:
+            cur.sort(key=lambda v: v[0])
+            text_lines.append(" ".join(str(v[4]) for v in cur))
+        span = [min(w[0] for w in words), min(w[1] for w in words),
+                max(w[2] for w in words), max(w[3] for w in words)]
+        text = "\n".join(text_lines)
+        if preview:
+            return {"preview": True, "page": page, "rect": [x0, y0, x1, y1], "words": len(words),
+                    "lines": len(text_lines), "chars": len(text), "text": text, "span": span}
+        self._backup_once()
+        fm, body = split_frontmatter(self.md_path.read_text(encoding="utf-8"))
+        self._undo.append(("textlayer", body))
+        del self._undo[:-20]
+        lines = body.split("\n")
+        at, placed_after_table, adjusted = self._insertion_point(lines, zone_line)   # never inside a table (S149)
+        inserted = ["", *text_lines,
+                    f"<!-- restored p{page} · pdf-textlayer · {len(words)} words · repair-bench -->"]
+        lines[at:at] = inserted
+        self._write_body("\n".join(lines), gesture="textlayer", zone_line=zone_line,
+                         note=note or f"pdf-textlayer p{page}", extra={"page": page})
+        rec = {"id": "fpr-" + uuid.uuid4().hex, "ts": _now_iso(), "zone_line": zone_line,
+               "page": page, "asset": None, "mode": "textlayer", "source": "pdf-textlayer",
+               "model": None, "words": len(words), "chars": len(text), "lines": len(inserted),
+               "rect": [x0, y0, x1, y1], "span": span, "note": note, "by": "repair-bench",
+               "at_line_orig": at - (adjusted - zone_line),
+               **({"placed_after_table": placed_after_table} if placed_after_table else {})}
+        self.manifest.setdefault("repairs", []).append(rec)
+        self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
+                                      encoding="utf-8")
+        return {"inserted_after_line": at, "lines": len(inserted), "words": len(words),
+                "text": text, "undo_depth": self.undo_depth(), "record": rec}
 
     # ---- the AI assist (S64): local qwen3 fixes a passage; every change is undoable --------
     # The analyst's non-negotiable link-fence applies here too: qwen3 once INVENTED image URLs
@@ -2109,7 +2184,7 @@ class Bench:
         self._write_body(body, gesture="undo", note=f"reverted a {kind}")
         if kind == "assist" and self._ai_drift:
             self._ai_drift.pop()
-        if kind in ("transcribe", "collapse"):
+        if kind in ("transcribe", "textlayer", "collapse"):
             reps = self.manifest.get("repairs", [])
             if reps and reps[-1].get("mode") == kind:
                 reps.pop()
@@ -2328,6 +2403,7 @@ MUTATING_POSTS = (
     "/api/open",              # swaps the served bundle (server state)
     "/api/transcribe",        # spawns the docling worker (GPU + temp files)
     "/api/transcribe_apply",  # writes body + manifest
+    "/api/restore_textlayer", # writes body + manifest (S220 E7; preview=true computes only, the same uniform gate)
     "/api/collapse_preview",  # computes only, but the POST verb keeps one uniform gate
     "/api/collapse",          # writes body + manifest
     "/api/assist",            # ships body text to the local model, then writes the body
@@ -2896,6 +2972,11 @@ def make_handler(bench: Bench, token=_NO_GATE, tokens_css=None, hosts=()):
                         markdown=str(payload.get("markdown", "")),
                         gates=payload.get("gates"), secs=payload.get("secs"),
                         rect=payload.get("rect")))
+                elif self.path == "/api/restore_textlayer":
+                    self._json(bench.restore_textlayer(
+                        zone_line=int(payload["zone_line"]), page=int(payload["page"]),
+                        rect=payload["rect"], note=str(payload.get("note", "")),
+                        preview=bool(payload.get("preview", False))))
                 elif self.path == "/api/collapse_preview":
                     self._json(bench.collapse(zone_line=int(payload["zone_line"]),
                                               preview=True))

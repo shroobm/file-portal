@@ -731,6 +731,7 @@ BENIGN = {
     "/api/open": {"path": "Z:/definitely/outside/the/roots"},      # -> outside allowlist
     "/api/transcribe": {"zone_line": 1, "page": 1, "rect": [0, 0, 1, 1]},  # -> no fitz/pdf here
     "/api/transcribe_apply": {"zone_line": 1, "page": 1, "markdown": ""},  # -> empty = discard
+    "/api/restore_textlayer": {"zone_line": 1, "page": 1, "rect": [0, 0, 1, 1], "preview": True},  # -> no fitz/pdf here (S220 E7)
     "/api/collapse_preview": {"zone_line": 1},                     # -> no zone recorded
     "/api/collapse": {"zone_line": 1},                             # -> no zone recorded
     "/api/assist": {"start": 1, "end": 1, "instruction": ""},      # -> refuses before Ollama
