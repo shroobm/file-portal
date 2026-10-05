@@ -147,8 +147,12 @@ pdf-textlayer`, the page, the rectangle (normalised to the page), the word and l
 the provenance comment `<!-- restored pN · pdf-textlayer · n words · repair-bench -->` in the
 body — is **`text-restored`**: TEXT for the re-audit (the words are in the body; the shipping
 audit measures them as it measures any text) and TEXT for the vault-eligibility recommendation.
-No model touched it and the machine can verify it: the words inside the rectangle on that page
-equal the words inserted (a multiset check, `test_textlayer_restore.py`). What stays as it was:
+No model touched it and the machine can verify it: the words are read from the page's own text
+objects inside the rectangle, so they are the page's words by construction, and the test pins the
+gesture's output to the exact string and counts it must produce (`test_textlayer_restore.py`
+asserts the restored text, its word count and its line count on the nucl-ex fixture; corrected
+2026-10-05 04:12Z — the first wording named a multiset check that the test does not contain,
+S220 CORRECTIONS 118). What stays as it was:
 a crop is `image-restored` and a human assertion (the bless rail); a transcription by a model is
 `text-restored` by the machine's re-measurement only; the verdict is still written by the
 shipping audit, never by the bench; the release is still Rab's. Built S220 E7 (`a039034`,

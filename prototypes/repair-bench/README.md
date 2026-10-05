@@ -17,7 +17,7 @@ and the markdown at the flagged zone side by side and makes the repair one gestu
   (`ts / zone_line / page / asset / mode / note / by`).
 - **Re-score is a PREVIEW**: it re-runs `fidelity_audit.degeneration()` on the current text and
   reports repairs-vs-zones — it writes **no** fidelity block and changes **no** verdict.
-  Whether a repair image earns audit credit is an **unsigned policy question**; Rab signs it
+  Whether a repair image earns audit credit is an **unsigned policy question** (a text-layer restoration is credited as text since 2026-10-05, docs/28 §4a); Rab signs it
   (docs/19 §10) before any such credit exists in the real pipeline.
 - **Inspect source evidence (OK-15 quarantine prototype)**: **◉ evidence** measures five
   independent PDF signals page by page — MuPDF warnings, logical page labels, a PyMuPDF/Xpdf

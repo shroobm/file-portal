@@ -136,8 +136,8 @@ zone** (the ▶ line is the wreck; your repairs show green) with the **AI bar** 
    byte-for-byte, twenty deep. Or **✎ edit** by hand. *Fixing the text is what clears the
    degeneration flag; the image documents the truth either way.*
 5. **◎ re-score preview** — re-runs the degeneration tripwire on the current text and
-   answers honestly. It writes nothing; whether repairs earn audit credit is Rab's
-   unsigned policy.
+   answers honestly. It writes nothing; a text-layer restoration earns audit credit by Rab's
+   signature of 2026-10-05 (docs/28 §4a), a crop stays his to bless.
 
 **Safety net**: `.md.bench-bak` before the first write of a session; append-only
 provenance; the AI undo stack; and since S65 the enforce-park can never overwrite a
