@@ -2295,8 +2295,9 @@ class Bench:
             det.get("worst_capped_at", _MISSING), legacy_cap=LEGACY_ZONE_CAP)
         return {
             "preview": True,
-            "note": ("PREVIEW ONLY — the shipping audit re-runs in the pipeline, and whether a "
-                     "repair earns audit credit THERE is still unsigned policy (docs/19 §10). "
+            "note": ("PREVIEW ONLY — the shipping audit re-runs in the pipeline. A text-layer "
+                     "restoration (pdf-textlayer) is TEXT there and here by Rab's signature of "
+                     "2026-10-05 (docs/28 §4a); a crop stays a human assertion (the bless rail). "
                      "The two answers below are deliberately not blended: the metric measures "
                      "text, the coverage counts judgments."),
             # --- 1. measurement: recomputed from the current body, meaning unchanged --------

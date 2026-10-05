@@ -2,8 +2,9 @@
 title: How an operator authenticates a hold
 section: Product
 last-verified: 2026-10-05
-verified-against: "10c32cf41bf4a72c5c4745cca42015b3ce64861c"
+verified-against: "33725f0"
 sources:
+  - docs/28-repair-ledger-proposal.md
   - prototypes/repair-bench/bench.py
   - prototypes/repair-bench/test_textlayer_restore.py
   - prototypes/repair-bench/test_collapse_embedded.py
@@ -58,8 +59,9 @@ and two wrong edges before a whole crop. The difference is rules 2 and 5.
 
 ## What the sequence does not do
 
-Credit the repair in the audit (unsigned policy, docs/19 §10 / docs/28 §4); splice a restored word
-back INTO the collapsed paragraph (the collapse keeps one loop instance as the marker; a splice
-gesture is the next build, offered); see past the audit's evidence cap (25 of 97 runs shown on E8's
-paper — `full-evidence review required`). The live queues for what is open stay in `OPEN-TASKS.md`
-and `SYMPTOM-INDEX.md`; this page points, it does not duplicate.
+Credit a CROP in the audit (an image stays a human assertion, the bless rail — docs/28 §4; a
+text-layer restoration IS credited as text since Rab's signature of 2026-10-05, docs/28 §4a);
+splice a restored word back INTO the collapsed paragraph (the collapse keeps one loop instance as
+the marker; a splice gesture is the next build, offered); see past the audit's evidence cap (25 of
+97 runs shown on E8's paper — `full-evidence review required`). The live queues for what is open
+stay in `OPEN-TASKS.md` and `SYMPTOM-INDEX.md`; this page points, it does not duplicate.

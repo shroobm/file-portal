@@ -106,7 +106,7 @@ measurement. Answer it from the ledger, and report it beside the metric, never i
 
 | outcome | meaning | who decides |
 |---|---|---|
-| `text-restored` | a ⌨ transcription put real text there — the run genuinely re-measures better | the machine, on re-run |
+| `text-restored` | a ⌨ transcription put real text there — the run genuinely re-measures better; **since 2026-10-05 also a restoration from the PDF's own text layer** (`mode: textlayer`, `source: pdf-textlayer`; §4a) | the machine, on re-run |
 | `image-restored` | a crop carries the content a reader needs; the text metric is unmoved | the operator asserts |
 | `collapsed` | noise removed; content was never recovered and is not claimed to be | the machine |
 | `dismissed-noise` | **the witness itself was garbage — nothing real was lost** | the operator judges |
@@ -136,6 +136,23 @@ signature is filed. The machine never credits an image as text; the human does, 
 This also fixes the number that misleads today: `doc_survival` can be a fabricated `1.0` when
 nothing was measurable (docs/26 F4), while coverage would correctly read *0 of N addressed*.
 Two honest numbers beat one flattering one.
+
+### 4a. Signed 2026-10-05 — a restoration from the PDF's own text layer is text
+
+Rab's signature (Desk 410f1891, 2026-10-05 03:16:13Z, "1, 2, 3, 4" on the S220 sitting's list of
+signables; item 3: *"a word put back from the PDF's own text layer counts as real text in the
+audit"*). The rule: a restoration whose source is the PDF's own text layer — the bench's
+`restore_textlayer` gesture, recorded in the ledger with `mode: textlayer`, `source:
+pdf-textlayer`, the page, the rectangle (normalised to the page), the word and line counts and
+the provenance comment `<!-- restored pN · pdf-textlayer · n words · repair-bench -->` in the
+body — is **`text-restored`**: TEXT for the re-audit (the words are in the body; the shipping
+audit measures them as it measures any text) and TEXT for the vault-eligibility recommendation.
+No model touched it and the machine can verify it: the words inside the rectangle on that page
+equal the words inserted (a multiset check, `test_textlayer_restore.py`). What stays as it was:
+a crop is `image-restored` and a human assertion (the bless rail); a transcription by a model is
+`text-restored` by the machine's re-measurement only; the verdict is still written by the
+shipping audit, never by the bench; the release is still Rab's. Built S220 E7 (`a039034`,
+`6e78dff`), the geometry drawn in the Scanner from the record's rectangle S220 E12.
 
 ## 5. Build order (each independently useful)
 
