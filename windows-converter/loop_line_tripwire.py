@@ -14,8 +14,17 @@ the recognizer), runs the detector, keeps the lines (confidence > 0.8) whose cen
 through the recognizer in marker's line-mode call, and reports which lines loop (`fixes.is_loop`). With `--control` it
 also reads the block whole (block mode) — the negative control, which must NOT loop. The exit code answers `--expect`:
   --expect present   exit 0 when the named line loops (the converter's defect reproduced — the tripwire TRIPS),
-  --expect absent    exit 0 when no line loops (a remedy — ticket converter/loop-retry-line-mode — is in effect).
+  --expect absent    exit 0 when no line loops AND the lines still carry text (`--control` required: the line-mode read's
+                     words must be at least 80 % of the block-whole control's — an empty recognizer is not "absent").
 Any other outcome exits 1 and says why. A probe that could not run exits 2 and says UNREAD; it never says "absent".
+
+WHAT IT TESTS, EXACTLY (S220 E9's verifier, 04:45Z): the RECOGNIZER's line-mode path — surya called the way marker's
+OcrBuilder calls it, with marker's polygons. It does not go through marker's pipeline or through `fixes.LoopRetryOcrBuilder`,
+so a remedy that lives in `fixes.py` (the ticket converter/loop-retry-line-mode) is NOT exercised by `--expect absent` here;
+that remedy is tested by marker itself on the page (the card phase's reading M: `marker_single` with the lever armed) or by a
+`--through-marker` mode this file does not have yet. A remedy that changes the slices or the recognizer call (a per-line cap,
+a padded strip) IS exercised here. The looping line is named by its ordinal in the detector's top-to-bottom order, not by
+its text; a detector change that re-orders the lines moves the ordinal.
 
 Devices: `--device cpu` (the default) hides the card before torch is imported — slow (the looping line alone takes
 ~30 min on this box) but needs nothing; `--device cuda` takes the card mutex `Local\\file-portal-card` exactly as the
@@ -174,8 +183,17 @@ def main(argv=None):
         ok = present and not others and (control is None or not control["is_loop"])
         why = ("TRIPPED: line %d loops as the converter's output did" % a.line) if present else ("NOT TRIPPED: line %d did not loop" % a.line)
     else:
-        ok = not looping and (control is None or not control["is_loop"])
-        why = "ABSENT: no line loops" if not looping else "PRESENT: lines %s loop" % looping
+        if control is None:
+            print("UNREAD: --expect absent needs --control (the content floor: an empty recognizer is not 'absent')")
+            return 2
+        line_words = sum(m["words"] for _, m in per)
+        floor = 0.8 * control["words"]
+        has_text = line_words >= floor
+        ok = not looping and not control["is_loop"] and has_text
+        why = ("ABSENT: no line loops · the lines carry %d words (floor %.0f of the control's %d)" % (line_words, floor, control["words"])) if not looping \
+            else "PRESENT: lines %s loop" % looping
+        if not has_text:
+            why += " · the lines carry %d words, under the floor %.0f (the control's %d) — an empty read is not a remedy" % (line_words, floor, control["words"])
     if others:
         why += " · other looping lines %s (not expected)" % others
     if control is not None and control["is_loop"]:
