@@ -88,6 +88,8 @@ OUTCOMES_MANUAL = ("open", "dismissed-noise")
 LEDGER_CONTEXT = 3         # S76/docs/28: lines of margin kept either side of a change
 LEDGER_VERBATIM_MAX = 20000  # chars of changed text stored verbatim before truncating
 TTR_LOOP_MAX = 0.10        # type-token ratio below this = a loop, not language
+COLLAPSE_COVER_MIN = 0.50  # S220 E8: a cycle covering at least this share of a paragraph's tokens is a loop whatever the
+                           # ratio says (the mtrl-sci paragraph: 198 repeats inside 900 characters of prose, ratio 0.27)
 MIN_CYCLE_REPEATS = 8      # fewer repeats is emphasis or a refrain, not a stuck decoder
 MAX_CYCLE_PERIOD = 12      # tokens; the longest cycle we are willing to call a loop
 LEGACY_RUN_CAP = 25        # pre-NUM-3 manifests omitted totals but used these source caps
@@ -210,6 +212,30 @@ def find_cycle(text: str):
                 best = (p, i, j + p - 1, repeats, covered)
             i = j + 1
     return best
+
+
+def loop_gate(text: str) -> dict:
+    """S220 E8: may the collapse reduce this paragraph? The type-token ratio alone refused a
+    198-repeat loop embedded in 900 characters of real prose (ratio 0.27: the head and the tail
+    are language, the middle is not), so the cycle is found FIRST and its coverage (the share
+    of the paragraph's tokens inside the repeating run) decides: a cycle covering
+    COLLAPSE_COVER_MIN or more is a loop whatever the ratio; otherwise the ratio gate stands.
+    Returns ttr, found (find_cycle's tuple or None), cover, ok, reason."""
+    ttr = type_token_ratio(text)
+    found = find_cycle(text)
+    n_tok = len(re.findall(r"\S+", text))
+    cover = (found[4] / n_tok) if (found and n_tok) else 0.0
+    if found and cover >= COLLAPSE_COVER_MIN:
+        return {"ttr": ttr, "found": found, "cover": cover, "ok": True, "reason": ""}
+    if ttr >= TTR_LOOP_MAX:
+        return {"ttr": ttr, "found": found, "cover": cover, "ok": False,
+                "reason": (f"type-token ratio {ttr:.4f} >= {TTR_LOOP_MAX} and no cycle covers "
+                           f"{COLLAPSE_COVER_MIN:.0%} of the paragraph (the best covers {cover:.0%}) — "
+                           f"this paragraph still reads as language, not a loop")}
+    if not found:
+        return {"ttr": ttr, "found": None, "cover": 0.0, "ok": False,
+                "reason": "no consecutive repeating cycle found"}
+    return {"ttr": ttr, "found": found, "cover": cover, "ok": True, "reason": ""}
 
 
 def split_frontmatter(text: str) -> tuple[str, str]:
@@ -2058,13 +2084,10 @@ class Bench:
             raise ValueError(f"no zone recorded at line {zone_line}")
         at, anchor = self._resolve_zone_line(z)
         first, last, para = self._zone_paragraph(at)
-        ttr = type_token_ratio(para)
-        if ttr >= TTR_LOOP_MAX:
-            raise ValueError(f"refused: type-token ratio {ttr:.4f} >= {TTR_LOOP_MAX} — this "
-                             f"paragraph still reads as language, not a loop")
-        found = find_cycle(para)
-        if not found:
-            raise ValueError("refused: no consecutive repeating cycle found")
+        gate = loop_gate(para)            # S220 E8: the cycle's coverage decides before the ratio does
+        if not gate["ok"]:
+            raise ValueError("refused: " + gate["reason"])
+        ttr, cover, found = gate["ttr"], gate["cover"], gate["found"]
         p, i0, i1, repeats, _covered = found
         spans = [(m.start(), m.end()) for m in re.finditer(r"\S+", para)]
         lo, hi = spans[i0][0], spans[min(i1, len(spans) - 1)][1]
@@ -2079,7 +2102,7 @@ class Bench:
         head, tail = para[:lo], para[hi:]
         if preview:
             return {"zone_line": zone_line, "at": at, "anchor": anchor,
-                    "para_lines": [first, last], "ttr": round(ttr, 4),
+                    "para_lines": [first, last], "ttr": round(ttr, 4), "cover": round(cover, 3),
                     "period_tokens": p, "repeats": repeats, "chars_removed": removed,
                     "cycle": one[:80], "head_kept": head[-70:], "tail_kept": tail[:70],
                     "chars_before": len(para), "chars_after": len(new_para),
@@ -2099,7 +2122,8 @@ class Bench:
                "ts": _now_iso(), "zone_line": zone_line, "page": None, "asset": None,
                "mode": "collapse", "by": "repair-bench", "delta": delta,
                "chars_removed": removed, "period_tokens": p, "repeats": repeats,
-               "cycle": one[:80], "anchor": anchor}
+               "cycle": one[:80], "anchor": anchor,
+               "ttr": round(ttr, 4), "cover": round(cover, 3)}
         self.manifest.setdefault("repairs", []).append(rec)
         self.manifest_path.write_text(json.dumps(self.manifest, indent=2) + "\n",
                                       encoding="utf-8")
