@@ -171,7 +171,7 @@ popover render those fields, while the shared widget helper applies the same cap
 The regression matrix covers future capped, future complete, legacy-at-cap, legacy-under-cap,
 malformed, display-truncated, producer-cap overflow, re-score projection, and live HTTP
 projection. It reproduces 25 shown of 634 runs plus 10 shown of 37 zones, with all 35 visible
-sites addressed, and still requires `eligible=false`; the complete Bench suite was 81/81 (2026-08-31; 206 tests now, see the 2026-09-30 note) and real
+sites addressed, and still requires `eligible=false`; the complete Bench suite was 81/81 (2026-08-31; 220 tests on 2026-10-05, 206 on 2026-09-30) and real
 sandbox acceptance was 85/85 on 2026-08-31 (`prototypes/repair-bench/test_bench_page.py:438-640`;
 `prototypes/repair-bench/acceptance.py`).
 A 2026-08-31 read-only census found 11 of 33 manifests affected (7 anchor, 4 held); none were
@@ -182,7 +182,7 @@ modified.
 Fixed but instructive (details live in the registers, not here): arrow keys no longer flip the
 PDF page while typing, native undo survives Enter, and zone clicks move only the highlight when
 text is unchanged. The source/wire suite now guards the historical line-truncation, navigation,
-token, viewport, search, text-layer, table, trim, OK-15, and M6 failures, and since 2026-09-30 the tailnet locks (206 tests; 81/81 on 2026-08-31); real sandbox
+token, viewport, search, text-layer, table, trim, OK-15, and M6 failures, and since 2026-09-30 the tailnet locks (220 tests on 2026-10-05; 206 on 2026-09-30; 81/81 on 2026-08-31); real sandbox
 acceptance was 85/85 on 2026-08-31 and was not re-run on 2026-09-30 (UNREAD). The remaining test limit is honest: no tracked harness loads the whole DOM
 in a browser, so pixel/layout behavior still needs a browser smoke.
 

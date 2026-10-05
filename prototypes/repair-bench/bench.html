@@ -2150,7 +2150,7 @@ $("collapsebtn").onclick = async () => {
       `kept before: …${r.head_kept}\nkept after : ${r.tail_kept}…`;
     $("cafter").textContent = r.preview;
     $("cgates").textContent =
-      `type-token ratio ${r.ttr} (loop below ${0.10}) · ${r.chars_before} → ${r.chars_after} chars` +
+      `type-token ratio ${r.ttr} (loop below ${0.10}; or a cycle covering ${r.cover ?? "?"} of the paragraph, ≥ 0.5 passes — S220 E8) · ${r.chars_before} → ${r.chars_after} chars` +
       ` · anchored by ${r.anchor} at body line ${r.at}`;
     $("cpanel").hidden = false;
     status("⌫ preview only — nothing written yet");

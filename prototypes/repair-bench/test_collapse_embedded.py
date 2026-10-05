@@ -67,6 +67,19 @@ class LoopGateMath(unittest.TestCase):
         g = B.loop_gate("a b a b a b")
         self.assertFalse(g["ok"])
 
+    def test_floor_is_pinned_on_both_sides(self):
+        # E8-fix (the verifier's sweep: any floor from 0.10 to 0.53 passed the other cases): a loop covering just UNDER
+        # the floor refuses on the ratio, just OVER it passes - the floor is the number the behaviour turns on.
+        prose = PROSE.split()[:60]
+        under = " ".join(prose) + " " + ("Equiporal " * 58)   # 58 of 118 tokens = 0.49
+        over = " ".join(prose) + " " + ("Equiporal " * 62)    # 62 of 122 tokens = 0.51
+        gu, go = B.loop_gate(under), B.loop_gate(over)
+        self.assertLess(gu["cover"], B.COLLAPSE_COVER_MIN)
+        self.assertFalse(gu["ok"])
+        self.assertGreaterEqual(go["cover"], B.COLLAPSE_COVER_MIN)
+        self.assertTrue(go["ok"], go["reason"])
+        self.assertEqual(B.COLLAPSE_COVER_MIN, 0.50, "the floor moved; move this test's two cases with it")
+
 
 class CollapseOnTheBundle(unittest.TestCase):
     @classmethod
